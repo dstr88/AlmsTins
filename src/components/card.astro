@@ -68,9 +68,17 @@ const {
     align-items: center;
     gap: 0.35rem;
     font-weight: 700;
-    color: inherit;
-    text-decoration: none;
+    color: #f2e9dc;
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
-  .card-cta:hover { text-decoration: underline; }
+  .card-cta:hover { color: #fff; }
+
+  .card :global(a) {
+    color: #f0a34a;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .card :global(a:hover) { color: #ffd08a; }
 </style>
   
