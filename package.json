@@ -9,6 +9,11 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.12.1"
+    "astro": "^5.14.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@astrojs/vercel": "^8.2.8",
+    "@types/node": "^24.5.2"
   }
 }

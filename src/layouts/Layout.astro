@@ -1,0 +1,48 @@
+---
+import Hero from '@/components/Hero.astro';
+import '@/assets/global.css'; // ← global stylesheet, bundled by Astro/Vite
+
+export interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  image?: string;
+  /** allow pages to hide the hero when needed */
+  showHero?: boolean;
+}
+
+const {
+  title = 'WebDev services, Cookeville TN | Titanium Hut',
+  description = 'Web applications and development in Cookeville, TN for Businesses, Defi and Education.',
+  canonical = 'https://titaniumhut.com',
+  image = 'https://titaniumhut.com/og/Donnie.jpeg',
+  showHero = true,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-theme="olivewine">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {canonical ? <link rel="canonical" href={canonical} /> : null}
+    {image ? <meta property="og:image" content={image} /> : null}
+
+    <!-- tiny inline favicon to silence /favicon.ico 404s -->
+    <link rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🚀%3C/text%3E%3C/svg%3E">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Libre+Baskerville&display=swap" rel="stylesheet" />
+
+  </head>
+
+  <body>
+    {showHero ? <Hero /> : null}
+    <slot />
+  </body>
+</html>

@@ -1,0 +1,74 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import MeNLori from "@/assets/selfies/MeNLori.jpeg";
+import { Image } from "astro:assets";
+---
+
+<Layout>
+  <main class="container">
+    <h1>My Story</h1>
+
+    <figure class="photo-figure">
+      <Image
+        src={MeNLori}
+        alt="Me and Lori smiling together"
+        class="photo"
+        widths={[320, 480, 640]}
+        sizes="(min-width: 768px) 50vw, 100vw"
+        loading="eager"
+        decoding="async"
+      />
+      <figcaption class="caption">Donnie and Lori Starkey</figcaption>
+    </figure>
+
+    <section>
+      <p>I’m an ESL (English as a Second Language) teacher at a local high school, and my work has always centered on helping people understand clearly—especially when language, systems, or ideas feel overwhelming.</p>
+
+      <p>I’ve also spent most of my life around computers and technology, drawn to the way good tools can simplify complexity and support meaningful work rather than distract from it.</p>
+
+      <p>That intersection became personal when my sister decided to leave her role at a counseling nonprofit and open her own private practice. When she asked, “So… what do I do next?” I helped in the ways I could—building her first website, working through a business plan, and supporting her as she opened her office in Maryville, Tennessee.</p>
+
+      <p>Walking alongside her through that process gave me a deep respect for Christian therapists, and the power found in web. They are often undervalued, underpaid, and misunderstood, even though they work from a foundation that acknowledges human brokenness, responsibility, and the possibility of real healing. That foundation is strong—and it deserves tools that reflect its depth.</p>
+
+      <p>Since then, my work has expanded beyond any single discipline. I’ve continued to deepen my technical skills—learning React for modern web applications, working in C++ to understand systems at a lower level, and exploring Solidity to better grasp how trust and logic operate in decentralized environments. I’ve also experimented with iPhone app development, drawn by the challenge of building tools that meet people where they already are.</p>
+
+      <p>Across all of this, the thread has remained the same: curiosity paired with passion to make the world a better place. I’m interested in how ideas move, how systems shape behavior, and how well-designed tools can reduce friction instead of adding to it. This site is a place to bring that work together—to think carefully, build responsibly, and apply new skills in ways that serve people rather than overwhelm them.</p>
+
+      <p>If that kind of work resonates with you, I invite you to follow along as these tools take shape, pass tests, are refined, and put to use in the ongoing effort to contribute something meaningful to the world we share.</p>
+    </section>
+  </main>
+
+  <style>
+    .container {
+      max-width: 70ch;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      color: antiquewhite;
+    }
+
+    .photo-figure {
+      margin: 1.5rem 0;
+    }
+
+    /* Half-size, centered photo */
+    .photo {
+      display: block;
+      width: auto;
+      height: 350px;
+      margin: 0 auto;
+      border-radius: 1rem;
+    }
+
+    .caption {
+      font-size: 0.9rem;
+      color: var(--text-muted, #6b7380);
+      margin-top: 0.5rem;
+      text-align: center;
+    }
+    .section {
+      color: antiquewhite;
+      text-height: 1.5;
+
+    }
+  </style>
+</Layout>

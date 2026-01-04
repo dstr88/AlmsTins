@@ -1,0 +1,280 @@
+---
+import Portrait from 'src/assets/selfies/coverpic1.jpeg';
+---
+
+<section class="hero">
+  <div class="hero-wrapper">
+    <!-- background panel stays absolutely positioned but confined to this component -->
+    <div class="hero-panel" aria-hidden="true"></div>
+
+    <!-- grid places portrait and info side-by-side; no absolute positioning needed -->
+    <img src={Portrait.src} alt="Artist Portrait" class="hero-img" />
+
+    <div class="artist-info">
+      <div class="brushstroke-box">
+        <p class="artist-name">Donnie Starkey</p>
+        <a href="mailto:Donnie@titaniumhut.com" class="artist-email">
+          Donnie@titaniumhut.com
+        </a>
+      </div>
+
+      <!-- Jagged/angled navbar -->
+      <nav class="jagged-navbar" id="jagged-navbar">
+  <button
+    class="hamburger"
+    id="menu-toggle"
+    aria-label="Toggle menu"
+    aria-expanded="false"
+    aria-controls="nav-links"
+  >
+    ☰
+  </button>
+
+  <div class="jagged-links" id="nav-links">
+    <a href="/" class="jagged-link">Home</a>
+    <a href="/CustomSite" class="jagged-link">What we offer</a>
+    <a href="/get-started" class="jagged-link">Get started</a>
+  </div>
+</nav>
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  const toggle = document.getElementById('menu-toggle');
+  const links = document.querySelector('#jagged-navbar .jagged-links');
+
+  function setExpanded(isOpen) {
+    toggle?.setAttribute('aria-expanded', String(isOpen));
+    links?.classList.toggle('expanded', isOpen);
+  }
+
+  toggle?.addEventListener('click', () => {
+    const next = toggle.getAttribute('aria-expanded') !== 'true';
+    setExpanded(next);
+  });
+
+  // Optional: collapse on route changes or when resizing to mobile
+  const mq = window.matchMedia('(min-width: 769px)');
+  function syncToViewport() {
+    if (mq.matches) setExpanded(false); // desktop ignores this via CSS anyway
+  }
+  mq.addEventListener?.('change', syncToViewport);
+  syncToViewport();
+</script>
+
+<style>
+/* ===== HERO (top band) ===== */
+.hero { position: relative; }
+
+.hero--top {
+  min-height: 38.2vh;             /* golden-ratio band */
+  background: #6B2B2B;
+  color: var(--pale-linen, #F7F2EB);
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Layout: logo | card on row 1, nav on row 2 */
+.hero-inner {
+  display: grid;
+  grid-template-columns: auto 1fr;   /* logo | card */
+  grid-template-rows: auto auto;     /* row 1: logo+card, row 2: nav */
+  row-gap: clamp(0.75rem, 2vw, 1.25rem);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .hero-inner { grid-template-columns: 1fr; text-align: center; }
+}
+
+/* Logo (left) */
+.hero-logo {
+  width: 180px;
+  height: auto;
+  object-fit: contain;
+  justify-self: start;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+@media (max-width: 768px) {
+  .hero-logo { justify-self: center; }
+}
+
+/* ===== Card ===== */
+.hero-card {
+  margin-inline: auto;                   /* center horizontally */
+  width: min(680px, 92vw);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 1rem;
+  background: transparent; /* readable over dark hero */
+  border-radius: 1.25rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.hero-card__img {
+  width: 160px; height: 160px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 6px solid var(--pale-linen, #F7F2EB);
+  box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  justify-self: center;
+  margin-top: .25rem;
+  background: var(--pale-linen, #F7F2EB);
+}
+
+.hero-card__body {
+  display: grid;
+  align-content: end; /* push contact box to bottom */
+  min-height: 120px;
+}
+
+/* ===== Brushstroke box ===== */
+.brushstroke-box {
+  background: var(--wine-red, #852E2F);
+  color: var(--pale-linen, #F7F2EB);
+  border-radius: 50px 15px 60px 20px;
+  text-align: center;
+  width: min(420px, 100%);
+  margin: 0 auto;
+  padding: 1rem 1.25rem;
+  box-shadow: -6px 6px 20px rgba(0,0,0,.2);
+  background-image: radial-gradient(
+    ellipse at center,
+    var(--wine-red, #852E2F) 60%,
+    var(--dusty-mauve, #A8898E) 100%
+  );
+}
+.artist-name {
+  font-family: var(--font-accent, Georgia, serif);
+  font-size: clamp(1.25rem, 2.2vw, 1.6rem);
+  margin: 0 0 .25rem;
+}
+.artist-email {
+  font-size: .98rem;
+  color: var(--pale-linen, #F7F2EB);
+  text-decoration: none;
+}
+.artist-email:hover { text-decoration: underline; }
+
+/* ===== Nav sits under both columns ===== */
+.jagged-navbar {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: 100%;
+  padding-top: clamp(.5rem, 1.5vw, 1rem);
+}
+
+/* Stretched row that wraps as needed */
+.jagged-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+  width: min(1100px, 96%);
+  margin-inline: auto;
+  background: transparent; /* hero is dark, so cuts are visible */
+}
+
+/* ===== Jagged button core (with visible “teeth”) ===== */
+.jagged-link {
+  --bg: #A8898E;          /* base ribbon color */
+  --fg: #fff;
+  --hover-bg: #2E2E2E;
+  --hover-fg: #F7F2EB;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  height: clamp(44px, 5.2vh, 56px);
+  padding-inline: clamp(1.15rem, 2.4vw, 2.4rem);
+  min-width: clamp(240px, 22vw, 460px);
+
+  color: var(--fg);
+  font-weight: 700;
+  font-size: clamp(.95rem, 1.05vw, 1.1rem);
+  letter-spacing: .02em;
+  text-decoration: none;
+  white-space: nowrap;
+
+  background: var(--bg);
+  box-shadow: 2px 3px 10px rgba(0,0,0,.22);
+  border: 0;
+  cursor: pointer;
+
+  /* Jagged cut */
+  -webkit-clip-path: polygon(0% 0%, 86% 0%, 100% 16%, 100% 100%, 12% 100%, 0% 84%);
+          clip-path: polygon(0% 0%, 86% 0%, 100% 16%, 100% 100%, 12% 100%, 0% 84%);
+  transform: translateZ(0) skewY(-5deg);
+  will-change: transform, clip-path;
+  transition: transform .25s ease, background-color .25s ease, color .25s ease, box-shadow .25s ease;
+
+  border-radius: 0 !important;
+  overflow: visible; /* allow the teeth to show */
+}
+
+/* “Teeth” to emphasize jaggedness */
+.jagged-link::before,
+.jagged-link::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+/* Nose wedge on top-right */
+.jagged-link::before {
+  top: 0; right: -10px;
+  width: 24px; height: 18px;
+  transform: skewY(10deg);
+  -webkit-clip-path: polygon(0 0, 100% 0, 70% 100%, 0 100%);
+          clip-path: polygon(0 0, 100% 0, 70% 100%, 0 100%);
+}
+
+/* Heel bite on bottom-left */
+.jagged-link::after {
+  bottom: -10px; left: -8px;
+  width: 28px; height: 20px;
+  transform: skewY(-10deg);
+  -webkit-clip-path: polygon(30% 0, 100% 0, 100% 100%, 0 100%);
+          clip-path: polygon(30% 0, 100% 0, 100% 100%, 0 100%);
+}
+
+/* Hover: stronger contrast + lift */
+.jagged-link:hover,
+.jagged-link:focus-visible {
+  background: var(--hover-bg);
+  color: var(--hover-fg);
+  box-shadow: 3px 6px 14px rgba(0,0,0,.28);
+  transform: translateZ(0) skewY(5deg) translateY(-1px);
+  outline: none;
+}
+.jagged-link:hover::before,
+.jagged-link:hover::after,
+.jagged-link:focus-visible::before,
+.jagged-link:focus-visible::after {
+  background: var(--hover-bg);
+}
+
+/* Responsive: keep row but allow wrap & narrower min-width */
+@media (max-width: 768px) {
+  .hero-logo { justify-self: center; }
+  .jagged-links { width: 100%; }
+  .jagged-link { min-width: min(92vw, 360px); }
+}
+
+/* Small tweak for the card photo */
+@media (max-width: 480px) {
+  .hero-card__img { width: 140px; height: 140px; }
+}
+</style>
