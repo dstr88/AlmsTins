@@ -2,9 +2,10 @@
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] },
-    "types": ["astro/client", "node"]
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
-  "include": [".astro/types.d.ts", "src", "astro.config.mjs", "**/*"],
+  "include": [".astro/types.d.ts", "**/*"],
   "exclude": ["dist"]
 }

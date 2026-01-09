@@ -1,0 +1,22 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import WalletOverview from '../../components/dashboard/WalletOverview';
+import { db } from '../../lib/db';
+
+const result = await db.execute({
+	sql: 'SELECT id, address, label FROM wallets ORDER BY created_at ASC',
+	args: [],
+});
+
+const wallets = result.rows.map((row: Record<string, any>) => ({
+	id: String(row.id),
+	address: String(row.address),
+	label: row.label ? String(row.label) : null,
+}));
+---
+
+<Layout>
+	<section style="padding: 1.5rem 0;">
+		<WalletOverview client:load wallets={wallets} />
+	</section>
+</Layout>

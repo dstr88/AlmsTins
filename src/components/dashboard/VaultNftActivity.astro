@@ -1,0 +1,196 @@
+---
+const { walletId } = Astro.props as { walletId: string };
+---
+
+<div class="vault-activity">
+	<div class="vault-activity__section">
+		<h4>NFTs</h4>
+		<div class="vault-activity__nfts" data-nft-list>
+			<p class="vault-activity__empty" data-nft-empty>Loading NFTs…</p>
+		</div>
+	</div>
+
+	<div class="vault-activity__section">
+		<h4>Pages interacted with</h4>
+		<div class="vault-activity__links" data-contract-list>
+			<p class="vault-activity__empty" data-contract-empty>Loading contract list…</p>
+		</div>
+	</div>
+</div>
+
+<script define:vars={{ walletId }}>
+	const walletIdValue = walletId;
+	const nftList = document.querySelector('[data-nft-list]');
+	const nftEmpty = document.querySelector('[data-nft-empty]');
+	const contractList = document.querySelector('[data-contract-list]');
+	const contractEmpty = document.querySelector('[data-contract-empty]');
+
+	const renderNfts = (items) => {
+		if (!nftList) return;
+		nftList.innerHTML = '';
+		if (!items.length) {
+			if (nftEmpty) {
+				nftEmpty.textContent = 'No NFTs detected yet.';
+				nftList.appendChild(nftEmpty);
+			}
+			return;
+		}
+		items.forEach((item) => {
+			const link = document.createElement('a');
+			link.className = 'vault-nft';
+			link.href = item.url;
+			link.target = '_blank';
+			link.rel = 'noreferrer';
+
+			const thumb = document.createElement('div');
+			thumb.className = 'vault-nft__thumb';
+			thumb.textContent = (item.symbol || item.name || 'NFT').slice(0, 3).toUpperCase();
+			link.appendChild(thumb);
+
+			const meta = document.createElement('div');
+			meta.className = 'vault-nft__meta';
+			const title = document.createElement('div');
+			title.className = 'vault-nft__title';
+			title.textContent = item.name || item.symbol || 'Unknown NFT';
+			const token = document.createElement('div');
+			token.className = 'vault-nft__token';
+			token.textContent = `#${item.tokenId}`;
+			meta.appendChild(title);
+			meta.appendChild(token);
+			link.appendChild(meta);
+
+			nftList.appendChild(link);
+		});
+	};
+
+	const renderContracts = (items) => {
+		if (!contractList) return;
+		contractList.innerHTML = '';
+		if (!items.length) {
+			if (contractEmpty) {
+				contractEmpty.textContent = 'No contracts found.';
+				contractList.appendChild(contractEmpty);
+			}
+			return;
+		}
+		items.forEach((item) => {
+			const link = document.createElement('a');
+			link.className = 'vault-contract';
+			link.href = item.url;
+			link.target = '_blank';
+			link.rel = 'noreferrer';
+			link.textContent = item.name || item.address;
+			contractList.appendChild(link);
+		});
+	};
+
+	Promise.all([
+		fetch(`/api/wallets/${encodeURIComponent(walletIdValue)}/nfts`).then((res) => res.json()).catch(() => null),
+		fetch(`/api/wallets/${encodeURIComponent(walletIdValue)}/interactions`).then((res) => res.json()).catch(() => null),
+	]).then(([nfts, contracts]) => {
+		renderNfts(nfts?.items || []);
+		renderContracts(contracts?.items || []);
+	});
+</script>
+
+<style>
+	.vault-activity {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+	}
+
+	.vault-activity__section h4 {
+		margin: 0 0 0.5rem;
+		font-size: var(--font-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		opacity: 0.7;
+	}
+
+	.vault-activity__empty {
+		margin: 0;
+		font-size: var(--font-sm);
+		opacity: 0.7;
+	}
+
+	.vault-activity__nfts {
+		display: grid;
+		gap: 0.6rem;
+	}
+
+	:global(.vault-nft) {
+		display: grid;
+		grid-template-columns: 96px minmax(0, 1fr);
+		gap: 0.75rem;
+		align-items: center;
+		padding: 0.4rem;
+		border-radius: 0.8rem;
+		border: 1px solid rgba(255, 255, 255, 0.14);
+		background: rgba(255, 255, 255, 0.04);
+		color: antiquewhite;
+		text-decoration: none;
+	}
+
+	:global(.vault-nft__thumb) {
+		width: 96px;
+		height: 96px;
+		border-radius: 0.7rem;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: linear-gradient(135deg, rgba(248, 113, 113, 0.25), rgba(14, 165, 233, 0.2));
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+	}
+
+	:global(.vault-nft__meta) {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		min-width: 0;
+	}
+
+	:global(.vault-nft__title) {
+		font-weight: 600;
+		font-size: var(--font-sm);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	:global(.vault-nft__token) {
+		font-size: 0.75rem;
+		opacity: 0.7;
+	}
+
+	.vault-activity__links {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	:global(.vault-contract) {
+		color: antiquewhite;
+		text-decoration: none;
+		font-size: 0.85rem;
+		letter-spacing: 0.03em;
+		padding: 0.4rem 0.6rem;
+		margin-left: clamp(1rem, 2vw, 2rem);
+		border-radius: 0.5rem;
+		border: 1px solid rgba(250, 235, 215, 0.35);
+		background: rgba(250, 235, 215, 0.08);
+		transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+	}
+
+	:global(.vault-contract:visited) {
+		color: antiquewhite;
+	}
+
+	:global(.vault-contract:hover) {
+		background: rgba(250, 235, 215, 0.18);
+		border-color: rgba(250, 235, 215, 0.6);
+		transform: translateY(-1px);
+	}
+</style>

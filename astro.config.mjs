@@ -1,13 +1,12 @@
-// astro.config.mjs
+// @ts-check
 import { defineConfig } from 'astro/config';
-import vercel from '@astrojs/vercel';   // ✅ modern import (not .../serverless)
-
-const remoteUrl = process.env.ASTRO_DB_REMOTE_URL;
-const remoteToken = process.env.ASTRO_DB_APP_TOKEN;
+import react from '@astrojs/react';
+import node from '@astrojs/node';
 
 export default defineConfig({
-  output: 'server',          // SSR output
-  adapter: vercel(),         // Vercel adapter
-  integrations: [
-  ],
+	integrations: [react()],
+	output: 'server',
+	adapter: node({
+		mode: 'standalone',
+	}),
 });
