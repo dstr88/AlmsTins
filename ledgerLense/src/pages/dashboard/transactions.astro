@@ -1,0 +1,459 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getAllActiveWallets } from '../../lib/wallets';
+
+const wallets = await getAllActiveWallets();
+const defaultWalletId = wallets[0]?.id ?? '';
+const walletPayload = JSON.stringify(wallets);
+---
+
+<Layout>
+	<section class="transactions-page" data-default-wallet={defaultWalletId}>
+		<header class="page-header">
+			<div>
+				<p class="eyebrow">Ledger view</p>
+				<h1>Transactions & annotations</h1>
+				<p class="lede">Review on-chain activity, classify each movement, and attach notes for taxes.</p>
+			</div>
+			<div class="actions">
+				<button type="button" id="refresh-selected">Sync selected wallet</button>
+				<button type="button" id="refresh-all">Refresh all wallets</button>
+			</div>
+		</header>
+
+		<form class="filters" id="filter-form">
+			<label>
+				<span>Wallet</span>
+				<select name="walletId" id="wallet-select" required>
+					{wallets.map((wallet) => (
+						<option value={wallet.id} selected={wallet.id === defaultWalletId}>
+							{wallet.label ?? wallet.address}
+						</option>
+					))}
+				</select>
+			</label>
+			<label>
+				<span>Chain</span>
+				<select name="chain" id="chain-select">
+					<option value="">All</option>
+					<option value="ethereum">Ethereum</option>
+					<option value="polygon">Polygon</option>
+					<option value="avalanche">Avalanche</option>
+				</select>
+			</label>
+			<label>
+				<span>From</span>
+				<input type="date" name="from" id="from-date" />
+			</label>
+			<label>
+				<span>To</span>
+				<input type="date" name="to" id="to-date" />
+			</label>
+			<button type="submit">Load transactions</button>
+		</form>
+
+		<p class="status" data-tx-status>Choose a wallet and press “Load transactions”.</p>
+
+		<div class="table-shell">
+			<table>
+				<thead>
+					<tr>
+						<th>Date</th>
+						<th>Chain</th>
+						<th>From</th>
+						<th>To</th>
+						<th>Token</th>
+						<th>Amount</th>
+						<th>Category</th>
+						<th>Note</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody data-transaction-rows>
+					<tr>
+						<td colspan="9" class="empty">No transactions loaded yet.</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</section>
+
+	<script type="application/json" id="wallet-data" set:html={walletPayload}></script>
+
+	<script type="module">
+		const walletDataEl = document.getElementById('wallet-data');
+		const walletSelect = document.getElementById('wallet-select');
+		const chainSelect = document.getElementById('chain-select');
+		const fromDate = document.getElementById('from-date');
+		const toDate = document.getElementById('to-date');
+		const filterForm = document.getElementById('filter-form');
+		const statusEl = document.querySelector('[data-tx-status]');
+		const tableBody = document.querySelector('[data-transaction-rows]');
+		const refreshSelectedBtn = document.getElementById('refresh-selected');
+		const refreshAllBtn = document.getElementById('refresh-all');
+		const CATEGORY_OPTIONS = [
+			'income',
+			'expense',
+			'transfer',
+			'internal_transfer',
+			'investment',
+			'nft',
+			'reward',
+			'lost',
+			'other',
+		];
+		let wallets = [];
+
+		if (walletDataEl?.textContent) {
+			try {
+				wallets = JSON.parse(walletDataEl.textContent);
+			} catch (error) {
+				console.error('Failed to parse wallet payload', error);
+			}
+		}
+
+		filterForm?.addEventListener('submit', async (event) => {
+			event.preventDefault();
+			await loadTransactions();
+		});
+
+		refreshSelectedBtn?.addEventListener('click', async () => {
+			const walletId = walletSelect?.value;
+			if (!walletId) return;
+			setStatus('Syncing wallet history…');
+			try {
+				const response = await fetch(`/api/wallets/${walletId}/sync`, {
+					method: 'POST',
+				});
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload.message || 'Failed to sync wallet');
+				}
+				setStatus(`Synced ${payload.transactionsUpserted} transactions. Loading latest data…`, 'success');
+				await loadTransactions();
+			} catch (error) {
+				console.error(error);
+				setStatus(error instanceof Error ? error.message : 'Sync failed', 'error');
+			}
+		});
+
+		refreshAllBtn?.addEventListener('click', async () => {
+			setStatus('Syncing all wallets… this may take a moment.');
+			try {
+				const response = await fetch('/api/wallets/sync-all', { method: 'POST' });
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload.message || 'Failed to sync wallets');
+				}
+				setStatus(
+					`Synced ${payload.wallets} wallets (${payload.totalTransactionsUpserted} transactions). Reloading…`,
+					'success',
+				);
+				await loadTransactions();
+			} catch (error) {
+				console.error(error);
+				setStatus(error instanceof Error ? error.message : 'Sync failed', 'error');
+			}
+		});
+
+		async function loadTransactions() {
+			if (!walletSelect?.value) {
+				setStatus('Select a wallet first.', 'error');
+				return;
+			}
+			const params = new URLSearchParams({
+				walletId: walletSelect.value,
+			});
+			if (chainSelect?.value) {
+				params.set('chain', chainSelect.value);
+			}
+			if (fromDate?.value) {
+				params.set('from', fromDate.value);
+			}
+			if (toDate?.value) {
+				params.set('to', toDate.value);
+			}
+			setStatus('Loading transactions…');
+			try {
+				const response = await fetch(`/api/transactions/list?${params.toString()}`);
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload.message || 'Failed to load transactions');
+				}
+				renderRows(payload.transactions || []);
+				setStatus(`Showing ${payload.count || 0} transactions.`, 'success');
+			} catch (error) {
+				console.error(error);
+				setStatus(error instanceof Error ? error.message : 'Unable to load transactions.', 'error');
+			}
+		}
+
+		function renderRows(transactions) {
+			if (!tableBody) return;
+			tableBody.innerHTML = '';
+			if (!transactions.length) {
+				const tr = document.createElement('tr');
+				tr.innerHTML = `<td colspan="9" class="empty">No transactions match your filters.</td>`;
+				tableBody.appendChild(tr);
+				return;
+			}
+			transactions.forEach((tx) => {
+				const tr = document.createElement('tr');
+				const category = tx.category || 'other';
+				tr.innerHTML = `
+          <td>${formatDate(tx.timestamp)}</td>
+          <td>${tx.chain}</td>
+          <td><code>${shorten(tx.from_address || tx.from)}</code></td>
+          <td><code>${shorten(tx.to_address || tx.to)}</code></td>
+          <td>${tx.token_symbol || 'native'}</td>
+          <td>${formatAmount(tx.value, tx.token_decimals)}</td>
+          <td>
+            <select data-annotation-category>
+              ${CATEGORY_OPTIONS.map(
+								(option) => `<option value="${option}" ${option === category ? 'selected' : ''}>${option}</option>`,
+							).join('')}
+            </select>
+          </td>
+          <td>
+            <input type="text" data-annotation-note value="${tx.note ?? ''}" placeholder="Add note" />
+          </td>
+          <td>
+            <button type="button" class="ghost" data-save data-hash="${tx.hash}" data-chain="${tx.chain}" data-direction="${tx.tx_type || ''}">
+              Save
+            </button>
+          </td>
+        `;
+				tableBody.appendChild(tr);
+			});
+			tableBody.querySelectorAll('button[data-save]').forEach((button) => {
+				button.addEventListener('click', handleSaveAnnotation);
+			});
+		}
+
+		async function handleSaveAnnotation(event) {
+			const button = event.currentTarget;
+			const tr = button.closest('tr');
+			if (!tr) return;
+			const hash = button.dataset.hash;
+			const chain = button.dataset.chain;
+			const direction = button.dataset.direction;
+			const category = tr.querySelector('[data-annotation-category]')?.value;
+			const note = tr.querySelector('[data-annotation-note]')?.value;
+			if (!hash || !chain) {
+				setStatus('Missing transaction identifiers.', 'error');
+				return;
+			}
+			try {
+				const response = await fetch('/api/transactions/annotate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						txHash: hash,
+						chain,
+						direction,
+						category,
+						note,
+					}),
+				});
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload.message || 'Failed to save annotation');
+				}
+				button.textContent = 'Saved';
+				button.classList.add('success');
+				setTimeout(() => {
+					button.textContent = 'Save';
+					button.classList.remove('success');
+				}, 1500);
+				setStatus('Annotation saved.', 'success');
+			} catch (error) {
+				console.error(error);
+				setStatus(error instanceof Error ? error.message : 'Failed to save annotation.', 'error');
+			}
+		}
+
+		function formatDate(input) {
+			try {
+				return new Date(input).toLocaleString();
+			} catch {
+				return input;
+			}
+		}
+
+		function shorten(value) {
+			if (!value) return '—';
+			return value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
+		}
+
+		function formatAmount(value, decimals = 18) {
+			if (!value) return '0';
+			try {
+				const amount = Number(value) / 10 ** decimals;
+				return amount.toLocaleString(undefined, { maximumFractionDigits: 4 });
+			} catch {
+				return value;
+			}
+		}
+
+		function setStatus(message, mode = 'info') {
+			if (!statusEl) return;
+			statusEl.textContent = message;
+			statusEl.dataset.mode = mode;
+		}
+	</script>
+</Layout>
+
+<style>
+	.transactions-page {
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: clamp(1.5rem, 4vw, 3rem);
+		display: flex;
+		flex-direction: column;
+		gap: 1.5rem;
+	}
+
+	.page-header {
+		display: flex;
+		justify-content: space-between;
+		gap: 1.5rem;
+		align-items: flex-end;
+	}
+
+	.eyebrow {
+		text-transform: uppercase;
+		letter-spacing: 0.22em;
+		font-size: 0.8rem;
+		color: rgba(255, 255, 255, 0.6);
+		margin: 0;
+	}
+
+	.lede {
+		margin: 0.25rem 0 0;
+		max-width: 520px;
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.actions {
+		display: flex;
+		gap: 0.75rem;
+	}
+
+	.filters {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: 1rem;
+		padding: 1rem;
+		border-radius: 18px;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+	}
+
+	.filters label {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		font-size: 0.9rem;
+	}
+
+	select,
+	input {
+		border-radius: 12px;
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		background: rgba(255, 255, 255, 0.05);
+		color: #fff;
+		padding: 0.6rem 0.8rem;
+	}
+
+	button {
+		border-radius: 12px;
+		border: none;
+		padding: 0.7rem 1.1rem;
+		font-weight: 600;
+		cursor: pointer;
+		background: linear-gradient(135deg, #6288ff, #b35bff);
+		color: #fff;
+	}
+
+	button.ghost {
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		color: #fff;
+	}
+
+	button.success {
+		background: rgba(99, 245, 187, 0.2);
+		color: #4ff4b5;
+	}
+
+	.status {
+		margin: 0;
+		padding: 0.75rem 1rem;
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.status[data-mode='error'] {
+		color: #ff9b9b;
+		border-color: rgba(255, 107, 107, 0.4);
+	}
+
+	.status[data-mode='success'] {
+		color: #9fffca;
+		border-color: rgba(104, 255, 199, 0.4);
+	}
+
+	.table-shell {
+		border-radius: 18px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.02);
+		overflow: auto;
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		min-width: 900px;
+	}
+
+	th,
+	td {
+		padding: 0.75rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		text-align: left;
+	}
+
+	th {
+		font-size: 0.8rem;
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	code {
+		font-family: 'IBM Plex Mono', SFMono-Regular, Consolas, monospace;
+		font-size: 0.85rem;
+	}
+
+	.empty {
+		text-align: center;
+		color: rgba(255, 255, 255, 0.65);
+	}
+
+	@media (max-width: 720px) {
+		.page-header {
+			flex-direction: column;
+			align-items: flex-start;
+		}
+
+		.actions {
+			flex-direction: column;
+			width: 100%;
+		}
+
+		.actions button {
+			width: 100%;
+		}
+	}
+</style>

@@ -1,0 +1,478 @@
+---
+// Renders import_transactions for a given source; amounts/symbols are best-effort based on import rules.
+import { db } from '@/lib/db';
+import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
+import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
+import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
+import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
+
+type IconSet = {
+	in: string;
+	out: string;
+	lost: string;
+};
+
+type Props = {
+	source: string;
+	title: string;
+	icons: IconSet;
+	limit?: number;
+};
+
+type ImportRow = {
+	id: string;
+	import_batch_id: string | null;
+	timestamp_utc: string;
+	description: string | null;
+	currency: string | null;
+	amount: number | null;
+	to_currency: string | null;
+	to_amount: number | null;
+	native_currency: string | null;
+	native_amount: number | null;
+	native_usd: number | null;
+	kind: string | null;
+	tx_hash: string | null;
+	direction: string;
+	asset_symbol: string | null;
+	notes: string | null;
+	category: string | null;
+	group_id: string | null;
+	fee_usd: number | null;
+	fee_native: number | null;
+	fee_currency: string | null;
+	gas_used: string | null;
+	parent_tx_id: string | null;
+};
+
+const { source, title, icons, limit } = Astro.props as Props;
+
+const result = await db.execute({
+	sql: `SELECT id, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
+		native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, notes, category, group_id,
+		fee_usd, fee_native, fee_currency, gas_used, parent_tx_id
+		FROM import_transactions WHERE source = ?
+		ORDER BY timestamp_utc DESC
+		${limit ? `LIMIT ${Number(limit)}` : ''}`,
+	args: [source],
+});
+
+const rows = result.rows as ImportRow[];
+
+const yearDividerAssets: Record<number, string> = {
+	2023: yearDivide2023.src,
+	2024: yearDivide2024.src,
+	2025: yearDivide2025.src,
+};
+
+const dividerForYear = (year: number) => yearDividerAssets[year] ?? yearDivideEarlier.src;
+
+const parseNumber = (value: number | string | null | undefined) => {
+	if (value === null || value === undefined) return null;
+	if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+	const cleaned = value.replace(/,/g, '');
+	const num = Number(cleaned);
+	return Number.isFinite(num) ? num : null;
+};
+
+const formatAmount = (
+	value: number | string | null | undefined,
+	options?: Intl.NumberFormatOptions
+) => {
+	const num = parseNumber(value);
+	if (num === null) return '—';
+	return new Intl.NumberFormat('en-US', options).format(num);
+};
+
+const formatDate = (value: string) => {
+	if (!value) return '';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+};
+
+const pickSymbol = (row: ImportRow) => row.asset_symbol || row.to_currency || row.currency || '';
+
+const pickTokenAmount = (row: ImportRow) => {
+	const symbol = pickSymbol(row);
+	if (symbol && row.to_currency && symbol === row.to_currency) return row.to_amount;
+	if (symbol && row.currency && symbol === row.currency) return row.amount;
+	return row.to_amount ?? row.amount;
+};
+
+const pickUsdAmount = (row: ImportRow) => row.native_usd ?? row.native_amount;
+
+const isInlineSvg = (value: string) => value.trim().startsWith('<svg');
+
+const formatDetailValue = (value: string | number | null | undefined) => {
+	if (value === null || value === undefined || value === '') return '—';
+	if (typeof value === 'number') return formatAmount(value, { maximumFractionDigits: 8 });
+	return value;
+};
+
+const rowsWithDividers: Array<
+	| { type: 'divider'; year: number; asset: string }
+	| { type: 'row'; row: ImportRow }
+> = [];
+let lastYear: number | null = null;
+
+for (const row of rows) {
+	const year = new Date(row.timestamp_utc).getUTCFullYear();
+	if (!lastYear || lastYear !== year) {
+		rowsWithDividers.push({ type: 'divider', year, asset: dividerForYear(year) });
+		lastYear = year;
+	}
+	rowsWithDividers.push({ type: 'row', row });
+}
+---
+
+<article class="imported-files">
+	<header class="imported-files__header">
+		<h3 class="imported-files__title">{title}</h3>
+	</header>
+
+	<div class="imported-files__body">
+		<div class="imported-files__list">
+			{rowsWithDividers.map((item) =>
+				item.type === 'divider' ? (
+					<div class="tx-year-divider" aria-hidden="true">
+						<img class="tx-year-divider__img" src={item.asset} alt={`${item.year} divider`} />
+						<span class="tx-year-divider__label">{item.year}</span>
+					</div>
+				) : (
+					<div class="tx-card">
+						<span class="tx-date">{formatDate(item.row.timestamp_utc)}</span>
+						<span class="tx-symbol">{pickSymbol(item.row) || '—'}</span>
+						<span class="tx-amount">
+							{formatAmount(pickTokenAmount(item.row), { maximumFractionDigits: 8 })}
+						</span>
+						<span class="tx-usd">
+							{formatAmount(pickUsdAmount(item.row), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+						</span>
+						<span class="tx-icon">
+							<span class="tx-icon-stack">
+								{item.row.direction === 'lost' ? (
+									isInlineSvg(icons.lost) ? (
+										<span class="tx-icon-svg" set:html={icons.lost} />
+									) : (
+										<img class="tx-icon-img" src={icons.lost} alt="Lost" />
+									)
+								) : item.row.direction === 'out' ? (
+									<img class="tx-icon-img" src={icons.out} alt="Sold" />
+								) : (
+									<img class="tx-icon-img" src={icons.in} alt="Bought" />
+								)}
+								<button
+									class="tx-more"
+									type="button"
+									aria-expanded="false"
+									aria-controls={`tx-details-${item.row.id}`}
+								>
+									More
+								</button>
+							</span>
+						</span>
+						<div class="tx-details" id={`tx-details-${item.row.id}`} hidden>
+							<div class="tx-details-grid">
+								<span class="tx-detail-key">description</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.description)}</span>
+								<span class="tx-detail-key">kind</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.kind)}</span>
+								<span class="tx-detail-key">tx_hash</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.tx_hash)}</span>
+								<span class="tx-detail-key">currency</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.currency)}</span>
+								<span class="tx-detail-key">amount</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.amount)}</span>
+								<span class="tx-detail-key">to_currency</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.to_currency)}</span>
+								<span class="tx-detail-key">to_amount</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.to_amount)}</span>
+								<span class="tx-detail-key">native_currency</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.native_currency)}</span>
+								<span class="tx-detail-key">native_amount</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.native_amount)}</span>
+								<span class="tx-detail-key">native_usd</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.native_usd)}</span>
+								<span class="tx-detail-key">direction</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.direction)}</span>
+								<span class="tx-detail-key">asset_symbol</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.asset_symbol)}</span>
+								<span class="tx-detail-key">import_batch_id</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.import_batch_id)}</span>
+								<span class="tx-detail-key">fee_usd</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.fee_usd)}</span>
+								<span class="tx-detail-key">fee_native</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.fee_native)}</span>
+								<span class="tx-detail-key">fee_currency</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.fee_currency)}</span>
+								<span class="tx-detail-key">gas_used</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.gas_used)}</span>
+								<span class="tx-detail-key">group_id</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.group_id)}</span>
+								<span class="tx-detail-key">parent_tx_id</span>
+								<span class="tx-detail-val">{formatDetailValue(item.row.parent_tx_id)}</span>
+							</div>
+						</div>
+						<textarea
+							class="tx-notes"
+							placeholder="Notes..."
+							data-id={item.row.id}
+							data-initial={item.row.notes ?? ''}
+							data-category={item.row.category ?? ''}
+							data-group-id={item.row.group_id ?? ''}
+						>{item.row.notes ?? ''}</textarea>
+						<span class="tx-saved" aria-live="polite">Saved</span>
+					</div>
+				)
+			)}
+		</div>
+	</div>
+</article>
+
+<script>
+	const container = document.querySelector('.imported-files__list');
+	if (container) {
+		container.addEventListener('click', (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLElement) || !target.classList.contains('tx-more')) return;
+			const card = target.closest('.tx-card');
+			if (!card) return;
+			const details = card.querySelector('.tx-details');
+			if (!(details instanceof HTMLElement)) return;
+			const isOpen = target.getAttribute('aria-expanded') === 'true';
+			target.setAttribute('aria-expanded', (!isOpen).toString());
+			details.toggleAttribute('hidden', isOpen);
+		});
+
+		container.addEventListener('blur', async (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLTextAreaElement) || !target.classList.contains('tx-notes')) return;
+			const id = target.dataset.id;
+			if (!id) return;
+			const initial = target.dataset.initial ?? '';
+			if (target.value === initial) return;
+			const saved = target.nextElementSibling;
+			try {
+				const response = await fetch('/api/import/transactions/annotate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						id,
+						note: target.value,
+						category: target.dataset.category || null,
+						group_id: target.dataset.groupId || null,
+					}),
+				});
+				if (!response.ok) throw new Error('Failed to save.');
+				target.dataset.initial = target.value;
+				if (saved instanceof HTMLElement) {
+					saved.classList.add('is-visible');
+					setTimeout(() => saved.classList.remove('is-visible'), 1500);
+				}
+			} catch {
+				if (saved instanceof HTMLElement) {
+					saved.textContent = 'Save failed';
+					saved.classList.add('is-visible');
+					setTimeout(() => {
+						saved.classList.remove('is-visible');
+						saved.textContent = 'Saved';
+					}, 2000);
+				}
+			}
+		}, true);
+	}
+</script>
+
+<style>
+	.imported-files {
+		background: darkslategray;
+		color: #f7f2eb;
+		border: 2px solid salmon;
+		border-radius: 12px;
+		padding: var(--space-md);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+		width: 100%;
+		max-width: 100%;
+		min-height: 0;
+	}
+
+	.imported-files__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.imported-files__title {
+		margin: 0;
+		font-size: var(--font-lg);
+		line-height: var(--lh-tight);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+
+	.imported-files__body {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+
+	.imported-files__list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+		max-height: clamp(22rem, 55vh, 42rem);
+		overflow-y: auto;
+		overflow-x: hidden;
+		padding-right: var(--space-xs);
+	}
+
+	.tx-card {
+		box-sizing: border-box;
+		display: grid;
+		grid-template-columns: max-content max-content 11ch 12ch 28px;
+		column-gap: clamp(0.5rem, 1vw, 1rem);
+		row-gap: 0.5rem;
+		align-items: center;
+		padding: 0.65rem 0.85rem;
+		border-radius: 0.75rem;
+		background: rgba(0, 0, 0, 0.18);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.tx-year-divider {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.25rem 0.5rem;
+		opacity: 0.85;
+	}
+
+	.tx-year-divider__img {
+		height: 1.4rem;
+		width: auto;
+		flex-shrink: 0;
+	}
+
+	.tx-year-divider__label {
+		font-size: var(--font-sm);
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		opacity: 0.7;
+	}
+
+	.tx-date {
+		justify-self: start;
+		white-space: nowrap;
+	}
+
+	.tx-symbol {
+		justify-self: start;
+		white-space: nowrap;
+	}
+
+	.tx-amount,
+	.tx-usd {
+		justify-self: end;
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	.tx-icon {
+		justify-self: end;
+		width: 28px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: flex-end;
+	}
+
+	.tx-icon-stack {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.35rem;
+	}
+
+	.tx-icon-img {
+		display: block;
+		height: 1.6rem;
+		width: auto;
+		max-width: 28px;
+		object-fit: contain;
+	}
+
+	.tx-icon-svg :global(svg) {
+		display: block;
+		height: 1.2rem;
+		width: 1.2rem;
+		fill: #ef4444;
+		stroke: #ef4444;
+	}
+
+	.tx-more {
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font-size: 0.7rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		opacity: 0.7;
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.tx-details {
+		grid-column: 1 / -1;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 0.6rem;
+		padding: 0.5rem 0.6rem;
+		font-size: var(--font-sm);
+		opacity: 0.75;
+	}
+
+	.tx-details-grid {
+		display: grid;
+		grid-template-columns: max-content 1fr;
+		column-gap: 0.75rem;
+		row-gap: 0.35rem;
+	}
+
+	.tx-detail-key {
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		opacity: 0.7;
+	}
+
+	.tx-detail-val {
+		overflow-wrap: anywhere;
+	}
+
+	.tx-notes {
+		grid-column: 1 / -1;
+		width: 100%;
+		max-width: 100%;
+		min-height: 2.25rem;
+		resize: vertical;
+		padding: 0.5rem 0.6rem;
+		border-radius: 0.6rem;
+		background: rgba(255, 255, 255, 0.06);
+		border: 1px solid rgba(255, 255, 255, 0.14);
+		color: #f7f2eb;
+		white-space: pre-wrap;
+	}
+
+	.tx-saved {
+		grid-column: 1 / -1;
+		font-size: var(--font-sm);
+		opacity: 0;
+		transition: opacity 0.2s ease;
+	}
+
+	.tx-saved.is-visible {
+		opacity: 0.65;
+	}
+</style>

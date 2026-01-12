@@ -1,0 +1,171 @@
+import React, { useEffect, useState } from 'react';
+
+type Props = {
+	walletId: string;
+	walletLabel: string;
+	walletAddress?: string;
+};
+
+type AavePosition = {
+	side: 'supply' | 'borrow';
+	marketName?: string;
+	assetSymbol: string;
+	amount: number;
+	apy: number;
+};
+
+type AaveChainSummary = {
+	chain: string; // "ethereum" | "polygon" | "avalanche"
+	ok: boolean;
+	positions: AavePosition[];
+	suppliedUsd: number;
+	debtUsd: number;
+	suppliedUsdTotal?: number;
+	debtUsdTotal?: number;
+	error?: string;
+};
+
+type AavePositionsResponse = {
+	ok: boolean;
+	address: string;
+	chains: AaveChainSummary[] | Record<string, AaveChainSummary> | AavePositionsResponse;
+	error?: string;
+};
+
+const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress }) => {
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+	const [positions, setPositions] = useState<AavePosition[]>([]);
+
+	// Render-state diagnostics
+	console.log('[AaveWalletCard v3] render state', {
+		loading,
+		error,
+		positionsLen: positions.length,
+	});
+
+	useEffect(() => {
+		const queryAddress = walletAddress ?? walletId;
+
+		if (!queryAddress) {
+			console.warn('[AaveWalletCard v3] no walletAddress or walletId provided');
+			setLoading(false);
+			return;
+		}
+
+		const url = `/api/aave/positions?address=${encodeURIComponent(queryAddress)}`;
+		console.log('[AaveWalletCard v3] fetching', url);
+
+		const load = async () => {
+			try {
+				setLoading(true);
+				setError(null);
+
+				const res = await fetch(url);
+				if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+				const json: AavePositionsResponse = await res.json();
+				console.log('[AaveWalletCard v3] response', json);
+
+				// Unwrap in case the API returns { ok, address, chains: { ok, address, chains } }
+				let rawChains: any = json.chains;
+				if (rawChains && typeof rawChains === 'object' && 'chains' in rawChains) {
+					console.log('[AaveWalletCard v3] detected nested chains payload, unwrapping');
+					rawChains = (rawChains as any).chains;
+				}
+
+				const chainList: AaveChainSummary[] = Array.isArray(rawChains)
+					? rawChains
+					: Object.entries(rawChains ?? {}).map(([key, value]) => ({
+							chain: value.chain ?? key,
+							...value,
+					  }));
+
+				console.log('[AaveWalletCard v3] normalized chains', chainList);
+
+				let polygon = chainList.find((c) => c.chain === 'polygon');
+				if (!polygon && rawChains && !Array.isArray(rawChains)) {
+					const polyObj = (rawChains as Record<string, AaveChainSummary>).polygon;
+					if (polyObj) polygon = { chain: 'polygon', ...polyObj };
+				}
+
+				const polygonPositions = polygon?.positions ?? [];
+				console.log('[AaveWalletCard v3] polygon positions', polygonPositions);
+
+				if (polygon && !polygon.ok) {
+					setError(polygon.error ?? 'Polygon Aave positions unavailable');
+					setPositions([]);
+					return;
+				}
+
+				setPositions(polygonPositions);
+			} catch (err: any) {
+				console.error('[AaveWalletCard v3] failed to load positions', err);
+				setError(err?.message ?? 'Failed to load Aave positions');
+				setPositions([]);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		load();
+	}, [walletAddress, walletId]);
+
+	if (loading) {
+		return (
+			<div className="card aave-card tin-panel">
+				<h3 className="tin-title">Aave positions – {walletLabel}</h3>
+				<p>Loading Aave positions…</p>
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className="card aave-card tin-panel">
+				<h3 className="tin-title">Aave positions – {walletLabel}</h3>
+				<p>Unable to load Aave positions.</p>
+				<small style={{ opacity: 0.7 }}>{error}</small>
+			</div>
+		);
+	}
+
+	if (!positions.length) {
+		return (
+			<div className="card aave-card tin-panel">
+				<h3 className="tin-title">Aave positions – {walletLabel}</h3>
+				<p>No active Aave positions on this wallet.</p>
+			</div>
+		);
+	}
+
+	return (
+		<div className="card aave-card tin-panel">
+			<h3 className="tin-title">Aave positions – {walletLabel}</h3>
+			<div className="aave-positions-table">
+				<table>
+					<thead>
+						<tr>
+							<th>Side</th>
+							<th>Asset</th>
+							<th>Amount</th>
+							<th>APY</th>
+						</tr>
+					</thead>
+					<tbody>
+						{positions.map((p, idx) => (
+							<tr key={`${p.side}-${p.assetSymbol}-${idx}`}>
+								<td>{p.side === 'supply' ? 'Supply' : 'Borrow'}</td>
+								<td>{p.assetSymbol}</td>
+								<td>{p.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
+								<td>{(p.apy * 100).toFixed(2)}%</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	);
+};
+
+export default AaveWalletCard;

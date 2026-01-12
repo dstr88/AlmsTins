@@ -1,0 +1,1109 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
+import SalmonTin from '@/components/dashboard/SalmonTin.astro';
+import PriceWatchlist from '@/components/dashboard/PriceWatchlist';
+import WalletSummary from '../../components/dashboard/WalletSummary';
+import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
+import VaultNftActivity from '@/components/dashboard/VaultNftActivity.astro';
+import CryptoDotCom from '../../components/dashboard/CryptoDotCom.astro';
+import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
+import { db } from '@/lib/db';
+import { getAllActiveWallets } from '@/lib/wallets';
+
+const wallets = await getAllActiveWallets();
+const defaultWallet = wallets[0] ?? null;
+let lastSyncAt: string | null = null;
+
+if (defaultWallet) {
+	try {
+		const syncResult = await db.execute({
+			sql: 'SELECT last_defi_sync_at FROM wallet_defi_sync WHERE wallet_id = ? LIMIT 1',
+			args: [defaultWallet.id],
+		});
+		lastSyncAt = (syncResult.rows?.[0] as { last_defi_sync_at?: string } | undefined)?.last_defi_sync_at ?? null;
+	} catch {
+		lastSyncAt = null;
+	}
+}
+
+const formatSyncTime = (value: string | null) => {
+	if (!value) return 'never';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+};
+---
+
+<Layout title="Vault">
+	<section class="vault-page">
+		<div class="hero-bleed">
+			<NetWorthHero title="Vault" subtitle="TradFi + DeFi vault overview" />
+		</div>
+
+		<section class="bk-grid">
+			<SalmonTin label="Watchlist" class="tile tile--r1c1">
+				<PriceWatchlist client:load />
+			</SalmonTin>
+			<SalmonTin label="Import" class="tile tile--r1c2 import-tile">
+				<div class="import-tile__inner">
+					<div class="import-tile__controls">
+						<label class="import-tile__label">
+							<span>Type</span>
+							<select data-import-type>
+								<option value="wallet" selected>Wallet (public key)</option>
+								<option value="exchange">Exchange</option>
+							</select>
+						</label>
+
+						<label class="import-tile__label import-tile__field import-tile__field--wallet">
+							<span data-import-label>Public key / ID</span>
+							<input data-import-value type="text" placeholder="0x… or fa58b" />
+						</label>
+
+						<button type="button" class="import-tile__btn" data-import-submit>
+							Add
+						</button>
+
+						<p class="import-tile__hint">
+							Wallets render into row 2 and push tiles to the right. Exchanges render into row 3 and push right, then wrap.
+						</p>
+					</div>
+
+					<div class="import-tile__networth">
+						<NetWorthOverviewCard client:load endpoint="/api/networth/summary" />
+					</div>
+
+					<div class="import-tile__message" aria-live="polite"></div>
+				</div>
+			</SalmonTin>
+			<SalmonTin
+				label="Sync"
+				class="tile tile--r1c3 sync-tile"
+				data-last-sync={lastSyncAt ?? ''}
+			>
+				<div class="sync-tile__status">
+					Last synced: <span data-sync-time>{formatSyncTime(lastSyncAt)}</span>
+				</div>
+				<div class="sync-tile__note">Manual refresh (cached until you sync)</div>
+				<div class="sync-tile__actions">
+					<button type="button" data-mode="fast">Sync A (Fast)</button>
+					<button type="button" data-mode="standard">Sync B (Standard)</button>
+					<button type="button" data-mode="full">Sync C (Full DeFi)</button>
+				</div>
+				<div class="sync-tile__message" aria-live="polite">idle</div>
+			</SalmonTin>
+			<div class="vault-lane vault-lane--row2">
+				<div class="vault-stack-tin tile tile--r2c1">
+					<div class="wallet-label-box">fa58b</div>
+					<div class="wallet-stack" data-accordion="wallet-stack">
+						<SalmonTin label="FA58B" class="wallet-summary-tin wallet-tin--wallet">
+							<WalletSummary client:load walletId="fa58b" />
+						</SalmonTin>
+						<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi">
+							<AaveHealthSummary client:load walletId="fa58b" />
+						</SalmonTin>
+						<SalmonTin label="NFTs" class="wallet-tin--future">
+							<VaultNftActivity walletId="fa58b" />
+						</SalmonTin>
+					</div>
+				</div>
+				<div class="placeholder-card tile tile--r2c2">Empty slot</div>
+			</div>
+			<div class="vault-lane vault-lane--row3">
+				<CryptoDotCom class="tile tile--r3c1" />
+			</div>
+		</section>
+
+		<section class="vault-table">
+			<h2>Table placeholder</h2>
+			<div class="placeholder-area">Transactions table coming soon</div>
+		</section>
+	</section>
+
+	<script>
+		const initWalletAccordion = (stack: HTMLElement): void => {
+			if (stack.dataset.accordionInit === 'true') return;
+			stack.dataset.accordionInit = 'true';
+			const tins = Array.from(stack.querySelectorAll('.salmon-tin')).filter(
+				(tin): tin is HTMLElement => tin instanceof HTMLElement,
+			);
+
+			const setExpanded = (tin: HTMLElement, expanded: boolean): void => {
+				const label = tin.querySelector('.salmon-tin__label');
+				if (label instanceof HTMLElement) {
+					label.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+				}
+			};
+
+			const collapseAll = (): void => {
+				tins.forEach((other) => {
+					other.classList.add('is-collapsed');
+					setExpanded(other, false);
+				});
+			};
+
+			tins.forEach((tin, idx) => {
+				tin.classList.remove('is-collapsed');
+				if (idx !== 0) {
+					tin.classList.add('is-collapsed');
+				}
+				setExpanded(tin, idx === 0);
+				const label = tin.querySelector('.salmon-tin__label');
+				if (label instanceof HTMLElement) {
+					label.setAttribute('role', 'button');
+					label.setAttribute('tabindex', '0');
+					const toggle = (): void => {
+						const isCollapsed = tin.classList.contains('is-collapsed');
+						if (isCollapsed) {
+							collapseAll();
+							tin.classList.remove('is-collapsed');
+							setExpanded(tin, true);
+						} else {
+							tin.classList.add('is-collapsed');
+							setExpanded(tin, false);
+						}
+					};
+					label.addEventListener('click', toggle);
+					label.addEventListener('keydown', (event) => {
+						if (event.key === 'Enter' || event.key === ' ') {
+							event.preventDefault();
+							toggle();
+						}
+					});
+				}
+			});
+		};
+
+		document.querySelectorAll('.wallet-stack').forEach((stack) => {
+			if (stack instanceof HTMLElement) {
+				initWalletAccordion(stack);
+			}
+		});
+
+		const syncTile = document.querySelector('.sync-tile');
+		if (syncTile instanceof HTMLElement) {
+			const timeEl = syncTile.querySelector('[data-sync-time]');
+			const messageEl = syncTile.querySelector('.sync-tile__message');
+			const buttons = Array.from(syncTile.querySelectorAll('button')).filter(
+				(button): button is HTMLButtonElement => button instanceof HTMLButtonElement,
+			);
+
+			const formatTime = (value: string) => {
+				if (!value) return 'never';
+				const date = new Date(value);
+				if (Number.isNaN(date.getTime())) return value;
+				return date.toLocaleString('en-US', {
+					month: 'short',
+					day: 'numeric',
+					year: 'numeric',
+					hour: 'numeric',
+					minute: '2-digit',
+				});
+			};
+
+			const setStatus = (text: string, tone: 'success' | 'error' | 'muted' = 'muted') => {
+				if (!(messageEl instanceof HTMLElement)) return;
+				messageEl.textContent = text;
+				messageEl.dataset.tone = tone;
+			};
+
+			const setLoading = (activeButton: HTMLButtonElement | null, isLoading: boolean) => {
+				buttons.forEach((button) => {
+					if (!button.dataset.label) {
+						button.dataset.label = button.textContent ?? '';
+					}
+					const isActive = button === activeButton;
+					button.disabled = isLoading;
+					button.classList.toggle('is-loading', isLoading && isActive);
+					if (isLoading && isActive) {
+						button.textContent = 'Syncing…';
+					} else if (button.dataset.label) {
+						button.textContent = button.dataset.label;
+					}
+				});
+			};
+
+			buttons.forEach((button) => {
+				button.addEventListener('click', async () => {
+					const mode = button.dataset.mode ?? '';
+					if (!['fast', 'standard', 'full'].includes(mode)) {
+						setStatus('Unknown sync mode.', 'error');
+						return;
+					}
+					setStatus('running', 'muted');
+					setLoading(button, true);
+					try {
+						const response = await fetch('/api/sync/defi', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ mode }),
+						});
+						const result = await response.json().catch(() => ({}));
+						if (!response.ok || result?.ok === false) {
+							throw new Error(result?.message ?? 'Sync failed.');
+						}
+						const stamp = result?.lastSyncedAt ?? new Date().toISOString();
+						if (timeEl instanceof HTMLElement) {
+							timeEl.textContent = formatTime(stamp);
+						}
+						setStatus('success', 'success');
+					} catch (error: any) {
+						setStatus(error?.message ?? 'failed', 'error');
+					} finally {
+						setLoading(button, false);
+					}
+				});
+			});
+		}
+
+		const importTile = document.querySelector('.import-tile');
+		if (importTile instanceof HTMLElement) {
+			const typeSelect = importTile.querySelector('[data-import-type]');
+			const valueInput = importTile.querySelector('[data-import-value]');
+			const valueLabel = importTile.querySelector('[data-import-label]');
+			const submitButton = importTile.querySelector('[data-import-submit]');
+			const messageEl = importTile.querySelector('.import-tile__message');
+			const row2Lane = document.querySelector('.vault-lane--row2');
+			const row3Lane = document.querySelector('.vault-lane--row3');
+
+			const setMessage = (text: string) => {
+				if (!(messageEl instanceof HTMLElement)) return;
+				messageEl.textContent = text;
+			};
+
+			const updateImportFields = (mode: string) => {
+				const isWallet = mode === 'wallet';
+				if (valueLabel instanceof HTMLElement) {
+					valueLabel.textContent = isWallet ? 'Public key / ID' : 'Name';
+				}
+				if (valueInput instanceof HTMLInputElement) {
+					valueInput.placeholder = isWallet ? '0x… or fa58b' : 'Exchange name';
+				}
+			};
+
+			const updateIslandWalletId = (island: Element, walletId: string) => {
+				const rawProps = island.getAttribute('props');
+				if (!rawProps) return;
+
+				const parseJson = (value: string) => {
+					try {
+						return JSON.parse(value) as Record<string, unknown>;
+					} catch {
+						return null;
+					}
+				};
+
+				let parsed = parseJson(rawProps);
+				let usesEncoding = false;
+				if (!parsed) {
+					const decoded = decodeURIComponent(rawProps);
+					usesEncoding = decoded !== rawProps;
+					parsed = parseJson(decoded);
+				}
+				if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !('walletId' in parsed)) return;
+				parsed.walletId = walletId;
+				const serialized = JSON.stringify(parsed);
+				island.setAttribute('props', usesEncoding ? encodeURIComponent(serialized) : serialized);
+			};
+
+			const createWalletStack = (walletId: string) => {
+				const template = document.querySelector('.vault-stack-tin');
+				if (!(template instanceof HTMLElement)) return null;
+				const clone = template.cloneNode(true) as HTMLElement;
+				const labelBox = clone.querySelector('.wallet-label-box');
+				if (labelBox instanceof HTMLElement) {
+					labelBox.textContent = walletId;
+				}
+				const summaryLabel = clone.querySelector('.wallet-summary-tin .salmon-tin__label');
+				if (summaryLabel instanceof HTMLElement) {
+					summaryLabel.textContent = walletId.toUpperCase();
+				}
+				const walletStack = clone.querySelector('.wallet-stack');
+				if (walletStack instanceof HTMLElement) {
+					walletStack.removeAttribute('data-accordion-init');
+				}
+				clone.querySelectorAll('astro-island').forEach((island) => updateIslandWalletId(island, walletId));
+				return clone;
+			};
+
+			const bindExchangeUpload = (card: HTMLElement) => {
+				const form = card.querySelector('.exchange-upload-card__form');
+				const status = card.querySelector('.exchange-upload-card__status');
+				const fileInput = card.querySelector('input[type="file"]');
+				const button = card.querySelector('.exchange-upload-card__button');
+				if (!(form instanceof HTMLFormElement) || !(button instanceof HTMLButtonElement)) {
+					return;
+				}
+				button.addEventListener('click', async (event) => {
+					event.preventDefault();
+					if (!(fileInput instanceof HTMLInputElement) || !fileInput.files?.[0]) {
+						if (status instanceof HTMLElement) {
+							status.textContent = 'Select a CSV file first.';
+						}
+						return;
+					}
+					if (status instanceof HTMLElement) {
+						status.textContent = 'Uploading...';
+					}
+					const data = new FormData();
+					data.append('file', fileInput.files[0]);
+					try {
+						const response = await fetch('/api/import/crypto-com', {
+							method: 'POST',
+							body: data,
+						});
+						const payload = await response.json();
+						if (!response.ok) {
+							throw new Error(payload?.error || 'Upload failed.');
+						}
+						if (status instanceof HTMLElement) {
+							status.textContent = `Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+						}
+						setTimeout(() => {
+							window.location.reload();
+						}, 600);
+					} catch (error) {
+						if (status instanceof HTMLElement) {
+							status.textContent = error instanceof Error ? error.message : 'Upload failed.';
+						}
+					}
+				});
+			};
+
+			const createExchangeTin = (exchangeId: string) => {
+				const card = document.createElement('div');
+				card.className = 'exchange-upload-card tile';
+				const label = exchangeId || 'Exchange';
+				card.innerHTML = `
+					<div class="exchange-upload-card__label">${label}</div>
+					<form class="exchange-upload-card__form">
+						<label class="exchange-upload-card__file">
+							<input type="file" accept=".csv" />
+							<span>Find a file</span>
+						</label>
+						<button type="button" class="exchange-upload-card__button">Upload</button>
+						<span class="exchange-upload-card__status" aria-live="polite"></span>
+					</form>
+				`;
+				bindExchangeUpload(card);
+				return card;
+			};
+
+			if (typeSelect instanceof HTMLSelectElement) {
+				updateImportFields(typeSelect.value);
+				typeSelect.addEventListener('change', () => updateImportFields(typeSelect.value));
+			}
+
+			if (submitButton instanceof HTMLButtonElement) {
+				submitButton.addEventListener('click', () => {
+					const type =
+						typeSelect instanceof HTMLSelectElement ? typeSelect.value : 'wallet';
+					const value =
+						valueInput instanceof HTMLInputElement ? valueInput.value.trim() : '';
+
+					if (type === 'wallet') {
+						if (!value) {
+							setMessage('Enter a wallet ID first.');
+							return;
+						}
+						const stack = createWalletStack(value);
+						if (!stack) {
+							setMessage('Unable to add wallet stack.');
+							return;
+						}
+						if (row2Lane instanceof HTMLElement) {
+							row2Lane.appendChild(stack);
+						} else {
+							const placeholder = document.querySelector('.placeholder-card.tile--r2c2');
+							if (placeholder?.parentElement) {
+								placeholder.parentElement.insertBefore(stack, placeholder);
+							}
+						}
+						const newStack = stack.querySelector('.wallet-stack');
+						if (newStack instanceof HTMLElement) {
+							initWalletAccordion(newStack);
+						}
+						setMessage(`Wallet ${value} added to row 2.`);
+					} else {
+						if (!value) {
+							setMessage('Enter an exchange name first.');
+							return;
+						}
+						const exchangeCard = createExchangeTin(value);
+						if (row3Lane instanceof HTMLElement) {
+							row3Lane.insertBefore(exchangeCard, row3Lane.firstChild);
+						} else {
+							const anchor = document.querySelector('.tile--r3c1');
+							anchor?.parentElement?.insertBefore(exchangeCard, anchor);
+						}
+						setMessage('Exchange added to row 3.');
+					}
+				});
+			}
+		}
+	</script>
+
+	<style>
+		:global(:root) {
+			--font-xl: clamp(1.25rem, 1.1vw + 0.95rem, 1.5rem);
+			--font-xl2: clamp(1.35rem, 1.2vw + 1rem, 1.6rem);
+			--font-lg: clamp(1.125rem, 0.9vw + 0.85rem, 1.25rem);
+			--font-lg2: clamp(1.2rem, 1vw + 0.9rem, 1.4rem);
+			--font-md: clamp(1rem, 0.8vw + 0.75rem, 1.125rem);
+			--font-md2: clamp(1.05rem, 0.85vw + 0.8rem, 1.2rem);
+			--font-sm: clamp(0.875rem, 0.6vw + 0.65rem, 0.95rem);
+			--lh-tight: clamp(1.15, 0.2vw + 1.1, 1.25);
+			--lh-md: clamp(1.25, 0.25vw + 1.2, 1.4);
+			--lh-loose: clamp(1.35, 0.3vw + 1.25, 1.55);
+			--space-1: clamp(0.25rem, 0.3vw, 0.4rem);
+			--space-2: clamp(0.5rem, 0.45vw, 0.75rem);
+			--space-3: clamp(0.75rem, 0.7vw, 1.1rem);
+			--space-4: clamp(1rem, 0.9vw, 1.5rem);
+			--space-xs: var(--space-1);
+			--space-sm: var(--space-2);
+			--space-md: var(--space-3);
+			--space-lg: var(--space-4);
+		}
+
+		.vault-page {
+			display: flex;
+			flex-direction: column;
+			gap: 1.5rem;
+			padding: 1rem 0 2rem;
+		}
+
+		.bk-grid {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: 24px;
+			align-items: stretch;
+			position: relative;
+		}
+
+		@media (min-width: 720px) {
+			.bk-grid {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+		}
+
+		@media (min-width: 1080px) {
+			.bk-grid {
+				--row1-height: 360px;
+				--row2-height: 520px;
+				--row3-height: 420px;
+				--grid-gap: 24px;
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+				grid-template-rows: var(--row1-height) var(--row2-height) var(--row3-height);
+				grid-auto-flow: row;
+			}
+		}
+
+		@media (min-width: 1080px) {
+			.bk-grid::after {
+				content: '';
+				position: absolute;
+				left: 0;
+				right: 0;
+				height: 1px;
+				background: rgba(255, 255, 255, 0.18);
+				top: calc(
+					var(--row1-height) + var(--grid-gap) + var(--row2-height) + (var(--grid-gap) * 0.5)
+				);
+			}
+		}
+
+		@media (min-width: 1080px) {
+			.tile--r1c1 {
+				grid-column: 1;
+				grid-row: 1;
+			}
+
+			.tile--r1c2 {
+				grid-column: 2;
+				grid-row: 1;
+			}
+
+			.tile--r1c3 {
+				grid-column: 3;
+				grid-row: 1;
+			}
+
+			.tile--r2c1 {
+				grid-column: 1;
+				grid-row: 2;
+			}
+
+			.tile--r2c2 {
+				grid-column: 2;
+				grid-row: 2;
+			}
+
+			.tile--r3c1 {
+				grid-column: 1;
+				grid-row: 3;
+			}
+		}
+
+		.vault-lane {
+			display: flex;
+			gap: 24px;
+			flex-wrap: wrap;
+			min-height: 0;
+		}
+
+		.vault-lane > .tile {
+			flex: 1 1 100%;
+			min-width: 0;
+		}
+
+		@media (min-width: 720px) {
+			.vault-lane > .tile {
+				flex: 1 1 calc((100% - 24px) / 2);
+			}
+		}
+
+		@media (min-width: 1080px) {
+			.vault-lane--row2 {
+				grid-column: 1 / -1;
+				grid-row: 2;
+			}
+
+			.vault-lane--row3 {
+				grid-column: 1 / -1;
+				grid-row: 3;
+			}
+
+			.vault-lane > .tile {
+				flex: 0 0 calc((100% - (var(--grid-gap, 24px) * 2)) / 3);
+			}
+		}
+
+		.vault-table {
+			display: flex;
+			flex-direction: column;
+			gap: 0.75rem;
+		}
+
+		.tile {
+			min-height: 0;
+			height: 100%;
+			max-height: 100%;
+		}
+
+		:global(.tile.placeholder-card) {
+			overflow: auto;
+		}
+
+		:global(.tile .salmon-tin) {
+			height: 100%;
+		}
+
+		:global(.tile .salmon-tin__body) {
+			min-height: 0;
+			overflow: auto;
+		}
+
+		.vault-stack-tin {
+			display: flex;
+			flex-direction: column;
+			gap: 0.65rem;
+			min-height: 0;
+			height: 100%;
+		}
+
+		.sync-tile :global(.salmon-tin__body) {
+			text-align: left;
+		}
+
+		.sync-tile__status {
+			font-size: 0.9rem;
+			opacity: 0.85;
+		}
+
+		.sync-tile__note {
+			font-size: 0.75rem;
+			opacity: 0.7;
+			margin: 0.3rem 0 0.6rem;
+		}
+
+		.sync-tile__actions {
+			display: flex;
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+
+		.sync-tile__actions button {
+			border-radius: 0.65rem;
+			border: 1px solid rgba(255, 255, 255, 0.18);
+			background: rgba(255, 255, 255, 0.08);
+			color: inherit;
+			padding: 0.5rem 0.75rem;
+			font-size: 0.85rem;
+			letter-spacing: 0.03em;
+			cursor: pointer;
+			transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+		}
+
+		.sync-tile__actions button:hover:enabled {
+			background: rgba(255, 255, 255, 0.16);
+			border-color: rgba(255, 255, 255, 0.35);
+			transform: translateY(-1px);
+		}
+
+		.sync-tile__actions button:disabled {
+			opacity: 0.55;
+			cursor: not-allowed;
+		}
+
+		.sync-tile__actions button.is-loading {
+			opacity: 0.75;
+			cursor: progress;
+		}
+
+		.sync-tile__message {
+			margin-top: 0.6rem;
+			font-size: 0.8rem;
+			opacity: 0.85;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+		}
+
+		.sync-tile__message[data-tone='success'] {
+			color: #86efac;
+		}
+
+		.sync-tile__message[data-tone='error'] {
+			color: #fca5a5;
+		}
+
+		.import-tile__inner {
+			display: flex;
+			flex-direction: column;
+			gap: 0.75rem;
+			min-height: 0;
+		}
+
+		.import-tile__controls {
+			display: grid;
+			gap: 0.6rem;
+		}
+
+		.import-tile__label {
+			display: grid;
+			gap: 0.25rem;
+			font-size: 0.85rem;
+			opacity: 0.9;
+		}
+
+		.import-tile__label select,
+		.import-tile__label input {
+			border-radius: 0.65rem;
+			border: 1px solid rgba(255, 255, 255, 0.18);
+			background: rgba(255, 255, 255, 0.08);
+			color: inherit;
+			padding: 0.5rem 0.65rem;
+			outline: none;
+		}
+
+		.import-tile__btn {
+			border-radius: 0.65rem;
+			border: 1px solid rgba(255, 255, 255, 0.18);
+			background: rgba(255, 255, 255, 0.12);
+			color: inherit;
+			padding: 0.55rem 0.75rem;
+			font-size: 0.9rem;
+			cursor: pointer;
+		}
+
+		.import-tile__hint {
+			font-size: 0.75rem;
+			opacity: 0.7;
+			margin: 0;
+		}
+
+		.import-tile__message {
+			font-size: 0.8rem;
+			opacity: 0.85;
+			letter-spacing: 0.05em;
+			text-transform: uppercase;
+		}
+
+		.import-tile__networth {
+			border-top: 1px solid rgba(255, 255, 255, 0.14);
+			padding-top: 0.75rem;
+			min-height: 0;
+		}
+
+		.exchange-upload-card {
+			position: relative;
+			background: darkslategray;
+			color: #f7f2eb;
+			border: 2px solid salmon;
+			border-radius: 12px;
+			padding: 18px 16px 16px;
+			display: flex;
+			flex-direction: column;
+			gap: 1rem;
+			text-align: left;
+		}
+
+		.exchange-upload-card::before {
+			content: '';
+			position: absolute;
+			left: 0;
+			top: 0;
+			width: 100%;
+			height: 5px;
+			background: salmon;
+		}
+
+		.exchange-upload-card__label {
+			position: absolute;
+			top: -10px;
+			left: 16px;
+			background: salmon;
+			color: #0b0f1a;
+			font-weight: 700;
+			font-size: 1rem;
+			padding: 6px 12px;
+			border-radius: 10px;
+			box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+			border: 1px solid rgba(0, 0, 0, 0.1);
+		}
+
+		.exchange-upload-card__form {
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+			flex-wrap: wrap;
+			padding-top: 1.1rem;
+		}
+
+		.exchange-upload-card__file {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.5rem;
+			padding: 0.35rem 0.6rem;
+			border-radius: 999px;
+			border: 1px solid rgba(255, 255, 255, 0.2);
+			cursor: pointer;
+			font-size: var(--font-sm);
+		}
+
+		.exchange-upload-card__file input {
+			display: none;
+		}
+
+		.exchange-upload-card__button {
+			border: 1px solid rgba(255, 255, 255, 0.3);
+			background: rgba(255, 255, 255, 0.08);
+			color: inherit;
+			padding: 0.35rem 0.8rem;
+			border-radius: 999px;
+			cursor: pointer;
+			font-size: var(--font-sm);
+		}
+
+		.exchange-upload-card__status {
+			font-size: var(--font-sm);
+			opacity: 0.7;
+		}
+
+		.wallet-label-box {
+			align-self: center;
+			padding: 0.35rem 1.25rem;
+			border: 2px solid salmon;
+			border-radius: 999px;
+			color: #ffffff;
+			font-weight: 600;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+		}
+
+		.wallet-stack {
+			display: flex;
+			flex-direction: column;
+			gap: 5px;
+			flex: 1;
+			min-height: 0;
+		}
+
+		:global(.wallet-stack .salmon-tin__label) {
+			cursor: pointer;
+		}
+
+		:global(.wallet-stack .salmon-tin.is-collapsed) {
+			padding-bottom: 8px;
+		}
+
+		:global(.wallet-stack .salmon-tin.is-collapsed .salmon-tin__body) {
+			display: none;
+		}
+
+		:global(.wallet-stack .defi-summary-tin.is-collapsed .salmon-tin__body) {
+			display: block;
+			padding-top: 0.35rem;
+		}
+
+		:global(.wallet-stack .defi-summary-tin.is-collapsed .defi-stats) {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-1);
+		}
+
+		:global(.wallet-stack .defi-summary-tin.is-collapsed .stat-row) {
+			display: none;
+		}
+
+		:global(.wallet-stack .defi-summary-tin.is-collapsed .stat-row.health) {
+			display: flex;
+		}
+
+		.wallet-empty {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			min-height: 120px;
+			width: 100%;
+			border: 1px dashed rgba(255, 255, 255, 0.35);
+			border-radius: 10px;
+			color: rgba(247, 242, 235, 0.75);
+			font-size: 0.95rem;
+		}
+
+		.wallet-summary-tin :global(.salmon-tin__label) {
+			left: 50%;
+			transform: translateX(-50%);
+			color: #ffffff;
+			font-size: 20px;
+		}
+
+		.defi-summary-tin :global(.salmon-tin__label) {
+			left: 50%;
+			transform: translateX(-50%);
+			color: #ffffff;
+			font-size: 20px;
+		}
+
+		:global(.defi-summary-tin .defi-stats) {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-md);
+			line-height: var(--lh-md);
+		}
+
+		:global(.defi-summary-tin .stat-row) {
+			display: grid;
+			grid-template-columns: 1fr auto;
+			column-gap: var(--space-md);
+			align-items: baseline;
+		}
+
+		:global(.defi-summary-tin .stat-row .label) {
+			font-size: var(--font-lg2);
+			opacity: 0.92;
+			text-align: left;
+			line-height: var(--lh-md);
+		}
+
+		:global(.defi-summary-tin .stat-row .value) {
+			font-size: var(--font-lg2);
+			font-weight: 700;
+			justify-self: end;
+			text-align: right;
+			line-height: var(--lh-md);
+		}
+
+		:global(.defi-summary-tin .stat-row.health .label),
+		:global(.defi-summary-tin .stat-row.health .value) {
+			font-size: var(--font-xl2);
+			line-height: var(--lh-tight);
+			font-weight: 800;
+		}
+
+		:global(.defi-summary-tin .stat-row.net .label),
+		:global(.defi-summary-tin .stat-row.net .value) {
+			font-size: var(--font-xl2);
+			font-weight: 800;
+			line-height: var(--lh-tight);
+		}
+
+		:global(.defi-summary-tin .stat-row.debt .value) {
+			color: #fecaca;
+		}
+
+		:global(.defi-summary-tin .spacer) {
+			height: var(--space-lg);
+		}
+
+		:global(.defi-summary-tin .divider) {
+			height: 1px;
+			margin: var(--space-md) 0;
+			background: rgba(255, 255, 255, 0.25);
+		}
+
+		:global(.defi-summary-tin .breakdown) {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-xs);
+			margin-top: var(--space-xs);
+		}
+
+		:global(.defi-summary-tin .breakdown-title) {
+			font-size: var(--font-md2);
+			opacity: 0.85;
+			line-height: var(--lh-md);
+		}
+
+		:global(.defi-summary-tin .breakdown-row) {
+			display: grid;
+			grid-template-columns: 1fr minmax(6ch, auto) minmax(10ch, auto);
+			column-gap: var(--space-md);
+			font-size: var(--font-md2);
+			opacity: 0.95;
+			line-height: var(--lh-md);
+		}
+
+		:global(.defi-summary-tin .breakdown-header) {
+			opacity: 0.7;
+			font-size: var(--font-sm);
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			line-height: var(--lh-md);
+		}
+
+		:global(.defi-summary-tin .col-token) {
+			white-space: nowrap;
+		}
+
+		:global(.defi-summary-tin .col-qty) {
+			text-align: right;
+			justify-self: end;
+			font-variant-numeric: tabular-nums;
+		}
+
+		:global(.defi-summary-tin .col-usd) {
+			justify-self: end;
+			text-align: right;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+		}
+
+		:global(.defi-summary-tin .breakdown-row:not(.breakdown-header)) {
+			padding: var(--space-xs) 0;
+		}
+
+		:global(.defi-summary-tin .breakdown-empty) {
+			font-size: var(--font-md2);
+			opacity: 0.75;
+		}
+
+		:global(.defi-summary-tin .defi-status) {
+			margin-top: var(--space-sm);
+			font-size: var(--font-md2);
+			line-height: var(--lh-md);
+			opacity: 0.9;
+		}
+
+		:global(.defi-summary-tin .defi-status--error) {
+			color: #fca5a5;
+			opacity: 1;
+		}
+
+		:global(.this-year-tin .this-year) {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-md);
+		}
+
+		:global(.this-year-tin .this-year__summary) {
+			display: grid;
+			gap: var(--space-xs);
+		}
+
+		:global(.this-year-tin .summary-row) {
+			display: grid;
+			grid-template-columns: 1fr auto;
+			column-gap: var(--space-md);
+			align-items: baseline;
+		}
+
+		:global(.this-year-tin .summary-row .label) {
+			font-size: var(--font-lg);
+			line-height: var(--lh-md);
+			opacity: 0.9;
+		}
+
+		:global(.this-year-tin .summary-row .value) {
+			font-size: var(--font-lg);
+			line-height: var(--lh-md);
+			font-weight: 700;
+			justify-self: end;
+			text-align: right;
+			font-variant-numeric: tabular-nums;
+		}
+
+		:global(.this-year-tin .summary-text) {
+			margin: 0;
+			font-size: var(--font-md);
+			line-height: var(--lh-md);
+			opacity: 0.8;
+		}
+
+		:global(.this-year-tin .quarter-list) {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-md);
+		}
+
+		:global(.this-year-tin .quarter-divider) {
+			height: 2px;
+			background: salmon;
+			margin-bottom: var(--space-sm);
+		}
+
+		:global(.this-year-tin .quarter-label) {
+			font-size: var(--font-lg);
+			line-height: var(--lh-tight);
+			font-weight: 700;
+		}
+
+		:global(.this-year-tin .quarter-meta) {
+			display: grid;
+			grid-template-columns: 1fr auto;
+			column-gap: var(--space-md);
+			font-size: var(--font-md);
+			line-height: var(--lh-md);
+			opacity: 0.85;
+		}
+
+		:global(.this-year-tin .this-year-status) {
+			font-size: var(--font-md);
+			line-height: var(--lh-md);
+			opacity: 0.8;
+		}
+
+		:global(.this-year-tin .this-year-status--error) {
+			color: #fca5a5;
+			opacity: 1;
+		}
+
+		.placeholder-card,
+		.placeholder-area {
+			min-height: 120px;
+			border: 1px dashed rgba(255, 255, 255, 0.4);
+			border-radius: 12px;
+			padding: 1rem;
+			color: #f7f2eb;
+			background: rgba(47, 65, 59, 0.6);
+		}
+
+		h2 {
+			margin: 0;
+			font-size: 1.1rem;
+			font-weight: 600;
+		}
+
+	</style>
+</Layout>
