@@ -10,13 +10,13 @@ export function generateSessionToken(passphrase: string) {
 }
 
 export function isAuthDisabled() {
-	return !import.meta.env.DASHBOARD_PASS;
+	return false;
 }
 
 export function isValidSession(token: string | undefined) {
 	const secret = import.meta.env.DASHBOARD_PASS;
 	if (!secret) {
-		return true;
+		return false;
 	}
 	if (!token) {
 		return false;
@@ -34,7 +34,7 @@ let cachedUserId: string | null = null;
 export async function requireUser(context: Pick<APIContext, 'cookies'>): Promise<SessionUser | null> {
 	const userId = await resolveUserId();
 	if (isAuthDisabled()) {
-		return { sessionToken: 'dev-mode', id: userId };
+		return null;
 	}
 
 	const token = context.cookies.get(SESSION_COOKIE_NAME)?.value;

@@ -30,5 +30,5 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		sameSite: 'lax',
 	});
 
-	return redirect('/');
+	return redirect('/transition');
 };

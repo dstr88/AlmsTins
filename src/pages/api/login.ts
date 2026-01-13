@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { generateSessionToken, SESSION_COOKIE_NAME } from '../../lib/auth';
+import { getPostLoginRedirect } from '../../lib/postLoginRedirect';
 
 const COOKIE_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
@@ -31,18 +32,6 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	});
 
 	const nextValue = formData.get('next');
-	const redirectTo = resolveRedirectTarget(nextValue);
+	const redirectTo = getPostLoginRedirect(nextValue);
 	return redirect(redirectTo);
 };
-
-function resolveRedirectTarget(nextValue: FormDataEntryValue | null) {
-	if (typeof nextValue !== 'string' || nextValue.length === 0) {
-		return '/';
-	}
-
-	if (nextValue.startsWith('/') && !nextValue.startsWith('//')) {
-		return nextValue;
-	}
-
-	return '/';
-}
