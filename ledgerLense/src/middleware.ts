@@ -33,20 +33,20 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	// 1) Astro dev server: always bypass
 	if (DEV) {
 		console.log('[middleware] rule=DEV_BYPASS path=', path);
-		return next();
+		return applySecurityHeaders(await next());
 	}
 
 	// 2) Built Node server in local dev: explicit bypass
 	if (LOCAL_BYPASS) {
 		console.log('[middleware] rule=LOCAL_BYPASS path=', path);
-		return next();
+		return applySecurityHeaders(await next());
 	}
 
 	const syncToken = import.meta.env.SYNC_TOKEN;
 	const headerToken = context.request.headers.get('x-sync-token');
 	if (SYNC_PATHS.has(path) && syncToken && headerToken === syncToken) {
 		console.log('[middleware] rule=SYNC_TOKEN_OK path=', path);
-		return next();
+		return applySecurityHeaders(await next());
 	}
 
 	const { request, cookies, url: ctxUrl } = context;
@@ -54,13 +54,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
 		console.log('[middleware] rule=PUBLIC path=', path);
-		return next();
+		return applySecurityHeaders(await next());
 	}
 
 	const token = cookies.get(SESSION_COOKIE_NAME)?.value;
 	if (isValidSession(token)) {
 		console.log('[middleware] rule=SESSION_OK path=', path);
-		return next();
+		return applySecurityHeaders(await next());
 	}
 
 	const acceptsHTML = request.headers.get('accept')?.includes('text/html');
@@ -70,5 +70,35 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	}
 
 	console.log('[middleware] rule=UNAUTHORIZED path=', path);
-	return new Response('Unauthorized', { status: 401 });
+	return applySecurityHeaders(new Response('Unauthorized', { status: 401 }));
 });
+
+const CSP_REPORT_ONLY = [
+	"default-src 'self'",
+	"base-uri 'self'",
+	"object-src 'none'",
+	"frame-ancestors 'none'",
+	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+	"img-src 'self' data: blob: https://images.unsplash.com",
+	"connect-src 'self'",
+	"font-src 'self' data: https://fonts.gstatic.com",
+	"script-src 'self'",
+	'upgrade-insecure-requests',
+].join('; ');
+
+function applySecurityHeaders(response: Response) {
+	response.headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY);
+	response.headers.set('X-Frame-Options', 'DENY');
+	response.headers.set('X-Content-Type-Options', 'nosniff');
+	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+	response.headers.set(
+		'Permissions-Policy',
+		'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+	);
+	response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+	response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
+	if (!import.meta.env.DEV) {
+		response.headers.set('Strict-Transport-Security', 'max-age=86400; includeSubDomains');
+	}
+	return response;
+}
