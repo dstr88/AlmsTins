@@ -19,6 +19,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	if (path.startsWith('/.well-known/acme-challenge/')) {
 		return next();
 	}
+	if (!import.meta.env.DEV && context.request.headers.get('x-forwarded-proto') === 'http') {
+		return new Response(null, {
+			status: 301,
+			headers: { Location: `https://${url.host}${url.pathname}${url.search}` },
+		});
+	}
 	const DEV = import.meta.env.DEV;
 	const LOCAL_BYPASS = import.meta.env.PUBLIC_LOCAL_DEV_NO_AUTH === 'true';
 
