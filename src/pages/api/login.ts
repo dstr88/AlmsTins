@@ -30,5 +30,19 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		sameSite: 'lax',
 	});
 
-	return redirect('/');
+	const nextValue = formData.get('next');
+	const redirectTo = resolveRedirectTarget(nextValue);
+	return redirect(redirectTo);
 };
+
+function resolveRedirectTarget(nextValue: FormDataEntryValue | null) {
+	if (typeof nextValue !== 'string' || nextValue.length === 0) {
+		return '/';
+	}
+
+	if (nextValue.startsWith('/') && !nextValue.startsWith('//')) {
+		return nextValue;
+	}
+
+	return '/';
+}

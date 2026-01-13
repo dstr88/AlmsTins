@@ -1,57 +1,38 @@
 import { defineMiddleware } from 'astro/middleware';
 import { isAuthDisabled, isValidSession, SESSION_COOKIE_NAME } from './lib/auth';
 
-const PUBLIC_PATHS = ['/login', '/api/login', '/favicon', '/assets', '/node_modules', '/_astro', '/public'];
-const DEV_OPEN_API_PATHS = ['/api/debug-snapshots', '/api/networth'];
-
-const DEV_BYPASS_PATHS = new Set([
-	'/api/wallets/sync-all',
-	'/api/wallets/value/sync-all',
-	'/api/networth/summary',
-	'/api/market/aave-key-prices',
-]);
-
-const SYNC_PATHS = new Set(['/api/sync/defi']);
+const AUTH_API_PREFIX = '/api/auth';
+const PUBLIC_ROUTES = new Set(['/login', '/favicon.ico']);
+const PUBLIC_PREFIXES = ['/_astro/', '/assets/'];
 
 export const onRequest = defineMiddleware(async (context, next) => {
 	const url = new URL(context.request.url);
 	const path = url.pathname;
-	const DEV = import.meta.env.DEV;
-	const LOCAL_BYPASS = import.meta.env.PUBLIC_LOCAL_DEV_NO_AUTH === 'true';
+	console.log('[middleware] path =', path);
 
-	console.log('[middleware] path =', path, 'DEV =', DEV, 'LOCAL_BYPASS =', LOCAL_BYPASS);
-
-	// 1) Astro dev server: always bypass
-	if (DEV) {
-		console.log('[middleware] rule=DEV_BYPASS path=', path);
+	// 1) Auth endpoints bypass immediately (no cookie/header mutation).
+	if (path === AUTH_API_PREFIX || path.startsWith(`${AUTH_API_PREFIX}/`)) {
+		console.log('[middleware] rule=AUTH_API_BYPASS path=', path);
 		return next();
 	}
 
-	// 2) Built Node server in local dev: explicit bypass
-	if (LOCAL_BYPASS) {
-		console.log('[middleware] rule=LOCAL_BYPASS path=', path);
+	// 2) Public routes/static assets.
+	if (
+		PUBLIC_ROUTES.has(path) ||
+		path.startsWith('/login/') ||
+		PUBLIC_PREFIXES.some((prefix) => path.startsWith(prefix))
+	) {
+		console.log('[middleware] rule=PUBLIC path=', path);
 		return next();
 	}
 
 	if (isAuthDisabled()) {
-		console.log('[middleware] rule=AUTH_DISABLED path=', path);
-		return next();
-	}
-
-	const syncToken = import.meta.env.SYNC_TOKEN;
-	const headerToken = context.request.headers.get('x-sync-token');
-	if (SYNC_PATHS.has(path) && syncToken && headerToken === syncToken) {
-		console.log('[middleware] rule=SYNC_TOKEN_OK path=', path);
-		return next();
+		console.log('[middleware] rule=AUTH_NOT_CONFIGURED path=', path);
+		return new Response('Authentication is not configured.', { status: 503 });
 	}
 
 	const { request, cookies, url: ctxUrl } = context;
 	const pathname = ctxUrl.pathname;
-
-	if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-		console.log('[middleware] rule=PUBLIC path=', path);
-		return next();
-	}
 
 	const token = cookies.get(SESSION_COOKIE_NAME)?.value;
 	if (isValidSession(token)) {
@@ -59,10 +40,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return next();
 	}
 
+	if (pathname.startsWith('/api/')) {
+		console.log('[middleware] rule=UNAUTHORIZED_API path=', path);
+		return new Response('Unauthorized', { status: 401 });
+	}
+
 	const acceptsHTML = request.headers.get('accept')?.includes('text/html');
 	if (acceptsHTML) {
+		const loginUrl = new URL('/login', request.url);
+		loginUrl.searchParams.set('next', `${pathname}${ctxUrl.search}`);
+		loginUrl.searchParams.set('error', 'missing');
 		console.log('[middleware] rule=REDIRECT_LOGIN path=', path);
-		return Response.redirect(new URL(`/login?error=missing`, request.url), 303);
+		return Response.redirect(loginUrl, 303);
 	}
 
 	console.log('[middleware] rule=UNAUTHORIZED path=', path);

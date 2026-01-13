@@ -1,6 +1,8 @@
 ---
 const { searchParams } = Astro.url;
 const error = searchParams.get('error');
+const next = searchParams.get('next');
+const nextPath = typeof next === 'string' ? next : '';
 const message =
 	error === 'invalid'
 		? 'Incorrect passphrase. Double-check and try again.'
@@ -117,7 +119,8 @@ const message =
 
 			{message && <p class="notice">{message}</p>}
 
-			<form method="POST" action="/api/login">
+			<form method="POST" action="/api/auth/login">
+				<input type="hidden" name="next" value={nextPath} />
 				<label>
 					<span>Passphrase</span>
 					<input type="password" name="passphrase" placeholder="••••••••••" required autofocus />
