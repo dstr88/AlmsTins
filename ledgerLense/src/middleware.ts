@@ -1,5 +1,5 @@
 import { defineMiddleware } from 'astro/middleware';
-import { isAuthDisabled, isValidSession, SESSION_COOKIE_NAME } from './lib/auth';
+import { isValidSession, SESSION_COOKIE_NAME } from './lib/auth';
 
 const PUBLIC_PATHS = ['/login', '/api/login', '/favicon', '/assets', '/node_modules', '/_astro', '/public'];
 const DEV_OPEN_API_PATHS = ['/api/debug-snapshots', '/api/networth'];
@@ -16,6 +16,9 @@ const SYNC_PATHS = new Set(['/api/sync/defi']);
 export const onRequest = defineMiddleware(async (context, next) => {
 	const url = new URL(context.request.url);
 	const path = url.pathname;
+	if (path.startsWith('/.well-known/acme-challenge/')) {
+		return next();
+	}
 	const DEV = import.meta.env.DEV;
 	const LOCAL_BYPASS = import.meta.env.PUBLIC_LOCAL_DEV_NO_AUTH === 'true';
 
@@ -30,11 +33,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	// 2) Built Node server in local dev: explicit bypass
 	if (LOCAL_BYPASS) {
 		console.log('[middleware] rule=LOCAL_BYPASS path=', path);
-		return next();
-	}
-
-	if (isAuthDisabled()) {
-		console.log('[middleware] rule=AUTH_DISABLED path=', path);
 		return next();
 	}
 
