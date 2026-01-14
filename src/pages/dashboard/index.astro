@@ -2,8 +2,10 @@
 import Layout from '../../layouts/Layout.astro';
 import TransactionsTable from '../../components/dashboard/TransactionsTable';
 import { getAllActiveWallets } from '../../lib/wallets';
+import { requireTenantSession } from '../../lib/requireTenantSession';
 
-const wallets = await getAllActiveWallets();
+const { tenantId } = await requireTenantSession(Astro.request);
+const wallets = await getAllActiveWallets(tenantId);
 const defaultWallet = wallets[0] ?? null;
 ---
 

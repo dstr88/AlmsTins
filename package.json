@@ -13,6 +13,8 @@
     "db:migrate": "node src/scripts/dbMigrate.mjs"
   },
   "dependencies": {
+    "@auth/astro": "^0.29.0",
+    "@auth/core": "^0.34.0",
     "@astrojs/node": "^9.5.1",
     "@astrojs/react": "^4.4.2",
     "@libsql/client": "^0.15.15",

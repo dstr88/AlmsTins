@@ -1,17 +1,29 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const walletTableInfo = await db.execute(/* sql */ `PRAGMA table_info(wallets);`);
 		const snapshotTableInfo = await db.execute(/* sql */ `PRAGMA table_info(wallet_snapshots);`);
 
-		const wallets = await db.execute(
-			/* sql */ `SELECT id, address, label, chains, created_at FROM wallets ORDER BY created_at ASC LIMIT 20;`,
-		);
-		const snapshots = await db.execute(
-			/* sql */ `SELECT wallet_id, chain, totals_usd, collateral_usd, debt_usd, captured_at FROM wallet_snapshots ORDER BY captured_at DESC LIMIT 20;`,
-		);
+		const wallets = await db.execute({
+			sql: `SELECT id, address, label, chains, created_at
+        FROM wallets
+        WHERE tenant_id = ?
+        ORDER BY created_at ASC
+        LIMIT 20;`,
+			args: [tenantId],
+		});
+		const snapshots = await db.execute({
+			sql: `SELECT wallet_id, chain, totals_usd, collateral_usd, debt_usd, captured_at
+        FROM wallet_snapshots
+        WHERE tenant_id = ?
+        ORDER BY captured_at DESC
+        LIMIT 20;`,
+			args: [tenantId],
+		});
 
 		return new Response(
 			JSON.stringify(

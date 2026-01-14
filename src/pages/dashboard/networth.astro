@@ -10,6 +10,7 @@ import WalletRows from '@/components/dashboard/WalletRows';
 import { db } from '@/lib/db';
 import { getLatestNetWorthSummary } from '@/lib/networth';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 type SliceType = 'asset' | 'stable' | 'debt';
 
@@ -62,9 +63,10 @@ const debtAmount = debtValue * 1000;
 const netAmount = netValue * 1000;
 const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
+const { tenantId } = await requireTenantSession(Astro.request);
 const walletsResult = await db.execute({
-	sql: 'SELECT id, address, label FROM wallets ORDER BY created_at ASC',
-	args: [],
+	sql: 'SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY created_at ASC',
+	args: [tenantId],
 });
 
 const wallets = walletsResult.rows.map((row: Record<string, any>) => ({
@@ -76,7 +78,7 @@ const wallets = walletsResult.rows.map((row: Record<string, any>) => ({
 const shortenAddress = (address: string) =>
 	address.length > 10 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
 
-const latestSummary = await getLatestNetWorthSummary().catch((err) => {
+const latestSummary = await getLatestNetWorthSummary(tenantId).catch((err) => {
 	console.warn('[networth] failed to load latest summary for tins', err);
 	return null;
 });

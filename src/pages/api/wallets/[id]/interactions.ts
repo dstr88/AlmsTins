@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const ETHERSCAN_V2 = 'https://api.etherscan.io/v2/api';
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
@@ -49,7 +50,7 @@ const fetchIsContract = async (chainId: number, address: string) => {
 	return isContract;
 };
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, request }) => {
 	if (!ETHERSCAN_KEY) {
 		return new Response(JSON.stringify({ ok: false, error: 'Missing ETHERSCAN_API_KEY' }), { status: 500 });
 	}
@@ -59,7 +60,9 @@ export const GET: APIRoute = async ({ params }) => {
 		return new Response(JSON.stringify({ ok: false, error: 'Missing wallet id' }), { status: 400 });
 	}
 
-	const cachedResponse = interactionsCache.get(walletId);
+	const { tenantId } = await requireTenantSession(request);
+	const cacheKey = `${tenantId}:${walletId}`;
+	const cachedResponse = interactionsCache.get(cacheKey);
 	if (cachedResponse && cachedResponse.expiresAt > Date.now()) {
 		return new Response(JSON.stringify(cachedResponse.payload), {
 			status: 200,
@@ -68,8 +71,8 @@ export const GET: APIRoute = async ({ params }) => {
 	}
 
 	const walletResult = await db.execute({
-		sql: 'SELECT address FROM wallets WHERE id = ? LIMIT 1',
-		args: [walletId],
+		sql: 'SELECT address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+		args: [walletId, tenantId],
 	});
 	const walletAddress = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
 	if (!walletAddress) {
@@ -80,18 +83,18 @@ export const GET: APIRoute = async ({ params }) => {
 		sql: `WITH interactions AS (
 				SELECT chain, LOWER(to_address) AS address, timestamp
 				FROM transactions
-				WHERE wallet_id = ? AND to_address IS NOT NULL AND LOWER(to_address) != ?
+				WHERE wallet_id = ? AND tenant_id = ? AND to_address IS NOT NULL AND LOWER(to_address) != ?
 				UNION ALL
 				SELECT chain, LOWER(from_address) AS address, timestamp
 				FROM transactions
-				WHERE wallet_id = ? AND from_address IS NOT NULL AND LOWER(from_address) != ?
+				WHERE wallet_id = ? AND tenant_id = ? AND from_address IS NOT NULL AND LOWER(from_address) != ?
 			)
 			SELECT chain, address, MAX(timestamp) AS last_seen
 			FROM interactions
 			GROUP BY chain, address
 			ORDER BY last_seen DESC
 			LIMIT 60`,
-		args: [walletId, walletAddress, walletId, walletAddress],
+		args: [walletId, tenantId, walletAddress, walletId, tenantId, walletAddress],
 	});
 
 	const candidates = interactionsResult.rows as Array<{ chain: string; address: string }>;
@@ -134,7 +137,7 @@ export const GET: APIRoute = async ({ params }) => {
 	}
 
 	const payload = { ok: true, items };
-	interactionsCache.set(walletId, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
+	interactionsCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
 
 	return new Response(JSON.stringify(payload), {
 		status: 200,

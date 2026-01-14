@@ -1,9 +1,11 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
+import { requireTenantSession } from '../../../lib/requireTenantSession';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
+	const { tenantId } = await requireTenantSession(request);
 	const walletId = url.searchParams.get('walletId');
 	const chain = url.searchParams.get('chain');
 	const limit = Number(url.searchParams.get('limit') ?? 50);
@@ -16,8 +18,8 @@ export const GET: APIRoute = async ({ url }) => {
 	}
 
 	try {
-		const clauses = ['t.wallet_id = ?'];
-		const args: any[] = [walletId];
+		const clauses = ['t.wallet_id = ?', 't.tenant_id = ?'];
+		const args: any[] = [walletId, tenantId];
 
 		if (chain) {
 			clauses.push('t.chain = ?');
@@ -34,7 +36,7 @@ export const GET: APIRoute = async ({ url }) => {
 
 		const query = `SELECT t.*, a.category, a.note
       FROM transactions t
-      LEFT JOIN transaction_annotations a ON a.transaction_id = t.id
+      LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
       WHERE ${clauses.join(' AND ')}
       ORDER BY t.timestamp DESC
       LIMIT ${limit} OFFSET ${offset}`;

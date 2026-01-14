@@ -1,6 +1,7 @@
 ---
 // Renders import_transactions for a given source; amounts/symbols are best-effort based on import rules.
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
 import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
 import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
@@ -46,15 +47,16 @@ type ImportRow = {
 };
 
 const { source, title, icons, limit } = Astro.props as Props;
+const { tenantId } = await requireTenantSession(Astro.request);
 
 const result = await db.execute({
 	sql: `SELECT id, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
 		native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, notes, category, group_id,
 		fee_usd, fee_native, fee_currency, gas_used, parent_tx_id
-		FROM import_transactions WHERE source = ?
+		FROM import_transactions WHERE source = ? AND tenant_id = ?
 		ORDER BY timestamp_utc DESC
 		${limit ? `LIMIT ${Number(limit)}` : ''}`,
-	args: [source],
+	args: [source, tenantId],
 });
 
 const rows = result.rows as ImportRow[];

@@ -14,6 +14,7 @@ export type TokenSnapshot = {
 };
 
 export interface WalletValueBreakdown {
+	tenantId: string;
 	walletId: string;
 	chain: SupportedChain;
 	totalUsd: number;
@@ -30,8 +31,8 @@ export interface WalletValueSyncResult {
 	}>;
 }
 
-export async function syncWalletValuesForAllWallets(): Promise<WalletValueSyncResult> {
-	const wallets = await getAllActiveWallets();
+export async function syncWalletValuesForAllWallets(tenantId: string): Promise<WalletValueSyncResult> {
+	const wallets = await getAllActiveWallets(tenantId);
 	let snapshotsInserted = 0;
 	const perWallet: WalletValueSyncResult['perWallet'] = [];
 
@@ -44,7 +45,7 @@ export async function syncWalletValuesForAllWallets(): Promise<WalletValueSyncRe
 		if (!chains.length) continue;
 
 		try {
-			const breakdowns = await computeWalletValue(wallet.id, wallet.address, chains);
+			const breakdowns = await computeWalletValue(tenantId, wallet.id, wallet.address, chains);
 			const byChain: Array<{ chain: SupportedChain; totalUsd: number }> = [];
 
 			for (const breakdown of breakdowns) {
@@ -96,7 +97,12 @@ export async function syncWalletValuesForAllWallets(): Promise<WalletValueSyncRe
 	};
 }
 
-export async function computeWalletValue(walletId: string, address: string, chains: SupportedChain[]) {
+export async function computeWalletValue(
+	tenantId: string,
+	walletId: string,
+	address: string,
+	chains: SupportedChain[],
+) {
 	const balances: TokenBalance[] = [];
 
 	for (const chain of chains) {
@@ -139,7 +145,9 @@ export async function computeWalletValue(walletId: string, address: string, chai
 
 		const entry =
 			byChain.get(balance.chain) ??
-			byChain.set(balance.chain, { walletId, chain: balance.chain, totalUsd: 0, tokens: [] }).get(balance.chain)!;
+			byChain
+				.set(balance.chain, { tenantId, walletId, chain: balance.chain, totalUsd: 0, tokens: [] })
+				.get(balance.chain)!;
 
 		const tokenEntry: TokenSnapshot = {
 			chain: balance.chain,

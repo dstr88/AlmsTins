@@ -1,9 +1,13 @@
 ---
 import { db } from '../lib/db';
+import { requireTenantSession } from '../lib/requireTenantSession';
 
-const walletResult = await db.execute(
-	'SELECT id, address, label, chains, is_default, created_at FROM wallets ORDER BY created_at DESC',
-);
+const { tenantId } = await requireTenantSession(Astro.request);
+
+const walletResult = await db.execute({
+	sql: 'SELECT id, address, label, chains, is_default, created_at FROM wallets WHERE tenant_id = ? ORDER BY created_at DESC',
+	args: [tenantId],
+});
 
 const wallets = walletResult.rows.map((row) => ({
 	id: row.id,
@@ -17,9 +21,10 @@ const wallets = walletResult.rows.map((row) => ({
 const walletCount = wallets.length;
 const defaultWallets = wallets.filter((wallet) => wallet.isDefault).length;
 
-const userResult = await db.execute(
-	'SELECT id, full_name, street_address, city, state, postal_code, country, phone_number, email, secondary_email FROM users ORDER BY created_at ASC LIMIT 1',
-);
+const userResult = await db.execute({
+	sql: 'SELECT id, full_name, street_address, city, state, postal_code, country, phone_number, email, secondary_email FROM users WHERE tenant_id = ? ORDER BY created_at ASC LIMIT 1',
+	args: [tenantId],
+});
 const primaryUser = userResult.rows[0] ?? null;
 const normalizeField = (v: string | number | bigint | ArrayBuffer | null | undefined): string => {
 	if (typeof v === 'string') return v;
@@ -37,16 +42,21 @@ const normalizeField = (v: string | number | bigint | ArrayBuffer | null | undef
 const fullName = primaryUser ? normalizeField(primaryUser.full_name) : '';
 const greetingName = fullName ? fullName.split(' ')[0] : 'Investor';
 
-const grossResult = await db.execute(`
-	WITH latest AS (
-		SELECT wallet_id, MAX(captured_at) AS captured_at
-		FROM wallet_snapshots
-		GROUP BY wallet_id
-	)
-	SELECT COALESCE(SUM(ws.totals_usd), 0) AS gross
-	FROM wallet_snapshots ws
-	INNER JOIN latest l ON ws.wallet_id = l.wallet_id AND ws.captured_at = l.captured_at
-`);
+const grossResult = await db.execute({
+	sql: `
+		WITH latest AS (
+			SELECT wallet_id, MAX(captured_at) AS captured_at
+			FROM wallet_snapshots
+			WHERE tenant_id = ?
+			GROUP BY wallet_id
+		)
+		SELECT COALESCE(SUM(ws.totals_usd), 0) AS gross
+		FROM wallet_snapshots ws
+		INNER JOIN latest l ON ws.wallet_id = l.wallet_id AND ws.captured_at = l.captured_at
+		WHERE ws.tenant_id = ?
+	`,
+	args: [tenantId, tenantId],
+});
 const grossInvestments = Number(grossResult.rows[0]?.gross ?? 0);
 const grossDisplay = new Intl.NumberFormat('en-US', {
 	style: 'currency',

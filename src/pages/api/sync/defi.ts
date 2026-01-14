@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAllActiveWallets } from '@/lib/wallets';
 
 export const prerender = false;
@@ -232,7 +233,7 @@ async function fetchDefiData(address: string, force: boolean) {
 	return result;
 }
 
-async function syncWalletDefi(wallet: { id: string; address: string }, force: boolean) {
+async function syncWalletDefi(tenantId: string, wallet: { id: string; address: string }, force: boolean) {
 	const { health, positions } = await fetchDefiData(wallet.address, force);
 	const interestPaid = 0;
 	const interestEarned = 0;
@@ -241,6 +242,7 @@ async function syncWalletDefi(wallet: { id: string; address: string }, force: bo
 
 	await db.execute({
 		sql: `INSERT INTO wallet_defi_sync (
+				tenant_id,
 				wallet_id,
 				last_defi_sync_at,
 				interest_paid_total,
@@ -250,8 +252,8 @@ async function syncWalletDefi(wallet: { id: string; address: string }, force: bo
 				positions_payload,
 				updated_at
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(wallet_id) DO UPDATE SET
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(tenant_id, wallet_id) DO UPDATE SET
 				last_defi_sync_at = excluded.last_defi_sync_at,
 				interest_paid_total = excluded.interest_paid_total,
 				interest_earned_total = excluded.interest_earned_total,
@@ -260,6 +262,7 @@ async function syncWalletDefi(wallet: { id: string; address: string }, force: bo
 				positions_payload = excluded.positions_payload,
 				updated_at = excluded.updated_at`,
 		args: [
+			tenantId,
 			wallet.id,
 			syncAt,
 			interestPaid,
@@ -276,6 +279,7 @@ async function syncWalletDefi(wallet: { id: string; address: string }, force: bo
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const body = (await request.json().catch(() => null)) as { mode?: 'fast' | 'standard' | 'full' } | null;
 		const mode = body?.mode ?? null;
 		if (!mode || !['fast', 'standard', 'full'].includes(mode)) {
@@ -286,12 +290,12 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const force = mode === 'full';
-		const wallets = await getAllActiveWallets();
+		const wallets = await getAllActiveWallets(tenantId);
 		const results = [];
 
 		for (const wallet of wallets) {
 			try {
-				const result = await syncWalletDefi(wallet, force);
+				const result = await syncWalletDefi(tenantId, wallet, force);
 				results.push({ ok: true, ...result });
 			} catch (error: any) {
 				results.push({

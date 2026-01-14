@@ -1,9 +1,11 @@
 import type { APIRoute } from 'astro';
+import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { getTransactionsForWalletDashboard } from '../../../lib/transactions';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
+	const { tenantId } = await requireTenantSession(request);
 	const walletId = url.searchParams.get('walletId');
 	if (!walletId) {
 		return respond({ error: true, message: 'walletId is required.' }, 400);
@@ -15,7 +17,7 @@ export const GET: APIRoute = async ({ url }) => {
 	const toDate = url.searchParams.get('to');
 
 	try {
-		const rows = await getTransactionsForWalletDashboard(walletId, {
+		const rows = await getTransactionsForWalletDashboard(tenantId, walletId, {
 			limit,
 			offset,
 			fromDate: fromDate || undefined,

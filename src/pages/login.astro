@@ -1,22 +1,27 @@
 ---
-import { isAuthDisabled, isValidSession, SESSION_COOKIE_NAME } from '../lib/auth';
+import { getSession } from '@auth/astro';
 import { getPostLoginRedirect } from '../lib/postLoginRedirect';
 
 const { searchParams } = Astro.url;
 const error = searchParams.get('error');
 const next = searchParams.get('next');
-const nextPath = typeof next === 'string' ? next : '';
+const callbackParam = searchParams.get('callbackUrl');
+const nextPath = typeof next === 'string' ? next : typeof callbackParam === 'string' ? callbackParam : null;
+const callbackUrl = getPostLoginRedirect(nextPath);
 const message =
-	error === 'invalid'
-		? 'Incorrect passphrase. Double-check and try again.'
-		: error === 'missing'
-			? 'Enter your passphrase to continue.'
+	error === 'missing'
+		? 'Sign in to continue.'
+		: error
+			? 'Sign-in failed. Please try again.'
 			: '';
 
-const sessionToken = Astro.cookies.get(SESSION_COOKIE_NAME)?.value;
-if (!isAuthDisabled() && isValidSession(sessionToken)) {
-	return Astro.redirect(getPostLoginRedirect(nextPath), 303);
+const session = await getSession(Astro.request);
+if (session) {
+	return Astro.redirect(callbackUrl, 303);
 }
+
+const googleUrl = `/api/auth/signin/google?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+const githubUrl = `/api/auth/signin/github?callbackUrl=${encodeURIComponent(callbackUrl)}`;
 ---
 
 <!doctype html>
@@ -71,6 +76,64 @@ if (!isAuthDisabled() && isValidSession(sessionToken)) {
 				gap: 1rem;
 			}
 
+			.providers {
+				display: flex;
+				flex-direction: column;
+				gap: 0.75rem;
+				margin-bottom: 1.25rem;
+			}
+
+			.provider-button {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				text-decoration: none;
+				border-radius: 12px;
+				padding: 0.85rem 1rem;
+				border: 1px solid rgba(255, 255, 255, 0.15);
+				background: rgba(255, 255, 255, 0.08);
+				color: #fff;
+				font-size: 1rem;
+				font-weight: 600;
+				cursor: pointer;
+				transition: transform 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+			}
+
+			.provider-button:hover {
+				opacity: 0.92;
+				transform: translateY(-1px);
+				border-color: rgba(255, 255, 255, 0.35);
+			}
+
+			.provider-button.google {
+				background: linear-gradient(135deg, #3b82f6, #2563eb);
+				border: none;
+			}
+
+			.provider-button.github {
+				background: linear-gradient(135deg, #0f172a, #1f2937);
+				border: none;
+			}
+
+			.divider {
+				display: flex;
+				align-items: center;
+				gap: 0.75rem;
+				margin: 1.25rem 0;
+				color: rgba(255, 255, 255, 0.55);
+				font-size: 0.85rem;
+				text-transform: uppercase;
+				letter-spacing: 0.08em;
+			}
+
+			.divider::before,
+			.divider::after {
+				content: '';
+				flex: 1;
+				height: 1px;
+				background: rgba(255, 255, 255, 0.12);
+			}
+
 			label {
 				display: flex;
 				flex-direction: column;
@@ -123,17 +186,24 @@ if (!isAuthDisabled() && isValidSession(sessionToken)) {
 	<body>
 		<main>
 			<h1>Sign in</h1>
-			<p>Enter your private dashboard passphrase to continue.</p>
+			<p>Use Google, GitHub, or a magic link to access the dashboard.</p>
 
 			{message && <p class="notice">{message}</p>}
 
-			<form method="POST" action="/api/auth/login">
-				<input type="hidden" name="next" value={nextPath} />
+			<div class="providers">
+				<a class="provider-button google" href={googleUrl}>Continue with Google</a>
+				<a class="provider-button github" href={githubUrl}>Continue with GitHub</a>
+			</div>
+
+			<div class="divider">or email</div>
+
+			<form method="POST" action="/api/auth/signin/email">
+				<input type="hidden" name="callbackUrl" value={callbackUrl} />
 				<label>
-					<span>Passphrase</span>
-					<input type="password" name="passphrase" placeholder="••••••••••" required autofocus />
+					<span>Email address</span>
+					<input type="email" name="email" placeholder="you@company.com" required autofocus />
 				</label>
-				<button type="submit">Unlock dashboard</button>
+				<button type="submit">Send magic link</button>
 			</form>
 		</main>
 	</body>

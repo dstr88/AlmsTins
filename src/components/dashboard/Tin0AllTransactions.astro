@@ -1,5 +1,6 @@
 ---
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
 import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
@@ -10,15 +11,20 @@ import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
 const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 
 const { walletId } = Astro.props as { walletId?: string };
+const { tenantId } = await requireTenantSession(Astro.request);
+
+const sourcesArgs: any[] = [tenantId, tenantId];
+const sourcesWalletClause = walletId ? 'AND wallet_id = ?' : '';
+if (walletId) sourcesArgs.push(walletId);
 
 const sourcesResult = await db.execute({
-	sql: `SELECT DISTINCT source FROM import_transactions
+	sql: `SELECT DISTINCT source FROM import_transactions WHERE tenant_id = ?
 		UNION
 		SELECT DISTINCT 'onchain_' || chain AS source
 		FROM transactions
-		${walletId ? 'WHERE wallet_id = ?' : "WHERE 1=0"}
+		WHERE tenant_id = ? ${sourcesWalletClause}
 		ORDER BY source`,
-	args: walletId ? [walletId] : [],
+	args: sourcesArgs,
 });
 
 const sources = sourcesResult.rows
@@ -54,12 +60,17 @@ type UnifiedRow = {
 	onchain_chain: string | null;
 };
 
+const rowsArgs: any[] = [tenantId, tenantId];
+const rowsWalletClause = walletId ? 'AND t.wallet_id = ?' : '';
+if (walletId) rowsArgs.push(walletId);
+
 const result = await db.execute({
 	sql: `SELECT id, source, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
 		native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, notes, category, group_id,
 		fee_usd, fee_native, fee_currency, NULL AS fee_paid,
 		NULL AS onchain_value, NULL AS onchain_decimals, NULL AS onchain_chain
 		FROM import_transactions
+		WHERE tenant_id = ?
 		UNION ALL
 		SELECT
 			t.id,
@@ -108,10 +119,10 @@ const result = await db.execute({
 			t.token_decimals AS onchain_decimals,
 			t.chain AS onchain_chain
 		FROM transactions t
-		LEFT JOIN transaction_annotations a ON a.transaction_id = t.id
-		${walletId ? 'WHERE t.wallet_id = ?' : "WHERE 1=0"}
+		LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
+		WHERE t.tenant_id = ? ${rowsWalletClause}
 		ORDER BY timestamp_utc DESC`,
-	args: walletId ? [walletId] : [],
+	args: rowsArgs,
 });
 
 const rows = result.rows as UnifiedRow[];

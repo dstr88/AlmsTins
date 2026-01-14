@@ -5,6 +5,7 @@ import { DEFAULT_ERC20_CHAINS } from './constants';
 export type Wallet = {
 	id: string;
 	userId?: string | null;
+	tenantId?: string | null;
 	address: string;
 	label: string | null;
 	chains: string[];
@@ -24,24 +25,26 @@ export function deriveDefaultLabel(address: string): string {
 	return address.trim().slice(-5);
 }
 
-export async function getAllActiveWallets(): Promise<Wallet[]> {
-	const result = await sharedDb.execute(
-		`SELECT id, user_id, address, label, chains, is_default, created_at
-		 FROM wallets
-		 WHERE is_default = 1
-		 ORDER BY created_at DESC`,
-	);
+export async function getAllActiveWallets(tenantId: string): Promise<Wallet[]> {
+	const result = await sharedDb.execute({
+		sql: `SELECT id, user_id, tenant_id, address, label, chains, is_default, created_at
+      FROM wallets
+      WHERE tenant_id = ? AND is_default = 1
+      ORDER BY created_at DESC`,
+		args: [tenantId],
+	});
 	return result.rows.map(transformRow);
 }
 
-export async function upsertWallets(db: Client, wallets: WalletInput[]) {
+export async function upsertWallets(db: Client, tenantId: string, wallets: WalletInput[]) {
 	if (!wallets.length) return [];
 	const statements = wallets.map((wallet) => ({
-		sql: `INSERT INTO wallets (address, label, chains, is_default)
-          VALUES (?, ?, ?, ?)
-          ON CONFLICT(address) DO UPDATE SET label = excluded.label, chains = excluded.chains, is_default = excluded.is_default
-          RETURNING id, user_id, address, label, chains, is_default, created_at`,
+		sql: `INSERT INTO wallets (tenant_id, address, label, chains, is_default)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(tenant_id, address) DO UPDATE SET label = excluded.label, chains = excluded.chains, is_default = excluded.is_default
+          RETURNING id, user_id, tenant_id, address, label, chains, is_default, created_at`,
 		args: [
+			tenantId,
 			wallet.address.toLowerCase(),
 			wallet.label && wallet.label.trim().length ? wallet.label.trim() : deriveDefaultLabel(wallet.address),
 			JSON.stringify(
@@ -55,12 +58,13 @@ export async function upsertWallets(db: Client, wallets: WalletInput[]) {
 	return results.map((result) => transformRow(result.rows[0]));
 }
 
-export async function insertWallet(address: string, label?: string | null) {
+export async function insertWallet(tenantId: string, address: string, label?: string | null) {
 	const result = await sharedDb.execute({
-		sql: `INSERT INTO wallets (address, label, chains)
-        VALUES (?, ?, ?)
-        RETURNING id, user_id, address, label, chains, is_default, created_at`,
+		sql: `INSERT INTO wallets (tenant_id, address, label, chains)
+        VALUES (?, ?, ?, ?)
+        RETURNING id, user_id, tenant_id, address, label, chains, is_default, created_at`,
 		args: [
+			tenantId,
 			address.toLowerCase(),
 			label && label.trim().length ? label.trim() : deriveDefaultLabel(address),
 			JSON.stringify(DEFAULT_ERC20_CHAINS),
@@ -71,6 +75,7 @@ export async function insertWallet(address: string, label?: string | null) {
 
 export async function createWallet(opts: {
 	id?: string;
+	tenantId: string;
 	address: string;
 	label?: string | null;
 	chains?: string[];
@@ -83,19 +88,19 @@ export async function createWallet(opts: {
 	const isDefault = opts.isDefault ? 1 : 0;
 
 	const result = await sharedDb.execute({
-		sql: `INSERT INTO wallets (id, address, label, chains, is_default)
-        VALUES (?, ?, ?, ?, ?)
-        RETURNING id, user_id, address, label, chains, is_default, created_at`,
-		args: [derivedId, address, derivedLabel, chainsJson, isDefault],
+		sql: `INSERT INTO wallets (id, tenant_id, address, label, chains, is_default)
+        VALUES (?, ?, ?, ?, ?, ?)
+        RETURNING id, user_id, tenant_id, address, label, chains, is_default, created_at`,
+		args: [derivedId, opts.tenantId, address, derivedLabel, chainsJson, isDefault],
 	});
 
 	return transformRow(result.rows[0]);
 }
 
-export async function getWalletById(id: string): Promise<Wallet | null> {
+export async function getWalletById(tenantId: string, id: string): Promise<Wallet | null> {
 	const result = await sharedDb.execute({
-		sql: 'SELECT id, user_id, address, label, chains, is_default, created_at FROM wallets WHERE id = ? LIMIT 1',
-		args: [id],
+		sql: 'SELECT id, user_id, tenant_id, address, label, chains, is_default, created_at FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+		args: [id, tenantId],
 	});
 	const row = result.rows[0];
 	if (!row) return null;
@@ -106,6 +111,7 @@ function transformRow(row: Record<string, any>): Wallet {
 	return {
 		id: row.id,
 		userId: row.user_id ?? null,
+		tenantId: row.tenant_id ?? null,
 		address: row.address,
 		label: row.label,
 		chains: safeParseChains(row.chains),

@@ -1,5 +1,5 @@
 import { defineMiddleware } from 'astro/middleware';
-import { isAuthDisabled, isValidSession, SESSION_COOKIE_NAME } from './lib/auth';
+import { getSession } from '@auth/astro';
 
 const AUTH_API_PREFIX = '/api/auth';
 const PUBLIC_ROUTES = new Set(['/login', '/favicon.ico']);
@@ -26,16 +26,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return next();
 	}
 
-	if (isAuthDisabled()) {
-		console.log('[middleware] rule=AUTH_NOT_CONFIGURED path=', path);
-		return new Response('Authentication is not configured.', { status: 503 });
+	if (import.meta.env.AUTH_DISABLED === 'true') {
+		console.log('[middleware] rule=AUTH_DISABLED path=', path);
+		return next();
 	}
 
-	const { request, cookies, url: ctxUrl } = context;
+	const { request, url: ctxUrl } = context;
 	const pathname = ctxUrl.pathname;
 
-	const token = cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (isValidSession(token)) {
+	const session = await getSession(request);
+	if (session) {
 		console.log('[middleware] rule=SESSION_OK path=', path);
 		return next();
 	}

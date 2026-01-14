@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
+import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { getAllActiveWallets } from '../../../lib/wallets';
 import {
 	isInternalTransfer,
@@ -10,18 +11,20 @@ import {
 
 export const prerender = false;
 
-export const POST: APIRoute = async () => {
+export const POST: APIRoute = async ({ request }) => {
 	try {
-		const wallets = await getAllActiveWallets();
+		const { tenantId } = await requireTenantSession(request);
+		const wallets = await getAllActiveWallets(tenantId);
 		const addressSet = wallets.map((wallet) => wallet.address.toLowerCase());
 
 		const result = await db.execute({
 			sql: `SELECT t.*, a.id AS annotation_id
           FROM transactions t
-          LEFT JOIN transaction_annotations a ON a.transaction_id = t.id
-          WHERE a.id IS NULL
+          LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
+          WHERE t.tenant_id = ? AND a.id IS NULL
           ORDER BY t.timestamp DESC
           LIMIT 500`,
+			args: [tenantId],
 		});
 
 		let internalCount = 0;
@@ -29,14 +32,14 @@ export const POST: APIRoute = async () => {
 
 		for (const row of result.rows as TransactionRow[]) {
 			if (isInternalTransfer(row, addressSet)) {
-				await upsertTransactionAnnotation({
+				await upsertTransactionAnnotation(tenantId, {
 					transactionId: row.id,
 					category: 'internal_transfer',
 					note: 'Auto-labeled as internal transfer',
 				});
 				internalCount += 1;
 			} else if (isLikelyLost(row)) {
-				await upsertTransactionAnnotation({
+				await upsertTransactionAnnotation(tenantId, {
 					transactionId: row.id,
 					category: 'lost',
 					note: 'Auto-labeled as likely burn/lost',

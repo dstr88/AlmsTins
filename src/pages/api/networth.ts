@@ -1,9 +1,11 @@
 import type { APIRoute } from 'astro';
 import { getNetWorthSummary } from '@/lib/networth';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
 	try {
-		const summary = await getNetWorthSummary();
+		const { tenantId } = await requireTenantSession(request);
+		const summary = await getNetWorthSummary(tenantId);
 
 		return new Response(
 			JSON.stringify({

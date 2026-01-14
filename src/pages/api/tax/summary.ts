@@ -1,9 +1,11 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
+import { requireTenantSession } from '../../../lib/requireTenantSession';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
+	const { tenantId } = await requireTenantSession(request);
 	const yearParam = url.searchParams.get('year');
 	const group = url.searchParams.get('group') ?? 'personal';
 	const year = Number(yearParam);
@@ -20,10 +22,10 @@ export const GET: APIRoute = async ({ url }) => {
 			sql: `
         SELECT a.category, t.token_symbol, t.tx_type, t.value, t.timestamp
         FROM transactions t
-        LEFT JOIN transaction_annotations a ON a.transaction_id = t.id
-        WHERE t.timestamp BETWEEN ? AND ?
+        LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
+        WHERE t.tenant_id = ? AND t.timestamp BETWEEN ? AND ?
       `,
-			args: [from, to],
+			args: [tenantId, from, to],
 		});
 
 		return respond({

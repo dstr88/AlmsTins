@@ -1,12 +1,14 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { fetchAccountData } from '@/lib/scanSync';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const prerender = false;
 
 type Status = 'ok' | 'fail' | 'warn';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+	await requireTenantSession(request);
 	const startedAt = Date.now();
 
 	const envVars = {

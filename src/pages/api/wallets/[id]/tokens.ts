@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getWalletTokenBreakdown, insertWalletSnapshotFromValueBreakdown } from '@/lib/networth';
 import { computeWalletValue } from '@/lib/sync/syncWalletValue';
 import type { SupportedChain } from '@/lib/constants';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const prerender = false;
 
@@ -9,6 +10,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	const walletId = params.id ?? '';
 	const startedAt = Date.now();
 	const url = new URL(request.url);
+	const { tenantId } = await requireTenantSession(request);
 
 	console.log('[tokens API] START', { walletId });
 	console.log('[wallet.tokens] START', {
@@ -25,7 +27,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	}
 
 	try {
-		let result = await getWalletTokenBreakdown(walletId);
+		let result = await getWalletTokenBreakdown(tenantId, walletId);
 		const refreshMissing = url.searchParams.get('refreshMissing') === '1';
 		if (refreshMissing) {
 			const desiredChains: SupportedChain[] = ['ethereum', 'polygon', 'avalanche'];
@@ -39,7 +41,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 					missingChains,
 				});
 
-				const breakdowns = await computeWalletValue(walletId, result.address, missingChains);
+				const breakdowns = await computeWalletValue(tenantId, walletId, result.address, missingChains);
 
 				for (const breakdown of breakdowns) {
 					if (breakdown.totalUsd === 0 && breakdown.tokens.length === 0) {
@@ -52,7 +54,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 					await insertWalletSnapshotFromValueBreakdown(breakdown);
 				}
 
-				result = await getWalletTokenBreakdown(walletId);
+				result = await getWalletTokenBreakdown(tenantId, walletId);
 			}
 		}
 

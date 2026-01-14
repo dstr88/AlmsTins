@@ -130,51 +130,51 @@ import LoanPayoffCalculator from '../../components/LoanPayoffCalculator.astro';
 	<script>
 	const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
-	function parseAmount(value) {
+	function parseAmount(value: string): number {
 		if (!value) return 0;
 		const cleaned = value.replace(/[^0-9.]/g, '');
 		const parsed = Number.parseFloat(cleaned);
 		return Number.isFinite(parsed) ? parsed : 0;
 	}
 
-	function updateTotalDebt() {
-		const debtEls = document.querySelectorAll('[data-debt-value]');
+	function updateTotalDebt(): void {
+		const debtEls = document.querySelectorAll<HTMLElement>('[data-debt-value]');
 		let total = 0;
 		debtEls.forEach((el) => {
 			const amount = Number(el.dataset.debtValue || 0) || parseAmount(el.textContent || '');
 			total += amount;
 		});
-		const target = document.querySelector('[data-total-debt]');
+		const target = document.querySelector<HTMLElement>('[data-total-debt]');
 		if (target) target.textContent = formatter.format(total);
 	}
 
 	document.addEventListener('debt-updated', updateTotalDebt);
 	document.addEventListener('DOMContentLoaded', updateTotalDebt);
 
-	const addLoanButton = document.querySelector('[data-add-loan]');
-	const addLoanStatus = document.querySelector('[data-add-loan-status]');
+	const addLoanButton = document.querySelector<HTMLElement>('[data-add-loan]');
+	const addLoanStatus = document.querySelector<HTMLElement>('[data-add-loan-status]');
 	if (addLoanButton) {
 		addLoanButton.addEventListener('click', () => {
-			const grid = document.querySelector('.tins-grid');
-			const templateTin = document.querySelector('.loan-tin');
+			const grid = document.querySelector<HTMLElement>('.tins-grid');
+			const templateTin = document.querySelector<HTMLElement>('.loan-tin');
 			if (!grid || !templateTin) return;
 
-			const clone = templateTin.cloneNode(true);
-			const existingCount = grid.querySelectorAll('.loan-tin').length;
+			const clone = templateTin.cloneNode(true) as HTMLElement;
+			const existingCount = grid.querySelectorAll<HTMLElement>('.loan-tin').length;
 			const nextIndex = existingCount + 1;
-			const label = clone.querySelector('.salmon-tin__label');
+			const label = clone.querySelector<HTMLElement>('.salmon-tin__label');
 			if (label) label.textContent = `Loan payoff ${nextIndex}`;
 
-			const loanRoot = clone.querySelector('[data-loan-payoff]');
+			const loanRoot = clone.querySelector<HTMLElement>('[data-loan-payoff]');
 			if (loanRoot) {
 				loanRoot.dataset.loanInit = '';
 				loanRoot.dataset.payments = '[]';
 				loanRoot.dataset.loanId = `tradfi-loan-${nextIndex}`;
-				const lists = loanRoot.querySelectorAll('[data-payment-list]');
+				const lists = loanRoot.querySelectorAll<HTMLElement>('[data-payment-list]');
 				lists.forEach((list) => {
 					list.innerHTML = '';
 				});
-				const saved = loanRoot.querySelector('[data-payment-saved]');
+				const saved = loanRoot.querySelector<HTMLElement>('[data-payment-saved]');
 				if (saved) {
 					saved.textContent = '';
 					saved.hidden = true;
@@ -192,6 +192,12 @@ import LoanPayoffCalculator from '../../components/LoanPayoffCalculator.astro';
 				}, 2500);
 			}
 		});
+	}
+
+	declare global {
+		interface Window {
+			loanPayoffInit?: (root: HTMLElement) => void;
+		}
 	}
 	</script>
 </Layout>

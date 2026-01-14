@@ -46,13 +46,13 @@ export type SmartFlags = {
 	riskTags: string[];
 };
 
-export async function bulkUpsertTransactions(txs: NewTransaction[]) {
+export async function bulkUpsertTransactions(tenantId: string, txs: NewTransaction[]) {
 	if (!txs.length) return [];
 	const statements = txs.map((tx) => ({
 		sql: `INSERT INTO transactions
-      (wallet_id, hash, chain, block_number, timestamp, from_address, to_address, value, token_symbol, token_decimals, tx_type, status, fee_paid, metadata_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(hash, chain) DO UPDATE SET
+      (tenant_id, wallet_id, hash, chain, block_number, timestamp, from_address, to_address, value, token_symbol, token_decimals, tx_type, status, fee_paid, metadata_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(tenant_id, hash, chain) DO UPDATE SET
         wallet_id = excluded.wallet_id,
         block_number = excluded.block_number,
         timestamp = excluded.timestamp,
@@ -67,6 +67,7 @@ export async function bulkUpsertTransactions(txs: NewTransaction[]) {
         metadata_json = excluded.metadata_json
       RETURNING *`,
 		args: [
+			tenantId,
 			tx.walletId,
 			tx.hash,
 			tx.chain,
@@ -88,10 +89,10 @@ export async function bulkUpsertTransactions(txs: NewTransaction[]) {
 	return results.map((result) => result.rows[0]);
 }
 
-export async function getTransactionsForWallet(walletId: string, options: TransactionFilter = {}) {
+export async function getTransactionsForWallet(tenantId: string, walletId: string, options: TransactionFilter = {}) {
 	const walletResult = await db.execute({
-		sql: 'SELECT id, address, chain FROM wallets WHERE id = ? LIMIT 1',
-		args: [walletId],
+		sql: 'SELECT id, address, chain FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+		args: [walletId, tenantId],
 	});
 	if (!walletResult.rows.length) {
 		throw new Error('Wallet not found');
@@ -124,22 +125,24 @@ export async function getTransactionsForWallet(walletId: string, options: Transa
 
 	const query = `SELECT t.*, a.direction, a.category, a.note
     FROM transactions t
-    LEFT JOIN transaction_annotations a ON a.tx_hash = t.hash AND a.chain = t.chain
-    WHERE ${clauses.join(' AND ')}
+    LEFT JOIN transaction_annotations a
+      ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
+    WHERE t.tenant_id = ? AND ${clauses.join(' AND ')}
     ORDER BY t.timestamp DESC
     LIMIT ${limit} OFFSET ${offset}`;
 
-	const result = await db.execute({ sql: query, args });
+	const result = await db.execute({ sql: query, args: [tenantId, ...args] });
 	return result.rows;
 }
 
 export async function getTransactionsForWalletDashboard(
+	tenantId: string,
 	walletId: string,
 	opts: { limit?: number; offset?: number; fromDate?: string; toDate?: string } = {},
 ) {
 	const walletResult = await db.execute({
-		sql: 'SELECT id, address FROM wallets WHERE id = ? LIMIT 1',
-		args: [walletId],
+		sql: 'SELECT id, address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+		args: [walletId, tenantId],
 	});
 	if (!walletResult.rows.length) {
 		throw new Error('Wallet not found');
@@ -169,12 +172,12 @@ export async function getTransactionsForWalletDashboard(
 
 	const query = `SELECT t.*, a.category, a.note
 		FROM transactions t
-		LEFT JOIN transaction_annotations a ON a.transaction_id = t.id
-		WHERE ${clauses.join(' AND ')}
+		LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
+		WHERE t.tenant_id = ? AND ${clauses.join(' AND ')}
 		ORDER BY t.timestamp DESC
 		LIMIT ${limit} OFFSET ${offset}`;
 
-	const result = await db.execute({ sql: query, args: params });
+	const result = await db.execute({ sql: query, args: [tenantId, ...params] });
 	return result.rows.map((row: any) => {
 		const metadata = row.metadata_json ? JSON.parse(row.metadata_json) : null;
 		const tx: TransactionRow = {
@@ -199,12 +202,12 @@ export async function getTransactionsForWalletDashboard(
 	});
 }
 
-export async function upsertTransactionAnnotation(annotation: NewTransactionAnnotation) {
+export async function upsertTransactionAnnotation(tenantId: string, annotation: NewTransactionAnnotation) {
 	await db.execute({
-		sql: `INSERT INTO transaction_annotations (id, transaction_id, category, note, created_at, updated_at)
-        VALUES (lower(hex(randomblob(16))), ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT(transaction_id) DO UPDATE SET category = excluded.category, note = excluded.note, updated_at = CURRENT_TIMESTAMP`,
-		args: [annotation.transactionId, annotation.category ?? null, annotation.note ?? null],
+		sql: `INSERT INTO transaction_annotations (id, tenant_id, transaction_id, category, note, created_at, updated_at)
+        VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(tenant_id, transaction_id) DO UPDATE SET category = excluded.category, note = excluded.note, updated_at = CURRENT_TIMESTAMP`,
+		args: [tenantId, annotation.transactionId, annotation.category ?? null, annotation.note ?? null],
 	});
 }
 

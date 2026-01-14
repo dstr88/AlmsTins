@@ -1,11 +1,13 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
+import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { upsertTransactionAnnotation } from '../../../lib/transactions';
 
 export const prerender = false;
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const body = await request.json();
 		const { transactionId, category, note } = body ?? {};
 
@@ -17,8 +19,8 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const txResult = await db.execute({
-			sql: 'SELECT id FROM transactions WHERE id = ? LIMIT 1',
-			args: [transactionId],
+			sql: 'SELECT id FROM transactions WHERE id = ? AND tenant_id = ? LIMIT 1',
+			args: [transactionId, tenantId],
 		});
 
 		if (!txResult.rows.length) {
@@ -28,7 +30,7 @@ export const POST: APIRoute = async ({ request }) => {
 			});
 		}
 
-		await upsertTransactionAnnotation({
+		await upsertTransactionAnnotation(tenantId, {
 			transactionId,
 			category: category ?? null,
 			note: note ?? null,
