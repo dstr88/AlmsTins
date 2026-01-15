@@ -124,5 +124,24 @@ const authConfig = {
 	},
 };
 
-export const GET: APIRoute = async ({ request }) => Auth(request, authConfig);
-export const POST: APIRoute = async ({ request }) => Auth(request, authConfig);
+const ensureAbsoluteUrl = (request: Request) => {
+	if (request.url.startsWith('http')) return request.url;
+	const proto = request.headers.get('x-forwarded-proto') ?? 'http';
+	const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? 'localhost';
+	return new URL(request.url, `${proto}://${host}`).toString();
+};
+
+const buildAuthRequest = (request: Request) => {
+	const url = ensureAbsoluteUrl(request);
+	const init: RequestInit = {
+		method: request.method,
+		headers: request.headers,
+	};
+	if (request.method !== 'GET' && request.method !== 'HEAD') {
+		init.body = request.body;
+	}
+	return new Request(url, init);
+};
+
+export const GET: APIRoute = async ({ request }) => Auth(buildAuthRequest(request), authConfig);
+export const POST: APIRoute = async ({ request }) => Auth(buildAuthRequest(request), authConfig);
