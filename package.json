@@ -3,7 +3,9 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "npm run dev:ledger",
+    "dev:root": "astro dev",
+    "dev:ledger": "cd ledgerLense && npm run dev",
     "build": "astro build",
     "start": "HOST=0.0.0.0 node ./dist/server/entry.mjs",
     "check": "astro check",

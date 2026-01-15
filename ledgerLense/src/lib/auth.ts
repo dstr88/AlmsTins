@@ -1,6 +1,6 @@
 import type { APIContext } from 'astro';
 import crypto from 'node:crypto';
-import { db } from './db';
+import { getSession } from '@auth/astro';
 
 export const SESSION_COOKIE_NAME = 'dashboard_session';
 const SESSION_SALT = import.meta.env.DASHBOARD_SESSION_SALT ?? 'titaniumhut-dashboard';
@@ -10,7 +10,7 @@ export function generateSessionToken(passphrase: string) {
 }
 
 export function isAuthDisabled() {
-	return false;
+	return import.meta.env.AUTH_DISABLED === 'true';
 }
 
 export function isValidSession(token: string | undefined) {
@@ -29,30 +29,19 @@ export type SessionUser = {
 	id: string;
 };
 
-let cachedUserId: string | null = null;
-
-export async function requireUser(context: Pick<APIContext, 'cookies'>): Promise<SessionUser | null> {
-	const userId = await resolveUserId();
+export async function requireUser(context: Pick<APIContext, 'request'>): Promise<SessionUser | null> {
 	if (isAuthDisabled()) {
+		return { sessionToken: 'dev-mode', id: 'dev-user' };
+	}
+
+	const session = await getSession(context.request);
+	if (!session) {
+		return null;
+	}
+	const userId = session.user && 'id' in session.user ? String(session.user.id ?? '') : '';
+	if (!userId) {
 		return null;
 	}
 
-	const token = context.cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (!token || !isValidSession(token)) {
-		return null;
-	}
-
-	return { sessionToken: token, id: userId };
-}
-
-async function resolveUserId() {
-	if (cachedUserId) return cachedUserId;
-	const result = await db.execute('SELECT id FROM users ORDER BY created_at ASC LIMIT 1');
-	if (result.rows.length === 0) {
-		throw new Error('No user configured in database');
-	}
-	const row = result.rows[0] as Record<string, unknown>;
-	const idValue = row.id;
-	cachedUserId = String(idValue);
-	return cachedUserId;
+	return { sessionToken: 'authjs-session', id: userId };
 }

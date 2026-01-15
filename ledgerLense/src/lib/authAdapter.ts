@@ -1,0 +1,186 @@
+import type { Adapter, AdapterAccount, AdapterSession, AdapterUser, VerificationToken } from '@auth/core/adapters';
+import crypto from 'node:crypto';
+import { db } from './db';
+
+type Row = Record<string, unknown>;
+
+const toDate = (value: unknown) => (value ? new Date(String(value)) : null);
+
+const mapUser = (row: Row): AdapterUser => ({
+	id: String(row.id),
+	name: row.name ? String(row.name) : null,
+	email: row.email ? String(row.email) : null,
+	emailVerified: toDate(row.email_verified),
+	image: row.image ? String(row.image) : null,
+});
+
+const mapAccount = (row: Row): AdapterAccount => ({
+	userId: String(row.user_id),
+	type: String(row.type),
+	provider: String(row.provider),
+	providerAccountId: String(row.provider_account_id),
+	access_token: row.access_token ? String(row.access_token) : null,
+	token_type: row.token_type ? String(row.token_type) : null,
+	scope: row.scope ? String(row.scope) : null,
+	expires_at: row.expires_at ? Number(row.expires_at) : null,
+	refresh_token: row.refresh_token ? String(row.refresh_token) : null,
+	id_token: row.id_token ? String(row.id_token) : null,
+	session_state: row.session_state ? String(row.session_state) : null,
+});
+
+const mapSession = (row: Row): AdapterSession => ({
+	sessionToken: String(row.session_token),
+	userId: String(row.user_id),
+	expires: new Date(String(row.expires)),
+});
+
+const mapVerificationToken = (row: Row): VerificationToken => ({
+	identifier: String(row.identifier),
+	token: String(row.token),
+	expires: new Date(String(row.expires)),
+});
+
+export const authAdapter = (): Adapter => ({
+	async createUser(user) {
+		const id = user.id ?? crypto.randomUUID();
+		await db.execute({
+			sql: `INSERT INTO auth_users (id, name, email, email_verified, image)
+        VALUES (?, ?, ?, ?, ?)`,
+			args: [id, user.name ?? null, user.email ?? null, user.emailVerified?.toISOString() ?? null, user.image ?? null],
+		});
+		return { ...user, id };
+	},
+	async getUser(id) {
+		const result = await db.execute({ sql: 'SELECT * FROM auth_users WHERE id = ? LIMIT 1', args: [id] });
+		if (result.rows.length === 0) return null;
+		return mapUser(result.rows[0] as Row);
+	},
+	async getUserByEmail(email) {
+		const result = await db.execute({ sql: 'SELECT * FROM auth_users WHERE email = ? LIMIT 1', args: [email] });
+		if (result.rows.length === 0) return null;
+		return mapUser(result.rows[0] as Row);
+	},
+	async getUserByAccount({ provider, providerAccountId }) {
+		const result = await db.execute({
+			sql: `SELECT u.*
+        FROM auth_users u
+        INNER JOIN auth_accounts a ON a.user_id = u.id
+        WHERE a.provider = ? AND a.provider_account_id = ?
+        LIMIT 1`,
+			args: [provider, providerAccountId],
+		});
+		if (result.rows.length === 0) return null;
+		return mapUser(result.rows[0] as Row);
+	},
+	async updateUser(user) {
+		await db.execute({
+			sql: `UPDATE auth_users
+        SET name = ?, email = ?, email_verified = ?, image = ?
+        WHERE id = ?`,
+			args: [
+				user.name ?? null,
+				user.email ?? null,
+				user.emailVerified?.toISOString() ?? null,
+				user.image ?? null,
+				user.id,
+			],
+		});
+		const result = await db.execute({ sql: 'SELECT * FROM auth_users WHERE id = ? LIMIT 1', args: [user.id] });
+		return mapUser(result.rows[0] as Row);
+	},
+	async deleteUser(id) {
+		await db.execute({ sql: 'DELETE FROM auth_users WHERE id = ?', args: [id] });
+	},
+	async linkAccount(account) {
+		await db.execute({
+			sql: `INSERT INTO auth_accounts (
+          id, user_id, type, provider, provider_account_id, access_token, token_type, scope,
+          expires_at, refresh_token, id_token, session_state
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			args: [
+				crypto.randomUUID(),
+				account.userId,
+				account.type,
+				account.provider,
+				account.providerAccountId,
+				account.access_token ?? null,
+				account.token_type ?? null,
+				account.scope ?? null,
+				account.expires_at ?? null,
+				account.refresh_token ?? null,
+				account.id_token ?? null,
+				account.session_state ?? null,
+			],
+		});
+		return account;
+	},
+	async unlinkAccount({ provider, providerAccountId }) {
+		await db.execute({
+			sql: 'DELETE FROM auth_accounts WHERE provider = ? AND provider_account_id = ?',
+			args: [provider, providerAccountId],
+		});
+	},
+	async createSession(session) {
+		await db.execute({
+			sql: `INSERT INTO auth_sessions (session_token, user_id, expires)
+        VALUES (?, ?, ?)`,
+			args: [session.sessionToken, session.userId, session.expires.toISOString()],
+		});
+		return session;
+	},
+	async getSessionAndUser(sessionToken) {
+		const result = await db.execute({
+			sql: `SELECT s.session_token, s.user_id, s.expires, u.*
+        FROM auth_sessions s
+        INNER JOIN auth_users u ON u.id = s.user_id
+        WHERE s.session_token = ?
+        LIMIT 1`,
+			args: [sessionToken],
+		});
+		if (result.rows.length === 0) return null;
+		const row = result.rows[0] as Row;
+		return {
+			session: mapSession(row),
+			user: mapUser(row),
+		};
+	},
+	async updateSession(session) {
+		await db.execute({
+			sql: `UPDATE auth_sessions
+        SET user_id = ?, expires = ?
+        WHERE session_token = ?`,
+			args: [session.userId, session.expires.toISOString(), session.sessionToken],
+		});
+		const result = await db.execute({
+			sql: 'SELECT * FROM auth_sessions WHERE session_token = ? LIMIT 1',
+			args: [session.sessionToken],
+		});
+		if (result.rows.length === 0) return null;
+		return mapSession(result.rows[0] as Row);
+	},
+	async deleteSession(sessionToken) {
+		await db.execute({ sql: 'DELETE FROM auth_sessions WHERE session_token = ?', args: [sessionToken] });
+	},
+	async createVerificationToken(token) {
+		await db.execute({
+			sql: `INSERT INTO auth_verification_tokens (identifier, token, expires)
+        VALUES (?, ?, ?)`,
+			args: [token.identifier, token.token, token.expires.toISOString()],
+		});
+		return token;
+	},
+	async useVerificationToken({ identifier, token }) {
+		const result = await db.execute({
+			sql: `SELECT * FROM auth_verification_tokens
+        WHERE identifier = ? AND token = ?
+        LIMIT 1`,
+			args: [identifier, token],
+		});
+		if (result.rows.length === 0) return null;
+		await db.execute({
+			sql: 'DELETE FROM auth_verification_tokens WHERE identifier = ? AND token = ?',
+			args: [identifier, token],
+		});
+		return mapVerificationToken(result.rows[0] as Row);
+	},
+});

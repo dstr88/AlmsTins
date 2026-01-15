@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
+    "dev:env": "node src/scripts/envCheck.mjs",
     "build": "astro build",
     "start": "HOST=0.0.0.0 node ./dist/server/entry.mjs",
     "check": "astro check",
@@ -13,12 +14,15 @@
     "db:migrate": "node src/scripts/dbMigrate.mjs"
   },
   "dependencies": {
+    "@auth/astro": "^0.29.0",
+    "@auth/core": "^0.34.0",
     "@astrojs/node": "^9.5.1",
     "@astrojs/react": "^4.4.2",
     "@libsql/client": "^0.15.15",
     "astro": "^5.15.6",
     "chart.js": "^4.5.1",
     "lucide-react": "^0.554.0",
+    "nodemailer": "^6.9.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.9.3"

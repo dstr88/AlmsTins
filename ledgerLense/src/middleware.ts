@@ -1,7 +1,7 @@
 import { defineMiddleware } from 'astro/middleware';
-import { isValidSession, SESSION_COOKIE_NAME } from './lib/auth';
+import { getSession } from '@auth/astro';
 
-const PUBLIC_PATHS = ['/login', '/api/login', '/favicon', '/assets', '/node_modules', '/_astro', '/public'];
+const PUBLIC_PATHS = ['/login', '/api/login', '/api/auth', '/favicon', '/assets', '/node_modules', '/_astro', '/public'];
 const DEV_OPEN_API_PATHS = ['/api/debug-snapshots', '/api/networth'];
 
 const DEV_BYPASS_PATHS = new Set([
@@ -16,6 +16,9 @@ const SYNC_PATHS = new Set(['/api/sync/defi']);
 export const onRequest = defineMiddleware(async (context, next) => {
 	const url = new URL(context.request.url);
 	const path = url.pathname;
+	if (path === '/api/auth' || path.startsWith('/api/auth/')) {
+		return next();
+	}
 	if (path.startsWith('/.well-known/acme-challenge/')) {
 		return next();
 	}
@@ -49,7 +52,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return applySecurityHeaders(await next());
 	}
 
-	const { request, cookies, url: ctxUrl } = context;
+	const { request, url: ctxUrl } = context;
 	const pathname = ctxUrl.pathname;
 
 	if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
@@ -57,8 +60,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return applySecurityHeaders(await next());
 	}
 
-	const token = cookies.get(SESSION_COOKIE_NAME)?.value;
-	if (isValidSession(token)) {
+	if (import.meta.env.AUTH_DISABLED === 'true') {
+		console.log('[middleware] rule=AUTH_DISABLED path=', path);
+		return applySecurityHeaders(await next());
+	}
+
+	const session = await getSession(request);
+	if (session) {
 		console.log('[middleware] rule=SESSION_OK path=', path);
 		return applySecurityHeaders(await next());
 	}
