@@ -1,8 +1,43 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import WalletDashboard from '../components/WalletDashboard.astro';
 ---
 
 <Layout>
-	<WalletDashboard />
+	<section class="public-gate">
+		<h1>Login required</h1>
+		<p>Sign in to access your dashboard.</p>
+		<a class="login-button" href="/login">Go to login</a>
+	</section>
 </Layout>
+
+<style>
+	.public-gate {
+		max-width: 520px;
+		margin: 4rem auto;
+		padding: 0 1.5rem;
+		text-align: center;
+	}
+
+	.public-gate h1 {
+		margin: 0 0 0.5rem;
+		font-size: clamp(2rem, 3vw, 2.6rem);
+		letter-spacing: -0.02em;
+	}
+
+	.public-gate p {
+		margin: 0 0 2rem;
+		color: rgba(255, 255, 255, 0.7);
+	}
+
+	.login-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.9rem 1.6rem;
+		border-radius: 999px;
+		background: linear-gradient(135deg, #5767ff, #934dff);
+		color: #fff;
+		text-decoration: none;
+		font-weight: 600;
+	}
+</style>

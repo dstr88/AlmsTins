@@ -1,7 +1,18 @@
 import { defineMiddleware } from 'astro/middleware';
 import { getAuthSession } from './lib/authSession';
 
-const PUBLIC_PATHS = ['/login', '/api/login', '/api/auth', '/favicon', '/assets', '/node_modules', '/_astro', '/public'];
+const PUBLIC_PATHS = [
+	'/',
+	'/healthz',
+	'/login',
+	'/api/login',
+	'/api/auth',
+	'/favicon',
+	'/assets',
+	'/node_modules',
+	'/_astro',
+	'/public',
+];
 const DEV_OPEN_API_PATHS = ['/api/debug-snapshots', '/api/networth'];
 
 const DEV_BYPASS_PATHS = new Set([
@@ -54,6 +65,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	const { request, url: ctxUrl } = context;
 	const pathname = ctxUrl.pathname;
+
+	if (pathname === '/') {
+		console.log('[middleware] rule=ROOT_PUBLIC path=', path);
+		return applySecurityHeaders(await next());
+	}
 
 	if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
 		console.log('[middleware] rule=PUBLIC path=', path);
