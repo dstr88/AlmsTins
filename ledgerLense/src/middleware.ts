@@ -4,6 +4,7 @@ import { getAuthSession } from './lib/authSession';
 const PUBLIC_PATHS = [
 	'/healthz',
 	'/login',
+	'/signup',
 	'/api/login',
 	'/api/auth',
 	'/favicon',
