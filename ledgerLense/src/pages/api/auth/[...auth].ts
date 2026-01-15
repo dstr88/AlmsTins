@@ -75,6 +75,7 @@ providers.push(
 );
 
 const authConfig = {
+	basePath: '/api/auth',
 	providers,
 	adapter: authAdapter(),
 	secret: import.meta.env.AUTH_SECRET,
