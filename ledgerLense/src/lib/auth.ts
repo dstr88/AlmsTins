@@ -1,6 +1,6 @@
 import type { APIContext } from 'astro';
 import crypto from 'node:crypto';
-import { getSession } from '@auth/astro';
+import { getAuthSession } from './authSession';
 
 export const SESSION_COOKIE_NAME = 'dashboard_session';
 const SESSION_SALT = import.meta.env.DASHBOARD_SESSION_SALT ?? 'titaniumhut-dashboard';
@@ -34,7 +34,7 @@ export async function requireUser(context: Pick<APIContext, 'request'>): Promise
 		return { sessionToken: 'dev-mode', id: 'dev-user' };
 	}
 
-	const session = await getSession(context.request);
+	const session = await getAuthSession(context.request);
 	if (!session) {
 		return null;
 	}

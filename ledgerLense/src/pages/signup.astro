@@ -1,5 +1,5 @@
 ---
-import { getSession } from '@auth/astro';
+import { getAuthSession } from '../lib/authSession';
 
 const { searchParams } = Astro.url;
 const error = searchParams.get('error');
@@ -14,7 +14,7 @@ const message =
 					? 'An account already exists for that email.'
 					: '';
 
-const session = await getSession(Astro.request);
+const session = await getAuthSession(Astro.request);
 if (session) {
 	return Astro.redirect('/transition', 303);
 }

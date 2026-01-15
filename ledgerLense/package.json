@@ -14,7 +14,6 @@
     "db:migrate": "node src/scripts/dbMigrate.mjs"
   },
   "dependencies": {
-    "@auth/astro": "^0.29.0",
     "@auth/core": "^0.34.0",
     "@astrojs/node": "^9.5.1",
     "@astrojs/react": "^4.4.2",
@@ -22,7 +21,7 @@
     "astro": "^5.15.6",
     "chart.js": "^4.5.1",
     "lucide-react": "^0.554.0",
-    "nodemailer": "^6.9.15",
+    "nodemailer": "^7.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.9.3"

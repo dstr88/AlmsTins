@@ -1,8 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { getSession } from '@auth/astro';
+import { getAuthSession } from '../lib/authSession';
 
-const session = await getSession(Astro.request);
+const session = await getAuthSession(Astro.request);
 const displayName = session?.user?.name ? String(session.user.name).trim() : '';
 const firstName = displayName ? displayName.split(/\s+/)[0] : '';
 ---

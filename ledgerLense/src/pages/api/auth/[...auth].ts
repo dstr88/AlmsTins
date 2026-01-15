@@ -1,4 +1,5 @@
-import { AstroAuth } from '@auth/astro';
+import type { APIRoute } from 'astro';
+import { Auth } from '@auth/core';
 import Email from '@auth/core/providers/email';
 import Credentials from '@auth/core/providers/credentials';
 import GitHub from '@auth/core/providers/github';
@@ -73,7 +74,7 @@ providers.push(
 	}),
 );
 
-export const { GET, POST } = AstroAuth({
+const authConfig = {
 	providers,
 	adapter: authAdapter(),
 	secret: import.meta.env.AUTH_SECRET,
@@ -120,4 +121,7 @@ export const { GET, POST } = AstroAuth({
 			return new URL(fallback, baseUrl).toString();
 		},
 	},
-});
+};
+
+export const GET: APIRoute = async ({ request }) => Auth(request, authConfig);
+export const POST: APIRoute = async ({ request }) => Auth(request, authConfig);

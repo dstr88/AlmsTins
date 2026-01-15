@@ -1,5 +1,5 @@
 import { defineMiddleware } from 'astro/middleware';
-import { getSession } from '@auth/astro';
+import { getAuthSession } from './lib/authSession';
 
 const PUBLIC_PATHS = ['/login', '/api/login', '/api/auth', '/favicon', '/assets', '/node_modules', '/_astro', '/public'];
 const DEV_OPEN_API_PATHS = ['/api/debug-snapshots', '/api/networth'];
@@ -65,7 +65,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return applySecurityHeaders(await next());
 	}
 
-	const session = await getSession(request);
+	const session = await getAuthSession(request);
 	if (session) {
 		console.log('[middleware] rule=SESSION_OK path=', path);
 		return applySecurityHeaders(await next());

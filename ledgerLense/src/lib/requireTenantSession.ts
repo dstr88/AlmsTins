@@ -1,4 +1,4 @@
-import { getSession } from '@auth/astro';
+import { getAuthSession } from './authSession';
 import { resolveActiveTenantId } from './tenants';
 
 export type TenantSession = {
@@ -7,7 +7,7 @@ export type TenantSession = {
 };
 
 export async function requireTenantSession(request: Request): Promise<TenantSession> {
-	const session = await getSession(request);
+	const session = await getAuthSession(request);
 	const userId = session?.user && 'id' in session.user ? String(session.user.id ?? '') : '';
 
 	if (!session || !userId) {
