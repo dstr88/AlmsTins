@@ -227,6 +227,21 @@ const githubUrl = `/api/auth/signin/github?callbackUrl=${encodeURIComponent(call
 
 			<div class="divider">or email</div>
 
+			<form method="POST" action="/api/auth/callback/credentials">
+				<input type="hidden" name="callbackUrl" value={callbackUrl} />
+				<label>
+					<span>Email address</span>
+					<input type="email" name="email" placeholder="you@company.com" required />
+				</label>
+				<label>
+					<span>Password</span>
+					<input type="password" name="password" minlength="10" required />
+				</label>
+				<button type="submit">Sign in with email</button>
+			</form>
+
+			<div class="divider">or magic link</div>
+
 			<form method="POST" action="/api/auth/signin/email">
 				<input type="hidden" name="callbackUrl" value={callbackUrl} />
 				<label>
