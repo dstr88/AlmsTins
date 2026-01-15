@@ -14,6 +14,18 @@ const message =
 		: error
 			? 'Sign-in failed. Please try again.'
 			: '';
+const signup = searchParams.get('signup');
+const verified = searchParams.get('verified');
+const notice =
+	signup === 'success'
+		? 'Account created. Check your inbox to verify your email.'
+		: verified === 'success'
+			? 'Email verified. You can sign in now.'
+			: verified === 'expired'
+				? 'Verification link expired. Please sign in to request a new one.'
+				: verified === 'failed'
+					? 'Verification failed. Please try again.'
+					: '';
 
 const session = await getSession(Astro.request);
 if (session) {
@@ -181,6 +193,23 @@ const githubUrl = `/api/auth/signin/github?callbackUrl=${encodeURIComponent(call
 				border-radius: 12px;
 				font-size: 0.9rem;
 			}
+
+			.notice.success {
+				background: rgba(60, 179, 113, 0.12);
+				border: 1px solid rgba(60, 179, 113, 0.35);
+				color: #b6f3c4;
+			}
+
+			.helper {
+				margin: 0.5rem 0 1.5rem;
+				font-size: 0.9rem;
+				color: rgba(255, 255, 255, 0.7);
+			}
+
+			.helper a {
+				color: #c7d2ff;
+				text-decoration: none;
+			}
 		</style>
 	</head>
 	<body>
@@ -189,13 +218,33 @@ const githubUrl = `/api/auth/signin/github?callbackUrl=${encodeURIComponent(call
 			<p>Use Google, GitHub, or a magic link to access the dashboard.</p>
 
 			{message && <p class="notice">{message}</p>}
+			{notice && <p class="notice success">{notice}</p>}
 
 			<div class="providers">
 				<a class="provider-button google" href={googleUrl}>Continue with Google</a>
 				<a class="provider-button github" href={githubUrl}>Continue with GitHub</a>
 			</div>
 
-			<div class="divider">or email</div>
+			<div class="divider">or password</div>
+
+			<form method="POST" action="/api/auth/callback/credentials">
+				<input type="hidden" name="callbackUrl" value={callbackUrl} />
+				<label>
+					<span>Email address</span>
+					<input type="email" name="email" placeholder="you@company.com" required />
+				</label>
+				<label>
+					<span>Password</span>
+					<input type="password" name="password" minlength="10" required />
+				</label>
+				<button type="submit">Sign in with password</button>
+			</form>
+
+			<p class="helper">
+				No account yet? <a href="/signup">Create one</a>
+			</p>
+
+			<div class="divider">or magic link</div>
 
 			<form method="POST" action="/api/auth/signin/email">
 				<input type="hidden" name="callbackUrl" value={callbackUrl} />

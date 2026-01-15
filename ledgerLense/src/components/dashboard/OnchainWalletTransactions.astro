@@ -1,5 +1,6 @@
 ---
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
 import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
@@ -29,10 +30,11 @@ type TxRow = {
 };
 
 const { walletId, title } = Astro.props as Props;
+const { tenantId } = await requireTenantSession(Astro.request);
 
 const walletResult = await db.execute({
-	sql: 'SELECT address FROM wallets WHERE id = ? LIMIT 1',
-	args: [walletId],
+	sql: 'SELECT address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+	args: [walletId, tenantId],
 });
 
 const walletAddress = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
@@ -41,10 +43,10 @@ const result = await db.execute({
 	sql: `SELECT t.id, t.timestamp, t.token_symbol, t.value, t.token_decimals,
 		t.tx_type, t.chain, t.hash, t.fee_paid, t.from_address, t.to_address, a.note, a.category
 		FROM transactions t
-		LEFT JOIN transaction_annotations a ON a.transaction_id = t.id
-		WHERE t.wallet_id = ?
+		LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
+		WHERE t.wallet_id = ? AND t.tenant_id = ?
 		ORDER BY t.timestamp DESC`,
-	args: [walletId],
+	args: [walletId, tenantId],
 });
 
 const rows = result.rows as TxRow[];

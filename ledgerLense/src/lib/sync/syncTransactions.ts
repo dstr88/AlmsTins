@@ -56,14 +56,18 @@ export type AllWalletSyncStats = {
 /**
  * Fetches the last synced block/timestamp cursor for a wallet + chain.
  */
-export async function getLastSyncedCursorForWallet(walletId: string, chain: string): Promise<WalletSyncCursor> {
+export async function getLastSyncedCursorForWallet(
+	tenantId: string,
+	walletId: string,
+	chain: string,
+): Promise<WalletSyncCursor> {
 	try {
 		const result = await db.execute({
 			sql: `SELECT last_block_number, last_timestamp
         FROM wallet_sync_state
-        WHERE wallet_id = ? AND chain = ?
+        WHERE wallet_id = ? AND chain = ? AND tenant_id = ?
         LIMIT 1`,
-			args: [walletId, chain],
+			args: [walletId, chain, tenantId],
 		});
 
 		if (!result.rows.length) {
@@ -85,18 +89,19 @@ export async function getLastSyncedCursorForWallet(walletId: string, chain: stri
  * Upserts the last synced cursor for a wallet + chain.
  */
 export async function updateLastSyncedCursorForWallet(
+	tenantId: string,
 	walletId: string,
 	chain: string,
 	cursor: { block: number; timestamp?: string | null },
 ) {
 	await db.execute({
-		sql: `INSERT INTO wallet_sync_state (wallet_id, chain, last_block_number, last_timestamp, last_run_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(wallet_id, chain) DO UPDATE SET
+		sql: `INSERT INTO wallet_sync_state (tenant_id, wallet_id, chain, last_block_number, last_timestamp, last_run_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(tenant_id, wallet_id, chain) DO UPDATE SET
           last_block_number = excluded.last_block_number,
           last_timestamp = excluded.last_timestamp,
           last_run_at = CURRENT_TIMESTAMP`,
-		args: [walletId, chain, cursor.block ?? 0, cursor.timestamp ?? null],
+		args: [tenantId, walletId, chain, cursor.block ?? 0, cursor.timestamp ?? null],
 	});
 }
 
@@ -200,7 +205,7 @@ export async function fetchTransactionsSince(wallet: Wallet, chain: ScanChain, m
 /**
  * Syncs a single wallet + chain combination.
  */
-export async function syncWalletChain(wallet: Wallet, chain: string): Promise<WalletSyncChainStats> {
+export async function syncWalletChain(tenantId: string, wallet: Wallet, chain: string): Promise<WalletSyncChainStats> {
 	const normalizedChain = normalizeChain(chain);
 	if (!normalizedChain) {
 		console.warn(`Skipping unsupported chain "${chain}" for wallet ${wallet.id}`);
@@ -219,7 +224,7 @@ export async function syncWalletChain(wallet: Wallet, chain: string): Promise<Wa
 		};
 	}
 
-	const marker = await getLastSyncedCursorForWallet(wallet.id, normalizedChain);
+	const marker = await getLastSyncedCursorForWallet(tenantId, wallet.id, normalizedChain);
 	const { txs, highestBlock, highestTimestamp, fetchedNative, fetchedToken } = await fetchTransactionsSince(
 		wallet,
 		normalizedChain,
@@ -230,15 +235,15 @@ export async function syncWalletChain(wallet: Wallet, chain: string): Promise<Wa
 	let skipped = 0;
 
 	if (txs.length) {
-		const result = await bulkUpsertTransactions(txs);
+		const result = await bulkUpsertTransactions(tenantId, txs);
 		inserted = result.length;
 		skipped = txs.length - inserted;
-		await updateLastSyncedCursorForWallet(wallet.id, normalizedChain, {
+		await updateLastSyncedCursorForWallet(tenantId, wallet.id, normalizedChain, {
 			block: highestBlock,
 			timestamp: highestTimestamp ?? marker.timestamp,
 		});
 	} else {
-		await updateLastSyncedCursorForWallet(wallet.id, normalizedChain, {
+		await updateLastSyncedCursorForWallet(tenantId, wallet.id, normalizedChain, {
 			block: marker.block,
 			timestamp: marker.timestamp,
 		});
@@ -265,7 +270,7 @@ export async function syncWalletChain(wallet: Wallet, chain: string): Promise<Wa
 /**
  * Syncs all chains for a wallet and aggregates stats.
  */
-export async function syncWalletTransactions(wallet: Wallet): Promise<WalletSyncStats> {
+export async function syncWalletTransactions(tenantId: string, wallet: Wallet): Promise<WalletSyncStats> {
 	const baseChains =
 		Array.isArray(wallet.chains) && wallet.chains.length ? wallet.chains : [...DEFAULT_ERC20_CHAINS];
 	const chainSet = new Set(baseChains.map((value) => value.toLowerCase()));
@@ -277,7 +282,7 @@ export async function syncWalletTransactions(wallet: Wallet): Promise<WalletSync
 
 	for (const chain of chains) {
 		try {
-			const chainStats = await syncWalletChain(wallet, chain);
+			const chainStats = await syncWalletChain(tenantId, wallet, chain);
 			stats.push(chainStats);
 			totalInserted += chainStats.inserted;
 			totalSkipped += chainStats.skipped;
@@ -310,15 +315,15 @@ export async function syncWalletTransactions(wallet: Wallet): Promise<WalletSync
 /**
  * Syncs every active wallet in the system and returns aggregate stats.
  */
-export async function syncAllWallets(): Promise<AllWalletSyncStats> {
-	const wallets = await getAllActiveWallets();
+export async function syncAllWallets(tenantId: string): Promise<AllWalletSyncStats> {
+	const wallets = await getAllActiveWallets(tenantId);
 	const perWallet: WalletSyncStats[] = [];
 	let totalInserted = 0;
 	let totalSkipped = 0;
 
 	for (const wallet of wallets) {
 		try {
-			const stats = await syncWalletTransactions(wallet);
+			const stats = await syncWalletTransactions(tenantId, wallet);
 			perWallet.push(stats);
 			totalInserted += stats.totalInserted;
 			totalSkipped += stats.totalSkipped;

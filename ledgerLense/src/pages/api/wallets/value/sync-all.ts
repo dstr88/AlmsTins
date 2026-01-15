@@ -1,19 +1,13 @@
 import type { APIRoute } from 'astro';
 import { syncWalletValuesForAllWallets } from '@/lib/sync/syncWalletValue';
-import { requireUser } from '@/lib/auth';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const prerender = false;
 
 export const POST: APIRoute = async (ctx) => {
 	try {
-		if (!import.meta.env.DEV) {
-			const user = await requireUser(ctx);
-			if (!user) {
-				return new Response('Unauthorized', { status: 401 });
-			}
-		}
-
-		const result = await syncWalletValuesForAllWallets();
+		const { tenantId } = await requireTenantSession(ctx.request);
+		const result = await syncWalletValuesForAllWallets(tenantId);
 		return new Response(JSON.stringify(result), {
 			status: 200,
 			headers: {

@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const ETHERSCAN_V2 = 'https://api.etherscan.io/v2/api';
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
@@ -26,7 +27,7 @@ const buildUrl = (chainId: number, action: string, address: string) => {
 	return `${ETHERSCAN_V2}?${params.toString()}`;
 };
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, request }) => {
 	if (!ETHERSCAN_KEY) {
 		return new Response(JSON.stringify({ ok: false, error: 'Missing ETHERSCAN_API_KEY' }), { status: 500 });
 	}
@@ -36,7 +37,9 @@ export const GET: APIRoute = async ({ params }) => {
 		return new Response(JSON.stringify({ ok: false, error: 'Missing wallet id' }), { status: 400 });
 	}
 
-	const cachedResponse = cache.get(walletId);
+	const { tenantId } = await requireTenantSession(request);
+	const cacheKey = `${tenantId}:${walletId}`;
+	const cachedResponse = cache.get(cacheKey);
 	if (cachedResponse && cachedResponse.expiresAt > Date.now()) {
 		return new Response(JSON.stringify(cachedResponse.payload), {
 			status: 200,
@@ -45,8 +48,8 @@ export const GET: APIRoute = async ({ params }) => {
 	}
 
 	const walletResult = await db.execute({
-		sql: 'SELECT address FROM wallets WHERE id = ? LIMIT 1',
-		args: [walletId],
+		sql: 'SELECT address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+		args: [walletId, tenantId],
 	});
 	const address = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
 	if (!address) {
@@ -109,7 +112,7 @@ export const GET: APIRoute = async ({ params }) => {
 		});
 
 	const payload = { ok: true, items };
-	cache.set(walletId, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
+	cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
 
 	return new Response(JSON.stringify(payload), {
 		status: 200,

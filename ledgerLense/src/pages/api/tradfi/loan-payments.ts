@@ -1,8 +1,10 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ request, url }) => {
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const loanId = url.searchParams.get('loanId')?.trim() ?? '';
 		if (!loanId) {
 			return new Response(JSON.stringify({ ok: false, error: 'Missing loanId.' }), {
@@ -15,10 +17,10 @@ export const GET: APIRoute = async ({ url }) => {
 			sql: `
         SELECT id, payment_date, amount_usd
         FROM tradfi_loan_payments
-        WHERE loan_id = ?
+        WHERE loan_id = ? AND tenant_id = ?
         ORDER BY payment_date DESC
       `,
-			args: [loanId],
+			args: [loanId, tenantId],
 		});
 
 		const payments = result.rows.map((row) => ({
@@ -43,6 +45,7 @@ export const GET: APIRoute = async ({ url }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const body = await request.json();
 		const loanId = String(body?.loanId || '').trim();
 		const paymentDate = String(body?.paymentDate || '').trim();
@@ -61,13 +64,14 @@ export const POST: APIRoute = async ({ request }) => {
 			`
       INSERT INTO tradfi_loan_payments (
         id,
+        tenant_id,
         loan_id,
         payment_date,
         amount_usd
       )
-      VALUES (?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?)
       `,
-			[id, loanId, paymentDate, amountUsd],
+			[id, tenantId, loanId, paymentDate, amountUsd],
 		);
 
 		return new Response(JSON.stringify({ ok: true, id }), {
@@ -86,6 +90,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 export const DELETE: APIRoute = async ({ request }) => {
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const body = await request.json();
 		const id = String(body?.id || '').trim();
 		if (!id) {
@@ -98,9 +103,9 @@ export const DELETE: APIRoute = async ({ request }) => {
 		await db.execute(
 			`
       DELETE FROM tradfi_loan_payments
-      WHERE id = ?
+      WHERE id = ? AND tenant_id = ?
       `,
-			[id],
+			[id, tenantId],
 		);
 
 		return new Response(JSON.stringify({ ok: true }), {

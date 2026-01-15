@@ -1,6 +1,5 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
-import { getAllActiveWallets } from '@/lib/wallets';
 import { getAavePositionsForWallet } from '@/lib/aave/client';
 
 export const prerender = false;
@@ -176,7 +175,7 @@ async function fetchAaveHealth(address: string) {
 	return { ok: true, address: address.toLowerCase(), chains };
 }
 
-async function syncWalletDefi(wallet: { id: string; address: string }, force: boolean) {
+async function syncWalletDefi(tenantId: string, wallet: { id: string; address: string }, force: boolean) {
 	const cacheKey = wallet.id;
 	const now = Date.now();
 	const cached = cache.get(cacheKey);
@@ -196,6 +195,7 @@ async function syncWalletDefi(wallet: { id: string; address: string }, force: bo
 
 	await db.execute({
 		sql: `INSERT INTO wallet_defi_sync (
+				tenant_id,
 				wallet_id,
 				last_defi_sync_at,
 				interest_paid_total,
@@ -205,8 +205,8 @@ async function syncWalletDefi(wallet: { id: string; address: string }, force: bo
 				positions_payload,
 				updated_at
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(wallet_id) DO UPDATE SET
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(tenant_id, wallet_id) DO UPDATE SET
 				last_defi_sync_at = excluded.last_defi_sync_at,
 				interest_paid_total = excluded.interest_paid_total,
 				interest_earned_total = excluded.interest_earned_total,
@@ -215,6 +215,7 @@ async function syncWalletDefi(wallet: { id: string; address: string }, force: bo
 				positions_payload = excluded.positions_payload,
 				updated_at = excluded.updated_at`,
 		args: [
+			tenantId,
 			wallet.id,
 			syncAt,
 			interestPaid,

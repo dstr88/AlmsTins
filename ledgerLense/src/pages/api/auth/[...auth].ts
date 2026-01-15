@@ -1,9 +1,13 @@
 import { AstroAuth } from '@auth/astro';
 import Email from '@auth/core/providers/email';
+import Credentials from '@auth/core/providers/credentials';
 import GitHub from '@auth/core/providers/github';
 import Google from '@auth/core/providers/google';
+import { db } from '../../../lib/db';
 import { authAdapter } from '../../../lib/authAdapter';
+import { verifyPassword } from '../../../lib/passwords';
 import { getPostLoginRedirect } from '../../../lib/postLoginRedirect';
+import { ensureTenantForUser, resolveActiveTenantId } from '../../../lib/tenants';
 
 const providers = [];
 
@@ -34,6 +38,41 @@ if (import.meta.env.EMAIL_SERVER && import.meta.env.EMAIL_FROM) {
 	);
 }
 
+providers.push(
+	Credentials({
+		name: 'Credentials',
+		credentials: {
+			email: { label: 'Email', type: 'email' },
+			password: { label: 'Password', type: 'password' },
+		},
+		async authorize(credentials) {
+			const email = typeof credentials?.email === 'string' ? credentials.email.toLowerCase() : '';
+			const password = typeof credentials?.password === 'string' ? credentials.password : '';
+			if (!email || !password) {
+				return null;
+			}
+
+			const userResult = await db.execute({
+				sql: `SELECT u.id, u.name, u.email, c.password_hash
+          FROM auth_users u
+          JOIN auth_credentials c ON c.user_id = u.id
+          WHERE u.email = ? LIMIT 1`,
+				args: [email],
+			});
+			if (!userResult.rows.length) {
+				return null;
+			}
+			const row = userResult.rows[0] as Record<string, any>;
+			const ok = await verifyPassword(password, String(row.password_hash ?? ''));
+			if (!ok) {
+				return null;
+			}
+
+			return { id: String(row.id), name: row.name ?? null, email: row.email ?? null };
+		},
+	}),
+);
+
 export const { GET, POST } = AstroAuth({
 	providers,
 	adapter: authAdapter(),
@@ -45,6 +84,28 @@ export const { GET, POST } = AstroAuth({
 		signIn: '/login',
 	},
 	callbacks: {
+		async signIn({ user }) {
+			if (user?.id) {
+				await ensureTenantForUser(String(user.id));
+			}
+			return true;
+		},
+		async jwt({ token, user }) {
+			if (user?.id) {
+				token.sub = String(user.id);
+				token.tenantId = await ensureTenantForUser(String(user.id));
+			} else if (!token.tenantId && token.sub) {
+				token.tenantId = await resolveActiveTenantId(String(token.sub));
+			}
+			return token;
+		},
+		async session({ session, token }) {
+			if (session.user && token.sub) {
+				(session.user as Record<string, any>).id = String(token.sub);
+			}
+			(session as Record<string, any>).tenantId = token.tenantId ?? null;
+			return session;
+		},
 		redirect({ url, baseUrl }) {
 			const fallback = getPostLoginRedirect(null);
 			if (url === baseUrl || url === `${baseUrl}/`) {

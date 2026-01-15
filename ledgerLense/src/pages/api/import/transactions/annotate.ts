@@ -1,7 +1,9 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const POST: APIRoute = async ({ request }) => {
+	const { tenantId } = await requireTenantSession(request);
 	let payload: { id?: string; note?: string; category?: string; group_id?: string } = {};
 	try {
 		payload = await request.json();
@@ -18,8 +20,8 @@ export const POST: APIRoute = async ({ request }) => {
 			SET notes = COALESCE(?, notes),
 				category = COALESCE(?, category),
 				group_id = COALESCE(?, group_id)
-			WHERE id = ?`,
-		args: [payload.note ?? null, payload.category ?? null, payload.group_id ?? null, payload.id],
+			WHERE id = ? AND tenant_id = ?`,
+		args: [payload.note ?? null, payload.category ?? null, payload.group_id ?? null, payload.id, tenantId],
 	});
 
 	return new Response(JSON.stringify({ ok: true }), {

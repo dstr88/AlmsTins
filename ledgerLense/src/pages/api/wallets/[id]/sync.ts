@@ -1,23 +1,25 @@
 import type { APIRoute } from 'astro';
 import { getAllActiveWallets } from '../../../../lib/wallets';
 import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const prerender = false;
 
-export const POST: APIRoute = async ({ params }) => {
+export const POST: APIRoute = async ({ params, request }) => {
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const walletId = params.id;
 		if (!walletId) {
 			return respond({ error: true, message: 'Wallet id is required.' }, 400);
 		}
 
-		const wallets = await getAllActiveWallets();
+		const wallets = await getAllActiveWallets(tenantId);
 		const wallet = wallets.find((candidate) => candidate.id === walletId);
 		if (!wallet) {
 			return respond({ error: true, message: 'Wallet not found.' }, 404);
 		}
 
-		const stats = await syncWalletTransactions(wallet);
+		const stats = await syncWalletTransactions(tenantId, wallet);
 		return respond(
 			{
 				ok: true,

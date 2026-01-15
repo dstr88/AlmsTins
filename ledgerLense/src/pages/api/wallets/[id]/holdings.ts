@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
 const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
@@ -290,6 +291,7 @@ async function fetchHistoricalPrice(
 export const prerender = false;
 
 export const GET: APIRoute = async ({ params, request }) => {
+	const { tenantId } = await requireTenantSession(request);
 	const walletId = params.id ?? '';
 	const url = new URL(request.url);
 	const chainId = Number(url.searchParams.get('chainid') ?? POLYGON_CHAIN_ID);
@@ -303,7 +305,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 		);
 	}
 
-	const cacheKey = `${walletId}:${chainId}`;
+	const cacheKey = `${tenantId}:${walletId}:${chainId}`;
 	const cached = cache.get(cacheKey);
 	if (cached && cached.expiresAt > Date.now()) {
 		return new Response(JSON.stringify(cached.payload), {
@@ -313,8 +315,8 @@ export const GET: APIRoute = async ({ params, request }) => {
 	}
 
 	const walletResult = await db.execute({
-		sql: 'SELECT id, address, label FROM wallets WHERE id = ? LIMIT 1',
-		args: [walletId],
+		sql: 'SELECT id, address, label FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+		args: [walletId, tenantId],
 	});
 	const wallet = walletResult.rows[0] as unknown as { id?: string; address?: string; label?: string } | undefined;
 	if (!wallet?.address) {

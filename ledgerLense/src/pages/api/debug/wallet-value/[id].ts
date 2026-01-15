@@ -2,10 +2,11 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { computeWalletValue } from '@/lib/sync/syncWalletValue';
 import { safeParseChains } from '@/lib/wallets-service';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, request }) => {
 	const walletId = params.id ?? '';
 	console.log('[debug.wallet-value] START', { walletId });
 
@@ -17,9 +18,10 @@ export const GET: APIRoute = async ({ params }) => {
 	}
 
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const result = await db.execute({
-			sql: 'SELECT id, address, label, chains FROM wallets WHERE id = ? LIMIT 1',
-			args: [walletId],
+			sql: 'SELECT id, address, label, chains FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+			args: [walletId, tenantId],
 		});
 
 		const row = result.rows[0] as Record<string, any> | undefined;
@@ -39,7 +41,7 @@ export const GET: APIRoute = async ({ params }) => {
 
 		console.log('[debug.wallet-value] wallet', wallet);
 
-		const breakdown = await computeWalletValue(wallet.id, wallet.address, wallet.chains as any);
+		const breakdown = await computeWalletValue(tenantId, wallet.id, wallet.address, wallet.chains as any);
 
 		console.log('[debug.wallet-value] RESULT', {
 			walletId,

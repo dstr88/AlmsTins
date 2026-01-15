@@ -10,16 +10,18 @@ import CryptoDotCom from '../../components/dashboard/CryptoDotCom.astro';
 import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
 import { db } from '@/lib/db';
 import { getAllActiveWallets } from '@/lib/wallets';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
-const wallets = await getAllActiveWallets();
+const { tenantId } = await requireTenantSession(Astro.request);
+const wallets = await getAllActiveWallets(tenantId);
 const defaultWallet = wallets[0] ?? null;
 let lastSyncAt: string | null = null;
 
 if (defaultWallet) {
 	try {
 		const syncResult = await db.execute({
-			sql: 'SELECT last_defi_sync_at FROM wallet_defi_sync WHERE wallet_id = ? LIMIT 1',
-			args: [defaultWallet.id],
+			sql: 'SELECT last_defi_sync_at FROM wallet_defi_sync WHERE wallet_id = ? AND tenant_id = ? LIMIT 1',
+			args: [defaultWallet.id, tenantId],
 		});
 		lastSyncAt = (syncResult.rows?.[0] as { last_defi_sync_at?: string } | undefined)?.last_defi_sync_at ?? null;
 	} catch {

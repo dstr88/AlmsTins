@@ -1,18 +1,20 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { normalizeChains, sanitizeAddress, transformWalletRow } from '../../../lib/wallets-service';
+import { requireTenantSession } from '../../../lib/requireTenantSession';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, request }) => {
 	if (!params.id) {
 		return responseWithError('Wallet id is required.', 400);
 	}
 
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const result = await db.execute({
-			sql: 'SELECT id, address, label, chains, is_default, created_at FROM wallets WHERE id = ? LIMIT 1',
-			args: [params.id],
+			sql: 'SELECT id, address, label, chains, is_default, created_at FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+			args: [params.id, tenantId],
 		});
 		if (!result.rows.length) {
 			return responseWithError('Wallet not found.', 404);
@@ -33,6 +35,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 	}
 
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const body = await request.json();
 
 		// Fast path: rename only
@@ -46,8 +49,8 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 			}
 
 			const result = await db.execute({
-				sql: 'UPDATE wallets SET label = ? WHERE id = ? RETURNING id, address, label, chains, is_default, created_at',
-				args: [nextLabel, params.id],
+				sql: 'UPDATE wallets SET label = ? WHERE id = ? AND tenant_id = ? RETURNING id, address, label, chains, is_default, created_at',
+				args: [nextLabel, params.id, tenantId],
 			});
 
 			if (!result.rows.length) {
@@ -93,10 +96,10 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 			return responseWithError('Provide at least one field to update.', 400);
 		}
 
-		args.push(params.id);
+		args.push(params.id, tenantId);
 
 		const result = await db.execute({
-			sql: `UPDATE wallets SET ${updates.join(', ')} WHERE id = ? RETURNING id, address, label, chains, is_default, created_at`,
+			sql: `UPDATE wallets SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ? RETURNING id, address, label, chains, is_default, created_at`,
 			args,
 		});
 
@@ -114,15 +117,16 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 	}
 };
 
-export const DELETE: APIRoute = async ({ params }) => {
+export const DELETE: APIRoute = async ({ params, request }) => {
 	if (!params.id) {
 		return responseWithError('Wallet id is required.', 400);
 	}
 
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const result = await db.execute({
-			sql: 'DELETE FROM wallets WHERE id = ? RETURNING id',
-			args: [params.id],
+			sql: 'DELETE FROM wallets WHERE id = ? AND tenant_id = ? RETURNING id',
+			args: [params.id, tenantId],
 		});
 		if (!result.rows.length) {
 			return responseWithError('Wallet not found.', 404);

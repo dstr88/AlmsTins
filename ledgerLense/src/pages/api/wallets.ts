@@ -2,15 +2,18 @@ import type { APIRoute } from 'astro';
 import { db } from '../../lib/db';
 import { normalizeChains, sanitizeAddress, transformWalletRow } from '../../lib/wallets-service';
 import { deriveDefaultLabel } from '../../lib/wallets';
+import { requireTenantSession } from '../../lib/requireTenantSession';
 
 export const prerender = false;
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
 	try {
-		const result = await db.execute(
-			'SELECT id, address, label, chains, is_default, created_at FROM wallets ORDER BY created_at DESC',
-		);
-			const wallets = result.rows.map(transformWalletRow);
+		const { tenantId } = await requireTenantSession(request);
+		const result = await db.execute({
+			sql: 'SELECT id, address, label, chains, is_default, created_at FROM wallets WHERE tenant_id = ? ORDER BY created_at DESC',
+			args: [tenantId],
+		});
+		const wallets = result.rows.map(transformWalletRow);
 		return new Response(JSON.stringify(wallets), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' },
@@ -23,6 +26,7 @@ export const GET: APIRoute = async () => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
+		const { userId, tenantId } = await requireTenantSession(request);
 		const body = await request.json();
 		const address = sanitizeAddress(body.address);
 		if (!address) {
@@ -34,13 +38,13 @@ export const POST: APIRoute = async ({ request }) => {
 		const isDefault = body.isDefault === true ? 1 : 0;
 
 		const inserted = await db.execute({
-			sql: `INSERT INTO wallets (user_id, address, label, chains, is_default)
-			      VALUES (NULL, ?, ?, ?, ?)
+			sql: `INSERT INTO wallets (tenant_id, user_id, address, label, chains, is_default)
+			      VALUES (?, ?, ?, ?, ?, ?)
 			      RETURNING id, address, label, chains, is_default, created_at`,
-			args: [address, label, JSON.stringify(chains), isDefault],
+			args: [tenantId, userId, address, label, JSON.stringify(chains), isDefault],
 		});
 
-			const wallet = transformWalletRow(inserted.rows[0]);
+		const wallet = transformWalletRow(inserted.rows[0]);
 		return new Response(JSON.stringify(wallet), {
 			status: 201,
 			headers: { 'Content-Type': 'application/json' },

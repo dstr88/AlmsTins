@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../lib/db';
+import { requireTenantSession } from '../../lib/requireTenantSession';
 
 const USER_FIELDS = [
 	'id',
@@ -17,9 +18,13 @@ const USER_FIELDS = [
 
 export const prerender = false;
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
 	try {
-		const result = await db.execute(`SELECT ${USER_FIELDS.join(', ')} FROM users ORDER BY created_at DESC`);
+		const { tenantId } = await requireTenantSession(request);
+		const result = await db.execute({
+			sql: `SELECT ${USER_FIELDS.join(', ')} FROM users WHERE tenant_id = ? ORDER BY created_at DESC`,
+			args: [tenantId],
+		});
 		const users = result.rows.map(mapUserRow);
 		return new Response(JSON.stringify(users), {
 			status: 200,
@@ -33,6 +38,7 @@ export const GET: APIRoute = async () => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
+		const { tenantId } = await requireTenantSession(request);
 		const body = await request.json();
 		const email = validateEmail(body.email);
 		if (!email) {
@@ -51,8 +57,8 @@ export const POST: APIRoute = async ({ request }) => {
 		};
 
 		const existing = await db.execute({
-			sql: 'SELECT id FROM users WHERE email = ? LIMIT 1',
-			args: [email],
+			sql: 'SELECT id FROM users WHERE email = ? AND tenant_id = ? LIMIT 1',
+			args: [email, tenantId],
 		});
 
 		let result;
@@ -60,7 +66,7 @@ export const POST: APIRoute = async ({ request }) => {
 			result = await db.execute({
 				sql: `UPDATE users
               SET full_name = ?, street_address = ?, city = ?, state = ?, postal_code = ?, country = ?, phone_number = ?, secondary_email = ?
-              WHERE id = ?
+              WHERE id = ? AND tenant_id = ?
               RETURNING ${USER_FIELDS.join(', ')}`,
 				args: [
 					payload.fullName,
@@ -72,14 +78,16 @@ export const POST: APIRoute = async ({ request }) => {
 					payload.phoneNumber,
 					payload.secondaryEmail,
 					existing.rows[0].id,
+					tenantId,
 				],
 			});
 		} else {
 			result = await db.execute({
-				sql: `INSERT INTO users (full_name, street_address, city, state, postal_code, country, phone_number, email, secondary_email)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				sql: `INSERT INTO users (tenant_id, full_name, street_address, city, state, postal_code, country, phone_number, email, secondary_email)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               RETURNING ${USER_FIELDS.join(', ')}`,
 				args: [
+					tenantId,
 					payload.fullName,
 					payload.streetAddress,
 					payload.city,

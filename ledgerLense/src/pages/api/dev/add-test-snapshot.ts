@@ -1,28 +1,39 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
 	try {
+		const { userId, tenantId } = await requireTenantSession(request);
 		const testWalletId = 'dev-test-wallet-1';
 
 		await db.execute(
 			`
       INSERT OR IGNORE INTO wallets (
         id,
+        tenant_id,
         user_id,
         address,
         label,
         chains,
         is_default
       )
-      VALUES (?, NULL, ?, ?, ?, 1)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
       `,
-			[testWalletId, '0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEF', 'Dev Test Wallet', 'eth'],
+			[
+				testWalletId,
+				tenantId,
+				userId,
+				'0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEF',
+				'Dev Test Wallet',
+				'eth',
+			],
 		);
 
 		await db.execute(
 			`
       INSERT INTO wallet_snapshots (
+        tenant_id,
         wallet_id,
         chain,
         totals_usd,
@@ -33,9 +44,10 @@ export const GET: APIRoute = async () => {
         net_rate_pct,
         payload_json
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
 			[
+				tenantId,
 				testWalletId,
 				'eth',
 				1234.56,

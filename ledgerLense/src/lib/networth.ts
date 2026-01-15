@@ -57,7 +57,7 @@ export type LatestNetWorthSummary = {
 	aaveIncluded?: boolean;
 };
 
-export async function getNetWorthSummary(): Promise<NetWorthSummary> {
+export async function getNetWorthSummary(tenantId: string): Promise<NetWorthSummary> {
 	const result = await db.execute(
 		/* sql */ `
       WITH latest AS (
@@ -66,6 +66,7 @@ export async function getNetWorthSummary(): Promise<NetWorthSummary> {
           chain,
           MAX(captured_at) AS captured_at
         FROM wallet_snapshots
+        WHERE tenant_id = ?
         GROUP BY wallet_id, chain
       )
       SELECT
@@ -81,7 +82,9 @@ export async function getNetWorthSummary(): Promise<NetWorthSummary> {
        AND l.chain     = ws.chain
        AND l.captured_at = ws.captured_at
       JOIN wallets w ON w.id = ws.wallet_id
+      WHERE ws.tenant_id = ? AND w.tenant_id = ?
     `,
+		[tenantId, tenantId, tenantId],
 	);
 
 	const rowsRaw = result.rows as unknown as Array<{
@@ -171,7 +174,7 @@ export async function getNetWorthSummary(): Promise<NetWorthSummary> {
 	};
 }
 
-export async function getLatestNetWorthSummary(): Promise<LatestNetWorthSummary> {
+export async function getLatestNetWorthSummary(tenantId: string): Promise<LatestNetWorthSummary> {
 	console.log('[networth.summary] START');
 
 	const result = await db.execute(
@@ -182,6 +185,7 @@ export async function getLatestNetWorthSummary(): Promise<LatestNetWorthSummary>
           chain,
           MAX(captured_at) AS captured_at
         FROM wallet_snapshots
+        WHERE tenant_id = ?
         GROUP BY wallet_id, chain
       )
       SELECT
@@ -197,7 +201,9 @@ export async function getLatestNetWorthSummary(): Promise<LatestNetWorthSummary>
        AND l.chain     = ws.chain
        AND l.captured_at = ws.captured_at
       JOIN wallets w ON w.id = ws.wallet_id
+      WHERE ws.tenant_id = ? AND w.tenant_id = ?
     `,
+		[tenantId, tenantId, tenantId],
 	);
 
 	const rows = result.rows as unknown as Array<{
@@ -425,6 +431,7 @@ export type SnapshotToken = {
 };
 
 export type SnapshotValueBreakdown = {
+	tenantId: string;
 	walletId: string;
 	chain: SupportedChain;
 	totalUsd?: number;
@@ -453,6 +460,7 @@ export async function insertWalletSnapshotFromValueBreakdown(breakdown: Snapshot
 
 	const result = await db.execute({
 		sql: `INSERT INTO wallet_snapshots (
+				tenant_id,
 				wallet_id,
 				chain,
 				totals_usd,
@@ -464,8 +472,9 @@ export async function insertWalletSnapshotFromValueBreakdown(breakdown: Snapshot
 				payload_json,
 				captured_at
 			)
-			VALUES (?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+			VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
 		args: [
+			breakdown.tenantId,
 			breakdown.walletId,
 			breakdown.chain,
 			totalUsd,
@@ -508,7 +517,7 @@ export type WalletTokenResult = {
 	tokens: WalletTokenRow[];
 };
 
-export async function getWalletTokenBreakdown(walletId: string): Promise<WalletTokenResult> {
+export async function getWalletTokenBreakdown(tenantId: string, walletId: string): Promise<WalletTokenResult> {
 	const startedAt = Date.now();
 	console.log('[networth.getWalletTokenBreakdown] START', { walletId });
 	console.log('[getWalletTokenBreakdown] called for walletId', walletId);
@@ -518,8 +527,8 @@ export async function getWalletTokenBreakdown(walletId: string): Promise<WalletT
 	}
 
 	const walletResult = await db.execute({
-		sql: 'SELECT id, address, label FROM wallets WHERE id = ? LIMIT 1',
-		args: [walletId],
+		sql: 'SELECT id, address, label FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+		args: [walletId, tenantId],
 	});
 	const wallet = walletResult.rows[0] as unknown as { id?: string; address?: string; label?: string } | undefined;
 
@@ -541,7 +550,7 @@ export async function getWalletTokenBreakdown(walletId: string): Promise<WalletT
           chain,
           MAX(captured_at) AS captured_at
         FROM wallet_snapshots
-        WHERE wallet_id = ?
+        WHERE wallet_id = ? AND tenant_id = ?
         GROUP BY chain
       )
       SELECT
@@ -553,9 +562,9 @@ export async function getWalletTokenBreakdown(walletId: string): Promise<WalletT
       JOIN latest l
         ON l.chain = ws.chain
        AND l.captured_at = ws.captured_at
-      WHERE ws.wallet_id = ?
+      WHERE ws.wallet_id = ? AND ws.tenant_id = ?
     `,
-		[walletId, walletId],
+		[walletId, tenantId, walletId, tenantId],
 	);
 
 	const rows = result.rows as unknown as Array<{ id: string; chain: string; payloadJson: string | null; capturedAt: string }>;

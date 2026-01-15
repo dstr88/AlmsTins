@@ -2,10 +2,12 @@
 import Layout from '../../layouts/Layout.astro';
 import WalletOverview from '../../components/dashboard/WalletOverview';
 import { db } from '../../lib/db';
+import { requireTenantSession } from '../../lib/requireTenantSession';
 
+const { tenantId } = await requireTenantSession(Astro.request);
 const result = await db.execute({
-	sql: 'SELECT id, address, label FROM wallets ORDER BY created_at ASC',
-	args: [],
+	sql: 'SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY created_at ASC',
+	args: [tenantId],
 });
 
 const wallets = result.rows.map((row: Record<string, any>) => ({
