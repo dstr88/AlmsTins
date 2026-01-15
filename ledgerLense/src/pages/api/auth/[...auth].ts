@@ -139,6 +139,7 @@ const buildAuthRequest = (request: Request) => {
 	};
 	if (request.method !== 'GET' && request.method !== 'HEAD') {
 		init.body = request.body;
+		(init as RequestInit & { duplex?: 'half' }).duplex = 'half';
 	}
 	return new Request(url, init);
 };
