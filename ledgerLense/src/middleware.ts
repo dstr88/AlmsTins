@@ -2,7 +2,6 @@ import { defineMiddleware } from 'astro/middleware';
 import { getAuthSession } from './lib/authSession';
 
 const PUBLIC_PATHS = [
-	'/',
 	'/healthz',
 	'/login',
 	'/api/login',
@@ -67,8 +66,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const pathname = ctxUrl.pathname;
 
 	if (pathname === '/') {
-		console.log('[middleware] rule=ROOT_PUBLIC path=', path);
-		return applySecurityHeaders(await next());
+		console.log('[middleware] rule=ROOT_REDIRECT path=', path);
+		return Response.redirect(new URL('/login', request.url), 303);
 	}
 
 	if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
