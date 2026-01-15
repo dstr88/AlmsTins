@@ -1,5 +1,6 @@
 import { defineMiddleware } from 'astro/middleware';
 import { getAuthSession } from './lib/authSession';
+import { logEnvStatus } from './lib/envStatus';
 
 const PUBLIC_PATHS = [
 	'/healthz',
@@ -25,6 +26,7 @@ const DEV_BYPASS_PATHS = new Set([
 const SYNC_PATHS = new Set(['/api/sync/defi']);
 
 export const onRequest = defineMiddleware(async (context, next) => {
+	logEnvStatus();
 	const url = new URL(context.request.url);
 	const path = url.pathname;
 	if (path === '/api/auth' || path.startsWith('/api/auth/')) {
