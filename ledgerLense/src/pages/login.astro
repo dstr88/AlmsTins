@@ -225,26 +225,7 @@ const githubUrl = `/api/auth/signin/github?callbackUrl=${encodeURIComponent(call
 				<a class="provider-button github" href={githubUrl}>Continue with GitHub</a>
 			</div>
 
-			<div class="divider">or password</div>
-
-			<form method="POST" action="/api/auth/callback/credentials">
-				<input type="hidden" name="callbackUrl" value={callbackUrl} />
-				<label>
-					<span>Email address</span>
-					<input type="email" name="email" placeholder="you@company.com" required />
-				</label>
-				<label>
-					<span>Password</span>
-					<input type="password" name="password" minlength="10" required />
-				</label>
-				<button type="submit">Sign in with password</button>
-			</form>
-
-			<p class="helper">
-				No account yet? <a href="/signup">Create one</a>
-			</p>
-
-			<div class="divider">or magic link</div>
+			<div class="divider">or email</div>
 
 			<form method="POST" action="/api/auth/signin/email">
 				<input type="hidden" name="callbackUrl" value={callbackUrl} />
@@ -254,6 +235,8 @@ const githubUrl = `/api/auth/signin/github?callbackUrl=${encodeURIComponent(call
 				</label>
 				<button type="submit">Send magic link</button>
 			</form>
+
+			<a class="provider-button" href="/signup">Create an account</a>
 		</main>
 	</body>
 </html>
