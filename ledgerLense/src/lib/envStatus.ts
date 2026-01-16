@@ -19,4 +19,22 @@ export function logEnvStatus() {
 	};
 
 	console.log('[env] presence', status);
+
+	const authUrl = import.meta.env.AUTH_URL ?? '';
+	let authUrlHost = 'unknown';
+	try {
+		authUrlHost = authUrl ? new URL(authUrl).host : 'missing';
+	} catch {
+		authUrlHost = 'invalid';
+	}
+
+	const providers = {
+		google: status.GOOGLE_ID && status.GOOGLE_SECRET,
+		github: status.GITHUB_ID && status.GITHUB_SECRET,
+		email: status.EMAIL_SERVER && status.EMAIL_FROM,
+		credentials: true,
+	};
+
+	console.log('[env] auth_url_host', authUrlHost);
+	console.log('[env] providers', providers);
 }

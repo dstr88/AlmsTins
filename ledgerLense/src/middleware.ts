@@ -30,6 +30,21 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	logEnvStatus();
 	const url = new URL(context.request.url);
 	const path = url.pathname;
+	const hostFlag = '__ledgerlense_auth_host_logged__';
+	const globalAny = globalThis as typeof globalThis & { [hostFlag]?: boolean };
+	if (!globalAny[hostFlag]) {
+		globalAny[hostFlag] = true;
+		const requestHost = context.request.headers.get('x-forwarded-host') ?? url.host;
+		const authUrl = import.meta.env.AUTH_URL ?? '';
+		let authUrlHost = 'missing';
+		try {
+			authUrlHost = authUrl ? new URL(authUrl).host : 'missing';
+		} catch {
+			authUrlHost = 'invalid';
+		}
+		const matches = authUrlHost !== 'missing' && authUrlHost !== 'invalid' && requestHost === authUrlHost;
+		console.log('[env] auth_url_host_match', { requestHost, authUrlHost, matches });
+	}
 	if (path === '/api/auth' || path.startsWith('/api/auth/')) {
 		return next();
 	}
