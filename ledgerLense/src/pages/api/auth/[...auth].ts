@@ -86,14 +86,38 @@ const authConfig = {
 		signIn: '/login',
 	},
 	callbacks: {
-		async signIn({ user }) {
+		async signIn({ user, account }) {
 			if (user?.id) {
+				const userId = String(user.id);
 				try {
-					await ensureTenantForUser(String(user.id));
+					const exists = await db.execute({
+						sql: 'SELECT id FROM auth_users WHERE id = ? LIMIT 1',
+						args: [userId],
+					});
+					if (!exists.rows.length) {
+						console.warn('[auth][signIn] user missing in auth_users', {
+							userId,
+							email: user.email ?? null,
+							provider: account?.provider ?? null,
+						});
+						return true;
+					}
+				} catch (error) {
+					console.error('[auth][signIn] auth_users lookup failed', {
+						userId,
+						email: user.email ?? null,
+						provider: account?.provider ?? null,
+						error: error instanceof Error ? error.message : String(error),
+					});
+					throw error;
+				}
+				try {
+					await ensureTenantForUser(userId);
 				} catch (error) {
 					console.error('[auth][signIn] ensureTenantForUser failed', {
-						userId: String(user.id),
+						userId,
 						email: user.email ?? null,
+						provider: account?.provider ?? null,
 						error: error instanceof Error ? error.message : String(error),
 					});
 					throw error;
