@@ -30,6 +30,9 @@ const isActive = (path: string) => currentPath === path;
 					<a href="/dashboard/tax" class={`nav-link ${isActive('/dashboard/tax') ? 'active' : ''}`}>Tax</a>
 					<a class="nav-link disabled">Events</a>
 					<a class="nav-link disabled">Settings</a>
+					<form class="nav-form" method="post" action="/api/logout">
+						<button class="nav-button" type="submit">Log out</button>
+					</form>
 				</nav>
 			</header>
 			<main>
@@ -93,12 +96,33 @@ const isActive = (path: string) => currentPath === path;
 		font-size: 0.9rem;
 	}
 
+	.nav-form {
+		margin: 0;
+	}
+
 	nav a {
 		color: rgba(255, 255, 255, 0.8);
 		text-decoration: none;
 		padding: 0.4rem 0.75rem;
 		border-radius: 999px;
 		transition: background 0.2s ease, color 0.2s ease;
+	}
+
+	.nav-button {
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		color: rgba(255, 255, 255, 0.85);
+		padding: 0.4rem 0.9rem;
+		border-radius: 999px;
+		font: inherit;
+		cursor: pointer;
+		transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+	}
+
+	.nav-button:hover {
+		background: rgba(255, 255, 255, 0.16);
+		border-color: rgba(255, 255, 255, 0.3);
+		color: #fff;
 	}
 
 	nav a:hover {

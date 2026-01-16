@@ -1,0 +1,25 @@
+import type { APIRoute } from 'astro';
+
+const COOKIE_NAMES = [
+	'authjs.session-token',
+	'__Secure-authjs.session-token',
+	'authjs.csrf-token',
+	'__Host-authjs.csrf-token',
+	'authjs.callback-url',
+];
+
+const clearAuthCookies = (cookies: APIRoute['cookies']) => {
+	for (const name of COOKIE_NAMES) {
+		cookies.delete(name, { path: '/' });
+	}
+};
+
+export const POST: APIRoute = async ({ cookies, redirect }) => {
+	clearAuthCookies(cookies);
+	return redirect('/login', 303);
+};
+
+export const GET: APIRoute = async ({ cookies, redirect }) => {
+	clearAuthCookies(cookies);
+	return redirect('/login', 303);
+};
