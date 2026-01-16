@@ -88,7 +88,16 @@ const authConfig = {
 	callbacks: {
 		async signIn({ user }) {
 			if (user?.id) {
-				await ensureTenantForUser(String(user.id));
+				try {
+					await ensureTenantForUser(String(user.id));
+				} catch (error) {
+					console.error('[auth][signIn] ensureTenantForUser failed', {
+						userId: String(user.id),
+						email: user.email ?? null,
+						error: error instanceof Error ? error.message : String(error),
+					});
+					throw error;
+				}
 			}
 			return true;
 		},
