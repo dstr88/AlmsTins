@@ -144,5 +144,28 @@ const buildAuthRequest = (request: Request) => {
 	return new Request(url, init);
 };
 
-export const GET: APIRoute = async ({ request }) => Auth(buildAuthRequest(request), authConfig);
-export const POST: APIRoute = async ({ request }) => Auth(buildAuthRequest(request), authConfig);
+const logAuthError = (request: Request, error: unknown) => {
+	console.error('[auth] request failed', {
+		method: request.method,
+		url: ensureAbsoluteUrl(request),
+		error: error instanceof Error ? error.message : String(error),
+	});
+};
+
+export const GET: APIRoute = async ({ request }) => {
+	try {
+		return await Auth(buildAuthRequest(request), authConfig);
+	} catch (error) {
+		logAuthError(request, error);
+		throw error;
+	}
+};
+
+export const POST: APIRoute = async ({ request }) => {
+	try {
+		return await Auth(buildAuthRequest(request), authConfig);
+	} catch (error) {
+		logAuthError(request, error);
+		throw error;
+	}
+};
