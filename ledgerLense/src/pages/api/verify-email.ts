@@ -13,7 +13,7 @@ export const GET: APIRoute = async ({ request, redirect }) => {
 	}
 
 	const lookup = await db.execute({
-		sql: 'SELECT token, expires FROM auth_verification_tokens WHERE identifier = ? AND token = ? LIMIT 1',
+		sql: 'SELECT token, expires FROM signup_verification_tokens WHERE identifier = ? AND token = ? LIMIT 1',
 		args: [`signup:${email.toLowerCase()}`, token],
 	});
 	if (!lookup.rows.length) {
@@ -23,7 +23,7 @@ export const GET: APIRoute = async ({ request, redirect }) => {
 	const expires = String(lookup.rows[0].expires ?? '');
 	if (expires && new Date(expires).getTime() < Date.now()) {
 		await db.execute({
-			sql: 'DELETE FROM auth_verification_tokens WHERE identifier = ? AND token = ?',
+			sql: 'DELETE FROM signup_verification_tokens WHERE identifier = ? AND token = ?',
 			args: [`signup:${email.toLowerCase()}`, token],
 		});
 		return redirect('/login?verified=expired', 303);
@@ -34,7 +34,7 @@ export const GET: APIRoute = async ({ request, redirect }) => {
 		args: [email.toLowerCase()],
 	});
 	await db.execute({
-		sql: 'DELETE FROM auth_verification_tokens WHERE identifier = ? AND token = ?',
+		sql: 'DELETE FROM signup_verification_tokens WHERE identifier = ? AND token = ?',
 		args: [`signup:${email.toLowerCase()}`, token],
 	});
 

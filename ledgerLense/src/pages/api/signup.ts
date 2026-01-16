@@ -79,7 +79,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	const token = crypto.randomBytes(32).toString('hex');
 	const expires = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
 	await db.execute({
-		sql: 'INSERT INTO auth_verification_tokens (identifier, token, expires) VALUES (?, ?, ?)',
+		sql: 'INSERT INTO signup_verification_tokens (identifier, token, expires) VALUES (?, ?, ?)',
 		args: [`signup:${email}`, token, expires],
 	});
 
