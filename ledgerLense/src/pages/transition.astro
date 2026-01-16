@@ -1,6 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { getAuthSession } from '../lib/authSession';
+import Minerva from '../assets/Minerva.jpeg';
+import KingSolomon from '../assets/KingSolomon.jpeg';
 
 const session = await getAuthSession(Astro.request);
 const displayName = session?.user?.name ? String(session.user.name).trim() : '';
@@ -14,17 +16,27 @@ const firstName = displayName ? displayName.split(/\s+/)[0] : '';
 			<p>Jump into crypto vaults or traditional finance insights.</p>
 		</header>
 
-		<div class="grid">
-			<a class="card crypto" href="/dashboard/vault">
-				<span class="eyebrow">Crypto</span>
-				<strong>Vault</strong>
-				<p>Onchain positions, DeFi health, and wallets.</p>
-			</a>
-			<a class="card tradfi" href="/dashboard/tradfi">
-				<span class="eyebrow">TradFi</span>
-				<strong>Traditional Finance</strong>
-				<p>Banking, loans, and offchain holdings.</p>
-			</a>
+		<div class="columns">
+			<div class="column">
+				<div class="portrait-wrap">
+					<img class="portrait tilt-left" src={Minerva} alt="Minerva" loading="lazy" />
+				</div>
+				<a class="card tradfi slide-left" href="/dashboard/tradfi">
+					<span class="eyebrow">TradFi</span>
+					<strong>Traditional Finance</strong>
+					<p>Banking, loans, and offchain holdings.</p>
+				</a>
+			</div>
+			<div class="column">
+				<div class="portrait-wrap">
+					<img class="portrait" src={KingSolomon} alt="King Solomon" loading="lazy" />
+				</div>
+				<a class="card crypto slide-right" href="/dashboard/vault">
+					<span class="eyebrow">Crypto</span>
+					<strong>Vault</strong>
+					<p>Onchain positions, DeFi health, and wallets.</p>
+				</a>
+			</div>
 		</div>
 	</section>
 </Layout>
@@ -51,10 +63,36 @@ const firstName = displayName ? displayName.split(/\s+/)[0] : '';
 		color: rgba(255, 255, 255, 0.7);
 	}
 
-	.grid {
+	.columns {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 2rem;
+		align-items: start;
+	}
+
+	.column {
+		display: flex;
+		flex-direction: column;
 		gap: 1.5rem;
+	}
+
+	.portrait-wrap {
+		padding: 1.2rem;
+		border-radius: 20px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		background: rgba(8, 12, 22, 0.9);
+		box-shadow: 0 30px 70px rgba(0, 0, 0, 0.35);
+	}
+
+	.portrait {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 16px;
+	}
+
+	.tilt-left {
+		transform: rotate(-2.5deg);
 	}
 
 	.card {
@@ -69,6 +107,32 @@ const firstName = displayName ? displayName.split(/\s+/)[0] : '';
 		background: rgba(8, 12, 22, 0.85);
 		box-shadow: 0 24px 50px rgba(0, 0, 0, 0.3);
 		transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.card {
+			opacity: 0;
+			animation: card-slide-in 0.55s ease forwards;
+		}
+
+		.slide-left {
+			animation-delay: 0.15s;
+		}
+
+		.slide-right {
+			animation-delay: 0.35s;
+		}
+	}
+
+	@keyframes card-slide-in {
+		from {
+			opacity: 0;
+			transform: translateY(18px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 
 	.card:hover {
@@ -98,6 +162,10 @@ const firstName = displayName ? displayName.split(/\s+/)[0] : '';
 	@media (max-width: 720px) {
 		.transition {
 			margin: 2.5rem auto;
+		}
+
+		.columns {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>
