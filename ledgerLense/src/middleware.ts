@@ -6,6 +6,7 @@ const PUBLIC_PATHS = [
 	'/healthz',
 	'/login',
 	'/signup',
+	'/api/signup',
 	'/api/login',
 	'/api/auth',
 	'/favicon',
