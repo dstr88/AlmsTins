@@ -3,14 +3,18 @@ import type { APIRoute } from 'astro';
 const COOKIE_NAMES = [
 	'authjs.session-token',
 	'__Secure-authjs.session-token',
+	'__Host-authjs.session-token',
 	'authjs.csrf-token',
 	'__Host-authjs.csrf-token',
 	'authjs.callback-url',
+	'authjs.pkce.code_verifier',
+	'authjs.state',
 ];
 
 const clearAuthCookies = (cookies: APIRoute['cookies']) => {
 	for (const name of COOKIE_NAMES) {
 		cookies.delete(name, { path: '/' });
+		cookies.delete(name, { path: '/', secure: true });
 	}
 };
 
