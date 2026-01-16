@@ -23,7 +23,7 @@ const currentPath = Astro.url.pathname;
 		<div class="columns">
 			<div class="column">
 				<div class="portrait-wrap">
-					<img class="portrait tilt-left" src={Minerva.src} alt="Minerva" loading="lazy" />
+					<img class="portrait tilt-left portrait-left" src={Minerva.src} alt="Minerva" loading="lazy" />
 				</div>
 				<a class="card tradfi slide-left" href="/dashboard/tradfi">
 					<span class="eyebrow">TradFi</span>
@@ -33,7 +33,7 @@ const currentPath = Astro.url.pathname;
 			</div>
 			<div class="column">
 				<div class="portrait-wrap">
-					<img class="portrait" src={KingSolomon.src} alt="King Solomon" loading="lazy" />
+					<img class="portrait portrait-right" src={KingSolomon.src} alt="King Solomon" loading="lazy" />
 				</div>
 				<a class="card crypto slide-right" href="/dashboard/vault">
 					<span class="eyebrow">Crypto</span>
@@ -169,6 +169,23 @@ const currentPath = Astro.url.pathname;
 	}
 
 	@media (prefers-reduced-motion: no-preference) {
+		.portrait {
+			opacity: 0;
+			animation-duration: 0.7s;
+			animation-timing-function: ease;
+			animation-fill-mode: forwards;
+		}
+
+		.portrait-left {
+			animation-name: portrait-slide-left;
+			animation-delay: 0.05s;
+		}
+
+		.portrait-right {
+			animation-name: portrait-slide-right;
+			animation-delay: 0.25s;
+		}
+
 		.card {
 			opacity: 0;
 			animation-duration: 0.65s;
@@ -202,6 +219,28 @@ const currentPath = Astro.url.pathname;
 		from {
 			opacity: 0;
 			transform: translateX(26px) translateY(12px) rotate(4deg);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0) translateY(0) rotate(0deg);
+		}
+	}
+
+	@keyframes portrait-slide-left {
+		from {
+			opacity: 0;
+			transform: translateX(-18px) translateY(10px) rotate(-5deg);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0) translateY(0) rotate(0deg);
+		}
+	}
+
+	@keyframes portrait-slide-right {
+		from {
+			opacity: 0;
+			transform: translateX(18px) translateY(10px) rotate(5deg);
 		}
 		to {
 			opacity: 1;
