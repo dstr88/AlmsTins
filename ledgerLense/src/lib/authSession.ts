@@ -11,9 +11,13 @@ export type AuthSession = {
 };
 
 export async function getAuthSession(request: Request): Promise<AuthSession | null> {
+	const authUrl = import.meta.env.AUTH_URL ?? '';
+	const forwardedProto = request.headers.get('x-forwarded-proto') ?? '';
+	const secureCookie = authUrl.startsWith('https://') || forwardedProto === 'https';
 	const token = await getToken({
 		req: request,
 		secret: import.meta.env.AUTH_SECRET,
+		secureCookie,
 	});
 
 	if (!token || !token.sub) {
