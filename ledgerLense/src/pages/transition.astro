@@ -66,14 +66,15 @@ const firstName = displayName ? displayName.split(/\s+/)[0] : '';
 	.columns {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 2rem;
+		gap: 3.5rem;
 		align-items: start;
+		margin-top: 1.5rem;
 	}
 
 	.column {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.4rem;
 		align-items: center;
 	}
 
@@ -110,8 +111,8 @@ const firstName = displayName ? displayName.split(/\s+/)[0] : '';
 		display: flex;
 		flex-direction: column;
 		gap: 0.6rem;
-		padding: 0.5rem;
-		max-width: 176px;
+		padding: 0.3rem;
+		max-width: 88px;
 		width: 100%;
 		border-radius: 18px;
 		text-decoration: none;
