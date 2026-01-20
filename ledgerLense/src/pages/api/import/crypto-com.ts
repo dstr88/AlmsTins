@@ -145,8 +145,9 @@ const detectDirection = (row: NormalizedRow) => {
 	};
 };
 
-const buildRowHash = (row: NormalizedRow) => {
+const buildRowHash = (row: NormalizedRow, accountId: string) => {
 	const payload = JSON.stringify([
+		accountId,
 		row.timestampUtc,
 		row.description,
 		row.currency,
@@ -154,7 +155,7 @@ const buildRowHash = (row: NormalizedRow) => {
 		row.toCurrency,
 		row.toAmount ?? '',
 		row.kind,
-		row.txHash ?? '',
+	row.txHash ?? '',
 	]);
 	return createHash('sha256').update(payload).digest('hex');
 };
@@ -170,10 +171,56 @@ export const POST: APIRoute = async ({ request }) => {
 	const { tenantId } = await requireTenantSession(request);
 	const formData = await request.formData();
 	const file = formData.get('file');
+	const accountIdRaw = formData.get('accountId');
 
 	if (!(file instanceof File)) {
 		return new Response(JSON.stringify({ error: 'Missing file upload.' }), { status: 400 });
 	}
+
+	const accountId = typeof accountIdRaw === 'string' ? accountIdRaw.trim() : '';
+	let resolvedAccountId = accountId;
+	if (resolvedAccountId) {
+		const accountResult = await db.execute({
+			sql: `SELECT id FROM exchange_accounts
+				WHERE id = ? AND tenant_id = ? AND source = 'crypto_com' LIMIT 1`,
+			args: [resolvedAccountId, tenantId],
+		});
+		if (!accountResult.rows?.length) {
+			return new Response(JSON.stringify({ error: 'Invalid accountId.' }), { status: 400 });
+		}
+	} else {
+		const existing = await db.execute({
+			sql: `SELECT id FROM exchange_accounts
+				WHERE tenant_id = ? AND source = 'crypto_com'
+				ORDER BY created_at ASC LIMIT 1`,
+			args: [tenantId],
+		});
+		const existingId = String(existing.rows?.[0]?.id ?? '');
+		if (existingId) {
+			resolvedAccountId = existingId;
+		} else {
+			const newId = randomUUID();
+			await db.execute({
+				sql: `INSERT INTO exchange_accounts (id, tenant_id, source, name)
+					VALUES (?, ?, 'crypto_com', ?)`,
+				args: [newId, tenantId, 'Account #1'],
+			});
+			resolvedAccountId = newId;
+		}
+	}
+
+	await db.execute({
+		sql: `UPDATE import_transactions
+			SET account_id = ?
+			WHERE tenant_id = ? AND source = 'crypto_com' AND account_id IS NULL`,
+		args: [resolvedAccountId, tenantId],
+	});
+	await db.execute({
+		sql: `UPDATE import_raw_rows
+			SET account_id = ?
+			WHERE tenant_id = ? AND source = 'crypto_com' AND account_id IS NULL`,
+		args: [resolvedAccountId, tenantId],
+	});
 
 	const content = await file.text();
 	const rows = parseCsv(content);
@@ -205,16 +252,17 @@ export const POST: APIRoute = async ({ request }) => {
 		normalized.direction = direction;
 		normalized.assetSymbol = assetSymbol;
 
-		const rowHash = buildRowHash(normalized);
+		const rowHash = buildRowHash(normalized, resolvedAccountId);
 		const groupId = buildGroupId('crypto_com', normalized.assetSymbol, normalized.timestampUtc);
 		const rawResult = await db.execute({
 			sql: `INSERT OR IGNORE INTO import_raw_rows
-				(id, tenant_id, source, import_batch_id, row_json, row_hash, imported_at)
-				VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 			args: [
 				randomUUID(),
 				tenantId,
 				'crypto_com',
+				resolvedAccountId,
 				batchId,
 				JSON.stringify(row),
 				rowHash,
@@ -223,13 +271,14 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const normalizedResult = await db.execute({
 			sql: `INSERT OR IGNORE INTO import_transactions
-				(id, tenant_id, source, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
+				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
 				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 			args: [
 				randomUUID(),
 				tenantId,
 				'crypto_com',
+				resolvedAccountId,
 				batchId,
 				normalized.timestampUtc,
 				normalized.description || null,
@@ -252,13 +301,14 @@ export const POST: APIRoute = async ({ request }) => {
 		insertedRaw += rawResult.rowsAffected ?? 0;
 		insertedNormalized += normalizedResult.rowsAffected ?? 0;
 		if ((rawResult.rowsAffected ?? 0) === 0 && (normalizedResult.rowsAffected ?? 0) === 0) {
-			skippedDuplicates += 1;
-		}
+		skippedDuplicates += 1;
 	}
+}
 
 	return new Response(
 		JSON.stringify({
 			batchId,
+			accountId: resolvedAccountId,
 			insertedRaw,
 			insertedNormalized,
 			skippedDuplicates,

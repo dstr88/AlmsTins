@@ -1,0 +1,523 @@
+---
+import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+type AccountRow = {
+	id: string;
+	name: string;
+};
+
+type ImportRow = {
+	timestamp_utc: string;
+	asset_symbol: string | null;
+	direction: string | null;
+	currency: string | null;
+	amount: number | null;
+	to_currency: string | null;
+	to_amount: number | null;
+	native_usd: number | null;
+	kind: string | null;
+	description: string | null;
+};
+
+type Holding = {
+	symbol: string;
+	balance: number;
+	lastPurchaseAt: string | null;
+	costBasis: number | null;
+};
+
+type AccountWithHoldings = AccountRow & {
+	holdings: Holding[];
+};
+
+const { tenantId } = await requireTenantSession(Astro.request);
+
+const accountsResult = await db.execute({
+	sql: `SELECT id, name FROM exchange_accounts
+		WHERE tenant_id = ? AND source = 'crypto_com'
+		ORDER BY created_at ASC`,
+	args: [tenantId],
+});
+
+const accounts = accountsResult.rows as AccountRow[];
+
+const parseNumber = (value: number | string | null | undefined) => {
+	if (value === null || value === undefined) return null;
+	if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+	const cleaned = value.replace(/,/g, '');
+	const num = Number(cleaned);
+	return Number.isFinite(num) ? num : null;
+};
+
+const normalizeSymbol = (symbol: string) => {
+	const upper = symbol.trim().toUpperCase();
+	if (upper === 'MATIC' || upper === 'WMATIC') return 'POL';
+	return upper;
+};
+
+const pickSymbol = (row: ImportRow) => row.asset_symbol || row.to_currency || row.currency || '';
+
+const pickTokenAmount = (row: ImportRow) => {
+	const symbol = pickSymbol(row);
+	if (!symbol) return null;
+	if (row.to_currency && symbol === row.to_currency) return row.to_amount;
+	if (row.currency && symbol === row.currency) return row.amount;
+	return row.to_amount ?? row.amount;
+};
+
+const computeHoldings = (rows: ImportRow[]): Holding[] => {
+	const balanceMap = new Map<string, number>();
+	const lastPurchaseMap = new Map<string, string>();
+	const lotsMap = new Map<string, Array<{ qty: number; cost: number }>>();
+	const unknownCost = new Set<string>();
+
+	for (const row of rows) {
+		const symbolRaw = pickSymbol(row);
+		if (!symbolRaw) continue;
+		const symbol = normalizeSymbol(symbolRaw);
+		const qtyRaw = parseNumber(pickTokenAmount(row));
+		if (qtyRaw === null || qtyRaw === 0) continue;
+		const qty = Math.abs(qtyRaw);
+		const direction = row.direction ?? (qtyRaw < 0 ? 'out' : 'in');
+		const isIn = direction === 'in';
+		const isOut = direction === 'out' || direction === 'lost';
+
+		if (isIn) {
+			balanceMap.set(symbol, (balanceMap.get(symbol) ?? 0) + qty);
+			lastPurchaseMap.set(symbol, row.timestamp_utc);
+			const cost = parseNumber(row.native_usd);
+			if (cost === null) {
+				unknownCost.add(symbol);
+			} else {
+				const lots = lotsMap.get(symbol) ?? [];
+				lots.push({ qty, cost: Math.abs(cost) });
+				lotsMap.set(symbol, lots);
+			}
+		}
+
+		if (isOut) {
+			balanceMap.set(symbol, (balanceMap.get(symbol) ?? 0) - qty);
+			const lots = lotsMap.get(symbol);
+			if (lots?.length) {
+				let remaining = qty;
+				while (remaining > 0 && lots.length) {
+					const lot = lots[0];
+					if (lot.qty <= remaining) {
+						remaining -= lot.qty;
+						lots.shift();
+					} else {
+						const ratio = remaining / lot.qty;
+						lot.qty -= remaining;
+						lot.cost -= lot.cost * ratio;
+						remaining = 0;
+					}
+				}
+			}
+		}
+	}
+
+	const holdings: Holding[] = [];
+	for (const [symbol, balance] of balanceMap.entries()) {
+		if (balance <= 0) continue;
+		const lots = lotsMap.get(symbol) ?? [];
+		const costBasis =
+			unknownCost.has(symbol) || !lots.length
+				? null
+				: lots.reduce((sum, lot) => sum + lot.cost, 0);
+		holdings.push({
+			symbol,
+			balance,
+			lastPurchaseAt: lastPurchaseMap.get(symbol) ?? null,
+			costBasis,
+		});
+	}
+
+	return holdings.sort((a, b) => b.balance - a.balance);
+};
+
+const accountsWithHoldings: AccountWithHoldings[] = [];
+const priceSymbols = new Set<string>();
+
+for (const account of accounts) {
+	const txResult = await db.execute({
+		sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount, to_currency, to_amount, native_usd, kind, description
+			FROM import_transactions
+			WHERE tenant_id = ? AND source = 'crypto_com' AND account_id = ?
+			ORDER BY timestamp_utc ASC`,
+		args: [tenantId, account.id],
+	});
+	const rows = txResult.rows as ImportRow[];
+	const holdings = computeHoldings(rows);
+	holdings.forEach((holding) => priceSymbols.add(holding.symbol));
+	accountsWithHoldings.push({ ...account, holdings });
+}
+
+const fetchPrices = async (symbols: string[]) => {
+	if (!symbols.length) return {} as Record<string, number>;
+	const url = new URL(Astro.request.url);
+	url.pathname = '/api/market/coingecko-prices';
+	url.searchParams.set('symbols', symbols.join(','));
+	try {
+		const response = await fetch(url);
+		if (!response.ok) return {};
+		const payload = (await response.json()) as { prices?: Record<string, number> };
+		return payload.prices ?? {};
+	} catch {
+		return {};
+	}
+};
+
+const priceMap = await fetchPrices(Array.from(priceSymbols));
+
+const formatAmount = (value: number, options?: Intl.NumberFormatOptions) =>
+	new Intl.NumberFormat('en-US', options).format(value);
+
+const formatCurrency = (value: number) =>
+	`$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value)}`;
+
+const daysSince = (value: string | null) => {
+	if (!value) return null;
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return null;
+	const diffMs = Date.now() - date.getTime();
+	return Math.max(0, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
+};
+---
+
+<section class="crypto-accounts tile tile--r2c1">
+	<header class="crypto-accounts__header">
+		<h3>Crypto.com Accounts</h3>
+		<button type="button" class="crypto-accounts__add" data-crypto-add>
+			Add Crypto.com account
+		</button>
+	</header>
+
+	{accountsWithHoldings.length ? (
+		<div class="crypto-accounts__list">
+			{accountsWithHoldings.map((account, index) => {
+				const accountIndex = index + 1;
+				return (
+					<div class="crypto-account" data-account-index={accountIndex}>
+						<div class="crypto-account__row">
+							<input
+								class="crypto-account__name"
+								type="text"
+								value={account.name}
+								data-account-id={account.id}
+								placeholder={`Account #${accountIndex}`}
+							/>
+						</div>
+						<form class="crypto-account__upload" data-account-id={account.id} data-account-index={accountIndex}>
+							<label class="crypto-account__file">
+								<input type="file" name="file" accept=".csv" required />
+								<span>Choose CSV</span>
+							</label>
+							<button type="submit" class="crypto-account__button">Upload</button>
+							<span class="crypto-account__status" aria-live="polite"></span>
+						</form>
+						<div class="crypto-holdings">
+							<div class="crypto-holdings__head">
+								<span>Days since last purchase</span>
+								<span>Ticker</span>
+								<span>Amount held</span>
+								<span>USD value</span>
+								<span>Profit/Loss</span>
+							</div>
+							{account.holdings.length ? (
+								account.holdings.map((holding) => {
+									const price = priceMap[holding.symbol] ?? 0;
+									const usdValue = price > 0 ? holding.balance * price : null;
+									const pnl =
+										price > 0 && holding.costBasis !== null
+											? usdValue! - holding.costBasis
+											: null;
+									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
+									return (
+										<div class="crypto-holdings__row">
+											<span>{daysSince(holding.lastPurchaseAt) ?? '—'}</span>
+											<span>{holding.symbol}</span>
+											<span>{formatAmount(holding.balance, { maximumFractionDigits: 8 })}</span>
+											<span>{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
+											<span class={pnl === null ? '' : pnlClass}>
+												{pnl === null ? '—' : formatCurrency(pnl)}
+											</span>
+										</div>
+									);
+								})
+							) : (
+								<div class="crypto-holdings__empty">No holdings yet.</div>
+							)}
+						</div>
+					</div>
+				);
+			})}
+		</div>
+	) : (
+		<p class="crypto-accounts__empty">No Crypto.com accounts yet.</p>
+	)}
+</section>
+
+<script>
+	const addButton = document.querySelector('[data-crypto-add]');
+	addButton?.addEventListener('click', async () => {
+		try {
+			const response = await fetch('/api/exchanges/crypto-com/accounts', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({}),
+			});
+			if (!response.ok) {
+				throw new Error('Failed to create account.');
+			}
+			window.location.reload();
+		} catch (error) {
+			console.error(error);
+		}
+	});
+
+	document.addEventListener('blur', async (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLInputElement) || !target.classList.contains('crypto-account__name')) {
+			return;
+		}
+		const accountId = target.dataset.accountId ?? '';
+		const name = target.value.trim();
+		if (!accountId || !name) return;
+		try {
+			await fetch('/api/exchanges/crypto-com/accounts/update', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ accountId, name }),
+			});
+		} catch (error) {
+			console.error(error);
+		}
+	}, true);
+
+	document.addEventListener('submit', async (event) => {
+		const form = event.target;
+		if (!(form instanceof HTMLFormElement) || !form.classList.contains('crypto-account__upload')) {
+			return;
+		}
+		event.preventDefault();
+		const status = form.querySelector('.crypto-account__status');
+		const fileInput = form.querySelector('input[type="file"]');
+		const accountId = form.dataset.accountId ?? '';
+		const accountIndex = Number(form.dataset.accountIndex ?? '1');
+
+		if (!fileInput || !(fileInput instanceof HTMLInputElement) || !fileInput.files?.[0]) {
+			if (status instanceof HTMLElement) status.textContent = 'Select a CSV file first.';
+			return;
+		}
+
+		if (status instanceof HTMLElement) status.textContent = 'Uploading...';
+		const data = new FormData();
+		data.append('file', fileInput.files[0]);
+		data.append('accountId', accountId);
+
+		try {
+			const response = await fetch('/api/import/crypto-com', {
+				method: 'POST',
+				body: data,
+			});
+			const payload = await response.json();
+			if (!response.ok) {
+				throw new Error(payload?.error || 'Upload failed.');
+			}
+			if (status instanceof HTMLElement) {
+				status.textContent = `Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+			}
+			if (accountIndex > 1) {
+				window.location.href = '/dashboard/bookkeeping#all-transactions';
+				return;
+			}
+			setTimeout(() => window.location.reload(), 600);
+		} catch (error) {
+			if (status instanceof HTMLElement) {
+				status.textContent = error instanceof Error ? error.message : 'Upload failed.';
+			}
+		}
+	});
+</script>
+
+<style>
+	.crypto-accounts {
+		background: darkslategray;
+		color: #f7f2eb;
+		border: 2px solid salmon;
+		border-radius: 12px;
+		padding: var(--space-md);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+		min-height: 0;
+	}
+
+	.crypto-accounts__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-sm);
+		flex-wrap: wrap;
+	}
+
+	.crypto-accounts__header h3 {
+		margin: 0;
+		font-size: var(--font-lg);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+
+	.crypto-accounts__add {
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		background: rgba(255, 255, 255, 0.08);
+		color: inherit;
+		padding: 0.35rem 0.8rem;
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		cursor: pointer;
+	}
+
+	.crypto-accounts__add:hover {
+		background: rgba(255, 255, 255, 0.16);
+	}
+
+	.crypto-accounts__list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+	}
+
+	.crypto-accounts__empty {
+		margin: 0;
+		font-size: var(--font-sm);
+		opacity: 0.7;
+	}
+
+	.crypto-account {
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 12px;
+		padding: var(--space-sm);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+		background: rgba(0, 0, 0, 0.18);
+	}
+
+	.crypto-account__row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.crypto-account__name {
+		border-radius: 0.65rem;
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		background: rgba(255, 255, 255, 0.08);
+		color: inherit;
+		padding: 0.4rem 0.65rem;
+		font-size: 0.85rem;
+		width: min(240px, 100%);
+	}
+
+	.crypto-account__upload {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.crypto-account__file {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.35rem 0.6rem;
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		cursor: pointer;
+		font-size: var(--font-sm);
+	}
+
+	.crypto-account__file input {
+		display: none;
+	}
+
+	.crypto-account__button {
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		background: rgba(255, 255, 255, 0.08);
+		color: inherit;
+		padding: 0.35rem 0.8rem;
+		border-radius: 999px;
+		cursor: pointer;
+		font-size: var(--font-sm);
+	}
+
+	.crypto-account__status {
+		font-size: var(--font-sm);
+		opacity: 0.7;
+	}
+
+	.crypto-holdings {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.crypto-holdings__head,
+	.crypto-holdings__row {
+		display: grid;
+		grid-template-columns: 1.2fr 0.7fr 1fr 1fr 1fr;
+		column-gap: var(--space-sm);
+		align-items: baseline;
+		font-size: var(--font-sm);
+	}
+
+	.crypto-holdings__head {
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		opacity: 0.7;
+		font-size: 0.7rem;
+	}
+
+	.crypto-holdings__row {
+		padding: 0.3rem 0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.crypto-holdings__row span:nth-child(3),
+	.crypto-holdings__row span:nth-child(4),
+	.crypto-holdings__row span:nth-child(5) {
+		text-align: right;
+	}
+
+	.crypto-holdings__empty {
+		font-size: var(--font-sm);
+		opacity: 0.7;
+	}
+
+	.crypto-holdings__row .is-positive {
+		color: #86efac;
+	}
+
+	.crypto-holdings__row .is-negative {
+		color: #fca5a5;
+	}
+
+	@media (max-width: 720px) {
+		.crypto-holdings__head,
+		.crypto-holdings__row {
+			grid-template-columns: 1fr 0.8fr 1fr;
+			row-gap: 0.3rem;
+		}
+
+		.crypto-holdings__head span:nth-child(4),
+		.crypto-holdings__head span:nth-child(5),
+		.crypto-holdings__row span:nth-child(4),
+		.crypto-holdings__row span:nth-child(5) {
+			display: none;
+		}
+	}
+</style>
