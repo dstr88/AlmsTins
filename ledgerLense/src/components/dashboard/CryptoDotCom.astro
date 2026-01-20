@@ -3,11 +3,18 @@ import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
 import ImportedFilesFormat from '@/components/importedFilesFormat.astro';
 
+type Props = {
+	title?: string;
+	redirectTo?: string;
+};
+
+const { title = 'Crypto.com', redirectTo } = Astro.props as Props;
+
 const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 ---
 
 <section class="crypto-com">
-	<form id="crypto-com-upload" class="crypto-com__upload">
+	<form class="crypto-com__upload" data-redirect={redirectTo ?? ''}>
 		<label class="crypto-com__file">
 			<input type="file" name="file" accept=".csv" required />
 			<span>Choose CSV</span>
@@ -18,16 +25,19 @@ const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 1
 
 	<ImportedFilesFormat
 		source="crypto_com"
-		title="Crypto.com"
+		title={title}
 		icons={{ in: walletIn.src, out: walletOut.src, lost: lostIcon }}
 		showList={false}
 	/>
 </section>
 
 <script>
-	const form = document.querySelector('#crypto-com-upload');
-	const status = form?.querySelector('.crypto-com__status');
-	form?.addEventListener('submit', async (event) => {
+	document.addEventListener('submit', async (event) => {
+		const form = event.target;
+		if (!(form instanceof HTMLFormElement) || !form.classList.contains('crypto-com__upload')) {
+			return;
+		}
+		const status = form.querySelector('.crypto-com__status');
 		event.preventDefault();
 		const fileInput = form.querySelector('input[type="file"]');
 		if (!fileInput || !fileInput.files || !fileInput.files[0]) {
@@ -49,9 +59,12 @@ const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 1
 			if (status) {
 				status.textContent = `Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
 			}
-			setTimeout(() => {
-				window.location.reload();
-			}, 600);
+			const redirectTo = form.dataset.redirect ?? '';
+			if (redirectTo) {
+				window.location.href = redirectTo;
+				return;
+			}
+			setTimeout(() => window.location.reload(), 600);
 		} catch (error) {
 			if (status) status.textContent = error instanceof Error ? error.message : 'Upload failed.';
 		}

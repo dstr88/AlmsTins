@@ -105,7 +105,22 @@ const formatSyncTime = (value: string | null) => {
 				<div class="placeholder-card tile tile--r2c2">Empty slot</div>
 			</div>
 			<div class="vault-lane vault-lane--row3">
-				<CryptoDotCom class="tile tile--r3c1" />
+				<div class="crypto-stack tile tile--r3c1">
+					<div class="crypto-stack__header">
+						<button type="button" class="crypto-stack__add" data-crypto-add>
+							Add Crypto.com account
+						</button>
+						<p class="crypto-stack__note" data-crypto-note hidden>
+							Additional Crypto.com uploads go to <a href="/dashboard/bookkeeping">Bookkeeping</a>.
+						</p>
+					</div>
+					<div class="crypto-stack__list" data-crypto-list>
+						<div class="crypto-stack__item" data-crypto-index="1">
+							<div class="crypto-stack__label">Crypto.com 1</div>
+							<CryptoDotCom title="Crypto.com 1" />
+						</div>
+					</div>
+				</div>
 			</div>
 		</section>
 
@@ -174,6 +189,46 @@ const formatSyncTime = (value: string | null) => {
 				initWalletAccordion(stack);
 			}
 		});
+
+		const cryptoStack = document.querySelector('.crypto-stack');
+		if (cryptoStack instanceof HTMLElement) {
+			const addButton = cryptoStack.querySelector('[data-crypto-add]');
+			const list = cryptoStack.querySelector('[data-crypto-list]');
+			const note = cryptoStack.querySelector('[data-crypto-note]');
+
+			const updateAccountLabel = (item: HTMLElement, index: number) => {
+				const label = item.querySelector('.crypto-stack__label');
+				if (label instanceof HTMLElement) {
+					label.textContent = `Crypto.com ${index}`;
+				}
+				const title = item.querySelector('.imported-files__title');
+				if (title instanceof HTMLElement) {
+					title.textContent = `Crypto.com ${index}`;
+				}
+				const form = item.querySelector('.crypto-com__upload');
+				if (form instanceof HTMLFormElement) {
+					form.dataset.redirect = index > 1 ? '/dashboard/bookkeeping' : '';
+				}
+			};
+
+			if (addButton instanceof HTMLButtonElement && list instanceof HTMLElement) {
+				addButton.addEventListener('click', () => {
+					const items = Array.from(list.querySelectorAll('.crypto-stack__item')).filter(
+						(item): item is HTMLElement => item instanceof HTMLElement,
+					);
+					const template = items[0];
+					if (!template) return;
+					const nextIndex = items.length + 1;
+					const clone = template.cloneNode(true) as HTMLElement;
+					clone.dataset.cryptoIndex = String(nextIndex);
+					updateAccountLabel(clone, nextIndex);
+					list.appendChild(clone);
+					if (note instanceof HTMLElement && nextIndex > 1) {
+						note.hidden = false;
+					}
+				});
+			}
+		}
 
 		const syncTile = document.querySelector('.sync-tile');
 		if (syncTile instanceof HTMLElement) {
@@ -468,6 +523,7 @@ const formatSyncTime = (value: string | null) => {
 			.vault-lane--row3 {
 				grid-column: 1 / -1;
 				grid-row: 3;
+				justify-content: flex-start;
 			}
 
 			.vault-lane > .tile {
@@ -479,6 +535,65 @@ const formatSyncTime = (value: string | null) => {
 			display: flex;
 			flex-direction: column;
 			gap: 0.75rem;
+		}
+
+		.crypto-stack {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-sm);
+		}
+
+		.crypto-stack__header {
+			display: flex;
+			flex-direction: column;
+			gap: 0.4rem;
+		}
+
+		.crypto-stack__add {
+			align-self: flex-start;
+			border-radius: 999px;
+			border: 1px solid rgba(255, 255, 255, 0.18);
+			background: rgba(255, 255, 255, 0.08);
+			color: inherit;
+			padding: 0.35rem 0.8rem;
+			font-size: 0.75rem;
+			text-transform: uppercase;
+			letter-spacing: 0.12em;
+			cursor: pointer;
+		}
+
+		.crypto-stack__add:hover {
+			background: rgba(255, 255, 255, 0.16);
+		}
+
+		.crypto-stack__note {
+			margin: 0;
+			font-size: 0.75rem;
+			opacity: 0.7;
+		}
+
+		.crypto-stack__note a {
+			color: inherit;
+		}
+
+		.crypto-stack__list {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-sm);
+		}
+
+		.crypto-stack__label {
+			font-size: 0.75rem;
+			text-transform: uppercase;
+			letter-spacing: 0.12em;
+			opacity: 0.7;
+			margin-bottom: 0.3rem;
+		}
+
+		@media (min-width: 1080px) {
+			.crypto-stack {
+				max-width: calc((100% - (var(--grid-gap, 24px) * 2)) / 3);
+			}
 		}
 
 		.tile {
