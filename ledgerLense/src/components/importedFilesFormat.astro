@@ -18,6 +18,7 @@ type Props = {
 	title: string;
 	icons: IconSet;
 	limit?: number;
+	showList?: boolean;
 };
 
 type ImportRow = {
@@ -46,7 +47,7 @@ type ImportRow = {
 	parent_tx_id: string | null;
 };
 
-const { source, title, icons, limit } = Astro.props as Props;
+const { source, title, icons, limit, showList = true } = Astro.props as Props;
 const { tenantId } = await requireTenantSession(Astro.request);
 
 const result = await db.execute({
@@ -126,109 +127,135 @@ for (const row of rows) {
 	}
 	rowsWithDividers.push({ type: 'row', row });
 }
+
+const balanceMap = new Map<string, number>();
+for (const row of rows) {
+	const symbol = pickSymbol(row);
+	const amount = parseNumber(pickTokenAmount(row));
+	if (!symbol || amount === null) continue;
+	const direction = row.direction === 'out' || row.direction === 'lost' ? -1 : 1;
+	balanceMap.set(symbol, (balanceMap.get(symbol) ?? 0) + direction * amount);
+}
+
+const balances = Array.from(balanceMap.entries())
+	.map(([symbol, amount]) => ({ symbol, amount }))
+	.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 ---
 
 <article class="imported-files">
 	<header class="imported-files__header">
 		<h3 class="imported-files__title">{title}</h3>
+		{balances.length ? (
+			<div class="imported-files__balances" aria-label="Balances">
+				<span class="imported-files__balances-label">Balance</span>
+				{balances.map((item) => (
+					<span class="balance-pill">
+						<span class="balance-pill__symbol">{item.symbol}</span>
+						<span class="balance-pill__amount">{formatAmount(item.amount, { maximumFractionDigits: 8 })}</span>
+					</span>
+				))}
+			</div>
+		) : null}
 	</header>
 
 	<div class="imported-files__body">
-		<div class="imported-files__list">
-			{rowsWithDividers.map((item) =>
-				item.type === 'divider' ? (
-					<div class="tx-year-divider" aria-hidden="true">
-						<img class="tx-year-divider__img" src={item.asset} alt={`${item.year} divider`} />
-						<span class="tx-year-divider__label">{item.year}</span>
-					</div>
-				) : (
-					<div class="tx-card">
-						<span class="tx-date">{formatDate(item.row.timestamp_utc)}</span>
-						<span class="tx-symbol">{pickSymbol(item.row) || '—'}</span>
-						<span class="tx-amount">
-							{formatAmount(pickTokenAmount(item.row), { maximumFractionDigits: 8 })}
-						</span>
-						<span class="tx-usd">
-							{formatAmount(pickUsdAmount(item.row), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-						</span>
-						<span class="tx-icon">
-							<span class="tx-icon-stack">
-								{item.row.direction === 'lost' ? (
-									isInlineSvg(icons.lost) ? (
-										<span class="tx-icon-svg" set:html={icons.lost} />
-									) : (
-										<img class="tx-icon-img" src={icons.lost} alt="Lost" />
-									)
-								) : item.row.direction === 'out' ? (
-									<img class="tx-icon-img" src={icons.out} alt="Sold" />
-								) : (
-									<img class="tx-icon-img" src={icons.in} alt="Bought" />
-								)}
-								<button
-									class="tx-more"
-									type="button"
-									aria-expanded="false"
-									aria-controls={`tx-details-${item.row.id}`}
-								>
-									More
-								</button>
-							</span>
-						</span>
-						<div class="tx-details" id={`tx-details-${item.row.id}`} hidden>
-							<div class="tx-details-grid">
-								<span class="tx-detail-key">description</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.description)}</span>
-								<span class="tx-detail-key">kind</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.kind)}</span>
-								<span class="tx-detail-key">tx_hash</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.tx_hash)}</span>
-								<span class="tx-detail-key">currency</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.currency)}</span>
-								<span class="tx-detail-key">amount</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.amount)}</span>
-								<span class="tx-detail-key">to_currency</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.to_currency)}</span>
-								<span class="tx-detail-key">to_amount</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.to_amount)}</span>
-								<span class="tx-detail-key">native_currency</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.native_currency)}</span>
-								<span class="tx-detail-key">native_amount</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.native_amount)}</span>
-								<span class="tx-detail-key">native_usd</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.native_usd)}</span>
-								<span class="tx-detail-key">direction</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.direction)}</span>
-								<span class="tx-detail-key">asset_symbol</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.asset_symbol)}</span>
-								<span class="tx-detail-key">import_batch_id</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.import_batch_id)}</span>
-								<span class="tx-detail-key">fee_usd</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.fee_usd)}</span>
-								<span class="tx-detail-key">fee_native</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.fee_native)}</span>
-								<span class="tx-detail-key">fee_currency</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.fee_currency)}</span>
-								<span class="tx-detail-key">gas_used</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.gas_used)}</span>
-								<span class="tx-detail-key">group_id</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.group_id)}</span>
-								<span class="tx-detail-key">parent_tx_id</span>
-								<span class="tx-detail-val">{formatDetailValue(item.row.parent_tx_id)}</span>
-							</div>
+		{showList ? (
+			<div class="imported-files__list">
+				{rowsWithDividers.map((item) =>
+					item.type === 'divider' ? (
+						<div class="tx-year-divider" aria-hidden="true">
+							<img class="tx-year-divider__img" src={item.asset} alt={`${item.year} divider`} />
+							<span class="tx-year-divider__label">{item.year}</span>
 						</div>
-						<textarea
-							class="tx-notes"
-							placeholder="Notes..."
-							data-id={item.row.id}
-							data-initial={item.row.notes ?? ''}
-							data-category={item.row.category ?? ''}
-							data-group-id={item.row.group_id ?? ''}
-						>{item.row.notes ?? ''}</textarea>
-						<span class="tx-saved" aria-live="polite">Saved</span>
-					</div>
-				)
-			)}
-		</div>
+					) : (
+						<div class="tx-card">
+							<span class="tx-date">{formatDate(item.row.timestamp_utc)}</span>
+							<span class="tx-symbol">{pickSymbol(item.row) || '—'}</span>
+							<span class="tx-amount">
+								{formatAmount(pickTokenAmount(item.row), { maximumFractionDigits: 8 })}
+							</span>
+							<span class="tx-usd">
+								{formatAmount(pickUsdAmount(item.row), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+							</span>
+							<span class="tx-icon">
+								<span class="tx-icon-stack">
+									{item.row.direction === 'lost' ? (
+										isInlineSvg(icons.lost) ? (
+											<span class="tx-icon-svg" set:html={icons.lost} />
+										) : (
+											<img class="tx-icon-img" src={icons.lost} alt="Lost" />
+										)
+									) : item.row.direction === 'out' ? (
+										<img class="tx-icon-img" src={icons.out} alt="Sold" />
+									) : (
+										<img class="tx-icon-img" src={icons.in} alt="Bought" />
+									)}
+									<button
+										class="tx-more"
+										type="button"
+										aria-expanded="false"
+										aria-controls={`tx-details-${item.row.id}`}
+									>
+										More
+									</button>
+								</span>
+							</span>
+							<div class="tx-details" id={`tx-details-${item.row.id}`} hidden>
+								<div class="tx-details-grid">
+									<span class="tx-detail-key">description</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.description)}</span>
+									<span class="tx-detail-key">kind</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.kind)}</span>
+									<span class="tx-detail-key">tx_hash</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.tx_hash)}</span>
+									<span class="tx-detail-key">currency</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.currency)}</span>
+									<span class="tx-detail-key">amount</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.amount)}</span>
+									<span class="tx-detail-key">to_currency</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.to_currency)}</span>
+									<span class="tx-detail-key">to_amount</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.to_amount)}</span>
+									<span class="tx-detail-key">native_currency</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.native_currency)}</span>
+									<span class="tx-detail-key">native_amount</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.native_amount)}</span>
+									<span class="tx-detail-key">native_usd</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.native_usd)}</span>
+									<span class="tx-detail-key">direction</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.direction)}</span>
+									<span class="tx-detail-key">asset_symbol</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.asset_symbol)}</span>
+									<span class="tx-detail-key">import_batch_id</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.import_batch_id)}</span>
+									<span class="tx-detail-key">fee_usd</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.fee_usd)}</span>
+									<span class="tx-detail-key">fee_native</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.fee_native)}</span>
+									<span class="tx-detail-key">fee_currency</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.fee_currency)}</span>
+									<span class="tx-detail-key">gas_used</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.gas_used)}</span>
+									<span class="tx-detail-key">group_id</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.group_id)}</span>
+									<span class="tx-detail-key">parent_tx_id</span>
+									<span class="tx-detail-val">{formatDetailValue(item.row.parent_tx_id)}</span>
+								</div>
+							</div>
+							<textarea
+								class="tx-notes"
+								placeholder="Notes..."
+								data-id={item.row.id}
+								data-initial={item.row.notes ?? ''}
+								data-category={item.row.category ?? ''}
+								data-group-id={item.row.group_id ?? ''}
+							>{item.row.notes ?? ''}</textarea>
+							<span class="tx-saved" aria-live="polite">Saved</span>
+						</div>
+					)
+				)}
+			</div>
+		) : null}
 	</div>
 </article>
 
@@ -303,8 +330,10 @@ for (const row of rows) {
 
 	.imported-files__header {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
+		gap: var(--space-sm);
+		flex-wrap: wrap;
 	}
 
 	.imported-files__title {
@@ -313,6 +342,43 @@ for (const row of rows) {
 		line-height: var(--lh-tight);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
+	}
+
+	.imported-files__balances {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		justify-content: flex-end;
+	}
+
+	.imported-files__balances-label {
+		font-size: var(--font-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.16em;
+		opacity: 0.7;
+		margin-right: 0.35rem;
+	}
+
+	.balance-pill {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.35rem;
+		padding: 0.2rem 0.55rem;
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: rgba(0, 0, 0, 0.2);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.balance-pill__symbol {
+		font-size: var(--font-sm);
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+	}
+
+	.balance-pill__amount {
+		font-size: var(--font-sm);
 	}
 
 	.imported-files__body {
