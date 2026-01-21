@@ -236,6 +236,18 @@ const formatSyncTime = (value: string | null) => {
 						if (!response.ok || result?.ok === false) {
 							throw new Error(result?.message ?? 'Sync failed.');
 						}
+						if (mode === 'full') {
+							const txResponse = await fetch('/api/wallets/sync-all', { method: 'POST' });
+							const txResult = await txResponse.json().catch(() => ({}));
+							if (!txResponse.ok) {
+								throw new Error(txResult?.message ?? txResult?.error ?? 'Wallet sync failed.');
+							}
+							const valueResponse = await fetch('/api/wallets/value/sync-all', { method: 'POST' });
+							const valueResult = await valueResponse.json().catch(() => ({}));
+							if (!valueResponse.ok) {
+								throw new Error(valueResult?.message ?? valueResult?.error ?? 'Wallet value sync failed.');
+							}
+						}
 						const stamp = result?.lastSyncedAt ?? new Date().toISOString();
 						if (timeEl instanceof HTMLElement) {
 							timeEl.textContent = formatTime(stamp);
