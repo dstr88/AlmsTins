@@ -26,7 +26,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { userId, tenantId } = await requireTenantSession(request);
+		const { tenantId } = await requireTenantSession(request);
 		const body = await request.json();
 		const address = sanitizeAddress(body.address);
 		if (!address) {
@@ -38,10 +38,10 @@ export const POST: APIRoute = async ({ request }) => {
 		const isDefault = body.isDefault === true ? 1 : 0;
 
 		const inserted = await db.execute({
-			sql: `INSERT INTO wallets (tenant_id, user_id, address, label, chains, is_default)
-			      VALUES (?, ?, ?, ?, ?, ?)
+			sql: `INSERT INTO wallets (tenant_id, address, label, chains, is_default)
+			      VALUES (?, ?, ?, ?, ?)
 			      RETURNING id, address, label, chains, is_default, created_at`,
-			args: [tenantId, userId, address, label, JSON.stringify(chains), isDefault],
+			args: [tenantId, address, label, JSON.stringify(chains), isDefault],
 		});
 
 		const wallet = transformWalletRow(inserted.rows[0]);
