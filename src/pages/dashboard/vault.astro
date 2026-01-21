@@ -35,6 +35,12 @@ const formatSyncTime = (value: string | null) => {
 	if (Number.isNaN(date.getTime())) return value;
 	return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 };
+
+const formatWalletLabel = (wallet: { label?: string | null; address: string }) => {
+	const label = wallet.label?.trim();
+	if (label) return label;
+	return wallet.address.slice(-5);
+};
 ---
 
 <Layout title="Vault">
@@ -89,20 +95,25 @@ const formatSyncTime = (value: string | null) => {
 			</SalmonTin>
 			<CryptoComAccounts />
 			<div class="vault-lane vault-lane--row3">
-				<div class="vault-stack-tin vault-stack-template tile tile--r2c1" style="display: none;" aria-hidden="true">
-					<div class="wallet-label-box">Wallet</div>
-					<div class="wallet-stack" data-accordion="wallet-stack">
-						<SalmonTin label="Wallet" class="wallet-summary-tin wallet-tin--wallet">
-							<WalletSummary client:load walletId="template" />
-						</SalmonTin>
-						<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi">
-							<AaveHealthSummary client:load walletId="template" />
-						</SalmonTin>
-						<SalmonTin label="NFTs" class="wallet-tin--future">
-							<VaultNftActivity walletId="template" />
-						</SalmonTin>
-					</div>
-				</div>
+				{wallets.map((wallet) => {
+					const displayLabel = formatWalletLabel(wallet);
+					return (
+						<div class="vault-stack-tin tile tile--r2c1">
+							<div class="wallet-label-box">{displayLabel}</div>
+							<div class="wallet-stack" data-accordion="wallet-stack">
+								<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet">
+									<WalletSummary client:load walletId={wallet.id} />
+								</SalmonTin>
+								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi">
+									<AaveHealthSummary client:load walletId={wallet.id} />
+								</SalmonTin>
+								<SalmonTin label="NFTs" class="wallet-tin--future">
+									<VaultNftActivity walletId={wallet.id} />
+								</SalmonTin>
+							</div>
+						</div>
+					);
+				})}
 				<div class="placeholder-card tile tile--r2c2">Empty slot</div>
 			</div>
 		</section>
@@ -267,100 +278,10 @@ const formatSyncTime = (value: string | null) => {
 			const valueInput = importTile.querySelector('[data-import-value]');
 			const submitButton = importTile.querySelector('[data-import-submit]');
 			const messageEl = importTile.querySelector('.import-tile__message');
-			const walletLane = document.querySelector('.vault-lane--row3');
-			const placeholder = walletLane?.querySelector('.placeholder-card');
-			const template = document.querySelector('.vault-stack-template');
 
 			const setMessage = (text: string) => {
 				if (!(messageEl instanceof HTMLElement)) return;
 				messageEl.textContent = text;
-			};
-
-			const updateIslandWalletId = (island: Element, walletId: string) => {
-				const rawProps = island.getAttribute('props');
-				if (!rawProps) return;
-
-				const parseJson = (value: string) => {
-					try {
-						return JSON.parse(value) as Record<string, unknown>;
-					} catch {
-						return null;
-					}
-				};
-
-				let parsed = parseJson(rawProps);
-				let usesEncoding = false;
-				if (!parsed) {
-					const decoded = decodeURIComponent(rawProps);
-					usesEncoding = decoded !== rawProps;
-					parsed = parseJson(decoded);
-				}
-				if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !('walletId' in parsed)) return;
-				parsed.walletId = walletId;
-				const serialized = JSON.stringify(parsed);
-				island.setAttribute('props', usesEncoding ? encodeURIComponent(serialized) : serialized);
-			};
-
-			const getDisplayLabel = (wallet: Record<string, unknown>) => {
-				const label = typeof wallet.label === 'string' ? wallet.label.trim() : '';
-				if (label) return label;
-				const address = typeof wallet.address === 'string' ? wallet.address.trim() : '';
-				return address || 'Wallet';
-			};
-
-			const createWalletStack = (wallet: Record<string, unknown>) => {
-				if (!(template instanceof HTMLElement)) return null;
-				const walletId = typeof wallet.id === 'string' ? wallet.id : '';
-				if (!walletId) return null;
-
-				const displayLabel = getDisplayLabel(wallet);
-				const clone = template.cloneNode(true) as HTMLElement;
-				clone.style.removeProperty('display');
-				clone.setAttribute('aria-hidden', 'false');
-				clone.classList.remove('vault-stack-template');
-
-				const labelBox = clone.querySelector('.wallet-label-box');
-				if (labelBox instanceof HTMLElement) {
-					labelBox.textContent = displayLabel;
-				}
-				const summaryLabel = clone.querySelector('.wallet-summary-tin .salmon-tin__label');
-				if (summaryLabel instanceof HTMLElement) {
-					summaryLabel.textContent = displayLabel.toUpperCase();
-				}
-				const walletStack = clone.querySelector('.wallet-stack');
-				if (walletStack instanceof HTMLElement) {
-					walletStack.removeAttribute('data-accordion-init');
-				}
-				clone.querySelectorAll('astro-island').forEach((island) => updateIslandWalletId(island, walletId));
-				return clone;
-			};
-
-			const clearWalletStacks = () => {
-				if (!(walletLane instanceof HTMLElement)) return;
-				walletLane
-					.querySelectorAll('.vault-stack-tin:not(.vault-stack-template)')
-					.forEach((stack) => stack.remove());
-			};
-
-			const renderWallets = async () => {
-				if (!(walletLane instanceof HTMLElement)) return;
-				const response = await fetch('/api/wallets');
-				if (!response.ok) return;
-				const wallets = await response.json().catch(() => []);
-				if (!Array.isArray(wallets)) return;
-				clearWalletStacks();
-				wallets.forEach((wallet) => {
-					const stack = createWalletStack(wallet);
-					if (!stack) return;
-					walletLane.appendChild(stack);
-					const newStack = stack.querySelector('.wallet-stack');
-					if (newStack instanceof HTMLElement) {
-						initWalletAccordion(newStack);
-					}
-				});
-				if (placeholder instanceof HTMLElement) {
-					placeholder.style.display = wallets.length ? 'none' : '';
-				}
 			};
 
 			if (submitButton instanceof HTMLButtonElement) {
@@ -385,15 +306,15 @@ const formatSyncTime = (value: string | null) => {
 							if (valueInput instanceof HTMLInputElement) {
 								valueInput.value = '';
 							}
-							await renderWallets();
-							setMessage(`Wallet ${getDisplayLabel(payload)} added.`);
+							// Reload to render saved wallets server-side.
+							setMessage('Wallet added. Reloading...');
+							window.location.reload();
 						})
 						.catch((error) => {
 							setMessage(error?.message ?? 'Unable to add wallet.');
 						});
 				});
 			}
-			renderWallets().catch(() => {});
 		}
 	</script>
 
