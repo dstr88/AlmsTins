@@ -301,9 +301,9 @@ export const POST: APIRoute = async ({ request }) => {
 		insertedRaw += rawResult.rowsAffected ?? 0;
 		insertedNormalized += normalizedResult.rowsAffected ?? 0;
 		if ((rawResult.rowsAffected ?? 0) === 0 && (normalizedResult.rowsAffected ?? 0) === 0) {
-			skippedDuplicates += 1;
-		}
+		skippedDuplicates += 1;
 	}
+}
 
 	return new Response(
 		JSON.stringify({

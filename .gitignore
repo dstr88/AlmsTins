@@ -17,8 +17,15 @@ pnpm-debug.log*
 .env
 .env.production
 
+# backups
+.env.root-backup
+.env.example.root-backup
+
 # macOS-specific files
 .DS_Store
 
 # jetbrains setting folder
 .idea/
+
+# vscode user settings
+.vscode/settings.json

@@ -6,7 +6,7 @@ import PriceWatchlist from '@/components/dashboard/PriceWatchlist';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
 import VaultNftActivity from '@/components/dashboard/VaultNftActivity.astro';
-import CryptoDotCom from '../../components/dashboard/CryptoDotCom.astro';
+import CryptoComAccounts from '../../components/CryptoComAccounts.astro';
 import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
 import { db } from '@/lib/db';
 import { getAllActiveWallets } from '@/lib/wallets';
@@ -51,15 +51,7 @@ const formatSyncTime = (value: string | null) => {
 				<div class="import-tile__inner">
 					<div class="import-tile__controls">
 						<label class="import-tile__label">
-							<span>Type</span>
-							<select data-import-type>
-								<option value="wallet" selected>Wallet (public key)</option>
-								<option value="exchange">Exchange</option>
-							</select>
-						</label>
-
-						<label class="import-tile__label import-tile__field import-tile__field--wallet">
-							<span data-import-label>Public key / ID</span>
+							<span>Public key / ID</span>
 							<input data-import-value type="text" placeholder="0x… or fa58b" />
 						</label>
 
@@ -68,7 +60,7 @@ const formatSyncTime = (value: string | null) => {
 						</button>
 
 						<p class="import-tile__hint">
-							Wallets render into row 2 and push tiles to the right. Exchanges render into row 3 and push right, then wrap.
+							Wallets render into row 2 and push tiles to the right.
 						</p>
 					</div>
 
@@ -95,7 +87,8 @@ const formatSyncTime = (value: string | null) => {
 				</div>
 				<div class="sync-tile__message" aria-live="polite">idle</div>
 			</SalmonTin>
-			<div class="vault-lane vault-lane--row2">
+			<CryptoComAccounts />
+			<div class="vault-lane vault-lane--row3">
 				<div class="vault-stack-tin tile tile--r2c1">
 					<div class="wallet-label-box">fa58b</div>
 					<div class="wallet-stack" data-accordion="wallet-stack">
@@ -111,9 +104,6 @@ const formatSyncTime = (value: string | null) => {
 					</div>
 				</div>
 				<div class="placeholder-card tile tile--r2c2">Empty slot</div>
-			</div>
-			<div class="vault-lane vault-lane--row3">
-				<CryptoDotCom class="tile tile--r3c1" />
 			</div>
 		</section>
 
@@ -182,6 +172,7 @@ const formatSyncTime = (value: string | null) => {
 				initWalletAccordion(stack);
 			}
 		});
+
 
 		const syncTile = document.querySelector('.sync-tile');
 		if (syncTile instanceof HTMLElement) {
@@ -259,29 +250,16 @@ const formatSyncTime = (value: string | null) => {
 			});
 		}
 
-		const importTile = document.querySelector('.import-tile');
-		if (importTile instanceof HTMLElement) {
-			const typeSelect = importTile.querySelector('[data-import-type]');
+			const importTile = document.querySelector('.import-tile');
+			if (importTile instanceof HTMLElement) {
 			const valueInput = importTile.querySelector('[data-import-value]');
-			const valueLabel = importTile.querySelector('[data-import-label]');
 			const submitButton = importTile.querySelector('[data-import-submit]');
 			const messageEl = importTile.querySelector('.import-tile__message');
 			const row2Lane = document.querySelector('.vault-lane--row2');
-			const row3Lane = document.querySelector('.vault-lane--row3');
 
 			const setMessage = (text: string) => {
 				if (!(messageEl instanceof HTMLElement)) return;
 				messageEl.textContent = text;
-			};
-
-			const updateImportFields = (mode: string) => {
-				const isWallet = mode === 'wallet';
-				if (valueLabel instanceof HTMLElement) {
-					valueLabel.textContent = isWallet ? 'Public key / ID' : 'Name';
-				}
-				if (valueInput instanceof HTMLInputElement) {
-					valueInput.placeholder = isWallet ? '0x… or fa58b' : 'Exchange name';
-				}
 			};
 
 			const updateIslandWalletId = (island: Element, walletId: string) => {
@@ -329,118 +307,33 @@ const formatSyncTime = (value: string | null) => {
 				return clone;
 			};
 
-			const bindExchangeUpload = (card: HTMLElement) => {
-				const form = card.querySelector('.exchange-upload-card__form');
-				const status = card.querySelector('.exchange-upload-card__status');
-				const fileInput = card.querySelector('input[type="file"]');
-				const button = card.querySelector('.exchange-upload-card__button');
-				if (!(form instanceof HTMLFormElement) || !(button instanceof HTMLButtonElement)) {
-					return;
-				}
-				button.addEventListener('click', async (event) => {
-					event.preventDefault();
-					if (!(fileInput instanceof HTMLInputElement) || !fileInput.files?.[0]) {
-						if (status instanceof HTMLElement) {
-							status.textContent = 'Select a CSV file first.';
-						}
-						return;
-					}
-					if (status instanceof HTMLElement) {
-						status.textContent = 'Uploading...';
-					}
-					const data = new FormData();
-					data.append('file', fileInput.files[0]);
-					try {
-						const response = await fetch('/api/import/crypto-com', {
-							method: 'POST',
-							body: data,
-						});
-						const payload = await response.json();
-						if (!response.ok) {
-							throw new Error(payload?.error || 'Upload failed.');
-						}
-						if (status instanceof HTMLElement) {
-							status.textContent = `Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
-						}
-						setTimeout(() => {
-							window.location.reload();
-						}, 600);
-					} catch (error) {
-						if (status instanceof HTMLElement) {
-							status.textContent = error instanceof Error ? error.message : 'Upload failed.';
-						}
-					}
-				});
-			};
-
-			const createExchangeTin = (exchangeId: string) => {
-				const card = document.createElement('div');
-				card.className = 'exchange-upload-card tile';
-				const label = exchangeId || 'Exchange';
-				card.innerHTML = `
-					<div class="exchange-upload-card__label">${label}</div>
-					<form class="exchange-upload-card__form">
-						<label class="exchange-upload-card__file">
-							<input type="file" accept=".csv" />
-							<span>Find a file</span>
-						</label>
-						<button type="button" class="exchange-upload-card__button">Upload</button>
-						<span class="exchange-upload-card__status" aria-live="polite"></span>
-					</form>
-				`;
-				bindExchangeUpload(card);
-				return card;
-			};
-
-			if (typeSelect instanceof HTMLSelectElement) {
-				updateImportFields(typeSelect.value);
-				typeSelect.addEventListener('change', () => updateImportFields(typeSelect.value));
-			}
-
 			if (submitButton instanceof HTMLButtonElement) {
 				submitButton.addEventListener('click', () => {
-					const type =
-						typeSelect instanceof HTMLSelectElement ? typeSelect.value : 'wallet';
 					const value =
 						valueInput instanceof HTMLInputElement ? valueInput.value.trim() : '';
 
-					if (type === 'wallet') {
-						if (!value) {
-							setMessage('Enter a wallet ID first.');
-							return;
-						}
-						const stack = createWalletStack(value);
-						if (!stack) {
-							setMessage('Unable to add wallet stack.');
-							return;
-						}
-						if (row2Lane instanceof HTMLElement) {
-							row2Lane.appendChild(stack);
-						} else {
-							const placeholder = document.querySelector('.placeholder-card.tile--r2c2');
-							if (placeholder?.parentElement) {
-								placeholder.parentElement.insertBefore(stack, placeholder);
-							}
-						}
-						const newStack = stack.querySelector('.wallet-stack');
-						if (newStack instanceof HTMLElement) {
-							initWalletAccordion(newStack);
-						}
-						setMessage(`Wallet ${value} added to row 2.`);
-					} else {
-						if (!value) {
-							setMessage('Enter an exchange name first.');
-							return;
-						}
-						const exchangeCard = createExchangeTin(value);
-						if (row3Lane instanceof HTMLElement) {
-							row3Lane.insertBefore(exchangeCard, row3Lane.firstChild);
-						} else {
-							const anchor = document.querySelector('.tile--r3c1');
-							anchor?.parentElement?.insertBefore(exchangeCard, anchor);
-						}
-						setMessage('Exchange added to row 3.');
+					if (!value) {
+						setMessage('Enter a wallet ID first.');
+						return;
 					}
+					const stack = createWalletStack(value);
+					if (!stack) {
+						setMessage('Unable to add wallet stack.');
+						return;
+					}
+					if (row2Lane instanceof HTMLElement) {
+						row2Lane.appendChild(stack);
+					} else {
+						const placeholder = document.querySelector('.placeholder-card.tile--r2c2');
+						if (placeholder?.parentElement) {
+							placeholder.parentElement.insertBefore(stack, placeholder);
+						}
+					}
+					const newStack = stack.querySelector('.wallet-stack');
+					if (newStack instanceof HTMLElement) {
+						initWalletAccordion(newStack);
+					}
+					setMessage(`Wallet ${value} added to row 2.`);
 				});
 			}
 		}
@@ -574,6 +467,7 @@ const formatSyncTime = (value: string | null) => {
 			.vault-lane--row3 {
 				grid-column: 1 / -1;
 				grid-row: 3;
+				justify-content: flex-start;
 			}
 
 			.vault-lane > .tile {
@@ -586,6 +480,7 @@ const formatSyncTime = (value: string | null) => {
 			flex-direction: column;
 			gap: 0.75rem;
 		}
+
 
 		.tile {
 			min-height: 0;
@@ -735,81 +630,6 @@ const formatSyncTime = (value: string | null) => {
 			border-top: 1px solid rgba(255, 255, 255, 0.14);
 			padding-top: 0.75rem;
 			min-height: 0;
-		}
-
-		.exchange-upload-card {
-			position: relative;
-			background: darkslategray;
-			color: #f7f2eb;
-			border: 2px solid salmon;
-			border-radius: 12px;
-			padding: 18px 16px 16px;
-			display: flex;
-			flex-direction: column;
-			gap: 1rem;
-			text-align: left;
-		}
-
-		.exchange-upload-card::before {
-			content: '';
-			position: absolute;
-			left: 0;
-			top: 0;
-			width: 100%;
-			height: 5px;
-			background: salmon;
-		}
-
-		.exchange-upload-card__label {
-			position: absolute;
-			top: -10px;
-			left: 16px;
-			background: salmon;
-			color: #0b0f1a;
-			font-weight: 700;
-			font-size: 1rem;
-			padding: 6px 12px;
-			border-radius: 10px;
-			box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
-			border: 1px solid rgba(0, 0, 0, 0.1);
-		}
-
-		.exchange-upload-card__form {
-			display: flex;
-			align-items: center;
-			gap: 0.5rem;
-			flex-wrap: wrap;
-			padding-top: 1.1rem;
-		}
-
-		.exchange-upload-card__file {
-			display: inline-flex;
-			align-items: center;
-			gap: 0.5rem;
-			padding: 0.35rem 0.6rem;
-			border-radius: 999px;
-			border: 1px solid rgba(255, 255, 255, 0.2);
-			cursor: pointer;
-			font-size: var(--font-sm);
-		}
-
-		.exchange-upload-card__file input {
-			display: none;
-		}
-
-		.exchange-upload-card__button {
-			border: 1px solid rgba(255, 255, 255, 0.3);
-			background: rgba(255, 255, 255, 0.08);
-			color: inherit;
-			padding: 0.35rem 0.8rem;
-			border-radius: 999px;
-			cursor: pointer;
-			font-size: var(--font-sm);
-		}
-
-		.exchange-upload-card__status {
-			font-size: var(--font-sm);
-			opacity: 0.7;
 		}
 
 		.wallet-label-box {

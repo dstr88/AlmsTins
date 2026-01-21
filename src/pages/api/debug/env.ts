@@ -1,8 +1,6 @@
 import type { APIRoute } from 'astro';
-import { requireTenantSession } from '@/lib/requireTenantSession';
 
-export const GET: APIRoute = async ({ request }) => {
-	await requireTenantSession(request);
+export const GET: APIRoute = async () => {
 	// Simple, auth-free debug in dev and prod
 	const visible = {
 		ETHERSCAN_API_KEY: !!process.env.ETHERSCAN_API_KEY,

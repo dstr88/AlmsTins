@@ -32,6 +32,11 @@ const splitStatements = (sqlText) =>
 		.map((statement) => statement.trim())
 		.filter(Boolean);
 
+const isIgnorableMigrationError = (error) => {
+	const message = error?.message ?? '';
+	return message.includes('duplicate column name');
+};
+
 const runMigrations = async () => {
 	await ensureSchemaMigrations();
 	const applied = await loadAppliedMigrations();
@@ -57,7 +62,15 @@ const runMigrations = async () => {
 		const sqlText = await fs.readFile(filePath, 'utf8');
 		const statements = splitStatements(sqlText);
 		for (const statement of statements) {
-			await db.execute(statement);
+			try {
+				await db.execute(statement);
+			} catch (error) {
+				if (isIgnorableMigrationError(error)) {
+					console.warn(`Skipping statement due to existing column: ${statement}`);
+					continue;
+				}
+				throw error;
+			}
 		}
 		await db.execute({
 			sql: 'INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)',
