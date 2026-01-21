@@ -105,6 +105,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return applySecurityHeaders(await next());
 	}
 
+	if (pathname.startsWith('/api/')) {
+		console.log('[middleware] rule=API_UNAUTHORIZED path=', path);
+		return applySecurityHeaders(new Response(JSON.stringify({ error: 'Unauthorized' }), {
+			status: 401,
+			headers: { 'Content-Type': 'application/json' },
+		}));
+	}
+
 	const acceptsHTML = request.headers.get('accept')?.includes('text/html');
 	if (acceptsHTML) {
 		console.log('[middleware] rule=REDIRECT_LOGIN path=', path);
