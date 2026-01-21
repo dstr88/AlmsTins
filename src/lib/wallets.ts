@@ -29,8 +29,8 @@ export async function getAllActiveWallets(tenantId: string): Promise<Wallet[]> {
 	const result = await sharedDb.execute({
 		sql: `SELECT id, user_id, tenant_id, address, label, chains, is_default, created_at
       FROM wallets
-      WHERE tenant_id = ? AND is_default = 1
-      ORDER BY created_at DESC`,
+      WHERE tenant_id = ?
+      ORDER BY is_default DESC, created_at DESC`,
 		args: [tenantId],
 	});
 	return result.rows.map(transformRow);
