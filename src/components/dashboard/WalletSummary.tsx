@@ -14,6 +14,7 @@ type HoldingsToken = {
 	profitUsd?: number;
 	profitPct?: number;
 	basisDate?: string | null;
+	firstSeenAt?: string | null;
 };
 
 type HoldingsResponse = {
@@ -39,10 +40,14 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 	maximumFractionDigits: 2,
 });
 
-const formatDate = (value: string) => {
+const formatDaysInWallet = (value?: string | null) => {
+	if (!value) return '—';
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return '—';
-	return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	const diffMs = Date.now() - date.getTime();
+	if (diffMs < 0) return '—';
+	const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+	return `${days}d`;
 };
 
 const chainDisplayName = (chain: string) => {
@@ -58,10 +63,29 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 
 	useEffect(() => {
 		let cancelled = false;
+		const cacheKey = `wallet-summary:${walletId}`;
+		let hasCached = false;
+
+		if (typeof window !== 'undefined') {
+			try {
+				const raw = localStorage.getItem(cacheKey);
+				if (raw) {
+					const parsed = JSON.parse(raw) as { payload?: HoldingsResponse[] };
+					if (Array.isArray(parsed?.payload)) {
+						setState({ status: 'ready', payload: parsed.payload });
+						hasCached = true;
+					}
+				}
+			} catch {
+				// Ignore cache parse failures.
+			}
+		}
 
 		async function loadTokens() {
 			try {
-				setState({ status: 'loading' });
+				if (!hasCached) {
+					setState({ status: 'loading' });
+				}
 				const chains = [1, 137, 43114];
 				const payloads: HoldingsResponse[] = [];
 				for (const chainId of chains) {
@@ -75,9 +99,16 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 				}
 				if (!cancelled) {
 					setState({ status: 'ready', payload: payloads });
+					if (typeof window !== 'undefined') {
+						try {
+							localStorage.setItem(cacheKey, JSON.stringify({ payload: payloads, savedAt: Date.now() }));
+						} catch {
+							// Ignore cache write failures.
+						}
+					}
 				}
 			} catch (err) {
-				if (!cancelled) {
+				if (!cancelled && !hasCached) {
 					setState({ status: 'error' });
 				}
 			}
@@ -139,17 +170,11 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 				? tokensByChain.map(([chain, tokens]) => (
 						<section className="wallet-summary__chain" key={chain}>
 							<h4 className="wallet-summary__chain-title">{chainDisplayName(chain)}</h4>
+							<div className="wallet-summary__chain-spacer" aria-hidden="true" />
 							<div className="wallet-summary__chain-rows">
-								<div className="wallet-summary__row wallet-summary__row--header">
-									<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
-									<span className="wallet-summary__cell wallet-summary__cell--date">Date</span>
-									<span className="wallet-summary__cell wallet-summary__cell--price">Price</span>
-									<span className="wallet-summary__cell wallet-summary__cell--pl">P/L</span>
-								</div>
 								{tokens.map((token) => {
 									const symbol = token.symbol.toUpperCase();
-									const dateText = token.basisDate ? formatDate(token.basisDate) : '—';
-									const priceText = token.priceUsd ? currencyFormatter.format(token.priceUsd) : '—';
+									const daysText = formatDaysInWallet(token.basisDate ?? token.firstSeenAt);
 									const qtyText = Number.isFinite(token.balance) ? formatAmount(token.balance) : '—';
 									const valueText =
 										typeof token.valueUsd === 'number' && token.valueUsd > 0
@@ -163,16 +188,12 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 
 									return (
 										<div className="wallet-summary__row" key={`${chain}-${symbol}`}>
+											<span className="wallet-summary__cell wallet-summary__cell--days">{daysText}</span>
 											<span className="wallet-summary__cell wallet-summary__cell--token">
 												{symbol}
-												{token.name && token.name.toUpperCase() !== symbol ? (
-													<span className="wallet-summary__token-name">{token.name}</span>
-												) : null}
-												<span className="wallet-summary__token-qty">Qty: {qtyText}</span>
-												<span className="wallet-summary__token-value">Value: {valueText}</span>
 											</span>
-											<span className="wallet-summary__cell wallet-summary__cell--date">{dateText}</span>
-											<span className="wallet-summary__cell wallet-summary__cell--price">{priceText}</span>
+											<span className="wallet-summary__cell wallet-summary__cell--qty">{qtyText}</span>
+											<span className="wallet-summary__cell wallet-summary__cell--value">{valueText}</span>
 											<span className={`wallet-summary__cell wallet-summary__cell--pl ${plClass}`}>{plText}</span>
 										</div>
 									);

@@ -79,6 +79,7 @@ type HoldingsToken = {
 	profitUsd?: number;
 	profitPct?: number;
 	basisDate?: string | null;
+	firstSeenAt?: string | null;
 };
 
 const NATIVE_META: Record<number, { symbol: string; name: string; coingeckoId: string }> = {
@@ -405,6 +406,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 					priceUsd,
 					valueUsd,
 					basisType: 'unknown',
+					firstSeenAt: null,
 				});
 			}
 		} catch {
@@ -424,13 +426,15 @@ export const GET: APIRoute = async ({ params, request }) => {
 		let basisType: HoldingsToken['basisType'] = 'unknown';
 		let basisPrice: number | null = null;
 		let basisDate: string | null = null;
+		let firstSeenAt: string | null = null;
 
 		if (entry.firstIn) {
+			firstSeenAt = new Date(entry.firstIn * 1000).toISOString();
 			const historical = await fetchHistoricalPrice(entry.contractAddress, entry.firstIn, pricePlatform);
 			if (typeof historical === 'number' && historical > 0) {
 				basisPrice = historical;
 				basisType = 'firstTransferIn';
-				basisDate = new Date(entry.firstIn * 1000).toISOString();
+				basisDate = firstSeenAt;
 			}
 		}
 
@@ -452,6 +456,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 			profitUsd,
 			profitPct,
 			basisDate,
+			firstSeenAt,
 		});
 	}
 

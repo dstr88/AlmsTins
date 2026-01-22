@@ -54,20 +54,25 @@
 	font-size: var(--font-chain-title);
 	font-weight: 700;
 	line-height: var(--lh-tight);
+	text-align: center;
+}
+
+.wallet-summary__chain-spacer {
+	height: 1rem;
 }
 
 .wallet-summary__chain-rows {
 	display: flex;
 	flex-direction: column;
 	gap: var(--space-xs);
+	font-size: var(--font-meta);
 }
 
 .wallet-summary__row {
 	display: grid;
-	grid-template-columns: minmax(6ch, 1.2fr) minmax(9ch, 1fr) minmax(9ch, 1fr) minmax(9ch, 1fr);
+	grid-template-columns: minmax(4ch, 0.6fr) minmax(6ch, 1fr) minmax(8ch, 1fr) minmax(9ch, 1fr) minmax(9ch, 1fr);
 	column-gap: var(--space-md);
 	align-items: baseline;
-	font-size: var(--font-row);
 	font-variant-numeric: tabular-nums;
 }
 
@@ -89,38 +94,10 @@
 	font-weight: 600;
 }
 
-.wallet-summary__cell--date,
-.wallet-summary__cell--price,
+.wallet-summary__cell--value,
 .wallet-summary__cell--pl {
 	text-align: right;
 	justify-self: end;
-}
-
-.wallet-summary__token-name {
-	display: block;
-	font-size: var(--font-meta);
-	font-weight: 500;
-	opacity: 0.7;
-	line-height: var(--lh-tight);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.wallet-summary__token-qty {
-	display: block;
-	font-size: var(--font-meta);
-	opacity: 0.85;
-	line-height: var(--lh-tight);
-	font-variant-numeric: tabular-nums;
-}
-
-.wallet-summary__token-value {
-	display: block;
-	font-size: var(--font-meta);
-	opacity: 0.9;
-	line-height: var(--lh-tight);
-	font-variant-numeric: tabular-nums;
 }
 
 .wallet-summary__cell--pl-positive {
@@ -142,7 +119,8 @@
 		grid-template-columns: 1fr 1fr;
 		grid-template-areas:
 			"token pl"
-			"date price";
+			"days value"
+			"qty value";
 		row-gap: var(--space-xs);
 	}
 
@@ -154,15 +132,19 @@
 		grid-area: pl;
 	}
 
-	.wallet-summary__cell--date {
-		grid-area: date;
+	.wallet-summary__cell--days {
+		grid-area: days;
 		text-align: left;
 		justify-self: start;
 		opacity: 0.8;
 	}
 
-	.wallet-summary__cell--price {
-		grid-area: price;
+	.wallet-summary__cell--qty {
+		grid-area: qty;
+	}
+
+	.wallet-summary__cell--value {
+		grid-area: value;
 	}
 
 	.wallet-summary__row--header {
