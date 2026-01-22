@@ -7,15 +7,15 @@ const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
 const POLYGON_CHAIN_ID = 137;
 const ETHEREUM_CHAIN_ID = 1;
 const AVALANCHE_CHAIN_ID = 43114;
-const CACHE_TTL_MS = 1_000;
+const CACHE_TTL_MS = 60_000;
 const PAGE_SIZE = 100;
 const MAX_PAGES = 25;
-const SCAN_DELAY_MS = 450;
-const PRICE_DELAY_MS = 250;
-const ETHERSCAN_MIN_INTERVAL_MS = 700;
-const SNOWTRACE_MIN_INTERVAL_MS = 700;
+const SCAN_DELAY_MS = 1200;
+const PRICE_DELAY_MS = 1000;
+const ETHERSCAN_MIN_INTERVAL_MS = 1200;
+const SNOWTRACE_MIN_INTERVAL_MS = 1200;
 const COINGECKO_MIN_INTERVAL_MS = 1800;
-const ETHERSCAN_RATE_LIMIT_BACKOFF_MS = 1500;
+const ETHERSCAN_RATE_LIMIT_BACKOFF_MS = 10_000;
 
 const cache = new Map<string, { expiresAt: number; payload: any }>();
 const basisCache = new Map<string, { expiresAt: number; price: number | null }>();
@@ -310,7 +310,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	if (cached && cached.expiresAt > Date.now()) {
 		return new Response(JSON.stringify(cached.payload), {
 			status: 200,
-			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
+			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
 		});
 	}
 
