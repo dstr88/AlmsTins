@@ -93,7 +93,6 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				</div>
 				<div class="sync-tile__message" aria-live="polite">idle</div>
 			</SalmonTin>
-			<CryptoComAccounts />
 			<div class="vault-lane vault-lane--row3">
 				{wallets.map((wallet) => {
 					const displayLabel = formatWalletLabel(wallet);
@@ -115,6 +114,9 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 					);
 				})}
 				<div class="placeholder-card tile tile--r2c2">Empty slot</div>
+			</div>
+			<div class="vault-lane vault-lane--row4">
+				<CryptoComAccounts />
 			</div>
 		</section>
 

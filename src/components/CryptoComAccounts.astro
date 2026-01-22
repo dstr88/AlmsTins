@@ -1,6 +1,7 @@
 ---
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
 
 type AccountRow = {
 	id: string;
@@ -175,28 +176,12 @@ const fetchPrices = async (symbols: string[]) => {
 
 const priceMap = await fetchPrices(Array.from(priceSymbols));
 
-const formatAmount = (value: number, options?: Intl.NumberFormatOptions) =>
-	new Intl.NumberFormat('en-US', options).format(value);
-
-const formatCurrency = (value: number) =>
-	`$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value)}`;
-
-const daysSince = (value: string | null) => {
-	if (!value) return null;
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return null;
-	const diffMs = Date.now() - date.getTime();
-	return Math.max(0, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
-};
 ---
 
-<section class="crypto-accounts tile tile--r2c1">
-	<header class="crypto-accounts__header">
-		<h3>Crypto.com Accounts</h3>
-		<button type="button" class="crypto-accounts__add" data-crypto-add>
-			Add Crypto.com account
-		</button>
-	</header>
+<ExchangeTin title="Crypto.com Accounts" class="tile tile--r2c1">
+	<button slot="header-actions" type="button" class="exchange-tin__add" data-crypto-add>
+		Add Crypto.com account
+	</button>
 
 	{accountsWithHoldings.length ? (
 		<div class="crypto-accounts__list">
@@ -240,9 +225,9 @@ const daysSince = (value: string | null) => {
 									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
 									return (
 										<div class="crypto-holdings__row">
-											<span>{daysSince(holding.lastPurchaseAt) ?? '—'}</span>
+											<span>{formatDaysSince(holding.lastPurchaseAt) ?? '—'}</span>
 											<span>{holding.symbol}</span>
-											<span>{formatAmount(holding.balance, { maximumFractionDigits: 8 })}</span>
+											<span>{formatNumber(holding.balance, { maximumFractionDigits: 8 })}</span>
 											<span>{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
 											<span class={pnl === null ? '' : pnlClass}>
 												{pnl === null ? '—' : formatCurrency(pnl)}
@@ -261,7 +246,7 @@ const daysSince = (value: string | null) => {
 	) : (
 		<p class="crypto-accounts__empty">No Crypto.com accounts yet.</p>
 	)}
-</section>
+</ExchangeTin>
 
 <script>
 	const addButton = document.querySelector('[data-crypto-add]');
@@ -347,34 +332,7 @@ const daysSince = (value: string | null) => {
 </script>
 
 <style>
-	.crypto-accounts {
-		background: darkslategray;
-		color: #f7f2eb;
-		border: 2px solid salmon;
-		border-radius: 12px;
-		padding: var(--space-md);
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-md);
-		min-height: 0;
-	}
-
-	.crypto-accounts__header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-sm);
-		flex-wrap: wrap;
-	}
-
-	.crypto-accounts__header h3 {
-		margin: 0;
-		font-size: var(--font-lg);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-	}
-
-	.crypto-accounts__add {
+	.exchange-tin__add {
 		border-radius: 999px;
 		border: 1px solid rgba(255, 255, 255, 0.18);
 		background: rgba(255, 255, 255, 0.08);
@@ -386,7 +344,7 @@ const daysSince = (value: string | null) => {
 		cursor: pointer;
 	}
 
-	.crypto-accounts__add:hover {
+	.exchange-tin__add:hover {
 		background: rgba(255, 255, 255, 0.16);
 	}
 
@@ -526,3 +484,4 @@ const daysSince = (value: string | null) => {
 		}
 	}
 </style>
+import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';

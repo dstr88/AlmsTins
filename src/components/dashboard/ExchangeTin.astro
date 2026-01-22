@@ -1,0 +1,54 @@
+---
+interface Props {
+	title: string;
+	class?: string;
+}
+
+const { title, class: className = '' } = Astro.props;
+---
+
+<section class={`exchange-tin ${className}`}>
+	<header class="exchange-tin__header">
+		<h3>{title}</h3>
+		<slot name="header-actions" />
+	</header>
+	<div class="exchange-tin__body">
+		<slot />
+	</div>
+</section>
+
+<style>
+	.exchange-tin {
+		background: darkslategray;
+		color: #f7f2eb;
+		border: 2px solid salmon;
+		border-radius: 12px;
+		padding: var(--space-md);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+		min-height: 0;
+	}
+
+	.exchange-tin__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-sm);
+		flex-wrap: wrap;
+	}
+
+	.exchange-tin__header h3 {
+		margin: 0;
+		font-size: var(--font-lg);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+
+	.exchange-tin__body {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+		min-height: 0;
+	}
+</style>
