@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './VaultNftActivity.css';
 
 type NftItem = {
@@ -35,6 +35,8 @@ const getLabel = (item: NftItem) => {
 export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 	const [nftState, setNftState] = useState<FetchState<NftItem>>({ status: 'loading' });
 	const [contractState, setContractState] = useState<FetchState<ContractItem>>({ status: 'loading' });
+	const rootRef = useRef<HTMLDivElement | null>(null);
+	const didRevealRef = useRef(false);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -97,8 +99,23 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 		};
 	}, [walletId]);
 
+	useEffect(() => {
+		if (nftState.status !== 'ready' || nftState.items.length === 0 || didRevealRef.current) return;
+		const root = rootRef.current;
+		if (!root) return;
+		const tin = root.closest('.salmon-tin');
+		const label = tin?.querySelector('.salmon-tin__label');
+		if (tin?.classList.contains('is-collapsed')) {
+			tin.classList.remove('is-collapsed');
+			if (label instanceof HTMLElement) {
+				label.setAttribute('aria-expanded', 'true');
+			}
+		}
+		didRevealRef.current = true;
+	}, [nftState]);
+
 	return (
-		<div className="vault-activity">
+		<div className="vault-activity" ref={rootRef}>
 			<div className="vault-activity__section">
 				<h4>NFTs</h4>
 				<div className="vault-activity__nfts">
