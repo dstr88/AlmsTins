@@ -5,7 +5,7 @@ import SalmonTin from '@/components/dashboard/SalmonTin.astro';
 import PriceWatchlist from '@/components/dashboard/PriceWatchlist';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
-import VaultNftActivity from '@/components/dashboard/VaultNftActivity.astro';
+import VaultNftActivity from '@/components/dashboard/VaultNftActivity';
 import CryptoComAccounts from '../../components/CryptoComAccounts.astro';
 import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
 import { db } from '@/lib/db';
@@ -108,7 +108,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 									<AaveHealthSummary client:load walletId={wallet.id} />
 								</SalmonTin>
 								<SalmonTin label="NFTs" class="wallet-tin--future">
-									<VaultNftActivity walletId={wallet.id} />
+									<VaultNftActivity client:load walletId={wallet.id} />
 								</SalmonTin>
 							</div>
 						</div>
