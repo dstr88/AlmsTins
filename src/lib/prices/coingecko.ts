@@ -2,6 +2,49 @@
  * Simple CoinGecko helpers for UI valuations.
  * Uses public APIs and returns 4-decimal USD prices.
  */
+const COINGECKO_CACHE_TTL_MS = 60_000;
+const COINGECKO_MIN_INTERVAL_MS = 1200;
+const COINGECKO_MAX_RETRIES = 3;
+const COINGECKO_BASE_BACKOFF_MS = 750;
+
+const coingeckoCache = new Map<string, { expiresAt: number; payload: any }>();
+let lastCoingeckoCallAt = 0;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isBrowser = typeof window !== 'undefined';
+
+async function fetchCoingeckoJson(url: string) {
+	const cached = coingeckoCache.get(url);
+	if (cached && cached.expiresAt > Date.now()) {
+		return cached.payload;
+	}
+
+	for (let attempt = 0; attempt < COINGECKO_MAX_RETRIES; attempt += 1) {
+		const now = Date.now();
+		const waitMs = Math.max(0, lastCoingeckoCallAt + COINGECKO_MIN_INTERVAL_MS - now);
+		if (waitMs) await sleep(waitMs);
+		lastCoingeckoCallAt = Date.now();
+
+		try {
+			const response = await fetch(url);
+			if (response.status === 429) {
+				await sleep(COINGECKO_BASE_BACKOFF_MS * (attempt + 1));
+				continue;
+			}
+			if (!response.ok) {
+				return null;
+			}
+			const payload = await response.json();
+			coingeckoCache.set(url, { expiresAt: Date.now() + COINGECKO_CACHE_TTL_MS, payload });
+			return payload;
+		} catch {
+			await sleep(COINGECKO_BASE_BACKOFF_MS * (attempt + 1));
+		}
+	}
+
+	return null;
+}
 const COINGECKO_IDS: Record<string, string> = {
 	BTC: 'bitcoin',
 	ETH: 'ethereum',
@@ -29,18 +72,17 @@ export async function resolveTokenIds(tokens: ResolvedToken[]): Promise<Resolved
 	for (const token of pending) {
 		const query = token.symbol.trim();
 		if (!query) continue;
-		const url = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`;
 		try {
-			const response = await fetch(url);
-			if (response.status === 429) {
-				console.warn('[coingecko] rate limited on search; keeping existing ids');
-				break;
-			}
-			if (!response.ok) {
-				console.warn('[coingecko] search failed', response.status, response.statusText);
+			const url = isBrowser
+				? `/api/market/coingecko-search?query=${encodeURIComponent(query)}`
+				: `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(query)}`;
+			const payload = isBrowser
+				? ((await fetch(url).then((res) => res.json())) as { coins?: Array<{ id?: string; symbol?: string }> })
+				: ((await fetchCoingeckoJson(url)) as { coins?: Array<{ id?: string; symbol?: string }> } | null);
+			if (!payload) {
+				console.warn('[coingecko] search failed');
 				continue;
 			}
-			const payload = (await response.json()) as { coins?: Array<{ id?: string; symbol?: string }> };
 			const coins = payload.coins ?? [];
 			const exact = coins.find((c) => c.symbol?.toUpperCase() === token.symbol.toUpperCase());
 			const first = coins[0];
@@ -66,21 +108,19 @@ export async function getSimpleTokenPricesById(tokens: ResolvedToken[]): Promise
 	const ids = Array.from(new Set(tokens.map((t) => t.coingeckoId).filter((id): id is string => Boolean(id))));
 	if (!ids.length) return {};
 
-	const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=usd`;
+	const url = isBrowser
+		? `/api/market/coingecko-prices-by-id?ids=${encodeURIComponent(ids.join(','))}`
+		: `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=usd`;
 	console.debug('[coingecko] fetching prices by id', ids);
 
 	try {
-		const response = await fetch(url);
-		if (response.status === 429) {
-			console.warn('[coingecko] rate limited on price fetch');
+		const payload = isBrowser
+			? ((await fetch(url).then((res) => res.json())) as Record<string, { usd?: number }>)
+			: ((await fetchCoingeckoJson(url)) as Record<string, { usd?: number }> | null);
+		if (!payload) {
+			console.warn('[coingecko] price fetch failed');
 			return {};
 		}
-		if (!response.ok) {
-			console.warn('[coingecko] price fetch failed', response.status, response.statusText);
-			return {};
-		}
-
-		const payload = (await response.json()) as Record<string, { usd?: number }>;
 		const prices: Record<string, number> = {};
 
 		for (const token of tokens) {
@@ -96,6 +136,22 @@ export async function getSimpleTokenPricesById(tokens: ResolvedToken[]): Promise
 		console.error('[coingecko] price fetch error', error);
 		return {};
 	}
+}
+
+export async function searchCoingecko(query: string): Promise<{ coins: Array<{ id?: string; symbol?: string }> }> {
+	const trimmed = query.trim();
+	if (!trimmed) return { coins: [] };
+	const url = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(trimmed)}`;
+	const payload = (await fetchCoingeckoJson(url)) as { coins?: Array<{ id?: string; symbol?: string }> } | null;
+	return payload?.coins ? payload : { coins: [] };
+}
+
+export async function getSimplePricesById(ids: string[]): Promise<Record<string, { usd?: number }>> {
+	const normalized = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+	if (!normalized.length) return {};
+	const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(normalized.join(','))}&vs_currencies=usd`;
+	const payload = (await fetchCoingeckoJson(url)) as Record<string, { usd?: number }> | null;
+	return payload ?? {};
 }
 
 // Legacy helper (symbol keyed) kept for other parts of the app that expect it.
@@ -118,12 +174,10 @@ export async function getSimpleTokenPrices(symbols: string[]): Promise<Record<st
 	console.debug('[coingecko] fetching prices for symbols', normalized);
 
 	try {
-		const response = await fetch(url);
-		if (!response.ok) {
-			throw new Error(`CoinGecko responded with ${response.status}`);
+		const payload = (await fetchCoingeckoJson(url)) as Record<string, { usd?: number }> | null;
+		if (!payload) {
+			throw new Error('CoinGecko fetch failed');
 		}
-
-		const payload = (await response.json()) as Record<string, { usd?: number }>;
 		const prices: Record<string, number> = {};
 
 		for (const sym of normalized) {
