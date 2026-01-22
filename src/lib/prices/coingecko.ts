@@ -3,9 +3,9 @@
  * Uses public APIs and returns 4-decimal USD prices.
  */
 const COINGECKO_CACHE_TTL_MS = 60_000;
-const COINGECKO_MIN_INTERVAL_MS = 1200;
+const COINGECKO_MIN_INTERVAL_MS = 10_000;
 const COINGECKO_MAX_RETRIES = 3;
-const COINGECKO_BASE_BACKOFF_MS = 750;
+const COINGECKO_BASE_BACKOFF_MS = 10_000;
 
 const coingeckoCache = new Map<string, { expiresAt: number; payload: any }>();
 let lastCoingeckoCallAt = 0;
