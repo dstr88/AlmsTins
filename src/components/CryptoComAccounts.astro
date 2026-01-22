@@ -1,5 +1,6 @@
 ---
 import { db } from '@/lib/db';
+import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
 
@@ -484,4 +485,3 @@ const priceMap = await fetchPrices(Array.from(priceSymbols));
 		}
 	}
 </style>
-import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
