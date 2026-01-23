@@ -1,5 +1,37 @@
 import crypto from 'node:crypto';
+import nodemailer from 'nodemailer';
 import { db } from './db';
+
+const TENANT_ALERT_EMAIL = 'donnie@titaniumhut.com';
+
+async function sendTenantAlert(userId: string, tenantId: string) {
+	const server = import.meta.env.EMAIL_SERVER;
+	const from = import.meta.env.EMAIL_FROM;
+	if (!server || !from) return;
+
+	let email: string | null = null;
+	try {
+		const userResult = await db.execute({
+			sql: 'SELECT email FROM auth_users WHERE id = ? LIMIT 1',
+			args: [userId],
+		});
+		email = (userResult.rows[0] as Record<string, any> | undefined)?.email ?? null;
+	} catch {
+		email = null;
+	}
+
+	try {
+		const transport = nodemailer.createTransport(server);
+		await transport.sendMail({
+			to: TENANT_ALERT_EMAIL,
+			from,
+			subject: 'New tenant created',
+			text: `A new tenant was created.\nUser: ${userId}\nEmail: ${email ?? 'unknown'}\nTenant: ${tenantId}`,
+		});
+	} catch (error) {
+		console.warn('[tenants] Failed to send tenant alert email', error);
+	}
+}
 
 export async function resolveActiveTenantId(userId: string): Promise<string | null> {
 	const result = await db.execute({
@@ -36,6 +68,7 @@ export async function ensureTenantForUser(userId: string, label?: string | null)
 		sql: 'INSERT INTO tenants (id, name, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
 		args: [tenantId, tenantName],
 	});
+	await sendTenantAlert(userId, tenantId);
 	await db.execute({
 		sql: `INSERT INTO tenant_memberships (id, tenant_id, user_id, role, created_at)
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
