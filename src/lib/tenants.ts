@@ -29,21 +29,13 @@ export async function ensureTenantForUser(userId: string, label?: string | null)
 		return tenantId;
 	}
 
-	const existingTenant = await db.execute({
-		sql: 'SELECT id FROM tenants ORDER BY created_at ASC LIMIT 1',
-		args: [],
-	});
-	const existingTenantId = (existingTenant.rows[0] as Record<string, any> | undefined)?.id;
-
-	const tenantId = existingTenantId ? String(existingTenantId) : crypto.randomUUID();
+	const tenantId = crypto.randomUUID();
 	const tenantName = (label && label.trim().length ? label.trim() : 'Primary').slice(0, 120);
 
-	if (!existingTenantId) {
-		await db.execute({
-			sql: 'INSERT INTO tenants (id, name, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
-			args: [tenantId, tenantName],
-		});
-	}
+	await db.execute({
+		sql: 'INSERT INTO tenants (id, name, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+		args: [tenantId, tenantName],
+	});
 	await db.execute({
 		sql: `INSERT INTO tenant_memberships (id, tenant_id, user_id, role, created_at)
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
