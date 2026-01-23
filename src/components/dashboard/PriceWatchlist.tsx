@@ -158,13 +158,18 @@ export function PriceWatchlist() {
 		};
 	}, [hydrated, combinedSymbols.join(',')]);
 
-	function handleAddSymbol(event: React.FormEvent) {
-		event.preventDefault();
+	// adjusted watchlist and built hide buttonfor NFTs
+	function handleAddSymbol(
+		event?: React.FormEvent | React.KeyboardEvent<HTMLInputElement> | React.MouseEvent<HTMLButtonElement>,
+	) {
+		event?.preventDefault();
 		const trimmed = input.trim().toUpperCase();
 		if (!trimmed || trimmed.length > 10) return;
 		if (combinedSymbols.includes(trimmed)) return;
 		setTokens((prev) => [...prev, { symbol: trimmed }]);
 		setInput('');
+		setIsExpanded(true);
+		pushToast(`Added ${trimmed} to watchlist.`);
 	}
 
 	function handleDelete(symbol: string) {
@@ -296,6 +301,11 @@ export function PriceWatchlist() {
 					<input
 						value={input}
 						onChange={(e) => setInput(e.target.value)}
+						onKeyDown={(event) => {
+							if (event.key === 'Enter') {
+								handleAddSymbol(event);
+							}
+						}}
 						placeholder="Add token (e.g. LINK, SOL)"
 						style={{
 							flex: '1 1 180px',
@@ -309,7 +319,8 @@ export function PriceWatchlist() {
 						}}
 					/>
 					<button
-						type="submit"
+						type="button"
+						onClick={handleAddSymbol}
 						style={{
 							flex: '0 0 auto',
 							borderRadius: '10px',

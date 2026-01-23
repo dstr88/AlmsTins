@@ -90,7 +90,29 @@ export const GET: APIRoute = async ({ params, request }) => {
 		}
 	}
 
+	const hiddenResult = await db.execute({
+		sql: `SELECT chain_id, contract_address, token_id
+			FROM nft_hidden
+			WHERE tenant_id = ? AND wallet_id = ?`,
+		args: [tenantId, walletId],
+	});
+	const hiddenSet = new Set(
+		(hiddenResult.rows ?? []).map((row: any) => {
+			const chainId = Number(row.chain_id ?? 0);
+			const contract = String(row.contract_address ?? '').toLowerCase();
+			const tokenId = String(row.token_id ?? '');
+			return `${chainId}:${contract}:${tokenId}`;
+		}),
+	);
+
 	const items = Array.from(owned.values())
+		.filter((tx) => {
+			const contract = String(tx.contractAddress ?? '').toLowerCase();
+			const tokenId = String(tx.tokenID ?? tx.tokenId ?? '');
+			if (!contract || !tokenId) return false;
+			const key = `${tx.chainId}:${contract}:${tokenId}`;
+			return !hiddenSet.has(key);
+		})
 		.slice(0, 12)
 		.map((tx) => {
 			const chain = CHAINS.find((c) => c.chainId === tx.chainId);
@@ -102,6 +124,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 				? `${chain.opensea}/${contract}/${tokenId}`
 				: `${chain?.explorer ?? ''}/token/${contract}?a=${tokenId}`;
 			return {
+				chainId: tx.chainId,
 				chain: chain?.name ?? 'unknown',
 				contract,
 				tokenId,

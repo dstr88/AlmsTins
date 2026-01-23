@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import './VaultNftActivity.css';
 
 type NftItem = {
+	chainId?: number;
 	chain?: string;
 	contract?: string;
 	tokenId?: string;
@@ -35,17 +36,15 @@ const getLabel = (item: NftItem) => {
 export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 	const [nftState, setNftState] = useState<FetchState<NftItem>>({ status: 'loading' });
 	const [contractState, setContractState] = useState<FetchState<ContractItem>>({ status: 'loading' });
+	const [isUnhiding, setIsUnhiding] = useState(false);
 	const rootRef = useRef<HTMLDivElement | null>(null);
 	const didRevealRef = useRef(false);
 
-	useEffect(() => {
-		let cancelled = false;
-		const controller = new AbortController();
-
-		const loadNfts = async () => {
+	const loadNfts = useCallback(
+		async (signal?: AbortSignal) => {
 			try {
 				const response = await fetch(`/api/wallets/${encodeURIComponent(walletId)}/nfts`, {
-					signal: controller.signal,
+					signal,
 				});
 				const payload = (await response.json()) as ApiResponse<NftItem>;
 				// Trace NFT payloads to verify upstream API responses.
@@ -53,17 +52,68 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 				if (!response.ok || payload.ok === false) {
 					throw new Error(payload.error || 'Unable to load NFTs.');
 				}
-				if (!cancelled) {
-					setNftState({ status: 'ready', items: payload.items ?? [] });
-				}
+				setNftState({ status: 'ready', items: payload.items ?? [] });
 			} catch (error) {
-				if (cancelled || controller.signal.aborted) return;
+				if (signal?.aborted) return;
 				setNftState({
 					status: 'error',
 					message: error instanceof Error ? error.message : 'Unable to load NFTs.',
 				});
 			}
-		};
+		},
+		[walletId],
+	);
+
+	const hideNft = async (item: NftItem) => {
+		const chainId = item.chainId ?? 0;
+		const contract = String(item.contract ?? '').trim();
+		const tokenId = String(item.tokenId ?? '').trim();
+		if (!chainId || !contract || !tokenId) return;
+		try {
+			const response = await fetch(`/api/wallets/${encodeURIComponent(walletId)}/nfts/hide`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ chainId, contract, tokenId }),
+			});
+			if (!response.ok) return;
+			setNftState((prev) => {
+				if (prev.status !== 'ready') return prev;
+				return {
+					status: 'ready',
+					items: prev.items.filter(
+						(existing) =>
+							!(
+								existing.chainId === chainId &&
+								existing.contract?.toLowerCase() === contract.toLowerCase() &&
+								existing.tokenId === tokenId
+							),
+					),
+				};
+			});
+		} catch {
+			// Ignore hide failures.
+		}
+	};
+
+	const unhideAll = async () => {
+		if (isUnhiding) return;
+		setIsUnhiding(true);
+		try {
+			const response = await fetch(`/api/wallets/${encodeURIComponent(walletId)}/nfts/unhide-all`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+			});
+			if (response.ok) {
+				await loadNfts();
+			}
+		} finally {
+			setIsUnhiding(false);
+		}
+	};
+
+	useEffect(() => {
+		let cancelled = false;
+		const controller = new AbortController();
 
 		const loadContracts = async () => {
 			try {
@@ -90,7 +140,7 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 
 		setNftState({ status: 'loading' });
 		setContractState({ status: 'loading' });
-		void loadNfts();
+		void loadNfts(controller.signal);
 		void loadContracts();
 
 		return () => {
@@ -117,7 +167,12 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 	return (
 		<div className="vault-activity" ref={rootRef}>
 			<div className="vault-activity__section">
-				<h4>NFTs</h4>
+				<div className="vault-activity__header">
+					<h4>NFTs</h4>
+					<button className="vault-activity__action" type="button" onClick={unhideAll} disabled={isUnhiding}>
+						{isUnhiding ? 'Unhiding…' : 'Unhide all'}
+					</button>
+				</div>
 				<div className="vault-activity__nfts">
 					{nftState.status === 'loading' && (
 						<p className="vault-activity__empty">Loading NFTs…</p>
@@ -135,13 +190,26 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 							const tokenId = item.tokenId ? `#${item.tokenId}` : '';
 							const url = item.url ?? '#';
 							return (
-								<a key={`${item.contract ?? 'nft'}:${item.tokenId ?? '0'}`} className="vault-nft" href={url} target="_blank" rel="noreferrer">
-									<div className="vault-nft__thumb">{thumb}</div>
-									<div className="vault-nft__meta">
-										<div className="vault-nft__title">{label}</div>
-										<div className="vault-nft__token">{tokenId || '—'}</div>
-									</div>
-								</a>
+								<div key={`${item.contract ?? 'nft'}:${item.tokenId ?? '0'}`} className="vault-nft">
+									<a className="vault-nft__link" href={url} target="_blank" rel="noreferrer">
+										<div className="vault-nft__thumb">{thumb}</div>
+										<div className="vault-nft__meta">
+											<div className="vault-nft__title">{label}</div>
+											<div className="vault-nft__token">{tokenId || '—'}</div>
+										</div>
+									</a>
+									<button
+										type="button"
+										className="vault-nft__hide"
+										onClick={(event) => {
+											event.preventDefault();
+											event.stopPropagation();
+											void hideNft(item);
+										}}
+									>
+										Hide
+									</button>
+								</div>
 							);
 						})}
 				</div>
