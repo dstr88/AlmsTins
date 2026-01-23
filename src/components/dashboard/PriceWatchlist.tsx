@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
-import { getSimpleTokenPricesById, resolveTokenIds } from '@/lib/prices/coingecko';
 
 const BASE_SYMBOLS = ['BTC', 'ETH', 'POL', 'AVAX'] as const;
 const STORAGE_KEY = 'watchlist';
@@ -12,7 +11,6 @@ type PriceEntry = {
 
 type WatchlistToken = {
 	symbol: string;
-	coingeckoId: string | null;
 };
 
 type FetchState =
@@ -37,7 +35,7 @@ type Toast = { id: number; message: string };
 export function PriceWatchlist() {
 	const [state, setState] = useState<FetchState>({ status: 'idle' });
 	const [tokens, setTokens] = useState<WatchlistToken[]>(
-		BASE_SYMBOLS.map((sym) => ({ symbol: sym, coingeckoId: null })),
+		BASE_SYMBOLS.map((sym) => ({ symbol: sym })),
 	);
 	const [input, setInput] = useState('');
 	const [isExpanded, setIsExpanded] = useState(false);
@@ -65,7 +63,7 @@ export function PriceWatchlist() {
 			const raw = localStorage.getItem(STORAGE_KEY);
 			if (raw) {
 				const parsed = JSON.parse(raw) as StoredWatchlist;
-				const defaultTokens: WatchlistToken[] = BASE_SYMBOLS.map((sym) => ({ symbol: sym, coingeckoId: null }));
+				const defaultTokens: WatchlistToken[] = BASE_SYMBOLS.map((sym) => ({ symbol: sym }));
 
 				let migrated: WatchlistToken[] = defaultTokens;
 				if (Array.isArray(parsed.tokens) && parsed.tokens.length) {
@@ -73,12 +71,10 @@ export function PriceWatchlist() {
 					if (typeof first === 'string') {
 						migrated = parsed.tokens.map((sym) => ({
 							symbol: String(sym).toUpperCase(),
-							coingeckoId: null,
 						}));
 					} else {
 						migrated = (parsed.tokens as WatchlistToken[]).map((t) => ({
 							symbol: String((t as any).symbol ?? '').toUpperCase(),
-							coingeckoId: (t as any).coingeckoId ?? null,
 						}));
 					}
 				}
@@ -102,7 +98,7 @@ export function PriceWatchlist() {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 	}, [tokens, isExpanded, hydrated]);
 
-	// Fetch prices (CoinGecko)
+	// Fetch prices (Coinpaprika cached via server)
 	useEffect(() => {
 		if (!hydrated) {
 			console.log('[PriceWatchlist] Not hydrated yet, skipping price load');
@@ -120,22 +116,18 @@ export function PriceWatchlist() {
 					return;
 				}
 				setState({ status: 'loading' });
-				// Resolve missing CoinGecko IDs first
-				const resolved = await resolveTokenIds(
-					tokens.map((t) => ({
-						symbol: t.symbol.toUpperCase(),
-						coingeckoId: t.coingeckoId ?? null,
-					})),
-				);
-
-				if (!cancelled) {
-					setTokens(resolved);
+				const url = `/api/market/coinpaprika-prices?symbols=${encodeURIComponent(
+					combinedSymbols.join(','),
+				)}`;
+				const response = await fetch(url);
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}`);
 				}
-
-				const priceMap = await getSimpleTokenPricesById(resolved);
+				const payload = (await response.json()) as { prices?: Record<string, number> };
+				const priceMap = payload.prices ?? {};
 				console.log('[PriceWatchlist] Prices response:', priceMap);
 
-				const entries: PriceEntry[] = resolved.map((t) => ({
+				const entries: PriceEntry[] = tokens.map((t) => ({
 					symbol: t.symbol.toUpperCase(),
 					priceUsd: Number(priceMap[t.symbol.toUpperCase()] ?? 0),
 				}));
@@ -171,7 +163,7 @@ export function PriceWatchlist() {
 		const trimmed = input.trim().toUpperCase();
 		if (!trimmed || trimmed.length > 10) return;
 		if (combinedSymbols.includes(trimmed)) return;
-		setTokens((prev) => [...prev, { symbol: trimmed, coingeckoId: null }]);
+		setTokens((prev) => [...prev, { symbol: trimmed }]);
 		setInput('');
 	}
 

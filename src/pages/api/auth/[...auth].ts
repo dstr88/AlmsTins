@@ -74,6 +74,8 @@ providers.push(
 	}),
 );
 
+const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
+
 const authConfig = {
 	basePath: '/api/auth',
 	providers,
@@ -81,7 +83,8 @@ const authConfig = {
 	secret: import.meta.env.AUTH_SECRET,
 	trustHost: true,
 	debug: import.meta.env.DEV,
-	session: { strategy: 'jwt' },
+	session: { strategy: 'jwt', maxAge: SESSION_MAX_AGE_SECONDS },
+	jwt: { maxAge: SESSION_MAX_AGE_SECONDS },
 	pages: {
 		signIn: '/login',
 	},

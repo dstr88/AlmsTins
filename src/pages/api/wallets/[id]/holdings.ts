@@ -15,7 +15,7 @@ const PRICE_DELAY_MS = 1000;
 const ETHERSCAN_MIN_INTERVAL_MS = 1200;
 const SNOWTRACE_MIN_INTERVAL_MS = 1200;
 const COINGECKO_MIN_INTERVAL_MS = 1800;
-const ETHERSCAN_RATE_LIMIT_BACKOFF_MS = 10_000;
+const ETHERSCAN_RATE_LIMIT_BACKOFF_MS = 5_000;
 
 const cache = new Map<string, { expiresAt: number; payload: any }>();
 const basisCache = new Map<string, { expiresAt: number; price: number | null }>();

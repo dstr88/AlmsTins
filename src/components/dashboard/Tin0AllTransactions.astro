@@ -235,11 +235,16 @@ const aaveLabel = (row: UnifiedRow) => {
 };
 
 const rowsWithDividers = rows.map((row) => ({ type: 'row' as const, row }));
+
+const exportUrl = walletId
+	? `/api/transactions/export?walletId=${encodeURIComponent(walletId)}`
+	: '/api/transactions/export';
 ---
 
 <article class="tin0-all" id="all-transactions">
 	<header class="tin0-all__header">
 		<h3 class="tin0-all__title">All Transactions</h3>
+		<a class="tin0-all__export" href={exportUrl}>Export CSV</a>
 		<label class="tin0-all__filter">
 			<span>Source</span>
 			<select class="tin0-all__select" aria-label="Filter by source">
@@ -639,6 +644,24 @@ const rowsWithDividers = rows.map((row) => ({ type: 'row' as const, row }));
 
 	hydrateOnchainUsd().then(() => fifoGroupPolSells(list));
 </script>
+
+<style>
+	.tin0-all__export {
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: rgba(255, 255, 255, 0.08);
+		color: inherit;
+		padding: 0.35rem 0.8rem;
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		text-decoration: none;
+	}
+
+	.tin0-all__export:hover {
+		background: rgba(255, 255, 255, 0.16);
+	}
+</style>
 
 <style>
 	.tin0-all {

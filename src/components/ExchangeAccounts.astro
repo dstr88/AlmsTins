@@ -1,0 +1,154 @@
+---
+import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
+import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
+import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+type AccountRow = {
+	id: string;
+	name: string;
+};
+
+const { source, title } = Astro.props as { source: string; title: string };
+const { tenantId } = await requireTenantSession(Astro.request);
+
+const accountsResult = await db.execute({
+	sql: `SELECT id, name FROM exchange_accounts
+		WHERE tenant_id = ? AND source = ?
+		ORDER BY created_at ASC`,
+	args: [tenantId, source],
+});
+
+const accounts = accountsResult.rows as AccountRow[];
+---
+
+<ExchangeTin title={title} class="tile tile--exchange">
+	<button slot="header-actions" type="button" class="exchange-tin__add" data-exchange-add data-exchange-source={source}>
+		Add account
+	</button>
+
+	{accounts.length ? (
+		<div class="exchange-accounts__list">
+			{accounts.map((account, index) => {
+				const accountIndex = index + 1;
+				return (
+					<ExchangeAccountCard
+						accountId={account.id}
+						accountIndex={accountIndex}
+						name={account.name}
+						source={source}
+					/>
+				);
+			})}
+		</div>
+	) : (
+		<p class="exchange-accounts__empty">No accounts yet.</p>
+	)}
+</ExchangeTin>
+
+<script>
+	if (document.documentElement.dataset.exchangeAccountsInit !== 'true') {
+		document.documentElement.dataset.exchangeAccountsInit = 'true';
+
+		document.addEventListener('click', async (event) => {
+			const target = event.target;
+			if (!(target instanceof HTMLElement)) return;
+			const button = target.closest('[data-exchange-add]');
+			if (!(button instanceof HTMLElement)) return;
+			const source = button.dataset.exchangeSource ?? '';
+			if (!source) return;
+			try {
+				const response = await fetch(`/api/exchanges/${source}/accounts`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({}),
+				});
+				if (!response.ok) {
+					throw new Error('Failed to create account.');
+				}
+				window.location.reload();
+			} catch (error) {
+				console.error(error);
+			}
+		});
+
+		document.addEventListener(
+			'blur',
+			async (event) => {
+				const target = event.target;
+				if (!(target instanceof HTMLInputElement) || !target.classList.contains('exchange-account__name')) {
+					return;
+				}
+				const accountId = target.dataset.accountId ?? '';
+				const source = target.dataset.exchangeSource ?? '';
+				const name = target.value.trim();
+				if (!accountId || !name || !source) return;
+				try {
+					await fetch(`/api/exchanges/${source}/accounts/update`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ accountId, name }),
+					});
+				} catch (error) {
+					console.error(error);
+				}
+			},
+			true,
+		);
+
+		document.addEventListener('submit', async (event) => {
+			const form = event.target;
+			if (!(form instanceof HTMLFormElement) || !form.classList.contains('exchange-account__upload')) {
+				return;
+			}
+			event.preventDefault();
+			const status = form.querySelector('.exchange-account__status');
+			const fileInput = form.querySelector('input[type="file"]');
+			const accountId = form.dataset.accountId ?? '';
+			const source = form.dataset.exchangeSource ?? '';
+
+			if (!fileInput || !(fileInput instanceof HTMLInputElement) || !fileInput.files?.[0]) {
+				if (status instanceof HTMLElement) status.textContent = 'Select a CSV file first.';
+				return;
+			}
+
+			if (status instanceof HTMLElement) status.textContent = 'Uploading...';
+			const data = new FormData();
+			data.append('file', fileInput.files[0]);
+			data.append('accountId', accountId);
+
+			try {
+				const response = await fetch(`/api/import/${source}`, {
+					method: 'POST',
+					body: data,
+				});
+				const payload = await response.json();
+				if (!response.ok) {
+					throw new Error(payload?.error || 'Upload failed.');
+				}
+				if (status instanceof HTMLElement) {
+					status.textContent = `Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+				}
+				setTimeout(() => window.location.reload(), 600);
+			} catch (error) {
+				if (status instanceof HTMLElement) {
+					status.textContent = error instanceof Error ? error.message : 'Upload failed.';
+				}
+			}
+		});
+	}
+</script>
+
+<style>
+	.exchange-accounts__list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+	}
+
+	.exchange-accounts__empty {
+		margin: 0;
+		font-size: var(--font-sm);
+		opacity: 0.7;
+	}
+</style>

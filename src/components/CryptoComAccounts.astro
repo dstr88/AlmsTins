@@ -1,6 +1,7 @@
 ---
 import { db } from '@/lib/db';
 import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
+import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
 
@@ -179,7 +180,7 @@ const priceMap = await fetchPrices(Array.from(priceSymbols));
 
 ---
 
-<ExchangeTin title="Crypto.com Accounts" class="tile tile--r2c1">
+<ExchangeTin title="Crypto.com Accounts" class="tile tile--exchange">
 	<button slot="header-actions" type="button" class="exchange-tin__add" data-crypto-add>
 		Add Crypto.com account
 	</button>
@@ -189,34 +190,15 @@ const priceMap = await fetchPrices(Array.from(priceSymbols));
 			{accountsWithHoldings.map((account, index) => {
 				const accountIndex = index + 1;
 				return (
-					<div class="crypto-account" data-account-index={accountIndex}>
-						<div class="crypto-account__row">
-							<input
-								class="crypto-account__name"
-								type="text"
-								value={account.name}
-								data-account-id={account.id}
-								placeholder={`Account #${accountIndex}`}
-							/>
-						</div>
-						<form class="crypto-account__upload" data-account-id={account.id} data-account-index={accountIndex}>
-							<label class="crypto-account__file">
-								<input type="file" name="file" accept=".csv" required />
-								<span>Choose CSV</span>
-							</label>
-							<button type="submit" class="crypto-account__button">Upload</button>
-							<span class="crypto-account__status" aria-live="polite"></span>
-						</form>
-						<div class="crypto-holdings">
-							<div class="crypto-holdings__head">
-								<span>Days since last purchase</span>
-								<span>Ticker</span>
-								<span>Amount held</span>
-								<span>USD value</span>
-								<span>Profit/Loss</span>
-							</div>
-							{account.holdings.length ? (
-								account.holdings.map((holding) => {
+					<ExchangeAccountCard
+						accountId={account.id}
+						accountIndex={accountIndex}
+						name={account.name}
+						source="crypto-com"
+					>
+						{account.holdings.length ? (
+							<div slot="holdings">
+								{account.holdings.map((holding) => {
 									const price = priceMap[holding.symbol] ?? 0;
 									const usdValue = price > 0 ? holding.balance * price : null;
 									const pnl =
@@ -225,7 +207,7 @@ const priceMap = await fetchPrices(Array.from(priceSymbols));
 											: null;
 									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
 									return (
-										<div class="crypto-holdings__row">
+										<div class="exchange-holdings__row">
 											<span>{formatDaysSince(holding.lastPurchaseAt) ?? '—'}</span>
 											<span>{holding.symbol}</span>
 											<span>{formatNumber(holding.balance, { maximumFractionDigits: 8 })}</span>
@@ -235,12 +217,10 @@ const priceMap = await fetchPrices(Array.from(priceSymbols));
 											</span>
 										</div>
 									);
-								})
-							) : (
-								<div class="crypto-holdings__empty">No holdings yet.</div>
-							)}
-						</div>
-					</div>
+								})}
+							</div>
+						) : null}
+					</ExchangeAccountCard>
 				);
 			})}
 		</div>
@@ -269,7 +249,7 @@ const priceMap = await fetchPrices(Array.from(priceSymbols));
 
 	document.addEventListener('blur', async (event) => {
 		const target = event.target;
-		if (!(target instanceof HTMLInputElement) || !target.classList.contains('crypto-account__name')) {
+		if (!(target instanceof HTMLInputElement) || !target.classList.contains('exchange-account__name')) {
 			return;
 		}
 		const accountId = target.dataset.accountId ?? '';
@@ -288,11 +268,11 @@ const priceMap = await fetchPrices(Array.from(priceSymbols));
 
 	document.addEventListener('submit', async (event) => {
 		const form = event.target;
-		if (!(form instanceof HTMLFormElement) || !form.classList.contains('crypto-account__upload')) {
+		if (!(form instanceof HTMLFormElement) || !form.classList.contains('exchange-account__upload')) {
 			return;
 		}
 		event.preventDefault();
-		const status = form.querySelector('.crypto-account__status');
+		const status = form.querySelector('.exchange-account__status');
 		const fileInput = form.querySelector('input[type="file"]');
 		const accountId = form.dataset.accountId ?? '';
 		const accountIndex = Number(form.dataset.accountIndex ?? '1');
@@ -333,22 +313,6 @@ const priceMap = await fetchPrices(Array.from(priceSymbols));
 </script>
 
 <style>
-	.exchange-tin__add {
-		border-radius: 999px;
-		border: 1px solid rgba(255, 255, 255, 0.18);
-		background: rgba(255, 255, 255, 0.08);
-		color: inherit;
-		padding: 0.35rem 0.8rem;
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		cursor: pointer;
-	}
-
-	.exchange-tin__add:hover {
-		background: rgba(255, 255, 255, 0.16);
-	}
-
 	.crypto-accounts__list {
 		display: flex;
 		flex-direction: column;
@@ -359,129 +323,5 @@ const priceMap = await fetchPrices(Array.from(priceSymbols));
 		margin: 0;
 		font-size: var(--font-sm);
 		opacity: 0.7;
-	}
-
-	.crypto-account {
-		border: 1px solid rgba(255, 255, 255, 0.12);
-		border-radius: 12px;
-		padding: var(--space-sm);
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-sm);
-		background: rgba(0, 0, 0, 0.18);
-	}
-
-	.crypto-account__row {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.crypto-account__name {
-		border-radius: 0.65rem;
-		border: 1px solid rgba(255, 255, 255, 0.18);
-		background: rgba(255, 255, 255, 0.08);
-		color: inherit;
-		padding: 0.4rem 0.65rem;
-		font-size: 0.85rem;
-		width: min(240px, 100%);
-	}
-
-	.crypto-account__upload {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		flex-wrap: wrap;
-	}
-
-	.crypto-account__file {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.35rem 0.6rem;
-		border-radius: 999px;
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		cursor: pointer;
-		font-size: var(--font-sm);
-	}
-
-	.crypto-account__file input {
-		display: none;
-	}
-
-	.crypto-account__button {
-		border: 1px solid rgba(255, 255, 255, 0.3);
-		background: rgba(255, 255, 255, 0.08);
-		color: inherit;
-		padding: 0.35rem 0.8rem;
-		border-radius: 999px;
-		cursor: pointer;
-		font-size: var(--font-sm);
-	}
-
-	.crypto-account__status {
-		font-size: var(--font-sm);
-		opacity: 0.7;
-	}
-
-	.crypto-holdings {
-		display: flex;
-		flex-direction: column;
-		gap: 0.4rem;
-	}
-
-	.crypto-holdings__head,
-	.crypto-holdings__row {
-		display: grid;
-		grid-template-columns: 1.2fr 0.7fr 1fr 1fr 1fr;
-		column-gap: var(--space-sm);
-		align-items: baseline;
-		font-size: var(--font-sm);
-	}
-
-	.crypto-holdings__head {
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		opacity: 0.7;
-		font-size: 0.7rem;
-	}
-
-	.crypto-holdings__row {
-		padding: 0.3rem 0;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-	}
-
-	.crypto-holdings__row span:nth-child(3),
-	.crypto-holdings__row span:nth-child(4),
-	.crypto-holdings__row span:nth-child(5) {
-		text-align: right;
-	}
-
-	.crypto-holdings__empty {
-		font-size: var(--font-sm);
-		opacity: 0.7;
-	}
-
-	.crypto-holdings__row .is-positive {
-		color: #86efac;
-	}
-
-	.crypto-holdings__row .is-negative {
-		color: #fca5a5;
-	}
-
-	@media (max-width: 720px) {
-		.crypto-holdings__head,
-		.crypto-holdings__row {
-			grid-template-columns: 1fr 0.8fr 1fr;
-			row-gap: 0.3rem;
-		}
-
-		.crypto-holdings__head span:nth-child(4),
-		.crypto-holdings__head span:nth-child(5),
-		.crypto-holdings__row span:nth-child(4),
-		.crypto-holdings__row span:nth-child(5) {
-			display: none;
-		}
 	}
 </style>

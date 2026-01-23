@@ -1,0 +1,173 @@
+---
+type Props = {
+	accountId: string;
+	accountIndex: number;
+	name: string;
+	source: string;
+};
+
+const { accountId, accountIndex, name, source } = Astro.props as Props;
+const hasHoldings = Astro.slots.has('holdings');
+---
+
+<div class="exchange-account" data-account-index={accountIndex}>
+	<div class="exchange-account__row">
+		<input
+			class="exchange-account__name"
+			type="text"
+			value={name}
+			data-account-id={accountId}
+			data-exchange-source={source}
+			placeholder={`Account #${accountIndex}`}
+		/>
+	</div>
+	<form
+		class="exchange-account__upload"
+		data-account-id={accountId}
+		data-account-index={accountIndex}
+		data-exchange-source={source}
+	>
+		<label class="exchange-account__file">
+			<input type="file" name="file" accept=".csv" required />
+			<span>Choose CSV</span>
+		</label>
+		<button type="submit" class="exchange-account__button">Upload</button>
+		<span class="exchange-account__status" aria-live="polite"></span>
+	</form>
+	<div class="exchange-holdings">
+		<div class="exchange-holdings__head">
+			<span>Days</span>
+			<span>Ticker</span>
+			<span>Amount</span>
+			<span>USD value</span>
+			<span>Profit/Loss</span>
+		</div>
+		{hasHoldings ? <slot name="holdings" /> : <div class="exchange-holdings__empty">No holdings yet.</div>}
+	</div>
+</div>
+
+<style>
+	.exchange-account {
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 12px;
+		padding: var(--space-sm);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+		background: rgba(0, 0, 0, 0.18);
+	}
+
+	.exchange-account__row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.exchange-account__name {
+		border-radius: 0.65rem;
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		background: rgba(255, 255, 255, 0.08);
+		color: inherit;
+		padding: 0.4rem 0.65rem;
+		font-size: 0.85rem;
+		width: min(240px, 100%);
+	}
+
+	.exchange-account__upload {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.exchange-account__file {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.35rem 0.6rem;
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		cursor: pointer;
+		font-size: var(--font-sm);
+	}
+
+	.exchange-account__file input {
+		display: none;
+	}
+
+	.exchange-account__button {
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		background: rgba(255, 255, 255, 0.08);
+		color: inherit;
+		padding: 0.35rem 0.8rem;
+		border-radius: 999px;
+		cursor: pointer;
+		font-size: var(--font-sm);
+	}
+
+	.exchange-account__status {
+		font-size: var(--font-sm);
+		opacity: 0.7;
+	}
+
+	.exchange-holdings {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.exchange-holdings__head,
+	.exchange-holdings__row {
+		display: grid;
+		grid-template-columns: 0.8fr 0.7fr 1fr 1fr 1fr;
+		column-gap: var(--space-sm);
+		align-items: baseline;
+		font-size: var(--font-sm);
+	}
+
+	.exchange-holdings__head {
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		opacity: 0.7;
+		font-size: 0.7rem;
+	}
+
+	.exchange-holdings__row {
+		padding: 0.3rem 0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.exchange-holdings__row span:nth-child(3),
+	.exchange-holdings__row span:nth-child(4),
+	.exchange-holdings__row span:nth-child(5) {
+		text-align: right;
+	}
+
+	.exchange-holdings__empty {
+		font-size: var(--font-sm);
+		opacity: 0.7;
+	}
+
+	.exchange-holdings__row .is-positive {
+		color: #86efac;
+	}
+
+	.exchange-holdings__row .is-negative {
+		color: #fca5a5;
+	}
+
+	@media (max-width: 720px) {
+		.exchange-holdings__head,
+		.exchange-holdings__row {
+			grid-template-columns: 1fr 0.8fr 1fr;
+			row-gap: 0.3rem;
+		}
+
+		.exchange-holdings__head span:nth-child(4),
+		.exchange-holdings__head span:nth-child(5),
+		.exchange-holdings__row span:nth-child(4),
+		.exchange-holdings__row span:nth-child(5) {
+			display: none;
+		}
+	}
+</style>

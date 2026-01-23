@@ -63,6 +63,7 @@ export async function getPrices(assets: PriceRequest[]): Promise<Record<string, 
 			const price = fetched[llamaKey]?.price ?? 0;
 			result[key] = { key, priceUsd: price };
 			if (price > 0) {
+				// Added price to cache.
 				writeCache(key, price);
 			}
 		}
