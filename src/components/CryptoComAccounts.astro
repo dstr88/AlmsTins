@@ -2,6 +2,7 @@
 import { db } from '@/lib/db';
 import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
 import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
+import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
 
@@ -156,27 +157,27 @@ for (const account of accounts) {
 	accountsWithHoldings.push({ ...account, holdings });
 }
 
-const fetchPrices = async (symbols: string[]) => {
+const fetchCachedPrices = async (symbols: string[]) => {
 	if (!symbols.length) return {} as Record<string, number>;
-	const url = new URL(Astro.request.url);
-	url.pathname = '/api/market/coingecko-prices';
-	url.searchParams.set('symbols', symbols.join(','));
-	const cookieHeader = Astro.request.headers.get('cookie') ?? '';
-	try {
-		const response = await fetch(url, {
-			headers: {
-				cookie: cookieHeader,
-			},
-		});
-		if (!response.ok) return {};
-		const payload = (await response.json()) as { prices?: Record<string, number> };
-		return payload.prices ?? {};
-	} catch {
-		return {};
+	const symbolSet = new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean));
+	if (!symbolSet.size) return {};
+	const tickers = (await getTickersUSD()) as Array<{
+		symbol?: string;
+		quotes?: { USD?: { price?: number } };
+	}>;
+	const priceMap: Record<string, number> = {};
+	for (const ticker of tickers) {
+		const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
+		if (!symbol || !symbolSet.has(symbol)) continue;
+		const price = ticker.quotes?.USD?.price;
+		if (typeof price === 'number') {
+			priceMap[symbol] = price;
+		}
 	}
+	return priceMap;
 };
 
-const priceMap = await fetchPrices(Array.from(priceSymbols));
+const priceMap = await fetchCachedPrices(Array.from(priceSymbols));
 
 ---
 

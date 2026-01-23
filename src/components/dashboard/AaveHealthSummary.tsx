@@ -123,13 +123,31 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 
 				const symbols = Array.from(
 					new Set(
-						supplies
+						[...supplies, ...borrows]
 							.map((entry) => entry.currency?.symbol?.toUpperCase())
 							.filter((symbol): symbol is string => Boolean(symbol)),
 					),
 				);
-				const resolved = await resolveTokenIds(symbols.map((symbol) => ({ symbol, coingeckoId: null })));
-				const oraclePrices = await getSimpleTokenPricesById(resolved);
+				let cachedPrices: Record<string, number> = {};
+				if (symbols.length) {
+					try {
+						const pricesRes = await fetch(
+							`/api/market/coinpaprika-prices?symbols=${encodeURIComponent(symbols.join(','))}`,
+						);
+						if (pricesRes.ok) {
+							const pricesData = (await pricesRes.json()) as { prices?: Record<string, number> };
+							cachedPrices = pricesData.prices ?? {};
+						}
+					} catch {
+						cachedPrices = {};
+					}
+				}
+				let oraclePrices: Record<string, number> = {};
+				const missingSymbols = symbols.filter((symbol) => !(symbol in cachedPrices));
+				if (missingSymbols.length) {
+					const resolved = await resolveTokenIds(missingSymbols.map((symbol) => ({ symbol, coingeckoId: null })));
+					oraclePrices = await getSimpleTokenPricesById(resolved);
+				}
 
 				const collateralBreakdown = supplies.reduce<
 					Array<{ symbol: string; amount: number | null; usdValue: number | null }>
@@ -140,10 +158,12 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 					const normalizedAmount = Number.isFinite(amount) ? amount : 0;
 					const usdFromAave = typeof entry.balanceUsd === 'number' ? entry.balanceUsd : null;
 					const priceFromAave = typeof entry.priceUsd === 'number' ? entry.priceUsd : null;
+					const priceFromCached = typeof cachedPrices[symbol] === 'number' ? cachedPrices[symbol] : null;
 					const priceFromOracle = typeof oraclePrices[symbol] === 'number' ? oraclePrices[symbol] : null;
 					const usdValue =
 						usdFromAave ??
 						(priceFromAave ? normalizedAmount * priceFromAave : null) ??
+						(priceFromCached ? normalizedAmount * priceFromCached : null) ??
 						(priceFromOracle ? normalizedAmount * priceFromOracle : null);
 
 					const existing = acc.find((row) => row.symbol === symbol);
@@ -171,10 +191,12 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 					const symbol = entry.currency?.symbol?.toUpperCase() ?? '';
 					const usdFromAave = typeof entry.debtUsd === 'number' ? entry.debtUsd : null;
 					const priceFromAave = typeof entry.priceUsd === 'number' ? entry.priceUsd : null;
+					const priceFromCached = symbol && typeof cachedPrices[symbol] === 'number' ? cachedPrices[symbol] : null;
 					const priceFromOracle = symbol && typeof oraclePrices[symbol] === 'number' ? oraclePrices[symbol] : null;
 					const usdValue =
 						usdFromAave ??
 						(priceFromAave ? normalizedAmount * priceFromAave : null) ??
+						(priceFromCached ? normalizedAmount * priceFromCached : null) ??
 						(priceFromOracle ? normalizedAmount * priceFromOracle : null);
 					return sum + (typeof usdValue === 'number' ? usdValue : 0);
 				}, 0);

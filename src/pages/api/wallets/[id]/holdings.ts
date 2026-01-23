@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
@@ -130,6 +131,26 @@ function toDecimal(value: bigint, decimals: number) {
 	const num = Number(numStr);
 	if (!Number.isFinite(num)) return 0;
 	return negative ? -num : num;
+}
+
+async function getCachedSymbolPrices(symbols: string[]) {
+	if (!symbols.length) return {} as Record<string, number>;
+	const symbolSet = new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean));
+	if (!symbolSet.size) return {};
+	const tickers = (await getTickersUSD()) as Array<{
+		symbol?: string;
+		quotes?: { USD?: { price?: number } };
+	}>;
+	const priceMap: Record<string, number> = {};
+	for (const ticker of tickers) {
+		const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
+		if (!symbol || !symbolSet.has(symbol)) continue;
+		const price = ticker.quotes?.USD?.price;
+		if (typeof price === 'number') {
+			priceMap[symbol] = price;
+		}
+	}
+	return priceMap;
 }
 
 async function fetchTokenTransfers(address: string, chainId: number): Promise<TokenTx[]> {
@@ -384,6 +405,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 		.filter((entry) => entry.balance > 0n)
 		.map((entry) => entry.contractAddress);
 	const currentPrices = await fetchCurrentPrices(contracts, pricePlatform);
+	const cachedPrices = await getCachedSymbolPrices([
+		...new Set(Array.from(aggregates.values()).map((entry) => entry.symbol)),
+	]);
 
 	const tokens: HoldingsToken[] = [];
 	let totalUsd = 0;
@@ -395,7 +419,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 			const balance = toDecimal(rawBalance, 18);
 			if (balance > 0) {
 				const priceUsd = await fetchNativePrice(chainId);
-				const valueUsd = balance * priceUsd;
+				const cachedNative = cachedPrices[nativeMeta.symbol.toUpperCase()];
+				const finalPriceUsd = priceUsd > 0 ? priceUsd : cachedNative ?? 0;
+				const valueUsd = balance * finalPriceUsd;
 				totalUsd += valueUsd;
 				tokens.push({
 					symbol: nativeMeta.symbol,
@@ -403,7 +429,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 					contractAddress: 'native',
 					decimals: 18,
 					balance,
-					priceUsd,
+					priceUsd: finalPriceUsd,
 					valueUsd,
 					basisType: 'unknown',
 					firstSeenAt: null,
@@ -419,7 +445,8 @@ export const GET: APIRoute = async ({ params, request }) => {
 		const balance = toDecimal(entry.balance, entry.decimals);
 		if (!Number.isFinite(balance) || balance <= 0) continue;
 
-		const priceUsd = currentPrices[entry.contractAddress] ?? 0;
+		const cached = cachedPrices[entry.symbol.toUpperCase()];
+		const priceUsd = currentPrices[entry.contractAddress] ?? cached ?? 0;
 		const valueUsd = balance * priceUsd;
 		totalUsd += valueUsd;
 
