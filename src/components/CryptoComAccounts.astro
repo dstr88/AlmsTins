@@ -212,7 +212,7 @@ const priceMap = await fetchCachedPrices(Array.from(priceSymbols));
 											<span>{formatDaysSince(holding.lastPurchaseAt) ?? '—'}</span>
 											<span>{holding.symbol}</span>
 											<span>{formatNumber(holding.balance, { maximumFractionDigits: 8 })}</span>
-											<span>{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
+											<span class="usd-value">{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
 											<span class={pnl === null ? '' : pnlClass}>
 												{pnl === null ? '—' : formatCurrency(pnl)}
 											</span>

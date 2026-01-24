@@ -35,6 +35,10 @@ const hasHoldings = Astro.slots.has('holdings');
 		<span class="exchange-account__status" aria-live="polite"></span>
 	</form>
 	<div class="exchange-holdings">
+		<div class="exchange-holdings__summary">
+			<span class="exchange-holdings__summary-label">Total crypto holdings</span>
+			<span class="exchange-holdings__summary-value" data-holdings-total-usd>$0.00</span>
+		</div>
 		<div class="exchange-holdings__head">
 			<span>Days</span>
 			<span>Ticker</span>
@@ -45,6 +49,52 @@ const hasHoldings = Astro.slots.has('holdings');
 		{hasHoldings ? <slot name="holdings" /> : <div class="exchange-holdings__empty">No holdings yet.</div>}
 	</div>
 </div>
+
+<script>
+	if (document.documentElement.dataset.exchangeHoldingsTotalsInit !== 'true') {
+		document.documentElement.dataset.exchangeHoldingsTotalsInit = 'true';
+
+		const parseUsd = (value) => {
+			if (!value) return 0;
+			const cleaned = value.replace(/[$,]/g, '').trim();
+			const num = Number.parseFloat(cleaned);
+			return Number.isFinite(num) ? num : 0;
+		};
+
+		const updateTotalForAccount = (accountEl) => {
+			const totalEl = accountEl.querySelector('[data-holdings-total-usd]');
+			if (!totalEl) return;
+			let total = 0;
+			let hasValue = false;
+			accountEl.querySelectorAll('.exchange-holdings__row').forEach((row) => {
+				const usdSpan = row.querySelector('.usd-value') ?? row.querySelector('span:nth-child(4)');
+				if (!usdSpan) return;
+				const value = parseUsd(usdSpan.textContent ?? '');
+				if (value > 0) hasValue = true;
+				total += value;
+			});
+			totalEl.textContent = hasValue
+				? total.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+				: 'No funds yet';
+		};
+
+		const observeHoldings = () => {
+			document.querySelectorAll('.exchange-account').forEach((accountEl) => {
+				const holdings = accountEl.querySelector('.exchange-holdings');
+				if (!holdings) return;
+				updateTotalForAccount(accountEl);
+				const observer = new MutationObserver(() => updateTotalForAccount(accountEl));
+				observer.observe(holdings, { childList: true, subtree: true, characterData: true });
+			});
+		};
+
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', observeHoldings);
+		} else {
+			observeHoldings();
+		}
+	}
+</script>
 
 <style>
 	.exchange-account {
@@ -118,12 +168,13 @@ const hasHoldings = Astro.slots.has('holdings');
 
 	.exchange-holdings__head,
 	.exchange-holdings__row {
-		/* styled crypto.comResults */
+		/* exchange row styling, animated entry portraits */
 		display: grid;
-		grid-template-columns: 0.8fr 0.7fr 1fr 1fr 1fr;
-		column-gap: 0.7rem;
+		grid-template-columns: 0.65fr 1fr 1.1fr 1.1fr 1.1fr;
+		column-gap: 1.25rem;
 		align-items: baseline;
 		font-size: var(--font-sm);
+		padding: 0 0.25rem;
 	}
 
 	.exchange-holdings__head {
@@ -144,20 +195,28 @@ const hasHoldings = Astro.slots.has('holdings');
 		text-align: right;
 	}
 
-	.exchange-holdings__head span:nth-child(2),
-	.exchange-holdings__row span:nth-child(2) {
-		text-align: right;
-		padding-right: 0.6rem;
-	}
-
-	.exchange-holdings__head span:nth-child(3),
-	.exchange-holdings__row span:nth-child(3) {
-		padding-left: 0.6rem;
-	}
-
 	.exchange-holdings__head span:nth-child(5),
 	.exchange-holdings__row span:nth-child(5) {
 		padding-right: 3px;
+	}
+
+	.exchange-holdings__summary {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		padding: 0.1rem 0.25rem 0.4rem;
+		font-size: var(--font-sm);
+	}
+
+	.exchange-holdings__summary-label {
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		opacity: 0.7;
+		font-size: 0.7rem;
+	}
+
+	.exchange-holdings__summary-value {
+		font-weight: 600;
 	}
 
 	.exchange-holdings__empty {
