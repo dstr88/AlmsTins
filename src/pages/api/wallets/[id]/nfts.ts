@@ -13,6 +13,14 @@ const CHAINS = [
 	{ chainId: 43114, name: 'avalanche', opensea: null, explorer: 'https://snowtrace.io' },
 ];
 
+const FUNGIBLE_SYMBOLS = new Set(['CRO']);
+
+const isFungibleToken = (tx: any) => {
+	const symbol = String(tx.tokenSymbol ?? '').trim().toUpperCase();
+	const name = String(tx.tokenName ?? '').trim().toLowerCase();
+	return FUNGIBLE_SYMBOLS.has(symbol) || name.includes('crypto.com');
+};
+
 const buildUrl = (chainId: number, action: string, address: string) => {
 	const params = new URLSearchParams({
 		chainid: String(chainId),
@@ -67,6 +75,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 				const payload = await response.json();
 				const items = Array.isArray(payload.result) ? payload.result : [];
 				items.forEach((item: any) => {
+					if (isFungibleToken(item)) return;
 					allTransfers.push({ ...item, chainId: chain.chainId, chain: chain.name });
 				});
 			} catch (error) {

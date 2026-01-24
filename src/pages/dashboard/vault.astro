@@ -202,11 +202,24 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			}
 		});
 
+		// updated wallet total
 		const updateWalletSummary = (tin) => {
 			const valueEl = tin.querySelector('[data-wallet-summary-value]');
-			const source = tin.querySelector('.wallet-summary__total-value');
-			if (!(valueEl instanceof HTMLElement) || !(source instanceof HTMLElement)) return;
-			valueEl.textContent = source.textContent?.trim() || '—';
+			if (!(valueEl instanceof HTMLElement)) return;
+			let total = 0;
+			let hasValue = false;
+			tin.querySelectorAll('.wallet-summary__cell--value').forEach((cell) => {
+				if (!(cell instanceof HTMLElement)) return;
+				const raw = cell.textContent ?? '';
+				const cleaned = raw.replace(/[$,]/g, '').trim();
+				const num = Number.parseFloat(cleaned);
+				if (!Number.isFinite(num) || num <= 0) return;
+				hasValue = true;
+				total += num;
+			});
+			valueEl.textContent = hasValue
+				? total.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+				: '—';
 		};
 
 		const updateDefiSummary = (tin) => {
