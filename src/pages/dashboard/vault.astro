@@ -102,12 +102,24 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 							<div class="wallet-label-box">{displayLabel}</div>
 							<div class="wallet-stack" data-accordion="wallet-stack">
 								<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet">
+									<div slot="summary" class="tin-summary">
+										<span class="tin-summary__label">Wallet value</span>
+										<span class="tin-summary__value" data-wallet-summary-value>—</span>
+									</div>
 									<WalletSummary client:load walletId={wallet.id} />
 								</SalmonTin>
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi">
+									<div slot="summary" class="tin-summary">
+										<span class="tin-summary__label" data-defi-summary-label>Health</span>
+										<span class="tin-summary__value" data-defi-summary-value>—</span>
+									</div>
 									<AaveHealthSummary client:load walletId={wallet.id} />
 								</SalmonTin>
 								<SalmonTin label="NFTs" class="wallet-tin--future">
+									<div slot="summary" class="tin-summary">
+										<span class="tin-summary__label">NFTs</span>
+										<span class="tin-summary__value" data-nft-summary-value>—</span>
+									</div>
 									<VaultNftActivity client:load walletId={wallet.id} />
 								</SalmonTin>
 							</div>
@@ -189,6 +201,45 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				initWalletAccordion(stack);
 			}
 		});
+
+		const updateWalletSummary = (tin) => {
+			const valueEl = tin.querySelector('[data-wallet-summary-value]');
+			const source = tin.querySelector('.wallet-summary__total-value');
+			if (!(valueEl instanceof HTMLElement) || !(source instanceof HTMLElement)) return;
+			valueEl.textContent = source.textContent?.trim() || '—';
+		};
+
+		const updateDefiSummary = (tin) => {
+			const labelEl = tin.querySelector('[data-defi-summary-label]');
+			const valueEl = tin.querySelector('[data-defi-summary-value]');
+			const sourceLabel = tin.querySelector('.stat-row.health .label');
+			const sourceValue = tin.querySelector('.stat-row.health .value');
+			if (labelEl instanceof HTMLElement && sourceLabel instanceof HTMLElement) {
+				labelEl.textContent = sourceLabel.textContent?.trim() || 'Health';
+			}
+			if (valueEl instanceof HTMLElement && sourceValue instanceof HTMLElement) {
+				valueEl.textContent = sourceValue.textContent?.trim() || '—';
+			}
+		};
+
+		const updateNftSummary = (tin) => {
+			const valueEl = tin.querySelector('[data-nft-summary-value]');
+			if (!(valueEl instanceof HTMLElement)) return;
+			const count = tin.querySelectorAll('.vault-nft').length;
+			valueEl.textContent = count ? String(count) : '—';
+		};
+
+		const attachSummaryObserver = (tin, updater) => {
+			const body = tin.querySelector('.salmon-tin__body');
+			if (!(body instanceof HTMLElement)) return;
+			updater(tin);
+			const observer = new MutationObserver(() => updater(tin));
+			observer.observe(body, { childList: true, subtree: true, characterData: true });
+		};
+
+		document.querySelectorAll('.wallet-summary-tin').forEach((tin) => attachSummaryObserver(tin, updateWalletSummary));
+		document.querySelectorAll('.defi-summary-tin').forEach((tin) => attachSummaryObserver(tin, updateDefiSummary));
+		document.querySelectorAll('.wallet-tin--future').forEach((tin) => attachSummaryObserver(tin, updateNftSummary));
 
 
 		const syncTile = document.querySelector('.sync-tile');
@@ -702,31 +753,31 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		:global(.wallet-stack .salmon-tin.is-collapsed) {
 			padding-bottom: 8px;
+			min-height: 7.5rem;
 		}
 
 		:global(.wallet-stack .salmon-tin.is-collapsed .salmon-tin__body) {
 			display: none;
 		}
 
-		:global(.wallet-stack .defi-summary-tin.is-collapsed .salmon-tin__body) {
-			display: block;
-			padding: 0.25rem 0;
-			max-height: 5rem;
-			overflow: hidden;
-		}
-
-		:global(.wallet-stack .defi-summary-tin.is-collapsed .defi-stats) {
+		:global(.wallet-stack .salmon-tin__summary) {
 			display: flex;
-			flex-direction: column;
-			gap: var(--space-1);
+			justify-content: space-between;
+			align-items: baseline;
+			gap: var(--space-md);
+			padding: 0.35rem 0.5rem 0.5rem;
+			min-height: 3.6rem;
 		}
 
-		:global(.wallet-stack .defi-summary-tin.is-collapsed .stat-row) {
-			display: none;
+		:global(.wallet-stack .tin-summary__label) {
+			font-size: var(--font-md2);
+			opacity: 0.85;
 		}
 
-		:global(.wallet-stack .defi-summary-tin.is-collapsed .stat-row.health) {
-			display: flex;
+		:global(.wallet-stack .tin-summary__value) {
+			font-size: var(--font-xl2);
+			font-weight: 800;
+			font-variant-numeric: tabular-nums;
 		}
 
 		.wallet-empty {

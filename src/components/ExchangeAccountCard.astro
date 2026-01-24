@@ -168,13 +168,19 @@ const hasHoldings = Astro.slots.has('holdings');
 
 	.exchange-holdings__head,
 	.exchange-holdings__row {
-		/* exchange row styling, animated entry portraits */
+		/* adjusted exchange data */
 		display: grid;
-		grid-template-columns: 0.65fr 1fr 1.1fr 1.1fr 1.1fr;
-		column-gap: 1.25rem;
+		grid-template-columns:
+			minmax(4ch, 0.65fr)
+			minmax(6ch, 1fr)
+			minmax(10ch, 1.1fr)
+			minmax(12ch, 1.1fr)
+			minmax(12ch, 1.1fr);
+		column-gap: 1.75rem;
 		align-items: baseline;
 		font-size: var(--font-sm);
-		padding: 0 0.25rem;
+		padding: 0 0.5rem;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.exchange-holdings__head {
