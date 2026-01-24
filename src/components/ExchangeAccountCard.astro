@@ -168,7 +168,7 @@ const hasHoldings = Astro.slots.has('holdings');
 
 	.exchange-holdings__head,
 	.exchange-holdings__row {
-		/* adjusted exchange data */
+		/* added gap to exchange data */
 		display: grid;
 		grid-template-columns:
 			minmax(4ch, 0.65fr)
@@ -176,7 +176,7 @@ const hasHoldings = Astro.slots.has('holdings');
 			minmax(10ch, 1.1fr)
 			minmax(12ch, 1.1fr)
 			minmax(12ch, 1.1fr);
-		column-gap: 1.75rem;
+		column-gap: 2.75rem;
 		align-items: baseline;
 		font-size: var(--font-sm);
 		padding: 0 0.5rem;
