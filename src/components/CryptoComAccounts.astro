@@ -73,6 +73,7 @@ const pickTokenAmount = (row: ImportRow) => {
 const computeHoldings = (rows: ImportRow[]): Holding[] => {
 	const balanceMap = new Map<string, number>();
 	const lastPurchaseMap = new Map<string, string>();
+	const lastSeenMap = new Map<string, string>();
 	const lotsMap = new Map<string, Array<{ qty: number; cost: number }>>();
 	const unknownCost = new Set<string>();
 
@@ -80,6 +81,9 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 		const symbolRaw = pickSymbol(row);
 		if (!symbolRaw) continue;
 		const symbol = normalizeSymbol(symbolRaw);
+		if (row.timestamp_utc) {
+			lastSeenMap.set(symbol, row.timestamp_utc);
+		}
 		const qtyRaw = parseNumber(pickTokenAmount(row));
 		if (qtyRaw === null || qtyRaw === 0) continue;
 		const qty = Math.abs(qtyRaw);
@@ -132,7 +136,7 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 		holdings.push({
 			symbol,
 			balance,
-			lastPurchaseAt: lastPurchaseMap.get(symbol) ?? null,
+			lastPurchaseAt: lastPurchaseMap.get(symbol) ?? lastSeenMap.get(symbol) ?? null,
 			costBasis,
 		});
 	}
@@ -208,15 +212,41 @@ const priceMap = await fetchCachedPrices(Array.from(priceSymbols));
 											: null;
 									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
 									return (
-										<div class="exchange-holdings__row">
-											<span>{formatDaysSince(holding.lastPurchaseAt) ?? '—'}</span>
-											<span class="space1" aria-hidden="true"></span>
-											<span>{holding.symbol}</span>
-											<span>{formatNumber(holding.balance, { maximumFractionDigits: 8 })}</span>
-											<span class="usd-value">{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
-											<span class={pnl === null ? '' : pnlClass}>
-												{pnl === null ? '—' : formatCurrency(pnl)}
-											</span>
+										<div class="exchange-holding">
+											<div class="exchange-holding__row exchange-holding__row--top">
+												<div class="exchange-holding__field">
+													<span class="exchange-holding__label">Days</span>
+													<span class="exchange-holding__value">
+														{formatDaysSince(holding.lastPurchaseAt) ?? '—'}
+													</span>
+												</div>
+												<div class="exchange-holding__field">
+													<span class="exchange-holding__label">Ticker</span>
+													<span class="exchange-holding__value exchange-holding__value--truncate">
+														{holding.symbol}
+													</span>
+												</div>
+												<div class="exchange-holding__field exchange-holding__field--numeric">
+													<span class="exchange-holding__label">Coins</span>
+													<span class="exchange-holding__value">
+														{formatNumber(holding.balance, { maximumFractionDigits: 8 })}
+													</span>
+												</div>
+											</div>
+											<div class="exchange-holding__row exchange-holding__row--bottom">
+												<div class="exchange-holding__field exchange-holding__field--numeric">
+													<span class="exchange-holding__label">USD value</span>
+													<span class="exchange-holding__value usd-value">
+														{usdValue === null ? '—' : formatCurrency(usdValue)}
+													</span>
+												</div>
+												<div class="exchange-holding__field exchange-holding__field--numeric">
+													<span class="exchange-holding__label">P/L</span>
+													<span class={`exchange-holding__value ${pnl === null ? '' : pnlClass}`}>
+														{pnl === null ? '—' : formatCurrency(pnl)}
+													</span>
+												</div>
+											</div>
 										</div>
 									);
 								})}
