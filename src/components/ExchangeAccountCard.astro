@@ -41,7 +41,6 @@ const hasHoldings = Astro.slots.has('holdings');
 		</div>
 		<div class="exchange-holdings__head">
 			<span>Days</span>
-			<span class="space1" aria-hidden="true"></span>
 			<span>Ticker</span>
 			<span>Amount</span>
 			<span>USD value</span>
@@ -173,12 +172,11 @@ const hasHoldings = Astro.slots.has('holdings');
 		display: grid;
 		grid-template-columns:
 			minmax(4ch, 0.65fr)
-			0.75rem
 			minmax(6ch, 1fr)
 			minmax(10ch, 1.1fr)
 			minmax(12ch, 1.1fr)
 			minmax(12ch, 1.1fr);
-		column-gap: 2.75rem;
+		column-gap: 1.5rem;
 		align-items: baseline;
 		font-size: var(--font-sm);
 		padding: 0 0.5rem;
@@ -197,13 +195,6 @@ const hasHoldings = Astro.slots.has('holdings');
 		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 	}
 
-	/* deleted restraints for holdings data */
-	.space1,
-	:global(.exchange-holdings__row .space1) {
-		display: block;
-		width: 0.75rem;
-	}
-
 	:global(.exchange-holdings__row span:nth-child(3)),
 	:global(.exchange-holdings__row span:nth-child(4)),
 	:global(.exchange-holdings__row span:nth-child(5)) {
@@ -213,7 +204,7 @@ const hasHoldings = Astro.slots.has('holdings');
 	/* added exchange padding */
 	.exchange-holdings__head span,
 	:global(.exchange-holdings__row span) {
-		padding: 0 0.5rem;
+		padding: 0 0.35rem;
 	}
 
 	.exchange-holdings__head span:nth-child(5),
@@ -256,20 +247,23 @@ const hasHoldings = Astro.slots.has('holdings');
 	@media (max-width: 720px) {
 		.exchange-holdings__head,
 		:global(.exchange-holdings__row) {
-			grid-template-columns: 1fr 0.75rem 0.8fr 1fr;
-			row-gap: 0.3rem;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			row-gap: 0.4rem;
 		}
 
-		.exchange-holdings__head .space1,
-		:global(.exchange-holdings__row .space1) {
-			display: none;
+		.exchange-holdings__head span,
+		:global(.exchange-holdings__row span) {
+			text-align: left;
 		}
 
 		.exchange-holdings__head span:nth-child(4),
+		:global(.exchange-holdings__row span:nth-child(4)) {
+			grid-column: 1 / 2;
+		}
+
 		.exchange-holdings__head span:nth-child(5),
-		:global(.exchange-holdings__row span:nth-child(4)),
 		:global(.exchange-holdings__row span:nth-child(5)) {
-			display: none;
+			grid-column: 2 / 3;
 		}
 	}
 </style>
