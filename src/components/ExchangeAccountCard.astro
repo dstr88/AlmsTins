@@ -265,5 +265,19 @@ const hasHoldings = Astro.slots.has('holdings');
 		:global(.exchange-holdings__row span:nth-child(5)) {
 			grid-column: 2 / 3;
 		}
+
+		:global(.exchange-holdings__row) {
+			padding-bottom: 0.8rem;
+			margin-bottom: 0.8rem;
+		}
+
+		:global(.exchange-holdings__row:not(:last-child)) {
+			border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		}
+
+		.exchange-holdings {
+			max-height: 16rem;
+			overflow-y: auto;
+		}
 	}
 </style>
