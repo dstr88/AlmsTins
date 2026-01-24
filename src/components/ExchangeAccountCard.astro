@@ -201,6 +201,12 @@ const hasHoldings = Astro.slots.has('holdings');
 		text-align: right;
 	}
 
+	/* added exchange padding */
+	.exchange-holdings__head span,
+	.exchange-holdings__row span {
+		padding: 0 0.5rem;
+	}
+
 	.exchange-holdings__head span:nth-child(5),
 	.exchange-holdings__row span:nth-child(5) {
 		padding-right: 3px;
