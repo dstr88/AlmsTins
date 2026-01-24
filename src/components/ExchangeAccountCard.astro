@@ -168,7 +168,7 @@ const hasHoldings = Astro.slots.has('holdings');
 	}
 
 	.exchange-holdings__head,
-	.exchange-holdings__row {
+	:global(.exchange-holdings__row) {
 		/* added gap to exchange data */
 		display: grid;
 		grid-template-columns:
@@ -192,31 +192,32 @@ const hasHoldings = Astro.slots.has('holdings');
 		font-size: 0.7rem;
 	}
 
-	.exchange-holdings__row {
+	:global(.exchange-holdings__row) {
 		padding: 0.3rem 0;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 	}
 
 	/* deleted restraints for holdings data */
-	.space1 {
+	.space1,
+	:global(.exchange-holdings__row .space1) {
 		display: block;
 		width: 1rem;
 	}
 
-	.exchange-holdings__row span:nth-child(3),
-	.exchange-holdings__row span:nth-child(4),
-	.exchange-holdings__row span:nth-child(5) {
+	:global(.exchange-holdings__row span:nth-child(3)),
+	:global(.exchange-holdings__row span:nth-child(4)),
+	:global(.exchange-holdings__row span:nth-child(5)) {
 		text-align: right;
 	}
 
 	/* added exchange padding */
 	.exchange-holdings__head span,
-	.exchange-holdings__row span {
+	:global(.exchange-holdings__row span) {
 		padding: 0 0.5rem;
 	}
 
 	.exchange-holdings__head span:nth-child(5),
-	.exchange-holdings__row span:nth-child(5) {
+	:global(.exchange-holdings__row span:nth-child(5)) {
 		padding-right: 3px;
 	}
 
@@ -244,30 +245,30 @@ const hasHoldings = Astro.slots.has('holdings');
 		opacity: 0.7;
 	}
 
-	.exchange-holdings__row .is-positive {
+	:global(.exchange-holdings__row .is-positive) {
 		color: #16a34a;
 	}
 
-	.exchange-holdings__row .is-negative {
+	:global(.exchange-holdings__row .is-negative) {
 		color: #f97316;
 	}
 
 	@media (max-width: 720px) {
 		.exchange-holdings__head,
-		.exchange-holdings__row {
+		:global(.exchange-holdings__row) {
 			grid-template-columns: 1fr 1rem 0.8fr 1fr;
 			row-gap: 0.3rem;
 		}
 
 		.exchange-holdings__head .space1,
-		.exchange-holdings__row .space1 {
+		:global(.exchange-holdings__row .space1) {
 			display: none;
 		}
 
 		.exchange-holdings__head span:nth-child(4),
 		.exchange-holdings__head span:nth-child(5),
-		.exchange-holdings__row span:nth-child(4),
-		.exchange-holdings__row span:nth-child(5) {
+		:global(.exchange-holdings__row span:nth-child(4)),
+		:global(.exchange-holdings__row span:nth-child(5)) {
 			display: none;
 		}
 	}
