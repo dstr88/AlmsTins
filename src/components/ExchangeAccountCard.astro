@@ -170,13 +170,9 @@ const hasHoldings = Astro.slots.has('holdings');
 	:global(.exchange-holdings__row) {
 		/* added gap to exchange data */
 		display: grid;
-		grid-template-columns:
-			minmax(4ch, 0.65fr)
-			minmax(6ch, 1fr)
-			minmax(10ch, 1.1fr)
-			minmax(12ch, 1.1fr)
-			minmax(12ch, 1.1fr);
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		column-gap: 1.5rem;
+		row-gap: 0.4rem;
 		align-items: baseline;
 		font-size: var(--font-sm);
 		padding: 0 0.5rem;
@@ -212,6 +208,16 @@ const hasHoldings = Astro.slots.has('holdings');
 		padding-right: 3px;
 	}
 
+	.exchange-holdings__head span:nth-child(4),
+	:global(.exchange-holdings__row span:nth-child(4)) {
+		grid-column: 1 / 2;
+	}
+
+	.exchange-holdings__head span:nth-child(5),
+	:global(.exchange-holdings__row span:nth-child(5)) {
+		grid-column: 2 / 3;
+	}
+
 	.exchange-holdings__summary {
 		display: flex;
 		justify-content: space-between;
@@ -245,25 +251,9 @@ const hasHoldings = Astro.slots.has('holdings');
 	}
 
 	@media (max-width: 720px) {
-		.exchange-holdings__head,
-		:global(.exchange-holdings__row) {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
-			row-gap: 0.4rem;
-		}
-
 		.exchange-holdings__head span,
 		:global(.exchange-holdings__row span) {
 			text-align: left;
-		}
-
-		.exchange-holdings__head span:nth-child(4),
-		:global(.exchange-holdings__row span:nth-child(4)) {
-			grid-column: 1 / 2;
-		}
-
-		.exchange-holdings__head span:nth-child(5),
-		:global(.exchange-holdings__row span:nth-child(5)) {
-			grid-column: 2 / 3;
 		}
 
 		:global(.exchange-holdings__row) {
