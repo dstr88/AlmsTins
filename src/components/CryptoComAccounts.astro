@@ -210,6 +210,7 @@ const priceMap = await fetchCachedPrices(Array.from(priceSymbols));
 									return (
 										<div class="exchange-holdings__row">
 											<span>{formatDaysSince(holding.lastPurchaseAt) ?? '—'}</span>
+											<span class="space1" aria-hidden="true"></span>
 											<span>{holding.symbol}</span>
 											<span>{formatNumber(holding.balance, { maximumFractionDigits: 8 })}</span>
 											<span class="usd-value">{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
