@@ -34,6 +34,7 @@ type FetchState =
 const formatAmount = (value: number) =>
 	Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
+// removed confusing total from wallet
 const currencyFormatter = new Intl.NumberFormat('en-US', {
 	style: 'currency',
 	currency: 'USD',
@@ -126,11 +127,6 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 		};
 	}, [walletId]);
 
-	const totalUsd = useMemo(() => {
-		if (state.status !== 'ready') return 0;
-		return state.payload.reduce((sum, entry) => sum + (Number(entry.totalUsd ?? 0) || 0), 0);
-	}, [state]);
-
 	const tokensByChain = useMemo(() => {
 		if (state.status !== 'ready') return [];
 		const ordered = state.payload
@@ -154,13 +150,6 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 
 	return (
 		<div className="wallet-summary">
-			<div className="wallet-summary__total">
-				<span className="wallet-summary__total-label">Total</span>
-				<span className="wallet-summary__total-value">
-					{state.status === 'ready' ? currencyFormatter.format(totalUsd) : '…'}
-				</span>
-			</div>
-
 			{state.status === 'loading' ? (
 				<div className="wallet-summary__status">Loading balances…</div>
 			) : null}
