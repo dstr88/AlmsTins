@@ -710,7 +710,9 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		:global(.wallet-stack .defi-summary-tin.is-collapsed .salmon-tin__body) {
 			display: block;
-			padding-top: 0.35rem;
+			padding: 0.25rem 0;
+			max-height: 5rem;
+			overflow: hidden;
 		}
 
 		:global(.wallet-stack .defi-summary-tin.is-collapsed .defi-stats) {

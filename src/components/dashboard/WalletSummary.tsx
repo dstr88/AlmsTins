@@ -58,6 +58,12 @@ const chainDisplayName = (chain: string) => {
 	return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 };
 
+const isAaveToken = (token: HoldingsToken) => {
+	const symbol = token.symbol?.toUpperCase() ?? '';
+	const name = token.name?.toLowerCase() ?? '';
+	return symbol === 'AAVE' || name.includes('aave');
+};
+
 export default function WalletSummary({ walletId }: { walletId: string }) {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
 
@@ -176,9 +182,16 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 									const symbol = token.symbol.toUpperCase();
 									const daysText = formatDaysInWallet(token.basisDate ?? token.firstSeenAt);
 									const qtyText = Number.isFinite(token.balance) ? formatAmount(token.balance) : '—';
-									const valueText =
+									// adjusted the balance for wallet, and the css for the defi tin
+									const derivedValue =
 										typeof token.valueUsd === 'number' && token.valueUsd > 0
-											? currencyFormatter.format(token.valueUsd)
+											? token.valueUsd
+											: token.priceUsd > 0 && token.balance > 0
+												? token.priceUsd * token.balance
+												: null;
+									const valueText =
+										!isAaveToken(token) && typeof derivedValue === 'number'
+											? currencyFormatter.format(derivedValue)
 											: '—';
 									const plValue = typeof token.profitUsd === 'number' ? token.profitUsd : null;
 									const plPrefix = token.basisType === 'firstTransferIn' ? '*' : '';
