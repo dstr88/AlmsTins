@@ -173,7 +173,7 @@ const hasHoldings = Astro.slots.has('holdings');
 		display: grid;
 		grid-template-columns:
 			minmax(4ch, 0.65fr)
-			1rem
+			0.75rem
 			minmax(6ch, 1fr)
 			minmax(10ch, 1.1fr)
 			minmax(12ch, 1.1fr)
@@ -201,7 +201,7 @@ const hasHoldings = Astro.slots.has('holdings');
 	.space1,
 	:global(.exchange-holdings__row .space1) {
 		display: block;
-		width: 1rem;
+		width: 0.75rem;
 	}
 
 	:global(.exchange-holdings__row span:nth-child(3)),
@@ -256,7 +256,7 @@ const hasHoldings = Astro.slots.has('holdings');
 	@media (max-width: 720px) {
 		.exchange-holdings__head,
 		:global(.exchange-holdings__row) {
-			grid-template-columns: 1fr 1rem 0.8fr 1fr;
+			grid-template-columns: 1fr 0.75rem 0.8fr 1fr;
 			row-gap: 0.3rem;
 		}
 
