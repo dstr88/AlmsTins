@@ -83,10 +83,39 @@ type HoldingsToken = {
 	firstSeenAt?: string | null;
 };
 
+type ImportTxRow = {
+	tx_hash: string | null;
+	timestamp_utc: string | null;
+	asset_symbol: string | null;
+	currency: string | null;
+	amount: number | null;
+	to_currency: string | null;
+	to_amount: number | null;
+	native_usd: number | null;
+};
+
 const NATIVE_META: Record<number, { symbol: string; name: string; coingeckoId: string }> = {
 	[ETHEREUM_CHAIN_ID]: { symbol: 'ETH', name: 'Ethereum', coingeckoId: 'ethereum' },
 	[POLYGON_CHAIN_ID]: { symbol: 'POL', name: 'Polygon', coingeckoId: 'polygon-ecosystem-token' },
 	[AVALANCHE_CHAIN_ID]: { symbol: 'AVAX', name: 'Avalanche', coingeckoId: 'avalanche-2' },
+};
+
+const normalizeSymbol = (value: string | null | undefined) => String(value ?? '').trim().toUpperCase();
+
+const pickImportSymbol = (row: ImportTxRow) =>
+	normalizeSymbol(row.asset_symbol) || normalizeSymbol(row.to_currency) || normalizeSymbol(row.currency);
+
+const pickImportAmount = (row: ImportTxRow, symbol: string) => {
+	const target = normalizeSymbol(symbol);
+	if (row.to_currency && normalizeSymbol(row.to_currency) === target && typeof row.to_amount === 'number') {
+		return row.to_amount;
+	}
+	if (row.currency && normalizeSymbol(row.currency) === target && typeof row.amount === 'number') {
+		return row.amount;
+	}
+	if (typeof row.to_amount === 'number') return row.to_amount;
+	if (typeof row.amount === 'number') return row.amount;
+	return null;
 };
 
 function buildScanUrl(chainId: number, params: Record<string, string | number>) {
@@ -364,6 +393,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 		contractAddress: string;
 		balance: bigint;
 		firstIn?: number;
+		firstInHash?: string;
 	};
 
 	const aggregates = new Map<string, TokenAgg>();
@@ -396,7 +426,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 		};
 		existing.balance += delta;
 		if (delta > 0n && timestamp) {
-			existing.firstIn = existing.firstIn ? Math.min(existing.firstIn, timestamp) : timestamp;
+			if (!existing.firstIn || timestamp < existing.firstIn) {
+				existing.firstIn = timestamp;
+				existing.firstInHash = tx.hash;
+			}
 		}
 		aggregates.set(contract, existing);
 	}
@@ -411,6 +444,30 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 	const tokens: HoldingsToken[] = [];
 	let totalUsd = 0;
+	const importTxByHash = new Map<string, ImportTxRow>();
+
+	const firstInHashes = Array.from(aggregates.values())
+		.map((entry) => entry.firstInHash)
+		.filter((hash): hash is string => typeof hash === 'string' && hash.trim().length > 0);
+
+	if (firstInHashes.length) {
+		const placeholders = firstInHashes.map(() => '?').join(',');
+		try {
+			const importResult = await db.execute({
+				sql: `SELECT tx_hash, timestamp_utc, asset_symbol, currency, amount, to_currency, to_amount, native_usd
+					FROM import_transactions
+					WHERE tenant_id = ? AND tx_hash IN (${placeholders}) AND native_usd IS NOT NULL`,
+				args: [tenantId, ...firstInHashes],
+			});
+			(importResult.rows as ImportTxRow[]).forEach((row) => {
+				if (row.tx_hash) {
+					importTxByHash.set(row.tx_hash, row);
+				}
+			});
+		} catch {
+			// Ignore import lookup failures; fallback handled below.
+		}
+	}
 
 	const nativeMeta = NATIVE_META[chainId];
 	if (nativeMeta) {
@@ -454,14 +511,61 @@ export const GET: APIRoute = async ({ params, request }) => {
 		let basisPrice: number | null = null;
 		let basisDate: string | null = null;
 		let firstSeenAt: string | null = null;
+		const entrySymbol = normalizeSymbol(entry.symbol);
 
 		if (entry.firstIn) {
 			firstSeenAt = new Date(entry.firstIn * 1000).toISOString();
-			const historical = await fetchHistoricalPrice(entry.contractAddress, entry.firstIn, pricePlatform);
-			if (typeof historical === 'number' && historical > 0) {
-				basisPrice = historical;
-				basisType = 'firstTransferIn';
-				basisDate = firstSeenAt;
+			const importMatch = entry.firstInHash ? importTxByHash.get(entry.firstInHash) : undefined;
+			if (importMatch) {
+				const importSymbol = pickImportSymbol(importMatch);
+				const importAmount = pickImportAmount(importMatch, entrySymbol);
+				const importUsd = typeof importMatch.native_usd === 'number' ? Math.abs(importMatch.native_usd) : null;
+				if (importSymbol && importSymbol === entrySymbol && importUsd && importAmount) {
+					const computed = importUsd / Math.abs(importAmount);
+					if (Number.isFinite(computed) && computed > 0) {
+						basisPrice = computed;
+						basisType = 'purchase';
+						basisDate = importMatch.timestamp_utc ?? firstSeenAt;
+					}
+				}
+			}
+
+			if (basisPrice === null) {
+				try {
+					const nearestResult = await db.execute({
+						sql: `SELECT tx_hash, timestamp_utc, asset_symbol, currency, amount, to_currency, to_amount, native_usd
+							FROM import_transactions
+							WHERE tenant_id = ? AND native_usd IS NOT NULL
+								AND (upper(asset_symbol) = ? OR upper(to_currency) = ? OR upper(currency) = ?)
+							ORDER BY ABS(julianday(timestamp_utc) - julianday(?)) ASC
+							LIMIT 1`,
+						args: [tenantId, entrySymbol, entrySymbol, entrySymbol, firstSeenAt],
+					});
+					const nearest = (nearestResult.rows?.[0] as ImportTxRow | undefined) ?? null;
+					if (nearest) {
+						const importAmount = pickImportAmount(nearest, entrySymbol);
+						const importUsd = typeof nearest.native_usd === 'number' ? Math.abs(nearest.native_usd) : null;
+						if (importAmount && importUsd) {
+							const computed = importUsd / Math.abs(importAmount);
+							if (Number.isFinite(computed) && computed > 0) {
+								basisPrice = computed;
+								basisType = 'purchase';
+								basisDate = nearest.timestamp_utc ?? firstSeenAt;
+							}
+						}
+					}
+				} catch {
+					// Ignore import fallback failures; try historical next.
+				}
+			}
+
+			if (basisPrice === null) {
+				const historical = await fetchHistoricalPrice(entry.contractAddress, entry.firstIn, pricePlatform);
+				if (typeof historical === 'number' && historical > 0) {
+					basisPrice = historical;
+					basisType = 'firstTransferIn';
+					basisDate = firstSeenAt;
+				}
 			}
 		}
 
