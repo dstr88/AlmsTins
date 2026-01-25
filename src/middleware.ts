@@ -4,6 +4,7 @@ import { logEnvStatus } from './lib/envStatus';
 
 const PUBLIC_PATHS = [
 	'/healthz',
+	'/',
 	'/login',
 	'/signup',
 	'/api/signup',
@@ -84,11 +85,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const { request, url: ctxUrl } = context;
 	const pathname = ctxUrl.pathname;
 
-	if (pathname === '/') {
-		console.log('[middleware] rule=ROOT_REDIRECT path=', path);
-		return Response.redirect(new URL('/login', request.url), 303);
-	}
-
 	if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
 		console.log('[middleware] rule=PUBLIC path=', path);
 		return applySecurityHeaders(await next());
@@ -116,7 +112,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const acceptsHTML = request.headers.get('accept')?.includes('text/html');
 	if (acceptsHTML) {
 		console.log('[middleware] rule=REDIRECT_LOGIN path=', path);
-		return Response.redirect(new URL(`/login?error=missing`, request.url), 303);
+		const nextPath = `${pathname}${ctxUrl.search}`;
+		return Response.redirect(new URL(`/login?error=missing&next=${encodeURIComponent(nextPath)}`, request.url), 303);
 	}
 
 	console.log('[middleware] rule=UNAUTHORIZED path=', path);
