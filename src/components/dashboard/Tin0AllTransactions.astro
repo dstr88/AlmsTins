@@ -282,7 +282,13 @@ const aaveLabel = (row: UnifiedRow) => {
 	return `Deposited ${symbol} into Aave (collateral — non-taxable)`;
 };
 
-const rowsWithDividers = rows.map((row) => ({ type: 'row' as const, row }));
+const filteredRows = rows.filter((row) => {
+	if (row.native_usd === null || row.native_usd === undefined) return true;
+	const usd = Number(row.native_usd);
+	if (!Number.isFinite(usd)) return true;
+	return usd >= 1;
+});
+const rowsWithDividers = filteredRows.map((row) => ({ type: 'row' as const, row }));
 
 const exportUrl = walletId
 	? `/api/transactions/export?walletId=${encodeURIComponent(walletId)}`
@@ -593,6 +599,23 @@ console.log('[await-check] allTransactions instanceof Promise =', allTransaction
 				usdEl.textContent = usd > 0 ? formatUsd(usd) : '—';
 				row.dataset.usd = String(usd);
 			}
+			if (usd > 0 && usd < 1) {
+				row.setAttribute('hidden', 'true');
+			}
+		});
+	};
+
+	hideLowValueImports();
+
+	const hideLowValueImports = () => {
+		if (!list) return;
+		const rows = Array.from(list.querySelectorAll('[data-type="row"][data-onchain="false"]'));
+		rows.forEach((row) => {
+			if (!(row instanceof HTMLElement)) return;
+			const usd = Number(row.dataset.importUsd || 0);
+			if (Number.isFinite(usd) && usd > 0 && usd < 1) {
+				row.setAttribute('hidden', 'true');
+			}
 		});
 	};
 
@@ -889,7 +912,7 @@ console.log('[await-check] allTransactions instanceof Promise =', allTransaction
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-sm);
-		max-height: clamp(22rem, 55vh, 42rem);
+		max-height: 5.5rem;
 		overflow-y: auto;
 		overflow-x: hidden;
 		padding-right: var(--space-xs);
