@@ -1,6 +1,7 @@
 ---
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { rebuildAssetLifecycles, getAssetLifecycleCache } from '@/lib/lifecycle';
 import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
 import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
@@ -12,6 +13,23 @@ const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 1
 
 const { walletId } = Astro.props as { walletId?: string };
 const { tenantId } = await requireTenantSession(Astro.request);
+
+try {
+	await rebuildAssetLifecycles(tenantId);
+} catch (error) {
+	console.error('[Tin0AllTransactions] Failed to rebuild lifecycles', error);
+}
+
+const lifecycleCache = await getAssetLifecycleCache(tenantId);
+const lifecycleGroups = lifecycleCache.groups ?? [];
+const lifecycleEvents = lifecycleCache.events ?? [];
+const lifecycleByGroup = new Map<string, typeof lifecycleEvents>();
+lifecycleEvents.forEach((event) => {
+	const list = lifecycleByGroup.get(event.group_id) ?? [];
+	list.push(event);
+	lifecycleByGroup.set(event.group_id, list);
+});
+const lifecycleCacheKey = `lifecycle:${tenantId}`;
 
 const sourcesArgs: any[] = [tenantId, tenantId];
 const sourcesWalletClause = walletId ? 'AND wallet_id = ?' : '';
@@ -167,11 +185,26 @@ const formatAmount = (
 	return new Intl.NumberFormat('en-US', options).format(num);
 };
 
+const formatUsd = (value: number | null | undefined) => {
+	if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+	return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+};
+
 const formatDate = (value: string) => {
 	if (!value) return '';
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return value;
 	return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+};
+
+const formatRelativeDays = (value: string | null) => {
+	if (!value) return '—';
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return '—';
+	const diffMs = Date.now() - date.getTime();
+	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+	if (!Number.isFinite(diffDays)) return '—';
+	return `${diffDays} days ago`;
 };
 
 const formatTokenAmount = (value: string | null, decimals = 18) => {
@@ -271,6 +304,47 @@ const exportUrl = walletId
 		</label>
 	</header>
 
+	{lifecycleGroups.length ? (
+		<div class="tin0-all__lifecycles">
+			{lifecycleGroups.map((group) => {
+				const events = lifecycleByGroup.get(group.id) ?? [];
+				return (
+					<details class="lifecycle-group">
+						<summary class="lifecycle-summary">
+							<span class="lifecycle-asset">{group.asset_symbol}</span>
+							<span class="lifecycle-meta">
+								Avg cost {formatUsd(group.weighted_avg_cost_usd)} · Qty {formatAmount(group.total_quantity)}
+							</span>
+							<span class="lifecycle-meta">
+								Last buy {group.latest_acquired_at ? formatDate(group.latest_acquired_at) : '—'} · {formatRelativeDays(group.latest_acquired_at)}
+							</span>
+						</summary>
+						<div class="lifecycle-events">
+							{events.length === 0 ? (
+								<p class="lifecycle-empty">No lifecycle events found.</p>
+							) : (
+								events.map((event) => (
+									<div class="lifecycle-event">
+										<span class="lifecycle-event__time">
+											{new Date(event.timestamp_utc).toLocaleString()}
+										</span>
+										<span class="lifecycle-event__dir">{event.direction ?? '—'}</span>
+										<span class="lifecycle-event__amt">
+											{formatAmount(event.amount, { maximumFractionDigits: 8 })}
+										</span>
+										<span class="lifecycle-event__src">
+											{event.source_type}{event.linked_transfer ? ' · linked' : ''}
+										</span>
+									</div>
+								))
+							)}
+						</div>
+					</details>
+				);
+			})}
+		</div>
+	) : null}
+
 	<div class="tin0-all__list" data-filter="all">
 		{loadError ? <p class="tin0-all__error">{loadError}</p> : null}
 		{rowsWithDividers.map((item) => (
@@ -348,11 +422,28 @@ const exportUrl = walletId
 			</div>
 		))}
 	</div>
+	<script
+		type="application/json"
+		id="lifecycle-data"
+		data-cache-key={lifecycleCacheKey}
+		set:html={JSON.stringify({ groups: lifecycleGroups, events: lifecycleEvents })}
+	></script>
 </article>
 
 <script>
 	const list = document.querySelector('.tin0-all__list');
 	const select = document.querySelector('.tin0-all__select');
+	const lifecycleCarrier = document.getElementById('lifecycle-data');
+
+	if (lifecycleCarrier?.textContent) {
+		try {
+			const payload = JSON.parse(lifecycleCarrier.textContent);
+			const key = lifecycleCarrier.dataset.cacheKey || 'lifecycle:cache';
+			window.localStorage.setItem(key, JSON.stringify(payload));
+		} catch (error) {
+			console.warn('[Tin0AllTransactions] Failed to cache lifecycle data', error);
+		}
+	}
 
 	select?.addEventListener('change', () => {
 		const value = select.value;
@@ -716,6 +807,70 @@ const exportUrl = walletId
 		gap: 0.5rem;
 		font-size: var(--font-sm);
 		opacity: 0.85;
+	}
+
+	.tin0-all__lifecycles {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		padding: 0.2rem 0 0.6rem;
+	}
+
+	.lifecycle-group {
+		border-radius: 0.75rem;
+		background: rgba(0, 0, 0, 0.2);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		padding: 0.5rem 0.7rem;
+	}
+
+	.lifecycle-summary {
+		display: grid;
+		grid-template-columns: 80px 1fr 1fr;
+		gap: 0.6rem;
+		align-items: center;
+		font-size: var(--font-sm);
+		cursor: pointer;
+	}
+
+	.lifecycle-asset {
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.lifecycle-meta {
+		opacity: 0.75;
+	}
+
+	.lifecycle-events {
+		margin-top: 0.5rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.lifecycle-event {
+		display: grid;
+		grid-template-columns: 1fr 50px 100px 120px;
+		gap: 0.6rem;
+		font-size: 0.85rem;
+		padding: 0.35rem 0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	.lifecycle-event:last-child {
+		border-bottom: none;
+	}
+
+	.lifecycle-event__dir {
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+
+	.lifecycle-empty {
+		margin: 0;
+		font-size: 0.85rem;
+		opacity: 0.6;
 	}
 
 	.tin0-all__select {
