@@ -287,6 +287,9 @@ const rowsWithDividers = rows.map((row) => ({ type: 'row' as const, row }));
 const exportUrl = walletId
 	? `/api/transactions/export?walletId=${encodeURIComponent(walletId)}`
 	: '/api/transactions/export';
+
+const allTransactions = rows;
+console.log('[await-check] allTransactions instanceof Promise =', allTransactions instanceof Promise);
 ---
 
 <article class="tin0-all" id="all-transactions">
