@@ -255,6 +255,7 @@ const pickUsdAmount = (row: UnifiedRow) => row.native_usd ?? row.native_amount;
 const normalizeDirection = (row: UnifiedRow) => row.direction ?? null;
 
 const latestRowId = rows[0]?.id ?? null;
+const DISPLAY_THRESHOLD_USD = 1;
 
 const isUnwrapRow = (row: UnifiedRow) => {
 	const text = `${row.kind ?? ''} ${row.description ?? ''}`.toLowerCase();
@@ -283,10 +284,10 @@ const aaveLabel = (row: UnifiedRow) => {
 };
 
 const filteredRows = rows.filter((row) => {
-	if (row.native_usd === null || row.native_usd === undefined) return true;
-	const usd = Number(row.native_usd);
-	if (!Number.isFinite(usd)) return true;
-	return usd >= 1;
+	if (isOnchainRow(row)) return true;
+	const usd = parseNumber(row.native_usd);
+	if (usd === null) return true;
+	return Math.abs(usd) >= DISPLAY_THRESHOLD_USD;
 });
 const rowsWithDividers = filteredRows.map((row) => ({ type: 'row' as const, row }));
 
@@ -294,8 +295,6 @@ const exportUrl = walletId
 	? `/api/transactions/export?walletId=${encodeURIComponent(walletId)}`
 	: '/api/transactions/export';
 
-const allTransactions = rows;
-console.log('[await-check] allTransactions instanceof Promise =', allTransactions instanceof Promise);
 ---
 
 <article class="tin0-all" id="all-transactions">
@@ -460,8 +459,13 @@ console.log('[await-check] allTransactions instanceof Promise =', allTransaction
 		const rows = list.querySelectorAll('[data-type="row"]');
 		rows.forEach((row) => {
 			if (!(row instanceof HTMLElement)) return;
+			const usd = Number(row.dataset.usd || 0);
+			const importUsd = Number(row.dataset.importUsd || 0);
+			const isDust =
+				(Number.isFinite(usd) && usd > 0 && usd < DISPLAY_THRESHOLD_USD) ||
+				(Number.isFinite(importUsd) && importUsd > 0 && importUsd < DISPLAY_THRESHOLD_USD);
 			const matches = value === 'all' || row.dataset.source === value;
-			row.toggleAttribute('hidden', !matches);
+			row.toggleAttribute('hidden', !(matches && !isDust));
 		});
 		fifoGroupPolSells(list);
 	});
@@ -600,20 +604,6 @@ console.log('[await-check] allTransactions instanceof Promise =', allTransaction
 				row.dataset.usd = String(usd);
 			}
 			if (usd > 0 && usd < 1) {
-				row.setAttribute('hidden', 'true');
-			}
-		});
-	};
-
-	hideLowValueImports();
-
-	const hideLowValueImports = () => {
-		if (!list) return;
-		const rows = Array.from(list.querySelectorAll('[data-type="row"][data-onchain="false"]'));
-		rows.forEach((row) => {
-			if (!(row instanceof HTMLElement)) return;
-			const usd = Number(row.dataset.importUsd || 0);
-			if (Number.isFinite(usd) && usd > 0 && usd < 1) {
 				row.setAttribute('hidden', 'true');
 			}
 		});
@@ -908,15 +898,24 @@ console.log('[await-check] allTransactions instanceof Promise =', allTransaction
 		font-size: var(--font-sm);
 	}
 
-	.tin0-all__list {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-sm);
-		max-height: 5.5rem;
-		overflow-y: auto;
-		overflow-x: hidden;
-		padding-right: var(--space-xs);
-	}
+.tin0-all__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+	flex: 1;
+	min-height: 0;
+	max-height: 100%;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-right: var(--space-xs);
+}
+
+.tin0-all {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	height: 100%;
+}
 
 	.tin0-all__error {
 		margin: 0;
