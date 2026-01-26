@@ -17,19 +17,28 @@ const sourcesArgs: any[] = [tenantId, tenantId];
 const sourcesWalletClause = walletId ? 'AND wallet_id = ?' : '';
 if (walletId) sourcesArgs.push(walletId);
 
-const sourcesResult = await db.execute({
-	sql: `SELECT DISTINCT source FROM import_transactions WHERE tenant_id = ?
-		UNION
-		SELECT DISTINCT 'onchain_' || chain AS source
-		FROM transactions
-		WHERE tenant_id = ? ${sourcesWalletClause}
-		ORDER BY source`,
-	args: sourcesArgs,
-});
+let sources: string[] = [];
+let rows: UnifiedRow[] = [];
+let loadError: string | null = null;
 
-const sources = sourcesResult.rows
-	.map((row) => String(row.source))
-	.filter(Boolean);
+try {
+	const sourcesResult = await db.execute({
+		sql: `SELECT DISTINCT source FROM import_transactions WHERE tenant_id = ?
+			UNION
+			SELECT DISTINCT 'onchain_' || chain AS source
+			FROM transactions
+			WHERE tenant_id = ? ${sourcesWalletClause}
+			ORDER BY source`,
+		args: sourcesArgs,
+	});
+
+	sources = sourcesResult.rows
+		.map((row) => String(row.source))
+		.filter(Boolean);
+} catch (error) {
+	console.error('[Tin0AllTransactions] Failed to load sources', error);
+	loadError = 'Internal error.';
+}
 
 type UnifiedRow = {
 	id: string;
@@ -64,68 +73,74 @@ const rowsArgs: any[] = [tenantId, tenantId];
 const rowsWalletClause = walletId ? 'AND t.wallet_id = ?' : '';
 if (walletId) rowsArgs.push(walletId);
 
-const result = await db.execute({
-	sql: `SELECT id, source, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
-		native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, notes, category, group_id,
-		fee_usd, fee_native, fee_currency, NULL AS fee_paid,
-		NULL AS onchain_value, NULL AS onchain_decimals, NULL AS onchain_chain
-		FROM import_transactions
-		WHERE tenant_id = ?
-		UNION ALL
-		SELECT
-			t.id,
-			'onchain_' || t.chain AS source,
-			NULL AS import_batch_id,
-			t.timestamp AS timestamp_utc,
-			t.tx_type AS description,
-			CASE
-				WHEN t.token_symbol = 'native' AND t.chain = 'ethereum' THEN 'ETH'
-				WHEN t.token_symbol = 'native' AND t.chain = 'polygon' THEN 'POL'
-				WHEN t.token_symbol = 'native' AND t.chain = 'avalanche' THEN 'AVAX'
-				ELSE t.token_symbol
-			END AS currency,
-			NULL AS amount,
-			NULL AS to_currency,
-			NULL AS to_amount,
-			NULL AS native_currency,
-			NULL AS native_amount,
-			NULL AS native_usd,
-			t.tx_type AS kind,
-			t.hash AS tx_hash,
-			CASE
-				WHEN t.tx_type IN ('incoming', 'token_in') THEN 'in'
-				WHEN t.tx_type IN ('outgoing', 'token_out') THEN 'out'
-				ELSE NULL
-			END AS direction,
-			CASE
-				WHEN t.token_symbol = 'native' AND t.chain = 'ethereum' THEN 'ETH'
-				WHEN t.token_symbol = 'native' AND t.chain = 'polygon' THEN 'POL'
-				WHEN t.token_symbol = 'native' AND t.chain = 'avalanche' THEN 'AVAX'
-				ELSE t.token_symbol
-			END AS asset_symbol,
-			a.note AS notes,
-			a.category AS category,
-			NULL AS group_id,
-			NULL AS fee_usd,
-			NULL AS fee_native,
-			CASE
-				WHEN t.chain = 'ethereum' THEN 'ETH'
-				WHEN t.chain = 'polygon' THEN 'POL'
-				WHEN t.chain = 'avalanche' THEN 'AVAX'
-				ELSE NULL
-			END AS fee_currency,
-			t.fee_paid AS fee_paid,
-			t.value AS onchain_value,
-			t.token_decimals AS onchain_decimals,
-			t.chain AS onchain_chain
-		FROM transactions t
-		LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
-		WHERE t.tenant_id = ? ${rowsWalletClause}
-		ORDER BY timestamp_utc DESC`,
-	args: rowsArgs,
-});
+try {
+	const result = await db.execute({
+		sql: `SELECT id, source, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
+			native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, notes, category, group_id,
+			fee_usd, fee_native, fee_currency, NULL AS fee_paid,
+			NULL AS onchain_value, NULL AS onchain_decimals, NULL AS onchain_chain
+			FROM import_transactions
+			WHERE tenant_id = ?
+			UNION ALL
+			SELECT
+				t.id,
+				'onchain_' || t.chain AS source,
+				NULL AS import_batch_id,
+				t.timestamp AS timestamp_utc,
+				t.tx_type AS description,
+				CASE
+					WHEN t.token_symbol = 'native' AND t.chain = 'ethereum' THEN 'ETH'
+					WHEN t.token_symbol = 'native' AND t.chain = 'polygon' THEN 'POL'
+					WHEN t.token_symbol = 'native' AND t.chain = 'avalanche' THEN 'AVAX'
+					ELSE t.token_symbol
+				END AS currency,
+				NULL AS amount,
+				NULL AS to_currency,
+				NULL AS to_amount,
+				NULL AS native_currency,
+				NULL AS native_amount,
+				NULL AS native_usd,
+				t.tx_type AS kind,
+				t.hash AS tx_hash,
+				CASE
+					WHEN t.tx_type IN ('incoming', 'token_in') THEN 'in'
+					WHEN t.tx_type IN ('outgoing', 'token_out') THEN 'out'
+					ELSE NULL
+				END AS direction,
+				CASE
+					WHEN t.token_symbol = 'native' AND t.chain = 'ethereum' THEN 'ETH'
+					WHEN t.token_symbol = 'native' AND t.chain = 'polygon' THEN 'POL'
+					WHEN t.token_symbol = 'native' AND t.chain = 'avalanche' THEN 'AVAX'
+					ELSE t.token_symbol
+				END AS asset_symbol,
+				a.note AS notes,
+				a.category AS category,
+				NULL AS group_id,
+				NULL AS fee_usd,
+				NULL AS fee_native,
+				CASE
+					WHEN t.chain = 'ethereum' THEN 'ETH'
+					WHEN t.chain = 'polygon' THEN 'POL'
+					WHEN t.chain = 'avalanche' THEN 'AVAX'
+					ELSE NULL
+				END AS fee_currency,
+				t.fee_paid AS fee_paid,
+				t.value AS onchain_value,
+				t.token_decimals AS onchain_decimals,
+				t.chain AS onchain_chain
+			FROM transactions t
+			LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
+			WHERE t.tenant_id = ? ${rowsWalletClause}
+			ORDER BY timestamp_utc DESC`,
+		args: rowsArgs,
+	});
 
-const rows = result.rows as UnifiedRow[];
+	rows = result.rows as UnifiedRow[];
+} catch (error) {
+	console.error('[Tin0AllTransactions] Failed to load rows', error);
+	loadError = loadError ?? 'Internal error.';
+	rows = [];
+}
 
 const yearDividerAssets: Record<number, string> = {
 	2023: yearDivide2023.src,
@@ -257,6 +272,7 @@ const exportUrl = walletId
 	</header>
 
 	<div class="tin0-all__list" data-filter="all">
+		{loadError ? <p class="tin0-all__error">{loadError}</p> : null}
 		{rowsWithDividers.map((item) => (
 			<div
 				class="tx-card"
@@ -719,6 +735,16 @@ const exportUrl = walletId
 		overflow-y: auto;
 		overflow-x: hidden;
 		padding-right: var(--space-xs);
+	}
+
+	.tin0-all__error {
+		margin: 0;
+		padding: 0.75rem 0.9rem;
+		border-radius: 0.75rem;
+		background: rgba(255, 70, 70, 0.15);
+		border: 1px solid rgba(255, 120, 120, 0.35);
+		font-size: var(--font-sm);
+		color: #ffd4d4;
 	}
 
 	.tx-card {
