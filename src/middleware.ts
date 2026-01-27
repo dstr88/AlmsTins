@@ -86,13 +86,24 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	const { request, url: ctxUrl } = context;
 	const pathname = ctxUrl.pathname;
-	if (pathname === '/api/import/crypto-com') {
-		console.log('[middleware][crypto-com] headers', {
-			cookie: request.headers.get('cookie'),
-			origin: request.headers.get('origin'),
-			referer: request.headers.get('referer'),
-			authorization: request.headers.get('authorization'),
+	if (pathname === '/api/import/crypto-com' || pathname === '/api/exchanges/crypto-com/accounts/update') {
+		const cookie = request.headers.get('cookie') ?? '';
+		console.log('[middleware][crypto-com] cookie-check', {
+			path: pathname,
+			cookieLen: cookie.length,
+			hasSessionToken: cookie.includes('session-token'),
+			hasCsrfToken: cookie.includes('csrf-token'),
+			hasCallbackUrl: cookie.includes('callback-url'),
 		});
+		try {
+			const session = await getAuthSession(request);
+			console.log('[middleware][crypto-com] session-check', {
+				ok: !!session,
+				userId: session?.user?.id ?? null,
+			});
+		} catch (error) {
+			console.log('[middleware][crypto-com] session-check error', error);
+		}
 	}
 
 	if (pathname === '/') {
