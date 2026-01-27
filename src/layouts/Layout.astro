@@ -25,10 +25,7 @@ const isActive = (path: string) => currentPath === path;
 				<nav>
 					<a href="/" class={`nav-link ${isActive('/') ? 'active' : ''}`}>Tradfi</a>
 					<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
-					<a href="/dashboard/networth" class={`nav-link ${isActive('/dashboard/networth') ? 'active' : ''}`}>Net worth</a>
-					<a href="/dashboard/tax" class={`nav-link ${isActive('/dashboard/tax') ? 'active' : ''}`}>Tax</a>
 					<a class="nav-link disabled">Events</a>
-					<a class="nav-link disabled">Settings</a>
 					<form class="nav-form" method="post" action="/api/logout">
 						<button class="nav-button" type="submit">Log out</button>
 					</form>

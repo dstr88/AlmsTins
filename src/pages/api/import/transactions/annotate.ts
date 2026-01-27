@@ -17,7 +17,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	await db.execute({
 		sql: `UPDATE import_transactions
-			SET notes = COALESCE(?, notes),
+			SET note = COALESCE(?, note),
 				category = COALESCE(?, category),
 				group_id = COALESCE(?, group_id)
 			WHERE id = ? AND tenant_id = ?`,
