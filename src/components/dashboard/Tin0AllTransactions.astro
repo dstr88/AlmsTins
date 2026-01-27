@@ -604,7 +604,7 @@ const exportUrl = walletId
 				row.dataset.usd = String(usd);
 			}
 			if (usd > 0 && usd < 1) {
-				row.hidden = true;
+				row.setAttribute('hidden', 'true');
 			}
 		});
 	};
@@ -902,7 +902,7 @@ const exportUrl = walletId
 	display: flex;
 	flex-direction: column;
 	gap: var(--space-sm);
-	flex: 1 1 auto;
+	flex: 1;
 	min-height: 0;
 	max-height: 100%;
 	overflow-y: auto;
