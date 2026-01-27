@@ -16,6 +16,11 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 const { tenantId } = await requireTenantSession(Astro.request);
 const wallets = await getAllActiveWallets(tenantId);
 const defaultWallet = wallets[0] ?? null;
+const walletsSorted = [...wallets].sort((a, b) => {
+	const aTime = Date.parse(a.createdAt || '') || 0;
+	const bTime = Date.parse(b.createdAt || '') || 0;
+	return bTime - aTime;
+});
 
 const formatWalletLabel = (wallet: { label?: string | null; address: string }) => {
 	const label = wallet.label?.trim();
@@ -62,10 +67,11 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				<Tin0AllTransactions />
 			</div>
 			<div class="vault-lane vault-lane--row2">
-				{wallets.map((wallet) => {
+				{walletsSorted.slice(0, 2).map((wallet, index) => {
 					const displayLabel = formatWalletLabel(wallet);
+					const tileClass = index === 0 ? 'tile--r2c1' : 'tile--r2c2';
 					return (
-						<div class="vault-stack-tin tile tile--r2c1">
+						<div class={`vault-stack-tin tile ${tileClass}`}>
 							<div class="wallet-label-box">{displayLabel}</div>
 							<div class="wallet-stack" data-accordion="wallet-stack">
 								<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet">
@@ -93,7 +99,6 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 						</div>
 					);
 				})}
-				<div class="placeholder-card tile tile--r2c2">Empty slot</div>
 			</div>
 			<div class="vault-lane vault-lane--row3 exchange-lane">
 				<CryptoComAccounts />
