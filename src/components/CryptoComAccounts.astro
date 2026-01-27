@@ -269,6 +269,7 @@ const priceMap = await fetchCachedPrices(Array.from(priceSymbols));
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({}),
+				credentials: 'include',
 			});
 			if (!response.ok) {
 				throw new Error('Failed to create account.');
@@ -292,6 +293,7 @@ const priceMap = await fetchCachedPrices(Array.from(priceSymbols));
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ accountId, name }),
+				credentials: 'include',
 			});
 		} catch (error) {
 			console.error(error);
