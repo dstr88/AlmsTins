@@ -86,6 +86,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	const { request, url: ctxUrl } = context;
 	const pathname = ctxUrl.pathname;
+	if (pathname === '/api/import/crypto-com') {
+		console.log('[middleware][crypto-com] headers', {
+			cookie: request.headers.get('cookie'),
+			origin: request.headers.get('origin'),
+			referer: request.headers.get('referer'),
+			authorization: request.headers.get('authorization'),
+		});
+	}
 
 	if (pathname === '/') {
 		console.log('[middleware] rule=ROOT_REDIRECT path=', path);
