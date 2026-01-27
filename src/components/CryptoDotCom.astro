@@ -51,6 +51,7 @@ const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 1
 			const response = await fetch('/api/import/crypto-com', {
 				method: 'POST',
 				body: data,
+				credentials: 'include',
 			});
 			const payload = await response.json();
 			if (!response.ok) {

@@ -323,6 +323,7 @@ const priceMap = await fetchCachedPrices(Array.from(priceSymbols));
 			const response = await fetch('/api/import/crypto-com', {
 				method: 'POST',
 				body: data,
+				credentials: 'include',
 			});
 			const payload = await response.json();
 			if (!response.ok) {

@@ -22,12 +22,14 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 	}
 
 	const token = generateSessionToken(passphrase);
+	const cookieDomain = import.meta.env.PROD ? 'almstins.com' : undefined;
 	cookies.set(SESSION_COOKIE_NAME, token, {
 		httpOnly: true,
 		secure: import.meta.env.PROD,
 		path: '/',
 		maxAge: COOKIE_TTL_SECONDS,
 		sameSite: 'lax',
+		...(cookieDomain ? { domain: cookieDomain } : {}),
 	});
 
 	return redirect('/transition');
