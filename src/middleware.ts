@@ -88,12 +88,20 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	const pathname = ctxUrl.pathname;
 	if (pathname === '/api/import/crypto-com' || pathname === '/api/exchanges/crypto-com/accounts/update') {
 		const cookie = request.headers.get('cookie') ?? '';
+		const host = request.headers.get('host');
+		const forwardedHost = request.headers.get('x-forwarded-host');
+		const forwardedProto = request.headers.get('x-forwarded-proto');
 		console.log('[middleware][crypto-com] cookie-check', {
 			path: pathname,
 			cookieLen: cookie.length,
-			hasSessionToken: cookie.includes('session-token'),
+			hasAuthJsSecureSession: cookie.includes('__Secure-authjs.session-token='),
+			hasAuthJsSession: cookie.includes('authjs.session-token='),
+			hasNextAuthSession: cookie.includes('next-auth.session-token='),
 			hasCsrfToken: cookie.includes('csrf-token'),
 			hasCallbackUrl: cookie.includes('callback-url'),
+			host,
+			forwardedHost,
+			forwardedProto,
 		});
 		try {
 			const session = await getAuthSession(request);
