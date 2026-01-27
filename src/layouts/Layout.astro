@@ -23,9 +23,8 @@ const isActive = (path: string) => currentPath === path;
 					<strong>Private investor dashboard</strong>
 				</div>
 				<nav>
-					<a href="/" class={`nav-link ${isActive('/') ? 'active' : ''}`}>Overview</a>
+					<a href="/" class={`nav-link ${isActive('/') ? 'active' : ''}`}>Tradfi</a>
 					<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
-					<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>Bookkeeping</a>
 					<a href="/dashboard/networth" class={`nav-link ${isActive('/dashboard/networth') ? 'active' : ''}`}>Net worth</a>
 					<a href="/dashboard/tax" class={`nav-link ${isActive('/dashboard/tax') ? 'active' : ''}`}>Tax</a>
 					<a class="nav-link disabled">Events</a>

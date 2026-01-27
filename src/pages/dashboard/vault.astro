@@ -306,11 +306,22 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			gap: 24px;
 			align-items: stretch;
 			position: relative;
+			grid-template-areas:
+				'r1c1'
+				'r1c2'
+				'r1c3'
+				'row2'
+				'row3';
 		}
 
 		@media (min-width: 720px) {
 			.bk-grid {
 				grid-template-columns: repeat(2, minmax(0, 1fr));
+				grid-template-areas:
+					'r1c1 r1c2'
+					'r1c3 r1c3'
+					'row2 row2'
+					'row3 row3';
 			}
 		}
 
@@ -322,6 +333,10 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				--grid-gap: 24px;
 				grid-template-columns: repeat(3, minmax(0, 1fr));
 				grid-template-rows: var(--row1-height) var(--row2-height) var(--row3-height);
+				grid-template-areas:
+					'r1c1 r1c2 r1c3'
+					'row2 row2 row2'
+					'row3 row3 row3';
 				grid-auto-flow: row;
 			}
 		}
@@ -340,25 +355,25 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			}
 		}
 
+		.tile--r1c1 {
+			grid-area: r1c1;
+		}
+
+		.tile--r1c2 {
+			grid-area: r1c2;
+		}
+
+		.tile--r1c3 {
+			grid-area: r1c3;
+			min-height: 0;
+			overflow: hidden;
+			display: flex;
+			flex-direction: column;
+		}
+
 		@media (min-width: 1080px) {
-			.tile--r1c1 {
-				grid-column: 1;
-				grid-row: 1;
-			}
-
-			.tile--r1c2 {
-				grid-column: 2;
-				grid-row: 1;
-			}
-
 			.tile--r1c3 {
-				grid-column: 3;
-				grid-row: 1;
 				height: var(--row1-height);
-				min-height: 0;
-				overflow: hidden;
-				display: flex;
-				flex-direction: column;
 			}
 
 			.tile--r2c1 {
@@ -395,15 +410,16 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			}
 		}
 
-		@media (min-width: 1080px) {
-			.vault-lane--row2 {
-				grid-column: 1 / -1;
-				grid-row: 2;
-			}
+		.vault-lane--row2 {
+			grid-area: row2;
+		}
 
+		.vault-lane--row3 {
+			grid-area: row3;
+		}
+
+		@media (min-width: 1080px) {
 			.vault-lane--row3 {
-				grid-column: 1 / -1;
-				grid-row: 3;
 				justify-content: flex-start;
 			}
 
