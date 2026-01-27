@@ -354,8 +354,11 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			.tile--r1c3 {
 				grid-column: 3;
 				grid-row: 1;
-				max-height: var(--row1-height);
+				height: var(--row1-height);
+				min-height: 0;
 				overflow: hidden;
+				display: flex;
+				flex-direction: column;
 			}
 
 			.tile--r2c1 {
@@ -493,6 +496,15 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 		:global(.tile .salmon-tin__body) {
 			min-height: 0;
 			overflow: auto;
+		}
+
+		:global(.tile--r1c3 .tin0-all) {
+			height: 100%;
+			min-height: 0;
+		}
+
+		:global(.tile--r1c3 .tin0-all__list) {
+			min-height: 0;
 		}
 
 		.vault-stack-tin {
