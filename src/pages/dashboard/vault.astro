@@ -306,6 +306,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			gap: 24px;
 			align-items: stretch;
 			position: relative;
+			--row1-height: 360px;
 			grid-template-areas:
 				'r1c1'
 				'r1c2'
@@ -327,7 +328,6 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		@media (min-width: 1080px) {
 			.bk-grid {
-				--row1-height: 360px;
 				--row2-height: 520px;
 				--row3-height: 420px;
 				--grid-gap: 24px;
@@ -369,13 +369,10 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			overflow: hidden;
 			display: flex;
 			flex-direction: column;
+			height: var(--row1-height);
 		}
 
 		@media (min-width: 1080px) {
-			.tile--r1c3 {
-				height: var(--row1-height);
-			}
-
 			.tile--r2c1 {
 				grid-column: 1;
 				grid-row: 2;

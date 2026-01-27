@@ -154,10 +154,6 @@ try {
 	});
 
 	rows = result.rows as UnifiedRow[];
-	console.log(
-		'[Tin0] sample import row',
-		rows.find((row) => !row.source.startsWith('onchain_'))
-	);
 } catch (error) {
 	console.error('[Tin0AllTransactions] Failed to load rows', error);
 	loadError = loadError ?? 'Internal error.';
