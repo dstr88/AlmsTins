@@ -220,6 +220,8 @@ for (const row of rows) {
 </article>
 
 <script>
+	import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
+
 	const container = document.querySelector('.onchain-wallet__list');
 	if (container) {
 		const PRICE_SYMBOL_OVERRIDES = {
@@ -272,9 +274,12 @@ for (const row of rows) {
 			});
 
 			let priceMap = {};
-			if (symbols.size) {
+			const sanitized = allowlistSymbols(Array.from(symbols));
+			if (sanitized.length) {
 				try {
-					const response = await fetch(`/api/market/coingecko-prices?symbols=${encodeURIComponent(Array.from(symbols).join(','))}`);
+					const response = await fetch(
+						`/api/market/coingecko-prices?symbols=${encodeURIComponent(sanitized.join(','))}`,
+					);
 					if (response.ok) {
 						const payload = await response.json();
 						priceMap = payload.prices ?? {};
@@ -418,7 +423,16 @@ for (const row of rows) {
 			}
 		};
 
-		hydrateTradeLabels().then(groupLinkedTransactions);
+		const scheduleTradeLabels = () => {
+			if (typeof requestIdleCallback === 'function') {
+				requestIdleCallback(() => void hydrateTradeLabels(), { timeout: 1500 });
+			} else {
+				setTimeout(() => void hydrateTradeLabels(), 0);
+			}
+		};
+
+		scheduleTradeLabels();
+		groupLinkedTransactions();
 
 		container.addEventListener('blur', async (event) => {
 			const target = event.target;

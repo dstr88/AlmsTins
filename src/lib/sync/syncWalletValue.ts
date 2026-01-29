@@ -3,6 +3,7 @@ import { getAllActiveWallets } from '@/lib/wallets';
 import { insertWalletSnapshotFromValueBreakdown } from '@/lib/networth';
 import { getAllBalancesForWallet, type TokenBalance } from '@/lib/balances';
 import { getSimpleTokenPrices } from '@/lib/prices/coingecko';
+import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
 
 export type TokenSnapshot = {
 	chain: SupportedChain;
@@ -123,13 +124,7 @@ export async function computeWalletValue(
 	if (!balances.length) return [];
 
 	const symbolPriceMap = await getSimpleTokenPrices(
-		Array.from(
-			new Set(
-				balances
-					.map((b) => (b.tokenSymbol ?? '').trim().toUpperCase())
-					.filter((sym) => sym.length > 0 && sym.length <= 15),
-			),
-		),
+		sanitizeSymbols(balances.map((b) => b.tokenSymbol ?? '')),
 	);
 
 	const byChain = new Map<SupportedChain, WalletValueBreakdown>();

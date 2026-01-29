@@ -15,6 +15,10 @@ const TURSO_TTL_SECONDS = Math.min(
 const memoryCache = new Map<string, { expiresAt: number; payload: unknown }>();
 // Deduplicate concurrent fetches per cache key.
 const inflight = new Map<string, Promise<unknown>>();
+let lastFetchAt = 0;
+const MIN_INTERVAL_MS = 12_000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function getMemoryCache(key: string) {
 	const cached = memoryCache.get(key);
@@ -29,6 +33,12 @@ function setMemoryCache(key: string, payload: unknown, ttlSeconds: number) {
 }
 
 async function fetchTickersUSD() {
+	const now = Date.now();
+	const waitMs = Math.max(0, lastFetchAt + MIN_INTERVAL_MS - now);
+	if (waitMs) {
+		await sleep(waitMs);
+	}
+	lastFetchAt = Date.now();
 	const url = `${BASE_URL}/tickers?quotes=USD`;
 	const response = await fetch(url);
 	if (!response.ok) {

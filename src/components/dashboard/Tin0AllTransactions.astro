@@ -2,6 +2,11 @@
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { rebuildAssetLifecycles, getAssetLifecycleCache } from '@/lib/lifecycle';
+import {
+	getImportTransactionColumns,
+	selectImportColumn,
+	selectImportNotes,
+} from '@/lib/importTransactionsSchema';
 import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
 import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
@@ -15,7 +20,9 @@ const { walletId } = Astro.props as { walletId?: string };
 const { tenantId } = await requireTenantSession(Astro.request);
 
 try {
+	const lifecycleStart = Date.now();
 	await rebuildAssetLifecycles(tenantId);
+	console.log('[Tin0AllTransactions] lifecycles ms', Date.now() - lifecycleStart);
 } catch (error) {
 	console.error('[Tin0AllTransactions] Failed to rebuild lifecycles', error);
 }
@@ -38,6 +45,13 @@ if (walletId) sourcesArgs.push(walletId);
 let sources: string[] = [];
 let rows: UnifiedRow[] = [];
 let loadError: string | null = null;
+
+let importColumns = new Set<string>();
+try {
+	importColumns = await getImportTransactionColumns();
+} catch (error) {
+	console.error('[Tin0AllTransactions] Failed to load import_transactions schema', error);
+}
 
 try {
 	const sourcesResult = await db.execute({
@@ -92,10 +106,17 @@ const rowsWalletClause = walletId ? 'AND t.wallet_id = ?' : '';
 if (walletId) rowsArgs.push(walletId);
 
 try {
+	const rowsStart = Date.now();
+	const importNotes = selectImportNotes(importColumns);
+	const importCategory = selectImportColumn(importColumns, 'category');
+	const importGroupId = selectImportColumn(importColumns, 'group_id');
+	const importFeeUsd = selectImportColumn(importColumns, 'fee_usd');
+	const importFeeNative = selectImportColumn(importColumns, 'fee_native');
+	const importFeeCurrency = selectImportColumn(importColumns, 'fee_currency');
 	const result = await db.execute({
 		sql: `SELECT id, source, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
-			native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, note AS notes, category, group_id,
-			fee_usd, fee_native, fee_currency, NULL AS fee_paid,
+			native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, ${importNotes}, ${importCategory}, ${importGroupId},
+			${importFeeUsd}, ${importFeeNative}, ${importFeeCurrency}, NULL AS fee_paid,
 			NULL AS onchain_value, NULL AS onchain_decimals, NULL AS onchain_chain
 			FROM import_transactions
 			WHERE tenant_id = ?
@@ -154,6 +175,7 @@ try {
 	});
 
 	rows = result.rows as UnifiedRow[];
+	console.log('[Tin0AllTransactions] rows ms', Date.now() - rowsStart, 'count', rows.length);
 } catch (error) {
 	console.error('[Tin0AllTransactions] Failed to load rows', error);
 	loadError = loadError ?? 'Internal error.';
@@ -439,6 +461,8 @@ const exportUrl = walletId
 </article>
 
 <script>
+	import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
+
 	const list = document.querySelector('.tin0-all__list');
 	const select = document.querySelector('.tin0-all__select');
 	const lifecycleCarrier = document.getElementById('lifecycle-data');
@@ -577,36 +601,47 @@ const exportUrl = walletId
 			const symbol = normalizePriceSymbol(row.dataset.symbol);
 			if (symbol) symbols.add(symbol);
 		});
-		if (!symbols.size) return;
+		const sanitized = allowlistSymbols(Array.from(symbols));
+		if (!sanitized.length) return;
 
-		let priceMap = {};
-		try {
-			const response = await fetch(`/api/market/coingecko-prices?symbols=${encodeURIComponent(Array.from(symbols).join(','))}`);
-			if (response.ok) {
-				const payload = await response.json();
-				priceMap = payload.prices ?? {};
+		const run = async () => {
+			let priceMap = {};
+			try {
+				const response = await fetch(
+					`/api/market/coingecko-prices?symbols=${encodeURIComponent(sanitized.join(','))}`,
+				);
+				if (response.ok) {
+					const payload = await response.json();
+					priceMap = payload.prices ?? {};
+				}
+			} catch {
+				priceMap = {};
 			}
-		} catch {
-			priceMap = {};
+
+			rows.forEach((row) => {
+				if (!(row instanceof HTMLElement)) return;
+				const raw = row.dataset.raw ?? '';
+				const decimals = Number(row.dataset.decimals ?? 18);
+				const symbol = normalizePriceSymbol(row.dataset.symbol);
+				const price = Number(priceMap[symbol] ?? 0);
+				const amount = parseAmount(raw, decimals);
+				const usd = amount * (Number.isFinite(price) ? price : 0);
+				const usdEl = row.querySelector('[data-role="usd"]');
+				if (usdEl) {
+					usdEl.textContent = usd > 0 ? formatUsd(usd) : '—';
+					row.dataset.usd = String(usd);
+				}
+				if (usd > 0 && usd < 1) {
+					row.setAttribute('hidden', 'true');
+				}
+			});
+		};
+
+		if (typeof requestIdleCallback === 'function') {
+			requestIdleCallback(() => void run(), { timeout: 1500 });
+		} else {
+			setTimeout(() => void run(), 0);
 		}
-
-		rows.forEach((row) => {
-			if (!(row instanceof HTMLElement)) return;
-			const raw = row.dataset.raw ?? '';
-			const decimals = Number(row.dataset.decimals ?? 18);
-			const symbol = normalizePriceSymbol(row.dataset.symbol);
-			const price = Number(priceMap[symbol] ?? 0);
-			const amount = parseAmount(raw, decimals);
-			const usd = amount * (Number.isFinite(price) ? price : 0);
-			const usdEl = row.querySelector('[data-role="usd"]');
-			if (usdEl) {
-				usdEl.textContent = usd > 0 ? formatUsd(usd) : '—';
-				row.dataset.usd = String(usd);
-			}
-			if (usd > 0 && usd < 1) {
-				row.setAttribute('hidden', 'true');
-			}
-		});
 	};
 
 	function fifoGroupPolSells(listEl) {
@@ -765,7 +800,8 @@ const exportUrl = walletId
 		console.log('[fifo] groups made', groupsCount);
 	}
 
-	hydrateOnchainUsd().then(() => fifoGroupPolSells(list));
+	void hydrateOnchainUsd();
+	fifoGroupPolSells(list);
 </script>
 
 <style>

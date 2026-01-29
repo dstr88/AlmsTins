@@ -35,13 +35,25 @@ const buildUrl = (chainId: number, action: string, address: string) => {
 	return `${ETHERSCAN_V2}?${params.toString()}`;
 };
 
-export const GET: APIRoute = async ({ params, request }) => {
+export const GET: APIRoute = async ({ params, request, locals }) => {
+	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+	const requestId = (locals as Record<string, any>)?.requestId;
+	const logPerf = (status: number, meta?: { cached?: boolean; count?: number }) => {
+		console.log('[perf] wallet-nfts', {
+			requestId,
+			durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start),
+			status,
+			...(meta ?? {}),
+		});
+	};
 	if (!ETHERSCAN_KEY) {
+		logPerf(500);
 		return new Response(JSON.stringify({ ok: false, error: 'Missing ETHERSCAN_API_KEY' }), { status: 500 });
 	}
 
 	const walletId = params.id;
 	if (!walletId) {
+		logPerf(400);
 		return new Response(JSON.stringify({ ok: false, error: 'Missing wallet id' }), { status: 400 });
 	}
 
@@ -49,6 +61,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	const cacheKey = `${tenantId}:${walletId}`;
 	const cachedResponse = cache.get(cacheKey);
 	if (cachedResponse && cachedResponse.expiresAt > Date.now()) {
+		logPerf(200, { cached: true, count: cachedResponse.payload.items.length });
 		return new Response(JSON.stringify(cachedResponse.payload), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
@@ -61,6 +74,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	});
 	const address = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
 	if (!address) {
+		logPerf(404);
 		return new Response(JSON.stringify({ ok: false, error: 'Wallet not found' }), { status: 404 });
 	}
 
@@ -145,6 +159,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 	const payload = { ok: true, items };
 	cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
+	logPerf(200, { cached: false, count: items.length });
 
 	return new Response(JSON.stringify(payload), {
 		status: 200,

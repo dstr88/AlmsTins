@@ -32,5 +32,5 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 		...(cookieDomain ? { domain: cookieDomain } : {}),
 	});
 
-	return redirect('/transition');
+	return redirect('/dashboard/vault');
 };

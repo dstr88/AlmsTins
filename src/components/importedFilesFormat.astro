@@ -2,6 +2,11 @@
 // Renders import_transactions for a given source; amounts/symbols are best-effort based on import rules.
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import {
+	getImportTransactionColumns,
+	selectImportColumn,
+	selectImportNotes,
+} from '@/lib/importTransactionsSchema';
 import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
 import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
 import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
@@ -50,10 +55,26 @@ type ImportRow = {
 const { source, title, icons, limit, showList = true } = Astro.props as Props;
 const { tenantId } = await requireTenantSession(Astro.request);
 
+let importColumns = new Set<string>();
+try {
+	importColumns = await getImportTransactionColumns();
+} catch (error) {
+	console.error('[importedFilesFormat] Failed to load import_transactions schema', error);
+}
+
+const importNotes = selectImportNotes(importColumns);
+const importCategory = selectImportColumn(importColumns, 'category');
+const importGroupId = selectImportColumn(importColumns, 'group_id');
+const importFeeUsd = selectImportColumn(importColumns, 'fee_usd');
+const importFeeNative = selectImportColumn(importColumns, 'fee_native');
+const importFeeCurrency = selectImportColumn(importColumns, 'fee_currency');
+const importGasUsed = selectImportColumn(importColumns, 'gas_used');
+const importParentTxId = selectImportColumn(importColumns, 'parent_tx_id');
+
 const result = await db.execute({
 	sql: `SELECT id, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
-		native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, notes, category, group_id,
-		fee_usd, fee_native, fee_currency, gas_used, parent_tx_id
+		native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, ${importNotes}, ${importCategory}, ${importGroupId},
+		${importFeeUsd}, ${importFeeNative}, ${importFeeCurrency}, ${importGasUsed}, ${importParentTxId}
 		FROM import_transactions WHERE source = ? AND tenant_id = ?
 		ORDER BY timestamp_utc DESC
 		${limit ? `LIMIT ${Number(limit)}` : ''}`,

@@ -5,6 +5,7 @@ import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
+import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
 
 type AccountRow = {
 	id: string;
@@ -181,7 +182,7 @@ const fetchCachedPrices = async (symbols: string[]) => {
 	return priceMap;
 };
 
-const priceMap = await fetchCachedPrices(Array.from(priceSymbols));
+const priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols)));
 
 ---
 

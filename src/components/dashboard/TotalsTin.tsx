@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { normalizeNetWorthSummary } from '@/lib/networth/summaryContract';
 
 type WalletRow = {
 	walletId: string;
@@ -37,6 +38,7 @@ type Mode = 'wallet' | 'chain';
 export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endpoint?: string }) {
 	const [state, setState] = useState<TotalsState>({ status: 'loading' });
 	const [mode, setMode] = useState<Mode>('wallet');
+	const [hasWalletBreakdown, setHasWalletBreakdown] = useState(false);
 
 	useEffect(() => {
 		let mounted = true;
@@ -46,27 +48,33 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 				const res = await fetch(endpoint);
 				const payload = await res.json();
 				if (!mounted) return;
-				if (!payload?.ok || !payload?.summary) {
+				if (!payload?.ok) {
 					throw new Error(payload?.message ?? 'Unable to load totals right now.');
 				}
+				const normalized = normalizeNetWorthSummary(payload);
 				const summary: SummaryPayload = {
-					totalAssetsUsd: Number(payload.summary.totalAssetsUsd ?? 0),
-					totalFreeAssetsUsd: Number(payload.summary.totalFreeAssetsUsd ?? payload.summary.totalAssetsUsd ?? 0),
-					totalDebtUsd: Number(payload.summary.totalDebtUsd ?? 0),
-					byWallet: (payload.summary.byWallet ?? []).map((w: any) => ({
-						walletId: w.walletId,
-						walletLabel: w.walletLabel ?? null,
-						assetsUsd: Number(w.assetsUsd ?? 0),
-						freeAssetsUsd: Number(w.freeAssetsUsd ?? w.assetsUsd ?? 0),
-						debtUsd: Number(w.debtUsd ?? 0),
+					totalAssetsUsd: normalized.totalAssetsUsd,
+					totalFreeAssetsUsd: normalized.totalFreeAssetsUsd,
+					totalDebtUsd: normalized.totalDebtUsd,
+					byWallet: normalized.tins.map((t) => ({
+						walletId: t.tinId,
+						walletLabel: t.tinName ?? null,
+						assetsUsd: Number(t.assetsUsd ?? 0),
+						freeAssetsUsd: Number(t.freeAssetsUsd ?? t.assetsUsd ?? 0),
+						debtUsd: Number(t.debtUsd ?? 0),
 					})),
-					byChain: (payload.summary.byChain ?? []).map((c: any) => ({
+					byChain: normalized.byChain.map((c) => ({
 						chain: c.chain,
-						assetsUsd: Number(c.assetsUsd ?? 0),
-						freeAssetsUsd: Number(c.freeAssetsUsd ?? 0),
-						debtUsd: Number(c.debtUsd ?? 0),
+						assetsUsd: c.assetsUsd,
+						freeAssetsUsd: c.freeAssetsUsd,
+						debtUsd: c.debtUsd,
 					})),
 				};
+				const walletHasBreakdown = normalized.tins.length > 0;
+				setHasWalletBreakdown(walletHasBreakdown);
+				if (!walletHasBreakdown) {
+					setMode('chain');
+				}
 				console.log('[TotalsTin] summary', summary);
 				setState({ status: 'ready', summary });
 			} catch (err) {
@@ -125,7 +133,6 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 		}
 
 		const { summary } = state;
-		const wallets = summary.byWallet ?? [];
 
 		return (
 			<>
@@ -160,7 +167,9 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 						}}
 						aria-label="Totals breakdown mode"
 					>
-						<option value="wallet">Wallet</option>
+						<option value="wallet" disabled={!hasWalletBreakdown}>
+							Wallet
+						</option>
 						<option value="chain">Chain</option>
 					</select>
 				</div>

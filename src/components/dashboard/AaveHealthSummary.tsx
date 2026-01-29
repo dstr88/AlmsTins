@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getSimpleTokenPricesById, resolveTokenIds } from '@/lib/prices/coingecko';
+import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 
 type WalletResponse = {
 	id: string;
@@ -121,12 +121,10 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 				const supplies = Array.isArray(activeSummary?.userSupplies) ? activeSummary.userSupplies : [];
 				const borrows = Array.isArray(activeSummary?.userBorrows) ? activeSummary.userBorrows : [];
 
-				const symbols = Array.from(
-					new Set(
-						[...supplies, ...borrows]
-							.map((entry) => entry.currency?.symbol?.toUpperCase())
-							.filter((symbol): symbol is string => Boolean(symbol)),
-					),
+				const symbols = allowlistSymbols(
+					[...supplies, ...borrows]
+						.map((entry) => entry.currency?.symbol ?? '')
+						.filter((symbol): symbol is string => Boolean(symbol)),
 				);
 				let cachedPrices: Record<string, number> = {};
 				if (symbols.length) {
@@ -142,12 +140,7 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 						cachedPrices = {};
 					}
 				}
-				let oraclePrices: Record<string, number> = {};
-				const missingSymbols = symbols.filter((symbol) => !(symbol in cachedPrices));
-				if (missingSymbols.length) {
-					const resolved = await resolveTokenIds(missingSymbols.map((symbol) => ({ symbol, coingeckoId: null })));
-					oraclePrices = await getSimpleTokenPricesById(resolved);
-				}
+				const oraclePrices: Record<string, number> = {};
 
 				const collateralBreakdown = supplies.reduce<
 					Array<{ symbol: string; amount: number | null; usdValue: number | null }>

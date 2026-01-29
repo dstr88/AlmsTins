@@ -168,10 +168,6 @@ const buildGroupId = (source: string, assetSymbol: string | null, timestampUtc: 
 };
 
 export const POST: APIRoute = async ({ request, locals }) => {
-	console.log('[UPLOAD AUTH]', {
-		cookie: request.headers.get('cookie'),
-		hasSession: !!locals?.session,
-	});
 	const { tenantId } = await requireTenantSession(request);
 	const formData = await request.formData();
 	const file = formData.get('file');

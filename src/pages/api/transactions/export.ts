@@ -1,6 +1,11 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import {
+	getImportTransactionColumns,
+	selectImportColumn,
+	selectImportNotes,
+} from '@/lib/importTransactionsSchema';
 
 type UnifiedRow = {
 	id: string;
@@ -79,10 +84,24 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const rowsWalletClause = walletId ? 'AND t.wallet_id = ?' : '';
 	if (walletId) rowsArgs.push(walletId);
 
+	let importColumns = new Set<string>();
+	try {
+		importColumns = await getImportTransactionColumns();
+	} catch (error) {
+		console.error('[transactions/export] Failed to load import_transactions schema', error);
+	}
+
+	const importNotes = selectImportNotes(importColumns);
+	const importCategory = selectImportColumn(importColumns, 'category');
+	const importGroupId = selectImportColumn(importColumns, 'group_id');
+	const importFeeUsd = selectImportColumn(importColumns, 'fee_usd');
+	const importFeeNative = selectImportColumn(importColumns, 'fee_native');
+	const importFeeCurrency = selectImportColumn(importColumns, 'fee_currency');
+
 	const result = await db.execute({
 		sql: `SELECT id, source, import_batch_id, timestamp_utc, description, currency, amount, to_currency, to_amount,
-			native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, notes, category, group_id,
-			fee_usd, fee_native, fee_currency, NULL AS fee_paid,
+			native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, ${importNotes}, ${importCategory}, ${importGroupId},
+			${importFeeUsd}, ${importFeeNative}, ${importFeeCurrency}, NULL AS fee_paid,
 			NULL AS onchain_value, NULL AS onchain_decimals, NULL AS onchain_chain
 			FROM import_transactions
 			WHERE tenant_id = ?

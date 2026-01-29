@@ -7,6 +7,12 @@ import Tin2Wallet from '../../components/dashboard/Tin2Wallet.astro';
 import OnchainWalletTransactions from '../../components/dashboard/OnchainWalletTransactions.astro';
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
 import WalletSummary from '../../components/dashboard/WalletSummary';
+import { requireTenantSession } from '../../lib/requireTenantSession';
+
+const pageStart = Date.now();
+const { tenantId } = await requireTenantSession(Astro.request);
+console.log('[bookkeeping] auth ms', Date.now() - pageStart, 'tenant', tenantId);
+console.log('[bookkeeping] total ms', Date.now() - pageStart);
 ---
 
 <Layout title="Bookkeeping">

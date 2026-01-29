@@ -1,8 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
 
 const BASE_SYMBOLS = ['BTC', 'ETH', 'POL', 'AVAX'] as const;
 const STORAGE_KEY = 'watchlist';
+const inflightPriceFetches = new Map<string, Promise<Record<string, number>>>();
+
+function stableHash(symbols: string[]) {
+	return symbols.join('|');
+}
 
 type PriceEntry = {
 	symbol: string;
@@ -43,14 +49,8 @@ export function PriceWatchlist() {
 	const [removing, setRemoving] = useState<Set<string>>(new Set());
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const [toastCounter, setToastCounter] = useState(0);
-	const combinedSymbols = useMemo(
-		() => Array.from(new Set(tokens.map((t) => t.symbol.toUpperCase()))),
-		[tokens],
-	);
-
-	useEffect(() => {
-		console.log('[Hydration] PriceWatchlist hydrated');
-	}, []);
+	const combinedSymbols = useMemo(() => allowlistSymbols(tokens.map((t) => t.symbol)), [tokens]);
+	const combinedSymbolsKey = useMemo(() => stableHash(combinedSymbols), [combinedSymbols]);
 
 	const totalTokens = combinedSymbols.length;
 	const showToggle = totalTokens > 3;
@@ -101,31 +101,46 @@ export function PriceWatchlist() {
 	// Fetch prices (Coinpaprika cached via server)
 	useEffect(() => {
 		if (!hydrated) {
-			console.log('[PriceWatchlist] Not hydrated yet, skipping price load');
 			return;
 		}
 
 		let cancelled = false;
-		console.log('[PriceWatchlist] Starting price load for symbols:', combinedSymbols);
+
+		let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
 		async function loadPrices() {
 			try {
-				if (!combinedSymbols.length) {
-					console.log('[PriceWatchlist] No symbols, setting ready: []');
+				const sanitized = combinedSymbols;
+				if (!sanitized.length) {
 					setState({ status: 'ready', prices: [] });
 					return;
 				}
+				const hash = stableHash(sanitized);
+				console.log('[client] price fetch', { count: sanitized.length, hash });
 				setState({ status: 'loading' });
-				const url = `/api/market/coinpaprika-prices?symbols=${encodeURIComponent(
-					combinedSymbols.join(','),
-				)}`;
-				const response = await fetch(url);
-				if (!response.ok) {
-					throw new Error(`HTTP ${response.status}`);
+				let promise = inflightPriceFetches.get(hash);
+				if (!promise) {
+					const url = `/api/market/coinpaprika-prices?symbols=${encodeURIComponent(
+						sanitized.join(','),
+					)}`;
+					promise = (async () => {
+						const response = await fetch(url);
+						if (!response.ok) {
+							throw new Error(`HTTP ${response.status}`);
+						}
+						const payload = (await response.json()) as { prices?: Record<string, number> };
+						return payload.prices ?? {};
+					})();
+					inflightPriceFetches.set(hash, promise);
 				}
-				const payload = (await response.json()) as { prices?: Record<string, number> };
-				const priceMap = payload.prices ?? {};
-				console.log('[PriceWatchlist] Prices response:', priceMap);
+				let priceMap: Record<string, number>;
+				try {
+					priceMap = await promise;
+				} finally {
+					if (inflightPriceFetches.get(hash) === promise) {
+						inflightPriceFetches.delete(hash);
+					}
+				}
 
 				const entries: PriceEntry[] = tokens.map((t) => ({
 					symbol: t.symbol.toUpperCase(),
@@ -133,7 +148,6 @@ export function PriceWatchlist() {
 				}));
 
 				if (!cancelled) {
-					console.log('[PriceWatchlist] Setting state.ready with entries:', entries);
 					setState({ status: 'ready', prices: entries });
 				}
 			} catch (err) {
@@ -149,14 +163,21 @@ export function PriceWatchlist() {
 
 		loadPrices();
 
+		const schedule = () => {
+			if (debounceTimer) clearTimeout(debounceTimer);
+			debounceTimer = setTimeout(loadPrices, 400);
+		};
+		schedule();
+
 		// Optional: refresh every 60s
 		const interval = setInterval(loadPrices, 60_000);
 
 		return () => {
 			cancelled = true;
+			if (debounceTimer) clearTimeout(debounceTimer);
 			clearInterval(interval);
 		};
-	}, [hydrated, combinedSymbols.join(',')]);
+	}, [hydrated, combinedSymbolsKey, tokens]);
 
 	// adjusted watchlist and built hide buttonfor NFTs
 	function handleAddSymbol(

@@ -341,15 +341,27 @@ async function fetchHistoricalPrice(
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ params, request }) => {
+export const GET: APIRoute = async ({ params, request, locals }) => {
+	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+	const requestId = (locals as Record<string, any>)?.requestId;
+	const logPerf = (status: number, meta?: { cached?: boolean; count?: number }) => {
+		console.log('[perf] wallet-holdings', {
+			requestId,
+			durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start),
+			status,
+			...(meta ?? {}),
+		});
+	};
 	const { tenantId } = await requireTenantSession(request);
 	const walletId = params.id ?? '';
 	const url = new URL(request.url);
 	const chainId = Number(url.searchParams.get('chainid') ?? POLYGON_CHAIN_ID);
 	if (!walletId) {
+		logPerf(400);
 		return new Response(JSON.stringify({ error: 'Missing wallet id' }), { status: 400 });
 	}
 	if (![POLYGON_CHAIN_ID, ETHEREUM_CHAIN_ID, AVALANCHE_CHAIN_ID].includes(chainId)) {
+		logPerf(400);
 		return new Response(
 			JSON.stringify({ error: 'Only Polygon (137), Ethereum (1), and Avalanche (43114) are supported.' }),
 			{ status: 400 },
@@ -359,6 +371,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 	const cacheKey = `${tenantId}:${walletId}:${chainId}`;
 	const cached = cache.get(cacheKey);
 	if (cached && cached.expiresAt > Date.now()) {
+		logPerf(200, {
+			cached: true,
+			count: Array.isArray(cached.payload?.tokens) ? cached.payload.tokens.length : undefined,
+		});
 		return new Response(JSON.stringify(cached.payload), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
@@ -371,6 +387,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	});
 	const wallet = walletResult.rows[0] as unknown as { id?: string; address?: string; label?: string } | undefined;
 	if (!wallet?.address) {
+		logPerf(404);
 		return new Response(JSON.stringify({ error: 'Wallet not found' }), { status: 404 });
 	}
 
@@ -383,6 +400,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	try {
 		transfers = await fetchTokenTransfers(address, chainId);
 	} catch (err: any) {
+		logPerf(500);
 		return new Response(JSON.stringify({ error: err?.message ?? 'Failed to fetch token transfers' }), { status: 500 });
 	}
 
@@ -606,6 +624,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	};
 
 	cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
+	logPerf(200, { cached: false, count: filteredTokens.length });
 
 	return new Response(JSON.stringify(payload), {
 		status: 200,

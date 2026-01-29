@@ -3,24 +3,64 @@ import { db } from '@/lib/db';
 type CacheRow = {
 	value_json?: string;
 	expires_at?: number;
+	updated_at?: number;
 };
 
-export async function getCache(key: string) {
+type CacheRead<T> = {
+	value: T | null;
+	isStale: boolean;
+	updatedAt?: number | null;
+	expiresAt?: number | null;
+};
+
+export async function getCache<T = unknown>(
+	key: string,
+	options: { allowStale: true; staleMaxAgeSeconds?: number },
+): Promise<CacheRead<T>>;
+export async function getCache<T = unknown>(
+	key: string,
+	options?: { allowStale?: false; staleMaxAgeSeconds?: number },
+): Promise<T | null>;
+export async function getCache<T = unknown>(
+	key: string,
+	options?: { allowStale?: boolean; staleMaxAgeSeconds?: number },
+): Promise<T | CacheRead<T> | null> {
 	const result = await db.execute({
-		sql: 'SELECT value_json, expires_at FROM cache WHERE cache_key = ? LIMIT 1',
+		sql: 'SELECT value_json, expires_at, updated_at FROM cache WHERE cache_key = ? LIMIT 1',
 		args: [key],
 	});
 	const row = result.rows?.[0] as CacheRow | undefined;
-	if (!row) return null;
+	if (!row) {
+		return options?.allowStale
+			? { value: null, isStale: false, updatedAt: null, expiresAt: null }
+			: null;
+	}
 	const expiresAt = Number(row.expires_at ?? 0);
-	if (Number.isFinite(expiresAt) && expiresAt > 0 && Date.now() > expiresAt) {
+	const now = Date.now();
+	const isExpired = Number.isFinite(expiresAt) && expiresAt > 0 && now > expiresAt;
+	const staleMaxMs = (options?.staleMaxAgeSeconds ?? 0) * 1000;
+	if (isExpired && !options?.allowStale) {
 		return null;
 	}
+	if (isExpired && options?.allowStale && staleMaxMs > 0 && now - expiresAt > staleMaxMs) {
+		return { value: null, isStale: true, updatedAt: row.updated_at ?? null, expiresAt: row.expires_at ?? null };
+	}
 	try {
-		return JSON.parse(String(row.value_json ?? 'null'));
+		const value = JSON.parse(String(row.value_json ?? 'null')) as T;
+		if (options?.allowStale) {
+			return {
+				value,
+				isStale: isExpired,
+				updatedAt: row.updated_at ?? null,
+				expiresAt: row.expires_at ?? null,
+			};
+		}
+		return value;
 	} catch (error) {
 		console.warn('[tursoCache] Failed to parse cached JSON', error);
-		return null;
+		return options?.allowStale
+			? { value: null, isStale: false, updatedAt: row.updated_at ?? null, expiresAt: row.expires_at ?? null }
+			: null;
 	}
 }
 

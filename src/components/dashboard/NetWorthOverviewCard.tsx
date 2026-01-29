@@ -1,18 +1,5 @@
 import React, { useEffect, useState } from 'react';
-
-type NetWorthToken = {
-	symbol: string;
-	valueUsd: number;
-	isDebt?: boolean;
-	isMature?: boolean;
-	unrealizedPnlUsd?: number;
-	unrealizedPnlPct?: number;
-};
-
-type NetWorthSummary = {
-	totalUsd: number;
-	tokens?: NetWorthToken[];
-};
+import { normalizeNetWorthSummary, type NetWorthSummary } from '@/lib/networth/summaryContract';
 
 type Props = {
 	endpoint?: string;
@@ -29,16 +16,13 @@ function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 		const load = async () => {
 			try {
 				const response = await fetch(endpoint);
-				const data = await response.json();
+				const payload = await response.json();
 				if (!mounted) return;
-				if (data?.summary) {
-					setSummary({ totalUsd: data.summary.totalUsd ?? 0, tokens: data.summary.tokens ?? [] });
-				} else {
-					setSummary({ totalUsd: 0, tokens: [] });
-				}
+				const summary = normalizeNetWorthSummary(payload);
+				setSummary(summary);
 			} catch (error) {
 				console.error('[NetWorthOverviewCard] Failed to load summary', error);
-				if (mounted) setSummary({ totalUsd: 0, tokens: [] });
+				if (mounted) setSummary(null);
 			}
 		};
 		load();
@@ -48,7 +32,7 @@ function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 	}, [endpoint]);
 
 	const totalUsd = summary?.totalUsd ?? 0;
-	const tokens = summary?.tokens ?? [];
+	const chains = summary?.byChain ?? [];
 
 	return (
 		<div
@@ -71,26 +55,27 @@ function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 			</header>
 
 			<div className="overview-body">
-				{!open && null}
+				{!open && (
+					<div className="overview-total">
+						<span>Total</span>
+						<strong>{formatter.format(totalUsd)}</strong>
+					</div>
+				)}
 
 				{open && (
 					<div className="overview-breakdown">
-						<h4>Token breakdown</h4>
-						{tokens.length === 0 ? (
-							<p className="overview-empty">Token breakdown will appear here.</p>
+						<h4>Chain breakdown</h4>
+						{chains.length === 0 ? (
+							<p className="overview-empty">Breakdown will appear here.</p>
 						) : (
 							<ul className="overview-token-list">
-								{tokens.map((token) => (
-									<li key={token.symbol} className="overview-token-row">
+								{chains.map((chain) => (
+									<li key={chain.chain} className="overview-token-row">
 										<div className="overview-token-symbol">
-											<span>{token.symbol}</span>
-											{token.isMature && <span className="token-mature-badge">1y+</span>}
-											{/* Future: apply a special border/badge when token.isMature === true */}
+											<span>{chain.chain.toUpperCase()}</span>
 										</div>
 										<div className="overview-token-value">
-											{formatter.format(token.valueUsd)}
-											{token.isDebt && <span className="token-debt">Debt</span>}
-											{/* Future: color-code by unrealizedPnlUsd / unrealizedPnlPct */}
+											{formatter.format(chain.totalUsd || (chain.assetsUsd - chain.debtUsd))}
 										</div>
 									</li>
 								))}

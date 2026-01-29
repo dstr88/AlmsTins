@@ -259,6 +259,87 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 // Optional: keep this if something else imports it.
 // For now, we don’t have price data from Aave, so totals stay 0.
 export async function getAaveTotalsForWallet(address: string) {
+	const { getTickersUSD } = await import('@/lib/coinpaprikaProvider');
+	const { allowlistSymbols } = await import('@/lib/prices/sanitizeSymbols');
+
 	const result = await getAavePositionsForWallet(address);
-	return result;
+	const allPositions = result.chains.flatMap((chain) => chain.positions);
+
+	const NORMALIZE_MAP: Record<string, string> = {
+		WETH: 'ETH',
+		WBTC: 'WBTC',
+		WPOL: 'POL',
+		WMATIC: 'POL',
+		WAVAX: 'AVAX',
+	};
+	const STABLES = new Set(['USDC', 'USDT', 'USDT0', 'USDC.E', 'USDT.E']);
+
+	const normalizeSymbol = (symbol: string) => {
+		const upper = symbol.trim().toUpperCase();
+		return NORMALIZE_MAP[upper] ?? upper;
+	};
+
+	const uniqueSymbols = allowlistSymbols(allPositions.map((pos) => normalizeSymbol(pos.assetSymbol)));
+	let priceMap: Record<string, number> = {};
+	let pricedCount = 0;
+	let missingCount = 0;
+
+	if (uniqueSymbols.length) {
+		const tickers = (await getTickersUSD()) as Array<{
+			symbol?: string;
+			quotes?: { USD?: { price?: number } };
+		}>;
+		for (const ticker of tickers) {
+			const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
+			if (!symbol || !uniqueSymbols.includes(symbol)) continue;
+			const price = ticker.quotes?.USD?.price;
+			if (typeof price === 'number') {
+				priceMap[symbol] = price;
+			}
+		}
+	}
+
+	const chains = result.chains.map((chain) => {
+		let suppliedUsdTotal = 0;
+		let debtUsdTotal = 0;
+		for (const pos of chain.positions) {
+			const normalized = normalizeSymbol(pos.assetSymbol);
+			const price =
+				STABLES.has(normalized) || normalized.startsWith('USDC') || normalized.startsWith('USDT')
+					? 1
+					: priceMap[normalized] ?? 0;
+			if (price > 0) {
+				pricedCount += 1;
+			} else {
+				missingCount += 1;
+			}
+			const usdValue = Number.isFinite(pos.amount) ? pos.amount * price : 0;
+			if (pos.side === 'supply') {
+				suppliedUsdTotal += usdValue;
+			} else {
+				debtUsdTotal += usdValue;
+			}
+		}
+		return {
+			...chain,
+			suppliedUsdTotal,
+			debtUsdTotal,
+			suppliedUsd: suppliedUsdTotal,
+			debtUsd: debtUsdTotal,
+		};
+	});
+
+	const suppliedUsdTotal = chains.reduce((sum, chain) => sum + (chain.suppliedUsdTotal ?? 0), 0);
+	const debtUsdTotal = chains.reduce((sum, chain) => sum + (chain.debtUsdTotal ?? 0), 0);
+
+	console.log('[aave] pricing', { pricedCount, missingCount });
+
+	return {
+		...result,
+		chains,
+		suppliedUsdTotal,
+		debtUsdTotal,
+		suppliedUsd: suppliedUsdTotal,
+		debtUsd: debtUsdTotal,
+	};
 }

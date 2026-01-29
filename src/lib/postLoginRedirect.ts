@@ -20,8 +20,8 @@ export function getPostLoginRedirect(nextValue: FormDataEntryValue | string | nu
 	}
 
 	if (hasTransitionPage) {
-		return '/transition';
+		return '/dashboard/vault';
 	}
 
-	return '/dashboard';
+	return '/dashboard/vault';
 }

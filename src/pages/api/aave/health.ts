@@ -101,11 +101,22 @@ async function postGraphQL(query: string, variables: Record<string, any>) {
 	return { response, json };
 }
 
-export const GET: APIRoute = async ({ request }) => {
+export const GET: APIRoute = async ({ request, locals }) => {
+	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+	const requestId = (locals as Record<string, any>)?.requestId;
+	const logPerf = (status: number, meta?: { count?: number }) => {
+		console.log('[perf] aave-health', {
+			requestId,
+			durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start),
+			status,
+			...(meta ?? {}),
+		});
+	};
 	const url = new URL(request.url);
 	const address = url.searchParams.get('address') ?? '';
 
 	if (!address) {
+		logPerf(400);
 		return new Response(JSON.stringify({ ok: false, error: 'Missing address' }), {
 			status: 400,
 			headers: { 'Content-Type': 'application/json' },
@@ -121,6 +132,7 @@ export const GET: APIRoute = async ({ request }) => {
 				status: marketsResponse.status,
 				errors: marketsJson.errors ?? null,
 			});
+			logPerf(500);
 			return new Response(JSON.stringify({ ok: false, error: 'Markets lookup failed' }), {
 				status: 500,
 				headers: { 'Content-Type': 'application/json' },
@@ -225,6 +237,7 @@ export const GET: APIRoute = async ({ request }) => {
 			};
 		}
 
+		logPerf(200, { count: Object.keys(chains).length });
 		return new Response(
 			JSON.stringify({
 				ok: true,
@@ -238,6 +251,7 @@ export const GET: APIRoute = async ({ request }) => {
 		);
 	} catch (err) {
 		console.error('[api/aave/health] error', err);
+		logPerf(500);
 		return new Response(JSON.stringify({ ok: false, error: 'Aave lookup failed' }), {
 			status: 500,
 			headers: { 'Content-Type': 'application/json' },

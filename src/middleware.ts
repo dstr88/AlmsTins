@@ -29,24 +29,70 @@ const DEV_BYPASS_PATHS = new Set([
 
 const SYNC_PATHS = new Set(['/api/sync/defi']);
 
+function isEnvProbe(pathname: string) {
+	const p = pathname.toLowerCase();
+	// catch segment '/.env' anywhere, or ends with '.env', or has '.env.' (env.local etc)
+	return p.includes('/.env') || p.endsWith('.env') || p.includes('.env.');
+}
+
 export const onRequest = defineMiddleware(async (context, next) => {
+	const buildLogFlag = '__ledgerlense_build_logged__';
+	const globalAny = globalThis as typeof globalThis & { [buildLogFlag]?: boolean };
+	if (!globalAny[buildLogFlag]) {
+		globalAny[buildLogFlag] = true;
+		console.log('[build]', { BUILD_SHA: process.env.BUILD_SHA ?? 'missing' });
+		console.log('[perf] instrumentation enabled');
+	}
+
 	logEnvStatus();
 	const url = new URL(context.request.url);
 	const path = url.pathname;
 	const hostFlag = '__ledgerlense_auth_host_logged__';
-	const globalAny = globalThis as typeof globalThis & { [hostFlag]?: boolean };
-	if (!globalAny[hostFlag]) {
-		globalAny[hostFlag] = true;
+	const globalHostAny = globalThis as typeof globalThis & { [hostFlag]?: boolean };
+	if (!globalHostAny[hostFlag]) {
+		globalHostAny[hostFlag] = true;
 		const requestHost = context.request.headers.get('x-forwarded-host') ?? url.host;
 		const authUrl = import.meta.env.AUTH_URL ?? '';
 		let authUrlHost = 'missing';
+		let authUrlNormalized = authUrl;
 		try {
-			authUrlHost = authUrl ? new URL(authUrl).host : 'missing';
+			if (authUrl && !/^https?:\/\//i.test(authUrl)) {
+				authUrlNormalized = `https://${authUrl}`;
+			}
+			authUrlHost = authUrlNormalized ? new URL(authUrlNormalized).host : 'missing';
 		} catch {
 			authUrlHost = 'invalid';
 		}
 		const matches = authUrlHost !== 'missing' && authUrlHost !== 'invalid' && requestHost === authUrlHost;
-		console.log('[env] auth_url_host_match', { requestHost, authUrlHost, matches });
+		console.log('[env] auth_url_host_match', {
+			requestHost,
+			authUrlHost,
+			authUrlNormalized,
+			matches,
+		});
+	}
+	const requestId =
+		typeof crypto !== 'undefined' && 'randomUUID' in crypto
+			? crypto.randomUUID()
+			: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+	(context.locals as Record<string, unknown>).requestId = requestId;
+	if (
+		path === '/api/market/coinpaprika-prices' ||
+		path === '/api/market/coingecko-prices' ||
+		path === '/api/aave/health' ||
+		path === '/api/networth/summary' ||
+		(path.startsWith('/api/wallets/') && (path.endsWith('/holdings') || path.endsWith('/nfts')))
+	) {
+		console.log('[req]', { requestId, path });
+	}
+	if (!import.meta.env.DEV && isEnvProbe(path)) {
+		console.log('[security] blocked env probe', { requestId, path });
+		return applySecurityHeaders(
+			new Response('Not Found', {
+				status: 404,
+				headers: { 'Cache-Control': 'no-store' },
+			}),
+		);
 	}
 	if (path === '/api/auth' || path.startsWith('/api/auth/')) {
 		return next();

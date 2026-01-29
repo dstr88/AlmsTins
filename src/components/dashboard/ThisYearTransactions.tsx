@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 
 type WalletResponse = {
 	id: string;
@@ -90,12 +91,35 @@ export default function ThisYearTransactions({ walletId }: { walletId: string })
 				const txData = (await txRes.json()) as TransactionsResponse;
 				const transactions = Array.isArray(txData.transactions) ? txData.transactions : [];
 
-				const pricesRes = await fetch('/api/market/coingecko-prices?symbols=ETH,POL,AVAX');
-				const pricesData = pricesRes.ok ? ((await pricesRes.json()) as PricesResponse) : { prices: {} };
-				const priceMap = pricesData.prices ?? {};
-
 				if (!cancelled) {
-					setState({ status: 'ready', transactions, walletAddress, priceMap });
+					setState({ status: 'ready', transactions, walletAddress, priceMap: {} });
+				}
+
+				const fetchPrices = async () => {
+					try {
+						const symbols = allowlistSymbols(['ETH', 'POL', 'AVAX']);
+						if (!symbols.length) return;
+						const pricesRes = await fetch(
+							`/api/market/coingecko-prices?symbols=${encodeURIComponent(symbols.join(','))}`,
+						);
+						const pricesData = pricesRes.ok ? ((await pricesRes.json()) as PricesResponse) : { prices: {} };
+						const priceMap = pricesData.prices ?? {};
+						if (!cancelled) {
+							setState((prev) =>
+								prev.status === 'ready'
+									? { ...prev, priceMap }
+									: { status: 'ready', transactions, walletAddress, priceMap },
+							);
+						}
+					} catch {
+						// best-effort pricing only
+					}
+				};
+
+				if (typeof requestIdleCallback === 'function') {
+					requestIdleCallback(() => void fetchPrices(), { timeout: 1500 });
+				} else {
+					setTimeout(() => void fetchPrices(), 0);
 				}
 			} catch (err: any) {
 				if (!cancelled) {
