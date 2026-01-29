@@ -1,6 +1,6 @@
 // src/components/dashboard/transactions/client/hydrateOnchainUsd.ts
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
-import { normalizePriceSymbol, parseAmount, formatUsd } from '.utils.ts';
+import { normalizePriceSymbol, parseAmount, formatUsd } from './utils.ts';
 
 export async function hydrateOnchainUsd(
   list: HTMLElement,
