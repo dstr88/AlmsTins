@@ -42,27 +42,6 @@ const normalizeField = (v: string | number | bigint | ArrayBuffer | null | undef
 const fullName = primaryUser ? normalizeField(primaryUser.full_name) : '';
 const greetingName = fullName ? fullName.split(' ')[0] : 'Investor';
 
-const grossResult = await db.execute({
-	sql: `
-		WITH latest AS (
-			SELECT wallet_id, MAX(captured_at) AS captured_at
-			FROM wallet_snapshots
-			WHERE tenant_id = ?
-			GROUP BY wallet_id
-		)
-		SELECT COALESCE(SUM(ws.totals_usd), 0) AS gross
-		FROM wallet_snapshots ws
-		INNER JOIN latest l ON ws.wallet_id = l.wallet_id AND ws.captured_at = l.captured_at
-		WHERE ws.tenant_id = ?
-	`,
-	args: [tenantId, tenantId],
-});
-const grossInvestments = Number(grossResult.rows[0]?.gross ?? 0);
-const grossDisplay = new Intl.NumberFormat('en-US', {
-	style: 'currency',
-	currency: 'USD',
-	maximumFractionDigits: 0,
-}).format(grossInvestments);
 const serverTimestamp = new Date().toISOString();
 
 function parseChains(payload: unknown) {
@@ -81,8 +60,6 @@ function parseChains(payload: unknown) {
 		<div>
 			<p class="hello">Hello, {greetingName}</p>
 			<h1>Your portfolio pulse</h1>
-			<p class="balance">{grossDisplay}</p>
-			<p class="hint">Gross across the most recent snapshot for each wallet.</p>
 		</div>
 		<div class="hero__meta">
 			<div class="clock">

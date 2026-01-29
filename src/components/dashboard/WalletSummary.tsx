@@ -23,6 +23,7 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 	currency: 'USD',
 	maximumFractionDigits: 2,
 });
+const DUST_THRESHOLD_USD = 1;
 
 export default function WalletSummary({ walletId }: { walletId: string }) {
 	const [state, setState] = useState<WalletSummaryState>({ status: 'loading' });
@@ -45,6 +46,21 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 							status: 'empty',
 							message: 'No data for this wallet yet.',
 							hint: 'Try refreshing or reconnecting.',
+						});
+					}
+					return;
+				}
+				const isDust =
+					Math.abs(tin.netUsd) < DUST_THRESHOLD_USD &&
+					Math.abs(tin.assetsUsd) < DUST_THRESHOLD_USD &&
+					Math.abs(tin.debtUsd) < DUST_THRESHOLD_USD &&
+					Math.abs(tin.freeAssetsUsd) < DUST_THRESHOLD_USD;
+				if (isDust) {
+					if (!cancelled) {
+						setState({
+							status: 'empty',
+							message: 'No balance data yet.',
+							hint: 'Add a wallet and run a sync to populate totals.',
 						});
 					}
 					return;
