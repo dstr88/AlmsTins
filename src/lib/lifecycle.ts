@@ -1,8 +1,13 @@
 import { randomUUID } from 'crypto';
 import { db } from './db';
+import { getCache, setCache } from './tursoCache';
+import { tryAcquireLock } from './cacheLock';
 
 const LINK_WINDOW_MINUTES = 30;
 const AMOUNT_TOLERANCE = 0.005; // 0.5% tolerance
+const LIFECYCLE_TTL_SECONDS = 120;
+const LIFECYCLE_STALE_MAX_SECONDS = 300;
+const LIFECYCLE_LOCK_SECONDS = 30;
 
 export type LifecycleGroup = {
 	id: string;
@@ -72,6 +77,8 @@ const classifyImportTx = (description: string, kind: string, direction: string |
 };
 
 export async function rebuildAssetLifecycles(tenantId: string) {
+	const start = Date.now();
+	const queryStart = Date.now();
 	const importsResult = await db.execute({
 		sql: `SELECT id, asset_symbol, amount, native_usd, timestamp_utc, direction, tx_hash, exchange_withdrawal_id, description, kind
 			FROM import_transactions
@@ -85,7 +92,9 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 			WHERE tenant_id = ?`,
 		args: [tenantId],
 	});
+	const dbQueryMs = Date.now() - queryStart;
 
+	const transformStart = Date.now();
 	const importEvents = importsResult.rows.map((row: any) => {
 		const direction = row.direction ? String(row.direction) : null;
 		const description = row.description ? String(row.description) : '';
@@ -119,10 +128,12 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 			transaction_class: 'other' as const,
 		};
 	});
+	const transformMs = Date.now() - transformStart;
 
 	const allEvents = [...importEvents, ...onchainEvents].filter((event) => event.asset_symbol);
 
 	// Link exchange withdrawals to on-chain transfers when confidence is high.
+	const groupStart = Date.now();
 	const linkedPairs = new Map<string, { linked: boolean; confidence: number }>();
 	const linkedSources = new Map<string, number>();
 	const onchainBySymbol = new Map<string, typeof onchainEvents>();
@@ -235,7 +246,9 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 				});
 			});
 	}
+	const groupMergeMs = Date.now() - groupStart;
 
+	const insertStart = Date.now();
 	await db.execute({
 		sql: 'DELETE FROM asset_lifecycle_events WHERE tenant_id = ?',
 		args: [tenantId],
@@ -284,27 +297,67 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 				],
 			});
 	}
+	const insertMs = Date.now() - insertStart;
+	const serializationMs = 0;
+	const totalMs = Date.now() - start;
+
+	console.log('[lifecycle] rebuild', {
+		tenantId,
+		dbQueryMs,
+		transformMs,
+		groupMergeMs,
+		serializationMs,
+		insertMs,
+		totalMs,
+	});
 }
 
-export async function getAssetLifecycleCache(tenantId: string) {
+export async function getAssetLifecycleCache(
+	tenantId: string,
+	options?: { limitGroups?: number; limitEvents?: number },
+) {
+	const limitGroups = Math.max(0, Number(options?.limitGroups ?? 200));
+	const limitEvents = Math.max(0, Number(options?.limitEvents ?? 200));
 	const groupResult = await db.execute({
 		sql: `SELECT id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at
 			FROM asset_lifecycle_groups
 			WHERE tenant_id = ?
-			ORDER BY asset_symbol`,
-		args: [tenantId],
+			ORDER BY asset_symbol
+			LIMIT ?`,
+		args: [tenantId, limitGroups],
 	});
 
 		const eventsResult = await db.execute({
 			sql: `SELECT id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, tx_hash, exchange_withdrawal_id, transaction_class, linked_transfer, confidence
 				FROM asset_lifecycle_events
 				WHERE tenant_id = ?
-				ORDER BY timestamp_utc DESC`,
-			args: [tenantId],
+				ORDER BY timestamp_utc DESC
+				LIMIT ?`,
+			args: [tenantId, limitEvents],
 		});
 
 	return {
 		groups: groupResult.rows as LifecycleGroup[],
 		events: eventsResult.rows as LifecycleEvent[],
 	};
+}
+
+export async function refreshLifecycleCacheIfStale(tenantId: string) {
+	const cacheKey = `lifecycle:${tenantId}`;
+	const lockKey = `lock:${cacheKey}`;
+	const cached = await getCache<{ refreshedAt?: string }>(cacheKey, {
+		allowStale: true,
+		staleMaxAgeSeconds: LIFECYCLE_STALE_MAX_SECONDS,
+	});
+	if (cached.value && !cached.isStale) return;
+
+	const gotLock = await tryAcquireLock(lockKey, LIFECYCLE_LOCK_SECONDS);
+	if (!gotLock) return;
+
+	try {
+		await rebuildAssetLifecycles(tenantId);
+		await setCache(cacheKey, { refreshedAt: new Date().toISOString() }, LIFECYCLE_TTL_SECONDS);
+	} catch (error) {
+		console.warn('[lifecycle] refresh failed', { tenantId, error });
+	}
 }

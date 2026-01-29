@@ -19,6 +19,14 @@
 	gap: 1rem;
 }
 
+.vault-activity__note {
+	margin: 0.2rem 0 0.6rem;
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	opacity: 0.65;
+}
+
 .vault-activity__action {
 	border: 1px solid rgba(248, 113, 113, 0.5);
 	background: rgba(248, 113, 113, 0.12);

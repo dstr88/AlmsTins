@@ -36,6 +36,9 @@ const getLabel = (item: NftItem) => {
 export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 	const [nftState, setNftState] = useState<FetchState<NftItem>>({ status: 'loading' });
 	const [contractState, setContractState] = useState<FetchState<ContractItem>>({ status: 'loading' });
+	const [nftMeta, setNftMeta] = useState<{ cached?: boolean; stale?: boolean; asOf?: string | null } | null>(
+		null,
+	);
 	const [isUnhiding, setIsUnhiding] = useState(false);
 	const rootRef = useRef<HTMLDivElement | null>(null);
 	const didRevealRef = useRef(false);
@@ -53,12 +56,18 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 					throw new Error(payload.error || 'Unable to load NFTs.');
 				}
 				setNftState({ status: 'ready', items: payload.items ?? [] });
+				setNftMeta({
+					cached: (payload as any).cached,
+					stale: (payload as any).stale,
+					asOf: (payload as any).asOf ?? null,
+				});
 			} catch (error) {
 				if (signal?.aborted) return;
 				setNftState({
 					status: 'error',
 					message: error instanceof Error ? error.message : 'Unable to load NFTs.',
 				});
+				setNftMeta(null);
 			}
 		},
 		[walletId],
@@ -173,6 +182,7 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 						{isUnhiding ? 'Unhiding…' : 'Unhide all'}
 					</button>
 				</div>
+				{nftMeta?.stale ? <div className="vault-activity__note">Refreshing…</div> : null}
 				<div className="vault-activity__nfts">
 					{nftState.status === 'loading' && (
 						<p className="vault-activity__empty">Loading NFTs…</p>

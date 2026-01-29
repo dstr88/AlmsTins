@@ -1,7 +1,7 @@
 ---
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { rebuildAssetLifecycles, getAssetLifecycleCache } from '@/lib/lifecycle';
+import { getAssetLifecycleCache, refreshLifecycleCacheIfStale } from '@/lib/lifecycle';
 import {
 	getImportTransactionColumns,
 	selectImportColumn,
@@ -18,16 +18,23 @@ const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 1
 
 const { walletId } = Astro.props as { walletId?: string };
 const { tenantId } = await requireTenantSession(Astro.request);
+const requestUrl = new URL(Astro.request.url);
+const rowsLimit = Math.min(Math.max(Number(requestUrl.searchParams.get('limit') ?? 200), 1), 500);
+const rowsOffset = Math.max(Number(requestUrl.searchParams.get('offset') ?? 0), 0);
+const lifecycleLimit = Math.min(Math.max(Number(requestUrl.searchParams.get('lifecycleLimit') ?? 200), 1), 500);
 
 try {
 	const lifecycleStart = Date.now();
-	await rebuildAssetLifecycles(tenantId);
+	void refreshLifecycleCacheIfStale(tenantId);
 	console.log('[Tin0AllTransactions] lifecycles ms', Date.now() - lifecycleStart);
 } catch (error) {
 	console.error('[Tin0AllTransactions] Failed to rebuild lifecycles', error);
 }
 
-const lifecycleCache = await getAssetLifecycleCache(tenantId);
+const lifecycleCache = await getAssetLifecycleCache(tenantId, {
+	limitGroups: lifecycleLimit,
+	limitEvents: lifecycleLimit,
+});
 const lifecycleGroups = lifecycleCache.groups ?? [];
 const lifecycleEvents = lifecycleCache.events ?? [];
 const lifecycleByGroup = new Map<string, typeof lifecycleEvents>();
@@ -170,8 +177,9 @@ try {
 			FROM transactions t
 			LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
 			WHERE t.tenant_id = ? ${rowsWalletClause}
-			ORDER BY timestamp_utc DESC`,
-		args: rowsArgs,
+			ORDER BY timestamp_utc DESC
+			LIMIT ? OFFSET ?`,
+		args: [...rowsArgs, rowsLimit, rowsOffset],
 	});
 
 	rows = result.rows as UnifiedRow[];

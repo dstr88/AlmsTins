@@ -9,11 +9,17 @@ type WalletResponse = {
 
 type HealthResponse = {
 	ok: boolean;
+	cached?: boolean;
+	stale?: boolean;
+	asOf?: string | null;
 	chains?: Record<
 		string,
 		{
 			chainId?: number;
 			market?: string | null;
+			status?: string;
+			message?: string;
+			reason?: string;
 			healthFactor?: string | number | null;
 			totalCollateralBase?: string | number | null;
 			totalDebtBase?: string | number | null;
@@ -44,6 +50,8 @@ type FetchState =
 			totalCollateralBase: number;
 			totalDebtBase: number;
 			collateralBreakdown: Array<{ symbol: string; amount: number | null; usdValue: number | null }>;
+			isStale?: boolean;
+			unavailableMessage?: string | null;
 	  };
 
 function formatHealthFactor(value: string | number | null) {
@@ -120,6 +128,8 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 				const activeSummary = activeChain ? data.chains?.[activeChain] : null;
 				const supplies = Array.isArray(activeSummary?.userSupplies) ? activeSummary.userSupplies : [];
 				const borrows = Array.isArray(activeSummary?.userBorrows) ? activeSummary.userBorrows : [];
+				const unavailableMessage =
+					activeSummary?.status === 'UNAVAILABLE' ? activeSummary?.message ?? 'Unavailable' : null;
 
 				const symbols = allowlistSymbols(
 					[...supplies, ...borrows]
@@ -212,6 +222,8 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 						totalCollateralBase: totals.totalCollateralBase,
 						totalDebtBase: totals.totalDebtBase,
 						collateralBreakdown,
+						isStale: data.stale === true,
+						unavailableMessage,
 					});
 				}
 			} catch (err: any) {
@@ -345,6 +357,12 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 					<div className="breakdown-empty">No collateral positions found.</div>
 				)}
 			</div>
+			{state.status === 'ready' && state.unavailableMessage ? (
+				<div className="defi-status defi-status--warning">{state.unavailableMessage}</div>
+			) : null}
+			{state.status === 'ready' && state.isStale ? (
+				<div className="defi-status defi-status--refreshing">Refreshing…</div>
+			) : null}
 			{state.status === 'loading' ? (
 				<div className="defi-status defi-status--loading">Loading health factor…</div>
 			) : null}
