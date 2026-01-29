@@ -35,6 +35,16 @@ function isEnvProbe(pathname: string) {
 	return p.includes('/.env') || p.endsWith('.env') || p.includes('.env.');
 }
 
+function isWordpressProbe(pathname: string) {
+	const p = pathname.toLowerCase();
+	return (
+		p.startsWith('/wp-admin') ||
+		p.startsWith('/wp-login.php') ||
+		p.startsWith('/wordpress/wp-admin') ||
+		p.startsWith('/xmlrpc.php')
+	);
+}
+
 export const onRequest = defineMiddleware(async (context, next) => {
 	const buildLogFlag = '__ledgerlense_build_logged__';
 	const globalAny = globalThis as typeof globalThis & { [buildLogFlag]?: boolean };
@@ -87,6 +97,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	}
 	if (!import.meta.env.DEV && isEnvProbe(path)) {
 		console.log('[security] blocked env probe', { requestId, path });
+		return applySecurityHeaders(
+			new Response('Not Found', {
+				status: 404,
+				headers: { 'Cache-Control': 'no-store' },
+			}),
+		);
+	}
+	if (isWordpressProbe(path)) {
+		const ip = context.request.headers.get('x-forwarded-for') ?? context.clientAddress ?? 'unknown';
+		const ua = context.request.headers.get('user-agent') ?? 'unknown';
+		console.log('[probe-blocked] path=%s ip=%s ua=%s', path, ip, ua);
 		return applySecurityHeaders(
 			new Response('Not Found', {
 				status: 404,
