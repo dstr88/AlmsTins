@@ -101,12 +101,17 @@ async function postGraphQL(query: string, variables: Record<string, any>, timeou
 async function fetchChainHealth(address: string, chainId: number) {
 	const market = MARKET_ADDRESSES[chainId];
 	if (!market) {
+		console.log('[aave] market-missing', { chainId, reason: 'MARKET_NOT_FOUND' });
 		return {
+			chain: CHAIN_KEYS[chainId] ?? String(chainId),
 			chainId,
 			market: null,
 			healthFactor: null,
 			totalCollateralBase: null,
 			totalDebtBase: null,
+			status: 'UNAVAILABLE',
+			message: 'Unavailable on Avalanche (market not resolved)',
+			reason: 'MARKET_NOT_FOUND',
 		};
 	}
 
@@ -153,7 +158,15 @@ async function fetchChainHealth(address: string, chainId: number) {
 async function fetchChainPositions(address: string, chainId: number) {
 	const market = MARKET_ADDRESSES[chainId];
 	if (!market) {
-		return { chainId, market: null, positions: [] };
+		return {
+			chain: CHAIN_KEYS[chainId] ?? String(chainId),
+			chainId,
+			market: null,
+			positions: [],
+			status: 'UNAVAILABLE',
+			message: 'Unavailable on Avalanche (market not resolved)',
+			reason: 'MARKET_NOT_FOUND',
+		};
 	}
 
 	const positionsVars = {

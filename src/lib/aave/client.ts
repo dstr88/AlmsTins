@@ -8,7 +8,6 @@ const ETHEREUM_MARKET_ADDRESS = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2';
 const ETHEREUM_CHAIN_ID = 1;
 const POLYGON_MARKET_ADDRESS = '0x794a61358D6845594F94dc1DB02A252b5b4814aD';
 const POLYGON_CHAIN_ID = 137;
-const AVALANCHE_MARKET_ADDRESS = '0x794a61358D6845594F94dc1DB02A252b5b4814aD';
 const AVALANCHE_CHAIN_ID = 43114;
 
 // --- Public types your API/UI can rely on ---
@@ -31,6 +30,11 @@ export type AaveChainSummary = {
 	debtUsdTotal: number;
 	positions: AavePosition[];
 	ok: boolean;
+	market?: string | null;
+	status?: string;
+	message?: string;
+	reason?: string;
+	warning?: string;
 	error?: string;
 };
 
@@ -85,6 +89,67 @@ function buildUserPositionsQuery(marketAddress: string, chainId: number) {
     }
   }
 `;
+}
+
+const MARKETS_QUERY = /* GraphQL */ `
+	query Markets {
+		markets {
+			address
+			chain {
+				chainId
+			}
+		}
+	}
+`;
+
+type MarketResult = { address?: string; chain?: { chainId?: number } };
+
+let marketsCache: { expiresAt: number; items: MarketResult[] } | null = null;
+const MARKETS_CACHE_TTL_MS = 10 * 60 * 1000;
+
+async function fetchMarkets(): Promise<MarketResult[]> {
+	const now = Date.now();
+	if (marketsCache && marketsCache.expiresAt > now) {
+		return marketsCache.items;
+	}
+	const response = await fetch(AAVE_GRAPHQL_ENDPOINT, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ query: MARKETS_QUERY }),
+	});
+	if (!response.ok) {
+		const text = await response.text().catch(() => '');
+		console.warn('[AAVE markets] HTTP error', response.status, text);
+		return [];
+	}
+	const payload = await response.json();
+	const items = Array.isArray(payload?.data?.markets) ? (payload.data.markets as MarketResult[]) : [];
+	marketsCache = { expiresAt: now + MARKETS_CACHE_TTL_MS, items };
+	return items;
+}
+
+async function resolveMarketAddress(
+	chainId: number,
+	options?: { fallback?: string; warning?: string },
+): Promise<{ address: string | null; warning?: string }> {
+	try {
+		const markets = await fetchMarkets();
+		const found = markets.find((market) => Number(market?.chain?.chainId) === chainId);
+		const address = found?.address ? String(found.address) : null;
+		if (address) {
+			console.log('[aave] market-resolved', { chainId, market: address });
+			return { address };
+		}
+	} catch (error) {
+		console.warn('[aave] market lookup failed', { chainId, error });
+	}
+
+	console.log('[aave] market-missing', { chainId, reason: 'MARKET_NOT_FOUND' });
+	if (options?.fallback) {
+		console.log('[aave] market-resolved', { chainId, market: options.fallback });
+		return { address: options.fallback };
+	}
+	return { address: null, warning: options?.warning };
 }
 
 // --- Helper: safe numeric conversion ---
@@ -199,6 +264,7 @@ async function fetchUserPositionsForMarket(
 			debtUsdTotal: 0,
 			positions,
 			ok: true,
+			market: marketAddress,
 		};
 	} catch (err: any) {
 		console.error(`[AAVE ${chain}] fetch failed`, err);
@@ -210,9 +276,30 @@ async function fetchUserPositionsForMarket(
 			debtUsdTotal: 0,
 			positions: [],
 			ok: false,
+			market: marketAddress,
 			error: err?.message ?? 'Unknown error',
 		};
 	}
+}
+
+function buildMissingMarketSummary(
+	chain: AaveChainSummary['chain'],
+	warning: string,
+): AaveChainSummary {
+	return {
+		chain,
+		suppliedUsd: 0,
+		debtUsd: 0,
+		suppliedUsdTotal: 0,
+		debtUsdTotal: 0,
+		positions: [],
+		ok: true,
+		market: null,
+		status: 'UNAVAILABLE',
+		message: warning,
+		reason: 'MARKET_NOT_FOUND',
+		warning,
+	};
 }
 
 // --- Public function used by /api/aave/positions ---
@@ -221,24 +308,40 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 	const normalized = address.toLowerCase();
 
 	try {
-		const ethereum = await fetchUserPositionsForMarket(
-			normalized,
-			ETHEREUM_MARKET_ADDRESS,
-			ETHEREUM_CHAIN_ID,
-			'ethereum',
-		);
-		const polygon = await fetchUserPositionsForMarket(
-			normalized,
-			POLYGON_MARKET_ADDRESS,
-			POLYGON_CHAIN_ID,
-			'polygon',
-		);
-		const avalanche = await fetchUserPositionsForMarket(
-			normalized,
-			AVALANCHE_MARKET_ADDRESS,
-			AVALANCHE_CHAIN_ID,
-			'avalanche',
-		);
+		const ethereumMarket = await resolveMarketAddress(ETHEREUM_CHAIN_ID, {
+			fallback: ETHEREUM_MARKET_ADDRESS,
+		});
+		const polygonMarket = await resolveMarketAddress(POLYGON_CHAIN_ID, {
+			fallback: POLYGON_MARKET_ADDRESS,
+		});
+		const avalancheMarket = await resolveMarketAddress(AVALANCHE_CHAIN_ID, {
+			warning: 'Avalanche market not available',
+		});
+
+		const ethereum = ethereumMarket.address
+			? await fetchUserPositionsForMarket(
+					normalized,
+					ethereumMarket.address,
+					ETHEREUM_CHAIN_ID,
+					'ethereum',
+				)
+			: buildMissingMarketSummary('ethereum', 'Ethereum market not available');
+		const polygon = polygonMarket.address
+			? await fetchUserPositionsForMarket(
+					normalized,
+					polygonMarket.address,
+					POLYGON_CHAIN_ID,
+					'polygon',
+				)
+			: buildMissingMarketSummary('polygon', 'Polygon market not available');
+		const avalanche = avalancheMarket.address
+			? await fetchUserPositionsForMarket(
+					normalized,
+					avalancheMarket.address,
+					AVALANCHE_CHAIN_ID,
+					'avalanche',
+				)
+			: buildMissingMarketSummary('avalanche', avalancheMarket.warning ?? 'Avalanche market not available');
 
 		return {
 			ok: true,

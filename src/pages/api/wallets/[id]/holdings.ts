@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { tryAcquireLock } from '@/lib/cacheLock';
 
 const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
 const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
@@ -17,6 +18,9 @@ const ETHERSCAN_MIN_INTERVAL_MS = 1200;
 const SNOWTRACE_MIN_INTERVAL_MS = 1200;
 const COINGECKO_MIN_INTERVAL_MS = 1800;
 const ETHERSCAN_RATE_LIMIT_BACKOFF_MS = 5_000;
+const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
+const SNAPSHOT_STALE_MAX_MS = 60 * 60 * 1000;
+const SNAPSHOT_LOCK_SECONDS = 20;
 
 const cache = new Map<string, { expiresAt: number; payload: any }>();
 const basisCache = new Map<string, { expiresAt: number; price: number | null }>();
@@ -144,6 +148,17 @@ function isSpamToken(symbol: string, name: string, decimals: number) {
 	const haystack = `${symbol} ${name}`.toLowerCase();
 	if (/(claim|airdrop|reward|bonus|giveaway|visit|voucher|promo|http|https|scam)/.test(haystack)) return true;
 	if (decimals === 0 && /(claim|airdrop|reward|bonus)/.test(haystack)) return true;
+	return false;
+}
+
+function isDefiToken(symbol: string, name: string) {
+	const sym = normalizeSymbol(symbol);
+	const lower = String(name ?? '').toLowerCase();
+	if (!sym || !lower) return false;
+	if (lower.includes('aave')) return true;
+	if (lower.includes('compound')) return true;
+	if (lower.includes('yearn')) return true;
+	if (sym.startsWith('YV')) return true;
 	return false;
 }
 
@@ -344,7 +359,10 @@ export const prerender = false;
 export const GET: APIRoute = async ({ params, request, locals }) => {
 	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
 	const requestId = (locals as Record<string, any>)?.requestId;
-	const logPerf = (status: number, meta?: { cached?: boolean; count?: number }) => {
+	const logPerf = (
+		status: number,
+		meta?: { cached?: boolean; stale?: boolean; count?: number; providerCallsCount?: number },
+	) => {
 		console.log('[perf] wallet-holdings', {
 			requestId,
 			durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start),
@@ -369,26 +387,120 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 	}
 
 	const cacheKey = `${tenantId}:${walletId}:${chainId}`;
+	const lockKey = `holdings:${tenantId}:${walletId}:${chainId}`;
 	const cached = cache.get(cacheKey);
 	if (cached && cached.expiresAt > Date.now()) {
 		logPerf(200, {
 			cached: true,
+			stale: false,
 			count: Array.isArray(cached.payload?.tokens) ? cached.payload.tokens.length : undefined,
 		});
-		return new Response(JSON.stringify(cached.payload), {
+		return new Response(JSON.stringify({ ...cached.payload, cached: true, stale: false, asOf: cached.payload?.asOf }), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
 		});
 	}
 
+	const snapshotResult = await db.execute({
+		sql: `SELECT payload_json, as_of, updated_at
+			FROM wallet_holdings_snapshot
+			WHERE tenant_id = ? AND wallet_id = ? AND chain_id = ?
+			LIMIT 1`,
+		args: [tenantId, walletId, chainId],
+	});
+	const snapshotRow = snapshotResult.rows?.[0] as
+		| { payload_json?: string; as_of?: string; updated_at?: string }
+		| undefined;
+	if (snapshotRow?.payload_json) {
+		let snapshotPayload: any = null;
+		try {
+			snapshotPayload = JSON.parse(String(snapshotRow.payload_json));
+		} catch {
+			snapshotPayload = null;
+		}
+		if (snapshotPayload) {
+			const updatedAtMs = snapshotRow.updated_at ? Date.parse(snapshotRow.updated_at) : 0;
+			const now = Date.now();
+			const stale = Number.isFinite(updatedAtMs) ? now - updatedAtMs > SNAPSHOT_TTL_MS : true;
+			const overStaleMax = Number.isFinite(updatedAtMs) ? now - updatedAtMs > SNAPSHOT_STALE_MAX_MS : false;
+
+			if (stale && !overStaleMax) {
+				(async () => {
+					const gotLock = await tryAcquireLock(lockKey, SNAPSHOT_LOCK_SECONDS);
+					if (!gotLock) {
+						console.log('[cache] holdings refresh skip (lock-busy)', { requestId, walletId, chainId });
+						return;
+					}
+					try {
+						const refreshed = await buildHoldingsPayload(tenantId, walletId, chainId, requestId);
+						await upsertHoldingsSnapshot(tenantId, walletId, chainId, refreshed);
+						cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload: refreshed });
+						console.log('[cache] holdings refreshed', { requestId, walletId, chainId });
+					} catch (error) {
+						console.warn('[cache] holdings refresh failed', { requestId, walletId, chainId, error });
+					}
+				})();
+			}
+
+			logPerf(200, {
+				cached: true,
+				stale,
+				count: Array.isArray(snapshotPayload?.tokens) ? snapshotPayload.tokens.length : undefined,
+			});
+			return new Response(
+				JSON.stringify({
+					...snapshotPayload,
+					cached: true,
+					stale,
+					asOf: snapshotRow.as_of ?? snapshotPayload.asOf,
+				}),
+				{
+					status: 200,
+					headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
+				},
+			);
+		}
+	}
+
+	const payload = await buildHoldingsPayload(tenantId, walletId, chainId, requestId);
+	await upsertHoldingsSnapshot(tenantId, walletId, chainId, payload);
+
+	cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
+	logPerf(200, { cached: false, stale: false, count: payload.tokens.length });
+
+	return new Response(JSON.stringify({ ...payload, cached: false, stale: false, asOf: payload.asOf }), {
+		status: 200,
+		headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
+	});
+};
+
+async function upsertHoldingsSnapshot(tenantId: string, walletId: string, chainId: number, payload: any) {
+	const nowIso = new Date().toISOString();
+	const asOf = payload?.asOf ?? nowIso;
+	await db.execute({
+		sql: `INSERT INTO wallet_holdings_snapshot (tenant_id, wallet_id, chain_id, payload_json, as_of, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+			ON CONFLICT(tenant_id, wallet_id, chain_id) DO UPDATE SET
+				payload_json = excluded.payload_json,
+				as_of = excluded.as_of,
+				updated_at = excluded.updated_at`,
+		args: [tenantId, walletId, chainId, JSON.stringify(payload), asOf, nowIso],
+	});
+}
+
+async function buildHoldingsPayload(
+	tenantId: string,
+	walletId: string,
+	chainId: number,
+	requestId?: string,
+) {
 	const walletResult = await db.execute({
 		sql: 'SELECT id, address, label FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 		args: [walletId, tenantId],
 	});
 	const wallet = walletResult.rows[0] as unknown as { id?: string; address?: string; label?: string } | undefined;
 	if (!wallet?.address) {
-		logPerf(404);
-		return new Response(JSON.stringify({ error: 'Wallet not found' }), { status: 404 });
+		throw new Error('Wallet not found');
 	}
 
 	const address = normalizeAddress(wallet.address);
@@ -400,8 +512,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 	try {
 		transfers = await fetchTokenTransfers(address, chainId);
 	} catch (err: any) {
-		logPerf(500);
-		return new Response(JSON.stringify({ error: err?.message ?? 'Failed to fetch token transfers' }), { status: 500 });
+		throw new Error(err?.message ?? 'Failed to fetch token transfers');
 	}
 
 	type TokenAgg = {
@@ -423,6 +534,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 		const decimals = Number(tx.tokenDecimal ?? 0);
 		if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) continue;
 		if (isSpamToken(symbol, name, decimals)) continue;
+		if (isDefiToken(symbol, name)) continue;
 		const from = normalizeAddress(tx.from ?? '');
 		const to = normalizeAddress(tx.to ?? '');
 		if (from === address && to === address) continue;
@@ -614,7 +726,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 	);
 	filteredTokens.sort((a, b) => b.valueUsd - a.valueUsd);
 
-	const payload = {
+	return {
 		chain: chainLabel,
 		wallet: wallet.label ?? walletId,
 		address: wallet.address,
@@ -622,12 +734,4 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 		totalUsd,
 		tokens: filteredTokens,
 	};
-
-	cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
-	logPerf(200, { cached: false, count: filteredTokens.length });
-
-	return new Response(JSON.stringify(payload), {
-		status: 200,
-		headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
-	});
-};
+}

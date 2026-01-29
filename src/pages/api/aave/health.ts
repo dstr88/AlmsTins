@@ -147,13 +147,17 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			const market = markets.find((entry: any) => Number(entry?.chain?.chainId) === chainId);
 
 			if (!market) {
-				console.log('[aave/health] market missing', { chainId });
+				console.log('[aave] market-missing', { chainId, reason: 'MARKET_NOT_FOUND' });
 				chains[chainKey] = {
+					chain: chainKey,
 					chainId,
 					market: null,
 					healthFactor: null,
 					totalCollateralBase: null,
 					totalDebtBase: null,
+					status: 'UNAVAILABLE',
+					message: 'Unavailable on Avalanche (market not resolved)',
+					reason: 'MARKET_NOT_FOUND',
 				};
 				continue;
 			}
