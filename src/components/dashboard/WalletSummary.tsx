@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { normalizeNetWorthSummary } from '@/lib/networth/summaryContract';
 import './WalletSummary.css';
 
 type WalletSummaryState =
@@ -8,13 +7,19 @@ type WalletSummaryState =
 	| { status: 'empty'; message: string; hint?: string }
 	| {
 			status: 'ready';
-			tin: {
-				tinId: string;
-				tinName: string;
-				assetsUsd: number;
-				freeAssetsUsd: number;
-				debtUsd: number;
-				netUsd: number;
+			wallet: {
+				walletId: string;
+				label: string | null;
+				address: string;
+				totalUsd: number;
+				tokens: Array<{
+					tokenSymbol: string;
+					chain: string;
+					amount: number;
+					usdValue: number;
+					priceUsd?: number | null;
+					capturedAt?: string | null;
+				}>;
 			};
 	  };
 
@@ -33,28 +38,14 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 		const loadSummary = async () => {
 			try {
 				setState({ status: 'loading' });
-				const res = await fetch('/api/networth/summary');
+				const res = await fetch(`/api/wallets/${walletId}/tokens?refreshMissing=1`);
 				const payload = await res.json();
 				if (!payload?.ok) {
-					throw new Error(payload?.message ?? 'Unable to load wallet summary.');
+					throw new Error(payload?.message ?? payload?.error ?? 'Unable to load wallet tokens.');
 				}
-				const summary = normalizeNetWorthSummary(payload);
-				const tin = summary.tins.find((t) => t.tinId === walletId);
-				if (!tin) {
-					if (!cancelled) {
-						setState({
-							status: 'empty',
-							message: 'No data for this wallet yet.',
-							hint: 'Try refreshing or reconnecting.',
-						});
-					}
-					return;
-				}
-				const isDust =
-					Math.abs(tin.netUsd) < DUST_THRESHOLD_USD &&
-					Math.abs(tin.assetsUsd) < DUST_THRESHOLD_USD &&
-					Math.abs(tin.debtUsd) < DUST_THRESHOLD_USD &&
-					Math.abs(tin.freeAssetsUsd) < DUST_THRESHOLD_USD;
+				const tokens = Array.isArray(payload.tokens) ? payload.tokens : [];
+				const totalUsd = tokens.reduce((sum, token) => sum + Number(token.usdValue ?? 0), 0);
+				const isDust = Math.abs(totalUsd) < DUST_THRESHOLD_USD;
 				if (isDust) {
 					if (!cancelled) {
 						setState({
@@ -68,13 +59,14 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 				if (!cancelled) {
 					setState({
 						status: 'ready',
-						tin: {
-							tinId: tin.tinId,
-							tinName: tin.tinName,
-							assetsUsd: tin.assetsUsd,
-							freeAssetsUsd: tin.freeAssetsUsd,
-							debtUsd: tin.debtUsd,
-							netUsd: tin.netUsd,
+						wallet: {
+							walletId: String(payload.walletId ?? walletId),
+							label: payload.label ?? null,
+							address: String(payload.address ?? ''),
+							totalUsd,
+							tokens: tokens
+								.filter((token) => Number(token.usdValue ?? 0) > 0)
+								.sort((a, b) => Number(b.usdValue ?? 0) - Number(a.usdValue ?? 0)),
 						},
 					});
 				}
@@ -113,28 +105,56 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 					<div className="wallet-summary__total">
 						<span className="wallet-summary__total-label">Total</span>
 						<span className="wallet-summary__total-value">
-							{currencyFormatter.format(state.tin.netUsd)}
+							{currencyFormatter.format(state.wallet.totalUsd)}
 						</span>
 					</div>
 					<section className="wallet-summary__chain">
-						<h4 className="wallet-summary__chain-title">{state.tin.tinName || 'Wallet'}</h4>
+						<h4 className="wallet-summary__chain-title">
+							{state.wallet.label || 'Wallet'}
+						</h4>
 						<div className="wallet-summary__chain-rows">
-							<div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.7 }}>
-								<span>Assets</span>
-								<span>{currencyFormatter.format(state.tin.assetsUsd)}</span>
+							<div className="wallet-summary__row wallet-summary__row--header">
+								<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
+								<span className="wallet-summary__cell wallet-summary__cell--days">Chain</span>
+								<span className="wallet-summary__cell wallet-summary__cell--qty">Days</span>
+								<span className="wallet-summary__cell wallet-summary__cell--pl">Qty</span>
+								<span className="wallet-summary__cell wallet-summary__cell--pl">Price</span>
+								<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 							</div>
-							<div style={{ display: 'flex', justifyContent: 'space-between' }}>
-								<span>Free</span>
-								<span>{currencyFormatter.format(state.tin.freeAssetsUsd)}</span>
-							</div>
-							<div style={{ display: 'flex', justifyContent: 'space-between', color: '#f97373' }}>
-								<span>Debt</span>
-								<span>{currencyFormatter.format(state.tin.debtUsd)}</span>
-							</div>
-							<div style={{ display: 'flex', justifyContent: 'space-between' }}>
-								<span>Net</span>
-								<span>{currencyFormatter.format(state.tin.netUsd)}</span>
-							</div>
+							{state.wallet.tokens.map((token) => {
+								const priceUsd =
+									Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0
+										? Number(token.priceUsd)
+										: Number(token.usdValue ?? 0) / (Number(token.amount ?? 0) || 1);
+								const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
+								const daysHeld = Number.isFinite(capturedAt)
+									? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
+									: null;
+								return (
+									<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
+										<span className="wallet-summary__cell wallet-summary__cell--token">
+											{token.tokenSymbol}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--days">
+											{token.chain}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--qty">
+											{daysHeld === null ? '—' : String(daysHeld)}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl">
+											{Number(token.amount ?? 0).toLocaleString(undefined, {
+												maximumFractionDigits: 6,
+											})}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl">
+											{currencyFormatter.format(priceUsd)}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--value">
+											{currencyFormatter.format(Number(token.usdValue ?? 0))}
+										</span>
+									</div>
+								);
+							})}
 						</div>
 					</section>
 				</>

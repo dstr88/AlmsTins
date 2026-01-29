@@ -643,6 +643,10 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		for (const token of tokens) {
 			const tokenSymbol = normalizeSymbol(((token as any).symbol ?? 'UNKNOWN').toUpperCase());
 			const tokenChain = normalizeChain(String((token as any).chain ?? row.chain ?? ''));
+			const tokenSource = String((token as any).source ?? '').toLowerCase();
+			if (tokenSource === 'aave' || tokenSource === 'defi') {
+				continue;
+			}
 			const amount =
 				'balance' in token
 					? Number((token as SnapshotToken).balance ?? 0)
