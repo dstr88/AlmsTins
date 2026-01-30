@@ -51,10 +51,16 @@ let taxLotsByYear: Record<string, TaxLot[]> = {};
 
 try {
   const result = await db.execute({
-    sql: `SELECT asset_symbol, direction, amount, native_usd, timestamp_utc
-      FROM asset_lifecycle_events
-      WHERE tenant_id = ?
-      ORDER BY timestamp_utc ASC`,
+    sql: `SELECT g.asset_symbol AS asset_symbol,
+      e.direction AS direction,
+      e.amount AS amount,
+      e.native_usd AS native_usd,
+      e.timestamp_utc AS timestamp_utc
+      FROM asset_lifecycle_events e
+      LEFT JOIN asset_lifecycle_groups g
+        ON g.id = e.group_id AND g.tenant_id = e.tenant_id
+      WHERE e.tenant_id = ?
+      ORDER BY e.timestamp_utc ASC`,
     args: [tenantId],
   });
 
