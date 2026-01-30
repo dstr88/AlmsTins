@@ -1,7 +1,5 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Welcome from '../components/Welcome.astro';
-import Faq from '../components/faq.astro';
 import logo from '../assets/logo.jpeg';
 ---
 
@@ -10,13 +8,6 @@ import logo from '../assets/logo.jpeg';
 		<img class="logo" src={logo.src} width="56" height="56" alt="Almstins logo" />
 		<a class="login-button" href="/login">Login</a>
 
-		<section class="welcome-frame">
-			<Welcome />
-		</section>
-
-		<section class="faq-frame">
-			<Faq />
-		</section>
 	</div>
 </Layout>
 
@@ -68,18 +59,4 @@ import logo from '../assets/logo.jpeg';
 		outline-offset: 4px;
 	}
 
-	.welcome-frame {
-		width: 100vw;
-		min-height: 30vh;
-		margin-top: 10rem;
-		display: flex;
-		justify-content: center;
-	}
-
-	.faq-frame {
-		margin-top: 15rem;
-		display: flex;
-		justify-content: center;
-		padding: 0 1.5rem 6rem;
-	}
 </style>

@@ -1,7 +1,8 @@
 ---
-import Layout from "@/layouts/Layout.astro";
+import Layout from "@/layouts/LoginLayout.astro";
 import { getAuthSession } from "../lib/authSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
+import logo from "../assets/logo.jpeg";
 
 const { searchParams } = Astro.url;
 const error = searchParams.get("error");
@@ -44,6 +45,9 @@ if (session) {
 
 <Layout>
   <main class="auth-shell">
+    <a class="auth-logo" href="/" aria-label="Almstins home">
+      <img src={logo.src} width="56" height="56" alt="Almstins logo" />
+    </a>
     <!-- LEFT: Hero + copy + FAQ -->
     <section class="auth-left">
 
@@ -158,6 +162,7 @@ if (session) {
       grid-template-columns: 1.2fr 0.8fr;
       gap: 2rem;
       align-items: start;
+      position: relative;
     }
 
     @media (max-width: 900px) {
@@ -170,6 +175,29 @@ if (session) {
     .auth-left {
       display: grid;
       gap: 1.25rem;
+    }
+
+    .auth-logo {
+      position: fixed;
+      top: 5rem;
+      right: 3rem;
+      width: 56px;
+      height: 56px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+      z-index: 20;
+    }
+
+    .auth-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     .welcome-copy h1 {
