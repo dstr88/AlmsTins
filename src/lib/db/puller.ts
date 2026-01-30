@@ -460,6 +460,10 @@ export async function getLatestAaveSnapshot(tenantId: string, walletId: string):
 	if (!hasProtocol) return null;
 	const columns = await getTableColumns('protocol_positions');
 	if (columns.size === 0) return null;
+	if (!columns.has('tenant_id') || !columns.has('wallet_id')) {
+		// Enforce tenant isolation: if required columns are missing, do not return data.
+		return null;
+	}
 	const timeColumn =
 		(columns.has('as_of') && 'as_of') ||
 		(columns.has('captured_at') && 'captured_at') ||
@@ -480,13 +484,23 @@ export async function getLatestAaveSnapshot(tenantId: string, walletId: string):
 		.filter(Boolean)
 		.join(', ');
 
+	const whereClauses: string[] = [];
+	const args: Array<string> = [];
+	whereClauses.push('tenant_id = ?');
+	args.push(tenantId);
+	whereClauses.push('wallet_id = ?');
+	args.push(walletId);
+	if (columns.has('protocol')) {
+		whereClauses.push("protocol = 'aave'");
+	}
+
 	const result = await db.execute({
 		sql: `SELECT ${selectCols}
       FROM protocol_positions
-      WHERE tenant_id = ? AND wallet_id = ? AND protocol = 'aave'
+      WHERE ${whereClauses.join(' AND ')}
       ORDER BY ${timeColumn} DESC
       LIMIT 1`,
-		args: [tenantId, walletId],
+		args,
 	});
 
 	const row = result.rows[0] as Record<string, any> | undefined;
