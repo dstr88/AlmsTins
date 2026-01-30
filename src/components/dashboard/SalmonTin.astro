@@ -12,6 +12,7 @@ const hasSummary = Astro.slots.has('summary');
 	<span class="salmon-tin__label">{label}</span>
 	{hasSummary ? <div class="salmon-tin__summary"><slot name="summary" /></div> : null}
 	<div class="salmon-tin__body">
+		<div class="inner-border"></div>
 		<slot />
 	</div>
 </div>
@@ -26,6 +27,8 @@ const hasSummary = Astro.slots.has('summary');
 		padding: 18px 16px 16px;
 		display: flex;
 		flex-direction: column;
+		height: 100%;
+		overflow: hidden;
 	}
 
 	.salmon-tin::before {
@@ -67,9 +70,18 @@ const hasSummary = Astro.slots.has('summary');
 		flex: 1 1 auto;
 		min-height: 0;
 		overflow: auto;
-		padding-top: 1.1rem;
+		padding: 1.1rem 1rem 1rem;
 		max-height: clamp(18rem, 30vh, 26rem);
 		text-align: center;
 		font-size: 1.12rem;
+	}
+
+	.inner-border {
+		position: absolute;
+		inset: 5px;
+		border: 2px solid rgba(248, 113, 113, 0.9);
+		border-radius: 10px;
+		pointer-events: none;
+		z-index: 0;
 	}
 </style>
