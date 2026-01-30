@@ -1,0 +1,41 @@
+// src/pages/api/wallets/[id]/data.ts
+import type { APIRoute } from 'astro';
+import { getWalletWithLatestData } from '@/lib/db/puller';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+export const GET: APIRoute = async ({ params, request }) => {
+  try {
+    const { tenantId } = await requireTenantSession(request);
+    const walletId = params.id;
+
+    if (!walletId) {
+      return new Response(
+        JSON.stringify({ error: 'Missing walletId' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const data = await getWalletWithLatestData(tenantId, walletId);
+
+    if (!data) {
+      return new Response(
+        JSON.stringify({ error: 'Wallet not found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      },
+    });
+  } catch (error) {
+    console.error('[API /wallets/[id]/data] Error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+};

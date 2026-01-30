@@ -11,6 +11,7 @@ import ExchangeAccounts from '../../components/ExchangeAccounts.astro';
 import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
 import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.astro';
 import { getAllActiveWallets } from '@/lib/wallets';
+import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const pageStart = Date.now();
@@ -27,6 +28,14 @@ const walletsSorted = [...wallets].sort((a, b) => {
 });
 console.log('[vault] total ms', Date.now() - pageStart);
 
+const walletsForTiles = walletsSorted.slice(0, 2);
+const walletsWithData = await Promise.all(
+	walletsForTiles.map(async (wallet) => ({
+		wallet,
+		fullData: await getWalletWithLatestData(tenantId, wallet.id),
+	})),
+);
+
 const formatWalletLabel = (wallet: { label?: string | null; address: string }) => {
 	const label = wallet.label?.trim();
 	if (label) return label;
@@ -42,7 +51,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		<section class="bk-grid">
 			<SalmonTin label="Watchlist" class="tile tile--r1c1">
-				<PriceWatchlist client:load />
+				<PriceWatchlist client:visible />
 			</SalmonTin>
 			<SalmonTin label="Import" class="tile tile--r1c2 import-tile">
 				<div class="import-tile__inner">
@@ -69,11 +78,14 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				</div>
 			</SalmonTin>
 			<div class="tile tile--r1c3">
-				<Tin0AllTransactions />
+				<Tin0AllTransactions client:visible />
 			</div>
 			<div class="vault-lane vault-lane--row2">
-				{walletsSorted.slice(0, 2).map((wallet, index) => {
-					const displayLabel = formatWalletLabel(wallet);
+				{walletsWithData.map(({ wallet, fullData }, index) => {
+					const labelSource = fullData?.metadata
+						? { label: fullData.metadata.label, address: fullData.metadata.address }
+						: wallet;
+					const displayLabel = formatWalletLabel(labelSource);
 					const tileClass = index === 0 ? 'tile--r2c1' : 'tile--r2c2';
 					return (
 						<div class={`vault-stack-tin tile ${tileClass}`}>
@@ -84,21 +96,21 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 										<span class="tin-summary__label">Wallet value</span>
 										<span class="tin-summary__value" data-wallet-summary-value>—</span>
 									</div>
-									<WalletSummary client:load walletId={wallet.id} />
+									<WalletSummary client:visible walletId={wallet.id} initialData={fullData} />
 								</SalmonTin>
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label" data-defi-summary-label>Health</span>
 										<span class="tin-summary__value" data-defi-summary-value>—</span>
 									</div>
-									<AaveHealthSummary client:load walletId={wallet.id} />
+									<AaveHealthSummary client:visible walletId={wallet.id} />
 								</SalmonTin>
 								<SalmonTin label="NFTs" class="wallet-tin--future">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label">NFTs</span>
 										<span class="tin-summary__value" data-nft-summary-value>—</span>
 									</div>
-									<VaultNftActivity client:load walletId={wallet.id} />
+									<VaultNftActivity client:visible walletId={wallet.id} />
 								</SalmonTin>
 							</div>
 						</div>

@@ -30,7 +30,38 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 });
 const DUST_THRESHOLD_USD = 1;
 
-export default function WalletSummary({ walletId }: { walletId: string }) {
+type SnapshotToken = {
+	symbol: string;
+	daysHeld: number;
+	amountFormatted: string;
+	usdValue: number;
+	profitLoss?: { percent?: number; absolute?: number } | 'N/A';
+};
+
+type FullWalletSnapshot = {
+	byChain?: Array<{ chain: string; tokens: SnapshotToken[] }>;
+};
+
+type FullWalletSync = {
+	lastSyncedAt?: string | null;
+};
+
+type WalletSummaryProps = {
+	walletId: string;
+	initialData?: {
+		snapshot?: FullWalletSnapshot | null;
+		sync?: FullWalletSync | null;
+	} | null;
+};
+
+const formatLastSync = (value?: string | null) => {
+	if (!value) return 'never';
+	const stamp = Date.parse(value);
+	if (!Number.isFinite(stamp)) return value;
+	return new Date(stamp).toLocaleString();
+};
+
+export default function WalletSummary({ walletId, initialData }: WalletSummaryProps) {
 	const [state, setState] = useState<WalletSummaryState>({ status: 'loading' });
 
 	useEffect(() => {
@@ -85,10 +116,59 @@ export default function WalletSummary({ walletId }: { walletId: string }) {
 		};
 	}, [walletId]);
 
+	const snapshotChains = initialData?.snapshot?.byChain ?? [];
+	const showSnapshotFallback = snapshotChains.length > 0 && state.status !== 'ready';
+
 	return (
 		<div className="wallet-summary">
+			{showSnapshotFallback ? (
+				<div className="wallet-summary__fallback">
+					{snapshotChains.map((chain) => (
+						<section key={chain.chain} className="wallet-summary__chain">
+							<h4 className="wallet-summary__chain-title">{chain.chain}</h4>
+							<div className="wallet-summary__chain-rows">
+								<div className="wallet-summary__row wallet-summary__row--header">
+									<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
+									<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
+									<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
+									<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
+									<span className="wallet-summary__cell wallet-summary__cell--pl">P/L</span>
+								</div>
+								{chain.tokens.map((token) => (
+									<div key={`${chain.chain}-${token.symbol}`} className="wallet-summary__row">
+										<span className="wallet-summary__cell wallet-summary__cell--days">
+											{String(token.daysHeld ?? 0)}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--token">
+											{token.symbol}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--qty">
+											{token.amountFormatted}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--value">
+											{currencyFormatter.format(Number(token.usdValue ?? 0))}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl">
+											{token.profitLoss === 'N/A'
+												? 'N/A'
+												: token.profitLoss?.percent !== undefined
+													? `${token.profitLoss.percent.toFixed(2)}%`
+													: 'N/A'}
+										</span>
+									</div>
+								))}
+							</div>
+						</section>
+					))}
+				</div>
+			) : null}
 			{state.status === 'loading' ? (
-				<div className="wallet-summary__status">Loading summary…</div>
+				<div className="wallet-summary__status">
+					Loading summary…{' '}
+					<span className="wallet-summary__status-hint">
+						last sync: {formatLastSync(initialData?.sync?.lastSyncedAt)}
+					</span>
+				</div>
 			) : null}
 			{state.status === 'error' ? (
 				<div className="wallet-summary__status wallet-summary__status--error">{state.message}</div>
