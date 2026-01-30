@@ -2,8 +2,6 @@
 import Layout from "@/layouts/Layout.astro";
 import { getAuthSession } from "../lib/authSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
-import Welcome from "../components/welcome.astro";
-import Faq from "../components/faq.astro";
 
 const { searchParams } = Astro.url;
 const error = searchParams.get("error");
@@ -48,7 +46,6 @@ if (session) {
   <main class="auth-shell">
     <!-- LEFT: Hero + copy + FAQ -->
     <section class="auth-left">
-      <Welcome />
 
       <div class="welcome-copy">
         <h1>Welcome to Almstins — Your Financial Reality, Finally in One Place.</h1>
@@ -60,7 +57,6 @@ if (session) {
         </p>
       </div>
 
-      <Faq />
     </section>
 
     <!-- RIGHT: Sign-in panel -->
