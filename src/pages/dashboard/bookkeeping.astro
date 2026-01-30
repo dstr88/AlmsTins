@@ -140,10 +140,11 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 ---
 
 <Layout title="Bookkeeping">
-	<section class="hero-bleed">
-		<NetWorthHero title="Bookkeeping" subtitle="Transactions and tax lots" />
-	</section>
-	<section class="transactions-tax-layout">
+	<section class="bookkeeping-page">
+		<div class="hero-bleed">
+			<NetWorthHero title="Bookkeeping" subtitle="Transactions and tax lots" />
+		</div>
+		<section class="transactions-tax-layout">
   <!-- LEFT COLUMN: All wallet transactions -->
   <div class="transactions-column">
     <Tin0AllTransactions walletId="fa58b" />
@@ -186,11 +187,30 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 				</div>
 			))
 		)}
-  </div>
-</section>
+		</section>
+	</section>
 
 	<style>
-.transactions-tax-layout {
+		.bookkeeping-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 1rem 0 2rem;
+}
+
+		.hero-bleed {
+  height: 60vh;
+  min-height: 420px;
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+		.hero-bleed :global(.hero) {
+  width: 100%;
+}
+
+		.transactions-tax-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 3rem;
@@ -300,6 +320,10 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
   }
 }
 @media (max-width: 720px) {
+  .hero-bleed {
+    height: 45vh;
+    min-height: 320px;
+  }
   .transactions-column,
   .tax-events-column {
     height: 70vh;
