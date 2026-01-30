@@ -201,7 +201,8 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 		.hero-bleed {
   height: 60vh;
   min-height: 420px;
-  width: 100%;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
   display: flex;
   align-items: stretch;
 }
@@ -237,6 +238,14 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 /* Left column inset */
 .transactions-column {
   padding-left: 1.5rem;             /* extra breathing room inside */
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.transactions-column :global(.tin0-all) {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* Professional scrollbar */
