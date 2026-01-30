@@ -192,12 +192,12 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 		});
 
 		// updated wallet total
-		const updateWalletSummary = (tin) => {
+		const updateWalletSummary = (tin:any) => {
 			const valueEl = tin.querySelector('[data-wallet-summary-value]');
 			if (!(valueEl instanceof HTMLElement)) return;
 			let total = 0;
 			let hasValue = false;
-			tin.querySelectorAll('.wallet-summary__cell--value').forEach((cell) => {
+			tin.querySelectorAll('.wallet-summary__cell--value').forEach((cell:any) => {
 				if (!(cell instanceof HTMLElement)) return;
 				const raw = cell.textContent ?? '';
 				const cleaned = raw.replace(/[$,]/g, '').trim();
@@ -211,7 +211,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				: '—';
 		};
 
-		const updateDefiSummary = (tin) => {
+		const updateDefiSummary = (tin:any) => {
 			const labelEl = tin.querySelector('[data-defi-summary-label]');
 			const valueEl = tin.querySelector('[data-defi-summary-value]');
 			const sourceLabel = tin.querySelector('.stat-row.health .label');
@@ -224,14 +224,14 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			}
 		};
 
-		const updateNftSummary = (tin) => {
+		const updateNftSummary = (tin:any) => {
 			const valueEl = tin.querySelector('[data-nft-summary-value]');
 			if (!(valueEl instanceof HTMLElement)) return;
 			const count = tin.querySelectorAll('.vault-nft').length;
 			valueEl.textContent = count ? String(count) : '—';
 		};
 
-		const attachSummaryObserver = (tin, updater) => {
+		const attachSummaryObserver = (tin:any, updater:any) => {
 			const body = tin.querySelector('.salmon-tin__body');
 			if (!(body instanceof HTMLElement)) return;
 			updater(tin);

@@ -9,7 +9,7 @@ import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { db } from '../../lib/db';
-import SalmonTin from '../../components/dashboard/SalmonTin.astro';
+
 
 const pageStart = Date.now();
 const { tenantId } = await requireTenantSession(Astro.request);
@@ -149,7 +149,7 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
   <!-- LEFT COLUMN: All wallet transactions -->
   <div class="transactions-column">
 		<SalmonTin label="All Transactions">
-			<Tin0AllTransactions walletId="fa58b" />
+			<Tin0AllTransactions />
 		</SalmonTin>
   </div>
 
