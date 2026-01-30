@@ -2,7 +2,8 @@
 import Layout from "@/layouts/LoginLayout.astro";
 import { getAuthSession } from "../lib/authSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
-import logo from "../assets/logo.jpeg";
+import Logo from "../assets/logo.jpeg";
+import Faq from "@/components/faq.astro";
 
 const { searchParams } = Astro.url;
 const error = searchParams.get("error");
@@ -46,7 +47,7 @@ if (session) {
 <Layout>
   <main class="auth-shell">
     <a class="auth-logo" href="/" aria-label="Almstins home">
-      <img src={logo.src} width="56" height="56" alt="Almstins logo" />
+      <img src={Logo.src} width="75" height="75" alt="Almstins logo" />
     </a>
     <!-- LEFT: Hero + copy + FAQ -->
     <section class="auth-left">
@@ -54,13 +55,12 @@ if (session) {
       <div class="welcome-copy">
         <h1>Welcome to Almstins — Your Financial Reality, Finally in One Place.</h1>
         <p>
-          The end product will track crypto, DeFi, traditional investments, and liabilities in a single intelligent dashboard
-          built for clarity and control. Almstins eliminates fragmented tools and guesswork by giving you real-time visibility
-          into your net worth, performance, and risk exposure. See all of your wallets in one secure place. Whether you’re building
-          wealth, managing multiple wallets, or optimizing strategies, Almstins helps you move faster, think smarter, and stay ahead.
-        </p>
+          First of all, thanks for joining me on this journey. I am building a product that will track crypto, DeFi, traditional investments, and liabilities in a single intelligent dashboard.
+          It is built for clarity and control. Almstins eliminates fragmented tools, hopping from one wallet to the next and the guesswork. This is the only open source tool that gives you real-time visibility into your net worth, performance, and risk exposure. See all of your wallets in one secure place. Whether you’re building wealth, managing multiple wallets, or optimizing strategies, Almstins helps you move faster, think smarter, keep track of everything in one convenient place and stay ahead.</p>
+          <h3>Security</h3>
+          <p>Built with your security in mind, there's no need to attach your wallet.  Just enter your public address. All the self-custody information is available to anyone who wants to dig for it.  Our database is encrypted, and your data is not for sale.</p> 
       </div>
-
+      </Faq>
     </section>
 
     <!-- RIGHT: Sign-in panel -->
@@ -175,14 +175,15 @@ if (session) {
     .auth-left {
       display: grid;
       gap: 1.25rem;
+      margin-top: 2rem;
     }
 
     .auth-logo {
       position: fixed;
       top: 5rem;
-      right: 3rem;
-      width: 56px;
-      height: 56px;
+      left: 3rem;
+      width: 75px;
+      height: 75px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
