@@ -8,11 +8,129 @@ import OnchainWalletTransactions from '../../components/dashboard/OnchainWalletT
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import { requireTenantSession } from '../../lib/requireTenantSession';
+import { db } from '../../lib/db';
 
 const pageStart = Date.now();
 const { tenantId } = await requireTenantSession(Astro.request);
 console.log('[bookkeeping] auth ms', Date.now() - pageStart, 'tenant', tenantId);
 console.log('[bookkeeping] total ms', Date.now() - pageStart);
+
+type LifecycleEventRow = {
+  asset_symbol: string;
+  direction: string | null;
+  amount: number | null;
+  native_usd: number | null;
+  timestamp_utc: string;
+};
+
+type TaxLot = {
+  asset: string;
+  amount: number;
+  buyDate: string | null;
+  sellDate: string;
+  buyUsd?: number | null;
+  sellUsd?: number | null;
+};
+
+const formatDate = (value: string | null) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatAmount = (value: number) =>
+  Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—';
+
+const formatUsd = (value: number | null | undefined) =>
+  Number.isFinite(Number(value))
+    ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+    : '—';
+
+let taxLotsByYear: Record<string, TaxLot[]> = {};
+
+try {
+  const result = await db.execute({
+    sql: `SELECT asset_symbol, direction, amount, native_usd, timestamp_utc
+      FROM asset_lifecycle_events
+      WHERE tenant_id = ?
+      ORDER BY timestamp_utc ASC`,
+    args: [tenantId],
+  });
+
+  const rows = result.rows as unknown as LifecycleEventRow[];
+  const lotsByAsset = new Map<string, Array<{ amount: number; timestamp: string; costUsd?: number | null }>>();
+  const sales: TaxLot[] = [];
+
+  for (const row of rows) {
+    const asset = String(row.asset_symbol ?? '').toUpperCase();
+    if (!asset) continue;
+    const direction = row.direction ? String(row.direction) : null;
+    const amount = Math.abs(Number(row.amount ?? 0));
+    if (!amount) continue;
+
+    if (direction === 'in') {
+      const list = lotsByAsset.get(asset) ?? [];
+      list.push({
+        amount,
+        timestamp: String(row.timestamp_utc),
+        costUsd: row.native_usd ?? null,
+      });
+      lotsByAsset.set(asset, list);
+      continue;
+    }
+
+    if (direction === 'out') {
+      let remaining = amount;
+      const list = lotsByAsset.get(asset) ?? [];
+      const sellUsd = row.native_usd ?? null;
+      while (remaining > 0) {
+        const lot = list[0];
+        if (!lot) {
+          sales.push({
+            asset,
+            amount: remaining,
+            buyDate: null,
+            sellDate: String(row.timestamp_utc),
+            buyUsd: null,
+            sellUsd,
+          });
+          break;
+        }
+        const take = Math.min(remaining, lot.amount);
+        const buyPortion = lot.costUsd ? (take / lot.amount) * lot.costUsd : null;
+        const sellPortion = sellUsd ? (take / amount) * sellUsd : null;
+        sales.push({
+          asset,
+          amount: take,
+          buyDate: lot.timestamp,
+          sellDate: String(row.timestamp_utc),
+          buyUsd: buyPortion,
+          sellUsd: sellPortion,
+        });
+        lot.amount -= take;
+        if (lot.amount <= 0) {
+          list.shift();
+        }
+        remaining -= take;
+      }
+      lotsByAsset.set(asset, list);
+    }
+  }
+
+  taxLotsByYear = sales.reduce<Record<string, TaxLot[]>>((acc, sale) => {
+    const year = new Date(sale.sellDate).getFullYear();
+    const key = Number.isFinite(year) ? String(year) : 'Unknown';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(sale);
+    return acc;
+  }, {});
+} catch (error) {
+  console.error('[bookkeeping] Failed to build tax lots', error);
+  taxLotsByYear = {};
+}
+
+const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a));
 ---
 
 <Layout title="Bookkeeping">
@@ -29,37 +147,36 @@ console.log('[bookkeeping] total ms', Date.now() - pageStart);
   <!-- RIGHT COLUMN: Tax events by year -->
   <div class="tax-events-column">
     <h2 class="column-title">Tax Events (Past Years)</h2>
-    
-    <div class="year-group">
-      <h3>2025</h3>
-      <div class="year-divider"></div>
-      <!-- Populate dynamically with your tax events list/table -->
-      <div class="tax-events-list">
-        <!-- Example placeholder events -->
-        <div class="tax-event">Capital gain • ETH sale • $12,450.00</div>
-        <div class="tax-event">Staking reward • 0.85 ETH • $2,340.00</div>
-        <!-- ... more events ... -->
-      </div>
-      <a href={`/api/tax-csv?year=2025&walletId=fa58b&tenantId=${tenantId}`} 
-         class="csv-download-btn" download>
-        📥 Download 2025 Tax Events (CSV)
-      </a>
-    </div>
-
-    <div class="year-group">
-      <h3>2024</h3>
-      <div class="year-divider"></div>
-      <div class="tax-events-list">
-        <!-- events for 2024 -->
-      </div>
-      <a href={`/api/tax-csv?year=2024&walletId=fa58b&tenantId=${tenantId}`} 
-         class="csv-download-btn" download>
-        📥 Download 2024 Tax Events (CSV)
-      </a>
-    </div>
-
-    <!-- Repeat for 2023, 2022, etc. -->
-    <!-- You can loop this in Astro if you have the data available -->
+		{taxYears.length === 0 ? (
+			<p class="tax-empty">No tax lots available yet.</p>
+		) : (
+			taxYears.map((year) => (
+				<div class="year-group">
+					<h3>{year}</h3>
+					<div class="year-divider"></div>
+					<div class="tax-events-list">
+						{taxLotsByYear[year].map((lot) => (
+							<div class="tax-event">
+								<strong>{lot.asset}</strong> • Buy {formatDate(lot.buyDate)} • Sell{' '}
+								{formatDate(lot.sellDate)} • Qty {formatAmount(lot.amount)}
+								{lot.buyUsd || lot.sellUsd ? (
+									<span class="tax-event__sub">
+										Cost {formatUsd(lot.buyUsd)} • Proceeds {formatUsd(lot.sellUsd)}
+									</span>
+								) : null}
+							</div>
+						))}
+					</div>
+					<a
+						href={`/api/tax-csv?year=${year}&walletId=fa58b&tenantId=${tenantId}`}
+						class="csv-download-btn"
+						download
+					>
+						📥 Download {year} Tax Events (CSV)
+					</a>
+				</div>
+			))
+		)}
   </div>
 </section>
 
@@ -131,6 +248,17 @@ console.log('[bookkeeping] total ms', Date.now() - pageStart);
   background: rgba(255,255,255,0.05);
   border-radius: 6px;
   font-size: 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.tax-event__sub {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+.tax-empty {
+  font-size: 0.95rem;
+  opacity: 0.75;
 }
 .column-title {
   font-size: 1.4rem;
