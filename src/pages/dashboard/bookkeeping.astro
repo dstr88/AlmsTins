@@ -249,9 +249,33 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
   overflow: hidden;
 }
 
+.transactions-column :global(.salmon-tin) {
+  height: 100%;
+}
+
+.transactions-column :global(.salmon-tin__body) {
+  height: 100%;
+  max-height: none;
+  overflow: auto;
+  padding: 0.5rem;
+}
+
+.transactions-column :global(.salmon-tin__body::before) {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 2px solid rgba(248, 113, 113, 0.9);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
 .transactions-column :global(.tin0-all) {
   min-height: 0;
   height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0.5rem;
+  box-shadow: none;
 }
 
 .transactions-column :global(.onchain-wallet) {
