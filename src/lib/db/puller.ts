@@ -458,17 +458,33 @@ export async function getHiddenNfts(tenantId: string, walletId: string) {
 export async function getLatestAaveSnapshot(tenantId: string, walletId: string): Promise<AaveLatest | null> {
 	const hasProtocol = await tableExists('protocol_positions');
 	if (!hasProtocol) return null;
+	const columns = await getTableColumns('protocol_positions');
+	if (columns.size === 0) return null;
+	const timeColumn =
+		(columns.has('as_of') && 'as_of') ||
+		(columns.has('captured_at') && 'captured_at') ||
+		(columns.has('created_at') && 'created_at') ||
+		(columns.has('updated_at') && 'updated_at') ||
+		null;
+	if (!timeColumn) return null;
+
+	const selectCols = [
+		`${timeColumn} AS asOf`,
+		columns.has('health_factor') ? 'health_factor AS healthFactor' : null,
+		columns.has('total_collateral_usd') ? 'total_collateral_usd AS totalCollateralUsd' : null,
+		columns.has('total_debt_usd') ? 'total_debt_usd AS totalDebtUsd' : null,
+		columns.has('net_worth_usd') ? 'net_worth_usd AS netWorthUsd' : null,
+		columns.has('positions_json') ? 'positions_json AS positionsJson' : null,
+		columns.has('raw_response') ? 'raw_response AS rawResponse' : null,
+	]
+		.filter(Boolean)
+		.join(', ');
+
 	const result = await db.execute({
-		sql: `SELECT as_of AS asOf,
-             health_factor AS healthFactor,
-             total_collateral_usd AS totalCollateralUsd,
-             total_debt_usd AS totalDebtUsd,
-             net_worth_usd AS netWorthUsd,
-             positions_json AS positionsJson,
-             raw_response AS rawResponse
+		sql: `SELECT ${selectCols}
       FROM protocol_positions
       WHERE tenant_id = ? AND wallet_id = ? AND protocol = 'aave'
-      ORDER BY as_of DESC
+      ORDER BY ${timeColumn} DESC
       LIMIT 1`,
 		args: [tenantId, walletId],
 	});
