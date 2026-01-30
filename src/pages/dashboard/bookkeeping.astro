@@ -240,17 +240,20 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 
 /* Left column inset */
 .transactions-column {
-  padding-left: 1.5rem;             /* extra breathing room inside */
-  display: grid;
-  grid-template-rows: 1fr 1fr;
-  gap: 1.5rem;
+  padding: 0 1.25rem 1.25rem 1.25rem;
   height: 80vh;
   max-height: 80vh;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow: visible;
+  box-sizing: border-box;
 }
 
 .transactions-column :global(.salmon-tin) {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: visible;
 }
 
 .transactions-column :global(.tin0-all) {

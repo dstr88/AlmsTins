@@ -6,7 +6,6 @@ interface Props {
 
 const { label, class: className = '' } = Astro.props;
 const hasSummary = Astro.slots.has('summary');
-// Temporary test for bookkeeping tins: minimal styles to avoid border/scroll conflicts.
 ---
 
 <div class={`salmon-tin ${className}`}>
@@ -26,13 +25,14 @@ const hasSummary = Astro.slots.has('summary');
 		position: relative;
 		background: darkslategray;
 		color: #f7f2eb;
-		border: 2px solid salmon !important;
+		border: 2px solid salmon;
 		border-radius: 12px;
 		padding: 2.5rem 1.25rem 1.25rem;
 		display: flex;
 		flex-direction: column;
 		height: 100%;
 		box-sizing: border-box;
+		overflow: visible;
 	}
 
 	.salmon-tin__label {
@@ -49,18 +49,18 @@ const hasSummary = Astro.slots.has('summary');
 	}
 
 	.salmon-tin__summary {
-		display: flex;
-		flex-direction: column;
-		gap: 0.2rem;
 		margin-top: 0.2rem;
+		padding-bottom: 0.5rem;
 	}
 
 	.salmon-tin__body {
 		position: relative;
 		z-index: 1;
-		flex: 1;
-		overflow-y: auto !important;
-		padding: 1rem 0;
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		padding: 0.75rem 0.5rem 1.25rem;
+		box-sizing: border-box;
 		-webkit-overflow-scrolling: touch;
 	}
 
