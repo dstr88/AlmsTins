@@ -1,0 +1,365 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { Image } from "astro:assets";
+import DonnieLori2025 from "@/assets/donnie&lori2025.jpeg";
+---
+
+<Layout>
+  <section class="welcome-page">
+    <div class="hero-card">
+      <div class="hero-image">
+        <Image
+          src={DonnieLori2025}
+          alt="Donnie Starkey"
+          width={500}
+          quality={75}
+          format="jpeg"
+        />
+      </div>
+
+      <div class="hero-info">
+        <h2>Donnie Starkey</h2>
+        <p class="hero-role">Founder • Builder • Crypto Analytics</p>
+
+        <div class="hero-links">
+          <a href="https://medium.com/@donnie.starkey" target="_m">Medium</a>
+          <a href="https://linkedin.com/in/donnie.starkey" target="_blank">LinkedIn</a>
+          <a href="https://x.com/donnie.starkey" target="_blank">X</a>
+          <a href="https://t.me/devdonnie" target="_blank">Telegram</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div>
+    <h1>Welcome to Almstins — Your Financial Reality, Finally in One Place.</h1>
+    <p>
+      The end product will track crypto, DeFi, traditional investments, and
+      liabilities in a single intelligent dashboard built for clarity and
+      control. Almstins eliminates fragmented tools and guesswork by giving you
+      real-time visibility into your net worth, performance, and risk exposure.
+      See all of your wallets in one secure place. Whether you’re building
+      wealth, managing multiple wallets, or optimizing strategies, Almstins
+      helps you move faster, think smarter, and stay ahead.
+    </p>
+
+    <!-- FAQ -->
+    <div class="modal-overlay welcome-modal">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>about me</h1>
+
+        <p>
+          My family and I spent fifteen years as missionaries of Jesus Christ.
+          We are involved in our local church, local minsitry and we love Jesus.
+          We have two sons who continue to walk with Jesus. I feel privileged
+          that though they are both in their twenties, they have chosen to
+          continue living with us. I teach ESL for the local school system, and
+          code on snow days, and when I am not busy doing something else. My
+          wife spends her days either substitute teaching -bless her heart-,
+          with her mother, or serving the community.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Learn about the project</h1>
+
+        <p>
+          I have noticed a need in the industry. There's not really an
+          open-source place for people to see what is inside their wallets. I
+          feel that we should be able to open our wallet and know exactly what
+          is inside. This information is displayed in the vault page of the
+          wallet. You will find a watchlist, a place to add wallets and I'm not
+          sure what will end up on the end. The second row will be a place where
+          your wallets will sit. Each wallet will show their content -The chain
+          and total value of the wallet will be displayed, underneath, you will
+          see the number of days since a coin was transferred into your
+          ecosystem. Maybe, you bought it, traded for it, or it was sent to you.
+          Either way, you will know if it's short or long term capital gaines.
+          You will see the ticker symbol, amount dollar value and profit/loss.
+          The same wallet, with a divider will show Aave DeFi projects, with the
+          loan health at the top of the list. Then, will display the dollar
+          value of the loan, dollar value of your collateral, and break down
+          your collateral. The last section will show NFTs. I didn't realize
+          that there were so many in my wallet. Most of them were useless, so
+          there's a hide button. If you're like me and obsess over having hidden
+          something of value, you can always unhide it.
+          <strong>you can delete any tin that you wish</strong>
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>What about exchanges</h1>
+
+        <p>
+          You can add exchanges. The self-custody wallets pull data from APIs,
+          exchanges use CSV files. You can just upload the file into the
+          project. There's no industry standard format for the csv files, so one
+          file may have a table with five columns beginning with gas fees, while
+          the other may have ten columns beginning with a unique user ID that
+          nobody understands except people who work with databases. So, each
+          exchange has a unique upload. These tins will display the tokens in
+          your account. and push your transactions to the bookkeeping page for
+          storage.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>What about transactions</h1>
+
+        <p>
+          It is easiest to start from the selling point and work our way back to
+          the beginning. When you sell, trade or send a coin, the coin is gone.
+          We can only do this once, so planning this end just makes sense. You
+          need to know before you sell if you will make a profit and how old the
+          coin is. Its funeral could cost you a lot of profit if you don't plan
+          its execution carefully. That's why I built the bookkeeping page.
+          Coins are grouped. For example if you received this coin in your
+          self-custody wallet from your exchange wallet that information is
+          noted, the sending transaction and receiving action are coupled
+          together, so that it's obvious. However that coin made its way into
+          your exchange wallet is also part of the group, so you have a clear
+          picture of its age, and profit / loss. If the coin mysteriously
+          appeared in your wallet, every attempt will be made to find the value
+          of that coin when it first appeared.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Bookkeeping page</h1>
+
+        <p>
+          This is where my project should help lots of people. They can see all
+          their transactions in one place. They can see their realized gaines
+          on this page. They can download either list. they can add notes to
+          each transaction. Maybe, one day I will think of other things to put
+          on this page, but for now I think this information is so powerful,
+          it's all the page needs.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Is it private</h1>
+
+        <p>
+          Short answer, no. Everything pulled from the API keys is out there for
+          the public to see. But, the website is private, your login is private
+          and your data is secure. The database encrypts everything. I will
+          eventually track unique Ids, number of wallets, what features people
+          are using, and how much traffic. My purpose is to measure my
+          effectiveness, and make a better product.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>What does the project currently support?</h1>
+
+        <ul>
+          <li>
+            self-custody wallets:
+            <ol>
+              <li>
+                wallet value, age of coins, coins, amount of coins, their value
+                and profit/loss
+              </li>
+              <li>Aave Defi health, loan amount, collateral amount, then listed coins</li>
+              <li>
+                NFTs -with the option to hide and unhide all, webpages that have
+                interacted with the wallet
+              </li>
+            </ol>
+          </li>
+          <li>
+            Exchange wallets: You can upload a CSV file into your tin, and the
+            transactions will be passed to the bookkeeping page. Because there's
+            no standardized format for CSV files from exchanges, each one is
+            uploaded differently. Only some are supported.
+          </li>
+          <li>
+            Coin Tracking: Each coin has a lifecycle as it makes its way through
+            your finances. From the incubators of inception, to the cold hard
+            tomb of defeat, each transaction is grouped to the same coin. The
+            final resting place is the snapshot view.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* Page centering container */
+    .welcome-page {
+      min-height: 70vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    /* Card */
+    .hero-card {
+      width: 100%;
+      max-width: 360px;
+      background: #121212;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Image */
+    .hero-image img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Info section */
+    .hero-info {
+      padding: 1.25rem;
+      text-align: center;
+    }
+
+    .hero-info h2 {
+      margin: 0;
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+
+    .hero-role {
+      font-size: 0.9rem;
+      opacity: 0.75;
+      margin: 0.25rem 0 1rem;
+    }
+
+    /* Social buttons */
+    .hero-links {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .hero-links a {
+      flex: 1;
+      text-decoration: none;
+      font-size: 0.8rem;
+      padding: 0.55rem;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      color: white;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    .hero-links a:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+
+    /* modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .welcome-modal {
+      display: none;
+    }
+
+    .welcome-modal.is-open {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #121212;
+      color: #ffffff;
+      max-width: 600px;
+      width: 90%;
+      padding: 2rem;
+      border-radius: 14px;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+      position: relative;
+      animation: modalFadeIn 0.3s ease;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: #aaa;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: #fff;
+    }
+
+    @keyframes modalFadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+  </style>
+
+  <script>
+    const modals = Array.from(document.querySelectorAll(".welcome-modal"));
+    const firstModal = modals[0];
+
+    function closeWelcomeModal(event) {
+      const targetModal = event?.currentTarget?.closest(".welcome-modal") || firstModal;
+
+      if (targetModal) {
+        targetModal.classList.remove("is-open");
+      }
+
+      localStorage.setItem("almstinsWelcomeSeen", "true");
+    }
+
+    window.addEventListener("load", () => {
+      const hasSeen = localStorage.getItem("almstinsWelcomeSeen");
+
+      if (!hasSeen && firstModal) {
+        firstModal.classList.add("is-open");
+      }
+    });
+  </script>
+</Layout>
