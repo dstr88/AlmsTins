@@ -134,6 +134,9 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 ---
 
 <Layout title="Bookkeeping">
+	<section class="hero-bleed">
+		<NetWorthHero title="Bookkeeping" subtitle="Transactions and tax lots" />
+	</section>
 	<section class="transactions-tax-layout">
   <!-- LEFT COLUMN: All wallet transactions -->
   <div class="transactions-column">
@@ -196,7 +199,7 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
   overflow-y: auto;
   padding: 1.25rem;
   border-radius: 12px;
-  background: rgba(47, 65, 59, 0.6);
+  background: darkslategray;
   border: 1px solid rgba(255, 255, 255, 0.15);
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.3) transparent;
