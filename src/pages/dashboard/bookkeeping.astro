@@ -184,18 +184,19 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 </section>
 
 	<style>
-		.transactions-tax-layout {
+.transactions-tax-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  gap: 3rem;
   align-items: start;
-  margin-bottom: 2rem;
+  margin: 0 3rem 2rem;
 }
 
 /* Scrollable columns */
 .transactions-column,
 .tax-events-column {
-  max-height: 65vh;                 /* Adjust 60-70vh based on hero height */
+  height: 80vh;
+  max-height: 80vh;
   overflow-y: auto;
   padding: 1.25rem;
   border-radius: 12px;
@@ -207,7 +208,6 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 
 /* Left column inset */
 .transactions-column {
-  margin-left: 3rem;                /* as requested */
   padding-left: 1.5rem;             /* extra breathing room inside */
 }
 
@@ -288,15 +288,14 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 @media (max-width: 1080px) {
   .transactions-tax-layout {
     grid-template-columns: 1fr;
-  }
-  .transactions-column {
-    margin-left: 0;                 /* remove extra left margin on mobile */
+    margin: 0 1.5rem 2rem;
   }
 }
 @media (max-width: 720px) {
   .transactions-column,
   .tax-events-column {
-    max-height: 55vh;
+    height: 70vh;
+    max-height: 70vh;
   }
 }
 
