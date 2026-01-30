@@ -9,6 +9,7 @@ import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { db } from '../../lib/db';
+import SalmonTin from '../../components/dashboard/SalmonTin.astro';
 
 const pageStart = Date.now();
 const { tenantId } = await requireTenantSession(Astro.request);
@@ -147,11 +148,9 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 		<section class="transactions-tax-layout">
   <!-- LEFT COLUMN: All wallet transactions -->
   <div class="transactions-column">
-    <Tin0AllTransactions walletId="fa58b" />
-    <OnchainWalletTransactions 
-      walletId="fa58b" 
-      title="fa58b — All Transactions" 
-    />
+		<SalmonTin label="All Transactions">
+			<Tin0AllTransactions walletId="fa58b" />
+		</SalmonTin>
   </div>
 
   <!-- RIGHT COLUMN: Tax events by year -->
@@ -202,11 +201,10 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
   height: 60vh;
   min-height: 420px;
   width: 100vw;
-  margin-left: -50vw;
-  margin-right: -50vw;
-  left: 50%;
-  right: 50%;
-  position: relative;
+  margin-left: 50%;
+  transform: translateX(-50%);
+  padding: 0;
+  max-width: none;
   display: flex;
   align-items: stretch;
 }
@@ -243,8 +241,8 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 /* Left column inset */
 .transactions-column {
   padding-left: 1.5rem;             /* extra breathing room inside */
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
   gap: 1.5rem;
   height: 80vh;
   max-height: 80vh;
@@ -252,14 +250,13 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 }
 
 .transactions-column :global(.tin0-all) {
-  flex: 1 1 0;
   min-height: 0;
   height: 100%;
 }
 
 .transactions-column :global(.onchain-wallet) {
-  flex: 1 1 0;
   min-height: 0;
+  height: 100%;
 }
 
 .transactions-column :global(.tin0-all__list) {
