@@ -1,45 +1,85 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Welcome from '../components/welcome.astro';
+import Faq from '../components/faq.astro';
+import logo from '../assets/logo.jpeg';
 ---
 
 <Layout>
-	<section class="public-gate">
-		<h1>Login required</h1>
-		<p>Sign in to access your dashboard.</p>
-		<a class="login-button" href="/login">Go to login</a>
-	</section>
+	<div class="landing">
+		<img class="logo" src={logo.src} width="56" height="56" alt="Almstins logo" />
+		<a class="login-button" href="/login">Login</a>
+
+		<section class="welcome-frame">
+			<Welcome />
+		</section>
+
+		<section class="faq-frame">
+			<Faq />
+		</section>
+	</div>
 </Layout>
 
-<meta http-equiv="refresh" content="0;url=/login" />
-
 <style>
-	.public-gate {
-		max-width: 520px;
-		margin: 4rem auto;
-		padding: 0 1.5rem;
-		text-align: center;
+	.landing {
+		position: relative;
+		width: 100%;
 	}
 
-	.public-gate h1 {
-		margin: 0 0 0.5rem;
-		font-size: clamp(2rem, 3vw, 2.6rem);
-		letter-spacing: -0.02em;
-	}
-
-	.public-gate p {
-		margin: 0 0 2rem;
-		color: rgba(255, 255, 255, 0.7);
+	.logo {
+		position: fixed;
+		top: 1.5rem;
+		left: 1.5rem;
+		width: 56px;
+		height: 56px;
+		object-fit: cover;
+		border-radius: 12px;
+		z-index: 5;
 	}
 
 	.login-button {
+		position: fixed;
+		top: 10rem;
+		right: 5rem;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0.9rem 1.6rem;
+		padding: 0.75rem 1.4rem;
 		border-radius: 999px;
 		background: linear-gradient(135deg, #5767ff, #934dff);
 		color: #fff;
 		text-decoration: none;
 		font-weight: 600;
+		transition:
+			transform 0.2s ease,
+			box-shadow 0.2s ease,
+			filter 0.2s ease;
+		z-index: 5;
+	}
+
+	.login-button:hover {
+		transform: translateY(-2px) scale(1.02);
+		filter: brightness(1.12);
+		box-shadow: 0 12px 24px rgba(88, 95, 255, 0.35);
+	}
+
+	.login-button:focus-visible {
+		outline: 2px solid rgba(147, 77, 255, 0.6);
+		outline-offset: 4px;
+	}
+
+	.welcome-frame {
+		width: 100vw;
+		min-height: 30vh;
+		margin-top: 10rem;
+		display: flex;
+		justify-content: center;
+	}
+
+	.faq-frame {
+		margin-top: 15rem;
+		display: flex;
+		justify-content: center;
+		padding: 0 1.5rem 6rem;
 	}
 </style>

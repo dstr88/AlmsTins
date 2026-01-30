@@ -1,11 +1,7 @@
 ---
-import Layout from "@/layouts/Layout.astro";
-import { Image } from "astro:assets";
-import DonnieLori2025 from "@/assets/donnie&lori2025.jpeg";
 ---
 
-<Layout>
-  
+<section class="faq-section">
   <div>
     <h1>Welcome to Almstins — Your Financial Reality, Finally in One Place.</h1>
     <p>
@@ -320,8 +316,12 @@ import DonnieLori2025 from "@/assets/donnie&lori2025.jpeg";
     const modals = Array.from(document.querySelectorAll(".welcome-modal"));
     const firstModal = modals[0];
 
-    function closeWelcomeModal(event) {
-      const targetModal = event?.currentTarget?.closest(".welcome-modal") || firstModal;
+    /** @param {Event} event */
+    function closeWelcomeModal(event:any) {
+      const targetModal =
+        (event?.currentTarget instanceof HTMLElement
+          ? event.currentTarget.closest(".welcome-modal")
+          : null) || firstModal;
 
       if (targetModal) {
         targetModal.classList.remove("is-open");
@@ -338,4 +338,4 @@ import DonnieLori2025 from "@/assets/donnie&lori2025.jpeg";
       }
     });
   </script>
-</Layout>
+</section>
