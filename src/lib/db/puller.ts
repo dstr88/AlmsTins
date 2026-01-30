@@ -9,6 +9,8 @@ const DEV_LOGGING = Boolean(import.meta.env?.DEV);
 
 type CacheEntry<T> = { expiresAt: number; value: T };
 const memoryCache = new Map<string, CacheEntry<unknown>>();
+const tableExistsCache = new Map<string, boolean>();
+const tableColumnsCache = new Map<string, Set<string>>();
 
 const getCacheKey = (walletId: string, tenantId: string, kind: 'full' | 'snapshot') =>
 	`wallet:${walletId}:${tenantId}:${kind}`;
@@ -37,6 +39,36 @@ const getFromCache = <T>(key: string): T | null => {
 
 const setCache = <T>(key: string, value: T, ttlMs: number) => {
 	memoryCache.set(key, { expiresAt: nowMs() + ttlMs, value });
+};
+
+const tableExists = async (table: string) => {
+	if (tableExistsCache.has(table)) {
+		return tableExistsCache.get(table) ?? false;
+	}
+	const result = await db.execute({
+		sql: `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`,
+		args: [table],
+	});
+	const exists = Boolean(result.rows?.[0]?.name);
+	tableExistsCache.set(table, exists);
+	return exists;
+};
+
+const getTableColumns = async (table: string) => {
+	const cached = tableColumnsCache.get(table);
+	if (cached) return cached;
+	const exists = await tableExists(table);
+	if (!exists) {
+		const empty = new Set<string>();
+		tableColumnsCache.set(table, empty);
+		return empty;
+	}
+	const result = await db.execute({
+		sql: `PRAGMA table_info(${table});`,
+	});
+	const columns = new Set<string>(result.rows.map((row: any) => String(row.name)));
+	tableColumnsCache.set(table, columns);
+	return columns;
 };
 
 /**
@@ -246,6 +278,13 @@ export async function getLatestWalletSnapshot(
 	const cached = getFromCache<FullWalletData['snapshot']>(cacheKey);
 	if (cached) return cached;
 
+	const hasSnapshots = await tableExists('wallet_snapshots');
+	if (!hasSnapshots) {
+		const emptySnapshot = { asOf: null, netWorthUsd: 0, byChain: [] };
+		setCache(cacheKey, emptySnapshot, options?.cacheTtlMs ?? SNAPSHOT_CACHE_TTL_MS);
+		return emptySnapshot;
+	}
+
 	const result = await db.execute({
 		sql: `WITH latest AS (
         SELECT chain, MAX(captured_at) AS captured_at
@@ -344,6 +383,8 @@ export async function getLatestSnapshot(tenantId: string, walletId: string) {
  * Return visible NFTs for a wallet.
  */
 export async function getWalletNfts(tenantId: string, walletId: string) {
+	const hasNfts = await tableExists('nft_holdings');
+	if (!hasNfts) return [];
 	const result = await db.execute({
 		sql: `SELECT contract_address AS contractAddress,
              token_id AS tokenId,
@@ -379,6 +420,8 @@ export async function getWalletNfts(tenantId: string, walletId: string) {
  * Return hidden NFTs for a wallet.
  */
 export async function getHiddenNfts(tenantId: string, walletId: string) {
+	const hasNfts = await tableExists('nft_holdings');
+	if (!hasNfts) return [];
 	const result = await db.execute({
 		sql: `SELECT contract_address AS contractAddress,
              token_id AS tokenId,
@@ -413,6 +456,8 @@ export async function getHiddenNfts(tenantId: string, walletId: string) {
  * Fetch latest Aave protocol snapshot for a wallet.
  */
 export async function getLatestAaveSnapshot(tenantId: string, walletId: string): Promise<AaveLatest | null> {
+	const hasProtocol = await tableExists('protocol_positions');
+	if (!hasProtocol) return null;
 	const result = await db.execute({
 		sql: `SELECT as_of AS asOf,
              health_factor AS healthFactor,
@@ -451,6 +496,8 @@ export async function getWalletInteractions(
 	walletAddress: string,
 	limit = 10,
 ) {
+	const hasTx = await tableExists('transactions');
+	if (!hasTx) return [];
 	const normalizedAddress = walletAddress.toLowerCase();
 	const result = await db.execute({
 		sql: `WITH interactions AS (
@@ -502,9 +549,15 @@ export async function getWalletWithLatestData(
 	const cached = getFromCache<FullWalletData>(cacheKey);
 	if (cached) return cached;
 
+	const walletColumns = await getTableColumns('wallets');
+	if (walletColumns.size === 0) return null;
+	const selectCols = ['id', 'tenant_id', 'address', 'label', 'chains', 'is_default', 'created_at'];
+	if (walletColumns.has('sync_status')) selectCols.push('sync_status');
+	if (walletColumns.has('last_synced_at')) selectCols.push('last_synced_at');
+	if (walletColumns.has('sync_error')) selectCols.push('sync_error');
+
 	const walletResult = await db.execute({
-		sql: `SELECT id, tenant_id, address, label, chains, is_default, created_at,
-             sync_status, last_synced_at, sync_error
+		sql: `SELECT ${selectCols.join(', ')}
       FROM wallets
       WHERE id = ? AND tenant_id = ?
       LIMIT 1`,
