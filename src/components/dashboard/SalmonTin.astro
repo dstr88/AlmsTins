@@ -6,13 +6,17 @@ interface Props {
 
 const { label, class: className = '' } = Astro.props;
 const hasSummary = Astro.slots.has('summary');
+// Temporary test for bookkeeping tins: minimal styles to avoid border/scroll conflicts.
 ---
 
 <div class={`salmon-tin ${className}`}>
 	<span class="salmon-tin__label">{label}</span>
-	{hasSummary ? <div class="salmon-tin__summary"><slot name="summary" /></div> : null}
+	{hasSummary && (
+		<div class="salmon-tin__summary">
+			<slot name="summary" />
+		</div>
+	)}
 	<div class="salmon-tin__body">
-		<div class="inner-border"></div>
 		<slot />
 	</div>
 </div>
@@ -22,38 +26,25 @@ const hasSummary = Astro.slots.has('summary');
 		position: relative;
 		background: darkslategray;
 		color: #f7f2eb;
-		border: 2px solid salmon;
+		border: 2px solid salmon !important;
 		border-radius: 12px;
-		padding: 18px 16px 16px;
+		padding: 2.5rem 1.25rem 1.25rem;
 		display: flex;
 		flex-direction: column;
 		height: 100%;
-		overflow: hidden;
-	}
-
-	.salmon-tin::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: 0;
-		width: 100%;
-		height: 5px;
-		background: salmon;
+		box-sizing: border-box;
 	}
 
 	.salmon-tin__label {
 		position: absolute;
-		top: -10px;
-		left: 16px;
+		top: -12px;
+		left: 1rem;
 		background: salmon;
 		color: #0b0f1a;
 		font-weight: 700;
 		font-size: 1rem;
-		padding: 6px 12px;
-		border-radius: 10px;
-		box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
-		border: 1px solid rgba(0, 0, 0, 0.1);
-		pointer-events: auto;
+		padding: 0.4rem 0.8rem;
+		border-radius: 8px;
 		z-index: 2;
 	}
 
@@ -67,21 +58,14 @@ const hasSummary = Astro.slots.has('summary');
 	.salmon-tin__body {
 		position: relative;
 		z-index: 1;
-		flex: 1 1 auto;
-		min-height: 0;
-		overflow: auto;
-		padding: 1.1rem 1rem 1rem;
-		max-height: clamp(18rem, 30vh, 26rem);
-		text-align: center;
-		font-size: 1.12rem;
+		flex: 1;
+		overflow-y: auto !important;
+		padding: 1rem 0;
+		-webkit-overflow-scrolling: touch;
 	}
 
-	.inner-border {
-		position: absolute;
-		inset: 5px;
-		border: 2px solid rgba(248, 113, 113, 0.9);
-		border-radius: 10px;
-		pointer-events: none;
-		z-index: 0;
+	.salmon-tin::before,
+	.salmon-tin::after {
+		display: none !important;
 	}
 </style>
