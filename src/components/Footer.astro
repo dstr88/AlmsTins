@@ -1,5 +1,4 @@
 ---
-import { Image } from "astro:assets";
 import DonnieSelfie from "../assets/DonnieSelfie.jpeg";
 import Faq from "./faq.astro";
 import Welcome from "./Welcome.astro";
@@ -11,12 +10,13 @@ const year = new Date().getFullYear();
   <div class="footer-grid">
     <section class="footer-col footer-license">
       <div class="license-media">
-        <Image
-          src={DonnieSelfie}
+        <img
+          src={DonnieSelfie.src}
           alt="Donnie selfie"
           class="license-photo"
           width={120}
           height={120}
+          loading="lazy"
         />
         <div class="license-copy">
           <h3>MIT License</h3>

@@ -4,8 +4,6 @@ import { getAuthSession } from "../lib/authSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
 import Logo from "../assets/logo.jpeg";
 import Faq from "@/components/faq.astro";
-import ProfileCard from "@/components/ProfileCard.astro";
-import DonnieLori2025 from "@/assets/donnie&lori2025.jpeg";
 
 const { searchParams } = Astro.url;
 const error = searchParams.get("error");
@@ -48,7 +46,6 @@ if (session) {
 
 <Layout>
   <main class="auth-page">
-    <ProfileCard name="Donnie" photoSrc={DonnieLori2025} />
     <div class="auth-shell">
       <a class="auth-logo" href="/" aria-label="Almstins home">
         <img src={Logo.src} width="75" height="75" alt="Almstins logo" />
@@ -188,8 +185,8 @@ if (session) {
     }
 
     .auth-logo {
-      position: fixed;
-      top: 5rem;
+      position: absolute;
+      top: 2.5rem;
       left: 3rem;
       width: 75px;
       height: 75px;
