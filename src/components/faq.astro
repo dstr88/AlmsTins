@@ -15,26 +15,28 @@
     </p>
 
     <!-- FAQ -->
-    <div class="modal-overlay welcome-modal">
-      <div class="modal-content">
-        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
-
-        <h1>about me</h1>
-
-        <p>
-          My family and I spent fifteen years as missionaries of Jesus Christ.
-          We are involved in our local church, local minsitry and we love Jesus.
-          We have two sons who continue to walk with Jesus. I feel privileged
-          that though they are both in their twenties, they have chosen to
-          continue living with us. I teach ESL for the local school system, and
-          code on snow days, and when I am not busy doing something else. My
-          wife spends her days either substitute teaching -bless her heart-,
-          with her mother, or serving the community.
-        </p>
-      </div>
+    <div class="faq-list">
+      <button class="faq-question" type="button" data-modal="faq-project">
+        Learn about the project
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-exchanges">
+        What about exchanges
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-transactions">
+        What about transactions
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-bookkeeping">
+        Bookkeeping page
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-privacy">
+        Is it private
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-support">
+        What does the project currently support?
+      </button>
     </div>
 
-    <div class="modal-overlay welcome-modal">
+    <div class="modal-overlay welcome-modal" id="faq-project">
       <div class="modal-content">
         <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
 
@@ -65,7 +67,7 @@
       </div>
     </div>
 
-    <div class="modal-overlay welcome-modal">
+    <div class="modal-overlay welcome-modal" id="faq-exchanges">
       <div class="modal-content">
         <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
 
@@ -85,7 +87,7 @@
       </div>
     </div>
 
-    <div class="modal-overlay welcome-modal">
+    <div class="modal-overlay welcome-modal" id="faq-transactions">
       <div class="modal-content">
         <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
 
@@ -110,7 +112,7 @@
       </div>
     </div>
 
-    <div class="modal-overlay welcome-modal">
+    <div class="modal-overlay welcome-modal" id="faq-bookkeeping">
       <div class="modal-content">
         <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
 
@@ -127,7 +129,7 @@
       </div>
     </div>
 
-    <div class="modal-overlay welcome-modal">
+    <div class="modal-overlay welcome-modal" id="faq-privacy">
       <div class="modal-content">
         <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
 
@@ -144,7 +146,7 @@
       </div>
     </div>
 
-    <div class="modal-overlay welcome-modal">
+    <div class="modal-overlay welcome-modal" id="faq-support">
       <div class="modal-content">
         <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
 
@@ -252,6 +254,31 @@
       transform: translateY(-2px);
     }
 
+    .faq-list {
+      display: grid;
+      gap: 0.6rem;
+      margin-top: 1.5rem;
+    }
+
+    .faq-question {
+      width: 100%;
+      text-align: left;
+      padding: 0.85rem 1rem;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      font-size: 0.98rem;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    }
+
+    .faq-question:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.28);
+      transform: translateY(-1px);
+    }
+
     /* modal */
     .modal-overlay {
       position: fixed;
@@ -314,28 +341,28 @@
 
   <script>
     const modals = Array.from(document.querySelectorAll(".welcome-modal"));
-    const firstModal = modals[0];
 
     /** @param {Event} event */
     function closeWelcomeModal(event:any) {
       const targetModal =
-        (event?.currentTarget instanceof HTMLElement
+        event?.currentTarget instanceof HTMLElement
           ? event.currentTarget.closest(".welcome-modal")
-          : null) || firstModal;
+          : null;
 
       if (targetModal) {
         targetModal.classList.remove("is-open");
       }
-
-      localStorage.setItem("almstinsWelcomeSeen", "true");
     }
 
-    window.addEventListener("load", () => {
-      const hasSeen = localStorage.getItem("almstinsWelcomeSeen");
-
-      if (!hasSeen && firstModal) {
-        firstModal.classList.add("is-open");
-      }
+    document.querySelectorAll("[data-modal]").forEach((trigger) => {
+      trigger.addEventListener("click", () => {
+        const id = trigger.getAttribute("data-modal");
+        if (!id) return;
+        const modal = document.getElementById(id);
+        if (modal) {
+          modal.classList.add("is-open");
+        }
+      });
     });
   </script>
 </section>
