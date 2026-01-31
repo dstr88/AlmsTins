@@ -49,8 +49,8 @@ const year = new Date().getFullYear();
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 2rem;
     align-items: start;
-    max-width: 1200px;
-    margin: 0 auto;
+    width: calc(100% - 1rem);
+    margin: 0 0.5rem;
   }
 
   .footer-col {
@@ -85,10 +85,12 @@ const year = new Date().getFullYear();
   @media (max-width: 1000px) {
     .footer-grid {
       grid-template-columns: 1fr;
+      width: calc(100% - 2rem);
+      margin: 0 1rem;
     }
 
     .license-media {
-      justify-content: center;
+      justify-content: flex-start;
       text-align: left;
     }
   }

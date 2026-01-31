@@ -161,8 +161,8 @@ if (session) {
     }
 
     .auth-shell {
-      width: min(1100px, calc(100% - 2rem));
-      margin: 0 auto;
+      width: calc(100% - 1rem);
+      margin: 0 0.5rem;
       padding: 2.25rem 0 3rem;
       display: grid;
       grid-template-columns: 1.2fr 0.8fr;
@@ -173,6 +173,8 @@ if (session) {
 
     @media (max-width: 900px) {
       .auth-shell {
+        width: calc(100% - 2rem);
+        margin: 0 1rem;
         grid-template-columns: 1fr;
         padding-top: 1.5rem;
       }
@@ -187,7 +189,7 @@ if (session) {
     .auth-logo {
       position: absolute;
       top: 2.5rem;
-      left: 3rem;
+      left: 0.5rem;
       width: 75px;
       height: 75px;
       display: inline-flex;
@@ -212,6 +214,16 @@ if (session) {
       font-size: 1.35rem;
       font-weight: 650;
       letter-spacing: -0.01em;
+    }
+
+    .welcome-copy {
+      margin-left: 1rem;
+    }
+
+    @media (max-width: 900px) {
+      .welcome-copy {
+        margin-left: 0;
+      }
     }
 
     .welcome-copy p {

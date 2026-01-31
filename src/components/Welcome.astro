@@ -1,6 +1,5 @@
 ---
-import { Image } from "astro:assets";
-import DonnieLori2025 from "@/assets/donnie&lori2025.jpeg";
+import DonnieLori2025 from "../assets/donnie&lori2025.jpeg";
 
 const { compact = false } = Astro.props as { compact?: boolean };
 ---
@@ -8,14 +7,7 @@ const { compact = false } = Astro.props as { compact?: boolean };
 <section class={`welcome ${compact ? "compact" : ""}`}>
   <div class="hero-card">
     <div class="hero-image">
-      <Image
-        src={DonnieLori2025}
-        alt="Donnie Starkey"
-        width={500}
-        height={500}
-        quality={75}
-        format="jpeg"
-      />
+      <img src={DonnieLori2025.src} alt="Donnie Starkey" width="500" height="500" loading="lazy" />
     </div>
 
     <div class="hero-info">
@@ -50,7 +42,7 @@ const { compact = false } = Astro.props as { compact?: boolean };
     flex-direction: column;
   }
 
-  .hero-image :global(img) {
+  .hero-image img {
     width: 100%;
     height: auto;
     display: block;
