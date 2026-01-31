@@ -24,6 +24,12 @@
       <button class="faq-question" type="button" data-modal="faq-support">
         What does the project currently support?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-now">
+        What are you working on now?
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-tax">
+        Is this tax software?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -170,6 +176,54 @@
             final resting place is the snapshot view.
           </li>
         </ul>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-now">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>What are you working on now?</h1>
+
+        <ol>
+          <li>
+            The tin inside bookkeeping called "allTransactions" does not scroll. I'm
+            sure there's a great reason for this, but I am not sure what it is.
+            They all should download, and I am working to get them to scroll.
+          </li>
+          <li>
+            I am exploring options with the API calls. The free APIs plan has its
+            quirks and doesn't always want to do what I want. I want things to
+            load much faster than they do.
+          </li>
+          <li>
+            The allTransactions tin in the vault doesn't scroll either. It's there
+            temporarily. I am not sure what I will put in its place yet. Any ideas??
+          </li>
+          <li>
+            I want to revamp the add a wallet. I am not sure why it says I have
+            $0.04, and I'll try not to spend it all at once, but I would like one
+            place that users import their wallet and exchange tins. I'm thinking
+            that I will put a drop-down menu instead of stretching different
+            exchanges across the bottom of the screen. The problem is that it just
+            looks bare without wallets. This is short term. Longer term I want to
+            add functionality to other chains.
+          </li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-tax">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Is this tax software?</h1>
+
+        <p>
+          This project is still in beta mode, but should provide valuable information
+          for your taxes and every year you use it, and the more data you give it,
+          the more effective it will be.
+        </p>
       </div>
     </div>
   </div>
