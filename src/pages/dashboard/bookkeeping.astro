@@ -138,6 +138,8 @@ try {
 }
 
 const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a));
+const currentYear = new Date().getFullYear();
+const lastYear = String(currentYear - 1);
 ---
 
 <Layout title="Bookkeeping">
@@ -155,13 +157,16 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
 
   <!-- RIGHT COLUMN: Tax events by year -->
   <div class="tax-events-column">
-    <h2 class="column-title">Tax Events (Past Years)</h2>
+    <h2 class="column-title">Tax Events by Year</h2>
 		{taxYears.length === 0 ? (
 			<p class="tax-empty">No tax lots available yet.</p>
 		) : (
 			taxYears.map((year) => (
 				<div class="year-group">
-					<h3>{year}</h3>
+					<h3>
+						{year}
+						{year === lastYear ? <span class="year-tag">Taxes due now</span> : null}
+					</h3>
 					<div class="year-divider"></div>
 					<div class="tax-events-list">
 						{taxLotsByYear[year].map((lot) => (
@@ -310,6 +315,16 @@ const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a)
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+.year-tag {
+  margin-left: 0.6rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(247, 242, 235, 0.7);
+  border: 1px solid rgba(247, 242, 235, 0.25);
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
 }
 .tax-event {
   padding: 0.6rem 0.9rem;
