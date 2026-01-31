@@ -99,8 +99,9 @@ const year = new Date().getFullYear();
   }
 
   .footer-license {
-    position: relative;
-    padding-bottom: 3.5rem;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 3rem;
   }
 
   .license-media {
@@ -136,10 +137,8 @@ const year = new Date().getFullYear();
   }
 
   .license-logo-link {
-    position: absolute;
-    left: 0;
-    bottom: 3rem;
     display: inline-block;
+    margin-top: auto;
   }
 
   .license-logo-link:hover .license-logo {
