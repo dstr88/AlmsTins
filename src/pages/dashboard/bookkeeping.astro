@@ -256,18 +256,19 @@ const lastYear = String(currentYear - 1);
 }
 
 .transactions-column :global(.salmon-tin) {
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
-  overflow: hidden;
+  height: auto;
 }
 
 .transactions-column :global(.tin0-all) {
   min-height: 0;
-  height: 100%;
+  height: auto;
   border: none;
   background: transparent;
   padding: 0.5rem;
   box-shadow: none;
+  overflow: visible;
 }
 
 .transactions-column :global(.onchain-wallet) {
@@ -277,8 +278,8 @@ const lastYear = String(currentYear - 1);
 
 .transactions-column :global(.tin0-all__list) {
   min-height: 0;
-  max-height: 100%;
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 /* Professional scrollbar */
