@@ -369,19 +369,22 @@ if (session) {
     }
 
     button {
-      border-radius: 12px;
-      padding: 1.15rem;
+      border-radius: 14px;
+      padding: 0.9rem 1rem;
       border: none;
-      background: linear-gradient(135deg, salmon, #ff6b6b);
-      color: #0b0f1a;
-      font-size: 1.05rem;
-      font-weight: 700;
+      background: linear-gradient(135deg, #5865f2, #7c3aed);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 750;
       cursor: pointer;
-      transition: opacity 0.2s ease;
+      transition: opacity 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+      box-shadow: 0 12px 30px rgba(124, 58, 237, 0.25);
     }
 
     button:hover {
-      opacity: 0.92;
+      opacity: 0.95;
+      transform: translateY(-1px);
+      box-shadow: 0 18px 45px rgba(124, 58, 237, 0.35);
     }
 
     .notice {
