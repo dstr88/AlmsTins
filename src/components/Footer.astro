@@ -1,0 +1,95 @@
+---
+import Image from "astro/components/Image.astro";
+import DonnieSelfie from "@/assets/DonnieSelfie.jpeg";
+import Faq from "@/components/faq.astro";
+import Welcome from "@/components/welcome.astro";
+
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="footer-grid">
+    <section class="footer-col footer-license">
+      <div class="license-media">
+        <Image
+          src={DonnieSelfie}
+          alt="Donnie selfie"
+          class="license-photo"
+          width={120}
+          height={120}
+        />
+        <div class="license-copy">
+          <h3>MIT License</h3>
+          <p>Open-source under the MIT License.</p>
+          <p>© {year} Titanium Hut</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="footer-col footer-faq">
+      <Faq />
+    </section>
+
+    <section class="footer-col footer-welcome">
+      <Welcome compact />
+    </section>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    background: #2f4f4f;
+    color: #f7f2eb;
+    padding: 3rem clamp(1.5rem, 4vw, 3rem);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem;
+    align-items: start;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .footer-col {
+    min-width: 0;
+  }
+
+  .license-media {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .license-photo {
+    width: 96px;
+    height: 96px;
+    border-radius: 16px;
+    object-fit: cover;
+    border: 3px solid salmon;
+  }
+
+  .license-copy h3 {
+    margin: 0 0 0.4rem;
+    font-size: 1.1rem;
+    color: #f7f2eb;
+  }
+
+  .license-copy p {
+    margin: 0.2rem 0;
+    color: rgba(247, 242, 235, 0.85);
+  }
+
+  @media (max-width: 1000px) {
+    .footer-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .license-media {
+      justify-content: center;
+      text-align: left;
+    }
+  }
+</style>
