@@ -231,13 +231,14 @@ const lastYear = String(currentYear - 1);
 /* Scrollable columns */
 .transactions-column,
 .tax-events-column {
-  height: 80vh;
-  max-height: 80vh;
+  height: 72vh;
+  max-height: 72vh;
   overflow-y: auto;
   padding: 1.25rem;
   border-radius: 12px;
   background: darkslategray;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.3) transparent;
   min-width: 0;
@@ -246,8 +247,8 @@ const lastYear = String(currentYear - 1);
 /* Left column inset */
 .transactions-column {
   padding: 0 1.25rem 1.25rem 1.25rem;
-  height: 80vh;
-  max-height: 80vh;
+  height: 72vh;
+  max-height: 72vh;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -379,8 +380,8 @@ const lastYear = String(currentYear - 1);
   }
   .transactions-column,
   .tax-events-column {
-    height: 70vh;
-    max-height: 70vh;
+    height: 62vh;
+    max-height: 62vh;
   }
 }
 
