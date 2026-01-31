@@ -1,5 +1,6 @@
 ---
 import DonnieSelfie from "../assets/DonnieSelfie.jpeg";
+import TitaniumHut from "../assets/TitaniumHut.png";
 import Faq from "./faq.astro";
 import Welcome from "./Welcome.astro";
 
@@ -22,6 +23,22 @@ const year = new Date().getFullYear();
           <h3>MIT License</h3>
           <p>Open-source under the MIT License.</p>
           <p>© {year} Titanium Hut</p>
+          <a
+            href="https://www.titaniumhut.com"
+            target="_blank"
+            rel="noreferrer"
+            class="license-logo-link"
+            aria-label="Titanium Hut"
+          >
+            <img
+              src={TitaniumHut.src}
+              alt="Titanium Hut"
+              class="license-logo"
+              width="140"
+              height="40"
+              loading="lazy"
+            />
+          </a>
         </div>
       </div>
     </section>
@@ -80,6 +97,21 @@ const year = new Date().getFullYear();
   .license-copy p {
     margin: 0.2rem 0;
     color: rgba(247, 242, 235, 0.85);
+  }
+
+  .license-logo {
+    display: block;
+    margin-top: 0.6rem;
+    max-width: 140px;
+    height: auto;
+  }
+
+  .license-logo-link {
+    display: inline-block;
+  }
+
+  .license-logo-link:hover .license-logo {
+    filter: brightness(1.1);
   }
 
   @media (max-width: 1000px) {
