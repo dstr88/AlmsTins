@@ -159,18 +159,21 @@ if (session) {
     }
 
     .auth-shell {
-      width: calc(100% - 2rem);
-      margin: 0 1rem;
-      padding: 2.25rem 0 3rem;
+      width: 100%;
+      margin: 0;
+      padding: 0;
       display: grid;
-      grid-template-columns: 1.2fr 0.8fr;
-      gap: 2rem;
-      align-items: start;
+      grid-template-columns: 1fr 1fr;
+      align-items: stretch;
+      min-height: 100vh;
+      background: #0a0f1a;
+      color: #f7f2eb;
       position: relative;
     }
 
     @media (max-width: 900px) {
       .auth-shell {
+        min-height: auto;
         width: calc(100% - 2rem);
         margin: 0 1rem;
         grid-template-columns: 1fr;
@@ -179,14 +182,16 @@ if (session) {
     }
 
     .auth-left {
-      display: grid;
-      gap: 1.25rem;
-      margin-top: 2rem;
+      padding: 5rem 3rem 3rem 5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 3rem;
+      background: linear-gradient(to bottom right, #0d1525, #0a0f1a);
     }
 
     .auth-logo {
       position: absolute;
-      top: 2.5rem;
+      top: 3rem;
       left: 1rem;
       width: 75px;
       height: 75px;
@@ -209,13 +214,14 @@ if (session) {
 
     .welcome-copy h1 {
       margin: 15rem 0 0.5rem;
-      font-size: 1.35rem;
-      font-weight: 650;
+      font-size: 2.6rem;
+      font-weight: 800;
       letter-spacing: -0.01em;
     }
 
     .welcome-copy {
       margin-left: 1.5rem;
+      max-width: 680px;
     }
 
     @media (max-width: 900px) {
@@ -228,29 +234,34 @@ if (session) {
       margin: 0;
       color: rgba(255, 255, 255, 0.76);
       line-height: 1.8;
-      font-size: 0.98rem;
+      font-size: 1.15rem;
     }
 
     .auth-right {
-      position: sticky;
-      top: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: rgba(0, 0, 0, 0.25);
     }
 
     @media (max-width: 900px) {
       .auth-right {
-        position: static;
+        padding: 2rem;
       }
     }
 
     /* ✅ compact sign-in card */
     .signin-card {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 18px;
-      padding: 1.5rem;
-      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+      background: rgba(10, 15, 26, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 3rem 2.5rem;
+      width: 100%;
+      max-width: 460px;
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
       display: grid;
-      gap: 1.1rem;
+      gap: 1.4rem;
     }
 
     .signin-head h2 {
@@ -267,7 +278,7 @@ if (session) {
 
     .providers {
       display: grid;
-      gap: 0.7rem;
+      gap: 1rem;
     }
 
     .provider-form {
@@ -281,11 +292,11 @@ if (session) {
       width: 100%;
       text-decoration: none;
       border-radius: 12px;
-      padding: 0.78rem 1rem;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 1.1rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
       background: rgba(255, 255, 255, 0.08);
       color: #fff;
-      font-size: 0.98rem;
+      font-size: 1.05rem;
       font-weight: 650;
       cursor: pointer;
       transition: transform 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
@@ -315,7 +326,7 @@ if (session) {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      margin: 0.35rem 0;
+      margin: 2rem 0;
       color: rgba(255, 255, 255, 0.55);
       font-size: 0.78rem;
       text-transform: uppercase;
@@ -348,8 +359,8 @@ if (session) {
       background: rgba(255, 255, 255, 0.08);
       backdrop-filter: blur(4px);
       color: #fff;
-      padding: 0.7rem 0.95rem;
-      font-size: 1rem;
+      padding: 1rem 1.25rem;
+      font-size: 1.05rem;
     }
 
     input:focus {
@@ -359,12 +370,12 @@ if (session) {
 
     button {
       border-radius: 12px;
-      padding: 0.78rem 1rem;
+      padding: 1.15rem;
       border: none;
-      background: linear-gradient(135deg, #5767ff, #934dff);
-      color: #fff;
-      font-size: 0.98rem;
-      font-weight: 650;
+      background: linear-gradient(135deg, salmon, #ff6b6b);
+      color: #0b0f1a;
+      font-size: 1.05rem;
+      font-weight: 700;
       cursor: pointer;
       transition: opacity 0.2s ease;
     }
