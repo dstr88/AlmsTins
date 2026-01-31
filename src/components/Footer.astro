@@ -45,6 +45,10 @@ const year = new Date().getFullYear();
 
     <section class="footer-col footer-faq">
       <Faq />
+      <div class="footer-legal">
+        <span>privacy-policy</span>
+        <span>terms of service</span>
+      </div>
     </section>
 
     <section class="footer-col footer-welcome">
@@ -102,6 +106,7 @@ const year = new Date().getFullYear();
   .license-logo {
     display: block;
     margin-top: 1rem;
+    margin-bottom: 3rem;
     max-width: 140px;
     height: auto;
   }
@@ -112,6 +117,17 @@ const year = new Date().getFullYear();
 
   .license-logo-link:hover .license-logo {
     filter: brightness(1.1);
+  }
+
+  .footer-legal {
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    color: rgba(247, 242, 235, 0.7);
   }
 
   @media (max-width: 1000px) {
