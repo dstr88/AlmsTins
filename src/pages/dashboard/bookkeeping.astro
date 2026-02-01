@@ -139,7 +139,6 @@ try {
 
 const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a));
 const currentYear = new Date().getFullYear();
-const lastYear = String(currentYear - 1);
 ---
 
 <Layout title="Bookkeeping">
@@ -167,19 +166,14 @@ const lastYear = String(currentYear - 1);
 			taxYears.map((year) => (
 				<div class="year-group">
 					<h3 class="year-header">
-						<span class="year-label">
-							{year}
-							{year === lastYear ? <span class="year-tag">Export CSV</span> : null}
-						</span>
-						{year === lastYear ? (
-							<a
-								href={`/api/tax-csv?year=${year}&walletId=fa58b&tenantId=${tenantId}`}
-								class="csv-download-btn csv-download-inline"
-								download
-							>
-								📥 Download CSV
-							</a>
-						) : null}
+						<span class="year-label">{year}</span>
+						<a
+							href={`/api/tax-csv?year=${year}&walletId=fa58b&tenantId=${tenantId}`}
+							class="csv-download-btn csv-download-inline"
+							download
+						>
+							Export CSV
+						</a>
 					</h3>
 					<div class="year-divider"></div>
 					<div class="tax-events-list">
@@ -195,15 +189,7 @@ const lastYear = String(currentYear - 1);
 							</div>
 						))}
 					</div>
-					{year === lastYear ? null : (
-						<a
-							href={`/api/tax-csv?year=${year}&walletId=fa58b&tenantId=${tenantId}`}
-							class="csv-download-btn"
-							download
-						>
-							📥 Download {year} Tax Events (CSV)
-						</a>
-					)}
+					{null}
 				</div>
 			))
 		)}
@@ -271,11 +257,11 @@ const lastYear = String(currentYear - 1);
   gap: 1.5rem;
   overflow: hidden;
   box-sizing: border-box;
+  border-bottom: 2px solid salmon;
 }
 
 .tax-events-inner,
 .transactions-inner {
-  border: 2px solid salmon;
   border-radius: 10px;
   margin: 10px;
   padding: 10px;
@@ -284,10 +270,15 @@ const lastYear = String(currentYear - 1);
 }
 
 .transactions-inner {
+  border: none;
   overflow: hidden;
+  margin: 0;
+  padding: 0;
+  height: 100%;
 }
 
 .tax-events-inner {
+  border: 2px solid salmon;
   overflow-y: auto;
 }
 
@@ -300,6 +291,8 @@ const lastYear = String(currentYear - 1);
 .transactions-column :global(.salmon-tin__body) {
   overflow: hidden;
   padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .transactions-column :global(.tin0-all) {
@@ -369,16 +362,6 @@ const lastYear = String(currentYear - 1);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-.year-tag {
-  margin-left: 0.6rem;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(247, 242, 235, 0.7);
-  border: 1px solid rgba(247, 242, 235, 0.25);
-  padding: 0.2rem 0.45rem;
-  border-radius: 999px;
 }
 .tax-event {
   padding: 0.6rem 0.9rem;
