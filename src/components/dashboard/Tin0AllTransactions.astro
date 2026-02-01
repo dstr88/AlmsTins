@@ -329,6 +329,7 @@ const exportUrl = walletId
 ---
 
 <article class="tin0-all" id="all-transactions">
+	<div class="tin0-all__inner">
 	<header class="tin0-all__header">
 		<h3 class="tin0-all__title">All Transactions</h3>
 		<a class="tin0-all__export" href={exportUrl}>Export CSV</a>
@@ -462,6 +463,7 @@ const exportUrl = walletId
 			</div>
 		))}
 	</div>
+	</div>
 	<script
 		type="application/json"
 		id="lifecycle-data"
@@ -493,9 +495,9 @@ const exportUrl = walletId
 	.tin0-all {
 		background: darkslategray;
 		color: #f7f2eb;
-		border: 2px solid salmon;
+		border: none;
 		border-radius: 12px;
-		padding: var(--space-md);
+		padding: 0;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-sm);
@@ -506,12 +508,30 @@ const exportUrl = walletId
 		overflow: hidden;
 	}
 
+	.tin0-all__inner {
+		border: 2px solid salmon;
+		border-radius: 10px;
+		margin: 10px;
+		padding: 10px;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+		height: calc(100% - 20px);
+		overflow-y: auto;
+		box-sizing: border-box;
+	}
+
 	.tin0-all__header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: var(--space-sm);
 		flex-wrap: wrap;
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		background: darkslategray;
+		padding-bottom: 0.5rem;
 	}
 
 	.tin0-all__title {
