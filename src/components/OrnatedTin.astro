@@ -35,6 +35,7 @@ const hasSummary = Astro.slots.has("summary");
     /* theme knobs */
     --tin-bg: darkslategray;
     --tin-fg: #f7f2eb;
+    --tin-body-bg: rgba(0, 0, 0, 0.08);
 
     /* “salmon copper” */
     --copper: #fa8072;
@@ -113,7 +114,7 @@ const hasSummary = Astro.slots.has("summary");
     background:
       radial-gradient(1200px 400px at 15% 10%, rgba(255,255,255,0.06), transparent 50%),
       radial-gradient(900px 380px at 85% 85%, rgba(250,128,114,0.06), transparent 55%),
-      rgba(0,0,0,0.08);
+      var(--tin-body-bg);
   }
 
   /* ===== Outer ornate frame (multi-layer) ===== */
