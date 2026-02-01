@@ -1,37 +1,15 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
-import SalmonTin from '@/components/dashboard/SalmonTin.astro';
+import OrnateTin from '@/components/OrnatedTin.astro';
 import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.astro';
-import Tin2Wallet from '../../components/dashboard/Tin2Wallet.astro';
-import OnchainWalletTransactions from '../../components/dashboard/OnchainWalletTransactions.astro';
-import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
-import WalletSummary from '../../components/dashboard/WalletSummary';
 import { requireTenantSession } from '../../lib/requireTenantSession';
-import { db } from '../../lib/db';
-
+import { buildTaxLotsByYear } from '../../lib/bookkeepingTaxLots';
 
 const pageStart = Date.now();
 const { tenantId } = await requireTenantSession(Astro.request);
 console.log('[bookkeeping] auth ms', Date.now() - pageStart, 'tenant', tenantId);
 console.log('[bookkeeping] total ms', Date.now() - pageStart);
-
-type LifecycleEventRow = {
-  asset_symbol: string;
-  direction: string | null;
-  amount: number | null;
-  native_usd: number | null;
-  timestamp_utc: string;
-};
-
-type TaxLot = {
-  asset: string;
-  amount: number;
-  buyDate: string | null;
-  sellDate: string;
-  buyUsd?: number | null;
-  sellUsd?: number | null;
-};
 
 const formatDate = (value: string | null) => {
   if (!value) return '—';
@@ -48,380 +26,254 @@ const formatUsd = (value: number | null | undefined) =>
     ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
     : '—';
 
-let taxLotsByYear: Record<string, TaxLot[]> = {};
+const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
 
-try {
-  const result = await db.execute({
-    sql: `SELECT g.asset_symbol AS asset_symbol,
-      e.direction AS direction,
-      e.amount AS amount,
-      e.native_usd AS native_usd,
-      e.timestamp_utc AS timestamp_utc
-      FROM asset_lifecycle_events e
-      LEFT JOIN asset_lifecycle_groups g
-        ON g.id = e.group_id AND g.tenant_id = e.tenant_id
-      WHERE e.tenant_id = ?
-      ORDER BY e.timestamp_utc ASC`,
-    args: [tenantId],
-  });
-
-  const rows = result.rows as unknown as LifecycleEventRow[];
-  const lotsByAsset = new Map<string, Array<{ amount: number; timestamp: string; costUsd?: number | null }>>();
-  const sales: TaxLot[] = [];
-
-  for (const row of rows) {
-    const asset = String(row.asset_symbol ?? '').toUpperCase();
-    if (!asset) continue;
-    const direction = row.direction ? String(row.direction) : null;
-    const amount = Math.abs(Number(row.amount ?? 0));
-    if (!amount) continue;
-
-    if (direction === 'in') {
-      const list = lotsByAsset.get(asset) ?? [];
-      list.push({
-        amount,
-        timestamp: String(row.timestamp_utc),
-        costUsd: row.native_usd ?? null,
-      });
-      lotsByAsset.set(asset, list);
-      continue;
-    }
-
-    if (direction === 'out') {
-      let remaining = amount;
-      const list = lotsByAsset.get(asset) ?? [];
-      const sellUsd = row.native_usd ?? null;
-      while (remaining > 0) {
-        const lot = list[0];
-        if (!lot) {
-          sales.push({
-            asset,
-            amount: remaining,
-            buyDate: null,
-            sellDate: String(row.timestamp_utc),
-            buyUsd: null,
-            sellUsd,
-          });
-          break;
-        }
-        const take = Math.min(remaining, lot.amount);
-        const buyPortion = lot.costUsd ? (take / lot.amount) * lot.costUsd : null;
-        const sellPortion = sellUsd ? (take / amount) * sellUsd : null;
-        sales.push({
-          asset,
-          amount: take,
-          buyDate: lot.timestamp,
-          sellDate: String(row.timestamp_utc),
-          buyUsd: buyPortion,
-          sellUsd: sellPortion,
-        });
-        lot.amount -= take;
-        if (lot.amount <= 0) {
-          list.shift();
-        }
-        remaining -= take;
-      }
-      lotsByAsset.set(asset, list);
-    }
-  }
-
-  taxLotsByYear = sales.reduce<Record<string, TaxLot[]>>((acc, sale) => {
-    const year = new Date(sale.sellDate).getFullYear();
-    const key = Number.isFinite(year) ? String(year) : 'Unknown';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(sale);
-    return acc;
-  }, {});
-} catch (error) {
-  console.error('[bookkeeping] Failed to build tax lots', error);
-  taxLotsByYear = {};
-}
-
-const taxYears = Object.keys(taxLotsByYear).sort((a, b) => Number(b) - Number(a));
-const currentYear = new Date().getFullYear();
 ---
 
 <Layout title="Bookkeeping">
-	<section class="bookkeeping-page">
-		<div class="hero-bleed">
-			<NetWorthHero title="Bookkeeping" subtitle="Transactions and tax lots" />
-		</div>
-		<section class="transactions-tax-layout">
-  <!-- LEFT COLUMN: All wallet transactions -->
-  <div class="transactions-column">
-		<div class="transactions-inner">
-		<SalmonTin label="All Transactions">
-			<Tin0AllTransactions />
-		</SalmonTin>
-		</div>
-  </div>
+  <section class="bookkeeping-page">
+    <div class="hero-bleed">
+      <NetWorthHero title="Bookkeeping" subtitle="Transactions and tax lots" />
+    </div>
 
-  <!-- RIGHT COLUMN: Tax events by year -->
-  <div class="tax-events-column">
-		<div class="tax-events-inner">
-    <h2 class="column-title">Tax Events by Year</h2>
-		{taxYears.length === 0 ? (
-			<p class="tax-empty">No tax lots available yet.</p>
-		) : (
-			taxYears.map((year) => (
-				<div class="year-group">
-					<h3 class="year-header">
-						<span class="year-label">{year}</span>
-						<a
-							href={`/api/tax-csv?year=${year}&walletId=fa58b&tenantId=${tenantId}`}
-							class="csv-download-btn csv-download-inline"
-							download
-						>
-							Export CSV
-						</a>
-					</h3>
-					<div class="year-divider"></div>
-					<div class="tax-events-list">
-						{taxLotsByYear[year].map((lot) => (
-							<div class="tax-event">
-								<strong>{lot.asset}</strong> • Buy {formatDate(lot.buyDate)} • Sell{' '}
-								{formatDate(lot.sellDate)} • Qty {formatAmount(lot.amount)}
-								{lot.buyUsd || lot.sellUsd ? (
-									<span class="tax-event__sub">
-										Cost {formatUsd(lot.buyUsd)} • Proceeds {formatUsd(lot.sellUsd)}
-									</span>
-								) : null}
-							</div>
-						))}
-					</div>
-					{null}
-				</div>
-			))
-		)}
-		</div>
-		</section>
-	</section>
+    <section class="two-tins">
+      <!-- LEFT: All wallet transactions -->
+      <div class="tin-col">
+        <OrnateTin label="All Transactions" class="tin-full">
+          <Tin0AllTransactions />
+        </OrnateTin>
+      </div>
 
-	<style>
-		.bookkeeping-page {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  padding: 1rem 0 2rem;
-}
+      <!-- RIGHT: Tax events by year -->
+      <div class="tin-col">
+        <OrnateTin label="Tax Events" class="tin-full">
+          <div class="tax-head">
+            <h2 class="column-title">Tax Events by Year</h2>
+          </div>
 
-		.hero-bleed {
-  height: 60vh;
-  min-height: 420px;
-  width: 100vw;
-  margin-left: 50%;
-  transform: translateX(-50%);
-  padding: 0;
-  max-width: none;
-  display: flex;
-  align-items: stretch;
-}
+          {taxYears.length === 0 ? (
+            <p class="tax-empty">No tax lots available yet.</p>
+          ) : (
+            taxYears.map((year) => (
+              <div class="year-group">
+                <h3 class="year-header">
+                  <span class="year-label">{year}</span>
+                  <a
+                    href={`/api/tax-csv?year=${year}&walletId=fa58b&tenantId=${tenantId}`}
+                    class="csv-download-btn csv-download-inline"
+                    download
+                  >
+                    Export CSV
+                  </a>
+                </h3>
 
-		.hero-bleed :global(.hero) {
-  width: 100%;
-}
+                <div class="year-divider"></div>
 
-.transactions-tax-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 3rem;
-  align-items: stretch;
-  width: 100%;
-  max-width: calc(100% - 6rem);
-  margin: 0 auto 2rem;
-}
+                <div class="tax-events-list">
+                  {taxLotsByYear[year].map((lot) => (
+                    <div class="tax-event">
+                      <strong>{lot.asset}</strong> • Buy {formatDate(lot.buyDate)} • Sell{' '}
+                      {formatDate(lot.sellDate)} • Qty {formatAmount(lot.amount)}
+                      {lot.buyUsd || lot.sellUsd ? (
+                        <span class="tax-event__sub">
+                          Cost {formatUsd(lot.buyUsd)} • Proceeds {formatUsd(lot.sellUsd)}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </OrnateTin>
+      </div>
+    </section>
+  </section>
 
-/* Scrollable columns */
-.transactions-column,
-.tax-events-column {
-  height: 72vh;
-  max-height: 72vh;
-  overflow: hidden;
-  padding: 0;
-  border-radius: 12px;
-  background: darkslategray;
-  border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.3) transparent;
-  min-width: 0;
-}
+  <style>
+    .bookkeeping-page {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      padding: 1rem 0 2rem;
+    }
 
-/* Left column inset */
-.transactions-column {
-  padding: 10px;
-  height: 72vh;
-  max-height: 72vh;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  overflow: hidden;
-  box-sizing: border-box;
-  border-bottom: none;
-}
+    .hero-bleed {
+      height: 60vh;
+      min-height: 420px;
+      width: 100vw;
+      margin-left: 50%;
+      transform: translateX(-50%);
+      padding: 0;
+      max-width: none;
+      display: flex;
+      align-items: stretch;
+    }
 
-.tax-events-inner,
-.transactions-inner {
-  border: 2px solid salmon;
-  border-radius: 10px;
-  padding: 10px;
-  height: 100%;
-  box-sizing: border-box;
-}
+    .hero-bleed :global(.hero) {
+      width: 100%;
+    }
 
-.transactions-inner {
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}
+    /* === Two equal tins, identical height === */
+    .two-tins {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 3rem;
+      align-items: stretch;
+      width: 100%;
+      max-width: calc(100% - 6rem);
+      margin: 0 auto 2rem;
+    }
 
-.tax-events-inner {
-  overflow-y: auto;
-}
+    .tin-col {
+      height: 72vh;
+      max-height: 72vh;
+      min-width: 0;
 
-.transactions-column :global(.salmon-tin) {
-  flex: 1 1 auto;
-  min-height: 0;
-  height: 100%;
-}
+      /* Critical: allow the child tin to become the scroll container */
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
 
-.transactions-column :global(.salmon-tin__body) {
-  overflow: hidden;
-  padding: 0;
-  flex: 1 1 auto;
-  min-height: 0;
-}
+    /* Make the tin fill the column */
+    .tin-full {
+      height: 100%;
+      min-height: 0;
+    }
 
-.transactions-column :global(.tin0-all) {
-  min-height: 0;
-  height: 100%;
-  border: none;
-  background: transparent;
-  padding: 0.5rem;
-  box-shadow: none;
-  overflow: hidden;
-}
+    /* === Left tin: ensure your Tin0AllTransactions can scroll internally ===
+       The OrnateTin scrolls its body; don't block it with "overflow: hidden" wrappers. */
+    .tin-col :global(.tin0-all) {
+      min-height: 0;
+      height: 100%;
+      border: none;
+      background: transparent;
+      padding: 0.5rem;
+      box-shadow: none;
+    }
 
-.transactions-column :global(.onchain-wallet) {
-  min-height: 0;
-  height: 100%;
-}
+    /* If tin0-all has its own list area, let it size naturally inside the scroll container */
+    .tin-col :global(.tin0-all__list) {
+      min-height: 0;
+      max-height: none;
+    }
 
-.transactions-column :global(.tin0-all__list) {
-  min-height: 0;
-  max-height: none;
-  overflow: visible;
-}
+    /* === Right tin content styling === */
+    .tax-head {
+      padding-bottom: 0.75rem;
+    }
 
-/* Professional scrollbar */
-.transactions-column::-webkit-scrollbar,
-.tax-events-column::-webkit-scrollbar {
-  width: 6px;
-}
-.transactions-column::-webkit-scrollbar-thumb,
-.tax-events-column::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.35);
-  border-radius: 20px;
-}
+    .column-title {
+      font-size: 1.35rem;
+      margin: 0 0 0.75rem;
+      font-weight: 650;
+    }
 
-/* Tax year styling */
-.year-group {
-  margin-bottom: 2.5rem;
-}
-.year-group:last-child {
-  margin-bottom: 0;
-}
-.year-group h3 {
-  font-size: 1.25rem;
-  margin: 0 0 0.75rem;
-  color: #f7f2eb;
-  font-weight: 600;
-}
-.year-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-.year-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-.year-divider {
-  height: 1px;
-  background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
-  margin-bottom: 1rem;
-}
-.tax-events-list {
-  margin-bottom: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.tax-event {
-  padding: 0.6rem 0.9rem;
-  background: rgba(255,255,255,0.05);
-  border-radius: 6px;
-  font-size: 0.95rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-.tax-event__sub {
-  font-size: 0.85rem;
-  opacity: 0.8;
-}
-.tax-empty {
-  font-size: 0.95rem;
-  opacity: 0.75;
-}
-.column-title {
-  font-size: 1.4rem;
-  margin-bottom: 1.5rem;
-  font-weight: 600;
-}
-.csv-download-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.65rem 1.25rem;
-  background: #1e3a2f;
-  color: #f7f2eb;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: 500;
-  transition: background 0.2s;
-}
-.csv-download-btn:hover {
-  background: #2a4a3e;
-}
-.csv-download-inline {
-  padding: 0.45rem 0.9rem;
-  font-size: 0.8rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
+    .year-group {
+      margin-bottom: 2.5rem;
+    }
+    .year-group:last-child {
+      margin-bottom: 0;
+    }
 
-/* Responsive: stack on smaller screens */
-@media (max-width: 1080px) {
-  .transactions-tax-layout {
-    grid-template-columns: 1fr;
-    margin: 0 1.5rem 2rem;
-  }
-}
-@media (max-width: 720px) {
-  .hero-bleed {
-    height: 45vh;
-    min-height: 320px;
-  }
-  .transactions-column,
-  .tax-events-column {
-    height: 62vh;
-    max-height: 62vh;
-  }
-}
+    .year-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin: 0 0 0.75rem;
+    }
 
-	</style>
+    .year-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 1.15rem;
+      font-weight: 650;
+    }
+
+    .year-divider {
+      height: 1px;
+      background: linear-gradient(
+        to right,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+      );
+      margin-bottom: 1rem;
+    }
+
+    .tax-events-list {
+      margin-bottom: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .tax-event {
+      padding: 0.6rem 0.9rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .tax-event__sub {
+      font-size: 0.85rem;
+      opacity: 0.8;
+    }
+
+    .tax-empty {
+      font-size: 0.95rem;
+      opacity: 0.75;
+      margin: 0;
+    }
+
+    .csv-download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1.25rem;
+      background: #1e3a2f;
+      color: #f7f2eb;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .csv-download-btn:hover {
+      background: #2a4a3e;
+    }
+
+    .csv-download-inline {
+      padding: 0.45rem 0.9rem;
+      font-size: 0.8rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    /* Responsive */
+    @media (max-width: 1080px) {
+      .two-tins {
+        grid-template-columns: 1fr;
+        margin: 0 1.5rem 2rem;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .hero-bleed {
+        height: 45vh;
+        min-height: 320px;
+      }
+      .tin-col {
+        height: 62vh;
+        max-height: 62vh;
+      }
+    }
+  </style>
 </Layout>
