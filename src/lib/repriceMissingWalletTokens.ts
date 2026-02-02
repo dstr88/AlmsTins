@@ -21,7 +21,7 @@ type RepriceOptions = {
 	walletId?: string;
 	symbols?: string[];
 	source?: 'coingecko';
-	trigger?: 'price-failure' | 'view' | 'cron' | 'snapshot-insert';
+	trigger?: 'price-failure' | 'view' | 'cron' | 'snapshot-insert' | 'tokens.refreshMissing';
 	lockTtlSeconds?: number;
 };
 

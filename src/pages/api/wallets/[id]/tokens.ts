@@ -4,6 +4,7 @@ import { computeWalletValue } from '@/lib/sync/syncWalletValue';
 import type { SupportedChain } from '@/lib/constants';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
+import { db } from '@/lib/db';
 
 export const prerender = false;
 
@@ -28,18 +29,56 @@ export const GET: APIRoute = async ({ params, request }) => {
 	}
 
 	try {
-		void repriceMissingWalletTokens({
-			tenantId,
-			walletId,
-			trigger: 'view',
-			lockTtlSeconds: 60,
-		}).catch((error) => {
-			console.warn('[wallet.tokens] reprice trigger failed', { walletId, error });
+		const walletResult = await db.execute({
+			sql: 'SELECT id FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+			args: [walletId, tenantId],
 		});
+		if (!walletResult.rows?.length) {
+			return new Response(JSON.stringify({ error: 'Wallet not found' }), {
+				status: 404,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}
 
 		let result = await getWalletTokenBreakdown(tenantId, walletId);
 		const refreshMissing = url.searchParams.get('refreshMissing') === '1';
 		if (refreshMissing) {
+			console.log('[tokens.refreshMissing] start', { tenantId, walletId }); // TEMP DEBUG
+			const repriceStart = Date.now();
+			const symbolsNeedingPrice = Array.from(
+				new Set(
+					result.tokens
+						.map((token) => {
+							const symbol = String(token.tokenSymbol ?? '').trim().toUpperCase();
+							const amount = Number(token.amount ?? 0);
+							const priceRaw = token.priceUsd ?? null;
+							const valueRaw = token.usdValue ?? null;
+							const price = priceRaw === null ? null : Number(priceRaw);
+							const value = valueRaw === null ? null : Number(valueRaw);
+							if (!symbol) return null;
+							if (!Number.isFinite(amount) || amount <= 0) return null;
+							if (price === null || !Number.isFinite(price) || price <= 0) return symbol;
+							if (value === null || !Number.isFinite(value) || value <= 0) return symbol;
+							return null;
+						})
+						.filter((symbol): symbol is string => Boolean(symbol)),
+				),
+			);
+			console.log('[tokens.refreshMissing] symbolsNeedingPrice', { walletId, symbolsNeedingPrice }); // TEMP DEBUG
+			const repriceResult = await repriceMissingWalletTokens({
+				tenantId,
+				walletId,
+				symbols: symbolsNeedingPrice.length ? symbolsNeedingPrice : undefined,
+				trigger: 'tokens.refreshMissing',
+				lockTtlSeconds: 60,
+			});
+			console.log('[tokens.refreshMissing] repriced', { // TEMP DEBUG
+				tenantId,
+				walletId,
+				updatedSnapshots: repriceResult.updatedRows ?? 0,
+				updatedTokens: repriceResult.updatedTokens ?? 0,
+				elapsedMs: Date.now() - repriceStart,
+			});
 			const desiredChains: SupportedChain[] = ['ethereum', 'polygon', 'avalanche'];
 			const snapshotChains = new Set(result.snapshots.map((snapshot) => snapshot.chain.toLowerCase()));
 			const missingChains = desiredChains.filter((chain) => !snapshotChains.has(chain));
@@ -63,9 +102,43 @@ export const GET: APIRoute = async ({ params, request }) => {
 					}
 					await insertWalletSnapshotFromValueBreakdown(breakdown);
 				}
-
-				result = await getWalletTokenBreakdown(tenantId, walletId);
 			}
+
+			result = await getWalletTokenBreakdown(tenantId, walletId);
+			const normalizeToken = (token: typeof result.tokens[number]) => {
+				const amount = Number(token.amount ?? 0);
+				const priceUsd = token.priceUsd === 0 ? null : token.priceUsd ?? null;
+				let usdValue = token.usdValue === 0 ? null : token.usdValue ?? null;
+				if (priceUsd === null) {
+					usdValue = null;
+				} else if (Number.isFinite(amount) && amount > 0) {
+					usdValue = amount * priceUsd;
+				}
+				return {
+					...token,
+					priceUsd,
+					usdValue,
+				};
+			};
+			const normalizedTokens = result.tokens.map(normalizeToken);
+			const normalizedTotalsUsd = normalizedTokens.reduce(
+				(sum, token) => sum + (Number(token.usdValue ?? 0) || 0),
+				0,
+			);
+			const firstToken = result.tokens[0] ?? null;
+			console.log('[tokens.refreshMissing] after fetch', { // TEMP DEBUG
+				tenantId,
+				walletId,
+				totalsUsd: normalizedTotalsUsd,
+				firstToken: firstToken
+					? {
+							symbol: firstToken.tokenSymbol,
+							amount: firstToken.amount,
+							priceUsd: firstToken.priceUsd,
+							usdValue: firstToken.usdValue,
+					  }
+					: null,
+			});
 		}
 
 		console.log('[wallet.tokens] SUCCESS', {
@@ -95,13 +168,29 @@ export const GET: APIRoute = async ({ params, request }) => {
 				: null,
 		});
 
+		const normalizeToken = (token: typeof result.tokens[number]) => {
+			const amount = Number(token.amount ?? 0);
+			const priceUsd = token.priceUsd === 0 ? null : token.priceUsd ?? null;
+			let usdValue = token.usdValue === 0 ? null : token.usdValue ?? null;
+			if (priceUsd === null) {
+				usdValue = null;
+			} else if (Number.isFinite(amount) && amount > 0) {
+				usdValue = amount * priceUsd;
+			}
+			return {
+				...token,
+				priceUsd,
+				usdValue,
+			};
+		};
+
 		const payload = {
 			ok: true,
 			walletId: result.walletId,
 			address: result.address,
 			label: result.label,
 			snapshots: result.snapshots,
-			tokens: result.tokens,
+			tokens: result.tokens.map(normalizeToken),
 		};
 
 		console.log('[tokens API] FINAL tokens response meta', {
