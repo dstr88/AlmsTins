@@ -4,12 +4,30 @@ import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import OrnateTin from '@/components/OrnatedTin.astro';
 
 import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.astro';
-import Tin2Wallet from '../../components/dashboard/Tin2Wallet.astro';
-import OnchainWalletTransactions from '../../components/dashboard/OnchainWalletTransactions.astro';
-import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
-import WalletSummary from '../../components/dashboard/WalletSummary';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { buildTaxLotsByYear } from '../../lib/bookkeepingTaxLots';
+
+const pageStart = Date.now();
+const { tenantId } = await requireTenantSession(Astro.request);
+console.log('[bookkeeping] auth ms', Date.now() - pageStart, 'tenant', tenantId);
+console.log('[bookkeeping] total ms', Date.now() - pageStart);
+
+const formatDate = (value: string | null) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatAmount = (value: number) =>
+  Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—';
+
+const formatUsd = (value: number | null | undefined) =>
+  Number.isFinite(Number(value))
+    ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+    : '—';
+
+const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
 
 ---
 
