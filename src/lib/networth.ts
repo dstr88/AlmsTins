@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import type { SupportedChain } from '@/lib/constants';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
+import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
 
 export type NetWorthRow = {
 	walletId: string;
@@ -416,8 +417,8 @@ export async function getAaveNetWorthForWallet(
 export type SnapshotTokenEntry = {
 	symbol: string;
 	amount: number;
-	priceUsd: number;
-	valueUsd: number;
+	priceUsd: number | null;
+	valueUsd: number | null;
 	tokenAddress: string | null;
 };
 
@@ -439,8 +440,22 @@ export type SnapshotValueBreakdown = {
 };
 
 export async function insertWalletSnapshotFromValueBreakdown(breakdown: SnapshotValueBreakdown) {
+	// Normalize tokens to ensure missing prices/values are stored as null (never zero).
+	const normalizedTokens = (breakdown.tokens ?? []).map((token) => {
+		if ('priceUsd' in token || 'valueUsd' in token) {
+			const price = Number((token as SnapshotTokenEntry).priceUsd ?? 0);
+			const value = Number((token as SnapshotTokenEntry).valueUsd ?? 0);
+			return {
+				...token,
+				priceUsd: Number.isFinite(price) && price > 0 ? price : null,
+				valueUsd: Number.isFinite(value) && value > 0 ? value : null,
+			} as SnapshotTokenEntry;
+		}
+		return token;
+	});
+
 	// Compute totalUsd from tokens to avoid stale values.
-	const computedTotalUsd = (breakdown.tokens ?? []).reduce((sum, token) => {
+	const computedTotalUsd = normalizedTokens.reduce((sum, token) => {
 		const usdVal =
 			'usdValue' in token
 				? Number((token as SnapshotToken).usdValue ?? 0)
@@ -449,7 +464,7 @@ export async function insertWalletSnapshotFromValueBreakdown(breakdown: Snapshot
 	}, 0);
 	const totalUsd = Number.isFinite(computedTotalUsd) ? computedTotalUsd : Number(breakdown.totalUsd ?? 0);
 
-	const payloadJson = JSON.stringify(breakdown.tokens);
+	const payloadJson = JSON.stringify(normalizedTokens);
 	console.log('[snapshot job] about to insert snapshot', {
 		walletId: breakdown.walletId,
 		chain: breakdown.chain,
@@ -483,6 +498,39 @@ export async function insertWalletSnapshotFromValueBreakdown(breakdown: Snapshot
 	});
 
 	console.log('[snapshot job] inserted snapshot row result', result);
+
+	// Reprice later if any token lacks a valid price/value (avoid zero poisoning).
+	const hasMissingPrices = normalizedTokens.some((token) => {
+		if (!('priceUsd' in token || 'valueUsd' in token)) return false;
+		const amount =
+			'balance' in token
+				? Number((token as SnapshotToken).balance ?? 0)
+				: Number((token as SnapshotTokenEntry).amount ?? 0);
+		if (!Number.isFinite(amount) || amount <= 0) return false;
+		const price =
+			'priceUsd' in token ? Number((token as SnapshotTokenEntry).priceUsd ?? 0) : null;
+		const value =
+			'valueUsd' in token
+				? Number((token as SnapshotTokenEntry).valueUsd ?? 0)
+				: Number((token as SnapshotToken).usdValue ?? 0);
+		const priceMissing = price === null || !Number.isFinite(price) || price <= 0;
+		const valueMissing = !Number.isFinite(value) || value <= 0;
+		return priceMissing || valueMissing;
+	});
+
+	if (hasMissingPrices) {
+		void repriceMissingWalletTokens({
+			tenantId: breakdown.tenantId,
+			walletId: breakdown.walletId,
+			trigger: 'snapshot-insert',
+		}).catch((error) => {
+			console.warn('[snapshot job] reprice failed', {
+				walletId: breakdown.walletId,
+				tenantId: breakdown.tenantId,
+				error,
+			});
+		});
+	}
 }
 
 export type WalletTokenRow = {

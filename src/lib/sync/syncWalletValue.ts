@@ -10,8 +10,8 @@ export type TokenSnapshot = {
 	symbol: string;
 	tokenAddress: string | null;
 	amount: number;
-	priceUsd: number;
-	valueUsd: number;
+	priceUsd: number | null;
+	valueUsd: number | null;
 };
 
 export interface WalletValueBreakdown {
@@ -126,17 +126,18 @@ export async function computeWalletValue(
 	const symbolPriceMap = await getSimpleTokenPrices(
 		sanitizeSymbols(balances.map((b) => b.tokenSymbol ?? '')),
 	);
+	if (!Object.keys(symbolPriceMap).length && balances.length) {
+		console.warn('[VALUE] price fetch returned no data', { walletId, address, tokenCount: balances.length });
+	}
 
 	const byChain = new Map<SupportedChain, WalletValueBreakdown>();
 
 	for (const balance of balances) {
 		const symbol = (balance.tokenSymbol ?? '').trim().toUpperCase();
-		const priceUsd = symbol ? symbolPriceMap[symbol] ?? 0 : 0;
+		const rawPriceUsd = symbol ? symbolPriceMap[symbol] : undefined;
+		const priceUsd = typeof rawPriceUsd === 'number' && rawPriceUsd > 0 ? rawPriceUsd : null;
 		const amount = balance.decimals ? Number(balance.rawBalance) / 10 ** balance.decimals : Number(balance.rawBalance);
-		let valueUsd = amount * priceUsd;
-		if (valueUsd < 0.01) {
-			valueUsd = 0;
-		}
+		const valueUsd = priceUsd !== null ? amount * priceUsd : null;
 
 		const entry =
 			byChain.get(balance.chain) ??
@@ -153,12 +154,12 @@ export async function computeWalletValue(
 			tokenAddress: balance.tokenAddress,
 		};
 
-		if (tokenEntry.amount === 0 && tokenEntry.valueUsd === 0) {
+		if (tokenEntry.amount === 0 && (tokenEntry.valueUsd ?? 0) === 0) {
 			continue;
 		}
 
 		entry.tokens.push(tokenEntry);
-		entry.totalUsd += tokenEntry.valueUsd;
+		entry.totalUsd += tokenEntry.valueUsd ?? 0;
 	}
 
 	return Array.from(byChain.values());

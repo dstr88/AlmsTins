@@ -3,6 +3,7 @@ import { getWalletTokenBreakdown, insertWalletSnapshotFromValueBreakdown } from 
 import { computeWalletValue } from '@/lib/sync/syncWalletValue';
 import type { SupportedChain } from '@/lib/constants';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
 
 export const prerender = false;
 
@@ -27,6 +28,15 @@ export const GET: APIRoute = async ({ params, request }) => {
 	}
 
 	try {
+		void repriceMissingWalletTokens({
+			tenantId,
+			walletId,
+			trigger: 'view',
+			lockTtlSeconds: 60,
+		}).catch((error) => {
+			console.warn('[wallet.tokens] reprice trigger failed', { walletId, error });
+		});
+
 		let result = await getWalletTokenBreakdown(tenantId, walletId);
 		const refreshMissing = url.searchParams.get('refreshMissing') === '1';
 		if (refreshMissing) {
