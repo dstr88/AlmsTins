@@ -1,5 +1,6 @@
 ---
 import { db } from '@/lib/db';
+import type { Row } from '@libsql/client';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAssetLifecycleCache, refreshLifecycleCacheIfStale } from '@/lib/lifecycle';
 import {
@@ -109,6 +110,67 @@ type UnifiedRow = {
 	onchain_chain: string | null;
 };
 
+// Map raw DB rows into the precise UnifiedRow shape to keep type safety at the boundary.
+const normalizeUnifiedRow = (row: Row): UnifiedRow => {
+	const requireString = (value: unknown, label: string): string => {
+		const text = typeof value === 'string' ? value : value != null ? String(value) : '';
+		if (!text) {
+			throw new Error(`[Tin0AllTransactions] Missing ${label} in query row.`);
+		}
+		return text;
+	};
+
+	const toStringOrNull = (value: unknown): string | null => {
+		if (value === null || value === undefined) return null;
+		const text = String(value);
+		return text.length ? text : null;
+	};
+
+	const toNumberOrNull = (value: unknown): number | null => {
+		if (value === null || value === undefined) return null;
+		const num = typeof value === 'number' ? value : Number(value);
+		return Number.isFinite(num) ? num : null;
+	};
+
+	const normalizeTimestamp = (value: unknown): string => {
+		const raw = requireString(value, 'timestamp_utc');
+		const parsed = new Date(raw);
+		if (Number.isNaN(parsed.getTime())) {
+			throw new Error(`[Tin0AllTransactions] Invalid timestamp_utc: ${raw}`);
+		}
+		return parsed.toISOString();
+	};
+
+	return {
+		id: requireString(row.id, 'id'),
+		source: requireString(row.source, 'source'),
+		import_batch_id: toStringOrNull(row.import_batch_id),
+		timestamp_utc: normalizeTimestamp(row.timestamp_utc),
+		description: toStringOrNull(row.description),
+		currency: toStringOrNull(row.currency),
+		amount: toNumberOrNull(row.amount),
+		to_currency: toStringOrNull(row.to_currency),
+		to_amount: toNumberOrNull(row.to_amount),
+		native_currency: toStringOrNull(row.native_currency),
+		native_amount: toNumberOrNull(row.native_amount),
+		native_usd: toNumberOrNull(row.native_usd),
+		kind: toStringOrNull(row.kind),
+		tx_hash: toStringOrNull(row.tx_hash),
+		direction: toStringOrNull(row.direction),
+		asset_symbol: toStringOrNull(row.asset_symbol),
+		notes: toStringOrNull(row.notes),
+		category: toStringOrNull(row.category),
+		group_id: toStringOrNull(row.group_id),
+		fee_usd: toNumberOrNull(row.fee_usd),
+		fee_native: toNumberOrNull(row.fee_native),
+		fee_currency: toStringOrNull(row.fee_currency),
+		fee_paid: toStringOrNull(row.fee_paid),
+		onchain_value: toStringOrNull(row.onchain_value),
+		onchain_decimals: toNumberOrNull(row.onchain_decimals),
+		onchain_chain: toStringOrNull(row.onchain_chain),
+	};
+};
+
 const rowsArgs: any[] = [tenantId, tenantId];
 const rowsWalletClause = walletId ? 'AND t.wallet_id = ?' : '';
 if (walletId) rowsArgs.push(walletId);
@@ -183,7 +245,7 @@ try {
 		args: [...rowsArgs, rowsLimit, rowsOffset],
 	});
 
-	rows = result.rows as UnifiedRow[];
+	rows = result.rows.map(normalizeUnifiedRow);
 	console.log('[Tin0AllTransactions] rows ms', Date.now() - rowsStart, 'count', rows.length);
 } catch (error) {
 	console.error('[Tin0AllTransactions] Failed to load rows', error);
