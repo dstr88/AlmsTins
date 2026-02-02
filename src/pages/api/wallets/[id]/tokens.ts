@@ -77,6 +77,24 @@ export const GET: APIRoute = async ({ params, request }) => {
 			elapsedMs: Date.now() - startedAt,
 		});
 
+		console.log('[wallet.tokens] snapshot ids', {
+			walletId,
+			snapshots: result.snapshots.map((s) => ({ id: s.id, chain: s.chain, capturedAt: s.capturedAt })),
+			cache: 'none',
+		});
+
+		console.log('[wallet.tokens] first token summary', {
+			walletId,
+			token: result.tokens[0]
+				? {
+						symbol: result.tokens[0].tokenSymbol,
+						amount: result.tokens[0].amount,
+						priceUsd: result.tokens[0].priceUsd,
+						usdValue: result.tokens[0].usdValue,
+				  }
+				: null,
+		});
+
 		const payload = {
 			ok: true,
 			walletId: result.walletId,
