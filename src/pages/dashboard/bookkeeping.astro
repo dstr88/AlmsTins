@@ -165,6 +165,31 @@ const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
       max-height: none;
     }
 
+    /* ===== Tin0 scroll fix (Option A) ===== */
+    .tin-col :global(.tin0-all),
+    .tin-col :global(.tin0-all__inner) {
+      min-height: 0 !important;
+    }
+
+    .tin-col :global(.tin0-all__header) {
+      flex: 0 0 auto !important;
+    }
+
+    .tin-col :global(.tin0-all__lifecycles) {
+      flex: 0 0 auto !important;
+      max-height: 30vh;
+      overflow: auto !important;
+      padding-right: 0.25rem;
+    }
+
+    .tin-col :global(.tin0-all__list) {
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      max-height: none !important;
+    }
+
     /* === Right tin content styling === */
     .tax-head {
       padding-bottom: 0.75rem;
