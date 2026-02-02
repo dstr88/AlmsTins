@@ -49,7 +49,7 @@ const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
       <div class="tin-col tin-col--recap">
         <OrnateTin label="Annual Recap" class="tin-full">
           <div class="tax-head">
-            <h2 class="column-title">Annual Recap by Year</h2>
+            <h2 class="column-title">Annual Recap</h2>
           </div>
 
           {taxYears.length === 0 ? (
@@ -190,7 +190,7 @@ const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
     .tin-col--recap .tax-head {
       position: sticky;
       top: 0;
-      z-index: 2;
+      z-index: 1;
       text-align: center;
       background: darkslategray;
       padding-top: 0.35rem;
