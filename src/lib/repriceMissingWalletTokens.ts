@@ -319,6 +319,16 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
 			return sum + (isValidPositive(value) ? value : 0);
 		}, 0);
 
+		const ethBefore = entry.tokensBefore.find((token) => token.symbol === 'ETH') ?? null;
+		const ethAfter = tokensAfter.find((token) => token.symbol === 'ETH') ?? null;
+
+		console.info('[reprice.before]', {
+			snapshotId: entry.row.id,
+			chain: entry.row.chain,
+			capturedAt: entry.row.captured_at,
+			ethBefore: ethBefore ? { priceUsd: ethBefore.priceUsd, valueUsd: ethBefore.valueUsd } : null,
+		});
+
 		console.info('[reprice] snapshot before', {
 			tenantId,
 			walletId: entry.row.wallet_id,
@@ -351,6 +361,13 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
 			firstTokens: tokensAfter.slice(0, 3),
 			totalsUsd,
 			rowsAffected,
+		});
+		console.info('[reprice.after]', {
+			snapshotId: entry.row.id,
+			chain: entry.row.chain,
+			rowsAffected,
+			totalsUsd,
+			ethAfter: ethAfter ? { priceUsd: ethAfter.priceUsd, valueUsd: ethAfter.valueUsd } : null,
 		});
 
 		walletsTouched.add(entry.row.wallet_id);

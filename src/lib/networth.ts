@@ -593,29 +593,39 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 
 	const result = await db.execute(
 		/* sql */ `
-      WITH latest AS (
+      WITH ranked AS (
         SELECT
-          chain,
-          MAX(captured_at) AS captured_at
-        FROM wallet_snapshots
-        WHERE wallet_id = ? AND tenant_id = ?
-        GROUP BY chain
+          ws.id           AS id,
+          ws.chain        AS chain,
+          ws.payload_json AS payloadJson,
+          ws.captured_at  AS capturedAt,
+          ws.totals_usd   AS totalsUsd,
+          ROW_NUMBER() OVER (
+            PARTITION BY ws.chain
+            ORDER BY ws.captured_at DESC, ws.id DESC
+          ) AS rn
+        FROM wallet_snapshots ws
+        WHERE ws.wallet_id = ? AND ws.tenant_id = ?
       )
       SELECT
-        ws.id           AS id,
-        ws.chain        AS chain,
-        ws.payload_json AS payloadJson,
-        ws.captured_at  AS capturedAt
-      FROM wallet_snapshots ws
-      JOIN latest l
-        ON l.chain = ws.chain
-       AND l.captured_at = ws.captured_at
-      WHERE ws.wallet_id = ? AND ws.tenant_id = ?
+        id,
+        chain,
+        payloadJson,
+        capturedAt,
+        totalsUsd
+      FROM ranked
+      WHERE rn = 1
     `,
-		[walletId, tenantId, walletId, tenantId],
+		[walletId, tenantId],
 	);
 
-	const rows = result.rows as unknown as Array<{ id: string; chain: string; payloadJson: string | null; capturedAt: string }>;
+	const rows = result.rows as unknown as Array<{
+		id: string;
+		chain: string;
+		payloadJson: string | null;
+		capturedAt: string;
+		totalsUsd: number | null;
+	}>;
 	const hasNonEmptyPayload = rows.some((row) => {
 		try {
 			const parsed = JSON.parse(row.payloadJson ?? '[]');
@@ -686,6 +696,18 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			continue;
 		}
 
+		const firstToken = Array.isArray(tokens) && tokens.length ? tokens[0] : null;
+		const firstTokenSummary = firstToken
+			? {
+					symbol: (firstToken as any).symbol ?? (firstToken as any).tokenSymbol ?? null,
+					amount: (firstToken as any).amount ?? (firstToken as any).balance ?? null,
+					priceUsd: (firstToken as any).priceUsd ?? null,
+					valueUsd: (firstToken as any).valueUsd ?? (firstToken as any).usdValue ?? null,
+			  }
+			: null;
+		console.log(
+			`[tokens.read] walletId=${walletId} chain=${row.chain} snapshotId=${row.id} capturedAt=${row.capturedAt} totalsUsd=${row.totalsUsd ?? 'null'} firstToken=${JSON.stringify(firstTokenSummary)}`,
+		);
 		console.log('[tokens API] parsed tokens for row', row.id, tokens);
 
 		for (const token of tokens) {
