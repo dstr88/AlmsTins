@@ -30,7 +30,9 @@ export const GET: APIRoute = async ({ request }) => {
 			headers: { 'Content-Type': 'application/json' },
 		});
 	} catch (error) {
-		console.error('[reprice] job failed', error);
+		console.error('[reprice-job][FATAL]', error); // TEMP DEBUG
+		console.error('[reprice-job][FATAL_STACK]', error instanceof Error ? error.stack : null); // TEMP DEBUG
+		throw error; // TEMP DEBUG: surface real failure to platform logs
 		return new Response(JSON.stringify({ ok: false, error: 'Unable to run reprice job.' }), {
 			status: 500,
 			headers: { 'Content-Type': 'application/json' },

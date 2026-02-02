@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { tryAcquireLock } from '@/lib/cacheLock';
-import { getSimpleTokenPrices } from '@/lib/prices/coingecko';
+import { getTickersUSD } from '@/lib/coinpaprikaProvider';
+import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { rebuildAssetLifecycles } from '@/lib/lifecycle';
 import { invalidateWalletCache } from '@/lib/db/puller';
 
@@ -48,6 +49,17 @@ const COINGECKO_ID_TO_SYMBOL: Record<string, string> = {
 	weth: 'WETH',
 };
 
+const COINGECKO_SYMBOL_TO_ID: Record<string, string> = {
+	BTC: 'bitcoin',
+	ETH: 'ethereum',
+	POL: 'polygon-ecosystem-token',
+	AVAX: 'avalanche-2',
+	ARB: 'arbitrum',
+	WETH: 'weth',
+	USDC: 'usd-coin',
+	USDT: 'tether',
+};
+
 const normalizePriceMap = (raw: Record<string, number>) => {
 	const mapped: Record<string, number> = {};
 	for (const [key, value] of Object.entries(raw)) {
@@ -56,6 +68,68 @@ const normalizePriceMap = (raw: Record<string, number>) => {
 		mapped[normalizedKey] = value;
 	}
 	return mapped;
+};
+
+const getCoinpaprikaPrices = async (symbols: string[]) => {
+	const allowed = allowlistSymbols(symbols);
+	if (!allowed.length) return {};
+	const tickers = (await getTickersUSD()) as Array<{
+		id?: string;
+		symbol?: string;
+		rank?: number;
+		quotes?: { USD?: { price?: number } };
+	}>;
+	const priceMap: Record<string, number> = {};
+	const symbolSet = new Set(allowed);
+	const candidates = new Map<string, Array<{ id: string; price: number; rank: number }>>();
+	for (const ticker of tickers) {
+		const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
+		if (!symbol || !symbolSet.has(symbol)) continue;
+		const price = ticker.quotes?.USD?.price;
+		if (typeof price !== 'number' || price <= 0) continue;
+		const id = String(ticker.id ?? '').trim();
+		const rank = Number.isFinite(ticker.rank) ? (ticker.rank as number) : 999999;
+		const list = candidates.get(symbol) ?? [];
+		list.push({ id, price, rank });
+		candidates.set(symbol, list);
+	}
+	for (const symbol of symbolSet) {
+		const list = candidates.get(symbol);
+		if (!list?.length) continue;
+		list.sort((a, b) => a.rank - b.rank);
+		priceMap[symbol] = list[0].price;
+	}
+	return priceMap;
+};
+
+const probeCoingecko = async (symbols: string[]) => {
+	const ids = symbols
+		.map((symbol) => COINGECKO_SYMBOL_TO_ID[symbol])
+		.filter((id): id is string => Boolean(id));
+	if (!ids.length) {
+		console.warn('[reprice] coingecko probe skipped (no ids)', { symbols });
+		return;
+	}
+	const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+		ids.join(','),
+	)}&vs_currencies=usd`;
+	try {
+		const response = await fetch(url);
+		const text = await response.text();
+		let parsed: Record<string, { usd?: number }> = {};
+		try {
+			parsed = JSON.parse(text) as Record<string, { usd?: number }>;
+		} catch {
+			parsed = {};
+		}
+		console.warn('[reprice] coingecko probe', {
+			status: response.status,
+			bodyLength: text.length,
+			priceCount: Object.keys(parsed ?? {}).length,
+		});
+	} catch (error) {
+		console.warn('[reprice] coingecko probe failed', { error });
+	}
 };
 
 const coerceNumber = (value: unknown) => {
@@ -108,6 +182,11 @@ const shouldReprice = (price: number | null, value: number | null, amount: numbe
  */
 export async function repriceMissingWalletTokens(options: RepriceOptions) {
 	const { tenantId, walletId, symbols, source = 'coingecko', trigger, lockTtlSeconds } = options;
+	console.log('[reprice.start]', { // TEMP DEBUG
+		tenantId,
+		walletId: walletId ?? null,
+		symbols: symbols ?? null,
+	});
 	const lockKey = `lock:reprice:${tenantId}:${walletId ?? 'all'}`;
 	const gotLock = await tryAcquireLock(lockKey, lockTtlSeconds ?? DEFAULT_LOCK_TTL_SECONDS);
 	if (!gotLock) {
@@ -153,6 +232,14 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
 	});
 
 	const rows = result.rows as unknown as SnapshotRow[];
+	console.log('[reprice.snapshots]', { // TEMP DEBUG
+		count: rows.length,
+		items: rows.slice(0, 10).map((row) => ({
+			id: row.id,
+			chain: row.chain,
+			capturedAt: row.captured_at ?? null,
+		})),
+	});
 	const rowsToUpdate: Array<{
 		row: SnapshotRow;
 		tokens: Record<string, unknown>[];
@@ -222,9 +309,12 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
 	let priceMap: Record<string, number> = {};
 	if (symbolsToFetch.length) {
 		try {
-			priceMap = source === 'coingecko' ? await getSimpleTokenPrices(symbolsToFetch) : {};
+			priceMap = await getCoinpaprikaPrices(symbolsToFetch);
 		} catch (error) {
-			console.warn('[reprice] provider failure', { tenantId, walletId, source, error });
+			console.warn('[reprice] coinpaprika fetch failed', { tenantId, walletId, error });
+		}
+		if (!Object.keys(priceMap).length) {
+			await probeCoingecko(symbolsToFetch);
 		}
 	}
 
@@ -233,10 +323,16 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
 	console.info('[reprice] priceMap', {
 		tenantId,
 		walletId,
-		source,
+		source: 'coinpaprika',
 		priceMapKeys: Object.keys(priceMap),
 		normalizedKeys: Object.keys(normalizedPriceMap),
 		ethPrice: normalizedPriceMap.ETH ?? priceMap.ETH ?? priceMap.ethereum,
+	});
+	const normalizedKeys = Object.keys(normalizedPriceMap);
+	console.log('[reprice.priceMap]', { // TEMP DEBUG
+		keyCount: normalizedKeys.length,
+		keys: normalizedKeys.slice(0, 20),
+		eth: normalizedPriceMap.ETH ?? null,
 	});
 
 	let updatedTokens = 0;
@@ -352,6 +448,19 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
 		});
 
 		const rowsAffected = (updateResult as any)?.rowsAffected ?? (updateResult as any)?.changes ?? null;
+		console.log('[reprice.update]', { // TEMP DEBUG
+			snapshotId: entry.row.id,
+			chain: entry.row.chain,
+			totalsUsd,
+			rowsAffected,
+		});
+		if (rowsAffected === 0) {
+			console.warn('[reprice.update] no rows affected', { // TEMP DEBUG
+				snapshotId: entry.row.id,
+				tenantId,
+				chain: entry.row.chain,
+			});
+		}
 		console.info('[reprice] truth-dump', {
 			tenantId,
 			walletId: entry.row.wallet_id,
