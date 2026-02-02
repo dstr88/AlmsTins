@@ -1,98 +1,179 @@
 export type NetWorthSummary = {
-	totalUsd: number;
+  totalUsd: number;
 
-	totalAssetsUsd: number;
-	totalFreeAssetsUsd: number;
-	totalDebtUsd: number;
+  totalAssetsUsd: number;
+  totalFreeAssetsUsd: number;
+  totalDebtUsd: number;
 
-	byWallet: Array<{
-		walletId: string;
-		walletLabel: string | null;
-		walletAddress?: string | null;
-		assetsUsd?: number;
-		freeAssetsUsd?: number;
-		debtUsd?: number;
-		totalUsd: number;
-	}>;
+  byWallet: Array<{
+    walletId: string;
+    walletLabel: string | null;
+    walletAddress?: string | null;
+    assetsUsd?: number;
+    freeAssetsUsd?: number;
+    debtUsd?: number;
+    totalUsd: number;
+  }>;
 
-	byChain: Array<{
-		chain: string;
-		totalUsd: number;
-		assetsUsd: number;
-		freeAssetsUsd: number;
-		debtUsd: number;
-		capturedAt?: string | null;
-	}>;
+  byChain: Array<{
+    chain: string;
+    totalUsd: number;
+    assetsUsd: number;
+    freeAssetsUsd: number;
+    debtUsd: number;
+    capturedAt?: string | null;
+  }>;
 
-	tins: Array<{
-		tinId: string;
-		tinName: string;
-		assetsUsd: number;
-		freeAssetsUsd: number;
-		debtUsd: number;
-		netUsd: number;
-		aaveIncluded?: boolean;
-	}>;
+  tins: Array<{
+    tinId: string;
+    tinName: string;
+    assetsUsd: number;
+    freeAssetsUsd: number;
+    debtUsd: number;
+    netUsd: number;
+    aaveIncluded?: boolean;
+  }>;
+};
+
+// --- helpers: do NOT coerce null/"" -> 0, and never return NaN ---
+const toFiniteNumberOrUndef = (value: unknown): number | undefined => {
+  if (value === null || value === undefined) return undefined;
+
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined; // "" should not become 0
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  return undefined;
+};
+
+const toFiniteNumberOrZero = (value: unknown): number => {
+  const n = toFiniteNumberOrUndef(value);
+  return n ?? 0;
+};
+
+const toStringOrNull = (value: unknown): string | null => {
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  return s ? s : null;
+};
+
+const toNonEmptyString = (value: unknown): string => {
+  const s = String(value ?? '').trim();
+  return s;
 };
 
 export function normalizeNetWorthSummary(payload: any): NetWorthSummary {
-	const s = payload?.summary ?? {};
+  // Support both shapes:
+  // 1) { summary: {...} }
+  // 2) { totalUsd, byWallet, ... }  (already normalized upstream)
+  const s = payload?.summary ?? payload ?? {};
 
-	const totalAssetsUsd = Number(s.totalAssetsUsd ?? s.assetsUsd ?? 0);
-	const totalFreeAssetsUsd = Number(s.totalFreeAssetsUsd ?? s.freeAssetsUsd ?? totalAssetsUsd ?? 0);
-	const totalDebtUsd = Number(s.totalDebtUsd ?? s.debtUsd ?? 0);
-	const totalUsd = Number(s.totalUsd ?? (totalAssetsUsd - totalDebtUsd) ?? 0);
+  // Pull raw numeric candidates WITHOUT inventing zeros
+  const rawAssets = toFiniteNumberOrUndef(s.totalAssetsUsd ?? s.assetsUsd);
+  const rawFreeAssets = toFiniteNumberOrUndef(s.totalFreeAssetsUsd ?? s.freeAssetsUsd);
+  const rawDebt = toFiniteNumberOrUndef(s.totalDebtUsd ?? s.debtUsd);
+  const rawTotal = toFiniteNumberOrUndef(s.totalUsd);
 
-	const byWallet = Array.isArray(s.byWallet)
-		? s.byWallet.map((w: any) => ({
-				walletId: String(w.walletId ?? ''),
-				walletLabel: w.walletLabel != null ? String(w.walletLabel) : null,
-				walletAddress: w.walletAddress != null ? String(w.walletAddress) : null,
-				assetsUsd: w.assetsUsd != null ? Number(w.assetsUsd) : undefined,
-				freeAssetsUsd: w.freeAssetsUsd != null ? Number(w.freeAssetsUsd) : undefined,
-				debtUsd: w.debtUsd != null ? Number(w.debtUsd) : undefined,
-				totalUsd: Number(w.totalUsd ?? 0),
-			}))
-		: [];
+  // Compute totals with sane fallbacks:
+  // - If a field is missing/invalid, treat as 0 for display totals only.
+  // - But do not let "missing" masquerade as a meaningful 0 inside sub-objects.
+  const totalAssetsUsd = rawAssets ?? 0;
+  const totalDebtUsd = rawDebt ?? 0;
 
-	const rawChains = Array.isArray(s.byChain) ? s.byChain : [];
-	const chainMap = new Map<string, any>();
-	for (const c of rawChains) {
-		const key = String(c.chain ?? '').toLowerCase();
-		if (!key) continue;
-		const existing = chainMap.get(key);
-		const existingTime = existing?.capturedAt ? Date.parse(existing.capturedAt) : -1;
-		const nextTime = c?.capturedAt ? Date.parse(c.capturedAt) : -1;
-		if (!existing || nextTime >= existingTime) chainMap.set(key, c);
-	}
-	const byChain = Array.from(chainMap.values()).map((c: any) => ({
-		chain: String(c.chain ?? ''),
-		totalUsd: Number(c.totalUsd ?? 0),
-		assetsUsd: Number(c.assetsUsd ?? 0),
-		freeAssetsUsd: Number(c.freeAssetsUsd ?? 0),
-		debtUsd: Number(c.debtUsd ?? 0),
-		capturedAt: c.capturedAt != null ? String(c.capturedAt) : null,
-	}));
+  // If freeAssets missing, prefer assets; otherwise use parsed value.
+  const totalFreeAssetsUsd =
+    rawFreeAssets ?? rawAssets ?? 0;
 
-	const tins = Array.isArray(s.tins)
-		? s.tins.map((t: any) => ({
-				tinId: String(t.tinId ?? ''),
-				tinName: String(t.tinName ?? ''),
-				assetsUsd: Number(t.assetsUsd ?? 0),
-				freeAssetsUsd: Number(t.freeAssetsUsd ?? 0),
-				debtUsd: Number(t.debtUsd ?? 0),
-				netUsd: Number(t.netUsd ?? (Number(t.assetsUsd ?? 0) - Number(t.debtUsd ?? 0))),
-				aaveIncluded: typeof t.aaveIncluded === 'boolean' ? t.aaveIncluded : undefined,
-			}))
-		: [];
+  // If total missing, compute assets - debt (both already display-safe).
+  const totalUsd =
+    rawTotal ?? (totalAssetsUsd - totalDebtUsd);
 
-	return {
-		totalUsd,
-		totalAssetsUsd,
-		totalFreeAssetsUsd,
-		totalDebtUsd,
-		byWallet,
-		byChain,
-		tins,
-	};
+  const byWallet = Array.isArray(s.byWallet)
+    ? s.byWallet
+        .map((w: any) => {
+          const walletId = toNonEmptyString(w.walletId);
+          // If walletId is missing, skip loudly-ish (you can throw in dev if you prefer)
+          if (!walletId) return null;
+
+          const assetsUsd = toFiniteNumberOrUndef(w.assetsUsd);
+          const freeAssetsUsd = toFiniteNumberOrUndef(w.freeAssetsUsd);
+          const debtUsd = toFiniteNumberOrUndef(w.debtUsd);
+
+          const wTotal =
+            toFiniteNumberOrUndef(w.totalUsd) ??
+            ((assetsUsd ?? 0) - (debtUsd ?? 0));
+
+          return {
+            walletId,
+            walletLabel: toStringOrNull(w.walletLabel),
+            walletAddress: toStringOrNull(w.walletAddress),
+            assetsUsd,
+            freeAssetsUsd,
+            debtUsd,
+            totalUsd: wTotal,
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => Boolean(x))
+    : [];
+
+  // Keep newest capturedAt per chain, but parse dates safely
+  const rawChains = Array.isArray(s.byChain) ? s.byChain : [];
+  const chainMap = new Map<string, any>();
+  for (const c of rawChains) {
+    const chain = toNonEmptyString(c?.chain).toLowerCase();
+    if (!chain) continue;
+
+    const nextCapturedAt = toStringOrNull(c?.capturedAt);
+    const nextTime = nextCapturedAt ? Date.parse(nextCapturedAt) : -1;
+
+    const existing = chainMap.get(chain);
+    const existingCapturedAt = toStringOrNull(existing?.capturedAt);
+    const existingTime = existingCapturedAt ? Date.parse(existingCapturedAt) : -1;
+
+    if (!existing || nextTime >= existingTime) chainMap.set(chain, c);
+  }
+
+  const byChain = Array.from(chainMap.values()).map((c: any) => ({
+    chain: toNonEmptyString(c.chain),
+    totalUsd: toFiniteNumberOrZero(c.totalUsd),
+    assetsUsd: toFiniteNumberOrZero(c.assetsUsd),
+    freeAssetsUsd: toFiniteNumberOrZero(c.freeAssetsUsd),
+    debtUsd: toFiniteNumberOrZero(c.debtUsd),
+    capturedAt: toStringOrNull(c.capturedAt),
+  }));
+
+  const tins = Array.isArray(s.tins)
+    ? s.tins.map((t: any) => {
+        const assets = toFiniteNumberOrZero(t.assetsUsd);
+        const debt = toFiniteNumberOrZero(t.debtUsd);
+        const net =
+          toFiniteNumberOrUndef(t.netUsd) ??
+          (assets - debt);
+
+        return {
+          tinId: toNonEmptyString(t.tinId),
+          tinName: toNonEmptyString(t.tinName),
+          assetsUsd: assets,
+          freeAssetsUsd: toFiniteNumberOrZero(t.freeAssetsUsd),
+          debtUsd: debt,
+          netUsd: net,
+          aaveIncluded: typeof t.aaveIncluded === 'boolean' ? t.aaveIncluded : undefined,
+        };
+      })
+    : [];
+
+  return {
+    totalUsd,
+    totalAssetsUsd,
+    totalFreeAssetsUsd,
+    totalDebtUsd,
+    byWallet,
+    byChain,
+    tins,
+  };
 }
