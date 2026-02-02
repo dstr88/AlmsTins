@@ -1,7 +1,6 @@
 import type { APIRoute } from 'astro';
 import { createHash } from 'crypto';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
-import { getSimpleTokenPrices } from '@/lib/prices/coingecko';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { getCache, setCache } from '@/lib/tursoCache';
 import { tryAcquireLock } from '@/lib/cacheLock';
@@ -17,21 +16,6 @@ const REFRESH_LOCK_SECONDS = 20;
 function buildSymbolsKey(symbols: string[]) {
 	const raw = symbols.join(',');
 	return createHash('sha256').update(raw).digest('hex');
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number) {
-	return new Promise<T>((resolve, reject) => {
-		const timer = setTimeout(() => reject(new Error('timeout')), ms);
-		promise
-			.then((value) => {
-				clearTimeout(timer);
-				resolve(value);
-			})
-			.catch((error) => {
-				clearTimeout(timer);
-				reject(error);
-			});
-	});
 }
 
 async function getTickersCached() {
@@ -104,8 +88,6 @@ async function getCachedPrices(symbols: string[], requestId: string | undefined,
 
 async function computePrices(symbols: string[], requestId: string | undefined, allowedCount: number) {
 	let prices: Record<string, number> = {};
-	let coingeckoFetchedCount = 0;
-	let timedOut = false;
 
 	const cachedPrices = await getCachedPrices(symbols, requestId, allowedCount);
 	for (const symbol of symbols) {
@@ -115,27 +97,7 @@ async function computePrices(symbols: string[], requestId: string | undefined, a
 		}
 	}
 
-	const missing = symbols.filter((symbol) => !prices[symbol] || prices[symbol] <= 0);
-	if (missing.length) {
-		try {
-			const cgPrices = await withTimeout(getSimpleTokenPrices(missing), 2000);
-			coingeckoFetchedCount = Object.keys(cgPrices ?? {}).length;
-			for (const symbol of missing) {
-				const cgPrice = cgPrices?.[symbol];
-				if (typeof cgPrice === 'number' && cgPrice > 0) {
-					prices[symbol] = cgPrice;
-				}
-			}
-		} catch (error) {
-			if (error instanceof Error && error.message === 'timeout') {
-				timedOut = true;
-			} else {
-				console.warn('[api/coinpaprika-prices] coingecko fetch failed');
-			}
-		}
-	}
-
-	return { prices, coingeckoFetchedCount, timedOut };
+	return { prices, coingeckoFetchedCount: 0, timedOut: false };
 }
 
 export const GET: APIRoute = async ({ url, locals }) => {

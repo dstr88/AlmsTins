@@ -267,6 +267,17 @@ export async function getErc20Balances(chain: SupportedChain, address: string): 
 				decimals: token.decimals,
 			});
 
+			if (!payload) {
+				console.warn('[scan.skip]', {
+					chain,
+					address,
+					symbol: token.symbol,
+					contractAddress: token.contractAddress,
+					message: 'ethereum token scan failed',
+				});
+				continue;
+			}
+
 			balances.push({
 				chain,
 				address,
@@ -299,23 +310,14 @@ export async function getErc20Balances(chain: SupportedChain, address: string): 
 				rawBalance: toBigInt(payload.result),
 			});
 		} catch (err) {
-			console.error('[balances] token scan failed, skipping token', {
+			console.warn('[scan.skip]', {
 				chain,
 				address,
 				symbol: token.symbol,
 				contractAddress: token.contractAddress,
 				error: String(err),
 			});
-
-			// Soft-fail: store 0 for this token but do not throw
-			balances.push({
-				chain,
-				address,
-				tokenSymbol: token.symbol,
-				tokenAddress: token.contractAddress,
-				decimals: token.decimals,
-				rawBalance: 0n,
-			});
+			continue;
 		}
 	}
 
@@ -376,7 +378,7 @@ async function safeFetchEthereumTokenBalance(opts: {
 	contractAddress: string;
 	symbol: string;
 	decimals: number;
-}) {
+}): Promise<{ symbol: string; tokenAddress: string; rawBalance: bigint } | null> {
 	const { address, contractAddress, symbol } = opts;
 
 	try {
@@ -396,17 +398,13 @@ async function safeFetchEthereumTokenBalance(opts: {
 			rawBalance: toBigInt(data.result ?? '0'),
 		};
 	} catch (err) {
-		console.error('[ETH balances] token scan failed, skipping', {
+		console.warn('[scan.skip]', {
 			address,
 			symbol,
 			contractAddress,
 			error: String(err),
 		});
 
-		return {
-			symbol,
-			tokenAddress: contractAddress,
-			rawBalance: 0n,
-		};
+		return null;
 	}
 }

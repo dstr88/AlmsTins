@@ -2,8 +2,8 @@ import type { SupportedChain } from '@/lib/constants';
 import { getAllActiveWallets } from '@/lib/wallets';
 import { insertWalletSnapshotFromValueBreakdown } from '@/lib/networth';
 import { getAllBalancesForWallet, type TokenBalance } from '@/lib/balances';
-import { getSimpleTokenPrices } from '@/lib/prices/coingecko';
-import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
+import { getTickersUSD } from '@/lib/coinpaprikaProvider';
+import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 
 export type TokenSnapshot = {
 	chain: SupportedChain;
@@ -123,9 +123,47 @@ export async function computeWalletValue(
 
 	if (!balances.length) return [];
 
-	const symbolPriceMap = await getSimpleTokenPrices(
-		sanitizeSymbols(balances.map((b) => b.tokenSymbol ?? '')),
+	const normalizePriceSymbol = (value: string) => {
+		const upper = value.trim().toUpperCase();
+		if (upper === 'MATIC' || upper === 'WMATIC') return 'POL';
+		if (upper === 'WETH') return 'ETH';
+		if (upper === 'WBTC') return 'BTC';
+		if (upper.endsWith('.E')) return upper.replace(/\.E$/, '');
+		return upper;
+	};
+
+	const symbolsToPrice = allowlistSymbols(
+		balances.map((b) => normalizePriceSymbol(b.tokenSymbol ?? '')).filter(Boolean),
 	);
+	console.log('[price.provider] using=coinpaprika symbolCount=' + symbolsToPrice.length); // TEMP DEBUG
+
+	const tickers = (await getTickersUSD()) as Array<{
+		id?: string;
+		symbol?: string;
+		rank?: number;
+		quotes?: { USD?: { price?: number } };
+	}>;
+	const symbolPriceMap: Record<string, number> = {};
+	const symbolSet = new Set(symbolsToPrice);
+	const candidates = new Map<string, Array<{ id: string; price: number; rank: number }>>();
+	for (const ticker of tickers) {
+		const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
+		if (!symbol || !symbolSet.has(symbol)) continue;
+		const price = ticker.quotes?.USD?.price;
+		if (typeof price !== 'number' || price <= 0) continue;
+		const id = String(ticker.id ?? '').trim();
+		const rank = Number.isFinite(ticker.rank) ? (ticker.rank as number) : 999999;
+		const list = candidates.get(symbol) ?? [];
+		list.push({ id, price, rank });
+		candidates.set(symbol, list);
+	}
+	for (const symbol of symbolSet) {
+		const list = candidates.get(symbol);
+		if (!list?.length) continue;
+		list.sort((a, b) => a.rank - b.rank);
+		symbolPriceMap[symbol] = list[0].price;
+	}
+	console.log('[price.map] keys=' + Object.keys(symbolPriceMap).join(',') + ' ETH=' + (symbolPriceMap.ETH ?? 'null')); // TEMP DEBUG
 	if (!Object.keys(symbolPriceMap).length && balances.length) {
 		console.warn('[VALUE] price fetch returned no data', { walletId, address, tokenCount: balances.length });
 	}
@@ -133,7 +171,7 @@ export async function computeWalletValue(
 	const byChain = new Map<SupportedChain, WalletValueBreakdown>();
 
 	for (const balance of balances) {
-		const symbol = (balance.tokenSymbol ?? '').trim().toUpperCase();
+		const symbol = normalizePriceSymbol(balance.tokenSymbol ?? '');
 		const rawPriceUsd = symbol ? symbolPriceMap[symbol] : undefined;
 		const priceUsd = typeof rawPriceUsd === 'number' && rawPriceUsd > 0 ? rawPriceUsd : null;
 		const amount = balance.decimals ? Number(balance.rawBalance) / 10 ** balance.decimals : Number(balance.rawBalance);
@@ -162,5 +200,21 @@ export async function computeWalletValue(
 		entry.totalUsd += tokenEntry.valueUsd ?? 0;
 	}
 
-	return Array.from(byChain.values());
+	const breakdowns = Array.from(byChain.values());
+	for (const breakdown of breakdowns) {
+		const firstToken = breakdown.tokens[0] ?? null;
+		console.log('[snapshot.after] totals_usd=' + breakdown.totalUsd, {
+			walletId,
+			chain: breakdown.chain,
+			firstToken: firstToken
+				? {
+						symbol: firstToken.symbol,
+						amount: firstToken.amount,
+						priceUsd: firstToken.priceUsd,
+						valueUsd: firstToken.valueUsd,
+				  }
+				: null,
+		}); // TEMP DEBUG
+	}
+	return breakdowns;
 }
