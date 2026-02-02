@@ -147,35 +147,26 @@ const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
       min-height: 0;
     }
 
-    /* Disable OrnateTin scrolling ONLY for the left column */
+    /* LEFT COLUMN: single unified scroll container */
     .tin-col--tx :global(.ornate-tin__body) {
-      overflow: hidden !important;
-    }
-
-    /* Force Tin0 into a bounded flex column */
-    .tin-col--tx :global(.tin0-all),
-    .tin-col--tx :global(.tin0-all__inner) {
-      display: flex !important;
-      flex-direction: column !important;
-      height: 100% !important;
-      min-height: 0 !important;
-      overflow: hidden !important;
-    }
-
-    /* Prevent lifecycle block from stealing all height */
-    .tin-col--tx :global(.tin0-all__lifecycles) {
-      flex: 0 0 auto !important;
-      max-height: 30vh;
-      overflow: auto !important;
-    }
-
-    /* Make the transaction list the sole scroll container */
-    .tin-col--tx :global(.tin0-all__list) {
-      flex: 1 1 0 !important;
-      height: 0 !important;
-      min-height: 0 !important;
       overflow-y: auto !important;
       overflow-x: hidden !important;
+    }
+
+    /* Let Tin0 expand normally inside the scroll container */
+    .tin-col--tx :global(.tin0-all),
+    .tin-col--tx :global(.tin0-all__inner) {
+      height: auto !important;
+      min-height: 0 !important;
+      overflow: visible !important;
+    }
+
+    /* Disable nested scrolling regions */
+    .tin-col--tx :global(.tin0-all__lifecycles),
+    .tin-col--tx :global(.tin0-all__list) {
+      max-height: none !important;
+      height: auto !important;
+      overflow: visible !important;
     }
 
     /* === Right tin content styling === */
