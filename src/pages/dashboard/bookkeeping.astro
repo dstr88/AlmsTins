@@ -46,10 +46,10 @@ const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
       </div>
 
       <!-- RIGHT: Tax events by year -->
-      <div class="tin-col">
-        <OrnateTin label="Tax Events" class="tin-full">
+      <div class="tin-col tin-col--recap">
+        <OrnateTin label="Annual Recap" class="tin-full">
           <div class="tax-head">
-            <h2 class="column-title">Tax Events by Year</h2>
+            <h2 class="column-title">Annual Recap by Year</h2>
           </div>
 
           {taxYears.length === 0 ? (
@@ -178,6 +178,22 @@ const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
       font-size: 1.35rem;
       margin: 0 0 0.75rem;
       font-weight: 650;
+    }
+
+    /* Right column: center Annual Recap labels and keep them fixed */
+    .tin-col--recap :global(.ornate-tin__label) {
+      left: 50% !important;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+
+    .tin-col--recap .tax-head {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      text-align: center;
+      background: darkslategray;
+      padding-top: 0.35rem;
     }
 
     .year-group {
