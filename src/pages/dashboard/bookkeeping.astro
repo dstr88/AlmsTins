@@ -147,24 +147,6 @@ const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
       min-height: 0;
     }
 
-    /* === Left tin: ensure your Tin0AllTransactions can scroll internally ===
-       The OrnateTin scrolls its body; don't block it with "overflow: hidden" wrappers. */
-    .tin-col :global(.tin0-all),
-    .tin-col :global(.tin0-all__list) {
-      min-height: 0;
-      height: 100%;
-      border: none;
-      background: transparent;
-      padding: 0.5rem;
-      box-shadow: none;
-    }
-
-    /* If tin0-all has its own list area, let it size naturally inside the scroll container */
-    .tin-col :global(.tin0-all__list) {
-      min-height: 0;
-      max-height: none;
-    }
-
     /* Disable OrnateTin scrolling ONLY for the left column */
     .tin-col--tx :global(.ornate-tin__body) {
       overflow: hidden !important;
