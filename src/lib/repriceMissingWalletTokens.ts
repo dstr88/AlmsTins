@@ -1,3 +1,4 @@
+// src/lib/prices/repriceMissingWalletTokens.ts (suggested name)
 import { db } from '@/lib/db';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
@@ -8,172 +9,164 @@ import { invalidateWalletCache } from '@/lib/db/puller';
 const DEFAULT_LOCK_TTL_SECONDS = 120;
 
 type SnapshotRow = {
-	id: string;
-	wallet_id: string;
-	chain: string;
-	payload_json: string | null;
-	totals_usd: number | null;
-	captured_at: string | null;
+  id: string;
+  wallet_id: string;
+  chain: string;
+  payload_json: string | null;
+  totals_usd: number | null;
+  captured_at: string | null;
 };
 
 type RepriceOptions = {
-	tenantId: string;
-	walletId?: string;
-	symbols?: string[];
-	source?: 'coingecko';
-	trigger?: 'price-failure' | 'view' | 'cron' | 'snapshot-insert' | 'tokens.refreshMissing';
-	lockTtlSeconds?: number;
+  tenantId: string;
+  walletId?: string;
+  symbols?: string[];
+  source?: 'coingecko';
+  trigger?: 'price-failure' | 'view' | 'cron' | 'snapshot-insert' | 'tokens.refreshMissing';
+  lockTtlSeconds?: number;
 };
 
+// ────────────────────────────────────────────────
+// Helpers (unchanged but extracted for clarity)
+// ────────────────────────────────────────────────
+
 const normalizeSymbol = (value: unknown) => {
-	if (typeof value !== 'string') return null;
-	const trimmed = value.trim();
-	if (!trimmed) return null;
-	const upper = trimmed.toUpperCase();
-	if (upper === 'MATIC' || upper === 'WMATIC') return 'POL';
-	if (upper === 'WETH') return 'WETH';
-	if (upper === 'ETH') return 'ETH';
-	if (upper === 'AVAX') return 'AVAX';
-	if (upper === 'USDC') return 'USDC';
-	if (upper === 'USDT') return 'USDT';
-	if (upper === 'POL') return 'POL';
-	return upper;
+  if (typeof value !== 'string') return null;
+  let upper = value.trim().toUpperCase();
+  if (!upper) return null;
+  if (upper === 'MATIC' || upper === 'WMATIC') upper = 'POL';
+  if (upper === 'WBTC') upper = 'BTC';
+  if (upper === 'WETH') upper = 'ETH';
+  if (upper.endsWith('.E')) upper = upper.slice(0, -2);
+  return upper;
 };
 
 const COINGECKO_ID_TO_SYMBOL: Record<string, string> = {
-	bitcoin: 'BTC',
-	ethereum: 'ETH',
-	'polygon-ecosystem-token': 'POL',
-	'avalanche-2': 'AVAX',
-	arbitrum: 'ARB',
-	weth: 'WETH',
+  bitcoin: 'BTC',
+  ethereum: 'ETH',
+  'polygon-ecosystem-token': 'POL',
+  'avalanche-2': 'AVAX',
+  arbitrum: 'ARB',
+  weth: 'WETH',
 };
 
 const COINGECKO_SYMBOL_TO_ID: Record<string, string> = {
-	BTC: 'bitcoin',
-	ETH: 'ethereum',
-	POL: 'polygon-ecosystem-token',
-	AVAX: 'avalanche-2',
-	ARB: 'arbitrum',
-	WETH: 'weth',
-	USDC: 'usd-coin',
-	USDT: 'tether',
+  BTC: 'bitcoin',
+  ETH: 'ethereum',
+  POL: 'polygon-ecosystem-token',
+  AVAX: 'avalanche-2',
+  ARB: 'arbitrum',
+  WETH: 'weth',
+  USDC: 'usd-coin',
+  USDT: 'tether',
 };
 
 const normalizePriceMap = (raw: Record<string, number>) => {
-	const mapped: Record<string, number> = {};
-	for (const [key, value] of Object.entries(raw)) {
-		const normalizedKey = normalizeSymbol(key) ?? COINGECKO_ID_TO_SYMBOL[key.toLowerCase()];
-		if (!normalizedKey) continue;
-		mapped[normalizedKey] = value;
-	}
-	return mapped;
+  const mapped: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const normalizedKey = normalizeSymbol(key) ?? COINGECKO_ID_TO_SYMBOL[key.toLowerCase()];
+    if (!normalizedKey) continue;
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      mapped[normalizedKey] = value;
+    }
+  }
+  return mapped;
 };
 
 const getCoinpaprikaPrices = async (symbols: string[]) => {
-	const allowed = allowlistSymbols(symbols);
-	if (!allowed.length) return {};
-	const tickers = (await getTickersUSD()) as Array<{
-		id?: string;
-		symbol?: string;
-		rank?: number;
-		quotes?: { USD?: { price?: number } };
-	}>;
-	const priceMap: Record<string, number> = {};
-	const symbolSet = new Set(allowed);
-	const candidates = new Map<string, Array<{ id: string; price: number; rank: number }>>();
-	for (const ticker of tickers) {
-		const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
-		if (!symbol || !symbolSet.has(symbol)) continue;
-		const price = ticker.quotes?.USD?.price;
-		if (typeof price !== 'number' || price <= 0) continue;
-		const id = String(ticker.id ?? '').trim();
-		const rank = Number.isFinite(ticker.rank) ? (ticker.rank as number) : 999999;
-		const list = candidates.get(symbol) ?? [];
-		list.push({ id, price, rank });
-		candidates.set(symbol, list);
-	}
-	for (const symbol of symbolSet) {
-		const list = candidates.get(symbol);
-		if (!list?.length) continue;
-		list.sort((a, b) => a.rank - b.rank);
-		priceMap[symbol] = list[0].price;
-	}
-	return priceMap;
+  const allowed = allowlistSymbols(symbols);
+  if (!allowed.length) return {};
+
+  const tickers = (await getTickersUSD()) as Array<{
+    id?: string;
+    symbol?: string;
+    rank?: number;
+    quotes?: { USD?: { price?: number } };
+  }>;
+
+  const priceMap: Record<string, number> = {};
+  const symbolSet = new Set(allowed);
+
+  const candidates = new Map<string, Array<{ id: string; price: number; rank: number }>>();
+
+  for (const ticker of tickers) {
+    const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
+    if (!symbol || !symbolSet.has(symbol)) continue;
+    const price = ticker.quotes?.USD?.price;
+    if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) continue;
+    const id = String(ticker.id ?? '').trim();
+    const rank = Number.isFinite(ticker.rank) ? ticker.rank! : 999999;
+    const list = candidates.get(symbol) ?? [];
+    list.push({ id, price, rank });
+    candidates.set(symbol, list);
+  }
+
+  for (const symbol of symbolSet) {
+    const list = candidates.get(symbol);
+    if (!list?.length) continue;
+    list.sort((a, b) => a.rank - b.rank);
+    priceMap[symbol] = list[0].price;
+  }
+
+  return priceMap;
 };
 
 const probeCoingecko = async (symbols: string[]) => {
-	const ids = symbols
-		.map((symbol) => COINGECKO_SYMBOL_TO_ID[symbol])
-		.filter((id): id is string => Boolean(id));
-	if (!ids.length) {
-		console.warn('[reprice] coingecko probe skipped (no ids)', { symbols });
-		return;
-	}
-	const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
-		ids.join(','),
-	)}&vs_currencies=usd`;
-	try {
-		const response = await fetch(url);
-		const text = await response.text();
-		let parsed: Record<string, { usd?: number }> = {};
-		try {
-			parsed = JSON.parse(text) as Record<string, { usd?: number }>;
-		} catch {
-			parsed = {};
-		}
-		console.warn('[reprice] coingecko probe', {
-			status: response.status,
-			bodyLength: text.length,
-			priceCount: Object.keys(parsed ?? {}).length,
-		});
-	} catch (error) {
-		console.warn('[reprice] coingecko probe failed', { error });
-	}
+  const ids = symbols
+    .map((symbol) => COINGECKO_SYMBOL_TO_ID[symbol])
+    .filter((id): id is string => Boolean(id));
+
+  if (!ids.length) return;
+
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+    ids.join(',')
+  )}&vs_currencies=usd`;
+
+  try {
+    const response = await fetch(url);
+    const parsed = await response.json();
+    console.warn('[reprice] coingecko probe result', { status: response.status, parsed });
+  } catch (error) {
+    console.warn('[reprice] coingecko probe failed', { error });
+  }
 };
 
 const coerceNumber = (value: unknown) => {
-	if (value === null || value === undefined) return null;
-	if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-	if (typeof value === 'string') {
-		const cleaned = value.replace(/,/g, '').trim();
-		const parsed = Number(cleaned);
-		return Number.isFinite(parsed) ? parsed : null;
-	}
-	return null;
+  if (value == null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/,/g, '').trim();
+    if (!cleaned) return null;
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 };
 
-const getTokenAmount = (token: Record<string, unknown>) => {
-	if ('amount' in token) return coerceNumber(token.amount);
-	if ('balance' in token) return coerceNumber(token.balance);
-	return null;
-};
+const getTokenAmount = (token: Record<string, unknown>) =>
+  coerceNumber(token.amount ?? token.balance);
 
-const getTokenValue = (token: Record<string, unknown>) => {
-	if ('valueUsd' in token) return coerceNumber(token.valueUsd);
-	if ('usdValue' in token) return coerceNumber(token.usdValue);
-	return null;
-};
+const getTokenValue = (token: Record<string, unknown>) =>
+  coerceNumber(token.valueUsd ?? token.usdValue);
 
 const setTokenValue = (token: Record<string, unknown>, valueUsd: number | null) => {
-	if ('valueUsd' in token || !('usdValue' in token)) {
-		token.valueUsd = valueUsd;
-		return;
-	}
-	token.usdValue = valueUsd;
+  if ('valueUsd' in token || !('usdValue' in token)) {
+    token.valueUsd = valueUsd;
+  } else {
+    token.usdValue = valueUsd;
+  }
 };
 
 const setTokenPrice = (token: Record<string, unknown>, priceUsd: number | null) => {
-	token.priceUsd = priceUsd;
+  token.priceUsd = priceUsd;
 };
 
-const isValidPositive = (value: number | null) => value !== null && Number.isFinite(value) && value > 0;
+const isValidPositive = (value: number | null) =>
+  value !== null && Number.isFinite(value) && value > 0;
 
 const shouldReprice = (price: number | null, value: number | null, amount: number | null) => {
-	if (!isValidPositive(amount)) return false;
-	if (price === null || price <= 0 || !Number.isFinite(price)) return true;
-	if (value === null || value <= 0 || !Number.isFinite(value)) return true;
-	return false;
+  if (!isValidPositive(amount)) return false;
+  return !isValidPositive(price) || !isValidPositive(value);
 };
 
 /**
@@ -181,340 +174,243 @@ const shouldReprice = (price: number | null, value: number | null, amount: numbe
  * This avoids zero-price poisoning when upstream price providers fail.
  */
 export async function repriceMissingWalletTokens(options: RepriceOptions) {
-	const { tenantId, walletId, symbols, source = 'coingecko', trigger, lockTtlSeconds } = options;
-	console.log('[reprice.start]', { // TEMP DEBUG
-		tenantId,
-		walletId: walletId ?? null,
-		symbols: symbols ?? null,
-	});
-	const lockKey = `lock:reprice:${tenantId}:${walletId ?? 'all'}`;
-	const gotLock = await tryAcquireLock(lockKey, lockTtlSeconds ?? DEFAULT_LOCK_TTL_SECONDS);
-	if (!gotLock) {
-		console.info('[reprice] skipped (lock)', { tenantId, walletId, trigger });
-		return { ok: true, skipped: true, reason: 'locked' };
-	}
+  const { tenantId, walletId, symbols, source = 'coingecko', trigger, lockTtlSeconds } = options;
 
-	const start = Date.now();
-	console.info('[reprice] start', { tenantId, walletId, trigger, source });
+  if (!tenantId) throw new Error('Missing tenantId');
 
-	const baseArgs: any[] = [tenantId];
-	let walletClause = '';
-	if (walletId) {
-		walletClause = 'AND wallet_id = ?';
-		baseArgs.push(walletId);
-	}
-	const args = [...baseArgs, ...baseArgs];
+  const lockKey = `lock:reprice:${tenantId}:${walletId ?? 'all'}`;
+  const gotLock = await tryAcquireLock(lockKey, lockTtlSeconds ?? DEFAULT_LOCK_TTL_SECONDS);
+  if (!gotLock) {
+    console.info('[reprice] skipped (locked)', { tenantId, walletId, trigger });
+    return { ok: true, skipped: true, reason: 'locked' };
+  }
 
-	const symbolFilter = Array.isArray(symbols) && symbols.length
-		? new Set(symbols.map((sym) => normalizeSymbol(sym)).filter((sym): sym is string => Boolean(sym)))
-		: null;
+  const start = Date.now();
+  console.info('[reprice] start', { tenantId, walletId, trigger, source });
 
-	const result = await db.execute({
-		sql: `WITH latest AS (
-				SELECT wallet_id, chain, MAX(captured_at) AS captured_at
-				FROM wallet_snapshots
-				WHERE tenant_id = ? ${walletClause}
-				GROUP BY wallet_id, chain
-			)
-			SELECT ws.id AS id,
-			       ws.wallet_id AS wallet_id,
-			       ws.chain AS chain,
-			       ws.payload_json AS payload_json,
-			       ws.totals_usd AS totals_usd,
-			       ws.captured_at AS captured_at
-			FROM wallet_snapshots ws
-			JOIN latest l
-			  ON l.wallet_id = ws.wallet_id
-			 AND l.chain = ws.chain
-			 AND l.captured_at = ws.captured_at
-			WHERE ws.tenant_id = ? ${walletClause}`,
-		args,
-	});
+  const baseArgs: any[] = [tenantId];
+  let walletClause = '';
+  if (walletId) {
+    walletClause = 'AND wallet_id = ?';
+    baseArgs.push(walletId);
+  }
 
-	const rows = result.rows as unknown as SnapshotRow[];
-	console.log('[reprice.snapshots]', { // TEMP DEBUG
-		count: rows.length,
-		items: rows.slice(0, 10).map((row) => ({
-			id: row.id,
-			chain: row.chain,
-			capturedAt: row.captured_at ?? null,
-		})),
-	});
-	const rowsToUpdate: Array<{
-		row: SnapshotRow;
-		tokens: Record<string, unknown>[];
-		tokensBefore: Array<{ symbol: string; priceUsd: number | null; valueUsd: number | null; amount: number | null }>;
-		normalizedZeroes: boolean;
-	}> = [];
-	const missingSymbols = new Set<string>();
-	const snapshotSummaries: Array<{ snapshotId: string; walletId: string; chain: string }> = [];
+  const symbolFilter = Array.isArray(symbols) && symbols.length
+    ? new Set(symbols.map(normalizeSymbol).filter((s): s is string => !!s))
+    : null;
 
-	for (const row of rows) {
-		if (!row.payload_json) continue;
-		let tokens: Record<string, unknown>[] = [];
-		try {
-			const parsed = JSON.parse(row.payload_json);
-			if (Array.isArray(parsed)) {
-				tokens = parsed as Record<string, unknown>[];
-			}
-		} catch {
-			continue;
-		}
+  // Fetch latest snapshots
+  const result = await db.execute({
+    sql: `
+      WITH latest AS (
+        SELECT
+          ws.wallet_id,
+          ws.chain,
+          MAX(datetime(ws.captured_at)) AS captured_at
+        FROM wallet_snapshots ws
+        WHERE ws.tenant_id = ? ${walletClause}
+        GROUP BY ws.wallet_id, ws.chain
+      )
+      SELECT
+        ws.id,
+        ws.wallet_id,
+        ws.chain,
+        ws.payload_json,
+        ws.totals_usd,
+        ws.captured_at
+      FROM wallet_snapshots ws
+      JOIN latest l ON l.wallet_id = ws.wallet_id
+                    AND l.chain = ws.chain
+                    AND datetime(l.captured_at) = datetime(ws.captured_at)
+      WHERE ws.tenant_id = ? ${walletClause}
+    `,
+    args: baseArgs,
+  });
 
-		let normalizedZeroes = false;
-		const tokensBefore = tokens.map((token) => ({
-			symbol: normalizeSymbol((token as Record<string, unknown>).symbol ?? (token as Record<string, unknown>).tokenSymbol) ?? 'UNKNOWN',
-			priceUsd: coerceNumber((token as Record<string, unknown>).priceUsd),
-			valueUsd: getTokenValue(token),
-			amount: getTokenAmount(token),
-		}));
+  const rows = result.rows as SnapshotRow[];
+  console.info('[reprice] snapshots found', { count: rows.length });
 
-		for (const token of tokens) {
-			const symbol = normalizeSymbol(token.symbol ?? token.tokenSymbol);
-			if (!symbol) continue;
-			const tokenSource = String(token.source ?? '').toLowerCase();
-			if (tokenSource === 'aave' || tokenSource === 'defi') continue;
-			if (symbolFilter && !symbolFilter.has(symbol)) continue;
-			const amount = getTokenAmount(token);
-			const price = coerceNumber(token.priceUsd);
-			const value = getTokenValue(token);
-			const priceInvalid = price === null || !Number.isFinite(price) || price <= 0;
-			const valueInvalid = value === null || !Number.isFinite(value) || value <= 0;
-			const priceNorm = priceInvalid ? null : price;
-			const valueNorm = valueInvalid ? null : value;
+  const rowsToUpdate: Array<{
+    row: SnapshotRow;
+    tokens: Record<string, unknown>[];
+    changed: boolean;
+  }> = [];
 
-			if (priceInvalid && price !== null) {
-				setTokenPrice(token, null);
-				normalizedZeroes = true;
-			}
-			if (valueInvalid && value !== null) {
-				setTokenValue(token, null);
-				normalizedZeroes = true;
-			}
-			if (shouldReprice(priceNorm, valueNorm, amount)) {
-				if (priceInvalid && isValidPositive(amount)) {
-					missingSymbols.add(symbol);
-				}
-			}
-		}
+  const missingSymbols = new Set<string>();
 
-		rowsToUpdate.push({ row, tokens, tokensBefore, normalizedZeroes });
-		snapshotSummaries.push({ snapshotId: row.id, walletId: row.wallet_id, chain: row.chain });
-	}
+  for (const row of rows) {
+    if (!row.payload_json) continue;
 
-	const symbolsToFetch = Array.from(missingSymbols);
-	console.info('[reprice] snapshots', { tenantId, walletId, snapshots: snapshotSummaries });
-	console.info('[reprice] computed symbolsToPrice', { tenantId, walletId, symbols: symbolsToFetch });
+    let tokens: Record<string, unknown>[] = [];
+    try {
+      const parsed = JSON.parse(row.payload_json);
+      if (Array.isArray(parsed)) tokens = parsed;
+    } catch {
+      continue;
+    }
 
-	let priceMap: Record<string, number> = {};
-	if (symbolsToFetch.length) {
-		try {
-			priceMap = await getCoinpaprikaPrices(symbolsToFetch);
-		} catch (error) {
-			console.warn('[reprice] coinpaprika fetch failed', { tenantId, walletId, error });
-		}
-		if (!Object.keys(priceMap).length) {
-			await probeCoingecko(symbolsToFetch);
-		}
-	}
+    let changed = false;
 
-	const normalizedPriceMap = normalizePriceMap(priceMap);
+    for (const token of tokens) {
+      const symbol = normalizeSymbol(token.symbol ?? token.tokenSymbol);
+      if (!symbol) continue;
 
-	console.info('[reprice] priceMap', {
-		tenantId,
-		walletId,
-		source: 'coinpaprika',
-		priceMapKeys: Object.keys(priceMap),
-		normalizedKeys: Object.keys(normalizedPriceMap),
-		ethPrice: normalizedPriceMap.ETH ?? priceMap.ETH ?? priceMap.ethereum,
-	});
-	const normalizedKeys = Object.keys(normalizedPriceMap);
-	console.log('[reprice.priceMap]', { // TEMP DEBUG
-		keyCount: normalizedKeys.length,
-		keys: normalizedKeys.slice(0, 20),
-		eth: normalizedPriceMap.ETH ?? null,
-	});
+      const sourceLower = String(token.source ?? '').toLowerCase();
+      if (sourceLower === 'aave' || sourceLower === 'defi') continue;
 
-	let updatedTokens = 0;
-	let updatedRows = 0;
-	const walletsTouched = new Set<string>();
-	const symbolsUpdated = new Set<string>();
+      if (symbolFilter && !symbolFilter.has(symbol)) continue;
 
-	for (const entry of rowsToUpdate) {
-		let rowChanged = entry.normalizedZeroes;
+      const amount = getTokenAmount(token);
+      const price = coerceNumber(token.priceUsd);
+      const value = getTokenValue(token);
 
-		for (const token of entry.tokens) {
-			const symbol = normalizeSymbol(token.symbol ?? token.tokenSymbol);
-			if (!symbol) continue;
-			const tokenSource = String(token.source ?? '').toLowerCase();
-			if (tokenSource === 'aave' || tokenSource === 'defi') continue;
-			if (symbolFilter && !symbolFilter.has(symbol)) continue;
-			const amount = getTokenAmount(token);
-			const priceCurrent = coerceNumber(token.priceUsd);
-			const valueCurrent = getTokenValue(token);
+      if (!shouldReprice(price, value, amount)) continue;
 
-			const needsReprice = shouldReprice(priceCurrent, valueCurrent, amount);
-			if (!needsReprice) continue;
+      if (isValidPositive(amount)) {
+        missingSymbols.add(symbol);
+      }
 
-			const newPrice = isValidPositive(priceCurrent) ? priceCurrent : normalizedPriceMap[symbol];
-			if (isValidPositive(newPrice)) {
-				if (!isValidPositive(priceCurrent)) {
-					setTokenPrice(token, newPrice);
-					rowChanged = true;
-				}
-				if (isValidPositive(amount)) {
-					const nextValue = amount * newPrice;
-					if (Number.isFinite(nextValue) && nextValue > 0) {
-						setTokenValue(token, nextValue);
-						rowChanged = true;
-					} else {
-						setTokenValue(token, null);
-						rowChanged = true;
-					}
-				}
-			} else {
-				if (!isValidPositive(priceCurrent) && priceCurrent !== null) {
-					setTokenPrice(token, null);
-					rowChanged = true;
-				}
-				if (!isValidPositive(valueCurrent) && valueCurrent !== null) {
-					setTokenValue(token, null);
-					rowChanged = true;
-				}
-			}
+      // Normalize poison zeros
+      if (price !== null && !isValidPositive(price)) {
+        setTokenPrice(token, null);
+        changed = true;
+      }
+      if (value !== null && !isValidPositive(value)) {
+        setTokenValue(token, null);
+        changed = true;
+      }
+    }
 
-		}
+    if (changed) {
+      rowsToUpdate.push({ row, tokens, changed });
+    }
+  }
 
-		if (!rowChanged) continue;
+  const symbolsToFetch = Array.from(missingSymbols);
+  console.info('[reprice] symbols needing price', { count: symbolsToFetch.length });
 
-		const tokensAfter = entry.tokens.map((token) => ({
-			symbol: normalizeSymbol((token as Record<string, unknown>).symbol ?? (token as Record<string, unknown>).tokenSymbol) ?? 'UNKNOWN',
-			priceUsd: coerceNumber((token as Record<string, unknown>).priceUsd),
-			valueUsd: getTokenValue(token),
-			amount: getTokenAmount(token),
-		}));
+  let priceMap: Record<string, number> = {};
+  if (symbolsToFetch.length) {
+    try {
+      priceMap = await getCoinpaprikaPrices(symbolsToFetch);
+    } catch (err) {
+      console.warn('[reprice] CoinPaprika failed', err);
+    }
 
-		const tokenChangeCount = tokensAfter.reduce((count, token, idx) => {
-			const before = entry.tokensBefore[idx];
-			if (!before) return count;
-			if (before.priceUsd !== token.priceUsd || before.valueUsd !== token.valueUsd) {
-				if (token.symbol) {
-					symbolsUpdated.add(token.symbol);
-				}
-				return count + 1;
-			}
-			return count;
-		}, 0);
+    if (!Object.keys(priceMap).length) {
+      await probeCoingecko(symbolsToFetch);
+    }
+  }
 
-		if (tokenChangeCount) {
-			updatedTokens += tokenChangeCount;
-		}
+  const normalizedPriceMap = normalizePriceMap(priceMap);
 
-		const totalsUsd = entry.tokens.reduce((sum, token) => {
-			const value = getTokenValue(token);
-			return sum + (isValidPositive(value) ? value : 0);
-		}, 0);
+  let updatedRows = 0;
+  const walletsTouched = new Set<string>();
 
-		const ethBefore = entry.tokensBefore.find((token) => token.symbol === 'ETH') ?? null;
-		const ethAfter = tokensAfter.find((token) => token.symbol === 'ETH') ?? null;
+  for (const { row, tokens, changed } of rowsToUpdate) {
+    let rowChanged = changed;
+    if (!rowChanged) continue;
 
-		console.info('[reprice.before]', {
-			snapshotId: entry.row.id,
-			chain: entry.row.chain,
-			capturedAt: entry.row.captured_at,
-			ethBefore: ethBefore ? { priceUsd: ethBefore.priceUsd, valueUsd: ethBefore.valueUsd } : null,
-		});
+    let totalsUsd = 0;
+    for (const token of tokens) {
+      const amount = getTokenAmount(token);
+      const priceCurrent = coerceNumber(token.priceUsd);
+      const valueCurrent = getTokenValue(token);
+      const symbol = normalizeSymbol(token.symbol ?? token.tokenSymbol) ?? '';
 
-		console.info('[reprice] snapshot before', {
-			tenantId,
-			walletId: entry.row.wallet_id,
-			snapshotId: entry.row.id,
-			chain: entry.row.chain,
-			tokens: entry.tokensBefore,
-		});
-		console.info('[reprice] snapshot after', {
-			tenantId,
-			walletId: entry.row.wallet_id,
-			snapshotId: entry.row.id,
-			chain: entry.row.chain,
-			tokens: tokensAfter,
-		});
+      const newPriceCandidate = isValidPositive(priceCurrent)
+        ? priceCurrent
+        : (normalizedPriceMap[symbol] ?? null);
 
-		const updateResult = await db.execute({
-			sql: `UPDATE wallet_snapshots
-				SET payload_json = ?, totals_usd = ?
-				WHERE id = ? AND tenant_id = ?`,
-			args: [JSON.stringify(entry.tokens), totalsUsd, entry.row.id, tenantId],
-		});
+      if (isValidPositive(newPriceCandidate)) {
+        // fill missing price
+        if (!isValidPositive(priceCurrent)) {
+          setTokenPrice(token, newPriceCandidate);
+          rowChanged = true;
+        }
 
-		const rowsAffected = (updateResult as any)?.rowsAffected ?? (updateResult as any)?.changes ?? null;
-		console.log('[reprice.update]', { // TEMP DEBUG
-			snapshotId: entry.row.id,
-			chain: entry.row.chain,
-			totalsUsd,
-			rowsAffected,
-		});
-		if (rowsAffected === 0) {
-			console.warn('[reprice.update] no rows affected', { // TEMP DEBUG
-				snapshotId: entry.row.id,
-				tenantId,
-				chain: entry.row.chain,
-			});
-		}
-		console.info('[reprice] truth-dump', {
-			tenantId,
-			walletId: entry.row.wallet_id,
-			snapshotId: entry.row.id,
-			chain: entry.row.chain,
-			tokenCount: entry.tokens.length,
-			firstTokens: tokensAfter.slice(0, 3),
-			totalsUsd,
-			rowsAffected,
-		});
-		console.info('[reprice.after]', {
-			snapshotId: entry.row.id,
-			chain: entry.row.chain,
-			rowsAffected,
-			totalsUsd,
-			ethAfter: ethAfter ? { priceUsd: ethAfter.priceUsd, valueUsd: ethAfter.valueUsd } : null,
-		});
+        // fill (or recompute) missing value
+        if (isValidPositive(amount) && isValidPositive(newPriceCandidate)) {
+          const nextValue = amount * newPriceCandidate;
+          setTokenValue(token, Number.isFinite(nextValue) && nextValue > 0 ? nextValue : null);
+          rowChanged = true;
+        } else {
+          setTokenValue(token, null);
+          rowChanged = true;
+        }
+      } else {
+        // If we still can't price it, make sure poison zeros never persist
+        if (!isValidPositive(priceCurrent) && priceCurrent !== null) {
+          setTokenPrice(token, null);
+          rowChanged = true;
+        }
+        if (!isValidPositive(valueCurrent) && valueCurrent !== null) {
+          setTokenValue(token, null);
+          rowChanged = true;
+        }
+      } // end token loop
 
-		walletsTouched.add(entry.row.wallet_id);
-		updatedRows += 1;
-	}
+      const value = getTokenValue(token);
+      if (isValidPositive(value)) {
+        totalsUsd += value;
+      }
+    } // end token loop
 
-	if (walletsTouched.size) {
-		console.info('[reprice] repriced', {
-			tenantId,
-			wallets: Array.from(walletsTouched),
-			updatedRows,
-			updatedTokens,
-			symbols: Array.from(symbolsUpdated),
-		});
-		for (const touchedWalletId of walletsTouched) {
-			invalidateWalletCache(touchedWalletId, tenantId);
-		}
-		await db.execute({
-			sql: 'DELETE FROM cache WHERE cache_key = ?',
-			args: [`t:${tenantId}:networth:summary:v2`],
-		});
-		console.info('[reprice] networth summary cache invalidated', { tenantId });
-		await rebuildAssetLifecycles(tenantId);
-	}
+    if (!rowChanged) continue;
 
-	console.info('[reprice] done', {
-		tenantId,
-		walletId,
-		updatedRows,
-		updatedTokens,
-		elapsedMs: Date.now() - start,
-	});
+    try {
+      await db.execute({
+        sql: `
+          UPDATE wallet_snapshots
+          SET payload_json = ?,
+              totals_usd = ?
+          WHERE id = ? AND tenant_id = ? AND wallet_id = ?
+        `,
+        args: [JSON.stringify(tokens), totalsUsd, row.id, tenantId, row.wallet_id],
+      });
 
-	return {
-		ok: true,
-		updatedRows,
-		updatedTokens,
-		walletsTouched: Array.from(walletsTouched),
-		elapsedMs: Date.now() - start,
-	};
+      updatedRows++;
+      walletsTouched.add(row.wallet_id);
+    } catch (err) {
+      console.error('[reprice] update failed', { snapshotId: row.id, err });
+    }
+  } // end entry loop
+
+  if (walletsTouched.size) {
+    console.info('[reprice] updated', {
+      tenantId,
+      wallets: Array.from(walletsTouched),
+      updatedRows,
+    });
+
+    for (const walletId of walletsTouched) {
+      invalidateWalletCache(walletId, tenantId);
+    }
+
+    // Optional: invalidate networth cache
+    try {
+      await db.execute({
+        sql: 'DELETE FROM cache WHERE cache_key = ?',
+        args: [`t:${tenantId}:networth:summary:v2`],
+      });
+    } catch (err) {
+      console.warn('[reprice] networth cache invalidation failed', err);
+    }
+
+    await rebuildAssetLifecycles(tenantId);
+  }
+
+  console.info('[reprice] done', {
+    tenantId,
+    walletId,
+    updatedRows,
+    elapsedMs: Date.now() - start,
+  });
+
+  return {
+    ok: true,
+    updatedRows,
+    walletsTouched: Array.from(walletsTouched),
+    elapsedMs: Date.now() - start,
+  };
 }
