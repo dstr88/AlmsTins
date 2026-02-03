@@ -191,7 +191,7 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
   const baseArgs: any[] = [tenantId];
   let walletClause = '';
   if (walletId) {
-    walletClause = 'AND wallet_id = ?';
+    walletClause = 'AND ws.wallet_id = ?';
     baseArgs.push(walletId);
   }
 
@@ -224,7 +224,7 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
                     AND datetime(l.captured_at) = datetime(ws.captured_at)
       WHERE ws.tenant_id = ? ${walletClause}
     `,
-    args: baseArgs,
+    args: [...baseArgs, ...baseArgs],
   });
 
   const rows = result.rows as SnapshotRow[];
