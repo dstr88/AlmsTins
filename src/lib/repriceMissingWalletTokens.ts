@@ -1,4 +1,3 @@
-// src/lib/prices/repriceMissingWalletTokens.ts (suggested name)
 import { db } from '@/lib/db';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
@@ -27,7 +26,7 @@ type RepriceOptions = {
 };
 
 // ────────────────────────────────────────────────
-// Helpers (unchanged but extracted for clarity)
+// Helpers
 // ────────────────────────────────────────────────
 
 const normalizeSymbol = (value: unknown) => {
@@ -76,38 +75,32 @@ const normalizePriceMap = (raw: Record<string, number>) => {
 const getCoinpaprikaPrices = async (symbols: string[]) => {
   const allowed = allowlistSymbols(symbols);
   if (!allowed.length) return {};
-
   const tickers = (await getTickersUSD()) as Array<{
     id?: string;
     symbol?: string;
     rank?: number;
     quotes?: { USD?: { price?: number } };
   }>;
-
   const priceMap: Record<string, number> = {};
   const symbolSet = new Set(allowed);
-
   const candidates = new Map<string, Array<{ id: string; price: number; rank: number }>>();
-
   for (const ticker of tickers) {
     const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
     if (!symbol || !symbolSet.has(symbol)) continue;
     const price = ticker.quotes?.USD?.price;
     if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) continue;
     const id = String(ticker.id ?? '').trim();
-    const rank = Number.isFinite(ticker.rank) ? ticker.rank! : 999999;
+    const rank = Number.isFinite(ticker.rank) ? ticker.rank : 999999;
     const list = candidates.get(symbol) ?? [];
     list.push({ id, price, rank });
     candidates.set(symbol, list);
   }
-
   for (const symbol of symbolSet) {
     const list = candidates.get(symbol);
     if (!list?.length) continue;
     list.sort((a, b) => a.rank - b.rank);
     priceMap[symbol] = list[0].price;
   }
-
   return priceMap;
 };
 
@@ -115,13 +108,10 @@ const probeCoingecko = async (symbols: string[]) => {
   const ids = symbols
     .map((symbol) => COINGECKO_SYMBOL_TO_ID[symbol])
     .filter((id): id is string => Boolean(id));
-
   if (!ids.length) return;
-
   const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
     ids.join(',')
   )}&vs_currencies=usd`;
-
   try {
     const response = await fetch(url);
     const parsed = await response.json();
@@ -169,9 +159,21 @@ const shouldReprice = (price: number | null, value: number | null, amount: numbe
   return !isValidPositive(price) || !isValidPositive(value);
 };
 
+function isSnapshotRow(row: unknown): row is SnapshotRow {
+  if (typeof row !== 'object' || row === null) return false;
+  const r = row as Record<string, unknown>;
+  return (
+    typeof r.id === 'string' &&
+    typeof r.wallet_id === 'string' &&
+    typeof r.chain === 'string' &&
+    (r.payload_json === null || typeof r.payload_json === 'string') &&
+    (r.totals_usd === null || typeof r.totals_usd === 'number') &&
+    (r.captured_at === null || typeof r.captured_at === 'string')
+  );
+}
+
 /**
  * Repairs wallet snapshots with missing prices by re-fetching prices and updating payload_json.
- * This avoids zero-price poisoning when upstream price providers fail.
  */
 export async function repriceMissingWalletTokens(options: RepriceOptions) {
   const { tenantId, walletId, symbols, source = 'coingecko', trigger, lockTtlSeconds } = options;
@@ -199,7 +201,6 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
     ? new Set(symbols.map(normalizeSymbol).filter((s): s is string => !!s))
     : null;
 
-  // Fetch latest snapshots
   const result = await db.execute({
     sql: `
       WITH latest AS (
@@ -227,8 +228,16 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
     args: [...baseArgs, ...baseArgs],
   });
 
-  const rows = result.rows as SnapshotRow[];
+  const rawRows = result.rows;
+  const rows = rawRows.filter(isSnapshotRow) as SnapshotRow[];
   console.info('[reprice] snapshots found', { count: rows.length });
+  if (rows.length !== rawRows.length) {
+    console.warn('[reprice] Dropped invalid snapshot rows', {
+      totalRaw: rawRows.length,
+      valid: rows.length,
+      invalidExamples: rawRows.filter((row) => !isSnapshotRow(row)).slice(0, 3),
+    });
+  }
 
   const rowsToUpdate: Array<{
     row: SnapshotRow;
@@ -270,7 +279,7 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
         missingSymbols.add(symbol);
       }
 
-      // Normalize poison zeros
+      // Clear poison zeros
       if (price !== null && !isValidPositive(price)) {
         setTokenPrice(token, null);
         changed = true;
@@ -305,33 +314,30 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
   const normalizedPriceMap = normalizePriceMap(priceMap);
 
   let updatedRows = 0;
+  let updatedTokens = 0;
   const walletsTouched = new Set<string>();
 
-  for (const { row, tokens, changed } of rowsToUpdate) {
-    let rowChanged = changed;
-    if (!rowChanged) continue;
-
+  for (const { row, tokens } of rowsToUpdate) {
+    let rowChanged = false;
     let totalsUsd = 0;
+
     for (const token of tokens) {
       const amount = getTokenAmount(token);
+      const symbol = normalizeSymbol(token.symbol ?? token.tokenSymbol) ?? '';
       const priceCurrent = coerceNumber(token.priceUsd);
       const valueCurrent = getTokenValue(token);
-      const symbol = normalizeSymbol(token.symbol ?? token.tokenSymbol) ?? '';
 
-      const newPriceCandidate = isValidPositive(priceCurrent)
-        ? priceCurrent
-        : (normalizedPriceMap[symbol] ?? null);
+      const newPrice = normalizedPriceMap[symbol] ?? null;
 
-      if (isValidPositive(newPriceCandidate)) {
-        // fill missing price
+      if (isValidPositive(newPrice)) {
         if (!isValidPositive(priceCurrent)) {
-          setTokenPrice(token, newPriceCandidate);
+          setTokenPrice(token, newPrice);
           rowChanged = true;
+          updatedTokens++;
         }
 
-        // fill (or recompute) missing value
-        if (isValidPositive(amount) && isValidPositive(newPriceCandidate)) {
-          const nextValue = amount * newPriceCandidate;
+        if (isValidPositive(amount)) {
+          const nextValue = amount * newPrice;
           setTokenValue(token, Number.isFinite(nextValue) && nextValue > 0 ? nextValue : null);
           rowChanged = true;
         } else {
@@ -339,7 +345,7 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
           rowChanged = true;
         }
       } else {
-        // If we still can't price it, make sure poison zeros never persist
+        // Clear poison zeros
         if (!isValidPositive(priceCurrent) && priceCurrent !== null) {
           setTokenPrice(token, null);
           rowChanged = true;
@@ -348,13 +354,13 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
           setTokenValue(token, null);
           rowChanged = true;
         }
-      } // end token loop
-
-      const value = getTokenValue(token);
-      if (isValidPositive(value)) {
-        totalsUsd += value;
       }
-    } // end token loop
+
+      const finalValue = getTokenValue(token);
+      if (isValidPositive(finalValue)) {
+        totalsUsd += finalValue;
+      }
+    }
 
     if (!rowChanged) continue;
 
@@ -374,20 +380,20 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
     } catch (err) {
       console.error('[reprice] update failed', { snapshotId: row.id, err });
     }
-  } // end entry loop
+  }
 
   if (walletsTouched.size) {
     console.info('[reprice] updated', {
       tenantId,
       wallets: Array.from(walletsTouched),
       updatedRows,
+      updatedTokens,
     });
 
     for (const walletId of walletsTouched) {
       invalidateWalletCache(walletId, tenantId);
     }
 
-    // Optional: invalidate networth cache
     try {
       await db.execute({
         sql: 'DELETE FROM cache WHERE cache_key = ?',
@@ -404,12 +410,14 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
     tenantId,
     walletId,
     updatedRows,
+    updatedTokens,
     elapsedMs: Date.now() - start,
   });
 
   return {
     ok: true,
     updatedRows,
+    updatedTokens,
     walletsTouched: Array.from(walletsTouched),
     elapsedMs: Date.now() - start,
   };
