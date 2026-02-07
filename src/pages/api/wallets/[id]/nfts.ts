@@ -2,8 +2,8 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { tryAcquireLock } from '@/lib/cacheLock';
+import { getNftTransfers } from '@/lib/etherscan';
 
-const ETHERSCAN_V2 = 'https://api.etherscan.io/v2/api';
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
 const CACHE_TTL_MS = 1_000;
 const cache = new Map<string, { expiresAt: number; payload: { ok: boolean; items: any[] } }>();
@@ -23,20 +23,6 @@ const isFungibleToken = (tx: any) => {
 	const symbol = String(tx.tokenSymbol ?? '').trim().toUpperCase();
 	const name = String(tx.tokenName ?? '').trim().toLowerCase();
 	return FUNGIBLE_SYMBOLS.has(symbol) || name.includes('crypto.com');
-};
-
-const buildUrl = (chainId: number, action: string, address: string) => {
-	const params = new URLSearchParams({
-		chainid: String(chainId),
-		module: 'account',
-		action,
-		address,
-		page: '1',
-		offset: '200',
-		sort: 'desc',
-		apikey: ETHERSCAN_KEY ?? '',
-	});
-	return `${ETHERSCAN_V2}?${params.toString()}`;
 };
 
 export const GET: APIRoute = async ({ params, request, locals }) => {
@@ -180,11 +166,9 @@ async function buildNftPayload(tenantId: string, walletId: string) {
 	for (const chain of CHAINS) {
 		const actions = ['tokennfttx', 'token1155tx'];
 		for (const action of actions) {
-			const url = buildUrl(chain.chainId, action, address);
 			try {
-				const response = await fetch(url);
-				const payload = await response.json();
-				const items = Array.isArray(payload.result) ? payload.result : [];
+				// Etherscan calls centralized in src/lib/etherscan.ts.
+				const items = await getNftTransfers(address, chain.chainId, action as 'tokennfttx' | 'token1155tx');
 				items.forEach((item: any) => {
 					if (isFungibleToken(item)) return;
 					allTransfers.push({ ...item, chainId: chain.chainId, chain: chain.name });

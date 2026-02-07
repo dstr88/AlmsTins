@@ -3,8 +3,8 @@ import { db } from '@/lib/db';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { tryAcquireLock } from '@/lib/cacheLock';
+import { getTokenTransfersPage, requestEtherscan } from '@/lib/etherscan';
 
-const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
 const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
 const POLYGON_CHAIN_ID = 137;
 const ETHEREUM_CHAIN_ID = 1;
@@ -14,7 +14,6 @@ const PAGE_SIZE = 100;
 const MAX_PAGES = 25;
 const SCAN_DELAY_MS = 1200;
 const PRICE_DELAY_MS = 1000;
-const ETHERSCAN_MIN_INTERVAL_MS = 1200;
 const SNOWTRACE_MIN_INTERVAL_MS = 1200;
 const COINGECKO_MIN_INTERVAL_MS = 1800;
 const ETHERSCAN_RATE_LIMIT_BACKOFF_MS = 5_000;
@@ -24,7 +23,6 @@ const SNAPSHOT_LOCK_SECONDS = 20;
 
 const cache = new Map<string, { expiresAt: number; payload: any }>();
 const basisCache = new Map<string, { expiresAt: number; price: number | null }>();
-let lastEtherscanCallAt = 0;
 let lastSnowtraceCallAt = 0;
 let lastCoingeckoCallAt = 0;
 
@@ -38,15 +36,10 @@ function isRateLimited(payload: any) {
 
 async function throttledFetch(url: string, chainId: number) {
 	const now = Date.now();
-	if (chainId === AVALANCHE_CHAIN_ID) {
-		const waitMs = Math.max(0, lastSnowtraceCallAt + SNOWTRACE_MIN_INTERVAL_MS - now);
-		if (waitMs) await sleep(waitMs);
-		lastSnowtraceCallAt = Date.now();
-		return fetch(url);
-	}
-	const waitMs = Math.max(0, lastEtherscanCallAt + ETHERSCAN_MIN_INTERVAL_MS - now);
+	if (chainId !== AVALANCHE_CHAIN_ID) return fetch(url);
+	const waitMs = Math.max(0, lastSnowtraceCallAt + SNOWTRACE_MIN_INTERVAL_MS - now);
 	if (waitMs) await sleep(waitMs);
-	lastEtherscanCallAt = Date.now();
+	lastSnowtraceCallAt = Date.now();
 	return fetch(url);
 }
 
@@ -123,19 +116,14 @@ const pickImportAmount = (row: ImportTxRow, symbol: string) => {
 };
 
 function buildScanUrl(chainId: number, params: Record<string, string | number>) {
-	if (chainId === AVALANCHE_CHAIN_ID) {
-		const apiKey = import.meta.env.SNOWTRACE_API_KEY;
-		if (!apiKey) throw new Error('Missing SNOWTRACE_API_KEY');
-		const query = new URLSearchParams({ apikey: apiKey });
-		Object.entries(params).forEach(([key, value]) => query.set(key, String(value)));
-		return `${SNOWTRACE_BASE_URL}?${query.toString()}`;
+	if (chainId !== AVALANCHE_CHAIN_ID) {
+		throw new Error('Snowtrace URL builder only (Etherscan centralized).');
 	}
-
-	const apiKey = import.meta.env.ETHERSCAN_API_KEY;
-	if (!apiKey) throw new Error('Missing ETHERSCAN_API_KEY');
-	const query = new URLSearchParams({ apikey: apiKey, chainid: String(chainId) });
+	const apiKey = import.meta.env.SNOWTRACE_API_KEY;
+	if (!apiKey) throw new Error('Missing SNOWTRACE_API_KEY');
+	const query = new URLSearchParams({ apikey: apiKey });
 	Object.entries(params).forEach(([key, value]) => query.set(key, String(value)));
-	return `${ETHERSCAN_V2_BASE_URL}?${query.toString()}`;
+	return `${SNOWTRACE_BASE_URL}?${query.toString()}`;
 }
 
 function normalizeAddress(address: string) {
@@ -200,18 +188,70 @@ async function getCachedSymbolPrices(symbols: string[]) {
 async function fetchTokenTransfers(address: string, chainId: number): Promise<TokenTx[]> {
 	const results: TokenTx[] = [];
 	for (let page = 1; page <= MAX_PAGES; page += 1) {
+		let payload: any = null;
+		if (chainId === AVALANCHE_CHAIN_ID) {
+			const url = buildScanUrl(chainId, {
+				module: 'account',
+				action: 'tokentx',
+				address,
+				startblock: 0,
+				endblock: 99999999,
+				page,
+				offset: PAGE_SIZE,
+				sort: 'desc',
+			});
+			let response: Response | null = null;
+			for (let attempt = 0; attempt < 3; attempt += 1) {
+				response = await throttledFetch(url, chainId);
+				payload = await response.json();
+				if (response.ok && !isRateLimited(payload)) break;
+				if (isRateLimited(payload)) {
+					await sleep(ETHERSCAN_RATE_LIMIT_BACKOFF_MS);
+					continue;
+				}
+				break;
+			}
+			if (!response) {
+				throw new Error('Snowtrace HTTP 0');
+			}
+			if (!response.ok) {
+				throw new Error(`Snowtrace HTTP ${response.status}`);
+			}
+		} else {
+			// Etherscan call centralized in src/lib/etherscan.ts.
+			for (let attempt = 0; attempt < 3; attempt += 1) {
+				const result = await getTokenTransfersPage(address, chainId, page, PAGE_SIZE);
+				payload = result.payload;
+				if (payload.status === '0' && isRateLimited(payload)) {
+					await sleep(ETHERSCAN_RATE_LIMIT_BACKOFF_MS);
+					continue;
+				}
+				break;
+			}
+		}
+		if (payload?.status === '0' && payload.message !== 'No transactions found') {
+			const details = typeof payload.result === 'string' ? payload.result : JSON.stringify(payload.result);
+			throw new Error(`Etherscan error: ${payload.message ?? 'unknown'} | result=${details}`);
+		}
+		const pageResults = Array.isArray(payload?.result) ? (payload.result as TokenTx[]) : [];
+		if (!pageResults.length) break;
+		results.push(...pageResults);
+		if (pageResults.length < PAGE_SIZE) break;
+		await sleep(SCAN_DELAY_MS);
+	}
+	return results;
+}
+
+async function fetchNativeBalance(address: string, chainId: number) {
+	let payload: any = null;
+	if (chainId === AVALANCHE_CHAIN_ID) {
 		const url = buildScanUrl(chainId, {
 			module: 'account',
-			action: 'tokentx',
+			action: 'balance',
 			address,
-			startblock: 0,
-			endblock: 99999999,
-			page,
-			offset: PAGE_SIZE,
-			sort: 'desc',
+			tag: 'latest',
 		});
 		let response: Response | null = null;
-		let payload: any = null;
 		for (let attempt = 0; attempt < 3; attempt += 1) {
 			response = await throttledFetch(url, chainId);
 			payload = await response.json();
@@ -223,54 +263,32 @@ async function fetchTokenTransfers(address: string, chainId: number): Promise<To
 			break;
 		}
 		if (!response) {
-			throw new Error('Etherscan HTTP 0');
+			throw new Error('Native balance HTTP 0');
 		}
 		if (!response.ok) {
-			throw new Error(`Etherscan HTTP ${response.status}`);
+			throw new Error(`Native balance HTTP ${response.status}`);
 		}
-		if (payload.status === '0' && payload.message !== 'No transactions found') {
-			const details = typeof payload.result === 'string' ? payload.result : JSON.stringify(payload.result);
-			throw new Error(`Etherscan error: ${payload.message ?? 'unknown'} | result=${details}`);
+	} else {
+		// Etherscan call centralized in src/lib/etherscan.ts.
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			const result = await requestEtherscan<any>(
+				chainId,
+				{ module: 'account', action: 'balance', address, tag: 'latest' },
+				{ allowStatus0: true, context: 'holdings.balance' },
+			);
+			payload = result.payload;
+			if (payload.status === '0' && isRateLimited(payload)) {
+				await sleep(ETHERSCAN_RATE_LIMIT_BACKOFF_MS);
+				continue;
+			}
+			break;
 		}
-		const pageResults = Array.isArray(payload.result) ? (payload.result as TokenTx[]) : [];
-		if (!pageResults.length) break;
-		results.push(...pageResults);
-		if (pageResults.length < PAGE_SIZE) break;
-		await sleep(SCAN_DELAY_MS);
 	}
-	return results;
-}
-
-async function fetchNativeBalance(address: string, chainId: number) {
-	const url = buildScanUrl(chainId, {
-		module: 'account',
-		action: 'balance',
-		address,
-		tag: 'latest',
-	});
-	let response: Response | null = null;
-	let payload: any = null;
-	for (let attempt = 0; attempt < 3; attempt += 1) {
-		response = await throttledFetch(url, chainId);
-		payload = await response.json();
-		if (response.ok && !isRateLimited(payload)) break;
-		if (isRateLimited(payload)) {
-			await sleep(ETHERSCAN_RATE_LIMIT_BACKOFF_MS);
-			continue;
-		}
-		break;
-	}
-	if (!response) {
-		throw new Error('Native balance HTTP 0');
-	}
-	if (!response.ok) {
-		throw new Error(`Native balance HTTP ${response.status}`);
-	}
-	if (payload.status === '0' && payload.message !== 'No transactions found') {
+	if (payload?.status === '0' && payload.message !== 'No transactions found') {
 		const details = typeof payload.result === 'string' ? payload.result : JSON.stringify(payload.result);
 		throw new Error(`Native balance error: ${payload.message ?? 'unknown'} | result=${details}`);
 	}
-	return BigInt(payload.result ?? '0');
+	return BigInt(payload?.result ?? '0');
 }
 
 async function fetchCurrentPrices(

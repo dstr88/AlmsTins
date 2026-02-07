@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getContractCode } from '@/lib/etherscan';
 
-const ETHERSCAN_V2 = 'https://api.etherscan.io/v2/api';
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
 const CACHE_TTL_MS = 1_800_000;
 
@@ -33,18 +33,8 @@ const fetchIsContract = async (chainId: number, address: string) => {
 	const cached = contractCache.get(cacheKey);
 	if (cached && cached.expiresAt > Date.now()) return cached.isContract;
 
-	const params = new URLSearchParams({
-		chainid: String(chainId),
-		module: 'proxy',
-		action: 'eth_getCode',
-		address,
-		tag: 'latest',
-		apikey: ETHERSCAN_KEY ?? '',
-	});
-	const url = `${ETHERSCAN_V2}?${params.toString()}`;
-	const response = await fetch(url);
-	const payload = await response.json();
-	const code = String(payload.result ?? '');
+	// Etherscan call centralized in src/lib/etherscan.ts.
+	const code = await getContractCode(chainId, address);
 	const isContract = Boolean(code && code !== '0x');
 	contractCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, isContract });
 	return isContract;

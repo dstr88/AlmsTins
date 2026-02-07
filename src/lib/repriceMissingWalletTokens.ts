@@ -90,7 +90,8 @@ const getCoinpaprikaPrices = async (symbols: string[]) => {
     const price = ticker.quotes?.USD?.price;
     if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) continue;
     const id = String(ticker.id ?? '').trim();
-    const rank = Number.isFinite(ticker.rank) ? ticker.rank : 999999;
+    const rank =
+      typeof ticker.rank === 'number' && Number.isFinite(ticker.rank) ? ticker.rank : 999999;
     const list = candidates.get(symbol) ?? [];
     list.push({ id, price, rank });
     candidates.set(symbol, list);
@@ -151,7 +152,7 @@ const setTokenPrice = (token: Record<string, unknown>, priceUsd: number | null) 
   token.priceUsd = priceUsd;
 };
 
-const isValidPositive = (value: number | null) =>
+const isValidPositive = (value: number | null): value is number =>
   value !== null && Number.isFinite(value) && value > 0;
 
 const shouldReprice = (price: number | null, value: number | null, amount: number | null) => {
@@ -228,8 +229,8 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
     args: [...baseArgs, ...baseArgs],
   });
 
-  const rawRows = result.rows;
-  const rows = rawRows.filter(isSnapshotRow) as SnapshotRow[];
+  const rawRows: unknown[] = Array.isArray(result.rows) ? result.rows : [];
+  const rows = rawRows.filter(isSnapshotRow);
   console.info('[reprice] snapshots found', { count: rows.length });
   if (rows.length !== rawRows.length) {
     console.warn('[reprice] Dropped invalid snapshot rows', {

@@ -1,8 +1,8 @@
 import type { SupportedChain } from './constants';
+import { buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
 
 type EtherscanChain = Extract<SupportedChain, 'ethereum' | 'polygon'>;
 
-const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
 const ETHEREUM_CHAIN_ID = 1;
 const ETHERSCAN_CHAIN_IDS: Record<EtherscanChain, number> = {
 	ethereum: ETHEREUM_CHAIN_ID,
@@ -40,11 +40,12 @@ export type ScanTx = {
 };
 
 export function buildScanUrl(chain: ScanChain, params: ScanParams) {
+	// Etherscan URL construction is centralized in src/lib/etherscan.ts.
 	if (chain === 'ethereum') {
-		return buildEthereumUrl(params);
+		return buildEtherscanV2Url(ETHEREUM_CHAIN_ID, params);
 	}
 	if (chain === 'polygon') {
-		return buildEtherscanUrl(chain, params);
+		return buildEtherscanV2Url(ETHERSCAN_CHAIN_IDS[chain], params);
 	}
 	if (chain === 'avalanche') {
 		return buildSnowtraceUrl(params);
@@ -53,101 +54,49 @@ export function buildScanUrl(chain: ScanChain, params: ScanParams) {
 }
 
 export async function fetchAccountData(chain: EtherscanChain, params: ScanParams) {
+	// Etherscan fetch is centralized in src/lib/etherscan.ts.
 	if (chain === 'ethereum') {
 		return fetchEthereumScan(params);
 	}
 
-	const url = buildEtherscanUrl(chain, params);
-	const response = await fetch(url);
-	const payload = await response.json();
+	const chainId = ETHERSCAN_CHAIN_IDS[chain];
+	const { payload, url, httpStatus } = await requestEtherscan<any>(chainId, params, {
+		allowNoTx: true,
+		context: `scanSync.${chain}`,
+	});
 	const redactedUrl = url.replace(/apikey=[^&]+/i, 'apikey=[redacted]');
 	console.log('[ETH scan]', {
 		provider: 'etherscan_v2',
 		chain,
-		chainId: ETHERSCAN_CHAIN_IDS[chain],
+		chainId,
 		keyPresent: Boolean(import.meta.env.ETHERSCAN_API_KEY),
 		url: redactedUrl,
-		httpStatus: response.status,
-		status: payload.status,
-		message: payload.message,
+		httpStatus,
+		status: (payload as any).status,
+		message: (payload as any).message,
 	});
-	if (!response.ok) {
-		throw new Error(`Etherscan V2 HTTP error (${chain}): ${response.status}`);
-	}
-	if (payload.status === '0' && payload.message !== 'No transactions found') {
-		const details = typeof payload.result === 'string' ? payload.result : JSON.stringify(payload.result);
-		throw new Error(`Etherscan V2 error (${chain}): ${payload.message ?? 'unknown error'} | result=${details}`);
-	}
 	return payload;
 }
 
 export async function fetchEthereumScan(params: ScanParams) {
-	const apiKey = import.meta.env.ETHERSCAN_API_KEY;
-	if (!apiKey) {
-		throw new Error('Missing ETHERSCAN_API_KEY');
-	}
-
-	const query = new URLSearchParams({ apikey: apiKey, chainid: String(ETHEREUM_CHAIN_ID) });
-	for (const [key, value] of Object.entries(params)) {
-		if (value !== undefined && value !== null) {
-			query.set(key, String(value));
-		}
-	}
-
-	const url = `${ETHERSCAN_V2_BASE_URL}?${query.toString()}`;
+	// Etherscan fetch is centralized in src/lib/etherscan.ts.
+	const { payload, url, httpStatus } = await requestEtherscan<any>(ETHEREUM_CHAIN_ID, params, {
+		allowNoTx: true,
+		context: 'scanSync.ethereum',
+	});
 	const redactedUrl = url.replace(/apikey=[^&]+/i, 'apikey=[redacted]');
 
-	const response = await fetch(url);
-	const payload = await response.json();
 	console.log('[ETH scan]', {
 		provider: 'etherscan_v2',
 		chain: 'ethereum',
 		chainId: ETHEREUM_CHAIN_ID,
-		keyPresent: Boolean(apiKey),
+		keyPresent: Boolean(import.meta.env.ETHERSCAN_API_KEY),
 		url: redactedUrl,
-		httpStatus: response.status,
-		status: payload.status,
-		message: payload.message,
+		httpStatus,
+		status: (payload as any).status,
+		message: (payload as any).message,
 	});
-
-	if (!response.ok) {
-		throw new Error(`Etherscan V2 HTTP error (ethereum): ${response.status}`);
-	}
-	if (!payload || typeof payload !== 'object') {
-		throw new Error('Etherscan V2 error (ethereum): malformed payload');
-	}
-	if (payload.status === '0' && payload.message !== 'No transactions found') {
-		const details = typeof payload.result === 'string' ? payload.result : JSON.stringify(payload.result);
-		throw new Error(`Etherscan V2 error (ethereum): ${payload.message ?? 'unknown error'} | result=${details}`);
-	}
 	return payload;
-}
-
-function buildEthereumUrl(params: ScanParams) {
-	const apiKey = import.meta.env.ETHERSCAN_API_KEY;
-	if (!apiKey) throw new Error('Missing ETHERSCAN_API_KEY');
-	const query = new URLSearchParams({ apikey: apiKey, chainid: String(ETHEREUM_CHAIN_ID) });
-	for (const [key, value] of Object.entries(params)) {
-		if (value !== undefined && value !== null) {
-			query.set(key, String(value));
-		}
-	}
-	return `${ETHERSCAN_V2_BASE_URL}?${query.toString()}`;
-}
-
-function buildEtherscanUrl(chain: EtherscanChain, params: ScanParams) {
-	const apiKey = import.meta.env.ETHERSCAN_API_KEY;
-	if (!apiKey) throw new Error('Missing ETHERSCAN_API_KEY');
-	const chainId = ETHERSCAN_CHAIN_IDS[chain];
-	if (!chainId) throw new Error(`Unsupported Etherscan chain: ${chain}`);
-
-	const query = new URLSearchParams({ apikey: apiKey, chainid: String(chainId) });
-	for (const [key, value] of Object.entries(params)) {
-		if (value !== undefined && value !== null) {
-			query.set(key, String(value));
-		}
-	}
-	return `${ETHERSCAN_V2_BASE_URL}?${query.toString()}`;
 }
 
 function buildSnowtraceUrl(params: ScanParams) {
