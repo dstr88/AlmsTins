@@ -5,6 +5,7 @@ import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTokentxPaged, getNativeBalanceWei } from '@/lib/etherscan';
+import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 
 const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
 const POLYGON_CHAIN_ID = 137;
@@ -63,6 +64,16 @@ type TokenTx = {
 	tokenSymbol: string;
 	tokenName: string;
 	contractAddress: string;
+};
+
+type TokenAgg = {
+	symbol: string;
+	name: string;
+	decimals: number;
+	contractAddress: string;
+	balance: bigint;
+	firstIn?: number;
+	firstInHash?: string;
 };
 
 type HoldingsToken = {
@@ -222,6 +233,92 @@ async function getCachedSymbolPrices(symbols: string[]) {
 		}
 	}
 	return priceMap;
+}
+
+async function mapWithConcurrency<T, R>(
+	items: T[],
+	limit: number,
+	mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+	const results: R[] = [];
+	let index = 0;
+	while (index < items.length) {
+		const batch = items.slice(index, index + limit);
+		const batchResults = await Promise.all(batch.map(mapper));
+		results.push(...batchResults);
+		index += limit;
+	}
+	return results;
+}
+
+async function fetchAlchemyTokenAggregates(
+	chain: 'eth-mainnet' | 'polygon-mainnet',
+	address: string,
+	requestId?: string,
+) {
+	const balancesResult = await getTokenBalances(chain, address);
+	const rawBalances = Array.isArray(balancesResult?.tokenBalances)
+		? balancesResult.tokenBalances
+		: [];
+	const nonZeroBalances = rawBalances.filter((entry) => {
+		try {
+			return BigInt(entry.tokenBalance ?? '0') > 0n;
+		} catch {
+			return false;
+		}
+	});
+
+	const contracts = nonZeroBalances
+		.map((entry) => String(entry.contractAddress ?? '').toLowerCase())
+		.filter(Boolean);
+
+	const metadataList = await mapWithConcurrency(contracts, 5, async (contract) => {
+		try {
+			const metadata = await getTokenMetadata(chain, contract);
+			return { contract, metadata };
+		} catch (error) {
+			console.warn('[holdings] Alchemy metadata failed', {
+				requestId,
+				chainId: ETHEREUM_CHAIN_ID,
+				contract,
+				error,
+			});
+			return { contract, metadata: { decimals: 18, name: null, symbol: null } };
+		}
+	});
+
+	const metadataByContract = new Map<string, Awaited<ReturnType<typeof getTokenMetadata>>>();
+	for (const entry of metadataList) {
+		metadataByContract.set(entry.contract, entry.metadata);
+	}
+
+	const aggregates = new Map<string, TokenAgg>();
+	for (const entry of nonZeroBalances) {
+		const contract = String(entry.contractAddress ?? '').toLowerCase();
+		if (!contract) continue;
+		const metadata = metadataByContract.get(contract);
+		const decimals = typeof metadata?.decimals === 'number' ? metadata.decimals : 18;
+		const symbol = (metadata?.symbol ?? '').trim();
+		const name = (metadata?.name ?? '').trim();
+		if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) continue;
+		if (isSpamToken(symbol, name, decimals)) continue;
+		if (isDefiToken(symbol, name)) continue;
+		let balance = 0n;
+		try {
+			balance = BigInt(entry.tokenBalance ?? '0');
+		} catch {
+			balance = 0n;
+		}
+		aggregates.set(contract, {
+			symbol,
+			name,
+			decimals,
+			contractAddress: contract,
+			balance,
+		});
+	}
+
+	return aggregates;
 }
 
 async function fetchTokenTransfers(address: string, chainId: number, requestId?: string): Promise<TokenTx[]> {
@@ -561,71 +658,92 @@ async function buildHoldingsPayload(
 	const pricePlatform =
 		chainId === POLYGON_CHAIN_ID ? 'polygon-pos' : chainId === ETHEREUM_CHAIN_ID ? 'ethereum' : 'avalanche';
 
-	let transfers: TokenTx[] = [];
-	try {
-		transfers = await fetchTokenTransfers(address, chainId, requestId);
-	} catch (err: any) {
-		throw new Error(err?.message ?? 'Failed to fetch token transfers');
-	}
-
-	console.log('[holdings.debug]', { requestId, chainId, tokentxCount: transfers.length });
-
-	type TokenAgg = {
-		symbol: string;
-		name: string;
-		decimals: number;
-		contractAddress: string;
-		balance: bigint;
-		firstIn?: number;
-		firstInHash?: string;
-	};
-
 	const aggregates = new Map<string, TokenAgg>();
-	for (const tx of transfers) {
-		const contract = (tx.contractAddress ?? '').toLowerCase();
-		if (!contract) continue;
-
-		const symbol = (tx.tokenSymbol ?? '').trim();
-		const name = (tx.tokenName ?? '').trim();
-		const decimals = Number(tx.tokenDecimal ?? 0);
-
-		if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) continue;
-		if (isSpamToken(symbol, name, decimals)) continue;
-		if (isDefiToken(symbol, name)) continue;
-
-		const from = normalizeAddress(tx.from ?? '');
-		const to = normalizeAddress(tx.to ?? '');
-
-		if (from === address && to === address) continue;
-
-		let delta = 0n;
-		if (to === address) {
-			delta = BigInt(tx.value ?? '0');
-		} else if (from === address) {
-			delta = -BigInt(tx.value ?? '0');
-		} else {
-			continue;
-		}
-
-		const timestamp = Number(tx.timeStamp ?? 0);
-		const existing = aggregates.get(contract) ?? {
-			symbol,
-			name,
-			decimals,
-			contractAddress: contract,
-			balance: 0n,
-		};
-
-		existing.balance += delta;
-
-		if (delta > 0n && timestamp) {
-			if (!existing.firstIn || timestamp < existing.firstIn) {
-				existing.firstIn = timestamp;
-				existing.firstInHash = tx.hash;
+	if (chainId === ETHEREUM_CHAIN_ID || chainId === POLYGON_CHAIN_ID) {
+		const alchemyChain = chainId === ETHEREUM_CHAIN_ID ? 'eth-mainnet' : 'polygon-mainnet';
+		try {
+			const alchemyAggregates = await fetchAlchemyTokenAggregates(alchemyChain, address, requestId);
+			alchemyAggregates.forEach((value, key) => aggregates.set(key, value));
+			if (chainId === ETHEREUM_CHAIN_ID) {
+				console.log('[holdings.debug]', {
+					requestId,
+					chainId,
+					alchemyChain: 'eth-mainnet',
+					alchemyTokenCount: aggregates.size,
+				});
 			}
+			if (chainId === POLYGON_CHAIN_ID) {
+				console.log('[holdings.debug]', {
+					requestId,
+					chainId,
+					alchemyChain: 'polygon-mainnet',
+					alchemyTokenCount: aggregates.size,
+				});
+			}
+		} catch (error) {
+			console.warn('[holdings] Alchemy token balances failed', {
+				requestId,
+				chainId,
+				alchemyChain,
+				error,
+			});
+		}
+	} else {
+		let transfers: TokenTx[] = [];
+		try {
+			transfers = await fetchTokenTransfers(address, chainId, requestId);
+		} catch (err: any) {
+			throw new Error(err?.message ?? 'Failed to fetch token transfers');
 		}
 
-		aggregates.set(contract, existing);
+		console.log('[holdings.debug]', { requestId, chainId, tokentxCount: transfers.length });
+
+		for (const tx of transfers) {
+			const contract = (tx.contractAddress ?? '').toLowerCase();
+			if (!contract) continue;
+
+			const symbol = (tx.tokenSymbol ?? '').trim();
+			const name = (tx.tokenName ?? '').trim();
+			const decimals = Number(tx.tokenDecimal ?? 0);
+
+			if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) continue;
+			if (isSpamToken(symbol, name, decimals)) continue;
+			if (isDefiToken(symbol, name)) continue;
+
+			const from = normalizeAddress(tx.from ?? '');
+			const to = normalizeAddress(tx.to ?? '');
+
+			if (from === address && to === address) continue;
+
+			let delta = 0n;
+			if (to === address) {
+				delta = BigInt(tx.value ?? '0');
+			} else if (from === address) {
+				delta = -BigInt(tx.value ?? '0');
+			} else {
+				continue;
+			}
+
+			const timestamp = Number(tx.timeStamp ?? 0);
+			const existing = aggregates.get(contract) ?? {
+				symbol,
+				name,
+				decimals,
+				contractAddress: contract,
+				balance: 0n,
+			};
+
+			existing.balance += delta;
+
+			if (delta > 0n && timestamp) {
+				if (!existing.firstIn || timestamp < existing.firstIn) {
+					existing.firstIn = timestamp;
+					existing.firstInHash = tx.hash;
+				}
+			}
+
+			aggregates.set(contract, existing);
+		}
 	}
 
 	console.log('[holdings.debug]', { requestId, chainId, uniqueContracts: aggregates.size });
@@ -702,6 +820,8 @@ async function buildHoldingsPayload(
 		const priceUsd = currentPrices[entry.contractAddress] ?? cached ?? 0;
 		const valueUsd = balance * priceUsd;
 		totalUsd += valueUsd;
+
+		if (balance <= 0 || (!priceUsd && balance < 1e-12)) continue;
 
 		let basisType: HoldingsToken['basisType'] = 'unknown';
 		let basisPrice: number | null = null;
