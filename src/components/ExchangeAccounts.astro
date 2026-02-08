@@ -9,6 +9,29 @@ type AccountRow = {
 	name: string;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+
+const toAccountRow = (row: unknown): AccountRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		name: toStringOrEmpty(r.name),
+	};
+};
+
+const toAccountRows = (rows: unknown): AccountRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: AccountRow[] = [];
+	for (const row of rows) {
+		const mapped = toAccountRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
 const { source, title } = Astro.props as { source: string; title: string };
 const { tenantId } = await requireTenantSession(Astro.request);
 
@@ -19,7 +42,7 @@ const accountsResult = await db.execute({
 	args: [tenantId, source],
 });
 
-const accounts = accountsResult.rows as AccountRow[];
+const accounts = toAccountRows(accountsResult.rows);
 ---
 
 <ExchangeTin title={title} class="tile tile--exchange">

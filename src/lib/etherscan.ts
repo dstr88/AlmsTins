@@ -1,136 +1,46 @@
 // src/lib/etherscan.ts
-// Dedicated Etherscan client (v2).
-// All Etherscan API calls should be routed through this module for centralized troubleshooting.
-
-const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
+//
+// Centralized scan/provider client with:
+// - Etherscan v2 + Snowtrace support
+// - Per-provider throttling
+// - Short TTL memoization by URL
+// - In-flight request de-dupe (same URL shares one fetch)
+// - Consistent handling of "No transactions found" => []
+// - Structured debug logging (SCAN_DEBUG=1)
+//
+// Usage examples:
+//   import * as scan from '@/lib/etherscan';
+//   const txs = await scan.getTokentxPaged({ chainId: 1, address, maxPages: 10, requestId });
+//   const wei = await scan.getNativeBalanceWei({ chainId: 1, address, requestId });
+//   const isContract = await scan.isContract({ chainId: 1, address: someAddr, requestId });
 
 export const CHAIN_IDS = {
   ethereum: 1,
   polygon: 137,
-  avalanche: 43114, // NOTE: Avalanche is not Etherscan; you'd use Snowtrace instead.
+  avalanche: 43114,
 } as const;
 
-export type EtherscanOk<T> = { status: '1'; message: 'OK'; result: T };
-export type EtherscanErr = { status: '0'; message: string; result: any };
-export type EtherscanPayload<T> = EtherscanOk<T> | EtherscanErr;
+const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
+const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
 
-function getEtherscanKey(): string {
-  const key = import.meta.env.ETHERSCAN_API_KEY;
-  if (!key) throw new Error('Missing ETHERSCAN_API_KEY');
-  return String(key);
-}
+// Defaults (override per call if needed)
+const DEFAULT_MIN_INTERVAL_MS = 1200;
+const DEFAULT_BACKOFF_MS = 5000;
 
-export function buildEtherscanV2Url(chainId: number, params: Record<string, string | number>) {
-  const query = new URLSearchParams({
-    apikey: getEtherscanKey(),
-    chainid: String(chainId),
-  });
+const DEFAULT_URL_TTL_MS = 15_000; // memoize identical URL for 15s
+const DEFAULT_URL_MAX_BYTES_LOG = 220;
 
-  for (const [k, v] of Object.entries(params)) query.set(k, String(v));
-  return `${ETHERSCAN_V2_BASE_URL}?${query.toString()}`;
-}
+const DEBUG = String(import.meta.env.SCAN_DEBUG ?? '').trim() === '1';
 
-type RequestOptions = {
-  allowStatus0?: boolean;
-  allowNoTx?: boolean;
-  context?: string;
-  log?: boolean;
-};
+type Provider = 'etherscan' | 'snowtrace';
 
-export async function requestEtherscan<T>(
-  chainId: number,
-  params: Record<string, string | number>,
-  options: RequestOptions = {},
-) {
-  const startedAt = Date.now();
-  const url = buildEtherscanV2Url(chainId, params);
-  const res = await fetch(url);
-  const text = await res.text();
-  const elapsedMs = Date.now() - startedAt;
-  if (options.log !== false) {
-    console.log('[etherscan] http', {
-      ms: elapsedMs,
-      status: res.status,
-      chainId,
-      action: String(params.action ?? ''),
-      context: options.context,
-    });
-  }
+type Json = Record<string, any>;
 
-  let payload: any;
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    throw new Error(`Etherscan returned non-JSON: HTTP ${res.status} :: ${text.slice(0, 200)}`);
-  }
+type OkPayload<T> = { status: '1'; message?: string; result: T };
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type ErrPayload = { status: '0'; message?: string; result?: any };
 
-  if (!res.ok) {
-    throw new Error(`Etherscan HTTP ${res.status} :: ${text.slice(0, 200)}`);
-  }
-
-  // Etherscan often returns HTTP 200 even on API errors.
-  if (String(payload?.status) === '0') {
-    const msg = String(payload?.message ?? 'NOTOK');
-    const details =
-      typeof payload?.result === 'string' ? payload.result : JSON.stringify(payload.result);
-    if (options.allowNoTx && msg === 'No transactions found') {
-      return { payload: payload as EtherscanPayload<T>, url, httpStatus: res.status };
-    }
-    if (options.allowStatus0) {
-      return { payload: payload as EtherscanPayload<T>, url, httpStatus: res.status };
-    }
-    throw new Error(`Etherscan NOTOK: ${msg} :: ${details}`);
-  }
-
-  return { payload: payload as EtherscanPayload<T>, url, httpStatus: res.status };
-}
-
-export function weiToEth(wei: bigint): number {
-  // NOTE: number is fine for display; for accounting, keep bigint/string.
-  const s = wei.toString().padStart(19, '0');
-  const whole = s.slice(0, -18);
-  const frac = s.slice(-18).replace(/0+$/, '');
-  const out = frac ? `${whole}.${frac}` : whole;
-  const n = Number(out);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/**
- * ✅ ACTIVE: Get native chain balance.
- * - Ethereum: returns wei
- * - Polygon: returns wei (MATIC/POL unit is still 18 decimals)
- */
-export async function getNativeBalanceWei(address: string, chainId: number): Promise<bigint> {
-  const startedAt = Date.now();
-  const { payload } = await requestEtherscan<any>(
-    chainId,
-    {
-      module: 'account',
-      action: 'balance',
-      address,
-      tag: 'latest',
-    },
-    { context: 'balance' },
-  );
-  const elapsedMs = Date.now() - startedAt;
-  console.log('[etherscan] balance', { chainId, ms: elapsedMs });
-  return BigInt((payload as EtherscanOk<any>).result ?? '0');
-}
-
-/**
- * ✅ ACTIVE: Convenience wrapper for display.
- */
-export async function getNativeBalanceDisplay(address: string, chainId: number) {
-  const startedAt = Date.now();
-  const wei = await getNativeBalanceWei(address, chainId);
-  const elapsedMs = Date.now() - startedAt;
-  console.log('[etherscan] balance.display', { chainId, ms: elapsedMs });
-  return {
-    wei: wei.toString(),
-    decimal: weiToEth(wei), // 18 decimals display
-  };
-}
-
+// Etherscan-style token tx shape (also used by Snowtrace)
 export type TokenTx = {
   blockNumber: string;
   timeStamp: string;
@@ -144,81 +54,448 @@ export type TokenTx = {
   contractAddress: string;
 };
 
-export type NftTx = {
-  blockNumber: string;
-  timeStamp: string;
-  hash: string;
-  from: string;
-  to: string;
-  tokenID?: string;
-  tokenId?: string;
-  tokenName?: string;
-  tokenSymbol?: string;
-  contractAddress?: string;
-  [key: string]: any;
-};
+// ERC-721 / ERC-1155 transfer items (roughly)
+export type NftTx = Record<string, any>;
 
-export async function getAccountAction<T>(
-  chainId: number,
-  params: Record<string, string | number>,
-  options: RequestOptions = {},
-) {
-  const { payload, url, httpStatus } = await requestEtherscan<T>(chainId, params, options);
-  return { payload, url, httpStatus };
+// ─────────────────────────────────────────────────────────────
+// Internal state: throttles, cache, inflight
+// ─────────────────────────────────────────────────────────────
+
+const lastCallAt: Record<Provider, number> = { etherscan: 0, snowtrace: 0 };
+
+// Per-URL memo cache
+const urlCache = new Map<string, { expiresAt: number; payloadText: string }>();
+
+// In-flight de-dupe
+const inflight = new Map<string, Promise<string>>();
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function logDebug(event: string, meta: Record<string, any>) {
+  if (!DEBUG) return;
+  // Keep logs compact and structured
+  console.log(`[scan] ${event}`, meta);
 }
 
-export async function getTokenTransfersPage(
-  address: string,
-  chainId: number,
+function providerForChain(chainId: number): Provider {
+  return chainId === CHAIN_IDS.avalanche ? 'snowtrace' : 'etherscan';
+}
+
+function getApiKey(provider: Provider): string {
+  if (provider === 'snowtrace') {
+    const k = import.meta.env.SNOWTRACE_API_KEY;
+    if (!k) throw new Error('Missing SNOWTRACE_API_KEY');
+    return String(k);
+  }
+  const k = import.meta.env.ETHERSCAN_API_KEY;
+  if (!k) throw new Error('Missing ETHERSCAN_API_KEY');
+  return String(k);
+}
+
+function baseUrl(provider: Provider): string {
+  return provider === 'snowtrace' ? SNOWTRACE_BASE_URL : ETHERSCAN_V2_BASE_URL;
+}
+
+function isRateLimited(payload: any): boolean {
+  const msg = String(payload?.message ?? '').toLowerCase();
+  const res = String(payload?.result ?? '').toLowerCase();
+  return (
+    msg.includes('rate limit') ||
+    res.includes('rate limit') ||
+    msg.includes('too many requests') ||
+    res.includes('too many requests')
+  );
+}
+
+function isNoTxFound(payload: any): boolean {
+  const msg = String(payload?.message ?? '').toLowerCase();
+  const res = String(payload?.result ?? '').toLowerCase();
+  return msg.includes('no transactions found') || res.includes('no transactions found');
+}
+
+function normalizeAddress(address: string): string {
+  return String(address ?? '').trim().toLowerCase();
+}
+
+function buildUrl(chainId: number, params: Record<string, string | number>): string {
+  const provider = providerForChain(chainId);
+  const apikey = getApiKey(provider);
+
+  const query = new URLSearchParams({ apikey });
+  // Etherscan v2 requires chainid; Snowtrace doesn't, but harmless to omit
+  if (provider === 'etherscan') query.set('chainid', String(chainId));
+
+  for (const [k, v] of Object.entries(params)) query.set(k, String(v));
+  return `${baseUrl(provider)}?${query.toString()}`;
+}
+
+async function throttled(provider: Provider, minIntervalMs = DEFAULT_MIN_INTERVAL_MS) {
+  const now = Date.now();
+  const waitMs = Math.max(0, lastCallAt[provider] + minIntervalMs - now);
+  if (waitMs > 0) await sleep(waitMs);
+  lastCallAt[provider] = Date.now();
+}
+
+async function fetchTextWithCache(
+  url: string,
+  {
+    provider,
+    minIntervalMs = DEFAULT_MIN_INTERVAL_MS,
+    cacheTtlMs = DEFAULT_URL_TTL_MS,
+    requestId,
+  }: { provider: Provider; minIntervalMs?: number; cacheTtlMs?: number; requestId?: string },
+): Promise<string> {
+  // Memo cache by URL
+  const cached = urlCache.get(url);
+  if (cached && cached.expiresAt > Date.now()) {
+    logDebug('cache.hit', {
+      requestId,
+      provider,
+      url: url.slice(0, DEFAULT_URL_MAX_BYTES_LOG),
+      ttlMs: cached.expiresAt - Date.now(),
+    });
+    return cached.payloadText;
+  }
+
+  // Inflight dedupe by URL
+  const existing = inflight.get(url);
+  if (existing) {
+    logDebug('inflight.join', { requestId, provider, url: url.slice(0, DEFAULT_URL_MAX_BYTES_LOG) });
+    return existing;
+  }
+
+  const promise = (async () => {
+    const started = Date.now();
+    await throttled(provider, minIntervalMs);
+
+    const res = await fetch(url);
+    const text = await res.text();
+
+    logDebug('fetch', {
+      requestId,
+      provider,
+      status: res.status,
+      ms: Date.now() - started,
+      url: url.slice(0, DEFAULT_URL_MAX_BYTES_LOG),
+    });
+
+    if (!res.ok) {
+      throw new Error(`${provider} HTTP ${res.status}: ${text.slice(0, 240)}`);
+    }
+
+    urlCache.set(url, { expiresAt: Date.now() + cacheTtlMs, payloadText: text });
+    return text;
+  })();
+
+  inflight.set(url, promise);
+
+  try {
+    const out = await promise;
+    return out;
+  } finally {
+    inflight.delete(url);
+  }
+}
+
+async function fetchJsonWithRetries(
+  url: string,
+  {
+    provider,
+    requestId,
+    attempts = 3,
+    minIntervalMs = DEFAULT_MIN_INTERVAL_MS,
+    backoffMs = DEFAULT_BACKOFF_MS,
+    cacheTtlMs = DEFAULT_URL_TTL_MS,
+  }: {
+    provider: Provider;
+    requestId?: string;
+    attempts?: number;
+    minIntervalMs?: number;
+    backoffMs?: number;
+    cacheTtlMs?: number;
+  },
+): Promise<Json> {
+  let lastErr: any = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const text = await fetchTextWithCache(url, { provider, minIntervalMs, cacheTtlMs, requestId });
+      let payload: any;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw new Error(`${provider} returned non-JSON: ${text.slice(0, 240)}`);
+      }
+
+      // Rate limit backoff path
+      if (isRateLimited(payload)) {
+        logDebug('rate_limit', { requestId, provider, attempt, backoffMs });
+        // Do not cache rate-limited payloads longer than our short TTL;
+        // but they might already be cached if upstream returned it. That's OK for troubleshooting.
+        await sleep(backoffMs);
+        continue;
+      }
+
+      return payload;
+    } catch (err: any) {
+      lastErr = err;
+      logDebug('retry.error', { requestId, provider, attempt, error: String(err?.message ?? err) });
+      // brief delay before next attempt
+      if (attempt < attempts) await sleep(250);
+    }
+  }
+
+  throw new Error(lastErr?.message ?? 'Provider fetch failed');
+}
+
+function throwIfNotOk(payload: any, provider: Provider) {
+  // Etherscan/Snowtrace style: status/message/result
+  const status = String(payload?.status ?? '');
+  if (status !== '0') return;
+  const message = String(payload?.message ?? 'NOTOK');
+  const result = payload?.result;
+  const details = typeof result === 'string' ? result : JSON.stringify(result);
+  throw new Error(`${provider} NOTOK: ${message} | result=${details}`);
+}
+
+function readResultArray<T = any>(payload: any, provider: Provider): T[] {
+  const status = String(payload?.status ?? '');
+  const result = payload?.result;
+
+  if (Array.isArray(result)) return result as T[];
+
+  // If status=0 and "No transactions found" => empty array (non-fatal)
+  if (status === '0' && isNoTxFound(payload)) return [];
+
+  // Otherwise treat as error
+  throwIfNotOk(payload, provider);
+
+  // If status wasn't 0 but result isn't an array, return empty
+  return [];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Public API
+// ─────────────────────────────────────────────────────────────
+
+export function weiToDecimalString(wei: bigint, decimals: number) {
+  if (decimals <= 0) return wei.toString();
+  const negative = wei < 0n;
+  const abs = negative ? -wei : wei;
+  const s = abs.toString().padStart(decimals + 1, '0');
+  const whole = s.slice(0, -decimals);
+  let frac = s.slice(-decimals).replace(/0+$/, '');
+  const out = frac ? `${whole}.${frac}` : whole;
+  return negative ? `-${out}` : out;
+}
+
+/**
+ * Native balance (wei) for Ethereum/Polygon via Etherscan v2.
+ * Avalanche native balance should be done via Snowtrace "account balance" too,
+ * but for now this function supports it (same action) as Snowtrace is Etherscan-style.
+ */
+export async function getNativeBalanceWei({
+  chainId,
+  address,
+  requestId,
+}: {
+  chainId: number;
+  address: string;
+  requestId?: string;
+}): Promise<bigint> {
+  const provider = providerForChain(chainId);
+  const addr = normalizeAddress(address);
+
+  const url = buildUrl(chainId, {
+    module: 'account',
+    action: 'balance',
+    address: addr,
+    tag: 'latest',
+  });
+
+  const payload = await fetchJsonWithRetries(url, { provider, requestId });
+  // For balance calls, status=0 is a real error (not "No tx found")
+  throwIfNotOk(payload, provider);
+
+  return BigInt(payload?.result ?? '0');
+}
+
+/**
+ * Token transfers (ERC-20) – single page.
+ */
+export async function getTokentxPage({
+  chainId,
+  address,
   page = 1,
   offset = 100,
-) {
-  return getAccountAction<TokenTx[]>(
+  requestId,
+}: {
+  chainId: number;
+  address: string;
+  page?: number;
+  offset?: number;
+  requestId?: string;
+}): Promise<TokenTx[]> {
+  const provider = providerForChain(chainId);
+  const addr = normalizeAddress(address);
+
+  const url = buildUrl(chainId, {
+    module: 'account',
+    action: 'tokentx',
+    address: addr,
+    startblock: 0,
+    endblock: 99999999,
+    page,
+    offset,
+    sort: 'desc',
+  });
+
+  const payload = await fetchJsonWithRetries(url, { provider, requestId });
+  const items = readResultArray<TokenTx>(payload, provider);
+
+  logDebug('tokentx.page', {
+    requestId,
     chainId,
-    {
-      module: 'account',
-      action: 'tokentx',
-      address,
-      startblock: 0,
-      endblock: 99999999,
-      page,
-      offset,
-      sort: 'desc',
-    },
-    { allowNoTx: true, allowStatus0: true, context: 'tokentx' },
-  );
+    page,
+    offset,
+    count: items.length,
+    status: String(payload?.status ?? ''),
+    message: String(payload?.message ?? ''),
+  });
+
+  return items;
 }
 
-export async function getNftTransfers(
-  address: string,
-  chainId: number,
-  action: 'tokennfttx' | 'token1155tx',
-) {
-  const { payload } = await requestEtherscan<NftTx[]>(
+/**
+ * Token transfers (ERC-20) – paged helper.
+ * Stops early when:
+ * - page returns < offset
+ * - page returns empty
+ * - reaches maxPages
+ */
+export async function getTokentxPaged({
+  chainId,
+  address,
+  pageSize = 100,
+  maxPages = 10,
+  requestId,
+}: {
+  chainId: number;
+  address: string;
+  pageSize?: number;
+  maxPages?: number;
+  requestId?: string;
+}): Promise<TokenTx[]> {
+  const all: TokenTx[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const items = await getTokentxPage({ chainId, address, page, offset: pageSize, requestId });
+    if (!items.length) break;
+    all.push(...items);
+    if (items.length < pageSize) break;
+    // Respect provider throttling is already handled internally; no need to add extra sleep here.
+  }
+  logDebug('tokentx.paged', {
+    requestId,
     chainId,
-    {
-      module: 'account',
-      action,
-      address,
-      page: 1,
-      offset: 200,
-      sort: 'desc',
-    },
-    { allowNoTx: true, context: action },
-  );
-  return Array.isArray(payload.result) ? (payload.result as NftTx[]) : [];
+    pages: Math.ceil(all.length / pageSize),
+    total: all.length,
+  });
+  return all;
 }
 
-export async function getContractCode(chainId: number, address: string) {
-  const { payload } = await requestEtherscan<string>(
-    chainId,
-    {
-      module: 'proxy',
-      action: 'eth_getCode',
-      address,
-      tag: 'latest',
-    },
-    { allowStatus0: true, context: 'eth_getCode' },
-  );
-  return String((payload as EtherscanPayload<string>).result ?? '');
+/**
+ * NFT transfers – ERC-721 (tokennfttx) and ERC-1155 (token1155tx)
+ */
+export async function getNftTransfers({
+  chainId,
+  address,
+  action,
+  page = 1,
+  offset = 200,
+  requestId,
+}: {
+  chainId: number;
+  address: string;
+  action: 'tokennfttx' | 'token1155tx';
+  page?: number;
+  offset?: number;
+  requestId?: string;
+}): Promise<NftTx[]> {
+  const provider = providerForChain(chainId);
+  const addr = normalizeAddress(address);
+
+  const url = buildUrl(chainId, {
+    module: 'account',
+    action,
+    address: addr,
+    page,
+    offset,
+    sort: 'desc',
+  });
+
+  const payload = await fetchJsonWithRetries(url, { provider, requestId });
+  const items = readResultArray<NftTx>(payload, provider);
+
+  logDebug('nft.page', { requestId, chainId, action, page, offset, count: items.length });
+  return items;
 }
+
+/**
+ * Proxy eth_getCode (contract detection)
+ * Cached by URL cache + inflight dedupe already.
+ * Consider adding your own longer TTL cache in interactions.ts too (hours/days).
+ */
+export async function getCodeHex({
+  chainId,
+  address,
+  requestId,
+}: {
+  chainId: number;
+  address: string;
+  requestId?: string;
+}): Promise<string> {
+  const provider = providerForChain(chainId);
+  const addr = normalizeAddress(address);
+
+  const url = buildUrl(chainId, {
+    module: 'proxy',
+    action: 'eth_getCode',
+    address: addr,
+    tag: 'latest',
+  });
+
+  const payload = await fetchJsonWithRetries(url, { provider, requestId });
+
+  // proxy calls may not include status/message consistently; treat missing result as error
+  const code = String(payload?.result ?? '');
+  if (!code) throw new Error(`${provider} eth_getCode missing result`);
+  return code;
+}
+
+export async function isContract({
+  chainId,
+  address,
+  requestId,
+}: {
+  chainId: number;
+  address: string;
+  requestId?: string;
+}): Promise<boolean> {
+  const code = await getCodeHex({ chainId, address, requestId });
+  return Boolean(code && code !== '0x');
+}
+
+/**
+ * Optional: clear internal caches (useful in tests/dev)
+ */
+export function _debugClearCaches() {
+  urlCache.clear();
+  inflight.clear();
+}
+
+// NOTE:
+// If you want to reduce call volume further, add higher-level caching on top of this:
+// - snapshot TTLs (you already do)
+// - store last scanned block and only scan forward
+// - lower maxPages for tokentx for "quick view" (vault)
+// - background refresh for deep history

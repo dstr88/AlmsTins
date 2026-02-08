@@ -36,6 +36,55 @@ type UnifiedRow = {
 	onchain_chain: string | null;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toUnifiedRow = (row: unknown): UnifiedRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		source: toStringOrEmpty(r.source),
+		import_batch_id: toStringOrNull(r.import_batch_id),
+		timestamp_utc: toStringOrEmpty(r.timestamp_utc),
+		description: toStringOrNull(r.description),
+		currency: toStringOrNull(r.currency),
+		amount: toNumberOrNull(r.amount),
+		to_currency: toStringOrNull(r.to_currency),
+		to_amount: toNumberOrNull(r.to_amount),
+		native_currency: toStringOrNull(r.native_currency),
+		native_amount: toNumberOrNull(r.native_amount),
+		native_usd: toNumberOrNull(r.native_usd),
+		kind: toStringOrNull(r.kind),
+		tx_hash: toStringOrNull(r.tx_hash),
+		direction: toStringOrNull(r.direction),
+		asset_symbol: toStringOrNull(r.asset_symbol),
+		notes: toStringOrNull(r.notes),
+		category: toStringOrNull(r.category),
+		group_id: toStringOrNull(r.group_id),
+		fee_usd: toNumberOrNull(r.fee_usd),
+		fee_native: toNumberOrNull(r.fee_native),
+		fee_currency: toStringOrNull(r.fee_currency),
+		fee_paid: toStringOrNull(r.fee_paid),
+		onchain_value: toStringOrNull(r.onchain_value),
+		onchain_decimals: toNumberOrNull(r.onchain_decimals),
+		onchain_chain: toStringOrNull(r.onchain_chain),
+	};
+};
+
+const toUnifiedRows = (rows: unknown): UnifiedRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: UnifiedRow[] = [];
+	for (const row of rows) {
+		const mapped = toUnifiedRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
 const csvEscape = (value: string) => {
 	if (value.includes('"') || value.includes(',') || value.includes('\n')) {
 		return `"${value.replace(/"/g, '""')}"`;
@@ -159,7 +208,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		args: rowsArgs,
 	});
 
-	const rows = result.rows as UnifiedRow[];
+	const rows = toUnifiedRows(result.rows);
 	const header = [
 		'timestamp_utc',
 		'source',

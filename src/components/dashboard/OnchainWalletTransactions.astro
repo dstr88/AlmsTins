@@ -29,6 +29,42 @@ type TxRow = {
 	category: string | null;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toTxRow = (row: unknown): TxRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		timestamp: toStringOrEmpty(r.timestamp),
+		token_symbol: toStringOrNull(r.token_symbol),
+		value: toStringOrNull(r.value),
+		token_decimals: toNumberOrNull(r.token_decimals),
+		tx_type: toStringOrNull(r.tx_type),
+		chain: toStringOrNull(r.chain),
+		hash: toStringOrNull(r.hash),
+		fee_paid: toStringOrNull(r.fee_paid),
+		from_address: toStringOrNull(r.from_address),
+		to_address: toStringOrNull(r.to_address),
+		note: toStringOrNull(r.note),
+		category: toStringOrNull(r.category),
+	};
+};
+
+const toTxRows = (rows: unknown): TxRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: TxRow[] = [];
+	for (const row of rows) {
+		const mapped = toTxRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
 const { walletId, title } = Astro.props as Props;
 const { tenantId } = await requireTenantSession(Astro.request);
 
@@ -49,7 +85,7 @@ const result = await db.execute({
 	args: [walletId, tenantId],
 });
 
-const rows = result.rows as TxRow[];
+const rows = toTxRows(result.rows);
 
 const yearDividerAssets: Record<number, string> = {
 	2023: yearDivide2023.src,

@@ -11,6 +11,19 @@ import {
 
 export const prerender = false;
 
+type DbRow = Record<string, unknown>;
+
+const toTransactionRows = (rows: unknown): TransactionRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: TransactionRow[] = [];
+	for (const row of rows) {
+		if (row && typeof row === 'object') {
+			out.push(row as DbRow as TransactionRow);
+		}
+	}
+	return out;
+};
+
 export const POST: APIRoute = async ({ request }) => {
 	try {
 		const { tenantId } = await requireTenantSession(request);
@@ -30,7 +43,7 @@ export const POST: APIRoute = async ({ request }) => {
 		let internalCount = 0;
 		let lostCount = 0;
 
-		for (const row of result.rows as TransactionRow[]) {
+		for (const row of toTransactionRows(result.rows)) {
 			if (isInternalTransfer(row, addressSet)) {
 				await upsertTransactionAnnotation(tenantId, {
 					transactionId: row.id,

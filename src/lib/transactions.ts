@@ -38,6 +38,20 @@ export type RichTransaction = TransactionRow & {
 	direction?: string | null;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+
+const toWalletRow = (row: unknown): { id: string; address: string; chain?: string } | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		address: toStringOrEmpty(r.address),
+		chain: typeof r.chain === 'string' ? r.chain : undefined,
+	};
+};
+
 export type SmartFlags = {
 	internalTransfer: boolean;
 	likelyLost: boolean;
@@ -97,11 +111,10 @@ export async function getTransactionsForWallet(tenantId: string, walletId: strin
 	if (!walletResult.rows.length) {
 		throw new Error('Wallet not found');
 	}
-	const wallet = walletResult.rows[0] as unknown as {
-		id: string;
-		address: string;
-		chain: string;
-	};
+	const wallet = toWalletRow(walletResult.rows[0]);
+	if (!wallet?.address) {
+		throw new Error('Wallet not found');
+	}
 	const rawAddress = wallet.address;
 	const address = typeof rawAddress === 'string' ? rawAddress.toLowerCase() : String(rawAddress).toLowerCase();
 	const clauses = ['(LOWER(t.from_address) = ? OR LOWER(t.to_address) = ?)'];
@@ -147,10 +160,10 @@ export async function getTransactionsForWalletDashboard(
 	if (!walletResult.rows.length) {
 		throw new Error('Wallet not found');
 	}
-	const wallet = walletResult.rows[0] as unknown as {
-		id: string;
-		address: string;
-	};
+	const wallet = toWalletRow(walletResult.rows[0]);
+	if (!wallet?.address) {
+		throw new Error('Wallet not found');
+	}
 	const rawAddress = wallet.address;
 	const normalizedAddress = typeof rawAddress === 'string' ? rawAddress.toLowerCase() : String(rawAddress).toLowerCase();
 	const myWalletAddresses = [normalizedAddress];

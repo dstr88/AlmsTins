@@ -8,6 +8,34 @@ type LifecycleEventRow = {
   timestamp_utc: string;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toLifecycleEventRow = (row: unknown): LifecycleEventRow | null => {
+  if (!row || typeof row !== 'object') return null;
+  const r = row as DbRow;
+  return {
+    asset_symbol: toStringOrEmpty(r.asset_symbol),
+    direction: toStringOrNull(r.direction),
+    amount: toNumberOrNull(r.amount),
+    native_usd: toNumberOrNull(r.native_usd),
+    timestamp_utc: toStringOrEmpty(r.timestamp_utc),
+  };
+};
+
+const toLifecycleEventRows = (rows: unknown): LifecycleEventRow[] => {
+  if (!Array.isArray(rows)) return [];
+  const out: LifecycleEventRow[] = [];
+  for (const row of rows) {
+    const mapped = toLifecycleEventRow(row);
+    if (mapped) out.push(mapped);
+  }
+  return out;
+};
+
 type TaxLot = {
   asset: string;
   amount: number;
@@ -40,7 +68,7 @@ export async function buildTaxLotsByYear(tenantId: string): Promise<{
       args: [tenantId],
     });
 
-    const rows = result.rows as unknown as LifecycleEventRow[];
+    const rows = toLifecycleEventRows(result.rows);
     const lotsByAsset = new Map<string, Array<{ amount: number; timestamp: string; costUsd?: number | null }>>();
     const sales: TaxLot[] = [];
 

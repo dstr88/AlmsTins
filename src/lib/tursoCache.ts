@@ -6,6 +6,18 @@ type CacheRow = {
 	updated_at?: number;
 };
 
+type DbRow = Record<string, unknown>;
+
+function toCacheRow(row: unknown): CacheRow | null {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		value_json: typeof r.value_json === 'string' ? r.value_json : undefined,
+		expires_at: typeof r.expires_at === 'number' ? r.expires_at : undefined,
+		updated_at: typeof r.updated_at === 'number' ? r.updated_at : undefined,
+	};
+}
+
 type CacheRead<T> = {
 	value: T | null;
 	isStale: boolean;
@@ -29,7 +41,7 @@ export async function getCache<T = unknown>(
 		sql: 'SELECT value_json, expires_at, updated_at FROM cache WHERE cache_key = ? LIMIT 1',
 		args: [key],
 	});
-	const row = result.rows?.[0] as CacheRow | undefined;
+	const row = toCacheRow(result.rows?.[0]) ?? undefined;
 	if (!row) {
 		return options?.allowStale
 			? { value: null, isStale: false, updatedAt: null, expiresAt: null }

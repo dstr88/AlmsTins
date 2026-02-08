@@ -1,9 +1,10 @@
+// src/pages/api/wallets/[id]/holdings.ts
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { tryAcquireLock } from '@/lib/cacheLock';
-import { getTokenTransfersPage, requestEtherscan } from '@/lib/etherscan';
+import { getTokentxPaged, getNativeBalanceWei } from '@/lib/etherscan';
 
 const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
 const POLYGON_CHAIN_ID = 137;
@@ -90,6 +91,44 @@ type ImportTxRow = {
 	to_amount: number | null;
 	native_usd: number | null;
 };
+
+type DbRow = Record<string, unknown>;
+
+// Normalize DB rows into typed shapes to avoid unsafe casts at the SQL boundary.
+function toImportTxRow(row: unknown): ImportTxRow | null {
+  if (!row || typeof row !== 'object') return null;
+  const r = row as DbRow;
+
+  return {
+    tx_hash: typeof r.tx_hash === 'string' ? r.tx_hash : null,
+    timestamp_utc: typeof r.timestamp_utc === 'string' ? r.timestamp_utc : null,
+    asset_symbol: typeof r.asset_symbol === 'string' ? r.asset_symbol : null,
+    currency: typeof r.currency === 'string' ? r.currency : null,
+    amount: typeof r.amount === 'number' ? r.amount : null,
+    to_currency: typeof r.to_currency === 'string' ? r.to_currency : null,
+    to_amount: typeof r.to_amount === 'number' ? r.to_amount : null,
+    native_usd: typeof r.native_usd === 'number' ? r.native_usd : null,
+  };
+}
+
+function toImportTxRows(rows: unknown): ImportTxRow[] {
+  if (!Array.isArray(rows)) return [];
+  const out: ImportTxRow[] = [];
+  for (const row of rows) {
+    const mapped = toImportTxRow(row);
+    if (mapped) out.push(mapped);
+  }
+  return out;
+}
+
+function toWalletRow(row: unknown): { id?: string; address?: string; label?: string } | null {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	const id = typeof r.id === 'string' ? r.id : undefined;
+	const address = typeof r.address === 'string' ? r.address : undefined;
+	const label = typeof r.label === 'string' ? r.label : undefined;
+	return { id, address, label };
+}
 
 const NATIVE_META: Record<number, { symbol: string; name: string; coingeckoId: string }> = {
 	[ETHEREUM_CHAIN_ID]: { symbol: 'ETH', name: 'Ethereum', coingeckoId: 'ethereum' },
@@ -185,11 +224,11 @@ async function getCachedSymbolPrices(symbols: string[]) {
 	return priceMap;
 }
 
-async function fetchTokenTransfers(address: string, chainId: number): Promise<TokenTx[]> {
-	const results: TokenTx[] = [];
-	for (let page = 1; page <= MAX_PAGES; page += 1) {
-		let payload: any = null;
-		if (chainId === AVALANCHE_CHAIN_ID) {
+async function fetchTokenTransfers(address: string, chainId: number, requestId?: string): Promise<TokenTx[]> {
+	// Avalanche stays on Snowtrace (Etherscan-style but separate key/base URL)
+	if (chainId === AVALANCHE_CHAIN_ID) {
+		const results: TokenTx[] = [];
+		for (let page = 1; page <= MAX_PAGES; page += 1) {
 			const url = buildScanUrl(chainId, {
 				module: 'account',
 				action: 'tokentx',
@@ -200,7 +239,10 @@ async function fetchTokenTransfers(address: string, chainId: number): Promise<To
 				offset: PAGE_SIZE,
 				sort: 'desc',
 			});
+
 			let response: Response | null = null;
+			let payload: any = null;
+
 			for (let attempt = 0; attempt < 3; attempt += 1) {
 				response = await throttledFetch(url, chainId);
 				payload = await response.json();
@@ -211,39 +253,35 @@ async function fetchTokenTransfers(address: string, chainId: number): Promise<To
 				}
 				break;
 			}
-			if (!response) {
-				throw new Error('Snowtrace HTTP 0');
+
+			if (!response) throw new Error('Snowtrace HTTP 0');
+			if (!response.ok) throw new Error(`Snowtrace HTTP ${response.status}`);
+
+			if (payload?.status === '0' && payload.message !== 'No transactions found') {
+				const details = typeof payload.result === 'string' ? payload.result : JSON.stringify(payload.result);
+				throw new Error(`Snowtrace error: ${payload.message ?? 'unknown'} | result=${details}`);
 			}
-			if (!response.ok) {
-				throw new Error(`Snowtrace HTTP ${response.status}`);
-			}
-		} else {
-			// Etherscan call centralized in src/lib/etherscan.ts.
-			for (let attempt = 0; attempt < 3; attempt += 1) {
-				const result = await getTokenTransfersPage(address, chainId, page, PAGE_SIZE);
-				payload = result.payload;
-				if (payload.status === '0' && isRateLimited(payload)) {
-					await sleep(ETHERSCAN_RATE_LIMIT_BACKOFF_MS);
-					continue;
-				}
-				break;
-			}
+
+			const pageResults = Array.isArray(payload?.result) ? (payload.result as TokenTx[]) : [];
+			if (!pageResults.length) break;
+			results.push(...pageResults);
+			if (pageResults.length < PAGE_SIZE) break;
+			await sleep(SCAN_DELAY_MS);
 		}
-		if (payload?.status === '0' && payload.message !== 'No transactions found') {
-			const details = typeof payload.result === 'string' ? payload.result : JSON.stringify(payload.result);
-			throw new Error(`Etherscan error: ${payload.message ?? 'unknown'} | result=${details}`);
-		}
-		const pageResults = Array.isArray(payload?.result) ? (payload.result as TokenTx[]) : [];
-		if (!pageResults.length) break;
-		results.push(...pageResults);
-		if (pageResults.length < PAGE_SIZE) break;
-		await sleep(SCAN_DELAY_MS);
+		return results;
 	}
-	return results;
+
+	// Ethereum/Polygon: use centralized provider (paging + retries + no-tx handling inside)
+	return getTokentxPaged({
+		chainId,
+		address,
+		pageSize: PAGE_SIZE,
+		maxPages: MAX_PAGES,
+		requestId,
+	});
 }
 
-async function fetchNativeBalance(address: string, chainId: number) {
-	let payload: any = null;
+async function fetchNativeBalance(address: string, chainId: number, requestId?: string) {
 	if (chainId === AVALANCHE_CHAIN_ID) {
 		const url = buildScanUrl(chainId, {
 			module: 'account',
@@ -252,6 +290,7 @@ async function fetchNativeBalance(address: string, chainId: number) {
 			tag: 'latest',
 		});
 		let response: Response | null = null;
+		let payload: any = null;
 		for (let attempt = 0; attempt < 3; attempt += 1) {
 			response = await throttledFetch(url, chainId);
 			payload = await response.json();
@@ -268,27 +307,15 @@ async function fetchNativeBalance(address: string, chainId: number) {
 		if (!response.ok) {
 			throw new Error(`Native balance HTTP ${response.status}`);
 		}
-	} else {
-		// Etherscan call centralized in src/lib/etherscan.ts.
-		for (let attempt = 0; attempt < 3; attempt += 1) {
-			const result = await requestEtherscan<any>(
-				chainId,
-				{ module: 'account', action: 'balance', address, tag: 'latest' },
-				{ allowStatus0: true, context: 'holdings.balance' },
-			);
-			payload = result.payload;
-			if (payload.status === '0' && isRateLimited(payload)) {
-				await sleep(ETHERSCAN_RATE_LIMIT_BACKOFF_MS);
-				continue;
-			}
-			break;
+		if (payload?.status === '0' && payload.message !== 'No transactions found') {
+			const details = typeof payload.result === 'string' ? payload.result : JSON.stringify(payload.result);
+			throw new Error(`Native balance error: ${payload.message ?? 'unknown'} | result=${details}`);
 		}
+		return BigInt(payload?.result ?? '0');
 	}
-	if (payload?.status === '0' && payload.message !== 'No transactions found') {
-		const details = typeof payload.result === 'string' ? payload.result : JSON.stringify(payload.result);
-		throw new Error(`Native balance error: ${payload.message ?? 'unknown'} | result=${details}`);
-	}
-	return BigInt(payload?.result ?? '0');
+
+	// Ethereum/Polygon: centralized provider
+	return getNativeBalanceWei({ chainId, address, requestId });
 }
 
 async function fetchCurrentPrices(
@@ -377,6 +404,7 @@ export const prerender = false;
 export const GET: APIRoute = async ({ params, request, locals }) => {
 	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
 	const requestId = (locals as Record<string, any>)?.requestId;
+
 	const logPerf = (
 		status: number,
 		meta?: { cached?: boolean; stale?: boolean; count?: number; providerCallsCount?: number },
@@ -388,10 +416,12 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 			...(meta ?? {}),
 		});
 	};
+
 	const { tenantId } = await requireTenantSession(request);
 	const walletId = params.id ?? '';
 	const url = new URL(request.url);
 	const chainId = Number(url.searchParams.get('chainid') ?? POLYGON_CHAIN_ID);
+
 	if (!walletId) {
 		logPerf(400);
 		return new Response(JSON.stringify({ error: 'Missing wallet id' }), { status: 400 });
@@ -406,6 +436,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 
 	const cacheKey = `${tenantId}:${walletId}:${chainId}`;
 	const lockKey = `holdings:${tenantId}:${walletId}:${chainId}`;
+
 	const cached = cache.get(cacheKey);
 	if (cached && cached.expiresAt > Date.now()) {
 		logPerf(200, {
@@ -426,9 +457,11 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 			LIMIT 1`,
 		args: [tenantId, walletId, chainId],
 	});
+
 	const snapshotRow = snapshotResult.rows?.[0] as
 		| { payload_json?: string; as_of?: string; updated_at?: string }
 		| undefined;
+
 	if (snapshotRow?.payload_json) {
 		let snapshotPayload: any = null;
 		try {
@@ -436,6 +469,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 		} catch {
 			snapshotPayload = null;
 		}
+
 		if (snapshotPayload) {
 			const updatedAtMs = snapshotRow.updated_at ? Date.parse(snapshotRow.updated_at) : 0;
 			const now = Date.now();
@@ -465,6 +499,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 				stale,
 				count: Array.isArray(snapshotPayload?.tokens) ? snapshotPayload.tokens.length : undefined,
 			});
+
 			return new Response(
 				JSON.stringify({
 					...snapshotPayload,
@@ -516,22 +551,24 @@ async function buildHoldingsPayload(
 		sql: 'SELECT id, address, label FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 		args: [walletId, tenantId],
 	});
-	const wallet = walletResult.rows[0] as unknown as { id?: string; address?: string; label?: string } | undefined;
-	if (!wallet?.address) {
-		throw new Error('Wallet not found');
-	}
+	const wallet = toWalletRow(walletResult.rows[0]) ?? undefined;
+
+	if (!wallet?.address) throw new Error('Wallet not found');
 
 	const address = normalizeAddress(wallet.address);
 	const chainLabel =
 		chainId === POLYGON_CHAIN_ID ? 'Polygon' : chainId === ETHEREUM_CHAIN_ID ? 'Ethereum' : 'Avalanche';
 	const pricePlatform =
 		chainId === POLYGON_CHAIN_ID ? 'polygon-pos' : chainId === ETHEREUM_CHAIN_ID ? 'ethereum' : 'avalanche';
+
 	let transfers: TokenTx[] = [];
 	try {
-		transfers = await fetchTokenTransfers(address, chainId);
+		transfers = await fetchTokenTransfers(address, chainId, requestId);
 	} catch (err: any) {
 		throw new Error(err?.message ?? 'Failed to fetch token transfers');
 	}
+
+	console.log('[holdings.debug]', { requestId, chainId, tokentxCount: transfers.length });
 
 	type TokenAgg = {
 		symbol: string;
@@ -547,15 +584,20 @@ async function buildHoldingsPayload(
 	for (const tx of transfers) {
 		const contract = (tx.contractAddress ?? '').toLowerCase();
 		if (!contract) continue;
+
 		const symbol = (tx.tokenSymbol ?? '').trim();
 		const name = (tx.tokenName ?? '').trim();
 		const decimals = Number(tx.tokenDecimal ?? 0);
+
 		if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) continue;
 		if (isSpamToken(symbol, name, decimals)) continue;
 		if (isDefiToken(symbol, name)) continue;
+
 		const from = normalizeAddress(tx.from ?? '');
 		const to = normalizeAddress(tx.to ?? '');
+
 		if (from === address && to === address) continue;
+
 		let delta = 0n;
 		if (to === address) {
 			delta = BigInt(tx.value ?? '0');
@@ -564,6 +606,7 @@ async function buildHoldingsPayload(
 		} else {
 			continue;
 		}
+
 		const timestamp = Number(tx.timeStamp ?? 0);
 		const existing = aggregates.get(contract) ?? {
 			symbol,
@@ -572,19 +615,25 @@ async function buildHoldingsPayload(
 			contractAddress: contract,
 			balance: 0n,
 		};
+
 		existing.balance += delta;
+
 		if (delta > 0n && timestamp) {
 			if (!existing.firstIn || timestamp < existing.firstIn) {
 				existing.firstIn = timestamp;
 				existing.firstInHash = tx.hash;
 			}
 		}
+
 		aggregates.set(contract, existing);
 	}
+
+	console.log('[holdings.debug]', { requestId, chainId, uniqueContracts: aggregates.size });
 
 	const contracts = Array.from(aggregates.values())
 		.filter((entry) => entry.balance > 0n)
 		.map((entry) => entry.contractAddress);
+
 	const currentPrices = await fetchCurrentPrices(contracts, pricePlatform);
 	const cachedPrices = await getCachedSymbolPrices([
 		...new Set(Array.from(aggregates.values()).map((entry) => entry.symbol)),
@@ -592,8 +641,8 @@ async function buildHoldingsPayload(
 
 	const tokens: HoldingsToken[] = [];
 	let totalUsd = 0;
-	const importTxByHash = new Map<string, ImportTxRow>();
 
+	const importTxByHash = new Map<string, ImportTxRow>();
 	const firstInHashes = Array.from(aggregates.values())
 		.map((entry) => entry.firstInHash)
 		.filter((hash): hash is string => typeof hash === 'string' && hash.trim().length > 0);
@@ -607,20 +656,18 @@ async function buildHoldingsPayload(
 					WHERE tenant_id = ? AND tx_hash IN (${placeholders}) AND native_usd IS NOT NULL`,
 				args: [tenantId, ...firstInHashes],
 			});
-			(importResult.rows as ImportTxRow[]).forEach((row) => {
-				if (row.tx_hash) {
-					importTxByHash.set(row.tx_hash, row);
-				}
-			});
+			for (const row of toImportTxRows(importResult.rows)) {
+				if (row.tx_hash) importTxByHash.set(row.tx_hash, row);
+			}
 		} catch {
-			// Ignore import lookup failures; fallback handled below.
+			// ignore
 		}
 	}
 
 	const nativeMeta = NATIVE_META[chainId];
 	if (nativeMeta) {
 		try {
-			const rawBalance = await fetchNativeBalance(address, chainId);
+			const rawBalance = await fetchNativeBalance(address, chainId, requestId);
 			const balance = toDecimal(rawBalance, 18);
 			if (balance > 0) {
 				const priceUsd = await fetchNativePrice(chainId);
@@ -641,12 +688,13 @@ async function buildHoldingsPayload(
 				});
 			}
 		} catch {
-			// Ignore native balance failures; token list still renders.
+			// ignore
 		}
 	}
 
 	for (const entry of aggregates.values()) {
 		if (entry.balance <= 0n) continue;
+
 		const balance = toDecimal(entry.balance, entry.decimals);
 		if (!Number.isFinite(balance) || balance <= 0) continue;
 
@@ -659,15 +707,18 @@ async function buildHoldingsPayload(
 		let basisPrice: number | null = null;
 		let basisDate: string | null = null;
 		let firstSeenAt: string | null = null;
+
 		const entrySymbol = normalizeSymbol(entry.symbol);
 
 		if (entry.firstIn) {
 			firstSeenAt = new Date(entry.firstIn * 1000).toISOString();
 			const importMatch = entry.firstInHash ? importTxByHash.get(entry.firstInHash) : undefined;
+
 			if (importMatch) {
 				const importSymbol = pickImportSymbol(importMatch);
 				const importAmount = pickImportAmount(importMatch, entrySymbol);
 				const importUsd = typeof importMatch.native_usd === 'number' ? Math.abs(importMatch.native_usd) : null;
+
 				if (importSymbol && importSymbol === entrySymbol && importUsd && importAmount) {
 					const computed = importUsd / Math.abs(importAmount);
 					if (Number.isFinite(computed) && computed > 0) {
@@ -689,7 +740,7 @@ async function buildHoldingsPayload(
 							LIMIT 1`,
 						args: [tenantId, entrySymbol, entrySymbol, entrySymbol, firstSeenAt],
 					});
-					const nearest = (nearestResult.rows?.[0] as ImportTxRow | undefined) ?? null;
+					const nearest = toImportTxRow(nearestResult.rows?.[0]) ?? null;
 					if (nearest) {
 						const importAmount = pickImportAmount(nearest, entrySymbol);
 						const importUsd = typeof nearest.native_usd === 'number' ? Math.abs(nearest.native_usd) : null;
@@ -703,7 +754,7 @@ async function buildHoldingsPayload(
 						}
 					}
 				} catch {
-					// Ignore import fallback failures; try historical next.
+					// ignore
 				}
 			}
 
@@ -717,10 +768,8 @@ async function buildHoldingsPayload(
 			}
 		}
 
-		const profitUsd =
-			basisPrice !== null && priceUsd > 0 ? (priceUsd - basisPrice) * balance : undefined;
-		const profitPct =
-			basisPrice !== null && priceUsd > 0 ? ((priceUsd - basisPrice) / basisPrice) * 100 : undefined;
+		const profitUsd = basisPrice !== null && priceUsd > 0 ? (priceUsd - basisPrice) * balance : undefined;
+		const profitPct = basisPrice !== null && priceUsd > 0 ? ((priceUsd - basisPrice) / basisPrice) * 100 : undefined;
 
 		tokens.push({
 			symbol: entry.symbol,
@@ -739,9 +788,11 @@ async function buildHoldingsPayload(
 		});
 	}
 
-	const filteredTokens = tokens.filter(
-		(token) => token.contractAddress === 'native' || token.valueUsd > 0,
-	);
+	// ✅ Fix: don't hide tokens just because price is missing.
+	const filteredTokens = tokens.filter((token) => token.contractAddress === 'native' || token.balance > 0);
+
+	console.log('[holdings.debug]', { requestId, chainId, tokensOut: filteredTokens.length });
+
 	filteredTokens.sort((a, b) => b.valueUsd - a.valueUsd);
 
 	return {

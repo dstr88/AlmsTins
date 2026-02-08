@@ -22,6 +22,69 @@ type TrackedAssetRow = {
 	last_priced_at: string | number | null;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toChainId = (value: unknown): number | string => {
+	if (typeof value === 'number' || typeof value === 'string') return value;
+	return 0;
+};
+
+const toMappingRow = (row: unknown): MappingRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		chain_id: toChainId(r.chain_id),
+		contract_address: toStringOrEmpty(r.contract_address),
+		coinpaprika_id: toStringOrEmpty(r.coinpaprika_id),
+	};
+};
+
+const toMappingRows = (rows: unknown): MappingRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: MappingRow[] = [];
+	for (const row of rows) {
+		const mapped = toMappingRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
+const toTrackedAssetRow = (row: unknown): TrackedAssetRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		user_id: toStringOrEmpty(r.user_id),
+		chain_id: toChainId(r.chain_id),
+		contract_address: toStringOrEmpty(r.contract_address),
+		balance: typeof r.balance === 'number' || typeof r.balance === 'string' || r.balance === null ? (r.balance as any) : null,
+		token_symbol: toStringOrNull(r.token_symbol),
+		token_name: toStringOrNull(r.token_name),
+		is_hidden:
+			typeof r.is_hidden === 'number' || typeof r.is_hidden === 'boolean' || r.is_hidden === null
+				? (r.is_hidden as any)
+				: null,
+		last_priced_at:
+			typeof r.last_priced_at === 'string' || typeof r.last_priced_at === 'number' || r.last_priced_at === null
+				? (r.last_priced_at as any)
+				: null,
+	};
+};
+
+const toTrackedAssetRows = (rows: unknown): TrackedAssetRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: TrackedAssetRow[] = [];
+	for (const row of rows) {
+		const mapped = toTrackedAssetRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
 function isSpamToken(symbol: string | null, name: string | null) {
 	const sym = (symbol ?? '').trim().toLowerCase();
 	const nm = (name ?? '').trim().toLowerCase();
@@ -64,7 +127,7 @@ export async function priceTrackedAssets(userId: string) {
 			FROM token_price_mapping`,
 		args: [],
 	});
-	const mappingRows = mappingResult.rows as unknown as MappingRow[];
+	const mappingRows = toMappingRows(mappingResult.rows);
 	const mapping = new Map<string, string>();
 	for (const row of mappingRows) {
 		if (!row?.coinpaprika_id) continue;
@@ -78,7 +141,7 @@ export async function priceTrackedAssets(userId: string) {
 			WHERE user_id = ?`,
 		args: [userId],
 	});
-	const assets = assetResult.rows as unknown as TrackedAssetRow[];
+	const assets = toTrackedAssetRows(assetResult.rows);
 	let updated = 0;
 	let hidden = 0;
 

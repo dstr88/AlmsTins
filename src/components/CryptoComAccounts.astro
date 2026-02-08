@@ -25,6 +25,58 @@ type ImportRow = {
 	description: string | null;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toAccountRow = (row: unknown): AccountRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		name: toStringOrEmpty(r.name),
+	};
+};
+
+const toAccountRows = (rows: unknown): AccountRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: AccountRow[] = [];
+	for (const row of rows) {
+		const mapped = toAccountRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
+const toImportRow = (row: unknown): ImportRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		timestamp_utc: toStringOrEmpty(r.timestamp_utc),
+		asset_symbol: toStringOrNull(r.asset_symbol),
+		direction: toStringOrNull(r.direction),
+		currency: toStringOrNull(r.currency),
+		amount: toNumberOrNull(r.amount),
+		to_currency: toStringOrNull(r.to_currency),
+		to_amount: toNumberOrNull(r.to_amount),
+		native_usd: toNumberOrNull(r.native_usd),
+		kind: toStringOrNull(r.kind),
+		description: toStringOrNull(r.description),
+	};
+};
+
+const toImportRows = (rows: unknown): ImportRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: ImportRow[] = [];
+	for (const row of rows) {
+		const mapped = toImportRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
 type Holding = {
 	symbol: string;
 	balance: number;
@@ -45,7 +97,7 @@ const accountsResult = await db.execute({
 	args: [tenantId],
 });
 
-const accounts = accountsResult.rows as AccountRow[];
+const accounts = toAccountRows(accountsResult.rows);
 
 const parseNumber = (value: number | string | null | undefined) => {
 	if (value === null || value === undefined) return null;
@@ -156,7 +208,7 @@ for (const account of accounts) {
 			ORDER BY timestamp_utc ASC`,
 		args: [tenantId, account.id],
 	});
-	const rows = txResult.rows as ImportRow[];
+	const rows = toImportRows(txResult.rows);
 	const holdings = computeHoldings(rows);
 	holdings.forEach((holding) => priceSymbols.add(holding.symbol));
 	accountsWithHoldings.push({ ...account, holdings });

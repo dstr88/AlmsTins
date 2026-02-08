@@ -138,6 +138,33 @@ type SnapshotRow = {
 	payloadJson: string | null;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toSnapshotRow = (row: unknown): SnapshotRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		chain: toStringOrEmpty(r.chain),
+		capturedAt: toStringOrEmpty(r.capturedAt),
+		totalsUsd: toNumberOrNull(r.totalsUsd),
+		payloadJson: toStringOrNull(r.payloadJson),
+	};
+};
+
+const toSnapshotRows = (rows: unknown): SnapshotRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: SnapshotRow[] = [];
+	for (const row of rows) {
+		const mapped = toSnapshotRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
 type RawToken = {
 	chain?: string;
 	symbol?: string;
@@ -305,7 +332,7 @@ export async function getLatestWalletSnapshot(
 		args: [tenantId, walletId, tenantId, walletId],
 	});
 
-	const rows = result.rows as unknown as SnapshotRow[];
+	const rows = toSnapshotRows(result.rows);
 	const byChainMap = new Map<string, FullWalletData['snapshot']['byChain'][number]>();
 	let latestAsOf: string | null = null;
 	let totalUsd = 0;

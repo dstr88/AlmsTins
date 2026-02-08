@@ -58,6 +58,116 @@ export type LatestNetWorthSummary = {
 	aaveIncluded?: boolean;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toWalletRow = (row: unknown): { id?: string; address?: string; label?: string } | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: typeof r.id === 'string' ? r.id : undefined,
+		address: typeof r.address === 'string' ? r.address : undefined,
+		label: typeof r.label === 'string' ? r.label : undefined,
+	};
+};
+
+type NetWorthSnapshotRow = {
+	walletId: string;
+	walletLabel: string | null;
+	address: string;
+	chain: string;
+	payloadJson: string | null;
+	capturedAt: string;
+};
+
+const toNetWorthSnapshotRow = (row: unknown): NetWorthSnapshotRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		walletId: toStringOrEmpty(r.walletId),
+		walletLabel: toStringOrNull(r.walletLabel),
+		address: toStringOrEmpty(r.address),
+		chain: toStringOrEmpty(r.chain),
+		payloadJson: toStringOrNull(r.payloadJson),
+		capturedAt: toStringOrEmpty(r.capturedAt),
+	};
+};
+
+const toNetWorthSnapshotRows = (rows: unknown): NetWorthSnapshotRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: NetWorthSnapshotRow[] = [];
+	for (const row of rows) {
+		const mapped = toNetWorthSnapshotRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
+type LatestNetWorthRow = {
+	walletId: string;
+	walletLabel: string | null;
+	walletAddress: string;
+	chain: string;
+	totalsUsd: number;
+	capturedAt: string;
+};
+
+const toLatestNetWorthRow = (row: unknown): LatestNetWorthRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		walletId: toStringOrEmpty(r.walletId),
+		walletLabel: toStringOrNull(r.walletLabel),
+		walletAddress: toStringOrEmpty(r.walletAddress),
+		chain: toStringOrEmpty(r.chain),
+		totalsUsd: typeof r.totalsUsd === 'number' ? r.totalsUsd : 0,
+		capturedAt: toStringOrEmpty(r.capturedAt),
+	};
+};
+
+const toLatestNetWorthRows = (rows: unknown): LatestNetWorthRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: LatestNetWorthRow[] = [];
+	for (const row of rows) {
+		const mapped = toLatestNetWorthRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
+type WalletSnapshotRow = {
+	id: string;
+	chain: string;
+	payloadJson: string | null;
+	capturedAt: string;
+	totalsUsd: number | null;
+};
+
+const toWalletSnapshotRow = (row: unknown): WalletSnapshotRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		chain: toStringOrEmpty(r.chain),
+		payloadJson: toStringOrNull(r.payloadJson),
+		capturedAt: toStringOrEmpty(r.capturedAt),
+		totalsUsd: toNumberOrNull(r.totalsUsd),
+	};
+};
+
+const toWalletSnapshotRows = (rows: unknown): WalletSnapshotRow[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: WalletSnapshotRow[] = [];
+	for (const row of rows) {
+		const mapped = toWalletSnapshotRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
 export async function getNetWorthSummary(tenantId: string): Promise<NetWorthSummary> {
 	const result = await db.execute(
 		/* sql */ `
@@ -88,14 +198,7 @@ export async function getNetWorthSummary(tenantId: string): Promise<NetWorthSumm
 		[tenantId, tenantId, tenantId],
 	);
 
-	const rowsRaw = result.rows as unknown as Array<{
-		walletId: string;
-		walletLabel: string | null;
-		address: string;
-		chain: string;
-		payloadJson: string | null;
-		capturedAt: string;
-	}>;
+	const rowsRaw = toNetWorthSnapshotRows(result.rows);
 
 	const aggregator = new Map<
 		string,
@@ -207,14 +310,7 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		[tenantId, tenantId, tenantId],
 	);
 
-	const rows = result.rows as unknown as Array<{
-		walletId: string;
-		walletLabel: string | null;
-		walletAddress: string;
-		chain: string;
-		totalsUsd: number;
-		capturedAt: string;
-	}>;
+	const rows = toLatestNetWorthRows(result.rows);
 
 	const walletMap = new Map<
 		string,
@@ -578,7 +674,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		sql: 'SELECT id, address, label FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 		args: [walletId, tenantId],
 	});
-	const wallet = walletResult.rows[0] as unknown as { id?: string; address?: string; label?: string } | undefined;
+	const wallet = toWalletRow(walletResult.rows[0]) ?? undefined;
 
 	console.log('[networth.getWalletTokenBreakdown] Wallet row', {
 		walletId,
@@ -619,13 +715,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		[walletId, tenantId],
 	);
 
-	const rows = result.rows as unknown as Array<{
-		id: string;
-		chain: string;
-		payloadJson: string | null;
-		capturedAt: string;
-		totalsUsd: number | null;
-	}>;
+	const rows = toWalletSnapshotRows(result.rows);
 	const hasNonEmptyPayload = rows.some((row) => {
 		try {
 			const parsed = JSON.parse(row.payloadJson ?? '[]');

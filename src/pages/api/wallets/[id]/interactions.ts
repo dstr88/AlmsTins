@@ -9,6 +9,27 @@ const CACHE_TTL_MS = 1_800_000;
 const interactionsCache = new Map<string, { expiresAt: number; payload: { ok: boolean; items: any[] } }>();
 const contractCache = new Map<string, { expiresAt: number; isContract: boolean }>();
 
+type DbRow = Record<string, unknown>;
+type InteractionRow = { chain: string | null; address: string | null };
+
+function toInteractionRow(row: unknown): InteractionRow | null {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	const chain = typeof r.chain === 'string' ? r.chain : null;
+	const address = typeof r.address === 'string' ? r.address : null;
+	return { chain, address };
+}
+
+function toInteractionRows(rows: unknown): InteractionRow[] {
+	if (!Array.isArray(rows)) return [];
+	const out: InteractionRow[] = [];
+	for (const row of rows) {
+		const mapped = toInteractionRow(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+}
+
 const CHAIN_EXPLORERS: Record<string, string> = {
 	ethereum: 'https://etherscan.io/address',
 	polygon: 'https://polygonscan.com/address',
@@ -87,7 +108,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 		args: [walletId, tenantId, walletAddress, walletId, tenantId, walletAddress],
 	});
 
-	const candidates = interactionsResult.rows as Array<{ chain: string; address: string }>;
+	const candidates = toInteractionRows(interactionsResult.rows);
 	const items: Array<{ name: string; address: string; url: string }> = [];
 	const seenLabels = new Set<string>();
 	const seenExplorers = new Set<string>();

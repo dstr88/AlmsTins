@@ -33,6 +33,64 @@ export type LifecycleEvent = {
 	confidence: number | null;
 };
 
+type DbRow = Record<string, unknown>;
+
+const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStringOrNull = (value: unknown) => (typeof value === 'string' ? value : value === null ? null : null);
+const toNumberOrNull = (value: unknown) => (typeof value === 'number' ? value : value === null ? null : null);
+
+const toLifecycleGroup = (row: unknown): LifecycleGroup | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		asset_symbol: toStringOrEmpty(r.asset_symbol),
+		total_quantity: typeof r.total_quantity === 'number' ? r.total_quantity : 0,
+		weighted_avg_cost_usd: typeof r.weighted_avg_cost_usd === 'number' ? r.weighted_avg_cost_usd : 0,
+		latest_acquired_at: toStringOrNull(r.latest_acquired_at),
+	};
+};
+
+const toLifecycleGroups = (rows: unknown): LifecycleGroup[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: LifecycleGroup[] = [];
+	for (const row of rows) {
+		const mapped = toLifecycleGroup(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
+const toLifecycleEvent = (row: unknown): LifecycleEvent | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
+	return {
+		id: toStringOrEmpty(r.id),
+		group_id: toStringOrEmpty(r.group_id),
+		source_type: toStringOrEmpty(r.source_type) as LifecycleEvent['source_type'],
+		source_id: toStringOrEmpty(r.source_id),
+		timestamp_utc: toStringOrEmpty(r.timestamp_utc),
+		direction: toStringOrNull(r.direction),
+		amount: toNumberOrNull(r.amount),
+		native_usd: toNumberOrNull(r.native_usd),
+		tx_hash: toStringOrNull(r.tx_hash),
+		exchange_withdrawal_id: toStringOrNull(r.exchange_withdrawal_id),
+		transaction_class: toStringOrEmpty(r.transaction_class) as LifecycleEvent['transaction_class'],
+		linked_transfer: typeof r.linked_transfer === 'number' ? r.linked_transfer : 0,
+		confidence: toNumberOrNull(r.confidence),
+	};
+};
+
+const toLifecycleEvents = (rows: unknown): LifecycleEvent[] => {
+	if (!Array.isArray(rows)) return [];
+	const out: LifecycleEvent[] = [];
+	for (const row of rows) {
+		const mapped = toLifecycleEvent(row);
+		if (mapped) out.push(mapped);
+	}
+	return out;
+};
+
 const buildId = () => randomUUID();
 
 const normalizeSymbol = (symbol: string, chain?: string | null) => {
@@ -337,8 +395,8 @@ export async function getAssetLifecycleCache(
 		});
 
 	return {
-		groups: groupResult.rows as LifecycleGroup[],
-		events: eventsResult.rows as LifecycleEvent[],
+		groups: toLifecycleGroups(groupResult.rows),
+		events: toLifecycleEvents(eventsResult.rows),
 	};
 }
 
