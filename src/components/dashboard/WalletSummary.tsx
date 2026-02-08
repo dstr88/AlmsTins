@@ -6,6 +6,24 @@ type WalletSummaryState =
 	| { status: 'error'; message: string }
 	| { status: 'empty'; message: string; hint?: string }
 	| {
+			status: 'stale';
+			message: string;
+			wallet: {
+				walletId: string;
+				label: string | null;
+				address: string;
+				totalUsd: number;
+				tokens: Array<{
+					tokenSymbol: string;
+					chain: string;
+					amount: number;
+					usdValue: number;
+					priceUsd?: number | null;
+					capturedAt?: string | null;
+				}>;
+			};
+	  }
+	| {
 			status: 'ready';
 			wallet: {
 				walletId: string;
@@ -68,9 +86,29 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 		let cancelled = false;
 		const loadSummary = async () => {
 			try {
-				setState({ status: 'loading' });
-				const res = await fetch(`/api/wallets/${walletId}/tokens?refreshMissing=1`);
-				const payload = await res.json();
+				setState((prev) =>
+					prev.status === 'ready' || prev.status === 'stale' ? prev : { status: 'loading' },
+				);
+				const url = `/api/wallets/${walletId}/tokens?refreshMissing=1`;
+				console.log('[WalletSummary.refresh] start', { walletId, url });
+				const res = await fetch(url, { credentials: 'include' });
+				console.log('[WalletSummary.refresh] done', { walletId, status: res.status });
+				if (!res.ok) {
+					const errorText = await res.text();
+					console.log('[WalletSummary.refresh] non-2xx', {
+						walletId,
+						status: res.status,
+						body: errorText.slice(0, 200),
+					});
+					throw new Error(`Refresh failed (${res.status})`);
+				}
+				const text = await res.text();
+				let payload: any = null;
+				try {
+					payload = text ? JSON.parse(text) : null;
+				} catch {
+					throw new Error('Invalid JSON response.');
+				}
 				if (!payload?.ok) {
 					throw new Error(payload?.message ?? payload?.error ?? 'Unable to load wallet tokens.');
 				}
@@ -103,9 +141,13 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 				}
 			} catch (err) {
 				if (!cancelled) {
-					setState({
-						status: 'error',
-						message: err instanceof Error ? err.message : 'Unable to load wallet summary.',
+					const message =
+						err instanceof Error ? err.message : 'Unable to load wallet summary.';
+					setState((prev) => {
+						if (prev.status === 'ready' || prev.status === 'stale') {
+							return { ...prev, status: 'stale', message };
+						}
+						return { status: 'error', message };
 					});
 				}
 			}
@@ -117,7 +159,8 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 	}, [walletId]);
 
 	const snapshotChains = initialData?.snapshot?.byChain ?? [];
-	const showSnapshotFallback = snapshotChains.length > 0 && state.status !== 'ready';
+	const showSnapshotFallback =
+		snapshotChains.length > 0 && state.status !== 'ready' && state.status !== 'stale';
 
 	return (
 		<div className="wallet-summary">
@@ -178,6 +221,69 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 					{state.message}
 					{state.hint ? <div className="wallet-summary__status-hint">{state.hint}</div> : null}
 				</div>
+			) : null}
+
+			{state.status === 'stale' ? (
+				<>
+					<div className="wallet-summary__status wallet-summary__status--error">
+						Stale: refresh failed. Showing last known balances.
+					</div>
+					<div className="wallet-summary__total">
+						<span className="wallet-summary__total-label">Total</span>
+						<span className="wallet-summary__total-value">
+							{currencyFormatter.format(state.wallet.totalUsd)}
+						</span>
+					</div>
+					<section className="wallet-summary__chain">
+						<h4 className="wallet-summary__chain-title">
+							{state.wallet.label || 'Wallet'}
+						</h4>
+						<div className="wallet-summary__chain-rows">
+							<div className="wallet-summary__row wallet-summary__row--header">
+								<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
+								<span className="wallet-summary__cell wallet-summary__cell--days">Chain</span>
+								<span className="wallet-summary__cell wallet-summary__cell--qty">Days</span>
+								<span className="wallet-summary__cell wallet-summary__cell--pl">Qty</span>
+								<span className="wallet-summary__cell wallet-summary__cell--pl">Price</span>
+								<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
+							</div>
+							{state.wallet.tokens.map((token) => {
+								const priceUsd =
+									Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0
+										? Number(token.priceUsd)
+										: Number(token.usdValue ?? 0) / (Number(token.amount ?? 0) || 1);
+								const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
+								const daysHeld = Number.isFinite(capturedAt)
+									? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
+									: null;
+								return (
+									<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
+										<span className="wallet-summary__cell wallet-summary__cell--token">
+											{token.tokenSymbol}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--days">
+											{token.chain}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--qty">
+											{daysHeld === null ? '—' : String(daysHeld)}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl">
+											{Number(token.amount ?? 0).toLocaleString(undefined, {
+												maximumFractionDigits: 6,
+											})}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl">
+											{currencyFormatter.format(priceUsd)}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--value">
+											{currencyFormatter.format(Number(token.usdValue ?? 0))}
+										</span>
+									</div>
+								);
+							})}
+						</div>
+					</section>
+				</>
 			) : null}
 
 			{state.status === 'ready' ? (
