@@ -23,6 +23,13 @@ const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 const SNAPSHOT_STALE_MAX_MS = 60 * 60 * 1000;
 const SNAPSHOT_LOCK_SECONDS = 20;
 
+const HOLDINGS_DEBUG = String(import.meta.env.HOLDINGS_DEBUG ?? '').trim() === '1';
+
+function dbg(label: string, meta: Record<string, any>) {
+	if (!HOLDINGS_DEBUG) return;
+	console.log(`[holdings.debug2] ${label}`, meta);
+}
+
 const cache = new Map<string, { expiresAt: number; payload: any }>();
 const basisCache = new Map<string, { expiresAt: number; price: number | null }>();
 let lastSnowtraceCallAt = 0;
@@ -252,14 +259,27 @@ async function mapWithConcurrency<T, R>(
 }
 
 async function fetchAlchemyTokenAggregates(
+	chainId: number,
 	chain: 'eth-mainnet' | 'polygon-mainnet',
 	address: string,
 	requestId?: string,
 ) {
 	const balancesResult = await getTokenBalances(chain, address);
-	const rawBalances = Array.isArray(balancesResult?.tokenBalances)
-		? balancesResult.tokenBalances
-		: [];
+
+	dbg('alchemy.raw', {
+		requestId,
+		alchemyChain: chain,
+		rawTotal: Array.isArray(balancesResult?.tokenBalances) ? balancesResult.tokenBalances.length : 0,
+	});
+
+	const rawBalances = Array.isArray(balancesResult?.tokenBalances) ? balancesResult.tokenBalances : [];
+
+	dbg('alchemy.balances', {
+		requestId,
+		chain: 'alchemy',
+		rawTotal: rawBalances.length,
+	});
+
 	const nonZeroBalances = rawBalances.filter((entry) => {
 		try {
 			return BigInt(entry.tokenBalance ?? '0') > 0n;
@@ -268,9 +288,21 @@ async function fetchAlchemyTokenAggregates(
 		}
 	});
 
+	dbg('alchemy.nonZero', {
+		requestId,
+		alchemyChain: chain,
+		nonZero: nonZeroBalances.length,
+		sampleContracts: nonZeroBalances.slice(0, 10).map((x) => x.contractAddress),
+	});
+
 	const contracts = nonZeroBalances
 		.map((entry) => String(entry.contractAddress ?? '').toLowerCase())
 		.filter(Boolean);
+
+	dbg('alchemy.contracts', {
+		requestId,
+		contracts: contracts.length,
+	});
 
 	const metadataList = await mapWithConcurrency(contracts, 5, async (contract) => {
 		try {
@@ -292,23 +324,58 @@ async function fetchAlchemyTokenAggregates(
 		metadataByContract.set(entry.contract, entry.metadata);
 	}
 
+	let droppedNoContract = 0;
+	let droppedBadDecimals = 0;
+	let droppedSpam = 0;
+	let droppedDefi = 0;
+	let droppedBalanceParse = 0;
+	let kept = 0;
+
+	const sampleDrops: Record<string, string[]> = {
+		badDecimals: [],
+		spam: [],
+		defi: [],
+		balanceParse: [],
+	};
+
 	const aggregates = new Map<string, TokenAgg>();
 	for (const entry of nonZeroBalances) {
 		const contract = String(entry.contractAddress ?? '').toLowerCase();
-		if (!contract) continue;
+		if (!contract) {
+			droppedNoContract += 1;
+			continue;
+		}
 		const metadata = metadataByContract.get(contract);
 		const decimals = typeof metadata?.decimals === 'number' ? metadata.decimals : 18;
 		const symbol = (metadata?.symbol ?? '').trim();
 		const name = (metadata?.name ?? '').trim();
-		if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) continue;
-		if (isSpamToken(symbol, name, decimals)) continue;
-		if (isDefiToken(symbol, name)) continue;
+		if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) {
+			droppedBadDecimals += 1;
+			if (sampleDrops.badDecimals.length < 10) sampleDrops.badDecimals.push(contract);
+			continue;
+		}
+		if (isSpamToken(symbol, name, decimals)) {
+			droppedSpam += 1;
+			if (sampleDrops.spam.length < 10) sampleDrops.spam.push(`${symbol}:${contract}`);
+			continue;
+		}
+		if (isDefiToken(symbol, name)) {
+			droppedDefi += 1;
+			if (sampleDrops.defi.length < 10) sampleDrops.defi.push(`${symbol}:${contract}`);
+			continue;
+		}
 		let balance = 0n;
 		try {
 			balance = BigInt(entry.tokenBalance ?? '0');
 		} catch {
-			balance = 0n;
+			droppedBalanceParse += 1;
+			if (sampleDrops.balanceParse.length < 10) sampleDrops.balanceParse.push(contract);
+			continue;
 		}
+		if (balance <= 0n) {
+			continue;
+		}
+		kept += 1;
 		aggregates.set(contract, {
 			symbol,
 			name,
@@ -317,6 +384,20 @@ async function fetchAlchemyTokenAggregates(
 			balance,
 		});
 	}
+
+	dbg('alchemy.aggregate.summary', {
+		requestId,
+		alchemyChain: chain,
+		nonZero: nonZeroBalances.length,
+		kept,
+		droppedNoContract,
+		droppedBadDecimals,
+		droppedSpam,
+		droppedDefi,
+		droppedBalanceParse,
+		aggregates: aggregates.size,
+		sampleDrops,
+	});
 
 	return aggregates;
 }
@@ -499,129 +580,148 @@ async function fetchHistoricalPrice(
 export const prerender = false;
 
 export const GET: APIRoute = async ({ params, request, locals }) => {
-	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
 	const requestId = (locals as Record<string, any>)?.requestId;
+	const chainId = Number(new URL(request.url).searchParams.get('chainid') ?? POLYGON_CHAIN_ID);
+	try {
+		const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
-	const logPerf = (
-		status: number,
-		meta?: { cached?: boolean; stale?: boolean; count?: number; providerCallsCount?: number },
-	) => {
-		console.log('[perf] wallet-holdings', {
-			requestId,
-			durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start),
-			status,
-			...(meta ?? {}),
-		});
-	};
+		const logPerf = (
+			status: number,
+			meta?: { cached?: boolean; stale?: boolean; count?: number; providerCallsCount?: number },
+		) => {
+			console.log('[perf] wallet-holdings', {
+				requestId,
+				durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start),
+				status,
+				...(meta ?? {}),
+			});
+		};
 
-	const { tenantId } = await requireTenantSession(request);
-	const walletId = params.id ?? '';
-	const url = new URL(request.url);
-	const chainId = Number(url.searchParams.get('chainid') ?? POLYGON_CHAIN_ID);
+		const { tenantId } = await requireTenantSession(request);
+		const walletId = params.id ?? '';
 
-	if (!walletId) {
-		logPerf(400);
-		return new Response(JSON.stringify({ error: 'Missing wallet id' }), { status: 400 });
-	}
-	if (![POLYGON_CHAIN_ID, ETHEREUM_CHAIN_ID, AVALANCHE_CHAIN_ID].includes(chainId)) {
-		logPerf(400);
-		return new Response(
-			JSON.stringify({ error: 'Only Polygon (137), Ethereum (1), and Avalanche (43114) are supported.' }),
-			{ status: 400 },
-		);
-	}
-
-	const cacheKey = `${tenantId}:${walletId}:${chainId}`;
-	const lockKey = `holdings:${tenantId}:${walletId}:${chainId}`;
-
-	const cached = cache.get(cacheKey);
-	if (cached && cached.expiresAt > Date.now()) {
-		logPerf(200, {
-			cached: true,
-			stale: false,
-			count: Array.isArray(cached.payload?.tokens) ? cached.payload.tokens.length : undefined,
-		});
-		return new Response(JSON.stringify({ ...cached.payload, cached: true, stale: false, asOf: cached.payload?.asOf }), {
-			status: 200,
-			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
-		});
-	}
-
-	const snapshotResult = await db.execute({
-		sql: `SELECT payload_json, as_of, updated_at
-			FROM wallet_holdings_snapshot
-			WHERE tenant_id = ? AND wallet_id = ? AND chain_id = ?
-			LIMIT 1`,
-		args: [tenantId, walletId, chainId],
-	});
-
-	const snapshotRow = snapshotResult.rows?.[0] as
-		| { payload_json?: string; as_of?: string; updated_at?: string }
-		| undefined;
-
-	if (snapshotRow?.payload_json) {
-		let snapshotPayload: any = null;
-		try {
-			snapshotPayload = JSON.parse(String(snapshotRow.payload_json));
-		} catch {
-			snapshotPayload = null;
+		if (!walletId) {
+			logPerf(400);
+			return new Response(JSON.stringify({ error: 'Missing wallet id' }), { status: 400 });
+		}
+		if (![POLYGON_CHAIN_ID, ETHEREUM_CHAIN_ID, AVALANCHE_CHAIN_ID].includes(chainId)) {
+			logPerf(400);
+			return new Response(
+				JSON.stringify({ error: 'Only Polygon (137), Ethereum (1), and Avalanche (43114) are supported.' }),
+				{ status: 400 },
+			);
 		}
 
-		if (snapshotPayload) {
-			const updatedAtMs = snapshotRow.updated_at ? Date.parse(snapshotRow.updated_at) : 0;
-			const now = Date.now();
-			const stale = Number.isFinite(updatedAtMs) ? now - updatedAtMs > SNAPSHOT_TTL_MS : true;
-			const overStaleMax = Number.isFinite(updatedAtMs) ? now - updatedAtMs > SNAPSHOT_STALE_MAX_MS : false;
+		const cacheKey = `${tenantId}:${walletId}:${chainId}`;
+		const lockKey = `holdings:${tenantId}:${walletId}:${chainId}`;
 
-			if (stale && !overStaleMax) {
-				(async () => {
-					const gotLock = await tryAcquireLock(lockKey, SNAPSHOT_LOCK_SECONDS);
-					if (!gotLock) {
-						console.log('[cache] holdings refresh skip (lock-busy)', { requestId, walletId, chainId });
-						return;
-					}
-					try {
-						const refreshed = await buildHoldingsPayload(tenantId, walletId, chainId, requestId);
-						await upsertHoldingsSnapshot(tenantId, walletId, chainId, refreshed);
-						cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload: refreshed });
-						console.log('[cache] holdings refreshed', { requestId, walletId, chainId });
-					} catch (error) {
-						console.warn('[cache] holdings refresh failed', { requestId, walletId, chainId, error });
-					}
-				})();
-			}
-
+		const cached = cache.get(cacheKey);
+		if (cached && cached.expiresAt > Date.now()) {
 			logPerf(200, {
 				cached: true,
-				stale,
-				count: Array.isArray(snapshotPayload?.tokens) ? snapshotPayload.tokens.length : undefined,
+				stale: false,
+				count: Array.isArray(cached.payload?.tokens) ? cached.payload.tokens.length : undefined,
 			});
-
 			return new Response(
-				JSON.stringify({
-					...snapshotPayload,
-					cached: true,
-					stale,
-					asOf: snapshotRow.as_of ?? snapshotPayload.asOf,
-				}),
+				JSON.stringify({ ...cached.payload, cached: true, stale: false, asOf: cached.payload?.asOf }),
 				{
 					status: 200,
 					headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
 				},
 			);
 		}
+
+		const snapshotResult = await db.execute({
+			sql: `SELECT payload_json, as_of, updated_at
+				FROM wallet_holdings_snapshot
+				WHERE tenant_id = ? AND wallet_id = ? AND chain_id = ?
+				LIMIT 1`,
+			args: [tenantId, walletId, chainId],
+		});
+
+		const snapshotRow = snapshotResult.rows?.[0] as
+			| { payload_json?: string; as_of?: string; updated_at?: string }
+			| undefined;
+
+		if (snapshotRow?.payload_json) {
+			let snapshotPayload: any = null;
+			try {
+				snapshotPayload = JSON.parse(String(snapshotRow.payload_json));
+			} catch {
+				snapshotPayload = null;
+			}
+
+			if (snapshotPayload) {
+				const updatedAtMs = snapshotRow.updated_at ? Date.parse(snapshotRow.updated_at) : 0;
+				const now = Date.now();
+				const stale = Number.isFinite(updatedAtMs) ? now - updatedAtMs > SNAPSHOT_TTL_MS : true;
+				const overStaleMax = Number.isFinite(updatedAtMs) ? now - updatedAtMs > SNAPSHOT_STALE_MAX_MS : false;
+
+				if (stale && !overStaleMax) {
+					(async () => {
+						const gotLock = await tryAcquireLock(lockKey, SNAPSHOT_LOCK_SECONDS);
+						if (!gotLock) {
+							console.log('[cache] holdings refresh skip (lock-busy)', { requestId, walletId, chainId });
+							return;
+						}
+						try {
+							const refreshed = await buildHoldingsPayload(tenantId, walletId, chainId, requestId);
+							await upsertHoldingsSnapshot(tenantId, walletId, chainId, refreshed);
+							cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload: refreshed });
+							console.log('[cache] holdings refreshed', { requestId, walletId, chainId });
+						} catch (error) {
+							console.warn('[cache] holdings refresh failed', { requestId, walletId, chainId, error });
+						}
+					})();
+				}
+
+				logPerf(200, {
+					cached: true,
+					stale,
+					count: Array.isArray(snapshotPayload?.tokens) ? snapshotPayload.tokens.length : undefined,
+				});
+
+				return new Response(
+					JSON.stringify({
+						...snapshotPayload,
+						cached: true,
+						stale,
+						asOf: snapshotRow.as_of ?? snapshotPayload.asOf,
+					}),
+					{
+						status: 200,
+						headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
+					},
+				);
+			}
+		}
+
+		const payload = await buildHoldingsPayload(tenantId, walletId, chainId, requestId);
+		await upsertHoldingsSnapshot(tenantId, walletId, chainId, payload);
+
+		cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
+		logPerf(200, { cached: false, stale: false, count: payload.tokens.length });
+
+		return new Response(JSON.stringify({ ...payload, cached: false, stale: false, asOf: payload.asOf }), {
+			status: 200,
+			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
+		});
+	} catch (err) {
+		console.error('[holdings] FATAL', {
+			requestId,
+			walletId: params.id,
+			chainId,
+			error: String((err as any)?.message ?? err),
+			stack: (err as any)?.stack,
+		});
+		return new Response(
+			JSON.stringify({
+				error: 'Holdings failed',
+				requestId,
+			}),
+			{ status: 500, headers: { 'Content-Type': 'application/json' } },
+		);
 	}
-
-	const payload = await buildHoldingsPayload(tenantId, walletId, chainId, requestId);
-	await upsertHoldingsSnapshot(tenantId, walletId, chainId, payload);
-
-	cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
-	logPerf(200, { cached: false, stale: false, count: payload.tokens.length });
-
-	return new Response(JSON.stringify({ ...payload, cached: false, stale: false, asOf: payload.asOf }), {
-		status: 200,
-		headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
-	});
 };
 
 async function upsertHoldingsSnapshot(tenantId: string, walletId: string, chainId: number, payload: any) {
@@ -662,10 +762,15 @@ async function buildHoldingsPayload(
 	if (chainId === ETHEREUM_CHAIN_ID || chainId === POLYGON_CHAIN_ID) {
 		const alchemyChain = chainId === ETHEREUM_CHAIN_ID ? 'eth-mainnet' : 'polygon-mainnet';
 		try {
-			const alchemyAggregates = await fetchAlchemyTokenAggregates(alchemyChain, address, requestId);
+			const alchemyAggregates = await fetchAlchemyTokenAggregates(
+				chainId,
+				alchemyChain,
+				address,
+				requestId,
+			);
 			alchemyAggregates.forEach((value, key) => aggregates.set(key, value));
 			if (chainId === ETHEREUM_CHAIN_ID) {
-				console.log('[holdings.debug]', {
+				dbg('alchemy.used', {
 					requestId,
 					chainId,
 					alchemyChain: 'eth-mainnet',
@@ -673,7 +778,7 @@ async function buildHoldingsPayload(
 				});
 			}
 			if (chainId === POLYGON_CHAIN_ID) {
-				console.log('[holdings.debug]', {
+				dbg('alchemy.used', {
 					requestId,
 					chainId,
 					alchemyChain: 'polygon-mainnet',
@@ -696,7 +801,7 @@ async function buildHoldingsPayload(
 			throw new Error(err?.message ?? 'Failed to fetch token transfers');
 		}
 
-		console.log('[holdings.debug]', { requestId, chainId, tokentxCount: transfers.length });
+		dbg('tokentx.count', { requestId, chainId, tokentxCount: transfers.length });
 
 		for (const tx of transfers) {
 			const contract = (tx.contractAddress ?? '').toLowerCase();
@@ -746,7 +851,7 @@ async function buildHoldingsPayload(
 		}
 	}
 
-	console.log('[holdings.debug]', { requestId, chainId, uniqueContracts: aggregates.size });
+	dbg('aggregates.uniqueContracts', { requestId, chainId, uniqueContracts: aggregates.size });
 
 	const contracts = Array.from(aggregates.values())
 		.filter((entry) => entry.balance > 0n)
@@ -810,18 +915,37 @@ async function buildHoldingsPayload(
 		}
 	}
 
+	let loopTotal = 0;
+	let droppedNonFiniteOrZero = 0;
+	let droppedDustNoPrice = 0;
+	let keptTokens = 0;
+
+	const sampleDust: string[] = [];
+	const sampleZero: string[] = [];
+
 	for (const entry of aggregates.values()) {
+		loopTotal += 1;
 		if (entry.balance <= 0n) continue;
 
 		const balance = toDecimal(entry.balance, entry.decimals);
-		if (!Number.isFinite(balance) || balance <= 0) continue;
+		if (!Number.isFinite(balance) || balance <= 0) {
+			droppedNonFiniteOrZero += 1;
+			if (sampleZero.length < 10) sampleZero.push(`${entry.symbol}:${entry.contractAddress}`);
+			continue;
+		}
 
 		const cached = cachedPrices[entry.symbol.toUpperCase()];
 		const priceUsd = currentPrices[entry.contractAddress] ?? cached ?? 0;
 		const valueUsd = balance * priceUsd;
 		totalUsd += valueUsd;
 
-		if (balance <= 0 || (!priceUsd && balance < 1e-12)) continue;
+		if (balance <= 0 || (!priceUsd && balance < 1e-12)) {
+			droppedDustNoPrice += 1;
+			if (sampleDust.length < 10) sampleDust.push(`${entry.symbol}:${entry.contractAddress} bal=${balance}`);
+			continue;
+		}
+
+		keptTokens += 1;
 
 		let basisType: HoldingsToken['basisType'] = 'unknown';
 		let basisPrice: number | null = null;
@@ -911,7 +1035,16 @@ async function buildHoldingsPayload(
 	// ✅ Fix: don't hide tokens just because price is missing.
 	const filteredTokens = tokens.filter((token) => token.contractAddress === 'native' || token.balance > 0);
 
-	console.log('[holdings.debug]', { requestId, chainId, tokensOut: filteredTokens.length });
+	dbg('final.filter.summary', {
+		requestId,
+		chainId,
+		keptTokens,
+		loopTotal,
+		droppedNonFiniteOrZero,
+		droppedDustNoPrice,
+		sampleZero,
+		sampleDust,
+	});
 
 	filteredTokens.sort((a, b) => b.valueUsd - a.valueUsd);
 
