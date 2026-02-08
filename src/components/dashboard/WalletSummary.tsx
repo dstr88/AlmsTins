@@ -47,6 +47,42 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 	maximumFractionDigits: 2,
 });
 const DUST_THRESHOLD_USD = 1;
+const WALLET_DEBUG =
+	String(import.meta.env.WALLET_DEBUG ?? import.meta.env.HOLDINGS_DEBUG ?? '').trim() === '1';
+
+type SummaryCounts = {
+	byChainLength: number;
+	byWalletLength: number;
+	byChainDetails: Array<{ chain: string; tokenCount: number }>;
+	tokenTotal: number;
+};
+
+const summarizePayload = (payload: any): SummaryCounts => {
+	const byChain =
+		(Array.isArray(payload?.byChain) ? payload.byChain : null) ??
+		(Array.isArray(payload?.snapshot?.byChain) ? payload.snapshot.byChain : null) ??
+		[];
+	const byWallet = Array.isArray(payload?.byWallet) ? payload.byWallet : [];
+	const tokens = Array.isArray(payload?.tokens) ? payload.tokens : [];
+	const byChainDetails = (Array.isArray(byChain) ? byChain : []).map((item: any) => {
+		const chain = String(item?.chain ?? 'unknown');
+		const tokenCount =
+			typeof item?.tokenCount === 'number'
+				? item.tokenCount
+				: Array.isArray(item?.tokens)
+					? item.tokens.length
+					: Array.isArray(item?.snapshots)
+						? item.snapshots.length
+						: 0;
+		return { chain, tokenCount };
+	});
+	return {
+		byChainLength: Array.isArray(byChain) ? byChain.length : 0,
+		byWalletLength: Array.isArray(byWallet) ? byWallet.length : 0,
+		byChainDetails,
+		tokenTotal: tokens.length,
+	};
+};
 
 type SnapshotToken = {
 	symbol: string;
@@ -84,6 +120,13 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 
 	useEffect(() => {
 		let cancelled = false;
+		const initialSummary = summarizePayload(initialData ?? {});
+		console.log('[WalletSummary.initial]', {
+			walletId,
+			byChainLength: initialSummary.byChainLength,
+			byWalletLength: initialSummary.byWalletLength,
+			byChainDetails: initialSummary.byChainDetails,
+		});
 		const loadSummary = async () => {
 			try {
 				setState((prev) =>
@@ -92,22 +135,85 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 				const url = `/api/wallets/${walletId}/tokens?refreshMissing=1`;
 				console.log('[WalletSummary.refresh] start', { walletId, url });
 				const res = await fetch(url, { credentials: 'include' });
-				console.log('[WalletSummary.refresh] done', { walletId, status: res.status });
+				const status = res.status;
+				const contentType = res.headers.get('content-type') || '';
+				const text = await res.text();
+				console.log('[WalletSummary.refresh] done', { walletId, status });
+				if (WALLET_DEBUG) {
+					console.log('[WalletSummary.refresh] preview', {
+						walletId,
+						status,
+						contentType,
+						preview: text.slice(0, 300),
+					});
+				}
+
 				if (!res.ok) {
-					const errorText = await res.text();
 					console.log('[WalletSummary.refresh] non-2xx', {
 						walletId,
-						status: res.status,
-						body: errorText.slice(0, 200),
+						status,
+						body: text.slice(0, 200),
 					});
-					throw new Error(`Refresh failed (${res.status})`);
+					throw new Error(`Refresh failed (${status})`);
 				}
-				const text = await res.text();
+
+				const trimmed = text.trim();
+				const shouldParseJson =
+					status === 200 &&
+					(contentType.includes('application/json') ||
+						trimmed.startsWith('{') ||
+						trimmed.startsWith('['));
+				if (!shouldParseJson) {
+					console.log('[WalletSummary.refresh] invalid-payload', {
+						status,
+						contentType,
+						preview: text.slice(0, 300),
+					});
+					throw new Error('Refresh returned invalid payload');
+				}
+
 				let payload: any = null;
 				try {
 					payload = text ? JSON.parse(text) : null;
 				} catch {
 					throw new Error('Invalid JSON response.');
+				}
+
+				const refreshedSummary = summarizePayload(payload ?? {});
+				const oldTokenTotal =
+					state.status === 'ready' || state.status === 'stale'
+						? state.wallet.tokens.length
+						: 0;
+				const isRefreshWorse = refreshedSummary.tokenTotal < oldTokenTotal;
+				console.log('[WalletSummary.refresh] summary', {
+					walletId,
+					newSummary: refreshedSummary,
+					oldSummary: {
+						byChainLength: initialSummary.byChainLength,
+						byWalletLength: initialSummary.byWalletLength,
+						byChainDetails: initialSummary.byChainDetails,
+						tokenTotal: oldTokenTotal,
+					},
+					isRefreshWorse,
+					keys: Object.keys(payload ?? {}),
+				});
+
+				if (isRefreshWorse) {
+					throw new Error('Refresh returned fewer tokens than existing data');
+				}
+
+				const hasSummary =
+					Array.isArray(payload?.snapshots) ||
+					Array.isArray(payload?.byChain) ||
+					Array.isArray(payload?.byWallet) ||
+					Array.isArray(payload?.tokens);
+				if (!hasSummary) {
+					console.log('[WalletSummary.refresh] invalid-payload', {
+						status,
+						contentType,
+						preview: text.slice(0, 300),
+					});
+					throw new Error('Refresh returned invalid payload');
 				}
 				if (!payload?.ok) {
 					throw new Error(payload?.message ?? payload?.error ?? 'Unable to load wallet tokens.');
@@ -140,6 +246,10 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 					});
 				}
 			} catch (err) {
+				console.log('[WalletSummary.refresh] exception', {
+					message: err instanceof Error ? err.message : String(err),
+					stack: err instanceof Error ? err.stack : undefined,
+				});
 				if (!cancelled) {
 					const message =
 						err instanceof Error ? err.message : 'Unable to load wallet summary.';
