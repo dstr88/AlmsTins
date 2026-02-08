@@ -493,6 +493,35 @@ export function _debugClearCaches() {
   inflight.clear();
 }
 
+// ─────────────────────────────────────────────────────────────
+// Back-compat exports (older callers like scanSync.ts)
+// ─────────────────────────────────────────────────────────────
+
+export function buildEtherscanV2Url(
+  chainOrChainId: 'ethereum' | 'polygon' | number,
+  params: Record<string, string | number>,
+) {
+  const chainId =
+    typeof chainOrChainId === 'number'
+      ? chainOrChainId
+      : chainOrChainId === 'ethereum'
+        ? CHAIN_IDS.ethereum
+        : CHAIN_IDS.polygon;
+
+  // Force etherscan v2 style (chainid required) — matches new buildUrl behavior.
+  return buildUrl(chainId, params);
+}
+
+export async function requestEtherscan(
+  url: string,
+  opts?: { requestId?: string; attempts?: number; minIntervalMs?: number; backoffMs?: number; cacheTtlMs?: number },
+) {
+  // For these legacy callers, URL is already an etherscan URL.
+  // providerForChain is safe here, but url already implies etherscan; keep it consistent.
+  const provider: Provider = 'etherscan';
+  return fetchJsonWithRetries(url, { provider, ...(opts ?? {}) });
+}
+
 // NOTE:
 // If you want to reduce call volume further, add higher-level caching on top of this:
 // - snapshot TTLs (you already do)
