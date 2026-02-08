@@ -14,6 +14,8 @@ import { getAllActiveWallets } from '@/lib/wallets';
 import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
+const ENABLE_ALL_TX = false;
+
 const pageStart = Date.now();
 const { tenantId } = await requireTenantSession(Astro.request);
 console.log('[vault] auth ms', Date.now() - pageStart);
@@ -78,7 +80,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				</div>
 			</SalmonTin>
 			<div class="tile tile--r1c3">
-				<Tin0AllTransactions client:visible />
+				{ENABLE_ALL_TX ? <Tin0AllTransactions client:visible /> : null}
 			</div>
 			<div class="vault-lane vault-lane--row2">
 				{walletsWithData.map(({ wallet, fullData }, index) => {
