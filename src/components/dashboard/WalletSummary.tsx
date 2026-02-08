@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import './WalletSummary.css';
 
+console.log('[island.mount]', 'WalletSummary');
+
 type WalletSummaryState =
 	| { status: 'loading' }
 	| { status: 'error'; message: string }

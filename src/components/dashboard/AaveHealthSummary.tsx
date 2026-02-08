@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 
+console.log('[island.mount]', 'AaveHealthSummary');
+
 type WalletResponse = {
 	id: string;
 	address: string;

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
 
+console.log('[island.mount]', 'PriceWatchlist');
+
 const BASE_SYMBOLS = ['BTC', 'ETH', 'POL', 'AVAX'] as const;
 const STORAGE_KEY = 'watchlist';
 const inflightPriceFetches = new Map<string, Promise<Record<string, number>>>();

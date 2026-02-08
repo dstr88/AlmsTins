@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import './VaultNftActivity.css';
 
+console.log('[island.mount]', 'VaultNftActivity');
+
 type NftItem = {
 	chainId?: number;
 	chain?: string;

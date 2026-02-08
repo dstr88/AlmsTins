@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { normalizeNetWorthSummary, type NetWorthSummary } from '@/lib/networth/summaryContract';
 
+console.log('[island.mount]', 'NetWorthOverviewCard');
+
 type Props = {
 	endpoint?: string;
 };

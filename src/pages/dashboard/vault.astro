@@ -53,7 +53,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		<section class="bk-grid">
 			<SalmonTin label="Watchlist" class="tile tile--r1c1">
-				<PriceWatchlist client:visible />
+				<PriceWatchlist client:only="react" />
 			</SalmonTin>
 			<SalmonTin label="Import" class="tile tile--r1c2 import-tile">
 				<div class="import-tile__inner">
@@ -73,7 +73,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 					</div>
 
 					<div class="import-tile__networth">
-						<NetWorthOverviewCard client:load endpoint="/api/networth/summary" />
+						<NetWorthOverviewCard client:only="react" endpoint="/api/networth/summary" />
 					</div>
 
 					<div class="import-tile__message" aria-live="polite"></div>
@@ -98,21 +98,21 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 										<span class="tin-summary__label">Wallet value</span>
 										<span class="tin-summary__value" data-wallet-summary-value>—</span>
 									</div>
-									<WalletSummary client:visible walletId={wallet.id} initialData={fullData} />
+									<WalletSummary client:only="react" walletId={wallet.id} initialData={fullData} />
 								</SalmonTin>
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label" data-defi-summary-label>Health</span>
 										<span class="tin-summary__value" data-defi-summary-value>—</span>
 									</div>
-									<AaveHealthSummary client:visible walletId={wallet.id} />
+									<AaveHealthSummary client:only="react" walletId={wallet.id} />
 								</SalmonTin>
 								<SalmonTin label="NFTs" class="wallet-tin--future">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label">NFTs</span>
 										<span class="tin-summary__value" data-nft-summary-value>—</span>
 									</div>
-									<VaultNftActivity client:visible walletId={wallet.id} />
+									<VaultNftActivity client:only="react" walletId={wallet.id} />
 								</SalmonTin>
 							</div>
 						</div>
