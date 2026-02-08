@@ -117,10 +117,50 @@ const formatLastSync = (value?: string | null) => {
 
 export default function WalletSummary({ walletId, initialData }: WalletSummaryProps) {
 	const [state, setState] = useState<WalletSummaryState>({ status: 'loading' });
+	const initialSummary = summarizePayload(initialData ?? {});
+
+	if (WALLET_DEBUG) {
+		console.log('[WalletSummary.render]', {
+			walletId,
+			status: state.status,
+			byChainLength: initialSummary.byChainLength,
+			byWalletLength: initialSummary.byWalletLength,
+			hasData: Boolean((state as any).data),
+		});
+	}
+
+	useEffect(() => {
+		console.log('[WalletSummary.lifecycle] mount', { walletId });
+		return () => {
+			console.log('[WalletSummary.lifecycle] unmount', { walletId });
+		};
+	}, [walletId]);
+
+	useEffect(() => {
+		if (!WALLET_DEBUG) return;
+		const onError = (event: ErrorEvent) => {
+			console.log('[WalletSummary.error]', {
+				message: event.error?.message ?? event.message,
+				stack: event.error?.stack,
+			});
+		};
+		const onRejection = (event: PromiseRejectionEvent) => {
+			const reason = event.reason;
+			console.log('[WalletSummary.unhandledrejection]', {
+				message: reason?.message ?? String(reason),
+				stack: reason?.stack,
+			});
+		};
+		window.addEventListener('error', onError);
+		window.addEventListener('unhandledrejection', onRejection);
+		return () => {
+			window.removeEventListener('error', onError);
+			window.removeEventListener('unhandledrejection', onRejection);
+		};
+	}, [walletId]);
 
 	useEffect(() => {
 		let cancelled = false;
-		const initialSummary = summarizePayload(initialData ?? {});
 		console.log('[WalletSummary.initial]', {
 			walletId,
 			byChainLength: initialSummary.byChainLength,
@@ -129,9 +169,24 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 		});
 		const loadSummary = async () => {
 			try {
-				setState((prev) =>
-					prev.status === 'ready' || prev.status === 'stale' ? prev : { status: 'loading' },
-				);
+				setState((prev) => {
+					const next =
+						prev.status === 'ready' || prev.status === 'stale' ? prev : { status: 'loading' };
+					if (WALLET_DEBUG) {
+						const tokenTotal = Array.isArray((next as any).wallet?.tokens)
+							? (next as any).wallet.tokens.length
+							: 0;
+						console.log('[WalletSummary.state]', {
+							walletId,
+							status: (next as any).status,
+							hasData: Boolean((next as any).data),
+							byChainLength: initialSummary.byChainLength,
+							byWalletLength: initialSummary.byWalletLength,
+							tokenTotal,
+						});
+					}
+					return next as WalletSummaryState;
+				});
 				const url = `/api/wallets/${walletId}/tokens?refreshMissing=1`;
 				console.log('[WalletSummary.refresh] start', { walletId, url });
 				const res = await fetch(url, { credentials: 'include' });
@@ -223,26 +278,52 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 				const isDust = Math.abs(totalUsd) < DUST_THRESHOLD_USD;
 				if (isDust) {
 					if (!cancelled) {
-						setState({
-							status: 'empty',
-							message: 'No balance data yet.',
-							hint: 'Add a wallet and run a sync to populate totals.',
+						setState((prev) => {
+							const next = {
+								status: 'empty' as const,
+								message: 'No balance data yet.',
+								hint: 'Add a wallet and run a sync to populate totals.',
+							};
+							if (WALLET_DEBUG) {
+								console.log('[WalletSummary.state]', {
+									walletId,
+									status: next.status,
+									hasData: false,
+									byChainLength: initialSummary.byChainLength,
+									byWalletLength: initialSummary.byWalletLength,
+									tokenTotal: 0,
+								});
+							}
+							return next;
 						});
 					}
 					return;
 				}
 				if (!cancelled) {
-					setState({
-						status: 'ready',
-						wallet: {
-							walletId: String(payload.walletId ?? walletId),
-							label: payload.label ?? null,
-							address: String(payload.address ?? ''),
-							totalUsd,
-							tokens: tokens
-								.filter((token) => Number(token.usdValue ?? 0) > 0)
-								.sort((a, b) => Number(b.usdValue ?? 0) - Number(a.usdValue ?? 0)),
-						},
+					setState((prev) => {
+						const next = {
+							status: 'ready' as const,
+							wallet: {
+								walletId: String(payload.walletId ?? walletId),
+								label: payload.label ?? null,
+								address: String(payload.address ?? ''),
+								totalUsd,
+								tokens: tokens
+									.filter((token) => Number(token.usdValue ?? 0) > 0)
+									.sort((a, b) => Number(b.usdValue ?? 0) - Number(a.usdValue ?? 0)),
+							},
+						};
+						if (WALLET_DEBUG) {
+							console.log('[WalletSummary.state]', {
+								walletId,
+								status: next.status,
+								hasData: true,
+								byChainLength: initialSummary.byChainLength,
+								byWalletLength: initialSummary.byWalletLength,
+								tokenTotal: next.wallet.tokens.length,
+							});
+						}
+						return next;
 					});
 				}
 			} catch (err) {
@@ -255,9 +336,34 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 						err instanceof Error ? err.message : 'Unable to load wallet summary.';
 					setState((prev) => {
 						if (prev.status === 'ready' || prev.status === 'stale') {
-							return { ...prev, status: 'stale', message };
+							const next = { ...prev, status: 'stale' as const, message };
+							if (WALLET_DEBUG) {
+								const tokenTotal = Array.isArray((next as any).wallet?.tokens)
+									? (next as any).wallet.tokens.length
+									: 0;
+								console.log('[WalletSummary.state]', {
+									walletId,
+									status: next.status,
+									hasData: Boolean((next as any).data),
+									byChainLength: initialSummary.byChainLength,
+									byWalletLength: initialSummary.byWalletLength,
+									tokenTotal,
+								});
+							}
+							return next;
 						}
-						return { status: 'error', message };
+						const next = { status: 'error' as const, message };
+						if (WALLET_DEBUG) {
+							console.log('[WalletSummary.state]', {
+								walletId,
+								status: next.status,
+								hasData: false,
+								byChainLength: initialSummary.byChainLength,
+								byWalletLength: initialSummary.byWalletLength,
+								tokenTotal: 0,
+							});
+						}
+						return next;
 					});
 				}
 			}
