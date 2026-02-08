@@ -522,6 +522,11 @@ export async function requestEtherscan(
   return fetchJsonWithRetries(url, { provider, ...(opts ?? {}) });
 }
 
+// Back-compat: older callers
+export async function getContractCode(args: { chainId: number; address: string; requestId?: string }) {
+  return getCodeHex(args);
+}
+
 // NOTE:
 // If you want to reduce call volume further, add higher-level caching on top of this:
 // - snapshot TTLs (you already do)
