@@ -535,6 +535,25 @@ export type SnapshotValueBreakdown = {
 	tokens: Array<SnapshotToken | SnapshotTokenEntry>;
 };
 
+export async function getLatestSnapshotCapturedAtByChain(tenantId: string): Promise<Map<string, string>> {
+	const result = await db.execute({
+		sql: `SELECT chain, MAX(captured_at) AS captured_at
+			FROM wallet_snapshots
+			WHERE tenant_id = ?
+			GROUP BY chain`,
+		args: [tenantId],
+	});
+	const map = new Map<string, string>();
+	for (const row of result.rows ?? []) {
+		const chain = String((row as any).chain ?? '');
+		const capturedAt = (row as any).captured_at ?? null;
+		if (chain && capturedAt) {
+			map.set(chain, String(capturedAt));
+		}
+	}
+	return map;
+}
+
 export async function insertWalletSnapshotFromValueBreakdown(breakdown: SnapshotValueBreakdown) {
 	// Normalize tokens to ensure missing prices/values are stored as null (never zero).
 	const normalizedTokens = (breakdown.tokens ?? []).map((token) => {

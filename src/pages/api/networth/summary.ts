@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getLatestNetWorthSummary } from '@/lib/networth';
+import { getLatestNetWorthSummary, getLatestSnapshotCapturedAtByChain } from '@/lib/networth';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getCache, setCache } from '@/lib/tursoCache';
 import { tryAcquireLock } from '@/lib/cacheLock';
@@ -44,7 +44,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			}
 		}
 
-		const cacheKey = `t:${tenantId}:networth:summary:v2`;
+		const cacheKey = `t:${tenantId}:networth:summary:v3`;
 		const lockKey = `lock:${cacheKey}`;
 
 		const cached = await getCache<{ ok: true; summary: any }>(cacheKey, {
@@ -64,13 +64,31 @@ export const GET: APIRoute = async ({ request, locals }) => {
 					try {
 						const freshSummary = await getLatestNetWorthSummary(tenantId);
 						const normalized = normalizeNetWorthSummary({ summary: freshSummary });
+						const capturedAtByChain = await getLatestSnapshotCapturedAtByChain(tenantId);
+						const byChainWithCapturedAt = normalized.byChain.map((row) => ({
+							...row,
+							capturedAt: row.capturedAt ?? capturedAtByChain.get(row.chain) ?? null,
+						}));
+						const overallCapturedAt =
+							byChainWithCapturedAt
+								.map((row) => row.capturedAt)
+								.filter(Boolean)
+								.sort()
+								.at(-1) ?? null;
+						if (import.meta.env.WALLET_DEBUG === '1') {
+							console.log('[networth.summary] capturedAtByChain', {
+								tenantId,
+								capturedAt: Object.fromEntries(capturedAtByChain),
+							});
+						}
 						const summaryPayload = {
 							totalUsd: normalized.totalUsd,
 							totalAssetsUsd: normalized.totalAssetsUsd,
 							totalFreeAssetsUsd: normalized.totalFreeAssetsUsd,
 							totalDebtUsd: normalized.totalDebtUsd,
-							byChain: normalized.byChain,
+							byChain: byChainWithCapturedAt,
 							tins: normalized.tins,
+							capturedAt: overallCapturedAt,
 						};
 						await setCache(cacheKey, { ok: true, summary: summaryPayload }, SUMMARY_TTL_SECONDS);
 						console.log('[cache] networth-summary refreshed', { requestId, tenantId });
@@ -95,13 +113,31 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 		const summary = await getLatestNetWorthSummary(tenantId);
 		const normalized = normalizeNetWorthSummary({ summary });
+		const capturedAtByChain = await getLatestSnapshotCapturedAtByChain(tenantId);
+		const byChainWithCapturedAt = normalized.byChain.map((row) => ({
+			...row,
+			capturedAt: row.capturedAt ?? capturedAtByChain.get(row.chain) ?? null,
+		}));
+		const overallCapturedAt =
+			byChainWithCapturedAt
+				.map((row) => row.capturedAt)
+				.filter(Boolean)
+				.sort()
+				.at(-1) ?? null;
+		if (import.meta.env.WALLET_DEBUG === '1') {
+			console.log('[networth.summary] capturedAtByChain', {
+				tenantId,
+				capturedAt: Object.fromEntries(capturedAtByChain),
+			});
+		}
 		const summaryPayload = {
 			totalUsd: normalized.totalUsd,
 			totalAssetsUsd: normalized.totalAssetsUsd,
 			totalFreeAssetsUsd: normalized.totalFreeAssetsUsd,
 			totalDebtUsd: normalized.totalDebtUsd,
-			byChain: normalized.byChain,
+			byChain: byChainWithCapturedAt,
 			tins: normalized.tins,
+			capturedAt: overallCapturedAt,
 		};
 		await setCache(cacheKey, { ok: true, summary: summaryPayload }, SUMMARY_TTL_SECONDS);
 
