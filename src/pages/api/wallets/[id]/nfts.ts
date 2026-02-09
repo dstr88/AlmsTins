@@ -59,13 +59,27 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 		});
 	}
 
-	const snapshotResult = await db.execute({
-		sql: `SELECT payload_json, as_of, updated_at
-			FROM wallet_nft_snapshot
-			WHERE tenant_id = ? AND wallet_id = ? AND chain_id = ?
-			LIMIT 1`,
-		args: [tenantId, walletId, 0],
-	});
+	let snapshotResult: { rows?: any[] } | null = null;
+	try {
+		snapshotResult = await db.execute({
+			sql: `SELECT payload_json, as_of, updated_at
+				FROM wallet_nft_snapshot
+				WHERE tenant_id = ? AND wallet_id = ? AND chain_id = ?
+				LIMIT 1`,
+			args: [tenantId, walletId, 0],
+		});
+	} catch (error) {
+		const message = String((error as any)?.message ?? error);
+		if (message.includes('wallet_nft_snapshot') && message.includes('no such table')) {
+			console.warn('[nfts] missing wallet_nft_snapshot table', { requestId, walletId });
+			logPerf(200, { cached: false, stale: false, count: 0 });
+			return new Response(JSON.stringify({ ok: true, items: [], cached: false, stale: false, asOf: null }), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
+			});
+		}
+		throw error;
+	}
 	const snapshotRow = snapshotResult.rows?.[0] as
 		| { payload_json?: string; as_of?: string; updated_at?: string }
 		| undefined;

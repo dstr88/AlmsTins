@@ -21,6 +21,7 @@ type WalletSummaryState =
 					amount: number;
 					usdValue: number;
 					priceUsd?: number | null;
+					unpricedReason?: string | null;
 					capturedAt?: string | null;
 				}>;
 			};
@@ -38,6 +39,7 @@ type WalletSummaryState =
 					amount: number;
 					usdValue: number;
 					priceUsd?: number | null;
+					unpricedReason?: string | null;
 					capturedAt?: string | null;
 				}>;
 			};
@@ -309,7 +311,11 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								address: String(payload.address ?? ''),
 								totalUsd,
 								tokens: tokens
-									.filter((token) => Number(token.usdValue ?? 0) > 0)
+									.filter(
+										(token) =>
+											Number(token.usdValue ?? 0) > 0 ||
+											token.unpricedReason === 'unverified_contract',
+									)
 									.sort((a, b) => Number(b.usdValue ?? 0) - Number(a.usdValue ?? 0)),
 							},
 						},
@@ -376,7 +382,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											{token.amountFormatted}
 										</span>
 										<span className="wallet-summary__cell wallet-summary__cell--value">
-											{currencyFormatter.format(Number(token.usdValue ?? 0))}
+											{token.usdValue == null ? 'Unpriced' : currencyFormatter.format(Number(token.usdValue))}
 										</span>
 										<span className="wallet-summary__cell wallet-summary__cell--pl">
 											{token.profitLoss === 'N/A'
@@ -435,10 +441,25 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 							</div>
 							{state.wallet.tokens.map((token) => {
-								const priceUsd =
-									Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0
-										? Number(token.priceUsd)
-										: Number(token.usdValue ?? 0) / (Number(token.amount ?? 0) || 1);
+								const isUnverified = token.unpricedReason === 'unverified_contract';
+								const hasPrice =
+									!isUnverified && Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0;
+								const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
+								const priceUsd = hasPrice
+									? Number(token.priceUsd)
+									: hasValue
+										? Number(token.usdValue) / (Number(token.amount ?? 0) || 1)
+										: null;
+								const priceLabel = isUnverified
+									? 'Unpriced (unverified)'
+									: priceUsd == null
+										? 'Unpriced'
+										: currencyFormatter.format(priceUsd);
+								const valueLabel = isUnverified
+									? 'Unpriced (unverified)'
+									: token.usdValue == null
+										? 'Unpriced'
+										: currencyFormatter.format(Number(token.usdValue));
 								const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
 								const daysHeld = Number.isFinite(capturedAt)
 									? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
@@ -460,10 +481,10 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											})}
 										</span>
 										<span className="wallet-summary__cell wallet-summary__cell--pl">
-											{currencyFormatter.format(priceUsd)}
+											{priceLabel}
 										</span>
 										<span className="wallet-summary__cell wallet-summary__cell--value">
-											{currencyFormatter.format(Number(token.usdValue ?? 0))}
+											{valueLabel}
 										</span>
 									</div>
 								);
@@ -495,10 +516,25 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 							</div>
 							{state.wallet.tokens.map((token) => {
-								const priceUsd =
-									Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0
-										? Number(token.priceUsd)
-										: Number(token.usdValue ?? 0) / (Number(token.amount ?? 0) || 1);
+								const isUnverified = token.unpricedReason === 'unverified_contract';
+								const hasPrice =
+									!isUnverified && Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0;
+								const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
+								const priceUsd = hasPrice
+									? Number(token.priceUsd)
+									: hasValue
+										? Number(token.usdValue) / (Number(token.amount ?? 0) || 1)
+										: null;
+								const priceLabel = isUnverified
+									? 'Unpriced (unverified)'
+									: priceUsd == null
+										? 'Unpriced'
+										: currencyFormatter.format(priceUsd);
+								const valueLabel = isUnverified
+									? 'Unpriced (unverified)'
+									: token.usdValue == null
+										? 'Unpriced'
+										: currencyFormatter.format(Number(token.usdValue));
 								const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
 								const daysHeld = Number.isFinite(capturedAt)
 									? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
@@ -520,10 +556,10 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											})}
 										</span>
 										<span className="wallet-summary__cell wallet-summary__cell--pl">
-											{currencyFormatter.format(priceUsd)}
+											{priceLabel}
 										</span>
 										<span className="wallet-summary__cell wallet-summary__cell--value">
-											{currencyFormatter.format(Number(token.usdValue ?? 0))}
+											{valueLabel}
 										</span>
 									</div>
 								);

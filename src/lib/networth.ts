@@ -516,6 +516,7 @@ export type SnapshotTokenEntry = {
 	priceUsd: number | null;
 	valueUsd: number | null;
 	tokenAddress: string | null;
+	unpricedReason?: string | null;
 };
 
 export type SnapshotToken = {
@@ -655,6 +656,7 @@ export type WalletTokenRow = {
 	usdValue: number;
 	capturedAt?: string | null;
 	priceUsd?: number | null;
+	unpricedReason?: string | null;
 	purchaseAt?: string | null;
 	purchasePriceUsd?: number | null;
 };
@@ -760,7 +762,45 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		rows: rows.map((r) => ({ id: r.id, chain: r.chain, capturedAt: r.capturedAt })),
 	});
 	const accumulator = new Map<string, WalletTokenRow>();
-	const allowedSymbols = new Set(['ETH', 'WBTC', 'LINK', 'POL', 'AVAX']);
+	const allowedSymbols = new Set([
+		'ETH',
+		'WETH',
+		'WBTC',
+		'BTC',
+		'LINK',
+		'POL',
+		'MATIC',
+		'WMATIC',
+		'AVAX',
+		'USDC',
+		'USDT',
+		'AAVE',
+		'STETH',
+		'WSTETH',
+		'QUICK',
+	]);
+	const VERIFIED_CONTRACTS_BY_CHAIN: Record<string, Record<string, Set<string>>> = {
+		ethereum: {
+			WETH: new Set(['0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2']),
+			USDC: new Set(['0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48']),
+			USDT: new Set(['0xdac17f958d2ee523a2206206994597c13d831ec7']),
+			WBTC: new Set(['0x2260fac5e5542a773aa44fbcfedf7c193bc2c599']),
+			LINK: new Set(['0x514910771af9ca656af840dff83e8264ecf986ca']),
+			AAVE: new Set(['0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9']),
+			STETH: new Set(['0xae7ab96520de3a18e5e111b5eaab095312d7fe84']),
+			WSTETH: new Set(['0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0']),
+		},
+		polygon: {
+			WETH: new Set(['0x7ceb23fd6bc0add59e62ac25578270cff1b9f619']),
+			USDC: new Set(['0x2791bca1f2de4661ed88a30c99a7a9449aa84174']),
+			USDT: new Set(['0xc2132d05d31c914a87c6611c10748aeb04b58e8f']),
+			WBTC: new Set(['0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6']),
+			LINK: new Set(['0x53e0bca35ec356bd5dddfebbd1fc0fd03fabad39']),
+			AAVE: new Set(['0xd6df932a45c0f255f85145f286ea0b292b21c90b']),
+			WMATIC: new Set(['0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270']),
+			QUICK: new Set(['0x831753dd7087cac61ab5644b308642cc1c33dc13']),
+		},
+	};
 	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche']);
 
 	function normalizeSymbol(symbol: string) {
@@ -834,13 +874,37 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				'usdValue' in token
 					? Number((token as SnapshotToken).usdValue ?? 0)
 					: Number((token as SnapshotTokenEntry).valueUsd ?? 0);
+			const tokenAddress = String(
+				(token as any).tokenAddress ?? (token as any).contractAddress ?? '',
+			)
+				.trim()
+				.toLowerCase();
+			const isNative = !tokenAddress || tokenAddress === 'native';
 
 			if (!allowedSymbols.has(tokenSymbol) || !allowedChains.has(tokenChain)) {
 				continue;
 			}
 
 			const normalizedAmount = Number.isFinite(amount) ? amount : 0;
-			const normalizedUsd = Number.isFinite(usdValue) ? usdValue : 0;
+			let normalizedUsd = Number.isFinite(usdValue) ? usdValue : 0;
+			let unpricedReason: string | null = null;
+
+			if (!isNative) {
+				const verifiedForChain = VERIFIED_CONTRACTS_BY_CHAIN[tokenChain];
+				const verifiedSet = verifiedForChain?.[tokenSymbol];
+				if (verifiedSet && !verifiedSet.has(tokenAddress)) {
+					unpricedReason = 'unverified_contract';
+					normalizedUsd = 0;
+					if (import.meta.env.WALLET_DEBUG === '1') {
+						console.log('[pricing] unverified contract', {
+							walletId,
+							chain: tokenChain,
+							symbol: tokenSymbol,
+							contract: tokenAddress,
+						});
+					}
+				}
+			}
 
 			if (normalizedAmount <= 0 && normalizedUsd <= 0) {
 				continue;
@@ -859,6 +923,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				usdValue: 0,
 				capturedAt: row.capturedAt,
 				priceUsd: normalizedPrice || null,
+				unpricedReason: null,
 			};
 
 			existing.amount += normalizedAmount;
@@ -866,7 +931,10 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			if (!existing.capturedAt) {
 				existing.capturedAt = row.capturedAt;
 			}
-			if (!existing.priceUsd && normalizedPrice) {
+			if (unpricedReason) {
+				existing.priceUsd = null;
+				existing.unpricedReason = unpricedReason;
+			} else if (!existing.priceUsd && normalizedPrice) {
 				existing.priceUsd = normalizedPrice;
 			}
 			accumulator.set(key, existing);

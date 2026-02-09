@@ -17,6 +17,24 @@ export const PRICE_SYMBOL_ALLOWLIST = new Set([
 	'ZEC',
 	'SUI',
 	'POL',
+	'MATIC',
+	'WMATIC',
+	'WPOL',
+	'WETH',
+	'WBTC',
+	'AAVE',
+	'STETH',
+	'WSTETH',
+	'QUICK',
+]);
+
+const SYMBOL_NORMALIZATION_MAP = new Map<string, string>([
+	['WETH', 'ETH'],
+	['WMATIC', 'MATIC'],
+	['WBTC', 'BTC'],
+	['USDCE', 'USDC'],
+	['USDC.E', 'USDC'],
+	['WSTETH', 'STETH'],
 ]);
 
 export function sanitizeSymbol(raw: string): string | null {
@@ -27,6 +45,10 @@ export function sanitizeSymbol(raw: string): string | null {
 	if (normalized.length < 2 || normalized.length > 15) return null;
 	if (!TICKER_RE.test(normalized)) return null;
 	return normalized;
+}
+
+function normalizePriceSymbol(symbol: string): string {
+	return SYMBOL_NORMALIZATION_MAP.get(symbol) ?? symbol;
 }
 
 export function sanitizeSymbols(input: string[], max = MAX_SYMBOLS): string[] {
@@ -43,6 +65,7 @@ export function sanitizeSymbols(input: string[], max = MAX_SYMBOLS): string[] {
 
 export function allowlistSymbols(input: string[]) {
 	const sanitized = sanitizeSymbols(input, Number.MAX_SAFE_INTEGER);
-	const allowed = sanitized.filter((symbol) => PRICE_SYMBOL_ALLOWLIST.has(symbol));
-	return allowed.sort();
+	const normalized = sanitized.map(normalizePriceSymbol);
+	const allowed = normalized.filter((symbol) => PRICE_SYMBOL_ALLOWLIST.has(symbol));
+	return Array.from(new Set(allowed)).sort();
 }
