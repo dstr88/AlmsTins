@@ -1,5 +1,8 @@
 // src/lib/alchemy.ts
 
+// Server startup env sanity (boolean only).
+console.log('[env] ALCHEMY_API_KEY present', Boolean(process.env.ALCHEMY_API_KEY));
+
 export type AlchemyChain = 'eth-mainnet' | 'polygon-mainnet';
 
 type AlchemyRpcBody = {
@@ -15,7 +18,7 @@ const ALCHEMY_BASE_URL: Record<AlchemyChain, string> = {
 };
 
 export async function alchemyRpc(chain: AlchemyChain, body: AlchemyRpcBody) {
-	const apiKey = import.meta.env.ALCHEMY_API_KEY;
+	const apiKey = process.env.ALCHEMY_API_KEY ?? import.meta.env.ALCHEMY_API_KEY;
 	if (!apiKey) throw new Error('Missing ALCHEMY_API_KEY');
 
 	const url = `${ALCHEMY_BASE_URL[chain]}/${apiKey}`;
