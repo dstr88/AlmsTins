@@ -1,10 +1,118 @@
 import type { APIRoute } from 'astro';
 import { getWalletTokenBreakdown, insertWalletSnapshotFromValueBreakdown } from '@/lib/networth';
-import { computeWalletValue } from '@/lib/sync/syncWalletValue';
 import type { SupportedChain } from '@/lib/constants';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
 import { db } from '@/lib/db';
+import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
+
+const ETHEREUM_CHAIN_ID = 1;
+const POLYGON_CHAIN_ID = 137;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function mapWithConcurrency<T, R>(
+	items: T[],
+	limit: number,
+	mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+	const results: R[] = [];
+	let index = 0;
+	while (index < items.length) {
+		const batch = items.slice(index, index + limit);
+		const batchResults = await Promise.all(batch.map(mapper));
+		results.push(...batchResults);
+		index += limit;
+	}
+	return results;
+}
+
+function toDecimal(value: bigint, decimals: number) {
+	if (decimals <= 0) return Number(value);
+	const negative = value < 0n;
+	const abs = negative ? -value : value;
+	const base = 10n ** BigInt(decimals);
+	const whole = abs / base;
+	const fraction = abs % base;
+	let fracStr = fraction.toString().padStart(decimals, '0');
+	fracStr = fracStr.replace(/0+$/, '');
+	const numStr = fracStr ? `${whole.toString()}.${fracStr}` : whole.toString();
+	const num = Number(numStr);
+	if (!Number.isFinite(num)) return 0;
+	return negative ? -num : num;
+}
+
+async function buildAlchemySnapshot(
+	chainId: number,
+	walletId: string,
+	tenantId: string,
+	address: string,
+) {
+	const alchemyChain = chainId === ETHEREUM_CHAIN_ID ? 'eth-mainnet' : 'polygon-mainnet';
+	const chain = chainId === ETHEREUM_CHAIN_ID ? 'ethereum' : 'polygon';
+	const balancesResult = await getTokenBalances(alchemyChain, address);
+	const rawBalances = Array.isArray(balancesResult?.tokenBalances) ? balancesResult.tokenBalances : [];
+	const nonZeroBalances = rawBalances.filter((entry) => {
+		try {
+			return BigInt(entry.tokenBalance ?? '0') > 0n;
+		} catch {
+			return false;
+		}
+	});
+
+	const contracts = nonZeroBalances
+		.map((entry) => String(entry.contractAddress ?? '').toLowerCase())
+		.filter(Boolean);
+
+	const metadataList = await mapWithConcurrency(contracts, 5, async (contract) => {
+		try {
+			const metadata = await getTokenMetadata(alchemyChain, contract);
+			return { contract, metadata };
+		} catch {
+			return { contract, metadata: { decimals: 18, name: null, symbol: null } };
+		}
+	});
+
+	const metadataByContract = new Map<string, Awaited<ReturnType<typeof getTokenMetadata>>>();
+	for (const entry of metadataList) {
+		metadataByContract.set(entry.contract, entry.metadata);
+	}
+
+	const tokens = nonZeroBalances
+		.map((entry) => {
+			const contract = String(entry.contractAddress ?? '').toLowerCase();
+			if (!contract) return null;
+			const metadata = metadataByContract.get(contract);
+			const decimals = typeof metadata?.decimals === 'number' ? metadata.decimals : 18;
+			if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) return null;
+			let balance = 0n;
+			try {
+				balance = BigInt(entry.tokenBalance ?? '0');
+			} catch {
+				return null;
+			}
+			if (balance <= 0n) return null;
+			const amount = toDecimal(balance, decimals);
+			if (!Number.isFinite(amount) || amount <= 0) return null;
+			return {
+				symbol: String(metadata?.symbol ?? '').trim().toUpperCase(),
+				amount,
+				priceUsd: null,
+				valueUsd: null,
+				tokenAddress: contract,
+			};
+		})
+		.filter((token): token is { symbol: string; amount: number; priceUsd: null; valueUsd: null; tokenAddress: string } =>
+			Boolean(token),
+		);
+
+	return {
+		tenantId,
+		walletId,
+		chain: chain as SupportedChain,
+		tokens,
+		totalUsd: 0,
+	};
+}
 
 export const prerender = false;
 
@@ -13,6 +121,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	const startedAt = Date.now();
 	const url = new URL(request.url);
 	const { tenantId } = await requireTenantSession(request);
+	const requestId = request.headers.get('x-request-id') ?? undefined;
 
 	console.log('[tokens API] START', { walletId });
 	console.log('[wallet.tokens] START', {
@@ -30,7 +139,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 	try {
 		const walletResult = await db.execute({
-			sql: 'SELECT id FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+			sql: 'SELECT id, address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 			args: [walletId, tenantId],
 		});
 		if (!walletResult.rows?.length) {
@@ -39,107 +148,36 @@ export const GET: APIRoute = async ({ params, request }) => {
 				headers: { 'Content-Type': 'application/json' },
 			});
 		}
-
-		let result = await getWalletTokenBreakdown(tenantId, walletId);
 		const refreshMissing = url.searchParams.get('refreshMissing') === '1';
+		const walletRow = walletResult.rows?.[0] as { address?: string | null } | undefined;
+		const walletAddress = String(walletRow?.address ?? '').trim();
 		if (refreshMissing) {
-			console.log('[tokens.refreshMissing] start', { tenantId, walletId }); // TEMP DEBUG
-			const repriceStart = Date.now();
-			const symbolsNeedingPrice = Array.from(
-				new Set(
-					result.tokens
-						.map((token) => {
-							const symbol = String(token.tokenSymbol ?? '').trim().toUpperCase();
-							const amount = Number(token.amount ?? 0);
-							const priceRaw = token.priceUsd ?? null;
-							const valueRaw = token.usdValue ?? null;
-							const price = priceRaw === null ? null : Number(priceRaw);
-							const value = valueRaw === null ? null : Number(valueRaw);
-							if (!symbol) return null;
-							if (!Number.isFinite(amount) || amount <= 0) return null;
-							if (price === null || !Number.isFinite(price) || price <= 0) return symbol;
-							if (value === null || !Number.isFinite(value) || value <= 0) return symbol;
-							return null;
-						})
-						.filter((symbol): symbol is string => Boolean(symbol)),
-				),
-			);
-			console.log('[tokens.refreshMissing] symbolsNeedingPrice', { walletId, symbolsNeedingPrice }); // TEMP DEBUG
-			const repriceResult = await repriceMissingWalletTokens({
-				tenantId,
-				walletId,
-				symbols: symbolsNeedingPrice.length ? symbolsNeedingPrice : undefined,
-				trigger: 'tokens.refreshMissing',
-				lockTtlSeconds: 60,
-			});
-			console.log('[tokens.refreshMissing] repriced', { // TEMP DEBUG
-				tenantId,
-				walletId,
-				updatedSnapshots: repriceResult.updatedRows ?? 0,
-				updatedTokens: repriceResult.updatedTokens ?? 0,
-				elapsedMs: Date.now() - repriceStart,
-			});
-			const desiredChains: SupportedChain[] = ['ethereum', 'polygon', 'avalanche'];
-			const snapshotChains = new Set(result.snapshots.map((snapshot) => snapshot.chain.toLowerCase()));
-			const missingChains = desiredChains.filter((chain) => !snapshotChains.has(chain));
-
-			if (missingChains.length) {
-				console.log('[wallet.tokens] refreshing missing chains', {
-					walletId,
-					address: result.address,
-					missingChains,
-				});
-
-				const breakdowns = await computeWalletValue(tenantId, walletId, result.address, missingChains);
-
-				for (const breakdown of breakdowns) {
-					if (breakdown.totalUsd === 0 && breakdown.tokens.length === 0) {
-						console.log('[wallet.tokens] skipping empty snapshot', {
-							walletId,
-							chain: breakdown.chain,
-						});
-						continue;
-					}
+			const refreshStart = Date.now();
+			console.log('[tokens.refreshMissing] START', { requestId, walletId, tenantId });
+			if (walletAddress) {
+				const snapshotChains: Array<{ chainId: number }> = [
+					{ chainId: ETHEREUM_CHAIN_ID },
+					{ chainId: POLYGON_CHAIN_ID },
+				];
+				for (const { chainId } of snapshotChains) {
+					const breakdown = await buildAlchemySnapshot(chainId, walletId, tenantId, walletAddress);
 					await insertWalletSnapshotFromValueBreakdown(breakdown);
+					console.log('[tokens.refreshMissing] SNAPSHOT', {
+						chainId,
+						tokenCount: breakdown.tokens.length,
+						totalsUsd: breakdown.totalUsd ?? 0,
+					});
+					await sleep(100);
 				}
 			}
-
-			result = await getWalletTokenBreakdown(tenantId, walletId);
-			const normalizeToken = (token: typeof result.tokens[number]) => {
-				const amount = Number(token.amount ?? 0);
-				const priceUsd = token.priceUsd === 0 ? null : token.priceUsd ?? null;
-				let usdValue = token.usdValue === 0 ? null : token.usdValue ?? null;
-				if (priceUsd === null) {
-					usdValue = null;
-				} else if (Number.isFinite(amount) && amount > 0) {
-					usdValue = amount * priceUsd;
-				}
-				return {
-					...token,
-					priceUsd,
-					usdValue,
-				};
-			};
-			const normalizedTokens = result.tokens.map(normalizeToken);
-			const normalizedTotalsUsd = normalizedTokens.reduce(
-				(sum, token) => sum + (Number(token.usdValue ?? 0) || 0),
-				0,
-			);
-			const firstToken = result.tokens[0] ?? null;
-			console.log('[tokens.refreshMissing] after fetch', { // TEMP DEBUG
-				tenantId,
+			console.log('[tokens.refreshMissing] END', {
+				requestId,
 				walletId,
-				totalsUsd: normalizedTotalsUsd,
-				firstToken: firstToken
-					? {
-							symbol: firstToken.tokenSymbol,
-							amount: firstToken.amount,
-							priceUsd: firstToken.priceUsd,
-							usdValue: firstToken.usdValue,
-					  }
-					: null,
+				elapsedMs: Date.now() - refreshStart,
 			});
 		}
+
+		let result = await getWalletTokenBreakdown(tenantId, walletId);
 
 		console.log('[wallet.tokens] SUCCESS', {
 			walletId,
