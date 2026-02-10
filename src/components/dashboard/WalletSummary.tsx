@@ -317,13 +317,9 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								label: payload.label ?? null,
 								address: String(payload.address ?? ''),
 								totalUsd,
-								tokens: tokens
-									.filter(
-										(token) =>
-											Number(token.usdValue ?? 0) > 0 ||
-											token.unpricedReason === 'unverified_contract',
-									)
-									.sort((a, b) => Number(b.usdValue ?? 0) - Number(a.usdValue ?? 0)),
+								tokens: tokens.sort(
+									(a, b) => Number(b.usdValue ?? -1) - Number(a.usdValue ?? -1),
+								),
 							},
 						},
 						'refresh.success',
@@ -503,10 +499,10 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												maximumFractionDigits: 6,
 											})}
 										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--pl">
+										<span className="wallet-summary__cell wallet-summary__cell--pl truncate">
 											{priceLabel}
 										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--value">
+										<span className="wallet-summary__cell wallet-summary__cell--value truncate">
 											{valueLabel}
 										</span>
 									</div>
@@ -594,10 +590,10 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												maximumFractionDigits: 6,
 											})}
 										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--pl">
+										<span className="wallet-summary__cell wallet-summary__cell--pl truncate">
 											{priceLabel}
 										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--value">
+										<span className="wallet-summary__cell wallet-summary__cell--value truncate">
 											{valueLabel}
 										</span>
 									</div>

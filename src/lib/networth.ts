@@ -791,13 +791,12 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			WSTETH: new Set(['0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0']),
 		},
 		polygon: {
-			WETH: new Set(['0x7ceb23fd6bc0add59e62ac25578270cff1b9f619']),
+			WMATIC: new Set(['0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270']),
 			USDC: new Set(['0x2791bca1f2de4661ed88a30c99a7a9449aa84174']),
 			USDT: new Set(['0xc2132d05d31c914a87c6611c10748aeb04b58e8f']),
 			WBTC: new Set(['0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6']),
 			LINK: new Set(['0x53e0bca35ec356bd5dddfebbd1fc0fd03fabad39']),
 			AAVE: new Set(['0xd6df932a45c0f255f85145f286ea0b292b21c90b']),
-			WMATIC: new Set(['0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270']),
 			QUICK: new Set(['0x831753dd7087cac61ab5644b308642cc1c33dc13']),
 		},
 	};
@@ -859,7 +858,9 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		);
 		console.log('[tokens API] parsed tokens for row', row.id, tokens);
 
-		let unverifiedLogCount = 0;
+		if (!(globalThis as any).unverifiedLogCount) {
+			(globalThis as any).unverifiedLogCount = 0;
+		}
 		for (const token of tokens) {
 			const tokenSymbol = normalizeSymbol(((token as any).symbol ?? 'UNKNOWN').toUpperCase());
 			const tokenChain = normalizeChain(String((token as any).chain ?? row.chain ?? ''));
@@ -891,13 +892,18 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			let unpricedReason: string | null = null;
 
 			if (!isNative) {
-				const verifiedForChain = VERIFIED_CONTRACTS_BY_CHAIN[tokenChain];
-				const verifiedSet = verifiedForChain?.[tokenSymbol];
-				if (verifiedSet && !verifiedSet.has(tokenAddress)) {
+				const verifiedSet = VERIFIED_CONTRACTS_BY_CHAIN[tokenChain]?.[tokenSymbol];
+				if (
+					tokenSymbol !== 'ETH' &&
+					tokenSymbol !== 'MATIC' &&
+					tokenSymbol !== 'POL' &&
+					verifiedSet &&
+					!verifiedSet.has(tokenAddress)
+				) {
 					unpricedReason = 'unverified_contract';
 					normalizedUsd = null;
-					if (import.meta.env.WALLET_DEBUG === '1' && unverifiedLogCount < 20) {
-						unverifiedLogCount += 1;
+					if (import.meta.env.WALLET_DEBUG === '1' && (globalThis as any).unverifiedLogCount < 20) {
+						(globalThis as any).unverifiedLogCount += 1;
 						console.log('[pricing] unverified contract', {
 							walletId,
 							chain: tokenChain,
