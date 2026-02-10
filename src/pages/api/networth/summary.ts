@@ -65,16 +65,20 @@ export const GET: APIRoute = async ({ request, locals }) => {
 						const freshSummary = await getLatestNetWorthSummary(tenantId);
 						const normalized = normalizeNetWorthSummary({ summary: freshSummary });
 						const capturedAtByChain = await getLatestSnapshotCapturedAtByChain(tenantId);
-						const byChainWithCapturedAt = normalized.byChain.map((row) => ({
+						const preCaptured = normalized.byChain.map((row) => ({
 							...row,
 							capturedAt: row.capturedAt ?? capturedAtByChain.get(row.chain) ?? null,
 						}));
 						const overallCapturedAt =
-							byChainWithCapturedAt
+							preCaptured
 								.map((row) => row.capturedAt)
 								.filter(Boolean)
 								.sort()
-								.at(-1) ?? null;
+								.at(-1) ?? new Date().toISOString();
+						const byChainWithCapturedAt = preCaptured.map((row) => ({
+							...row,
+							capturedAt: row.capturedAt ?? overallCapturedAt,
+						}));
 						if (import.meta.env.WALLET_DEBUG === '1') {
 							console.log('[networth.summary] capturedAtByChain', {
 								tenantId,
@@ -114,16 +118,20 @@ export const GET: APIRoute = async ({ request, locals }) => {
 		const summary = await getLatestNetWorthSummary(tenantId);
 		const normalized = normalizeNetWorthSummary({ summary });
 		const capturedAtByChain = await getLatestSnapshotCapturedAtByChain(tenantId);
-		const byChainWithCapturedAt = normalized.byChain.map((row) => ({
+		const preCaptured = normalized.byChain.map((row) => ({
 			...row,
 			capturedAt: row.capturedAt ?? capturedAtByChain.get(row.chain) ?? null,
 		}));
 		const overallCapturedAt =
-			byChainWithCapturedAt
+			preCaptured
 				.map((row) => row.capturedAt)
 				.filter(Boolean)
 				.sort()
-				.at(-1) ?? null;
+				.at(-1) ?? new Date().toISOString();
+		const byChainWithCapturedAt = preCaptured.map((row) => ({
+			...row,
+			capturedAt: row.capturedAt ?? overallCapturedAt,
+		}));
 		if (import.meta.env.WALLET_DEBUG === '1') {
 			console.log('[networth.summary] capturedAtByChain', {
 				tenantId,

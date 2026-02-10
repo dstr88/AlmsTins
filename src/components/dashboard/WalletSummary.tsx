@@ -19,7 +19,7 @@ type WalletSummaryState =
 					tokenSymbol: string;
 					chain: string;
 					amount: number;
-					usdValue: number;
+					usdValue: number | null;
 					priceUsd?: number | null;
 					unpricedReason?: string | null;
 					capturedAt?: string | null;
@@ -37,7 +37,7 @@ type WalletSummaryState =
 					tokenSymbol: string;
 					chain: string;
 					amount: number;
-					usdValue: number;
+					usdValue: number | null;
 					priceUsd?: number | null;
 					unpricedReason?: string | null;
 					capturedAt?: string | null;
@@ -286,9 +286,16 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 					throw new Error(payload?.message ?? payload?.error ?? 'Unable to load wallet tokens.');
 				}
 				const tokens = Array.isArray(payload.tokens) ? payload.tokens : [];
-				const totalUsd = tokens.reduce((sum, token) => sum + Number(token.usdValue ?? 0), 0);
-				const isDust = Math.abs(totalUsd) < DUST_THRESHOLD_USD;
-				if (isDust) {
+				const totalUsd = tokens.reduce(
+					(sum, token) => (Number.isFinite(token.usdValue) ? sum + Number(token.usdValue) : sum),
+					0,
+				);
+				const isEmpty = tokens.length === 0;
+				const isDust = !isEmpty && Math.abs(totalUsd) < DUST_THRESHOLD_USD;
+				if (WALLET_DEBUG) {
+					console.log('[WalletSummary.refresh] dust', { walletId, isDust, totalUsd, tokenCount: tokens.length });
+				}
+				if (isEmpty) {
 					if (!cancelled) {
 						setStateLogged(
 							{
@@ -421,10 +428,26 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 					<div className="wallet-summary__status wallet-summary__status--error">
 						Stale: refresh failed. Showing last known balances.
 					</div>
+					{(() => {
+						const tokens = state.wallet.tokens ?? [];
+						const unpricedCount = tokens.filter((t) => t.unpricedReason || t.usdValue == null).length;
+						const showBanner = tokens.length > 0 && unpricedCount >= Math.ceil(tokens.length * 0.5);
+						return showBanner ? (
+							<div className="wallet-summary__status">
+								Holdings loaded; most tokens are unpriced/unverified (likely spam).
+							</div>
+						) : null;
+					})()}
 					<div className="wallet-summary__total">
 						<span className="wallet-summary__total-label">Total</span>
 						<span className="wallet-summary__total-value">
-							{currencyFormatter.format(state.wallet.totalUsd)}
+							{(() => {
+								const tokens = state.wallet.tokens ?? [];
+								const unpricedCount = tokens.filter((t) => t.unpricedReason || t.usdValue == null).length;
+								return state.wallet.totalUsd === 0 && unpricedCount > 0
+									? 'Unpriced'
+									: currencyFormatter.format(state.wallet.totalUsd);
+							})()}
 						</span>
 					</div>
 					<section className="wallet-summary__chain">
@@ -496,10 +519,26 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 
 			{state.status === 'ready' ? (
 				<>
+					{(() => {
+						const tokens = state.wallet.tokens ?? [];
+						const unpricedCount = tokens.filter((t) => t.unpricedReason || t.usdValue == null).length;
+						const showBanner = tokens.length > 0 && unpricedCount >= Math.ceil(tokens.length * 0.5);
+						return showBanner ? (
+							<div className="wallet-summary__status">
+								Holdings loaded; most tokens are unpriced/unverified (likely spam).
+							</div>
+						) : null;
+					})()}
 					<div className="wallet-summary__total">
 						<span className="wallet-summary__total-label">Total</span>
 						<span className="wallet-summary__total-value">
-							{currencyFormatter.format(state.wallet.totalUsd)}
+							{(() => {
+								const tokens = state.wallet.tokens ?? [];
+								const unpricedCount = tokens.filter((t) => t.unpricedReason || t.usdValue == null).length;
+								return state.wallet.totalUsd === 0 && unpricedCount > 0
+									? 'Unpriced'
+									: currencyFormatter.format(state.wallet.totalUsd);
+							})()}
 						</span>
 					</div>
 					<section className="wallet-summary__chain">

@@ -653,7 +653,7 @@ export type WalletTokenRow = {
 	tokenSymbol: string;
 	chain: string;
 	amount: number;
-	usdValue: number;
+	usdValue: number | null;
 	capturedAt?: string | null;
 	priceUsd?: number | null;
 	unpricedReason?: string | null;
@@ -859,6 +859,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		);
 		console.log('[tokens API] parsed tokens for row', row.id, tokens);
 
+		let unverifiedLogCount = 0;
 		for (const token of tokens) {
 			const tokenSymbol = normalizeSymbol(((token as any).symbol ?? 'UNKNOWN').toUpperCase());
 			const tokenChain = normalizeChain(String((token as any).chain ?? row.chain ?? ''));
@@ -886,7 +887,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			}
 
 			const normalizedAmount = Number.isFinite(amount) ? amount : 0;
-			let normalizedUsd = Number.isFinite(usdValue) ? usdValue : 0;
+			let normalizedUsd: number | null = Number.isFinite(usdValue) ? usdValue : null;
 			let unpricedReason: string | null = null;
 
 			if (!isNative) {
@@ -894,40 +895,48 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				const verifiedSet = verifiedForChain?.[tokenSymbol];
 				if (verifiedSet && !verifiedSet.has(tokenAddress)) {
 					unpricedReason = 'unverified_contract';
-					normalizedUsd = 0;
-					if (import.meta.env.WALLET_DEBUG === '1') {
+					normalizedUsd = null;
+					if (import.meta.env.WALLET_DEBUG === '1' && unverifiedLogCount < 20) {
+						unverifiedLogCount += 1;
 						console.log('[pricing] unverified contract', {
 							walletId,
 							chain: tokenChain,
 							symbol: tokenSymbol,
 							contract: tokenAddress,
+							reason: unpricedReason,
 						});
 					}
 				}
 			}
 
-			if (normalizedAmount <= 0 && normalizedUsd <= 0) {
+			if (normalizedAmount <= 0 && (!Number.isFinite(normalizedUsd ?? NaN) || (normalizedUsd ?? 0) <= 0)) {
 				continue;
 			}
 
 			const key = `${tokenChain}::${tokenSymbol}`;
 
 			const priceFromToken =
-				'priceUsd' in token ? Number((token as SnapshotTokenEntry).priceUsd ?? 0) : normalizedUsd / normalizedAmount;
+				'priceUsd' in token
+					? Number((token as SnapshotTokenEntry).priceUsd ?? 0)
+					: normalizedUsd === null
+						? 0
+						: normalizedUsd / normalizedAmount;
 			const normalizedPrice = Number.isFinite(priceFromToken) && normalizedAmount > 0 ? priceFromToken : 0;
 
 			const existing = accumulator.get(key) ?? {
 				tokenSymbol,
 				chain: tokenChain,
 				amount: 0,
-				usdValue: 0,
+				usdValue: null,
 				capturedAt: row.capturedAt,
 				priceUsd: normalizedPrice || null,
 				unpricedReason: null,
 			};
 
 			existing.amount += normalizedAmount;
-			existing.usdValue += normalizedUsd;
+			if (normalizedUsd !== null) {
+				existing.usdValue = (existing.usdValue ?? 0) + normalizedUsd;
+			}
 			if (!existing.capturedAt) {
 				existing.capturedAt = row.capturedAt;
 			}
