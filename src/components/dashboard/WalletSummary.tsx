@@ -523,12 +523,13 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr 2fr' }}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
 										<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
 										<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl">P/L</span>
 									</div>
 									{group.items.map((token: any) => {
 										const isUnverified = token.unpricedReason === 'unverified_contract';
@@ -558,7 +559,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr 2fr' }}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days">
 													{String(daysHeld)}
@@ -574,6 +575,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
 													{valueLabel}
 												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--pl">—</span>
 											</div>
 										);
 									})}
@@ -625,12 +627,13 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr 2fr' }}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
 										<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
 										<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl">P/L</span>
 									</div>
 									{group.items.map((token: any) => {
 										const isUnverified = token.unpricedReason === 'unverified_contract';
@@ -660,7 +663,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr 2fr' }}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days">
 													{String(daysHeld)}
@@ -676,6 +679,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
 													{valueLabel}
 												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--pl">—</span>
 											</div>
 										);
 									})}

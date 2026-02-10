@@ -76,7 +76,7 @@
 
 .wallet-summary__row {
 	display: grid;
-	grid-template-columns: 80px 3fr 2fr 2fr;
+	grid-template-columns: 80px 3fr 2fr 2fr 2fr;
 	column-gap: var(--space-sm);
 	align-items: baseline;
 	font-variant-numeric: tabular-nums;
@@ -126,7 +126,8 @@
 		grid-template-areas:
 			"token value"
 			"days value"
-			"qty value";
+			"qty value"
+			"pl value";
 		row-gap: var(--space-xs);
 	}
 
@@ -147,6 +148,10 @@
 
 	.wallet-summary__cell--value {
 		grid-area: value;
+	}
+
+	.wallet-summary__cell--pl {
+		grid-area: pl;
 	}
 
 	.wallet-summary__row--header {
