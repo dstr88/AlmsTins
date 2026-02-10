@@ -76,7 +76,7 @@
 
 .wallet-summary__row {
 	display: grid;
-	grid-template-columns: 80px 2.5fr 1.8fr 1.5fr 2fr;
+	grid-template-columns: 80px 3fr 2fr 2fr;
 	column-gap: var(--space-sm);
 	align-items: baseline;
 	font-variant-numeric: tabular-nums;

@@ -523,35 +523,22 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '80px 2.5fr 1.8fr 1.5fr 2fr' }}
+										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
 										<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
-										<span className="wallet-summary__cell wallet-summary__cell--pl text-right">Price</span>
 										<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 									</div>
 									{group.items.map((token: any) => {
 										const isUnverified = token.unpricedReason === 'unverified_contract';
-										const hasPrice =
-											!isUnverified && Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0;
 										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
-										let priceUsd = hasPrice
-											? Number(token.priceUsd)
-											: hasValue && Number(token.amount ?? 0) > 0
-												? Number(token.usdValue) / Number(token.amount ?? 1)
-												: null;
-										let priceLabel = isUnverified
-											? 'Unpriced (unverified)'
-											: priceUsd == null
-												? 'Unpriced'
-												: currencyFormatter.format(priceUsd);
 										let valueLabel = isUnverified
 											? 'Unpriced (unverified)'
 											: token.usdValue == null
 												? 'Unpriced'
 												: currencyFormatter.format(Number(token.usdValue));
-										if (!isUnverified && (token.usdValue == null || priceUsd == null)) {
+										if (!isUnverified && token.usdValue == null) {
 											const symbol = String(token.tokenSymbol ?? '').toUpperCase();
 											let fallbackPrice: number | null = null;
 											if (symbol === 'WBTC') fallbackPrice = 70000;
@@ -560,8 +547,6 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											if (symbol === 'WMATIC') fallbackPrice = 0.095;
 											if (fallbackPrice) {
 												const amount = Number(token.amount ?? 0);
-												priceUsd = fallbackPrice;
-												priceLabel = currencyFormatter.format(fallbackPrice);
 												valueLabel = currencyFormatter.format(fallbackPrice * amount);
 											}
 										}
@@ -573,7 +558,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '80px 2.5fr 1.8fr 1.5fr 2fr' }}
+												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days">
 													{String(daysHeld)}
@@ -585,9 +570,6 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 													{Number(token.amount ?? 0).toLocaleString(undefined, {
 														maximumFractionDigits: 6,
 													})}
-												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--pl truncate text-right">
-													{priceLabel}
 												</span>
 												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
 													{valueLabel}
@@ -643,35 +625,22 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '80px 2.5fr 1.8fr 1.5fr 2fr' }}
+										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
 										<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
-										<span className="wallet-summary__cell wallet-summary__cell--pl text-right">Price</span>
 										<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 									</div>
 									{group.items.map((token: any) => {
 										const isUnverified = token.unpricedReason === 'unverified_contract';
-										const hasPrice =
-											!isUnverified && Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0;
 										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
-										let priceUsd = hasPrice
-											? Number(token.priceUsd)
-											: hasValue && Number(token.amount ?? 0) > 0
-												? Number(token.usdValue) / Number(token.amount ?? 1)
-												: null;
-										let priceLabel = isUnverified
-											? 'Unpriced (unverified)'
-											: priceUsd == null
-												? 'Unpriced'
-												: currencyFormatter.format(priceUsd);
 										let valueLabel = isUnverified
 											? 'Unpriced (unverified)'
 											: token.usdValue == null
 												? 'Unpriced'
 												: currencyFormatter.format(Number(token.usdValue));
-										if (!isUnverified && (token.usdValue == null || priceUsd == null)) {
+										if (!isUnverified && token.usdValue == null) {
 											const symbol = String(token.tokenSymbol ?? '').toUpperCase();
 											let fallbackPrice: number | null = null;
 											if (symbol === 'WBTC') fallbackPrice = 70000;
@@ -680,8 +649,6 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											if (symbol === 'WMATIC') fallbackPrice = 0.095;
 											if (fallbackPrice) {
 												const amount = Number(token.amount ?? 0);
-												priceUsd = fallbackPrice;
-												priceLabel = currencyFormatter.format(fallbackPrice);
 												valueLabel = currencyFormatter.format(fallbackPrice * amount);
 											}
 										}
@@ -693,7 +660,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '80px 2.5fr 1.8fr 1.5fr 2fr' }}
+												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days">
 													{String(daysHeld)}
@@ -705,9 +672,6 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 													{Number(token.amount ?? 0).toLocaleString(undefined, {
 														maximumFractionDigits: 6,
 													})}
-												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--pl truncate text-right">
-													{priceLabel}
 												</span>
 												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
 													{valueLabel}
