@@ -792,12 +792,18 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		},
 		polygon: {
 			WMATIC: new Set(['0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270']),
-			USDC: new Set(['0x2791bca1f2de4661ed88a30c99a7a9449aa84174']),
+			USDC: new Set([
+				'0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
+				'0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
+			]),
 			USDT: new Set(['0xc2132d05d31c914a87c6611c10748aeb04b58e8f']),
 			WBTC: new Set(['0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6']),
 			LINK: new Set(['0x53e0bca35ec356bd5dddfebbd1fc0fd03fabad39']),
 			AAVE: new Set(['0xd6df932a45c0f255f85145f286ea0b292b21c90b']),
-			QUICK: new Set(['0x831753dd7087cac61ab5644b308642cc1c33dc13']),
+			QUICK: new Set([
+				'0x831753dd7087cac61ab5644b308642cc1c33dc13',
+				'0xb5c064f955d8e7f38fe0460c556a72987494ee17',
+			]),
 		},
 	};
 	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche']);
@@ -898,7 +904,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 					tokenSymbol !== 'MATIC' &&
 					tokenSymbol !== 'POL' &&
 					verifiedSet &&
-					!verifiedSet.has(tokenAddress)
+					!verifiedSet.has(tokenAddress.toLowerCase())
 				) {
 					unpricedReason = 'unverified_contract';
 					normalizedUsd = null;
