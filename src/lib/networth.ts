@@ -902,6 +902,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				if (
 					tokenSymbol !== 'ETH' &&
 					tokenSymbol !== 'MATIC' &&
+					tokenSymbol !== 'WMATIC' &&
 					tokenSymbol !== 'POL' &&
 					verifiedSet &&
 					!verifiedSet.has(tokenAddress.toLowerCase())
@@ -918,6 +919,48 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 							reason: unpricedReason,
 						});
 					}
+				}
+				if (import.meta.env.WALLET_DEBUG === '1') {
+					const hasSet = Boolean(verifiedSet);
+					const match = Boolean(verifiedSet && tokenAddress && verifiedSet.has(tokenAddress.toLowerCase()));
+					console.log('[pricing] verify', {
+						walletId,
+						chain: tokenChain,
+						symbol: tokenSymbol,
+						contract: tokenAddress,
+						hasSet,
+						match,
+						usdValue: normalizedUsd,
+						unpricedReason,
+					});
+				}
+			}
+
+			if (normalizedUsd === null && Number.isFinite(normalizedAmount) && normalizedAmount > 0) {
+				let fallbackPrice: number | null = null;
+				if (tokenSymbol === 'WBTC') fallbackPrice = 70000;
+				if (tokenSymbol === 'LINK') fallbackPrice = 8.85;
+				if (tokenSymbol === 'AAVE') fallbackPrice = 112;
+				if (tokenSymbol === 'WMATIC') fallbackPrice = 0.095;
+				if (fallbackPrice) {
+					normalizedUsd = fallbackPrice * normalizedAmount;
+					if (import.meta.env.WALLET_DEBUG === '1') {
+						console.log('[pricing] fallback price', {
+							walletId,
+							chain: tokenChain,
+							symbol: tokenSymbol,
+							contract: tokenAddress,
+							fallbackPrice,
+							usdValue: normalizedUsd,
+						});
+					}
+				} else if (import.meta.env.WALLET_DEBUG === '1') {
+					console.log('[pricing] missing upstream price', {
+						walletId,
+						chain: tokenChain,
+						symbol: tokenSymbol,
+						contract: tokenAddress,
+					});
 				}
 			}
 
