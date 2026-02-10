@@ -353,11 +353,11 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 	const showSnapshotFallback =
 		snapshotChains.length > 0 && state.status !== 'ready' && state.status !== 'stale';
 	const walletData = (state.status === 'ready' || state.status === 'stale') ? state.wallet : null;
-	const walletHeader =
+	const shortenedAddress =
 		walletData?.address
-			? `${(walletData.label || walletData.address.slice(0, 5)).toLowerCase()} • ${walletData.address
-					.slice(0, 8)
-					.toUpperCase()}...${walletData.address.slice(-6).toUpperCase()}`
+			? `${walletData.address.slice(0, 8).toUpperCase()}...${walletData.address
+					.slice(-6)
+					.toUpperCase()}`
 			: null;
 	const buildChainGroups = (tokens: any[]) => {
 		const sorted = tokens.sort((a, b) => Number(b.usdValue ?? -1) - Number(a.usdValue ?? -1));
@@ -372,18 +372,18 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 
 	return (
 		<div className="wallet-summary">
-			{walletHeader && walletData ? (
+			{shortenedAddress && walletData ? (
 				<div className="wallet-summary__header mb-4 text-center">
 					<h3 className="text-xl font-bold">
+						<span className="mr-2">{(walletData.label || 'Wallet').toUpperCase()}</span>
 						<span
-							className="cursor-pointer underline hover:text-blue-400 transition"
+							className="cursor-pointer underline hover:text-blue-400 transition-colors"
 							onClick={async () => {
 								try {
 									await navigator.clipboard.writeText(walletData.address);
 									setCopied(true);
 									setTimeout(() => setCopied(false), 2000);
 								} catch {
-									// Fallback for older browsers.
 									const textarea = document.createElement('textarea');
 									textarea.value = walletData.address;
 									document.body.appendChild(textarea);
@@ -396,7 +396,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 							}}
 							title="Click to copy full address"
 						>
-							{walletHeader}
+							{shortenedAddress}
 						</span>
 					</h3>
 					{copied ? <div className="text-xs mt-1 opacity-80">Copied!</div> : null}
