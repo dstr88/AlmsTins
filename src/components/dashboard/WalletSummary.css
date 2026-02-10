@@ -76,8 +76,8 @@
 
 .wallet-summary__row {
 	display: grid;
-	grid-template-columns: minmax(4ch, 0.6fr) minmax(6ch, 1fr) minmax(8ch, 1fr) minmax(9ch, 1fr) minmax(9ch, 1fr);
-	column-gap: var(--space-md);
+	grid-template-columns: 80px 3fr 2fr 2fr;
+	column-gap: var(--space-sm);
 	align-items: baseline;
 	font-variant-numeric: tabular-nums;
 }
@@ -100,8 +100,7 @@
 	font-weight: 600;
 }
 
-.wallet-summary__cell--value,
-.wallet-summary__cell--pl {
+.wallet-summary__cell--value {
 	text-align: right;
 	justify-self: end;
 }
@@ -124,7 +123,7 @@
 	.wallet-summary__row {
 		grid-template-columns: 1fr 1fr;
 		grid-template-areas:
-			"token pl"
+			"token value"
 			"days value"
 			"qty value";
 		row-gap: var(--space-xs);
@@ -132,10 +131,6 @@
 
 	.wallet-summary__cell--token {
 		grid-area: token;
-	}
-
-	.wallet-summary__cell--pl {
-		grid-area: pl;
 	}
 
 	.wallet-summary__cell--days {

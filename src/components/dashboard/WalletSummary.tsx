@@ -121,6 +121,7 @@ const formatLastSync = (value?: string | null) => {
 
 export default function WalletSummary({ walletId, initialData }: WalletSummaryProps) {
 	const [state, setState] = useState<WalletSummaryState>({ status: 'loading' });
+	const [hideSpam, setHideSpam] = useState(true);
 	const initialSummary = summarizePayload(initialData ?? {});
 	const dataFromState = (s: WalletSummaryState) => (s as any).data ?? (s as any).wallet ?? null;
 
@@ -350,9 +351,42 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 	const snapshotChains = initialData?.snapshot?.byChain ?? [];
 	const showSnapshotFallback =
 		snapshotChains.length > 0 && state.status !== 'ready' && state.status !== 'stale';
+	const walletData = (state.status === 'ready' || state.status === 'stale') ? state.wallet : null;
+	const walletHeader =
+		walletData?.address
+			? `${(walletData.label || 'Wallet')} • ${walletData.address.slice(0, 6).toUpperCase()}...${walletData.address
+					.slice(-4)
+					.toUpperCase()}`
+			: null;
+	const buildChainGroups = (tokens: any[]) => {
+		const sorted = tokens.sort((a, b) => Number(b.usdValue ?? -1) - Number(a.usdValue ?? -1));
+		const groups = new Map<string, any[]>();
+		for (const token of sorted) {
+			const chain = String(token.chain ?? 'unknown');
+			if (!groups.has(chain)) groups.set(chain, []);
+			groups.get(chain)!.push(token);
+		}
+		return Array.from(groups.entries()).map(([chain, items]) => ({ chain, items }));
+	};
 
 	return (
 		<div className="wallet-summary">
+			{walletHeader ? (
+				<div className="wallet-summary__header mb-4 text-center">
+					<h3 className="text-xl font-bold">{walletHeader}</h3>
+				</div>
+			) : null}
+			{walletData ? (
+				<label className="flex items-center justify-center mb-4 text-sm">
+					<input
+						type="checkbox"
+						checked={hideSpam}
+						onChange={(event) => setHideSpam(event.target.checked)}
+						className="mr-2"
+					/>
+					Hide likely spam/dust tokens
+				</label>
+			) : null}
 			{WALLET_DEBUG ? (
 				<small data-debug>
 					status={state.status} byChain={dataFromState(state)?.byChain?.length ?? 'null'} byWallet=
@@ -446,70 +480,68 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 							})()}
 						</span>
 					</div>
-					<section className="wallet-summary__chain">
-						<h4 className="wallet-summary__chain-title">
-							{state.wallet.label || 'Wallet'}
-						</h4>
-						<div className="wallet-summary__chain-rows">
-							<div className="wallet-summary__row wallet-summary__row--header">
-								<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
-								<span className="wallet-summary__cell wallet-summary__cell--days">Chain</span>
-								<span className="wallet-summary__cell wallet-summary__cell--qty">Days</span>
-								<span className="wallet-summary__cell wallet-summary__cell--pl">Qty</span>
-								<span className="wallet-summary__cell wallet-summary__cell--pl">Price</span>
-								<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
-							</div>
-							{state.wallet.tokens.map((token) => {
-								const isUnverified = token.unpricedReason === 'unverified_contract';
-								const hasPrice =
-									!isUnverified && Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0;
-								const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
-								const priceUsd = hasPrice
-									? Number(token.priceUsd)
-									: hasValue
-										? Number(token.usdValue) / (Number(token.amount ?? 0) || 1)
-										: null;
-								const priceLabel = isUnverified
-									? 'Unpriced (unverified)'
-									: priceUsd == null
-										? 'Unpriced'
-										: currencyFormatter.format(priceUsd);
-								const valueLabel = isUnverified
-									? 'Unpriced (unverified)'
-									: token.usdValue == null
-										? 'Unpriced'
-										: currencyFormatter.format(Number(token.usdValue));
-								const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
-								const daysHeld = Number.isFinite(capturedAt)
-									? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
-									: null;
-								return (
-									<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
-										<span className="wallet-summary__cell wallet-summary__cell--token">
-											{token.tokenSymbol}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--days">
-											{token.chain}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--qty">
-											{daysHeld === null ? '—' : String(daysHeld)}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--pl">
-											{Number(token.amount ?? 0).toLocaleString(undefined, {
-												maximumFractionDigits: 6,
-											})}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--pl truncate">
-											{priceLabel}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--value truncate">
-											{valueLabel}
-										</span>
+					{(() => {
+						const tokens = state.wallet.tokens ?? [];
+						const displayedTokens = hideSpam
+							? tokens.filter(
+									(t) =>
+										(t.usdValue != null && t.usdValue > 0.01) ||
+										t.amount >= 1e-4 ||
+										!t.unpricedReason,
+							  )
+							: tokens;
+						const groups = buildChainGroups(displayedTokens);
+						return groups.map((group) => (
+							<section key={group.chain} className="wallet-summary__chain">
+								<h4 className="text-lg font-semibold text-center mb-3">{group.chain}</h4>
+								<div className="wallet-summary__chain-rows">
+									<div
+										className="wallet-summary__row wallet-summary__row--header"
+										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+									>
+										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
+										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
+										<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
+										<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 									</div>
-								);
-							})}
-						</div>
-					</section>
+									{group.items.map((token: any) => {
+										const isUnverified = token.unpricedReason === 'unverified_contract';
+										const valueLabel = isUnverified
+											? 'Unpriced (unverified)'
+											: token.usdValue == null
+												? 'Unpriced'
+												: currencyFormatter.format(Number(token.usdValue));
+										const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
+										const daysHeld = Number.isFinite(capturedAt)
+											? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
+											: 0;
+										return (
+											<div
+												key={`${token.chain}-${token.tokenSymbol}`}
+												className="wallet-summary__row"
+												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+											>
+												<span className="wallet-summary__cell wallet-summary__cell--days">
+													{String(daysHeld)}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--token">
+													{token.tokenSymbol}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--qty truncate overflow-hidden text-ellipsis whitespace-nowrap">
+													{Number(token.amount ?? 0).toLocaleString(undefined, {
+														maximumFractionDigits: 6,
+													})}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
+													{valueLabel}
+												</span>
+											</div>
+										);
+									})}
+								</div>
+							</section>
+						));
+					})()}
 				</>
 			) : null}
 
@@ -537,70 +569,68 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 							})()}
 						</span>
 					</div>
-					<section className="wallet-summary__chain">
-						<h4 className="wallet-summary__chain-title">
-							{state.wallet.label || 'Wallet'}
-						</h4>
-						<div className="wallet-summary__chain-rows">
-							<div className="wallet-summary__row wallet-summary__row--header">
-								<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
-								<span className="wallet-summary__cell wallet-summary__cell--days">Chain</span>
-								<span className="wallet-summary__cell wallet-summary__cell--qty">Days</span>
-								<span className="wallet-summary__cell wallet-summary__cell--pl">Qty</span>
-								<span className="wallet-summary__cell wallet-summary__cell--pl">Price</span>
-								<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
-							</div>
-							{state.wallet.tokens.map((token) => {
-								const isUnverified = token.unpricedReason === 'unverified_contract';
-								const hasPrice =
-									!isUnverified && Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0;
-								const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
-								const priceUsd = hasPrice
-									? Number(token.priceUsd)
-									: hasValue
-										? Number(token.usdValue) / (Number(token.amount ?? 0) || 1)
-										: null;
-								const priceLabel = isUnverified
-									? 'Unpriced (unverified)'
-									: priceUsd == null
-										? 'Unpriced'
-										: currencyFormatter.format(priceUsd);
-								const valueLabel = isUnverified
-									? 'Unpriced (unverified)'
-									: token.usdValue == null
-										? 'Unpriced'
-										: currencyFormatter.format(Number(token.usdValue));
-								const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
-								const daysHeld = Number.isFinite(capturedAt)
-									? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
-									: null;
-								return (
-									<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
-										<span className="wallet-summary__cell wallet-summary__cell--token">
-											{token.tokenSymbol}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--days">
-											{token.chain}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--qty">
-											{daysHeld === null ? '—' : String(daysHeld)}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--pl">
-											{Number(token.amount ?? 0).toLocaleString(undefined, {
-												maximumFractionDigits: 6,
-											})}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--pl truncate">
-											{priceLabel}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--value truncate">
-											{valueLabel}
-										</span>
+					{(() => {
+						const tokens = state.wallet.tokens ?? [];
+						const displayedTokens = hideSpam
+							? tokens.filter(
+									(t) =>
+										(t.usdValue != null && t.usdValue > 0.01) ||
+										t.amount >= 1e-4 ||
+										!t.unpricedReason,
+							  )
+							: tokens;
+						const groups = buildChainGroups(displayedTokens);
+						return groups.map((group) => (
+							<section key={group.chain} className="wallet-summary__chain">
+								<h4 className="text-lg font-semibold text-center mb-3">{group.chain}</h4>
+								<div className="wallet-summary__chain-rows">
+									<div
+										className="wallet-summary__row wallet-summary__row--header"
+										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+									>
+										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
+										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
+										<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
+										<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 									</div>
-								);
-							})}
-						</div>
-					</section>
+									{group.items.map((token: any) => {
+										const isUnverified = token.unpricedReason === 'unverified_contract';
+										const valueLabel = isUnverified
+											? 'Unpriced (unverified)'
+											: token.usdValue == null
+												? 'Unpriced'
+												: currencyFormatter.format(Number(token.usdValue));
+										const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
+										const daysHeld = Number.isFinite(capturedAt)
+											? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
+											: 0;
+										return (
+											<div
+												key={`${token.chain}-${token.tokenSymbol}`}
+												className="wallet-summary__row"
+												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+											>
+												<span className="wallet-summary__cell wallet-summary__cell--days">
+													{String(daysHeld)}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--token">
+													{token.tokenSymbol}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--qty truncate overflow-hidden text-ellipsis whitespace-nowrap">
+													{Number(token.amount ?? 0).toLocaleString(undefined, {
+														maximumFractionDigits: 6,
+													})}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
+													{valueLabel}
+												</span>
+											</div>
+										);
+									})}
+								</div>
+							</section>
+						));
+					})()}
 				</>
 			) : null}
 		</div>
