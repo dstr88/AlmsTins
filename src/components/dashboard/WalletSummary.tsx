@@ -122,6 +122,7 @@ const formatLastSync = (value?: string | null) => {
 export default function WalletSummary({ walletId, initialData }: WalletSummaryProps) {
 	const [state, setState] = useState<WalletSummaryState>({ status: 'loading' });
 	const [hideSpam, setHideSpam] = useState(true);
+	const [copied, setCopied] = useState(false);
 	const initialSummary = summarizePayload(initialData ?? {});
 	const dataFromState = (s: WalletSummaryState) => (s as any).data ?? (s as any).wallet ?? null;
 
@@ -354,9 +355,9 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 	const walletData = (state.status === 'ready' || state.status === 'stale') ? state.wallet : null;
 	const walletHeader =
 		walletData?.address
-			? `${(walletData.label || 'Wallet')} • ${walletData.address.slice(0, 6).toUpperCase()}...${walletData.address
-					.slice(-4)
-					.toUpperCase()}`
+			? `${(walletData.label || walletData.address.slice(0, 5)).toLowerCase()} • ${walletData.address
+					.slice(0, 8)
+					.toUpperCase()}...${walletData.address.slice(-6).toUpperCase()}`
 			: null;
 	const buildChainGroups = (tokens: any[]) => {
 		const sorted = tokens.sort((a, b) => Number(b.usdValue ?? -1) - Number(a.usdValue ?? -1));
@@ -371,9 +372,34 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 
 	return (
 		<div className="wallet-summary">
-			{walletHeader ? (
+			{walletHeader && walletData ? (
 				<div className="wallet-summary__header mb-4 text-center">
-					<h3 className="text-xl font-bold">{walletHeader}</h3>
+					<h3 className="text-xl font-bold">
+						<span
+							className="cursor-pointer underline hover:text-blue-400 transition"
+							onClick={async () => {
+								try {
+									await navigator.clipboard.writeText(walletData.address);
+									setCopied(true);
+									setTimeout(() => setCopied(false), 2000);
+								} catch {
+									// Fallback for older browsers.
+									const textarea = document.createElement('textarea');
+									textarea.value = walletData.address;
+									document.body.appendChild(textarea);
+									textarea.select();
+									document.execCommand('copy');
+									document.body.removeChild(textarea);
+									setCopied(true);
+									setTimeout(() => setCopied(false), 2000);
+								}
+							}}
+							title="Click to copy full address"
+						>
+							{walletHeader}
+						</span>
+					</h3>
+					{copied ? <div className="text-xs mt-1 opacity-80">Copied!</div> : null}
 				</div>
 			) : null}
 			{walletData ? (
@@ -497,15 +523,29 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+										style={{ display: 'grid', gridTemplateColumns: '80px 2.5fr 1.8fr 1.5fr 2fr' }}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
 										<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl text-right">Price</span>
 										<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 									</div>
 									{group.items.map((token: any) => {
 										const isUnverified = token.unpricedReason === 'unverified_contract';
+										const hasPrice =
+											!isUnverified && Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0;
+										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
+										const priceUsd = hasPrice
+											? Number(token.priceUsd)
+											: hasValue && Number(token.amount ?? 0) > 0
+												? Number(token.usdValue) / Number(token.amount ?? 1)
+												: null;
+										const priceLabel = isUnverified
+											? 'Unpriced (unverified)'
+											: priceUsd == null
+												? 'Unpriced'
+												: currencyFormatter.format(priceUsd);
 										const valueLabel = isUnverified
 											? 'Unpriced (unverified)'
 											: token.usdValue == null
@@ -519,7 +559,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+												style={{ display: 'grid', gridTemplateColumns: '80px 2.5fr 1.8fr 1.5fr 2fr' }}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days">
 													{String(daysHeld)}
@@ -531,6 +571,9 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 													{Number(token.amount ?? 0).toLocaleString(undefined, {
 														maximumFractionDigits: 6,
 													})}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--pl truncate text-right">
+													{priceLabel}
 												</span>
 												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
 													{valueLabel}
@@ -586,15 +629,29 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+										style={{ display: 'grid', gridTemplateColumns: '80px 2.5fr 1.8fr 1.5fr 2fr' }}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
 										<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl text-right">Price</span>
 										<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 									</div>
 									{group.items.map((token: any) => {
 										const isUnverified = token.unpricedReason === 'unverified_contract';
+										const hasPrice =
+											!isUnverified && Number.isFinite(token.priceUsd) && Number(token.priceUsd) > 0;
+										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
+										const priceUsd = hasPrice
+											? Number(token.priceUsd)
+											: hasValue && Number(token.amount ?? 0) > 0
+												? Number(token.usdValue) / Number(token.amount ?? 1)
+												: null;
+										const priceLabel = isUnverified
+											? 'Unpriced (unverified)'
+											: priceUsd == null
+												? 'Unpriced'
+												: currencyFormatter.format(priceUsd);
 										const valueLabel = isUnverified
 											? 'Unpriced (unverified)'
 											: token.usdValue == null
@@ -608,7 +665,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr' }}
+												style={{ display: 'grid', gridTemplateColumns: '80px 2.5fr 1.8fr 1.5fr 2fr' }}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days">
 													{String(daysHeld)}
@@ -620,6 +677,9 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 													{Number(token.amount ?? 0).toLocaleString(undefined, {
 														maximumFractionDigits: 6,
 													})}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--pl truncate text-right">
+													{priceLabel}
 												</span>
 												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
 													{valueLabel}
