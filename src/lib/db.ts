@@ -1,16 +1,17 @@
 import { createClient } from '@libsql/client';
 
-const url = import.meta.env.TURSO_DATABASE_URL;
-const authToken = import.meta.env.TURSO_AUTH_TOKEN;
+const env = (import.meta as any).env ?? process.env;
+const url = env.TURSO_DATABASE_URL;
+const authToken = env.TURSO_AUTH_TOKEN;
 const loggedFlag = '__ledgerlense_db_name_logged__';
 const pingFlag = '__ledgerlense_db_ping_logged__';
 
 if (!url) {
-	throw new Error('Missing TURSO_DATABASE_URL env var');
+	throw new Error('Missing TURSO_DATABASE_URL');
 }
 
 if (!authToken) {
-	throw new Error('Missing TURSO_AUTH_TOKEN env var');
+	throw new Error('Missing TURSO_AUTH_TOKEN');
 }
 
 const globalAny = globalThis as typeof globalThis & { [loggedFlag]?: boolean; [pingFlag]?: boolean };
