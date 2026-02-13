@@ -1,32 +1,20 @@
 import 'dotenv/config';
-import { priceMissingTransactionsForTenant } from '../lib/priceMissingTransactionsForTenant';
+import { priceMissingTransactionsForTenant } from '@/lib/priceMissingTransactionsForTenant';
 
-console.log('[price-once] boot');
-
-const tenantId = process.env.TENANT_ID;
-
-if (!tenantId) {
-  console.error('❌ TENANT_ID env var is required');
-  process.exit(1);
-}
-
-const safeTenantId: string = tenantId;
+const tenantId = process.env.TENANT_ID ?? 'default';
 
 async function run() {
-  console.log('[price-once] calling job...');
-  const result = await priceMissingTransactionsForTenant(safeTenantId, {
+  console.log('[price-once] tenant:', tenantId);
+
+  const result = await priceMissingTransactionsForTenant(tenantId, {
     interval: '1h',
     limit: 1500,
   });
-  console.log('✅ Pricing run complete:', result);
+
+  console.log('[price-once] result:', JSON.stringify(result, null, 2));
 }
 
-run()
-  .then(() => {
-    console.log('[price-once] done');
-    process.exit(0);
-  })
-  .catch((err) => {
-    console.error('[price-once] error', err);
-    process.exit(1);
-  });
+run().catch((err) => {
+  console.error('[price-once] fatal error:', err);
+  process.exit(1);
+});
