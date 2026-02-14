@@ -4,6 +4,7 @@ import type { SupportedChain } from '@/lib/constants';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 const ETHEREUM_CHAIN_ID = 1;
 const POLYGON_CHAIN_ID = 137;
@@ -131,19 +132,20 @@ export const GET: APIRoute = async ({ params, request }) => {
 	});
 
 	if (!walletId) {
-		return new Response(JSON.stringify({ error: 'Missing wallet id' }), {
+		return new Response(JSON.stringify({ error: true, message: 'Wallet id is required.' }), {
 			status: 400,
 			headers: { 'Content-Type': 'application/json' },
 		});
 	}
 
 	try {
+		await requireWalletOwnedByTenant(walletId, tenantId);
 		const walletResult = await db.execute({
 			sql: 'SELECT id, address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 			args: [walletId, tenantId],
 		});
 		if (!walletResult.rows?.length) {
-			return new Response(JSON.stringify({ error: 'Wallet not found' }), {
+			return new Response(JSON.stringify({ error: true, message: 'Wallet not found.' }), {
 				status: 404,
 				headers: { 'Content-Type': 'application/json' },
 			});
@@ -243,6 +245,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 			headers: { 'Content-Type': 'application/json' },
 		});
 	} catch (err: any) {
+		if (err instanceof Response) return err;
 		const status = typeof err?.status === 'number' ? err.status : 500;
 		const code = err?.code ?? 'TOKEN_BREAKDOWN_ERROR';
 		const message = err?.message ?? 'Failed to load tokens';

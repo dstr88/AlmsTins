@@ -118,7 +118,7 @@ export function normalizeNetWorthSummary(payload: any): NetWorthSummary {
             totalUsd: wTotal,
           };
         })
-        .filter((x): x is NonNullable<typeof x> => Boolean(x))
+        .filter((x: any): x is NonNullable<typeof x> => Boolean(x))
     : [];
 
   // Keep newest capturedAt per chain, but parse dates safely

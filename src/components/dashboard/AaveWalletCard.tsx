@@ -76,17 +76,22 @@ const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress 
 
 				const chainList: AaveChainSummary[] = Array.isArray(rawChains)
 					? rawChains
-					: Object.entries(rawChains ?? {}).map(([key, value]) => ({
-							chain: value.chain ?? key,
-							...value,
-					  }));
+					: Object.entries(rawChains ?? {}).map(([key, value]) => {
+							const v = value && typeof value === 'object' ? (value as Partial<AaveChainSummary>) : {};
+							const chain = typeof v.chain === 'string' ? v.chain : key;
+							const { chain: _chain, ...rest } = v;
+							return { ...rest, chain };
+					  });
 
 				console.log('[AaveWalletCard v3] normalized chains', chainList);
 
 				let polygon = chainList.find((c) => c.chain === 'polygon');
 				if (!polygon && rawChains && !Array.isArray(rawChains)) {
 					const polyObj = (rawChains as Record<string, AaveChainSummary>).polygon;
-					if (polyObj) polygon = { chain: 'polygon', ...polyObj };
+					if (polyObj) {
+						const { chain: _chain, ...rest } = polyObj;
+						polygon = { ...rest, chain: 'polygon' };
+					}
 				}
 
 				const polygonPositions = polygon?.positions ?? [];

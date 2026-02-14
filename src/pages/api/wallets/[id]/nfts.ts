@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getNftTransfers } from '@/lib/etherscan';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
 const CACHE_TTL_MS = 1_000;
@@ -44,10 +45,19 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 	const walletId = params.id;
 	if (!walletId) {
 		logPerf(400);
-		return new Response(JSON.stringify({ ok: false, error: 'Missing wallet id' }), { status: 400 });
+		return new Response(JSON.stringify({ error: true, message: 'Wallet id is required.' }), {
+			status: 400,
+			headers: { 'Content-Type': 'application/json' },
+		});
 	}
 
 	const { tenantId } = await requireTenantSession(request);
+	try {
+		await requireWalletOwnedByTenant(walletId, tenantId);
+	} catch (err) {
+		if (err instanceof Response) return err;
+		throw err;
+	}
 	const cacheKey = `${tenantId}:${walletId}`;
 	const lockKey = `nfts:${tenantId}:${walletId}`;
 	const cachedResponse = cache.get(cacheKey);
@@ -144,7 +154,10 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 		const message = error instanceof Error ? error.message : 'Unable to load NFTs.';
 		if (message === 'Wallet not found') {
 			logPerf(404);
-			return new Response(JSON.stringify({ ok: false, error: message }), { status: 404 });
+			return new Response(JSON.stringify({ error: true, message: 'Wallet not found.' }), {
+				status: 404,
+				headers: { 'Content-Type': 'application/json' },
+			});
 		}
 		logPerf(500);
 		return new Response(JSON.stringify({ ok: false, error: message }), { status: 500 });
@@ -182,7 +195,11 @@ async function buildNftPayload(tenantId: string, walletId: string) {
 		for (const action of actions) {
 			try {
 				// Etherscan calls centralized in src/lib/etherscan.ts.
-				const items = await getNftTransfers(address, chain.chainId, action as 'tokennfttx' | 'token1155tx');
+				const items = await getNftTransfers({
+					chainId: chain.chainId,
+					address,
+					action: action as 'tokennfttx' | 'token1155tx',
+				});
 				items.forEach((item: any) => {
 					if (isFungibleToken(item)) return;
 					allTransfers.push({ ...item, chainId: chain.chainId, chain: chain.name });

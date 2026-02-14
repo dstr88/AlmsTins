@@ -179,7 +179,7 @@ export async function searchCoingecko(query: string): Promise<{ coins: Array<{ i
 	if (!isStrictSymbolCandidate(normalized)) return { coins: [] };
 	const url = `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(normalized)}`;
 	const payload = (await fetchCoingeckoJson(url)) as { coins?: Array<{ id?: string; symbol?: string }> } | null;
-	return payload?.coins ? payload : { coins: [] };
+	return { coins: payload?.coins ?? [] };
 }
 
 export async function getSimplePricesById(ids: string[]): Promise<Record<string, { usd?: number }>> {

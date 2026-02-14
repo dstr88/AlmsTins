@@ -14,10 +14,12 @@ export async function getAuthSession(request: Request): Promise<AuthSession | nu
 	const authUrl = import.meta.env.AUTH_URL ?? '';
 	const forwardedProto = request.headers.get('x-forwarded-proto') ?? '';
 	const secureCookie = authUrl.startsWith('https://') || forwardedProto === 'https';
+	const salt = import.meta.env.AUTH_SALT ?? import.meta.env.AUTH_SECRET;
 	const token = await getToken({
 		req: request,
 		secret: import.meta.env.AUTH_SECRET,
 		secureCookie,
+		salt,
 	});
 
 	if (!token || !token.sub) {

@@ -1,5 +1,5 @@
 import { getAuthSession } from './authSession';
-import { resolveActiveTenantId } from './tenants';
+import { requireActiveTenantId } from './tenants';
 
 export type TenantSession = {
 	userId: string;
@@ -14,12 +14,16 @@ export async function requireTenantSession(request: Request): Promise<TenantSess
 		throw new Response('Unauthorized', { status: 401 });
 	}
 
-	const sessionTenant = (session as any).tenantId as string | undefined;
-	const tenantId = sessionTenant ?? (await resolveActiveTenantId(userId));
-
-	if (!tenantId) {
-		throw new Response('Tenant not configured', { status: 400 });
+	try {
+		const tenantId = await requireActiveTenantId(userId);
+		return { userId, tenantId };
+	} catch (err) {
+		if (err instanceof Response) {
+			throw err;
+		}
+		const status = (err as any)?.status ?? 403;
+		const message = (err as any)?.message ?? 'Forbidden';
+		throw new Response(message, { status });
 	}
 
-	return { userId, tenantId };
 }

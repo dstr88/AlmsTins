@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { normalizeChains, sanitizeAddress, transformWalletRow } from '../../../lib/wallets-service';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 export const prerender = false;
 
@@ -12,6 +13,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 	try {
 		const { tenantId } = await requireTenantSession(request);
+		await requireWalletOwnedByTenant(params.id, tenantId);
 		const result = await db.execute({
 			sql: 'SELECT id, address, label, chains, is_default, created_at FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 			args: [params.id, tenantId],
@@ -24,6 +26,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 			headers: { 'Content-Type': 'application/json' },
 		});
 	} catch (error) {
+		if (error instanceof Response) return error;
 		console.error('Failed to fetch wallet', error);
 		return responseWithError('Unable to load wallet.', 500);
 	}
@@ -36,6 +39,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 
 	try {
 		const { tenantId } = await requireTenantSession(request);
+		await requireWalletOwnedByTenant(params.id, tenantId);
 		const body = await request.json();
 
 		// Fast path: rename only
@@ -112,6 +116,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 			headers: { 'Content-Type': 'application/json' },
 		});
 	} catch (error) {
+		if (error instanceof Response) return error;
 		console.error('Failed to update wallet', error);
 		return responseWithError('Unable to update wallet.', 500);
 	}
@@ -124,6 +129,7 @@ export const DELETE: APIRoute = async ({ params, request }) => {
 
 	try {
 		const { tenantId } = await requireTenantSession(request);
+		await requireWalletOwnedByTenant(params.id, tenantId);
 		const result = await db.execute({
 			sql: 'DELETE FROM wallets WHERE id = ? AND tenant_id = ? RETURNING id',
 			args: [params.id, tenantId],
@@ -133,6 +139,7 @@ export const DELETE: APIRoute = async ({ params, request }) => {
 		}
 		return new Response(null, { status: 204 });
 	} catch (error) {
+		if (error instanceof Response) return error;
 		console.error('Failed to delete wallet', error);
 		return responseWithError('Unable to delete wallet.', 500);
 	}

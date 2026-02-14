@@ -81,3 +81,38 @@ export async function ensureTenantForUser(userId: string, label?: string | null)
 
 	return tenantId;
 }
+
+export async function requireActiveTenantId(userId: string): Promise<string> {
+	const tenantId = await resolveActiveTenantId(userId);
+
+	if (!tenantId) {
+		const err = new Error('Forbidden: no active tenant selected');
+		(err as any).status = 403;
+		throw err;
+	}
+
+	// Validate membership
+	const membership = await db.execute({
+		sql: `
+      SELECT 1 as ok
+      FROM tenant_memberships
+      WHERE user_id = ? AND tenant_id = ?
+      LIMIT 1
+    `,
+		args: [userId, tenantId],
+	});
+
+	if (!membership.rows?.length) {
+		const err = new Error('Forbidden: user is not a member of active tenant');
+		(err as any).status = 403;
+		throw err;
+	}
+
+	if (tenantId === 'default') {
+		const err = new Error('Forbidden: "default" tenant is not allowed in app runtime');
+		(err as any).status = 403;
+		throw err;
+	}
+
+	return tenantId;
+}

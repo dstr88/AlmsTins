@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { getTransactionsForWalletDashboard } from '../../../lib/transactions';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 export const prerender = false;
 
@@ -8,7 +9,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const { tenantId } = await requireTenantSession(request);
 	const walletId = url.searchParams.get('walletId');
 	if (!walletId) {
-		return respond({ error: true, message: 'walletId is required.' }, 400);
+		return respond({ error: true, message: 'Wallet id is required.' }, 400);
 	}
 
 	const limit = Number(url.searchParams.get('limit') ?? '50');
@@ -17,6 +18,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const toDate = url.searchParams.get('to');
 
 	try {
+		await requireWalletOwnedByTenant(walletId, tenantId);
+
 		const rows = await getTransactionsForWalletDashboard(tenantId, walletId, {
 			limit,
 			offset,
@@ -33,6 +36,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			transactions: rows,
 		});
 	} catch (error) {
+		if (error instanceof Response) return error;
 		console.error('Failed to load transactions', error);
 		return respond({ error: true, message: 'Unable to load transactions.' }, 500);
 	}

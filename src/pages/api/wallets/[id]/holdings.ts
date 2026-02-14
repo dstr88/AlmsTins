@@ -3,6 +3,7 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTokentxPaged, getNativeBalanceWei } from '@/lib/etherscan';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
@@ -582,28 +583,32 @@ export const prerender = false;
 export const GET: APIRoute = async ({ params, request, locals }) => {
 	const requestId = (locals as Record<string, any>)?.requestId;
 	const chainId = Number(new URL(request.url).searchParams.get('chainid') ?? POLYGON_CHAIN_ID);
-	try {
-		const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+	const logPerf = (
+		status: number,
+		meta?: { cached?: boolean; stale?: boolean; count?: number; providerCallsCount?: number },
+	) => {
+		console.log('[perf] wallet-holdings', {
+			requestId,
+			durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start),
+			status,
+			...(meta ?? {}),
+		});
+	};
 
-		const logPerf = (
-			status: number,
-			meta?: { cached?: boolean; stale?: boolean; count?: number; providerCallsCount?: number },
-		) => {
-			console.log('[perf] wallet-holdings', {
-				requestId,
-				durationMs: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start),
-				status,
-				...(meta ?? {}),
-			});
-		};
+	try {
 
 		const { tenantId } = await requireTenantSession(request);
 		const walletId = params.id ?? '';
 
 		if (!walletId) {
 			logPerf(400);
-			return new Response(JSON.stringify({ error: 'Missing wallet id' }), { status: 400 });
+			return new Response(JSON.stringify({ error: true, message: 'Wallet id is required.' }), {
+				status: 400,
+				headers: { 'Content-Type': 'application/json' },
+			});
 		}
+		await requireWalletOwnedByTenant(walletId, tenantId);
 		if (![POLYGON_CHAIN_ID, ETHEREUM_CHAIN_ID, AVALANCHE_CHAIN_ID].includes(chainId)) {
 			logPerf(400);
 			return new Response(
@@ -707,11 +712,20 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
 		});
 	} catch (err) {
+		if (err instanceof Response) return err;
+		const message = String((err as any)?.message ?? err);
+		if (message === 'Wallet not found') {
+			logPerf(404);
+			return new Response(JSON.stringify({ error: true, message: 'Wallet not found.' }), {
+				status: 404,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}
 		console.error('[holdings] FATAL', {
 			requestId,
 			walletId: params.id,
 			chainId,
-			error: String((err as any)?.message ?? err),
+			error: message,
 			stack: (err as any)?.stack,
 		});
 		return new Response(

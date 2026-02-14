@@ -5,27 +5,51 @@ import { db } from './db';
 type Row = Record<string, unknown>;
 
 const toDate = (value: unknown) => (value ? new Date(String(value)) : null);
+const toStringOrUndefined = (value: unknown) => (value == null ? undefined : String(value));
+const toLowercaseOrUndefined = (value: unknown) =>
+	value == null ? undefined : (String(value).toLowerCase() as Lowercase<string>);
+const toNumberOrUndefined = (value: unknown) => {
+	if (value == null) return undefined;
+	const n = Number(value);
+	return Number.isFinite(n) ? n : undefined;
+};
+const toDbValue = (value: unknown): string | number | boolean | bigint | null => {
+	if (value == null) return null;
+	if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+		return value;
+	}
+	if (value instanceof Date) return value.toISOString();
+	return JSON.stringify(value);
+};
+
+const normalizeAccountType = (value: unknown): AdapterAccount['type'] => {
+	const type = String(value ?? '');
+	if (type === 'oauth' || type === 'email' || type === 'oidc' || type === 'webauthn') {
+		return type;
+	}
+	return 'oauth';
+};
 
 const mapUser = (row: Row): AdapterUser => ({
 	id: String(row.id),
 	name: row.name ? String(row.name) : null,
-	email: row.email ? String(row.email) : null,
+	email: row.email ? String(row.email) : '',
 	emailVerified: toDate(row.email_verified),
 	image: row.image ? String(row.image) : null,
 });
 
 const mapAccount = (row: Row): AdapterAccount => ({
 	userId: String(row.user_id),
-	type: String(row.type),
+	type: normalizeAccountType(row.type),
 	provider: String(row.provider),
 	providerAccountId: String(row.provider_account_id),
-	access_token: row.access_token ? String(row.access_token) : null,
-	token_type: row.token_type ? String(row.token_type) : null,
-	scope: row.scope ? String(row.scope) : null,
-	expires_at: row.expires_at ? Number(row.expires_at) : null,
-	refresh_token: row.refresh_token ? String(row.refresh_token) : null,
-	id_token: row.id_token ? String(row.id_token) : null,
-	session_state: row.session_state ? String(row.session_state) : null,
+	access_token: toStringOrUndefined(row.access_token),
+	token_type: toLowercaseOrUndefined(row.token_type),
+	scope: toStringOrUndefined(row.scope),
+	expires_at: toNumberOrUndefined(row.expires_at),
+	refresh_token: toStringOrUndefined(row.refresh_token),
+	id_token: toStringOrUndefined(row.id_token),
+	session_state: toStringOrUndefined(row.session_state),
 });
 
 const mapSession = (row: Row): AdapterSession => ({
@@ -43,12 +67,14 @@ const mapVerificationToken = (row: Row): VerificationToken => ({
 export const authAdapter = (): Adapter => ({
 	async createUser(user) {
 		const id = user.id ?? crypto.randomUUID();
+		// Auth types require a string email; keep empty string if provider didn't supply one.
+		const email = user.email ?? '';
 		await db.execute({
 			sql: `INSERT INTO auth_users (id, name, email, email_verified, image)
         VALUES (?, ?, ?, ?, ?)`,
-			args: [id, user.name ?? null, user.email ?? null, user.emailVerified?.toISOString() ?? null, user.image ?? null],
+			args: [id, user.name ?? null, email, user.emailVerified?.toISOString() ?? null, user.image ?? null],
 		});
-		return { ...user, id };
+		return { ...user, id, email };
 	},
 	async getUser(id) {
 		const result = await db.execute({ sql: 'SELECT * FROM auth_users WHERE id = ? LIMIT 1', args: [id] });
@@ -73,13 +99,15 @@ export const authAdapter = (): Adapter => ({
 		return mapUser(result.rows[0] as Row);
 	},
 	async updateUser(user) {
+		// Auth types require a string email; keep empty string if provider didn't supply one.
+		const email = user.email ?? '';
 		await db.execute({
 			sql: `UPDATE auth_users
         SET name = ?, email = ?, email_verified = ?, image = ?
         WHERE id = ?`,
 			args: [
 				user.name ?? null,
-				user.email ?? null,
+				email,
 				user.emailVerified?.toISOString() ?? null,
 				user.image ?? null,
 				user.id,
@@ -98,18 +126,18 @@ export const authAdapter = (): Adapter => ({
           expires_at, refresh_token, id_token, session_state
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			args: [
-				crypto.randomUUID(),
-				account.userId,
-				account.type,
-				account.provider,
-				account.providerAccountId,
-				account.access_token ?? null,
-				account.token_type ?? null,
-				account.scope ?? null,
-				account.expires_at ?? null,
-				account.refresh_token ?? null,
-				account.id_token ?? null,
-				account.session_state ?? null,
+				toDbValue(crypto.randomUUID()),
+				toDbValue(account.userId),
+				toDbValue(normalizeAccountType(account.type)),
+				toDbValue(account.provider),
+				toDbValue(account.providerAccountId),
+				toDbValue(account.access_token),
+				toDbValue(account.token_type),
+				toDbValue(account.scope),
+				toDbValue(account.expires_at),
+				toDbValue(account.refresh_token),
+				toDbValue(account.id_token),
+				toDbValue(account.session_state),
 			],
 		});
 		return account;
@@ -145,11 +173,13 @@ export const authAdapter = (): Adapter => ({
 		};
 	},
 	async updateSession(session) {
+		const expiresIso = session.expires?.toISOString();
+		if (!expiresIso) throw new Error('Missing session expiry');
 		await db.execute({
 			sql: `UPDATE auth_sessions
         SET user_id = ?, expires = ?
         WHERE session_token = ?`,
-			args: [session.userId, session.expires.toISOString(), session.sessionToken],
+			args: [String(session.userId), expiresIso, String(session.sessionToken)],
 		});
 		const result = await db.execute({
 			sql: 'SELECT * FROM auth_sessions WHERE session_token = ? LIMIT 1',

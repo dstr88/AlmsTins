@@ -1,4 +1,4 @@
-import type { APIRoute } from 'astro';
+import type { APIRoute, AstroCookies } from 'astro';
 
 const COOKIE_NAMES = [
 	'authjs.session-token',
@@ -11,7 +11,7 @@ const COOKIE_NAMES = [
 	'authjs.state',
 ];
 
-const clearAuthCookies = (cookies: APIRoute['cookies']) => {
+const clearAuthCookies = (cookies: AstroCookies) => {
 	for (const name of COOKIE_NAMES) {
 		cookies.delete(name, { path: '/' });
 		cookies.delete(name, { path: '/', secure: true });

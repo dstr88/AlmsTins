@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { getAllActiveWallets } from '../../../../lib/wallets';
 import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 export const prerender = false;
 
@@ -12,6 +13,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 		if (!walletId) {
 			return respond({ error: true, message: 'Wallet id is required.' }, 400);
 		}
+
+		await requireWalletOwnedByTenant(walletId, tenantId);
 
 		const wallets = await getAllActiveWallets(tenantId);
 		const wallet = wallets.find((candidate) => candidate.id === walletId);
@@ -31,6 +34,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 			200,
 		);
 	} catch (error) {
+		if (error instanceof Response) return error;
 		console.error('Wallet sync failed:', error);
 		return respond({ error: true, message: 'Failed to sync wallet history.' }, 500);
 	}

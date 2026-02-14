@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import {
 	getImportTransactionColumns,
 	selectImportColumn,
@@ -128,6 +129,15 @@ const resolveFee = (row: UnifiedRow) => {
 export const GET: APIRoute = async ({ request, url }) => {
 	const { tenantId } = await requireTenantSession(request);
 	const walletId = url.searchParams.get('walletId');
+
+	if (walletId) {
+		try {
+			await requireWalletOwnedByTenant(walletId, tenantId);
+		} catch (err) {
+			if (err instanceof Response) return err;
+			throw err;
+		}
+	}
 
 	const rowsArgs: any[] = [tenantId, tenantId];
 	const rowsWalletClause = walletId ? 'AND t.wallet_id = ?' : '';

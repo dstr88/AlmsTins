@@ -287,9 +287,19 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 				if (!payload?.ok) {
 					throw new Error(payload?.message ?? payload?.error ?? 'Unable to load wallet tokens.');
 				}
-				const tokens = Array.isArray(payload.tokens) ? payload.tokens : [];
+				type TokenRow = {
+					tokenSymbol: string;
+					chain: string;
+					amount: number;
+					usdValue: number | null;
+					priceUsd?: number | null;
+					unpricedReason?: string | null;
+					capturedAt?: string | null;
+				};
+				const tokens: TokenRow[] = Array.isArray(payload.tokens) ? (payload.tokens as TokenRow[]) : [];
 				const totalUsd = tokens.reduce(
-					(sum, token) => (Number.isFinite(token.usdValue) ? sum + Number(token.usdValue) : sum),
+					(sum: number, token: TokenRow) =>
+						Number.isFinite(token.usdValue) ? sum + Number(token.usdValue) : sum,
 					0,
 				);
 				const isEmpty = tokens.length === 0;
@@ -320,7 +330,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								address: String(payload.address ?? ''),
 								totalUsd,
 								tokens: tokens.sort(
-									(a, b) => Number(b.usdValue ?? -1) - Number(a.usdValue ?? -1),
+									(a: TokenRow, b: TokenRow) => Number(b.usdValue ?? -1) - Number(a.usdValue ?? -1),
 								),
 							},
 						},

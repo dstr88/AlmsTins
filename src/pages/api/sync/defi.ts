@@ -304,7 +304,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const force = mode === 'full';
 		const wallets = await getAllActiveWallets(tenantId);
-		const results = [];
+		const results: Array<{ ok: boolean; walletId: string; lastSyncedAt?: string; message?: string }> = [];
 
 		for (const wallet of wallets) {
 			try {

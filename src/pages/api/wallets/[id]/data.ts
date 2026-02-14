@@ -2,6 +2,7 @@
 import type { APIRoute } from 'astro';
 import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 export const GET: APIRoute = async ({ params, request }) => {
   try {
@@ -10,16 +11,18 @@ export const GET: APIRoute = async ({ params, request }) => {
 
     if (!walletId) {
       return new Response(
-        JSON.stringify({ error: 'Missing walletId' }),
+        JSON.stringify({ error: true, message: 'Wallet id is required.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    await requireWalletOwnedByTenant(walletId, tenantId);
 
     const data = await getWalletWithLatestData(tenantId, walletId);
 
     if (!data) {
       return new Response(
-        JSON.stringify({ error: 'Wallet not found' }),
+        JSON.stringify({ error: true, message: 'Wallet not found.' }),
         { status: 404, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -32,6 +35,7 @@ export const GET: APIRoute = async ({ params, request }) => {
       },
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error('[API /wallets/[id]/data] Error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),

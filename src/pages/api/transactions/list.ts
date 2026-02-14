@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 export const prerender = false;
 
@@ -14,10 +15,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const to = url.searchParams.get('to');
 
 	if (!walletId) {
-		return respond({ error: true, message: 'walletId is required.' }, 400);
+		return respond({ error: true, message: 'Wallet id is required.' }, 400);
 	}
 
 	try {
+		await requireWalletOwnedByTenant(walletId, tenantId);
+
 		const clauses = ['t.wallet_id = ?', 't.tenant_id = ?'];
 		const args: any[] = [walletId, tenantId];
 
@@ -53,6 +56,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			count: result.rows.length,
 		});
 	} catch (error) {
+		if (error instanceof Response) return error;
 		console.error('Failed to load transactions', error);
 		return respond({ error: true, message: 'Unable to load transactions.' }, 500);
 	}

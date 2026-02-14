@@ -194,12 +194,18 @@ const safeParseJson = <T>(value: string | null, fallback: T): T => {
 	}
 };
 
-const safeParseChains = (value: unknown) => {
+type ChainKey = (typeof DEFAULT_ERC20_CHAINS)[number];
+const chainSet = new Set<ChainKey>(DEFAULT_ERC20_CHAINS);
+
+const safeParseChains = (value: unknown): ChainKey[] => {
 	if (typeof value !== 'string') return [...DEFAULT_ERC20_CHAINS];
 	try {
 		const parsed = JSON.parse(value);
 		if (!Array.isArray(parsed)) return [...DEFAULT_ERC20_CHAINS];
-		return parsed.length ? parsed : [...DEFAULT_ERC20_CHAINS];
+		const filtered = parsed
+			.map((entry) => String(entry))
+			.filter((entry): entry is ChainKey => chainSet.has(entry as ChainKey));
+		return filtered.length ? filtered : [...DEFAULT_ERC20_CHAINS];
 	} catch {
 		return [...DEFAULT_ERC20_CHAINS];
 	}
@@ -226,7 +232,7 @@ const addressShort = (address: string) => {
 
 const chainOrder = new Map(DEFAULT_ERC20_CHAINS.map((chain, index) => [chain, index]));
 
-const sortChains = (chains: string[]) =>
+const sortChains = (chains: ChainKey[]) =>
 	[...chains].sort((a, b) => {
 		const aOrder = chainOrder.get(a) ?? 999;
 		const bOrder = chainOrder.get(b) ?? 999;
@@ -354,7 +360,7 @@ export async function getLatestWalletSnapshot(
 				const amountRaw = token.amount ?? token.balance ?? 0;
 				const amount = Number(amountRaw ?? 0);
 				const priceUsd = Number(token.priceUsd ?? 0);
-				const usdValue = Number(token.usdValue ?? token.valueUsd ?? amount * priceUsd ?? 0);
+				const usdValue = Number(token.usdValue ?? token.valueUsd ?? amount * priceUsd);
 				const acquired =
 					token.firstSeen ?? token.acquiredAt ?? token.purchaseAt ?? capturedAt ?? null;
 				const daysHeld = computeDaysHeld(acquired);
@@ -388,7 +394,7 @@ export async function getLatestWalletSnapshot(
 		totalUsd += Number(row.totalsUsd ?? 0);
 	}
 
-	const byChain = sortChains(Array.from(byChainMap.keys())).map((chain) => byChainMap.get(chain)!);
+		const byChain = sortChains(Array.from(byChainMap.keys()) as ChainKey[]).map((chain) => byChainMap.get(chain)!);
 	const snapshot = {
 		asOf: latestAsOf,
 		netWorthUsd: totalUsd,

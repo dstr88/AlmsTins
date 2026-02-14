@@ -60,10 +60,8 @@ export async function fetchAccountData(chain: EtherscanChain, params: ScanParams
 	}
 
 	const chainId = ETHERSCAN_CHAIN_IDS[chain];
-	const { payload, url, httpStatus } = await requestEtherscan<any>(chainId, params, {
-		allowNoTx: true,
-		context: `scanSync.${chain}`,
-	});
+	const url = buildEtherscanV2Url(chainId, params);
+	const payload = await requestEtherscan(url);
 	const redactedUrl = url.replace(/apikey=[^&]+/i, 'apikey=[redacted]');
 	console.log('[ETH scan]', {
 		provider: 'etherscan_v2',
@@ -71,7 +69,6 @@ export async function fetchAccountData(chain: EtherscanChain, params: ScanParams
 		chainId,
 		keyPresent: Boolean(import.meta.env.ETHERSCAN_API_KEY),
 		url: redactedUrl,
-		httpStatus,
 		status: (payload as any).status,
 		message: (payload as any).message,
 	});
@@ -80,10 +77,8 @@ export async function fetchAccountData(chain: EtherscanChain, params: ScanParams
 
 export async function fetchEthereumScan(params: ScanParams) {
 	// Etherscan fetch is centralized in src/lib/etherscan.ts.
-	const { payload, url, httpStatus } = await requestEtherscan<any>(ETHEREUM_CHAIN_ID, params, {
-		allowNoTx: true,
-		context: 'scanSync.ethereum',
-	});
+	const url = buildEtherscanV2Url(ETHEREUM_CHAIN_ID, params);
+	const payload = await requestEtherscan(url);
 	const redactedUrl = url.replace(/apikey=[^&]+/i, 'apikey=[redacted]');
 
 	console.log('[ETH scan]', {
@@ -92,7 +87,6 @@ export async function fetchEthereumScan(params: ScanParams) {
 		chainId: ETHEREUM_CHAIN_ID,
 		keyPresent: Boolean(import.meta.env.ETHERSCAN_API_KEY),
 		url: redactedUrl,
-		httpStatus,
 		status: (payload as any).status,
 		message: (payload as any).message,
 	});

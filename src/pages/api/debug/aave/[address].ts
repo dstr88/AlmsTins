@@ -15,11 +15,12 @@ export const GET: APIRoute = async ({ params }) => {
 	}
 
 	try {
-		const positions = await getAavePositionsForWallet(address, ['ethereum', 'polygon', 'avalanche']);
-		const suppliedUsdTotal = positions.reduce((sum, chain) => sum + Number(chain.suppliedUsd ?? 0), 0);
-		const debtUsdTotal = positions.reduce((sum, chain) => sum + Number(chain.debtUsd ?? 0), 0);
+		const result = await getAavePositionsForWallet(address);
+		const chains = Array.isArray(result?.chains) ? result.chains : [];
+		const suppliedUsdTotal = chains.reduce((sum, chain) => sum + Number(chain.suppliedUsd ?? 0), 0);
+		const debtUsdTotal = chains.reduce((sum, chain) => sum + Number(chain.debtUsd ?? 0), 0);
 
-		console.log('[debug.aave] Result tokenCount=', positions.reduce((sum, chain) => sum + chain.positions.length, 0), {
+		console.log('[debug.aave] Result tokenCount=', chains.reduce((sum, chain) => sum + chain.positions.length, 0), {
 			suppliedUsdTotal,
 			debtUsdTotal,
 		});
@@ -28,7 +29,7 @@ export const GET: APIRoute = async ({ params }) => {
 			JSON.stringify({
 				ok: true,
 				address,
-				positions,
+				positions: chains,
 				totals: { suppliedUsdTotal, debtUsdTotal },
 			}),
 			{

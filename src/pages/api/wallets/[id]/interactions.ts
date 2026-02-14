@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { getContractCode } from '@/lib/etherscan';
+import { isContract as checkIsContract } from '@/lib/etherscan';
+import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
 const CACHE_TTL_MS = 1_800_000;
@@ -55,8 +56,7 @@ const fetchIsContract = async (chainId: number, address: string) => {
 	if (cached && cached.expiresAt > Date.now()) return cached.isContract;
 
 	// Etherscan call centralized in src/lib/etherscan.ts.
-	const code = await getContractCode(chainId, address);
-	const isContract = Boolean(code && code !== '0x');
+	const isContract = await checkIsContract({ chainId, address });
 	contractCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, isContract });
 	return isContract;
 };
@@ -68,30 +68,39 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 	const walletId = params.id;
 	if (!walletId) {
-		return new Response(JSON.stringify({ ok: false, error: 'Missing wallet id' }), { status: 400 });
-	}
-
-	const { tenantId } = await requireTenantSession(request);
-	const cacheKey = `${tenantId}:${walletId}`;
-	const cachedResponse = interactionsCache.get(cacheKey);
-	if (cachedResponse && cachedResponse.expiresAt > Date.now()) {
-		return new Response(JSON.stringify(cachedResponse.payload), {
-			status: 200,
-			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' },
+		return new Response(JSON.stringify({ error: true, message: 'Wallet id is required.' }), {
+			status: 400,
+			headers: { 'Content-Type': 'application/json' },
 		});
 	}
 
-	const walletResult = await db.execute({
-		sql: 'SELECT address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
-		args: [walletId, tenantId],
-	});
-	const walletAddress = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
-	if (!walletAddress) {
-		return new Response(JSON.stringify({ ok: false, error: 'Wallet not found' }), { status: 404 });
-	}
+	try {
+		const { tenantId } = await requireTenantSession(request);
+		await requireWalletOwnedByTenant(walletId, tenantId);
 
-	const interactionsResult = await db.execute({
-		sql: `WITH interactions AS (
+		const cacheKey = `${tenantId}:${walletId}`;
+		const cachedResponse = interactionsCache.get(cacheKey);
+		if (cachedResponse && cachedResponse.expiresAt > Date.now()) {
+			return new Response(JSON.stringify(cachedResponse.payload), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' },
+			});
+		}
+
+		const walletResult = await db.execute({
+			sql: 'SELECT address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+			args: [walletId, tenantId],
+		});
+		const walletAddress = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
+		if (!walletAddress) {
+			return new Response(JSON.stringify({ error: true, message: 'Wallet not found.' }), {
+				status: 404,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}
+
+		const interactionsResult = await db.execute({
+			sql: `WITH interactions AS (
 				SELECT chain, LOWER(to_address) AS address, timestamp
 				FROM transactions
 				WHERE wallet_id = ? AND tenant_id = ? AND to_address IS NOT NULL AND LOWER(to_address) != ?
@@ -105,53 +114,61 @@ export const GET: APIRoute = async ({ params, request }) => {
 			GROUP BY chain, address
 			ORDER BY last_seen DESC
 			LIMIT 60`,
-		args: [walletId, tenantId, walletAddress, walletId, tenantId, walletAddress],
-	});
+			args: [walletId, tenantId, walletAddress, walletId, tenantId, walletAddress],
+		});
 
-	const candidates = toInteractionRows(interactionsResult.rows);
-	const items: Array<{ name: string; address: string; url: string }> = [];
-	const seenLabels = new Set<string>();
-	const seenExplorers = new Set<string>();
+		const candidates = toInteractionRows(interactionsResult.rows);
+		const items: Array<{ name: string; address: string; url: string }> = [];
+		const seenLabels = new Set<string>();
+		const seenExplorers = new Set<string>();
 
-	for (const entry of candidates) {
-		if (items.length >= 20) break;
-		const chain = entry.chain || 'ethereum';
-		const address = String(entry.address ?? '').toLowerCase();
-		if (!address) continue;
+		for (const entry of candidates) {
+			if (items.length >= 20) break;
+			const chain = entry.chain || 'ethereum';
+			const address = String(entry.address ?? '').toLowerCase();
+			if (!address) continue;
 
-		const known = KNOWN_CONTRACTS[address];
-		if (known) {
-			const label = displayLabel(known.url);
+			const known = KNOWN_CONTRACTS[address];
+			if (known) {
+				const label = displayLabel(known.url);
+				if (seenLabels.has(label)) continue;
+				items.push({ name: label, address, url: known.url });
+				seenLabels.add(label);
+				continue;
+			}
+
+			const chainId = chain === 'polygon' ? 137 : chain === 'avalanche' ? 43114 : 1;
+			try {
+				const isContract = await fetchIsContract(chainId, address);
+				if (!isContract) continue;
+			} catch (error) {
+				console.warn('[interactions] contract check failed', chain, address, error);
+				continue;
+			}
+
+			const explorer = CHAIN_EXPLORERS[chain] ?? CHAIN_EXPLORERS.ethereum;
+			const explorerHome = explorer.replace(/\/address$/, '');
+			if (seenExplorers.has(explorerHome)) continue;
+			const label = displayLabel(explorerHome);
 			if (seenLabels.has(label)) continue;
-			items.push({ name: label, address, url: known.url });
+			items.push({ name: label, address, url: explorerHome });
+			seenExplorers.add(explorerHome);
 			seenLabels.add(label);
-			continue;
 		}
 
-		const chainId = chain === 'polygon' ? 137 : chain === 'avalanche' ? 43114 : 1;
-		try {
-			const isContract = await fetchIsContract(chainId, address);
-			if (!isContract) continue;
-		} catch (error) {
-			console.warn('[interactions] contract check failed', chain, address, error);
-			continue;
-		}
+		const payload = { ok: true, items };
+		interactionsCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
 
-		const explorer = CHAIN_EXPLORERS[chain] ?? CHAIN_EXPLORERS.ethereum;
-		const explorerHome = explorer.replace(/\/address$/, '');
-		if (seenExplorers.has(explorerHome)) continue;
-		const label = displayLabel(explorerHome);
-		if (seenLabels.has(label)) continue;
-		items.push({ name: label, address, url: explorerHome });
-		seenExplorers.add(explorerHome);
-		seenLabels.add(label);
+		return new Response(JSON.stringify(payload), {
+			status: 200,
+			headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' },
+		});
+	} catch (err) {
+		if (err instanceof Response) return err;
+		console.error('[interactions] error', err);
+		return new Response(JSON.stringify({ error: true, message: 'Internal error' }), {
+			status: 500,
+			headers: { 'Content-Type': 'application/json' },
+		});
 	}
-
-	const payload = { ok: true, items };
-	interactionsCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload });
-
-	return new Response(JSON.stringify(payload), {
-		status: 200,
-		headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' },
-	});
 };

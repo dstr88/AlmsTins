@@ -83,13 +83,13 @@ const authConfig = {
 	secret: import.meta.env.AUTH_SECRET,
 	trustHost: true,
 	debug: import.meta.env.DEV,
-	session: { strategy: 'jwt', maxAge: SESSION_MAX_AGE_SECONDS },
+	session: { strategy: 'jwt' as const, maxAge: SESSION_MAX_AGE_SECONDS },
 	jwt: { maxAge: SESSION_MAX_AGE_SECONDS },
 	pages: {
 		signIn: '/login',
 	},
 	callbacks: {
-		async signIn({ user, account }) {
+		async signIn({ user, account }: { user?: any; account?: any }) {
 			if (user?.id) {
 				const userId = String(user.id);
 				try {
@@ -128,7 +128,7 @@ const authConfig = {
 			}
 			return true;
 		},
-		async jwt({ token, user }) {
+		async jwt({ token, user }: { token: any; user?: any }) {
 			if (user?.id) {
 				token.sub = String(user.id);
 				token.tenantId = await ensureTenantForUser(String(user.id));
@@ -137,14 +137,14 @@ const authConfig = {
 			}
 			return token;
 		},
-		async session({ session, token }) {
+		async session({ session, token }: { session: any; token: any }) {
 			if (session.user && token.sub) {
 				(session.user as Record<string, any>).id = String(token.sub);
 			}
 			(session as Record<string, any>).tenantId = token.tenantId ?? null;
 			return session;
 		},
-		redirect({ url, baseUrl }) {
+		redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
 			const fallback = getPostLoginRedirect(null);
 			if (url === baseUrl || url === `${baseUrl}/`) {
 				return new URL(fallback, baseUrl).toString();

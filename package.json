@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
+    "@types/nodemailer": "^7.0.9",
     "vitest": "^2.1.3"
   }
 }
