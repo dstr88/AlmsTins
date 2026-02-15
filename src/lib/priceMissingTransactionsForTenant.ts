@@ -4,6 +4,17 @@ import {
   getCoingeckoIdBySymbol,
   getUsdUnitPriceAtTimestampCoinGecko,
 } from '@/lib/coingeckoHistorical';
+import {
+  countProviderCall,
+  createPricingRunSummary,
+  finalizePricingRunSummary,
+  formatPricingRunOneLiner,
+  markAttempted,
+  markPriced,
+  markRejected,
+  markSkipped,
+  trackUniqueAssetRequest,
+} from '@/lib/prices/pricingRunSummary';
 
 const MAX_ROWS_PER_RUN = 1500;
 const STABLECOINS = new Set(['USDC', 'USDT', 'DAI', 'TUSD', 'FDUSD', 'USDP', 'GUSD', 'USDE']);
@@ -170,24 +181,10 @@ export async function priceMissingTransactionsForTenant(
   tenantId: string,
   opts?: { limit?: number; interval?: '1d' | '1h' },
 ) {
+  const summary = createPricingRunSummary();
+  const uniqueAssetSet = new Set<string>();
   const limit = Math.max(1, Math.min(opts?.limit ?? MAX_ROWS_PER_RUN, MAX_ROWS_PER_RUN));
   const interval = opts?.interval ?? '1h';
-
-  const res = await db.execute({
-    sql: `SELECT id, chain, token_symbol, token_decimals, value, timestamp
-          FROM transactions
-          WHERE tenant_id = ?
-            AND (
-              usd_value IS NULL OR usd_value <= 0
-              OR usd_unit_price IS NULL OR usd_unit_price <= 0
-            )
-          ORDER BY timestamp DESC
-          LIMIT ?`,
-    args: [tenantId, limit],
-  });
-
-  const rows = Array.isArray(res.rows) ? (res.rows as any[]) : [];
-  const groups = new Map<string, any[]>();
   const skipped = {
     noSymbol: 0,
     spamSymbol: 0,
@@ -199,206 +196,258 @@ export async function priceMissingTransactionsForTenant(
     badUsdValue: 0,
     updateNoop: 0,
   };
-
-  for (const row of rows) {
-    const chain = String(row.chain ?? '');
-    const rawSymbol = String(row.token_symbol ?? '').trim();
-    if (!rawSymbol) {
-      skipped.noSymbol++;
-      continue;
-    }
-
-    const symbol = normalizeSymbol(rawSymbol, chain);
-    if (!symbol) {
-      skipped.noSymbol++;
-      continue;
-    }
-    if (isSpamSymbol(symbol)) {
-      skipped.spamSymbol++;
-      continue;
-    }
-
-    const day = utcDay(String(row.timestamp ?? ''));
-    if (!day) {
-      skipped.badTimestamp++;
-      continue;
-    }
-
-    const rawValue = row.value ? String(row.value) : '';
-    if (!rawValue || rawValue === '0') {
-      skipped.zeroValue++;
-      continue;
-    }
-
-    const key = `${symbol}|${day}`;
-    const bucket = groups.get(key);
-    if (bucket) bucket.push(row);
-    else groups.set(key, [row]);
-  }
-
+  let scanned = 0;
   let priced = 0;
   let apiCalls = 0;
   let errors = 0;
 
-  const coinIdBySymbol = new Map<string, string | null>();
+  try {
+    const res = await db.execute({
+      sql: `SELECT id, chain, token_symbol, token_decimals, value, timestamp
+            FROM transactions
+            WHERE tenant_id = ?
+              AND (
+                usd_value IS NULL OR usd_value <= 0
+                OR usd_unit_price IS NULL OR usd_unit_price <= 0
+              )
+            ORDER BY timestamp DESC
+            LIMIT ?`,
+      args: [tenantId, limit],
+    });
 
-  for (const key of groups.keys()) {
-    const symbol = key.split('|')[0]!;
-    if (STABLECOINS.has(symbol)) continue;
-    if (coinIdBySymbol.has(symbol)) continue;
+    const rows = Array.isArray(res.rows) ? (res.rows as any[]) : [];
+    scanned = rows.length;
+    const groups = new Map<string, any[]>();
 
-    try {
-      coinIdBySymbol.set(symbol, await getCoingeckoIdBySymbol(symbol));
-    } catch (err) {
-      console.warn('[pricing] coin id lookup failed', { symbol, err });
-      coinIdBySymbol.set(symbol, null);
-      errors++;
+    for (const row of rows) {
+      const chain = String(row.chain ?? '');
+      const rawSymbol = String(row.token_symbol ?? '').trim();
+      if (!rawSymbol) {
+        skipped.noSymbol++;
+        markRejected(summary, 'no_symbol');
+        continue;
+      }
+
+      const symbol = normalizeSymbol(rawSymbol, chain);
+      if (!symbol) {
+        skipped.noSymbol++;
+        markRejected(summary, 'no_symbol');
+        continue;
+      }
+      if (isSpamSymbol(symbol)) {
+        skipped.spamSymbol++;
+        markRejected(summary, 'spam_unverified');
+        continue;
+      }
+
+      const day = utcDay(String(row.timestamp ?? ''));
+      if (!day) {
+        skipped.badTimestamp++;
+        markRejected(summary, 'bad_timestamp');
+        continue;
+      }
+
+      const rawValue = row.value ? String(row.value) : '';
+      if (!rawValue || rawValue === '0') {
+        skipped.zeroValue++;
+        markRejected(summary, 'zero_value');
+        continue;
+      }
+
+      const key = `${symbol}|${day}`;
+      const bucket = groups.get(key);
+      if (bucket) bucket.push(row);
+      else groups.set(key, [row]);
     }
-  }
 
-  for (const [key, list] of groups.entries()) {
-    const [symbol, day] = key.split('|') as [string, string];
-    if (STABLECOINS.has(symbol)) {
+    const coinIdBySymbol = new Map<string, string | null>();
+
+    for (const key of groups.keys()) {
+      const symbol = key.split('|')[0]!;
+      if (STABLECOINS.has(symbol)) continue;
+      if (coinIdBySymbol.has(symbol)) continue;
+
+      try {
+        countProviderCall(summary, 'coingecko', 'metadata');
+        coinIdBySymbol.set(symbol, await getCoingeckoIdBySymbol(symbol));
+      } catch (err) {
+        console.warn('[pricing] coin id lookup failed', { symbol, err });
+        coinIdBySymbol.set(symbol, null);
+        errors++;
+      }
+    }
+
+    for (const [key, list] of groups.entries()) {
+      const [symbol, day] = key.split('|') as [string, string];
+
+      const eligibleRows: Array<{ row: any; amount: number }> = [];
       for (const row of list) {
         const amount = parseOnchainAmount(
           row.value ? String(row.value) : null,
           row.token_decimals == null ? null : Number(row.token_decimals),
         );
-
         if (amount == null || !Number.isFinite(amount) || amount <= 0) {
           skipped.badAmount++;
+          markRejected(summary, 'bad_amount');
           continue;
         }
+        eligibleRows.push({ row, amount });
+      }
+      if (!eligibleRows.length) continue;
 
-        const unitPriceUsd = 1;
+      if (STABLECOINS.has(symbol)) {
+        for (const { row, amount } of eligibleRows) {
+          const unitPriceUsd = 1;
+          const usdValue = amount * unitPriceUsd;
+
+          if (!Number.isFinite(usdValue) || usdValue <= 0) {
+            skipped.badUsdValue++;
+            markRejected(summary, 'bad_usd_value');
+            continue;
+          }
+
+          markAttempted(summary);
+          try {
+            const updateRes = await db.execute({
+              sql: `UPDATE transactions
+                    SET usd_unit_price = ?,
+                        usd_value = ?,
+                        usd_priced_at = ?,
+                        usd_price_source = 'inferred:stablecoin-peg',
+                        usd_price_confidence = 'inferred'
+                    WHERE id = ? AND tenant_id = ?
+                      AND (
+                        usd_value IS NULL OR usd_value <= 0
+                        OR usd_unit_price IS NULL OR usd_unit_price <= 0
+                      )`,
+              args: [
+                unitPriceUsd,
+                usdValue,
+                String(row.timestamp || `${day}T12:00:00Z`),
+                String(row.id),
+                tenantId,
+              ],
+            });
+            if (typeof (updateRes as any)?.rowsAffected === 'number' && (updateRes as any).rowsAffected === 0) {
+              skipped.updateNoop++;
+              markSkipped(summary, 'update_noop');
+            } else {
+              priced++;
+              markPriced(summary);
+            }
+          } catch (err) {
+            console.warn('[pricing] stablecoin update failed', { id: String(row.id), err });
+            errors++;
+            markSkipped(summary, 'db_error');
+          }
+        }
+        continue;
+      }
+
+      const coinId = coinIdBySymbol.get(symbol);
+      if (!coinId) {
+        skipped.noCoinId += eligibleRows.length;
+        for (const _ of eligibleRows) {
+          markAttempted(summary);
+          markSkipped(summary, 'no_coingecko_id');
+        }
+        continue;
+      }
+
+      trackUniqueAssetRequest(summary, `cg:${coinId}@${day}`, uniqueAssetSet);
+
+      let pricedResult: Awaited<ReturnType<typeof getUsdUnitPriceAtTimestampCoinGecko>> | null = null;
+      const priceTimestampIso = (() => {
+        const raw = eligibleRows[0]?.row?.timestamp ? String(eligibleRows[0].row.timestamp) : '';
+        const d = new Date(raw);
+        return Number.isNaN(d.getTime()) ? `${day}T12:00:00Z` : d.toISOString();
+      })();
+
+      try {
+        countProviderCall(summary, 'coingecko', 'historical');
+        pricedResult = await getUsdUnitPriceAtTimestampCoinGecko({
+          coinId,
+          timestampUtcIso: priceTimestampIso,
+        });
+        apiCalls++;
+      } catch (err) {
+        console.warn('[pricing] price lookup failed', { symbol, day, err });
+        skipped.noPrice += eligibleRows.length;
+        errors++;
+        for (const _ of eligibleRows) {
+          markAttempted(summary);
+          markSkipped(summary, 'provider_error');
+        }
+        continue;
+      }
+
+      if (!pricedResult || !Number.isFinite(pricedResult.unitPriceUsd) || pricedResult.unitPriceUsd <= 0) {
+        skipped.noPrice += eligibleRows.length;
+        for (const _ of eligibleRows) {
+          markAttempted(summary);
+          markSkipped(summary, 'no_price_for_date');
+        }
+        continue;
+      }
+
+      const unitPriceUsd = pricedResult.unitPriceUsd; // number
+      const pricedAtIso = pricedResult.pricedAtIso;   // string
+      const priceSource = pricedResult.source;
+
+      for (const { row, amount } of eligibleRows) {
         const usdValue = amount * unitPriceUsd;
-
         if (!Number.isFinite(usdValue) || usdValue <= 0) {
           skipped.badUsdValue++;
+          markRejected(summary, 'bad_usd_value');
           continue;
         }
 
+        markAttempted(summary);
         try {
           const updateRes = await db.execute({
             sql: `UPDATE transactions
                   SET usd_unit_price = ?,
                       usd_value = ?,
                       usd_priced_at = ?,
-                      usd_price_source = 'inferred:stablecoin-peg',
-                      usd_price_confidence = 'inferred'
+                      usd_price_source = ?,
+                      usd_price_confidence = 'historical'
                   WHERE id = ? AND tenant_id = ?
                     AND (
                       usd_value IS NULL OR usd_value <= 0
                       OR usd_unit_price IS NULL OR usd_unit_price <= 0
                     )`,
-            args: [
-              unitPriceUsd,
-              usdValue,
-              String(row.timestamp || `${day}T12:00:00Z`),
-              String(row.id),
-              tenantId,
-            ],
+            args: [unitPriceUsd, usdValue, pricedAtIso, priceSource, String(row.id), tenantId],
           });
           if (typeof (updateRes as any)?.rowsAffected === 'number' && (updateRes as any).rowsAffected === 0) {
             skipped.updateNoop++;
+            markSkipped(summary, 'update_noop');
           } else {
             priced++;
+            markPriced(summary);
           }
         } catch (err) {
-          console.warn('[pricing] stablecoin update failed', { id: String(row.id), err });
+          console.warn('[pricing] update failed', { id: String(row.id), err });
           errors++;
+          markSkipped(summary, 'db_error');
         }
       }
-      continue;
     }
 
-    const coinId = coinIdBySymbol.get(symbol);
-    if (!coinId) {
-      skipped.noCoinId += list.length;
-      continue;
-    }
-
-    let pricedResult: Awaited<ReturnType<typeof getUsdUnitPriceAtTimestampCoinGecko>> | null = null;
-    const priceTimestampIso = (() => {
-      const raw = list[0]?.timestamp ? String(list[0].timestamp) : '';
-      const d = new Date(raw);
-      return Number.isNaN(d.getTime()) ? `${day}T12:00:00Z` : d.toISOString();
-    })();
-
-    try {
-      pricedResult = await getUsdUnitPriceAtTimestampCoinGecko({
-        coinId,
-        timestampUtcIso: priceTimestampIso,
-      });
-      apiCalls++;
-    } catch (err) {
-      console.warn('[pricing] price lookup failed', { symbol, day, err });
-      skipped.noPrice += list.length;
-      errors++;
-      continue;
-    }
-
-    if (!pricedResult || !Number.isFinite(pricedResult.unitPriceUsd) || pricedResult.unitPriceUsd <= 0) {
-      skipped.noPrice += list.length;
-      continue;
-    }
-
-    const unitPriceUsd = pricedResult.unitPriceUsd; // number
-    const pricedAtIso = pricedResult.pricedAtIso;   // string
-    const priceSource = pricedResult.source;
-
-    for (const row of list) {
-      const amount = parseOnchainAmount(
-        row.value ? String(row.value) : null,
-        row.token_decimals == null ? null : Number(row.token_decimals),
-      );
-
-      if (amount == null || !Number.isFinite(amount) || amount <= 0) {
-        skipped.badAmount++;
-        continue;
-      }
-
-      const usdValue = amount * unitPriceUsd;
-      if (!Number.isFinite(usdValue) || usdValue <= 0) {
-        skipped.badUsdValue++;
-        continue;
-      }
-
+    if (priced > 0) {
       try {
-        const updateRes = await db.execute({
-          sql: `UPDATE transactions
-                SET usd_unit_price = ?,
-                    usd_value = ?,
-                    usd_priced_at = ?,
-                    usd_price_source = ?,
-                    usd_price_confidence = 'historical'
-                WHERE id = ? AND tenant_id = ?
-                  AND (
-                    usd_value IS NULL OR usd_value <= 0
-                    OR usd_unit_price IS NULL OR usd_unit_price <= 0
-                  )`,
-          args: [unitPriceUsd, usdValue, pricedAtIso, priceSource, String(row.id), tenantId],
-        });
-        if (typeof (updateRes as any)?.rowsAffected === 'number' && (updateRes as any).rowsAffected === 0) {
-          skipped.updateNoop++;
-        } else {
-          priced++;
-        }
+        await rebuildAssetLifecycles(tenantId);
       } catch (err) {
-        console.warn('[pricing] update failed', { id: String(row.id), err });
+        console.warn('[pricing] lifecycle rebuild failed', err);
         errors++;
       }
     }
-  }
 
-  if (priced > 0) {
-    try {
-      await rebuildAssetLifecycles(tenantId);
-    } catch (err) {
-      console.warn('[pricing] lifecycle rebuild failed', err);
-      errors++;
-    }
+    return { ok: true, scanned, priced, apiCalls, errors, skipped, interval, summary };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message, scanned, priced, apiCalls, errors, skipped, interval, summary };
+  } finally {
+    finalizePricingRunSummary(summary);
+    console.log(formatPricingRunOneLiner(summary));
   }
-
-  return { scanned: rows.length, priced, apiCalls, errors, skipped, interval };
 }
