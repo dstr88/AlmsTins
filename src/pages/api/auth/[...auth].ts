@@ -12,29 +12,29 @@ import { ensureTenantForUser, resolveActiveTenantId } from '../../../lib/tenants
 
 const providers = [];
 
-if (import.meta.env.GOOGLE_ID && import.meta.env.GOOGLE_SECRET) {
+if (process.env.GOOGLE_ID && process.env.GOOGLE_SECRET) {
 	providers.push(
 		Google({
-			clientId: import.meta.env.GOOGLE_ID,
-			clientSecret: import.meta.env.GOOGLE_SECRET,
+			clientId: process.env.GOOGLE_ID,
+			clientSecret: process.env.GOOGLE_SECRET,
 		}),
 	);
 }
 
-if (import.meta.env.GITHUB_ID && import.meta.env.GITHUB_SECRET) {
+if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
 	providers.push(
 		GitHub({
-			clientId: import.meta.env.GITHUB_ID,
-			clientSecret: import.meta.env.GITHUB_SECRET,
+			clientId: process.env.GITHUB_ID,
+			clientSecret: process.env.GITHUB_SECRET,
 		}),
 	);
 }
 
-if (import.meta.env.EMAIL_SERVER && import.meta.env.EMAIL_FROM) {
+if (process.env.EMAIL_SERVER && process.env.EMAIL_FROM) {
 	providers.push(
 		Email({
-			server: import.meta.env.EMAIL_SERVER,
-			from: import.meta.env.EMAIL_FROM,
+			server: process.env.EMAIL_SERVER,
+			from: process.env.EMAIL_FROM,
 		}),
 	);
 }
@@ -80,9 +80,9 @@ const authConfig = {
 	basePath: '/api/auth',
 	providers,
 	adapter: authAdapter(),
-	secret: import.meta.env.AUTH_SECRET,
+	secret: process.env.AUTH_SECRET,
 	trustHost: true,
-	debug: import.meta.env.DEV,
+	debug: process.env.NODE_ENV !== 'production',
 	session: { strategy: 'jwt' as const, maxAge: SESSION_MAX_AGE_SECONDS },
 	jwt: { maxAge: SESSION_MAX_AGE_SECONDS },
 	pages: {
@@ -188,8 +188,19 @@ const logAuthError = (request: Request, error: unknown) => {
 	});
 };
 
+const logAuthEnvCheck = () => {
+	console.log('[auth] env check', {
+		hasSecret: Boolean(process.env.AUTH_SECRET),
+		secretLen: process.env.AUTH_SECRET?.length ?? 0,
+		hasGithub: Boolean(process.env.GITHUB_ID && process.env.GITHUB_SECRET),
+		hasGoogle: Boolean(process.env.GOOGLE_ID && process.env.GOOGLE_SECRET),
+		hasEmail: Boolean(process.env.EMAIL_SERVER && process.env.EMAIL_FROM),
+	});
+};
+
 export const GET: APIRoute = async ({ request }) => {
 	try {
+		logAuthEnvCheck();
 		return await Auth(buildAuthRequest(request), authConfig);
 	} catch (error) {
 		logAuthError(request, error);
@@ -199,6 +210,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
+		logAuthEnvCheck();
 		return await Auth(buildAuthRequest(request), authConfig);
 	} catch (error) {
 		logAuthError(request, error);
