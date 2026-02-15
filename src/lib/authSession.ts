@@ -11,16 +11,25 @@ export type AuthSession = {
 };
 
 export async function getAuthSession(request: Request): Promise<AuthSession | null> {
-	const authUrl = import.meta.env.AUTH_URL ?? '';
+	const authUrl = process.env.AUTH_URL ?? '';
 	const forwardedProto = request.headers.get('x-forwarded-proto') ?? '';
 	const secureCookie = authUrl.startsWith('https://') || forwardedProto === 'https';
-	const salt = import.meta.env.AUTH_SALT ?? import.meta.env.AUTH_SECRET;
+	const secret = process.env.AUTH_SECRET ?? '';
+	const salt = process.env.AUTH_SALT ?? secret;
+	console.log('[authSession] env check', {
+		hasSecret: Boolean(secret),
+		secretLen: secret.length,
+		hasSalt: Boolean(salt),
+		authUrl,
+		forwardedProto: request.headers.get('x-forwarded-proto'),
+	});
 	const token = await getToken({
 		req: request,
-		secret: import.meta.env.AUTH_SECRET,
+		secret,
 		secureCookie,
 		salt,
 	});
+	console.log('[authSession] token present', { ok: Boolean(token?.sub) });
 
 	if (!token || !token.sub) {
 		return null;
