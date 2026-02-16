@@ -92,13 +92,13 @@ try {
           <form class="provider-form" method="POST" action="/api/auth/signin/google">
             <input type="hidden" name="callbackUrl" value={callbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
-            <button class="provider-button google" type="submit">Continue with Google</button>
+            <button class="provider-button google" type="submit" data-needs-csrf disabled>Continue with Google</button>
           </form>
 
           <form class="provider-form" method="POST" action="/api/auth/signin/github">
             <input type="hidden" name="callbackUrl" value={callbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
-            <button class="provider-button github" type="submit">Continue with GitHub</button>
+            <button class="provider-button github" type="submit" data-needs-csrf disabled>Continue with GitHub</button>
           </form>
         </div>
 
@@ -118,7 +118,7 @@ try {
             <input type="password" name="password" minlength="10" required />
           </label>
 
-          <button type="submit">Sign in with email</button>
+          <button type="submit" data-needs-csrf disabled>Sign in with email</button>
         </form>
 
         <div class="divider">or magic link</div>
@@ -132,29 +132,34 @@ try {
             <input type="email" name="email" placeholder="you@company.com" required />
           </label>
 
-          <button type="submit">Send magic link</button>
+          <button type="submit" data-needs-csrf disabled>Send magic link</button>
         </form>
 
         <a class="provider-button ghost" href="/signup">Create an account</a>
       </div>
 
-      <script lang="ts">
+      <script>
         (async () => {
           try {
-            const response = await fetch("/api/auth/csrf", { credentials: "same-origin" });
-            if (!response.ok) return;
-            const data = await response.json();
+            const res = await fetch("/api/auth/csrf", { credentials: "same-origin" });
+            if (!res.ok) return;
+            const data = await res.json();
             if (!data?.csrfToken) return;
 
-            const inputs = document.querySelectorAll<HTMLInputElement>('input[name="csrfToken"]');
-            inputs.forEach((input) => {
-              input.value = data.csrfToken;
+            document.querySelectorAll('input[name="csrfToken"]').forEach((el) => {
+              el.value = data.csrfToken;
             });
-          } catch (error) {
-            console.warn("Failed to load CSRF token", error);
+
+            // enable buttons once token is ready
+            document.querySelectorAll("button[data-needs-csrf]").forEach((b) => {
+              b.removeAttribute("disabled");
+            });
+          } catch (e) {
+            console.warn("[login] csrf fetch failed", e);
           }
         })();
       </script>
+
     </section>
     </div>
   </main>
