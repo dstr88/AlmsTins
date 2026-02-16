@@ -46,6 +46,7 @@ function isWordpressProbe(pathname: string) {
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
+	const isDev = process.env.NODE_ENV !== 'production';
 	const buildLogFlag = '__ledgerlense_build_logged__';
 	const globalAny = globalThis as typeof globalThis & { [buildLogFlag]?: boolean };
 	if (!globalAny[buildLogFlag]) {
@@ -57,12 +58,32 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	logEnvStatus();
 	const url = new URL(context.request.url);
 	const path = url.pathname;
+	const requestHost = context.request.headers.get('x-forwarded-host') ?? url.host;
+	const canonicalHost = (() => {
+		const authUrl = process.env.AUTH_URL ?? '';
+		if (!authUrl) return 'almstins.com';
+		try {
+			const normalized = /^https?:\/\//i.test(authUrl) ? authUrl : `https://${authUrl}`;
+			return new URL(normalized).host;
+		} catch {
+			return 'almstins.com';
+		}
+	})();
+	if (!isDev && requestHost !== canonicalHost) {
+		const redirectUrl = new URL(url.toString());
+		redirectUrl.protocol = 'https:';
+		redirectUrl.host = canonicalHost;
+		return new Response(null, {
+			status: 308,
+			headers: { Location: redirectUrl.toString() },
+		});
+	}
+
 	const hostFlag = '__ledgerlense_auth_host_logged__';
 	const globalHostAny = globalThis as typeof globalThis & { [hostFlag]?: boolean };
 	if (!globalHostAny[hostFlag]) {
 		globalHostAny[hostFlag] = true;
-		const requestHost = context.request.headers.get('x-forwarded-host') ?? url.host;
-		const authUrl = import.meta.env.AUTH_URL ?? '';
+		const authUrl = process.env.AUTH_URL ?? '';
 		let authUrlHost = 'missing';
 		let authUrlNormalized = authUrl;
 		try {
@@ -95,7 +116,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	) {
 		console.log('[req]', { requestId, path });
 	}
-	if (!import.meta.env.DEV && isEnvProbe(path)) {
+	if (!isDev && isEnvProbe(path)) {
 		console.log('[security] blocked env probe', { requestId, path });
 		return applySecurityHeaders(
 			new Response('Not Found', {
@@ -121,14 +142,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	if (path.startsWith('/.well-known/acme-challenge/')) {
 		return next();
 	}
-	if (!import.meta.env.DEV && context.request.headers.get('x-forwarded-proto') === 'http') {
+	if (!isDev && context.request.headers.get('x-forwarded-proto') === 'http') {
 		return new Response(null, {
 			status: 301,
 			headers: { Location: `https://${url.host}${url.pathname}${url.search}` },
 		});
 	}
-	const DEV = import.meta.env.DEV;
-	const LOCAL_BYPASS = import.meta.env.PUBLIC_LOCAL_DEV_NO_AUTH === 'true';
+	const DEV = isDev;
+	const LOCAL_BYPASS = process.env.PUBLIC_LOCAL_DEV_NO_AUTH === 'true';
 
 	console.log('[middleware] path =', path, 'DEV =', DEV, 'LOCAL_BYPASS =', LOCAL_BYPASS);
 
@@ -144,7 +165,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return applySecurityHeaders(await next());
 	}
 
-	const syncToken = import.meta.env.SYNC_TOKEN;
+	const syncToken = process.env.SYNC_TOKEN;
 	const headerToken = context.request.headers.get('x-sync-token');
 	if (SYNC_PATHS.has(path) && syncToken && headerToken === syncToken) {
 		console.log('[middleware] rule=SYNC_TOKEN_OK path=', path);
@@ -191,7 +212,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		return applySecurityHeaders(await next());
 	}
 
-	if (import.meta.env.AUTH_DISABLED === 'true') {
+	if (process.env.AUTH_DISABLED === 'true') {
 		console.log('[middleware] rule=AUTH_DISABLED path=', path);
 		return applySecurityHeaders(await next());
 	}
@@ -244,7 +265,7 @@ function applySecurityHeaders(response: Response) {
 	);
 	response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
 	response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
-	if (!import.meta.env.DEV) {
+	if (process.env.NODE_ENV === 'production') {
 		response.headers.set('Strict-Transport-Security', 'max-age=86400; includeSubDomains');
 	}
 	return response;
