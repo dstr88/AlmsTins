@@ -1,6 +1,7 @@
 ---
 import Layout from "@/layouts/LoginLayout.astro";
 import { getAuthSession } from "../lib/authSession";
+import { requireTenantSession } from "../lib/requireTenantSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
 import Logo from "../assets/logo.jpeg";
 
@@ -38,8 +39,12 @@ const notice =
           : "";
 
 const session = await getAuthSession(Astro.request);
-if (session) {
-  return Astro.redirect(callbackUrl, 303);
+if (session?.user?.id) {
+  const tenant = await requireTenantSession(Astro.request);
+  if (tenant) {
+    return Astro.redirect(callbackUrl, 303);
+  }
+  return Astro.redirect("/onboarding/tenant-setup", 303);
 }
 
 let csrfToken = "";

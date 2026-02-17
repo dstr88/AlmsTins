@@ -13,12 +13,15 @@ import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.
 import { getAllActiveWallets } from '@/lib/wallets';
 import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getAuthSession } from '@/lib/authSession';
 
 const ENABLE_ALL_TX = false;
 
 const pageStart = Date.now();
+const session = await getAuthSession(Astro.request);
+if (!session?.user?.id) return Astro.redirect('/login?error=missing');
 const tenant = await requireTenantSession(Astro.request);
-if (!tenant) return Astro.redirect('/login?error=missing');
+if (!tenant) return Astro.redirect('/onboarding/tenant-setup', 303);
 const { tenantId } = tenant;
 console.log('[vault] auth ms', Date.now() - pageStart);
 const walletsStart = Date.now();

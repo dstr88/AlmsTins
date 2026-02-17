@@ -1,10 +1,20 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { getAuthSession } from '@/lib/authSession';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const { userId, tenantId } = await requireTenantSession(request);
+		const tenant = await requireTenantSession(request);
+		const session = await getAuthSession(request);
+		const userId = session?.user?.id ? String(session.user.id) : '';
+		if (!tenant || !userId) {
+			return new Response(JSON.stringify({ ok: false, error: 'Unauthorized' }), {
+				status: 401,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}
+		const { tenantId } = tenant;
 		const testWalletId = 'dev-test-wallet-1';
 
 		await db.execute(
