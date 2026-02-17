@@ -1,6 +1,7 @@
 import { defineMiddleware } from 'astro/middleware';
 import { getAuthSession } from './lib/authSession';
 import { logEnvStatus } from './lib/envStatus';
+import { getTenantStateDetails } from './lib/tenants';
 
 function isEnvProbe(pathname: string) {
 	const p = pathname.toLowerCase();
@@ -135,20 +136,72 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	}
 
 	const session = await getAuthSession(request);
-	if (session?.user?.id) {
+	const userId = session?.user?.id ? String(session.user.id) : '';
+	if (!userId) {
+		if (pathname.startsWith('/api/')) {
+			return applySecurityHeaders(
+				new Response(JSON.stringify({ error: 'Unauthorized' }), {
+					status: 401,
+					headers: { 'Content-Type': 'application/json' },
+				}),
+			);
+		}
+		return Response.redirect(new URL('/login?error=missing', request.url), 303);
+	}
+
+	const tenantState = await getTenantStateDetails(userId);
+	let redirectDecision = 'allow';
+
+	if (pathname.startsWith('/onboarding/')) {
+		if (tenantState.onboardingComplete) {
+			redirectDecision = 'redirect_dashboard';
+			console.log('[tenant-route]', {
+				userId,
+				activeTenantId: tenantState.activeTenantId,
+				hasTenant: tenantState.hasTenant,
+				onboardingComplete: tenantState.onboardingComplete,
+				pathname,
+				redirectDecision,
+			});
+			return Response.redirect(new URL('/dashboard/vault', request.url), 303);
+		}
+		redirectDecision = 'allow_onboarding';
+		console.log('[tenant-route]', {
+			userId,
+			activeTenantId: tenantState.activeTenantId,
+			hasTenant: tenantState.hasTenant,
+			onboardingComplete: tenantState.onboardingComplete,
+			pathname,
+			redirectDecision,
+		});
 		return applySecurityHeaders(await next());
 	}
 
-	if (pathname.startsWith('/api/')) {
-		return applySecurityHeaders(
-			new Response(JSON.stringify({ error: 'Unauthorized' }), {
-				status: 401,
-				headers: { 'Content-Type': 'application/json' },
-			}),
-		);
+	if (pathname.startsWith('/dashboard/')) {
+		if (!tenantState.onboardingComplete) {
+			redirectDecision = 'redirect_onboarding';
+			console.log('[tenant-route]', {
+				userId,
+				activeTenantId: tenantState.activeTenantId,
+				hasTenant: tenantState.hasTenant,
+				onboardingComplete: tenantState.onboardingComplete,
+				pathname,
+				redirectDecision,
+			});
+			return Response.redirect(new URL('/onboarding/tenant-setup', request.url), 303);
+		}
+		redirectDecision = 'allow_dashboard';
 	}
 
-	return Response.redirect(new URL('/login?error=missing', request.url), 303);
+	console.log('[tenant-route]', {
+		userId,
+		activeTenantId: tenantState.activeTenantId,
+		hasTenant: tenantState.hasTenant,
+		onboardingComplete: tenantState.onboardingComplete,
+		pathname,
+		redirectDecision,
+	});
+	return applySecurityHeaders(await next());
 });
 
 const CSP_REPORT_ONLY = [

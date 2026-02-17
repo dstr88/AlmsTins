@@ -26,11 +26,60 @@ const loadAppliedMigrations = async () => {
 	return new Set(result.rows.map((row) => row.id));
 };
 
-const splitStatements = (sqlText) =>
-	sqlText
-		.split(';')
-		.map((statement) => statement.trim())
-		.filter(Boolean);
+const splitStatements = (sqlText) => {
+	const lines = sqlText.split('\n');
+	const statements = [];
+	let buffer = [];
+	let inTrigger = false;
+	let triggerBeginDepth = 0;
+	let sawTriggerBegin = false;
+
+	for (const line of lines) {
+		const normalizedLine = line.replace(/\r$/, '');
+		const trimmed = normalizedLine.trim();
+		if (!inTrigger && /^CREATE\s+TRIGGER\b/i.test(trimmed)) {
+			inTrigger = true;
+			triggerBeginDepth = 0;
+			sawTriggerBegin = false;
+		}
+		buffer.push(normalizedLine);
+
+		if (inTrigger) {
+			const beginMatches = trimmed.match(/\bBEGIN\b/gi);
+			if (beginMatches?.length) {
+				triggerBeginDepth += beginMatches.length;
+				sawTriggerBegin = true;
+			}
+			if (normalizedLine === 'END;') {
+				if (triggerBeginDepth > 0) {
+					triggerBeginDepth -= 1;
+				}
+				if (sawTriggerBegin && triggerBeginDepth === 0) {
+					const stmt = buffer.join('\n').trim();
+					if (stmt) statements.push(stmt);
+					buffer = [];
+					inTrigger = false;
+				}
+			}
+			continue;
+		}
+
+		if (trimmed.endsWith(';')) {
+			const stmt = buffer.join('\n').trim();
+			if (stmt) {
+				statements.push(stmt.slice(0, -1).trim());
+			}
+			buffer = [];
+		}
+	}
+
+	const tail = buffer.join('\n').trim();
+	if (tail) {
+		statements.push(tail);
+	}
+
+	return statements.filter(Boolean);
+};
 
 const isIgnorableMigrationError = (error) => {
 	const message = error?.message ?? '';
@@ -38,6 +87,13 @@ const isIgnorableMigrationError = (error) => {
 };
 
 const runMigrations = async () => {
+	await db.execute('PRAGMA foreign_keys = ON');
+	const fkResult = await db.execute('PRAGMA foreign_keys');
+	const fkEnabled = Number(fkResult.rows?.[0]?.foreign_keys ?? 0) === 1;
+	console.log('[db:migrate] foreign_keys', fkEnabled ? 'on' : 'off');
+	if (!fkEnabled) {
+		console.warn('[db:migrate] WARNING: PRAGMA foreign_keys is OFF; ON DELETE CASCADE guarantees are not enforced');
+	}
 	await ensureSchemaMigrations();
 	const applied = await loadAppliedMigrations();
 	const migrationsDir = path.resolve(process.cwd(), 'migrations');

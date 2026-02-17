@@ -1,6 +1,7 @@
 import { createClient } from '@libsql/client';
 
-const env = (import.meta as any).env ?? process.env;
+const importMetaEnv = ((import.meta as any).env ?? {}) as Record<string, string | undefined>;
+const env = { ...process.env, ...importMetaEnv };
 const url = env.TURSO_DATABASE_URL;
 const authToken = env.TURSO_AUTH_TOKEN;
 const loggedFlag = '__ledgerlense_db_name_logged__';
@@ -28,9 +29,16 @@ const db = createClient({
 
 if (!globalAny[pingFlag]) {
 	globalAny[pingFlag] = true;
-	db.execute('SELECT 1')
-		.then(() => {
+	db.execute('PRAGMA foreign_keys = ON')
+		.then(() => db.execute('SELECT 1'))
+		.then(() => db.execute('PRAGMA foreign_keys'))
+		.then((result) => {
+			const value = Number((result.rows[0] as Record<string, unknown> | undefined)?.foreign_keys ?? 0);
 			console.log('[db] ping ok');
+			console.log('[db] foreign_keys', value === 1 ? 'on' : 'off');
+			if (value !== 1) {
+				console.warn('[db] WARNING: PRAGMA foreign_keys is OFF; cascading deletes and FK constraints may not behave as expected');
+			}
 		})
 		.catch((error) => {
 			console.error('[db] ping failed', error instanceof Error ? error.message : String(error));

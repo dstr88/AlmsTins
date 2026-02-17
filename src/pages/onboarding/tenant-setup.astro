@@ -1,22 +1,5 @@
 ---
 import Layout from '@/layouts/LoginLayout.astro';
-import { getAuthSession } from '@/lib/authSession';
-import { ensureTenantForUser } from '@/lib/tenants';
-
-const session = await getAuthSession(Astro.request);
-if (!session?.user?.id) {
-	return Astro.redirect('/login?error=missing', 303);
-}
-
-let setupError = '';
-try {
-	const tenantId = await ensureTenantForUser(String(session.user.id), 'Primary');
-	if (tenantId) {
-		return Astro.redirect('/dashboard/vault', 303);
-	}
-} catch (error) {
-	setupError = error instanceof Error ? error.message : 'Unable to set up your tenant.';
-}
 ---
 
 <Layout title="Tenant Setup">
@@ -24,12 +7,13 @@ try {
 		<section class="tenant-setup__card">
 			<h1>Setting up your workspace</h1>
 			<p>
-				Your account is signed in, but we could not attach an active tenant yet.
-				Use retry to run setup again.
+				Your account is signed in, but onboarding is not complete yet.
+				Finish setup to unlock your dashboard.
 			</p>
-			{setupError ? <p class="tenant-setup__error">Error: {setupError}</p> : null}
 			<div class="tenant-setup__actions">
-				<a class="tenant-setup__button" href="/onboarding/tenant-setup">Retry setup</a>
+				<form method="POST" action="/api/onboarding/complete">
+					<button type="submit" class="tenant-setup__button">Finish setup</button>
+				</form>
 				<a class="tenant-setup__button tenant-setup__button--ghost" href="/api/logout">Sign out</a>
 			</div>
 		</section>
@@ -64,11 +48,6 @@ try {
 		line-height: 1.5;
 	}
 
-	.tenant-setup__error {
-		color: #ffb4b4;
-		font-size: 0.95rem;
-	}
-
 	.tenant-setup__actions {
 		display: flex;
 		gap: 0.75rem;
@@ -85,6 +64,8 @@ try {
 		font-weight: 600;
 		background: #f8b45d;
 		color: #121212;
+		border: none;
+		cursor: pointer;
 	}
 
 	.tenant-setup__button--ghost {
