@@ -17,7 +17,9 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 const ENABLE_ALL_TX = false;
 
 const pageStart = Date.now();
-const { tenantId } = await requireTenantSession(Astro.request);
+const tenant = await requireTenantSession(Astro.request);
+if (!tenant) return Astro.redirect('/login?error=missing');
+const { tenantId } = tenant;
 console.log('[vault] auth ms', Date.now() - pageStart);
 const walletsStart = Date.now();
 const wallets = await getAllActiveWallets(tenantId);

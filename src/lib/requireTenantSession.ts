@@ -6,24 +6,18 @@ export type TenantSession = {
 	tenantId: string;
 };
 
-export async function requireTenantSession(request: Request): Promise<TenantSession> {
+export async function requireTenantSession(request: Request): Promise<TenantSession | null> {
 	const session = await getAuthSession(request);
 	const userId = session?.user && 'id' in session.user ? String(session.user.id ?? '') : '';
 
 	if (!session || !userId) {
-		throw new Response('Unauthorized', { status: 401 });
+		return null;
 	}
 
 	try {
 		const tenantId = await requireActiveTenantId(userId);
 		return { userId, tenantId };
-	} catch (err) {
-		if (err instanceof Response) {
-			throw err;
-		}
-		const status = (err as any)?.status ?? 403;
-		const message = (err as any)?.message ?? 'Forbidden';
-		throw new Response(message, { status });
+	} catch {
+		return null;
 	}
-
 }
