@@ -2,33 +2,6 @@ import { defineMiddleware } from 'astro/middleware';
 import { getAuthSession } from './lib/authSession';
 import { logEnvStatus } from './lib/envStatus';
 
-const PUBLIC_PATHS = [
-	'/healthz',
-	'/login',
-	'/signup',
-	'/api/signup',
-	'/api/login',
-	'/api/auth',
-	'/api/market/coinpaprika-prices',
-	'/api/market/coingecko-prices',
-	'/api/market/coingecko-prices-by-id',
-	'/favicon',
-	'/assets',
-	'/node_modules',
-	'/_astro',
-	'/public',
-];
-const DEV_OPEN_API_PATHS = ['/api/debug-snapshots', '/api/networth'];
-
-const DEV_BYPASS_PATHS = new Set([
-	'/api/wallets/sync-all',
-	'/api/wallets/value/sync-all',
-	'/api/networth/summary',
-	'/api/market/aave-key-prices',
-]);
-
-const SYNC_PATHS = new Set(['/api/sync/defi']);
-
 function isEnvProbe(pathname: string) {
 	const p = pathname.toLowerCase();
 	// catch segment '/.env' anywhere, or ends with '.env', or has '.env.' (env.local etc)
@@ -42,6 +15,20 @@ function isWordpressProbe(pathname: string) {
 		p.startsWith('/wp-login.php') ||
 		p.startsWith('/wordpress/wp-admin') ||
 		p.startsWith('/xmlrpc.php')
+	);
+}
+
+function isPublicPath(pathname: string) {
+	return (
+		pathname === '/login' ||
+		pathname.startsWith('/login/') ||
+		pathname === '/signup' ||
+		pathname.startsWith('/signup/') ||
+		pathname === '/api/auth' ||
+		pathname.startsWith('/api/auth/') ||
+		pathname.startsWith('/_astro/') ||
+		pathname.startsWith('/assets/') ||
+		pathname === '/favicon.ico'
 	);
 }
 
@@ -107,15 +94,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			? crypto.randomUUID()
 			: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 	(context.locals as Record<string, unknown>).requestId = requestId;
-	if (
-		path === '/api/market/coinpaprika-prices' ||
-		path === '/api/market/coingecko-prices' ||
-		path === '/api/aave/health' ||
-		path === '/api/networth/summary' ||
-		(path.startsWith('/api/wallets/') && (path.endsWith('/holdings') || path.endsWith('/nfts')))
-	) {
-		console.log('[req]', { requestId, path });
-	}
+
 	if (!isDev && isEnvProbe(path)) {
 		console.log('[security] blocked env probe', { requestId, path });
 		return applySecurityHeaders(
@@ -136,109 +115,40 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			}),
 		);
 	}
-	if (path === '/api/auth' || path.startsWith('/api/auth/')) {
-		return next();
-	}
-	if (path.startsWith('/.well-known/acme-challenge/')) {
-		return next();
-	}
+
 	if (!isDev && context.request.headers.get('x-forwarded-proto') === 'http') {
 		return new Response(null, {
 			status: 301,
 			headers: { Location: `https://${url.host}${url.pathname}${url.search}` },
 		});
 	}
-	const DEV = isDev;
-	const LOCAL_BYPASS = process.env.PUBLIC_LOCAL_DEV_NO_AUTH === 'true';
-
-	console.log('[middleware] path =', path, 'DEV =', DEV, 'LOCAL_BYPASS =', LOCAL_BYPASS);
-
-	// 1) Astro dev server: always bypass
-	if (DEV) {
-		console.log('[middleware] rule=DEV_BYPASS path=', path);
-		return applySecurityHeaders(await next());
-	}
-
-	// 2) Built Node server in local dev: explicit bypass
-	if (LOCAL_BYPASS) {
-		console.log('[middleware] rule=LOCAL_BYPASS path=', path);
-		return applySecurityHeaders(await next());
-	}
-
-	const syncToken = process.env.SYNC_TOKEN;
-	const headerToken = context.request.headers.get('x-sync-token');
-	if (SYNC_PATHS.has(path) && syncToken && headerToken === syncToken) {
-		console.log('[middleware] rule=SYNC_TOKEN_OK path=', path);
-		return applySecurityHeaders(await next());
-	}
 
 	const { request, url: ctxUrl } = context;
 	const pathname = ctxUrl.pathname;
-	if (pathname === '/api/import/crypto-com' || pathname === '/api/exchanges/crypto-com/accounts/update') {
-		const cookie = request.headers.get('cookie') ?? '';
-		const host = request.headers.get('host');
-		const forwardedHost = request.headers.get('x-forwarded-host');
-		const forwardedProto = request.headers.get('x-forwarded-proto');
-		console.log('[middleware][crypto-com] cookie-check', {
-			path: pathname,
-			cookieLen: cookie.length,
-			hasAuthJsSecureSession: cookie.includes('__Secure-authjs.session-token='),
-			hasAuthJsSession: cookie.includes('authjs.session-token='),
-			hasNextAuthSession: cookie.includes('next-auth.session-token='),
-			hasCsrfToken: cookie.includes('csrf-token'),
-			hasCallbackUrl: cookie.includes('callback-url'),
-			host,
-			forwardedHost,
-			forwardedProto,
-		});
-		try {
-			const session = await getAuthSession(request);
-			console.log('[middleware][crypto-com] session-check', {
-				ok: !!session,
-				userId: session?.user?.id ?? null,
-			});
-		} catch (error) {
-			console.log('[middleware][crypto-com] session-check error', error);
-		}
-	}
 
 	if (pathname === '/') {
-		console.log('[middleware] rule=ROOT_REDIRECT path=', path);
 		return Response.redirect(new URL('/login', request.url), 303);
 	}
 
-	if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-		console.log('[middleware] rule=PUBLIC path=', path);
-		return applySecurityHeaders(await next());
-	}
-
-	if (process.env.AUTH_DISABLED === 'true') {
-		console.log('[middleware] rule=AUTH_DISABLED path=', path);
+	if (isPublicPath(pathname)) {
 		return applySecurityHeaders(await next());
 	}
 
 	const session = await getAuthSession(request);
 	if (session?.user?.id) {
-		console.log('[middleware] rule=SESSION_OK path=', path);
 		return applySecurityHeaders(await next());
 	}
 
 	if (pathname.startsWith('/api/')) {
-		console.log('[middleware] rule=API_UNAUTHORIZED path=', path);
-		return applySecurityHeaders(new Response(JSON.stringify({ error: 'Unauthorized' }), {
-			status: 401,
-			headers: { 'Content-Type': 'application/json' },
-		}));
+		return applySecurityHeaders(
+			new Response(JSON.stringify({ error: 'Unauthorized' }), {
+				status: 401,
+				headers: { 'Content-Type': 'application/json' },
+			}),
+		);
 	}
 
-	const acceptsHTML = request.headers.get('accept')?.includes('text/html');
-	if (acceptsHTML) {
-		console.log('[middleware] rule=REDIRECT_LOGIN path=', path);
-		return Response.redirect(new URL(`/login?error=missing`, request.url), 303);
-	}
-
-	console.log('[middleware] rule=UNAUTHORIZED path=', path);
-	return applySecurityHeaders(new Response('Unauthorized', { status: 401 }));
+	return Response.redirect(new URL('/login?error=missing', request.url), 303);
 });
 
 const CSP_REPORT_ONLY = [
