@@ -15,19 +15,25 @@ export async function getAuthSession(request: Request): Promise<AuthSession | nu
 	const forwardedProto = request.headers.get('x-forwarded-proto') ?? '';
 	const secureCookie = authUrl.startsWith('https://') || forwardedProto === 'https';
 	const secret = process.env.AUTH_SECRET ?? '';
-	const salt = process.env.AUTH_SALT ?? secret;
+	const cookieHeader = request.headers.get('cookie') ?? '';
+	const authCookieName = cookieHeader.includes('__Host-authjs.session-token=')
+		? '__Host-authjs.session-token'
+		: secureCookie
+			? '__Secure-authjs.session-token'
+			: 'authjs.session-token';
 	console.log('[authSession] env check', {
 		hasSecret: Boolean(secret),
 		secretLen: secret.length,
-		hasSalt: Boolean(salt),
 		authUrl,
 		forwardedProto: request.headers.get('x-forwarded-proto'),
+		authCookieName,
 	});
 	const token = await getToken({
 		req: request,
 		secret,
 		secureCookie,
-		salt,
+		cookieName: authCookieName,
+		salt: authCookieName,
 	});
 	console.log('[authSession] token present', { ok: Boolean(token?.sub) });
 

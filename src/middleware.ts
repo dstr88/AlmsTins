@@ -218,7 +218,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	}
 
 	const session = await getAuthSession(request);
-	if (session) {
+	if (session?.user?.id) {
 		console.log('[middleware] rule=SESSION_OK path=', path);
 		return applySecurityHeaders(await next());
 	}

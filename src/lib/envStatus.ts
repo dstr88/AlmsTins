@@ -6,21 +6,21 @@ export function logEnvStatus() {
 	globalAny[loggedFlag] = true;
 
 	const status = {
-		AUTH_SECRET: Boolean(import.meta.env.AUTH_SECRET),
-		AUTH_URL: Boolean(import.meta.env.AUTH_URL),
-		GOOGLE_ID: Boolean(import.meta.env.GOOGLE_ID),
-		GOOGLE_SECRET: Boolean(import.meta.env.GOOGLE_SECRET),
-		GITHUB_ID: Boolean(import.meta.env.GITHUB_ID),
-		GITHUB_SECRET: Boolean(import.meta.env.GITHUB_SECRET),
-		EMAIL_SERVER: Boolean(import.meta.env.EMAIL_SERVER),
-		EMAIL_FROM: Boolean(import.meta.env.EMAIL_FROM),
-		TURSO_DATABASE_URL: Boolean(import.meta.env.TURSO_DATABASE_URL),
-		TURSO_AUTH_TOKEN: Boolean(import.meta.env.TURSO_AUTH_TOKEN),
+		AUTH_SECRET: Boolean(process.env.AUTH_SECRET),
+		AUTH_URL: Boolean(process.env.AUTH_URL),
+		GOOGLE_ID: Boolean(process.env.GOOGLE_ID),
+		GOOGLE_SECRET: Boolean(process.env.GOOGLE_SECRET),
+		GITHUB_ID: Boolean(process.env.GITHUB_ID),
+		GITHUB_SECRET: Boolean(process.env.GITHUB_SECRET),
+		EMAIL_SERVER: Boolean(process.env.EMAIL_SERVER),
+		EMAIL_FROM: Boolean(process.env.EMAIL_FROM),
+		TURSO_DATABASE_URL: Boolean(process.env.TURSO_DATABASE_URL),
+		TURSO_AUTH_TOKEN: Boolean(process.env.TURSO_AUTH_TOKEN),
 	};
 
 	console.log('[env] presence', status);
 
-	const authUrl = import.meta.env.AUTH_URL ?? '';
+	const authUrl = process.env.AUTH_URL ?? '';
 	let authUrlHost = 'unknown';
 	try {
 		authUrlHost = authUrl ? new URL(authUrl).host : 'missing';

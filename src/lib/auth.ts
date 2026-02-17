@@ -1,37 +1,17 @@
 import type { APIContext } from 'astro';
-import crypto from 'node:crypto';
 import { getAuthSession } from './authSession';
 
-export const SESSION_COOKIE_NAME = 'dashboard_session';
-const SESSION_SALT = import.meta.env.DASHBOARD_SESSION_SALT ?? 'titaniumhut-dashboard';
-
-export function generateSessionToken(passphrase: string) {
-	return crypto.createHash('sha256').update(`${passphrase}:${SESSION_SALT}`).digest('hex');
-}
-
 export function isAuthDisabled() {
-	return import.meta.env.AUTH_DISABLED === 'true';
-}
-
-export function isValidSession(token: string | undefined) {
-	const secret = import.meta.env.DASHBOARD_PASS;
-	if (!secret) {
-		return false;
-	}
-	if (!token) {
-		return false;
-	}
-	return token === generateSessionToken(secret);
+	return process.env.AUTH_DISABLED === 'true';
 }
 
 export type SessionUser = {
-	sessionToken: string;
 	id: string;
 };
 
 export async function requireUser(context: Pick<APIContext, 'request'>): Promise<SessionUser | null> {
 	if (isAuthDisabled()) {
-		return { sessionToken: 'dev-mode', id: 'dev-user' };
+		return { id: 'dev-user' };
 	}
 
 	const session = await getAuthSession(context.request);
@@ -43,5 +23,5 @@ export async function requireUser(context: Pick<APIContext, 'request'>): Promise
 		return null;
 	}
 
-	return { sessionToken: 'authjs-session', id: userId };
+	return { id: userId };
 }
