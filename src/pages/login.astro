@@ -1,7 +1,6 @@
 ---
 import Layout from "@/layouts/LoginLayout.astro";
 import { getAuthSession } from "../lib/authSession";
-import { requireTenantSession } from "../lib/requireTenantSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
 import Logo from "../assets/logo.jpeg";
 
@@ -17,6 +16,7 @@ const nextPath =
       : null;
 
 const callbackUrl = getPostLoginRedirect(nextPath);
+const safeCallbackUrl = callbackUrl.startsWith("/") ? callbackUrl : "/dashboard/vault";
 
 const message =
   error === "missing"
@@ -39,13 +39,6 @@ const notice =
           : "";
 
 const session = await getAuthSession(Astro.request);
-if (session?.user?.id) {
-  const tenant = await requireTenantSession(Astro.request);
-  if (tenant) {
-    return Astro.redirect(callbackUrl, 303);
-  }
-  return Astro.redirect("/onboarding/tenant-setup", 303);
-}
 
 let csrfToken = "";
 try {
@@ -91,17 +84,20 @@ try {
 
           {message && <p class="notice">{message}</p>}
           {notice && <p class="notice success">{notice}</p>}
+          {session?.user?.id && (
+            <a class="provider-button ghost" href={safeCallbackUrl}>Continue to Dashboard</a>
+          )}
         </header>
 
         <div class="providers">
           <form class="provider-form" method="POST" action="/api/auth/signin/google">
-            <input type="hidden" name="callbackUrl" value={callbackUrl} />
+            <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
             <button class="provider-button google" type="submit" data-needs-csrf disabled>Continue with Google</button>
           </form>
 
           <form class="provider-form" method="POST" action="/api/auth/signin/github">
-            <input type="hidden" name="callbackUrl" value={callbackUrl} />
+            <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
             <button class="provider-button github" type="submit" data-needs-csrf disabled>Continue with GitHub</button>
           </form>
@@ -110,7 +106,7 @@ try {
         <div class="divider">or email</div>
 
         <form class="stack" method="POST" action="/api/auth/callback/credentials">
-          <input type="hidden" name="callbackUrl" value={callbackUrl} />
+          <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
           <input type="hidden" name="csrfToken" value={csrfToken} />
 
           <label>
@@ -129,7 +125,7 @@ try {
         <div class="divider">or magic link</div>
 
         <form class="stack" method="POST" action="/api/auth/signin/email">
-          <input type="hidden" name="callbackUrl" value={callbackUrl} />
+          <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
           <input type="hidden" name="csrfToken" value={csrfToken} />
 
           <label>
