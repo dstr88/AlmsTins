@@ -81,6 +81,9 @@ const splitStatements = (sqlText) => {
 	return statements.filter(Boolean);
 };
 
+const normalizeStatementForLibsql = (statement) =>
+	statement.replace(/ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+/gi, 'ADD COLUMN ');
+
 const shouldSkipMigrationStatementError = (statement, error) => {
 	const normalized = statement.trim().toUpperCase();
 	const isAlterAddColumn = normalized.startsWith('ALTER TABLE') && normalized.includes('ADD COLUMN');
@@ -136,13 +139,26 @@ const runMigrations = async () => {
 		const filePath = path.join(migrationsDir, file);
 		const sqlText = await fs.readFile(filePath, 'utf8');
 		const statements = splitStatements(sqlText);
-		for (const statement of statements) {
+		for (const [statementIndex, statement] of statements.entries()) {
+			const normalizedStatement = normalizeStatementForLibsql(statement);
+			if (normalizedStatement !== statement) {
+				console.log('[db:migrate] normalized', {
+					migrationId: file,
+					statementIndex,
+					statement: normalizedStatement,
+				});
+			}
+			console.log('[db:migrate] exec', {
+				migrationId: file,
+				statementIndex,
+				statement: normalizedStatement,
+			});
 			try {
-				await db.execute(statement);
+				await db.execute(normalizedStatement);
 			} catch (error) {
-				if (shouldSkipMigrationStatementError(statement, error)) {
+				if (shouldSkipMigrationStatementError(normalizedStatement, error)) {
 					console.warn('[db:migrate] skip existing column', {
-						statement,
+						statement: normalizedStatement,
 						error: error instanceof Error ? error.message : String(error),
 					});
 					continue;
