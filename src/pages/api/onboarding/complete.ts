@@ -32,6 +32,10 @@ async function readAuthUserDebugRow(userId: string) {
 	}
 }
 
+export const GET: APIRoute = async ({ redirect }) => {
+	return redirect('/onboarding/tenant-setup?error=use-post', 303);
+};
+
 export const POST: APIRoute = async ({ request, redirect }) => {
 	const session = await getAuthSession(request);
 	const userId = session?.user?.id ? String(session.user.id) : '';
