@@ -81,9 +81,28 @@ const splitStatements = (sqlText) => {
 	return statements.filter(Boolean);
 };
 
-const isIgnorableMigrationError = (error) => {
-	const message = error?.message ?? '';
-	return message.includes('duplicate column name');
+const shouldSkipMigrationStatementError = (statement, error) => {
+	const normalized = statement.trim().toUpperCase();
+	const isAlterAddColumn = normalized.startsWith('ALTER TABLE') && normalized.includes('ADD COLUMN');
+	if (!isAlterAddColumn) return false;
+
+	const message = String(error?.message ?? '').toLowerCase();
+	return message.includes('duplicate column name') || message.includes('already exists');
+};
+
+const logAuthUserOnboardingColumns = async () => {
+	try {
+		const result = await db.execute('PRAGMA table_info(auth_users)');
+		const columns = new Set(result.rows.map((row) => String(row.name ?? '')));
+		console.log('[db:migrate] auth_users onboarding columns', {
+			is_onboarded: columns.has('is_onboarded'),
+			setup_completed_at: columns.has('setup_completed_at'),
+		});
+	} catch (error) {
+		console.warn('[db:migrate] failed to inspect auth_users columns', {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
 };
 
 const runMigrations = async () => {
@@ -121,8 +140,11 @@ const runMigrations = async () => {
 			try {
 				await db.execute(statement);
 			} catch (error) {
-				if (isIgnorableMigrationError(error)) {
-					console.warn(`Skipping statement due to existing column: ${statement}`);
+				if (shouldSkipMigrationStatementError(statement, error)) {
+					console.warn('[db:migrate] skip existing column', {
+						statement,
+						error: error instanceof Error ? error.message : String(error),
+					});
 					continue;
 				}
 				throw error;
@@ -135,6 +157,7 @@ const runMigrations = async () => {
 		console.log(`Applied migration: ${file}`);
 	}
 
+	await logAuthUserOnboardingColumns();
 	console.log('Migrations complete.');
 };
 

@@ -124,9 +124,10 @@ export async function getTenantState(userId: string): Promise<{ hasTenant: boole
 	return { hasTenant: state.hasTenant, onboardingComplete: state.onboardingComplete };
 }
 
-export async function markOnboardingComplete(userId: string): Promise<void> {
+export async function markOnboardingComplete(userId: string): Promise<boolean> {
+	const debug = process.env.TENANT_DEBUG === '1';
 	try {
-		await db.execute({
+		const res = await db.execute({
 			sql: `
         UPDATE auth_users
         SET is_onboarded = 1,
@@ -135,8 +136,33 @@ export async function markOnboardingComplete(userId: string): Promise<void> {
       `,
 			args: [userId],
 		});
-	} catch {
-		// Ignore when schema columns are not yet deployed.
+		const affected = Number(res.rowsAffected ?? 0);
+		if (debug) {
+			console.log('[tenants] markOnboardingComplete', { userId, affected });
+		}
+		if (affected === 0) {
+			console.warn('[tenants] markOnboardingComplete affected 0 rows', { userId });
+		}
+		return affected > 0;
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : typeof error === 'string' ? error : String(error ?? '');
+		const missingColumns =
+			message.includes('no such column') ||
+			message.includes('has no column named') ||
+			message.includes('unknown column');
+		if (missingColumns) {
+			console.warn('[tenants] markOnboardingComplete failed (likely missing columns)', {
+				userId,
+				error: message,
+			});
+			return false;
+		}
+		console.error('[tenants] markOnboardingComplete failed (unexpected)', {
+			userId,
+			error: message,
+		});
+		throw error;
 	}
 }
 
