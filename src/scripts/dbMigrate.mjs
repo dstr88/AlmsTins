@@ -145,7 +145,8 @@ const runMigrations = async () => {
 				console.log('[db:migrate] normalized', {
 					migrationId: file,
 					statementIndex,
-					statement: normalizedStatement,
+					original: statement,
+					normalized: normalizedStatement,
 				});
 			}
 			console.log('[db:migrate] exec', {
