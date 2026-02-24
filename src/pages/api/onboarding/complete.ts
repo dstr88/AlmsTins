@@ -37,10 +37,20 @@ export const GET: APIRoute = async ({ redirect }) => {
 };
 
 export const POST: APIRoute = async ({ request, redirect }) => {
+	if (tenantDebugEnabled) {
+		console.log('[onboarding.complete] request', {
+			method: request.method,
+			referer: request.headers.get('referer') ?? null,
+		});
+	}
 	const session = await getAuthSession(request);
 	const userId = session?.user?.id ? String(session.user.id) : '';
 	if (!userId) {
-		return redirect('/login?error=missing', 303);
+		const loginRedirect = '/login?error=missing&next=/onboarding/tenant-setup';
+		if (tenantDebugEnabled) {
+			console.log('[onboarding.complete] redirect unauthenticated', { to: loginRedirect });
+		}
+		return redirect(loginRedirect, 303);
 	}
 
 	if (tenantDebugEnabled) {

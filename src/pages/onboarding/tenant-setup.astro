@@ -12,7 +12,7 @@ import Layout from '@/layouts/LoginLayout.astro';
 			</p>
 			<div class="tenant-setup__actions">
 				<form method="POST" action="/api/onboarding/complete">
-					<button type="submit" class="tenant-setup__button">Finish setup</button>
+					<button type="submit" name="finish-setup" class="tenant-setup__button">Finish setup</button>
 				</form>
 				<a class="tenant-setup__button tenant-setup__button--ghost" href="/api/logout">Sign out</a>
 			</div>

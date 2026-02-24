@@ -7,6 +7,10 @@ function normalizeNextPath(nextValue: FormDataEntryValue | string | null | undef
 	}
 
 	if (nextValue.startsWith('/') && !nextValue.startsWith('//')) {
+		// Never treat API endpoints as post-login destinations.
+		if (nextValue.startsWith('/api/')) {
+			return '/onboarding/tenant-setup';
+		}
 		return nextValue;
 	}
 
