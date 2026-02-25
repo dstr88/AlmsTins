@@ -1,4 +1,8 @@
 export function normalizeRouteKey(pathname: string): string {
+	if (pathname.startsWith('/_astro/')) return '/_astro/*';
+	if (pathname.startsWith('/assets/')) return '/assets/*';
+	if (pathname === '/favicon.ico') return '/favicon.ico';
+	if (pathname === '/wallet') return '/wallet';
 	if (pathname.startsWith('/wallet/')) return '/wallet/:address';
 	if (pathname.startsWith('/dashboard/')) return '/dashboard/*';
 	if (pathname === '/login') return '/login';
@@ -15,4 +19,3 @@ export function extractWalletAddress(pathname: string): string | null {
 	const segment = pathname.slice('/wallet/'.length).split('/')[0]?.trim();
 	return segment || null;
 }
-

@@ -30,6 +30,8 @@ function isPublicPath(pathname: string) {
 		pathname.startsWith('/login/') ||
 		pathname === '/signup' ||
 		pathname.startsWith('/signup/') ||
+		pathname === '/wallet' ||
+		pathname.startsWith('/wallet/') ||
 		pathname === '/api/auth' ||
 		pathname.startsWith('/api/auth/') ||
 		pathname.startsWith('/_astro/') ||
@@ -48,128 +50,147 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	try {
 		const isDev = process.env.NODE_ENV !== 'production';
-	const buildLogFlag = '__ledgerlense_build_logged__';
-	const globalAny = globalThis as typeof globalThis & { [buildLogFlag]?: boolean };
-	if (!globalAny[buildLogFlag]) {
-		globalAny[buildLogFlag] = true;
-		console.log('[build]', { BUILD_SHA: process.env.BUILD_SHA ?? 'missing' });
-		console.log('[perf] instrumentation enabled');
-	}
+		const request = context.request;
+		const url = new URL(request.url);
+		const pathname = url.pathname;
 
-	logEnvStatus();
-	const url = new URL(context.request.url);
-	const path = url.pathname;
-	const requestHost = context.request.headers.get('x-forwarded-host') ?? url.host;
-	const canonicalHost = (() => {
-		const authUrl = process.env.AUTH_URL ?? '';
-		if (!authUrl) return 'almstins.com';
-		try {
-			const normalized = /^https?:\/\//i.test(authUrl) ? authUrl : `https://${authUrl}`;
-			return new URL(normalized).host;
-		} catch {
-			return 'almstins.com';
+		const buildLogFlag = '__ledgerlense_build_logged__';
+		const globalAny = globalThis as typeof globalThis & { [buildLogFlag]?: boolean };
+		if (!globalAny[buildLogFlag]) {
+			globalAny[buildLogFlag] = true;
+			console.log('[build]', { BUILD_SHA: process.env.BUILD_SHA ?? 'missing' });
+			console.log('[perf] instrumentation enabled');
 		}
-	})();
-	if (!isDev && requestHost !== canonicalHost) {
-		const redirectUrl = new URL(url.toString());
-		redirectUrl.protocol = 'https:';
-		redirectUrl.host = canonicalHost;
-		return finish(new Response(null, {
-			status: 308,
-			headers: { Location: redirectUrl.toString() },
-		}));
-	}
 
-	const hostFlag = '__ledgerlense_auth_host_logged__';
-	const globalHostAny = globalThis as typeof globalThis & { [hostFlag]?: boolean };
-	if (!globalHostAny[hostFlag]) {
-		globalHostAny[hostFlag] = true;
-		const authUrl = process.env.AUTH_URL ?? '';
-		let authUrlHost = 'missing';
-		let authUrlNormalized = authUrl;
-		try {
-			if (authUrl && !/^https?:\/\//i.test(authUrl)) {
-				authUrlNormalized = `https://${authUrl}`;
+		logEnvStatus();
+		const requestHost = request.headers.get('x-forwarded-host') ?? url.host;
+		const canonicalHost = (() => {
+			const authUrl = process.env.AUTH_URL ?? '';
+			if (!authUrl) return 'almstins.com';
+			try {
+				const normalized = /^https?:\/\//i.test(authUrl) ? authUrl : `https://${authUrl}`;
+				return new URL(normalized).host;
+			} catch {
+				return 'almstins.com';
 			}
-			authUrlHost = authUrlNormalized ? new URL(authUrlNormalized).host : 'missing';
-		} catch {
-			authUrlHost = 'invalid';
+		})();
+		if (!isDev && requestHost !== canonicalHost) {
+			const redirectUrl = new URL(url.toString());
+			redirectUrl.protocol = 'https:';
+			redirectUrl.host = canonicalHost;
+			return finish(
+				new Response(null, {
+					status: 308,
+					headers: { Location: redirectUrl.toString() },
+				}),
+			);
 		}
-		const matches = authUrlHost !== 'missing' && authUrlHost !== 'invalid' && requestHost === authUrlHost;
-		console.log('[env] auth_url_host_match', {
-			requestHost,
-			authUrlHost,
-			authUrlNormalized,
-			matches,
-		});
-	}
-	const requestId =
-		typeof crypto !== 'undefined' && 'randomUUID' in crypto
-			? crypto.randomUUID()
-			: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-	(context.locals as Record<string, unknown>).requestId = requestId;
 
-	if (!isDev && isEnvProbe(path)) {
-		console.log('[security] blocked env probe', { requestId, path });
-		return finish(applySecurityHeaders(
-			new Response('Not Found', {
-				status: 404,
-				headers: { 'Cache-Control': 'no-store' },
-			}),
-		));
-	}
-	if (isWordpressProbe(path)) {
-		const ip = context.request.headers.get('x-forwarded-for') ?? context.clientAddress ?? 'unknown';
-		const ua = context.request.headers.get('user-agent') ?? 'unknown';
-		console.log('[probe-blocked] path=%s ip=%s ua=%s', path, ip, ua);
-		return finish(applySecurityHeaders(
-			new Response('Not Found', {
-				status: 404,
-				headers: { 'Cache-Control': 'no-store' },
-			}),
-		));
-	}
+		const hostFlag = '__ledgerlense_auth_host_logged__';
+		const globalHostAny = globalThis as typeof globalThis & { [hostFlag]?: boolean };
+		if (!globalHostAny[hostFlag]) {
+			globalHostAny[hostFlag] = true;
+			const authUrl = process.env.AUTH_URL ?? '';
+			let authUrlHost = 'missing';
+			let authUrlNormalized = authUrl;
+			try {
+				if (authUrl && !/^https?:\/\//i.test(authUrl)) {
+					authUrlNormalized = `https://${authUrl}`;
+				}
+				authUrlHost = authUrlNormalized ? new URL(authUrlNormalized).host : 'missing';
+			} catch {
+				authUrlHost = 'invalid';
+			}
+			const matches = authUrlHost !== 'missing' && authUrlHost !== 'invalid' && requestHost === authUrlHost;
+			console.log('[env] auth_url_host_match', {
+				requestHost,
+				authUrlHost,
+				authUrlNormalized,
+				matches,
+			});
+		}
 
-	if (!isDev && context.request.headers.get('x-forwarded-proto') === 'http') {
-		return finish(new Response(null, {
-			status: 301,
-			headers: { Location: `https://${url.host}${url.pathname}${url.search}` },
-		}));
-	}
+		const requestId =
+			typeof crypto !== 'undefined' && 'randomUUID' in crypto
+				? crypto.randomUUID()
+				: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+		(context.locals as Record<string, unknown>).requestId = requestId;
 
-	const { request, url: ctxUrl } = context;
-	const pathname = ctxUrl.pathname;
-
-	if (pathname === '/') {
-		return finish(Response.redirect(new URL('/login', request.url), 303));
-	}
-
-	if (isPublicPath(pathname)) {
-		return finish(applySecurityHeaders(await next()));
-	}
-
-	const session = await getAuthSession(request);
-	const userId = session?.user?.id ? String(session.user.id) : '';
-	if (!userId) {
-		if (pathname.startsWith('/api/')) {
+		if (!isDev && isEnvProbe(pathname)) {
+			console.log('[security] blocked env probe', { requestId, path: pathname });
 			return finish(
 				applySecurityHeaders(
-				new Response(JSON.stringify({ error: 'Unauthorized' }), {
-					status: 401,
-					headers: { 'Content-Type': 'application/json' },
-				}),
+					new Response('Not Found', {
+						status: 404,
+						headers: { 'Cache-Control': 'no-store' },
+					}),
 				),
 			);
 		}
-		return finish(Response.redirect(new URL('/login?error=missing', request.url), 303));
-	}
+		if (isWordpressProbe(pathname)) {
+			const ip = request.headers.get('x-forwarded-for') ?? context.clientAddress ?? 'unknown';
+			const ua = request.headers.get('user-agent') ?? 'unknown';
+			console.log('[probe-blocked] path=%s ip=%s ua=%s', pathname, ip, ua);
+			return finish(
+				applySecurityHeaders(
+					new Response('Not Found', {
+						status: 404,
+						headers: { 'Cache-Control': 'no-store' },
+					}),
+				),
+			);
+		}
 
-	const tenantState = await getTenantStateDetails(userId);
-	let redirectDecision = 'allow';
+		if (!isDev && request.headers.get('x-forwarded-proto') === 'http') {
+			return finish(
+				new Response(null, {
+					status: 301,
+					headers: { Location: `https://${url.host}${url.pathname}${url.search}` },
+				}),
+			);
+		}
 
-	if (pathname.startsWith('/onboarding/')) {
-		if (tenantState.onboardingComplete) {
-			redirectDecision = 'redirect_dashboard';
+		if (pathname === '/') {
+			return finish(Response.redirect(new URL('/login', request.url), 303));
+		}
+
+		if (isPublicPath(pathname)) {
+			return finish(applySecurityHeaders(await next()));
+		}
+
+		const session = await getAuthSession(request);
+	const userId = session?.user?.id ? String(session.user.id) : '';
+		if (!userId) {
+			if (pathname.startsWith('/api/')) {
+				return finish(
+					applySecurityHeaders(
+						new Response(JSON.stringify({ error: 'Unauthorized' }), {
+							status: 401,
+							headers: { 'Content-Type': 'application/json' },
+						}),
+					),
+				);
+			}
+			return finish(Response.redirect(new URL('/login?error=missing', request.url), 303));
+		}
+
+		const tenantState = await getTenantStateDetails(userId);
+		let redirectDecision = 'allow';
+
+		if (pathname.startsWith('/onboarding/')) {
+			if (tenantState.onboardingComplete) {
+				redirectDecision = 'redirect_dashboard';
+				console.log('[tenant-route]', {
+					userId,
+					activeTenantId: tenantState.activeTenantId,
+					hasTenant: tenantState.hasTenant,
+					onboardingComplete: tenantState.onboardingComplete,
+					pathname,
+					redirectDecision,
+				});
+				return finish(Response.redirect(new URL('/dashboard/vault', request.url), 303));
+			}
+			redirectDecision = 'allow_onboarding';
 			console.log('[tenant-route]', {
 				userId,
 				activeTenantId: tenantState.activeTenantId,
@@ -178,9 +199,25 @@ export const onRequest = defineMiddleware(async (context, next) => {
 				pathname,
 				redirectDecision,
 			});
-			return finish(Response.redirect(new URL('/dashboard/vault', request.url), 303));
+			return finish(applySecurityHeaders(await next()));
 		}
-		redirectDecision = 'allow_onboarding';
+
+		if (pathname.startsWith('/dashboard/')) {
+			if (!tenantState.onboardingComplete) {
+				redirectDecision = 'redirect_onboarding';
+				console.log('[tenant-route]', {
+					userId,
+					activeTenantId: tenantState.activeTenantId,
+					hasTenant: tenantState.hasTenant,
+					onboardingComplete: tenantState.onboardingComplete,
+					pathname,
+					redirectDecision,
+				});
+				return finish(Response.redirect(new URL('/onboarding/tenant-setup', request.url), 303));
+			}
+			redirectDecision = 'allow_dashboard';
+		}
+
 		console.log('[tenant-route]', {
 			userId,
 			activeTenantId: tenantState.activeTenantId,
@@ -189,33 +226,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			pathname,
 			redirectDecision,
 		});
-		return finish(applySecurityHeaders(await next()));
-	}
-
-	if (pathname.startsWith('/dashboard/')) {
-		if (!tenantState.onboardingComplete) {
-			redirectDecision = 'redirect_onboarding';
-			console.log('[tenant-route]', {
-				userId,
-				activeTenantId: tenantState.activeTenantId,
-				hasTenant: tenantState.hasTenant,
-				onboardingComplete: tenantState.onboardingComplete,
-				pathname,
-				redirectDecision,
-			});
-			return finish(Response.redirect(new URL('/onboarding/tenant-setup', request.url), 303));
-		}
-		redirectDecision = 'allow_dashboard';
-	}
-
-	console.log('[tenant-route]', {
-		userId,
-		activeTenantId: tenantState.activeTenantId,
-		hasTenant: tenantState.hasTenant,
-		onboardingComplete: tenantState.onboardingComplete,
-		pathname,
-		redirectDecision,
-	});
 		return finish(applySecurityHeaders(await next()));
 	} finally {
 		if (finalResponse) {
