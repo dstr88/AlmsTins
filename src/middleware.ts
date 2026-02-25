@@ -2,6 +2,11 @@ import { defineMiddleware } from 'astro/middleware';
 import { getAuthSession } from './lib/authSession';
 import { logEnvStatus } from './lib/envStatus';
 import { getTenantStateDetails } from './lib/tenants';
+import { db } from './lib/db';
+import { getCountryForIpHash } from './lib/analytics/geoip';
+import { hashWithSalt } from './lib/analytics/hash';
+import { getClientIp } from './lib/analytics/ip';
+import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } from './lib/analytics/routes';
 
 function isEnvProbe(pathname: string) {
 	const p = pathname.toLowerCase();
@@ -34,7 +39,15 @@ function isPublicPath(pathname: string) {
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
-	const isDev = process.env.NODE_ENV !== 'production';
+	const startedAt = Date.now();
+	let finalResponse: Response | null = null;
+	const finish = (response: Response) => {
+		finalResponse = response;
+		return response;
+	};
+
+	try {
+		const isDev = process.env.NODE_ENV !== 'production';
 	const buildLogFlag = '__ledgerlense_build_logged__';
 	const globalAny = globalThis as typeof globalThis & { [buildLogFlag]?: boolean };
 	if (!globalAny[buildLogFlag]) {
@@ -61,10 +74,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		const redirectUrl = new URL(url.toString());
 		redirectUrl.protocol = 'https:';
 		redirectUrl.host = canonicalHost;
-		return new Response(null, {
+		return finish(new Response(null, {
 			status: 308,
 			headers: { Location: redirectUrl.toString() },
-		});
+		}));
 	}
 
 	const hostFlag = '__ledgerlense_auth_host_logged__';
@@ -98,55 +111,57 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	if (!isDev && isEnvProbe(path)) {
 		console.log('[security] blocked env probe', { requestId, path });
-		return applySecurityHeaders(
+		return finish(applySecurityHeaders(
 			new Response('Not Found', {
 				status: 404,
 				headers: { 'Cache-Control': 'no-store' },
 			}),
-		);
+		));
 	}
 	if (isWordpressProbe(path)) {
 		const ip = context.request.headers.get('x-forwarded-for') ?? context.clientAddress ?? 'unknown';
 		const ua = context.request.headers.get('user-agent') ?? 'unknown';
 		console.log('[probe-blocked] path=%s ip=%s ua=%s', path, ip, ua);
-		return applySecurityHeaders(
+		return finish(applySecurityHeaders(
 			new Response('Not Found', {
 				status: 404,
 				headers: { 'Cache-Control': 'no-store' },
 			}),
-		);
+		));
 	}
 
 	if (!isDev && context.request.headers.get('x-forwarded-proto') === 'http') {
-		return new Response(null, {
+		return finish(new Response(null, {
 			status: 301,
 			headers: { Location: `https://${url.host}${url.pathname}${url.search}` },
-		});
+		}));
 	}
 
 	const { request, url: ctxUrl } = context;
 	const pathname = ctxUrl.pathname;
 
 	if (pathname === '/') {
-		return Response.redirect(new URL('/login', request.url), 303);
+		return finish(Response.redirect(new URL('/login', request.url), 303));
 	}
 
 	if (isPublicPath(pathname)) {
-		return applySecurityHeaders(await next());
+		return finish(applySecurityHeaders(await next()));
 	}
 
 	const session = await getAuthSession(request);
 	const userId = session?.user?.id ? String(session.user.id) : '';
 	if (!userId) {
 		if (pathname.startsWith('/api/')) {
-			return applySecurityHeaders(
+			return finish(
+				applySecurityHeaders(
 				new Response(JSON.stringify({ error: 'Unauthorized' }), {
 					status: 401,
 					headers: { 'Content-Type': 'application/json' },
 				}),
+				),
 			);
 		}
-		return Response.redirect(new URL('/login?error=missing', request.url), 303);
+		return finish(Response.redirect(new URL('/login?error=missing', request.url), 303));
 	}
 
 	const tenantState = await getTenantStateDetails(userId);
@@ -163,7 +178,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 				pathname,
 				redirectDecision,
 			});
-			return Response.redirect(new URL('/dashboard/vault', request.url), 303);
+			return finish(Response.redirect(new URL('/dashboard/vault', request.url), 303));
 		}
 		redirectDecision = 'allow_onboarding';
 		console.log('[tenant-route]', {
@@ -174,7 +189,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			pathname,
 			redirectDecision,
 		});
-		return applySecurityHeaders(await next());
+		return finish(applySecurityHeaders(await next()));
 	}
 
 	if (pathname.startsWith('/dashboard/')) {
@@ -188,7 +203,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 				pathname,
 				redirectDecision,
 			});
-			return Response.redirect(new URL('/onboarding/tenant-setup', request.url), 303);
+			return finish(Response.redirect(new URL('/onboarding/tenant-setup', request.url), 303));
 		}
 		redirectDecision = 'allow_dashboard';
 	}
@@ -201,7 +216,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		pathname,
 		redirectDecision,
 	});
-	return applySecurityHeaders(await next());
+		return finish(applySecurityHeaders(await next()));
+	} finally {
+		if (finalResponse) {
+			await writeRequestAnalyticsBestEffort(context.request, finalResponse, startedAt);
+		}
+	}
 });
 
 const CSP_REPORT_ONLY = [
@@ -232,4 +252,67 @@ function applySecurityHeaders(response: Response) {
 		response.headers.set('Strict-Transport-Security', 'max-age=86400; includeSubDomains');
 	}
 	return response;
+}
+
+async function writeRequestAnalyticsBestEffort(request: Request, response: Response, startedAt: number) {
+	try {
+		await writeRequestAnalytics(request, response, startedAt);
+	} catch (error) {
+		console.warn('[analytics] write failed', error instanceof Error ? error.message : String(error));
+	}
+}
+
+async function writeRequestAnalytics(request: Request, response: Response, startedAt: number) {
+	const url = new URL(request.url);
+	const pathname = url.pathname;
+	const routeKey = normalizeRouteKey(pathname);
+	const method = request.method.toUpperCase();
+	const status = response.status;
+	const ms = Math.max(0, Date.now() - startedAt);
+	const ts = new Date().toISOString();
+	const day = ts.slice(0, 10);
+
+	const ipRaw = getClientIp(request);
+	const ipHash = hashWithSalt(ipRaw ?? 'no-ip');
+	const uaHash = hashWithSalt(request.headers.get('user-agent') ?? 'no-ua');
+	const geo = await getCountryForIpHash(ipHash, ipRaw);
+	const countryCode = geo.countryCode;
+
+	await db.execute({
+		sql: `
+			INSERT INTO request_agg_daily (
+				day, route_key, method, status, country_code, count, ms_total, ms_max
+			) VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+			ON CONFLICT(day, route_key, method, status, country_code) DO UPDATE SET
+				count = request_agg_daily.count + 1,
+				ms_total = request_agg_daily.ms_total + excluded.ms_total,
+				ms_max = MAX(request_agg_daily.ms_max, excluded.ms_max)
+		`,
+		args: [day, routeKey, method, status, countryCode, ms, ms],
+	});
+
+	if (!isDetailedAnalyticsRoute(routeKey)) {
+		return;
+	}
+
+	await db.execute({
+		sql: `
+			INSERT INTO request_log (
+				ts, route, route_key, method, status, ms, ip_hash, ua_hash, country_code, wallet_address, cache_hit
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`,
+		args: [
+			ts,
+			pathname,
+			routeKey,
+			method,
+			status,
+			ms,
+			ipHash,
+			uaHash,
+			countryCode,
+			extractWalletAddress(pathname),
+			geo.cacheHit ? 1 : 0,
+		],
+	});
 }
