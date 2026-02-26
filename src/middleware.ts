@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { defineMiddleware } from 'astro/middleware';
 import { getAuthSession } from './lib/authSession';
 import { logEnvStatus } from './lib/envStatus';
