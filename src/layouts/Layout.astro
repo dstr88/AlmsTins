@@ -21,7 +21,7 @@ import Footer from "@/components/Footer.astro";
 			<header class="chrome__header">
 				<div>
 					<p class="brand">Titanium Hut</p>
-					<strong>Private investor dashboard</strong>
+					<a class="dashboard-link" href="/dashboard/vault">Private investor dashboard</a>
 				</div>
 				<nav>
 					<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>Bookkeeping</a>
@@ -80,11 +80,21 @@ import Footer from "@/components/Footer.astro";
 		color: rgba(255, 255, 255, 0.55);
 	}
 
-	.chrome__header strong {
+	.dashboard-link {
 		display: block;
 		margin-top: 0.3rem;
 		font-size: 0.95rem;
 		color: rgba(255, 255, 255, 0.8);
+		text-decoration: none;
+		position: relative;
+		z-index: 1;
+	}
+
+	.dashboard-link:hover,
+	.dashboard-link:focus-visible {
+		color: #fff;
+		text-decoration: underline;
+		text-underline-offset: 0.15em;
 	}
 
 	nav {
