@@ -1,23 +1,11 @@
 ---
-<<<<<<< HEAD
 import Layout from '../layouts/Layout.astro';
+import Card from '../components/card.astro';
+import Quill from '../components/Quill.astro';
+import EnomeND from '../components/enomeND.astro';
 ---
 
 <Layout>
-	<section class="public-gate">
-		<h1>Login required</h1>
-		<p>Sign in to access your dashboard.</p>
-		<a class="login-button" href="/login">Go to login</a>
-	</section>
-=======
-import Layout from '@/layouts/Layout.astro';
-import Card from '@/components/card.astro';
-import Quill from '@/components/Quill.astro';
-import EnomeND from '@/components/enomeND.astro';
----
-
-<Layout>
-  
   <main class="content-wrap">
     <div class="one-column">
       <h1 class="page-title">Developing apps for a brighter tomorrow.</h1>
@@ -25,44 +13,58 @@ import EnomeND from '@/components/enomeND.astro';
       <Quill />
       <section class="card-row">
         <Card title="Live Project: Christian Therapy Practice">
-          <p>A fully deployed website built for a Christian therapist, designed to communicate a Christ-centered understanding of care with clarity, professionalism, and warmth.</p>
-          <p>This project reflects how faith, ethics, and thoughtful design can work together in a real-world clinical practice.</p>
-          
+          <p>
+            A fully deployed website built for a Christian therapist, designed to communicate a
+            Christ-centered understanding of care with clarity, professionalism, and warmth.
+          </p>
+          <p>
+            This project reflects how faith, ethics, and thoughtful design can work together in a
+            real-world clinical practice.
+          </p>
+
           <p>
             <a href="https://thelionslamb.com" target="_blank" rel="noopener noreferrer">
-          View the live site →</a>
+              View the live site →
+            </a>
           </p>
         </Card>
 
         <Card title="In Development: Financial Clarity Tools">
-          <p>I’m developing analytical tools designed to bring clarity to personal and system-level financial decisions—bringing income, expenses, obligations, and debt into a single, understandable view.</p>
-          <p>This work focuses on reducing noise in complex financial systems, including both traditional finance and emerging digital assets.</p>
           <p>
-            <em>Currently in active development.</em>
+            I am developing analytical tools designed to bring clarity to personal and system-level
+            financial decisions, bringing income, expenses, obligations, and debt into a single,
+            understandable view.
           </p>
+          <p>
+            This work focuses on reducing noise in complex financial systems, including both
+            traditional finance and emerging digital assets.
+          </p>
+          <p><em>Currently in active development.</em></p>
         </Card>
-        
+
         <Card title="Exploring: Reading Comprehension Builder">
-          <p> I’m designing a tool that helps students understand what they read by slowing the process down in the right way. Students read a short section, click <strong>Next</strong>, and answer a few questions before moving on.</p>
-
-          <p>They can move back to reread anytime—but as they progress, questions become cumulative, requiring them to remember and connect details across multiple sections.</p>
+          <p>
+            I am designing a tool that helps students understand what they read by slowing the
+            process down in the right way. Students read a short section, click <strong>Next</strong>,
+            and answer a few questions before moving on.
+          </p>
+          <p>
+            They can move back to reread anytime, but as they progress, questions become cumulative,
+            requiring them to remember and connect details across multiple sections.
+          </p>
           <p><em>Want to pilot this with students? <strong>Reach out.</strong></em></p>
-
-</Card>
-
+        </Card>
       </section>
     </div>
   </main>
 
   <style>
-    /* Page content wrapper */
     .content-wrap {
       max-width: 1200px;
       margin: 0 auto;
       padding: clamp(1rem, 3vw, 2rem);
     }
 
-    /* If you later want two columns for content BELOW the hero, switch to display:grid here */
     .one-column {
       display: block;
     }
@@ -79,41 +81,5 @@ import EnomeND from '@/components/enomeND.astro';
       gap: 1.25rem;
       margin-top: 2rem;
     }
-
-    /* 🚫 Old left-side background panel — removed to avoid conflicts
-       .bkgrnd, .hero-panelLG and any left-rail shapes should be deleted or kept off this page. */
   </style>
->>>>>>> 5eb5c46 (live)
 </Layout>
-
-<style>
-	.public-gate {
-		max-width: 520px;
-		margin: 4rem auto;
-		padding: 0 1.5rem;
-		text-align: center;
-	}
-
-	.public-gate h1 {
-		margin: 0 0 0.5rem;
-		font-size: clamp(2rem, 3vw, 2.6rem);
-		letter-spacing: -0.02em;
-	}
-
-	.public-gate p {
-		margin: 0 0 2rem;
-		color: rgba(255, 255, 255, 0.7);
-	}
-
-	.login-button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.9rem 1.6rem;
-		border-radius: 999px;
-		background: linear-gradient(135deg, #5767ff, #934dff);
-		color: #fff;
-		text-decoration: none;
-		font-weight: 600;
-	}
-</style>

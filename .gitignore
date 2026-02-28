@@ -30,3 +30,4 @@ pnpm-debug.log*
 # vscode user settings
 .vscode/settings.json
 stripe-temp/
+.vercel/
