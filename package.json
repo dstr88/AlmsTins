@@ -6,7 +6,7 @@
     "dev": "astro dev",
     "dev:env": "node src/scripts/envCheck.mjs",
     "build": "astro build",
-    "start": "node dist/server/entry.mjs",
+    "start": "node ./dist/server/entry.mjs",
     "check": "astro check",
     "preview": "astro preview",
     "astro": "astro",
