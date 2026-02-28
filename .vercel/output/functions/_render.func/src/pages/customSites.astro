@@ -1,0 +1,288 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import FastCar from "@/assets/FastCar.jpg";
+import PprPlane from "@/assets/pprAirplane.png";
+import { Image } from "astro:assets";
+---
+
+<Layout>
+  <main class="container">
+
+    <h2>Our sites are fast</h2>
+    <figure class="photo-figure">
+      
+      <Image
+        src={FastCar}
+        alt="Red sports car in motion"
+        class="photo car"
+        widths={[240, 360, 480, 640, 800]}
+        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 40vw, 80vw"
+        loading="eager"
+        decoding="async"
+      />
+      <figcaption class="caption">
+        Image by <a href="https://pixabay.com/users/gkhaus-4364338/?utm_source=link-attribution&utm_medium=referral&utm_campaign=image&utm_content=5723726">Serhii G.</a>
+        from <a href="https://pixabay.com//?utm_source=link-attribution&utm_medium=referral&utm_campaign=image&utm_content=5723726">Pixabay</a>
+      </figcaption>
+    </figure>
+      <section class="content-section">
+        <p>Sometimes a webpage feels slow not because it’s broken, but because it’s doing too much.
+        Heavy scripts, excessive client-side processing, and inefficient delivery can leave visitors staring at a loading indicator instead of your content.</p>
+        <p>One factor—network quality—is outside anyone’s control. The others are not. At Titanium Hut, performance is treated as a design decision, not an afterthought.</p>
+        <p>Our sites are built with restraint. Pages are delivered as clean, server-rendered HTML first,
+        so content appears immediately and works even before any enhancements load. This reduces the amount of work required by the browser and keeps pages responsive across devices and connection speeds.</p>
+        <p>By shipping minimal client-side JavaScript, we avoid unnecessary decoding and execution in the browser. The result is faster load times, improved accessibility, and a smoother experience for real users—not just benchmark scores. </p>
+        <p>Because search engines receive clear, semantic HTML by default, your content is easier to index and understand. That clarity supports long-term SEO, accessibility, and reliability without relying on fragile client-side rendering. </p>
+      </section>
+
+    <h2>Our sites are simple</h2>
+    
+    <figure class="photo-figure">  
+      <Image
+        src={PprPlane}
+        alt="Paper airplane on a solid background"
+        class="photo car"
+        widths={[240, 360, 480, 640, 800]}
+        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 40vw, 80vw"
+        loading="lazy"
+        decoding="async"
+      />
+      <figcaption class="caption">
+        by <a href="https://pixabay.com/users/cdd20-1193381/?utm_source=link-attribution&utm_medium=referral&utm_campaign=image&utm_content=5266197">Hello Cdd20</a>
+        from <a href="https://pixabay.com//?utm_source=link-attribution&utm_medium=referral&utm_campaign=image&utm_content=5266197">Pixabay</a>
+      </figcaption>
+    </figure>
+
+      <p>Because pages are delivered as semantic HTML by default, search engines can clearly understand your content. That supports indexing, accessibility, and long-term SEO without relying on heavy client-side rendering.</p>
+
+      <p>
+      <button class="btn-specs" data-open-modal="#specs-modal" aria-haspopup="dialog">Check out all the specs</button></p>
+  </main>
+
+  <!-- Specs Modal -->
+  <div id="specs-modal" class="modal" aria-hidden="true">
+    <div class="modal__overlay" data-close-modal></div>
+
+    <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="specs-title">
+      <header class="modal__header">
+        <h2 id="specs-title">Everything you get</h2>
+        <button class="modal__close" aria-label="Close specs" data-close-modal>&times;</button>
+      </header>
+
+      <div class="modal__body">
+        <ul class="specs-list">
+          <li><strong>Secure by default.</strong> Free SSL, strong security headers, and hardened forms with spam protection mean your site (and inbox) stay clean.</li>
+          <li><strong>SEO that actually moves the needle.</strong> Semantic HTML, server-rendered pages, Open Graph/Twitter cards, and optional Schema.org markup help Google understand—and rank—your content.</li>
+          <li><strong>Core Web Vitals, not just “fast.”</strong> We tune images, fonts, caching, and JavaScript so you pass Google’s Web Vitals (LCP, CLS, INP)—the metrics that matter for search and conversions.</li>
+          <li><strong>Accessible to everyone.</strong> WCAG-focused color contrast, keyboard navigation, descriptive alt text, and skip links. Good for users, good for SEO, good for business.</li>
+          <li><strong>Mobile-first experience.</strong> Looks and works perfectly on phones and tablets (most traffic is mobile).</li>
+          <li><strong>Content you can update yourself.</strong> Choose what fits you: edit Markdown, Google Docs → site, or a simple headless CMS. No lock-in.</li>
+          <li><strong>Rock-solid reliability.</strong> Monitoring, error alerts, and automated off-site backups so you can roll back if anything goes sideways.</li>
+          <li><strong>Forms that deliver.</strong> Proper SPF/DKIM, honeypots/hCaptcha, and delivery monitoring so inquiries land in your inbox (not spam).</li>
+          <li><strong>Local SEO package (optional).</strong> Google Business Profile setup, review links, NAP consistency, and LocalBusiness schema to show up in local searches/maps.</li>
+          <li><strong>Integrations that save time.</strong> Booking (Calendly/SimplePractice), payments (Stripe), and chat (Crisp/Intercom) as needed—with privacy in mind.</li>
+          <li><strong>Transparent care plans.</strong> Updates, backups, uptime checks, and a real person to call. Flat monthly options.</li>
+          <li><strong>Brand-flexible theming.</strong> Your palette switcher lets us spin up a consistent look per client without reinventing the site.</li>
+        </ul>
+      </div>
+
+      <footer class="modal__footer">
+        <button class="modal__cta" data-close-modal>Sounds good</button>
+      </footer>
+    </div>
+  </div>
+
+  <script is:inline>
+    (function(){
+      // Ensure closed on load unless explicitly opened
+      const modalEl = document.getElementById('specs-modal');
+      if (modalEl && modalEl.getAttribute('aria-hidden') !== 'false') {
+        modalEl.setAttribute('aria-hidden', 'true');
+      }
+
+      const FOCUSABLE = 'a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+      const openers = document.querySelectorAll('[data-open-modal]');
+      let activeModal = null, lastFocused = null;
+
+      function openModal(modal){
+        if (!modal) return;
+        lastFocused = document.activeElement;
+        activeModal = modal;
+        modal.setAttribute('aria-hidden', 'false');
+        document.documentElement.style.overflow = 'hidden';
+        const focusables = modal.querySelectorAll(FOCUSABLE);
+        (focusables[0] || modal).focus();
+      }
+      function closeModal(){
+        if (!activeModal) return;
+        activeModal.setAttribute('aria-hidden', 'true');
+        document.documentElement.style.overflow = '';
+        if (lastFocused) lastFocused.focus();
+        activeModal = null;
+      }
+
+      openers.forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const sel = btn.getAttribute('data-open-modal');
+          openModal(document.querySelector(sel));
+        });
+      });
+
+      document.addEventListener('click', (e)=>{
+        if (e.target.closest('[data-close-modal]')) { closeModal(); }
+      });
+
+      document.addEventListener('keydown', (e)=>{
+        if (!activeModal) return;
+        if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+        if (e.key === 'Tab') {
+          const nodes = [...activeModal.querySelectorAll(FOCUSABLE)];
+          if (nodes.length === 0) return;
+          const first = nodes[0], last = nodes[nodes.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      });
+    })();
+  </script>
+
+  <style>
+    /* ====== Modal trigger button ====== */
+    .btn-specs {
+      background: var(--cta, #852E2F);
+      color: var(--bg, #fff);
+      border: 0;
+      padding: .7rem 1rem;
+      border-radius: .75rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(0,0,0,.12);
+    }
+    .btn-specs:hover { background: var(--cta-dark, #652024); }
+
+    /* ====== ID-scoped modal: hidden by default ====== */
+    #specs-modal {
+      display: none;                 /* hide by default */
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+    }
+    #specs-modal[aria-hidden="false"] {
+      display: block;                /* show when opened */
+    }
+
+    /* Overlay & dialog */
+    #specs-modal .modal__overlay {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,.45);
+      backdrop-filter: blur(2px);
+    }
+    #specs-modal .modal__dialog {
+      position: relative; z-index: 1;
+      max-width: min(900px, 92vw);
+      margin: 6vh auto;
+      background: linear-gradient(135deg, var(--brand) 0%, var(--cta) 100%);
+      color: #fff;
+      border-radius: 1rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+      overflow: hidden;
+      transform: translateY(8px);
+      animation: modal-in 180ms ease-out both;
+    }
+
+    .container{
+  color: antiquewhite;
+  line-height: 1.6;
+  text-size-adjust: 100%;
+  max-width: 70ch;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+
+    #specs-modal .modal__header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid rgba(255,255,255,.18);
+      background: transparent;
+    }
+    #specs-modal .modal__header h2 { margin: 0; font-size: 1.35rem; color: #fff; }
+
+    #specs-modal .modal__close {
+      appearance: none; background: transparent; border: 0; cursor: pointer;
+      font-size: 1.6rem; line-height: 1; color: #fff; opacity: .9;
+    }
+    #specs-modal .modal__close:hover { opacity: 1; }
+
+    #specs-modal .modal__body {
+      padding: 1.25rem 1.25rem 0;
+      max-height: 60vh; overflow: auto;
+      color: #fff;
+      font-size: 1.075rem;
+      line-height: 1.65;
+    }
+    #specs-modal .specs-list { margin: 0; padding-left: 1.25rem; }
+    #specs-modal .specs-list li { margin: 0 0 .85rem; }
+    #specs-modal .specs-list li strong { color: #fff; font-weight: 700; }
+    #specs-modal .modal__body a {
+      color: #fff;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    #specs-modal .modal__footer {
+      display: flex; justify-content: flex-end; gap: .5rem;
+      padding: 1rem 1.25rem 1.25rem;
+      border-top: 1px solid rgba(255,255,255,.18);
+    }
+    #specs-modal .modal__cta {
+      background: transparent;
+      color: #fff;
+      border: 1.6px solid rgba(255,255,255,.7);
+      padding: .6rem 1rem; border-radius: .6rem; cursor: pointer;
+    }
+    #specs-modal .modal__cta:hover { border-color: #fff; filter: brightness(1.08); }
+
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ====== Images & captions centered ====== */
+    /* ====== Images & captions centered ====== */
+.photo-figure { margin: 1.5rem auto; text-align: center; }
+
+.caption {
+  font-size: 0.95rem;
+  margin: .5rem auto 0;
+  text-align: center;
+  max-width: 40rem;
+  color: aliceblue;
+}
+
+.caption a:link,
+.caption a:visited {
+  color: aliceblue;
+  text-decoration-color: currentColor;
+}
+
+.caption a:hover,
+.caption a:focus-visible {
+  color: #F7F2EB;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.15em;
+}
+
+
+    .photo.car {
+      display: block;
+      width: 25%;
+      height: auto;
+      margin: 0 auto;
+      border-radius: 1rem;
+    }
+    @media (max-width: 768px) { .photo.car { width: 60%; } }
+
+    
+  </style>
+</Layout>
