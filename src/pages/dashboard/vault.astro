@@ -18,6 +18,7 @@ const ENABLE_ALL_TX = false;
 
 const pageStart = Date.now();
 const tenant = await requireTenantSession(Astro.request);
+console.log('[vault] tenant session:', tenant);
 if (!tenant) {
 	return Astro.redirect('/onboarding/tenant-setup', 303);
 }

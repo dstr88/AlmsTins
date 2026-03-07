@@ -16,38 +16,60 @@ export async function getAuthSession(request: Request): Promise<AuthSession | nu
 	const secureCookie = authUrl.startsWith('https://') || forwardedProto === 'https';
 	const secret = process.env.AUTH_SECRET ?? '';
 	const cookieHeader = request.headers.get('cookie') ?? '';
-	const authCookieName = cookieHeader.includes('__Host-authjs.session-token=')
-		? '__Host-authjs.session-token'
-		: secureCookie
-			? '__Secure-authjs.session-token'
-			: 'authjs.session-token';
+
+	const cookieCandidates = [
+		'__Host-authjs.session-token',
+		'__Secure-authjs.session-token',
+		'authjs.session-token',
+	].filter((name) => {
+		if (cookieHeader.includes(`${name}=`)) return true;
+		if (name === '__Secure-authjs.session-token' && secureCookie) return true;
+		if (name === 'authjs.session-token' && !secureCookie) return true;
+		return false;
+	});
+
+	if (cookieCandidates.length === 0) {
+		cookieCandidates.push(secureCookie ? '__Secure-authjs.session-token' : 'authjs.session-token');
+	}
+
 	console.log('[authSession] env check', {
 		hasSecret: Boolean(secret),
 		secretLen: secret.length,
 		authUrl,
 		forwardedProto: request.headers.get('x-forwarded-proto'),
-		authCookieName,
+		cookieCandidates,
 	});
-	const token = await getToken({
-		req: request,
-		secret,
-		secureCookie,
-		cookieName: authCookieName,
-		salt: authCookieName,
-	});
-	console.log('[authSession] token present', { ok: Boolean(token?.sub) });
 
-	if (!token || !token.sub) {
-		return null;
+	for (const cookieName of cookieCandidates) {
+		try {
+			const token = await getToken({
+				req: request,
+				secret,
+				secureCookie: cookieName !== 'authjs.session-token',
+				cookieName,
+				salt: cookieName,
+			});
+			console.log('[authSession] token present', { ok: Boolean(token?.sub), cookieName });
+			if (!token || !token.sub) {
+				continue;
+			}
+
+			return {
+				user: {
+					id: String(token.sub),
+					name: token.name ? String(token.name) : null,
+					email: token.email ? String(token.email) : null,
+					image: token.picture ? String(token.picture) : null,
+				},
+				tenantId: (token as Record<string, any>).tenantId ?? null,
+			};
+		} catch (error) {
+			console.warn('[authSession] getToken failed', {
+				cookieName,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
 	}
 
-	return {
-		user: {
-			id: String(token.sub),
-			name: token.name ? String(token.name) : null,
-			email: token.email ? String(token.email) : null,
-			image: token.picture ? String(token.picture) : null,
-		},
-		tenantId: (token as Record<string, any>).tenantId ?? null,
-	};
+	return null;
 }
