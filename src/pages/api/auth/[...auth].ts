@@ -181,11 +181,23 @@ const buildAuthRequest = (request: Request) => {
 };
 
 const logAuthError = (request: Request, error: unknown) => {
+	const err = error instanceof Error ? error : null;
 	console.error('[auth] request failed', {
 		method: request.method,
 		url: ensureAbsoluteUrl(request),
-		error: error instanceof Error ? error.message : String(error),
+		error: err?.message ?? String(error),
+		stack: err?.stack,
+		cause: err?.cause ? String(err.cause) : null,
 	});
+};
+
+const buildAuthFailureResponse = (request: Request) => {
+	const url = new URL(ensureAbsoluteUrl(request));
+	const isCallbackRoute = url.pathname.includes('/api/auth/callback/');
+	if (isCallbackRoute) {
+		return Response.redirect(new URL('/login?error=oauth', url.origin), 303);
+	}
+	return new Response('Internal Server Error', { status: 500 });
 };
 
 const logAuthEnvCheck = () => {
@@ -204,7 +216,7 @@ export const GET: APIRoute = async ({ request }) => {
 		return await Auth(buildAuthRequest(request), authConfig);
 	} catch (error) {
 		logAuthError(request, error);
-		throw error;
+		return buildAuthFailureResponse(request);
 	}
 };
 
@@ -214,6 +226,6 @@ export const POST: APIRoute = async ({ request }) => {
 		return await Auth(buildAuthRequest(request), authConfig);
 	} catch (error) {
 		logAuthError(request, error);
-		throw error;
+		return buildAuthFailureResponse(request);
 	}
 };
