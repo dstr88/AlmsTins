@@ -486,6 +486,66 @@ const exportUrl = walletId
 		});
 	};
 
+	function buildMissingBasisForm(unmatchedQty, matchedCostUsd, matchedUsedQty, sellQty, sellUsd, headerEl) {
+		const section = document.createElement('div');
+		section.className = 'tx-missing-basis';
+		section.innerHTML = `
+			<span class="tx-missing-basis__label">
+				Missing ${unmatchedQty.toLocaleString(undefined, { maximumFractionDigits: 6 })} POL — enter avg cost basis to calculate P/L
+			</span>
+			<form class="tx-missing-basis__form">
+				<input class="tx-missing-basis__input" type="date" aria-label="Buy date (optional)" />
+				<input class="tx-missing-basis__input" type="number" step="any" min="0" placeholder="Avg price per POL ($)" aria-label="Average buy price per POL" required />
+				<button class="tx-missing-basis__btn" type="submit">Calculate</button>
+			</form>
+			<p class="tx-missing-basis__hint">Can't find this transaction? Check exchange history, wallet transfers, or airdrop records.</p>
+		`.trim();
+
+		section.querySelector('form')?.addEventListener('submit', (e) => {
+			e.preventDefault();
+			const inputs = section.querySelectorAll('input');
+			const priceInput = inputs[1];
+			if (!(priceInput instanceof HTMLInputElement)) return;
+			const price = Number(priceInput.value);
+			if (!Number.isFinite(price) || price <= 0) return;
+
+			const additionalCost = price * unmatchedQty;
+			const totalCost = matchedCostUsd + additionalCost;
+			const totalQty = matchedUsedQty + unmatchedQty;
+			const weightedBuy = totalCost / totalQty;
+			const pnl = sellUsd > 0 ? sellUsd - totalCost : null;
+			const plClass = pnl === null ? '' : pnl >= 0 ? 'is-profit' : 'is-loss';
+			const plText = pnl === null ? '\u2014' : `${pnl >= 0 ? '+' : ''}${formatUsd(pnl)}`;
+
+			const plValueEl = headerEl.querySelector('.tx-pl__value');
+			const plEl = headerEl.querySelector('.tx-pl');
+			if (plValueEl) plValueEl.textContent = plText;
+			if (plEl) {
+				plEl.classList.remove('is-profit', 'is-loss');
+				if (plClass) plEl.classList.add(plClass);
+			}
+
+			headerEl.querySelectorAll('span').forEach((span) => {
+				if (span.textContent?.startsWith('Wtd buy:')) {
+					const strong = span.querySelector('strong');
+					if (strong) strong.textContent = formatUsd(weightedBuy);
+				}
+			});
+
+			headerEl.closest('.tx-group')?.classList.remove('tx-group--missing');
+			headerEl.classList.remove('tx-group__header--missing');
+
+			const resolvedMsg = document.createElement('span');
+			resolvedMsg.className = 'tx-missing-basis__resolved';
+			resolvedMsg.textContent = `\u2713 Applied: ${unmatchedQty.toLocaleString(undefined, { maximumFractionDigits: 6 })} POL @ ${formatUsd(price)}/token = ${formatUsd(additionalCost)} basis`;
+			section.querySelector('form')?.replaceWith(resolvedMsg);
+			section.querySelector('.tx-missing-basis__hint')?.remove();
+			section.classList.add('tx-missing-basis--resolved');
+		});
+
+		return section;
+	}
+
 	function fifoGroupPolSells(listEl) {
 		if (!listEl) {
 			console.log('[fifo] list missing');
@@ -499,6 +559,7 @@ const exportUrl = walletId
 			}
 			group.remove();
 		});
+		listEl.querySelectorAll('.tx-group__header, .tx-lotline, .tx-missing-basis').forEach((el) => el.remove());
 
 		const all = Array.from(listEl.querySelectorAll('[data-type="row"]')).filter(
 			(n) => n instanceof HTMLElement,
@@ -552,7 +613,7 @@ const exportUrl = walletId
 
 		const sells = all
 			.filter((row) => getRowSymbol(row) === 'POL' && getDir(row) === 'out')
-			.sort((a, b) => getTime(b) - getTime(a));
+			.sort((a, b) => getTime(a) - getTime(b));
 
 		let groupsCount = 0;
 
@@ -590,25 +651,48 @@ const exportUrl = walletId
 				matched.push({ row: lot.row, take, takeUsd });
 			}
 
-			if (usedQty <= 0) continue;
-
-			const weightedBuy = costUsd > 0 && usedQty > 0 ? costUsd / usedQty : 0;
-			const sellPrice = sellUsd > 0 && sellQty > 0 ? sellUsd / sellQty : 0;
-			const pnl = sellUsd > 0 && costUsd > 0 ? sellUsd - costUsd : null;
+			const unmatchedQty = need;
 
 			const wrapper = document.createElement('div');
-			wrapper.className = 'tx-group';
+			const isMissing = unmatchedQty > 0;
+			wrapper.className = isMissing ? 'tx-group tx-group--missing' : 'tx-group';
 
 			const header = document.createElement('div');
-			header.className = 'tx-group__header';
+			header.className = isMissing ? 'tx-group__header tx-group__header--missing' : 'tx-group__header';
+
+			if (usedQty <= 0) {
+				// Fully unmatched — no buy history found at all
+				const sellPrice = sellUsd > 0 && sellQty > 0 ? sellUsd / sellQty : 0;
+				header.innerHTML = `
+					<span class="tx-missing-warning">⚠ No buy history found</span>
+					<span>Sold: <strong>${fullDate(sellRow.dataset.timestamp || '')}</strong></span>
+					<span>Qty: <strong>${sellQty.toLocaleString(undefined, { maximumFractionDigits: 6 })} POL</strong></span>
+					<span>Proceeds: <strong>${formatUsd(sellUsd)}</strong></span>
+					<span>Sell px: <strong>${formatUsd(sellPrice)}</strong></span>
+					<span class="tx-pl">P/L: <strong class="tx-pl__value">—</strong></span>
+				`.trim();
+
+				wrapper.appendChild(header);
+				wrapper.appendChild(buildMissingBasisForm(unmatchedQty, 0, 0, sellQty, sellUsd, header));
+				sellRow.parentElement?.insertBefore(wrapper, sellRow);
+				wrapper.appendChild(sellRow);
+				groupsCount += 1;
+				continue;
+			}
+
+			// Partially or fully matched
+			const weightedBuy = costUsd > 0 && usedQty > 0 ? costUsd / usedQty : 0;
+			const sellPrice = sellUsd > 0 && sellQty > 0 ? sellUsd / sellQty : 0;
+			const pnl = !isMissing && sellUsd > 0 && costUsd > 0 ? sellUsd - costUsd : null;
 			const plClass = pnl === null ? '' : pnl >= 0 ? 'is-profit' : 'is-loss';
-			const plText = pnl === null ? '—' : `${pnl >= 0 ? '+' : ''}${formatUsd(pnl)}`;
+			const plText = isMissing ? '— partial' : pnl === null ? '—' : `${pnl >= 0 ? '+' : ''}${formatUsd(pnl)}`;
 			header.innerHTML = `
+				${isMissing ? '<span class="tx-missing-warning">⚠ Partial buy history</span>' : ''}
 				<span>Sold: <strong>${fullDate(sellRow.dataset.timestamp || '')}</strong></span>
 				<span>Last buy: <strong>${lastBuyIso ? fullDate(lastBuyIso) : '—'}</strong></span>
 				<span>Wtd buy: <strong>${formatUsd(weightedBuy)}</strong></span>
 				<span>Sell: <strong>${formatUsd(sellPrice)}</strong></span>
-				<span class="tx-pl ${plClass}">P/L: <strong>${plText}</strong></span>
+				<span class="tx-pl ${plClass}">P/L: <strong class="tx-pl__value">${plText}</strong></span>
 			`.trim();
 
 			wrapper.appendChild(header);
@@ -637,6 +721,10 @@ const exportUrl = walletId
 					wrapper.appendChild(lotLine);
 					wrapper.appendChild(row);
 				});
+
+			if (isMissing) {
+				wrapper.appendChild(buildMissingBasisForm(unmatchedQty, costUsd, usedQty, sellQty, sellUsd, header));
+			}
 		}
 
 		console.log('[fifo] groups made', groupsCount);
@@ -919,6 +1007,87 @@ const exportUrl = walletId
 		margin-top: -0.25rem;
 	}
 
+	:global(.tx-group--missing) {
+		border-color: rgba(239, 68, 68, 0.5);
+		background: rgba(239, 68, 68, 0.06);
+	}
+
+	:global(.tx-group__header--missing) {
+		background: rgba(239, 68, 68, 0.15);
+		border-color: rgba(239, 68, 68, 0.35);
+	}
+
+	:global(.tx-missing-warning) {
+		color: #fca5a5;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+	}
+
+	:global(.tx-missing-basis) {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem 0.75rem;
+		align-items: center;
+		padding: 0.5rem 0.7rem;
+		border-radius: 0.6rem;
+		background: rgba(239, 68, 68, 0.1);
+		border: 1px dashed rgba(239, 68, 68, 0.4);
+		font-size: 0.8rem;
+	}
+
+	:global(.tx-missing-basis--resolved) {
+		background: rgba(134, 239, 172, 0.08);
+		border-color: rgba(134, 239, 172, 0.3);
+	}
+
+	:global(.tx-missing-basis__label) {
+		color: #fca5a5;
+		font-weight: 600;
+		flex-basis: 100%;
+	}
+
+	:global(.tx-missing-basis__form) {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		align-items: center;
+	}
+
+	:global(.tx-missing-basis__input) {
+		background: rgba(0, 0, 0, 0.3);
+		border: 1px solid rgba(239, 68, 68, 0.4);
+		border-radius: 0.4rem;
+		color: #f7f2eb;
+		padding: 0.3rem 0.55rem;
+		font-size: 0.8rem;
+	}
+
+	:global(.tx-missing-basis__btn) {
+		background: rgba(239, 68, 68, 0.25);
+		border: 1px solid rgba(239, 68, 68, 0.5);
+		border-radius: 0.4rem;
+		color: #fca5a5;
+		padding: 0.3rem 0.7rem;
+		font-size: 0.8rem;
+		cursor: pointer;
+	}
+
+	:global(.tx-missing-basis__btn:hover) {
+		background: rgba(239, 68, 68, 0.4);
+	}
+
+	:global(.tx-missing-basis__hint) {
+		flex-basis: 100%;
+		margin: 0;
+		font-size: 0.75rem;
+		color: rgba(252, 165, 165, 0.7);
+		font-style: italic;
+	}
+
+	:global(.tx-missing-basis__resolved) {
+		color: #86efac;
+		font-weight: 600;
+	}
 
 	.tx-na {
 		position: relative;
