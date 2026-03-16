@@ -21,7 +21,10 @@ export const CHAIN_IDS = {
 } as const;
 
 const ETHERSCAN_V2_BASE_URL = 'https://api.etherscan.io/v2/api';
-const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
+// Snowtrace was rebranded to Routescan in 2023; api.snowtrace.io is dead (404).
+// The replacement endpoint is Etherscan-compatible — same query params, new URL.
+// API key: get a free key at https://routescan.io/apis (SNOWTRACE_API_KEY env var)
+const SNOWTRACE_BASE_URL = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
 
 // Defaults (override per call if needed)
 const DEFAULT_MIN_INTERVAL_MS = 1200;
