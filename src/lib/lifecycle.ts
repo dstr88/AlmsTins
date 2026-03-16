@@ -122,6 +122,28 @@ const directionFromTxType = (txType: string | null) => {
 	return null;
 };
 
+// Aave V2 + V3 pool addresses — all lowercased for comparison.
+// Tokens flowing IN from these contracts = borrow (liability_increase).
+// Tokens flowing OUT to these contracts = repayment (liability_repayment).
+const AAVE_POOL_ADDRESSES = new Set([
+	'0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9', // Ethereum V2
+	'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', // Ethereum V3
+	'0x8dff5e27ea6b7ac08ebfdf9eb090f32ee9a30fcf', // Polygon V2
+	'0x794a61358d6845594f94dc1db02a252b5b4814ad', // Polygon V3 / Avalanche V3
+]);
+
+const classifyOnchainTx = (
+	fromAddress: string | null,
+	toAddress: string | null,
+	direction: string | null,
+): LifecycleEvent['transaction_class'] => {
+	const from = (fromAddress ?? '').toLowerCase();
+	const to = (toAddress ?? '').toLowerCase();
+	if (direction === 'in' && AAVE_POOL_ADDRESSES.has(from)) return 'liability_increase';
+	if (direction === 'out' && AAVE_POOL_ADDRESSES.has(to)) return 'liability_repayment';
+	return 'other';
+};
+
 const classifyImportTx = (description: string, kind: string, direction: string | null) => {
 	const text = `${description} ${kind}`.toLowerCase();
 	if (text.includes('borrow') || text.includes('loan') || text.includes('margin credit') || text.includes('flash loan')) {
@@ -145,7 +167,7 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 	});
 
 	const onchainResult = await db.execute({
-		sql: `SELECT id, hash, chain, token_symbol, token_decimals, value, timestamp, tx_type
+		sql: `SELECT id, hash, chain, token_symbol, token_decimals, value, timestamp, tx_type, from_address, to_address
 			FROM transactions
 			WHERE tenant_id = ?`,
 		args: [tenantId],
@@ -173,6 +195,9 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 
 	const onchainEvents = onchainResult.rows.map((row: any) => {
 		const symbol = normalizeSymbol(String(row.token_symbol ?? ''), row.chain ? String(row.chain) : null);
+		const direction = directionFromTxType(row.tx_type ? String(row.tx_type) : null);
+		const fromAddress = row.from_address ? String(row.from_address) : null;
+		const toAddress = row.to_address ? String(row.to_address) : null;
 		return {
 			source_type: 'onchain' as const,
 			source_id: String(row.id),
@@ -180,10 +205,10 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 			amount: parseOnchainAmount(row.value ? String(row.value) : null, row.token_decimals ?? null),
 			native_usd: null,
 			timestamp_utc: String(row.timestamp),
-			direction: directionFromTxType(row.tx_type ? String(row.tx_type) : null),
+			direction,
 			tx_hash: row.hash ? String(row.hash) : null,
 			exchange_withdrawal_id: null,
-			transaction_class: 'other' as const,
+			transaction_class: classifyOnchainTx(fromAddress, toAddress, direction),
 		};
 	});
 	const transformMs = Date.now() - transformStart;
