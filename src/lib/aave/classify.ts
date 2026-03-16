@@ -9,13 +9,18 @@
  *   - Flash loans        → NOT taxable (borrow + repay in one atomic tx).
  *   - Forced liquidation → TAXABLE disposal. Treated as a forced sale of collateral.
  *                          Gain/loss = FMV at liquidation − original cost basis.
- *                          (Auto-detection requires event-log data; see note below.)
  *   - Lending interest   → Taxable ordinary INCOME when received.
- *                          (aToken rebasing is invisible to token-transfer APIs;
- *                           detected only on explicit aToken balance-increase events.)
+ *                          Detected via two signals:
+ *                            (a) aToken mint FROM zero address WITHOUT a paired
+ *                                underlying-token deposit in the same tx (accrual event)
+ *                            (b) LiquidationCall log in the receipt — used only for
+ *                                reclassifying collateral outflows as liability_liquidation
  *
  * This module is intentionally free of DB/network imports so it can be unit-tested
- * without mocking.  lifecycle.ts imports from here.
+ * without mocking.  lifecycle.ts and events.ts import from here.
+ *
+ * Dependency graph (no cycles):
+ *   classify.ts  ← events.ts  ← lifecycle.ts
  */
 
 // ---------------------------------------------------------------------------
@@ -23,14 +28,14 @@
 // ---------------------------------------------------------------------------
 
 export type TransactionClass =
-	| 'owned_acquisition'   // Taxable purchase / receipt — creates a FIFO buy lot
-	| 'liability_increase'  // Aave borrow — NOT taxable, no buy lot
-	| 'liability_repayment' // Aave repay  — NOT taxable
+	| 'owned_acquisition'     // Taxable purchase / receipt — creates a FIFO buy lot
+	| 'liability_increase'    // Aave borrow — NOT taxable, no buy lot
+	| 'liability_repayment'   // Aave repay  — NOT taxable
 	| 'liability_liquidation' // Forced collateral seizure — IS taxable (forced sell)
 	| 'collateral_deposit'    // Token → aToken swap (supply) — NOT taxable
 	| 'collateral_withdrawal' // aToken → Token swap (withdraw) — NOT taxable
-	| 'interest_income'       // Lending yield received  — taxable ordinary income
-	| 'other';               // Unclassified / regular transfer
+	| 'interest_income'       // Lending yield received — taxable ordinary income
+	| 'other';                // Unclassified / regular transfer
 
 // ---------------------------------------------------------------------------
 // Aave pool contract addresses (all lowercase, multi-chain)
@@ -52,6 +57,9 @@ export const AAVE_POOL_ADDRESSES = new Set<string>([
 	'0x8dff5e27ea6b7ac08ebfdf9eb090f32ee9a30fcf', // Polygon V2
 	'0x794a61358d6845594f94dc1db02a252b5b4814ad', // Polygon V3 / Avalanche V3
 ]);
+
+/** The Ethereum zero address — used to detect aToken mint (interest accrual). */
+export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 // ---------------------------------------------------------------------------
 // aToken symbol detection
@@ -77,14 +85,11 @@ const ATOKEN_EXCLUSIONS = new Set([
  *   V3 Avalanche: aAvaUSDC, aAvaWAVAX …
  *   V3 Arbitrum : aArbUSDC, aArbWETH …
  *   V3 Optimism : aOptUSDC, aOptWETH …
- *
- * Debt tokens (variableDebtXXX, stableDebtXXX) are handled separately.
  */
 export function isAaveAToken(symbol: string): boolean {
 	const s = symbol.toUpperCase();
 	if (ATOKEN_EXCLUSIONS.has(s)) return false;
-	if (s.startsWith('AAVE')) return false; // AAVE token itself
-	// Must start with 'A' (optionally followed by known chain infix) then ≥1 uppercase letter
+	if (s.startsWith('AAVE')) return false;
 	return /^A(?:M|ETH|POL|AVA|ARB|OPT)?[A-Z]/.test(s);
 }
 
@@ -98,15 +103,38 @@ export function isAaveDebtToken(symbol: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Parsed Aave event types (produced by events.ts, consumed by classify)
+// Defined here so classify.ts stays import-free and fully testable.
+// ---------------------------------------------------------------------------
+
+export type LiquidationCallEvent = {
+	type: 'LiquidationCall';
+	/** ERC-20 contract address of the seized collateral */
+	collateralAsset: string;
+	/** ERC-20 contract address of the debt repaid by the liquidator */
+	debtAsset: string;
+	/** Wallet address that was liquidated (must match a tracked wallet) */
+	user: string;
+	debtToCover: bigint;
+	liquidatedCollateralAmount: bigint;
+	liquidator: string;
+	receiveAToken: boolean;
+	txHash: string;
+};
+
+/** Union of all parsed Aave events — extend as new event types are added. */
+export type ParsedAaveEvent = LiquidationCallEvent;
+
+// ---------------------------------------------------------------------------
 // Minimal row shape needed for classification
 // ---------------------------------------------------------------------------
 
 export interface ClassifyRow {
 	id: string;
-	symbol: string;          // Already normalised (uppercase, NATIVE → chain symbol)
-	direction: string | null; // 'in' | 'out' | null
+	symbol:      string;       // Already normalised (uppercase, NATIVE → chain symbol)
+	direction:   string | null; // 'in' | 'out' | null
 	fromAddress: string | null;
-	toAddress: string | null;
+	toAddress:   string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,46 +142,82 @@ export interface ClassifyRow {
 // ---------------------------------------------------------------------------
 
 /**
- * Classifies a single onchain token-transfer row in the context of all other
- * transfers sharing the same transaction hash (the "group").
+ * Classifies a single onchain token-transfer row using:
+ *   (a) sibling transfers in the same tx (group context)
+ *   (b) optional parsed Aave event logs from the tx receipt
  *
- * Decision tree
- * ─────────────
- * 1.  aToken IN              → collateral_deposit   (received aToken = supplied collateral)
- * 2.  aToken OUT             → collateral_withdrawal (burned aToken = withdrew collateral)
- * 3.  Debt token             → liability_increase / liability_repayment accordingly
- * 4.  Flash loan             → 'other'              (IN + OUT of same symbol/pool, same tx)
- * 5.  IN from Aave pool + aToken OUT sibling
- *                            → collateral_withdrawal (get underlying back; aToken burned)
- * 6.  IN from Aave pool, no aToken sibling
- *                            → liability_increase    (borrow)
- * 7.  OUT to Aave pool + aToken IN sibling
- *                            → collateral_deposit    (supply; aToken received)
- * 8.  OUT to Aave pool, no aToken sibling
- *                            → liability_repayment   (repay debt)
- * 9.  Everything else        → 'other'
+ * Decision tree — evaluated in priority order
+ * ───────────────────────────────────────────
+ * [EVENT-BASED — highest confidence]
+ * 0a. LiquidationCall event present + aToken OUT from user → liability_liquidation
+ * 0b. LiquidationCall event present + non-aToken OUT not to pool → liability_liquidation
  *
- * ⚠ Liquidation auto-detection requires on-chain event logs (LiquidationCall event)
- *   and is NOT implemented here.  Mark those transactions as 'liability_liquidation'
- *   manually or via a separate log-sync pipeline.
+ * [TRANSFER-PATTERN]
+ * 1.  aToken IN from zero address (0x0), no underlying OUT to pool sibling
+ *                            → interest_income  (accrual mint)
+ * 2.  aToken IN from zero address, WITH underlying OUT to pool sibling
+ *                            → collateral_deposit (initial deposit receipt)
+ * 3.  aToken IN from non-zero → collateral_deposit
+ * 4.  aToken OUT             → collateral_withdrawal (burned on withdraw)
+ * 5.  Debt token IN          → liability_increase
+ * 6.  Debt token OUT         → liability_repayment
+ * 7.  Flash loan (IN + OUT same symbol/pool, same tx) → 'other'
+ * 8.  IN from pool + aToken OUT sibling → collateral_withdrawal
+ * 9.  IN from pool, no aToken sibling   → liability_increase (borrow)
+ * 10. OUT to pool + aToken IN sibling   → collateral_deposit (supply)
+ * 11. OUT to pool, no aToken sibling    → liability_repayment (repay)
+ * 12. Everything else        → 'other'
  */
 export function classifyOnchainTxWithContext(
 	row: ClassifyRow,
-	group: ClassifyRow[], // All rows sharing the same tx_hash (including `row` itself)
+	group: ClassifyRow[],          // All rows sharing the same tx_hash (including `row`)
+	events?: ParsedAaveEvent[],    // Parsed Aave logs from eth_getTransactionReceipt
 ): TransactionClass {
 	const { symbol, direction, fromAddress, toAddress } = row;
 
 	const from = (fromAddress ?? '').toLowerCase();
 	const to   = (toAddress   ?? '').toLowerCase();
 
-	// ── 1 & 2: aToken transfers ──────────────────────────────────────────────
+	// Siblings = all other rows in the same transaction
+	const siblings = group.filter((s) => s.id !== row.id);
+
+	// ── 0: Event-log based liquidation detection (highest confidence) ─────────
+	const liquidationCall = events?.find((e) => e.type === 'LiquidationCall');
+	if (liquidationCall) {
+		// aToken going out in a liquidation tx → seized collateral receipt burned
+		if (isAaveAToken(symbol) && direction === 'out') {
+			return 'liability_liquidation';
+		}
+		// Underlying collateral going OUT to the liquidator (not to pool)
+		if (!isAaveAToken(symbol) && direction === 'out' && !AAVE_POOL_ADDRESSES.has(to)) {
+			return 'liability_liquidation';
+		}
+	}
+
+	// ── 1–4: aToken transfers ─────────────────────────────────────────────────
 	if (isAaveAToken(symbol)) {
-		if (direction === 'in')  return 'collateral_deposit';
+		if (direction === 'in') {
+			// From the zero address = explicit mint event
+			if (from === ZERO_ADDRESS) {
+				// If the same tx has underlying going OUT to an Aave pool, this mint
+				// is the aToken receipt for a deposit (not an interest accrual event).
+				const hasDepositSibling = siblings.some((s) => {
+					const sTo = (s.toAddress ?? '').toLowerCase();
+					return (
+						!isAaveAToken(s.symbol) &&
+						s.direction === 'out' &&
+						AAVE_POOL_ADDRESSES.has(sTo)
+					);
+				});
+				return hasDepositSibling ? 'collateral_deposit' : 'interest_income';
+			}
+			return 'collateral_deposit'; // from any other address
+		}
 		if (direction === 'out') return 'collateral_withdrawal';
 		return 'other';
 	}
 
-	// ── 3: Debt token transfers ───────────────────────────────────────────────
+	// ── 5–6: Debt token transfers ─────────────────────────────────────────────
 	if (isAaveDebtToken(symbol)) {
 		if (direction === 'in')  return 'liability_increase';
 		if (direction === 'out') return 'liability_repayment';
@@ -166,12 +230,7 @@ export function classifyOnchainTxWithContext(
 	// No Aave pool involvement → regular transfer
 	if (!fromIsPool && !toIsPool) return 'other';
 
-	// Siblings = other rows in the same transaction
-	const siblings = group.filter((s) => s.id !== row.id);
-
-	// ── 4: Flash loan detection ───────────────────────────────────────────────
-	// A flash loan appears as IN-from-pool AND OUT-to-pool of the same symbol,
-	// in the same transaction.  Both legs cancel out → non-taxable.
+	// ── 7: Flash loan detection ───────────────────────────────────────────────
 	const hasReversePoolTransfer = siblings.some((s) => {
 		if (s.symbol !== symbol) return false;
 		const sFrom = (s.fromAddress ?? '').toLowerCase();
@@ -180,21 +239,18 @@ export function classifyOnchainTxWithContext(
 		if (direction === 'out') return s.direction === 'in'  && AAVE_POOL_ADDRESSES.has(sFrom);
 		return false;
 	});
-	if (hasReversePoolTransfer) return 'other'; // flash loan — both legs in same atomic tx
+	if (hasReversePoolTransfer) return 'other';
 
-	// Check whether the same tx has an aToken transfer (disambiguates supply ↔ repay,
-	// and withdraw ↔ borrow)
+	// Disambiguate supply ↔ repay and withdraw ↔ borrow via aToken sibling
 	const hasATokenSibling = siblings.some((s) => isAaveAToken(s.symbol));
 
-	// ── 5 & 6: IN from pool ───────────────────────────────────────────────────
+	// ── 8–9: IN from pool ─────────────────────────────────────────────────────
 	if (direction === 'in' && fromIsPool) {
-		// Paired aToken burn in same tx → user withdrew collateral (got underlying back)
 		return hasATokenSibling ? 'collateral_withdrawal' : 'liability_increase';
 	}
 
-	// ── 7 & 8: OUT to pool ────────────────────────────────────────────────────
+	// ── 10–11: OUT to pool ────────────────────────────────────────────────────
 	if (direction === 'out' && toIsPool) {
-		// Paired aToken mint in same tx → user supplied collateral
 		return hasATokenSibling ? 'collateral_deposit' : 'liability_repayment';
 	}
 

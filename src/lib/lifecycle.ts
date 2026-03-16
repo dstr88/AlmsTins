@@ -8,6 +8,10 @@ import {
 	classifyOnchainTxWithContext,
 	type ClassifyRow,
 } from './aave/classify';
+import {
+	batchFetchAaveEvents,
+	type ParsedAaveEvent,
+} from './aave/events';
 
 const LINK_WINDOW_MINUTES = 30;
 const AMOUNT_TOLERANCE = 0.005; // 0.5% tolerance
@@ -203,10 +207,59 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 		txHashToClassifyRows.set(hash, group);
 	}
 
+	// Derive the tenant's wallet addresses from the transfer rows themselves
+	// (avoids an extra DB round-trip — outgoing transfers come FROM the wallet,
+	//  incoming transfers arrive TO the wallet).
+	const walletAddresses = new Set<string>();
+	for (const row of onchainResult.rows) {
+		const dir = directionFromTxType(row.tx_type ? String(row.tx_type) : null);
+		if (dir === 'out' && row.from_address) walletAddresses.add(String(row.from_address).toLowerCase());
+		if (dir === 'in'  && row.to_address)   walletAddresses.add(String(row.to_address).toLowerCase());
+	}
+
+	// Batch-fetch Aave event logs for transactions touching Aave pool addresses.
+	// Groups by chain so we batch Alchemy calls efficiently.
+	// Falls back gracefully to an empty Map when ALCHEMY_API_KEY is absent —
+	// classification then relies solely on transfer-pattern logic, which is still
+	// correct for all cases except liquidations (which require receipt confirmation).
+	const txHashToAaveEvents = new Map<string, ParsedAaveEvent[]>();
+	if (walletAddresses.size > 0) {
+		// Build chain → Set<txHash> for Aave-involved transactions only
+		const chainToHashes = new Map<string, Set<string>>();
+		for (const row of onchainResult.rows) {
+			const hash  = row.hash  ? String(row.hash)  : null;
+			const chain = row.chain ? String(row.chain) : null;
+			if (!hash || !chain) continue;
+
+			const fromAddr = row.from_address ? String(row.from_address).toLowerCase() : '';
+			const toAddr   = row.to_address   ? String(row.to_address).toLowerCase()   : '';
+			if (!AAVE_POOL_ADDRESSES.has(fromAddr) && !AAVE_POOL_ADDRESSES.has(toAddr)) continue;
+
+			const set = chainToHashes.get(chain) ?? new Set<string>();
+			set.add(hash);
+			chainToHashes.set(chain, set);
+		}
+
+		// Fetch per chain concurrently — each chain has its own Alchemy endpoint
+		await Promise.all(
+			Array.from(chainToHashes.entries()).map(async ([chain, hashSet]) => {
+				const fetched = await batchFetchAaveEvents(
+					Array.from(hashSet),
+					chain,
+					walletAddresses,
+				);
+				for (const [hash, events] of fetched) {
+					txHashToAaveEvents.set(hash, events);
+				}
+			}),
+		);
+	}
+
 	const onchainEvents = onchainResult.rows.map((row: any) => {
 		const classifyRow = normaliseOnchainRow(row);
 		const hash = row.hash ? String(row.hash) : null;
-		const group = hash ? (txHashToClassifyRows.get(hash) ?? [classifyRow]) : [classifyRow];
+		const group  = hash ? (txHashToClassifyRows.get(hash)  ?? [classifyRow]) : [classifyRow];
+		const events = hash ? (txHashToAaveEvents.get(hash)    ?? undefined)      : undefined;
 		return {
 			source_type: 'onchain' as const,
 			source_id:   classifyRow.id,
@@ -217,7 +270,7 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 			direction:    classifyRow.direction,
 			tx_hash:      hash,
 			exchange_withdrawal_id: null,
-			transaction_class: classifyOnchainTxWithContext(classifyRow, group),
+			transaction_class: classifyOnchainTxWithContext(classifyRow, group, events),
 		};
 	});
 	const transformMs = Date.now() - transformStart;
