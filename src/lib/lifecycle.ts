@@ -2,6 +2,12 @@ import { randomUUID } from 'crypto';
 import { db } from './db';
 import { getCache, setCache } from './tursoCache';
 import { tryAcquireLock } from './cacheLock';
+import {
+	type TransactionClass,
+	AAVE_POOL_ADDRESSES,
+	classifyOnchainTxWithContext,
+	type ClassifyRow,
+} from './aave/classify';
 
 const LINK_WINDOW_MINUTES = 30;
 const AMOUNT_TOLERANCE = 0.005; // 0.5% tolerance
@@ -28,10 +34,13 @@ export type LifecycleEvent = {
 	native_usd: number | null;
 	tx_hash: string | null;
 	exchange_withdrawal_id: string | null;
-	transaction_class: 'owned_acquisition' | 'liability_increase' | 'liability_repayment' | 'other';
+	transaction_class: TransactionClass;
 	linked_transfer: number;
 	confidence: number | null;
 };
+
+// Re-export so callers can use the full taxonomy without importing classify directly
+export type { TransactionClass };
 
 type DbRow = Record<string, unknown>;
 
@@ -122,27 +131,6 @@ const directionFromTxType = (txType: string | null) => {
 	return null;
 };
 
-// Aave V2 + V3 pool addresses — all lowercased for comparison.
-// Tokens flowing IN from these contracts = borrow (liability_increase).
-// Tokens flowing OUT to these contracts = repayment (liability_repayment).
-const AAVE_POOL_ADDRESSES = new Set([
-	'0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9', // Ethereum V2
-	'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', // Ethereum V3
-	'0x8dff5e27ea6b7ac08ebfdf9eb090f32ee9a30fcf', // Polygon V2
-	'0x794a61358d6845594f94dc1db02a252b5b4814ad', // Polygon V3 / Avalanche V3
-]);
-
-const classifyOnchainTx = (
-	fromAddress: string | null,
-	toAddress: string | null,
-	direction: string | null,
-): LifecycleEvent['transaction_class'] => {
-	const from = (fromAddress ?? '').toLowerCase();
-	const to = (toAddress ?? '').toLowerCase();
-	if (direction === 'in' && AAVE_POOL_ADDRESSES.has(from)) return 'liability_increase';
-	if (direction === 'out' && AAVE_POOL_ADDRESSES.has(to)) return 'liability_repayment';
-	return 'other';
-};
 
 const classifyImportTx = (description: string, kind: string, direction: string | null) => {
 	const text = `${description} ${kind}`.toLowerCase();
@@ -193,22 +181,43 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 	};
 	});
 
+	// Build a normalised view of each onchain row for context-aware classification.
+	// Grouping by tx_hash lets classifyOnchainTxWithContext distinguish, e.g.,
+	// collateral-supply (OUT to pool + aToken IN) from debt-repayment (OUT to pool, no aToken).
+	type RawOnchainRow = (typeof onchainResult.rows)[number];
+	const normaliseOnchainRow = (row: RawOnchainRow): ClassifyRow => ({
+		id:          String(row.id),
+		symbol:      normalizeSymbol(String(row.token_symbol ?? ''), row.chain ? String(row.chain) : null),
+		direction:   directionFromTxType(row.tx_type ? String(row.tx_type) : null),
+		fromAddress: row.from_address ? String(row.from_address) : null,
+		toAddress:   row.to_address   ? String(row.to_address)   : null,
+	});
+
+	// Index classify rows by tx_hash for O(1) group lookup
+	const txHashToClassifyRows = new Map<string, ClassifyRow[]>();
+	for (const row of onchainResult.rows) {
+		const hash = row.hash ? String(row.hash) : null;
+		if (!hash) continue;
+		const group = txHashToClassifyRows.get(hash) ?? [];
+		group.push(normaliseOnchainRow(row));
+		txHashToClassifyRows.set(hash, group);
+	}
+
 	const onchainEvents = onchainResult.rows.map((row: any) => {
-		const symbol = normalizeSymbol(String(row.token_symbol ?? ''), row.chain ? String(row.chain) : null);
-		const direction = directionFromTxType(row.tx_type ? String(row.tx_type) : null);
-		const fromAddress = row.from_address ? String(row.from_address) : null;
-		const toAddress = row.to_address ? String(row.to_address) : null;
+		const classifyRow = normaliseOnchainRow(row);
+		const hash = row.hash ? String(row.hash) : null;
+		const group = hash ? (txHashToClassifyRows.get(hash) ?? [classifyRow]) : [classifyRow];
 		return {
 			source_type: 'onchain' as const,
-			source_id: String(row.id),
-			asset_symbol: symbol,
-			amount: parseOnchainAmount(row.value ? String(row.value) : null, row.token_decimals ?? null),
-			native_usd: null,
+			source_id:   classifyRow.id,
+			asset_symbol: classifyRow.symbol,
+			amount:       parseOnchainAmount(row.value ? String(row.value) : null, row.token_decimals ?? null),
+			native_usd:   null,
 			timestamp_utc: String(row.timestamp),
-			direction,
-			tx_hash: row.hash ? String(row.hash) : null,
+			direction:    classifyRow.direction,
+			tx_hash:      hash,
 			exchange_withdrawal_id: null,
-			transaction_class: classifyOnchainTx(fromAddress, toAddress, direction),
+			transaction_class: classifyOnchainTxWithContext(classifyRow, group),
 		};
 	});
 	const transformMs = Date.now() - transformStart;
@@ -229,9 +238,14 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 			onchainByHash.set(evt.tx_hash, evt);
 		}
 	}
+	// Classes that should never be transfer-linked (they aren't exchange withdrawals)
+	const SKIP_TRANSFER_LINK = new Set<string>([
+		'liability_increase', 'liability_repayment', 'liability_liquidation',
+		'collateral_deposit', 'collateral_withdrawal', 'interest_income',
+	]);
+
 	for (const evt of importEvents) {
-		if (evt.transaction_class === 'liability_increase') continue;
-		if (evt.transaction_class === 'liability_repayment') continue;
+		if (SKIP_TRANSFER_LINK.has(evt.transaction_class)) continue;
 		if (evt.direction !== 'out' || evt.amount === null) continue;
 		if (evt.tx_hash) {
 			const match = onchainByHash.get(evt.tx_hash);
