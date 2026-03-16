@@ -435,7 +435,9 @@ export async function priceMissingTransactionsForTenant(
 
     if (priced > 0) {
       try {
-        await rebuildAssetLifecycles(tenantId);
+        // skipPricing: true breaks the mutual recursion:
+        //   lifecycle → priceMissing → rebuild(skipPricing:true)
+        await rebuildAssetLifecycles(tenantId, { skipPricing: true });
       } catch (err) {
         console.warn('[pricing] lifecycle rebuild failed', err);
         errors++;

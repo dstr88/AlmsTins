@@ -1,57 +1,265 @@
 ---
+/**
+ * /dashboard/tax — Schedule D tax summary
+ *
+ * Shows a high-level breakdown of:
+ *   • Ordinary income   (Aave interest, rebasing rewards — Form 1040 Schedule 1)
+ *   • Disposal proceeds (capital events — Form 8949 / Schedule D)
+ *   • Forced liquidations
+ *   • Unpriced warning  (transactions that still need historical pricing)
+ *
+ * Exact FIFO per-lot gain/loss is computed client-side on the transactions page
+ * and downloaded from there as a Form 8949 CSV.  This page gives the tax-season
+ * overview at a glance.
+ */
+
 import Layout from '../../layouts/Layout.astro';
 
-type TaxRow = {
-	category: string | null;
-	tokenSymbol: string | null;
-	txType: string | null;
-	value: string | number | null;
-	timestamp: string;
-};
+// ── Types ──────────────────────────────────────────────────────────────────
+type AssetIncome = { symbol: string; amount: number; count: number };
 
 type TaxPayload = {
 	ok: boolean;
-	year?: number;
-	group?: string;
-	rows: TaxRow[];
 	error?: string;
+	year?: number;
+	availableYears?: number[];
+	ordinaryIncome?: {
+		total: number;
+		count: number;
+		byAsset: AssetIncome[];
+	};
+	disposals?: {
+		totalProceeds:    number;
+		count:            number;
+		unpricedCount:    number;
+		liquidationCount: number;
+	};
+	unpricedOnchain?: number;
 };
 
-const year = new Date().getFullYear();
-const response = await fetch(new URL(`/api/tax/summary?year=${year}&group=personal`, Astro.request.url));
-const payload: TaxPayload = response.ok ? await response.json() : { ok: false, rows: [] };
+// ── Fetch data ─────────────────────────────────────────────────────────────
+const defaultYear = new Date().getFullYear() - 1; // prior tax year
+const yearParam   = Astro.url.searchParams.get('year');
+const year        = yearParam ? Number(yearParam) : defaultYear;
+
+const apiUrl = new URL(`/api/tax/summary?year=${year}`, Astro.request.url);
+const apiRes = await fetch(apiUrl);
+const data: TaxPayload = apiRes.ok ? await apiRes.json() : { ok: false };
+
+const payload        = data.ok ? data : null;
+const availableYears = payload?.availableYears ?? [];
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+const fmt = (n: number) =>
+	n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 ---
 
 <Layout>
-	<h1 class="text-2xl font-bold mb-4">Tax Summary</h1>
+	<div class="max-w-4xl mx-auto px-4 py-8 space-y-8">
 
-	{!payload.ok ? (
-		<p>Unable to load tax summary for {year}.</p>
-	) : (
-		<>
-			<p class="text-sm text-gray-600 mb-4">Year: {payload.year}</p>
-			<table class="min-w-full text-sm border">
-				<thead>
-					<tr class="text-left border-b bg-slate-100">
-						<th class="px-3 py-2">Date</th>
-						<th class="px-3 py-2">Token</th>
-						<th class="px-3 py-2">Value</th>
-						<th class="px-3 py-2">Type</th>
-						<th class="px-3 py-2">Category</th>
-					</tr>
-				</thead>
-				<tbody>
-					{payload.rows.map((row: TaxRow) => (
-						<tr class="border-b">
-							<td class="px-3 py-2">{new Date(row.timestamp).toLocaleDateString()}</td>
-							<td class="px-3 py-2">{row.tokenSymbol ?? 'native'}</td>
-							<td class="px-3 py-2 font-mono">{row.value}</td>
-							<td class="px-3 py-2 uppercase text-xs">{row.txType ?? '—'}</td>
-							<td class="px-3 py-2 uppercase text-xs tracking-wide">{row.category ?? '—'}</td>
-						</tr>
-					))}
-				</tbody>
-			</table>
-		</>
-	)}
+		<!-- Header + year picker -->
+		<div class="flex items-center justify-between flex-wrap gap-4">
+			<div>
+				<h1 class="text-2xl font-bold">Tax Summary</h1>
+				<p class="text-sm text-gray-500 mt-1">
+					Schedule D overview for tax year <strong>{year}</strong>.
+					Exact gain/loss per lot is in the
+					<a href="/dashboard/transactions" class="underline text-blue-600 hover:text-blue-800">
+						Form 8949 CSV export
+					</a>.
+				</p>
+			</div>
+
+			{availableYears.length > 0 && (
+				<form method="get" class="flex items-center gap-2">
+					<label for="year-select" class="text-sm font-medium text-gray-700">Tax year</label>
+					<select
+						id="year-select"
+						name="year"
+						onchange="this.form.submit()"
+						class="border border-gray-300 rounded-md px-3 py-1.5 text-sm shadow-sm
+						       focus:outline-none focus:ring-2 focus:ring-blue-500"
+					>
+						{availableYears.map((y) => (
+							<option value={y} selected={y === year}>{y}</option>
+						))}
+					</select>
+				</form>
+			)}
+		</div>
+
+		<!-- API / data error -->
+		{!payload && (
+			<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+				Unable to load tax data for {year}. Try refreshing the page.
+			</div>
+		)}
+
+		{payload && (
+			<>
+				<!-- Unpriced transactions warning -->
+				{(payload.unpricedOnchain ?? 0) > 0 && (
+					<div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+						<span class="text-amber-500 text-xl leading-none mt-0.5">⚠</span>
+						<div class="text-sm">
+							<p class="font-semibold text-amber-800">
+								{payload.unpricedOnchain} on-chain
+								transaction{payload.unpricedOnchain !== 1 ? 's are' : ' is'} missing
+								historical USD prices.
+							</p>
+							<p class="text-amber-700 mt-1">
+								Cost basis and proceeds may be incomplete. Historical pricing runs
+								automatically after each sync — check back shortly or trigger a
+								re-sync from the
+								<a href="/dashboard/wallets" class="underline">wallets page</a>.
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- Summary cards -->
+				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+					<!-- Ordinary Income -->
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-1">
+						<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+							Ordinary Income
+						</p>
+						<p class="text-2xl font-bold text-gray-900">
+							{fmt(payload.ordinaryIncome?.total ?? 0)}
+						</p>
+						<p class="text-xs text-gray-500">
+							{payload.ordinaryIncome?.count ?? 0} interest
+							event{(payload.ordinaryIncome?.count ?? 0) !== 1 ? 's' : ''}
+							&nbsp;·&nbsp;Schedule 1 / Form 1040
+						</p>
+					</div>
+
+					<!-- Disposal Proceeds -->
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-1">
+						<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+							Disposal Proceeds
+						</p>
+						<p class="text-2xl font-bold text-gray-900">
+							{fmt(payload.disposals?.totalProceeds ?? 0)}
+						</p>
+						<p class="text-xs text-gray-500">
+							{payload.disposals?.count ?? 0}
+							disposal{(payload.disposals?.count ?? 0) !== 1 ? 's' : ''}
+							&nbsp;·&nbsp;gain/loss in CSV export
+						</p>
+					</div>
+
+					<!-- Forced Liquidations -->
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-1">
+						<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+							Forced Liquidations
+						</p>
+						<p class={`text-2xl font-bold ${
+							(payload.disposals?.liquidationCount ?? 0) > 0
+								? 'text-red-600'
+								: 'text-gray-900'
+						}`}>
+							{payload.disposals?.liquidationCount ?? 0}
+						</p>
+						<p class="text-xs text-gray-500">
+							Aave liquidations — treated as taxable sales
+						</p>
+					</div>
+
+				</div>
+
+				<!-- Ordinary Income breakdown by asset -->
+				{(payload.ordinaryIncome?.byAsset?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+							<h2 class="text-sm font-semibold text-gray-700">
+								Ordinary Income by Asset
+							</h2>
+							<span class="text-xs text-gray-400">Schedule 1 · Form 1040</span>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
+										Asset
+									</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">
+										Events
+									</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">
+										Total Income
+									</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{payload.ordinaryIncome!.byAsset.map((row) => (
+									<tr class="hover:bg-gray-50">
+										<td class="px-5 py-3 font-mono font-medium text-gray-800">
+											{row.symbol}
+										</td>
+										<td class="px-5 py-3 text-right text-gray-500">{row.count}</td>
+										<td class="px-5 py-3 text-right font-semibold text-gray-900">
+											{fmt(row.amount)}
+										</td>
+									</tr>
+								))}
+								<tr class="bg-gray-50 font-semibold">
+									<td class="px-5 py-3 text-gray-700">Total</td>
+									<td class="px-5 py-3 text-right text-gray-500">
+										{payload.ordinaryIncome!.count}
+									</td>
+									<td class="px-5 py-3 text-right text-green-700">
+										{fmt(payload.ordinaryIncome!.total)}
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				)}
+
+				<!-- Disposals missing prices warning -->
+				{(payload.disposals?.unpricedCount ?? 0) > 0 && (
+					<div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+						<strong>{payload.disposals!.unpricedCount}</strong>
+						disposal{payload.disposals!.unpricedCount !== 1 ? 's' : ''} in {year}
+						{payload.disposals!.unpricedCount !== 1 ? ' are' : ' is'} missing USD prices —
+						the proceeds total above is understated. Open the
+						<a href="/dashboard/transactions" class="underline font-medium">
+							transactions page
+						</a>
+						and use the FIFO export to review and fill in missing cost basis manually.
+					</div>
+				)}
+
+				<!-- No taxable activity message -->
+				{(payload.ordinaryIncome?.total ?? 0) === 0 &&
+				 (payload.disposals?.count ?? 0) === 0 && (
+					<div class="rounded-lg border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600 text-center">
+						No taxable events found for {year}.
+						If this seems wrong, check that your wallets and exchange imports are up to date.
+					</div>
+				)}
+
+				<!-- Form 8949 CTA -->
+				<div class="rounded-xl border border-blue-100 bg-blue-50 p-5 flex items-center justify-between flex-wrap gap-4">
+					<div>
+						<p class="font-semibold text-blue-900">Ready for Form 8949?</p>
+						<p class="text-sm text-blue-700 mt-0.5">
+							Download the line-by-line CSV with short-term vs long-term classification
+							per lot from the transactions page.
+						</p>
+					</div>
+					<a
+						href="/dashboard/transactions"
+						class="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700
+						       text-white text-sm font-medium px-4 py-2 transition-colors"
+					>
+						Open Transactions →
+					</a>
+				</div>
+			</>
+		)}
+
+	</div>
 </Layout>

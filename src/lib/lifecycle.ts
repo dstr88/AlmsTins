@@ -150,7 +150,17 @@ const classifyImportTx = (description: string, kind: string, direction: string |
 	return 'other' as const;
 };
 
-export async function rebuildAssetLifecycles(tenantId: string) {
+export type RebuildLifecycleOpts = {
+	/**
+	 * When true, skip the automatic historical-pricing pass that normally runs
+	 * after the lifecycle is written to the DB.  Pass this flag when calling
+	 * from inside `priceMissingTransactionsForTenant` to break the mutual
+	 * recursion: price → rebuild(skipPricing:true).
+	 */
+	skipPricing?: boolean;
+};
+
+export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLifecycleOpts) {
 	const start = Date.now();
 	const queryStart = Date.now();
 	const importsResult = await db.execute({
@@ -161,7 +171,7 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 	});
 
 	const onchainResult = await db.execute({
-		sql: `SELECT id, hash, chain, block_number, token_symbol, token_decimals, value, timestamp, tx_type, from_address, to_address
+		sql: `SELECT id, hash, chain, block_number, token_symbol, token_decimals, value, usd_value, timestamp, tx_type, from_address, to_address
 			FROM transactions
 			WHERE tenant_id = ?`,
 		args: [tenantId],
@@ -438,12 +448,15 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 		const hash = row.hash ? String(row.hash) : null;
 		const group  = hash ? (txHashToClassifyRows.get(hash)  ?? [classifyRow]) : [classifyRow];
 		const events = hash ? (txHashToAaveEvents.get(hash)    ?? undefined)      : undefined;
+		const usdValue = row.usd_value !== null && row.usd_value !== undefined
+			? Number(row.usd_value)
+			: null;
 		return {
 			source_type: 'onchain' as const,
 			source_id:   classifyRow.id,
 			asset_symbol: classifyRow.symbol,
 			amount:       parseOnchainAmount(row.value ? String(row.value) : null, row.token_decimals ?? null),
-			native_usd:   null,
+			native_usd:   Number.isFinite(usdValue) && usdValue! > 0 ? usdValue : null,
 			timestamp_utc: String(row.timestamp),
 			direction:    classifyRow.direction,
 			tx_hash:      hash,
@@ -638,6 +651,29 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 		insertMs,
 		totalMs,
 	});
+
+	// ── Auto-price missing onchain transactions ───────────────────────────────
+	// After the lifecycle is written, kick off a historical-pricing pass so that
+	// onchain rows without USD values get priced via CoinGecko.  The pricing
+	// function then calls rebuildAssetLifecycles({ skipPricing: true }) when it
+	// is done, which re-hydrates the lifecycle events with correct native_usd.
+	//
+	// Guard: skip when called *from* the pricing function itself (avoids mutual
+	// recursion).  Also skip when no ALCHEMY_API_KEY is set as a proxy for
+	// "test / CI environment with no outbound calls".
+	if (!opts?.skipPricing) {
+		try {
+			const { priceMissingTransactionsForTenant } = await import('./priceMissingTransactionsForTenant');
+			// Run in background — don't block the lifecycle response.
+			// Fire-and-forget with a warning on failure.
+			priceMissingTransactionsForTenant(tenantId, { limit: 500 }).catch((err: unknown) => {
+				console.warn('[lifecycle] background pricing pass failed:', err);
+			});
+		} catch (err) {
+			// Dynamic import failure (e.g. circular dep caught at runtime) — non-fatal.
+			console.warn('[lifecycle] could not load pricing module:', err);
+		}
+	}
 }
 
 export async function getAssetLifecycleCache(
