@@ -61,6 +61,15 @@ export const AAVE_POOL_ADDRESSES = new Set<string>([
 /** The Ethereum zero address — used to detect aToken mint (interest accrual). */
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
+/**
+ * Ray = 1e27 — Aave's fixed-point precision unit used for liquidityIndex.
+ *
+ * All Aave V3 liquidity indices are stored and emitted in ray precision:
+ *   realBalance = scaledBalance × liquidityIndex / RAY
+ *   interest    = withdrawAmount × (withdrawIndex − supplyIndex) / withdrawIndex
+ */
+export const RAY = BigInt('1000000000000000000000000000');
+
 // ---------------------------------------------------------------------------
 // aToken symbol detection
 // ---------------------------------------------------------------------------
@@ -122,8 +131,79 @@ export type LiquidationCallEvent = {
 	txHash: string;
 };
 
+/**
+ * Aave Supply event (V3) / Deposit event (V2).
+ *
+ * Emitted by the Pool contract when a user supplies liquidity.
+ *   topics[1] → reserve    (indexed address — the underlying token, e.g. USDC)
+ *   topics[2] → onBehalfOf (indexed address — wallet that receives the aToken)
+ *   topics[3] → referralCode (indexed uint16)
+ *   data[0]   → user       (non-indexed address — the tx caller)
+ *   data[1]   → amount     (uint256 — in underlying units)
+ */
+export type AaveSupplyEvent = {
+	type:          'Supply';
+	poolAddress:   string;   // pool contract that emitted the event (log.address)
+	reserve:       string;   // underlying asset address (e.g. USDC contract)
+	onBehalfOf:    string;   // wallet that received the aToken
+	user:          string;   // tx caller (may differ from onBehalfOf)
+	amount:        bigint;   // underlying units at supply time
+	blockNumber:   number;   // block at which the supply occurred
+	txHash:        string;
+};
+
+/**
+ * Aave Withdraw event (V3 + V2 LendingPool).
+ *
+ * Emitted when a user withdraws collateral from the pool.
+ *   topics[1] → reserve (indexed)
+ *   topics[2] → user    (indexed — wallet initiating the withdrawal)
+ *   topics[3] → to      (indexed — recipient, usually same as user)
+ *   data[0]   → amount  (uint256 — underlying units; includes accrued interest)
+ */
+export type AaveWithdrawEvent = {
+	type:        'Withdraw';
+	poolAddress: string;   // pool contract
+	reserve:     string;   // underlying asset address
+	user:        string;   // wallet that withdrew
+	to:          string;   // recipient (often same as user)
+	amount:      bigint;   // underlying units received (principal + interest)
+	blockNumber: number;
+	txHash:      string;
+};
+
 /** Union of all parsed Aave events — extend as new event types are added. */
-export type ParsedAaveEvent = LiquidationCallEvent;
+export type ParsedAaveEvent = LiquidationCallEvent | AaveSupplyEvent | AaveWithdrawEvent;
+
+// ---------------------------------------------------------------------------
+// Rebasing interest helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the interest component of an Aave V3 withdrawal.
+ *
+ * Derivation:
+ *   scaledBalance = depositAmount × RAY / supplyIndex
+ *   fullBalance   = scaledBalance × withdrawIndex / RAY
+ *   interest      = fullBalance − depositAmount
+ *               = depositAmount × (withdrawIndex − supplyIndex) / supplyIndex
+ *
+ * For partial withdrawals with a known withdrawAmount:
+ *   interest = withdrawAmount × (withdrawIndex − supplyIndex) / withdrawIndex
+ *
+ * @param withdrawAmount  Amount of underlying received (raw units — from the tx)
+ * @param supplyIndex     liquidityIndex at deposit block (ray, 1e27-scale)
+ * @param withdrawIndex   liquidityIndex at withdrawal block (ray)
+ * @returns               Interest portion of withdrawAmount (raw units, ≥ 0)
+ */
+export function computeRebasingInterest(
+	withdrawAmount: bigint,
+	supplyIndex:    bigint,
+	withdrawIndex:  bigint,
+): bigint {
+	if (withdrawIndex <= supplyIndex || withdrawAmount === 0n || withdrawIndex === 0n) return 0n;
+	return (withdrawAmount * (withdrawIndex - supplyIndex)) / withdrawIndex;
+}
 
 // ---------------------------------------------------------------------------
 // Minimal row shape needed for classification

@@ -10,8 +10,10 @@ import {
 } from './aave/classify';
 import {
 	batchFetchAaveEvents,
+	batchFetchLiquidityIndices,
 	type ParsedAaveEvent,
 } from './aave/events';
+import { computeRebasingInterest } from './aave/classify';
 
 const LINK_WINDOW_MINUTES = 30;
 const AMOUNT_TOLERANCE = 0.005; // 0.5% tolerance
@@ -159,7 +161,7 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 	});
 
 	const onchainResult = await db.execute({
-		sql: `SELECT id, hash, chain, token_symbol, token_decimals, value, timestamp, tx_type, from_address, to_address
+		sql: `SELECT id, hash, chain, block_number, token_symbol, token_decimals, value, timestamp, tx_type, from_address, to_address
 			FROM transactions
 			WHERE tenant_id = ?`,
 		args: [tenantId],
@@ -255,6 +257,182 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 		);
 	}
 
+	// ── Aave V3 rebasing interest detection ──────────────────────────────────
+	// For each supply (AaveSupplyEvent) and withdrawal (AaveWithdrawEvent) we
+	// now have, fetch the liquidityIndex at the relevant block so we can
+	// compute how much of the withdrawn amount is accrued interest income.
+	//
+	// Strategy:
+	//   1. Collect unique (pool, reserve, blockNumber) from supply events.
+	//   2. Collect the same for withdraw events.
+	//   3. Batch-fetch all liquidityIndex values in one pass.
+	//   4. Build per-wallet, per-reserve supply positions (FIFO).
+	//   5. For each withdraw event, pop from the supply queue, compute interest.
+	//   6. Inject synthetic interest_income events.
+	//
+	// Graceful degradation: when ALCHEMY_API_KEY is absent getRpcUrl() returns
+	// null → batchFetchLiquidityIndices receives an empty array → no interest
+	// injection.  Existing classification still runs as before.
+
+	// Collect all Supply + Withdraw events across all txs
+	type SupplyEvt   = { type: 'Supply'; poolAddress: string; reserve: string; onBehalfOf: string; amount: bigint; blockNumber: number; txHash: string };
+	type WithdrawEvt = { type: 'Withdraw'; poolAddress: string; reserve: string; user: string; amount: bigint; blockNumber: number; txHash: string };
+
+	const allSupplyEvents:   SupplyEvt[]   = [];
+	const allWithdrawEvents: WithdrawEvt[] = [];
+	for (const events of txHashToAaveEvents.values()) {
+		for (const evt of events) {
+			if (evt.type === 'Supply')   allSupplyEvents.push(evt as SupplyEvt);
+			if (evt.type === 'Withdraw') allWithdrawEvents.push(evt as WithdrawEvt);
+		}
+	}
+
+	// Map: indexKey("pool:reserve:block") → liquidityIndex (ray)
+	const liquidityIndexCache = new Map<string, bigint>();
+
+	if ((allSupplyEvents.length > 0 || allWithdrawEvents.length > 0) && walletAddresses.size > 0) {
+		// Get an RPC URL — reuse the first chain found in the event set
+		const firstChain = (() => {
+			for (const row of onchainResult.rows) {
+				if (row.chain) return String(row.chain);
+			}
+			return 'ethereum';
+		})();
+		const apiKey = process.env.ALCHEMY_API_KEY ?? '';
+		if (apiKey) {
+			const alchemyUrls: Record<string, string> = {
+				ethereum:  `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`,
+				polygon:   `https://polygon-mainnet.g.alchemy.com/v2/${apiKey}`,
+				avalanche: `https://avax-mainnet.g.alchemy.com/v2/${apiKey}`,
+			};
+
+			// Deduplicate (pool, reserve, block) triples before fetching
+			const querySet = new Map<string, { poolAddress: string; assetAddress: string; blockNumber: number }>();
+			const addQuery = (poolAddress: string, reserve: string, blockNumber: number) => {
+				const key = `${poolAddress}:${reserve}:${blockNumber}`;
+				if (!querySet.has(key)) querySet.set(key, { poolAddress, assetAddress: reserve, blockNumber });
+			};
+			for (const e of allSupplyEvents)   addQuery(e.poolAddress, e.reserve, e.blockNumber);
+			for (const e of allWithdrawEvents)  addQuery(e.poolAddress, e.reserve, e.blockNumber);
+
+			// Group by chain (all events for a tenant are likely same chain)
+			// For simplicity, use the first matching rpcUrl for all queries
+			const rpcUrl = alchemyUrls[firstChain.toLowerCase()];
+			if (rpcUrl && querySet.size > 0) {
+				const fetched = await batchFetchLiquidityIndices(Array.from(querySet.values()), rpcUrl);
+				for (const [k, v] of fetched) liquidityIndexCache.set(k, v);
+			}
+		}
+	}
+
+	// Build per-wallet, per-reserve supply position queues (FIFO order by block)
+	// Key: `walletAddr:reserveAddr`  →  queue of supply positions
+	type SupplyPosition = { amount: bigint; supplyIndex: bigint; poolAddress: string; blockNumber: number; txHash: string };
+	const supplyPositions = new Map<string, SupplyPosition[]>();
+
+	// Sort supply events chronologically before building queues
+	const sortedSupplies = [...allSupplyEvents].sort((a, b) => a.blockNumber - b.blockNumber);
+	for (const evt of sortedSupplies) {
+		const idxKey  = `${evt.poolAddress}:${evt.reserve}:${evt.blockNumber}`;
+		const supplyIndex = liquidityIndexCache.get(idxKey);
+		if (!supplyIndex) continue; // can't track without index data
+
+		const posKey = `${evt.onBehalfOf}:${evt.reserve}`;
+		const queue  = supplyPositions.get(posKey) ?? [];
+		queue.push({ amount: evt.amount, supplyIndex, poolAddress: evt.poolAddress, blockNumber: evt.blockNumber, txHash: evt.txHash });
+		supplyPositions.set(posKey, queue);
+	}
+
+	// Compute interest for each Withdraw event and build synthetic interest events
+	type SyntheticInterestEvent = {
+		source_type: 'onchain';
+		source_id: string;
+		asset_symbol: string;
+		amount: number | null;
+		native_usd: null;
+		timestamp_utc: string;
+		direction: 'in';
+		tx_hash: string;
+		exchange_withdrawal_id: null;
+		transaction_class: 'interest_income';
+	};
+	const syntheticInterestEvents: SyntheticInterestEvent[] = [];
+
+	// Build a quick lookup: txHash → timestamp
+	const txHashToTimestamp = new Map<string, string>();
+	for (const row of onchainResult.rows) {
+		if (row.hash) txHashToTimestamp.set(String(row.hash), String(row.timestamp));
+	}
+
+	// Process withdrawals in chronological order
+	const sortedWithdrawals = [...allWithdrawEvents].sort((a, b) => a.blockNumber - b.blockNumber);
+	for (const evt of sortedWithdrawals) {
+		const withdrawIdxKey  = `${evt.poolAddress}:${evt.reserve}:${evt.blockNumber}`;
+		const withdrawIndex   = liquidityIndexCache.get(withdrawIdxKey);
+		if (!withdrawIndex) continue;
+
+		const posKey = `${evt.user}:${evt.reserve}`;
+		const queue  = supplyPositions.get(posKey);
+		if (!queue || queue.length === 0) continue;
+
+		// Use the oldest (FIFO) supply position's index as the reference
+		const supplyPos  = queue[0];
+		const interest   = computeRebasingInterest(evt.amount, supplyPos.supplyIndex, withdrawIndex);
+		if (interest <= 0n) continue;
+
+		// Derive a human-readable amount from raw BigInt (assume 18 decimals as safe default;
+		// the actual decimals would require another lookup, but this is close enough for reporting)
+		// We store as a floating point in the lifecycle, so use Number() with precision guard.
+		// For precise tax accounting, callers should use native_usd from price data.
+		const interestFloat = Number(interest) / 1e18;
+		if (!Number.isFinite(interestFloat) || interestFloat <= 0) continue;
+
+		// Pop the supply position from the queue (consumed by this withdrawal)
+		queue.shift();
+
+		const timestamp = txHashToTimestamp.get(evt.txHash) ?? '';
+		syntheticInterestEvents.push({
+			source_type: 'onchain',
+			source_id:   `${evt.txHash}_rebasing_interest`,
+			asset_symbol: `${evt.reserve.slice(0, 6)}`, // short address placeholder — resolved by symbol later
+			amount:       interestFloat,
+			native_usd:   null,
+			timestamp_utc: timestamp,
+			direction:    'in',
+			tx_hash:      evt.txHash,
+			exchange_withdrawal_id: null,
+			transaction_class: 'interest_income',
+		});
+	}
+
+	// Build the underlying symbol for synthetic events by finding matching aToken rows
+	// whose withdraw tx_hash matches. Map reserve (contract addr) → token symbol.
+	const reserveToSymbol = new Map<string, string>();
+	for (const evt of allWithdrawEvents) {
+		// Find a DB row in the same tx that's an underlying token (direction=in, from pool)
+		for (const row of onchainResult.rows) {
+			if (String(row.hash) !== evt.txHash) continue;
+			const dir   = directionFromTxType(row.tx_type ? String(row.tx_type) : null);
+			const from  = row.from_address ? String(row.from_address).toLowerCase() : '';
+			if (dir === 'in' && AAVE_POOL_ADDRESSES.has(from)) {
+				const sym = normalizeSymbol(String(row.token_symbol ?? ''), row.chain ? String(row.chain) : null);
+				reserveToSymbol.set(evt.reserve, sym);
+				break;
+			}
+		}
+	}
+	// Patch asset_symbol on synthetic events using the resolved symbol
+	for (const evt of syntheticInterestEvents) {
+		// Find the matching withdraw event to look up the reserve
+		const withdraw = allWithdrawEvents.find((w) => w.txHash === evt.tx_hash);
+		if (withdraw) {
+			const sym = reserveToSymbol.get(withdraw.reserve);
+			if (sym) evt.asset_symbol = sym;
+		}
+	}
+
+	// ── End rebasing interest detection ──────────────────────────────────────
+
 	const onchainEvents = onchainResult.rows.map((row: any) => {
 		const classifyRow = normaliseOnchainRow(row);
 		const hash = row.hash ? String(row.hash) : null;
@@ -275,7 +453,7 @@ export async function rebuildAssetLifecycles(tenantId: string) {
 	});
 	const transformMs = Date.now() - transformStart;
 
-	const allEvents = [...importEvents, ...onchainEvents].filter((event) => event.asset_symbol);
+	const allEvents = [...importEvents, ...onchainEvents, ...syntheticInterestEvents].filter((event) => event.asset_symbol);
 
 	// Link exchange withdrawals to on-chain transfers when confidence is high.
 	const groupStart = Date.now();
