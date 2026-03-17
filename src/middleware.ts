@@ -181,7 +181,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 					pathname,
 					redirectDecision,
 				});
-				return finish(Response.redirect(new URL('/dashboard/vault', request.url), 303));
+				return finish(Response.redirect(`https://${canonicalHost}/dashboard/vault`, 303));
 			}
 			redirectDecision = 'allow_onboarding';
 			console.log('[tenant-route]', {
@@ -206,7 +206,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 					pathname,
 					redirectDecision,
 				});
-				return finish(Response.redirect(new URL('/onboarding/tenant-setup', request.url), 303));
+				return finish(Response.redirect(`https://${canonicalHost}/onboarding/tenant-setup`, 303));
 			}
 			redirectDecision = 'allow_dashboard';
 		}
