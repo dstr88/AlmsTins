@@ -172,43 +172,6 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 
 				{nftMeta?.stale ? <div className="vault-activity__note">Refreshing…</div> : null}
 
-				<div className="vault-activity__nfts">
-					{nftState.status === 'loading' && <p className="vault-activity__empty">Loading NFTs…</p>}
-					{nftState.status === 'error' && <p className="vault-activity__empty">{nftState.message}</p>}
-					{nftState.status === 'ready' && nftState.items.length === 0 && (
-						<p className="vault-activity__empty">No valued NFTs detected. Use Manage to whitelist others.</p>
-					)}
-					{nftState.status === 'ready' &&
-						nftState.items.map((item) => {
-							const label = getLabel(item);
-							const thumb = label.slice(0, 3).toUpperCase();
-							const tokenId = item.tokenId ? `#${item.tokenId}` : '';
-							return (
-								<div key={`${item.contract ?? 'nft'}:${item.tokenId ?? '0'}`} className="vault-nft">
-									<a className="vault-nft__link" href={item.url ?? '#'} target="_blank" rel="noreferrer">
-										<div className="vault-nft__thumb">{thumb}</div>
-										<div className="vault-nft__meta">
-											<div className="vault-nft__title">{label}</div>
-											<div className="vault-nft__token">{tokenId || '—'}</div>
-											{item.status && (
-												<span className="vault-nft__badge" data-status={item.status}>
-													{STATUS_LABELS[item.status]}
-												</span>
-											)}
-										</div>
-									</a>
-									<button
-										type="button"
-										className="vault-nft__action vault-nft__action--blacklist"
-										onClick={(e) => { e.preventDefault(); e.stopPropagation(); void callNftEndpoint('blacklist', item); }}
-									>
-										Block
-									</button>
-								</div>
-							);
-						})}
-				</div>
-
 				{/* Manage / search panel */}
 				{manageOpen && (
 					<div className="vault-nft__manage-panel">
@@ -279,6 +242,43 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 						</div>
 					</div>
 				)}
+
+				<div className="vault-activity__nfts">
+					{nftState.status === 'loading' && <p className="vault-activity__empty">Loading NFTs…</p>}
+					{nftState.status === 'error' && <p className="vault-activity__empty">{nftState.message}</p>}
+					{nftState.status === 'ready' && nftState.items.length === 0 && (
+						<p className="vault-activity__empty">No valued NFTs detected. Use Manage to whitelist others.</p>
+					)}
+					{nftState.status === 'ready' &&
+						nftState.items.map((item) => {
+							const label = getLabel(item);
+							const thumb = label.slice(0, 3).toUpperCase();
+							const tokenId = item.tokenId ? `#${item.tokenId}` : '';
+							return (
+								<div key={`${item.contract ?? 'nft'}:${item.tokenId ?? '0'}`} className="vault-nft">
+									<a className="vault-nft__link" href={item.url ?? '#'} target="_blank" rel="noreferrer">
+										<div className="vault-nft__thumb">{thumb}</div>
+										<div className="vault-nft__meta">
+											<div className="vault-nft__title">{label}</div>
+											<div className="vault-nft__token">{tokenId || '—'}</div>
+											{item.status && (
+												<span className="vault-nft__badge" data-status={item.status}>
+													{STATUS_LABELS[item.status]}
+												</span>
+											)}
+										</div>
+									</a>
+									<button
+										type="button"
+										className="vault-nft__action vault-nft__action--blacklist"
+										onClick={(e) => { e.preventDefault(); e.stopPropagation(); void callNftEndpoint('blacklist', item); }}
+									>
+										Block
+									</button>
+								</div>
+							);
+						})}
+				</div>
 			</div>
 
 			<div className="vault-activity__section">
