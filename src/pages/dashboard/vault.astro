@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import SalmonTin from '@/components/dashboard/SalmonTin.astro';
+import AddAssetTin from '@/components/dashboard/AddAssetTin.astro';
 import PriceWatchlist from '@/components/dashboard/PriceWatchlist';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
@@ -27,7 +28,6 @@ console.log('[vault] auth ms', Date.now() - pageStart);
 const walletsStart = Date.now();
 const wallets = await getAllActiveWallets(tenantId);
 console.log('[vault] wallets ms', Date.now() - walletsStart, 'count', wallets.length);
-const defaultWallet = wallets[0] ?? null;
 const walletsSorted = [...wallets].sort((a, b) => {
 	const aTime = Date.parse(a.createdAt || '') || 0;
 	const bTime = Date.parse(b.createdAt || '') || 0;
@@ -60,33 +60,20 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			<SalmonTin label="Watchlist" class="tile tile--r1c1">
 				<PriceWatchlist client:only="react" />
 			</SalmonTin>
-			<SalmonTin label="Import" class="tile tile--r1c2 import-tile">
-				<div class="import-tile__inner">
-					<div class="import-tile__controls">
-						<label class="import-tile__label">
-							<span>Wallet address</span>
-							<input data-import-value type="text" placeholder="0x…" />
-						</label>
-
-						<button type="button" class="import-tile__btn" data-import-submit>
-							Add
-						</button>
-
-						<p class="import-tile__hint">
-							Saved wallets load after sign-in and syncs.
-						</p>
-					</div>
-
-					<div class="import-tile__networth">
-						<NetWorthOverviewCard client:only="react" endpoint="/api/networth/summary" />
-					</div>
-
-					<div class="import-tile__message" aria-live="polite"></div>
-				</div>
+			<SalmonTin label="Portfolio" class="tile tile--r1c2">
+				<NetWorthOverviewCard client:only="react" endpoint="/api/networth/summary" />
 			</SalmonTin>
 			<div class="tile tile--r1c3">
-				{ENABLE_ALL_TX ? <Tin0AllTransactions client:visible /> : null}
+				{ENABLE_ALL_TX
+					? <Tin0AllTransactions client:visible />
+					: <AddAssetTin />
+				}
 			</div>
+			<div class="vault-section-divider vault-section-divider--onchain">
+				<span class="vault-section-divider__label">On-Chain Wallets</span>
+				<span class="vault-section-divider__line"></span>
+			</div>
+
 			<div class="vault-lane vault-lane--row2">
 				{walletsWithData.map(({ wallet, fullData }, index) => {
 					const labelSource = fullData?.metadata
@@ -124,6 +111,11 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 					);
 				})}
 			</div>
+			<div class="vault-section-divider vault-section-divider--exchange">
+				<span class="vault-section-divider__label">Centralized Exchanges</span>
+				<span class="vault-section-divider__line"></span>
+			</div>
+
 			<div class="vault-lane vault-lane--row3 exchange-lane">
 				<CryptoComAccounts />
 				<ExchangeAccounts source="coinbase" title="Coinbase" />
@@ -250,49 +242,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 		document.querySelectorAll('.defi-summary-tin').forEach((tin) => attachSummaryObserver(tin, updateDefiSummary));
 		document.querySelectorAll('.wallet-tin--future').forEach((tin) => attachSummaryObserver(tin, updateNftSummary));
 
-		const importTile = document.querySelector('.import-tile');
-		if (importTile instanceof HTMLElement) {
-			const valueInput = importTile.querySelector('[data-import-value]');
-			const submitButton = importTile.querySelector('[data-import-submit]');
-			const messageEl = importTile.querySelector('.import-tile__message');
-
-			const setMessage = (text: string) => {
-				if (!(messageEl instanceof HTMLElement)) return;
-				messageEl.textContent = text;
-			};
-
-			if (submitButton instanceof HTMLButtonElement) {
-				submitButton.addEventListener('click', () => {
-					const value = valueInput instanceof HTMLInputElement ? valueInput.value.trim() : '';
-
-					if (!value) {
-						setMessage('Enter a wallet address first.');
-						return;
-					}
-					setMessage('Saving wallet...');
-					fetch('/api/wallets', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ address: value }),
-					})
-						.then(async (response) => {
-							const payload = await response.json().catch(() => ({}));
-							if (!response.ok) {
-								throw new Error(payload?.message ?? payload?.error ?? 'Unable to add wallet.');
-							}
-							if (valueInput instanceof HTMLInputElement) {
-								valueInput.value = '';
-							}
-							// Reload to render saved wallets server-side.
-							setMessage('Wallet added. Reloading...');
-							window.location.reload();
-						})
-						.catch((error) => {
-							setMessage(error?.message ?? 'Unable to add wallet.');
-						});
-				});
-			}
-		}
+		// Wallet import is handled by AddAssetTin component's own script.
 	</script>
 
 	<style>
@@ -335,7 +285,9 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				'r1c1'
 				'r1c2'
 				'r1c3'
+				'div2'
 				'row2'
+				'div3'
 				'row3';
 		}
 
@@ -345,7 +297,9 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				grid-template-areas:
 					'r1c1 r1c2'
 					'r1c3 r1c3'
+					'div2 div2'
 					'row2 row2'
+					'div3 div3'
 					'row3 row3';
 			}
 		}
@@ -356,26 +310,14 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				--row3-height: 420px;
 				--grid-gap: 24px;
 				grid-template-columns: repeat(3, minmax(0, 1fr));
-				grid-template-rows: var(--row1-height) var(--row2-height) var(--row3-height);
+				grid-template-rows: var(--row1-height) auto var(--row2-height) auto var(--row3-height);
 				grid-template-areas:
-					'r1c1 r1c2 r1c3'
-					'row2 row2 row2'
-					'row3 row3 row3';
+					'r1c1  r1c2  r1c3'
+					'div2  div2  div2'
+					'row2  row2  row2'
+					'div3  div3  div3'
+					'row3  row3  row3';
 				grid-auto-flow: row;
-			}
-		}
-
-		@media (min-width: 1080px) {
-			.bk-grid::after {
-				content: '';
-				position: absolute;
-				left: 0;
-				right: 0;
-				height: 1px;
-				background: rgba(255, 255, 255, 0.18);
-				top: calc(
-					var(--row1-height) + var(--grid-gap) + var(--row2-height) + (var(--grid-gap) * 0.5)
-				);
 			}
 		}
 
@@ -437,6 +379,52 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		.vault-lane--row3 {
 			grid-area: row3;
+		}
+
+		/* ── Section dividers ────────────────────────────────────────── */
+		.vault-section-divider {
+			display: flex;
+			align-items: center;
+			gap: 0.75rem;
+			padding: 0.1rem 0;
+		}
+
+		.vault-section-divider--onchain {
+			grid-area: div2;
+		}
+
+		.vault-section-divider--exchange {
+			grid-area: div3;
+		}
+
+		.vault-section-divider__label {
+			font-size: 0.7rem;
+			text-transform: uppercase;
+			letter-spacing: 0.16em;
+			font-weight: 700;
+			white-space: nowrap;
+			flex-shrink: 0;
+		}
+
+		.vault-section-divider--onchain .vault-section-divider__label {
+			color: salmon;
+		}
+
+		.vault-section-divider--exchange .vault-section-divider__label {
+			color: #d97706;
+		}
+
+		.vault-section-divider__line {
+			flex: 1;
+			height: 1px;
+		}
+
+		.vault-section-divider--onchain .vault-section-divider__line {
+			background: linear-gradient(to right, rgba(250, 128, 114, 0.5), transparent);
+		}
+
+		.vault-section-divider--exchange .vault-section-divider__line {
+			background: linear-gradient(to right, rgba(217, 119, 6, 0.5), transparent);
 		}
 
 		@media (min-width: 1080px) {
@@ -550,64 +538,6 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			gap: 0.65rem;
 			min-height: 0;
 			height: 100%;
-		}
-
-		.import-tile__inner {
-			display: flex;
-			flex-direction: column;
-			gap: 0.75rem;
-			min-height: 0;
-		}
-
-		.import-tile__controls {
-			display: grid;
-			gap: 0.6rem;
-		}
-
-		.import-tile__label {
-			display: grid;
-			gap: 0.25rem;
-			font-size: 0.85rem;
-			opacity: 0.9;
-		}
-
-		.import-tile__label select,
-		.import-tile__label input {
-			border-radius: 0.65rem;
-			border: 1px solid rgba(255, 255, 255, 0.18);
-			background: rgba(255, 255, 255, 0.08);
-			color: inherit;
-			padding: 0.5rem 0.65rem;
-			outline: none;
-		}
-
-		.import-tile__btn {
-			border-radius: 0.65rem;
-			border: 1px solid rgba(255, 255, 255, 0.18);
-			background: rgba(255, 255, 255, 0.12);
-			color: inherit;
-			padding: 0.55rem 0.75rem;
-			font-size: 0.9rem;
-			cursor: pointer;
-		}
-
-		.import-tile__hint {
-			font-size: 0.75rem;
-			opacity: 0.7;
-			margin: 0;
-		}
-
-		.import-tile__message {
-			font-size: 0.8rem;
-			opacity: 0.85;
-			letter-spacing: 0.05em;
-			text-transform: uppercase;
-		}
-
-		.import-tile__networth {
-			border-top: 1px solid rgba(255, 255, 255, 0.14);
-			padding-top: 0.75rem;
-			min-height: 0;
 		}
 
 		.wallet-label-box {

@@ -1,0 +1,376 @@
+---
+/**
+ * AddAssetTin — compact "Add +" control tin.
+ *
+ * Two tabs:
+ *   Wallet   — chain selector (ETH / AVAX / Polygon) + address input + submit
+ *   Exchange — list of supported exchanges pointing to CSV import tins below
+ *
+ * Handles the POST /api/wallets call internally via a <script> tag.
+ */
+---
+
+<div class="add-tin">
+	<div class="add-tin__heading">
+		<span class="add-tin__plus" aria-hidden="true">＋</span>
+		<span class="add-tin__title">Add Asset</span>
+	</div>
+
+	<!-- Tab bar -->
+	<div class="add-tin__tabs" role="tablist">
+		<button
+			class="add-tin__tab is-active"
+			type="button"
+			role="tab"
+			aria-selected="true"
+			data-add-tab="wallet"
+		>Wallet</button>
+		<button
+			class="add-tin__tab"
+			type="button"
+			role="tab"
+			aria-selected="false"
+			data-add-tab="exchange"
+		>Exchange</button>
+	</div>
+
+	<!-- Wallet panel -->
+	<div class="add-tin__panel" data-add-panel="wallet">
+		<label class="add-tin__field">
+			<span class="add-tin__field-label">Chain</span>
+			<select class="add-tin__select" data-add-chain>
+				<option value="ethereum">Ethereum (ETH)</option>
+				<option value="avalanche">Avalanche (AVAX)</option>
+				<option value="polygon">Polygon (POL)</option>
+			</select>
+		</label>
+		<label class="add-tin__field">
+			<span class="add-tin__field-label">Address</span>
+			<input
+				class="add-tin__input"
+				type="text"
+				placeholder="0x…"
+				data-add-address
+				autocomplete="off"
+				spellcheck="false"
+			/>
+		</label>
+		<button class="add-tin__submit" type="button" data-add-submit>
+			Add Wallet
+		</button>
+		<p class="add-tin__message" data-add-message aria-live="polite"></p>
+	</div>
+
+	<!-- Exchange panel -->
+	<div class="add-tin__panel is-hidden" data-add-panel="exchange">
+		<p class="add-tin__hint">
+			Import transaction history as a CSV from any exchange below.
+			Each exchange has an <strong>Import CSV</strong> button in its section.
+		</p>
+		<ul class="add-tin__exchange-list">
+			<li class="add-tin__exchange-item">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Crypto.com</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+			<li class="add-tin__exchange-item">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Coinbase</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+			<li class="add-tin__exchange-item">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Gemini</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+			<li class="add-tin__exchange-item">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Robinhood</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
+		</ul>
+		<p class="add-tin__coming-soon">
+			More chains &amp; exchanges coming soon.
+		</p>
+	</div>
+</div>
+
+<style>
+	.add-tin {
+		position: relative;
+		background: darkslategray;
+		color: #f7f2eb;
+		border: 2px solid salmon;
+		border-radius: 12px;
+		padding: 1.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.9rem;
+		height: 100%;
+		box-sizing: border-box;
+	}
+
+	.add-tin__heading {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.add-tin__plus {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.75rem;
+		height: 1.75rem;
+		border-radius: 50%;
+		background: salmon;
+		color: #0b0f1a;
+		font-size: 1rem;
+		font-weight: 900;
+		line-height: 1;
+		flex-shrink: 0;
+	}
+
+	.add-tin__title {
+		font-size: 1rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+	}
+
+	/* Tabs */
+	.add-tin__tabs {
+		display: flex;
+		gap: 0.4rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+		padding-bottom: 0.6rem;
+	}
+
+	.add-tin__tab {
+		flex: 1;
+		padding: 0.35rem 0.6rem;
+		border-radius: 6px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		background: transparent;
+		color: rgba(247, 242, 235, 0.6);
+		font-size: 0.78rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s, border-color 0.15s;
+	}
+
+	.add-tin__tab.is-active {
+		background: salmon;
+		color: #0b0f1a;
+		border-color: salmon;
+		font-weight: 700;
+	}
+
+	.add-tin__tab:not(.is-active):hover {
+		background: rgba(255, 255, 255, 0.08);
+		color: #f7f2eb;
+	}
+
+	/* Panels */
+	.add-tin__panel {
+		display: flex;
+		flex-direction: column;
+		gap: 0.65rem;
+		flex: 1;
+		min-height: 0;
+	}
+
+	.add-tin__panel.is-hidden {
+		display: none;
+	}
+
+	/* Wallet form */
+	.add-tin__field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.add-tin__field-label {
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		opacity: 0.7;
+	}
+
+	.add-tin__select,
+	.add-tin__input {
+		width: 100%;
+		border-radius: 0.6rem;
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		background: rgba(255, 255, 255, 0.07);
+		color: inherit;
+		padding: 0.45rem 0.65rem;
+		font-size: 0.875rem;
+		outline: none;
+		box-sizing: border-box;
+	}
+
+	.add-tin__select:focus,
+	.add-tin__input:focus {
+		border-color: rgba(250, 128, 114, 0.6);
+	}
+
+	.add-tin__input::placeholder {
+		opacity: 0.4;
+	}
+
+	.add-tin__submit {
+		border-radius: 0.65rem;
+		border: 1px solid rgba(250, 128, 114, 0.5);
+		background: rgba(250, 128, 114, 0.15);
+		color: #ffd5cc;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.85rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+	}
+
+	.add-tin__submit:hover {
+		background: rgba(250, 128, 114, 0.28);
+		border-color: rgba(250, 128, 114, 0.8);
+	}
+
+	.add-tin__submit:disabled {
+		opacity: 0.55;
+		cursor: wait;
+	}
+
+	.add-tin__message {
+		margin: 0;
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		opacity: 0.8;
+		min-height: 1.1em;
+	}
+
+	/* Exchange panel */
+	.add-tin__hint {
+		margin: 0;
+		font-size: 0.8rem;
+		opacity: 0.75;
+		line-height: 1.5;
+	}
+
+	.add-tin__exchange-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.add-tin__exchange-item {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.4rem 0.5rem;
+		border-radius: 0.5rem;
+		border: 1px solid rgba(217, 119, 6, 0.25);
+		background: rgba(217, 119, 6, 0.06);
+	}
+
+	.add-tin__exchange-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.add-tin__exchange-dot--amber {
+		background: #d97706;
+	}
+
+	.add-tin__exchange-name {
+		flex: 1;
+		font-size: 0.85rem;
+		font-weight: 600;
+	}
+
+	.add-tin__exchange-arrow {
+		font-size: 0.75rem;
+		opacity: 0.55;
+	}
+
+	.add-tin__coming-soon {
+		margin: 0.25rem 0 0;
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		opacity: 0.45;
+		font-style: italic;
+	}
+</style>
+
+<script>
+	const tin = document.querySelector('.add-tin');
+	if (tin instanceof HTMLElement) {
+		// ── Tab switching ──────────────────────────────────────────────────
+		const tabs = tin.querySelectorAll<HTMLButtonElement>('[data-add-tab]');
+		const panels = tin.querySelectorAll<HTMLElement>('[data-add-panel]');
+
+		tabs.forEach((tab) => {
+			tab.addEventListener('click', () => {
+				const target = tab.dataset.addTab;
+				tabs.forEach((t) => {
+					t.classList.toggle('is-active', t.dataset.addTab === target);
+					t.setAttribute('aria-selected', t.dataset.addTab === target ? 'true' : 'false');
+				});
+				panels.forEach((p) => {
+					p.classList.toggle('is-hidden', p.dataset.addPanel !== target);
+				});
+			});
+		});
+
+		// ── Wallet submit ─────────────────────────────────────────────────
+		const addressInput = tin.querySelector<HTMLInputElement>('[data-add-address]');
+		const submitBtn = tin.querySelector<HTMLButtonElement>('[data-add-submit]');
+		const messageEl = tin.querySelector<HTMLElement>('[data-add-message]');
+
+		const setMessage = (text: string) => {
+			if (messageEl) messageEl.textContent = text;
+		};
+
+		submitBtn?.addEventListener('click', () => {
+			const address = addressInput?.value.trim() ?? '';
+			if (!address) {
+				setMessage('Enter a wallet address first.');
+				return;
+			}
+			if (submitBtn) submitBtn.disabled = true;
+			setMessage('Saving…');
+
+			fetch('/api/wallets', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ address }),
+			})
+				.then(async (res) => {
+					const payload = await res.json().catch(() => ({}));
+					if (!res.ok) throw new Error(payload?.message ?? payload?.error ?? 'Unable to add wallet.');
+					if (addressInput) addressInput.value = '';
+					setMessage('Wallet added — reloading…');
+					window.location.reload();
+				})
+				.catch((err: Error) => {
+					setMessage(err.message ?? 'Unable to add wallet.');
+					if (submitBtn) submitBtn.disabled = false;
+				});
+		});
+
+		// Allow Enter key in address field
+		addressInput?.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') submitBtn?.click();
+		});
+	}
+</script>
