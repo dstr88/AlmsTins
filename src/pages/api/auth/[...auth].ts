@@ -161,12 +161,12 @@ const authConfig = {
 };
 
 const ensureAbsoluteUrl = (request: Request) => {
-	// Always reconstruct using forwarded headers — Render's internal URL is
+	// Use AUTH_URL as the canonical base — Render's internal request.url is
 	// http://localhost:10000/... which breaks @auth/core's origin check.
-	const proto = request.headers.get('x-forwarded-proto') ?? 'https';
-	const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? process.env.AUTH_URL?.replace(/^https?:\/\//, '') ?? 'almstins.com';
+	const authUrl = process.env.AUTH_URL ?? 'https://almstins.com';
+	const origin = /^https?:\/\//i.test(authUrl) ? authUrl.replace(/\/$/, '') : `https://${authUrl}`;
 	const base = new URL(request.url.startsWith('http') ? request.url : `https://placeholder${request.url}`);
-	return `${proto}://${host}${base.pathname}${base.search}`;
+	return `${origin}${base.pathname}${base.search}`;
 };
 
 const buildAuthRequest = (request: Request) => {
