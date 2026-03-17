@@ -29,6 +29,44 @@ const formatUsd = (value: number | null | undefined) =>
 
 const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
 
+// Fetch per-asset cost basis summary from exchange imports
+type CostBasisAsset = {
+  symbol: string;
+  totalAcquired: number;
+  totalCostUsd: number;
+  totalDisposed: number;
+  totalProceedsUsd: number;
+  netQtyHeld: number;
+  avgCostPerUnit: number;
+  totalCostBasis: number;
+  realizedGain: number | null;
+  buyCount: number;
+  sellCount: number;
+  firstBuyDate: string | null;
+};
+
+let costBasisAssets: CostBasisAsset[] = [];
+try {
+  const cbRes = await fetch(new URL('/api/tax/cost-basis', Astro.url), {
+    headers: { cookie: Astro.request.headers.get('cookie') ?? '' },
+  });
+  if (cbRes.ok) {
+    const cbData = await cbRes.json();
+    costBasisAssets = cbData.assets ?? [];
+  }
+} catch (e) {
+  console.warn('[bookkeeping] cost-basis fetch failed', e);
+}
+
+const formatQty = (value: number) =>
+  Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 8 }) : '—';
+
+const formatGain = (value: number | null) => {
+  if (value === null || !Number.isFinite(value)) return null;
+  const sign = value >= 0 ? '+' : '';
+  return `${sign}$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+};
+
 ---
 
 <Layout title="Bookkeeping">
@@ -88,6 +126,53 @@ const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
           )}
         </OrnateTin>
       </div>
+    </section>
+
+    <!-- COST BASIS SUMMARY -->
+    <section class="cost-basis-section">
+      <OrnateTin label="Cost Basis Summary" class="cost-basis-tin">
+        <div class="cb-header">
+          <h2 class="column-title">Cost Basis Summary</h2>
+          <p class="cb-note">Weighted-average cost method &bull; Exchange CSV imports only</p>
+        </div>
+
+        {costBasisAssets.length === 0 ? (
+          <p class="cb-empty">No cost basis data yet. Import exchange CSVs to populate this table.</p>
+        ) : (
+          <div class="cb-table-wrap">
+            <table class="cb-table">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th class="num">Qty Held</th>
+                  <th class="num">Avg Cost/Unit</th>
+                  <th class="num">Total Cost Basis</th>
+                  <th class="num">Total Proceeds</th>
+                  <th class="num">Realized Gain/Loss</th>
+                  <th class="num">First Purchase</th>
+                </tr>
+              </thead>
+              <tbody>
+                {costBasisAssets.map((a) => {
+                  const gainStr = formatGain(a.realizedGain);
+                  const gainClass = a.realizedGain === null ? '' : a.realizedGain >= 0 ? 'gain-pos' : 'gain-neg';
+                  return (
+                    <tr>
+                      <td class="asset-symbol">{a.symbol}</td>
+                      <td class="num">{formatQty(a.netQtyHeld)}</td>
+                      <td class="num">{formatUsd(a.avgCostPerUnit)}</td>
+                      <td class="num">{formatUsd(a.totalCostBasis)}</td>
+                      <td class="num">{a.sellCount > 0 ? formatUsd(a.totalProceedsUsd) : '—'}</td>
+                      <td class={`num ${gainClass}`}>{gainStr ?? '—'}</td>
+                      <td class="num date-col">{formatDate(a.firstBuyDate)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </OrnateTin>
     </section>
   </section>
 
@@ -300,6 +385,110 @@ const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
       .tin-col {
         height: 62vh;
         max-height: 62vh;
+      }
+    }
+
+    /* === Cost Basis Summary section === */
+    .cost-basis-section {
+      width: 100%;
+      max-width: calc(100% - 6rem);
+      margin: 0 auto 3rem;
+    }
+
+    .cost-basis-tin {
+      width: 100%;
+    }
+
+    .cb-header {
+      display: flex;
+      align-items: baseline;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 1rem;
+    }
+
+    .cb-note {
+      font-size: 0.8rem;
+      opacity: 0.55;
+      margin: 0;
+      letter-spacing: 0.03em;
+    }
+
+    .cb-empty {
+      font-size: 0.95rem;
+      opacity: 0.65;
+      margin: 0;
+      padding: 1rem 0;
+    }
+
+    .cb-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .cb-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    .cb-table th {
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.6;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      white-space: nowrap;
+    }
+
+    .cb-table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      white-space: nowrap;
+    }
+
+    .cb-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .cb-table tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .cb-table .num {
+      text-align: right;
+    }
+
+    .cb-table .asset-symbol {
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: 0.04em;
+    }
+
+    .cb-table .date-col {
+      opacity: 0.7;
+      font-size: 0.85rem;
+    }
+
+    .gain-pos {
+      color: #4ade80;
+      font-weight: 600;
+    }
+
+    .gain-neg {
+      color: #f87171;
+      font-weight: 600;
+    }
+
+    @media (max-width: 1080px) {
+      .cost-basis-section {
+        margin: 0 1.5rem 2rem;
+        max-width: none;
       }
     }
   </style>

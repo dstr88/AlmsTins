@@ -255,8 +255,9 @@ export function computeSmartFlags(tx: TransactionRow, myWalletAddresses: string[
 	const tokenName = tx.metadata?.tokenName?.toString().toLowerCase?.() ?? '';
 	const source = tx.metadata?.source?.toString().toLowerCase?.() ?? '';
 	const aaveAddresses = [
-		'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2',
-		'0xa434d495249abe33e031fe71a969b81f3c07950d',
+		'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', // Ethereum V3 Pool
+		'0xa434d495249abe33e031fe71a969b81f3c07950d', // Ethereum V3 PoolAddressesProvider
+		'0x794a61358d6845594f94dc1db02a252b5b4814ad', // Avalanche V3 Pool (also Polygon V3 Pool)
 	];
 	const aaveMovement = Boolean(
 		(lowerTo && aaveAddresses.includes(lowerTo)) || tokenName.includes('aave') || source.includes('aave'),

@@ -12,6 +12,7 @@ import {
 } from '@/lib/scanSync';
 import type { SupportedChain } from '@/lib/constants';
 import { DEFAULT_ERC20_CHAINS } from '@/lib/constants';
+import { fetchAndStoreAaveLiquidations } from '@/lib/sync/syncAaveLiquidations';
 
 const MAX_OFFSET = 100;
 const MAX_PAGES = 100;
@@ -247,6 +248,21 @@ export async function syncWalletChain(tenantId: string, wallet: Wallet, chain: s
 			block: marker.block,
 			timestamp: marker.timestamp,
 		});
+	}
+
+	// Fetch and store Aave liquidation events from The Graph subgraph.
+	// Liquidations are executed by bots, so they never appear in the wallet's
+	// own txlist — the subgraph is the only reliable source.
+	try {
+		const liqStats = await fetchAndStoreAaveLiquidations(tenantId, wallet, normalizedChain);
+		if (liqStats.fetched > 0) {
+			console.info(
+				`[aaveLiquidations] wallet=${wallet.id} chain=${normalizedChain} fetched=${liqStats.fetched} inserted=${liqStats.inserted}`,
+			);
+		}
+	} catch (liqError) {
+		// Non-fatal: liquidation fetch failure should not block the normal tx sync
+		console.warn(`[aaveLiquidations] failed for wallet ${wallet.id} on ${normalizedChain}`, liqError);
 	}
 
 	console.info(

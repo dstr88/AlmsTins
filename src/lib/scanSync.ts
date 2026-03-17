@@ -1,6 +1,20 @@
 import type { SupportedChain } from './constants';
 import { buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
 
+// Aave V3 Pool contract addresses (all lowercase) for Aave call detection
+const AAVE_POOL_ADDRESSES = new Set([
+	'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', // Ethereum V3
+	'0x794a61358d6845594f94dc1db02a252b5b4814ad', // Avalanche V3 (also Polygon V3)
+]);
+
+// Aave V3 function 4-byte selectors → action label
+const AAVE_SELECTORS = new Map<string, string>([
+	['0x617ba037', 'supply'],
+	['0xa415bcad', 'borrow'],
+	['0x573ade81', 'repay'],
+	['0x69328dec', 'withdraw'],
+]);
+
 type EtherscanChain = Extract<SupportedChain, 'ethereum' | 'polygon'>;
 
 const ETHEREUM_CHAIN_ID = 1;
@@ -115,6 +129,17 @@ export function normalizeScanResults(nativeTxs: ScanTx[], tokenTxs: ScanTx[], ch
 
 	nativeTxs.forEach((tx) => {
 		const key = `${tx.hash}-${chain}`;
+		const toLower = tx.to?.toLowerCase() ?? '';
+		const selector = tx.input?.slice(0, 10)?.toLowerCase() ?? '';
+		const aaveAction = AAVE_POOL_ADDRESSES.has(toLower) ? AAVE_SELECTORS.get(selector) : undefined;
+		const txType = aaveAction
+			? `aave_${aaveAction}`
+			: toLower === wallet.address.toLowerCase()
+				? 'incoming'
+				: 'outgoing';
+		const metadata: Record<string, any> = aaveAction
+			? { source: 'aave', aaveAction }
+			: { source: 'scan_native' };
 		transactions.set(key, {
 			walletId: wallet.id,
 			hash: tx.hash,
@@ -126,10 +151,10 @@ export function normalizeScanResults(nativeTxs: ScanTx[], tokenTxs: ScanTx[], ch
 			value: tx.value,
 			tokenSymbol: 'native',
 			tokenDecimals: 18,
-			txType: tx.to?.toLowerCase() === wallet.address ? 'incoming' : 'outgoing',
+			txType,
 			status: tx.isError === '1' ? 'failed' : 'confirmed',
 			feePaid: tx.gasUsed && tx.gasPrice ? (BigInt(tx.gasUsed) * BigInt(tx.gasPrice)).toString() : null,
-			metadata: { source: 'scan_native' },
+			metadata,
 		});
 	});
 
