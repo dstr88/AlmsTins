@@ -75,17 +75,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 				return 'almstins.com';
 			}
 		})();
-		if (!isDev && requestHost !== canonicalHost) {
-			const redirectUrl = new URL(url.toString());
-			redirectUrl.protocol = 'https:';
-			redirectUrl.host = canonicalHost;
-			return finish(
-				new Response(null, {
-					status: 308,
-					headers: { Location: redirectUrl.toString() },
-				}),
-			);
-		}
+		// Host-redirect removed: Render's x-forwarded-host may differ from the
+		// custom domain, which caused an infinite redirect loop in production.
+		// HTTPS enforcement below (x-forwarded-proto check) is sufficient.
 
 		const hostFlag = '__ledgerlense_auth_host_logged__';
 		const globalHostAny = globalThis as typeof globalThis & { [hostFlag]?: boolean };
