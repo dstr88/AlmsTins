@@ -152,12 +152,9 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				});
 			};
 
-			tins.forEach((tin, idx) => {
-				tin.classList.remove('is-collapsed');
-				if (idx !== 0) {
-					tin.classList.add('is-collapsed');
-				}
-				setExpanded(tin, idx === 0);
+			tins.forEach((tin) => {
+				tin.classList.add('is-collapsed');
+				setExpanded(tin, false);
 				const label = tin.querySelector('.salmon-tin__label');
 				if (label instanceof HTMLElement) {
 					label.setAttribute('role', 'button');
