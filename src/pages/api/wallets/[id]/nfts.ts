@@ -2,15 +2,18 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { tryAcquireLock } from '@/lib/cacheLock';
-import { getNftTransfers } from '@/lib/etherscan';
+import { getNftTransfers, buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
 const CACHE_TTL_MS = 1_000;
-const cache = new Map<string, { expiresAt: number; payload: { ok: boolean; items: any[] } }>();
+const cache = new Map<string, { expiresAt: number; payload: NftPayload }>();
 const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 const SNAPSHOT_STALE_MAX_MS = 60 * 60 * 1000;
 const SNAPSHOT_LOCK_SECONDS = 20;
+
+// Request-scoped cache for tx value lookups to avoid duplicate Etherscan calls
+const txValueCache = new Map<string, bigint>();
 
 const CHAINS = [
 	{ chainId: 137, name: 'polygon', opensea: 'https://opensea.io/assets/matic', explorer: 'https://polygonscan.com' },
@@ -20,11 +23,53 @@ const CHAINS = [
 
 const FUNGIBLE_SYMBOLS = new Set(['CRO']);
 
+export type NftStatus = 'purchased' | 'whitelisted' | 'blacklisted' | 'airdrop';
+
+export type NftItem = {
+	chainId: number;
+	chain: string;
+	contract: string;
+	tokenId: string;
+	name: string | null;
+	symbol: string | null;
+	url: string | null;
+	status: NftStatus;
+};
+
+type NftPayload = {
+	ok: boolean;
+	items: NftItem[];
+	allItems: NftItem[];
+	asOf?: string;
+};
+
 const isFungibleToken = (tx: any) => {
 	const symbol = String(tx.tokenSymbol ?? '').trim().toUpperCase();
 	const name = String(tx.tokenName ?? '').trim().toLowerCase();
 	return FUNGIBLE_SYMBOLS.has(symbol) || name.includes('crypto.com');
 };
+
+/** Look up the ETH value of a transaction by hash. Returns 0n if unavailable. */
+async function getTxValue(chainId: number, hash: string): Promise<bigint> {
+	const cacheKey = `${chainId}:${hash}`;
+	if (txValueCache.has(cacheKey)) return txValueCache.get(cacheKey)!;
+
+	try {
+		const url = buildEtherscanV2Url(chainId, {
+			module: 'proxy',
+			action: 'eth_getTransactionByHash',
+			txhash: hash,
+		});
+		const data = await requestEtherscan(url, { cacheTtlMs: 60_000 });
+		const hexValue = String((data as any)?.result?.value ?? '0x0');
+		const value = hexValue && hexValue !== '0x' ? BigInt(hexValue) : 0n;
+		txValueCache.set(cacheKey, value);
+		return value;
+	} catch {
+		txValueCache.set(cacheKey, 0n);
+		return 0n;
+	}
+}
 
 export const GET: APIRoute = async ({ params, request, locals }) => {
 	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -37,6 +82,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 			...(meta ?? {}),
 		});
 	};
+
 	if (!ETHERSCAN_KEY) {
 		logPerf(500);
 		return new Response(JSON.stringify({ ok: false, error: 'Missing ETHERSCAN_API_KEY' }), { status: 500 });
@@ -58,6 +104,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 		if (err instanceof Response) return err;
 		throw err;
 	}
+
 	const cacheKey = `${tenantId}:${walletId}`;
 	const lockKey = `nfts:${tenantId}:${walletId}`;
 	const cachedResponse = cache.get(cacheKey);
@@ -83,16 +130,18 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 		if (message.includes('wallet_nft_snapshot') && message.includes('no such table')) {
 			console.warn('[nfts] missing wallet_nft_snapshot table', { requestId, walletId });
 			logPerf(200, { cached: false, stale: false, count: 0 });
-			return new Response(JSON.stringify({ ok: true, items: [], cached: false, stale: false, asOf: null }), {
+			return new Response(JSON.stringify({ ok: true, items: [], allItems: [], cached: false, stale: false, asOf: null }), {
 				status: 200,
 				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
 			});
 		}
 		throw error;
 	}
+
 	const snapshotRow = snapshotResult.rows?.[0] as
 		| { payload_json?: string; as_of?: string; updated_at?: string }
 		| undefined;
+
 	if (snapshotRow?.payload_json) {
 		let snapshotPayload: any = null;
 		try {
@@ -126,16 +175,8 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 
 			logPerf(200, { cached: true, stale, count: Array.isArray(snapshotPayload?.items) ? snapshotPayload.items.length : 0 });
 			return new Response(
-				JSON.stringify({
-					...snapshotPayload,
-					cached: true,
-					stale,
-					asOf: snapshotRow.as_of ?? snapshotPayload.asOf,
-				}),
-				{
-					status: 200,
-					headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' },
-				},
+				JSON.stringify({ ...snapshotPayload, cached: true, stale, asOf: snapshotRow.as_of ?? snapshotPayload.asOf }),
+				{ status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1' } },
 			);
 		}
 	}
@@ -164,7 +205,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 	}
 };
 
-async function upsertNftSnapshot(tenantId: string, walletId: string, payload: { ok: boolean; items: any[]; asOf?: string }) {
+async function upsertNftSnapshot(tenantId: string, walletId: string, payload: NftPayload) {
 	const nowIso = new Date().toISOString();
 	const asOf = payload.asOf ?? nowIso;
 	await db.execute({
@@ -178,28 +219,20 @@ async function upsertNftSnapshot(tenantId: string, walletId: string, payload: { 
 	});
 }
 
-async function buildNftPayload(tenantId: string, walletId: string) {
+async function buildNftPayload(tenantId: string, walletId: string): Promise<NftPayload> {
 	const walletResult = await db.execute({
 		sql: 'SELECT address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 		args: [walletId, tenantId],
 	});
 	const address = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
-	if (!address) {
-		throw new Error('Wallet not found');
-	}
+	if (!address) throw new Error('Wallet not found');
 
+	// Fetch all NFT transfers across supported chains
 	const allTransfers: Array<any> = [];
-
 	for (const chain of CHAINS) {
-		const actions = ['tokennfttx', 'token1155tx'];
-		for (const action of actions) {
+		for (const action of ['tokennfttx', 'token1155tx'] as const) {
 			try {
-				// Etherscan calls centralized in src/lib/etherscan.ts.
-				const items = await getNftTransfers({
-					chainId: chain.chainId,
-					address,
-					action: action as 'tokennfttx' | 'token1155tx',
-				});
+				const items = await getNftTransfers({ chainId: chain.chainId, address, action });
 				items.forEach((item: any) => {
 					if (isFungibleToken(item)) return;
 					allTransfers.push({ ...item, chainId: chain.chainId, chain: chain.name });
@@ -210,64 +243,92 @@ async function buildNftPayload(tenantId: string, walletId: string) {
 		}
 	}
 
+	// Build owned map — most recent transfer first, only "to" = wallet
 	allTransfers.sort((a, b) => Number(b.timeStamp ?? 0) - Number(a.timeStamp ?? 0));
 	const owned = new Map<string, any>();
-
 	for (const tx of allTransfers) {
 		const contract = String(tx.contractAddress ?? '').toLowerCase();
 		const tokenId = String(tx.tokenID ?? tx.tokenId ?? '');
 		if (!contract || !tokenId) continue;
 		const key = `${tx.chainId}:${contract}:${tokenId}`;
 		if (owned.has(key)) continue;
-		const to = String(tx.to ?? '').toLowerCase();
-		if (to === address) {
+		if (String(tx.to ?? '').toLowerCase() === address) {
 			owned.set(key, tx);
 		}
 	}
 
-	const hiddenResult = await db.execute({
-		sql: `SELECT chain_id, contract_address, token_id
-			FROM nft_hidden
-			WHERE tenant_id = ? AND wallet_id = ?`,
-		args: [tenantId, walletId],
-	});
-	const hiddenSet = new Set(
-		(hiddenResult.rows ?? []).map((row: any) => {
-			const chainId = Number(row.chain_id ?? 0);
-			const contract = String(row.contract_address ?? '').toLowerCase();
-			const tokenId = String(row.token_id ?? '');
-			return `${chainId}:${contract}:${tokenId}`;
+	// Load blacklist (nft_hidden) and whitelist in parallel
+	const [blacklistResult, whitelistResult] = await Promise.all([
+		db.execute({
+			sql: 'SELECT chain_id, contract_address, token_id FROM nft_hidden WHERE tenant_id = ? AND wallet_id = ?',
+			args: [tenantId, walletId],
 		}),
-	);
+		db.execute({
+			sql: 'SELECT chain_id, contract_address, token_id FROM nft_whitelist WHERE tenant_id = ? AND wallet_id = ?',
+			args: [tenantId, walletId],
+		}).catch(() => ({ rows: [] })), // graceful fallback if table doesn't exist yet
+	]);
 
-	const items = Array.from(owned.values())
-		.filter((tx) => {
-			const contract = String(tx.contractAddress ?? '').toLowerCase();
-			const tokenId = String(tx.tokenID ?? tx.tokenId ?? '');
-			if (!contract || !tokenId) return false;
-			const key = `${tx.chainId}:${contract}:${tokenId}`;
-			return !hiddenSet.has(key);
-		})
-		.slice(0, 12)
-		.map((tx) => {
-			const chain = CHAINS.find((c) => c.chainId === tx.chainId);
-			const contract = String(tx.contractAddress ?? '').toLowerCase();
-			const tokenId = String(tx.tokenID ?? tx.tokenId ?? '');
-			const name = tx.tokenName ? String(tx.tokenName) : null;
-			const symbol = tx.tokenSymbol ? String(tx.tokenSymbol) : null;
-			const url = chain?.opensea
-				? `${chain.opensea}/${contract}/${tokenId}`
-				: `${chain?.explorer ?? ''}/token/${contract}?a=${tokenId}`;
-			return {
-				chainId: tx.chainId,
-				chain: chain?.name ?? 'unknown',
-				contract,
-				tokenId,
-				name,
-				symbol,
-				url,
-			};
-		});
+	const makeSet = (rows: any[]) =>
+		new Set(
+			rows.map((row: any) =>
+				`${Number(row.chain_id ?? 0)}:${String(row.contract_address ?? '').toLowerCase()}:${String(row.token_id ?? '')}`,
+			),
+		);
 
-	return { ok: true, items, asOf: new Date().toISOString() };
+	const blacklistSet = makeSet(blacklistResult.rows ?? []);
+	const whitelistSet = makeSet(whitelistResult.rows ?? []);
+
+	// Assign status + build items
+	const allItems: NftItem[] = [];
+	const visibleItems: NftItem[] = [];
+
+	for (const tx of owned.values()) {
+		const chain = CHAINS.find((c) => c.chainId === tx.chainId);
+		const contract = String(tx.contractAddress ?? '').toLowerCase();
+		const tokenId = String(tx.tokenID ?? tx.tokenId ?? '');
+		if (!contract || !tokenId) continue;
+
+		const key = `${tx.chainId}:${contract}:${tokenId}`;
+		const name = tx.tokenName ? String(tx.tokenName) : null;
+		const symbol = tx.tokenSymbol ? String(tx.tokenSymbol) : null;
+		const url = chain?.opensea
+			? `${chain.opensea}/${contract}/${tokenId}`
+			: `${chain?.explorer ?? ''}/token/${contract}?a=${tokenId}`;
+
+		let status: NftStatus;
+		if (blacklistSet.has(key)) {
+			status = 'blacklisted';
+		} else if (whitelistSet.has(key)) {
+			status = 'whitelisted';
+		} else {
+			// Purchase detection: check parent tx value
+			const txHash = String(tx.hash ?? '');
+			const txValue = txHash ? await getTxValue(tx.chainId, txHash) : 0n;
+			status = txValue > 0n ? 'purchased' : 'airdrop';
+		}
+
+		const item: NftItem = {
+			chainId: tx.chainId,
+			chain: chain?.name ?? 'unknown',
+			contract,
+			tokenId,
+			name,
+			symbol,
+			url,
+			status,
+		};
+
+		allItems.push(item);
+		if (status === 'purchased' || status === 'whitelisted') {
+			visibleItems.push(item);
+		}
+	}
+
+	return {
+		ok: true,
+		items: visibleItems.slice(0, 12),
+		allItems,
+		asOf: new Date().toISOString(),
+	};
 }

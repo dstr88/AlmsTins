@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
+// "Reset all" — clears both the blacklist (nft_hidden) and whitelist (nft_whitelist)
+// so that purchase detection runs fresh on the next snapshot build.
 export const POST: APIRoute = async ({ params, request }) => {
 	const walletId = params.id;
 	if (!walletId) {
@@ -19,8 +21,21 @@ export const POST: APIRoute = async ({ params, request }) => {
 		if (err instanceof Response) return err;
 		throw err;
 	}
+
+	await Promise.all([
+		db.execute({
+			sql: 'DELETE FROM nft_hidden WHERE tenant_id = ? AND wallet_id = ?',
+			args: [tenantId, walletId],
+		}),
+		db.execute({
+			sql: 'DELETE FROM nft_whitelist WHERE tenant_id = ? AND wallet_id = ?',
+			args: [tenantId, walletId],
+		}).catch(() => null), // graceful if whitelist table not yet migrated
+	]);
+
+	// Invalidate snapshot
 	await db.execute({
-		sql: 'DELETE FROM nft_hidden WHERE tenant_id = ? AND wallet_id = ?',
+		sql: 'DELETE FROM wallet_nft_snapshot WHERE tenant_id = ? AND wallet_id = ? AND chain_id = 0',
 		args: [tenantId, walletId],
 	});
 
