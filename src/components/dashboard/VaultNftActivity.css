@@ -206,7 +206,7 @@
 /* Compact row in manage panel */
 .vault-nft__compact-row {
 	display: grid;
-	grid-template-columns: 32px minmax(0, 1fr) auto auto;
+	grid-template-columns: 32px minmax(0, 1fr) auto auto auto;
 	gap: 0.5rem;
 	align-items: center;
 	padding: 0.35rem 0.25rem;

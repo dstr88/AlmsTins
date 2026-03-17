@@ -194,7 +194,6 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 							const thumb = label.slice(0, 2).toUpperCase();
 							const tokenId = item.tokenId ? `#${item.tokenId}` : '';
 							const status = item.status ?? 'airdrop';
-							const canWhitelist = status === 'blacklisted' || status === 'airdrop';
 							return (
 								<div
 									key={`manage:${item.contract ?? 'nft'}:${item.tokenId ?? '0'}`}
@@ -208,15 +207,16 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 									<span className="vault-nft__badge" data-status={status}>
 										{STATUS_LABELS[status]}
 									</span>
-									{canWhitelist ? (
+									{status !== 'whitelisted' && status !== 'purchased' && (
 										<button
 											type="button"
 											className="vault-nft__action vault-nft__action--whitelist"
 											onClick={() => void callNftEndpoint('whitelist', item)}
 										>
-											Whitelist
+											Keep
 										</button>
-									) : (
+									)}
+									{status !== 'blacklisted' && (
 										<button
 											type="button"
 											className="vault-nft__action vault-nft__action--blacklist"
