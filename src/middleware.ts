@@ -138,13 +138,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			return finish(
 				new Response(null, {
 					status: 301,
-					headers: { Location: `https://${url.host}${url.pathname}${url.search}` },
+					headers: { Location: `https://${canonicalHost}${url.pathname}${url.search}` },
 				}),
 			);
 		}
 
 		if (pathname === '/') {
-			return finish(Response.redirect(new URL('/login', request.url), 303));
+			return finish(Response.redirect(`https://${canonicalHost}/login`, 303));
 		}
 
 		if (isPublicPath(pathname)) {
@@ -164,7 +164,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 					),
 				);
 			}
-			return finish(Response.redirect(new URL('/login?error=missing', request.url), 303));
+			return finish(Response.redirect(`https://${canonicalHost}/login?error=missing`, 303));
 		}
 
 		const tenantState = await getTenantStateDetails(userId);
