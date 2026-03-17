@@ -20,6 +20,11 @@ type ContractItem = {
 	name?: string | null;
 	address?: string | null;
 	url?: string | null;
+	chain?: string | null;
+	txCount?: number;
+	lastSeen?: string | null;
+	totalValue?: number;
+	isKnown?: boolean;
 };
 
 type FetchState<T> =
@@ -277,19 +282,44 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 			</div>
 
 			<div className="vault-activity__section">
-				<h4>Pages interacted with</h4>
-				<div className="vault-activity__links">
-					{contractState.status === 'loading' && <p className="vault-activity__empty">Loading contract list…</p>}
+				<h4>Contracts interacted with</h4>
+				<p className="vault-activity__subhead">Smart contracts this wallet has sent transactions to — potential locked funds.</p>
+				<div className="vault-activity__contracts">
+					{contractState.status === 'loading' && <p className="vault-activity__empty">Loading contracts…</p>}
 					{contractState.status === 'error' && <p className="vault-activity__empty">{contractState.message}</p>}
 					{contractState.status === 'ready' && contractState.items.length === 0 && (
-						<p className="vault-activity__empty">No contracts found.</p>
+						<p className="vault-activity__empty">No contracts found. Sync this wallet to populate.</p>
 					)}
 					{contractState.status === 'ready' &&
 						contractState.items.map((item) => {
 							const label = item.name?.trim() || item.address || 'Contract';
+							const shortAddr = item.address
+								? `${item.address.slice(0, 6)}…${item.address.slice(-4)}`
+								: null;
+							const lastSeenDate = item.lastSeen
+								? new Date(Number(item.lastSeen) * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+								: null;
 							return (
-								<a key={`${item.address ?? label}`} className="vault-contract" href={item.url ?? '#'} target="_blank" rel="noreferrer">
-									{label}
+								<a
+									key={`${item.chain ?? ''}:${item.address ?? label}`}
+									className={`vault-contract-row${item.isKnown ? ' vault-contract-row--known' : ''}`}
+									href={item.url ?? '#'}
+									target="_blank"
+									rel="noreferrer"
+								>
+									<div className="vault-contract-row__icon">
+										{(label.slice(0, 2)).toUpperCase()}
+									</div>
+									<div className="vault-contract-row__body">
+										<span className="vault-contract-row__name">{label}</span>
+										<span className="vault-contract-row__meta">
+											{shortAddr && !item.isKnown ? `${shortAddr} · ` : ''}
+											{item.chain ? `${item.chain} · ` : ''}
+											{item.txCount ? `${item.txCount} tx${(item.txCount ?? 0) > 1 ? 's' : ''}` : ''}
+											{lastSeenDate ? ` · last ${lastSeenDate}` : ''}
+										</span>
+									</div>
+									{item.isKnown && <span className="vault-contract-row__known-badge">Known</span>}
 								</a>
 							);
 						})}

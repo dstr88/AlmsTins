@@ -260,31 +260,100 @@
 	font-style: italic;
 }
 
-.vault-activity__links {
+.vault-activity__subhead {
+	margin: -0.25rem 0 0.6rem;
+	font-size: 0.75rem;
+	opacity: 0.5;
+	font-style: italic;
+}
+
+.vault-activity__contracts {
 	display: flex;
 	flex-direction: column;
 	gap: 0.4rem;
 }
 
-.vault-contract {
+/* Rich contract row */
+.vault-contract-row {
+	display: grid;
+	grid-template-columns: 36px 1fr auto;
+	gap: 0.6rem;
+	align-items: center;
+	padding: 0.5rem 0.6rem;
+	border-radius: 0.75rem;
+	border: 1px solid rgba(250, 235, 215, 0.12);
+	background: rgba(250, 235, 215, 0.04);
 	color: antiquewhite;
 	text-decoration: none;
-	font-size: 0.85rem;
-	letter-spacing: 0.03em;
-	padding: 0.4rem 0.6rem;
-	margin-left: clamp(1rem, 2vw, 2rem);
-	border-radius: 0.5rem;
-	border: 1px solid rgba(250, 235, 215, 0.35);
-	background: rgba(250, 235, 215, 0.08);
-	transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+	transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 
-.vault-contract:visited {
-	color: antiquewhite;
-}
+.vault-contract-row:visited { color: antiquewhite; }
 
-.vault-contract:hover {
-	background: rgba(250, 235, 215, 0.18);
-	border-color: rgba(250, 235, 215, 0.6);
+.vault-contract-row:hover {
+	background: rgba(250, 235, 215, 0.1);
+	border-color: rgba(250, 235, 215, 0.35);
 	transform: translateY(-1px);
+}
+
+.vault-contract-row--known {
+	border-color: rgba(56, 189, 248, 0.2);
+	background: rgba(56, 189, 248, 0.04);
+}
+.vault-contract-row--known:hover {
+	border-color: rgba(56, 189, 248, 0.45);
+	background: rgba(56, 189, 248, 0.1);
+}
+
+.vault-contract-row__icon {
+	width: 36px;
+	height: 36px;
+	border-radius: 0.5rem;
+	background: linear-gradient(135deg, rgba(250, 235, 215, 0.12), rgba(56, 189, 248, 0.1));
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.65rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	flex-shrink: 0;
+}
+
+.vault-contract-row__body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
+}
+
+.vault-contract-row__name {
+	font-size: 0.875rem;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.vault-contract-row__meta {
+	font-size: 0.72rem;
+	opacity: 0.5;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-transform: capitalize;
+}
+
+.vault-contract-row__known-badge {
+	font-size: 0.6rem;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	font-weight: 600;
+	padding: 0.15rem 0.4rem;
+	border-radius: 999px;
+	border: 1px solid rgba(56, 189, 248, 0.4);
+	background: rgba(56, 189, 248, 0.12);
+	color: #7dd3fc;
+	white-space: nowrap;
+	flex-shrink: 0;
 }
