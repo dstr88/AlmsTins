@@ -17,6 +17,14 @@ import { computeRebasingInterest } from './aave/classify';
 
 const LINK_WINDOW_MINUTES = 30;
 const AMOUNT_TOLERANCE = 0.005; // 0.5% tolerance
+
+// Stablecoins whose USD value equals their token amount (1:1 peg).
+// Used to fill native_usd without a CoinGecko round-trip when the import
+// row has no price attached.
+const STABLECOIN_SYMBOLS = new Set([
+	'USDC', 'USDT', 'DAI', 'TUSD', 'FDUSD', 'USDP', 'GUSD', 'USDE',
+	'BUSD', 'FRAX', 'PYUSD', 'LUSD', 'CUSD', 'SUSD', 'MUSD',
+]);
 const LIFECYCLE_TTL_SECONDS = 120;
 const LIFECYCLE_STALE_MAX_SECONDS = 300;
 const LIFECYCLE_LOCK_SECONDS = 30;
@@ -188,7 +196,17 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 		source_id: String(row.id),
 		asset_symbol: normalizeSymbol(String(row.asset_symbol ?? '')),
 		amount: row.amount === null || row.amount === undefined ? null : Number(row.amount),
-		native_usd: row.native_usd === null || row.native_usd === undefined ? null : Number(row.native_usd),
+		native_usd: (() => {
+			const raw = row.native_usd === null || row.native_usd === undefined ? null : Number(row.native_usd);
+			if (raw !== null && raw > 0) return raw;
+			// Stablecoin shortcut — fill $1.00 per token rather than hitting CoinGecko
+			const sym = normalizeSymbol(String(row.asset_symbol ?? ''));
+			if (STABLECOIN_SYMBOLS.has(sym)) {
+				const qty = row.amount === null || row.amount === undefined ? null : Math.abs(Number(row.amount));
+				if (qty !== null && qty > 0 && Number.isFinite(qty)) return qty;
+			}
+			return null;
+		})(),
 		timestamp_utc: String(row.timestamp_utc),
 		direction,
 		tx_hash: row.tx_hash ? String(row.tx_hash) : null,
