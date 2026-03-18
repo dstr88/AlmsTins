@@ -85,21 +85,21 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 						<div class={`vault-stack-tin tile ${tileClass}`}>
 							<div class="wallet-label-box">{displayLabel}</div>
 							<div class="wallet-stack" data-accordion="wallet-stack">
-								<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet">
+								<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label">Wallet value</span>
 										<span class="tin-summary__value" data-wallet-summary-value>—</span>
 									</div>
 									<WalletSummary client:only="react" walletId={wallet.id} initialData={fullData} />
 								</SalmonTin>
-								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi">
+								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label" data-defi-summary-label>Health</span>
 										<span class="tin-summary__value" data-defi-summary-value>—</span>
 									</div>
 									<AaveHealthSummary client:only="react" walletId={wallet.id} />
 								</SalmonTin>
-								<SalmonTin label="NFTs" class="wallet-tin--future">
+								<SalmonTin label="NFTs" class="wallet-tin--future is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label">NFTs</span>
 										<span class="tin-summary__value" data-nft-summary-value>—</span>
