@@ -111,10 +111,17 @@ const parseNumber = (value: string | null | undefined) => {
 	return Number.isFinite(num) ? num : null;
 };
 
-const resolveDirection = (kind: string) => {
+// Coinbase already puts a negative sign on every outflow (sends, converts,
+// withdrawals, the "-" leg of staking-transfer pairs, etc.).
+// Use the quantity sign as the primary signal; fall back to keyword matching
+// only for "sell" rows that may have inconsistent signs.
+const resolveDirection = (kind: string, quantity: number | null): 'in' | 'out' => {
 	const normalized = kind.toLowerCase();
-	if (normalized.includes('sell')) return 'out' as const;
-	return 'in' as const;
+	// Explicit sell keyword → always out
+	if (normalized.includes('sell')) return 'out';
+	// Negative quantity → outflow (send, withdrawal, convert-from, staking-out leg, etc.)
+	if (quantity !== null && quantity < 0) return 'out';
+	return 'in';
 };
 
 const buildRowHash = (row: NormalizedRow) => {
@@ -211,8 +218,8 @@ export const POST: APIRoute = async ({ request }) => {
 		const timestampUtc = normalizeTimestamp(row['Timestamp'] || '');
 		if (!timestampUtc) continue;
 		const kind = row['Transaction Type'] || '';
-		const direction = resolveDirection(kind);
 		const quantity = parseNumber(row['Quantity Transacted']);
+		const direction = resolveDirection(kind, quantity);
 		const signedAmount =
 			quantity === null ? null : direction === 'out' ? -Math.abs(quantity) : Math.abs(quantity);
 		const totalUsd = parseNumber(row['Total (inclusive of fees and/or spread)']);
