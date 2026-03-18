@@ -76,22 +76,44 @@ const accounts = toAccountRows(accountsResult.rows);
 		document.addEventListener('click', async (event) => {
 			const target = event.target;
 			if (!(target instanceof HTMLElement)) return;
-			const button = target.closest('[data-exchange-add]');
-			if (!(button instanceof HTMLElement)) return;
-			const source = button.dataset.exchangeSource ?? '';
-			if (!source) return;
-			try {
-				const response = await fetch(`/api/exchanges/${source}/accounts`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({}),
-				});
-				if (!response.ok) {
-					throw new Error('Failed to create account.');
+
+			// ── Add account ───────────────────────────────────────────────
+			const addBtn = target.closest('[data-exchange-add]');
+			if (addBtn instanceof HTMLElement) {
+				const source = addBtn.dataset.exchangeSource ?? '';
+				if (!source) return;
+				try {
+					const response = await fetch(`/api/exchanges/${source}/accounts`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({}),
+					});
+					if (!response.ok) throw new Error('Failed to create account.');
+					window.location.reload();
+				} catch (error) {
+					console.error(error);
 				}
-				window.location.reload();
-			} catch (error) {
-				console.error(error);
+				return;
+			}
+
+			// ── Delete account ────────────────────────────────────────────
+			const delBtn = target.closest('[data-exchange-delete]');
+			if (delBtn instanceof HTMLElement) {
+				const accountId = delBtn.dataset.accountId ?? '';
+				const source = delBtn.dataset.exchangeSource ?? '';
+				if (!accountId || !source) return;
+				if (!confirm('Delete this account and all its imported transactions? This cannot be undone.')) return;
+				try {
+					const response = await fetch(`/api/exchanges/${source}/accounts/delete`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ accountId }),
+					});
+					if (!response.ok) throw new Error('Failed to delete account.');
+					window.location.reload();
+				} catch (error) {
+					console.error(error);
+				}
 			}
 		});
 

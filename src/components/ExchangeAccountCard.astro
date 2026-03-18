@@ -20,6 +20,15 @@ const hasHoldings = Astro.slots.has('holdings');
 			data-exchange-source={source}
 			placeholder={`Account #${accountIndex}`}
 		/>
+		<button
+			class="exchange-account__delete"
+			type="button"
+			data-exchange-delete
+			data-account-id={accountId}
+			data-exchange-source={source}
+			aria-label="Delete account"
+			title="Delete account"
+		>✕</button>
 	</div>
 	<form
 		class="exchange-account__upload"
@@ -120,6 +129,28 @@ const hasHoldings = Astro.slots.has('holdings');
 		padding: 0.4rem 0.65rem;
 		font-size: 0.85rem;
 		width: min(240px, 100%);
+	}
+
+	.exchange-account__delete {
+		margin-left: auto;
+		border-radius: 999px;
+		border: 1px solid rgba(239, 68, 68, 0.35);
+		background: rgba(239, 68, 68, 0.08);
+		color: #f87171;
+		width: 1.75rem;
+		height: 1.75rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.7rem;
+		cursor: pointer;
+		flex-shrink: 0;
+		transition: background 0.15s, border-color 0.15s;
+	}
+
+	.exchange-account__delete:hover {
+		background: rgba(239, 68, 68, 0.22);
+		border-color: rgba(239, 68, 68, 0.7);
 	}
 
 	.exchange-account__upload {
