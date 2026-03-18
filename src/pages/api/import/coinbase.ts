@@ -21,15 +21,28 @@ type NormalizedRow = {
 	assetSymbol: string | null;
 };
 
+// Strip Coinbase's preamble lines (e.g. "Transactions", "User,Name,UUID")
+// so that parseCsv receives a clean CSV starting at the real header row.
+const stripCoinbasePreamble = (input: string): string => {
+	const lines = input.split(/\r?\n/);
+	// The real header row contains both 'Timestamp' and 'Transaction Type'
+	const headerIdx = lines.findIndex(
+		(line) => line.includes('Timestamp') && line.includes('Transaction Type'),
+	);
+	if (headerIdx <= 0) return input; // no preamble found, leave as-is
+	return lines.slice(headerIdx).join('\n');
+};
+
 const parseCsv = (input: string): CsvRow[] => {
+	const cleaned = stripCoinbasePreamble(input);
 	const rows: string[][] = [];
 	let current: string[] = [];
 	let field = '';
 	let inQuotes = false;
 
-	for (let i = 0; i < input.length; i += 1) {
-		const char = input[i];
-		const next = input[i + 1];
+	for (let i = 0; i < cleaned.length; i += 1) {
+		const char = cleaned[i];
+		const next = cleaned[i + 1];
 
 		if (char === '"') {
 			if (inQuotes && next === '"') {
@@ -196,7 +209,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const quantity = parseNumber(row['Quantity Transacted']);
 		const signedAmount =
 			quantity === null ? null : direction === 'out' ? -Math.abs(quantity) : Math.abs(quantity);
-		const totalUsd = parseNumber(row['USD Total (inclusive of fees)']);
+		const totalUsd = parseNumber(row['Total (inclusive of fees and/or spread)']);
 		const normalized: NormalizedRow = {
 			timestampUtc,
 			description: row['Notes'] || row['Transaction Type'] || '',
