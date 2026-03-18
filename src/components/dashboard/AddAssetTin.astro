@@ -68,22 +68,22 @@
 			Each exchange has an <strong>Import CSV</strong> button in its section.
 		</p>
 		<ul class="add-tin__exchange-list">
-			<li class="add-tin__exchange-item">
+			<li class="add-tin__exchange-item" data-add-exchange="crypto-com" role="button" tabindex="0">
 				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
 				<span class="add-tin__exchange-name">Crypto.com</span>
 				<span class="add-tin__exchange-arrow">↓</span>
 			</li>
-			<li class="add-tin__exchange-item">
+			<li class="add-tin__exchange-item" data-add-exchange="coinbase" role="button" tabindex="0">
 				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
 				<span class="add-tin__exchange-name">Coinbase</span>
 				<span class="add-tin__exchange-arrow">↓</span>
 			</li>
-			<li class="add-tin__exchange-item">
+			<li class="add-tin__exchange-item" data-add-exchange="gemini" role="button" tabindex="0">
 				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
 				<span class="add-tin__exchange-name">Gemini</span>
 				<span class="add-tin__exchange-arrow">↓</span>
 			</li>
-			<li class="add-tin__exchange-item">
+			<li class="add-tin__exchange-item" data-add-exchange="robinhood" role="button" tabindex="0">
 				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
 				<span class="add-tin__exchange-name">Robinhood</span>
 				<span class="add-tin__exchange-arrow">↓</span>
@@ -278,6 +278,15 @@
 		border-radius: 0.5rem;
 		border: 1px solid rgba(217, 119, 6, 0.25);
 		background: rgba(217, 119, 6, 0.06);
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+	}
+
+	.add-tin__exchange-item:hover,
+	.add-tin__exchange-item:focus-visible {
+		background: rgba(217, 119, 6, 0.18);
+		border-color: rgba(217, 119, 6, 0.6);
+		outline: none;
 	}
 
 	.add-tin__exchange-dot {
@@ -371,6 +380,26 @@
 		// Allow Enter key in address field
 		addressInput?.addEventListener('keydown', (e) => {
 			if (e.key === 'Enter') submitBtn?.click();
+		});
+
+		// ── Exchange shortcuts ─────────────────────────────────────────────
+		tin.querySelectorAll<HTMLElement>('[data-add-exchange]').forEach((item) => {
+			const activate = () => {
+				const source = item.dataset.addExchange ?? '';
+				if (!source) return;
+				// Find the "Add account" button for this exchange and click it
+				const addBtn = document.querySelector<HTMLButtonElement>(
+					`[data-exchange-add][data-exchange-source="${source}"]`
+				);
+				if (addBtn) {
+					addBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					addBtn.click();
+				}
+			};
+			item.addEventListener('click', activate);
+			item.addEventListener('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+			});
 		});
 	}
 </script>
