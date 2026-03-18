@@ -67,12 +67,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		const requestHost = request.headers.get('x-forwarded-host') ?? url.host;
 		const canonicalHost = (() => {
 			const authUrl = process.env.AUTH_URL ?? '';
-			if (!authUrl) return 'almstins.com';
+			if (!authUrl) return requestHost;
 			try {
 				const normalized = /^https?:\/\//i.test(authUrl) ? authUrl : `https://${authUrl}`;
 				return new URL(normalized).host;
 			} catch {
-				return 'almstins.com';
+				return requestHost;
 			}
 		})();
 		// Host-redirect removed: Render's x-forwarded-host may differ from the

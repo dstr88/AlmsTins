@@ -186,11 +186,20 @@ const buildAuthRequest = (request: Request) => {
 	return new Request(url, init);
 };
 
+const safeAbsoluteUrl = (request: Request): string => {
+	try {
+		return ensureAbsoluteUrl(request);
+	} catch {
+		// AUTH_URL missing — fall back to raw request URL for logging/redirect purposes
+		return request.url;
+	}
+};
+
 const logAuthError = (request: Request, error: unknown) => {
 	const err = error instanceof Error ? error : null;
 	console.error('[auth] request failed', {
 		method: request.method,
-		url: ensureAbsoluteUrl(request),
+		url: safeAbsoluteUrl(request),
 		error: err?.message ?? String(error),
 		stack: err?.stack,
 		cause: err?.cause ? String(err.cause) : null,
@@ -198,10 +207,16 @@ const logAuthError = (request: Request, error: unknown) => {
 };
 
 const buildAuthFailureResponse = (request: Request) => {
-	const url = new URL(ensureAbsoluteUrl(request));
+	const rawUrl = safeAbsoluteUrl(request);
+	const url = new URL(rawUrl.startsWith('http') ? rawUrl : `https://placeholder${rawUrl}`);
 	const isCallbackRoute = url.pathname.includes('/api/auth/callback/');
 	if (isCallbackRoute) {
-		return Response.redirect(new URL('/login?error=oauth', url.origin), 303);
+		const origin = process.env.AUTH_URL
+			? (/^https?:\/\//i.test(process.env.AUTH_URL)
+				? process.env.AUTH_URL.replace(/\/$/, '')
+				: `https://${process.env.AUTH_URL}`)
+			: url.origin;
+		return Response.redirect(new URL('/login?error=oauth', origin), 303);
 	}
 	return new Response('Internal Server Error', { status: 500 });
 };
