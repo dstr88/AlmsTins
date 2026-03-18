@@ -16,7 +16,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	// Verify the account belongs to this tenant and source before deleting
 	const check = await db.execute({
-		sql: `SELECT id FROM exchange_accounts WHERE id = ? AND tenant_id = ? AND source = 'crypto-com'`,
+		sql: `SELECT id FROM exchange_accounts WHERE id = ? AND tenant_id = ? AND source = 'crypto_com'`,
 		args: [accountId, tenantId],
 	});
 	if (!check.rows?.length) {
