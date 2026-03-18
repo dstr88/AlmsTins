@@ -355,7 +355,11 @@ const priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols
 
 	document.addEventListener('submit', async (event) => {
 		const form = event.target;
-		if (!(form instanceof HTMLFormElement) || !form.classList.contains('exchange-account__upload')) {
+		if (
+			!(form instanceof HTMLFormElement) ||
+			!form.classList.contains('exchange-account__upload') ||
+			form.dataset.exchangeSource !== 'crypto-com'
+		) {
 			return;
 		}
 		event.preventDefault();

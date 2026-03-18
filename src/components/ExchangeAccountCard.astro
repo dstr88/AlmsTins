@@ -38,7 +38,7 @@ const hasHoldings = Astro.slots.has('holdings');
 	>
 		<label class="exchange-account__file">
 			<input type="file" name="file" accept=".csv" required />
-			<span>Choose CSV</span>
+			<span class="exchange-account__file-label">Choose CSV</span>
 		</label>
 		<button type="submit" class="exchange-account__button">Upload</button>
 		<span class="exchange-account__status" aria-live="polite"></span>
@@ -59,6 +59,15 @@ const hasHoldings = Astro.slots.has('holdings');
 </div>
 
 <script>
+	// Show selected filename in the Choose CSV label
+	document.addEventListener('change', (event) => {
+		const input = event.target;
+		if (!(input instanceof HTMLInputElement) || input.type !== 'file') return;
+		const label = input.closest('.exchange-account__file')?.querySelector('.exchange-account__file-label');
+		if (!(label instanceof HTMLElement)) return;
+		label.textContent = input.files?.[0]?.name ?? 'Choose CSV';
+	});
+
 	if (document.documentElement.dataset.exchangeHoldingsTotalsInit !== 'true') {
 		document.documentElement.dataset.exchangeHoldingsTotalsInit = 'true';
 
