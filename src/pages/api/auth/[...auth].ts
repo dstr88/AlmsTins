@@ -163,7 +163,11 @@ const authConfig = {
 const ensureAbsoluteUrl = (request: Request) => {
 	// Use AUTH_URL as the canonical base — Render's internal request.url is
 	// http://localhost:10000/... which breaks @auth/core's origin check.
-	const authUrl = process.env.AUTH_URL ?? 'https://almstins.com';
+	const authUrl = process.env.AUTH_URL;
+	if (!authUrl) {
+		console.error('[auth] AUTH_URL env var is not set — OAuth callbacks will fail. Set AUTH_URL to your deployed domain.');
+		throw new Error('AUTH_URL is not configured.');
+	}
 	const origin = /^https?:\/\//i.test(authUrl) ? authUrl.replace(/\/$/, '') : `https://${authUrl}`;
 	const base = new URL(request.url.startsWith('http') ? request.url : `https://placeholder${request.url}`);
 	return `${origin}${base.pathname}${base.search}`;
