@@ -389,13 +389,16 @@ const priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols
 				throw new Error(payload?.error || 'Upload failed.');
 			}
 			if (status instanceof HTMLElement) {
-				status.textContent = `Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+				const msg = payload.insertedNormalized === 0
+					? `⚠️ No new rows — ${payload.skippedDuplicates} duplicates skipped (already imported).`
+					: `✅ Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+				status.textContent = msg;
 			}
 			if (accountIndex > 1) {
 				window.location.href = '/dashboard/bookkeeping#all-transactions';
 				return;
 			}
-			setTimeout(() => window.location.reload(), 600);
+			setTimeout(() => window.location.reload(), 3000);
 		} catch (error) {
 			if (status instanceof HTMLElement) {
 				status.textContent = error instanceof Error ? error.message : 'Upload failed.';
