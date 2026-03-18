@@ -218,7 +218,23 @@ export const POST: APIRoute = async ({ request }) => {
 		const timestampUtc = normalizeTimestamp(row['Timestamp'] || '');
 		if (!timestampUtc) continue;
 		const kind = row['Transaction Type'] || '';
+		const kindLower = kind.toLowerCase();
 		const quantity = parseNumber(row['Quantity Transacted']);
+
+		// ── Coinbase staking custody rows ────────────────────────────────────────
+		// Coinbase records staking movements as paired +/- rows that net to zero.
+		// Retail Staking Transfer: the POSITIVE row is the asset entering custody
+		// (e.g. AVAX received from a convert that immediately goes to staking).
+		// Count only the positive leg; skip the negative (internal debit).
+		// Retail Unstaking Transfer: principal was already counted on the way IN
+		// via the Staking Transfer positive row. Skip both legs to avoid double-
+		// counting when the asset is released back to the liquid wallet.
+		if (kindLower.includes('retail unstaking transfer')) continue;
+		if (kindLower.includes('retail staking transfer')) {
+			if (quantity === null || quantity <= 0) continue; // skip negative/zero leg
+			// fall through with the positive leg treated as a normal 'in'
+		}
+
 		const direction = resolveDirection(kind, quantity);
 		const signedAmount =
 			quantity === null ? null : direction === 'out' ? -Math.abs(quantity) : Math.abs(quantity);
