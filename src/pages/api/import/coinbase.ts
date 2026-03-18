@@ -117,9 +117,9 @@ const resolveDirection = (kind: string) => {
 	return 'in' as const;
 };
 
-const buildRowHash = (row: NormalizedRow, accountId: string) => {
+const buildRowHash = (row: NormalizedRow) => {
 	const payload = JSON.stringify([
-		accountId,
+		'coinbase',
 		row.timestampUtc,
 		row.description,
 		row.currency,
@@ -232,7 +232,7 @@ export const POST: APIRoute = async ({ request }) => {
 			assetSymbol: row['Asset'] || null,
 		};
 
-		const rowHash = buildRowHash(normalized, resolvedAccountId);
+		const rowHash = buildRowHash(normalized);
 		const groupId = buildGroupId('coinbase', normalized.assetSymbol, normalized.timestampUtc);
 		const rawResult = await db.execute({
 			sql: `INSERT OR IGNORE INTO import_raw_rows

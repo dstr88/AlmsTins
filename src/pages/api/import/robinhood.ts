@@ -107,9 +107,9 @@ const resolveDirection = (kind: string) => {
 	return 'in' as const;
 };
 
-const buildRowHash = (row: NormalizedRow, accountId: string) => {
+const buildRowHash = (row: NormalizedRow) => {
 	const payload = JSON.stringify([
-		accountId,
+		'robinhood',
 		row.timestampUtc,
 		row.description,
 		row.currency,
@@ -140,17 +140,18 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	const accountId = typeof accountIdRaw === 'string' ? accountIdRaw.trim() : '';
-	let resolvedAccountId = accountId;
-	if (resolvedAccountId) {
+	let resolvedAccountId = '';
+	if (accountId) {
 		const accountResult = await db.execute({
 			sql: `SELECT id FROM exchange_accounts
 				WHERE id = ? AND tenant_id = ? AND source = 'robinhood' LIMIT 1`,
-			args: [resolvedAccountId, tenantId],
+			args: [accountId, tenantId],
 		});
-		if (!accountResult.rows?.length) {
-			return new Response(JSON.stringify({ error: 'Invalid accountId.' }), { status: 400 });
+		if (accountResult.rows?.length) {
+			resolvedAccountId = accountId;
 		}
-	} else {
+	}
+	if (!resolvedAccountId) {
 		const existing = await db.execute({
 			sql: `SELECT id FROM exchange_accounts
 				WHERE tenant_id = ? AND source = 'robinhood'
@@ -216,7 +217,7 @@ export const POST: APIRoute = async ({ request }) => {
 			assetSymbol: row['Symbol'] || null,
 		};
 
-		const rowHash = buildRowHash(normalized, resolvedAccountId);
+		const rowHash = buildRowHash(normalized);
 		const groupId = buildGroupId('robinhood', normalized.assetSymbol, normalized.timestampUtc);
 		const rawResult = await db.execute({
 			sql: `INSERT OR IGNORE INTO import_raw_rows

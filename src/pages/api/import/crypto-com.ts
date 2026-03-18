@@ -145,9 +145,9 @@ const detectDirection = (row: NormalizedRow) => {
 	};
 };
 
-const buildRowHash = (row: NormalizedRow, accountId: string) => {
+const buildRowHash = (row: NormalizedRow) => {
 	const payload = JSON.stringify([
-		accountId,
+		'crypto_com',
 		row.timestampUtc,
 		row.description,
 		row.currency,
@@ -155,7 +155,7 @@ const buildRowHash = (row: NormalizedRow, accountId: string) => {
 		row.toCurrency,
 		row.toAmount ?? '',
 		row.kind,
-	row.txHash ?? '',
+		row.txHash ?? '',
 	]);
 	return createHash('sha256').update(payload).digest('hex');
 };
@@ -178,17 +178,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
 	}
 
 	const accountId = typeof accountIdRaw === 'string' ? accountIdRaw.trim() : '';
-	let resolvedAccountId = accountId;
-	if (resolvedAccountId) {
+	let resolvedAccountId = '';
+	if (accountId) {
 		const accountResult = await db.execute({
 			sql: `SELECT id FROM exchange_accounts
 				WHERE id = ? AND tenant_id = ? AND source = 'crypto_com' LIMIT 1`,
-			args: [resolvedAccountId, tenantId],
+			args: [accountId, tenantId],
 		});
-		if (!accountResult.rows?.length) {
-			return new Response(JSON.stringify({ error: 'Invalid accountId.' }), { status: 400 });
+		if (accountResult.rows?.length) {
+			resolvedAccountId = accountId;
 		}
-	} else {
+	}
+	if (!resolvedAccountId) {
 		const existing = await db.execute({
 			sql: `SELECT id FROM exchange_accounts
 				WHERE tenant_id = ? AND source = 'crypto_com'
@@ -252,7 +253,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 		normalized.direction = direction;
 		normalized.assetSymbol = assetSymbol;
 
-		const rowHash = buildRowHash(normalized, resolvedAccountId);
+		const rowHash = buildRowHash(normalized);
 		const groupId = buildGroupId('crypto_com', normalized.assetSymbol, normalized.timestampUtc);
 		const rawResult = await db.execute({
 			sql: `INSERT OR IGNORE INTO import_raw_rows
