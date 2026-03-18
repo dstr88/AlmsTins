@@ -21,7 +21,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	try {
 		await requireWalletOwnedByTenant(walletId, tenantId);
 
-		const clauses = ['t.wallet_id = ?', 't.tenant_id = ?'];
+		const clauses = ['t.wallet_id = ?', 't.tenant_id = ?', '(t.is_duplicate IS NULL OR t.is_duplicate = 0 OR t.is_duplicate = -1)'];
 		const args: any[] = [walletId, tenantId];
 
 		if (chain) {

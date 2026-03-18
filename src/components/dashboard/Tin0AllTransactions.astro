@@ -189,7 +189,7 @@ try {
 			${importFeeUsd}, ${importFeeNative}, ${importFeeCurrency}, NULL AS fee_paid,
 			NULL AS onchain_value, NULL AS onchain_decimals, NULL AS onchain_chain
 			FROM import_transactions
-			WHERE tenant_id = ?
+			WHERE tenant_id = ? AND (is_duplicate IS NULL OR is_duplicate = 0 OR is_duplicate = -1)
 			UNION ALL
 			SELECT
 				t.id,
@@ -239,7 +239,7 @@ try {
 				t.chain AS onchain_chain
 			FROM transactions t
 			LEFT JOIN transaction_annotations a ON a.transaction_id = t.id AND a.tenant_id = t.tenant_id
-			WHERE t.tenant_id = ? ${rowsWalletClause}
+			WHERE t.tenant_id = ? AND (t.is_duplicate IS NULL OR t.is_duplicate = 0 OR t.is_duplicate = -1) ${rowsWalletClause}
 			ORDER BY timestamp_utc DESC
 			LIMIT ? OFFSET ?`,
 		args: [...rowsArgs, rowsLimit, rowsOffset],

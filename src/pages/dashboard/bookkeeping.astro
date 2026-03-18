@@ -79,6 +79,16 @@ const formatGain = (value: number | null) => {
       <!-- LEFT: All wallet transactions -->
       <div class="tin-col tin-col--tx">
         <OrnateTin label="All Transactions" class="tin-full">
+          <!-- Duplicate sweep banner -->
+          <div class="dedup-banner" id="dedup-banner">
+            <span class="dedup-banner__text">
+              Run a duplicate sweep to remove cross-source duplicates before reviewing transactions.
+            </span>
+            <button type="button" id="dedup-run" class="dedup-banner__btn">
+              🔍 Run Duplicate Sweep
+            </button>
+            <span class="dedup-banner__status" id="dedup-status"></span>
+          </div>
           <Tin0AllTransactions />
         </OrnateTin>
       </div>
@@ -491,5 +501,66 @@ const formatGain = (value: number | null) => {
         max-width: none;
       }
     }
+    .dedup-banner {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px 16px;
+      background: rgba(59, 130, 246, 0.07);
+      border-bottom: 1px solid rgba(59, 130, 246, 0.15);
+      font-size: 0.82rem;
+      color: var(--color-text-muted, #9ca3af);
+    }
+
+    .dedup-banner__text { flex: 1; min-width: 180px; }
+
+    .dedup-banner__btn {
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      background: transparent;
+      color: #60a5fa;
+      font-size: 0.8rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .dedup-banner__btn:hover { background: rgba(59, 130, 246, 0.12); }
+    .dedup-banner__btn:disabled { opacity: 0.5; cursor: default; }
+
+    .dedup-banner__status { font-size: 0.8rem; }
   </style>
+
+  <script>
+    document.getElementById('dedup-run')?.addEventListener('click', async () => {
+      const btn    = document.getElementById('dedup-run')    as HTMLButtonElement | null;
+      const status = document.getElementById('dedup-status') as HTMLSpanElement   | null;
+      if (btn)    { btn.disabled = true; btn.textContent = '⏳ Scanning…'; }
+      if (status) { status.textContent = ''; }
+
+      try {
+        const res  = await fetch('/api/tax/deduplicate', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          const { totalMarked, strategy1TxHash, strategy2CrossTable, strategy3WithinImport } = data.stats;
+          if (totalMarked === 0) {
+            if (status) status.textContent = '✅ No duplicates found.';
+          } else {
+            if (status) status.textContent =
+              `✅ Flagged ${totalMarked} duplicate${totalMarked !== 1 ? 's' : ''} ` +
+              `(tx-hash: ${strategy1TxHash}, cross-source: ${strategy2CrossTable}, same-batch: ${strategy3WithinImport}). ` +
+              `Reloading…`;
+            setTimeout(() => window.location.reload(), 2000);
+          }
+        } else {
+          if (status) status.textContent = `❌ ${data.error ?? 'Sweep failed'}`;
+        }
+      } catch {
+        if (status) status.textContent = '❌ Network error';
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🔍 Run Duplicate Sweep'; }
+      }
+    });
+  </script>
 </Layout>
