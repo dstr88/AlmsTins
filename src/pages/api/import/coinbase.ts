@@ -150,17 +150,23 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	const accountId = typeof accountIdRaw === 'string' ? accountIdRaw.trim() : '';
-	let resolvedAccountId = accountId;
-	if (resolvedAccountId) {
+	let resolvedAccountId = '';
+
+	// If an accountId was provided, verify it exists for this tenant/source.
+	// If it doesn't match (e.g. stale page after a delete), fall through and
+	// pick the first existing account or create one — same as the no-ID path.
+	if (accountId) {
 		const accountResult = await db.execute({
 			sql: `SELECT id FROM exchange_accounts
 				WHERE id = ? AND tenant_id = ? AND source = 'coinbase' LIMIT 1`,
-			args: [resolvedAccountId, tenantId],
+			args: [accountId, tenantId],
 		});
-		if (!accountResult.rows?.length) {
-			return new Response(JSON.stringify({ error: 'Invalid accountId.' }), { status: 400 });
+		if (accountResult.rows?.length) {
+			resolvedAccountId = accountId;
 		}
-	} else {
+	}
+
+	if (!resolvedAccountId) {
 		const existing = await db.execute({
 			sql: `SELECT id FROM exchange_accounts
 				WHERE tenant_id = ? AND source = 'coinbase'
