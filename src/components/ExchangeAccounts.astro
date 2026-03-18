@@ -3,46 +3,171 @@ import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
 import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getTickersUSD } from '@/lib/coinpaprikaProvider';
+import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
+import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
 
-type AccountRow = {
-	id: string;
-	name: string;
+type AccountRow = { id: string; name: string };
+
+type ImportRow = {
+	timestamp_utc: string;
+	asset_symbol: string | null;
+	direction: string | null;
+	currency: string | null;
+	amount: number | null;
+	to_currency: string | null;
+	to_amount: number | null;
+	native_usd: number | null;
+	kind: string | null;
+	description: string | null;
 };
+
+type Holding = {
+	symbol: string;
+	balance: number;
+	lastPurchaseAt: string | null;
+	costBasis: number | null;
+};
+
+type AccountWithHoldings = AccountRow & { holdings: Holding[] };
 
 type DbRow = Record<string, unknown>;
 
-const toStringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+const toStr = (v: unknown) => (typeof v === 'string' ? v : '');
+const toStrOrNull = (v: unknown) => (typeof v === 'string' ? v : null);
+const toNumOrNull = (v: unknown) => (typeof v === 'number' ? v : null);
 
 const toAccountRow = (row: unknown): AccountRow | null => {
 	if (!row || typeof row !== 'object') return null;
 	const r = row as DbRow;
+	return { id: toStr(r.id), name: toStr(r.name) };
+};
+
+const toImportRow = (row: unknown): ImportRow | null => {
+	if (!row || typeof row !== 'object') return null;
+	const r = row as DbRow;
 	return {
-		id: toStringOrEmpty(r.id),
-		name: toStringOrEmpty(r.name),
+		timestamp_utc: toStr(r.timestamp_utc),
+		asset_symbol: toStrOrNull(r.asset_symbol),
+		direction: toStrOrNull(r.direction),
+		currency: toStrOrNull(r.currency),
+		amount: toNumOrNull(r.amount),
+		to_currency: toStrOrNull(r.to_currency),
+		to_amount: toNumOrNull(r.to_amount),
+		native_usd: toNumOrNull(r.native_usd),
+		kind: toStrOrNull(r.kind),
+		description: toStrOrNull(r.description),
 	};
 };
 
-const toAccountRows = (rows: unknown): AccountRow[] => {
-	if (!Array.isArray(rows)) return [];
-	const out: AccountRow[] = [];
+const parseNum = (v: unknown) => {
+	if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+	if (typeof v === 'string') { const n = Number(v.replace(/,/g, '')); return Number.isFinite(n) ? n : null; }
+	return null;
+};
+
+const normalizeSymbol = (s: string) => {
+	const u = s.trim().toUpperCase();
+	if (u === 'MATIC' || u === 'WMATIC') return 'POL';
+	return u;
+};
+
+const pickSymbol = (row: ImportRow) => row.asset_symbol || row.to_currency || row.currency || '';
+const pickQty = (row: ImportRow) => {
+	const sym = pickSymbol(row);
+	if (!sym) return null;
+	if (row.to_currency && sym === row.to_currency) return row.to_amount;
+	if (row.currency && sym === row.currency) return row.amount;
+	return row.to_amount ?? row.amount;
+};
+
+const computeHoldings = (rows: ImportRow[]): Holding[] => {
+	const balanceMap = new Map<string, number>();
+	const lastPurchaseMap = new Map<string, string>();
+	const lastSeenMap = new Map<string, string>();
+	const lotsMap = new Map<string, Array<{ qty: number; cost: number }>>();
+	const unknownCost = new Set<string>();
+
 	for (const row of rows) {
-		const mapped = toAccountRow(row);
-		if (mapped) out.push(mapped);
+		const raw = pickSymbol(row);
+		if (!raw) continue;
+		const sym = normalizeSymbol(raw);
+		if (row.timestamp_utc) lastSeenMap.set(sym, row.timestamp_utc);
+		const qtyRaw = parseNum(pickQty(row));
+		if (qtyRaw === null || qtyRaw === 0) continue;
+		const qty = Math.abs(qtyRaw);
+		const dir = row.direction ?? (qtyRaw < 0 ? 'out' : 'in');
+
+		if (dir === 'in') {
+			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) + qty);
+			lastPurchaseMap.set(sym, row.timestamp_utc);
+			const cost = parseNum(row.native_usd);
+			if (cost === null) { unknownCost.add(sym); }
+			else { const lots = lotsMap.get(sym) ?? []; lots.push({ qty, cost: Math.abs(cost) }); lotsMap.set(sym, lots); }
+		}
+		if (dir === 'out' || dir === 'lost') {
+			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) - qty);
+			const lots = lotsMap.get(sym);
+			if (lots?.length) {
+				let rem = qty;
+				while (rem > 0 && lots.length) {
+					const lot = lots[0];
+					if (lot.qty <= rem) { rem -= lot.qty; lots.shift(); }
+					else { const r = rem / lot.qty; lot.qty -= rem; lot.cost -= lot.cost * r; rem = 0; }
+				}
+			}
+		}
 	}
-	return out;
+
+	const out: Holding[] = [];
+	for (const [sym, bal] of balanceMap.entries()) {
+		if (bal <= 0) continue;
+		const lots = lotsMap.get(sym) ?? [];
+		out.push({
+			symbol: sym,
+			balance: bal,
+			lastPurchaseAt: lastPurchaseMap.get(sym) ?? lastSeenMap.get(sym) ?? null,
+			costBasis: unknownCost.has(sym) || !lots.length ? null : lots.reduce((s, l) => s + l.cost, 0),
+		});
+	}
+	return out.sort((a, b) => b.balance - a.balance);
 };
 
 const { source, title } = Astro.props as { source: string; title: string };
 const { tenantId } = await requireTenantSession(Astro.request);
 
 const accountsResult = await db.execute({
-	sql: `SELECT id, name FROM exchange_accounts
-		WHERE tenant_id = ? AND source = ?
-		ORDER BY created_at ASC`,
+	sql: `SELECT id, name FROM exchange_accounts WHERE tenant_id = ? AND source = ? ORDER BY created_at ASC`,
 	args: [tenantId, source],
 });
 
-const accounts = toAccountRows(accountsResult.rows);
+const accounts = accountsResult.rows.map(toAccountRow).filter((r): r is AccountRow => r !== null);
+const priceSymbols = new Set<string>();
+
+const accountsWithHoldings: AccountWithHoldings[] = [];
+for (const account of accounts) {
+	const txResult = await db.execute({
+		sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount, to_currency, to_amount, native_usd, kind, description
+			FROM import_transactions
+			WHERE tenant_id = ? AND source = ? AND account_id = ?
+			ORDER BY timestamp_utc ASC`,
+		args: [tenantId, source, account.id],
+	});
+	const rows = txResult.rows.map(toImportRow).filter((r): r is ImportRow => r !== null);
+	const holdings = computeHoldings(rows);
+	holdings.forEach((h) => priceSymbols.add(h.symbol));
+	accountsWithHoldings.push({ ...account, holdings });
+}
+
+const priceMap: Record<string, number> = {};
+if (priceSymbols.size) {
+	const tickers = (await getTickersUSD()) as Array<{ symbol?: string; quotes?: { USD?: { price?: number } } }>;
+	const syms = new Set(sanitizeSymbols(Array.from(priceSymbols)));
+	for (const t of tickers) {
+		const sym = String(t.symbol ?? '').trim().toUpperCase();
+		if (syms.has(sym) && typeof t.quotes?.USD?.price === 'number') priceMap[sym] = t.quotes.USD.price;
+	}
+}
 ---
 
 <ExchangeTin title={title} class="tile tile--exchange">
@@ -50,9 +175,9 @@ const accounts = toAccountRows(accountsResult.rows);
 		Add account
 	</button>
 
-	{accounts.length ? (
+	{accountsWithHoldings.length ? (
 		<div class="exchange-accounts__list">
-			{accounts.map((account, index) => {
+			{accountsWithHoldings.map((account, index) => {
 				const accountIndex = index + 1;
 				return (
 					<ExchangeAccountCard
@@ -60,7 +185,46 @@ const accounts = toAccountRows(accountsResult.rows);
 						accountIndex={accountIndex}
 						name={account.name}
 						source={source}
-					/>
+					>
+						{account.holdings.length ? (
+							<div slot="holdings">
+								{account.holdings.map((holding) => {
+									const price = priceMap[holding.symbol] ?? 0;
+									const usdValue = price > 0 ? holding.balance * price : null;
+									const pnl = price > 0 && holding.costBasis !== null ? usdValue! - holding.costBasis : null;
+									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
+									return (
+										<div class="exchange-holding">
+											<div class="exchange-holding__row exchange-holding__row--top">
+												<div class="exchange-holding__field">
+													<span class="exchange-holding__label">Days</span>
+													<span class="exchange-holding__value">{formatDaysSince(holding.lastPurchaseAt) ?? '—'}</span>
+												</div>
+												<div class="exchange-holding__field">
+													<span class="exchange-holding__label">Ticker</span>
+													<span class="exchange-holding__value exchange-holding__value--truncate">{holding.symbol}</span>
+												</div>
+												<div class="exchange-holding__field exchange-holding__field--numeric">
+													<span class="exchange-holding__label">Coins</span>
+													<span class="exchange-holding__value">{formatNumber(holding.balance, { maximumFractionDigits: 8 })}</span>
+												</div>
+											</div>
+											<div class="exchange-holding__row exchange-holding__row--bottom">
+												<div class="exchange-holding__field exchange-holding__field--numeric">
+													<span class="exchange-holding__label">USD value</span>
+													<span class="exchange-holding__value usd-value">{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
+												</div>
+												<div class="exchange-holding__field exchange-holding__field--numeric">
+													<span class="exchange-holding__label">P/L</span>
+													<span class={`exchange-holding__value ${pnl === null ? '' : pnlClass}`}>{pnl === null ? '—' : formatCurrency(pnl)}</span>
+												</div>
+											</div>
+										</div>
+									);
+								})}
+							</div>
+						) : null}
+					</ExchangeAccountCard>
 				);
 			})}
 		</div>
