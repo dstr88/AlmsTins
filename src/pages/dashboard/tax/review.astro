@@ -1,0 +1,321 @@
+---
+/**
+ * /dashboard/tax/review
+ *
+ * Shows every item the pipeline couldn't confidently classify.
+ * The user picks a category, optionally adds a note, and resolves it.
+ * Resolved items disappear from this list and flow into the main report.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+const { tenantId } = await requireTenantSession(Astro.request);
+
+type ReviewRow = {
+	id: string;
+	source_type: string;
+	source_id: string;
+	reason: string;
+	reason_detail: string;
+	snapshot_json: string;
+	notes: string | null;
+	created_at: string;
+};
+
+type DbRow = Record<string, unknown>;
+const s = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
+
+const result = await db.execute({
+	sql: `SELECT id, source_type, source_id, reason, reason_detail, snapshot_json, notes, created_at
+	      FROM tax_review_items
+	      WHERE tenant_id = ? AND resolved = 0
+	      ORDER BY
+	        CASE reason
+	          WHEN 'unmatched_transfer' THEN 1
+	          WHEN 'possible_loan'      THEN 2
+	          WHEN 'missing_price'      THEN 3
+	          WHEN 'airdrop_unpriced'   THEN 4
+	          WHEN 'low_confidence'     THEN 5
+	          WHEN 'unknown_type'       THEN 6
+	          ELSE 7
+	        END,
+	        created_at DESC`,
+	args: [tenantId],
+});
+
+const items: ReviewRow[] = result.rows.map((r: DbRow) => ({
+	id: s(r.id),
+	source_type: s(r.source_type),
+	source_id: s(r.source_id),
+	reason: s(r.reason),
+	reason_detail: s(r.reason_detail),
+	snapshot_json: s(r.snapshot_json),
+	notes: typeof r.notes === 'string' ? r.notes : null,
+	created_at: s(r.created_at),
+}));
+
+// Group by reason
+const groups = new Map<string, ReviewRow[]>();
+const REASON_LABELS: Record<string, string> = {
+	unmatched_transfer: '📤 Unmatched Transfers',
+	possible_loan:      '🏦 Possible Loan Events',
+	airdrop_unpriced:   '🪂 Airdrops Without Prices',
+	missing_price:      '💲 Missing Prices',
+	low_confidence:     '🤔 Low Confidence Classifications',
+	unknown_type:       '❓ Unknown Transaction Types',
+};
+const REASON_DESC: Record<string, string> = {
+	unmatched_transfer: "We found coins leaving your wallets/exchanges but couldn't find a matching incoming transfer. Each could be a send to another of your wallets (not taxable), a gift, or a payment/sale.",
+	possible_loan:      "These transactions involve known lending protocols. Auto-classified as loan events (not taxable), but please confirm.",
+	airdrop_unpriced:   "Airdrops are ordinary income at fair market value when received. These need a USD price to calculate your tax liability.",
+	missing_price:      "These taxable events have no USD value recorded. Without a price, gain/loss cannot be calculated.",
+	low_confidence:     "The pipeline classified these but isn't sure. Please confirm or correct.",
+	unknown_type:       "These couldn't be classified automatically. Select the correct type below.",
+};
+
+for (const item of items) {
+	const group = groups.get(item.reason) ?? [];
+	group.push(item);
+	groups.set(item.reason, group);
+}
+
+const CATEGORY_OPTIONS = [
+	{ value: 'buy',                 label: 'Buy / Purchase' },
+	{ value: 'sell',                label: 'Sell' },
+	{ value: 'swap',                label: 'Swap (crypto-to-crypto)' },
+	{ value: 'transfer',            label: 'Transfer to my own wallet' },
+	{ value: 'income',              label: 'Income (staking / rewards / interest)' },
+	{ value: 'airdrop',             label: 'Airdrop' },
+	{ value: 'burn',                label: 'Burned / Destroyed' },
+	{ value: 'lost',                label: 'Lost (documented)' },
+	{ value: 'loan-proceeds',       label: 'Loan proceeds (not taxable)' },
+	{ value: 'loan-repayment',      label: 'Loan repayment (not taxable)' },
+	{ value: 'collateral-deposit',  label: 'Collateral deposit (not taxable)' },
+	{ value: 'liquidation',         label: 'Collateral liquidated (taxable sale)' },
+	{ value: 'fee',                 label: 'Transaction fee / gas' },
+	{ value: 'nft-sale',            label: 'NFT sale' },
+	{ value: 'loan-interest-paid',  label: 'Loan interest paid (deductible)' },
+];
+---
+
+<Layout>
+	<div class="max-w-4xl mx-auto px-4 py-8 space-y-8">
+
+		<!-- Header -->
+		<div class="flex items-center justify-between flex-wrap gap-4">
+			<div>
+				<h1 class="text-2xl font-bold text-gray-900">Tax Review Queue</h1>
+				<p class="text-sm text-gray-500 mt-1">
+					{items.length === 0
+						? 'All items resolved — your tax report is complete.'
+						: `${items.length} item${items.length !== 1 ? 's' : ''} need your attention before the report is final.`}
+				</p>
+			</div>
+			<div class="flex gap-3">
+				<a href="/dashboard/tax/report"
+				   class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white
+				          hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 transition-colors">
+					← Tax Report
+				</a>
+				<button id="run-pipeline"
+				        class="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700
+				               text-white text-sm font-medium px-4 py-2 transition-colors">
+					🔄 Re-classify All
+				</button>
+			</div>
+		</div>
+
+		<!-- Empty state -->
+		{items.length === 0 && (
+			<div class="rounded-xl border border-green-200 bg-green-50 p-8 text-center space-y-2">
+				<p class="text-3xl">✅</p>
+				<p class="font-semibold text-green-800">Nothing left to review</p>
+				<p class="text-sm text-green-700">Head to the tax report for your complete summary.</p>
+				<a href="/dashboard/tax/report"
+				   class="inline-block mt-2 rounded-lg bg-green-600 hover:bg-green-700
+				          text-white text-sm font-medium px-5 py-2">
+					Open Tax Report →
+				</a>
+			</div>
+		)}
+
+		<!-- Groups -->
+		{[...groups.entries()].map(([reason, groupItems]) => (
+			<section class="space-y-3">
+				<div class="border-b border-gray-200 pb-2">
+					<h2 class="text-base font-semibold text-gray-800">
+						{REASON_LABELS[reason] ?? reason}
+						<span class="ml-2 text-xs font-normal text-gray-400">({groupItems.length})</span>
+					</h2>
+					<p class="text-sm text-gray-500 mt-0.5">{REASON_DESC[reason]}</p>
+				</div>
+
+				{groupItems.map((item) => {
+					let snapshot: Record<string, unknown> = {};
+					try { snapshot = JSON.parse(item.snapshot_json); } catch {}
+					const sym = String(snapshot.symbol ?? snapshot.assetSymbol ?? '?');
+					const amt = snapshot.amount ?? snapshot.value ?? '';
+					const usd = snapshot.usd ?? snapshot.usdValue ?? '';
+					const ts  = String(snapshot.timestamp ?? item.created_at).slice(0, 10);
+					const autoCat = String(snapshot.autoCategory ?? '');
+					const needsPrice = reason === 'missing_price' || reason === 'airdrop_unpriced';
+
+					return (
+						<div class="review-item rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4"
+						     data-id={item.id}
+						     data-source-type={item.source_type}
+						     data-source-id={item.source_id}>
+
+							<!-- Transaction snapshot -->
+							<div class="flex items-start justify-between gap-4">
+								<div class="space-y-0.5">
+									<p class="font-medium text-gray-900">
+										{amt ? `${amt} ` : ''}{sym}
+										{usd ? <span class="text-gray-400 font-normal"> · ${Number(usd).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span> : ''}
+									</p>
+									<p class="text-xs text-gray-500">{ts}</p>
+									{autoCat && (
+										<p class="text-xs text-amber-600">
+											Auto-classified as <strong>{autoCat}</strong> — please confirm
+										</p>
+									)}
+								</div>
+								<span class="shrink-0 text-xs rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 font-medium">
+									{reason.replace(/_/g, ' ')}
+								</span>
+							</div>
+
+							<!-- Reason detail -->
+							<p class="text-sm text-gray-600">{item.reason_detail}</p>
+
+							<!-- Resolution form -->
+							<form class="resolve-form space-y-3">
+								<!-- Category selector -->
+								<div class="flex flex-wrap gap-2 items-center">
+									<label class="text-sm font-medium text-gray-700 shrink-0">Classify as:</label>
+									<select class="category-select border border-gray-300 rounded-md px-3 py-1.5 text-sm
+									               focus:outline-none focus:ring-2 focus:ring-blue-500"
+									        value={autoCat}>
+										<option value="">— select —</option>
+										{CATEGORY_OPTIONS.map((opt) => (
+											<option value={opt.value} selected={opt.value === autoCat}>
+												{opt.label}
+											</option>
+										))}
+									</select>
+								</div>
+
+								<!-- Price field (shown for missing_price / airdrop_unpriced) -->
+								{needsPrice && (
+									<div class="price-field flex flex-wrap gap-2 items-center">
+										<label class="text-sm font-medium text-gray-700 shrink-0">
+											USD price per token on {ts}:
+										</label>
+										<input type="number" step="any" min="0" placeholder="e.g. 2450.00"
+										       class="price-input border border-gray-300 rounded-md px-3 py-1.5 text-sm w-40
+										              focus:outline-none focus:ring-2 focus:ring-blue-500" />
+									</div>
+								)}
+
+								<!-- Notes -->
+								<div>
+									<label class="text-sm font-medium text-gray-700">Note (optional):</label>
+									<textarea rows="2"
+									          class="notes-input mt-1 w-full border border-gray-300 rounded-md px-3 py-2
+									                 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+									          placeholder="e.g. 'Sent to my Ledger' or 'Aave borrow for ETH purchase'"
+									>{item.notes ?? ''}</textarea>
+								</div>
+
+								<!-- Submit -->
+								<div class="flex items-center gap-3">
+									<button type="submit"
+									        class="save-btn rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50
+									               text-white text-sm font-medium px-4 py-2 transition-colors">
+										Save &amp; Resolve
+									</button>
+									<span class="status-msg text-sm text-gray-500 hidden"></span>
+								</div>
+							</form>
+						</div>
+					);
+				})}
+			</section>
+		))}
+
+	</div>
+</Layout>
+
+<script>
+// ── Re-classify button ────────────────────────────────────────────────────────
+document.getElementById('run-pipeline')?.addEventListener('click', async (e) => {
+	const btn = e.currentTarget as HTMLButtonElement;
+	btn.disabled = true;
+	btn.textContent = '⏳ Running…';
+	try {
+		const res = await fetch('/api/tax/classify', { method: 'POST' });
+		const data = await res.json();
+		if (data.ok) {
+			btn.textContent = '✅ Done — reloading…';
+			setTimeout(() => window.location.reload(), 1000);
+		} else {
+			btn.textContent = '❌ Failed';
+			btn.disabled = false;
+		}
+	} catch {
+		btn.textContent = '❌ Error';
+		btn.disabled = false;
+	}
+});
+
+// ── Resolve forms ─────────────────────────────────────────────────────────────
+document.querySelectorAll<HTMLDivElement>('.review-item').forEach((card) => {
+	const form = card.querySelector<HTMLFormElement>('.resolve-form');
+	if (!form) return;
+
+	form.addEventListener('submit', async (e) => {
+		e.preventDefault();
+
+		const reviewItemId  = card.dataset.id ?? '';
+		const sourceType    = card.dataset.sourceType ?? '';
+		const sourceId      = card.dataset.sourceId ?? '';
+		const category      = (card.querySelector<HTMLSelectElement>('.category-select'))?.value ?? '';
+		const notes         = (card.querySelector<HTMLTextAreaElement>('.notes-input'))?.value ?? '';
+		const priceInput    = card.querySelector<HTMLInputElement>('.price-input');
+		const pricePerToken = priceInput ? parseFloat(priceInput.value) || undefined : undefined;
+		const statusMsg     = card.querySelector<HTMLSpanElement>('.status-msg');
+		const saveBtn       = card.querySelector<HTMLButtonElement>('.save-btn');
+
+		if (!category) {
+			if (statusMsg) { statusMsg.textContent = 'Please select a category first.'; statusMsg.classList.remove('hidden'); }
+			return;
+		}
+
+		if (saveBtn) saveBtn.disabled = true;
+		if (statusMsg) { statusMsg.textContent = 'Saving…'; statusMsg.classList.remove('hidden'); }
+
+		try {
+			const res = await fetch('/api/tax/review/resolve', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ reviewItemId, sourceType, sourceId, category, notes, pricePerToken }),
+			});
+			const data = await res.json();
+			if (data.ok) {
+				if (statusMsg) statusMsg.textContent = '✅ Saved!';
+				// Fade out the card
+				card.style.transition = 'opacity 0.4s';
+				card.style.opacity = '0';
+				setTimeout(() => card.remove(), 450);
+			} else {
+				if (statusMsg) statusMsg.textContent = `❌ ${data.error ?? 'Failed'}`;
+				if (saveBtn) saveBtn.disabled = false;
+			}
+		} catch {
+			if (statusMsg) statusMsg.textContent = '❌ Network error';
+			if (saveBtn) saveBtn.disabled = false;
+		}
+	});
+});
+</script>

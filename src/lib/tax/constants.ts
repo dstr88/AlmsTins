@@ -1,0 +1,136 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Tax pipeline constants
+//   - Known lending protocol contract addresses
+//   - Income / airdrop keywords by exchange source
+//   - Burn addresses
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Lowercase Ethereum addresses for known lending protocol pools. */
+export const LENDING_PROTOCOL_ADDRESSES = new Set([
+	// Aave V3 — Ethereum
+	'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2',
+	// Aave V3 — Polygon / Avalanche / Arbitrum / Optimism (same proxy address)
+	'0x794a61358d6845594f94dc1db02a252b5b4814ad',
+	// Aave V2 — Ethereum
+	'0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9',
+	// Aave V2 — Polygon
+	'0x8dff5e27ea6b7ac08ebfdf9eb090f32ee9a30fcf',
+	// Compound V3 — Ethereum (USDC market)
+	'0xc3d688b66703497daa19211eedff47f25384cdc3',
+	// Compound V2 — Ethereum comptroller
+	'0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b',
+	// Maker / DAI (DSS)
+	'0x9759a6ac90977b93b58547b4a71c78317f391a28',
+]);
+
+/** Addresses that indicate a coin is permanently burned / destroyed. */
+export const BURN_ADDRESSES = new Set([
+	'0x0000000000000000000000000000000000000000',
+	'0x000000000000000000000000000000000000dead',
+	'0x0000000000000000000000000000000000000001',
+]);
+
+// ── Coinbase kind → category mapping ─────────────────────────────────────────
+
+export const COINBASE_INCOME_KINDS = new Set([
+	'Coinbase Earn',
+	'Rewards Income',
+	'Staking Income',
+	'Learning Reward',
+	'Inflation Reward',
+	'Interest Income',
+	'Staking Reward',
+	'Token Grant',
+]);
+
+export const COINBASE_AIRDROP_KINDS = new Set(['Airdrop']);
+
+export const COINBASE_BUY_KINDS = new Set([
+	'Buy',
+	'Advanced Trade Buy',
+	'Subscription Acquisition',
+]);
+
+export const COINBASE_SELL_KINDS = new Set([
+	'Sell',
+	'Advanced Trade Sell',
+	'Subscription Liquidation',
+]);
+
+export const COINBASE_SWAP_KINDS = new Set(['Convert']);
+
+export const COINBASE_TRANSFER_IN_KINDS = new Set(['Receive']);
+export const COINBASE_TRANSFER_OUT_KINDS = new Set(['Send', 'Withdrawal']);
+
+export const COINBASE_FEE_KINDS = new Set(['Fee', 'Network Fee']);
+
+// ── Crypto.com kind → category mapping ───────────────────────────────────────
+
+export const CRYPTOCOM_INCOME_KINDS = new Set([
+	'crypto_earn_interest_paid',
+	'crypto_earn_program_created',
+	'referral_card_cashback',
+	'rewards_platform_deposit_credited',
+	'interest_swap_credited',
+	'crypto_wallet_swap_credited',
+	'crypto_earn_extra_interest_paid',
+	'mco_stake_reward',
+	'card_cashback_reverted',
+	'admin_wallet_credited',
+	'referral_gift',
+	'pay_rewards',
+]);
+
+export const CRYPTOCOM_BUY_KINDS = new Set([
+	'crypto_purchase',
+	'viban_purchase',
+	'recurring_buy_order',
+	'dust_conversion_credited',
+]);
+
+export const CRYPTOCOM_SELL_KINDS = new Set([
+	'crypto_cashout',
+	'dust_conversion_debited',
+	'viban_card_top_up',
+]);
+
+export const CRYPTOCOM_SWAP_KINDS = new Set([
+	'crypto_exchange',
+	'crypto_wallet_swap_debited',
+	'interest_swap_debited',
+]);
+
+export const CRYPTOCOM_TRANSFER_OUT_KINDS = new Set([
+	'crypto_withdrawal',
+	'crypto_earn_program_withdrawn',
+]);
+
+export const CRYPTOCOM_TRANSFER_IN_KINDS = new Set([
+	'crypto_deposit',
+	'crypto_to_exchange_transfer',
+	'exchange_to_crypto_transfer',
+]);
+
+// ── Generic keyword detectors (applied when specific mappings don't match) ────
+
+export const INCOME_KEYWORDS = [
+	'reward',
+	'interest',
+	'earn',
+	'staking',
+	'yield',
+	'cashback',
+	'bonus',
+	'grant',
+	'airdrop',
+];
+
+export const LOAN_INTEREST_KEYWORDS = ['interest paid', 'borrow fee', 'accrued interest'];
+
+/** Transfer match window: transactions within this many minutes of each other
+ *  can be considered the same wallet-to-wallet transfer. */
+export const TRANSFER_MATCH_WINDOW_MINUTES = 90;
+
+/** Transfer match tolerance: the receiving side is allowed to be this much
+ *  smaller than the sending side (gas / bridge fees eat some). */
+export const TRANSFER_AMOUNT_TOLERANCE = 0.02; // 2 %

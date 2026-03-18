@@ -1,0 +1,536 @@
+---
+/**
+ * /dashboard/tax/report
+ *
+ * The comprehensive tax report:
+ *   • Capital Gains (short-term + long-term, per disposal)
+ *   • Ordinary Income (staking, rewards, airdrops — by exchange)
+ *   • Loans (collateral deposits, proceeds, repayments)
+ *   • Interest Paid summary (bottom, by exchange/protocol)
+ *   • Review queue badge
+ *   • Download as self-contained HTML or Form-8949-ready CSV
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { db } from '@/lib/db';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+const { tenantId } = await requireTenantSession(Astro.request);
+
+const yearParam = Astro.url.searchParams.get('year');
+const currentYear = new Date().getFullYear();
+const taxYear = yearParam ? Number(yearParam) : currentYear - 1;
+
+type DbRow = Record<string, unknown>;
+const s  = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
+const n  = (v: unknown) => (typeof v === 'number' ? v : null);
+const fmtUSD = (v: number | null) =>
+	v === null ? '—' : v.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+const fmtQty = (v: number | null) =>
+	v === null ? '—' : v.toLocaleString('en-US', { maximumFractionDigits: 6 });
+const fmtDate = (v: string) => v.slice(0, 10);
+
+// ── Available years ───────────────────────────────────────────────────────────
+const yearsResult = await db.execute({
+	sql: `SELECT DISTINCT strftime('%Y', disposed_at) AS yr
+	      FROM tax_disposals WHERE tenant_id = ?
+	      UNION
+	      SELECT DISTINCT strftime('%Y', timestamp_utc) AS yr
+	      FROM import_transactions WHERE tenant_id = ?
+	        AND category IN ('income','airdrop','loan-interest-paid')
+	      ORDER BY yr DESC`,
+	args: [tenantId, tenantId],
+});
+const availableYears = yearsResult.rows.map((r: DbRow) => Number(s(r.yr))).filter(Boolean);
+
+// ── Capital gains ─────────────────────────────────────────────────────────────
+const disposalsResult = await db.execute({
+	sql: `SELECT d.id, d.asset_symbol, d.disposed_at, d.quantity,
+	             d.proceeds_usd, d.cost_basis_usd, d.gain_loss_usd,
+	             d.is_short_term, d.category, d.lot_id, d.notes,
+	             l.acquired_at, l.lot_type
+	      FROM tax_disposals d
+	      LEFT JOIN tax_lots l ON l.id = d.lot_id AND l.tenant_id = ?
+	      WHERE d.tenant_id = ?
+	        AND strftime('%Y', d.disposed_at) = ?
+	      ORDER BY d.disposed_at ASC`,
+	args: [tenantId, tenantId, String(taxYear)],
+});
+
+type Disposal = {
+	id: string; symbol: string; disposedAt: string; quantity: number;
+	proceeds: number|null; costBasis: number|null; gainLoss: number|null;
+	isShortTerm: boolean; category: string; notes: string|null;
+	acquiredAt: string|null; lotType: string|null;
+};
+const disposals: Disposal[] = disposalsResult.rows.map((r: DbRow) => ({
+	id: s(r.id), symbol: s(r.asset_symbol), disposedAt: s(r.disposed_at),
+	quantity: n(r.quantity) ?? 0, proceeds: n(r.proceeds_usd), costBasis: n(r.cost_basis_usd),
+	gainLoss: n(r.gain_loss_usd), isShortTerm: Number(r.is_short_term) === 1,
+	category: s(r.category), notes: typeof r.notes === 'string' ? r.notes : null,
+	acquiredAt: typeof r.acquired_at === 'string' ? r.acquired_at : null,
+	lotType: typeof r.lot_type === 'string' ? r.lot_type : null,
+}));
+
+const stDisposals = disposals.filter((d) => d.isShortTerm);
+const ltDisposals = disposals.filter((d) => !d.isShortTerm);
+const totalSTGain  = stDisposals.reduce((sum, d) => sum + (d.gainLoss ?? 0), 0);
+const totalLTGain  = ltDisposals.reduce((sum, d) => sum + (d.gainLoss ?? 0), 0);
+const totalGain    = totalSTGain + totalLTGain;
+
+// ── Ordinary income ───────────────────────────────────────────────────────────
+const incomeResult = await db.execute({
+	sql: `SELECT source, asset_symbol, SUM(ABS(native_usd)) AS total_usd, COUNT(*) AS cnt
+	      FROM import_transactions
+	      WHERE tenant_id = ? AND category = 'income'
+	        AND strftime('%Y', timestamp_utc) = ?
+	      GROUP BY source, asset_symbol
+	      ORDER BY total_usd DESC`,
+	args: [tenantId, String(taxYear)],
+});
+type IncomeRow = { source: string; symbol: string; total: number; count: number };
+const incomeRows: IncomeRow[] = incomeResult.rows.map((r: DbRow) => ({
+	source: s(r.source), symbol: s(r.asset_symbol),
+	total: n(r.total_usd) ?? 0, count: Number(r.cnt ?? 0),
+}));
+const totalIncome = incomeRows.reduce((sum, r) => sum + r.total, 0);
+
+// ── Airdrops ──────────────────────────────────────────────────────────────────
+const airdropResult = await db.execute({
+	sql: `SELECT source, asset_symbol, SUM(ABS(native_usd)) AS total_usd, COUNT(*) AS cnt
+	      FROM import_transactions
+	      WHERE tenant_id = ? AND category = 'airdrop'
+	        AND strftime('%Y', timestamp_utc) = ?
+	      GROUP BY source, asset_symbol ORDER BY total_usd DESC`,
+	args: [tenantId, String(taxYear)],
+});
+type AirdropRow = { source: string; symbol: string; total: number; count: number };
+const airdropRows: AirdropRow[] = airdropResult.rows.map((r: DbRow) => ({
+	source: s(r.source), symbol: s(r.asset_symbol),
+	total: n(r.total_usd) ?? 0, count: Number(r.cnt ?? 0),
+}));
+const totalAirdrops = airdropRows.reduce((sum, r) => sum + r.total, 0);
+
+// ── Loan events ───────────────────────────────────────────────────────────────
+const loanResult = await db.execute({
+	sql: `SELECT tc.category, tc.asset_symbol, tc.amount_usd, tc.tax_year,
+	             COALESCE(
+	               (SELECT timestamp FROM transactions WHERE id = tc.source_id LIMIT 1),
+	               (SELECT timestamp_utc FROM import_transactions WHERE id = tc.source_id LIMIT 1)
+	             ) AS event_date
+	      FROM tax_classifications tc
+	      WHERE tc.tenant_id = ?
+	        AND tc.category IN ('loan-proceeds','loan-repayment','collateral-deposit','liquidation')
+	        AND tc.tax_year = ?
+	      ORDER BY event_date ASC`,
+	args: [tenantId, taxYear],
+});
+type LoanRow = { category: string; symbol: string|null; amountUsd: number|null; date: string };
+const loanRows: LoanRow[] = loanResult.rows.map((r: DbRow) => ({
+	category: s(r.category), symbol: typeof r.asset_symbol === 'string' ? r.asset_symbol : null,
+	amountUsd: n(r.amount_usd), date: s(r.event_date),
+}));
+
+// ── Interest paid (bottom of report) ─────────────────────────────────────────
+const interestResult = await db.execute({
+	sql: `SELECT source, SUM(ABS(native_usd)) AS total_usd, COUNT(*) AS cnt
+	      FROM import_transactions
+	      WHERE tenant_id = ? AND category = 'loan-interest-paid'
+	        AND strftime('%Y', timestamp_utc) = ?
+	      GROUP BY source ORDER BY total_usd DESC`,
+	args: [tenantId, String(taxYear)],
+});
+type InterestRow = { source: string; total: number; count: number };
+const interestRows: InterestRow[] = interestResult.rows.map((r: DbRow) => ({
+	source: s(r.source), total: n(r.total_usd) ?? 0, count: Number(r.cnt ?? 0),
+}));
+const totalInterestPaid = interestRows.reduce((sum, r) => sum + r.total, 0);
+
+// ── Review queue count ────────────────────────────────────────────────────────
+const reviewResult = await db.execute({
+	sql: `SELECT COUNT(*) AS cnt FROM tax_review_items WHERE tenant_id = ? AND resolved = 0`,
+	args: [tenantId],
+});
+const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
+---
+
+<Layout>
+	<div class="max-w-5xl mx-auto px-4 py-8 space-y-10" id="report-root">
+
+		<!-- Header -->
+		<div class="flex items-start justify-between flex-wrap gap-4">
+			<div>
+				<h1 class="text-2xl font-bold text-gray-900">Tax Report — {taxYear}</h1>
+				<p class="text-sm text-gray-500 mt-1">
+					Crypto tax summary for Schedule D (capital gains) and Schedule 1 (ordinary income).
+				</p>
+			</div>
+			<div class="flex flex-wrap gap-2">
+				<!-- Year picker -->
+				{availableYears.length > 1 && (
+					<form method="get">
+						<select name="year" onchange="this.form.submit()"
+						        class="border border-gray-300 rounded-md px-3 py-1.5 text-sm">
+							{availableYears.map((y) => (
+								<option value={y} selected={y === taxYear}>{y}</option>
+							))}
+						</select>
+					</form>
+				)}
+				<a href="/dashboard/tax/review"
+				   class={`inline-flex items-center gap-1.5 rounded-lg text-sm font-medium px-4 py-2 transition-colors
+				            ${reviewCount > 0
+				              ? 'bg-amber-500 hover:bg-amber-600 text-white'
+				              : 'border border-gray-300 bg-white hover:bg-gray-50 text-gray-700'}`}>
+					{reviewCount > 0 ? `⚠ ${reviewCount} need review` : '✅ Review queue clear'}
+				</a>
+				<button id="btn-html" class="rounded-lg border border-gray-300 bg-white hover:bg-gray-50
+				                             text-gray-700 text-sm font-medium px-4 py-2 transition-colors">
+					⬇ Download HTML
+				</button>
+				<button id="btn-csv" class="rounded-lg bg-blue-600 hover:bg-blue-700
+				                            text-white text-sm font-medium px-4 py-2 transition-colors">
+					⬇ Download CSV (Form 8949)
+				</button>
+			</div>
+		</div>
+
+		<!-- Summary cards -->
+		<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+			{[
+				{ label: 'Short-Term Gain/Loss', value: totalSTGain, note: 'Held < 1 year' },
+				{ label: 'Long-Term Gain/Loss',  value: totalLTGain, note: 'Held ≥ 1 year' },
+				{ label: 'Ordinary Income',      value: totalIncome + totalAirdrops, note: 'Staking + airdrops' },
+				{ label: 'Net Capital Gain/Loss', value: totalGain,  note: 'Schedule D total' },
+			].map(({ label, value, note }) => (
+				<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-1">
+					<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
+					<p class={`text-xl font-bold ${value < 0 ? 'text-red-600' : value > 0 ? 'text-green-700' : 'text-gray-800'}`}>
+						{fmtUSD(value)}
+					</p>
+					<p class="text-xs text-gray-400">{note}</p>
+				</div>
+			))}
+		</div>
+
+		<!-- Capital Gains — Short Term -->
+		{stDisposals.length > 0 && (
+			<section>
+				<h2 class="text-lg font-semibold text-gray-800 mb-3">
+					Short-Term Capital Gains / Losses
+					<span class="text-sm font-normal text-gray-400 ml-2">(held &lt; 1 year — taxed as ordinary income)</span>
+				</h2>
+				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+					<table class="min-w-full text-sm">
+						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+							<tr>
+								<th class="px-4 py-2.5 text-left">Asset</th>
+								<th class="px-4 py-2.5 text-left">Date Acquired</th>
+								<th class="px-4 py-2.5 text-left">Date Sold</th>
+								<th class="px-4 py-2.5 text-right">Qty</th>
+								<th class="px-4 py-2.5 text-right">Proceeds</th>
+								<th class="px-4 py-2.5 text-right">Cost Basis</th>
+								<th class="px-4 py-2.5 text-right">Gain / Loss</th>
+								<th class="px-4 py-2.5 text-left">Note</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-100">
+							{stDisposals.map((d) => (
+								<tr class="hover:bg-gray-50">
+									<td class="px-4 py-2.5 font-mono font-medium text-gray-900">{d.symbol}</td>
+									<td class="px-4 py-2.5 text-gray-500">{d.acquiredAt ? fmtDate(d.acquiredAt) : '—'}</td>
+									<td class="px-4 py-2.5 text-gray-500">{fmtDate(d.disposedAt)}</td>
+									<td class="px-4 py-2.5 text-right text-gray-700">{fmtQty(d.quantity)}</td>
+									<td class="px-4 py-2.5 text-right text-gray-700">{fmtUSD(d.proceeds)}</td>
+									<td class="px-4 py-2.5 text-right text-gray-700">{fmtUSD(d.costBasis)}</td>
+									<td class={`px-4 py-2.5 text-right font-semibold ${(d.gainLoss ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+										{fmtUSD(d.gainLoss)}
+									</td>
+									<td class="px-4 py-2.5 text-xs text-gray-400">{d.notes ?? d.category}</td>
+								</tr>
+							))}
+							<tr class="bg-gray-50 font-semibold text-sm">
+								<td colspan="6" class="px-4 py-2.5 text-gray-700">Short-Term Total</td>
+								<td class={`px-4 py-2.5 text-right ${totalSTGain >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+									{fmtUSD(totalSTGain)}
+								</td>
+								<td></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+		)}
+
+		<!-- Capital Gains — Long Term -->
+		{ltDisposals.length > 0 && (
+			<section>
+				<h2 class="text-lg font-semibold text-gray-800 mb-3">
+					Long-Term Capital Gains / Losses
+					<span class="text-sm font-normal text-gray-400 ml-2">(held ≥ 1 year — preferential tax rate)</span>
+				</h2>
+				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+					<table class="min-w-full text-sm">
+						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+							<tr>
+								<th class="px-4 py-2.5 text-left">Asset</th>
+								<th class="px-4 py-2.5 text-left">Date Acquired</th>
+								<th class="px-4 py-2.5 text-left">Date Sold</th>
+								<th class="px-4 py-2.5 text-right">Qty</th>
+								<th class="px-4 py-2.5 text-right">Proceeds</th>
+								<th class="px-4 py-2.5 text-right">Cost Basis</th>
+								<th class="px-4 py-2.5 text-right">Gain / Loss</th>
+								<th class="px-4 py-2.5 text-left">Note</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-100">
+							{ltDisposals.map((d) => (
+								<tr class="hover:bg-gray-50">
+									<td class="px-4 py-2.5 font-mono font-medium text-gray-900">{d.symbol}</td>
+									<td class="px-4 py-2.5 text-gray-500">{d.acquiredAt ? fmtDate(d.acquiredAt) : '—'}</td>
+									<td class="px-4 py-2.5 text-gray-500">{fmtDate(d.disposedAt)}</td>
+									<td class="px-4 py-2.5 text-right text-gray-700">{fmtQty(d.quantity)}</td>
+									<td class="px-4 py-2.5 text-right text-gray-700">{fmtUSD(d.proceeds)}</td>
+									<td class="px-4 py-2.5 text-right text-gray-700">{fmtUSD(d.costBasis)}</td>
+									<td class={`px-4 py-2.5 text-right font-semibold ${(d.gainLoss ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+										{fmtUSD(d.gainLoss)}
+									</td>
+									<td class="px-4 py-2.5 text-xs text-gray-400">{d.notes ?? d.category}</td>
+								</tr>
+							))}
+							<tr class="bg-gray-50 font-semibold text-sm">
+								<td colspan="6" class="px-4 py-2.5 text-gray-700">Long-Term Total</td>
+								<td class={`px-4 py-2.5 text-right ${totalLTGain >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+									{fmtUSD(totalLTGain)}
+								</td>
+								<td></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+		)}
+
+		<!-- Ordinary Income -->
+		{(incomeRows.length > 0 || airdropRows.length > 0) && (
+			<section>
+				<h2 class="text-lg font-semibold text-gray-800 mb-3">
+					Ordinary Income
+					<span class="text-sm font-normal text-gray-400 ml-2">(Schedule 1 / Form 1040)</span>
+				</h2>
+				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+					<table class="min-w-full text-sm">
+						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+							<tr>
+								<th class="px-4 py-2.5 text-left">Source</th>
+								<th class="px-4 py-2.5 text-left">Asset</th>
+								<th class="px-4 py-2.5 text-left">Type</th>
+								<th class="px-4 py-2.5 text-right">Events</th>
+								<th class="px-4 py-2.5 text-right">Amount</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-100">
+							{incomeRows.map((r) => (
+								<tr class="hover:bg-gray-50">
+									<td class="px-4 py-2.5 text-gray-700 capitalize">{r.source}</td>
+									<td class="px-4 py-2.5 font-mono text-gray-900">{r.symbol}</td>
+									<td class="px-4 py-2.5 text-gray-500">Rewards / Staking / Interest</td>
+									<td class="px-4 py-2.5 text-right text-gray-500">{r.count}</td>
+									<td class="px-4 py-2.5 text-right font-semibold text-green-700">{fmtUSD(r.total)}</td>
+								</tr>
+							))}
+							{airdropRows.map((r) => (
+								<tr class="hover:bg-gray-50">
+									<td class="px-4 py-2.5 text-gray-700 capitalize">{r.source}</td>
+									<td class="px-4 py-2.5 font-mono text-gray-900">{r.symbol}</td>
+									<td class="px-4 py-2.5 text-gray-500">Airdrop</td>
+									<td class="px-4 py-2.5 text-right text-gray-500">{r.count}</td>
+									<td class="px-4 py-2.5 text-right font-semibold text-green-700">{fmtUSD(r.total)}</td>
+								</tr>
+							))}
+							<tr class="bg-gray-50 font-semibold text-sm">
+								<td colspan="4" class="px-4 py-2.5 text-gray-700">Total Ordinary Income</td>
+								<td class="px-4 py-2.5 text-right text-green-700">{fmtUSD(totalIncome + totalAirdrops)}</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+		)}
+
+		<!-- Loans -->
+		{loanRows.length > 0 && (
+			<section>
+				<h2 class="text-lg font-semibold text-gray-800 mb-1">Loan Activity</h2>
+				<p class="text-sm text-gray-500 mb-3">Non-taxable loan events. If collateral was liquidated, it appears in capital gains above.</p>
+				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+					<table class="min-w-full text-sm">
+						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+							<tr>
+								<th class="px-4 py-2.5 text-left">Date</th>
+								<th class="px-4 py-2.5 text-left">Event</th>
+								<th class="px-4 py-2.5 text-left">Asset</th>
+								<th class="px-4 py-2.5 text-right">USD Value</th>
+								<th class="px-4 py-2.5 text-left">Tax Treatment</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-100">
+							{loanRows.map((r) => (
+								<tr class="hover:bg-gray-50">
+									<td class="px-4 py-2.5 text-gray-500">{r.date ? fmtDate(r.date) : '—'}</td>
+									<td class="px-4 py-2.5 text-gray-900 capitalize">{r.category.replace(/-/g, ' ')}</td>
+									<td class="px-4 py-2.5 font-mono text-gray-700">{r.symbol ?? '—'}</td>
+									<td class="px-4 py-2.5 text-right text-gray-700">{fmtUSD(r.amountUsd)}</td>
+									<td class="px-4 py-2.5 text-xs text-gray-400">
+										{r.category === 'liquidation'
+											? '⚠ Taxable forced sale — see capital gains'
+											: 'Not taxable'}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		)}
+
+		<!-- No data fallback -->
+		{disposals.length === 0 && incomeRows.length === 0 && airdropRows.length === 0 && loanRows.length === 0 && (
+			<div class="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center space-y-2">
+				<p class="text-2xl">📂</p>
+				<p class="font-semibold text-gray-700">No classified tax events for {taxYear}</p>
+				<p class="text-sm text-gray-500">
+					Run the classifier first, or check that your wallets and exchange CSV files are imported.
+				</p>
+				<button id="run-classify"
+				        class="mt-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2">
+					Run Tax Classifier
+				</button>
+			</div>
+		)}
+
+		<!-- Interest Paid (bottom — summary only) -->
+		{interestRows.length > 0 && (
+			<section>
+				<hr class="border-gray-200" />
+				<div class="pt-6">
+					<h2 class="text-base font-semibold text-gray-600 mb-1">
+						Interest Paid — {taxYear}
+						<span class="text-xs font-normal text-gray-400 ml-2">(potentially deductible — consult your tax advisor)</span>
+					</h2>
+					<div class="overflow-x-auto rounded-xl border border-gray-100 bg-gray-50">
+						<table class="min-w-full text-sm">
+							<thead class="text-xs uppercase tracking-wide text-gray-400">
+								<tr>
+									<th class="px-4 py-2 text-left">Protocol / Exchange</th>
+									<th class="px-4 py-2 text-right">Events</th>
+									<th class="px-4 py-2 text-right">Total Paid</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{interestRows.map((r) => (
+									<tr>
+										<td class="px-4 py-2 text-gray-600 capitalize">{r.source}</td>
+										<td class="px-4 py-2 text-right text-gray-400">{r.count}</td>
+										<td class="px-4 py-2 text-right text-gray-600">{fmtUSD(r.total)}</td>
+									</tr>
+								))}
+								<tr class="font-semibold">
+									<td class="px-4 py-2 text-gray-600">Total</td>
+									<td></td>
+									<td class="px-4 py-2 text-right text-gray-700">{fmtUSD(totalInterestPaid)}</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</section>
+		)}
+
+	</div>
+</Layout>
+
+<script>
+// ── Run classifier button ────────────────────────────────────────────────────
+document.getElementById('run-classify')?.addEventListener('click', async (e) => {
+	const btn = e.currentTarget as HTMLButtonElement;
+	btn.disabled = true;
+	btn.textContent = '⏳ Running…';
+	const res = await fetch('/api/tax/classify', { method: 'POST' });
+	const data = await res.json();
+	btn.textContent = data.ok ? '✅ Done — reloading…' : '❌ Failed';
+	if (data.ok) setTimeout(() => window.location.reload(), 1000);
+	else btn.disabled = false;
+});
+
+// ── HTML download ─────────────────────────────────────────────────────────────
+document.getElementById('btn-html')?.addEventListener('click', () => {
+	const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tax Report ${new Date().getFullYear() - 1}</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #111; }
+  h1 { font-size: 1.6rem; margin-bottom: 4px; }
+  h2 { font-size: 1.1rem; margin: 32px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 24px; }
+  th { background: #f9fafb; text-align: left; padding: 8px 12px; font-size: 0.75rem; text-transform: uppercase; color: #6b7280; }
+  td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
+  .right { text-align: right; }
+  .gain { color: #15803d; font-weight: 600; }
+  .loss { color: #dc2626; font-weight: 600; }
+  .summary { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 32px; }
+  .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 20px; min-width: 160px; }
+  .card-label { font-size: 0.7rem; text-transform: uppercase; color: #9ca3af; font-weight: 600; }
+  .card-value { font-size: 1.3rem; font-weight: 700; margin-top: 4px; }
+  .note { font-size: 0.75rem; color: #9ca3af; margin-top: 16px; }
+</style>
+</head>
+<body>
+${document.getElementById('report-root')?.innerHTML ?? ''}
+<p class="note">Generated by LedgerLense · ${new Date().toLocaleDateString()}</p>
+</body>
+</html>`;
+
+	const blob = new Blob([html], { type: 'text/html' });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = `tax-report-${new Date().getFullYear() - 1}.html`;
+	a.click();
+	URL.revokeObjectURL(url);
+});
+
+// ── CSV (Form 8949) download ──────────────────────────────────────────────────
+document.getElementById('btn-csv')?.addEventListener('click', async () => {
+	const btn = document.getElementById('btn-csv') as HTMLButtonElement;
+	btn.disabled = true;
+	btn.textContent = '⏳ Building CSV…';
+
+	try {
+		const rows: string[][] = [
+			['Asset', 'Date Acquired', 'Date Sold', 'Quantity', 'Proceeds (USD)', 'Cost Basis (USD)', 'Gain/Loss (USD)', 'Term', 'Category', 'Notes'],
+		];
+
+		// Collect from the rendered tables
+		document.querySelectorAll<HTMLTableRowElement>('tbody tr').forEach((tr) => {
+			const cells = [...tr.querySelectorAll('td')].map((td) => td.textContent?.trim() ?? '');
+			if (cells.length >= 7 && cells[0] && cells[0] !== 'Short-Term Total' && cells[0] !== 'Long-Term Total') {
+				rows.push(cells);
+			}
+		});
+
+		const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+		const blob = new Blob([csv], { type: 'text/csv' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `form-8949-${new Date().getFullYear() - 1}.csv`;
+		a.click();
+		URL.revokeObjectURL(url);
+	} finally {
+		btn.disabled = false;
+		btn.textContent = '⬇ Download CSV (Form 8949)';
+	}
+});
+</script>
