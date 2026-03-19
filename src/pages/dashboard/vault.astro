@@ -303,11 +303,9 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		@media (min-width: 1080px) {
 			.bk-grid {
-				--row2-height: 520px;
-				--row3-height: 420px;
 				--grid-gap: 24px;
 				grid-template-columns: repeat(3, minmax(0, 1fr));
-				grid-template-rows: var(--row1-height) auto var(--row2-height) auto var(--row3-height);
+				grid-template-rows: var(--row1-height) auto auto auto auto;
 				grid-template-areas:
 					'r1c1  r1c2  r1c3'
 					'div2  div2  div2'
@@ -383,14 +381,14 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			display: flex;
 			align-items: center;
 			gap: 0.75rem;
-			padding: 0.1rem 0;
-		}
-
-		.vault-section-divider--onchain {
-			grid-area: div2;
+			padding: 1.25rem 0 0.25rem;
 		}
 
 		.vault-section-divider--exchange {
+			grid-area: div2;
+		}
+
+		.vault-section-divider--onchain {
 			grid-area: div3;
 		}
 
