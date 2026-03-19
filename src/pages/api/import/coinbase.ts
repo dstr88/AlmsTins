@@ -210,9 +210,10 @@ export const POST: APIRoute = async ({ request }) => {
 	const content = await file.text();
 	const rows = parseCsv(content);
 	const batchId = randomUUID();
-	let insertedRaw = 0;
-	let insertedNormalized = 0;
-	let skippedDuplicates = 0;
+
+	type DbStatement = { sql: string; args: unknown[] };
+	const rawStatements: DbStatement[] = [];
+	const normStatements: DbStatement[] = [];
 
 	for (const row of rows) {
 		const timestampUtc = normalizeTimestamp(row['Timestamp'] || '');
@@ -257,56 +258,46 @@ export const POST: APIRoute = async ({ request }) => {
 
 		const rowHash = buildRowHash(normalized);
 		const groupId = buildGroupId('coinbase', normalized.assetSymbol, normalized.timestampUtc);
-		const rawResult = await db.execute({
+
+		rawStatements.push({
 			sql: `INSERT OR IGNORE INTO import_raw_rows
 				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-			args: [
-				randomUUID(),
-				tenantId,
-				'coinbase',
-				resolvedAccountId,
-				batchId,
-				JSON.stringify(row),
-				rowHash,
-			],
+			args: [randomUUID(), tenantId, 'coinbase', resolvedAccountId, batchId, JSON.stringify(row), rowHash],
 		});
 
-		const normalizedResult = await db.execute({
+		normStatements.push({
 			sql: `INSERT OR IGNORE INTO import_transactions
 				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
 				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 			args: [
-				randomUUID(),
-				tenantId,
-				'coinbase',
-				resolvedAccountId,
-				batchId,
-				normalized.timestampUtc,
-				normalized.description || null,
-				normalized.currency || null,
-				normalized.amount,
-				normalized.toCurrency || null,
-				normalized.toAmount,
-				normalized.nativeCurrency || null,
-				normalized.nativeAmount,
-				normalized.nativeUsd,
-				normalized.kind || null,
-				normalized.txHash,
-				normalized.direction,
-				normalized.assetSymbol,
-				groupId,
-				rowHash,
+				randomUUID(), tenantId, 'coinbase', resolvedAccountId, batchId,
+				normalized.timestampUtc, normalized.description || null, normalized.currency || null,
+				normalized.amount, normalized.toCurrency || null, normalized.toAmount,
+				normalized.nativeCurrency || null, normalized.nativeAmount, normalized.nativeUsd,
+				normalized.kind || null, normalized.txHash, normalized.direction,
+				normalized.assetSymbol, groupId, rowHash,
 			],
 		});
-
-		insertedRaw += rawResult.rowsAffected ?? 0;
-		insertedNormalized += normalizedResult.rowsAffected ?? 0;
-		if ((rawResult.rowsAffected ?? 0) === 0 && (normalizedResult.rowsAffected ?? 0) === 0) {
-			skippedDuplicates += 1;
-		}
 	}
+
+	// Execute all statements in batches of 100 to avoid Render request timeouts.
+	// db.batch() sends each chunk as a single HTTP round-trip to Turso.
+	const BATCH_SIZE = 100;
+	let insertedRaw = 0;
+	let insertedNormalized = 0;
+
+	for (let i = 0; i < rawStatements.length; i += BATCH_SIZE) {
+		const results = await db.batch(rawStatements.slice(i, i + BATCH_SIZE), 'write');
+		insertedRaw += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
+	}
+	for (let i = 0; i < normStatements.length; i += BATCH_SIZE) {
+		const results = await db.batch(normStatements.slice(i, i + BATCH_SIZE), 'write');
+		insertedNormalized += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
+	}
+
+	const skippedDuplicates = rawStatements.length - insertedRaw;
 
 	return new Response(
 		JSON.stringify({

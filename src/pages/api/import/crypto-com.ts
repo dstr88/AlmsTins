@@ -244,15 +244,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
 	const content = await file.text();
 	const rows = parseCsv(content);
 	const batchId = randomUUID();
-	let insertedRaw = 0;
-	let insertedNormalized = 0;
-	let skippedDuplicates = 0;
 
-	// Helper: persist one normalized row to import_transactions
-	const insertNormalizedRow = async (norm: NormalizedRow, leg = '') => {
+	type DbStatement = { sql: string; args: unknown[] };
+	const rawStatements: DbStatement[] = [];
+	const normStatements: DbStatement[] = [];
+	let skippedFiatRows = 0;
+
+	// Build a statement object for one normalized row (no await — collected for batch execution)
+	const buildNormStatement = (norm: NormalizedRow, leg = ''): DbStatement => {
 		const rowHash = buildRowHash(norm, leg);
 		const groupId = buildGroupId('crypto_com', norm.assetSymbol, norm.timestampUtc);
-		const result = await db.execute({
+		return {
 			sql: `INSERT OR IGNORE INTO import_transactions
 				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
 				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
@@ -265,8 +267,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 				norm.kind || null, norm.txHash, norm.direction, norm.assetSymbol,
 				groupId, rowHash,
 			],
-		});
-		insertedNormalized += result.rowsAffected ?? 0;
+		};
 	};
 
 	for (const row of rows) {
@@ -288,18 +289,17 @@ export const POST: APIRoute = async ({ request, locals }) => {
 			assetSymbol: null,
 		};
 
-		// Raw row — always insert once per CSV row
+		// Raw row — queue one statement per CSV row
 		const rawHash = buildRowHash(normalized, '');
-		const rawResult = await db.execute({
+		rawStatements.push({
 			sql: `INSERT OR IGNORE INTO import_raw_rows
 				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 			args: [randomUUID(), tenantId, 'crypto_com', resolvedAccountId, batchId, JSON.stringify(row), rawHash],
 		});
-		insertedRaw += rawResult.rowsAffected ?? 0;
 
 		// Crypto↔crypto swap: both sides are real (non-stable) assets.
-		// Insert two normalized rows — one 'out' for the sold asset, one 'in' for the received asset —
+		// Queue two normalized rows — one 'out' for the sold asset, one 'in' for the received asset —
 		// so both sides of the trade affect the correct balances.
 		const isCryptoCryptoSwap =
 			normalized.currency && !isFiat(normalized.currency) &&
@@ -309,30 +309,49 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 		if (isCryptoCryptoSwap) {
 			// OUT leg: the asset being sold
-			await insertNormalizedRow(
+			normStatements.push(buildNormStatement(
 				{ ...normalized, direction: 'out', assetSymbol: normalized.currency },
 				'out',
-			);
+			));
 			// IN leg: the asset being received
-			await insertNormalizedRow(
-				{ ...normalized, direction: 'in', assetSymbol: normalized.toCurrency,
-				  currency: normalized.toCurrency, amount: normalized.toAmount,
-				  toCurrency: '', toAmount: null },
+			normStatements.push(buildNormStatement(
+				{
+					...normalized,
+					direction: 'in',
+					assetSymbol: normalized.toCurrency,
+					currency: normalized.toCurrency,
+					amount: normalized.toAmount,
+					toCurrency: '',
+					toAmount: null,
+				},
 				'in',
-			);
+			));
 		} else {
 			const { direction, assetSymbol } = detectDirection(normalized);
 			if (assetSymbol) {
-				normalized.direction = direction;
-				normalized.assetSymbol = assetSymbol;
-				await insertNormalizedRow(normalized, '');
+				normStatements.push(buildNormStatement({ ...normalized, direction, assetSymbol }));
 			} else {
-				skippedDuplicates += 1; // pure fiat/stable row — nothing to track
+				skippedFiatRows += 1; // pure fiat/stable row — nothing to track
 			}
 		}
-
-		if ((rawResult.rowsAffected ?? 0) === 0) skippedDuplicates += 1;
 	}
+
+	// Execute all statements in batches of 100 to avoid Render request timeouts.
+	// db.batch() sends each chunk as a single HTTP round-trip to Turso.
+	const BATCH_SIZE = 100;
+	let insertedRaw = 0;
+	let insertedNormalized = 0;
+
+	for (let i = 0; i < rawStatements.length; i += BATCH_SIZE) {
+		const results = await db.batch(rawStatements.slice(i, i + BATCH_SIZE), 'write');
+		insertedRaw += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
+	}
+	for (let i = 0; i < normStatements.length; i += BATCH_SIZE) {
+		const results = await db.batch(normStatements.slice(i, i + BATCH_SIZE), 'write');
+		insertedNormalized += results.reduce((sum, r) => sum + (r.rowsAffected ?? 0), 0);
+	}
+
+	const skippedDuplicates = (rawStatements.length - insertedRaw) + skippedFiatRows;
 
 	return new Response(
 		JSON.stringify({
