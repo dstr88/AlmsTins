@@ -21,6 +21,13 @@ type ReviewRow = {
 	snapshot_json: string;
 	notes: string | null;
 	created_at: string;
+	// pre-parsed snapshot fields (avoids TypeScript generics inside template)
+	sym: string;
+	amt: string;
+	usd: string;
+	ts: string;
+	autoCat: string;
+	needsPrice: boolean;
 };
 
 type DbRow = Record<string, unknown>;
@@ -44,16 +51,29 @@ const result = await db.execute({
 	args: [tenantId],
 });
 
-const items: ReviewRow[] = result.rows.map((r: DbRow) => ({
-	id: s(r.id),
-	source_type: s(r.source_type),
-	source_id: s(r.source_id),
-	reason: s(r.reason),
-	reason_detail: s(r.reason_detail),
-	snapshot_json: s(r.snapshot_json),
-	notes: typeof r.notes === 'string' ? r.notes : null,
-	created_at: s(r.created_at),
-}));
+const items: ReviewRow[] = result.rows.map((r: DbRow) => {
+	const reason = s(r.reason);
+	const snapshot_json = s(r.snapshot_json);
+	let snap: Record<string, unknown> = {};
+	try { snap = JSON.parse(snapshot_json); } catch {}
+	const sym     = String(snap.symbol ?? snap.assetSymbol ?? '?');
+	const amt     = String(snap.amount ?? snap.value ?? '');
+	const usd     = String(snap.usd ?? snap.usdValue ?? '');
+	const ts      = String(snap.timestamp ?? r.created_at ?? '').slice(0, 10);
+	const autoCat = String(snap.autoCategory ?? '');
+	const needsPrice = reason === 'missing_price' || reason === 'airdrop_unpriced';
+	return {
+		id: s(r.id),
+		source_type: s(r.source_type),
+		source_id: s(r.source_id),
+		reason,
+		reason_detail: s(r.reason_detail),
+		snapshot_json,
+		notes: typeof r.notes === 'string' ? r.notes : null,
+		created_at: s(r.created_at),
+		sym, amt, usd, ts, autoCat, needsPrice,
+	};
+});
 
 // Group by reason
 const groups = new Map<string, ReviewRow[]>();
@@ -152,14 +172,7 @@ const CATEGORY_OPTIONS = [
 				</div>
 
 				{groupItems.map((item) => {
-					let snapshot: Record<string, unknown> = {};
-					try { snapshot = JSON.parse(item.snapshot_json); } catch {}
-					const sym = String(snapshot.symbol ?? snapshot.assetSymbol ?? '?');
-					const amt = snapshot.amount ?? snapshot.value ?? '';
-					const usd = snapshot.usd ?? snapshot.usdValue ?? '';
-					const ts  = String(snapshot.timestamp ?? item.created_at).slice(0, 10);
-					const autoCat = String(snapshot.autoCategory ?? '');
-					const needsPrice = reason === 'missing_price' || reason === 'airdrop_unpriced';
+					const { sym, amt, usd, ts, autoCat, needsPrice } = item;
 
 					return (
 						<div class="review-item rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4"
