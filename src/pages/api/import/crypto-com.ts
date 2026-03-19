@@ -147,13 +147,22 @@ const detectDirection = (row: NormalizedRow) => {
 		return { direction: 'out' as const, assetSymbol: row.currency };
 	}
 
+	// Fallback — only record if the resolved symbol is a real crypto asset.
+	// Pure fiat/stablecoin-only rows (e.g. crypto_deposit USDC with no toCurrency)
+	// must be skipped so they don't create phantom stablecoin balances.
+	const fallbackSym = row.toCurrency || row.currency || null;
+	if (!fallbackSym || isFiat(fallbackSym)) {
+		return { direction: 'in' as const, assetSymbol: null };
+	}
+
 	return {
 		direction: amountNeg ? ('out' as const) : ('in' as const),
-		assetSymbol: row.toCurrency || row.currency || null,
+		assetSymbol: fallbackSym,
 	};
 };
 
-const buildRowHash = (row: NormalizedRow) => {
+// leg: '' for normal rows, 'out'/'in' for the two legs of a crypto↔crypto swap
+const buildRowHash = (row: NormalizedRow, leg = '') => {
 	const payload = JSON.stringify([
 		'crypto_com',
 		row.timestampUtc,
@@ -164,6 +173,7 @@ const buildRowHash = (row: NormalizedRow) => {
 		row.toAmount ?? '',
 		row.kind,
 		row.txHash ?? '',
+		leg,
 	]);
 	return createHash('sha256').update(payload).digest('hex');
 };
@@ -238,6 +248,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
 	let insertedNormalized = 0;
 	let skippedDuplicates = 0;
 
+	// Helper: persist one normalized row to import_transactions
+	const insertNormalizedRow = async (norm: NormalizedRow, leg = '') => {
+		const rowHash = buildRowHash(norm, leg);
+		const groupId = buildGroupId('crypto_com', norm.assetSymbol, norm.timestampUtc);
+		const result = await db.execute({
+			sql: `INSERT OR IGNORE INTO import_transactions
+				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
+				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+			args: [
+				randomUUID(), tenantId, 'crypto_com', resolvedAccountId, batchId,
+				norm.timestampUtc, norm.description || null, norm.currency || null,
+				norm.amount, norm.toCurrency || null, norm.toAmount,
+				norm.nativeCurrency || null, norm.nativeAmount, norm.nativeUsd,
+				norm.kind || null, norm.txHash, norm.direction, norm.assetSymbol,
+				groupId, rowHash,
+			],
+		});
+		insertedNormalized += result.rowsAffected ?? 0;
+	};
+
 	for (const row of rows) {
 		const timestampUtc = normalizeTimestamp(row['Timestamp (UTC)'] || '');
 		if (!timestampUtc) continue;
@@ -257,62 +288,51 @@ export const POST: APIRoute = async ({ request, locals }) => {
 			assetSymbol: null,
 		};
 
-		const { direction, assetSymbol } = detectDirection(normalized);
-		normalized.direction = direction;
-		normalized.assetSymbol = assetSymbol;
-
-		const rowHash = buildRowHash(normalized);
-		const groupId = buildGroupId('crypto_com', normalized.assetSymbol, normalized.timestampUtc);
+		// Raw row — always insert once per CSV row
+		const rawHash = buildRowHash(normalized, '');
 		const rawResult = await db.execute({
 			sql: `INSERT OR IGNORE INTO import_raw_rows
 				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-			args: [
-				randomUUID(),
-				tenantId,
-				'crypto_com',
-				resolvedAccountId,
-				batchId,
-				JSON.stringify(row),
-				rowHash,
-			],
+			args: [randomUUID(), tenantId, 'crypto_com', resolvedAccountId, batchId, JSON.stringify(row), rawHash],
 		});
-
-		const normalizedResult = await db.execute({
-			sql: `INSERT OR IGNORE INTO import_transactions
-				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
-				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-			args: [
-				randomUUID(),
-				tenantId,
-				'crypto_com',
-				resolvedAccountId,
-				batchId,
-				normalized.timestampUtc,
-				normalized.description || null,
-				normalized.currency || null,
-				normalized.amount,
-				normalized.toCurrency || null,
-				normalized.toAmount,
-				normalized.nativeCurrency || null,
-				normalized.nativeAmount,
-				normalized.nativeUsd,
-				normalized.kind || null,
-				normalized.txHash,
-				normalized.direction,
-				normalized.assetSymbol,
-				groupId,
-				rowHash,
-			],
-		});
-
 		insertedRaw += rawResult.rowsAffected ?? 0;
-		insertedNormalized += normalizedResult.rowsAffected ?? 0;
-		if ((rawResult.rowsAffected ?? 0) === 0 && (normalizedResult.rowsAffected ?? 0) === 0) {
-		skippedDuplicates += 1;
+
+		// Crypto↔crypto swap: both sides are real (non-stable) assets.
+		// Insert two normalized rows — one 'out' for the sold asset, one 'in' for the received asset —
+		// so both sides of the trade affect the correct balances.
+		const isCryptoCryptoSwap =
+			normalized.currency && !isFiat(normalized.currency) &&
+			normalized.toCurrency && !isFiat(normalized.toCurrency) &&
+			(normalized.amount ?? 0) < 0 &&
+			(normalized.toAmount ?? 0) > 0;
+
+		if (isCryptoCryptoSwap) {
+			// OUT leg: the asset being sold
+			await insertNormalizedRow(
+				{ ...normalized, direction: 'out', assetSymbol: normalized.currency },
+				'out',
+			);
+			// IN leg: the asset being received
+			await insertNormalizedRow(
+				{ ...normalized, direction: 'in', assetSymbol: normalized.toCurrency,
+				  currency: normalized.toCurrency, amount: normalized.toAmount,
+				  toCurrency: '', toAmount: null },
+				'in',
+			);
+		} else {
+			const { direction, assetSymbol } = detectDirection(normalized);
+			if (assetSymbol) {
+				normalized.direction = direction;
+				normalized.assetSymbol = assetSymbol;
+				await insertNormalizedRow(normalized, '');
+			} else {
+				skippedDuplicates += 1; // pure fiat/stable row — nothing to track
+			}
+		}
+
+		if ((rawResult.rowsAffected ?? 0) === 0) skippedDuplicates += 1;
 	}
-}
 
 	return new Response(
 		JSON.stringify({
