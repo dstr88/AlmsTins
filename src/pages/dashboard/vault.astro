@@ -69,18 +69,29 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 					: <AddAssetTin />
 				}
 			</div>
+			<div class="vault-section-divider vault-section-divider--exchange">
+				<span class="vault-section-divider__label">Centralized Exchanges</span>
+				<span class="vault-section-divider__line"></span>
+			</div>
+
+			<div class="vault-lane vault-lane--row2 exchange-lane">
+				<CryptoComAccounts />
+				<ExchangeAccounts source="coinbase" title="Coinbase" />
+				<ExchangeAccounts source="gemini" title="Gemini" />
+				<ExchangeAccounts source="robinhood" title="Robinhood" />
+			</div>
 			<div class="vault-section-divider vault-section-divider--onchain">
 				<span class="vault-section-divider__label">On-Chain Wallets</span>
 				<span class="vault-section-divider__line"></span>
 			</div>
 
-			<div class="vault-lane vault-lane--row2">
+			<div class="vault-lane vault-lane--row3">
 				{walletsWithData.map(({ wallet, fullData }, index) => {
 					const labelSource = fullData?.metadata
 						? { label: fullData.metadata.label, address: fullData.metadata.address }
 						: wallet;
 					const displayLabel = formatWalletLabel(labelSource);
-					const tileClass = index === 0 ? 'tile--r2c1' : 'tile--r2c2';
+					const tileClass = index === 0 ? 'tile--r3c1' : 'tile--r3c2';
 					return (
 						<div class={`vault-stack-tin tile ${tileClass}`}>
 							<div class="wallet-label-box">{displayLabel}</div>
@@ -110,17 +121,6 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 						</div>
 					);
 				})}
-			</div>
-			<div class="vault-section-divider vault-section-divider--exchange">
-				<span class="vault-section-divider__label">Centralized Exchanges</span>
-				<span class="vault-section-divider__line"></span>
-			</div>
-
-			<div class="vault-lane vault-lane--row3 exchange-lane">
-				<CryptoComAccounts />
-				<ExchangeAccounts source="coinbase" title="Coinbase" />
-				<ExchangeAccounts source="gemini" title="Gemini" />
-				<ExchangeAccounts source="robinhood" title="Robinhood" />
 			</div>
 		</section>
 
