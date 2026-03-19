@@ -40,24 +40,28 @@ export const POST: APIRoute = async ({ request }) => {
 		args: [accountId, tenantId],
 	});
 
-	// Sweep orphaned rows — rows whose account_id no longer exists in exchange_accounts
-	// (left behind by failed/partial deletes from before the source-string fix).
-	// These block future imports because row_hash is globally unique.
+	// Sweep ALL orphaned rows for this tenant+source — including rows with NULL account_id
+	// (uploaded before account_id tracking was added) and rows whose account_id points to
+	// a deleted account. Both block future imports because row_hash is globally unique.
 	await db.execute({
 		sql: `DELETE FROM import_raw_rows
 			WHERE tenant_id = ? AND source = 'crypto_com'
-			AND account_id IS NOT NULL
-			AND account_id NOT IN (
-				SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = 'crypto_com'
+			AND (
+				account_id IS NULL
+				OR account_id NOT IN (
+					SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = 'crypto_com'
+				)
 			)`,
 		args: [tenantId, tenantId],
 	});
 	await db.execute({
 		sql: `DELETE FROM import_transactions
 			WHERE tenant_id = ? AND source = 'crypto_com'
-			AND account_id IS NOT NULL
-			AND account_id NOT IN (
-				SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = 'crypto_com'
+			AND (
+				account_id IS NULL
+				OR account_id NOT IN (
+					SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = 'crypto_com'
+				)
 			)`,
 		args: [tenantId, tenantId],
 	});
