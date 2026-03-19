@@ -98,9 +98,17 @@ const parseNumber = (value: string | null | undefined) => {
 	return Number.isFinite(num) ? num : null;
 };
 
-const FIAT = new Set(['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'SGD', 'HKD', 'JPY', 'CNY', 'CHF', 'NZD']);
+// Treat stablecoins the same as fiat for direction detection —
+// we don't want phantom stablecoin balances showing up as holdings.
+const FIAT_OR_STABLE = new Set([
+	// Traditional fiat
+	'USD', 'EUR', 'GBP', 'AUD', 'CAD', 'SGD', 'HKD', 'JPY', 'CNY', 'CHF', 'NZD',
+	// USD-pegged stablecoins commonly used on Crypto.com
+	'USDT', 'USDC', 'TUSD', 'USDM', 'BUSD', 'DAI', 'USDD', 'USDP', 'GUSD', 'PYUSD',
+	'FRAX', 'LUSD', 'SUSD', 'HUSD', 'CUSD', 'CEUR', 'USDB',
+]);
 
-const isFiat = (symbol: string) => FIAT.has(symbol.toUpperCase());
+const isFiat = (symbol: string) => FIAT_OR_STABLE.has(symbol.toUpperCase());
 
 const detectDirection = (row: NormalizedRow) => {
 	const description = row.description.toLowerCase();
