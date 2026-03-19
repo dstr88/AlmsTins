@@ -333,6 +333,28 @@ const priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols
 		}
 	});
 
+	document.addEventListener('click', async (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement)) return;
+		const delBtn = target.closest('[data-exchange-delete]');
+		if (!(delBtn instanceof HTMLElement)) return;
+		const accountId = delBtn.dataset.accountId ?? '';
+		if (!accountId) return;
+		if (!confirm('Delete this account and all its imported transactions? This cannot be undone.')) return;
+		try {
+			const response = await fetch('/api/exchanges/crypto-com/accounts/delete', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ accountId }),
+				credentials: 'include',
+			});
+			if (!response.ok) throw new Error('Failed to delete account.');
+			window.location.reload();
+		} catch (error) {
+			console.error(error);
+		}
+	});
+
 	document.addEventListener('blur', async (event) => {
 		const target = event.target;
 		if (!(target instanceof HTMLInputElement) || !target.classList.contains('exchange-account__name')) {
