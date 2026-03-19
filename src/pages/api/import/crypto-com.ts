@@ -143,8 +143,13 @@ const detectDirection = (row: NormalizedRow) => {
 	if (row.toCurrency && !toCurrencyIsFiat) {
 		return { direction: 'in' as const, assetSymbol: row.toCurrency };
 	}
+	// Single-asset row (reward, deposit, withdrawal, cashback, etc.) — use amount sign.
+	// A positive amount means the asset was received ('in'); negative means sent ('out').
 	if (row.currency && !currencyIsFiat) {
-		return { direction: 'out' as const, assetSymbol: row.currency };
+		return {
+			direction: amountNeg ? ('out' as const) : ('in' as const),
+			assetSymbol: row.currency,
+		};
 	}
 
 	// Fallback — only record if the resolved symbol is a real crypto asset.
