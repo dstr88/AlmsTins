@@ -134,6 +134,9 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 		const symbolRaw = pickSymbol(row);
 		if (!symbolRaw) continue;
 		const symbol = normalizeSymbol(symbolRaw);
+		// Skip single-character symbols — these are Crypto.com internal conversion
+		// artifacts (e.g. "A" from a Balance Conversion row), not real assets.
+		if (symbol.length < 2) continue;
 		if (row.timestamp_utc) {
 			lastSeenMap.set(symbol, row.timestamp_utc);
 		}
