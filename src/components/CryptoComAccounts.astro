@@ -131,6 +131,13 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 	const unknownCost = new Set<string>();
 
 	for (const row of rows) {
+		// Skip MCO→CRO card-stake conversion events. These credited CRO directly
+		// into the locked card stake (never the available wallet), but the
+		// corresponding lockup_lock debit is absent from the CSV export.
+		// Counting them inflates the CRO balance by ~1,764 CRO.
+		const rowKind = row.kind ?? '';
+		if (rowKind === 'lockup_swap_credited' || rowKind === 'lockup_swap_rebate') continue;
+
 		const symbolRaw = pickSymbol(row);
 		if (!symbolRaw) continue;
 		const symbol = normalizeSymbol(symbolRaw);
