@@ -287,17 +287,17 @@ const priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols
 													</span>
 												</div>
 												<div class="exchange-holding__field exchange-holding__field--numeric">
-													<span class="exchange-holding__label">Coins</span>
-													<span class="exchange-holding__value">
-														{formatNumber(holding.balance, { maximumFractionDigits: 2 })}
+													<span class="exchange-holding__label">USD value</span>
+													<span class="exchange-holding__value usd-value">
+														{usdValue === null ? '—' : formatCurrency(usdValue)}
 													</span>
 												</div>
 											</div>
 											<div class="exchange-holding__row exchange-holding__row--bottom">
 												<div class="exchange-holding__field exchange-holding__field--numeric">
-													<span class="exchange-holding__label">USD value</span>
-													<span class="exchange-holding__value usd-value">
-														{usdValue === null ? '—' : formatCurrency(usdValue)}
+													<span class="exchange-holding__label">Coins</span>
+													<span class="exchange-holding__value">
+														{formatNumber(holding.balance, { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
 													</span>
 												</div>
 												<div class="exchange-holding__field exchange-holding__field--numeric">
