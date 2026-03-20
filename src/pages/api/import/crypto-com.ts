@@ -140,7 +140,10 @@ const detectDirection = (row: NormalizedRow) => {
 	if (!currencyIsFiat && row.currency && amountNeg && toCurrencyIsFiat && toAmountPos) {
 		return { direction: 'out' as const, assetSymbol: row.currency };
 	}
-	if (row.toCurrency && !toCurrencyIsFiat) {
+	// Only treat to_currency as 'in' when to_amount is non-negative.
+	// A negative to_amount means the asset was debited (e.g. crypto_payment where both
+	// currency and to_currency are the same crypto with negative amounts — a merchant payment).
+	if (row.toCurrency && !toCurrencyIsFiat && !(toAmount < 0)) {
 		return { direction: 'in' as const, assetSymbol: row.toCurrency };
 	}
 	// Single-asset row (reward, deposit, withdrawal, cashback, etc.) — use amount sign.
