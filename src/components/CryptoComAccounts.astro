@@ -227,7 +227,11 @@ const fetchCachedPrices = async (symbols: string[]) => {
 		const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
 		if (!symbol || !symbolSet.has(symbol)) continue;
 		const price = ticker.quotes?.USD?.price;
-		if (typeof price === 'number') {
+		// Use only the first match per symbol — coinpaprika sorts by market cap rank,
+		// so the highest-ranked (real) coin comes first. Without this guard, a tiny
+		// altcoin sharing the same ticker (e.g. a micro-cap "ETH") would overwrite
+		// the real Ethereum price with ~$0.03.
+		if (typeof price === 'number' && !(symbol in priceMap)) {
 			priceMap[symbol] = price;
 		}
 	}
