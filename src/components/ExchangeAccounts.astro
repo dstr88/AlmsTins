@@ -24,8 +24,10 @@ type ImportRow = {
 
 type Holding = {
 	symbol: string;
-	balance: number;   // liquid (not in staking)
-	staked: number;    // currently locked in staking
+	balance: number;        // liquid (not in staking)
+	staked: number;         // currently locked in staking
+	stakingYtd: number;     // coins earned from staking this calendar year
+	stakingYtdUsd: number | null; // USD value of YTD staking income
 	lastPurchaseAt: string | null;
 	costBasis: number | null;
 };
@@ -82,11 +84,15 @@ const pickQty = (row: ImportRow) => {
 	return row.to_amount ?? row.amount;
 };
 
+const CURRENT_YEAR = String(new Date().getFullYear()); // e.g. '2026'
+
 const computeHoldings = (rows: ImportRow[]): Holding[] => {
-	const balanceMap = new Map<string, number>();   // liquid
-	const stakedMap  = new Map<string, number>();   // in staking custody
+	const balanceMap      = new Map<string, number>();   // liquid
+	const stakedMap       = new Map<string, number>();   // in staking custody
+	const stakingYtdMap   = new Map<string, number>();   // coins earned from staking this year
+	const stakingYtdUsdMap= new Map<string, number>();   // USD value of YTD staking income
 	const lastPurchaseMap = new Map<string, string>();
-	const lastSeenMap = new Map<string, string>();
+	const lastSeenMap     = new Map<string, string>();
 	const lotsMap = new Map<string, Array<{ qty: number; cost: number }>>();
 	const unknownCost = new Set<string>();
 
@@ -121,6 +127,13 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 			const cost = parseNum(row.native_usd);
 			if (cost === null) { unknownCost.add(sym); }
 			else { const lots = lotsMap.get(sym) ?? []; lots.push({ qty, cost: Math.abs(cost) }); lotsMap.set(sym, lots); }
+
+			// ── Staking income earned this calendar year ─────────────────────
+			if (kindLower === 'staking income' && row.timestamp_utc.startsWith(CURRENT_YEAR)) {
+				stakingYtdMap.set(sym, (stakingYtdMap.get(sym) ?? 0) + qty);
+				const usd = parseNum(row.native_usd);
+				if (usd !== null) stakingYtdUsdMap.set(sym, (stakingYtdUsdMap.get(sym) ?? 0) + Math.abs(usd));
+			}
 		} else if (dir === 'out' || dir === 'lost') {
 			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) - qty);
 			const lots = lotsMap.get(sym);
@@ -135,17 +148,21 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 		}
 	}
 
-	const seenSyms = new Set<string>([...balanceMap.keys(), ...stakedMap.keys()]);
+	const seenSyms = new Set<string>([...balanceMap.keys(), ...stakedMap.keys(), ...stakingYtdMap.keys()]);
 	const out: Holding[] = [];
 	for (const sym of seenSyms) {
 		const bal    = balanceMap.get(sym) ?? 0;
 		const staked = stakedMap.get(sym)  ?? 0;
-		if (bal <= 0 && staked <= 0) continue;
+		const stakingYtd    = stakingYtdMap.get(sym)    ?? 0;
+		const stakingYtdUsd = stakingYtdUsdMap.get(sym) ?? null;
+		if (bal <= 0 && staked <= 0 && stakingYtd <= 0) continue;
 		const lots = lotsMap.get(sym) ?? [];
 		out.push({
 			symbol: sym,
 			balance: Math.max(0, bal),
 			staked,
+			stakingYtd,
+			stakingYtdUsd: stakingYtdUsdMap.has(sym) ? (stakingYtdUsd ?? 0) : null,
 			lastPurchaseAt: lastPurchaseMap.get(sym) ?? lastSeenMap.get(sym) ?? null,
 			costBasis: unknownCost.has(sym) || !lots.length ? null : lots.reduce((s, l) => s + l.cost, 0),
 		});
@@ -228,9 +245,6 @@ if (priceSymbols.size) {
 												<div class="exchange-holding__field exchange-holding__field--numeric">
 													<span class="exchange-holding__label">Coins</span>
 													<span class="exchange-holding__value">{formatNumber(holding.balance, { maximumFractionDigits: 2 })}</span>
-													{holding.staked > 0 && (
-														<span class="exchange-holding__staked">🔒 {formatNumber(holding.staked, { maximumFractionDigits: 8 })} staked</span>
-													)}
 												</div>
 											</div>
 											<div class="exchange-holding__row exchange-holding__row--bottom">
@@ -243,6 +257,29 @@ if (priceSymbols.size) {
 													<span class={`exchange-holding__value ${pnl === null ? '' : pnlClass}`}>{pnl === null ? '—' : formatCurrency(pnl)}</span>
 												</div>
 											</div>
+											{(holding.staked > 0 || holding.stakingYtd > 0) && (
+												<div class="exchange-holding__row exchange-holding__row--staking">
+													{holding.staked > 0 && (
+														<div class="exchange-holding__field exchange-holding__field--numeric">
+															<span class="exchange-holding__label">🔒 Staked</span>
+															<span class="exchange-holding__value">
+																{formatNumber(holding.staked, { maximumFractionDigits: 8 })}
+															</span>
+														</div>
+													)}
+													{holding.stakingYtd > 0 && (
+														<div class="exchange-holding__field exchange-holding__field--numeric">
+															<span class="exchange-holding__label">Earned {CURRENT_YEAR}</span>
+															<span class="exchange-holding__value">
+																{formatNumber(holding.stakingYtd, { maximumFractionDigits: 8 })}
+																{holding.stakingYtdUsd !== null && (
+																	<span class="exchange-holding__staking-usd"> ({formatCurrency(holding.stakingYtdUsd)})</span>
+																)}
+															</span>
+														</div>
+													)}
+												</div>
+											)}
 										</div>
 									);
 								})}
@@ -390,10 +427,16 @@ if (priceSymbols.size) {
 </style>
 
 <style>
-	.exchange-holding__staked {
-		display: block;
+	.exchange-holding__row--staking {
+		display: flex;
+		gap: var(--space-sm);
+		padding-top: var(--space-xs, 0.25rem);
+		border-top: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
 		font-size: var(--font-xs, 0.7rem);
+		opacity: 0.8;
+	}
+
+	.exchange-holding__staking-usd {
 		opacity: 0.7;
-		margin-top: 0.2em;
 	}
 </style>
