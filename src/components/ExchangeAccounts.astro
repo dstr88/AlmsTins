@@ -24,7 +24,8 @@ type ImportRow = {
 
 type Holding = {
 	symbol: string;
-	balance: number;
+	balance: number;   // liquid (not in staking)
+	staked: number;    // currently locked in staking
 	lastPurchaseAt: string | null;
 	costBasis: number | null;
 };
@@ -82,7 +83,8 @@ const pickQty = (row: ImportRow) => {
 };
 
 const computeHoldings = (rows: ImportRow[]): Holding[] => {
-	const balanceMap = new Map<string, number>();
+	const balanceMap = new Map<string, number>();   // liquid
+	const stakedMap  = new Map<string, number>();   // in staking custody
 	const lastPurchaseMap = new Map<string, string>();
 	const lastSeenMap = new Map<string, string>();
 	const lotsMap = new Map<string, Array<{ qty: number; cost: number }>>();
@@ -97,15 +99,29 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 		if (qtyRaw === null || qtyRaw === 0) continue;
 		const qty = Math.abs(qtyRaw);
 		const dir = row.direction ?? (qtyRaw < 0 ? 'out' : 'in');
+		const kindLower = (row.kind ?? '').toLowerCase();
 
-		if (dir === 'in') {
+		// ── Staking transfer (Coinbase) ──────────────────────────────────────
+		// Positive 'Retail Staking Transfer': asset moved from liquid → staking.
+		// Positive 'Retail Unstaking Transfer': asset returned from staking → liquid.
+		const isStakingIn   = kindLower.includes('retail staking transfer')   && dir === 'in';
+		const isUnstakingIn = kindLower.includes('retail unstaking transfer') && dir === 'in';
+
+		if (isStakingIn) {
+			// Move from liquid to staked — do NOT add to liquid balance
+			stakedMap.set(sym, (stakedMap.get(sym) ?? 0) + qty);
+		} else if (isUnstakingIn) {
+			// Move from staked back to liquid
+			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) + qty);
+			stakedMap.set(sym, Math.max(0, (stakedMap.get(sym) ?? 0) - qty));
+			lastPurchaseMap.set(sym, row.timestamp_utc);
+		} else if (dir === 'in') {
 			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) + qty);
 			lastPurchaseMap.set(sym, row.timestamp_utc);
 			const cost = parseNum(row.native_usd);
 			if (cost === null) { unknownCost.add(sym); }
 			else { const lots = lotsMap.get(sym) ?? []; lots.push({ qty, cost: Math.abs(cost) }); lotsMap.set(sym, lots); }
-		}
-		if (dir === 'out' || dir === 'lost') {
+		} else if (dir === 'out' || dir === 'lost') {
 			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) - qty);
 			const lots = lotsMap.get(sym);
 			if (lots?.length) {
@@ -119,18 +135,22 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 		}
 	}
 
+	const seenSyms = new Set<string>([...balanceMap.keys(), ...stakedMap.keys()]);
 	const out: Holding[] = [];
-	for (const [sym, bal] of balanceMap.entries()) {
-		if (bal <= 0) continue;
+	for (const sym of seenSyms) {
+		const bal    = balanceMap.get(sym) ?? 0;
+		const staked = stakedMap.get(sym)  ?? 0;
+		if (bal <= 0 && staked <= 0) continue;
 		const lots = lotsMap.get(sym) ?? [];
 		out.push({
 			symbol: sym,
-			balance: bal,
+			balance: Math.max(0, bal),
+			staked,
 			lastPurchaseAt: lastPurchaseMap.get(sym) ?? lastSeenMap.get(sym) ?? null,
 			costBasis: unknownCost.has(sym) || !lots.length ? null : lots.reduce((s, l) => s + l.cost, 0),
 		});
 	}
-	return out.sort((a, b) => b.balance - a.balance);
+	return out.sort((a, b) => (b.balance + b.staked) - (a.balance + a.staked));
 };
 
 const { source, title } = Astro.props as { source: string; title: string };
@@ -190,7 +210,8 @@ if (priceSymbols.size) {
 							<div slot="holdings">
 								{account.holdings.map((holding) => {
 									const price = priceMap[holding.symbol] ?? 0;
-									const usdValue = price > 0 ? holding.balance * price : null;
+									const totalCoins = holding.balance + holding.staked;
+								const usdValue = price > 0 ? totalCoins * price : null;
 									const pnl = price > 0 && holding.costBasis !== null ? usdValue! - holding.costBasis : null;
 									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
 									return (
@@ -207,6 +228,9 @@ if (priceSymbols.size) {
 												<div class="exchange-holding__field exchange-holding__field--numeric">
 													<span class="exchange-holding__label">Coins</span>
 													<span class="exchange-holding__value">{formatNumber(holding.balance, { maximumFractionDigits: 2 })}</span>
+													{holding.staked > 0 && (
+														<span class="exchange-holding__staked">🔒 {formatNumber(holding.staked, { maximumFractionDigits: 8 })} staked</span>
+													)}
 												</div>
 											</div>
 											<div class="exchange-holding__row exchange-holding__row--bottom">
@@ -362,5 +386,14 @@ if (priceSymbols.size) {
 		margin: 0;
 		font-size: var(--font-sm);
 		opacity: 0.7;
+	}
+</style>
+
+<style>
+	.exchange-holding__staked {
+		display: block;
+		font-size: var(--font-xs, 0.7rem);
+		opacity: 0.7;
+		margin-top: 0.2em;
 	}
 </style>

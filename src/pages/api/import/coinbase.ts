@@ -224,16 +224,19 @@ export const POST: APIRoute = async ({ request }) => {
 
 		// ── Coinbase staking custody rows ────────────────────────────────────────
 		// Coinbase records staking movements as paired +/- rows that net to zero.
-		// Retail Staking Transfer: the POSITIVE row is the asset entering custody
-		// (e.g. AVAX received from a convert that immediately goes to staking).
-		// Count only the positive leg; skip the negative (internal debit).
-		// Retail Unstaking Transfer: principal was already counted on the way IN
-		// via the Staking Transfer positive row. Skip both legs to avoid double-
-		// counting when the asset is released back to the liquid wallet.
-		if (kindLower.includes('retail unstaking transfer')) continue;
+		// Retail Staking Transfer: the POSITIVE row is the asset entering staking
+		// custody; skip the negative (internal debit).
+		// Retail Unstaking Transfer: the POSITIVE row is the asset returning to the
+		// liquid wallet; skip the negative (internal staking-pool debit).
+		// Both positive legs are stored so computeHoldings can separate liquid vs
+		// staked balances using the kind field.
+		if (kindLower.includes('retail unstaking transfer')) {
+			if (quantity === null || quantity <= 0) continue; // skip negative/zero leg
+			// fall through — positive leg is the asset returning from staking to liquid
+		}
 		if (kindLower.includes('retail staking transfer')) {
 			if (quantity === null || quantity <= 0) continue; // skip negative/zero leg
-			// fall through with the positive leg treated as a normal 'in'
+			// fall through — positive leg is the asset entering staking custody
 		}
 
 		const direction = resolveDirection(kind, quantity);
