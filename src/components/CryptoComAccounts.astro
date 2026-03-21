@@ -80,6 +80,8 @@ const toImportRows = (rows: unknown): ImportRow[] => {
 type Holding = {
 	symbol: string;
 	balance: number;
+	stakingYtd: number;          // coins earned from staking/earn this calendar year
+	stakingYtdUsd: number | null; // USD value of YTD staking income
 	lastPurchaseAt: string | null;
 	costBasis: number | null;
 };
@@ -123,10 +125,24 @@ const pickTokenAmount = (row: ImportRow) => {
 	return row.to_amount ?? row.amount;
 };
 
+const CURRENT_YEAR = String(new Date().getFullYear()); // e.g. '2026'
+
+// Crypto.com staking/earn income kinds (all lowercase for comparison)
+const isCryptoComStakingIncome = (kind: string) => {
+	const k = kind.toLowerCase();
+	return (
+		k.includes('earn_interest') ||      // crypto_earn_interest_paid, crypto_earn_extra_interest_paid
+		k.includes('stake_reward') ||       // mco_stake_reward
+		k.includes('supercharger_reward')   // supercharger_reward_to_app_wallet
+	);
+};
+
 const computeHoldings = (rows: ImportRow[]): Holding[] => {
-	const balanceMap = new Map<string, number>();
+	const balanceMap      = new Map<string, number>();
+	const stakingYtdMap   = new Map<string, number>();   // coins earned from staking/earn this year
+	const stakingYtdUsdMap= new Map<string, number>();   // USD value of YTD staking income
 	const lastPurchaseMap = new Map<string, string>();
-	const lastSeenMap = new Map<string, string>();
+	const lastSeenMap     = new Map<string, string>();
 	const lotsMap = new Map<string, Array<{ qty: number; cost: number }>>();
 	const unknownCost = new Set<string>();
 
@@ -165,6 +181,13 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 				lots.push({ qty, cost: Math.abs(cost) });
 				lotsMap.set(symbol, lots);
 			}
+
+			// ── Staking / Earn income earned this calendar year ──────────────
+			if (isCryptoComStakingIncome(rowKind) && row.timestamp_utc.startsWith(CURRENT_YEAR)) {
+				stakingYtdMap.set(symbol, (stakingYtdMap.get(symbol) ?? 0) + qty);
+				const usd = parseNumber(row.native_usd);
+				if (usd !== null) stakingYtdUsdMap.set(symbol, (stakingYtdUsdMap.get(symbol) ?? 0) + Math.abs(usd));
+			}
 		}
 
 		if (isOut) {
@@ -190,7 +213,7 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 
 	const holdings: Holding[] = [];
 	for (const [symbol, balance] of balanceMap.entries()) {
-		if (balance <= 0) continue;
+		if (balance <= 0 && (stakingYtdMap.get(symbol) ?? 0) <= 0) continue;
 		const lots = lotsMap.get(symbol) ?? [];
 		const costBasis =
 			unknownCost.has(symbol) || !lots.length
@@ -198,7 +221,9 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 				: lots.reduce((sum, lot) => sum + lot.cost, 0);
 		holdings.push({
 			symbol,
-			balance,
+			balance: Math.max(0, balance),
+			stakingYtd: stakingYtdMap.get(symbol) ?? 0,
+			stakingYtdUsd: stakingYtdUsdMap.has(symbol) ? (stakingYtdUsdMap.get(symbol) ?? 0) : null,
 			lastPurchaseAt: lastPurchaseMap.get(symbol) ?? lastSeenMap.get(symbol) ?? null,
 			costBasis,
 		});
@@ -314,6 +339,19 @@ const priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols
 													</span>
 												</div>
 											</div>
+											{holding.stakingYtd > 0 && (
+												<div class="exchange-holding__row exchange-holding__row--staking">
+													<div class="exchange-holding__field exchange-holding__field--numeric">
+														<span class="exchange-holding__label">Earned {CURRENT_YEAR}</span>
+														<span class="exchange-holding__value">
+															{formatNumber(holding.stakingYtd, { maximumFractionDigits: 8 })}
+															{holding.stakingYtdUsd !== null && (
+																<span class="exchange-holding__staking-usd"> ({formatCurrency(holding.stakingYtdUsd)})</span>
+															)}
+														</span>
+													</div>
+												</div>
+											)}
 										</div>
 									);
 								})}
@@ -453,6 +491,19 @@ const priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols
 	.crypto-accounts__empty {
 		margin: 0;
 		font-size: var(--font-sm);
+		opacity: 0.7;
+	}
+
+	.exchange-holding__row--staking {
+		display: flex;
+		gap: var(--space-sm);
+		padding-top: var(--space-xs, 0.25rem);
+		border-top: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
+		font-size: var(--font-xs, 0.7rem);
+		opacity: 0.8;
+	}
+
+	.exchange-holding__staking-usd {
 		opacity: 0.7;
 	}
 </style>
