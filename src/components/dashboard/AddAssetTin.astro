@@ -32,6 +32,13 @@
 			aria-selected="false"
 			data-add-tab="exchange"
 		>Exchange</button>
+		<button
+			class="add-tin__tab"
+			type="button"
+			role="tab"
+			aria-selected="false"
+			data-add-tab="custom"
+		>Custom</button>
 	</div>
 
 	<!-- Wallet panel -->
@@ -92,6 +99,40 @@
 		<p class="add-tin__coming-soon">
 			More chains &amp; exchanges coming soon.
 		</p>
+	</div>
+
+	<!-- Custom wallet panel -->
+	<div class="add-tin__panel is-hidden" data-add-panel="custom">
+		<p class="add-tin__hint">
+			Label a wallet you manage manually — hardware wallet, cold storage, or any source without an importer.
+			Address is optional; add it if you want the system to match existing transactions to this wallet.
+		</p>
+		<label class="add-tin__field">
+			<span class="add-tin__field-label">Label <span class="add-tin__required">required</span></span>
+			<input
+				class="add-tin__input"
+				type="text"
+				placeholder="e.g. My Ledger, Paper Wallet BTC…"
+				data-custom-label
+				autocomplete="off"
+				maxlength="80"
+			/>
+		</label>
+		<label class="add-tin__field">
+			<span class="add-tin__field-label">Address <span class="add-tin__optional">optional</span></span>
+			<input
+				class="add-tin__input"
+				type="text"
+				placeholder="0x… or leave blank"
+				data-custom-address
+				autocomplete="off"
+				spellcheck="false"
+			/>
+		</label>
+		<button class="add-tin__submit" type="button" data-custom-submit>
+			Save Custom Wallet
+		</button>
+		<p class="add-tin__message" data-custom-message aria-live="polite"></p>
 	</div>
 </div>
 
@@ -319,6 +360,22 @@
 		opacity: 0.45;
 		font-style: italic;
 	}
+
+	.add-tin__required {
+		font-size: 0.65rem;
+		color: salmon;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-left: 0.25rem;
+	}
+
+	.add-tin__optional {
+		font-size: 0.65rem;
+		opacity: 0.5;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-left: 0.25rem;
+	}
 </style>
 
 <script>
@@ -380,6 +437,52 @@
 		// Allow Enter key in address field
 		addressInput?.addEventListener('keydown', (e) => {
 			if (e.key === 'Enter') submitBtn?.click();
+		});
+
+		// ── Custom wallet submit ──────────────────────────────────────────
+		const customLabelInput = tin.querySelector<HTMLInputElement>('[data-custom-label]');
+		const customAddressInput = tin.querySelector<HTMLInputElement>('[data-custom-address]');
+		const customSubmitBtn = tin.querySelector<HTMLButtonElement>('[data-custom-submit]');
+		const customMessageEl = tin.querySelector<HTMLElement>('[data-custom-message]');
+
+		const setCustomMessage = (text: string) => {
+			if (customMessageEl) customMessageEl.textContent = text;
+		};
+
+		customSubmitBtn?.addEventListener('click', () => {
+			const label = customLabelInput?.value.trim() ?? '';
+			if (!label) {
+				setCustomMessage('A label is required.');
+				return;
+			}
+			if (customSubmitBtn) customSubmitBtn.disabled = true;
+			setCustomMessage('Saving…');
+
+			fetch('/api/wallets', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					walletType: 'custom',
+					label,
+					address: customAddressInput?.value.trim() || undefined,
+				}),
+			})
+				.then(async (res) => {
+					const payload = await res.json().catch(() => ({}));
+					if (!res.ok) throw new Error(payload?.message ?? payload?.error ?? 'Unable to save wallet.');
+					if (customLabelInput) customLabelInput.value = '';
+					if (customAddressInput) customAddressInput.value = '';
+					setCustomMessage('Saved — reloading…');
+					window.location.reload();
+				})
+				.catch((err: Error) => {
+					setCustomMessage(err.message ?? 'Unable to save wallet.');
+					if (customSubmitBtn) customSubmitBtn.disabled = false;
+				});
+		});
+
+		customLabelInput?.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter') customSubmitBtn?.click();
 		});
 
 		// ── Exchange shortcuts ─────────────────────────────────────────────

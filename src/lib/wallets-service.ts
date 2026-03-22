@@ -37,6 +37,7 @@ export function transformWalletRow(row: WalletRow) {
 		isDefault: Boolean(row.is_default),
 		createdAt: row.created_at,
 		chains: safeParseChains(row.chains),
+		walletType: (row.wallet_type ?? 'onchain') as 'onchain' | 'custom',
 	};
 }
 

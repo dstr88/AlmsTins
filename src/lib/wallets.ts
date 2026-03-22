@@ -11,6 +11,7 @@ export type Wallet = {
 	chains: string[];
 	isDefault?: boolean;
 	createdAt: string;
+	walletType?: 'onchain' | 'custom';
 };
 
 export type WalletInput = {
