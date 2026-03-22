@@ -1,11 +1,11 @@
 /**
  * Application Middleware
  *
- * Handles security, session enforcement, tenant routing, and analytics.
- * Auth/public paths are skipped immediately (using isPublicPath from auth.ts).
+ * Handles security headers, session enforcement, tenant routing, and analytics.
  *
- * This file can be freely changed without risking the login/auth flow.
- * isPublicPath is imported from auth.ts — one definition, two consumers.
+ * This middleware only receives requests for PROTECTED paths. Auth/public paths
+ * are intercepted by src/middleware.ts before this file is ever called, so
+ * changes here cannot break login under any circumstances.
  */
 
 import 'dotenv/config';
@@ -18,8 +18,6 @@ import { getCountryForIpHash } from '../lib/analytics/geoip';
 import { hashWithSalt } from '../lib/analytics/hash';
 import { getClientIp } from '../lib/analytics/ip';
 import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } from '../lib/analytics/routes';
-import { isPublicPath } from './auth';
-
 function isEnvProbe(pathname: string) {
 	const p = pathname.toLowerCase();
 	return p.includes('/.env') || p.endsWith('.env') || p.includes('.env.');
@@ -48,13 +46,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		const request = context.request;
 		const url = new URL(request.url);
 		const pathname = url.pathname;
-
-		// ── Auth / public paths — always pass through immediately ──────────────
-		// isPublicPath is defined in auth.ts and shared here so there is only
-		// one source of truth. Do not duplicate the check.
-		if (isPublicPath(pathname)) {
-			return finish(applySecurityHeaders(await next()));
-		}
 
 		const buildLogFlag = '__ledgerlense_build_logged__';
 		const globalAny = globalThis as typeof globalThis & { [buildLogFlag]?: boolean };
@@ -234,21 +225,28 @@ const CSP_REPORT_ONLY = [
 	'upgrade-insecure-requests',
 ].join('; ');
 
-function applySecurityHeaders(response: Response) {
-	response.headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY);
-	response.headers.set('X-Frame-Options', 'DENY');
-	response.headers.set('X-Content-Type-Options', 'nosniff');
-	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-	response.headers.set(
+function applySecurityHeaders(response: Response): Response {
+	// Clone into a mutable response — Auth.js uses Response.redirect() which
+	// produces immutable headers; calling .set() on those throws TypeError.
+	const headers = new Headers(response.headers);
+	headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY);
+	headers.set('X-Frame-Options', 'DENY');
+	headers.set('X-Content-Type-Options', 'nosniff');
+	headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+	headers.set(
 		'Permissions-Policy',
 		'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
 	);
-	response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-	response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
+	headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+	headers.set('Cross-Origin-Resource-Policy', 'same-origin');
 	if (process.env.NODE_ENV === 'production') {
-		response.headers.set('Strict-Transport-Security', 'max-age=86400; includeSubDomains');
+		headers.set('Strict-Transport-Security', 'max-age=86400; includeSubDomains');
 	}
-	return response;
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
 }
 
 async function writeRequestAnalyticsBestEffort(request: Request, response: Response, startedAt: number) {

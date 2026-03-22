@@ -1,21 +1,26 @@
 /**
  * Middleware entry point
  *
- * Two-layer design:
+ * Auth/public paths are handled HERE with a pure pass-through before any
+ * app logic runs. This means changes to app.ts can NEVER break login —
+ * the auth handler is completely unreachable from the app middleware layer.
  *
- *   1. auth   (src/middleware/auth.ts)
- *      ↳ Owns the public-path definition. Intentionally minimal.
- *        Changes here are rare and only concern which paths bypass auth.
- *
- *   2. app    (src/middleware/app.ts)
- *      ↳ Session checks, tenant routing, security headers, analytics.
- *        This layer can change freely without risking the login flow.
- *
- * Both layers import isPublicPath() from auth.ts — one definition, no drift.
+ *   isPublicPath?  → next()            (route handler only, no app logic)
+ *   else           → appMiddleware()   (session, tenant, analytics, headers)
  */
 
-import { sequence } from 'astro/middleware';
-import { onRequest as authGuard } from './middleware/auth';
-import { onRequest as appLogic } from './middleware/app';
+import { defineMiddleware } from 'astro/middleware';
+import { isPublicPath } from './middleware/auth';
+import { onRequest as appMiddleware } from './middleware/app';
 
-export const onRequest = sequence(authGuard, appLogic);
+export const onRequest = defineMiddleware(async (context, next) => {
+	const { pathname } = new URL(context.request.url);
+
+	// Auth + public paths: pure pass-through.
+	// app.ts never runs — its bugs cannot affect login.
+	if (isPublicPath(pathname)) {
+		return next();
+	}
+
+	return appMiddleware(context, next);
+});
