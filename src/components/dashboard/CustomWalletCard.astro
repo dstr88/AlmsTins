@@ -1,0 +1,155 @@
+---
+import type { Wallet } from '@/lib/wallets';
+
+interface Props {
+	wallet: Wallet;
+}
+
+const { wallet } = Astro.props;
+
+const displayLabel = wallet.label?.trim() || wallet.address.slice(-5);
+const hasRealAddress = wallet.address && !wallet.address.startsWith('custom_');
+const shortAddress = hasRealAddress
+	? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
+	: null;
+---
+
+<div class="custom-wallet-card">
+	<div class="cwc-label-pill">{displayLabel}</div>
+
+	{shortAddress && (
+		<p class="cwc-address" title={wallet.address}>{shortAddress}</p>
+	)}
+
+	<div class="cwc-meta">
+		<span class="cwc-meta__item">
+			<span class="cwc-meta__dot"></span>
+			<span class="cwc-meta__text">Manual</span>
+		</span>
+	</div>
+
+	<div class="cwc-actions">
+		<button
+			class="cwc-btn cwc-btn--add"
+			type="button"
+			data-custom-wallet-add
+			data-wallet-id={wallet.id}
+			data-wallet-label={displayLabel}
+		>
+			+ Add Transaction
+		</button>
+	</div>
+
+	<p class="cwc-tx-count" data-tx-count={wallet.id}>
+		<span class="cwc-tx-count__value">—</span>
+		<span class="cwc-tx-count__label">transactions</span>
+	</p>
+</div>
+
+<style>
+	.custom-wallet-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.65rem;
+		background: darkslategray;
+		border: 2px solid #60a5fa;
+		border-radius: 12px;
+		padding: 1.25rem;
+		height: 100%;
+		box-sizing: border-box;
+	}
+
+	.cwc-label-pill {
+		align-self: center;
+		padding: 0.35rem 1.25rem;
+		border: 2px solid #60a5fa;
+		border-radius: 999px;
+		color: #bfdbfe;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		font-size: 0.9rem;
+	}
+
+	.cwc-address {
+		margin: 0;
+		text-align: center;
+		font-size: 0.75rem;
+		font-family: monospace;
+		opacity: 0.55;
+		letter-spacing: 0.04em;
+	}
+
+	.cwc-meta {
+		display: flex;
+		gap: 0.5rem;
+		justify-content: center;
+	}
+
+	.cwc-meta__item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		opacity: 0.6;
+	}
+
+	.cwc-meta__dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #60a5fa;
+		flex-shrink: 0;
+	}
+
+	.cwc-actions {
+		margin-top: auto;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.cwc-btn {
+		border-radius: 0.65rem;
+		border: 1px solid rgba(96, 165, 250, 0.5);
+		background: rgba(96, 165, 250, 0.12);
+		color: #bfdbfe;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.85rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+		width: 100%;
+	}
+
+	.cwc-btn:hover {
+		background: rgba(96, 165, 250, 0.25);
+		border-color: rgba(96, 165, 250, 0.8);
+	}
+
+	.cwc-tx-count {
+		margin: 0;
+		text-align: center;
+		font-size: 0.72rem;
+		opacity: 0.45;
+		letter-spacing: 0.06em;
+	}
+
+	.cwc-tx-count__value {
+		font-variant-numeric: tabular-nums;
+		margin-right: 0.2rem;
+	}
+</style>
+
+<script>
+	document.querySelectorAll<HTMLButtonElement>('[data-custom-wallet-add]').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			const walletId = btn.dataset.walletId ?? '';
+			const walletLabel = btn.dataset.walletLabel ?? 'Custom Wallet';
+			document.dispatchEvent(new CustomEvent('open-add-tx', { detail: { walletId, walletLabel } }));
+		});
+	});
+</script>

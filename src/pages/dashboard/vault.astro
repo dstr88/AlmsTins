@@ -11,6 +11,8 @@ import CryptoComAccounts from '../../components/CryptoComAccounts.astro';
 import ExchangeAccounts from '../../components/ExchangeAccounts.astro';
 import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
 import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.astro';
+import CustomWalletCard from '@/components/dashboard/CustomWalletCard.astro';
+import AddTransactionModal from '@/components/dashboard/AddTransactionModal.astro';
 import { getAllActiveWallets } from '@/lib/wallets';
 import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
@@ -35,7 +37,10 @@ const walletsSorted = [...wallets].sort((a, b) => {
 });
 console.log('[vault] total ms', Date.now() - pageStart);
 
-const walletsForTiles = walletsSorted.slice(0, 2);
+const onchainWallets = walletsSorted.filter((w) => (w.walletType ?? 'onchain') === 'onchain');
+const customWallets = walletsSorted.filter((w) => w.walletType === 'custom');
+
+const walletsForTiles = onchainWallets.slice(0, 2);
 const walletsWithData = await Promise.all(
 	walletsForTiles.map(async (wallet) => ({
 		wallet,
@@ -124,11 +129,29 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			</div>
 		</section>
 
+		{customWallets.length > 0 && (
+			<section class="vault-custom-section">
+				<div class="vault-section-divider vault-section-divider--custom">
+					<span class="vault-section-divider__label">Custom Wallets</span>
+					<span class="vault-section-divider__line"></span>
+				</div>
+				<div class="vault-lane vault-lane--custom">
+					{customWallets.map((wallet) => (
+						<div class="tile custom-tile">
+							<CustomWalletCard wallet={wallet} />
+						</div>
+					))}
+				</div>
+			</section>
+		)}
+
 		<section class="vault-table">
 			<h2>Table placeholder</h2>
 			<div class="placeholder-area">Transactions table coming soon</div>
 		</section>
 	</section>
+
+	<AddTransactionModal />
 
 	<script>
 		const initWalletAccordion = (stack: HTMLElement): void => {
@@ -421,6 +444,46 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		.vault-section-divider--exchange .vault-section-divider__line {
 			background: linear-gradient(to right, rgba(217, 119, 6, 0.5), transparent);
+		}
+
+		.vault-section-divider--custom .vault-section-divider__label {
+			color: #60a5fa;
+		}
+
+		.vault-section-divider--custom .vault-section-divider__line {
+			background: linear-gradient(to right, rgba(96, 165, 250, 0.5), transparent);
+		}
+
+		.vault-custom-section {
+			display: flex;
+			flex-direction: column;
+			gap: 0;
+			padding: 0 0 1rem;
+		}
+
+		.vault-lane--custom {
+			display: flex;
+			gap: 24px;
+			flex-wrap: wrap;
+		}
+
+		.custom-tile {
+			flex: 1 1 100%;
+			min-width: 0;
+		}
+
+		@media (min-width: 720px) {
+			.custom-tile {
+				flex: 1 1 calc((100% - 24px) / 2);
+				max-width: calc((100% - 24px) / 2);
+			}
+		}
+
+		@media (min-width: 1080px) {
+			.custom-tile {
+				flex: 0 0 calc((100% - 48px) / 3);
+				max-width: calc((100% - 48px) / 3);
+			}
 		}
 
 		@media (min-width: 1080px) {

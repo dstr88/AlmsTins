@@ -21,9 +21,11 @@ const safeCallbackUrl = callbackUrl.startsWith("/") ? callbackUrl : "/dashboard/
 const message =
   error === "missing"
     ? "Sign in to continue."
-    : error
-      ? "Sign-in failed. Please try again."
-      : "";
+    : error === "Configuration"
+      ? "Sign-in is temporarily unavailable. Please try again in a moment."
+      : error
+        ? "Sign-in failed. Please try again."
+        : "";
 
 const signup = searchParams.get("signup");
 const verified = searchParams.get("verified");

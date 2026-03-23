@@ -87,6 +87,7 @@ const authConfig = {
 	jwt: { maxAge: SESSION_MAX_AGE_SECONDS },
 	pages: {
 		signIn: '/login',
+		error: '/login',
 	},
 	callbacks: {
 		async signIn({ user, account }: { user?: any; account?: any }) {
@@ -225,15 +226,38 @@ const logAuthEnvCheck = () => {
 	console.log('[auth] env check', {
 		hasSecret: Boolean(process.env.AUTH_SECRET),
 		secretLen: process.env.AUTH_SECRET?.length ?? 0,
+		hasAuthUrl: Boolean(process.env.AUTH_URL),
 		hasGithub: Boolean(process.env.GITHUB_ID && process.env.GITHUB_SECRET),
 		hasGoogle: Boolean(process.env.GOOGLE_ID && process.env.GOOGLE_SECRET),
 		hasEmail: Boolean(process.env.EMAIL_SERVER && process.env.EMAIL_FROM),
 	});
 };
 
+const getLoginOrigin = () => {
+	const authUrl = process.env.AUTH_URL ?? '';
+	if (!authUrl) return null;
+	return /^https?:\/\//i.test(authUrl) ? authUrl.replace(/\/$/, '') : `https://${authUrl}`;
+};
+
+const earlyConfigCheck = (): Response | null => {
+	const secret = process.env.AUTH_SECRET;
+	if (!secret || secret.length < 16) {
+		console.error('[auth] AUTH_SECRET is missing or too short — cannot initialize Auth.js', {
+			hasSecret: Boolean(secret),
+			secretLen: secret?.length ?? 0,
+		});
+		const origin = getLoginOrigin();
+		if (origin) return Response.redirect(`${origin}/login?error=Configuration`, 303);
+		return new Response('Server configuration error', { status: 500 });
+	}
+	return null;
+};
+
 export const GET: APIRoute = async ({ request }) => {
+	logAuthEnvCheck();
+	const configError = earlyConfigCheck();
+	if (configError) return configError;
 	try {
-		logAuthEnvCheck();
 		return await Auth(buildAuthRequest(request), authConfig);
 	} catch (error) {
 		logAuthError(request, error);
@@ -242,8 +266,10 @@ export const GET: APIRoute = async ({ request }) => {
 };
 
 export const POST: APIRoute = async ({ request }) => {
+	logAuthEnvCheck();
+	const configError = earlyConfigCheck();
+	if (configError) return configError;
 	try {
-		logAuthEnvCheck();
 		return await Auth(buildAuthRequest(request), authConfig);
 	} catch (error) {
 		logAuthError(request, error);
