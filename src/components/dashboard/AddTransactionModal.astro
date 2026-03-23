@@ -76,15 +76,18 @@
 				<span class="atm-label">Kind</span>
 				<select class="atm-select" data-hash-kind>
 					<option value="">— select —</option>
-					<option value="inbound">Inbound</option>
-					<option value="outbound">Outbound</option>
-					<option value="purchase">Purchase</option>
-					<option value="swap">Swap</option>
+					<option value="buy">Buy</option>
+					<option value="sell">Sell</option>
+					<option value="transfer">Transfer</option>
 				</select>
 			</label>
+			<div class="atm-field is-hidden" data-hash-transfer-row>
+				<span class="atm-label">Sent To Address <span class="atm-optional">optional</span></span>
+				<input class="atm-input atm-mono-sm" type="text" placeholder="Destination address…" data-hash-transfer-to autocomplete="off" spellcheck="false" />
+			</div>
 			<label class="atm-field">
 				<span class="atm-label">Notes <span class="atm-optional">optional</span></span>
-				<textarea class="atm-textarea" rows="2" placeholder="e.g. BTC from Ledger, gas fee for Uniswap swap…" data-hash-notes></textarea>
+				<textarea class="atm-textarea" rows="2" placeholder="e.g. BTC from Ledger, sent to cold storage…" data-hash-notes></textarea>
 			</label>
 
 			<button class="atm-btn atm-btn--submit" type="button" data-hash-submit>Save Transaction</button>
@@ -139,15 +142,18 @@
 				<span class="atm-label">Kind</span>
 				<select class="atm-select" data-manual-kind>
 					<option value="">— select —</option>
-					<option value="inbound">Inbound</option>
-					<option value="outbound">Outbound</option>
-					<option value="purchase">Purchase</option>
-					<option value="swap">Swap</option>
+					<option value="buy">Buy</option>
+					<option value="sell">Sell</option>
+					<option value="transfer">Transfer</option>
 				</select>
 			</label>
+			<div class="atm-field is-hidden" data-manual-transfer-row>
+				<span class="atm-label">Sent To Address <span class="atm-optional">optional</span></span>
+				<input class="atm-input atm-mono-sm" type="text" placeholder="Destination address…" data-manual-transfer-to autocomplete="off" spellcheck="false" />
+			</div>
 			<label class="atm-field">
 				<span class="atm-label">Notes <span class="atm-optional">optional</span></span>
-				<textarea class="atm-textarea" rows="2" placeholder="e.g. Bought BTC on LocalBitcoins, received from sister…" data-manual-notes></textarea>
+				<textarea class="atm-textarea" rows="2" placeholder="e.g. Bought BTC on Venmo, sent to Ledger hardware wallet…" data-manual-notes></textarea>
 			</label>
 
 			<button class="atm-btn atm-btn--submit" type="button" data-manual-submit>Save Transaction</button>
@@ -412,6 +418,11 @@
 		font-size: 0.72rem;
 	}
 
+	.atm-mono-sm {
+		font-family: monospace;
+		font-size: 0.78rem;
+	}
+
 	/* Direction toggle */
 	.atm-toggle {
 		display: flex;
@@ -606,10 +617,18 @@
 			}
 		});
 
+		// ── Hash: Kind → show/hide transfer address ───────────────────────
+		const hashKind = overlay.querySelector<HTMLSelectElement>('[data-hash-kind]');
+		const hashTransferRow = overlay.querySelector<HTMLElement>('[data-hash-transfer-row]');
+		const hashTransferTo = overlay.querySelector<HTMLInputElement>('[data-hash-transfer-to]');
+		hashKind?.addEventListener('change', () => {
+			const isTransfer = hashKind.value === 'transfer';
+			hashTransferRow?.classList.toggle('is-hidden', !isTransfer);
+		});
+
 		// ── Hash: Submit ──────────────────────────────────────────────────
 		const hashSymbol = overlay.querySelector<HTMLInputElement>('[data-hash-symbol]');
 		const hashUsd = overlay.querySelector<HTMLInputElement>('[data-hash-usd]');
-		const hashKind = overlay.querySelector<HTMLSelectElement>('[data-hash-kind]');
 		const hashNotes = overlay.querySelector<HTMLTextAreaElement>('[data-hash-notes]');
 		const hashSubmitBtn = overlay.querySelector<HTMLButtonElement>('[data-hash-submit]');
 
@@ -639,6 +658,7 @@
 						symbol: hashSymbol?.value.trim() || null,
 						usdValue: isFinite(usdRaw) ? usdRaw : null,
 						kind: hashKind?.value || null,
+						transferTo: hashKind?.value === 'transfer' ? (hashTransferTo?.value.trim() || null) : null,
 						notes: hashNotes?.value.trim() || null,
 					}),
 				});
@@ -668,13 +688,21 @@
 			});
 		});
 
+		// ── Manual: Kind → show/hide transfer address ─────────────────────
+		const manualKind = overlay.querySelector<HTMLSelectElement>('[data-manual-kind]');
+		const manualTransferRow = overlay.querySelector<HTMLElement>('[data-manual-transfer-row]');
+		const manualTransferTo = overlay.querySelector<HTMLInputElement>('[data-manual-transfer-to]');
+		manualKind?.addEventListener('change', () => {
+			const isTransfer = manualKind.value === 'transfer';
+			manualTransferRow?.classList.toggle('is-hidden', !isTransfer);
+		});
+
 		// ── Manual: Submit ────────────────────────────────────────────────
 		const manualDate = overlay.querySelector<HTMLInputElement>('[data-manual-date]');
 		const manualChain = overlay.querySelector<HTMLSelectElement>('[data-manual-chain]');
 		const manualSymbol = overlay.querySelector<HTMLInputElement>('[data-manual-symbol]');
 		const manualAmount = overlay.querySelector<HTMLInputElement>('[data-manual-amount]');
 		const manualUsd = overlay.querySelector<HTMLInputElement>('[data-manual-usd]');
-		const manualKind = overlay.querySelector<HTMLSelectElement>('[data-manual-kind]');
 		const manualNotes = overlay.querySelector<HTMLTextAreaElement>('[data-manual-notes]');
 		const manualSubmitBtn = overlay.querySelector<HTMLButtonElement>('[data-manual-submit]');
 		const manualMsgEl = overlay.querySelector<HTMLElement>('[data-manual-message]');
@@ -706,6 +734,7 @@
 						direction: selectedDirection,
 						usdValue: isFinite(usdRaw) ? usdRaw : null,
 						kind: manualKind?.value || null,
+						transferTo: manualKind?.value === 'transfer' ? (manualTransferTo?.value.trim() || null) : null,
 						notes: manualNotes?.value.trim() || null,
 					}),
 				});
