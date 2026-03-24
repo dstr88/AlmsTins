@@ -44,6 +44,34 @@ const shortAddress = hasRealAddress
 		<span class="cwc-tx-count__value">—</span>
 		<span class="cwc-tx-count__label">transactions</span>
 	</p>
+
+	<!-- Delete area -->
+	<div class="cwc-delete-area">
+		<button
+			class="cwc-btn cwc-btn--delete"
+			type="button"
+			data-delete-trigger
+			data-wallet-id={wallet.id}
+			data-wallet-label={displayLabel}
+		>
+			Delete Wallet
+		</button>
+		<div class="cwc-confirm is-hidden" data-delete-confirm>
+			<p class="cwc-confirm__hint">Type the wallet name to confirm:</p>
+			<input
+				class="cwc-confirm__input"
+				type="text"
+				placeholder={displayLabel}
+				data-delete-confirm-input
+				autocomplete="off"
+			/>
+			<div class="cwc-confirm__btns">
+				<button class="cwc-btn cwc-btn--confirm-yes" type="button" data-delete-yes disabled>Delete</button>
+				<button class="cwc-btn cwc-btn--confirm-no" type="button" data-delete-no>Cancel</button>
+			</div>
+			<p class="cwc-confirm__message" data-delete-message aria-live="polite"></p>
+		</div>
+	</div>
 </div>
 
 <style>
@@ -142,14 +170,180 @@ const shortAddress = hasRealAddress
 		font-variant-numeric: tabular-nums;
 		margin-right: 0.2rem;
 	}
+
+	/* Delete area */
+	.cwc-delete-area {
+		margin-top: 0.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.cwc-btn--delete {
+		border-color: rgba(252, 165, 165, 0.35);
+		background: rgba(252, 165, 165, 0.07);
+		color: #fca5a5;
+		font-size: 0.78rem;
+		font-weight: 500;
+		letter-spacing: 0.05em;
+	}
+
+	.cwc-btn--delete:hover {
+		background: rgba(252, 165, 165, 0.18);
+		border-color: rgba(252, 165, 165, 0.6);
+	}
+
+	.cwc-confirm {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		background: rgba(252, 165, 165, 0.05);
+		border: 1px solid rgba(252, 165, 165, 0.2);
+		border-radius: 0.6rem;
+		padding: 0.6rem 0.65rem;
+	}
+
+	.cwc-confirm.is-hidden {
+		display: none;
+	}
+
+	.cwc-confirm__hint {
+		margin: 0;
+		font-size: 0.7rem;
+		opacity: 0.6;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+
+	.cwc-confirm__input {
+		width: 100%;
+		border-radius: 0.4rem;
+		border: 1px solid rgba(252, 165, 165, 0.3);
+		background: rgba(255, 255, 255, 0.05);
+		color: #f7f2eb;
+		padding: 0.35rem 0.5rem;
+		font-size: 0.82rem;
+		outline: none;
+		box-sizing: border-box;
+	}
+
+	.cwc-confirm__input:focus {
+		border-color: rgba(252, 165, 165, 0.6);
+	}
+
+	.cwc-confirm__btns {
+		display: flex;
+		gap: 0.4rem;
+	}
+
+	.cwc-btn--confirm-yes {
+		flex: 1;
+		border-color: rgba(252, 165, 165, 0.4);
+		background: rgba(252, 165, 165, 0.12);
+		color: #fca5a5;
+		font-size: 0.8rem;
+		font-weight: 700;
+	}
+
+	.cwc-btn--confirm-yes:not(:disabled):hover {
+		background: rgba(252, 165, 165, 0.28);
+		border-color: rgba(252, 165, 165, 0.8);
+	}
+
+	.cwc-btn--confirm-yes:disabled {
+		opacity: 0.35;
+		cursor: not-allowed;
+	}
+
+	.cwc-btn--confirm-no {
+		flex: 1;
+		border-color: rgba(255, 255, 255, 0.12);
+		background: transparent;
+		color: rgba(247, 242, 235, 0.5);
+		font-size: 0.8rem;
+	}
+
+	.cwc-btn--confirm-no:hover {
+		background: rgba(255, 255, 255, 0.07);
+		color: #f7f2eb;
+	}
+
+	.cwc-confirm__message {
+		margin: 0;
+		font-size: 0.68rem;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		opacity: 0.75;
+		min-height: 1em;
+		color: #fca5a5;
+	}
 </style>
 
 <script>
+	// ── Add Transaction ───────────────────────────────────────────────
 	document.querySelectorAll<HTMLButtonElement>('[data-custom-wallet-add]').forEach((btn) => {
 		btn.addEventListener('click', () => {
 			const walletId = btn.dataset.walletId ?? '';
 			const walletLabel = btn.dataset.walletLabel ?? 'Custom Wallet';
 			document.dispatchEvent(new CustomEvent('open-add-tx', { detail: { walletId, walletLabel } }));
+		});
+	});
+
+	// ── Delete wallet ─────────────────────────────────────────────────
+	document.querySelectorAll<HTMLElement>('.cwc-delete-area').forEach((area) => {
+		const trigger = area.querySelector<HTMLButtonElement>('[data-delete-trigger]');
+		const confirm = area.querySelector<HTMLElement>('[data-delete-confirm]');
+		const input = area.querySelector<HTMLInputElement>('[data-delete-confirm-input]');
+		const yesBtn = area.querySelector<HTMLButtonElement>('[data-delete-yes]');
+		const noBtn = area.querySelector<HTMLButtonElement>('[data-delete-no]');
+		const msgEl = area.querySelector<HTMLElement>('[data-delete-message]');
+		const walletId = trigger?.dataset.walletId ?? '';
+		const walletLabel = (trigger?.dataset.walletLabel ?? '').trim().toLowerCase();
+
+		const setMsg = (text: string) => { if (msgEl) msgEl.textContent = text; };
+
+		// Show confirm panel
+		trigger?.addEventListener('click', () => {
+			trigger.classList.add('is-hidden');
+			confirm?.classList.remove('is-hidden');
+			input?.focus();
+		});
+
+		// Cancel
+		noBtn?.addEventListener('click', () => {
+			confirm?.classList.add('is-hidden');
+			trigger?.classList.remove('is-hidden');
+			if (input) input.value = '';
+			if (yesBtn) yesBtn.disabled = true;
+			setMsg('');
+		});
+
+		// Enable confirm button only when label matches
+		input?.addEventListener('input', () => {
+			const matches = input.value.trim().toLowerCase() === walletLabel;
+			if (yesBtn) yesBtn.disabled = !matches;
+		});
+
+		// Confirm delete
+		yesBtn?.addEventListener('click', async () => {
+			if (!walletId) return;
+			if (yesBtn) yesBtn.disabled = true;
+			setMsg('Deleting…');
+
+			try {
+				const res = await fetch(`/api/wallets/${walletId}`, { method: 'DELETE' });
+				if (!res.ok && res.status !== 204) {
+					const data = await res.json().catch(() => ({}));
+					setMsg(data.message ?? 'Delete failed.');
+					if (yesBtn) yesBtn.disabled = false;
+					return;
+				}
+				setMsg('Deleted — reloading…');
+				window.location.reload();
+			} catch {
+				setMsg('Network error — try again.');
+				if (yesBtn) yesBtn.disabled = false;
+			}
 		});
 	});
 </script>
