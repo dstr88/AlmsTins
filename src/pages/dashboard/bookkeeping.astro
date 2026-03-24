@@ -264,8 +264,8 @@ const kindLabel = (kind: string) =>
     }
 
     .hero-bleed {
-      height: 60vh;
-      min-height: 420px;
+      height: 28vh;
+      min-height: 180px;
       width: 100vw;
       margin-left: 50%;
       transform: translateX(-50%);
@@ -324,18 +324,26 @@ const kindLabel = (kind: string) =>
     }
 
     .grid-cell {
-      min-height: 380px;
+      height: 34vh;
+      min-height: 260px;
+      max-height: 420px;
       display: flex;
       flex-direction: column;
     }
 
     .grid-cell--full {
-      grid-column: 1 / -1; /* span both columns */
-      min-height: 260px;
+      grid-column: 1 / -1;
+      height: 28vh;
+      min-height: 200px;
+      max-height: 320px;
     }
 
     /* ── Tin section variants (accent colours) ─────────────── */
-    :global(.tin-section) { height: 100%; }
+    :global(.tin-section) {
+      height: 100%;
+      min-height: 0;
+      overflow: hidden; /* let body scroll, not the tin frame */
+    }
 
     /* Alert: red label pill */
     :global(.tin-section--alert .ornate-tin__label) {
@@ -549,7 +557,9 @@ const kindLabel = (kind: string) =>
     @media (max-width: 760px) {
       .breakdown-grid { grid-template-columns: 1fr; }
       .grid-cell--full { grid-column: 1; }
-      .hero-bleed { height: 45vh; min-height: 320px; }
+      .hero-bleed { height: 20vh; min-height: 120px; }
+      .grid-cell { height: 50vh; max-height: none; }
+      .grid-cell--full { height: 40vh; max-height: none; }
     }
   </style>
 
