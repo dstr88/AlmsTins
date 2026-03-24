@@ -28,7 +28,7 @@ export function deriveDefaultLabel(address: string): string {
 
 export async function getAllActiveWallets(tenantId: string): Promise<Wallet[]> {
 	const result = await sharedDb.execute({
-		sql: `SELECT id, user_id, tenant_id, address, label, chains, is_default, created_at
+		sql: `SELECT id, user_id, tenant_id, address, label, chains, is_default, created_at, wallet_type
       FROM wallets
       WHERE tenant_id = ?
       ORDER BY is_default DESC, created_at DESC`,
@@ -118,6 +118,7 @@ function transformRow(row: Record<string, any>): Wallet {
 		chains: safeParseChains(row.chains),
 		isDefault: Boolean(row.is_default),
 		createdAt: row.created_at,
+		walletType: (row.wallet_type ?? 'onchain') as 'onchain' | 'custom',
 	};
 }
 
