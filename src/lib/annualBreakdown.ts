@@ -66,6 +66,16 @@ export type IncomeItem = {
   description: string | null;
 };
 
+export type NftHolding = {
+  name: string;
+  symbol: string | null;
+  chain: string;
+  contract: string;
+  tokenId: string;
+  url: string | null;
+  walletId: string;
+};
+
 export type SectionTotals = {
   unsettledProceeds: number;
   shortTermGain: number;
@@ -82,6 +92,7 @@ export type AnnualBreakdown = {
   shortTerm: SettledLot[];
   longTerm: SettledLot[];
   income: IncomeItem[];
+  nftHoldings: NftHolding[];
   totals: SectionTotals;
 };
 
@@ -260,7 +271,69 @@ export async function buildAnnualBreakdown(
                  : null,
     }));
 
-  // ── 4. Available years ────────────────────────────────────────────────────
+  // ── 4. NFT holdings — parse wallet_nft_snapshot, filter spam ────────────
+  const nftHoldings: NftHolding[] = [];
+  try {
+    const nftSnaps = await db.execute({
+      sql: `SELECT wallet_id, payload_json FROM wallet_nft_snapshot WHERE tenant_id = ?`,
+      args: [tenantId],
+    });
+    // Contracts the user has explicitly hidden/blacklisted
+    const hiddenResult = await db.execute({
+      sql: `SELECT contract FROM nft_hidden WHERE tenant_id = ?`,
+      args: [tenantId],
+    });
+    const hiddenContracts = new Set(
+      (hiddenResult.rows as unknown as { contract: string }[]).map((r) =>
+        r.contract.toLowerCase(),
+      ),
+    );
+
+    // Heuristic spam filter — names/symbols with URLs, Telegram links, emoji scams
+    const SPAM_PATTERNS = [
+      /https?:\/\//i,
+      /t\.me\//i,
+      /telegram/i,
+      /claim/i,
+      /voucher/i,
+      /reward/i,
+      /prize/i,
+      /visit/i,
+      /\.lat\b/i,
+      /\.org\b.*earn/i,
+      /fli\.so/i,
+    ];
+    const isSpam = (name: string | null, symbol: string | null) => {
+      const text = `${name ?? ''} ${symbol ?? ''}`;
+      return SPAM_PATTERNS.some((p) => p.test(text));
+    };
+
+    for (const snap of nftSnaps.rows as unknown as { wallet_id: string; payload_json: string }[]) {
+      let payload: { items?: unknown[] } = {};
+      try { payload = JSON.parse(snap.payload_json); } catch { continue; }
+      for (const item of payload.items ?? []) {
+        const i = item as Record<string, unknown>;
+        const contract = toStr(i.contract).toLowerCase();
+        if (hiddenContracts.has(contract)) continue;
+        const name   = typeof i.name   === 'string' ? i.name   : null;
+        const symbol = typeof i.symbol === 'string' ? i.symbol : null;
+        if (isSpam(name, symbol)) continue;
+        nftHoldings.push({
+          name:     name ?? 'Unknown NFT',
+          symbol,
+          chain:    toStr(i.chain),
+          contract: toStr(i.contract),
+          tokenId:  toStr(i.tokenId),
+          url:      typeof i.url === 'string' ? i.url : null,
+          walletId: snap.wallet_id,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[annualBreakdown] NFT fetch failed', e);
+  }
+
+  // ── 5. Available years ────────────────────────────────────────────────────
   const yearsResult = await db.execute({
     sql: `SELECT DISTINCT strftime('%Y', e.timestamp_utc) AS yr
           FROM asset_lifecycle_events e
@@ -298,6 +371,7 @@ export async function buildAnnualBreakdown(
     shortTerm,
     longTerm,
     income,
+    nftHoldings,
     totals,
   };
 }
