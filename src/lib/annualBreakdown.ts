@@ -126,11 +126,12 @@ export async function buildAnnualBreakdown(
 
   // ── 1. Fetch all lifecycle events up to year end ──────────────────────────
   const eventsResult = await db.execute({
-    sql: `SELECT g.asset_symbol AS asset_symbol,
-               e.direction      AS direction,
-               e.amount         AS amount,
-               e.native_usd     AS native_usd,
-               e.timestamp_utc  AS timestamp_utc
+    sql: `SELECT g.asset_symbol    AS asset_symbol,
+               e.direction         AS direction,
+               e.amount            AS amount,
+               e.native_usd        AS native_usd,
+               e.timestamp_utc     AS timestamp_utc,
+               e.transaction_class AS transaction_class
           FROM asset_lifecycle_events e
           LEFT JOIN asset_lifecycle_groups g
             ON g.id = e.group_id AND g.tenant_id = e.tenant_id
@@ -140,8 +141,18 @@ export async function buildAnnualBreakdown(
     args: [tenantId, yearEnd],
   });
 
-  type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown };
-  const events = (eventsResult.rows as unknown as RawEvent[]).filter(Boolean);
+  // Classes that are NOT taxable capital events — skip entirely from FIFO
+  const SKIP_CLASSES = new Set([
+    'liability_increase',    // debt tokens minted when borrowing (e.g. variableDebtPolUSDT)
+    'liability_repayment',   // debt tokens burned when repaying
+    'collateral_deposit',    // collateral posted — not a disposal
+    'collateral_withdrawal', // collateral returned — not an acquisition
+    'interest_income',       // handled separately in the income section
+  ]);
+
+  type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; transaction_class: unknown };
+  const events = (eventsResult.rows as unknown as RawEvent[])
+    .filter((r) => r && !SKIP_CLASSES.has(toStr(r.transaction_class)));
 
   // FIFO state
   type Lot = { amount: number; timestamp: string; costUsd: number | null };
