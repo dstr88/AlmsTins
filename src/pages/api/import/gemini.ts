@@ -71,47 +71,110 @@ const parseCsv = (input: string): CsvRow[] => {
 	}
 
 	if (!rows.length) return [];
+
+	// Gemini CSVs exported from Google Sheets have a title row (e.g. "Untitled spreadsheet - Sheet1")
+	// before the actual headers. Skip any leading rows that aren't real headers
+	// (real header row has "Date" and "Type" as the first two fields).
+	while (rows.length && !(rows[0][0] === 'Date' && rows[0][2] === 'Type')) {
+		rows.shift();
+	}
+
 	const headers = rows.shift() ?? [];
 
 	return rows.map((row) => {
 		const record: CsvRow = {};
 		headers.forEach((header, index) => {
-			record[header] = (row[index] ?? '').trim();
+			// Unnamed columns (extra asset columns Gemini adds but doesn't label)
+			// get synthetic keys so they don't overwrite each other
+			const key = header || `_col_${index}`;
+			record[key] = (row[index] ?? '').trim();
 		});
 		return record;
 	});
 };
 
-const normalizeTimestamp = (value: string) => {
-	if (!value) return '';
-	if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-		return new Date(`${value}T00:00:00Z`).toISOString();
-	}
-	const hasTimezone = /z$|[+-]\d{2}:?\d{2}$/i.test(value);
-	const normalized = hasTimezone ? value : `${value.replace(' ', 'T')}Z`;
-	const date = new Date(normalized);
-	if (Number.isNaN(date.getTime())) return value;
-	return date.toISOString();
+const normalizeTimestamp = (date: string, time: string) => {
+	if (!date) return '';
+	const combined = time ? `${date}T${time}Z` : `${date}T00:00:00Z`;
+	const d = new Date(combined);
+	if (Number.isNaN(d.getTime())) return '';
+	return d.toISOString();
 };
 
-const parseNumber = (value: string | null | undefined) => {
-	if (!value) return null;
-	const cleaned = value.replace(/[$,]/g, '');
+// Parse Gemini amount values which may look like:
+//   "0.0155391 BTC"   → 0.0155391
+//   "(0.0155391 BTC)" → -0.0155391  (parentheses = negative)
+//   "($177.01)"       → -177.01
+//   "$180.00"         → 180.00
+//   "$3,500.00"       → 3500.00
+//   "0.0 BTC"         → 0
+const parseGeminiAmount = (value: string | null | undefined): number | null => {
+	if (!value || value.trim() === '') return null;
+	const isNegative = value.includes('(');
+	// Strip parentheses, $, commas, then strip trailing alpha units (BTC, ETH, LINK, etc.)
+	const cleaned = value
+		.replace(/[()$,]/g, '')
+		.replace(/\s*[A-Z]+\s*$/, '')
+		.trim();
 	const num = Number(cleaned);
-	return Number.isFinite(num) ? num : null;
+	if (!Number.isFinite(num) || cleaned === '') return null;
+	return isNegative ? -Math.abs(num) : Math.abs(num);
 };
 
-const resolveDirection = (kind: string) => {
-	const normalized = kind.toLowerCase();
-	if (normalized.includes('sell')) return 'out' as const;
-	return 'in' as const;
+// Given a trading pair symbol like BTCUSD, ETHUSD, SOLETH, return base + quote
+const splitPair = (symbol: string): { base: string; quote: string } => {
+	const s = symbol.toUpperCase().trim();
+	// Known quote currencies
+	for (const quote of ['USD', 'ETH', 'BTC', 'USDT', 'USDC']) {
+		if (s.endsWith(quote) && s.length > quote.length) {
+			return { base: s.slice(0, -quote.length), quote };
+		}
+	}
+	// Single asset (BTC, ETH, LINK, MATIC, SOL, USD)
+	return { base: s, quote: '' };
 };
 
-const normalizeSymbol = (symbol: string) => {
-	const trimmed = symbol.trim().toUpperCase();
-	if (trimmed.endsWith('USDT')) return trimmed.slice(0, -4);
-	if (trimmed.endsWith('USD')) return trimmed.slice(0, -3);
-	return trimmed;
+// Find the transaction amount for a given asset symbol.
+// Gemini's CSV has one named column "BTC Amount BTC" (col 10), but for non-BTC assets
+// (ETH, SOL, LINK, MATIC) it reuses the same positional slot with the value including
+// the asset name, e.g. "0.028939 ETH". Additional assets are in unnamed extra columns.
+// Strategy: scan all field values for one that ends with the target symbol and is non-zero.
+const getAssetAmount = (row: CsvRow, assetSymbol: string): number | null => {
+	const sym = assetSymbol.toUpperCase();
+	// First try the named column (works for BTC)
+	const namedVal = row[`${sym} Amount ${sym}`];
+	if (namedVal) {
+		const n = parseGeminiAmount(namedVal);
+		if (n !== null) return n;
+	}
+	// Fallback: scan all fields for a value that ends with this symbol
+	// e.g. "0.028939 ETH" or "(0.423628328 SOL)"
+	for (const value of Object.values(row)) {
+		if (!value || value === '0.0' || value === '0') continue;
+		const stripped = value.replace(/[()$, ]/g, '').toUpperCase();
+		if (stripped.endsWith(sym) && /\d/.test(stripped)) {
+			const n = parseGeminiAmount(value);
+			if (n !== null && n !== 0) return n;
+		}
+	}
+	// Last resort: col 10 ("BTC Amount BTC") which Gemini overloads for all assets
+	const btcCol = row['BTC Amount BTC'];
+	if (btcCol) return parseGeminiAmount(btcCol);
+	return null;
+};
+
+// Find a transaction hash anywhere in the row (Gemini shifts columns for non-BTC assets)
+const findTxHash = (row: CsvRow): string | null => {
+	// Try the named column first
+	const named = row['Tx Hash'];
+	if (named && named.length > 20) return named;
+	// Scan all fields for hex hashes (ETH/BTC) or base58 (Solana)
+	for (const value of Object.values(row)) {
+		if (!value) continue;
+		if (/^[a-fA-F0-9]{40,}$/.test(value)) return value;   // ETH/BTC hex
+		if (/^[1-9A-HJ-NP-Za-km-z]{44,}$/.test(value)) return value; // Solana base58
+	}
+	return null;
 };
 
 const buildRowHash = (row: NormalizedRow) => {
@@ -198,35 +261,91 @@ export const POST: APIRoute = async ({ request }) => {
 	let insertedRaw = 0;
 	let insertedNormalized = 0;
 	let skippedDuplicates = 0;
+	let skippedFiat = 0;
 
 	for (const row of rows) {
-		const timestampUtc = normalizeTimestamp(row['Date'] || '');
+		const txType = (row['Type'] || '').trim();      // Credit | Buy | Debit
+		const symbol = (row['Symbol'] || '').trim();    // USD | BTCUSD | BTC | SOLETH | …
+		const spec = (row['Specification'] || '').trim();
+		const txHash = findTxHash(row);
+
+		// Skip pure fiat rows — USD deposits/withdrawals are not crypto events
+		if (symbol === 'USD') {
+			skippedFiat += 1;
+			continue;
+		}
+
+		const timestampUtc = normalizeTimestamp(row['Date'] || '', row['Time (UTC)'] || '');
 		if (!timestampUtc) continue;
-		const kind = row['Type'] || '';
-		const direction = resolveDirection(kind);
-		const quantity = parseNumber(row['Amount']);
-		const signedAmount =
-			quantity === null ? null : direction === 'out' ? -Math.abs(quantity) : Math.abs(quantity);
-		const totalUsd = parseNumber(row['Total']);
-		const assetSymbol = normalizeSymbol(row['Symbol'] || '');
-		const normalized: NormalizedRow = {
+
+		const { base, quote } = splitPair(symbol);
+		// USD Amount column — skip if it contains a crypto symbol (some rows misplace crypto amounts here)
+		const rawUsdAmount = row['USD Amount USD'] || '';
+		const usdAmount = /[A-Za-z]{2,}/.test(rawUsdAmount) ? null : parseGeminiAmount(rawUsdAmount);
+		const feeUsd = parseGeminiAmount(row['Fee (USD) USD']);
+
+		let kind: string;
+		let direction: 'in' | 'out';
+		let currency: string;
+		let amount: number | null;
+		let toCurrency = '';
+		let toAmount: number | null = null;
+		let nativeUsd: number | null = null;
+
+		if (txType === 'Buy') {
+			// Buying base asset with quote (USD or ETH)
+			const baseAmt = getAssetAmount(row, base);
+
+			if (quote === 'USD') {
+				// Standard fiat purchase — e.g. BTCUSD, ETHUSD, LINKUSD, MATICUSD
+				kind = 'crypto_purchase';
+				direction = 'in';
+				currency = base;
+				amount = baseAmt !== null ? Math.abs(baseAmt) : null;
+				nativeUsd = usdAmount !== null ? Math.abs(usdAmount) : null;
+			} else {
+				// Crypto-to-crypto swap — e.g. SOLETH (pay ETH, receive SOL)
+				const quoteAmt = getAssetAmount(row, quote);
+				kind = 'crypto_exchange';
+				direction = 'in';
+				currency = base;
+				amount = baseAmt !== null ? Math.abs(baseAmt) : null;
+				toCurrency = quote;
+				toAmount = quoteAmt !== null ? -Math.abs(quoteAmt) : null; // ETH spent (negative)
+				nativeUsd = usdAmount !== null ? Math.abs(usdAmount) : null;
+			}
+		} else if (txType === 'Debit') {
+			// Withdrawal of crypto to external address
+			const assetAmt = getAssetAmount(row, base);
+			kind = 'crypto_withdrawal';
+			direction = 'out';
+			currency = base;
+			amount = assetAmt !== null ? -Math.abs(assetAmt) : null;
+			nativeUsd = usdAmount !== null ? Math.abs(usdAmount) : null;
+		} else {
+			// Unknown type — skip
+			continue;
+		}
+
+		const normalizedRow: NormalizedRow = {
 			timestampUtc,
-			description: row['Type'] || '',
-			currency: assetSymbol,
-			amount: signedAmount,
-			toCurrency: '',
-			toAmount: null,
-			nativeCurrency: row['Fee Currency'] || 'USD',
-			nativeAmount: totalUsd,
-			nativeUsd: totalUsd,
-			kind: kind,
-			txHash: null,
+			description: spec || txType,
+			currency,
+			amount,
+			toCurrency,
+			toAmount,
+			nativeCurrency: 'USD',
+			nativeAmount: nativeUsd,
+			nativeUsd,
+			kind,
+			txHash,
 			direction,
-			assetSymbol: assetSymbol || null,
+			assetSymbol: currency || null,
 		};
 
-		const rowHash = buildRowHash(normalized);
-		const groupId = buildGroupId('gemini', normalized.assetSymbol, normalized.timestampUtc);
+		const rowHash = buildRowHash(normalizedRow);
+		const groupId = buildGroupId('gemini', normalizedRow.assetSymbol, normalizedRow.timestampUtc);
+
 		const rawResult = await db.execute({
 			sql: `INSERT OR IGNORE INTO import_raw_rows
 				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
@@ -245,29 +364,31 @@ export const POST: APIRoute = async ({ request }) => {
 		const normalizedResult = await db.execute({
 			sql: `INSERT OR IGNORE INTO import_transactions
 				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
-				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash,
+				fee_usd, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 			args: [
 				randomUUID(),
 				tenantId,
 				'gemini',
 				resolvedAccountId,
 				batchId,
-				normalized.timestampUtc,
-				normalized.description || null,
-				normalized.currency || null,
-				normalized.amount,
-				normalized.toCurrency || null,
-				normalized.toAmount,
-				normalized.nativeCurrency || null,
-				normalized.nativeAmount,
-				normalized.nativeUsd,
-				normalized.kind || null,
-				normalized.txHash,
-				normalized.direction,
-				normalized.assetSymbol,
+				normalizedRow.timestampUtc,
+				normalizedRow.description || null,
+				normalizedRow.currency || null,
+				normalizedRow.amount,
+				normalizedRow.toCurrency || null,
+				normalizedRow.toAmount,
+				normalizedRow.nativeCurrency || null,
+				normalizedRow.nativeAmount,
+				normalizedRow.nativeUsd,
+				normalizedRow.kind || null,
+				normalizedRow.txHash,
+				normalizedRow.direction,
+				normalizedRow.assetSymbol,
 				groupId,
 				rowHash,
+				feeUsd !== null ? Math.abs(feeUsd) : null,
 			],
 		});
 
@@ -285,7 +406,8 @@ export const POST: APIRoute = async ({ request }) => {
 			insertedRaw,
 			insertedNormalized,
 			skippedDuplicates,
+			skippedFiat,
 		}),
-		{ status: 200, headers: { 'Content-Type': 'application/json' } }
+		{ status: 200, headers: { 'Content-Type': 'application/json' } },
 	);
 };
