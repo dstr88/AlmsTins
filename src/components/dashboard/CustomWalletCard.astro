@@ -1,5 +1,6 @@
 ---
 import type { Wallet } from '@/lib/wallets';
+import { db } from '@/lib/db';
 
 interface Props {
 	wallet: Wallet;
@@ -12,6 +13,34 @@ const hasRealAddress = wallet.address && !wallet.address.startsWith('custom_');
 const shortAddress = hasRealAddress
 	? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
 	: null;
+
+// Load transactions for this wallet
+type TxRow = { id: string; token_symbol: string | null; tx_type: string | null; timestamp: string | null; metadata_json: string | null };
+let transactions: TxRow[] = [];
+try {
+	const res = await db.execute({
+		sql: `SELECT id, token_symbol, tx_type, timestamp, metadata_json
+		      FROM transactions
+		      WHERE wallet_id = ?
+		        AND metadata_json LIKE '%"isCustomEntry":true%'
+		      ORDER BY timestamp DESC`,
+		args: [wallet.id],
+	});
+	transactions = res.rows as unknown as TxRow[];
+} catch { /* non-fatal */ }
+
+const fDate = (iso: string | null) => {
+	if (!iso) return '—';
+	try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+	catch { return iso; }
+};
+const fUsd = (v: number | null) => {
+	if (v == null || !Number.isFinite(v)) return null;
+	return `$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+const parseMeta = (raw: string | null) => {
+	try { return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+};
 ---
 
 <div class="custom-wallet-card">
@@ -40,10 +69,30 @@ const shortAddress = hasRealAddress
 		</button>
 	</div>
 
-	<p class="cwc-tx-count" data-tx-count={wallet.id}>
-		<span class="cwc-tx-count__value">—</span>
-		<span class="cwc-tx-count__label">transactions</span>
+	<p class="cwc-tx-count">
+		<span class="cwc-tx-count__value">{transactions.length}</span>
+		<span class="cwc-tx-count__label">{transactions.length === 1 ? 'transaction' : 'transactions'}</span>
 	</p>
+
+	{transactions.length > 0 && (
+		<div class="cwc-tx-list">
+			{transactions.map((tx) => {
+				const meta = parseMeta(tx.metadata_json);
+				const isOut = meta.direction === 'out' || tx.tx_type === 'sell' || tx.tx_type === 'transfer';
+				const usd = fUsd(meta.usdValue ?? null);
+				return (
+					<div class={`cwc-tx-row ${isOut ? 'cwc-tx-row--out' : 'cwc-tx-row--in'}`}>
+						<span class="cwc-tx-row__dot"></span>
+						<span class="cwc-tx-row__kind">{tx.tx_type ?? '—'}</span>
+						<span class="cwc-tx-row__asset">{tx.token_symbol ?? '—'}</span>
+						<span class="cwc-tx-row__amount">{meta.amount ?? '—'}</span>
+						{usd && <span class="cwc-tx-row__usd">{usd}</span>}
+						<span class="cwc-tx-row__date">{fDate(tx.timestamp)}</span>
+					</div>
+				);
+			})}
+		</div>
+	)}
 
 	<!-- Delete area -->
 	<div class="cwc-delete-area">
@@ -170,6 +219,52 @@ const shortAddress = hasRealAddress
 		font-variant-numeric: tabular-nums;
 		margin-right: 0.2rem;
 	}
+
+	/* Transaction list */
+	.cwc-tx-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		max-height: 160px;
+		overflow-y: auto;
+		scrollbar-width: thin;
+		scrollbar-color: rgba(96,165,250,0.25) transparent;
+	}
+
+	.cwc-tx-row {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.76rem;
+		padding: 0.3rem 0.5rem;
+		border-radius: 6px;
+		background: rgba(255,255,255,0.04);
+		flex-wrap: wrap;
+	}
+
+	.cwc-tx-row__dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+	.cwc-tx-row--in  .cwc-tx-row__dot { background: #4ade80; }
+	.cwc-tx-row--out .cwc-tx-row__dot { background: #f87171; }
+
+	.cwc-tx-row__kind {
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		font-size: 0.7rem;
+		min-width: 2.5rem;
+	}
+	.cwc-tx-row--in  .cwc-tx-row__kind { color: #86efac; }
+	.cwc-tx-row--out .cwc-tx-row__kind { color: #fca5a5; }
+
+	.cwc-tx-row__asset  { font-weight: 700; letter-spacing: 0.04em; }
+	.cwc-tx-row__amount { font-variant-numeric: tabular-nums; opacity: 0.7; }
+	.cwc-tx-row__usd    { opacity: 0.65; margin-left: auto; }
+	.cwc-tx-row__date   { opacity: 0.45; font-size: 0.7rem; }
 
 	/* Delete area */
 	.cwc-delete-area {

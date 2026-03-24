@@ -150,9 +150,43 @@ export async function buildAnnualBreakdown(
     'interest_income',       // handled separately in the income section
   ]);
 
+  // ── 1b. Custom wallet manual transactions ────────────────────────────────
+  // Stored in `transactions` table with metadata_json containing isCustomEntry:true
+  const customTxResult = await db.execute({
+    sql: `SELECT token_symbol, tx_type, timestamp, metadata_json
+          FROM transactions
+          WHERE tenant_id = ?
+            AND timestamp <= ?
+            AND metadata_json LIKE '%"isCustomEntry":true%'
+          ORDER BY timestamp ASC`,
+    args: [tenantId, yearEnd],
+  });
+
+  type RawCustomTx = { token_symbol: unknown; tx_type: unknown; timestamp: unknown; metadata_json: unknown };
+  const customEvents = (customTxResult.rows as unknown as RawCustomTx[]).flatMap((r) => {
+    try {
+      const meta      = JSON.parse(toStr(r.metadata_json));
+      const direction = meta.direction === 'out' ? 'out' : 'in';
+      const amount    = Number(meta.amount ?? 0);
+      const nativeUsd = typeof meta.usdValue === 'number' ? meta.usdValue : null;
+      if (!amount) return [];
+      return [{
+        asset_symbol:      toStr(r.token_symbol).toUpperCase(),
+        direction,
+        amount,
+        native_usd:        nativeUsd,
+        timestamp_utc:     toStr(r.timestamp),
+        transaction_class: 'owned_acquisition',
+      }];
+    } catch { return []; }
+  });
+
   type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; transaction_class: unknown };
-  const events = (eventsResult.rows as unknown as RawEvent[])
-    .filter((r) => r && !SKIP_CLASSES.has(toStr(r.transaction_class)));
+  const events = [
+    ...(eventsResult.rows as unknown as RawEvent[])
+      .filter((r) => r && !SKIP_CLASSES.has(toStr(r.transaction_class))),
+    ...customEvents,
+  ].sort((a, b) => toStr(a.timestamp_utc).localeCompare(toStr(b.timestamp_utc)));
 
   // FIFO state
   type Lot = { amount: number; timestamp: string; costUsd: number | null };

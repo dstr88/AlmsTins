@@ -158,7 +158,10 @@ export const POST: APIRoute = async ({ request, params }) => {
 			return respond({ error: true, message: 'A positive amount is required.' }, 400);
 		}
 
-		const direction: 'in' | 'out' = body.direction === 'out' ? 'out' : 'in';
+		// Auto-derive direction from kind so sell always = out, buy always = in
+	let direction: 'in' | 'out' = body.direction === 'out' ? 'out' : 'in';
+	if (kind === 'sell' || kind === 'outbound') direction = 'out';
+	if (kind === 'buy'  || kind === 'inbound')  direction = 'in';
 		const usdValue = typeof body.usdValue === 'number' ? body.usdValue : null;
 		const chain = SUPPORTED_CHAINS.includes(body.chain) ? (body.chain as Chain) : 'custom';
 
