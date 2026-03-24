@@ -2,196 +2,265 @@
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import OrnateTin from '@/components/OrnatedTin.astro';
-
-import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.astro';
 import { requireTenantSession } from '../../lib/requireTenantSession';
-import { buildTaxLotsByYear } from '../../lib/bookkeepingTaxLots';
+import { buildAnnualBreakdown } from '../../lib/annualBreakdown';
 
-const pageStart = Date.now();
 const { tenantId } = await requireTenantSession(Astro.request);
-console.log('[bookkeeping] auth ms', Date.now() - pageStart, 'tenant', tenantId);
-console.log('[bookkeeping] total ms', Date.now() - pageStart);
 
-const formatDate = (value: string | null) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+// Year selector — default to last year
+const currentYear = new Date().getFullYear();
+const defaultYear = currentYear - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const selectedYear = yearParam ? Number(yearParam) : defaultYear;
+
+const bd = await buildAnnualBreakdown(tenantId, selectedYear);
+
+// ── Formatters ──────────────────────────────────────────────────────────────
+const fDate = (iso: string | null) => {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch { return iso; }
 };
-
-const formatAmount = (value: number) =>
-  Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—';
-
-const formatUsd = (value: number | null | undefined) =>
-  Number.isFinite(Number(value))
-    ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-    : '—';
-
-const { taxLotsByYear, taxYears } = await buildTaxLotsByYear(tenantId);
-
-// Fetch per-asset cost basis summary from exchange imports
-type CostBasisAsset = {
-  symbol: string;
-  totalAcquired: number;
-  totalCostUsd: number;
-  totalDisposed: number;
-  totalProceedsUsd: number;
-  netQtyHeld: number;
-  avgCostPerUnit: number;
-  totalCostBasis: number;
-  realizedGain: number | null;
-  buyCount: number;
-  sellCount: number;
-  firstBuyDate: string | null;
+const fQty = (v: number) =>
+  Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: 6 }) : '—';
+const fUsd = (v: number | null) => {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const sign = v < 0 ? '-' : '';
+  return `${sign}$${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
-
-let costBasisAssets: CostBasisAsset[] = [];
-try {
-  const cbRes = await fetch(new URL('/api/tax/cost-basis', Astro.url), {
-    headers: { cookie: Astro.request.headers.get('cookie') ?? '' },
-  });
-  if (cbRes.ok) {
-    const cbData = await cbRes.json();
-    costBasisAssets = cbData.assets ?? [];
-  }
-} catch (e) {
-  console.warn('[bookkeeping] cost-basis fetch failed', e);
-}
-
-const formatQty = (value: number) =>
-  Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 8 }) : '—';
-
-const formatGain = (value: number | null) => {
-  if (value === null || !Number.isFinite(value)) return null;
-  const sign = value >= 0 ? '+' : '';
-  return `${sign}$${Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+const fGain = (v: number | null) => {
+  if (v == null || !Number.isFinite(v)) return { text: '—', cls: '' };
+  const sign = v >= 0 ? '+' : '-';
+  return {
+    text: `${sign}$${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    cls: v >= 0 ? 'gain-pos' : 'gain-neg',
+  };
 };
+const csvBase = (section: string) =>
+  `/api/tax/breakdown-csv?year=${selectedYear}&section=${section}`;
 
+const kindLabel = (kind: string) =>
+  kind
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/Crypto/g, 'Crypto')
+    .trim();
 ---
 
 <Layout title="Bookkeeping">
   <section class="bookkeeping-page">
     <div class="hero-bleed">
-      <NetWorthHero title="Bookkeeping" subtitle="Transactions and tax lots" />
+      <NetWorthHero title="Bookkeeping" subtitle="Annual tax breakdown" />
     </div>
 
-    <section class="two-tins">
-      <!-- LEFT: All wallet transactions -->
-      <div class="tin-col tin-col--tx">
-        <OrnateTin label="All Transactions" class="tin-full">
-          <!-- Duplicate sweep banner -->
-          <div class="dedup-banner" id="dedup-banner">
-            <span class="dedup-banner__text">
-              Run a duplicate sweep to remove cross-source duplicates before reviewing transactions.
-            </span>
-            <button type="button" id="dedup-run" class="dedup-banner__btn">
-              🔍 Run Duplicate Sweep
-            </button>
-            <span class="dedup-banner__status" id="dedup-status"></span>
-          </div>
-          <Tin0AllTransactions />
-        </OrnateTin>
+    <!-- ══ Year Selector ════════════════════════════════════════════════════ -->
+    <div class="year-bar">
+      <span class="year-bar__label">Tax Year</span>
+      <div class="year-bar__pills">
+        {bd.availableYears.map((y) => (
+          <a
+            href={`/dashboard/bookkeeping?year=${y}`}
+            class={`year-pill ${y === selectedYear ? 'year-pill--active' : ''}`}
+          >
+            {y}
+          </a>
+        ))}
       </div>
+    </div>
 
-      <!-- RIGHT: Tax events by year -->
-      <div class="tin-col tin-col--recap">
-        <OrnateTin label="Annual Recap" class="tin-full">
-          <div class="tax-head">
-            <h2 class="column-title">Annual Recap</h2>
+    <!-- ══ 2×2 Grid + Full-Width Income ═════════════════════════════════════ -->
+    <div class="breakdown-grid">
+
+      <!-- 🔴 1. Needs Attention -->
+      <div class="grid-cell">
+        <OrnateTin label="⚠ Needs Attention" class="tin-section tin-section--alert">
+          <div class="tin-toolbar">
+            <span class="tin-toolbar__count">{bd.needsAttention.length} items</span>
+            <a href={csvBase('needsAttention')} download class="tin-csv-btn">↓ CSV</a>
           </div>
-
-          {taxYears.length === 0 ? (
-            <p class="tax-empty">No tax lots available yet.</p>
+          <div class="tin-total tin-total--warn">
+            Untraced proceeds: <strong>{fUsd(bd.totals.unsettledProceeds)}</strong>
+          </div>
+          {bd.needsAttention.length === 0 ? (
+            <p class="tin-empty">✓ No orphaned sales for {selectedYear}</p>
           ) : (
-            taxYears.map((year) => (
-              <div class="year-group">
-                <h3 class="year-header">
-                  <span class="year-label">{year}</span>
-                  <a
-                    href={`/api/tax-csv?year=${year}&walletId=fa58b&tenantId=${tenantId}`}
-                    class="csv-download-btn csv-download-inline"
-                    download
-                  >
-                    Export CSV
-                  </a>
-                </h3>
-
-                <div class="year-divider"></div>
-
-                <div class="tax-events-list">
-                  {taxLotsByYear[year].map((lot) => (
-                    <div class="tax-event">
-                      <strong>{lot.asset}</strong> • Buy {formatDate(lot.buyDate)} • Sell{' '}
-                      {formatDate(lot.sellDate)} • Qty {formatAmount(lot.amount)}
-                      {lot.buyUsd || lot.sellUsd ? (
-                        <span class="tax-event__sub">
-                          Cost {formatUsd(lot.buyUsd)} • Proceeds {formatUsd(lot.sellUsd)}
-                        </span>
-                      ) : null}
-                    </div>
-                  ))}
+            <div class="tin-rows">
+              {bd.needsAttention.map((item) => (
+                <div class="tin-row tin-row--alert">
+                  <span class="tin-row__asset">{item.asset}</span>
+                  <span class="tin-row__qty">{fQty(item.amount)}</span>
+                  <span class="tin-row__date">{fDate(item.sellDate)}</span>
+                  <span class="tin-row__usd">{fUsd(item.proceedsUsd)}</span>
+                  <span class="tin-row__note">No purchase found</span>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </OrnateTin>
       </div>
-    </section>
 
-    <!-- COST BASIS SUMMARY -->
-    <section class="cost-basis-section">
-      <OrnateTin label="Cost Basis Summary" class="cost-basis-tin">
-        <div class="cb-header">
-          <h2 class="column-title">Cost Basis Summary</h2>
-          <p class="cb-note">Weighted-average cost method &bull; Exchange CSV imports only</p>
-        </div>
-
-        {costBasisAssets.length === 0 ? (
-          <p class="cb-empty">No cost basis data yet. Import exchange CSVs to populate this table.</p>
-        ) : (
-          <div class="cb-table-wrap">
-            <table class="cb-table">
-              <thead>
-                <tr>
-                  <th>Asset</th>
-                  <th class="num">Qty Held</th>
-                  <th class="num">Avg Cost/Unit</th>
-                  <th class="num">Total Cost Basis</th>
-                  <th class="num">Total Proceeds</th>
-                  <th class="num">Realized Gain/Loss</th>
-                  <th class="num">First Purchase</th>
-                </tr>
-              </thead>
-              <tbody>
-                {costBasisAssets.map((a) => {
-                  const gainStr = formatGain(a.realizedGain);
-                  const gainClass = a.realizedGain === null ? '' : a.realizedGain >= 0 ? 'gain-pos' : 'gain-neg';
-                  return (
-                    <tr>
-                      <td class="asset-symbol">{a.symbol}</td>
-                      <td class="num">{formatQty(a.netQtyHeld)}</td>
-                      <td class="num">{formatUsd(a.avgCostPerUnit)}</td>
-                      <td class="num">{formatUsd(a.totalCostBasis)}</td>
-                      <td class="num">{a.sellCount > 0 ? formatUsd(a.totalProceedsUsd) : '—'}</td>
-                      <td class={`num ${gainClass}`}>{gainStr ?? '—'}</td>
-                      <td class="num date-col">{formatDate(a.firstBuyDate)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <!-- 💼 2. Still in Wallet -->
+      <div class="grid-cell">
+        <OrnateTin label="💼 Still in Wallet" class="tin-section tin-section--hold">
+          <div class="tin-toolbar">
+            <span class="tin-toolbar__count">{bd.stillHolding.length} positions</span>
+            <a href={csvBase('stillHolding')} download class="tin-csv-btn">↓ CSV</a>
           </div>
-        )}
-      </OrnateTin>
-    </section>
+          <div class="tin-total">
+            Cost basis held: <strong>{fUsd(bd.totals.heldCostBasis)}</strong>
+          </div>
+          {bd.stillHolding.length === 0 ? (
+            <p class="tin-empty">No open positions</p>
+          ) : (
+            <div class="tin-rows">
+              {bd.stillHolding.map((pos) => (
+                <div class="tin-row">
+                  <span class="tin-row__asset">{pos.asset}</span>
+                  <span class="tin-row__qty">{fQty(pos.amount)}</span>
+                  <span class="tin-row__date">Since {fDate(pos.acquiredDate)}</span>
+                  <span class="tin-row__usd">{fUsd(pos.costUsd)}</span>
+                  <span class={`tin-row__term ${pos.daysHeld >= 365 ? 'term-long' : 'term-short'}`}>
+                    {pos.daysHeld >= 365 ? 'Long' : 'Short'} · {pos.daysHeld}d
+                  </span>
+                  <label class="tin-row__confirm">
+                    <input type="checkbox" class="confirm-check" data-asset={pos.asset} data-date={pos.acquiredDate} />
+                    <span class="confirm-label">Confirmed</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
+        </OrnateTin>
+      </div>
+
+      <!-- 🟠 3. Short-Term Gains / Losses -->
+      <div class="grid-cell">
+        <OrnateTin label="🟠 Short-Term G/L" class="tin-section tin-section--short">
+          <div class="tin-toolbar">
+            <span class="tin-toolbar__count">{bd.shortTerm.length} lots</span>
+            <a href={csvBase('shortTerm')} download class="tin-csv-btn">↓ CSV</a>
+          </div>
+          {(() => {
+            const g = fGain(bd.totals.shortTermGain);
+            return (
+              <div class={`tin-total ${g.cls}`}>
+                Net short-term: <strong>{g.text}</strong>
+                <span class="tin-total__note">taxed as ordinary income</span>
+              </div>
+            );
+          })()}
+          {bd.shortTerm.length === 0 ? (
+            <p class="tin-empty">No short-term disposals in {selectedYear}</p>
+          ) : (
+            <div class="tin-rows">
+              {bd.shortTerm.map((lot) => {
+                const g = fGain(lot.gainLossUsd);
+                return (
+                  <div class="tin-row">
+                    <span class="tin-row__asset">{lot.asset}</span>
+                    <span class="tin-row__qty">{fQty(lot.amount)}</span>
+                    <div class="tin-row__dates">
+                      <span>{fDate(lot.buyDate)}</span>
+                      <span class="tin-row__arrow">→</span>
+                      <span>{fDate(lot.sellDate)}</span>
+                      <span class="tin-row__days">{lot.daysHeld}d</span>
+                    </div>
+                    <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
+                    <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
+                    <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </OrnateTin>
+      </div>
+
+      <!-- 🟢 4. Long-Term Gains / Losses -->
+      <div class="grid-cell">
+        <OrnateTin label="🟢 Long-Term G/L" class="tin-section tin-section--long">
+          <div class="tin-toolbar">
+            <span class="tin-toolbar__count">{bd.longTerm.length} lots</span>
+            <a href={csvBase('longTerm')} download class="tin-csv-btn">↓ CSV</a>
+          </div>
+          {(() => {
+            const g = fGain(bd.totals.longTermGain);
+            return (
+              <div class={`tin-total ${g.cls}`}>
+                Net long-term: <strong>{g.text}</strong>
+                <span class="tin-total__note">preferential rate</span>
+              </div>
+            );
+          })()}
+          {bd.longTerm.length === 0 ? (
+            <p class="tin-empty">No long-term disposals in {selectedYear}</p>
+          ) : (
+            <div class="tin-rows">
+              {bd.longTerm.map((lot) => {
+                const g = fGain(lot.gainLossUsd);
+                return (
+                  <div class="tin-row">
+                    <span class="tin-row__asset">{lot.asset}</span>
+                    <span class="tin-row__qty">{fQty(lot.amount)}</span>
+                    <div class="tin-row__dates">
+                      <span>{fDate(lot.buyDate)}</span>
+                      <span class="tin-row__arrow">→</span>
+                      <span>{fDate(lot.sellDate)}</span>
+                      <span class="tin-row__days">{lot.daysHeld}d</span>
+                    </div>
+                    <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
+                    <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
+                    <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </OrnateTin>
+      </div>
+
+      <!-- 💰 5. Income & Fees — full width -->
+      <div class="grid-cell grid-cell--full">
+        <OrnateTin label="💰 Income — Interest, Staking & Rewards" class="tin-section tin-section--income">
+          <div class="tin-toolbar">
+            <span class="tin-toolbar__count">{bd.income.length} items</span>
+            <a href={csvBase('income')} download class="tin-csv-btn">↓ CSV</a>
+          </div>
+          <div class="tin-total">
+            Total ordinary income: <strong>{fUsd(bd.totals.totalIncome)}</strong>
+          </div>
+          {bd.income.length === 0 ? (
+            <p class="tin-empty">No income events in {selectedYear}</p>
+          ) : (
+            <div class="tin-rows tin-rows--income">
+              {bd.income.map((item) => (
+                <div class="tin-row tin-row--income">
+                  <span class="tin-row__asset">{item.asset}</span>
+                  <span class="tin-row__qty">{fQty(item.amount)}</span>
+                  <span class="tin-row__date">{fDate(item.date)}</span>
+                  <span class="tin-row__usd">{fUsd(item.usdValue)}</span>
+                  <span class="tin-row__kind">{kindLabel(item.kind)}</span>
+                  {item.description && (
+                    <span class="tin-row__note">{item.description}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </OrnateTin>
+      </div>
+
+    </div><!-- /breakdown-grid -->
   </section>
 
   <style>
+    /* ── Page shell ─────────────────────────────────────────── */
     .bookkeeping-page {
       display: flex;
       flex-direction: column;
       gap: 2rem;
-      padding: 1rem 0 2rem;
+      padding: 1rem 0 3rem;
     }
 
     .hero-bleed {
@@ -200,367 +269,303 @@ const formatGain = (value: number | null) => {
       width: 100vw;
       margin-left: 50%;
       transform: translateX(-50%);
-      padding: 0;
-      max-width: none;
       display: flex;
       align-items: stretch;
     }
+    .hero-bleed :global(.hero) { width: 100%; }
 
-    .hero-bleed :global(.hero) {
-      width: 100%;
-    }
-
-    /* === Two equal tins, identical height === */
-    .two-tins {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 3rem;
-      align-items: stretch;
-      width: 100%;
+    /* ── Year selector bar ─────────────────────────────────── */
+    .year-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
       max-width: calc(100% - 6rem);
-      margin: 0 auto 2rem;
+      margin: 0 auto;
+      flex-wrap: wrap;
+    }
+    .year-bar__label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.55;
+    }
+    .year-bar__pills {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .year-pill {
+      display: inline-block;
+      padding: 0.35rem 0.9rem;
+      border-radius: 20px;
+      border: 1px solid rgba(250,128,114,0.4);
+      color: rgba(250,128,114,0.85);
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .year-pill:hover { background: rgba(250,128,114,0.1); }
+    .year-pill--active {
+      background: rgba(250,128,114,0.9);
+      color: #0b0f1a;
+      border-color: transparent;
     }
 
-    .tin-col {
-      height: 72vh;
-      max-height: 72vh;
-      min-width: 0;
+    /* ── 2×2 + full-width grid ─────────────────────────────── */
+    .breakdown-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto auto;
+      gap: 2rem;
+      max-width: calc(100% - 6rem);
+      margin: 0 auto;
+    }
 
-      /* Critical: allow the child tin to become the scroll container */
+    .grid-cell {
+      min-height: 380px;
       display: flex;
       flex-direction: column;
-      min-height: 0;
     }
 
-    .two-tins > .tin-col {
-      min-height: 0;
+    .grid-cell--full {
+      grid-column: 1 / -1; /* span both columns */
+      min-height: 260px;
     }
 
-    /* Make the tin fill the column */
-    .tin-full {
-      height: 100%;
-      min-height: 0;
+    /* ── Tin section variants (accent colours) ─────────────── */
+    :global(.tin-section) { height: 100%; }
+
+    /* Alert: red label pill */
+    :global(.tin-section--alert .ornate-tin__label) {
+      background: linear-gradient(180deg, #ef4444cc, #ef444490) !important;
+      color: #fff !important;
+    }
+    :global(.tin-section--alert::before) {
+      box-shadow:
+        0 0 0 2px rgba(239,68,68,0.8) inset,
+        0 0 0 8px rgba(239,68,68,0.08) inset,
+        0 0 0 1px rgba(255,255,255,0.06) inset !important;
+    }
+    :global(.tin-section--alert::after) {
+      border-color: rgba(239,68,68,0.55) !important;
     }
 
-    /* LEFT COLUMN: single unified scroll container */
-    .tin-col--tx :global(.ornate-tin__body) {
-      overflow-y: auto !important;
-      overflow-x: hidden !important;
+    /* Hold: blue accent */
+    :global(.tin-section--hold .ornate-tin__label) {
+      background: linear-gradient(180deg, #3b82f6cc, #3b82f690) !important;
+      color: #fff !important;
+    }
+    :global(.tin-section--hold::before) {
+      box-shadow:
+        0 0 0 2px rgba(59,130,246,0.8) inset,
+        0 0 0 8px rgba(59,130,246,0.08) inset,
+        0 0 0 1px rgba(255,255,255,0.06) inset !important;
+    }
+    :global(.tin-section--hold::after) {
+      border-color: rgba(59,130,246,0.55) !important;
     }
 
-    /* Let Tin0 expand normally inside the scroll container */
-    .tin-col--tx :global(.tin0-all),
-    .tin-col--tx :global(.tin0-all__inner) {
-      height: auto !important;
-      min-height: 0 !important;
-      overflow: visible !important;
+    /* Short-term: amber */
+    :global(.tin-section--short .ornate-tin__label) {
+      background: linear-gradient(180deg, #f59e0bcc, #f59e0b90) !important;
+      color: #0b0f1a !important;
+    }
+    :global(.tin-section--short::before) {
+      box-shadow:
+        0 0 0 2px rgba(245,158,11,0.8) inset,
+        0 0 0 8px rgba(245,158,11,0.08) inset,
+        0 0 0 1px rgba(255,255,255,0.06) inset !important;
+    }
+    :global(.tin-section--short::after) {
+      border-color: rgba(245,158,11,0.55) !important;
     }
 
-    /* Disable nested scrolling regions */
-    .tin-col--tx :global(.tin0-all__lifecycles),
-    .tin-col--tx :global(.tin0-all__list) {
-      max-height: none !important;
-      height: auto !important;
-      overflow: visible !important;
+    /* Long-term: green */
+    :global(.tin-section--long .ornate-tin__label) {
+      background: linear-gradient(180deg, #22c55ecc, #22c55e90) !important;
+      color: #0b0f1a !important;
+    }
+    :global(.tin-section--long::before) {
+      box-shadow:
+        0 0 0 2px rgba(34,197,94,0.8) inset,
+        0 0 0 8px rgba(34,197,94,0.08) inset,
+        0 0 0 1px rgba(255,255,255,0.06) inset !important;
+    }
+    :global(.tin-section--long::after) {
+      border-color: rgba(34,197,94,0.55) !important;
     }
 
-    /* === Right tin content styling === */
-    .tax-head {
-      padding-bottom: 0.75rem;
+    /* Income: purple */
+    :global(.tin-section--income .ornate-tin__label) {
+      background: linear-gradient(180deg, #a855f7cc, #a855f790) !important;
+      color: #fff !important;
+    }
+    :global(.tin-section--income::before) {
+      box-shadow:
+        0 0 0 2px rgba(168,85,247,0.8) inset,
+        0 0 0 8px rgba(168,85,247,0.08) inset,
+        0 0 0 1px rgba(255,255,255,0.06) inset !important;
+    }
+    :global(.tin-section--income::after) {
+      border-color: rgba(168,85,247,0.55) !important;
     }
 
-    .column-title {
-      font-size: 1.35rem;
-      margin: 0 0 0.75rem;
-      font-weight: 650;
-    }
-
-    /* Right column: center Annual Recap labels and keep them fixed */
-    .tin-col--recap :global(.ornate-tin__label) {
-      left: 50% !important;
-      transform: translateX(-50%);
-      text-align: center;
-      z-index: 1;
-    }
-
-    .tin-col--recap .tax-head {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      text-align: center;
-      background: darkslategray;
-      padding-top: 0.35rem;
-    }
-
-    .year-group {
-      margin-bottom: 2.5rem;
-    }
-    .year-group:last-child {
-      margin-bottom: 0;
-    }
-
-    .year-header {
+    /* ── Toolbar (count + CSV button) ──────────────────────── */
+    .tin-toolbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      margin: 0 0 0.75rem;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
-
-    .year-label {
+    .tin-toolbar__count {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      opacity: 0.5;
+    }
+    .tin-csv-btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.6rem;
-      font-size: 1.15rem;
-      font-weight: 650;
-    }
-
-    .year-divider {
-      height: 1px;
-      background: linear-gradient(
-        to right,
-        transparent,
-        rgba(255, 255, 255, 0.3),
-        transparent
-      );
-      margin-bottom: 1rem;
-    }
-
-    .tax-events-list {
-      margin-bottom: 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-
-    .tax-event {
-      padding: 0.6rem 0.9rem;
-      background: rgba(255, 255, 255, 0.05);
+      gap: 0.3rem;
+      padding: 0.3rem 0.75rem;
       border-radius: 8px;
-      font-size: 0.95rem;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.14);
+      color: rgba(255,255,255,0.75);
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-decoration: none;
+      letter-spacing: 0.05em;
+      transition: background 0.15s;
+    }
+    .tin-csv-btn:hover { background: rgba(255,255,255,0.13); }
+
+    /* ── Section total ─────────────────────────────────────── */
+    .tin-total {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      padding: 0.5rem 0.75rem;
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      margin-bottom: 0.75rem;
+    }
+    .tin-total strong { font-size: 1.05rem; }
+    .tin-total__note {
+      font-size: 0.75rem;
+      opacity: 0.5;
+      margin-left: auto;
+      font-style: italic;
+    }
+    .tin-total--warn { background: rgba(239,68,68,0.08); }
+
+    /* ── Row list ───────────────────────────────────────────── */
+    .tin-rows {
       display: flex;
       flex-direction: column;
       gap: 0.35rem;
+      overflow-y: auto;
+    }
+    .tin-rows--income {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.4rem;
+      overflow-y: visible;
     }
 
-    .tax-event__sub {
+    .tin-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.4rem 0.75rem;
+      padding: 0.45rem 0.7rem;
+      border-radius: 7px;
+      background: rgba(255,255,255,0.04);
       font-size: 0.85rem;
-      opacity: 0.8;
+      transition: background 0.12s;
     }
+    .tin-row:hover { background: rgba(255,255,255,0.08); }
 
-    .tax-empty {
-      font-size: 0.95rem;
-      opacity: 0.75;
+    .tin-row--alert { border-left: 3px solid rgba(239,68,68,0.6); }
+    .tin-row--income { border-left: 3px solid rgba(168,85,247,0.45); }
+
+    .tin-row__asset  { font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; min-width: 3rem; }
+    .tin-row__qty    { font-variant-numeric: tabular-nums; opacity: 0.75; }
+    .tin-row__date   { opacity: 0.55; font-size: 0.78rem; }
+    .tin-row__dates  { display: flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; opacity: 0.6; }
+    .tin-row__arrow  { opacity: 0.4; }
+    .tin-row__days   { opacity: 0.45; font-size: 0.72rem; }
+    .tin-row__usd    { font-variant-numeric: tabular-nums; }
+    .tin-row__gain   { font-weight: 700; font-size: 0.9rem; margin-left: auto; }
+    .tin-row__note   { font-size: 0.75rem; opacity: 0.45; font-style: italic; }
+    .tin-row__kind   { font-size: 0.75rem; opacity: 0.55; }
+    .tin-row__term   { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
+
+    /* ── Colour tokens ──────────────────────────────────────── */
+    .gain-pos { color: #4ade80; }
+    .gain-neg { color: #f87171; }
+    .term-long  { background: rgba(34,197,94,0.12);  color: #4ade80; }
+    .term-short { background: rgba(245,158,11,0.12); color: #fbbf24; }
+
+    /* ── Empty state ────────────────────────────────────────── */
+    .tin-empty {
+      font-size: 0.9rem;
+      opacity: 0.5;
+      padding: 1rem 0.5rem;
       margin: 0;
+      font-style: italic;
     }
 
-    .csv-download-btn {
+    /* ── "Confirmed held" checkbox ──────────────────────────── */
+    .tin-row__confirm {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.65rem 1.25rem;
-      background: #1e3a2f;
-      color: #f7f2eb;
-      border-radius: 10px;
-      text-decoration: none;
-      font-weight: 600;
-      transition: background 0.2s;
-    }
-
-    .csv-download-btn:hover {
-      background: #2a4a3e;
-    }
-
-    .csv-download-inline {
-      padding: 0.45rem 0.9rem;
-      font-size: 0.8rem;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-
-    /* Responsive */
-    @media (max-width: 1080px) {
-      .two-tins {
-        grid-template-columns: 1fr;
-        margin: 0 1.5rem 2rem;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .hero-bleed {
-        height: 45vh;
-        min-height: 320px;
-      }
-      .tin-col {
-        height: 62vh;
-        max-height: 62vh;
-      }
-    }
-
-    /* === Cost Basis Summary section === */
-    .cost-basis-section {
-      width: 100%;
-      max-width: calc(100% - 6rem);
-      margin: 0 auto 3rem;
-    }
-
-    .cost-basis-tin {
-      width: 100%;
-    }
-
-    .cb-header {
-      display: flex;
-      align-items: baseline;
-      gap: 1.25rem;
-      flex-wrap: wrap;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      margin-bottom: 1rem;
-    }
-
-    .cb-note {
-      font-size: 0.8rem;
-      opacity: 0.55;
-      margin: 0;
-      letter-spacing: 0.03em;
-    }
-
-    .cb-empty {
-      font-size: 0.95rem;
-      opacity: 0.65;
-      margin: 0;
-      padding: 1rem 0;
-    }
-
-    .cb-table-wrap {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .cb-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.9rem;
-    }
-
-    .cb-table th {
-      text-align: left;
-      font-weight: 600;
-      font-size: 0.75rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      opacity: 0.6;
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-      white-space: nowrap;
-    }
-
-    .cb-table td {
-      padding: 0.6rem 0.75rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      white-space: nowrap;
-    }
-
-    .cb-table tr:last-child td {
-      border-bottom: none;
-    }
-
-    .cb-table tr:hover td {
-      background: rgba(255, 255, 255, 0.03);
-    }
-
-    .cb-table .num {
-      text-align: right;
-    }
-
-    .cb-table .asset-symbol {
-      font-weight: 700;
-      font-size: 1rem;
-      letter-spacing: 0.04em;
-    }
-
-    .cb-table .date-col {
-      opacity: 0.7;
-      font-size: 0.85rem;
-    }
-
-    .gain-pos {
-      color: #4ade80;
-      font-weight: 600;
-    }
-
-    .gain-neg {
-      color: #f87171;
-      font-weight: 600;
-    }
-
-    @media (max-width: 1080px) {
-      .cost-basis-section {
-        margin: 0 1.5rem 2rem;
-        max-width: none;
-      }
-    }
-    .dedup-banner {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 10px 16px;
-      background: rgba(59, 130, 246, 0.07);
-      border-bottom: 1px solid rgba(59, 130, 246, 0.15);
-      font-size: 0.82rem;
-      color: var(--color-text-muted, #9ca3af);
-    }
-
-    .dedup-banner__text { flex: 1; min-width: 180px; }
-
-    .dedup-banner__btn {
-      padding: 4px 12px;
-      border-radius: 6px;
-      border: 1px solid rgba(59, 130, 246, 0.4);
-      background: transparent;
-      color: #60a5fa;
-      font-size: 0.8rem;
+      gap: 0.3rem;
+      margin-left: auto;
       cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.15s;
     }
-    .dedup-banner__btn:hover { background: rgba(59, 130, 246, 0.12); }
-    .dedup-banner__btn:disabled { opacity: 0.5; cursor: default; }
+    .confirm-check { accent-color: #3b82f6; cursor: pointer; }
+    .confirm-label { font-size: 0.72rem; opacity: 0.45; }
+    .tin-row__confirm:has(.confirm-check:checked) .confirm-label {
+      opacity: 0.8;
+      color: #86efac;
+    }
 
-    .dedup-banner__status { font-size: 0.8rem; }
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 1080px) {
+      .breakdown-grid,
+      .year-bar {
+        max-width: none;
+        margin: 0 1.5rem;
+      }
+    }
+    @media (max-width: 760px) {
+      .breakdown-grid { grid-template-columns: 1fr; }
+      .grid-cell--full { grid-column: 1; }
+      .hero-bleed { height: 45vh; min-height: 320px; }
+    }
   </style>
 
   <script>
-    document.getElementById('dedup-run')?.addEventListener('click', async () => {
-      const btn    = document.getElementById('dedup-run')    as HTMLButtonElement | null;
-      const status = document.getElementById('dedup-status') as HTMLSpanElement   | null;
-      if (btn)    { btn.disabled = true; btn.textContent = '⏳ Scanning…'; }
-      if (status) { status.textContent = ''; }
+    // Persist "confirmed held" checkboxes across page loads via localStorage
+    const KEY = 'held-confirmed';
+    const stored: Record<string, boolean> = JSON.parse(localStorage.getItem(KEY) ?? '{}');
 
-      try {
-        const res  = await fetch('/api/tax/deduplicate', { method: 'POST' });
-        const data = await res.json();
-        if (data.ok) {
-          const { totalMarked, strategy1TxHash, strategy2CrossTable, strategy3WithinImport } = data.stats;
-          if (totalMarked === 0) {
-            if (status) status.textContent = '✅ No duplicates found.';
-          } else {
-            if (status) status.textContent =
-              `✅ Flagged ${totalMarked} duplicate${totalMarked !== 1 ? 's' : ''} ` +
-              `(tx-hash: ${strategy1TxHash}, cross-source: ${strategy2CrossTable}, same-batch: ${strategy3WithinImport}). ` +
-              `Reloading…`;
-            setTimeout(() => window.location.reload(), 2000);
-          }
-        } else {
-          if (status) status.textContent = `❌ ${data.error ?? 'Sweep failed'}`;
-        }
-      } catch {
-        if (status) status.textContent = '❌ Network error';
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🔍 Run Duplicate Sweep'; }
-      }
+    document.querySelectorAll<HTMLInputElement>('.confirm-check').forEach((cb) => {
+      const id = `${cb.dataset.asset}|${cb.dataset.date}`;
+      if (stored[id]) cb.checked = true;
+      cb.addEventListener('change', () => {
+        if (cb.checked) stored[id] = true;
+        else delete stored[id];
+        localStorage.setItem(KEY, JSON.stringify(stored));
+      });
     });
   </script>
 </Layout>
