@@ -3,6 +3,7 @@ import { db } from '../../lib/db';
 import { normalizeChains, sanitizeAddress, transformWalletRow } from '../../lib/wallets-service';
 import { deriveDefaultLabel } from '../../lib/wallets';
 import { requireTenantSession } from '../../lib/requireTenantSession';
+import { checkWalletLimit } from '../../lib/subscriptions';
 
 export const prerender = false;
 
@@ -27,6 +28,23 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
 	try {
 		const { tenantId } = await requireTenantSession(request);
+
+		// ── Plan limit check ──────────────────────────────────────────────
+		const limitCheck = await checkWalletLimit(tenantId);
+		if (!limitCheck.allowed) {
+			return new Response(
+				JSON.stringify({
+					error: true,
+					code: 'PLAN_LIMIT_REACHED',
+					message: limitCheck.message,
+					current: limitCheck.current,
+					limit: limitCheck.limit,
+					plan: limitCheck.plan.id,
+				}),
+				{ status: 402, headers: { 'Content-Type': 'application/json' } },
+			);
+		}
+
 		const body = await request.json();
 		const walletType: 'onchain' | 'custom' = body.walletType === 'custom' ? 'custom' : 'onchain';
 

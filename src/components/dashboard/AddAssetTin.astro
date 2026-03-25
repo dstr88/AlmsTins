@@ -299,6 +299,14 @@
 		min-height: 1.1em;
 	}
 
+	.add-tin__limit-msg {
+		opacity: 1;
+		color: #f59e0b;
+		font-weight: 600;
+		text-transform: none;
+		letter-spacing: 0.02em;
+	}
+
 	/* Exchange panel */
 	.add-tin__hint {
 		margin: 0;
@@ -408,8 +416,10 @@
 		const submitBtn = tin.querySelector<HTMLButtonElement>('[data-add-submit]');
 		const messageEl = tin.querySelector<HTMLElement>('[data-add-message]');
 
-		const setMessage = (text: string) => {
-			if (messageEl) messageEl.textContent = text;
+		const setMessage = (text: string, isUpgrade = false) => {
+			if (!messageEl) return;
+			messageEl.textContent = text;
+			messageEl.classList.toggle('add-tin__limit-msg', isUpgrade);
 		};
 
 		submitBtn?.addEventListener('click', () => {
@@ -428,6 +438,11 @@
 			})
 				.then(async (res) => {
 					const payload = await res.json().catch(() => ({}));
+					if (res.status === 402) {
+						setMessage(payload?.message ?? 'Plan limit reached. Upgrade to add more tins.', true);
+						if (submitBtn) submitBtn.disabled = false;
+						return;
+					}
 					if (!res.ok) throw new Error(payload?.message ?? payload?.error ?? 'Unable to add wallet.');
 					if (addressInput) addressInput.value = '';
 					setMessage('Wallet added — reloading…');
@@ -450,8 +465,10 @@
 		const customSubmitBtn = tin.querySelector<HTMLButtonElement>('[data-custom-submit]');
 		const customMessageEl = tin.querySelector<HTMLElement>('[data-custom-message]');
 
-		const setCustomMessage = (text: string) => {
-			if (customMessageEl) customMessageEl.textContent = text;
+		const setCustomMessage = (text: string, isUpgrade = false) => {
+			if (!customMessageEl) return;
+			customMessageEl.textContent = text;
+			customMessageEl.classList.toggle('add-tin__limit-msg', isUpgrade);
 		};
 
 		customSubmitBtn?.addEventListener('click', () => {
@@ -474,6 +491,11 @@
 			})
 				.then(async (res) => {
 					const payload = await res.json().catch(() => ({}));
+					if (res.status === 402) {
+						setCustomMessage(payload?.message ?? 'Plan limit reached. Upgrade to add more tins.', true);
+						if (customSubmitBtn) customSubmitBtn.disabled = false;
+						return;
+					}
 					if (!res.ok) throw new Error(payload?.message ?? payload?.error ?? 'Unable to save wallet.');
 					if (customLabelInput) customLabelInput.value = '';
 					if (customAddressInput) customAddressInput.value = '';
