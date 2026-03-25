@@ -22,15 +22,21 @@ type NormalizedRow = {
 	feeUsd: number | null;
 };
 
-// Venmo exports two CSV types:
+// Venmo exports three CSV types:
 //   1. "Transactions statement" — DateTime, Transaction Type, Asset In/Out columns
 //   2. "Gains and losses statement" — Property Quantity, Date Acquired, Date Sold, etc.
-// Both have 1-2 disclaimer rows before the actual headers.
+//   3. "Monthly account statement" — Account Statement - (@username) header,
+//      banking-style rows with Amount (total) / Amount (fee), plus a
+//      Cryptocurrency summary section with beginning/ending balances.
+// Types 1 & 2 have clean CSV rows; type 3 needs its own raw parser.
 const detectFormat = (headers: string[]): 'transactions' | 'gains' | 'unknown' => {
 	if (headers.includes('DateTime') && headers.includes('Transaction Type')) return 'transactions';
 	if (headers.includes('Property Symbol') && headers.includes('Date Acquired')) return 'gains';
 	return 'unknown';
 };
+
+const isMonthlyStatement = (raw: string): boolean =>
+	raw.trimStart().startsWith('Account Statement -');
 
 const parseCsv = (input: string): CsvRow[] => {
 	const rows: string[][] = [];
@@ -279,6 +285,140 @@ const normalizeGainsRow = (row: CsvRow): NormalizedRow | null => {
 	};
 };
 
+// ── Monthly account statement parser ────────────────────────────────────────
+// Format: Account Statement - (@username)
+//         Account Activity
+//         ,ID,Datetime,Type,Status,Note,From,To,Amount (total),Amount (tip),
+//           Amount (tax),Amount (fee),...
+//         (transaction rows)
+//         Cryptocurrency summary
+//         ,,Bitcoin,Ethereum,Litecoin,...
+//         ,Available beginning,0.0,0.0,0.0,...
+//         ,Available ending,0.00103443,0.0,0.0,...
+//
+// The crypto quantity for each purchase is derived from:
+//   quantity = ending_balance[asset] - beginning_balance[asset]
+// This is exact when there is one purchase per asset per month (always true here).
+const parseMonthlyStatement = (raw: string): NormalizedRow[] => {
+	const lines = raw.split('\n').map((l) => l.trimEnd());
+
+	// ── 1. Parse the Cryptocurrency summary balances ─────────────────────────
+	// Asset name row:  ,,Bitcoin,Ethereum,Litecoin,...
+	// Beginning row:   ,Available beginning,0.0,0.0,0.0,...
+	// Ending row:      ,Available ending,0.00103443,0.0,0.0,...
+	const assetNameMap: Record<string, string> = {
+		bitcoin: 'BTC', ethereum: 'ETH', litecoin: 'LTC',
+		'bitcoin cash': 'BCH', solana: 'SOL', 'ethereum classic': 'ETC',
+	};
+
+	let assetOrder: string[] = [];
+	const beginning: Record<string, number> = {};
+	const ending: Record<string, number> = {};
+
+	const summaryIdx = lines.findIndex((l) => l.startsWith('Cryptocurrency summary'));
+	if (summaryIdx !== -1) {
+		for (let i = summaryIdx + 1; i < Math.min(summaryIdx + 12, lines.length); i++) {
+			const fields = lines[i].split(',').map((f) => f.trim());
+			// Asset header row: first two fields empty, then asset names
+			if (fields[0] === '' && fields[1] === '' && fields[2] && !fields[2].startsWith('Available')) {
+				assetOrder = fields.slice(2).filter(Boolean).map((a) => assetNameMap[a.toLowerCase()] ?? a.toUpperCase());
+			}
+			if (fields[1] === 'Available beginning') {
+				assetOrder.forEach((sym, idx) => {
+					const val = parseFloat(fields[idx + 2] ?? '0');
+					if (!isNaN(val)) beginning[sym] = val;
+				});
+			}
+			if (fields[1] === 'Available ending') {
+				assetOrder.forEach((sym, idx) => {
+					const val = parseFloat(fields[idx + 2] ?? '0');
+					if (!isNaN(val)) ending[sym] = val;
+				});
+				break; // first "Available ending" block is the quantity block (not USD estimates)
+			}
+		}
+	}
+
+	// ── 2. Find the transaction header row and parse transactions ─────────────
+	const headerIdx = lines.findIndex((l) => l.includes(',ID,Datetime,Type,'));
+	if (headerIdx === -1) return [];
+
+	const headers = lines[headerIdx].split(',').map((h) => h.trim());
+	const col = (row: string[], name: string) => {
+		const idx = headers.indexOf(name);
+		return idx >= 0 ? (row[idx] ?? '').trim() : '';
+	};
+
+	const results: NormalizedRow[] = [];
+
+	for (let i = headerIdx + 1; i < lines.length; i++) {
+		const line = lines[i];
+		if (!line.trim() || line.startsWith('Cryptocurrency')) break;
+
+		const fields = line.split(',').map((f) => f.trim());
+		const id = col(fields, 'ID');
+		const datetime = col(fields, 'Datetime');
+		const txType = col(fields, 'Type');
+
+		// Only rows with a numeric transaction ID and a timestamp
+		if (!id || !/^\d{10,}$/.test(id) || !datetime) continue;
+
+		// Only crypto transactions — skip P2P payments, bank transfers, etc.
+		const typeLC = txType.toLowerCase();
+		const isCryptoPurchase = typeLC.includes('purchase') && (
+			typeLC.includes('bitcoin') || typeLC.includes('ethereum') ||
+			typeLC.includes('litecoin') || typeLC.includes('solana') ||
+			typeLC.includes('crypto')
+		);
+		const isCryptoSale = typeLC.includes('sale') || typeLC.includes('sold');
+		if (!isCryptoPurchase && !isCryptoSale) continue;
+
+		const timestampUtc = normalizeTimestamp(datetime);
+		if (!timestampUtc) continue;
+
+		// Determine asset symbol from transaction type
+		let symbol = 'BTC';
+		if (typeLC.includes('ethereum')) symbol = 'ETH';
+		else if (typeLC.includes('litecoin')) symbol = 'LTC';
+		else if (typeLC.includes('solana')) symbol = 'SOL';
+		else if (typeLC.includes('bitcoin cash')) symbol = 'BCH';
+
+		// USD cost from Amount (total), fee from Amount (fee)
+		const amtRaw = col(fields, 'Amount (total)').replace(/[$+\-,\s]/g, '');
+		const feeRaw = col(fields, 'Amount (fee)').replace(/[$+\-,\s]/g, '');
+		const nativeUsd = parseFloat(amtRaw) || null;
+		const feeUsd = parseFloat(feeRaw) || null;
+
+		// Derive crypto quantity from balance change
+		const balanceDelta = (ending[symbol] ?? 0) - (beginning[symbol] ?? 0);
+		const quantity = balanceDelta > 0 ? balanceDelta : null;
+
+		const direction: 'in' | 'out' = isCryptoPurchase ? 'in' : 'out';
+		const signedQty = quantity !== null
+			? (direction === 'out' ? -Math.abs(quantity) : Math.abs(quantity))
+			: null;
+
+		results.push({
+			timestampUtc,
+			description: txType,
+			currency: symbol,
+			amount: signedQty,
+			toCurrency: '',
+			toAmount: null,
+			nativeCurrency: 'USD',
+			nativeAmount: nativeUsd !== null ? Math.abs(nativeUsd) : null,
+			nativeUsd: nativeUsd !== null ? Math.abs(nativeUsd) : null,
+			kind: isCryptoPurchase ? 'crypto_purchase' : 'crypto_to_van_sell_order',
+			txHash: id,
+			direction,
+			assetSymbol: symbol,
+			feeUsd: feeUsd !== null ? Math.abs(feeUsd) : null,
+		});
+	}
+
+	return results;
+};
+
 export const POST: APIRoute = async ({ request }) => {
 	const { tenantId } = await requireTenantSession(request);
 	const formData = await request.formData();
@@ -332,25 +472,37 @@ export const POST: APIRoute = async ({ request }) => {
 	});
 
 	const content = await file.text();
-	const rows = parseCsv(content);
-	if (!rows.length) {
+
+	// Monthly statements need a different parsing path
+	const monthly = isMonthlyStatement(content);
+	const normalizedRows: NormalizedRow[] = monthly
+		? parseMonthlyStatement(content)
+		: [];
+
+	// For non-monthly formats use the standard CSV row parser
+	const csvRows = monthly ? [] : parseCsv(content);
+	if (!monthly && !csvRows.length) {
 		return new Response(JSON.stringify({ error: 'No rows parsed from file.' }), { status: 400 });
 	}
 
-	const format = detectFormat(Object.keys(rows[0]));
+	const format = monthly ? 'monthly' : detectFormat(Object.keys(csvRows[0] ?? {}));
 	const batchId = randomUUID();
 	let insertedRaw = 0;
 	let insertedNormalized = 0;
 	let skippedDuplicates = 0;
 
-	for (const row of rows) {
-		const normalized =
-			format === 'transactions'
-				? normalizeTransactionRow(row)
-				: format === 'gains'
-					? normalizeGainsRow(row)
-					: null;
+	// Build the list of normalized rows to insert
+	const allNormalized: NormalizedRow[] = monthly
+		? normalizedRows
+		: csvRows.map((row) =>
+				format === 'transactions'
+					? normalizeTransactionRow(row)
+					: format === 'gains'
+						? normalizeGainsRow(row)
+						: null,
+		  ).filter((r): r is NormalizedRow => r !== null);
 
+	for (const normalized of allNormalized) {
 		if (!normalized) continue;
 
 		const rowHash = buildRowHash(normalized);
@@ -360,7 +512,7 @@ export const POST: APIRoute = async ({ request }) => {
 			sql: `INSERT OR IGNORE INTO import_raw_rows
 				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
 				VALUES (?, ?, 'venmo', ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-			args: [randomUUID(), tenantId, resolvedAccountId, batchId, JSON.stringify(row), rowHash],
+			args: [randomUUID(), tenantId, resolvedAccountId, batchId, JSON.stringify(normalized), rowHash],
 		});
 
 		const normalizedResult = await db.execute({
