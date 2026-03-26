@@ -151,8 +151,18 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 	const seenSyms = new Set<string>([...balanceMap.keys(), ...stakedMap.keys(), ...stakingYtdMap.keys()]);
 	const out: Holding[] = [];
 	for (const sym of seenSyms) {
-		const bal    = balanceMap.get(sym) ?? 0;
-		const staked = stakedMap.get(sym)  ?? 0;
+		let bal    = balanceMap.get(sym) ?? 0;
+		let staked = stakedMap.get(sym)  ?? 0;
+
+		// If sends exceeded liquid balance, the deficit was drawn from staked.
+		// Coinbase doesn't emit an explicit unstaking event in this case.
+		if (bal < 0 && staked > 0) {
+			const draw = Math.min(staked, Math.abs(bal));
+			staked -= draw;
+			bal    += draw;
+		}
+		bal    = Math.max(0, bal);
+		staked = Math.max(0, staked);
 		const stakingYtd    = stakingYtdMap.get(sym)    ?? 0;
 		const stakingYtdUsd = stakingYtdUsdMap.get(sym) ?? null;
 		if (bal <= 0 && staked <= 0 && stakingYtd <= 0) continue;
