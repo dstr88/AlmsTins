@@ -74,6 +74,10 @@ const initials = user?.name
 
 							<hr class="account-divider" />
 
+							<a href="/dashboard/billing" class="account-billing-link">Billing &amp; Plan</a>
+
+							<hr class="account-divider" />
+
 							<!-- Logout -->
 							<form method="post" action="/api/logout">
 								<button class="account-logout" type="submit">Log out</button>
@@ -367,6 +371,21 @@ const initials = user?.name
 		font-family: 'JetBrains Mono', 'Fira Code', monospace;
 		font-size: 0.7rem;
 		color: rgba(255, 255, 255, 0.45);
+	}
+
+	.account-billing-link {
+		display: block;
+		padding: 0.55rem 0.9rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: #94a3b8;
+		text-decoration: none;
+		border-radius: 8px;
+		transition: background 0.15s, color 0.15s;
+	}
+	.account-billing-link:hover {
+		background: rgba(99, 102, 241, 0.15);
+		color: #a5b4fc;
 	}
 
 	.account-logout {

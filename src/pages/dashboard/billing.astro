@@ -1,0 +1,463 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getActivePlan, PLANS } from '@/lib/subscriptions';
+import { db } from '@/lib/db';
+
+const { tenantId } = await requireTenantSession(Astro.request);
+const currentPlan = await getActivePlan(tenantId);
+
+// Load full subscription row for renewal date / cancel status
+const subResult = await db.execute({
+  sql: `SELECT current_period_end, cancel_at_period_end, stripe_subscription_id FROM subscriptions WHERE tenant_id = ? LIMIT 1`,
+  args: [tenantId],
+});
+const sub = subResult.rows[0] as Record<string, unknown> | undefined;
+const periodEnd = sub?.current_period_end as string | null;
+const cancelAtEnd = sub?.cancel_at_period_end === 1;
+const hasStripeSubscription = !!(sub?.stripe_subscription_id);
+
+const successParam = Astro.url.searchParams.get('success');
+const cancelledParam = Astro.url.searchParams.get('cancelled');
+
+const priceIds = {
+  starter: {
+    monthly: import.meta.env.STRIPE_PRICE_STARTER_MONTHLY,
+    yearly:  import.meta.env.STRIPE_PRICE_STARTER_YEARLY,
+  },
+  pro: {
+    monthly: import.meta.env.STRIPE_PRICE_PRO_MONTHLY,
+    yearly:  import.meta.env.STRIPE_PRICE_PRO_YEARLY,
+  },
+  unlimited: {
+    monthly: import.meta.env.STRIPE_PRICE_UNLIMITED_MONTHLY,
+    yearly:  import.meta.env.STRIPE_PRICE_UNLIMITED_YEARLY,
+  },
+};
+---
+
+<Layout title="Billing — AlmsTins">
+  <main class="billing-page">
+
+    <header class="billing-header">
+      <h1 class="billing-title">Billing & Plan</h1>
+      {successParam && (
+        <div class="billing-banner billing-banner--success">
+          ✓ Subscription activated — welcome to {currentPlan.label}!
+        </div>
+      )}
+      {cancelledParam && (
+        <div class="billing-banner billing-banner--warn">
+          Checkout cancelled. Your plan was not changed.
+        </div>
+      )}
+    </header>
+
+    <!-- Current plan status -->
+    <section class="billing-current">
+      <div class="billing-current__card">
+        <div class="billing-current__label">Current plan</div>
+        <div class="billing-current__plan">{currentPlan.label}</div>
+        <div class="billing-current__limits">
+          {currentPlan.walletLimit === 0
+            ? 'Unlimited tins'
+            : `Up to ${currentPlan.walletLimit} tins`}
+        </div>
+        {periodEnd && (
+          <div class="billing-current__renewal">
+            {cancelAtEnd
+              ? `Cancels on ${new Date(periodEnd).toLocaleDateString()}`
+              : `Renews ${new Date(periodEnd).toLocaleDateString()}`}
+          </div>
+        )}
+        {hasStripeSubscription && (
+          <button class="billing-portal-btn" id="portal-btn">
+            Manage subscription →
+          </button>
+        )}
+      </div>
+    </section>
+
+    <!-- Billing interval toggle -->
+    <div class="billing-toggle">
+      <span class="billing-toggle__label">Monthly</span>
+      <button class="billing-toggle__btn" id="interval-toggle" aria-pressed="false">
+        <span class="billing-toggle__knob"></span>
+      </button>
+      <span class="billing-toggle__label">
+        Yearly <em class="billing-toggle__save">Save ~17%</em>
+      </span>
+    </div>
+
+    <!-- Plan cards -->
+    <div class="billing-plans">
+
+      <!-- Starter -->
+      <div class={`billing-plan ${currentPlan.id === 'starter' ? 'billing-plan--current' : ''}`}>
+        <div class="billing-plan__name">Starter</div>
+        <div class="billing-plan__price">
+          <span class="billing-plan__amount" data-monthly="$7" data-yearly="$70">$7</span>
+          <span class="billing-plan__per" data-monthly="/mo" data-yearly="/yr">/mo</span>
+        </div>
+        <ul class="billing-plan__features">
+          <li>Up to 8 tins</li>
+          <li>All exchanges & importers</li>
+          <li>Bookkeeping & tax breakdown</li>
+          <li>Email support</li>
+        </ul>
+        {currentPlan.id === 'starter' ? (
+          <div class="billing-plan__badge">Current plan</div>
+        ) : (
+          <button
+            class="billing-plan__btn"
+            data-monthly={priceIds.starter.monthly}
+            data-yearly={priceIds.starter.yearly}
+          >
+            {currentPlan.id === 'free' ? 'Upgrade to Starter' : 'Switch to Starter'}
+          </button>
+        )}
+      </div>
+
+      <!-- Pro -->
+      <div class={`billing-plan billing-plan--featured ${currentPlan.id === 'pro' ? 'billing-plan--current' : ''}`}>
+        <div class="billing-plan__badge-top">Most popular</div>
+        <div class="billing-plan__name">Pro</div>
+        <div class="billing-plan__price">
+          <span class="billing-plan__amount" data-monthly="$20" data-yearly="$200">$20</span>
+          <span class="billing-plan__per" data-monthly="/mo" data-yearly="/yr">/mo</span>
+        </div>
+        <ul class="billing-plan__features">
+          <li>Up to 20 tins</li>
+          <li>Everything in Starter</li>
+          <li>Priority support</li>
+          <li>Early access to new features</li>
+        </ul>
+        {currentPlan.id === 'pro' ? (
+          <div class="billing-plan__badge">Current plan</div>
+        ) : (
+          <button
+            class="billing-plan__btn billing-plan__btn--featured"
+            data-monthly={priceIds.pro.monthly}
+            data-yearly={priceIds.pro.yearly}
+          >
+            {['free','starter'].includes(currentPlan.id) ? 'Upgrade to Pro' : 'Switch to Pro'}
+          </button>
+        )}
+      </div>
+
+      <!-- Unlimited -->
+      <div class={`billing-plan ${currentPlan.id === 'unlimited' ? 'billing-plan--current' : ''}`}>
+        <div class="billing-plan__name">Unlimited</div>
+        <div class="billing-plan__price">
+          <span class="billing-plan__amount" data-monthly="$39" data-yearly="$390">$39</span>
+          <span class="billing-plan__per" data-monthly="/mo" data-yearly="/yr">/mo</span>
+        </div>
+        <ul class="billing-plan__features">
+          <li>Unlimited tins</li>
+          <li>Everything in Pro</li>
+          <li>White-glove onboarding</li>
+          <li>Direct access to founder</li>
+        </ul>
+        {currentPlan.id === 'unlimited' ? (
+          <div class="billing-plan__badge">Current plan</div>
+        ) : (
+          <button
+            class="billing-plan__btn"
+            data-monthly={priceIds.unlimited.monthly}
+            data-yearly={priceIds.unlimited.yearly}
+          >
+            Upgrade to Unlimited
+          </button>
+        )}
+      </div>
+
+    </div>
+
+    <p class="billing-fine">
+      Cancel anytime. Switching plans takes effect immediately. Questions?
+      <a href="mailto:donnie@titaniumhut.com">Contact us</a>.
+    </p>
+
+  </main>
+</Layout>
+
+<script>
+  const toggle = document.getElementById('interval-toggle') as HTMLButtonElement;
+  let yearly = false;
+
+  // Sync all price amounts and per-labels
+  function syncInterval() {
+    const key = yearly ? 'yearly' : 'monthly';
+    document.querySelectorAll<HTMLElement>('.billing-plan__amount').forEach(el => {
+      el.textContent = el.dataset[key] ?? el.textContent;
+    });
+    document.querySelectorAll<HTMLElement>('.billing-plan__per').forEach(el => {
+      el.textContent = el.dataset[key] ?? el.textContent;
+    });
+    toggle?.setAttribute('aria-pressed', String(yearly));
+    toggle?.classList.toggle('is-yearly', yearly);
+  }
+
+  toggle?.addEventListener('click', () => {
+    yearly = !yearly;
+    syncInterval();
+  });
+
+  // Plan upgrade buttons → create Stripe checkout session
+  document.querySelectorAll<HTMLButtonElement>('.billing-plan__btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const priceId = yearly ? btn.dataset.yearly : btn.dataset.monthly;
+      if (!priceId) return;
+      btn.disabled = true;
+      btn.textContent = 'Redirecting…';
+
+      try {
+        const res = await fetch('/api/billing/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ priceId }),
+        });
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          alert(data.message ?? 'Unable to start checkout. Please try again.');
+          btn.disabled = false;
+        }
+      } catch {
+        alert('Network error. Please try again.');
+        btn.disabled = false;
+      }
+    });
+  });
+
+  // Manage subscription → Stripe Customer Portal
+  document.getElementById('portal-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('portal-btn') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Opening portal…';
+    try {
+      const res = await fetch('/api/billing/portal', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.message ?? 'Unable to open billing portal.');
+        btn.disabled = false;
+        btn.textContent = 'Manage subscription →';
+      }
+    } catch {
+      alert('Network error. Please try again.');
+      btn.disabled = false;
+      btn.textContent = 'Manage subscription →';
+    }
+  });
+</script>
+
+<style>
+  .billing-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    color: #e2e8f0;
+  }
+
+  .billing-header { margin-bottom: 2rem; }
+  .billing-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0 0 1rem;
+  }
+
+  .billing-banner {
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+  }
+  .billing-banner--success { background: #065f46; color: #a7f3d0; }
+  .billing-banner--warn    { background: #78350f; color: #fde68a; }
+
+  /* Current plan card */
+  .billing-current { margin-bottom: 2.5rem; }
+  .billing-current__card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+  .billing-current__label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.5; }
+  .billing-current__plan  { font-size: 1.4rem; font-weight: 700; }
+  .billing-current__limits { opacity: 0.7; font-size: 0.875rem; }
+  .billing-current__renewal { font-size: 0.8rem; opacity: 0.5; }
+  .billing-portal-btn {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid #475569;
+    color: #94a3b8;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .billing-portal-btn:hover { border-color: #94a3b8; color: #e2e8f0; }
+
+  /* Interval toggle */
+  .billing-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+  .billing-toggle__label { font-size: 0.9rem; opacity: 0.8; }
+  .billing-toggle__save  { font-style: normal; font-size: 0.75rem; color: #34d399; margin-left: 0.25rem; }
+  .billing-toggle__btn {
+    width: 44px;
+    height: 24px;
+    background: #334155;
+    border: none;
+    border-radius: 99px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .billing-toggle__btn.is-yearly { background: #6366f1; }
+  .billing-toggle__knob {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 18px; height: 18px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .billing-toggle__btn.is-yearly .billing-toggle__knob { transform: translateX(20px); }
+
+  /* Plan cards */
+  .billing-plans {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  .billing-plan {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1.75rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    position: relative;
+  }
+  .billing-plan--featured {
+    border-color: #6366f1;
+    background: #1e1f3a;
+  }
+  .billing-plan--current {
+    border-color: #34d399;
+  }
+
+  .billing-plan__badge-top {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #6366f1;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.75rem;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+
+  .billing-plan__name {
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.8;
+  }
+  .billing-plan__price {
+    display: flex;
+    align-items: baseline;
+    gap: 0.2rem;
+  }
+  .billing-plan__amount {
+    font-size: 2.25rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .billing-plan__per { font-size: 0.9rem; opacity: 0.6; }
+
+  .billing-plan__features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    flex: 1;
+  }
+  .billing-plan__features li {
+    font-size: 0.875rem;
+    opacity: 0.8;
+    padding-left: 1.25rem;
+    position: relative;
+  }
+  .billing-plan__features li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: #34d399;
+    font-weight: 700;
+  }
+
+  .billing-plan__btn {
+    margin-top: auto;
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: transparent;
+    color: #e2e8f0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .billing-plan__btn:hover { background: #334155; border-color: #94a3b8; }
+  .billing-plan__btn--featured {
+    background: #6366f1;
+    border-color: #6366f1;
+    color: #fff;
+  }
+  .billing-plan__btn--featured:hover { background: #4f46e5; border-color: #4f46e5; }
+  .billing-plan__btn:disabled { opacity: 0.5; cursor: wait; }
+
+  .billing-plan__badge {
+    text-align: center;
+    font-size: 0.8rem;
+    color: #34d399;
+    font-weight: 600;
+    padding: 0.5rem;
+    border: 1px solid #34d399;
+    border-radius: 8px;
+  }
+
+  .billing-fine {
+    text-align: center;
+    font-size: 0.8rem;
+    opacity: 0.45;
+  }
+  .billing-fine a { color: inherit; }
+</style>
