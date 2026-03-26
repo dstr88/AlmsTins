@@ -2,14 +2,33 @@
 interface Props {
 	title: string;
 	class?: string;
+	dataThrough?: string | null; // ISO date string — most recent tx in imported data
+	lastImported?: string | null; // ISO date string — when CSV was last uploaded
 }
 
-const { title, class: className = '' } = Astro.props;
+const { title, class: className = '', dataThrough, lastImported } = Astro.props;
+
+function fmtDate(iso: string | null | undefined): string {
+	if (!iso) return '—';
+	const d = new Date(iso);
+	if (isNaN(d.getTime())) return '—';
+	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+const throughLabel = fmtDate(dataThrough);
+const importedLabel = fmtDate(lastImported);
 ---
 
 <section class={`exchange-tin ${className}`}>
 	<header class="exchange-tin__header">
-		<h3>{title}</h3>
+		<div class="exchange-tin__title-group">
+			<h3>{title}</h3>
+			{dataThrough && (
+				<span class="exchange-tin__freshness" title={`Last imported: ${importedLabel}`}>
+					data through {throughLabel}
+				</span>
+			)}
+		</div>
 		<slot name="header-actions" />
 	</header>
 	<div class="exchange-tin__body">
@@ -38,12 +57,26 @@ const { title, class: className = '' } = Astro.props;
 		flex-wrap: wrap;
 	}
 
+	.exchange-tin__title-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
 	.exchange-tin__header h3 {
 		margin: 0;
 		font-size: var(--font-lg);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: #fbbf24;
+	}
+
+	.exchange-tin__freshness {
+		font-size: 0.68rem;
+		color: #92400e;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		opacity: 0.85;
 	}
 
 	.exchange-tin__body {

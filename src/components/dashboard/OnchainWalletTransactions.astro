@@ -73,6 +73,25 @@ const walletResult = await db.execute({
 	args: [walletId, tenantId],
 });
 
+// Last sync timestamp — most recent run across all chains for this wallet
+const syncResult = await db.execute({
+	sql: `SELECT MAX(last_run_at) as last_synced, MAX(last_timestamp) as data_through
+	      FROM wallet_sync_state WHERE wallet_id = ?`,
+	args: [walletId],
+});
+const syncRow = syncResult.rows[0] as Record<string, unknown> | undefined;
+const lastSynced = (syncRow?.last_synced as string | null) ?? null;
+const dataThroughRaw = (syncRow?.data_through as string | null) ?? null;
+
+function fmtSyncDate(iso: string | null): string {
+	if (!iso) return '';
+	const d = new Date(iso);
+	if (isNaN(d.getTime())) return '';
+	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+const syncLabel = lastSynced ? `synced ${fmtSyncDate(lastSynced)}` : null;
+const dataThroughLabel = dataThroughRaw ? `data through ${fmtSyncDate(dataThroughRaw)}` : null;
+
 const walletAddress = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
 
 const result = await db.execute({
@@ -170,7 +189,14 @@ for (const row of rows) {
 
 <article class="onchain-wallet">
 	<header class="onchain-wallet__header">
-		<h3 class="onchain-wallet__title">{title}</h3>
+		<div class="onchain-wallet__title-group">
+			<h3 class="onchain-wallet__title">{title}</h3>
+			{(dataThroughLabel || syncLabel) && (
+				<span class="onchain-wallet__freshness" title={syncLabel ?? ''}>
+					{dataThroughLabel ?? syncLabel}
+				</span>
+			)}
+		</div>
 		<span class="onchain-wallet__tag">v:linked-swap-usd</span>
 	</header>
 
@@ -527,6 +553,20 @@ for (const row of rows) {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+	}
+
+	.onchain-wallet__title-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
+	.onchain-wallet__freshness {
+		font-size: 0.68rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		opacity: 0.45;
+		color: inherit;
 	}
 
 	.onchain-wallet__title {

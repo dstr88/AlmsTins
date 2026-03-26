@@ -205,9 +205,19 @@ if (priceSymbols.size) {
 		if (syms.has(sym) && typeof t.quotes?.USD?.price === 'number') priceMap[sym] = t.quotes.USD.price;
 	}
 }
+
+// "Data through" — most recent transaction timestamp in imported data for this source
+const freshnessResult = await db.execute({
+	sql: `SELECT MAX(timestamp_utc) as data_through, MAX(created_at) as last_imported
+	      FROM import_transactions WHERE tenant_id = ? AND source = ?`,
+	args: [tenantId, source],
+});
+const freshnessRow = freshnessResult.rows[0] as Record<string, unknown> | undefined;
+const dataThrough = (freshnessRow?.data_through as string | null) ?? null;
+const lastImported = (freshnessRow?.last_imported as string | null) ?? null;
 ---
 
-<ExchangeTin title={title} class="tile tile--exchange">
+<ExchangeTin title={title} class="tile tile--exchange" dataThrough={dataThrough} lastImported={lastImported}>
 	<button slot="header-actions" type="button" class="exchange-tin__add" data-exchange-add data-exchange-source={source}>
 		Add account
 	</button>
