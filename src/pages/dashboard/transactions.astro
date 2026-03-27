@@ -68,17 +68,45 @@ const walletPayload = JSON.stringify(wallets);
 						<th>Amount</th>
 						<th>Category</th>
 						<th>Note</th>
+						<th>Shots</th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody data-transaction-rows>
 					<tr>
-						<td colspan="9" class="empty">No transactions loaded yet.</td>
+						<td colspan="10" class="empty">No transactions loaded yet.</td>
 					</tr>
 				</tbody>
 			</table>
 		</div>
 	</section>
+
+	<!-- Screenshot modal -->
+	<div id="screenshot-modal" class="shot-modal" role="dialog" aria-modal="true" aria-labelledby="shot-modal-title">
+		<div class="shot-modal-box">
+			<div class="shot-modal-header">
+				<h2 id="shot-modal-title">Screenshots</h2>
+				<button type="button" id="shot-modal-close" class="ghost" aria-label="Close">✕</button>
+			</div>
+			<div id="shot-grid" class="shot-grid"></div>
+			<p id="shot-status" class="shot-status"></p>
+			<div class="shot-actions">
+				<input id="shot-upload-input" type="file" accept="image/*" style="display:none" />
+				<button type="button" id="shot-upload-btn">
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+					Upload image
+				</button>
+				<button type="button" id="shot-camera-btn" class="ghost">
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+					Take photo
+				</button>
+				<button type="button" id="shot-parse-btn" class="ghost" style="margin-left:auto" disabled>
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><path d="M18 2v4h4"/></svg>
+					Parse &amp; import
+				</button>
+			</div>
+		</div>
+	</div>
 
 	<script type="application/json" id="wallet-data" set:html={walletPayload}></script>
 
@@ -195,7 +223,7 @@ const walletPayload = JSON.stringify(wallets);
 			tableBody.innerHTML = '';
 			if (!transactions.length) {
 				const tr = document.createElement('tr');
-				tr.innerHTML = `<td colspan="9" class="empty">No transactions match your filters.</td>`;
+				tr.innerHTML = `<td colspan="10" class="empty">No transactions match your filters.</td>`;
 				tableBody.appendChild(tr);
 				return;
 			}
@@ -220,6 +248,12 @@ const walletPayload = JSON.stringify(wallets);
             <input type="text" data-annotation-note value="${tx.note ?? ''}" placeholder="Add note" />
           </td>
           <td>
+            <button type="button" class="ghost shot-btn" data-hash="${tx.hash}" data-chain="${tx.chain}" title="Screenshots">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+              <span class="shot-count" data-shot-count></span>
+            </button>
+          </td>
+          <td>
             <button type="button" class="ghost" data-save data-hash="${tx.hash}" data-chain="${tx.chain}" data-direction="${tx.tx_type || ''}">
               Save
             </button>
@@ -229,6 +263,9 @@ const walletPayload = JSON.stringify(wallets);
 			});
 			tableBody.querySelectorAll('button[data-save]').forEach((button) => {
 				button.addEventListener('click', handleSaveAnnotation);
+			});
+			tableBody.querySelectorAll('button.shot-btn').forEach((button) => {
+				button.addEventListener('click', openScreenshotModal);
 			});
 		}
 
@@ -301,6 +338,173 @@ const walletPayload = JSON.stringify(wallets);
 			if (!statusEl) return;
 			statusEl.textContent = message;
 			statusEl.dataset.mode = mode;
+		}
+
+		// ── Screenshot widget ─────────────────────────────────────────────────
+
+		let activeHash = null;
+		let activeChain = null;
+
+		const modal = document.getElementById('screenshot-modal');
+		const modalTitle = document.getElementById('shot-modal-title');
+		const shotGrid = document.getElementById('shot-grid');
+		const shotUploadInput = document.getElementById('shot-upload-input');
+		const shotUploadBtn = document.getElementById('shot-upload-btn');
+		const shotCameraBtn = document.getElementById('shot-camera-btn');
+		const shotParseBtn = document.getElementById('shot-parse-btn');
+		const shotCloseBtn = document.getElementById('shot-modal-close');
+		const shotStatus = document.getElementById('shot-status');
+		let currentScreenshots = [];
+
+		shotCloseBtn?.addEventListener('click', () => {
+			modal.classList.remove('open');
+			activeHash = null;
+			activeChain = null;
+		});
+
+		modal?.addEventListener('click', (e) => {
+			if (e.target === modal) {
+				modal.classList.remove('open');
+				activeHash = null;
+				activeChain = null;
+			}
+		});
+
+		shotUploadBtn?.addEventListener('click', () => shotUploadInput?.click());
+
+		shotCameraBtn?.addEventListener('click', () => {
+			shotUploadInput.setAttribute('capture', 'environment');
+			shotUploadInput.click();
+		});
+
+		shotUploadInput?.addEventListener('change', async () => {
+			const file = shotUploadInput.files?.[0];
+			if (!file || !activeHash || !activeChain) return;
+			await uploadScreenshot(file);
+			shotUploadInput.value = '';
+			shotUploadInput.removeAttribute('capture');
+		});
+
+		async function openScreenshotModal(event) {
+			const btn = event.currentTarget;
+			activeHash = btn.dataset.hash;
+			activeChain = btn.dataset.chain;
+			if (!activeHash || !activeChain) return;
+			modalTitle.textContent = `Screenshots — ${shorten(activeHash)}`;
+			shotStatus.textContent = '';
+			shotGrid.innerHTML = '<p class="shot-loading">Loading…</p>';
+			modal.classList.add('open');
+			await refreshScreenshots();
+		}
+
+		async function refreshScreenshots() {
+			if (!activeHash || !activeChain) return;
+			try {
+				const res = await fetch(
+					`/api/transactions/screenshots?txHash=${encodeURIComponent(activeHash)}&chain=${encodeURIComponent(activeChain)}`,
+				);
+				const data = await res.json();
+				renderScreenshots(data.screenshots || []);
+				// update the count badge on the button
+				const btn = tableBody?.querySelector(
+					`button.shot-btn[data-hash="${activeHash}"][data-chain="${activeChain}"]`,
+				);
+				const badge = btn?.querySelector('[data-shot-count]');
+				if (badge) badge.textContent = data.screenshots?.length ? String(data.screenshots.length) : '';
+			} catch {
+				shotGrid.innerHTML = '<p class="shot-loading">Failed to load screenshots.</p>';
+			}
+		}
+
+		function renderScreenshots(screenshots) {
+			currentScreenshots = screenshots;
+			if (shotParseBtn) shotParseBtn.disabled = screenshots.length === 0;
+			if (!screenshots.length) {
+				shotGrid.innerHTML = '<p class="shot-loading">No screenshots yet. Upload one below.</p>';
+				return;
+			}
+			shotGrid.innerHTML = '';
+			screenshots.forEach((shot) => {
+				const item = document.createElement('div');
+				item.className = 'shot-item';
+				item.innerHTML = `
+          <a href="${shot.dataUrl}" target="_blank" rel="noopener">
+            <img src="${shot.dataUrl}" alt="${shot.filename}" />
+          </a>
+          <div class="shot-meta">
+            <span>${shot.filename}</span>
+            <button type="button" class="shot-delete ghost" data-id="${shot.id}" title="Delete">✕</button>
+          </div>
+        `;
+				item.querySelector('.shot-delete')?.addEventListener('click', () => deleteScreenshot(shot.id));
+				shotGrid.appendChild(item);
+			});
+		}
+
+		async function uploadScreenshot(file) {
+			setShotStatus('Uploading…');
+			const fd = new FormData();
+			fd.append('txHash', activeHash);
+			fd.append('chain', activeChain);
+			fd.append('file', file);
+			try {
+				const res = await fetch('/api/transactions/screenshots', { method: 'POST', body: fd });
+				const data = await res.json();
+				if (!res.ok) throw new Error(data.error || 'Upload failed');
+				setShotStatus('Uploaded.', 'success');
+				await refreshScreenshots();
+			} catch (err) {
+				setShotStatus(err instanceof Error ? err.message : 'Upload failed.', 'error');
+			}
+		}
+
+		async function deleteScreenshot(id) {
+			if (!confirm('Delete this screenshot?')) return;
+			try {
+				const res = await fetch(`/api/transactions/screenshots?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+				if (!res.ok) throw new Error('Delete failed');
+				await refreshScreenshots();
+			} catch (err) {
+				setShotStatus(err instanceof Error ? err.message : 'Delete failed.', 'error');
+			}
+		}
+
+		shotParseBtn?.addEventListener('click', async () => {
+			if (!currentScreenshots.length) return;
+			const total = currentScreenshots.length;
+			let imported = 0;
+			let duplicates = 0;
+			shotParseBtn.disabled = true;
+			setShotStatus(`Parsing ${total} screenshot${total > 1 ? 's' : ''} with AI…`);
+			for (const shot of currentScreenshots) {
+				try {
+					const res = await fetch('/api/transactions/screenshots/parse', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ screenshotId: shot.id }),
+					});
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || 'Parse failed');
+					if (data.duplicate) duplicates++;
+					else imported++;
+				} catch (err) {
+					setShotStatus(err instanceof Error ? err.message : 'Parse failed.', 'error');
+					shotParseBtn.disabled = false;
+					return;
+				}
+			}
+			await refreshScreenshots();
+			const parts = [];
+			if (imported) parts.push(`${imported} imported`);
+			if (duplicates) parts.push(`${duplicates} duplicate${duplicates > 1 ? 's' : ''} skipped`);
+			setShotStatus(parts.join(', ') + '. Check your exchange tins.', 'success');
+		});
+
+		function setShotStatus(msg, mode = 'info') {
+			if (!shotStatus) return;
+			shotStatus.textContent = msg;
+			shotStatus.dataset.mode = mode;
+			if (mode !== 'error') setTimeout(() => (shotStatus.textContent = ''), 2500);
 		}
 	</script>
 </Layout>
@@ -441,6 +645,151 @@ const walletPayload = JSON.stringify(wallets);
 	.empty {
 		text-align: center;
 		color: rgba(255, 255, 255, 0.65);
+	}
+
+	/* Screenshot column button */
+	.shot-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.4rem 0.6rem;
+		font-size: 0.8rem;
+		white-space: nowrap;
+	}
+
+	.shot-count {
+		font-size: 0.75rem;
+		font-weight: 700;
+		color: #b35bff;
+	}
+
+	/* Modal overlay */
+	.shot-modal {
+		display: none;
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.7);
+		z-index: 1000;
+		align-items: center;
+		justify-content: center;
+		padding: 1rem;
+	}
+
+	.shot-modal.open {
+		display: flex;
+	}
+
+	.shot-modal-box {
+		background: #13131f;
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 20px;
+		padding: 1.5rem;
+		width: 100%;
+		max-width: 640px;
+		max-height: 85vh;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		overflow: hidden;
+	}
+
+	.shot-modal-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.shot-modal-header h2 {
+		margin: 0;
+		font-size: 1rem;
+	}
+
+	.shot-modal-header .ghost {
+		padding: 0.3rem 0.6rem;
+		font-size: 0.9rem;
+	}
+
+	.shot-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+		gap: 0.75rem;
+		overflow-y: auto;
+		flex: 1;
+		min-height: 80px;
+	}
+
+	.shot-loading {
+		grid-column: 1 / -1;
+		color: rgba(255, 255, 255, 0.5);
+		font-size: 0.9rem;
+		margin: 0;
+	}
+
+	.shot-item {
+		border-radius: 12px;
+		overflow: hidden;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.03);
+		display: flex;
+		flex-direction: column;
+	}
+
+	.shot-item a {
+		display: block;
+		aspect-ratio: 4/3;
+		overflow: hidden;
+	}
+
+	.shot-item img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.shot-meta {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.4rem 0.5rem;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.5);
+		overflow: hidden;
+	}
+
+	.shot-meta span {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.shot-delete {
+		padding: 0.15rem 0.4rem;
+		font-size: 0.7rem;
+		flex-shrink: 0;
+	}
+
+	.shot-status {
+		margin: 0;
+		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.5);
+		min-height: 1.2em;
+	}
+
+	.shot-status[data-mode='error'] { color: #ff9b9b; }
+	.shot-status[data-mode='success'] { color: #9fffca; }
+
+	.shot-actions {
+		display: flex;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+
+	.shot-actions button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.9rem;
 	}
 
 	@media (max-width: 720px) {

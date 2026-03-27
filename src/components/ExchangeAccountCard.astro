@@ -41,8 +41,27 @@ const hasHoldings = Astro.slots.has('holdings');
 			<span class="exchange-account__file-label">Choose CSV</span>
 		</label>
 		<button type="submit" class="exchange-account__button">Upload</button>
+		<button
+			type="button"
+			class="exchange-account__button exchange-account__batches-toggle"
+			data-batches-toggle
+			data-account-id={accountId}
+			data-exchange-source={source}
+		>Batches</button>
 		<span class="exchange-account__status" aria-live="polite"></span>
 	</form>
+
+	<div
+		class="exchange-batches"
+		data-batches-panel
+		data-account-id={accountId}
+		data-exchange-source={source}
+		hidden
+	>
+		<div class="exchange-batches__list" data-batches-list>
+			<span class="exchange-batches__loading">Loading…</span>
+		</div>
+	</div>
 	<div class="exchange-holdings">
 		<div class="exchange-holdings__summary">
 			<span class="exchange-holdings__summary-label">Total crypto holdings</span>
@@ -59,6 +78,94 @@ const hasHoldings = Astro.slots.has('holdings');
 </div>
 
 <script>
+	// ── Batch management ─────────────────────────────────────────────────────
+	document.addEventListener('click', async (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement)) return;
+
+		// Toggle batches panel
+		const toggleBtn = target.closest('[data-batches-toggle]');
+		if (toggleBtn instanceof HTMLElement) {
+			const accountId = toggleBtn.dataset.accountId ?? '';
+			const source = toggleBtn.dataset.exchangeSource ?? '';
+			const panel = toggleBtn.closest('.exchange-account')?.querySelector('[data-batches-panel]');
+			if (!(panel instanceof HTMLElement)) return;
+			const isOpen = !panel.hidden;
+			panel.hidden = isOpen;
+			toggleBtn.textContent = isOpen ? 'Batches' : 'Hide batches';
+			if (!isOpen) await loadBatches(panel, accountId, source);
+			return;
+		}
+
+		// Delete a batch
+		const delBtn = target.closest('[data-batch-delete]');
+		if (delBtn instanceof HTMLElement) {
+			const batchId = delBtn.dataset.batchId ?? '';
+			const source = delBtn.dataset.exchangeSource ?? '';
+			const panel = delBtn.closest('[data-batches-panel]');
+			const accountId = panel instanceof HTMLElement ? (panel.dataset.accountId ?? '') : '';
+			if (!batchId || !source) return;
+			if (!confirm(`Delete this import batch (${delBtn.dataset.batchCount} rows)? This cannot be undone.`)) return;
+			delBtn.textContent = '…';
+			delBtn.setAttribute('disabled', '');
+			try {
+				const res = await fetch(
+					`/api/import/batches?batchId=${encodeURIComponent(batchId)}&source=${encodeURIComponent(source)}`,
+					{ method: 'DELETE' },
+				);
+				if (!res.ok) throw new Error('Delete failed');
+				if (panel instanceof HTMLElement) await loadBatches(panel, accountId, source);
+				setTimeout(() => window.location.reload(), 800);
+			} catch (err) {
+				delBtn.textContent = 'Error';
+			}
+		}
+	});
+
+	async function loadBatches(panel, accountId, source) {
+		const list = panel.querySelector('[data-batches-list]');
+		if (!list) return;
+		list.innerHTML = '<span class="exchange-batches__loading">Loading…</span>';
+		try {
+			const res = await fetch(
+				`/api/import/batches?accountId=${encodeURIComponent(accountId)}&source=${encodeURIComponent(source)}`,
+			);
+			const data = await res.json();
+			const batches = data.batches ?? [];
+			if (!batches.length) {
+				list.innerHTML = '<span class="exchange-batches__loading">No import batches yet.</span>';
+				return;
+			}
+			list.innerHTML = '';
+			for (const b of batches) {
+				const row = document.createElement('div');
+				row.className = 'exchange-batch-row';
+				const importedAt = b.importedAt ? new Date(b.importedAt).toLocaleDateString() : '—';
+				const earliest = b.earliestTx ? new Date(b.earliestTx).toLocaleDateString() : '—';
+				const latest = b.latestTx ? new Date(b.latestTx).toLocaleDateString() : '—';
+				row.innerHTML = `
+					<div class="exchange-batch-row__info">
+						<span class="exchange-batch-row__count">${b.rowCount} rows</span>
+						<span class="exchange-batch-row__range">${earliest} – ${latest}</span>
+						<span class="exchange-batch-row__imported">imported ${importedAt}</span>
+					</div>
+					<button
+						type="button"
+						class="exchange-account__delete exchange-batch-row__delete"
+						data-batch-delete
+						data-batch-id="${b.batchId}"
+						data-batch-count="${b.rowCount}"
+						data-exchange-source="${source}"
+						title="Delete this batch"
+					>✕</button>
+				`;
+				list.appendChild(row);
+			}
+		} catch {
+			list.innerHTML = '<span class="exchange-batches__loading">Failed to load batches.</span>';
+		}
+	}
+
 	// Show selected filename in the Choose CSV label
 	document.addEventListener('change', (event) => {
 		const input = event.target;
@@ -200,6 +307,62 @@ const hasHoldings = Astro.slots.has('holdings');
 		font-weight: 500;
 		flex-basis: 100%;
 		min-height: 1.2em;
+	}
+
+	.exchange-batches {
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+		padding-top: var(--space-sm);
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.exchange-batches__list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+
+	.exchange-batches__loading {
+		font-size: var(--font-sm);
+		opacity: 0.6;
+	}
+
+	:global(.exchange-batch-row) {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+		padding: 0.4rem 0.5rem;
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	:global(.exchange-batch-row__info) {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+
+	:global(.exchange-batch-row__count) {
+		font-size: 0.8rem;
+		font-weight: 600;
+	}
+
+	:global(.exchange-batch-row__range) {
+		font-size: 0.75rem;
+		opacity: 0.8;
+	}
+
+	:global(.exchange-batch-row__imported) {
+		font-size: 0.7rem;
+		opacity: 0.5;
+	}
+
+	:global(.exchange-batch-row__delete) {
+		flex-shrink: 0;
 	}
 
 	.exchange-holdings {
