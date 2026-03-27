@@ -1,6 +1,7 @@
 ---
 import Footer from "@/components/Footer.astro";
 import { getAuthSession } from '@/lib/authSession';
+import { db } from '@/lib/db';
 
 const currentPath = Astro.url.pathname;
 const isActive = (path: string) => currentPath === path;
@@ -13,6 +14,32 @@ const tenantId = session?.tenantId ?? null;
 const initials = user?.name
   ? user.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
   : user?.email?.[0]?.toUpperCase() ?? '?';
+
+// Pull last_login and member-since from DB for the account dropdown
+let lastLoginIso: string | null = null;
+let memberSinceIso: string | null = null;
+if (user?.id) {
+  try {
+    const [userRow, memberRow] = await Promise.all([
+      db.execute({ sql: 'SELECT last_login FROM auth_users WHERE id = ? LIMIT 1', args: [user.id] }),
+      db.execute({ sql: 'SELECT created_at FROM tenant_memberships WHERE user_id = ? ORDER BY created_at ASC LIMIT 1', args: [user.id] }),
+    ]);
+    lastLoginIso = userRow.rows[0] ? String((userRow.rows[0] as any).last_login ?? '') || null : null;
+    memberSinceIso = memberRow.rows[0] ? String((memberRow.rows[0] as any).created_at ?? '') || null : null;
+  } catch { /* non-fatal */ }
+}
+
+const fmtDate = (iso: string | null) => {
+  if (!iso) return null;
+  try {
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+  } catch { return null; }
+};
+
+const lastLoginDisplay = fmtDate(lastLoginIso);
+const memberSinceDisplay = memberSinceIso
+  ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(memberSinceIso))
+  : null;
 ---
 
 <!doctype html>
@@ -67,10 +94,38 @@ const initials = user?.name
 
 							<hr class="account-divider" />
 
-							<!-- Tenant ID (subtle, useful for admin) -->
-							{tenantId && (
-								<p class="account-meta">Tenant: <code>{tenantId.slice(0, 8)}&hellip;</code></p>
-							)}
+							<!-- Meta: tenant ID, last login, member since -->
+							<div class="account-meta-block">
+								{tenantId && (
+									<div class="account-meta-row">
+										<span class="account-meta-label">Tenant ID</span>
+										<span class="account-meta-value">
+											<code>{tenantId.slice(0, 8)}&hellip;</code>
+											<button
+												class="copy-btn"
+												type="button"
+												data-copy={tenantId}
+												aria-label="Copy tenant ID"
+												title="Copy full tenant ID"
+											>
+												<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+											</button>
+										</span>
+									</div>
+								)}
+								{lastLoginDisplay && (
+									<div class="account-meta-row">
+										<span class="account-meta-label">Last login</span>
+										<span class="account-meta-value">{lastLoginDisplay}</span>
+									</div>
+								)}
+								{memberSinceDisplay && (
+									<div class="account-meta-row">
+										<span class="account-meta-label">Member since</span>
+										<span class="account-meta-value">{memberSinceDisplay}</span>
+									</div>
+								)}
+							</div>
 
 							<hr class="account-divider" />
 
@@ -361,16 +416,61 @@ const initials = user?.name
 		margin: 0.75rem 0;
 	}
 
-	.account-meta {
-		margin: 0 0 0.25rem;
-		font-size: 0.72rem;
-		color: rgba(255, 255, 255, 0.35);
+	.account-meta-block {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
 	}
 
-	.account-meta code {
+	.account-meta-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.72rem;
+	}
+
+	.account-meta-label {
+		color: rgba(255, 255, 255, 0.35);
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.account-meta-value {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		color: rgba(255, 255, 255, 0.5);
+		text-align: right;
+	}
+
+	.account-meta-value code {
 		font-family: 'JetBrains Mono', 'Fira Code', monospace;
 		font-size: 0.7rem;
-		color: rgba(255, 255, 255, 0.45);
+		color: rgba(255, 255, 255, 0.5);
+	}
+
+	.copy-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: none;
+		border: none;
+		padding: 2px;
+		cursor: pointer;
+		color: rgba(255, 255, 255, 0.35);
+		border-radius: 4px;
+		transition: color 0.15s, background 0.15s;
+		line-height: 1;
+	}
+
+	.copy-btn:hover {
+		color: rgba(255, 255, 255, 0.75);
+		background: rgba(255, 255, 255, 0.08);
+	}
+
+	.copy-btn.copied {
+		color: #4ade80;
 	}
 
 	.account-billing-link {
@@ -426,3 +526,36 @@ const initials = user?.name
 		}
 	}
 </style>
+
+<script>
+	// Copy-to-clipboard for tenant ID button
+	document.addEventListener('click', (e) => {
+		const btn = (e.target as Element)?.closest<HTMLButtonElement>('.copy-btn[data-copy]');
+		if (!btn) return;
+		const text = btn.dataset.copy ?? '';
+		if (!text) return;
+		navigator.clipboard.writeText(text).then(() => {
+			btn.classList.add('copied');
+			const originalTitle = btn.title;
+			btn.title = 'Copied!';
+			// swap icon to checkmark briefly
+			const prev = btn.innerHTML;
+			btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+			setTimeout(() => {
+				btn.classList.remove('copied');
+				btn.title = originalTitle;
+				btn.innerHTML = prev;
+			}, 2000);
+		}).catch(() => {
+			// Fallback for non-secure contexts
+			const ta = document.createElement('textarea');
+			ta.value = text;
+			ta.style.position = 'fixed';
+			ta.style.opacity = '0';
+			document.body.appendChild(ta);
+			ta.select();
+			document.execCommand('copy');
+			document.body.removeChild(ta);
+		});
+	});
+</script>

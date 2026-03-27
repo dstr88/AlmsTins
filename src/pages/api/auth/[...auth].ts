@@ -126,6 +126,18 @@ const authConfig = {
 					});
 					throw error;
 				}
+				// Stamp last_login — best-effort, never block sign-in
+				try {
+					await db.execute({
+						sql: `UPDATE auth_users SET last_login = ? WHERE id = ?`,
+						args: [new Date().toISOString(), userId],
+					});
+				} catch (error) {
+					console.warn('[auth][signIn] last_login update failed', {
+						userId,
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
 			}
 			return true;
 		},
