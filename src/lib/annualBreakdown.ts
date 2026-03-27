@@ -150,6 +150,46 @@ export async function buildAnnualBreakdown(
     'interest_income',       // handled separately in the income section
   ]);
 
+  // ── 1a. Sui wallet transactions ───────────────────────────────────────────
+  const suiTxResult = await db.execute({
+    sql: `SELECT symbol, amount, decimals, timestamp
+          FROM sui_transactions
+          WHERE tenant_id = ?
+            AND timestamp <= ?
+            AND CAST(amount AS REAL) != 0
+          ORDER BY timestamp ASC`,
+    args: [tenantId, yearEnd],
+  });
+
+  type RawSuiTx = { symbol: unknown; amount: unknown; decimals: unknown; timestamp: unknown };
+
+  function suiRawToDecimal(raw: string, decimals: number): number {
+    try {
+      const negative = raw.startsWith('-');
+      const abs = BigInt(negative ? raw.slice(1) : raw);
+      const base = 10n ** BigInt(decimals);
+      const whole = abs / base;
+      const frac  = abs % base;
+      const num   = Number(`${whole}.${String(frac).padStart(decimals, '0')}`);
+      return negative ? -num : num;
+    } catch { return 0; }
+  }
+
+  const suiEvents = (suiTxResult.rows as unknown as RawSuiTx[]).flatMap((r) => {
+    const raw      = toStr(r.amount);
+    const decimals = Number(r.decimals ?? 9);
+    const value    = suiRawToDecimal(raw, decimals);
+    if (!value) return [];
+    return [{
+      asset_symbol:      toStr(r.symbol).toUpperCase(),
+      direction:         value < 0 ? 'out' : 'in',
+      amount:            Math.abs(value),
+      native_usd:        null as number | null,
+      timestamp_utc:     toStr(r.timestamp),
+      transaction_class: 'owned_acquisition',
+    }];
+  });
+
   // ── 1b. Custom wallet manual transactions ────────────────────────────────
   // Stored in `transactions` table with metadata_json containing isCustomEntry:true
   const customTxResult = await db.execute({
@@ -186,6 +226,7 @@ export async function buildAnnualBreakdown(
     ...(eventsResult.rows as unknown as RawEvent[])
       .filter((r) => r && !SKIP_CLASSES.has(toStr(r.transaction_class))),
     ...customEvents,
+    ...suiEvents,
   ].sort((a, b) => toStr(a.timestamp_utc).localeCompare(toStr(b.timestamp_utc)));
 
   // FIFO state
@@ -379,22 +420,35 @@ export async function buildAnnualBreakdown(
   }
 
   // ── 5. Available years ────────────────────────────────────────────────────
-  const yearsResult = await db.execute({
-    sql: `SELECT DISTINCT strftime('%Y', e.timestamp_utc) AS yr
-          FROM asset_lifecycle_events e
-          WHERE e.tenant_id = ? AND e.direction = 'out'
-          ORDER BY yr DESC`,
-    args: [tenantId],
-  });
-  const availableYears = (yearsResult.rows as unknown as { yr: unknown }[])
+  const [yearsResult, suiYearsResult] = await Promise.all([
+    db.execute({
+      sql: `SELECT DISTINCT strftime('%Y', e.timestamp_utc) AS yr
+            FROM asset_lifecycle_events e
+            WHERE e.tenant_id = ? AND e.direction = 'out'
+            ORDER BY yr DESC`,
+      args: [tenantId],
+    }),
+    db.execute({
+      sql: `SELECT DISTINCT strftime('%Y', timestamp) AS yr
+            FROM sui_transactions
+            WHERE tenant_id = ? AND CAST(amount AS REAL) < 0
+            ORDER BY yr DESC`,
+      args: [tenantId],
+    }),
+  ]);
+  const availableYears = [
+    ...(yearsResult.rows as unknown as { yr: unknown }[]),
+    ...(suiYearsResult.rows as unknown as { yr: unknown }[]),
+  ]
     .map((r) => Number(r.yr))
     .filter((y) => Number.isFinite(y) && y > 2000);
-  // Always include current and previous year
+  // Deduplicate, always include current and previous year
   const curYear = new Date().getFullYear();
-  for (const y of [curYear, curYear - 1]) {
-    if (!availableYears.includes(y)) availableYears.push(y);
-  }
-  availableYears.sort((a, b) => b - a);
+  const yearSet = new Set(availableYears);
+  yearSet.add(curYear);
+  yearSet.add(curYear - 1);
+  availableYears.length = 0;
+  availableYears.push(...Array.from(yearSet).sort((a, b) => b - a));
 
   // ── 5. Totals ─────────────────────────────────────────────────────────────
   const sum = (arr: (number | null)[]): number =>
