@@ -2,6 +2,8 @@
 import Footer from "@/components/Footer.astro";
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
+import kingSolomon from '@/assets/KingSolomon.png';
+import minerva from '@/assets/Minerva.png';
 
 const currentPath = Astro.url.pathname;
 const isActive = (path: string) => currentPath === path;
@@ -10,10 +12,9 @@ const session = await getAuthSession(Astro.request).catch(() => null);
 const user = session?.user ?? null;
 const tenantId = session?.tenantId ?? null;
 
-// Avatar: use OAuth profile image if available, otherwise derive initials
-const initials = user?.name
-  ? user.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
-  : user?.email?.[0]?.toUpperCase() ?? '?';
+// Avatar: use OAuth profile image if available, otherwise pick a random default
+const defaultAvatars = [kingSolomon, minerva];
+const defaultAvatar = defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
 
 // Pull last_login, email, and member-since from DB for the account dropdown
 let lastLoginIso: string | null = null;
@@ -77,7 +78,7 @@ const memberSinceDisplay = memberSinceIso
 							{user?.image ? (
 								<img class="account-avatar" src={user.image} alt={user.name ?? 'Account'} referrerpolicy="no-referrer" />
 							) : (
-								<span class="account-initials">{initials}</span>
+								<img class="account-avatar account-avatar--default" src={defaultAvatar.src} alt="Account" />
 							)}
 							<span class="account-label">Account</span>
 							<span class="account-caret" aria-hidden="true">▾</span>
@@ -89,7 +90,7 @@ const memberSinceDisplay = memberSinceIso
 								{user?.image ? (
 									<img class="account-avatar account-avatar--lg" src={user.image} alt={user.name ?? ''} referrerpolicy="no-referrer" />
 								) : (
-									<span class="account-initials account-initials--lg">{initials}</span>
+									<img class="account-avatar account-avatar--lg account-avatar--default" src={defaultAvatar.src} alt="Account" />
 								)}
 								<div class="account-info">
 									{user?.name && <p class="account-name">{user.name}</p>}
@@ -328,6 +329,12 @@ const memberSinceDisplay = memberSinceIso
 		border-radius: 50%;
 		object-fit: cover;
 		flex-shrink: 0;
+	}
+
+	.account-avatar--default {
+		object-position: top center;
+		border-radius: 50%;
+		border: 1px solid rgba(255, 255, 255, 0.15);
 	}
 
 	.account-initials {
