@@ -1,0 +1,411 @@
+---
+import { requireAdminSession } from '@/lib/adminGuard';
+import { db } from '@/lib/db';
+
+// Guard — throws 401/403 Response if not admin
+let adminEmail = '';
+try {
+	const admin = await requireAdminSession(Astro.request);
+	adminEmail = admin.email;
+} catch (resp) {
+	if (resp instanceof Response) return resp;
+	return new Response('Server Error', { status: 500 });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const q = async (sql: string, args: any[] = []) => {
+	const r = await db.execute({ sql, args });
+	return r.rows as Record<string, any>[];
+};
+const scalar = async (sql: string, args: any[] = []): Promise<number> => {
+	const rows = await q(sql, args);
+	const val = rows[0] ? Object.values(rows[0])[0] : 0;
+	return Number(val ?? 0);
+};
+
+const now = new Date();
+const iso = (d: Date) => d.toISOString();
+const daysAgo = (n: number) => {
+	const d = new Date(now);
+	d.setDate(d.getDate() - n);
+	return iso(d);
+};
+
+// ── Queries (run in parallel) ─────────────────────────────────────────────────
+const [
+	totalUsers,
+	newUsersToday,
+	newUsers7d,
+	newUsers30d,
+	totalTenants,
+	loginsToday,
+	logins7d,
+	totalWallets,
+	totalImportFiles,
+	totalImportRows,
+	totalSuiTx,
+	totalOnchainTx,
+	recentUsers,
+	walletsByChain,
+	requestsToday,
+	topRoutes,
+] = await Promise.all([
+	scalar('SELECT COUNT(*) FROM auth_users'),
+	scalar('SELECT COUNT(*) FROM tenant_memberships WHERE created_at >= ?', [daysAgo(1)]),
+	scalar('SELECT COUNT(*) FROM tenant_memberships WHERE created_at >= ?', [daysAgo(7)]),
+	scalar('SELECT COUNT(*) FROM tenant_memberships WHERE created_at >= ?', [daysAgo(30)]),
+	scalar('SELECT COUNT(*) FROM tenants'),
+	scalar('SELECT COUNT(*) FROM auth_users WHERE last_login >= ?', [daysAgo(1)]),
+	scalar('SELECT COUNT(*) FROM auth_users WHERE last_login >= ?', [daysAgo(7)]),
+	scalar('SELECT COUNT(*) FROM wallets WHERE deleted_at IS NULL OR deleted_at = ""'),
+	scalar('SELECT COUNT(DISTINCT batch_id) FROM import_transactions'),
+	scalar('SELECT COUNT(*) FROM import_transactions'),
+	scalar('SELECT COUNT(*) FROM sui_transactions'),
+	scalar('SELECT COUNT(*) FROM transactions'),
+	q(`SELECT u.email, u.name, u.last_login, tm.created_at AS member_since
+	   FROM auth_users u
+	   LEFT JOIN tenant_memberships tm ON tm.user_id = u.id
+	   ORDER BY u.last_login DESC NULLS LAST
+	   LIMIT 20`),
+	q(`SELECT
+	     CASE
+	       WHEN chains LIKE '%sui%' THEN 'Sui'
+	       WHEN chains LIKE '%eth%' THEN 'Ethereum'
+	       WHEN chains LIKE '%base%' THEN 'Base'
+	       WHEN chains LIKE '%arb%' THEN 'Arbitrum'
+	       ELSE 'Other'
+	     END AS chain,
+	     COUNT(*) AS cnt
+	   FROM wallets
+	   WHERE deleted_at IS NULL OR deleted_at = ''
+	   GROUP BY chain
+	   ORDER BY cnt DESC`),
+	scalar(`SELECT SUM(count) FROM request_agg_daily WHERE day >= ?`, [daysAgo(1).slice(0, 10)]),
+	q(`SELECT route_key, SUM(count) AS hits
+	   FROM request_agg_daily
+	   WHERE day >= ?
+	   GROUP BY route_key
+	   ORDER BY hits DESC
+	   LIMIT 8`, [daysAgo(7).slice(0, 10)]),
+]);
+
+const fmt = (iso: string | null) => {
+	if (!iso) return '—';
+	try { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso)); }
+	catch { return iso; }
+};
+const fmtDate = (iso: string | null) => {
+	if (!iso) return '—';
+	try { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(iso)); }
+	catch { return iso; }
+};
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Admin Dashboard · AlmsTins</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+	<style>
+		*, *::before, *::after { box-sizing: border-box; }
+		body {
+			margin: 0;
+			background: #070c18;
+			color: #e2e8f0;
+			font-family: 'Inter', system-ui, sans-serif;
+			min-height: 100vh;
+		}
+		.topbar {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 1rem 2rem;
+			border-bottom: 1px solid rgba(255,255,255,0.07);
+			background: rgba(4,6,12,0.8);
+			backdrop-filter: blur(12px);
+			position: sticky;
+			top: 0;
+			z-index: 10;
+		}
+		.topbar-left { display: flex; align-items: center; gap: 1rem; }
+		.topbar-badge {
+			background: linear-gradient(135deg, #6366f1, #a855f7);
+			color: #fff;
+			font-size: 0.65rem;
+			font-weight: 700;
+			letter-spacing: 0.1em;
+			text-transform: uppercase;
+			padding: 0.2rem 0.6rem;
+			border-radius: 999px;
+		}
+		.topbar h1 { margin: 0; font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
+		.topbar-right { display: flex; align-items: center; gap: 1rem; font-size: 0.82rem; color: rgba(255,255,255,0.45); }
+		.back-link { color: #818cf8; text-decoration: none; font-size: 0.82rem; }
+		.back-link:hover { color: #a5b4fc; }
+
+		.page { padding: 2rem; max-width: 1280px; margin: 0 auto; }
+
+		/* Stat cards */
+		.stat-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+			gap: 1rem;
+			margin-bottom: 2rem;
+		}
+		.stat-card {
+			background: rgba(255,255,255,0.04);
+			border: 1px solid rgba(255,255,255,0.08);
+			border-radius: 12px;
+			padding: 1.1rem 1.25rem;
+		}
+		.stat-label {
+			font-size: 0.72rem;
+			color: rgba(255,255,255,0.4);
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			margin-bottom: 0.4rem;
+		}
+		.stat-value {
+			font-size: 2rem;
+			font-weight: 700;
+			color: #f1f5f9;
+			line-height: 1;
+		}
+		.stat-sub {
+			font-size: 0.72rem;
+			color: rgba(255,255,255,0.35);
+			margin-top: 0.35rem;
+		}
+		.stat-card.highlight { border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.08); }
+		.stat-card.green { border-color: rgba(74,222,128,0.25); background: rgba(74,222,128,0.06); }
+		.stat-card.amber { border-color: rgba(251,191,36,0.25); background: rgba(251,191,36,0.06); }
+
+		/* Section */
+		.section { margin-bottom: 2rem; }
+		.section-title {
+			font-size: 0.78rem;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			color: rgba(255,255,255,0.4);
+			margin-bottom: 0.85rem;
+		}
+
+		/* Table */
+		.data-table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 0.82rem;
+		}
+		.data-table th {
+			text-align: left;
+			padding: 0.5rem 0.75rem;
+			color: rgba(255,255,255,0.35);
+			font-weight: 500;
+			font-size: 0.72rem;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+			border-bottom: 1px solid rgba(255,255,255,0.07);
+		}
+		.data-table td {
+			padding: 0.6rem 0.75rem;
+			border-bottom: 1px solid rgba(255,255,255,0.05);
+			color: #cbd5e1;
+		}
+		.data-table tr:last-child td { border-bottom: none; }
+		.data-table tr:hover td { background: rgba(255,255,255,0.03); }
+		.table-wrap {
+			background: rgba(255,255,255,0.03);
+			border: 1px solid rgba(255,255,255,0.07);
+			border-radius: 12px;
+			overflow: hidden;
+		}
+
+		/* Two col layout */
+		.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+		@media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+		/* Chain pills */
+		.pill {
+			display: inline-block;
+			padding: 0.15rem 0.5rem;
+			border-radius: 999px;
+			font-size: 0.7rem;
+			font-weight: 600;
+			background: rgba(255,255,255,0.08);
+			color: rgba(255,255,255,0.6);
+		}
+		.pill.sui { background: rgba(79,174,255,0.15); color: #7dd3fc; }
+		.pill.eth { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+		.pill.base { background: rgba(59,130,246,0.15); color: #93c5fd; }
+		.pill.arb { background: rgba(6,182,212,0.15); color: #67e8f9; }
+
+		.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 0.4rem; }
+		.dot-green { background: #4ade80; }
+		.dot-gray { background: rgba(255,255,255,0.2); }
+
+		.refresh-note { font-size: 0.72rem; color: rgba(255,255,255,0.25); margin-top: 0.3rem; }
+	</style>
+</head>
+<body>
+
+<div class="topbar">
+	<div class="topbar-left">
+		<a class="back-link" href="/dashboard/vault">← App</a>
+		<h1>Admin Dashboard</h1>
+		<span class="topbar-badge">Internal</span>
+	</div>
+	<div class="topbar-right">
+		<span>{adminEmail}</span>
+		<span>·</span>
+		<span>{now.toUTCString()}</span>
+	</div>
+</div>
+
+<div class="page">
+
+	<!-- ── KPI Strip ─────────────────────────────────────────────── -->
+	<div class="section">
+		<div class="section-title">Platform overview</div>
+		<div class="stat-grid">
+			<div class="stat-card highlight">
+				<div class="stat-label">Total users</div>
+				<div class="stat-value">{totalUsers}</div>
+				<div class="stat-sub">+{newUsersToday} today · +{newUsers7d} this week</div>
+			</div>
+			<div class="stat-card green">
+				<div class="stat-label">New (30 days)</div>
+				<div class="stat-value">{newUsers30d}</div>
+				<div class="stat-sub">tenant signups</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Tenants</div>
+				<div class="stat-value">{totalTenants}</div>
+				<div class="stat-sub">active workspaces</div>
+			</div>
+			<div class="stat-card amber">
+				<div class="stat-label">Logins today</div>
+				<div class="stat-value">{loginsToday}</div>
+				<div class="stat-sub">{logins7d} in last 7 days</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Wallets</div>
+				<div class="stat-value">{totalWallets}</div>
+				<div class="stat-sub">tracked on-chain</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Import rows</div>
+				<div class="stat-value">{totalImportRows.toLocaleString()}</div>
+				<div class="stat-sub">{totalImportFiles} import batches</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">EVM transactions</div>
+				<div class="stat-value">{totalOnchainTx.toLocaleString()}</div>
+				<div class="stat-sub">synced on-chain</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Sui transactions</div>
+				<div class="stat-value">{totalSuiTx.toLocaleString()}</div>
+				<div class="stat-sub">synced on-chain</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Requests today</div>
+				<div class="stat-value">{requestsToday > 0 ? requestsToday.toLocaleString() : '—'}</div>
+				<div class="stat-sub">from request log</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ── Two-col: Recent users + Wallets by chain ───────────────── -->
+	<div class="two-col section">
+
+		<!-- Recent users -->
+		<div>
+			<div class="section-title">Recent users — last login</div>
+			<div class="table-wrap">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Email</th>
+							<th>Member since</th>
+							<th>Last login</th>
+						</tr>
+					</thead>
+					<tbody>
+						{recentUsers.map((u) => (
+							<tr>
+								<td>
+									<span class={`dot ${u.last_login ? 'dot-green' : 'dot-gray'}`}></span>
+									{u.email ?? '—'}
+								</td>
+								<td>{fmtDate(u.member_since)}</td>
+								<td>{u.last_login ? fmt(u.last_login) : <span style="opacity:0.35">Never</span>}</td>
+							</tr>
+						))}
+						{recentUsers.length === 0 && (
+							<tr><td colspan="3" style="opacity:0.35; text-align:center; padding:1.5rem;">No users yet</td></tr>
+						)}
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<!-- Right column: wallets by chain + top routes -->
+		<div style="display:flex; flex-direction:column; gap:1.5rem;">
+
+			<!-- Wallets by chain -->
+			<div>
+				<div class="section-title">Wallets by chain</div>
+				<div class="table-wrap">
+					<table class="data-table">
+						<thead>
+							<tr><th>Chain</th><th style="text-align:right">Wallets</th></tr>
+						</thead>
+						<tbody>
+							{walletsByChain.map((row) => (
+								<tr>
+									<td>
+										<span class={`pill ${row.chain?.toLowerCase()}`}>{row.chain}</span>
+									</td>
+									<td style="text-align:right; font-weight:600;">{row.cnt}</td>
+								</tr>
+							))}
+							{walletsByChain.length === 0 && (
+								<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1.5rem;">No wallets</td></tr>
+							)}
+						</tbody>
+					</table>
+				</div>
+			</div>
+
+			<!-- Top routes (7 days) -->
+			{topRoutes.length > 0 && (
+				<div>
+					<div class="section-title">Top routes — last 7 days</div>
+					<div class="table-wrap">
+						<table class="data-table">
+							<thead>
+								<tr><th>Route</th><th style="text-align:right">Hits</th></tr>
+							</thead>
+							<tbody>
+								{topRoutes.map((row) => (
+									<tr>
+										<td style="font-family:monospace; font-size:0.75rem;">{row.route_key}</td>
+										<td style="text-align:right;">{Number(row.hits).toLocaleString()}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			)}
+		</div>
+	</div>
+
+	<p class="refresh-note">Data is live — refresh the page for updated stats.</p>
+</div>
+</body>
+</html>

@@ -35,6 +35,13 @@ if (user?.id) {
 // Prefer session email, fall back to DB email
 const displayEmail = user?.email || dbEmail;
 
+// Admin check — show Admin link in nav if the logged-in email is an admin
+const ADMIN_EMAILS = new Set(
+  (import.meta.env.ADMIN_EMAILS ?? 'donnie@titaniumhut.com')
+    .split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean)
+);
+const isAdmin = Boolean(displayEmail && ADMIN_EMAILS.has(displayEmail.toLowerCase()));
+
 const fmtDate = (iso: string | null) => {
   if (!iso) return null;
   try {
@@ -71,6 +78,9 @@ const memberSinceDisplay = memberSinceIso
 					<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>Bookkeeping</a>
 					<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
 					<a class="nav-link disabled">Events</a>
+				{isAdmin && (
+					<a href="/admin" class={`nav-link nav-link--admin ${isActive('/admin') ? 'active' : ''}`}>Admin</a>
+				)}
 
 					<!-- Account dropdown -->
 					<details class="account-menu">
@@ -262,6 +272,16 @@ const memberSinceDisplay = memberSinceIso
 	nav a.disabled {
 		opacity: 0.4;
 		cursor: not-allowed;
+	}
+
+	.nav-link--admin {
+		color: #a78bfa !important;
+		font-size: 0.78rem;
+		letter-spacing: 0.04em;
+	}
+	.nav-link--admin:hover {
+		background: rgba(139, 92, 246, 0.15) !important;
+		color: #c4b5fd !important;
 	}
 
 	nav a.active {
