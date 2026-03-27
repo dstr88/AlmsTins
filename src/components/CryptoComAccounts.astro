@@ -275,9 +275,17 @@ const fetchCachedPrices = async (symbols: string[]) => {
 
 const priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols)));
 
+const freshnessResult = await db.execute({
+	sql: `SELECT MAX(timestamp_utc) AS data_through, MAX(created_at) AS last_imported
+	      FROM import_transactions WHERE tenant_id = ? AND source = 'crypto_com'`,
+	args: [tenantId],
+});
+const freshnessRow = freshnessResult.rows[0] as Record<string, unknown> | undefined;
+const dataThrough = (freshnessRow?.data_through as string | null) ?? null;
+const lastImported = (freshnessRow?.last_imported as string | null) ?? null;
 ---
 
-<ExchangeTin title="Crypto.com Accounts" class="tile tile--exchange">
+<ExchangeTin title="Crypto.com Accounts" class="tile tile--exchange" dataThrough={dataThrough} lastImported={lastImported}>
 	<button slot="header-actions" type="button" class="exchange-tin__add" data-crypto-add>
 		Add Crypto.com account
 	</button>
