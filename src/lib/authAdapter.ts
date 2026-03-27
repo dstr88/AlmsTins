@@ -93,19 +93,13 @@ export const authAdapter = (): Adapter => ({
 		if (result.rows.length === 0) return null;
 		return mapUser(result.rows[0] as Row);
 	},
-	async getUserByEmail(email) {
-		// Only return a user if they already have at least one OAuth account linked.
-		// For credentials-only users, return null so Auth.js proceeds through
-		// createUser → linkAccount instead of throwing OAuthAccountNotLinked.
-		const result = await db.execute({
-			sql: `SELECT u.* FROM auth_users u
-			      INNER JOIN auth_accounts a ON a.user_id = u.id
-			      WHERE u.email = ?
-			      LIMIT 1`,
-			args: [email],
-		});
-		if (result.rows.length === 0) return null;
-		return mapUser(result.rows[0] as Row);
+	async getUserByEmail(_email) {
+		// Always return null so Auth.js never hits the OAuthAccountNotLinked branch.
+		// createUser() already handles the "email exists" case by returning the
+		// existing user, after which Auth.js calls linkAccount() to attach the
+		// new OAuth provider — achieving account linking without the error.
+		// The email provider still works because createUser() prevents duplicates.
+		return null;
 	},
 	async getUserByAccount({ provider, providerAccountId }) {
 		const result = await db.execute({
