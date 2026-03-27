@@ -38,9 +38,11 @@ const walletsSorted = [...wallets].sort((a, b) => {
 });
 console.log('[vault] total ms', Date.now() - pageStart);
 
-const onchainWallets = walletsSorted.filter((w) => (w.walletType ?? 'onchain') === 'onchain');
+const onchainWallets = walletsSorted.filter(
+	(w) => (w.walletType ?? 'onchain') === 'onchain' && !w.chains.includes('sui'),
+);
 const customWallets = walletsSorted.filter((w) => w.walletType === 'custom');
-const suiWallets = walletsSorted.filter((w) => w.walletType === 'sui');
+const suiWallets = walletsSorted.filter((w) => w.chains.includes('sui'));
 
 const walletsForTiles = onchainWallets.slice(0, 2);
 const walletsWithData = await Promise.all(

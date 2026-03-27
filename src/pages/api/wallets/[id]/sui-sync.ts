@@ -18,8 +18,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 		const wallet = wallets.find((w) => w.id === walletId);
 		if (!wallet) return respond({ error: true, message: 'Wallet not found.' }, 404);
 
-		if (wallet.walletType !== 'sui') {
-			return respond({ error: true, message: 'Not a Sui wallet.' }, 400);
+		if (!wallet.chains.includes('sui')) {
+			return respond({ error: true, message: 'Wallet does not have sui chain configured.' }, 400);
 		}
 
 		const { inserted, skipped } = await syncSuiTransactions(tenantId, wallet);

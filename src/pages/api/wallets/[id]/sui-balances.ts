@@ -35,8 +35,11 @@ export const GET: APIRoute = async ({ params, request }) => {
 		});
 		const walletRow = walletResult.rows[0] as Record<string, any> | undefined;
 		if (!walletRow) return respond({ error: true, message: 'Wallet not found.' }, 404);
-		if (walletRow.wallet_type !== 'sui') {
-			return respond({ error: true, message: 'Not a Sui wallet.' }, 400);
+		const walletChains: string[] = (() => {
+			try { return JSON.parse(String(walletRow.chains ?? '[]')); } catch { return []; }
+		})();
+		if (!walletChains.includes('sui')) {
+			return respond({ error: true, message: 'Wallet does not have sui chain configured.' }, 400);
 		}
 
 		const address = String(walletRow.address ?? '');

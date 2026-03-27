@@ -169,11 +169,11 @@ function parseChains(payload: unknown) {
 				</label>
 				<label class="field required">
 					<span>Address</span>
-					<input type="text" name="address" placeholder="0x..." required minlength="42" maxlength="42" />
+					<input type="text" name="address" placeholder="0x..." required minlength="42" maxlength="66" />
 				</label>
 				<label class="field">
 					<span>Chains (comma separated)</span>
-					<input type="text" name="chains" placeholder="ethereum, polygon" />
+					<input type="text" name="chains" placeholder="ethereum, polygon, sui" />
 				</label>
 				<label class="checkbox">
 					<input type="checkbox" name="isDefault" />
@@ -341,8 +341,13 @@ function parseChains(payload: unknown) {
 			.split(',')
 			.map((chain) => chain.trim().toLowerCase())
 			.filter(Boolean);
-		const requiredChains = ['ethereum', 'polygon', 'avalanche'];
-		const nextChains = Array.from(new Set([...parsedChains, ...requiredChains]));
+		// Only force EVM defaults when no chains are provided AND address is not Sui (66 chars)
+		const address = String(formData.get('address') ?? '').trim();
+		const isSuiAddress = address.length === 66 && address.startsWith('0x');
+		const defaultChains = isSuiAddress ? ['sui'] : ['ethereum', 'polygon', 'avalanche'];
+		const nextChains = parsedChains.length
+			? Array.from(new Set(parsedChains))
+			: defaultChains;
 		const payload = {
 			label: formData.get('label'),
 			address: formData.get('address'),

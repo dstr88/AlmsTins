@@ -5,14 +5,17 @@ export type WalletRow = Record<string, any>;
 export function sanitizeAddress(input: unknown): string | null {
 	if (typeof input !== 'string') return null;
 	const value = input.trim().toLowerCase();
-	return /^0x[a-f0-9]{40}$/.test(value) ? value : null;
+	// EVM address: 0x + 40 hex chars
+	if (/^0x[a-f0-9]{40}$/.test(value)) return value;
+	// Sui address: 0x + 1–64 hex chars → canonicalize to 0x + 64 chars
+	if (/^0x[a-f0-9]{1,64}$/.test(value)) return '0x' + value.slice(2).padStart(64, '0');
+	return null;
 }
 
 export function sanitizeSuiAddress(input: unknown): string | null {
 	if (typeof input !== 'string') return null;
 	const value = input.trim().toLowerCase();
 	if (!/^0x[a-f0-9]{1,64}$/.test(value)) return null;
-	// Canonicalize to 0x + 64 hex chars
 	return '0x' + value.slice(2).padStart(64, '0');
 }
 
