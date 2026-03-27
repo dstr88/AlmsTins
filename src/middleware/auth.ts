@@ -27,6 +27,8 @@ export function isPublicPath(pathname: string): boolean {
 		// All @auth/core routes — callbacks, CSRF, providers, sessions, etc.
 		pathname === '/api/auth' ||
 		pathname.startsWith('/api/auth/') ||
+		// Logout — must be public so the session cookie can be cleared even when expired
+		pathname === '/api/logout' ||
 		// Static assets
 		pathname.startsWith('/_astro/') ||
 		pathname.startsWith('/assets/') ||

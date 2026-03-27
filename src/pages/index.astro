@@ -1,13 +1,19 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import logo from '../assets/logo.jpeg';
+
+const bye = Astro.url.searchParams.get('bye') === '1';
 ---
 
 <Layout>
 	<div class="landing">
 		<img class="logo" src={logo.src} width="56" height="56" alt="Almstins logo" />
+		{bye && (
+			<div class="bye-toast">
+				Thanks for your visit — come back soon! 👋
+			</div>
+		)}
 		<a class="login-button" href="/login">Login</a>
-
 	</div>
 </Layout>
 
@@ -57,6 +63,29 @@ import logo from '../assets/logo.jpeg';
 	.login-button:focus-visible {
 		outline: 2px solid rgba(147, 77, 255, 0.6);
 		outline-offset: 4px;
+	}
+
+	.bye-toast {
+		position: fixed;
+		top: 2rem;
+		left: 50%;
+		transform: translateX(-50%);
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		backdrop-filter: blur(12px);
+		color: #f0f4ff;
+		padding: 0.85rem 1.75rem;
+		border-radius: 999px;
+		font-size: 0.95rem;
+		font-weight: 500;
+		z-index: 10;
+		animation: fadeOut 4s ease forwards;
+	}
+
+	@keyframes fadeOut {
+		0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
+		70%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+		100% { opacity: 0; transform: translateX(-50%) translateY(-8px); }
 	}
 
 </style>

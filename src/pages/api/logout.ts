@@ -20,10 +20,10 @@ const clearAuthCookies = (cookies: AstroCookies) => {
 
 export const POST: APIRoute = async ({ cookies, redirect }) => {
 	clearAuthCookies(cookies);
-	return redirect('/login', 303);
+	return redirect('/?bye=1', 303);
 };
 
 export const GET: APIRoute = async ({ cookies, redirect }) => {
 	clearAuthCookies(cookies);
-	return redirect('/login', 303);
+	return redirect('/?bye=1', 303);
 };
