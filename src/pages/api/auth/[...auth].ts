@@ -93,6 +93,55 @@ const authConfig = {
 	},
 	callbacks: {
 		async signIn({ user, account }: { user?: any; account?: any }) {
+			// ── OAuth account linking ──────────────────────────────────────────────
+			// If an OAuth sign-in arrives for an email that already exists via a
+			// different provider (e.g. credentials), link the OAuth account to the
+			// existing user so we don't hit OAuthAccountNotLinked.
+			if (account?.type === 'oauth' && user?.email) {
+				try {
+					const existing = await db.execute({
+						sql: 'SELECT id FROM auth_users WHERE email = ? LIMIT 1',
+						args: [String(user.email).toLowerCase()],
+					});
+					if (existing.rows.length) {
+						const existingId = String((existing.rows[0] as Record<string, any>).id);
+						if (existingId !== String(user.id ?? '')) {
+							// Patch the user object so the rest of the callback uses the real ID
+							user.id = existingId;
+							// Insert the OAuth account link if not already present
+							await db.execute({
+								sql: `INSERT OR IGNORE INTO auth_accounts
+									(id, user_id, type, provider, provider_account_id,
+									 access_token, token_type, scope, expires_at, refresh_token, id_token, session_state)
+									VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+								args: [
+									crypto.randomUUID(),
+									existingId,
+									account.type,
+									account.provider,
+									account.providerAccountId,
+									account.access_token ?? null,
+									account.token_type ?? null,
+									account.scope ?? null,
+									account.expires_at ?? null,
+									account.refresh_token ?? null,
+									account.id_token ?? null,
+									account.session_state ?? null,
+								],
+							});
+							console.log('[auth][signIn] linked OAuth account to existing user', {
+								existingId,
+								provider: account.provider,
+							});
+						}
+					}
+				} catch (error) {
+					console.warn('[auth][signIn] account linking failed — continuing', {
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
+			}
+
 			if (user?.id) {
 				const userId = String(user.id);
 				try {
