@@ -23,9 +23,6 @@ export function getPostLoginRedirect(nextValue: FormDataEntryValue | string | nu
 		return normalized;
 	}
 
-	if (hasTransitionPage) {
-		return '/dashboard/vault';
-	}
-
-	return '/dashboard/vault';
+	// /dashboard checks the user's role and redirects to /admin or /dashboard/vault
+	return '/dashboard';
 }

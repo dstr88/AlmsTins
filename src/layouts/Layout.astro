@@ -72,7 +72,10 @@ const memberSinceDisplay = memberSinceIso
 			<header class="chrome__header">
 				<div>
 					<p class="brand">Titanium Hut</p>
-					<a class="dashboard-link" href="/dashboard/vault">Private investor dashboard</a>
+					{isAdmin
+					? <a class="dashboard-link" href="/admin">Admin Dashboard</a>
+					: <a class="dashboard-link" href="/dashboard/vault">Private investor dashboard</a>
+				}
 				</div>
 				<nav>
 					<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>Bookkeeping</a>
