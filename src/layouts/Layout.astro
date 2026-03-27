@@ -15,19 +15,24 @@ const initials = user?.name
   ? user.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
   : user?.email?.[0]?.toUpperCase() ?? '?';
 
-// Pull last_login and member-since from DB for the account dropdown
+// Pull last_login, email, and member-since from DB for the account dropdown
 let lastLoginIso: string | null = null;
 let memberSinceIso: string | null = null;
+let dbEmail: string | null = null;
 if (user?.id) {
   try {
     const [userRow, memberRow] = await Promise.all([
-      db.execute({ sql: 'SELECT last_login FROM auth_users WHERE id = ? LIMIT 1', args: [user.id] }),
+      db.execute({ sql: 'SELECT last_login, email FROM auth_users WHERE id = ? LIMIT 1', args: [user.id] }),
       db.execute({ sql: 'SELECT created_at FROM tenant_memberships WHERE user_id = ? ORDER BY created_at ASC LIMIT 1', args: [user.id] }),
     ]);
     lastLoginIso = userRow.rows[0] ? String((userRow.rows[0] as any).last_login ?? '') || null : null;
+    dbEmail = userRow.rows[0] ? String((userRow.rows[0] as any).email ?? '') || null : null;
     memberSinceIso = memberRow.rows[0] ? String((memberRow.rows[0] as any).created_at ?? '') || null : null;
   } catch { /* non-fatal */ }
 }
+
+// Prefer session email, fall back to DB email
+const displayEmail = user?.email || dbEmail;
 
 const fmtDate = (iso: string | null) => {
   if (!iso) return null;
@@ -88,14 +93,20 @@ const memberSinceDisplay = memberSinceIso
 								)}
 								<div class="account-info">
 									{user?.name && <p class="account-name">{user.name}</p>}
-									{user?.email && <p class="account-email">{user.email}</p>}
+									{displayEmail && <p class="account-email">{displayEmail}</p>}
 								</div>
 							</div>
 
 							<hr class="account-divider" />
 
-							<!-- Meta: tenant ID, last login, member since -->
+							<!-- Meta: email, tenant ID, last login, member since -->
 							<div class="account-meta-block">
+								{displayEmail && (
+									<div class="account-meta-row">
+										<span class="account-meta-label">Email</span>
+										<span class="account-meta-value account-meta-email">{displayEmail}</span>
+									</div>
+								)}
 								{tenantId && (
 									<div class="account-meta-row">
 										<span class="account-meta-label">Tenant ID</span>
@@ -448,6 +459,14 @@ const memberSinceDisplay = memberSinceIso
 		font-family: 'JetBrains Mono', 'Fira Code', monospace;
 		font-size: 0.7rem;
 		color: rgba(255, 255, 255, 0.5);
+	}
+
+	.account-meta-email {
+		max-width: 170px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		display: block;
 	}
 
 	.copy-btn {
