@@ -66,9 +66,21 @@ const mapVerificationToken = (row: Row): VerificationToken => ({
 
 export const authAdapter = (): Adapter => ({
 	async createUser(user) {
-		const id = user.id ?? crypto.randomUUID();
 		// Auth types require a string email; keep empty string if provider didn't supply one.
 		const email = user.email ?? '';
+		// If a user with this email already exists (e.g. created via credentials),
+		// return them instead of inserting a duplicate. Auth.js will then call
+		// linkAccount() to attach the new OAuth provider to the existing user.
+		if (email) {
+			const existing = await db.execute({
+				sql: 'SELECT * FROM auth_users WHERE email = ? LIMIT 1',
+				args: [email],
+			});
+			if (existing.rows.length) {
+				return mapUser(existing.rows[0] as Row);
+			}
+		}
+		const id = user.id ?? crypto.randomUUID();
 		await db.execute({
 			sql: `INSERT INTO auth_users (id, name, email, email_verified, image)
         VALUES (?, ?, ?, ?, ?)`,
@@ -82,7 +94,16 @@ export const authAdapter = (): Adapter => ({
 		return mapUser(result.rows[0] as Row);
 	},
 	async getUserByEmail(email) {
-		const result = await db.execute({ sql: 'SELECT * FROM auth_users WHERE email = ? LIMIT 1', args: [email] });
+		// Only return a user if they already have at least one OAuth account linked.
+		// For credentials-only users, return null so Auth.js proceeds through
+		// createUser → linkAccount instead of throwing OAuthAccountNotLinked.
+		const result = await db.execute({
+			sql: `SELECT u.* FROM auth_users u
+			      INNER JOIN auth_accounts a ON a.user_id = u.id
+			      WHERE u.email = ?
+			      LIMIT 1`,
+			args: [email],
+		});
 		if (result.rows.length === 0) return null;
 		return mapUser(result.rows[0] as Row);
 	},
