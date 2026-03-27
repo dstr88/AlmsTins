@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
-import db from '../../../lib/db';
+import { db } from '../../../lib/db';
 
 const MAX_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB
 

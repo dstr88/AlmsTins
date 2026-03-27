@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { requireTenantSession } from '../../../../lib/requireTenantSession';
-import db from '../../../../lib/db';
+import { db } from '../../../../lib/db';
 
 const KNOWN_SOURCES = ['cashapp', 'coinbase', 'gemini', 'robinhood', 'venmo', 'crypto-com'] as const;
 type KnownSource = (typeof KNOWN_SOURCES)[number];
