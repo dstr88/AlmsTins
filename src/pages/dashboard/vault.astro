@@ -12,6 +12,7 @@ import ExchangeAccounts from '../../components/ExchangeAccounts.astro';
 import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
 import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.astro';
 import CustomWalletCard from '@/components/dashboard/CustomWalletCard.astro';
+import SuiWalletTin from '@/components/dashboard/SuiWalletTin.astro';
 import AddTransactionModal from '@/components/dashboard/AddTransactionModal.astro';
 import { getAllActiveWallets } from '@/lib/wallets';
 import { getWalletWithLatestData } from '@/lib/db/puller';
@@ -39,6 +40,7 @@ console.log('[vault] total ms', Date.now() - pageStart);
 
 const onchainWallets = walletsSorted.filter((w) => (w.walletType ?? 'onchain') === 'onchain');
 const customWallets = walletsSorted.filter((w) => w.walletType === 'custom');
+const suiWallets = walletsSorted.filter((w) => w.walletType === 'sui');
 
 const walletsForTiles = onchainWallets.slice(0, 2);
 const walletsWithData = await Promise.all(
@@ -129,6 +131,25 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				})}
 			</div>
 		</section>
+
+		{suiWallets.length > 0 && (
+			<section class="vault-sui-section">
+				<div class="vault-section-divider vault-section-divider--sui">
+					<span class="vault-section-divider__label">Sui Wallets</span>
+					<span class="vault-section-divider__line"></span>
+				</div>
+				<div class="vault-lane vault-lane--sui">
+					{suiWallets.map((wallet) => (
+						<div class="tile sui-tile">
+							<SuiWalletTin
+								walletId={wallet.id}
+								label={(wallet.label ?? wallet.address.slice(-5)).toUpperCase()}
+							/>
+						</div>
+					))}
+				</div>
+			</section>
+		)}
 
 		{customWallets.length > 0 && (
 			<section class="vault-custom-section">

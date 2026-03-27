@@ -86,8 +86,14 @@ const normalizeStatementForLibsql = (statement) =>
 	statement.replace(/ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+/gi, 'ADD COLUMN ');
 
 const shouldSkipMigrationStatementError = (statement, error) => {
-	const normalized = statement.trim().toUpperCase();
-	const isAlterAddColumn = normalized.startsWith('ALTER TABLE') && normalized.includes('ADD COLUMN');
+	// Strip single-line comments before checking — splitStatements keeps them in the buffer
+	const stripped = statement
+		.split('\n')
+		.filter((line) => !line.trim().startsWith('--'))
+		.join('\n')
+		.trim()
+		.toUpperCase();
+	const isAlterAddColumn = stripped.startsWith('ALTER TABLE') && stripped.includes('ADD COLUMN');
 	if (!isAlterAddColumn) return false;
 
 	const message = String(error?.message ?? '').toLowerCase();

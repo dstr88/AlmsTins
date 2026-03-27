@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../lib/db';
-import { normalizeChains, sanitizeAddress, transformWalletRow } from '../../lib/wallets-service';
+import { normalizeChains, sanitizeAddress, sanitizeSuiAddress, transformWalletRow } from '../../lib/wallets-service';
 import { deriveDefaultLabel } from '../../lib/wallets';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { checkWalletLimit } from '../../lib/subscriptions';
@@ -46,7 +46,32 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const body = await request.json();
-		const walletType: 'onchain' | 'custom' = body.walletType === 'custom' ? 'custom' : 'onchain';
+		const walletType: 'onchain' | 'custom' | 'sui' =
+			body.walletType === 'custom' ? 'custom' :
+			body.walletType === 'sui'    ? 'sui'    : 'onchain';
+
+		// ── Sui wallet ────────────────────────────────────────────────────────
+		if (walletType === 'sui') {
+			const address = sanitizeSuiAddress(body.address);
+			if (!address) {
+				return responseWithError('A valid Sui address (0x + up to 64 hex chars) is required.', 400);
+			}
+			const label =
+				typeof body.label === 'string' && body.label.trim().length
+					? body.label.trim()
+					: address.slice(-5).toUpperCase();
+			const inserted = await db.execute({
+				sql: `INSERT INTO wallets (tenant_id, address, label, chains, is_default, wallet_type)
+				      VALUES (?, ?, ?, ?, 0, 'sui')
+				      RETURNING id, address, label, chains, is_default, created_at, wallet_type`,
+				args: [tenantId, address, label, JSON.stringify(['sui'])],
+			});
+			const wallet = transformWalletRow(inserted.rows[0]);
+			return new Response(JSON.stringify(wallet), {
+				status: 201,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}
 
 		if (walletType === 'custom') {
 			const label = typeof body.label === 'string' ? body.label.trim() : '';
