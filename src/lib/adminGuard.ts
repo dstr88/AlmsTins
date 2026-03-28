@@ -2,7 +2,7 @@ import { getAuthSession } from './authSession';
 import { db } from './db';
 
 const ADMIN_EMAILS = new Set(
-	(process.env.ADMIN_EMAILS ?? 'donnie@titaniumhut.com')
+	(process.env.ADMIN_EMAILS ?? process.env.ADMIN_EMAIL ?? 'donnie@titaniumhut.com')
 		.split(',')
 		.map((e) => e.trim().toLowerCase())
 		.filter(Boolean),

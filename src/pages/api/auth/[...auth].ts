@@ -195,6 +195,11 @@ const authConfig = {
 		async jwt({ token, user }: { token: any; user?: any }) {
 			if (user?.id) {
 				token.sub = String(user.id);
+				// Explicitly carry email and name so getAuthSession can read them.
+				// Auth.js default JWT handling is unreliable across adapter + JWT-strategy combos.
+				if (user.email) token.email = String(user.email);
+				if (user.name) token.name = String(user.name);
+				if (user.image) token.picture = String(user.image);
 				token.tenantId = await ensureTenantForUser(String(user.id));
 			} else if (!token.tenantId && token.sub) {
 				token.tenantId = await resolveActiveTenantId(String(token.sub));

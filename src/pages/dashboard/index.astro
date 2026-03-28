@@ -15,9 +15,16 @@ const row = await db
 
 const email = String(row?.email ?? session.user.email ?? '').toLowerCase();
 
+// Accept ADMIN_EMAILS or ADMIN_EMAIL (singular). Prefer process.env which is
+// always populated in Astro SSR; import.meta.env can be empty on Render.
+const _adminEmailsRaw =
+	process.env.ADMIN_EMAILS ??
+	process.env.ADMIN_EMAIL ??
+	import.meta.env.ADMIN_EMAILS ??
+	import.meta.env.ADMIN_EMAIL ??
+	'donnie@titaniumhut.com';
 const ADMIN_EMAILS = new Set(
-	(import.meta.env.ADMIN_EMAILS ?? 'donnie@titaniumhut.com')
-		.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean),
+	_adminEmailsRaw.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean),
 );
 
 const dest = ADMIN_EMAILS.has(email) ? '/admin' : '/dashboard/vault';

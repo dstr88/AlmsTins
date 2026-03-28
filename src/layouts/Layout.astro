@@ -35,10 +35,17 @@ if (user?.id) {
 // Prefer session email, fall back to DB email
 const displayEmail = user?.email || dbEmail;
 
-// Admin check — show Admin link in nav if the logged-in email is an admin
+// Admin check — show Admin link in nav if the logged-in email is an admin.
+// Use process.env first (always populated in Astro SSR on Render), then
+// fall back to import.meta.env, and accept both singular/plural spellings.
+const _adminEmailsRaw =
+  (process.env as any).ADMIN_EMAILS ??
+  (process.env as any).ADMIN_EMAIL ??
+  import.meta.env.ADMIN_EMAILS ??
+  import.meta.env.ADMIN_EMAIL ??
+  'donnie@titaniumhut.com';
 const ADMIN_EMAILS = new Set(
-  (import.meta.env.ADMIN_EMAILS ?? 'donnie@titaniumhut.com')
-    .split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean)
+  _adminEmailsRaw.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean)
 );
 const isAdmin = Boolean(displayEmail && ADMIN_EMAILS.has(displayEmail.toLowerCase()));
 
@@ -445,7 +452,7 @@ const memberSinceDisplay = memberSinceIso
 	.account-email {
 		margin: 0;
 		font-size: 0.78rem;
-		color: rgba(255, 255, 255, 0.55);
+		color: rgba(255, 255, 255, 0.75);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -481,7 +488,7 @@ const memberSinceDisplay = memberSinceIso
 		display: flex;
 		align-items: center;
 		gap: 0.3rem;
-		color: rgba(255, 255, 255, 0.5);
+		color: rgba(255, 255, 255, 0.75);
 		text-align: right;
 	}
 
