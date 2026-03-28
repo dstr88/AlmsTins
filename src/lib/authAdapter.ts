@@ -66,6 +66,7 @@ const mapVerificationToken = (row: Row): VerificationToken => ({
 
 export const authAdapter = (): Adapter => ({
 	async createUser(user) {
+		console.log('[authAdapter] createUser called', { email: user.email, name: user.name });
 		// Auth types require a string email; keep empty string if provider didn't supply one.
 		const email = user.email ?? '';
 		// If a user with this email already exists (e.g. created via credentials),
@@ -77,6 +78,7 @@ export const authAdapter = (): Adapter => ({
 				args: [email],
 			});
 			if (existing.rows.length) {
+				console.log('[authAdapter] createUser — existing user found, returning', { email });
 				return mapUser(existing.rows[0] as Row);
 			}
 		}
@@ -93,15 +95,14 @@ export const authAdapter = (): Adapter => ({
 		if (result.rows.length === 0) return null;
 		return mapUser(result.rows[0] as Row);
 	},
-	async getUserByEmail(_email) {
-		// Always return null so Auth.js never hits the OAuthAccountNotLinked branch.
-		// createUser() already handles the "email exists" case by returning the
-		// existing user, after which Auth.js calls linkAccount() to attach the
-		// new OAuth provider — achieving account linking without the error.
-		// The email provider still works because createUser() prevents duplicates.
+	async getUserByEmail(email) {
+		console.log('[authAdapter] getUserByEmail called', { email });
+		// Always return null — prevents OAuthAccountNotLinked entirely.
+		// createUser() handles the email-exists case by returning the existing user.
 		return null;
 	},
 	async getUserByAccount({ provider, providerAccountId }) {
+		console.log('[authAdapter] getUserByAccount called', { provider, providerAccountId });
 		const result = await db.execute({
 			sql: `SELECT u.*
         FROM auth_users u
@@ -135,11 +136,21 @@ export const authAdapter = (): Adapter => ({
 		await db.execute({ sql: 'DELETE FROM auth_users WHERE id = ?', args: [id] });
 	},
 	async linkAccount(account) {
+		console.log('[authAdapter] linkAccount', { provider: account.provider, providerAccountId: account.providerAccountId, userId: account.userId });
 		await db.execute({
 			sql: `INSERT INTO auth_accounts (
           id, user_id, type, provider, provider_account_id, access_token, token_type, scope,
           expires_at, refresh_token, id_token, session_state
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(provider, provider_account_id) DO UPDATE SET
+          user_id = excluded.user_id,
+          access_token = excluded.access_token,
+          token_type = excluded.token_type,
+          scope = excluded.scope,
+          expires_at = excluded.expires_at,
+          refresh_token = excluded.refresh_token,
+          id_token = excluded.id_token,
+          session_state = excluded.session_state`,
 			args: [
 				toDbValue(crypto.randomUUID()),
 				toDbValue(account.userId),
@@ -155,6 +166,7 @@ export const authAdapter = (): Adapter => ({
 				toDbValue(account.session_state),
 			],
 		});
+		console.log('[authAdapter] linkAccount OK');
 		return account;
 	},
 	async unlinkAccount({ provider, providerAccountId }) {
