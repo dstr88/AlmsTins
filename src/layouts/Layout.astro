@@ -114,7 +114,7 @@ const memberSinceDisplay = memberSinceIso
 								)}
 								<div class="account-info">
 									{user?.name && <p class="account-name">{user.name}</p>}
-									{displayEmail && <p class="account-email">{displayEmail}</p>}
+									<p class="account-email">{displayEmail ?? '—'}</p>
 								</div>
 							</div>
 
@@ -122,12 +122,10 @@ const memberSinceDisplay = memberSinceIso
 
 							<!-- Meta: email, tenant ID, last login, member since -->
 							<div class="account-meta-block">
-								{displayEmail && (
-									<div class="account-meta-row">
-										<span class="account-meta-label">Email</span>
-										<span class="account-meta-value account-meta-email">{displayEmail}</span>
-									</div>
-								)}
+								<div class="account-meta-row">
+									<span class="account-meta-label">Email</span>
+									<span class="account-meta-value account-meta-email">{displayEmail ?? '—'}</span>
+								</div>
 								{tenantId && (
 									<div class="account-meta-row">
 										<span class="account-meta-label">Tenant ID</span>

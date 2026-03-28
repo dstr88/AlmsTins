@@ -92,17 +92,20 @@ const authConfig = {
 		error: '/login',
 	},
 	callbacks: {
-		async signIn({ user, account }: { user?: any; account?: any }) {
+		async signIn({ user, account, profile }: { user?: any; account?: any; profile?: any }) {
 			// ── OAuth / OIDC account linking ───────────────────────────────────────
 			// If a social sign-in (OAuth or OIDC) arrives for an email that already
 			// exists via a different provider (e.g. credentials), pre-emptively link
 			// the account so Auth.js never hits OAuthAccountNotLinked.
 			// NOTE: Google is type 'oidc', GitHub is type 'oauth' — handle both.
-			if ((account?.type === 'oauth' || account?.type === 'oidc') && user?.email) {
+			// Prefer profile.email (raw provider data) over user.email (adapter user,
+			// which may have a stale/empty email if the DB record predates OAuth).
+			const providerEmail = (profile?.email || user?.email || '') as string;
+			if ((account?.type === 'oauth' || account?.type === 'oidc') && providerEmail) {
 				try {
 					const existing = await db.execute({
 						sql: 'SELECT id FROM auth_users WHERE email = ? LIMIT 1',
-						args: [String(user.email).toLowerCase()],
+						args: [providerEmail.toLowerCase()],
 					});
 					if (existing.rows.length) {
 						const existingId = String((existing.rows[0] as Record<string, any>).id);
@@ -153,7 +156,7 @@ const authConfig = {
 					if (!exists.rows.length) {
 						console.warn('[auth][signIn] user missing in auth_users', {
 							userId,
-							email: user.email ?? null,
+							email: providerEmail || null,
 							provider: account?.provider ?? null,
 						});
 						return true;
@@ -161,7 +164,7 @@ const authConfig = {
 				} catch (error) {
 					console.error('[auth][signIn] auth_users lookup failed', {
 						userId,
-						email: user.email ?? null,
+						email: providerEmail || null,
 						provider: account?.provider ?? null,
 						error: error instanceof Error ? error.message : String(error),
 					});
@@ -172,20 +175,38 @@ const authConfig = {
 				} catch (error) {
 					console.error('[auth][signIn] ensureTenantForUser failed', {
 						userId,
-						email: user.email ?? null,
+						email: providerEmail || null,
 						provider: account?.provider ?? null,
 						error: error instanceof Error ? error.message : String(error),
 					});
 					throw error;
 				}
-				// Stamp last_login — best-effort, never block sign-in
+				// Stamp last_login and backfill email/name if the DB record has none.
+				// Uses the raw provider profile email which is available even when the
+				// adapter user object has a stale/empty email.
 				try {
-					await db.execute({
-						sql: `UPDATE auth_users SET last_login = ? WHERE id = ?`,
-						args: [new Date().toISOString(), userId],
-					});
+					if (providerEmail) {
+						await db.execute({
+							sql: `UPDATE auth_users
+								SET last_login = ?,
+								    email = CASE WHEN (email IS NULL OR email = '') THEN ? ELSE email END,
+								    name  = CASE WHEN (name  IS NULL OR name  = '') THEN ? ELSE name  END
+								WHERE id = ?`,
+							args: [
+								new Date().toISOString(),
+								providerEmail,
+								(profile?.name ?? user?.name ?? null),
+								userId,
+							],
+						});
+					} else {
+						await db.execute({
+							sql: `UPDATE auth_users SET last_login = ? WHERE id = ?`,
+							args: [new Date().toISOString(), userId],
+						});
+					}
 				} catch (error) {
-					console.warn('[auth][signIn] last_login update failed', {
+					console.warn('[auth][signIn] last_login/email update failed', {
 						userId,
 						error: error instanceof Error ? error.message : String(error),
 					});
