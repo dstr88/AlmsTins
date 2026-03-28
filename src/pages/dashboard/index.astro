@@ -7,7 +7,17 @@ if (!session?.user?.id) {
 	return Astro.redirect('/login', 302);
 }
 
-// Pull email from DB (JWT may not carry it)
+// ── Tenant-ID-based admin check (most reliable — always in JWT) ────────────
+const ADMIN_TENANT_IDS = new Set(
+	(process.env.ADMIN_TENANT_IDS ?? process.env.ADMIN_TENANT_ID ?? '')
+		.split(',').map((id: string) => id.trim().toLowerCase()).filter(Boolean),
+);
+const tenantId = String(session.tenantId ?? '').toLowerCase();
+if (tenantId && ADMIN_TENANT_IDS.has(tenantId)) {
+	return Astro.redirect('/admin', 302);
+}
+
+// ── Email-based admin check (fallback) ────────────────────────────────────
 const row = await db
 	.execute({ sql: 'SELECT email FROM auth_users WHERE id = ? LIMIT 1', args: [session.user.id] })
 	.then((r) => r.rows[0] as Record<string, unknown> | undefined)
@@ -15,18 +25,11 @@ const row = await db
 
 const email = String(row?.email ?? session.user.email ?? '').toLowerCase();
 
-// Accept ADMIN_EMAILS or ADMIN_EMAIL (singular). Prefer process.env which is
-// always populated in Astro SSR; import.meta.env can be empty on Render.
-const _adminEmailsRaw =
-	process.env.ADMIN_EMAILS ??
-	process.env.ADMIN_EMAIL ??
-	import.meta.env.ADMIN_EMAILS ??
-	import.meta.env.ADMIN_EMAIL ??
-	'donnie@titaniumhut.com';
 const ADMIN_EMAILS = new Set(
-	_adminEmailsRaw.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean),
+	(process.env.ADMIN_EMAILS ?? process.env.ADMIN_EMAIL ?? '')
+		.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean),
 );
 
-const dest = ADMIN_EMAILS.has(email) ? '/admin' : '/dashboard/vault';
+const dest = (email && ADMIN_EMAILS.has(email)) ? '/admin' : '/dashboard/vault';
 return Astro.redirect(dest, 302);
 ---

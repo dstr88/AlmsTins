@@ -35,19 +35,27 @@ if (user?.id) {
 // Prefer session email, fall back to DB email
 const displayEmail = user?.email || dbEmail;
 
-// Admin check — show Admin link in nav if the logged-in email is an admin.
-// Use process.env first (always populated in Astro SSR on Render), then
-// fall back to import.meta.env, and accept both singular/plural spellings.
+// Admin check — tenant ID is checked first (always in JWT, no email dependency).
+// Fall back to email match as a secondary check.
+const _adminTenantIdsRaw =
+  (process.env as any).ADMIN_TENANT_IDS ??
+  (process.env as any).ADMIN_TENANT_ID ??
+  '';
+const ADMIN_TENANT_IDS = new Set(
+  _adminTenantIdsRaw.split(',').map((id: string) => id.trim().toLowerCase()).filter(Boolean)
+);
 const _adminEmailsRaw =
   (process.env as any).ADMIN_EMAILS ??
   (process.env as any).ADMIN_EMAIL ??
   import.meta.env.ADMIN_EMAILS ??
   import.meta.env.ADMIN_EMAIL ??
-  'donnie@titaniumhut.com';
+  '';
 const ADMIN_EMAILS = new Set(
   _adminEmailsRaw.split(',').map((e: string) => e.trim().toLowerCase()).filter(Boolean)
 );
-const isAdmin = Boolean(displayEmail && ADMIN_EMAILS.has(displayEmail.toLowerCase()));
+const isAdmin =
+  (tenantId ? ADMIN_TENANT_IDS.has(String(tenantId).toLowerCase()) : false) ||
+  Boolean(displayEmail && ADMIN_EMAILS.has(displayEmail.toLowerCase()));
 
 const fmtDate = (iso: string | null) => {
   if (!iso) return null;
