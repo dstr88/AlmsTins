@@ -93,11 +93,12 @@ const authConfig = {
 	},
 	callbacks: {
 		async signIn({ user, account }: { user?: any; account?: any }) {
-			// ── OAuth account linking ──────────────────────────────────────────────
-			// If an OAuth sign-in arrives for an email that already exists via a
-			// different provider (e.g. credentials), link the OAuth account to the
-			// existing user so we don't hit OAuthAccountNotLinked.
-			if (account?.type === 'oauth' && user?.email) {
+			// ── OAuth / OIDC account linking ───────────────────────────────────────
+			// If a social sign-in (OAuth or OIDC) arrives for an email that already
+			// exists via a different provider (e.g. credentials), pre-emptively link
+			// the account so Auth.js never hits OAuthAccountNotLinked.
+			// NOTE: Google is type 'oidc', GitHub is type 'oauth' — handle both.
+			if ((account?.type === 'oauth' || account?.type === 'oidc') && user?.email) {
 				try {
 					const existing = await db.execute({
 						sql: 'SELECT id FROM auth_users WHERE email = ? LIMIT 1',
@@ -194,15 +195,31 @@ const authConfig = {
 		},
 		async jwt({ token, user }: { token: any; user?: any }) {
 			if (user?.id) {
+				// ── First sign-in: user object is present ────────────────────────
 				token.sub = String(user.id);
-				// Explicitly carry email and name so getAuthSession can read them.
-				// Auth.js default JWT handling is unreliable across adapter + JWT-strategy combos.
+				// Explicitly carry fields — Auth.js defaults are unreliable with
+				// a custom adapter + JWT strategy combination.
 				if (user.email) token.email = String(user.email);
 				if (user.name) token.name = String(user.name);
 				if (user.image) token.picture = String(user.image);
 				token.tenantId = await ensureTenantForUser(String(user.id));
-			} else if (!token.tenantId && token.sub) {
-				token.tenantId = await resolveActiveTenantId(String(token.sub));
+			} else if (token.sub) {
+				// ── Token refresh: no user object ────────────────────────────────
+				if (!token.tenantId) {
+					token.tenantId = await resolveActiveTenantId(String(token.sub));
+				}
+				// Backfill email from DB on every refresh so sessions issued before
+				// explicit email-setting still pick it up without requiring re-login.
+				if (!token.email) {
+					try {
+						const row = await db.execute({
+							sql: 'SELECT email FROM auth_users WHERE id = ? LIMIT 1',
+							args: [String(token.sub)],
+						});
+						const email = row.rows[0] ? String((row.rows[0] as Record<string, any>).email ?? '') : '';
+						if (email) token.email = email;
+					} catch { /* non-fatal */ }
+				}
 			}
 			return token;
 		},

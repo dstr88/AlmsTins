@@ -2,14 +2,19 @@
 import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
 
-// Guard — throws 401/403 Response if not admin
+// Guard — redirect non-admin users rather than returning a raw 4xx,
+// since Render's infrastructure renders raw error responses as "file not found".
 let adminEmail = '';
 try {
 	const admin = await requireAdminSession(Astro.request);
 	adminEmail = admin.email;
 } catch (resp) {
-	if (resp instanceof Response) return resp;
-	return new Response('Server Error', { status: 500 });
+	if (resp instanceof Response) {
+		if (resp.status === 401) return Astro.redirect('/login', 303);
+		// 403 = authenticated but not admin
+		return Astro.redirect('/dashboard/vault', 303);
+	}
+	return Astro.redirect('/dashboard/vault', 303);
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

@@ -137,20 +137,18 @@ export const authAdapter = (): Adapter => ({
 	},
 	async linkAccount(account) {
 		console.log('[authAdapter] linkAccount', { provider: account.provider, providerAccountId: account.providerAccountId, userId: account.userId });
+		// Use DELETE + INSERT instead of an UPSERT so this works regardless of
+		// whether the auth_accounts table has a UNIQUE(provider, provider_account_id)
+		// constraint. Deleting first is idempotent and avoids all constraint issues.
+		await db.execute({
+			sql: 'DELETE FROM auth_accounts WHERE provider = ? AND provider_account_id = ?',
+			args: [toDbValue(account.provider), toDbValue(account.providerAccountId)],
+		});
 		await db.execute({
 			sql: `INSERT INTO auth_accounts (
           id, user_id, type, provider, provider_account_id, access_token, token_type, scope,
           expires_at, refresh_token, id_token, session_state
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(provider, provider_account_id) DO UPDATE SET
-          user_id = excluded.user_id,
-          access_token = excluded.access_token,
-          token_type = excluded.token_type,
-          scope = excluded.scope,
-          expires_at = excluded.expires_at,
-          refresh_token = excluded.refresh_token,
-          id_token = excluded.id_token,
-          session_state = excluded.session_state`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			args: [
 				toDbValue(crypto.randomUUID()),
 				toDbValue(account.userId),
