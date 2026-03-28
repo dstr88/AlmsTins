@@ -10,6 +10,7 @@ import VaultNftActivity from '@/components/dashboard/VaultNftActivity';
 import CryptoComAccounts from '../../components/CryptoComAccounts.astro';
 import ExchangeAccounts from '../../components/ExchangeAccounts.astro';
 import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
+import PortfolioTile from '../../components/dashboard/PortfolioTile';
 import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.astro';
 import CustomWalletCard from '@/components/dashboard/CustomWalletCard.astro';
 import SuiWalletTin from '@/components/dashboard/SuiWalletTin.astro';
@@ -70,7 +71,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				<PriceWatchlist client:only="react" />
 			</SalmonTin>
 			<SalmonTin label="Portfolio" class="tile tile--r1c2">
-				<NetWorthOverviewCard client:only="react" endpoint="/api/networth/summary" />
+				<PortfolioTile client:only="react" />
 			</SalmonTin>
 			<div class="tile tile--r1c3">
 				{ENABLE_ALL_TX
