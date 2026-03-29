@@ -147,19 +147,24 @@ export async function buildAnnualBreakdown(
     args: [tenantId, yearEnd],
   });
 
-  // Classes to exclude ENTIRELY from FIFO — debt tokens and income events only.
-  // These have no real-asset cost-basis impact (debt tokens are liabilities, not assets).
+  // Classes to exclude ENTIRELY from FIFO.
+  // liability_increase covers BOTH the debt token mint AND the borrow proceeds IN from
+  // the pool — neither creates a real owned lot (the proceeds are a liability, not equity).
+  // interest_income feeds the income section separately.
   const SKIP_CLASSES = new Set([
-    'liability_increase',    // debt tokens minted when borrowing (e.g. variableDebtPolUSDT)
-    'liability_repayment',   // debt tokens burned when repaying
+    'liability_increase',    // borrow proceeds IN + debt token minted — no real lot
     'interest_income',       // handled separately in the income section
   ]);
 
-  // Classes to run through FIFO for correct lot tracking, but NOT record as a taxable
-  // capital-gain/loss event.  The cost basis carries through (e.g. USDC → aUSDC → USDC).
+  // Classes that DO move real-asset lots through FIFO but are NOT taxable capital events.
+  // Repayments must consume the underlying lot (e.g. USDC repaid to Aave should clear the
+  // USDC cost-basis lot) but produce no gain/loss — cost basis simply returns to the
+  // protocol.  Debt-token burns have no matching lot and are silently dropped (isTaxable=false).
   const FIFO_NONTAXABLE = new Set([
-    'collateral_deposit',    // USDC out to Aave → aUSDC in: cost moves, no taxable event
-    'collateral_withdrawal', // aUSDC out from Aave → USDC in: cost moves, no taxable event
+    'collateral_deposit',    // USDC → aUSDC: cost moves to protocol, no taxable event
+    'collateral_withdrawal', // aUSDC → USDC: cost returns from protocol, no taxable event
+    'liability_repayment',   // USDC repaid to Aave: consumes USDC lot, no gain/loss
+                             //   variableDebt burn: no lot exists → silently dropped
   ]);
 
   // ── 1a. Sui wallet transactions ───────────────────────────────────────────
