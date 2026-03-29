@@ -44,6 +44,18 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     ]
   })} />
 
+  <!-- Top nav bar -->
+  <nav class="topnav" aria-label="Almstins site navigation">
+    <a class="topnav__brand" href="/" aria-label="Almstins home">
+      <span class="topnav__wordmark">Almstins</span>
+      <span class="topnav__tagline">Crypto portfolio tracker &amp; tax tool</span>
+    </a>
+    <div class="topnav__actions">
+      <a class="topnav__login" href="/login">Log in</a>
+      <a class="topnav__signup" href="/login">Sign up free</a>
+    </div>
+  </nav>
+
   <div class="page">
 
     <!-- Hero -->
@@ -61,6 +73,19 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     <div class="checker-wrap">
       <WalletChecker client:load prefilledAddress={prefilledAddress} />
     </div>
+
+    <!-- Almstins CTA -->
+    <section class="cta-banner" aria-label="About Almstins">
+      <div class="cta-banner__icon" aria-hidden="true">📊</div>
+      <div class="cta-banner__body">
+        <p class="cta-banner__headline">Want to track everything you own?</p>
+        <p class="cta-banner__sub">
+          Almstins connects your wallets, DeFi positions, and exchange accounts in one place —
+          and automatically calculates your capital gains and tax exposure.
+        </p>
+      </div>
+      <a class="cta-banner__btn" href="/login">Get started free →</a>
+    </section>
 
     <!-- What we check -->
     <section class="signals" aria-labelledby="signals-heading">
@@ -131,12 +156,94 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       Results are sourced from public scam databases including GoPlus Security, Etherscan, Alchemy, and honeypot.is.
       Findings are reported, not legally confirmed. This tool does not constitute financial or legal advice.
       Always do your own research before sending cryptocurrency to any address.
+      <br />
+      <a class="disclaimer__link" href="/">A free tool by Almstins — crypto portfolio tracker &amp; tax calculator.</a>
     </p>
 
   </div>
 </LoginLayout>
 
 <style>
+  /* ── Top nav ── */
+  .topnav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1.75rem;
+    background: rgba(5, 7, 15, 0.88);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .topnav__brand {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    text-decoration: none;
+  }
+
+  .topnav__wordmark {
+    font-size: 1.05rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #f5f8ff 30%, #a5b4fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.02em;
+  }
+
+  .topnav__tagline {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.35);
+    display: none;
+  }
+
+  @media (min-width: 560px) {
+    .topnav__tagline { display: inline; }
+  }
+
+  .topnav__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .topnav__login {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
+    text-decoration: none;
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
+    transition: color 0.15s ease;
+  }
+
+  .topnav__login:hover {
+    color: #f5f8ff;
+  }
+
+  .topnav__signup {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    text-decoration: none;
+    padding: 0.45rem 1.1rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #5767ff, #934dff);
+    transition: filter 0.15s ease, transform 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .topnav__signup:hover {
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+  }
+
+  /* ── Page ── */
   .page {
     max-width: 860px;
     margin: 0 auto;
@@ -188,7 +295,64 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 
   /* Checker */
   .checker-wrap {
+    margin-bottom: 2.5rem;
+  }
+
+  /* ── Almstins CTA banner ── */
+  .cta-banner {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    background: linear-gradient(135deg, rgba(87, 103, 255, 0.12), rgba(147, 77, 255, 0.1));
+    border: 1px solid rgba(87, 103, 255, 0.28);
+    border-radius: 16px;
+    padding: 1.4rem 1.6rem;
     margin-bottom: 4rem;
+    flex-wrap: wrap;
+  }
+
+  .cta-banner__icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .cta-banner__body {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .cta-banner__headline {
+    margin: 0 0 0.3rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f5f8ff;
+  }
+
+  .cta-banner__sub {
+    margin: 0;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.6;
+  }
+
+  .cta-banner__btn {
+    flex-shrink: 0;
+    display: inline-block;
+    padding: 0.65rem 1.3rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #5767ff, #934dff);
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: filter 0.15s ease, transform 0.15s ease;
+  }
+
+  .cta-banner__btn:hover {
+    filter: brightness(1.12);
+    transform: translateY(-1px);
   }
 
   /* What we check grid */
@@ -303,6 +467,18 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     padding-top: 2rem;
   }
 
+  .disclaimer__link {
+    color: rgba(165, 180, 252, 0.5);
+    text-decoration: none;
+    display: inline-block;
+    margin-top: 0.4rem;
+    transition: color 0.15s ease;
+  }
+
+  .disclaimer__link:hover {
+    color: #a5b4fc;
+  }
+
   /* Responsive */
   @media (max-width: 600px) {
     .signals__grid {
@@ -310,6 +486,17 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     }
     .hero__title {
       -webkit-text-fill-color: #f5f8ff;
+    }
+    .cta-banner {
+      flex-direction: column;
+      text-align: center;
+    }
+    .cta-banner__icon {
+      align-self: center;
+    }
+    .cta-banner__btn {
+      align-self: stretch;
+      text-align: center;
     }
   }
 </style>
