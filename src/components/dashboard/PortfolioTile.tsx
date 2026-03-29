@@ -107,8 +107,9 @@ export default function PortfolioTile() {
 
 			{/* ── Total ────────────────────────────────────────── */}
 			<div className="pt-total">
-				<span className="pt-total__label">Total</span>
+				<span className="pt-total__label">Market Value</span>
 				<strong className="pt-total__value">{fmt.format(total)}</strong>
+				<span className="pt-total__hint">current prices</span>
 			</div>
 
 			{/* ── Per-source balance list ───────────────────────── */}
@@ -182,9 +183,9 @@ export default function PortfolioTile() {
 				}
 				.pt-total {
 					display: flex;
-					justify-content: space-between;
 					align-items: baseline;
 					gap: 0.5rem;
+					flex-wrap: wrap;
 				}
 				.pt-total__label {
 					font-size: 0.72rem;
@@ -197,6 +198,13 @@ export default function PortfolioTile() {
 					font-weight: 800;
 					font-variant-numeric: tabular-nums;
 					letter-spacing: -0.01em;
+					flex: 1;
+				}
+				.pt-total__hint {
+					font-size: 0.68rem;
+					opacity: 0.35;
+					font-style: italic;
+					white-space: nowrap;
 				}
 				.pt-loading,
 				.pt-empty {

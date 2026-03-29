@@ -30,6 +30,9 @@
       <button class="faq-question" type="button" data-modal="faq-tax">
         Is this tax software?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-wallet-vs-bookkeeping">
+        Why is "Still in Wallet" different from my Vault balance?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -211,6 +214,32 @@
           </li>
           <li><strong>1/30 I saw my first subscriber today.  I was thankful for the person, but felt bad because there was no documentation.</strong>As we enjoyed a snow day at home, I wrote documentation for my project, and for the first time I feel like someone noticed its worth.  -so thankful.</li>
         </ol>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-wallet-vs-bookkeeping">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Why is "Still in Wallet" different from my Vault balance?</h1>
+
+        <p>
+          These two numbers measure the same assets in completely different ways — and both are correct. Here's the difference:
+        </p>
+
+        <p>
+          <strong>Vault — Market Value</strong><br />
+          The Vault pulls live data directly from the blockchain right now. The dollar value shown is what your coins are worth <em>today</em> at current market prices. If you bought Bitcoin in 2018 for $6,000 and it's now worth $90,000, the Vault shows $90,000.
+        </p>
+
+        <p>
+          <strong>Bookkeeping — Cost Basis</strong><br />
+          "Still in Wallet" on the Bookkeeping page shows what you <em>originally paid</em> for the coins you haven't sold yet — your cost basis. Using the same example, it would show $6,000 for that Bitcoin. This number matters for taxes: when you eventually sell, your taxable gain is the difference between what you sell it for and what you paid (the cost basis).
+        </p>
+
+        <p>
+          <strong>In short:</strong> Vault = current market value of your portfolio. Bookkeeping = what you paid to build it. The gap between the two is your unrealized profit (or loss).
+        </p>
       </div>
     </div>
 

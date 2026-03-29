@@ -136,7 +136,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
             <a href={csvBase('stillHolding')} download class="tin-csv-btn">↓ CSV</a>
           </div>
           <div class="tin-total">
-            Cost basis held: <strong>{fUsd(walletCostBasis)}</strong>
+            <span class="tin-total__kind">Cost Basis</span>
+            <strong>{fUsd(walletCostBasis)}</strong>
+            <span class="tin-total__note">what you paid · not market value</span>
           </div>
           {walletHoldings.length === 0 ? (
             <p class="tin-empty">No open positions</p>
@@ -584,6 +586,14 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       margin-bottom: 0.75rem;
     }
     .tin-total strong { font-size: 1.05rem; }
+    .tin-total__kind {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.55;
+      margin-right: 0.15rem;
+    }
     .tin-total__note {
       font-size: 0.75rem;
       opacity: 0.5;
