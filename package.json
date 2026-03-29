@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
+    "@astrojs/sitemap": "^3.7.2",
     "@types/node": "^24.5.2",
     "@types/nodemailer": "^7.0.9",
     "typescript": "^5.9.3",

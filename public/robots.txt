@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+Allow: /wallet-checker
+Allow: /myplans
+Allow: /PremiumPlan
+
+# Keep authenticated and transactional pages out of indexes
+Disallow: /dashboard/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /onboarding/
+Disallow: /login
+Disallow: /signup
+Disallow: /cancel
+Disallow: /success
+Disallow: /transition
+Disallow: /welcome
+
+Sitemap: https://almstins.com/sitemap-index.xml

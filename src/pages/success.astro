@@ -1,0 +1,101 @@
+---
+import Layout from '@/layouts/Layout.astro';
+---
+
+<Layout showHero={false} title="Payment Successful | Almstins" noindex={true}>
+  <main class="status-page">
+    <section class="status-card" aria-live="polite">
+      <h1>Payment successful</h1>
+      <p id="statusMessage">Thanks! We are confirming your domain registration now.</p>
+      <p class="status-domain">
+        Domain: <span id="domainValue">Loading…</span>
+      </p>
+      <p class="status-note" id="statusNote"></p>
+      <a class="status-link" href="/">Back to home</a>
+    </section>
+  </main>
+
+  <style>
+    .status-page {
+      min-height: 60vh;
+      display: grid;
+      place-items: center;
+      padding: clamp(1.5rem, 4vw, 3rem);
+    }
+
+    .status-card {
+      width: min(680px, 92vw);
+      padding: clamp(1.5rem, 3vw, 2.25rem);
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(10px);
+      text-align: center;
+    }
+
+    .status-card h1 {
+      margin: 0 0 0.75rem;
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+    }
+
+    .status-domain {
+      margin: 0.75rem 0 0.25rem;
+      font-weight: 700;
+    }
+
+    .status-note {
+      min-height: 1.2rem;
+      opacity: 0.9;
+    }
+
+    .status-link {
+      display: inline-block;
+      margin-top: 1.25rem;
+      font-weight: 700;
+      text-decoration: none;
+      border-bottom: 2px solid currentColor;
+    }
+  </style>
+
+  <script>
+    (function () {
+      const statusMessage = document.getElementById("statusMessage");
+      const statusNote = document.getElementById("statusNote");
+      const domainValue = document.getElementById("domainValue");
+
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get("session_id");
+
+      if (!sessionId) {
+        domainValue.textContent = "Unavailable";
+        statusMessage.textContent =
+          "We could not find your checkout session. Contact support if needed.";
+        return;
+      }
+
+      fetch(`/api/pay/status.php?session_id=${encodeURIComponent(sessionId)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data || !data.ok) {
+            domainValue.textContent = "Unavailable";
+            statusMessage.textContent =
+              "We are still processing your order. Please check back soon.";
+            statusNote.textContent = data?.error ? `Note: ${data.error}` : "";
+            return;
+          }
+
+          domainValue.textContent = data.domain || "Unavailable";
+          statusMessage.textContent =
+            data.status === "fulfilled"
+              ? "Your domain is registered."
+              : "Your order is confirmed and in progress.";
+          statusNote.textContent = data.message || "";
+        })
+        .catch(() => {
+          domainValue.textContent = "Unavailable";
+          statusMessage.textContent =
+            "We could not verify your order right now.";
+        });
+    })();
+  </script>
+</Layout>
