@@ -47,6 +47,23 @@ const kindLabel = (kind: string) =>
     .replace(/\b\w/g, (c) => c.toUpperCase())
     .replace(/Crypto/g, 'Crypto')
     .trim();
+
+// ── Asset classifiers ────────────────────────────────────────────────────────
+const STABLECOINS = new Set([
+  'USDC','USDT','DAI','BUSD','FRAX','TUSD','USDP','GUSD','LUSD',
+  'CRVUSD','USDE','PYUSD','USDS','FDUSD','SUSD','MUSD','ALUSD',
+]);
+const isAToken    = (s: string) => /^a[A-Z]/.test(s);   // aUSDC, aWETH, aPolUSDC…
+const isDebtToken = (s: string) => /^(variableDebt|stableDebt)/i.test(s);
+const isDefiAsset = (s: string) => isAToken(s) || isDebtToken(s);
+const isStable    = (s: string) => STABLECOINS.has(s.replace(/^a/, '').toUpperCase());
+
+// Split holdings into regular wallet vs DeFi protocol positions
+const walletHoldings = bd.stillHolding.filter(p => !isDefiAsset(p.asset));
+const defiHoldings   = bd.stillHolding.filter(p => isDefiAsset(p.asset));
+
+const walletCostBasis = walletHoldings.reduce((s, p) => s + (p.costUsd ?? 0), 0);
+const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0);
 ---
 
 <Layout title="Bookkeeping | Almstins" noindex={true}>
@@ -115,19 +132,20 @@ const kindLabel = (kind: string) =>
       <div class="grid-cell">
         <OrnateTin label="💼 Still in Wallet" class="tin-section tin-section--hold">
           <div class="tin-toolbar">
-            <span class="tin-toolbar__count">{bd.stillHolding.length} positions</span>
+            <span class="tin-toolbar__count">{walletHoldings.length} positions</span>
             <a href={csvBase('stillHolding')} download class="tin-csv-btn">↓ CSV</a>
           </div>
           <div class="tin-total">
-            Cost basis held: <strong>{fUsd(bd.totals.heldCostBasis)}</strong>
+            Cost basis held: <strong>{fUsd(walletCostBasis)}</strong>
           </div>
-          {bd.stillHolding.length === 0 ? (
+          {walletHoldings.length === 0 ? (
             <p class="tin-empty">No open positions</p>
           ) : (
             <div class="tin-rows">
-              {bd.stillHolding.map((pos) => (
-                <div class="tin-row">
+              {walletHoldings.map((pos) => (
+                <div class={`tin-row${isStable(pos.asset) ? ' tin-row--stable' : ''}`}>
                   <span class="tin-row__asset">{pos.asset}</span>
+                  {isStable(pos.asset) && <span class="asset-badge asset-badge--stable">STABLE</span>}
                   <span class="tin-row__qty">{fQty(pos.amount)}</span>
                   <span class="tin-row__date">Since {fDate(pos.acquiredDate)}</span>
                   <span class="tin-row__usd">{fUsd(pos.costUsd)}</span>
@@ -174,6 +192,39 @@ const kindLabel = (kind: string) =>
           )}
         </OrnateTin>
       </div>
+
+      <!-- 🔷 DeFi Positions — full width, only shown when present -->
+      {defiHoldings.length > 0 && (
+        <div class="grid-cell grid-cell--full">
+          <OrnateTin label="🔷 DeFi Positions" class="tin-section tin-section--defi">
+            <div class="tin-toolbar">
+              <span class="tin-toolbar__count">{defiHoldings.length} positions</span>
+              <span class="tin-toolbar__note">Aave collateral &amp; protocol balances — unrealized, no tax until withdrawn &amp; sold</span>
+            </div>
+            <div class="tin-total">
+              Protocol cost basis: <strong>{fUsd(defiCostBasis)}</strong>
+              <span class="tin-total__note">not included in wallet total above</span>
+            </div>
+            <div class="tin-rows tin-rows--defi">
+              {defiHoldings.map((pos) => (
+                <div class={`tin-row${isDebtToken(pos.asset) ? ' tin-row--debt' : ' tin-row--atoken'}`}>
+                  <span class="tin-row__asset">{pos.asset}</span>
+                  {isDebtToken(pos.asset)
+                    ? <span class="asset-badge asset-badge--debt">DEBT</span>
+                    : <span class="asset-badge asset-badge--atoken">AAVE</span>
+                  }
+                  <span class="tin-row__qty">{fQty(pos.amount)}</span>
+                  <span class="tin-row__date">Since {fDate(pos.acquiredDate)}</span>
+                  <span class="tin-row__usd">{fUsd(pos.costUsd)}</span>
+                  <span class={`tin-row__term ${pos.daysHeld >= 365 ? 'term-long' : 'term-short'}`}>
+                    {pos.daysHeld >= 365 ? 'Long' : 'Short'} · {pos.daysHeld}d
+                  </span>
+                </div>
+              ))}
+            </div>
+          </OrnateTin>
+        </div>
+      )}
 
       <!-- 🟠 3. Short-Term Gains / Losses -->
       <div class="grid-cell">
@@ -451,6 +502,21 @@ const kindLabel = (kind: string) =>
       border-color: rgba(34,197,94,0.55) !important;
     }
 
+    /* DeFi: teal/cyan */
+    :global(.tin-section--defi .ornate-tin__label) {
+      background: linear-gradient(180deg, #06b6d4cc, #06b6d490) !important;
+      color: #fff !important;
+    }
+    :global(.tin-section--defi::before) {
+      box-shadow:
+        0 0 0 2px rgba(6,182,212,0.8) inset,
+        0 0 0 8px rgba(6,182,212,0.08) inset,
+        0 0 0 1px rgba(255,255,255,0.06) inset !important;
+    }
+    :global(.tin-section--defi::after) {
+      border-color: rgba(6,182,212,0.55) !important;
+    }
+
     /* Income: purple */
     :global(.tin-section--income .ornate-tin__label) {
       background: linear-gradient(180deg, #a855f7cc, #a855f790) !important;
@@ -481,6 +547,12 @@ const kindLabel = (kind: string) =>
       letter-spacing: 0.07em;
       text-transform: uppercase;
       opacity: 0.5;
+    }
+    .tin-toolbar__note {
+      font-size: 0.72rem;
+      opacity: 0.4;
+      font-style: italic;
+      margin-left: 0.75rem;
     }
     .tin-csv-btn {
       display: inline-flex;
@@ -564,6 +636,68 @@ const kindLabel = (kind: string) =>
     .tin-row__note   { font-size: 0.75rem; opacity: 0.45; font-style: italic; }
     .tin-row__kind   { font-size: 0.75rem; opacity: 0.55; }
     .tin-row__term   { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
+
+    /* ── DeFi rows grid (multi-column when wide) ────────────── */
+    .tin-rows--defi {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 0.4rem;
+      overflow-y: visible;
+    }
+
+    /* ── Row: aToken (Aave collateral deposit) ──────────────── */
+    .tin-row--atoken {
+      border-left: 3px solid rgba(6,182,212,0.55);
+      background: rgba(6,182,212,0.05);
+      color: #e0f7fa;
+    }
+    .tin-row--atoken:hover { background: rgba(6,182,212,0.1); }
+    .tin-row--atoken .tin-row__asset { color: #67e8f9; }
+
+    /* ── Row: Debt token (borrowed, still owed) ─────────────── */
+    .tin-row--debt {
+      border-left: 3px solid rgba(239,68,68,0.6);
+      background: rgba(239,68,68,0.07);
+      color: #fecaca;
+    }
+    .tin-row--debt:hover { background: rgba(239,68,68,0.13); }
+    .tin-row--debt .tin-row__asset { color: #f87171; }
+
+    /* ── Row: Stablecoin in regular wallet ──────────────────── */
+    .tin-row--stable {
+      border-left: 3px solid rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.06);
+      color: #f5f5f5;
+    }
+    .tin-row--stable:hover { background: rgba(255,255,255,0.1); }
+    .tin-row--stable .tin-row__asset { color: #ffffff; }
+
+    /* ── Asset type badges ──────────────────────────────────── */
+    .asset-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.6rem;
+      font-weight: 800;
+      letter-spacing: 0.09em;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      vertical-align: middle;
+    }
+    .asset-badge--stable {
+      background: rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.7);
+      border: 1px solid rgba(255,255,255,0.22);
+    }
+    .asset-badge--atoken {
+      background: rgba(6,182,212,0.18);
+      color: #67e8f9;
+      border: 1px solid rgba(6,182,212,0.35);
+    }
+    .asset-badge--debt {
+      background: rgba(239,68,68,0.18);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,0.35);
+    }
 
     /* ── Colour tokens ──────────────────────────────────────── */
     .gain-pos { color: #4ade80; }
