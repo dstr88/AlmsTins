@@ -376,7 +376,7 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
             {address.length}/128
           </span>
           <button
-            onClick={handleCheck}
+            onClick={() => handleCheck()}
             disabled={loading || !address.trim()}
             style={{
               background: loading || !address.trim()
