@@ -1,27 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { normalizeNetWorthSummary, type NetWorthSummary } from '@/lib/networth/summaryContract';
 
-const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const fmtFull = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 type UploadStatus = { ok: boolean; message: string } | null;
 
 function CameraIcon() {
 	return (
-		<svg
-			width="15"
-			height="15"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-			aria-hidden="true"
-		>
+		<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+			strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
 			<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
 			<circle cx="12" cy="13" r="4" />
 		</svg>
 	);
+}
+
+function walletName(w: { walletLabel?: string | null; walletAddress?: string | null; walletId: string }): string {
+	if (w.walletLabel?.trim()) return w.walletLabel.trim();
+	const addr = w.walletAddress ?? w.walletId;
+	return addr.length > 10 ? '…' + addr.slice(-8) : addr;
 }
 
 export default function PortfolioTile() {
@@ -34,13 +32,9 @@ export default function PortfolioTile() {
 		let mounted = true;
 		fetch('/api/networth/summary')
 			.then((r) => r.json())
-			.then((data) => {
-				if (mounted) setSummary(normalizeNetWorthSummary(data));
-			})
+			.then((data) => { if (mounted) setSummary(normalizeNetWorthSummary(data)); })
 			.catch(() => {});
-		return () => {
-			mounted = false;
-		};
+		return () => { mounted = false; };
 	}, []);
 
 	const handleFile = async (file: File | undefined) => {
@@ -66,32 +60,32 @@ export default function PortfolioTile() {
 			setStatus({ ok: false, message: 'Upload failed.' });
 		} finally {
 			setUploading(false);
-			// Reset input so the same file can be re-selected
 			if (fileRef.current) fileRef.current.value = '';
 		}
 	};
 
-	const tins = summary?.tins ?? [];
-	const total = summary?.totalUsd ?? 0;
+	// Use gross asset value — excludes DeFi debt so the number isn't dragged negative
+	const assetsTotal = summary?.totalAssetsUsd ?? 0;
+	const debtTotal   = summary?.totalDebtUsd   ?? 0;
+
+	// Per-wallet rows: use walletLabel for human-readable names, assetsUsd for gross value
+	const wallets = (summary?.byWallet ?? [])
+		.filter((w) => (w.assetsUsd ?? 0) > 0.005)
+		.sort((a, b) => (b.assetsUsd ?? 0) - (a.assetsUsd ?? 0));
 
 	return (
 		<div className="pt-root">
-			{/* ── Screenshot import ────────────────────────────── */}
+
+			{/* ── Import screenshot ─────────────────────────────── */}
 			<div className="pt-upload">
-				<input
-					ref={fileRef}
-					type="file"
-					accept="image/*"
+				<input ref={fileRef} type="file" accept="image/*"
 					style={{ display: 'none' }}
-					onChange={(e) => handleFile(e.target.files?.[0])}
-				/>
-				<button
-					type="button"
+					onChange={(e) => handleFile(e.target.files?.[0])} />
+				<button type="button"
 					className={`pt-upload-btn${uploading ? ' is-uploading' : ''}`}
 					onClick={() => fileRef.current?.click()}
 					disabled={uploading}
-					aria-label="Import transaction screenshot"
-				>
+					aria-label="Import transaction screenshot">
 					<CameraIcon />
 					{uploading ? 'Parsing…' : 'Import Screenshot'}
 				</button>
@@ -105,106 +99,150 @@ export default function PortfolioTile() {
 			{/* ── Divider ──────────────────────────────────────── */}
 			<div className="pt-divider" />
 
-			{/* ── Total ────────────────────────────────────────── */}
-			<div className="pt-total">
-				<span className="pt-total__label">Market Value</span>
-				<strong className="pt-total__value">{fmt.format(total)}</strong>
-				<span className="pt-total__hint">current prices</span>
-			</div>
+			{/* ── Grand total ──────────────────────────────────── */}
+			{!summary
+				? <p className="pt-loading">Loading…</p>
+				: (
+					<div className="pt-hero">
+						<span className="pt-hero__label">Market Value</span>
+						<strong className="pt-hero__value">{fmt.format(assetsTotal)}</strong>
+					</div>
+				)
+			}
 
-			{/* ── Per-source balance list ───────────────────────── */}
-			{!summary && <p className="pt-loading">Loading…</p>}
-			{summary && tins.length === 0 && (
-				<p className="pt-empty">No balance data yet.</p>
+			{/* ── Per-wallet list ───────────────────────────────── */}
+			{summary && wallets.length === 0 && (
+				<p className="pt-empty">No wallet balances found.</p>
 			)}
-			{tins.length > 0 && (
-				<ul className="pt-tins">
-					{tins.map((tin) => (
-						<li key={tin.tinId} className="pt-tin-row">
-							<span className="pt-tin-name">{tin.tinName}</span>
-							<span className={`pt-tin-value${tin.netUsd < 0 ? ' negative' : ''}`}>
-								{fmt.format(tin.netUsd)}
-							</span>
+			{wallets.length > 0 && (
+				<ul className="pt-wallets">
+					{wallets.map((w) => (
+						<li key={w.walletId} className="pt-wallet-row">
+							<span className="pt-wallet-name">{walletName(w)}</span>
+							<span className="pt-wallet-value">{fmtFull.format(w.assetsUsd ?? 0)}</span>
 						</li>
 					))}
 				</ul>
+			)}
+
+			{/* ── Aave debt footnote (not included above) ────────── */}
+			{debtTotal > 0 && (
+				<p className="pt-debt-note">
+					⚠ {fmtFull.format(debtTotal)} Aave debt not reflected above
+				</p>
 			)}
 
 			<style>{`
 				.pt-root {
 					display: flex;
 					flex-direction: column;
-					gap: 0.75rem;
+					gap: 0.6rem;
 					padding: 0.25rem 0;
 					height: 100%;
+					min-height: 0;
 				}
 				.pt-upload {
 					display: flex;
 					align-items: center;
 					gap: 0.6rem;
 					flex-wrap: wrap;
+					flex-shrink: 0;
 				}
 				.pt-upload-btn {
 					display: inline-flex;
 					align-items: center;
 					gap: 0.45rem;
-					padding: 0.38rem 0.9rem;
+					padding: 0.35rem 0.85rem;
 					border-radius: 999px;
-					border: 1px solid rgba(255,255,255,0.22);
-					background: rgba(255,255,255,0.06);
+					border: 1px solid rgba(255,255,255,0.2);
+					background: rgba(255,255,255,0.05);
 					color: inherit;
-					font-size: 0.78rem;
+					font-size: 0.75rem;
 					font-weight: 600;
 					letter-spacing: 0.04em;
 					cursor: pointer;
 					transition: background 0.15s, opacity 0.15s;
 					white-space: nowrap;
 				}
-				.pt-upload-btn:hover:not(:disabled) {
-					background: rgba(255,255,255,0.14);
-				}
+				.pt-upload-btn:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
 				.pt-upload-btn:disabled,
-				.pt-upload-btn.is-uploading {
-					opacity: 0.55;
-					cursor: default;
-				}
-				.pt-status {
-					font-size: 0.73rem;
-					line-height: 1.3;
-					flex: 1;
-					min-width: 0;
-				}
-				.pt-status--ok { color: #86efac; }
+				.pt-upload-btn.is-uploading { opacity: 0.5; cursor: default; }
+				.pt-status { font-size: 0.72rem; line-height: 1.3; flex: 1; min-width: 0; }
+				.pt-status--ok  { color: #86efac; }
 				.pt-status--err { color: #fca5a5; }
 				.pt-divider {
 					height: 1px;
 					background: rgba(255,255,255,0.09);
-					margin: 0.1rem 0;
+					flex-shrink: 0;
 				}
-				.pt-total {
+
+				/* ── Big total ─── */
+				.pt-hero {
 					display: flex;
-					align-items: baseline;
-					gap: 0.5rem;
-					flex-wrap: wrap;
+					flex-direction: column;
+					gap: 0.1rem;
+					flex-shrink: 0;
 				}
-				.pt-total__label {
-					font-size: 0.72rem;
+				.pt-hero__label {
+					font-size: 0.68rem;
 					text-transform: uppercase;
-					letter-spacing: 0.08em;
-					opacity: 0.5;
+					letter-spacing: 0.1em;
+					opacity: 0.45;
 				}
-				.pt-total__value {
-					font-size: 1.35rem;
+				.pt-hero__value {
+					font-size: 1.9rem;
 					font-weight: 800;
 					font-variant-numeric: tabular-nums;
-					letter-spacing: -0.01em;
-					flex: 1;
+					letter-spacing: -0.02em;
+					line-height: 1;
 				}
-				.pt-total__hint {
-					font-size: 0.68rem;
-					opacity: 0.35;
-					font-style: italic;
+
+				/* ── Wallet list ─── */
+				.pt-wallets {
+					list-style: none;
+					margin: 0;
+					padding: 0;
+					display: flex;
+					flex-direction: column;
+					overflow-y: auto;
+					flex: 1;
+					min-height: 0;
+					gap: 0;
+				}
+				.pt-wallet-row {
+					display: flex;
+					justify-content: space-between;
+					align-items: baseline;
+					gap: 0.75rem;
+					padding: 0.45rem 0.5rem;
+					border-radius: 6px;
+					transition: background 0.1s;
+				}
+				.pt-wallet-row:hover { background: rgba(255,255,255,0.05); }
+				.pt-wallet-name {
+					font-size: 0.85rem;
+					opacity: 0.8;
+					min-width: 0;
+					overflow: hidden;
+					text-overflow: ellipsis;
 					white-space: nowrap;
+				}
+				.pt-wallet-value {
+					font-size: 0.9rem;
+					font-weight: 700;
+					font-variant-numeric: tabular-nums;
+					white-space: nowrap;
+					flex-shrink: 0;
+				}
+
+				/* ── Debt footnote ─── */
+				.pt-debt-note {
+					font-size: 0.72rem;
+					opacity: 0.4;
+					margin: 0;
+					padding: 0.35rem 0.5rem;
+					border-top: 1px solid rgba(255,255,255,0.07);
+					flex-shrink: 0;
 				}
 				.pt-loading,
 				.pt-empty {
@@ -212,41 +250,6 @@ export default function PortfolioTile() {
 					opacity: 0.45;
 					margin: 0;
 				}
-				.pt-tins {
-					list-style: none;
-					margin: 0;
-					padding: 0;
-					display: flex;
-					flex-direction: column;
-					gap: 0.3rem;
-					overflow-y: auto;
-					flex: 1;
-				}
-				.pt-tin-row {
-					display: flex;
-					justify-content: space-between;
-					align-items: baseline;
-					gap: 0.5rem;
-					padding: 0.3rem 0;
-					border-bottom: 1px solid rgba(255,255,255,0.05);
-				}
-				.pt-tin-row:last-child { border-bottom: none; }
-				.pt-tin-name {
-					font-size: 0.82rem;
-					opacity: 0.85;
-					min-width: 0;
-					overflow: hidden;
-					text-overflow: ellipsis;
-					white-space: nowrap;
-				}
-				.pt-tin-value {
-					font-size: 0.82rem;
-					font-weight: 700;
-					font-variant-numeric: tabular-nums;
-					white-space: nowrap;
-					flex-shrink: 0;
-				}
-				.pt-tin-value.negative { color: #fca5a5; }
 			`}</style>
 		</div>
 	);
