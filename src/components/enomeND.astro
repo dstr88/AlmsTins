@@ -1,0 +1,292 @@
+<!-- Domain Availability Component -->
+<section class="domain-search" aria-label="Domain search">
+  <h2 class="domain-search__title">Find your domain</h2>
+
+  <form class="domain-search__form" id="domainForm" autocomplete="off">
+    <div
+      class="domain-search__pill"
+      role="group"
+      aria-label="Domain availability search"
+    >
+      <input
+        class="domain-search__sld"
+        id="sld"
+        name="sld"
+        placeholder="yourname"
+        minlength="2"
+        maxlength="63"
+        required
+        inputmode="url"
+        aria-label="Domain name"
+      />
+      <span class="domain-search__dot">.</span>
+      <select class="domain-search__tld" id="tld" name="tld" aria-label="Top level domain">
+        <option value="com">com</option>
+        <option value="net">net</option>
+        <option value="org">org</option>
+        <option value="io">io</option>
+        <option value="ai">ai</option>
+      </select>
+      <button class="domain-search__btn" id="checkBtn" type="submit">Check</button>
+      <button
+        class="domain-search__btn domain-search__btn--buy"
+        id="buyBtn"
+        type="button"
+        style="display:none;"
+      >
+        Buy
+      </button>
+    </div>
+
+    <div class="domain-search__result" id="result" aria-live="polite"></div>
+  </form>
+
+  <!-- Hidden sizer for auto-width input -->
+  <span class="domain-search__sizer" id="sizer" aria-hidden="true"></span>
+</section>
+
+<style>
+  .domain-search {
+    display: grid;
+    place-items: center;
+    gap: 0.75rem;
+    padding: 2.25rem 1rem;
+  }
+
+  .domain-search__title {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    text-align: center;
+  }
+
+  .domain-search__form {
+    width: 100%;
+    display: grid;
+    place-items: center;
+    gap: 0.75rem;
+  }
+
+  /* Centered pill that sizes to content */
+  .domain-search__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(8px);
+    max-width: 92vw;
+  }
+
+  .domain-search__sld {
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font-size: 1.05rem;
+    font-weight: 700;
+
+    width: 10ch; /* JS will overwrite with px */
+    min-width: 6ch;
+    max-width: 60ch;
+  }
+
+  .domain-search__dot {
+    opacity: 0.7;
+    font-weight: 800;
+  }
+
+  .domain-search__tld {
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font-size: 1.05rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .domain-search__btn {
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.1);
+    color: inherit;
+    padding: 0.45rem 0.85rem;
+    border-radius: 999px;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .domain-search__btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .domain-search__btn--buy {
+    /* inherits base button styling; optional emphasis */
+  }
+
+  .domain-search__result {
+    min-height: 1.25rem;
+    font-size: 0.98rem;
+    text-align: center;
+    opacity: 0.95;
+  }
+
+  /* Hidden span used to measure text width */
+  .domain-search__sizer {
+    position: absolute;
+    visibility: hidden;
+    white-space: pre;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-family: inherit;
+    letter-spacing: normal;
+  }
+</style>
+
+<script>
+  (function () {
+    const form = document.getElementById("domainForm") as HTMLFormElement | null;
+    const sld = document.getElementById("sld") as HTMLInputElement | null;
+    const tld = document.getElementById("tld") as HTMLSelectElement | null;
+    const result = document.getElementById("result") as HTMLDivElement | null;
+    const sizer = document.getElementById("sizer") as HTMLSpanElement | null;
+    const btn = document.getElementById("checkBtn") as HTMLButtonElement | null;
+    const buyBtn = document.getElementById("buyBtn") as HTMLButtonElement | null;
+    let lastAvailableDomain: string | null = null;
+
+    if (!form || !sld || !tld || !result || !sizer || !btn || !buyBtn) {
+      return;
+    }
+
+    function hideBuy() {
+      lastAvailableDomain = null;
+      if (buyBtn) buyBtn.style.display = "none";
+    }
+
+    function showBuy(domain: string) {
+      lastAvailableDomain = domain;
+      if (buyBtn) buyBtn.style.display = "inline-block";
+    }
+
+    function sanitizeSLD(value: string) {
+      return (value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "")
+        .replace(/[^a-z0-9-]/g, "")
+        .replace(/^-+/, "")
+        .replace(/-+$/, "");
+    }
+
+    function resizeInput() {
+      const text = sld.value || sld.placeholder || "";
+      sizer.textContent = text;
+      // +14px padding; clamp to prevent crazy widths on long text
+      const px = Math.min(Math.max(sizer.offsetWidth + 14, 90), 560);
+      sld.style.width = px + "px";
+    }
+
+    resizeInput();
+    hideBuy();
+
+    sld.addEventListener("input", () => {
+      const cleaned = sanitizeSLD(sld.value);
+      if (cleaned !== sld.value) sld.value = cleaned;
+      resizeInput();
+      result.textContent = "";
+      hideBuy();
+    });
+
+    tld.addEventListener("change", () => {
+      result.textContent = "";
+      hideBuy();
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const sldVal = sanitizeSLD(sld.value);
+      const tldVal = (tld.value || "").toLowerCase().trim();
+
+      if (!sldVal || !tldVal) return;
+
+      hideBuy();
+      btn.disabled = true;
+      result.textContent = "Checking…";
+
+      try {
+        const isLocal =
+          location.hostname === "localhost" || location.hostname === "127.0.0.1";
+
+        const endpoint = isLocal
+          ? "/api/domains/check.json"
+          : "/api/domains/check.php";
+
+        const url = `${endpoint}?sld=${encodeURIComponent(sldVal)}&tld=${encodeURIComponent(tldVal)}`;
+        const res = await fetch(url, { method: "GET" });
+        const json = await res.json();
+
+        if (res.status === 404) {
+          result.textContent = "Domain checker is not deployed yet (missing /api/domains/check.php).";
+          hideBuy();
+          return;
+        }
+
+        if (!res.ok || !json.ok) {
+          result.textContent = `Error: ${json.error || "Request failed"}`;
+          hideBuy();
+          return;
+        }
+
+        const tag = json.mock ? " (mock)" : "";
+        if (json.available) {
+          result.textContent = `✅ ${json.domain} is available${tag}`;
+          showBuy(json.domain);
+        } else {
+          result.textContent = `❌ ${json.domain} is taken${tag}`;
+          hideBuy();
+        }
+      } catch {
+        result.textContent = "Network error while checking.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    buyBtn.addEventListener("click", async () => {
+      if (!lastAvailableDomain) return;
+
+      buyBtn.disabled = true;
+      btn.disabled = true;
+      result.textContent = `Starting checkout for ${lastAvailableDomain}…`;
+
+      try {
+        const res = await fetch("/api/pay/create-checkout.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: lastAvailableDomain })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok || !data.url) {
+          result.textContent = `Error: ${data.error || "Failed to start checkout"}`;
+          buyBtn.disabled = false;
+          btn.disabled = false;
+          return;
+        }
+
+        window.location.href = data.url;
+      } catch {
+        result.textContent = "Network error while starting checkout.";
+        buyBtn.disabled = false;
+        btn.disabled = false;
+      }
+    });
+  })();
+</script>

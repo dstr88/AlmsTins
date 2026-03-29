@@ -31,3 +31,8 @@ pnpm-debug.log*
 .vscode/settings.json
 stripe-temp/
 .vercel/
+
+.env
+dist.zip
+src/.claude/
+public/almstins-57ed5c37cfa6.json
