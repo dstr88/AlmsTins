@@ -465,12 +465,20 @@ export async function buildAnnualBreakdown(
   availableYears.length = 0;
   availableYears.push(...Array.from(yearSet).sort((a, b) => b - a));
 
+  // ── Filter out items that already have a manual cost basis saved ──────────
+  const resolvedRows = await db.execute({
+    sql: `SELECT sell_source_id FROM manual_cost_basis WHERE tenant_id = ?`,
+    args: [tenantId],
+  });
+  const resolvedIds = new Set(resolvedRows.rows.map((r) => String(r.sell_source_id)));
+  const filteredNeedsAttention = needsAttention.filter((i) => !resolvedIds.has(i.sourceId));
+
   // ── 5. Totals ─────────────────────────────────────────────────────────────
   const sum = (arr: (number | null)[]): number =>
     arr.reduce<number>((acc, v) => acc + (v ?? 0), 0);
 
   const totals: SectionTotals = {
-    unsettledProceeds: sum(needsAttention.map((i) => i.proceedsUsd)),
+    unsettledProceeds: sum(filteredNeedsAttention.map((i) => i.proceedsUsd)),
     shortTermGain:     sum(shortTerm.map((i) => i.gainLossUsd)),
     longTermGain:      sum(longTerm.map((i) => i.gainLossUsd)),
     totalIncome:       sum(income.map((i) => i.usdValue)),
@@ -480,7 +488,7 @@ export async function buildAnnualBreakdown(
   return {
     year,
     availableYears,
-    needsAttention,
+    needsAttention: filteredNeedsAttention,
     stillHolding,
     shortTerm,
     longTerm,
