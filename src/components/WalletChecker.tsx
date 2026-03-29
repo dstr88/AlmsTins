@@ -110,7 +110,7 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
     );
     return (
       <div>
-        {result.activity?.ethBalance && (
+        {result.activity?.ethBalance && result.chain !== 'sui' && (
           <div style={{ padding: '0.6rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem' }}>ETH Balance</span>
             <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{result.activity.ethBalance} ETH</span>
@@ -126,7 +126,9 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
           </div>
         ))}
         <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>
-          Data via Alchemy · Ethereum Mainnet only · Top 10 tokens shown
+          {result.chain === 'sui'
+            ? 'Data via Sui RPC · All coin balances shown · SUI price via CoinGecko'
+            : 'Data via Alchemy · Ethereum Mainnet only · Top 10 tokens shown'}
         </p>
       </div>
     );
@@ -141,7 +143,7 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
           {[
             { label: 'First seen',     value: fmt(a.firstSeen)    },
             { label: 'Last activity',  value: fmt(a.lastActivity) },
-            { label: 'ETH balance',    value: a.ethBalance ? `${a.ethBalance} ETH` : '—' },
+            { label: result.chain === 'sui' ? 'SUI balance' : 'ETH balance', value: a.ethBalance ?? '—' },
             { label: 'Tx count',       value: a.txCount !== null ? String(a.txCount) : '—' },
           ].map(({ label, value }) => (
             <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.75rem 1rem' }}>

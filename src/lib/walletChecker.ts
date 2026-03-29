@@ -401,6 +401,124 @@ async function fetchMultiSigCheck(
   }
 }
 
+// ─── Sui RPC helpers ──────────────────────────────────────────────────────────
+
+const SUI_RPC = 'https://fullnode.mainnet.sui.io/';
+const MIST_PER_SUI = 1_000_000_000;
+
+async function suiRpc(method: string, params: unknown[]): Promise<any> {
+  const res = await fetchWithTimeout(SUI_RPC, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+  });
+  if (!res.ok) throw new Error(`Sui RPC ${res.status}`);
+  const json = await res.json() as any;
+  if (json.error) throw new Error(json.error.message ?? 'Sui RPC error');
+  return json.result;
+}
+
+async function fetchSuiHoldings(
+  address: string,
+): Promise<{ holdings: WalletCheckResult['holdings']; errors: string[] }> {
+  const errors: string[] = [];
+  try {
+    const balances = await suiRpc('suix_getAllBalances', [address]) as Array<{
+      coinType: string; totalBalance: string;
+    }>;
+
+    // Fetch SUI price once from CoinGecko (free, no key)
+    let suiPriceUsd: number | null = null;
+    try {
+      const priceRes = await fetchWithTimeout(
+        'https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd',
+      );
+      if (priceRes.ok) {
+        const p = await priceRes.json() as any;
+        suiPriceUsd = p?.sui?.usd ?? null;
+      }
+    } catch { /* price optional */ }
+
+    const holdings: WalletCheckResult['holdings'] = balances.map((b) => {
+      // coinType looks like "0x2::sui::SUI" or "0xPKG::module::SYMBOL"
+      const parts = b.coinType.split('::');
+      const symbol = parts[parts.length - 1] ?? b.coinType;
+      const isSui  = b.coinType === '0x2::sui::SUI';
+      const amount = Number(b.totalBalance) / (isSui ? MIST_PER_SUI : 1e9);
+      const usdValue = isSui && suiPriceUsd != null
+        ? Math.round(amount * suiPriceUsd * 100) / 100
+        : null;
+      return {
+        symbol,
+        name: isSui ? 'Sui' : symbol,
+        balance: amount.toLocaleString(undefined, { maximumFractionDigits: 6 }),
+        usdValue,
+      };
+    });
+
+    return { holdings, errors };
+  } catch (err) {
+    errors.push('Sui holdings unavailable');
+    return { holdings: [], errors };
+  }
+}
+
+async function fetchSuiActivity(
+  address: string,
+): Promise<{ activity: WalletCheckResult['activity']; errors: string[] }> {
+  const errors: string[] = [];
+  const activity: WalletCheckResult['activity'] = {
+    firstSeen: null, lastActivity: null, txCount: null,
+    totalReceivedEth: null, totalSentEth: null, ethBalance: null,
+  };
+  try {
+    // Get last 50 transactions (most recent first) to find last activity
+    const [toTxs, fromTxs] = await Promise.all([
+      suiRpc('suix_queryTransactionBlocks', [
+        { filter: { ToAddress: address }, options: { showInput: false } },
+        null, 50, true,
+      ]),
+      suiRpc('suix_queryTransactionBlocks', [
+        { filter: { FromAddress: address }, options: { showInput: false } },
+        null, 50, true,
+      ]),
+    ]);
+
+    const allDigests = [
+      ...(toTxs?.data ?? []),
+      ...(fromTxs?.data ?? []),
+    ] as Array<{ digest: string; timestampMs?: string }>;
+
+    if (allDigests.length > 0) {
+      // Sort by timestamp
+      allDigests.sort((a, b) =>
+        Number(a.timestampMs ?? 0) - Number(b.timestampMs ?? 0),
+      );
+      const first = allDigests[0];
+      const last  = allDigests[allDigests.length - 1];
+      if (first?.timestampMs) {
+        activity.firstSeen = new Date(Number(first.timestampMs)).toISOString();
+      }
+      if (last?.timestampMs) {
+        activity.lastActivity = new Date(Number(last.timestampMs)).toISOString();
+      }
+      activity.txCount = (toTxs?.data?.length ?? 0) + (fromTxs?.data?.length ?? 0);
+    }
+
+    // SUI balance
+    const balance = await suiRpc('suix_getBalance', [address, '0x2::sui::SUI']) as {
+      totalBalance: string;
+    };
+    const suiAmount = Number(balance.totalBalance) / MIST_PER_SUI;
+    activity.ethBalance = suiAmount.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' SUI';
+
+    return { activity, errors };
+  } catch (err) {
+    errors.push('Sui activity unavailable');
+    return { activity, errors };
+  }
+}
+
 // ─── Main orchestrator ────────────────────────────────────────────────────────
 
 export async function checkWallet(address: string): Promise<WalletCheckResult> {
@@ -418,8 +536,12 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   const [goplusResult, activityResult, holdingsResult, honeypotResult, multiSigResult] =
     await Promise.allSettled([
       fetchGoPlusFlags(address),
-      chain === 'evm' ? fetchEtherscanActivity(address) : Promise.resolve({ activity: { firstSeen: null, lastActivity: null, txCount: null, totalReceivedEth: null, totalSentEth: null, ethBalance: null }, errors: ['Activity tracking only available for EVM addresses'] }),
-      chain === 'evm' ? fetchTokenBalances(address)    : Promise.resolve({ holdings: [], errors: ['Token balances only available for EVM addresses'] }),
+      chain === 'evm'     ? fetchEtherscanActivity(address)
+        : chain === 'sui'   ? fetchSuiActivity(address)
+        : Promise.resolve({ activity: { firstSeen: null, lastActivity: null, txCount: null, totalReceivedEth: null, totalSentEth: null, ethBalance: null }, errors: ['Activity tracking not available for this chain'] }),
+      chain === 'evm'     ? fetchTokenBalances(address)
+        : chain === 'sui'   ? fetchSuiHoldings(address)
+        : Promise.resolve({ holdings: [], errors: ['Token balances not available for this chain'] }),
       chain === 'evm' ? fetchHoneypotCheck(address)    : Promise.resolve({ honeypot: { checked: false, isHoneypot: null, reason: 'EVM only' }, errors: [] }),
       chain === 'evm' ? fetchMultiSigCheck(address)    : Promise.resolve({ multiSig: null, errors: [] }),
     ]);
