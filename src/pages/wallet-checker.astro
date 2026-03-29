@@ -1,0 +1,315 @@
+---
+import LoginLayout from '../layouts/LoginLayout.astro';
+import WalletChecker from '../components/WalletChecker';
+
+// If ?address= is in the URL, pre-fill the checker (enables shareable result links)
+const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
+---
+
+<LoginLayout
+  title="Crypto Wallet Scam Checker — Is This Address Safe?"
+  description="Paste any Ethereum, Solana, or Sui wallet address to instantly check for known scams, phishing, honeypots, dark web activity, and mixer use. Free, no login required."
+  noindex={false}
+>
+
+  <!-- JSON-LD: WebApplication schema for rich results -->
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Crypto Wallet Scam Checker",
+    "url": "https://almstins.com/wallet-checker",
+    "description": "Free tool to check any crypto wallet address for known scams, phishing, honeypots, dark web activity, and mixer use. Supports Ethereum, Solana, and Sui.",
+    "applicationCategory": "FinanceApplication",
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires JavaScript",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "creator": {
+      "@type": "Organization",
+      "name": "Almstins",
+      "url": "https://almstins.com"
+    },
+    "featureList": [
+      "Known scam address detection",
+      "Phishing wallet identification",
+      "Honeypot token detection",
+      "Dark web transaction flagging",
+      "Mixer / Tornado Cash detection",
+      "Multi-sig contract identification",
+      "Token balance lookup",
+      "Wallet age and activity history"
+    ]
+  })} />
+
+  <div class="page">
+
+    <!-- Hero -->
+    <header class="hero">
+      <div class="hero__eyebrow">Free · No login required · Results in seconds</div>
+      <h1 class="hero__title">Crypto Wallet Scam Checker</h1>
+      <p class="hero__sub">
+        Been offered a deal that sounds too good to be true? Before you send a single token,
+        paste the wallet address below. We'll check it against public scam databases,
+        honeypot detectors, and on-chain data — instantly.
+      </p>
+    </header>
+
+    <!-- Checker -->
+    <div class="checker-wrap">
+      <WalletChecker client:load prefilledAddress={prefilledAddress} />
+    </div>
+
+    <!-- What we check -->
+    <section class="signals" aria-labelledby="signals-heading">
+      <h2 id="signals-heading" class="signals__title">What we check</h2>
+      <div class="signals__grid">
+        {[
+          { icon: '🚨', label: 'Known scam databases',    body: 'Cross-referenced against GoPlus Security's global blacklist of reported scam, phishing, and drainer wallets.' },
+          { icon: '🍯', label: 'Honeypot detection',      body: 'Checks whether tokens associated with this address can actually be sold — or if they\'re designed to trap your funds.' },
+          { icon: '🌑', label: 'Dark web activity',       body: 'Flags addresses with known connections to dark web marketplaces and illicit transaction patterns.' },
+          { icon: '🔀', label: 'Mixer / Tornado Cash',    body: 'Detects use of crypto mixers like Tornado Cash — a common way scammers launder funds before a rug pull.' },
+          { icon: '📅', label: 'Wallet age',              body: 'New wallets (< 30 days old) are a major red flag. Scammers create fresh addresses for each operation.' },
+          { icon: '💰', label: 'Token holdings',          body: 'Shows what\'s actually in the wallet. Scam wallets often hold worthless tokens designed to look valuable.' },
+          { icon: '⚖️', label: 'Sanctions check',         body: 'Checks against OFAC and international sanctions lists for addresses involved in financial crime.' },
+          { icon: '🔑', label: 'Multi-sig detection',     body: 'Identifies if the address is a multi-sig contract. Legitimate investments never ask you to deposit into theirs.' },
+        ].map(s => (
+          <div class="signal-card">
+            <span class="signal-card__icon">{s.icon}</span>
+            <h3 class="signal-card__label">{s.label}</h3>
+            <p class="signal-card__body">{s.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Common scam patterns -->
+    <section class="faq" aria-labelledby="faq-heading">
+      <h2 id="faq-heading" class="faq__title">Common crypto scam patterns</h2>
+      <div class="faq__list">
+        {[
+          {
+            q: 'What is a honeypot scam?',
+            a: 'A honeypot is a token you can buy but never sell. The scammer promotes it, you buy in, the price appears to rise — but when you try to sell, the contract blocks you. The scammer then drains the liquidity and disappears with your ETH.',
+          },
+          {
+            q: 'What does "too good to be true" actually look like in crypto?',
+            a: 'Guaranteed daily returns of 1–10%, "just stake your tokens in our wallet," airdrop claims that require sending tokens first, or someone in DMs offering to double your crypto. If the return sounds impossible in traditional finance, it\'s a scam in crypto.',
+          },
+          {
+            q: 'Why would a wallet use Tornado Cash?',
+            a: 'Tornado Cash is a mixer that breaks the on-chain link between wallet addresses. While some users value privacy, it\'s heavily used by scammers and hackers to hide the origin of stolen funds before cashing out.',
+          },
+          {
+            q: 'Should I trust a wallet just because it has a large balance?',
+            a: 'No. Scammers often seed wallets with worthless tokens or inflated "paper" balances to create the appearance of legitimacy. Always check if those tokens can actually be sold and what they\'re truly worth.',
+          },
+          {
+            q: 'Is a new wallet always suspicious?',
+            a: 'Not always — but in the context of someone pitching an investment, a wallet created in the last 30 days is a major red flag. Legitimate protocols and businesses have established on-chain history.',
+          },
+          {
+            q: 'What should I do if this tool flags an address?',
+            a: 'Do not send funds. Screenshot the results. If someone is pressuring you to send crypto to a flagged address, that pressure itself is part of the scam. Report the address on chainabuse.com and walk away.',
+          },
+        ].map(item => (
+          <details class="faq__item">
+            <summary class="faq__q">
+              <span>{item.q}</span>
+              <span class="faq__chevron" aria-hidden="true">›</span>
+            </summary>
+            <p class="faq__a">{item.a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <!-- Disclaimer -->
+    <p class="disclaimer">
+      Results are sourced from public scam databases including GoPlus Security, Etherscan, Alchemy, and honeypot.is.
+      Findings are reported, not legally confirmed. This tool does not constitute financial or legal advice.
+      Always do your own research before sending cryptocurrency to any address.
+    </p>
+
+  </div>
+</LoginLayout>
+
+<style>
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 6rem;
+    color: #f5f8ff;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Hero */
+  .hero {
+    text-align: center;
+    padding: 2rem 0 2.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    margin-bottom: 2.5rem;
+  }
+
+  .hero__eyebrow {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #a5b4fc;
+    background: rgba(87, 103, 255, 0.12);
+    border: 1px solid rgba(87, 103, 255, 0.25);
+    padding: 0.3rem 0.9rem;
+    border-radius: 999px;
+    margin-bottom: 1.25rem;
+  }
+
+  .hero__title {
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0 0 1rem;
+    background: linear-gradient(135deg, #f5f8ff 30%, #a5b4fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero__sub {
+    font-size: 1.05rem;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.75;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  /* Checker */
+  .checker-wrap {
+    margin-bottom: 4rem;
+  }
+
+  /* What we check grid */
+  .signals {
+    margin-bottom: 4rem;
+  }
+
+  .signals__title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .signals__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .signal-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+  }
+
+  .signal-card__icon {
+    font-size: 1.3rem;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .signal-card__label {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0 0 0.4rem;
+  }
+
+  .signal-card__body {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.4);
+    line-height: 1.65;
+    margin: 0;
+  }
+
+  /* FAQ */
+  .faq {
+    margin-bottom: 3rem;
+  }
+
+  .faq__title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .faq__item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 0.25rem 0;
+  }
+
+  .faq__item[open] {
+    padding-bottom: 0.75rem;
+  }
+
+  .faq__q {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.9rem 0.25rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+
+  .faq__q::-webkit-details-marker { display: none; }
+  .faq__q::marker { display: none; }
+
+  .faq__chevron {
+    font-size: 1.3rem;
+    opacity: 0.4;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .faq__item[open] .faq__chevron {
+    transform: rotate(90deg);
+  }
+
+  .faq__a {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.75;
+    margin: 0 0 0 0.25rem;
+    padding-right: 2rem;
+  }
+
+  /* Disclaimer */
+  .disclaimer {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.25);
+    line-height: 1.7;
+    text-align: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 2rem;
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .signals__grid {
+      grid-template-columns: 1fr;
+    }
+    .hero__title {
+      -webkit-text-fill-color: #f5f8ff;
+    }
+  }
+</style>

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { WalletCheckResult } from '@/lib/walletChecker';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -271,17 +271,22 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'multisig', label: '🔑 Multi-sig'      },
 ];
 
-export default function WalletChecker() {
-  const [address, setAddress]     = useState('');
+interface Props {
+  prefilledAddress?: string;
+}
+
+export default function WalletChecker({ prefilledAddress = '' }: Props) {
+  const [address, setAddress]     = useState(prefilledAddress);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [result, setResult]       = useState<WalletCheckResult | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [cached, setCached]       = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const didAutoCheck = useRef(false);
 
-  const handleCheck = useCallback(async () => {
-    const addr = address.trim();
+  const handleCheck = useCallback(async (overrideAddr?: string) => {
+    const addr = (overrideAddr ?? address).trim();
     if (!addr) return;
 
     // Cancel any in-flight request
@@ -316,6 +321,15 @@ export default function WalletChecker() {
       setLoading(false);
     }
   }, [address]);
+
+  // Auto-check on first mount when a prefilled address is provided
+  useEffect(() => {
+    if (prefilledAddress && !didAutoCheck.current) {
+      didAutoCheck.current = true;
+      handleCheck(prefilledAddress);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCheck(); }
