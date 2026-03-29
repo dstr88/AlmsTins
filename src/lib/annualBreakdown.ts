@@ -35,6 +35,9 @@ export type UnsettledItem = {
   amount: number;
   sellDate: string;
   proceedsUsd: number | null;
+  sourceId: string;
+  groupId: string;
+  txHash: string | null;
 };
 
 export type HeldPosition = {
@@ -131,7 +134,10 @@ export async function buildAnnualBreakdown(
                e.amount            AS amount,
                e.native_usd        AS native_usd,
                e.timestamp_utc     AS timestamp_utc,
-               e.transaction_class AS transaction_class
+               e.transaction_class AS transaction_class,
+               e.source_id         AS source_id,
+               e.group_id          AS group_id,
+               e.tx_hash           AS tx_hash
           FROM asset_lifecycle_events e
           LEFT JOIN asset_lifecycle_groups g
             ON g.id = e.group_id AND g.tenant_id = e.tenant_id
@@ -187,6 +193,9 @@ export async function buildAnnualBreakdown(
       native_usd:        null as number | null,
       timestamp_utc:     toStr(r.timestamp),
       transaction_class: 'owned_acquisition',
+      source_id:         '' as unknown,
+      group_id:          '' as unknown,
+      tx_hash:           null as unknown,
     }];
   });
 
@@ -217,11 +226,14 @@ export async function buildAnnualBreakdown(
         native_usd:        nativeUsd,
         timestamp_utc:     toStr(r.timestamp),
         transaction_class: 'owned_acquisition',
+        source_id:         '' as unknown,
+        group_id:          '' as unknown,
+        tx_hash:           null as unknown,
       }];
     } catch { return []; }
   });
 
-  type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; transaction_class: unknown };
+  type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; transaction_class: unknown; source_id: unknown; group_id: unknown; tx_hash: unknown };
   const events = [
     ...(eventsResult.rows as unknown as RawEvent[])
       .filter((r) => r && !SKIP_CLASSES.has(toStr(r.transaction_class))),
@@ -273,6 +285,9 @@ export async function buildAnnualBreakdown(
               proceedsUsd: nativeUsd
                 ? (remaining / amount) * nativeUsd
                 : null,
+              sourceId: typeof row.source_id === 'string' ? row.source_id : '',
+              groupId: typeof row.group_id === 'string' ? row.group_id : '',
+              txHash: typeof row.tx_hash === 'string' ? row.tx_hash : null,
             });
           }
           break;

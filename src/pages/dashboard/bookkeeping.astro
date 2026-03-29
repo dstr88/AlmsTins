@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import OrnateTin from '@/components/OrnatedTin.astro';
+import DrawerHost from '../../components/bookkeeping/DrawerHost';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { buildAnnualBreakdown } from '../../lib/annualBreakdown';
 
@@ -87,12 +88,22 @@ const kindLabel = (kind: string) =>
           ) : (
             <div class="tin-rows">
               {bd.needsAttention.map((item) => (
-                <div class="tin-row tin-row--alert">
+                <div
+                  class="tin-row tin-row--alert"
+                  data-source-id={item.sourceId}
+                  data-group-id={item.groupId}
+                  data-tx-hash={item.txHash ?? ''}
+                  data-asset={item.asset}
+                  data-amount={String(item.amount)}
+                  data-sell-date={item.sellDate}
+                  data-proceeds={item.proceedsUsd != null ? String(item.proceedsUsd) : ''}
+                >
                   <span class="tin-row__asset">{item.asset}</span>
                   <span class="tin-row__qty">{fQty(item.amount)}</span>
                   <span class="tin-row__date">{fDate(item.sellDate)}</span>
                   <span class="tin-row__usd">{fUsd(item.proceedsUsd)}</span>
                   <span class="tin-row__note">No purchase found</span>
+                  <span class="tin-row__cta">Details →</span>
                 </div>
               ))}
             </div>
@@ -283,6 +294,11 @@ const kindLabel = (kind: string) =>
 
     </div><!-- /breakdown-grid -->
   </section>
+
+  <!-- Drawer mount point -->
+  <div id="drawer-mount">
+    <DrawerHost client:load />
+  </div>
 
   <style>
     /* ── Page shell ─────────────────────────────────────────── */
@@ -531,7 +547,10 @@ const kindLabel = (kind: string) =>
     }
     .tin-row:hover { background: rgba(255,255,255,0.08); }
 
-    .tin-row--alert { border-left: 3px solid rgba(239,68,68,0.6); }
+    .tin-row--alert { border-left: 3px solid rgba(239,68,68,0.6); cursor: pointer; }
+    .tin-row--alert:hover { background: rgba(239,68,68,0.08); }
+    .tin-row__cta { margin-left: auto; font-size: 0.75rem; opacity: 0.45; font-weight: 600; letter-spacing: 0.04em; }
+    .tin-row--alert:hover .tin-row__cta { opacity: 0.8; color: #fca5a5; }
     .tin-row--income { border-left: 3px solid rgba(168,85,247,0.45); }
 
     .tin-row__asset  { font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; min-width: 3rem; }
@@ -643,6 +662,26 @@ const kindLabel = (kind: string) =>
         else delete stored[id];
         localStorage.setItem(KEY, JSON.stringify(stored));
       });
+    });
+  </script>
+
+  <script>
+    // Open TransactionDrawer when a Needs Attention row is clicked
+    document.addEventListener('click', (e: MouseEvent) => {
+      const row = (e.target as Element).closest<HTMLElement>('.tin-row--alert');
+      if (!row) return;
+
+      const detail = {
+        asset: row.dataset.asset ?? '',
+        amount: parseFloat(row.dataset.amount ?? '0') || 0,
+        sellDate: row.dataset.sellDate ?? '',
+        proceedsUsd: row.dataset.proceeds ? parseFloat(row.dataset.proceeds) : null,
+        sourceId: row.dataset.sourceId ?? '',
+        groupId: row.dataset.groupId ?? '',
+        txHash: row.dataset.txHash || null,
+      };
+
+      window.dispatchEvent(new CustomEvent('open-transaction-drawer', { detail }));
     });
   </script>
 </Layout>
