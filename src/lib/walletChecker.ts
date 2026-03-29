@@ -607,10 +607,61 @@ const KNOWN_ADDRESSES = new Map<string, EntityLabel>([
   ['0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9', { name: 'Aave V2', type: 'defi', subLabel: 'Lending Pool', url: 'https://aave.com', confidence: 'definite' }],
   ['0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', { name: 'Aave V3', type: 'defi', subLabel: 'Pool',         url: 'https://aave.com', confidence: 'definite' }],
 
-  // Bridges
-  ['0x3ee18b2214aff97000d974cf647e7c347e8fa585', { name: 'Wormhole',        type: 'bridge', subLabel: 'Token Bridge', url: null, confidence: 'definite' }],
-  ['0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf', { name: 'Polygon Bridge',  type: 'bridge', subLabel: null,           url: null, confidence: 'definite' }],
-  ['0x99c9fc46f92e8a1c0dec1b1747d010903e884be1', { name: 'Optimism Bridge', type: 'bridge', subLabel: null,           url: null, confidence: 'definite' }],
+  // ── Wormhole (EVM) ────────────────────────────────────────────────────────
+  ['0x3ee18b2214aff97000d974cf647e7c347e8fa585', { name: 'Wormhole', type: 'bridge', subLabel: 'Token Bridge (ETH)',  url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x98f3c9e6e3face36baad05fe09d375ef1464288b', { name: 'Wormhole', type: 'bridge', subLabel: 'Core Bridge (ETH)',   url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x6ffd7ede62328b3af38fcd61461bbfc52f5651fe', { name: 'Wormhole', type: 'bridge', subLabel: 'NFT Bridge (ETH)',    url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x27428dd2d3dd32a4d7f7c497eaaa23130d894911', { name: 'Wormhole', type: 'bridge', subLabel: 'Relayer (ETH)',       url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x706f82e9bb5b0813501714ab5974216704980e31', { name: 'Wormhole', type: 'bridge', subLabel: 'CCTP Relayer (ETH)',  url: 'https://wormhole.com', confidence: 'definite' }],
+
+  // ── Wormhole (Sui) ────────────────────────────────────────────────────────
+  ['0xaeab97f96cf9877fee2883315d459552b2b921edc16d7ceac6eab944dd88919c', { name: 'Wormhole', type: 'bridge', subLabel: 'Core Bridge (Sui)',  url: 'https://wormhole.com', confidence: 'definite' }],
+  ['0x26efee2b51c911237888e5dc6702868abca3c7ac12c53f76ef8eba0697695e3d', { name: 'Wormhole', type: 'bridge', subLabel: 'Token Bridge (Sui)', url: 'https://wormhole.com', confidence: 'definite' }],
+
+  // ── Stargate / LayerZero ──────────────────────────────────────────────────
+  ['0x8731d54e9d02c286767d56ac03e8037c07e01e98', { name: 'Stargate', type: 'bridge', subLabel: 'Router',      url: 'https://stargate.finance', confidence: 'definite' }],
+  ['0xdf0770df86a8034b3efef0a1bb3c889b8332ff56', { name: 'Stargate', type: 'bridge', subLabel: 'USDC Pool',   url: 'https://stargate.finance', confidence: 'definite' }],
+  ['0x38ea452219524bb87e18de1c24d3bb59510bd783', { name: 'Stargate', type: 'bridge', subLabel: 'USDT Pool',   url: 'https://stargate.finance', confidence: 'definite' }],
+  ['0x101816545f6bd2b1076434b54383a1e633390a2e', { name: 'Stargate', type: 'bridge', subLabel: 'ETH Pool',    url: 'https://stargate.finance', confidence: 'definite' }],
+
+  // ── Celer cBridge ─────────────────────────────────────────────────────────
+  ['0x5427fefa711eff984124bfbb1ab6fbf5e3da1820', { name: 'Celer cBridge', type: 'bridge', subLabel: 'v2',  url: 'https://cbridge.celer.network', confidence: 'definite' }],
+  ['0x1619de6b6b20ed217a58d00f37b9d47c7663feca', { name: 'Celer cBridge', type: 'bridge', subLabel: 'v1',  url: 'https://cbridge.celer.network', confidence: 'definite' }],
+
+  // ── Hop Protocol ──────────────────────────────────────────────────────────
+  ['0xb8901acb165ed027e32754e0ffe830802919727f', { name: 'Hop Protocol', type: 'bridge', subLabel: 'USDC Bridge', url: 'https://hop.exchange', confidence: 'definite' }],
+  ['0x3666f603cc164936c1b87e207f36beba4ac5f18a', { name: 'Hop Protocol', type: 'bridge', subLabel: 'USDT Bridge', url: 'https://hop.exchange', confidence: 'definite' }],
+  ['0xb98454270065a31d71bf635f6f7ee6a518dfb849', { name: 'Hop Protocol', type: 'bridge', subLabel: 'ETH Bridge',  url: 'https://hop.exchange', confidence: 'definite' }],
+
+  // ── Across Protocol ───────────────────────────────────────────────────────
+  ['0x4d9079bb4165aeb4084c526a32695dcfd2f77381', { name: 'Across Protocol', type: 'bridge', subLabel: 'Spoke Pool', url: 'https://across.to', confidence: 'definite' }],
+  ['0x5c7bcd6e7de5423a257d81b442095a1a6ced35c5', { name: 'Across Protocol', type: 'bridge', subLabel: 'Spoke Pool v2', url: 'https://across.to', confidence: 'definite' }],
+
+  // ── Synapse Protocol ──────────────────────────────────────────────────────
+  ['0x2796317b0ff8538f253012862c06787adfb8ceb6', { name: 'Synapse Protocol', type: 'bridge', subLabel: 'Bridge',  url: 'https://synapseprotocol.com', confidence: 'definite' }],
+
+  // ── Connext ───────────────────────────────────────────────────────────────
+  ['0x8898b472c54c31894e3b9bb83cea802a5d0e63c6', { name: 'Connext', type: 'bridge', subLabel: 'Diamond',  url: 'https://connext.network', confidence: 'definite' }],
+
+  // ── Arbitrum Bridge ───────────────────────────────────────────────────────
+  ['0x72ce9c846789fdb6fc1f34ac4ad25dd9ef7031ef', { name: 'Arbitrum Bridge', type: 'bridge', subLabel: 'L1 Gateway Router', url: 'https://bridge.arbitrum.io', confidence: 'definite' }],
+  ['0x8315177ab297ba92a06054ce80a67ed4dbd7ed3a', { name: 'Arbitrum Bridge', type: 'bridge', subLabel: 'Inbox',             url: 'https://bridge.arbitrum.io', confidence: 'definite' }],
+
+  // ── Polygon Bridge ────────────────────────────────────────────────────────
+  ['0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf', { name: 'Polygon Bridge', type: 'bridge', subLabel: 'ERC20 Bridge', url: 'https://wallet.polygon.technology/bridge', confidence: 'definite' }],
+  ['0xa0c68c638235ee32657e8f720a23cec1bfc77c77', { name: 'Polygon Bridge', type: 'bridge', subLabel: 'Plasma Bridge', url: 'https://wallet.polygon.technology/bridge', confidence: 'definite' }],
+
+  // ── Optimism Bridge ───────────────────────────────────────────────────────
+  ['0x99c9fc46f92e8a1c0dec1b1747d010903e884be1', { name: 'Optimism Bridge', type: 'bridge', subLabel: 'L1 Standard Bridge', url: 'https://app.optimism.io/bridge', confidence: 'definite' }],
+  ['0xbeb5fc579115071764c7423a4f12edde41f106ed', { name: 'Optimism Bridge', type: 'bridge', subLabel: 'Portal',             url: 'https://app.optimism.io/bridge', confidence: 'definite' }],
+
+  // ── Base Bridge ───────────────────────────────────────────────────────────
+  ['0x3154cf16ccdb4c6d922629664174b904d80f2c35', { name: 'Base Bridge', type: 'bridge', subLabel: 'L1 Standard Bridge', url: 'https://bridge.base.org', confidence: 'definite' }],
+  ['0x49048044d57e1c92a77f79988d21fa8faf74e97e', { name: 'Base Bridge', type: 'bridge', subLabel: 'Portal',             url: 'https://bridge.base.org', confidence: 'definite' }],
+
+  // ── Multichain (compromised/defunct — warn users) ─────────────────────────
+  ['0x765277eebeca2e31912c9946eae1021199b39c61', { name: 'Multichain (Compromised)', type: 'bridge', subLabel: 'Do not use — exploited 2023', url: null, confidence: 'definite' }],
+  ['0x4f3aff3a747fcade12598081e80c6605a8be192f', { name: 'Multichain (Compromised)', type: 'bridge', subLabel: 'Do not use — exploited 2023', url: null, confidence: 'definite' }],
 ]);
 
 async function fetchEntityLabel(address: string): Promise<WalletCheckResult['entityLabel']> {
