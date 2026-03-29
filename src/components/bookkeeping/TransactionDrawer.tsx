@@ -75,8 +75,27 @@ function truncateHash(hash: string): string {
   return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
 }
 
-function isEvmHash(hash: string): boolean {
-  return /^0x[0-9a-fA-F]{64}$/.test(hash);
+// 0x + 64 hex = could be EVM tx hash OR Sui address — treat as EVM tx hash
+// 0x + 40 hex = EVM wallet address → link to Etherscan address page
+// anything else = unknown identifier, show as plain monospace text
+function hashType(hash: string): 'evm-tx' | 'evm-address' | 'other' {
+  if (/^0x[0-9a-fA-F]{64}$/.test(hash)) return 'evm-tx';
+  if (/^0x[0-9a-fA-F]{40}$/.test(hash)) return 'evm-address';
+  return 'other';
+}
+
+function explorerUrl(hash: string): string {
+  const t = hashType(hash);
+  if (t === 'evm-tx')      return `https://etherscan.io/tx/${hash}`;
+  if (t === 'evm-address') return `https://etherscan.io/address/${hash}`;
+  return '';
+}
+
+function explorerLabel(hash: string): string {
+  const t = hashType(hash);
+  if (t === 'evm-tx')      return 'tx';
+  if (t === 'evm-address') return 'address';
+  return '';
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -575,13 +594,16 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
       </span>
 
       {evt.tx_hash && (
-        <span style={{ width: '100%', fontSize: '0.73rem', paddingLeft: '3.25rem' }}>
-          {isEvmHash(evt.tx_hash) ? (
+        <span style={{ width: '100%', fontSize: '0.73rem', paddingLeft: '3.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ opacity: 0.35, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
+            {hashType(evt.tx_hash) === 'evm-address' ? 'wallet' : 'tx'}
+          </span>
+          {explorerUrl(evt.tx_hash) ? (
             <a
-              href={`https://etherscan.io/tx/${evt.tx_hash}`}
+              href={explorerUrl(evt.tx_hash)}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: 'rgba(96,165,250,0.8)', textDecoration: 'none' }}
+              style={{ color: 'rgba(96,165,250,0.8)', textDecoration: 'none', fontFamily: 'monospace' }}
             >
               {truncateHash(evt.tx_hash)} ↗
             </a>
