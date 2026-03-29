@@ -19,6 +19,12 @@ const bye = Astro.url.searchParams.get('bye') === '1';
 				Thanks for your visit — come back soon! 👋
 			</div>
 		)}
+		<div class="beta-banner">
+			<span class="beta-badge">BETA</span>
+			Almstins is under active development. Bugs happen, data may shift, and features are still being built.
+			Use it to explore — not as your single source of financial truth just yet.
+		</div>
+
 		<a class="login-button" href="/login">Login</a>
 
 		<!-- Wallet scam checker -->
@@ -119,6 +125,41 @@ const bye = Astro.url.searchParams.get('bye') === '1';
 		line-height: 1.6;
 		max-width: 520px;
 		margin: 0 auto;
+	}
+
+	/* Beta banner */
+	.beta-banner {
+		position: fixed;
+		bottom: 1.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		background: rgba(10, 14, 28, 0.85);
+		border: 1px solid rgba(245, 158, 11, 0.35);
+		backdrop-filter: blur(12px);
+		color: rgba(255, 255, 255, 0.6);
+		padding: 0.65rem 1.25rem;
+		border-radius: 999px;
+		font-size: 0.8rem;
+		line-height: 1.5;
+		z-index: 20;
+		max-width: min(560px, 90vw);
+		text-align: center;
+		white-space: normal;
+	}
+
+	.beta-badge {
+		flex-shrink: 0;
+		background: rgba(245, 158, 11, 0.15);
+		border: 1px solid rgba(245, 158, 11, 0.4);
+		color: #f59e0b;
+		font-size: 0.65rem;
+		font-weight: 800;
+		letter-spacing: 0.12em;
+		padding: 0.2rem 0.5rem;
+		border-radius: 999px;
 	}
 
 	.bye-toast {
