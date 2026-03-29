@@ -16,12 +16,6 @@ function CameraIcon() {
 	);
 }
 
-function walletName(w: { walletLabel?: string | null; walletAddress?: string | null; walletId: string }): string {
-	if (w.walletLabel?.trim()) return w.walletLabel.trim();
-	const addr = w.walletAddress ?? w.walletId;
-	return addr.length > 10 ? '…' + addr.slice(-8) : addr;
-}
-
 export default function PortfolioTile() {
 	const [summary, setSummary] = useState<NetWorthSummary | null>(null);
 	const [uploading, setUploading] = useState(false);
@@ -64,14 +58,15 @@ export default function PortfolioTile() {
 		}
 	};
 
-	// Use gross asset value — excludes DeFi debt so the number isn't dragged negative
-	const assetsTotal = summary?.totalAssetsUsd ?? 0;
-	const debtTotal   = summary?.totalDebtUsd   ?? 0;
+	// tins = per-wallet data that IS sent by the API (byWallet is not in the payload)
+	// Use assetsUsd (gross) instead of netUsd so Aave debt doesn't go negative
+	const tins = (summary?.tins ?? [])
+		.filter((t) => t.assetsUsd > 0.005)
+		.sort((a, b) => b.assetsUsd - a.assetsUsd);
 
-	// Per-wallet rows: use walletLabel for human-readable names, assetsUsd for gross value
-	const wallets = (summary?.byWallet ?? [])
-		.filter((w) => (w.assetsUsd ?? 0) > 0.005)
-		.sort((a, b) => (b.assetsUsd ?? 0) - (a.assetsUsd ?? 0));
+	// Gross total = sum of per-tin asset values (ignore debt)
+	const assetsTotal = tins.reduce((s, t) => s + t.assetsUsd, 0);
+	const debtTotal   = summary?.totalDebtUsd ?? 0;
 
 	return (
 		<div className="pt-root">
@@ -111,15 +106,15 @@ export default function PortfolioTile() {
 			}
 
 			{/* ── Per-wallet list ───────────────────────────────── */}
-			{summary && wallets.length === 0 && (
+			{summary && tins.length === 0 && (
 				<p className="pt-empty">No wallet balances found.</p>
 			)}
-			{wallets.length > 0 && (
+			{tins.length > 0 && (
 				<ul className="pt-wallets">
-					{wallets.map((w) => (
-						<li key={w.walletId} className="pt-wallet-row">
-							<span className="pt-wallet-name">{walletName(w)}</span>
-							<span className="pt-wallet-value">{fmtFull.format(w.assetsUsd ?? 0)}</span>
+					{tins.map((t) => (
+						<li key={t.tinId} className="pt-wallet-row">
+							<span className="pt-wallet-name">{t.tinName}</span>
+							<span className="pt-wallet-value">{fmtFull.format(t.assetsUsd)}</span>
 						</li>
 					))}
 				</ul>
