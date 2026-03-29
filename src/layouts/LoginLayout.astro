@@ -1,5 +1,17 @@
 ---
 import Footer from "@/components/Footer.astro";
+
+export interface Props {
+  title?: string;
+  description?: string;
+  noindex?: boolean;
+}
+
+const {
+  title = 'Sign In | Almstins',
+  description = 'Sign in to your Almstins account to track your crypto portfolio, DeFi positions, and tax reports.',
+  noindex = true,
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -7,9 +19,12 @@ import Footer from "@/components/Footer.astro";
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<link rel="icon" type="image/webp" href="/favicon.webp" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Portfolio Control Center</title>
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		{noindex && <meta name="robots" content="noindex, nofollow" />}
+		<link rel="icon" type="image/webp" href="/favicon.webp" />
+		<link rel="icon" href="/favicon.ico" sizes="any" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />

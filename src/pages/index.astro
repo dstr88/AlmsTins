@@ -1,19 +1,37 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import WalletChecker from '../components/WalletChecker';
 import logo from '../assets/logo.jpeg';
 
 const bye = Astro.url.searchParams.get('bye') === '1';
 ---
 
-<Layout>
+<Layout
+	title="Almstins — Crypto Portfolio Tracker & Tax Tool"
+	description="Track wallets, DeFi positions, and exchange accounts in one place. Calculate capital gains, export Form 8949, and know your real net worth."
+	canonical="https://almstins.com"
+>
 	<div class="landing">
 		<img class="logo" src={logo.src} width="56" height="56" alt="Almstins logo" />
+		<h1 class="sr-only">Almstins — Crypto Portfolio Tracker</h1>
 		{bye && (
 			<div class="bye-toast">
 				Thanks for your visit — come back soon! 👋
 			</div>
 		)}
 		<a class="login-button" href="/login">Login</a>
+
+		<!-- Wallet scam checker -->
+		<div class="checker-wrap">
+			<div class="checker-header">
+				<h2 class="checker-title">🔍 Wallet Scam Checker</h2>
+				<p class="checker-sub">
+					Been offered a "too good to be true" crypto deal? Paste the wallet address
+					here before you send anything.
+				</p>
+			</div>
+			<WalletChecker client:load />
+		</div>
 	</div>
 </Layout>
 
@@ -63,6 +81,44 @@ const bye = Astro.url.searchParams.get('bye') === '1';
 	.login-button:focus-visible {
 		outline: 2px solid rgba(147, 77, 255, 0.6);
 		outline-offset: 4px;
+	}
+
+	/* sr-only utility */
+	.sr-only {
+		position: absolute;
+		width: 1px; height: 1px;
+		padding: 0; margin: -1px;
+		overflow: hidden; clip: rect(0,0,0,0);
+		white-space: nowrap; border: 0;
+	}
+
+	/* Wallet checker section */
+	.checker-wrap {
+		position: relative;
+		z-index: 5;
+		margin: 14rem auto 4rem;
+		width: min(680px, 92vw);
+	}
+
+	.checker-header {
+		text-align: center;
+		margin-bottom: 1.5rem;
+	}
+
+	.checker-title {
+		font-size: clamp(1.4rem, 3vw, 1.9rem);
+		font-weight: 700;
+		color: #f5f8ff;
+		margin: 0 0 0.5rem;
+	}
+
+	.checker-sub {
+		font-size: 0.95rem;
+		color: rgba(255, 255, 255, 0.45);
+		margin: 0;
+		line-height: 1.6;
+		max-width: 520px;
+		margin: 0 auto;
 	}
 
 	.bye-toast {

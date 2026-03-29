@@ -57,6 +57,22 @@ const isAdmin =
   (tenantId ? ADMIN_TENANT_IDS.has(String(tenantId).toLowerCase()) : false) ||
   Boolean(displayEmail && ADMIN_EMAILS.has(displayEmail.toLowerCase()));
 
+export interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  image?: string;
+  noindex?: boolean;
+}
+
+const {
+  title = 'Almstins — Crypto Portfolio Tracker & Tax Tool',
+  description = 'Track your crypto wallets, DeFi positions, and exchange accounts in one place. Calculate capital gains, export Form 8949, and stay on top of your net worth.',
+  canonical = Astro.url.href,
+  image = 'https://almstins.com/og-default.png',
+  noindex = false,
+} = Astro.props;
+
 const fmtDate = (iso: string | null) => {
   if (!iso) return null;
   try {
@@ -75,9 +91,32 @@ const memberSinceDisplay = memberSinceIso
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<link rel="icon" type="image/webp" href="/favicon.webp" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Portfolio Control Center</title>
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<link rel="canonical" href={canonical} />
+		{noindex && <meta name="robots" content="noindex, nofollow" />}
+
+		<!-- Open Graph -->
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Almstins" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonical} />
+		<meta property="og:image" content={image} />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+
+		<!-- Twitter / X -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content={image} />
+
+		<!-- Favicon -->
+		<link rel="icon" type="image/webp" href="/favicon.webp" />
+		<link rel="icon" href="/favicon.ico" sizes="any" />
+
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
