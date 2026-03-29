@@ -174,6 +174,14 @@ function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
+// GoPlus chain_id map — Sui not supported by GoPlus address_security endpoint
+const GOPLUS_CHAIN_ID: Record<Chain, string | null> = {
+  evm:     '1',   // Ethereum mainnet
+  solana:  'solana',
+  sui:     null,  // GoPlus does not support Sui address security
+  unknown: null,
+};
+
 // GoPlus Security — free, no API key needed
 // https://gopluslabs.io/
 async function fetchGoPlusFlags(
@@ -181,9 +189,11 @@ async function fetchGoPlusFlags(
 ): Promise<{ flags: Partial<WalletCheckResult['flags']>; errors: string[] }> {
   const errors: string[] = [];
   const flags: Partial<WalletCheckResult['flags']> = {};
+  const chainId = GOPLUS_CHAIN_ID[detectChain(address)];
+  if (!chainId) return { flags, errors }; // chain not supported — skip silently
   try {
     const res = await fetchWithTimeout(
-      `https://api.gopluslabs.io/api/v1/address_security/${encodeURIComponent(address)}?chain_id=1`,
+      `https://api.gopluslabs.io/api/v1/address_security/${encodeURIComponent(address)}?chain_id=${chainId}`,
     );
     if (!res.ok) {
       errors.push(`GoPlus returned ${res.status}`);
