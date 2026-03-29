@@ -11,6 +11,39 @@ const bye = Astro.url.searchParams.get('bye') === '1';
 	description="Track wallets, DeFi positions, and exchange accounts in one place. Calculate capital gains, export Form 8949, and know your real net worth."
 	canonical="https://almstins.com"
 >
+	<!-- JSON-LD: SoftwareApplication schema -->
+	<script type="application/ld+json" set:html={JSON.stringify({
+		"@context": "https://schema.org",
+		"@type": "SoftwareApplication",
+		"name": "Almstins",
+		"url": "https://almstins.com",
+		"description": "Almstins tracks your crypto wallets, DeFi positions, and exchange accounts in one place. Calculate capital gains, export Form 8949, and know your real net worth.",
+		"applicationCategory": "FinanceApplication",
+		"operatingSystem": "Web",
+		"browserRequirements": "Requires JavaScript",
+		"offers": {
+			"@type": "Offer",
+			"price": "0",
+			"priceCurrency": "USD",
+			"description": "Free to start — no credit card required"
+		},
+		"featureList": [
+			"Multi-wallet portfolio tracking",
+			"DeFi position monitoring",
+			"Exchange account aggregation",
+			"Capital gains calculation",
+			"Form 8949 tax export",
+			"Net worth dashboard",
+			"Crypto wallet scam checker",
+			"Ethereum, Solana, and Sui support"
+		],
+		"creator": {
+			"@type": "Organization",
+			"name": "Almstins",
+			"url": "https://almstins.com"
+		},
+		"screenshot": "https://almstins.com/og-default.png"
+	})} />
 	<div class="landing">
 		<img class="logo" src={logo.src} width="56" height="56" alt="Almstins logo" />
 		<h1 class="sr-only">Almstins — Crypto Portfolio Tracker</h1>
