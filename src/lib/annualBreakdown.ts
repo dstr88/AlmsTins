@@ -147,13 +147,19 @@ export async function buildAnnualBreakdown(
     args: [tenantId, yearEnd],
   });
 
-  // Classes that are NOT taxable capital events — skip entirely from FIFO
+  // Classes to exclude ENTIRELY from FIFO — debt tokens and income events only.
+  // These have no real-asset cost-basis impact (debt tokens are liabilities, not assets).
   const SKIP_CLASSES = new Set([
     'liability_increase',    // debt tokens minted when borrowing (e.g. variableDebtPolUSDT)
     'liability_repayment',   // debt tokens burned when repaying
-    'collateral_deposit',    // collateral posted — not a disposal
-    'collateral_withdrawal', // collateral returned — not an acquisition
     'interest_income',       // handled separately in the income section
+  ]);
+
+  // Classes to run through FIFO for correct lot tracking, but NOT record as a taxable
+  // capital-gain/loss event.  The cost basis carries through (e.g. USDC → aUSDC → USDC).
+  const FIFO_NONTAXABLE = new Set([
+    'collateral_deposit',    // USDC out to Aave → aUSDC in: cost moves, no taxable event
+    'collateral_withdrawal', // aUSDC out from Aave → USDC in: cost moves, no taxable event
   ]);
 
   // ── 1a. Sui wallet transactions ───────────────────────────────────────────
@@ -269,6 +275,10 @@ export async function buildAnnualBreakdown(
       // Only bucket settled/unsettled if the SELL happened in this year
       const sellInYear =
         timestamp >= yearStart && timestamp <= yearEnd;
+      // Aave pass-through transfers (collateral_deposit / collateral_withdrawal) move
+      // the cost basis but are NOT taxable disposals — consume lots but skip gain/loss.
+      const txClass = toStr(row.transaction_class);
+      const isTaxable = !FIFO_NONTAXABLE.has(txClass);
 
       let remaining = amount;
       const list    = lotsByAsset.get(asset) ?? [];
@@ -276,8 +286,8 @@ export async function buildAnnualBreakdown(
       while (remaining > 0) {
         const lot = list[0];
         if (!lot) {
-          // orphaned — no matching buy found
-          if (sellInYear) {
+          // orphaned — no matching buy found (only flag if it's a real taxable sell)
+          if (sellInYear && isTaxable) {
             needsAttention.push({
               asset,
               amount: remaining,
@@ -304,7 +314,7 @@ export async function buildAnnualBreakdown(
             : null;
         const days = daysBetween(lot.timestamp, timestamp);
 
-        if (sellInYear) {
+        if (sellInYear && isTaxable) {
           const settled: SettledLot = {
             asset,
             amount: take,
