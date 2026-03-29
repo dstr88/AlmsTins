@@ -319,6 +319,11 @@ export async function buildAnnualBreakdown(
           else            longTerm.push(settled);
         }
 
+        // Reduce the lot's remaining cost basis proportionally so that
+        // subsequent partial sells and stillHolding don't double-count it
+        if (costPortion != null) {
+          lot.costUsd = (lot.costUsd ?? 0) - costPortion;
+        }
         lot.amount -= take;
         if (lot.amount <= 0) list.shift();
         remaining -= take;
