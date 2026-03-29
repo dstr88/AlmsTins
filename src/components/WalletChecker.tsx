@@ -80,6 +80,39 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
     const f = result.flags;
     return (
       <div>
+        {result.entityLabel && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.75rem',
+            padding: '0.75rem 1rem', borderRadius: '10px', marginBottom: '1rem',
+            background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)',
+          }}>
+            <span style={{ fontSize: '1.4rem' }}>
+              {result.entityLabel.type === 'exchange' ? '🏦'
+                : result.entityLabel.type === 'defi' ? '🔷'
+                : result.entityLabel.type === 'bridge' ? '🌉'
+                : '📄'}
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '1rem' }}>
+                {result.entityLabel.name}
+                {result.entityLabel.subLabel && (
+                  <span style={{ fontWeight: 400, fontSize: '0.82rem', opacity: 0.6, marginLeft: '0.5rem' }}>
+                    {result.entityLabel.subLabel}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.55, textTransform: 'capitalize' }}>
+                {result.entityLabel.type} · {result.entityLabel.confidence} identification
+                {result.entityLabel.url && (
+                  <> · <a href={result.entityLabel.url} target="_blank" rel="noopener noreferrer"
+                    style={{ color: 'rgba(147,196,255,0.8)', textDecoration: 'none' }}>
+                    Visit ↗
+                  </a></>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <FlagRow label="Blacklisted address"          active={f.blacklisted} />
         <FlagRow label="Phishing activity"            active={f.phishing} />
         <FlagRow label="Sanctioned (OFAC/etc)"        active={f.sanctioned} />
