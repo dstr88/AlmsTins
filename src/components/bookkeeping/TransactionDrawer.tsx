@@ -75,6 +75,28 @@ function truncateHash(hash: string): string {
   return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+      title="Copy to clipboard"
+      style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        padding: '0 0.15rem', color: copied ? '#4ade80' : 'rgba(255,255,255,0.35)',
+        fontSize: '0.85rem', lineHeight: 1, transition: 'color 0.15s',
+      }}
+    >
+      {copied ? '✓' : '⧉'}
+    </button>
+  );
+}
+
 // 0x + 64 hex = could be EVM tx hash OR Sui address — treat as EVM tx hash
 // 0x + 40 hex = EVM wallet address → link to Etherscan address page
 // anything else = unknown identifier, show as plain monospace text
@@ -612,6 +634,7 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
               {truncateHash(evt.tx_hash)}
             </span>
           )}
+          <CopyButton text={evt.tx_hash} />
         </span>
       )}
     </div>
