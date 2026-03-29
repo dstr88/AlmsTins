@@ -1,6 +1,7 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import { db } from '@/lib/db';
+import { getGA4Summary } from '@/lib/ga4';
 
 // You already gate /dashboard/* in middleware.
 // This is just a belt-and-suspenders check if you ever bypass middleware in dev.
@@ -91,6 +92,9 @@ const byCountry = await query<{
 	[dayParam],
 );
 
+// E) GA4 summary (last 28 days)
+const ga4 = await getGA4Summary(28).catch(() => null);
+
 // Optional: recent detailed events (only if you want it)
 const showLogs = Astro.url.searchParams.get('logs') === '1';
 const recentLogs = showLogs
@@ -121,6 +125,103 @@ const recentLogs = showLogs
 		<p style="opacity: 0.85; margin-top: 0;">
 			Daily aggregates + (optional) last 100 detailed logs.
 		</p>
+
+		<!-- ── Google Analytics 4 — last 28 days ── -->
+		{ga4 ? (
+			<div style="margin-bottom: 2rem;">
+				<h2 style="font-size: 1.1rem; margin: 0 0 0.75rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">
+					Google Analytics · Last 28 days
+				</h2>
+
+				<!-- Stat cards -->
+				<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+					{[
+						{ label: 'Users',            value: ga4.totalUsers.toLocaleString()  },
+						{ label: 'New Users',         value: ga4.newUsers.toLocaleString()    },
+						{ label: 'Sessions',          value: ga4.sessions.toLocaleString()    },
+						{ label: 'Scam Checker Views',value: ga4.checkerViews.toLocaleString()},
+						{ label: 'Login Page Views',  value: ga4.loginViews.toLocaleString()  },
+						{ label: 'Checker → Login',   value: ga4.conversionRate               },
+					].map((s) => (
+						<div style="padding: 0.9rem 1rem; border-radius: 1rem; border: 1px solid rgba(87,103,255,0.3); background: rgba(87,103,255,0.07);">
+							<div style="font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.3rem;">{s.label}</div>
+							<div style="font-size: 1.5rem; font-weight: 800;">{s.value}</div>
+						</div>
+					))}
+				</div>
+
+				<div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
+					<!-- Top pages -->
+					<div style="padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.12);">
+						<h3 style="margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em;">Top Pages</h3>
+						<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+							<thead>
+								<tr style="opacity: 0.6; text-align: left;">
+									<th style="padding: 0.3rem 0;">Page</th>
+									<th style="padding: 0.3rem 0;">Views</th>
+									<th style="padding: 0.3rem 0;">Users</th>
+								</tr>
+							</thead>
+							<tbody>
+								{ga4.topPages.map((p) => (
+									<tr style="border-top: 1px solid rgba(255,255,255,0.07);">
+										<td style="padding: 0.4rem 0; font-family: ui-monospace, monospace; font-size: 0.8rem;">{p.page}</td>
+										<td style="padding: 0.4rem 0;">{p.views.toLocaleString()}</td>
+										<td style="padding: 0.4rem 0;">{p.users.toLocaleString()}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Traffic sources -->
+					<div style="padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.12);">
+						<h3 style="margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em;">Sources</h3>
+						<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+							<thead>
+								<tr style="opacity: 0.6; text-align: left;">
+									<th style="padding: 0.3rem 0;">Source</th>
+									<th style="padding: 0.3rem 0;">Sessions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{ga4.topSources.map((s) => (
+									<tr style="border-top: 1px solid rgba(255,255,255,0.07);">
+										<td style="padding: 0.4rem 0;">{s.source || '(direct)'}</td>
+										<td style="padding: 0.4rem 0;">{s.sessions.toLocaleString()}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Countries -->
+					<div style="padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.12);">
+						<h3 style="margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em;">Countries</h3>
+						<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+							<thead>
+								<tr style="opacity: 0.6; text-align: left;">
+									<th style="padding: 0.3rem 0;">Country</th>
+									<th style="padding: 0.3rem 0;">Sessions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{ga4.topCountries.map((c) => (
+									<tr style="border-top: 1px solid rgba(255,255,255,0.07);">
+										<td style="padding: 0.4rem 0;">{c.country}</td>
+										<td style="padding: 0.4rem 0;">{c.sessions.toLocaleString()}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		) : (
+			<div style="margin-bottom: 1.5rem; padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.1); opacity: 0.6; font-size: 0.875rem;">
+				Google Analytics data unavailable — check GA4_PROPERTY_ID and GA4_PRIVATE_KEY in .env
+			</div>
+		)}
 
 		<form method="GET" style="display:flex; gap:0.75rem; align-items:end; flex-wrap: wrap; margin: 1rem 0;">
 			<div>
