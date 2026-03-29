@@ -133,13 +133,15 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
 
   if (tab === 'holdings') {
     const h = result.holdings;
-    if (result.chain !== 'evm') return (
+    if (result.chain !== 'evm' && result.chain !== 'sui') return (
       <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
-        Token balance lookup is only available for EVM addresses (Ethereum, Polygon, etc).
+        Token balance lookup is only available for EVM and Sui addresses.
       </p>
     );
     if (h.length === 0) return (
-      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>No ERC-20 token holdings found.</p>
+      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
+        {result.chain === 'sui' ? 'No coin balances found.' : 'No ERC-20 token holdings found.'}
+      </p>
     );
     return (
       <div>
