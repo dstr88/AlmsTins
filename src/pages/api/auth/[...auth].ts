@@ -13,23 +13,23 @@ import { ensureTenantForUser, resolveActiveTenantId } from '../../../lib/tenants
 const providers = [];
 
 if (process.env.GOOGLE_ID && process.env.GOOGLE_SECRET) {
-	providers.push({
-		...Google({
+	providers.push(
+		Google({
 			clientId: process.env.GOOGLE_ID,
 			clientSecret: process.env.GOOGLE_SECRET,
+			allowDangerousEmailAccountLinking: true,
 		}),
-		allowDangerousEmailAccountLinking: true,
-	});
+	);
 }
 
 if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
-	providers.push({
-		...GitHub({
+	providers.push(
+		GitHub({
 			clientId: process.env.GITHUB_ID,
 			clientSecret: process.env.GITHUB_SECRET,
+			allowDangerousEmailAccountLinking: true,
 		}),
-		allowDangerousEmailAccountLinking: true,
-	});
+	);
 }
 
 if (process.env.EMAIL_SERVER && process.env.EMAIL_FROM) {
