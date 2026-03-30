@@ -36,3 +36,8 @@ stripe-temp/
 dist.zip
 src/.claude/
 public/almstins-57ed5c37cfa6.json
+
+# Playwright
+tests/e2e/.auth/
+playwright-report/
+test-results/
