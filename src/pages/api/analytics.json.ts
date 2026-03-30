@@ -5,45 +5,40 @@ export const prerender = false;
 
 export const GET: APIRoute = async () => {
   try {
-    if (!import.meta.env.GA_PROPERTY_ID) {
-      return new Response(
-        JSON.stringify({ ok: false, error: 'Missing GA_PROPERTY_ID' }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+    const propertyId = import.meta.env.GA_PROPERTY_ID;
+    const clientEmail = import.meta.env.GA_CLIENT_EMAIL;
+    const privateKey = import.meta.env.GA_PRIVATE_KEY;
+
+    if (!propertyId) {
+      return new Response(JSON.stringify({ ok: false, error: 'Missing GA_PROPERTY_ID' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    if (!import.meta.env.GA_CLIENT_EMAIL) {
-      return new Response(
-        JSON.stringify({ ok: false, error: 'Missing GA_CLIENT_EMAIL' }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+    if (!clientEmail) {
+      return new Response(JSON.stringify({ ok: false, error: 'Missing GA_CLIENT_EMAIL' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    if (!import.meta.env.GA_PRIVATE_KEY) {
-      return new Response(
-        JSON.stringify({ ok: false, error: 'Missing GA_PRIVATE_KEY' }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+    if (!privateKey) {
+      return new Response(JSON.stringify({ ok: false, error: 'Missing GA_PRIVATE_KEY' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const client = new BetaAnalyticsDataClient({
       credentials: {
-        client_email: import.meta.env.GA_CLIENT_EMAIL,
-        private_key: import.meta.env.GA_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        client_email: clientEmail,
+        private_key: privateKey.replace(/\\n/g, '\n'),
       },
     });
 
     const [response] = await client.runRealtimeReport({
-      property: `properties/${import.meta.env.GA_PROPERTY_ID}`,
+      property: `properties/${propertyId}`,
       metrics: [{ name: 'activeUsers' }],
     });
 

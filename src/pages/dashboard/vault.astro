@@ -45,9 +45,8 @@ const onchainWallets = walletsSorted.filter(
 const customWallets = walletsSorted.filter((w) => w.walletType === 'custom');
 const suiWallets = walletsSorted.filter((w) => w.chains.includes('sui'));
 
-const walletsForTiles = onchainWallets.slice(0, 2);
 const walletsWithData = await Promise.all(
-	walletsForTiles.map(async (wallet) => ({
+	onchainWallets.map(async (wallet) => ({
 		wallet,
 		fullData: await getWalletWithLatestData(tenantId, wallet.id),
 	})),
@@ -97,14 +96,13 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			</div>
 
 			<div class="vault-lane vault-lane--row3">
-				{walletsWithData.map(({ wallet, fullData }, index) => {
+				{walletsWithData.map(({ wallet, fullData }) => {
 					const labelSource = fullData?.metadata
 						? { label: fullData.metadata.label, address: fullData.metadata.address }
 						: wallet;
 					const displayLabel = formatWalletLabel(labelSource);
-					const tileClass = index === 0 ? 'tile--r3c1' : 'tile--r3c2';
 					return (
-						<div class={`vault-stack-tin tile ${tileClass}`}>
+						<div class="vault-stack-tin tile">
 							<div class="wallet-label-box">{displayLabel}</div>
 							<div class="wallet-stack" data-accordion="wallet-stack">
 								<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
