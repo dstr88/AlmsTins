@@ -8,6 +8,8 @@ import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin
 import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
 import { computeHoldings, type ImportRow, type Holding } from '@/lib/exchangeHoldings';
 
+const CURRENT_YEAR = String(new Date().getFullYear());
+
 type AccountRow = { id: string; name: string };
 type AccountWithHoldings = AccountRow & { holdings: Holding[] };
 
