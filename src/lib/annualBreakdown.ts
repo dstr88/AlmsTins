@@ -38,6 +38,8 @@ export type UnsettledItem = {
   sourceId: string;
   groupId: string;
   txHash: string | null;
+  /** Raw transaction_class from the lifecycle event — 'other' is the key scam signal */
+  transactionClass: string;
 };
 
 export type HeldPosition = {
@@ -303,6 +305,7 @@ export async function buildAnnualBreakdown(
               sourceId: typeof row.source_id === 'string' ? row.source_id : '',
               groupId: typeof row.group_id === 'string' ? row.group_id : '',
               txHash: typeof row.tx_hash === 'string' ? row.tx_hash : null,
+              transactionClass: txClass,
             });
           }
           break;

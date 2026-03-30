@@ -104,25 +104,36 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
             <p class="tin-empty">✓ No orphaned sales for {selectedYear}</p>
           ) : (
             <div class="tin-rows">
-              {bd.needsAttention.map((item) => (
-                <div
-                  class="tin-row tin-row--alert"
-                  data-source-id={item.sourceId}
-                  data-group-id={item.groupId}
-                  data-tx-hash={item.txHash ?? ''}
-                  data-asset={item.asset}
-                  data-amount={String(item.amount)}
-                  data-sell-date={item.sellDate}
-                  data-proceeds={item.proceedsUsd != null ? String(item.proceedsUsd) : ''}
-                >
-                  <span class="tin-row__asset">{item.asset}</span>
-                  <span class="tin-row__qty">{fQty(item.amount)}</span>
-                  <span class="tin-row__date">{fDate(item.sellDate)}</span>
-                  <span class="tin-row__usd">{fUsd(item.proceedsUsd)}</span>
-                  <span class="tin-row__note">No purchase found</span>
-                  <span class="tin-row__cta">Details →</span>
-                </div>
-              ))}
+              {bd.needsAttention.map((item) => {
+                // 'other' class = unrecognised transfer pattern → most common scam signal
+                const isOther = item.transactionClass === 'other';
+                // Round number + unrecognised = strong scam indicator (e.g. exactly 1,000 USDC)
+                const isRound = item.amount >= 100 && item.amount === Math.floor(item.amount);
+                const scamLikely = isOther && isRound;
+                const scamPossible = isOther && !isRound;
+                return (
+                  <div
+                    class={`tin-row tin-row--alert${scamLikely ? ' tin-row--scam' : ''}`}
+                    data-source-id={item.sourceId}
+                    data-group-id={item.groupId}
+                    data-tx-hash={item.txHash ?? ''}
+                    data-asset={item.asset}
+                    data-amount={String(item.amount)}
+                    data-sell-date={item.sellDate}
+                    data-proceeds={item.proceedsUsd != null ? String(item.proceedsUsd) : ''}
+                    data-tx-class={item.transactionClass}
+                  >
+                    <span class="tin-row__asset">{item.asset}</span>
+                    {scamLikely && <span class="asset-badge asset-badge--scam">⚠ SCAM?</span>}
+                    {scamPossible && <span class="asset-badge asset-badge--verify">VERIFY</span>}
+                    <span class="tin-row__qty">{fQty(item.amount)}</span>
+                    <span class="tin-row__date">{fDate(item.sellDate)}</span>
+                    <span class="tin-row__usd">{fUsd(item.proceedsUsd)}</span>
+                    <span class="tin-row__note">{scamLikely ? 'Unrecognised · round amount' : scamPossible ? 'Unrecognised transfer' : 'No purchase found'}</span>
+                    <span class="tin-row__cta">Details →</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </OrnateTin>
@@ -708,6 +719,24 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       color: #f87171;
       border: 1px solid rgba(239,68,68,0.35);
     }
+    .asset-badge--scam {
+      background: rgba(251,191,36,0.18);
+      color: #fbbf24;
+      border: 1px solid rgba(251,191,36,0.45);
+      animation: scam-pulse 2s ease-in-out infinite;
+    }
+    .asset-badge--verify {
+      background: rgba(251,191,36,0.08);
+      color: rgba(251,191,36,0.7);
+      border: 1px solid rgba(251,191,36,0.2);
+    }
+    .tin-row--scam {
+      border-left: 3px solid rgba(251,191,36,0.6) !important;
+    }
+    @keyframes scam-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.55; }
+    }
 
     /* ── Colour tokens ──────────────────────────────────────── */
     .gain-pos { color: #4ade80; }
@@ -823,6 +852,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
         sourceId: row.dataset.sourceId ?? '',
         groupId: row.dataset.groupId ?? '',
         txHash: row.dataset.txHash || null,
+        transactionClass: row.dataset.txClass ?? '',
       };
 
       window.dispatchEvent(new CustomEvent('open-transaction-drawer', { detail }));

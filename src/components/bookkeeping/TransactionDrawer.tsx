@@ -10,6 +10,7 @@ export interface DrawerItem {
   sourceId: string;
   groupId: string;
   txHash: string | null;
+  transactionClass: string;
 }
 
 interface TransactionDrawerProps {
@@ -423,6 +424,31 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 
         {/* ── Body ───────────────────────────────────────────────────────── */}
         <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+
+          {/* ── Scam / unrecognised warning banner ───────────────────────── */}
+          {item.transactionClass === 'other' && (() => {
+            const isRound = item.amount >= 100 && item.amount === Math.floor(item.amount);
+            return (
+              <div
+                style={{
+                  padding: '0.85rem 1rem',
+                  borderRadius: '10px',
+                  border: `1px solid ${isRound ? 'rgba(251,191,36,0.4)' : 'rgba(251,191,36,0.2)'}`,
+                  background: `${isRound ? 'rgba(251,191,36,0.1)' : 'rgba(251,191,36,0.05)'}`,
+                  fontSize: '0.82rem',
+                  lineHeight: 1.55,
+                  color: isRound ? '#fbbf24' : 'rgba(251,191,36,0.75)',
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: '0.35rem' }}>
+                  {isRound ? '⚠ Possible Scam / Airdrop' : '⚠ Unrecognised Transfer'}
+                </div>
+                {isRound
+                  ? 'This transfer has an unrecognised pattern and a suspiciously round amount — both are hallmarks of scam airdrops on Polygon and other EVM chains. Verify the transaction on the block explorer before assigning a cost basis. If it\'s worthless, use "Worthless Airdrop · $0" below.'
+                  : 'This transfer couldn\'t be matched to a known transaction pattern (purchase, DeFi deposit, etc.). Verify the hash on the block explorer to confirm what happened.'}
+              </div>
+            );
+          })()}
 
           {/* ── Transaction history ──────────────────────────────────────── */}
           <section>
