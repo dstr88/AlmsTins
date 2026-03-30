@@ -173,7 +173,7 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 	const start = Date.now();
 	const queryStart = Date.now();
 	const importsResult = await db.execute({
-		sql: `SELECT id, asset_symbol, amount, native_usd, timestamp_utc, direction, tx_hash, exchange_withdrawal_id, description, kind
+		sql: `SELECT id, asset_symbol, currency, amount, to_currency, to_amount, native_usd, timestamp_utc, direction, tx_hash, exchange_withdrawal_id, description, kind
 			FROM import_transactions
 			WHERE tenant_id = ?`,
 		args: [tenantId],
@@ -196,7 +196,33 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 		source_type: 'import' as const,
 		source_id: String(row.id),
 		asset_symbol: normalizeSymbol(String(row.asset_symbol ?? '')),
-		amount: row.amount === null || row.amount === undefined ? null : Number(row.amount),
+		// Pick the quantity that represents the actual token received/spent.
+		// Cross-currency purchases (e.g. Crypto.com viban_purchase) record the
+		// fiat cost in `amount` (negative USD) and the token received in
+		// `to_amount`.  Using the wrong field inflates holdings by the dollar
+		// value instead of the token quantity.
+		//
+		// Logic mirrors exchangeHoldings.ts pickQty:
+		//   • If asset_symbol matches to_currency → use to_amount
+		//   • If asset_symbol matches currency     → use amount
+		//   • Otherwise fallback to to_amount ?? amount
+		// We always store the absolute value — direction determines the sign.
+		amount: (() => {
+			const sym = normalizeSymbol(String(row.asset_symbol ?? ''));
+			const cur = normalizeSymbol(String(row.currency ?? ''));
+			const toCur = normalizeSymbol(String(row.to_currency ?? ''));
+			const rawAmt = row.amount === null || row.amount === undefined ? null : Number(row.amount);
+			const rawTo  = row.to_amount === null || row.to_amount === undefined ? null : Number(row.to_amount);
+			let qty: number | null;
+			if (sym && toCur && sym === toCur && rawTo !== null) {
+				qty = rawTo;
+			} else if (sym && cur && sym === cur && rawAmt !== null) {
+				qty = rawAmt;
+			} else {
+				qty = rawTo ?? rawAmt;
+			}
+			return qty === null ? null : Math.abs(qty);
+		})(),
 		native_usd: (() => {
 			const raw = row.native_usd === null || row.native_usd === undefined ? null : Number(row.native_usd);
 			if (raw !== null && raw > 0) return raw;
