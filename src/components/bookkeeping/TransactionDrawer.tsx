@@ -120,6 +120,17 @@ function explorerLabel(hash: string): string {
   return '';
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const STABLECOINS = new Set([
+  'USDC', 'USDT', 'DAI', 'BUSD', 'FRAX', 'TUSD', 'USDP', 'GUSD', 'LUSD',
+  'USDC.E', 'USDC_E', 'BRIDGED_USDC',
+]);
+
+function isStablecoin(asset: string): boolean {
+  return STABLECOINS.has(asset.toUpperCase().replace(/[^A-Z0-9]/g, '_'));
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TransactionDrawer({ item, onClose }: TransactionDrawerProps) {
@@ -224,6 +235,16 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [isOpen, onClose]);
+
+  const handleQuickFill = useCallback(
+    (price: string, noteText: string) => {
+      setPricePerToken(price);
+      setNotes(noteText);
+      setSaveStatus('idle');
+      setSaveError(null);
+    },
+    [],
+  );
 
   const handleSave = useCallback(async () => {
     if (!item) return;
@@ -363,7 +384,12 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
               <span style={{ opacity: 0.4 }}>·</span>
               <span>{fQty(item.amount)} tokens</span>
               <span style={{ opacity: 0.4 }}>·</span>
-              <span style={{ color: '#fbbf24' }}>{fUsd(item.proceedsUsd)} proceeds</span>
+              <span
+                style={{ color: '#fbbf24' }}
+                title="ERC-20 transfers show $0 in the 'Value' field on block explorers — this is the token amount, not the native coin value."
+              >
+                {fUsd(item.proceedsUsd)} proceeds ⓘ
+              </span>
             </div>
           </div>
 
@@ -441,6 +467,46 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             >
               Enter the average price you paid per token so this sale can be matched.
             </p>
+
+            {/* ── Quick-fill buttons ──────────────────────────────────── */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+              {isStablecoin(item.asset) && (
+                <QuickButton
+                  label={`Stablecoin · $1.00`}
+                  emoji="💵"
+                  color="rgba(74,222,128"
+                  onClick={() => handleQuickFill('1', 'Stablecoin — cost basis $1.00/token')}
+                  active={pricePerToken === '1'}
+                />
+              )}
+              <QuickButton
+                label="Worthless Airdrop · $0"
+                emoji="🗑"
+                color="rgba(148,163,184"
+                onClick={() => handleQuickFill('0', 'Scam / worthless airdrop — zero taxable value')}
+                active={pricePerToken === '0' && notes.includes('airdrop')}
+              />
+            </div>
+
+            {/* ERC-20 note — only shown when proceeds > 0 and block-explorer value looks confusing */}
+            {item.proceedsUsd != null && item.proceedsUsd > 0 && (
+              <div
+                style={{
+                  fontSize: '0.77rem',
+                  color: 'rgba(251,191,36,0.8)',
+                  background: 'rgba(251,191,36,0.07)',
+                  border: '1px solid rgba(251,191,36,0.2)',
+                  borderRadius: '7px',
+                  padding: '0.55rem 0.75rem',
+                  marginBottom: '0.85rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>Why does Polyscan show $0?</strong> ERC-20 transfers (USDC, USDT, etc.) always
+                show <em>Value: 0 MATIC</em> in the main tx view — the token amount is in the
+                "ERC-20 Token Txns" tab. The {fUsd(item.proceedsUsd)} above is correct.
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <FormField label="Price per Token (USD)">
@@ -520,6 +586,45 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function QuickButton({
+  label,
+  emoji,
+  color,
+  onClick,
+  active,
+}: {
+  label: string;
+  emoji: string;
+  color: string;
+  onClick: () => void;
+  active: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.35rem',
+        padding: '0.35rem 0.75rem',
+        borderRadius: '999px',
+        border: `1px solid ${color},${active ? '0.5)' : '0.25)'}`,
+        background: `${color},${active ? '0.15)' : '0.07)'})`,
+        color: `${color},${active ? '1)' : '0.7)'})`,
+        fontSize: '0.78rem',
+        fontWeight: 600,
+        cursor: 'pointer',
+        transition: 'background 0.12s, border-color 0.12s',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span>{emoji}</span>
+      {label}
+    </button>
+  );
+}
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
