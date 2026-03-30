@@ -5,9 +5,7 @@ export const prerender = false;
 
 export const GET: APIRoute = async () => {
   try {
-    const propertyId = import.meta.env.GA_PROPERTY_ID;
-
-    if (!propertyId) {
+    if (!import.meta.env.GA_PROPERTY_ID) {
       return new Response(
         JSON.stringify({ ok: false, error: 'Missing GA_PROPERTY_ID' }),
         {
@@ -17,10 +15,35 @@ export const GET: APIRoute = async () => {
       );
     }
 
-    const client = new BetaAnalyticsDataClient();
+    if (!import.meta.env.GA_CLIENT_EMAIL) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'Missing GA_CLIENT_EMAIL' }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (!import.meta.env.GA_PRIVATE_KEY) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'Missing GA_PRIVATE_KEY' }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const client = new BetaAnalyticsDataClient({
+      credentials: {
+        client_email: import.meta.env.GA_CLIENT_EMAIL,
+        private_key: import.meta.env.GA_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+    });
 
     const [response] = await client.runRealtimeReport({
-      property: `properties/${propertyId}`,
+      property: `properties/${import.meta.env.GA_PROPERTY_ID}`,
       metrics: [{ name: 'activeUsers' }],
     });
 
