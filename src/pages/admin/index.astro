@@ -1,6 +1,7 @@
 ---
 import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
+import { getGA4Summary } from '@/lib/ga4';
 
 // Guard — redirect non-admin users rather than returning a raw 4xx,
 // since Render's infrastructure renders raw error responses as "file not found".
@@ -62,6 +63,7 @@ const [
 	walletsByChain,
 	requestsToday,
 	topRoutes,
+	ga4,
 ] = await Promise.all([
 	safeScalar('SELECT COUNT(*) FROM auth_users'),
 	safeScalar('SELECT COUNT(*) FROM tenant_memberships WHERE created_at >= ?', [daysAgo(1)]),
@@ -100,6 +102,7 @@ const [
 	   GROUP BY route_key
 	   ORDER BY hits DESC
 	   LIMIT 8`, [daysAgo(7).slice(0, 10)]),
+	getGA4Summary(28).catch(() => null),
 ]);
 
 const fmt = (iso: string | null) => {
@@ -261,6 +264,28 @@ const fmtDate = (iso: string | null) => {
 		.dot-gray { background: rgba(255,255,255,0.2); }
 
 		.refresh-note { font-size: 0.72rem; color: rgba(255,255,255,0.25); margin-top: 0.3rem; }
+
+		/* GA4 section */
+		.ga4-unavailable {
+			padding: 0.85rem 1.1rem;
+			border-radius: 10px;
+			border: 1px solid rgba(255,255,255,0.07);
+			background: rgba(0,0,0,0.15);
+			font-size: 0.8rem;
+			color: rgba(255,255,255,0.35);
+			margin-bottom: 2rem;
+		}
+		.ga4-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.85rem; margin-bottom: 1.5rem; }
+		.ga4-card {
+			padding: 1rem 1.1rem;
+			border-radius: 12px;
+			border: 1px solid rgba(99,102,241,0.25);
+			background: rgba(99,102,241,0.07);
+		}
+		.ga4-card .stat-label { font-size: 0.7rem; }
+		.ga4-card .stat-value { font-size: 1.6rem; }
+		.ga4-tables { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1.25rem; }
+		@media (max-width: 900px) { .ga4-tables { grid-template-columns: 1fr; } }
 	</style>
 </head>
 <body>
@@ -332,6 +357,110 @@ const fmtDate = (iso: string | null) => {
 				<div class="stat-sub">from request log</div>
 			</div>
 		</div>
+	</div>
+
+	<!-- ── Google Analytics 4 — last 28 days ────────────────────── -->
+	<div class="section">
+		<div class="section-title">Google Analytics · last 28 days</div>
+
+		{ga4 ? (
+			<>
+				<!-- KPI row -->
+				<div class="ga4-grid">
+					{[
+						{ label: 'Users',             value: ga4.totalUsers.toLocaleString()   },
+						{ label: 'New Users',          value: ga4.newUsers.toLocaleString()     },
+						{ label: 'Sessions',           value: ga4.sessions.toLocaleString()     },
+						{ label: 'Scam Checker Views', value: ga4.checkerViews.toLocaleString() },
+						{ label: 'Login Page Views',   value: ga4.loginViews.toLocaleString()   },
+						{ label: 'Checker → Login',    value: ga4.conversionRate                },
+					].map((s) => (
+						<div class="ga4-card">
+							<div class="stat-label">{s.label}</div>
+							<div class="stat-value">{s.value}</div>
+						</div>
+					))}
+				</div>
+
+				<!-- Three sub-tables -->
+				<div class="ga4-tables">
+					<!-- Top pages -->
+					<div class="table-wrap">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Page</th>
+									<th style="text-align:right">Views</th>
+									<th style="text-align:right">Users</th>
+								</tr>
+							</thead>
+							<tbody>
+								{ga4.topPages.map((p) => (
+									<tr>
+										<td style="font-family:monospace; font-size:0.75rem;">{p.page}</td>
+										<td style="text-align:right">{p.views.toLocaleString()}</td>
+										<td style="text-align:right">{p.users.toLocaleString()}</td>
+									</tr>
+								))}
+								{ga4.topPages.length === 0 && (
+									<tr><td colspan="3" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+								)}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Traffic sources -->
+					<div class="table-wrap">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Source</th>
+									<th style="text-align:right">Sessions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{ga4.topSources.map((s) => (
+									<tr>
+										<td>{s.source || '(direct)'}</td>
+										<td style="text-align:right">{s.sessions.toLocaleString()}</td>
+									</tr>
+								))}
+								{ga4.topSources.length === 0 && (
+									<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+								)}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Countries -->
+					<div class="table-wrap">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Country</th>
+									<th style="text-align:right">Sessions</th>
+								</tr>
+							</thead>
+							<tbody>
+								{ga4.topCountries.map((c) => (
+									<tr>
+										<td>{c.country}</td>
+										<td style="text-align:right">{c.sessions.toLocaleString()}</td>
+									</tr>
+								))}
+								{ga4.topCountries.length === 0 && (
+									<tr><td colspan="2" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
+								)}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</>
+		) : (
+			<div class="ga4-unavailable">
+				Google Analytics data unavailable — check <code>GA4_PROPERTY_ID</code> and <code>GA4_PRIVATE_KEY</code> in environment variables.
+			</div>
+		)}
 	</div>
 
 	<!-- ── Two-col: Recent users + Wallets by chain ───────────────── -->
