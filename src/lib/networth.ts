@@ -2,9 +2,6 @@ import { db } from '@/lib/db';
 import type { SupportedChain } from '@/lib/constants';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
 import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
-import { computeHoldings, type ImportRow } from '@/lib/exchangeHoldings';
-import { getTickersUSD } from '@/lib/coinpaprikaProvider';
-import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
 
 export type NetWorthRow = {
 	walletId: string;
@@ -579,7 +576,7 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		aaveIncluded: aaveIncluded,
 	});
 
-	const walletTins = byWalletTotals.map((wallet) => ({
+	const tins = byWalletTotals.map((wallet) => ({
 		tinId: wallet.walletId,
 		tinName: wallet.walletLabel,
 		assetsUsd: wallet.assetsUsd,
@@ -588,17 +585,12 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		netUsd: wallet.assetsUsd - wallet.debtUsd,
 	}));
 
-	// Add exchange account holdings to the tins list and grand totals
-	const exchangeTins = await getExchangeTinsForTenant(tenantId);
-	const tins = [...walletTins, ...exchangeTins];
-	const exchangeAssetsTotal = exchangeTins.reduce((s, t) => s + t.assetsUsd, 0);
-
 	return {
-		totalUsd: totalAssetsUsd + exchangeAssetsTotal,
+		totalUsd: totalAssetsUsd,
 		byWallet: byWalletTotals,
 		byChain: byChainTotals,
-		totalAssetsUsd: totalAssetsUsd + exchangeAssetsTotal,
-		totalFreeAssetsUsd: totalFreeAssetsUsd + exchangeAssetsTotal,
+		totalAssetsUsd,
+		totalFreeAssetsUsd,
 		totalDebtUsd,
 		tins,
 		aaveIncluded,
