@@ -428,6 +428,10 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
           {/* ── Scam / unrecognised warning banner ───────────────────────── */}
           {item.transactionClass === 'other' && (() => {
             const isRound = item.amount >= 100 && item.amount === Math.floor(item.amount);
+            const txHash = item.txHash;
+            const polygonscanUrl = txHash ? `https://polygonscan.com/tx/${txHash}` : null;
+            const dexscreenerUrl = `https://dexscreener.com/search?q=${encodeURIComponent(item.asset)}`;
+            const coinGeckoUrl = `https://www.coingecko.com/en/search?query=${encodeURIComponent(item.asset)}`;
             return (
               <div
                 style={{
@@ -443,9 +447,40 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 <div style={{ fontWeight: 700, marginBottom: '0.35rem' }}>
                   {isRound ? '⚠ Possible Scam / Airdrop' : '⚠ Unrecognised Transfer'}
                 </div>
-                {isRound
-                  ? 'This transfer has an unrecognised pattern and a suspiciously round amount — both are hallmarks of scam airdrops on Polygon and other EVM chains. Verify the transaction on the block explorer before assigning a cost basis. If it\'s worthless, use "Worthless Airdrop · $0" below.'
-                  : 'This transfer couldn\'t be matched to a known transaction pattern (purchase, DeFi deposit, etc.). Verify the hash on the block explorer to confirm what happened.'}
+                <p style={{ margin: '0 0 0.75rem' }}>
+                  {isRound
+                    ? "This transfer has an unrecognised pattern and a suspiciously round amount — both are hallmarks of scam airdrops. Use the links below to verify before assigning a cost basis. If it's worthless, use \"Worthless Airdrop · $0\" in the form below."
+                    : "This transfer couldn't be matched to a known transaction pattern. Verify the hash on the block explorer to confirm what happened."}
+                </p>
+
+                {/* How to tell if it's worthless */}
+                <div style={{ fontSize: '0.77rem', opacity: 0.85, marginBottom: '0.65rem', lineHeight: 1.6 }}>
+                  <strong>How to tell if it's worthless:</strong><br />
+                  1. Click <em>Polygonscan</em> below → open the "ERC-20 Token Txns" tab → click the token name.<br />
+                  2. Check for a red <strong>"Scam Token"</strong> banner on its contract page — that's definitive.<br />
+                  3. Search <em>DexScreener</em> — no liquidity / no trading pairs = likely worthless.<br />
+                  4. If the token appeared without you buying it, it's almost certainly a scam airdrop.
+                </div>
+
+                {/* Quick-check links */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                  {polygonscanUrl && (
+                    <a
+                      href={polygonscanUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={checkLinkStyle}
+                    >
+                      🔍 Polygonscan ↗
+                    </a>
+                  )}
+                  <a href={dexscreenerUrl} target="_blank" rel="noopener noreferrer" style={checkLinkStyle}>
+                    📊 DexScreener ↗
+                  </a>
+                  <a href={coinGeckoUrl} target="_blank" rel="noopener noreferrer" style={checkLinkStyle}>
+                    🦎 CoinGecko ↗
+                  </a>
+                </div>
               </div>
             );
           })()}
@@ -773,6 +808,21 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
 }
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
+
+const checkLinkStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.25rem',
+  padding: '0.3rem 0.65rem',
+  borderRadius: '6px',
+  border: '1px solid rgba(251,191,36,0.3)',
+  background: 'rgba(251,191,36,0.08)',
+  color: '#fbbf24',
+  fontSize: '0.77rem',
+  fontWeight: 600,
+  textDecoration: 'none',
+  whiteSpace: 'nowrap' as const,
+};
 
 const inputStyle: React.CSSProperties = {
   background: 'rgba(255,255,255,0.06)',
