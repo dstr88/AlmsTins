@@ -33,6 +33,12 @@
       <button class="faq-question" type="button" data-modal="faq-wallet-vs-bookkeeping">
         Why is "Still in Wallet" different from my Vault balance?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-erc20-zero">
+        A transaction shows $0 on the block explorer — but my tracker shows $1,000?
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-borrowed-money">
+        I borrowed money through Aave — how does that work in bookkeeping?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -239,6 +245,114 @@
 
         <p>
           <strong>In short:</strong> Vault = current market value of your portfolio. Bookkeeping = what you paid to build it. The gap between the two is your unrealized profit (or loss).
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-erc20-zero">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>A transaction shows $0 on the block explorer — but my tracker shows $1,000?</h1>
+
+        <p>
+          You're not going crazy, and neither is the tracker. This is one of the most
+          common points of confusion in crypto bookkeeping, and it comes down to how
+          block explorers display token transfers.
+        </p>
+
+        <p>
+          <strong>Why does Polyscan (or Etherscan) show $0?</strong><br />
+          Every transaction on a blockchain has a "Value" field — but that field only
+          tracks the <em>native coin</em> (MATIC, ETH, etc.). When you send a token like
+          USDC or USDT, the native coin value is literally zero because you aren't moving
+          MATIC or ETH. The actual token transfer is recorded separately in the transaction
+          logs. To see it, click the <strong>"ERC-20 Token Txns"</strong> tab on the
+          transaction page — that's where your 1,000 USDC will appear.
+        </p>
+
+        <p>
+          <strong>So the tracker is right?</strong><br />
+          Yes. The tracker reads the token transfer logs directly, so it correctly records
+          the USDC amount and its dollar value at the time of the transfer. The $1,000 you
+          see is real — the block explorer is just showing you the wrong field.
+        </p>
+
+        <p>
+          <strong>How do I clear it from "Needs Attention"?</strong><br />
+          Click <strong>Details →</strong> on the item. You'll see a
+          <strong>💵 Stablecoin · $1.00</strong> quick button — tap it and hit Save.
+          Since you paid $1.00 per USDC and received $1.00 per USDC, the taxable gain
+          is effectively $0. The item disappears from the list and nothing changes on
+          your tax summary.
+        </p>
+
+        <p>
+          <strong>What if the destination wallet is flagged as a scam?</strong><br />
+          That's a separate issue — it means your USDC may have been sent to a scammer
+          (a common trick called "address poisoning"). The transfer still happened and
+          the tracker is still correct. Unfortunately the tokens are likely gone. For
+          tax purposes, set the cost basis to $1.00 as above — the loss of the funds
+          may be deductible as a theft loss depending on your jurisdiction, so make a
+          note of it and talk to your accountant.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-borrowed-money">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>I borrowed money through Aave — how does that work in bookkeeping?</h1>
+
+        <p>
+          Great question, and it trips people up all the time. The short answer:
+          <strong>borrowed money is not income</strong>, and the tracker already knows that.
+        </p>
+
+        <p>
+          <strong>When you borrow from Aave:</strong><br />
+          You deposit collateral (say, ETH) and the protocol lends you USDC against it.
+          That USDC lands in your wallet as an incoming transfer — but it's a
+          <em>loan</em>, not a purchase or a gift. The tracker classifies this as a
+          <strong>liability increase</strong> and skips it entirely when building your
+          cost basis. It will never show up as a buy lot in "Still in Wallet" because
+          you didn't buy it — you owe it back.
+        </p>
+
+        <p>
+          <strong>Where does it show up?</strong><br />
+          On the Bookkeeping page, scroll down to the <strong>🔷 DeFi Positions</strong>
+          section. Your collateral (the ETH or USDC you deposited) appears in teal marked
+          <em>AAVE</em>. Your outstanding loan appears in red marked <em>DEBT</em>. These
+          are separated from your regular wallet holdings on purpose — they follow
+          different accounting rules.
+        </p>
+
+        <p>
+          <strong>When you repay the loan:</strong><br />
+          The USDC you send back to Aave is also handled automatically — it's classified
+          as a <strong>liability repayment</strong>. The tracker consumes the cost lot for
+          that USDC (you're returning something you borrowed) but records no taxable gain
+          or loss, because paying back a loan isn't a sale.
+        </p>
+
+        <p>
+          <strong>What about the interest I'm paying?</strong><br />
+          Aave charges interest by slowly increasing the amount you owe — your debt token
+          balance grows over time. The tracker tracks this, and the accrued interest shows
+          in your DeFi Positions tin. Whether Aave interest is tax-deductible depends on
+          how you used the loan (investing vs. personal use) and your local tax law — talk
+          to your accountant about that one.
+        </p>
+
+        <p>
+          <strong>What if I get liquidated?</strong><br />
+          If your collateral value drops too far and Aave liquidates your position, a
+          portion of your collateral is seized to repay part of the debt. This is treated
+          as a <em>disposal</em> of your collateral — meaning it can be a taxable event.
+          The tracker will surface those events on the bookkeeping page so you can account
+          for them.
         </p>
       </div>
     </div>
