@@ -641,33 +641,53 @@ const memberSinceDisplay = memberSinceIso
 
 <script>
 	// Copy-to-clipboard for tenant ID button
-	document.addEventListener('click', (e) => {
-		const btn = (e.target as Element)?.closest<HTMLButtonElement>('.copy-btn[data-copy]');
-		if (!btn) return;
-		const text = btn.dataset.copy ?? '';
-		if (!text) return;
-		navigator.clipboard.writeText(text).then(() => {
-			btn.classList.add('copied');
-			const originalTitle = btn.title;
-			btn.title = 'Copied!';
-			// swap icon to checkmark briefly
-			const prev = btn.innerHTML;
-			btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
-			setTimeout(() => {
-				btn.classList.remove('copied');
-				btn.title = originalTitle;
-				btn.innerHTML = prev;
-			}, 2000);
-		}).catch(() => {
-			// Fallback for non-secure contexts
-			const ta = document.createElement('textarea');
-			ta.value = text;
-			ta.style.position = 'fixed';
-			ta.style.opacity = '0';
-			document.body.appendChild(ta);
-			ta.select();
-			document.execCommand('copy');
-			document.body.removeChild(ta);
+	// Attach directly to each button so the click is treated as a user gesture
+	// (document-level delegation can lose transient activation in strict Chrome contexts).
+	function initCopyBtn(btn: HTMLButtonElement) {
+		btn.addEventListener('click', (e) => {
+			e.stopPropagation(); // prevent details from toggling
+			const text = btn.dataset.copy ?? '';
+			if (!text) return;
+
+			const checkmark = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+			const showFeedback = () => {
+				const prev = btn.innerHTML;
+				const origTitle = btn.title;
+				btn.classList.add('copied');
+				btn.title = 'Copied!';
+				btn.innerHTML = checkmark;
+				setTimeout(() => {
+					btn.classList.remove('copied');
+					btn.title = origTitle;
+					btn.innerHTML = prev;
+				}, 2000);
+			};
+
+			if (navigator.clipboard?.writeText) {
+				navigator.clipboard.writeText(text).then(showFeedback).catch(() => {
+					// fallback
+					const ta = document.createElement('textarea');
+					ta.value = text;
+					ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+					document.body.appendChild(ta);
+					ta.select();
+					document.execCommand('copy');
+					document.body.removeChild(ta);
+					showFeedback();
+				});
+			} else {
+				const ta = document.createElement('textarea');
+				ta.value = text;
+				ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+				document.body.appendChild(ta);
+				ta.select();
+				document.execCommand('copy');
+				document.body.removeChild(ta);
+				showFeedback();
+			}
 		});
-	});
+	}
+
+	document.querySelectorAll<HTMLButtonElement>('.copy-btn[data-copy]').forEach(initCopyBtn);
 </script>
