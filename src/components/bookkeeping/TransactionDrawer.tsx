@@ -277,11 +277,16 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
       }
 
       setSaveStatus('success');
+      // Close the drawer and reload so the resolved item disappears from the list
+      setTimeout(() => {
+        onClose();
+        window.location.reload();
+      }, 1500);
     } catch (err: unknown) {
       setSaveStatus('error');
       setSaveError(err instanceof Error ? err.message : 'Save failed');
     }
-  }, [item, pricePerToken, buyDate, notes]);
+  }, [item, pricePerToken, buyDate, notes, onClose]);
 
   if (!isOpen) return null;
 
@@ -613,7 +618,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 
               {saveStatus === 'success' && (
                 <p style={{ fontSize: '0.82rem', color: '#4ade80', margin: 0 }}>
-                  Cost basis saved successfully.
+                  ✓ Saved — refreshing…
                 </p>
               )}
 
