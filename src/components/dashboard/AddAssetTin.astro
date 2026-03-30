@@ -396,145 +396,150 @@
 	}
 </style>
 
-<script lang="ts">
-	const tin = document.querySelector('.add-tin');
-	if (tin instanceof HTMLElement) {
-		// ── Tab switching ──────────────────────────────────────────────────
-		const tabs = tin.querySelectorAll<HTMLButtonElement>('[data-add-tab]');
-		const panels = tin.querySelectorAll<HTMLElement>('[data-add-panel]');
+<script is:inline>
+(function () {
+	function initAddTin() {
+		var tin = document.querySelector('.add-tin');
+		if (!tin || tin.dataset.addTinInit === 'true') return;
+		tin.dataset.addTinInit = 'true';
 
-		tabs.forEach((tab) => {
-			tab.addEventListener('click', () => {
-				const target = tab.dataset.addTab;
-				tabs.forEach((t) => {
-					t.classList.toggle('is-active', t.dataset.addTab === target);
-					t.setAttribute('aria-selected', t.dataset.addTab === target ? 'true' : 'false');
-				});
-				panels.forEach((p) => {
-					p.classList.toggle('is-hidden', p.dataset.addPanel !== target);
-				});
+		// ── Tab switching (event delegation on the tin) ───────────────────
+		tin.addEventListener('click', function (event) {
+			var tab = event.target && event.target.closest('[data-add-tab]');
+			if (!tab) return;
+			var target = tab.dataset.addTab;
+			tin.querySelectorAll('[data-add-tab]').forEach(function (t) {
+				var active = t.dataset.addTab === target;
+				t.classList.toggle('is-active', active);
+				t.setAttribute('aria-selected', active ? 'true' : 'false');
+			});
+			tin.querySelectorAll('[data-add-panel]').forEach(function (p) {
+				p.classList.toggle('is-hidden', p.dataset.addPanel !== target);
 			});
 		});
 
 		// ── Wallet submit ─────────────────────────────────────────────────
-		const addressInput = tin.querySelector<HTMLInputElement>('[data-add-address]');
-		const submitBtn = tin.querySelector<HTMLButtonElement>('[data-add-submit]');
-		const messageEl = tin.querySelector<HTMLElement>('[data-add-message]');
+		var addressInput = tin.querySelector('[data-add-address]');
+		var submitBtn    = tin.querySelector('[data-add-submit]');
+		var messageEl    = tin.querySelector('[data-add-message]');
 
-		const setMessage = (text: string, isUpgrade = false) => {
+		function setMessage(text, isUpgrade) {
 			if (!messageEl) return;
 			messageEl.textContent = text;
-			messageEl.classList.toggle('add-tin__limit-msg', isUpgrade);
-		};
+			messageEl.classList.toggle('add-tin__limit-msg', !!isUpgrade);
+		}
 
-		submitBtn?.addEventListener('click', () => {
-			const address = addressInput?.value.trim() ?? '';
-			if (!address) {
-				setMessage('Enter a wallet address first.');
-				return;
-			}
-			if (submitBtn) submitBtn.disabled = true;
-			setMessage('Saving…');
-
-			fetch('/api/wallets', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ address }),
-			})
-				.then(async (res) => {
-					const payload = await res.json().catch(() => ({}));
-					if (res.status === 402) {
-						setMessage(payload?.message ?? 'Plan limit reached. Upgrade to add more tins.', true);
-						if (submitBtn) submitBtn.disabled = false;
-						return;
-					}
-					if (!res.ok) throw new Error(payload?.message ?? payload?.error ?? 'Unable to add wallet.');
-					if (addressInput) addressInput.value = '';
-					setMessage('Wallet added — reloading…');
-					window.location.reload();
-				})
-				.catch((err: Error) => {
-					setMessage(err.message ?? 'Unable to add wallet.');
-					if (submitBtn) submitBtn.disabled = false;
+		if (submitBtn) {
+			submitBtn.addEventListener('click', function () {
+				var address = addressInput ? addressInput.value.trim() : '';
+				if (!address) { setMessage('Enter a wallet address first.'); return; }
+				submitBtn.disabled = true;
+				setMessage('Saving\u2026');
+				fetch('/api/wallets', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ address: address }),
+				}).then(function (res) {
+					return res.json().catch(function () { return {}; }).then(function (payload) {
+						if (res.status === 402) {
+							setMessage(payload.message || 'Plan limit reached. Upgrade to add more tins.', true);
+							submitBtn.disabled = false;
+							return;
+						}
+						if (!res.ok) throw new Error(payload.message || payload.error || 'Unable to add wallet.');
+						if (addressInput) addressInput.value = '';
+						setMessage('Wallet added \u2014 reloading\u2026');
+						window.location.reload();
+					});
+				}).catch(function (err) {
+					setMessage(err.message || 'Unable to add wallet.');
+					submitBtn.disabled = false;
 				});
-		});
+			});
+		}
 
-		// Allow Enter key in address field
-		addressInput?.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter') submitBtn?.click();
-		});
+		if (addressInput) {
+			addressInput.addEventListener('keydown', function (e) {
+				if (e.key === 'Enter' && submitBtn) submitBtn.click();
+			});
+		}
 
 		// ── Custom wallet submit ──────────────────────────────────────────
-		const customLabelInput = tin.querySelector<HTMLInputElement>('[data-custom-label]');
-		const customAddressInput = tin.querySelector<HTMLInputElement>('[data-custom-address]');
-		const customSubmitBtn = tin.querySelector<HTMLButtonElement>('[data-custom-submit]');
-		const customMessageEl = tin.querySelector<HTMLElement>('[data-custom-message]');
+		var customLabelInput   = tin.querySelector('[data-custom-label]');
+		var customAddressInput = tin.querySelector('[data-custom-address]');
+		var customSubmitBtn    = tin.querySelector('[data-custom-submit]');
+		var customMessageEl    = tin.querySelector('[data-custom-message]');
 
-		const setCustomMessage = (text: string, isUpgrade = false) => {
+		function setCustomMessage(text, isUpgrade) {
 			if (!customMessageEl) return;
 			customMessageEl.textContent = text;
-			customMessageEl.classList.toggle('add-tin__limit-msg', isUpgrade);
-		};
+			customMessageEl.classList.toggle('add-tin__limit-msg', !!isUpgrade);
+		}
 
-		customSubmitBtn?.addEventListener('click', () => {
-			const label = customLabelInput?.value.trim() ?? '';
-			if (!label) {
-				setCustomMessage('A label is required.');
-				return;
-			}
-			if (customSubmitBtn) customSubmitBtn.disabled = true;
-			setCustomMessage('Saving…');
-
-			fetch('/api/wallets', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					walletType: 'custom',
-					label,
-					address: customAddressInput?.value.trim() || undefined,
-				}),
-			})
-				.then(async (res) => {
-					const payload = await res.json().catch(() => ({}));
-					if (res.status === 402) {
-						setCustomMessage(payload?.message ?? 'Plan limit reached. Upgrade to add more tins.', true);
-						if (customSubmitBtn) customSubmitBtn.disabled = false;
-						return;
-					}
-					if (!res.ok) throw new Error(payload?.message ?? payload?.error ?? 'Unable to save wallet.');
-					if (customLabelInput) customLabelInput.value = '';
-					if (customAddressInput) customAddressInput.value = '';
-					setCustomMessage('Saved — reloading…');
-					window.location.reload();
-				})
-				.catch((err: Error) => {
-					setCustomMessage(err.message ?? 'Unable to save wallet.');
-					if (customSubmitBtn) customSubmitBtn.disabled = false;
+		if (customSubmitBtn) {
+			customSubmitBtn.addEventListener('click', function () {
+				var label = customLabelInput ? customLabelInput.value.trim() : '';
+				if (!label) { setCustomMessage('A label is required.'); return; }
+				customSubmitBtn.disabled = true;
+				setCustomMessage('Saving\u2026');
+				var addr = customAddressInput ? customAddressInput.value.trim() : '';
+				var body = { walletType: 'custom', label: label };
+				if (addr) body.address = addr;
+				fetch('/api/wallets', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(body),
+				}).then(function (res) {
+					return res.json().catch(function () { return {}; }).then(function (payload) {
+						if (res.status === 402) {
+							setCustomMessage(payload.message || 'Plan limit reached. Upgrade to add more tins.', true);
+							customSubmitBtn.disabled = false;
+							return;
+						}
+						if (!res.ok) throw new Error(payload.message || payload.error || 'Unable to save wallet.');
+						if (customLabelInput) customLabelInput.value = '';
+						if (customAddressInput) customAddressInput.value = '';
+						setCustomMessage('Saved \u2014 reloading\u2026');
+						window.location.reload();
+					});
+				}).catch(function (err) {
+					setCustomMessage(err.message || 'Unable to save wallet.');
+					customSubmitBtn.disabled = false;
 				});
-		});
+			});
+		}
 
-		customLabelInput?.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter') customSubmitBtn?.click();
-		});
+		if (customLabelInput) {
+			customLabelInput.addEventListener('keydown', function (e) {
+				if (e.key === 'Enter' && customSubmitBtn) customSubmitBtn.click();
+			});
+		}
 
-		// ── Exchange shortcuts ─────────────────────────────────────────────
-		tin.querySelectorAll<HTMLElement>('[data-add-exchange]').forEach((item) => {
-			const activate = () => {
-				const source = item.dataset.addExchange ?? '';
+		// ── Exchange shortcuts ────────────────────────────────────────────
+		tin.querySelectorAll('[data-add-exchange]').forEach(function (item) {
+			function activate() {
+				var source = item.dataset.addExchange || '';
 				if (!source) return;
-				// Find the "Add account" button for this exchange and click it
-				const addBtn = document.querySelector<HTMLButtonElement>(
-					`[data-exchange-add][data-exchange-source="${source}"]`
+				var addBtn = document.querySelector(
+					'[data-exchange-add][data-exchange-source="' + source + '"]'
 				);
 				if (addBtn) {
 					addBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
 					addBtn.click();
 				}
-			};
+			}
 			item.addEventListener('click', activate);
-			item.addEventListener('keydown', (e) => {
+			item.addEventListener('keydown', function (e) {
 				if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
 			});
 		});
 	}
+
+	// Run now if DOM is ready, otherwise wait for it
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', initAddTin);
+	} else {
+		initAddTin();
+	}
+})();
 </script>
