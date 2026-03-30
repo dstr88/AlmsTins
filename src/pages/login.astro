@@ -44,7 +44,14 @@ const session = await getAuthSession(Astro.request);
 
 let csrfToken = "";
 try {
-  const csrfResponse = await fetch(new URL("/api/auth/csrf", Astro.url), {
+  // Use AUTH_URL (the public domain) instead of Astro.url to avoid
+  // ECONNREFUSED when the server tries to reach itself via localhost on Render.
+  const authBase = process.env.AUTH_URL
+    ? (/^https?:\/\//i.test(process.env.AUTH_URL)
+        ? process.env.AUTH_URL.replace(/\/$/, "")
+        : `https://${process.env.AUTH_URL}`)
+    : Astro.url.origin;
+  const csrfResponse = await fetch(`${authBase}/api/auth/csrf`, {
     headers: {
       cookie: Astro.request.headers.get("cookie") ?? "",
     },
@@ -95,13 +102,13 @@ try {
           <form class="provider-form" method="POST" action="/api/auth/signin/google">
             <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
-            <button class="provider-button google" type="submit" data-needs-csrf disabled>Continue with Google</button>
+            <button class="provider-button google" type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Continue with Google</button>
           </form>
 
           <form class="provider-form" method="POST" action="/api/auth/signin/github">
             <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
-            <button class="provider-button github" type="submit" data-needs-csrf disabled>Continue with GitHub</button>
+            <button class="provider-button github" type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Continue with GitHub</button>
           </form>
         </div>
 
@@ -121,7 +128,7 @@ try {
             <input type="password" name="password" minlength="10" required />
           </label>
 
-          <button type="submit" data-needs-csrf disabled>Sign in with email</button>
+          <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Sign in with email</button>
         </form>
 
         <div class="divider">or magic link</div>
@@ -135,7 +142,7 @@ try {
             <input type="email" name="email" placeholder="you@company.com" required />
           </label>
 
-          <button type="submit" data-needs-csrf disabled>Send magic link</button>
+          <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Send magic link</button>
         </form>
 
         <a class="provider-button ghost" href="/signup">Create an account</a>
