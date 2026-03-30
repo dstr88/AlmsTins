@@ -90,17 +90,6 @@ type AccountWithHoldings = AccountRow & {
 	holdings: Holding[];
 };
 
-const { tenantId } = await requireTenantSession(Astro.request);
-
-const accountsResult = await db.execute({
-	sql: `SELECT id, name FROM exchange_accounts
-		WHERE tenant_id = ? AND source = 'crypto_com'
-		ORDER BY created_at ASC`,
-	args: [tenantId],
-});
-
-const accounts = toAccountRows(accountsResult.rows);
-
 const parseNumber = (value: number | string | null | undefined) => {
 	if (value === null || value === undefined) return null;
 	if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -232,23 +221,6 @@ const computeHoldings = (rows: ImportRow[]): Holding[] => {
 	return holdings.sort((a, b) => b.balance - a.balance);
 };
 
-const accountsWithHoldings: AccountWithHoldings[] = [];
-const priceSymbols = new Set<string>();
-
-for (const account of accounts) {
-	const txResult = await db.execute({
-		sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount, to_currency, to_amount, native_usd, kind, description
-			FROM import_transactions
-			WHERE tenant_id = ? AND source = 'crypto_com' AND account_id = ?
-			ORDER BY timestamp_utc ASC`,
-		args: [tenantId, account.id],
-	});
-	const rows = toImportRows(txResult.rows);
-	const holdings = computeHoldings(rows);
-	holdings.forEach((holding) => priceSymbols.add(holding.symbol));
-	accountsWithHoldings.push({ ...account, holdings });
-}
-
 const fetchCachedPrices = async (symbols: string[]) => {
 	if (!symbols.length) return {} as Record<string, number>;
 	const symbolSet = new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean));
@@ -257,7 +229,7 @@ const fetchCachedPrices = async (symbols: string[]) => {
 		symbol?: string;
 		quotes?: { USD?: { price?: number } };
 	}>;
-	const priceMap: Record<string, number> = {};
+	const map: Record<string, number> = {};
 	for (const ticker of tickers) {
 		const symbol = String(ticker.symbol ?? '').trim().toUpperCase();
 		if (!symbol || !symbolSet.has(symbol)) continue;
@@ -266,23 +238,59 @@ const fetchCachedPrices = async (symbols: string[]) => {
 		// so the highest-ranked (real) coin comes first. Without this guard, a tiny
 		// altcoin sharing the same ticker (e.g. a micro-cap "ETH") would overwrite
 		// the real Ethereum price with ~$0.03.
-		if (typeof price === 'number' && !(symbol in priceMap)) {
-			priceMap[symbol] = price;
+		if (typeof price === 'number' && !(symbol in map)) {
+			map[symbol] = price;
 		}
 	}
-	return priceMap;
+	return map;
 };
 
-const priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols)));
+let tinError: string | null = null;
+let accountsWithHoldings: AccountWithHoldings[] = [];
+let priceMap: Record<string, number> = {};
+let dataThrough: string | null = null;
+let lastImported: string | null = null;
 
-const freshnessResult = await db.execute({
-	sql: `SELECT MAX(timestamp_utc) AS data_through, MAX(created_at) AS last_imported
-	      FROM import_transactions WHERE tenant_id = ? AND source = 'crypto_com'`,
-	args: [tenantId],
-});
-const freshnessRow = freshnessResult.rows[0] as Record<string, unknown> | undefined;
-const dataThrough = (freshnessRow?.data_through as string | null) ?? null;
-const lastImported = (freshnessRow?.last_imported as string | null) ?? null;
+try {
+	const { tenantId } = await requireTenantSession(Astro.request);
+
+	const accountsResult = await db.execute({
+		sql: `SELECT id, name FROM exchange_accounts
+			WHERE tenant_id = ? AND source = 'crypto_com'
+			ORDER BY created_at ASC`,
+		args: [tenantId],
+	});
+	const accounts = toAccountRows(accountsResult.rows);
+	const priceSymbols = new Set<string>();
+
+	for (const account of accounts) {
+		const txResult = await db.execute({
+			sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount, to_currency, to_amount, native_usd, kind, description
+				FROM import_transactions
+				WHERE tenant_id = ? AND source = 'crypto_com' AND account_id = ?
+				ORDER BY timestamp_utc ASC`,
+			args: [tenantId, account.id],
+		});
+		const rows = toImportRows(txResult.rows);
+		const holdings = computeHoldings(rows);
+		holdings.forEach((holding) => priceSymbols.add(holding.symbol));
+		accountsWithHoldings.push({ ...account, holdings });
+	}
+
+	priceMap = await fetchCachedPrices(sanitizeSymbols(Array.from(priceSymbols)));
+
+	const freshnessResult = await db.execute({
+		sql: `SELECT MAX(timestamp_utc) AS data_through, MAX(created_at) AS last_imported
+		      FROM import_transactions WHERE tenant_id = ? AND source = 'crypto_com'`,
+		args: [tenantId],
+	});
+	const freshnessRow = freshnessResult.rows[0] as Record<string, unknown> | undefined;
+	dataThrough = (freshnessRow?.data_through as string | null) ?? null;
+	lastImported = (freshnessRow?.last_imported as string | null) ?? null;
+} catch (err) {
+	tinError = err instanceof Error ? err.message : String(err);
+	console.error('[CryptoComAccounts] render error:', err);
+}
 ---
 
 <ExchangeTin title="Crypto.com Accounts" class="tile tile--exchange" dataThrough={dataThrough} lastImported={lastImported}>
@@ -290,7 +298,9 @@ const lastImported = (freshnessRow?.last_imported as string | null) ?? null;
 		Add Crypto.com account
 	</button>
 
-	{accountsWithHoldings.length ? (
+	{tinError ? (
+		<p class="crypto-accounts__error">⚠ Temporarily unavailable — try refreshing</p>
+	) : accountsWithHoldings.length ? (
 		<div class="crypto-accounts__list">
 			{accountsWithHoldings.map((account, index) => {
 				const accountIndex = index + 1;
@@ -500,6 +510,13 @@ const lastImported = (freshnessRow?.last_imported as string | null) ?? null;
 		margin: 0;
 		font-size: var(--font-sm);
 		opacity: 0.7;
+	}
+
+	.crypto-accounts__error {
+		margin: 0;
+		font-size: var(--font-sm);
+		color: #fca5a5;
+		opacity: 0.9;
 	}
 
 	.exchange-holding__row--staking {

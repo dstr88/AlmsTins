@@ -43,50 +43,61 @@ const toImportRow = (row: unknown): ImportRow | null => {
 };
 
 const { source, title } = Astro.props as { source: string; title: string };
-const { tenantId } = await requireTenantSession(Astro.request);
 
-const accountsResult = await db.execute({
-	sql: `SELECT id, name FROM exchange_accounts WHERE tenant_id = ? AND source = ? ORDER BY created_at ASC`,
-	args: [tenantId, source],
-});
+let tinError: string | null = null;
+let accountsWithHoldings: AccountWithHoldings[] = [];
+let priceMap: Record<string, number> = {};
+let dataThrough: string | null = null;
+let lastImported: string | null = null;
 
-const accounts = accountsResult.rows.map(toAccountRow).filter((r): r is AccountRow => r !== null);
-const priceSymbols = new Set<string>();
+try {
+	const session = await requireTenantSession(Astro.request);
+	const tenantId = session?.tenantId ?? '';
+	if (!tenantId) throw new Error('No tenant session');
 
-const accountsWithHoldings: AccountWithHoldings[] = [];
-for (const account of accounts) {
-	const txResult = await db.execute({
-		sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount, to_currency, to_amount, native_usd, kind, description
-			FROM import_transactions
-			WHERE tenant_id = ? AND source = ? AND account_id = ?
-			ORDER BY timestamp_utc ASC`,
-		args: [tenantId, source, account.id],
+	const accountsResult = await db.execute({
+		sql: `SELECT id, name FROM exchange_accounts WHERE tenant_id = ? AND source = ? ORDER BY created_at ASC`,
+		args: [tenantId, source],
 	});
-	const rows = txResult.rows.map(toImportRow).filter((r): r is ImportRow => r !== null);
-	const holdings = computeHoldings(rows);
-	holdings.forEach((h) => priceSymbols.add(h.symbol));
-	accountsWithHoldings.push({ ...account, holdings });
-}
 
-const priceMap: Record<string, number> = {};
-if (priceSymbols.size) {
-	const tickers = (await getTickersUSD()) as Array<{ symbol?: string; quotes?: { USD?: { price?: number } } }>;
-	const syms = new Set(sanitizeSymbols(Array.from(priceSymbols)));
-	for (const t of tickers) {
-		const sym = String(t.symbol ?? '').trim().toUpperCase();
-		if (syms.has(sym) && typeof t.quotes?.USD?.price === 'number') priceMap[sym] = t.quotes.USD.price;
+	const accounts = accountsResult.rows.map(toAccountRow).filter((r): r is AccountRow => r !== null);
+	const priceSymbols = new Set<string>();
+
+	for (const account of accounts) {
+		const txResult = await db.execute({
+			sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount, to_currency, to_amount, native_usd, kind, description
+				FROM import_transactions
+				WHERE tenant_id = ? AND source = ? AND account_id = ?
+				ORDER BY timestamp_utc ASC`,
+			args: [tenantId, source, account.id],
+		});
+		const rows = txResult.rows.map(toImportRow).filter((r): r is ImportRow => r !== null);
+		const holdings = computeHoldings(rows);
+		holdings.forEach((h) => priceSymbols.add(h.symbol));
+		accountsWithHoldings.push({ ...account, holdings });
 	}
-}
 
-// "Data through" — most recent transaction timestamp in imported data for this source
-const freshnessResult = await db.execute({
-	sql: `SELECT MAX(timestamp_utc) as data_through, MAX(created_at) as last_imported
-	      FROM import_transactions WHERE tenant_id = ? AND source = ?`,
-	args: [tenantId, source],
-});
-const freshnessRow = freshnessResult.rows[0] as Record<string, unknown> | undefined;
-const dataThrough = (freshnessRow?.data_through as string | null) ?? null;
-const lastImported = (freshnessRow?.last_imported as string | null) ?? null;
+	if (priceSymbols.size) {
+		const tickers = (await getTickersUSD()) as Array<{ symbol?: string; quotes?: { USD?: { price?: number } } }>;
+		const syms = new Set(sanitizeSymbols(Array.from(priceSymbols)));
+		for (const t of tickers) {
+			const sym = String(t.symbol ?? '').trim().toUpperCase();
+			if (syms.has(sym) && typeof t.quotes?.USD?.price === 'number') priceMap[sym] = t.quotes.USD.price;
+		}
+	}
+
+	const freshnessResult = await db.execute({
+		sql: `SELECT MAX(timestamp_utc) as data_through, MAX(created_at) as last_imported
+		      FROM import_transactions WHERE tenant_id = ? AND source = ?`,
+		args: [tenantId, source],
+	});
+	const freshnessRow = freshnessResult.rows[0] as Record<string, unknown> | undefined;
+	dataThrough = (freshnessRow?.data_through as string | null) ?? null;
+	lastImported = (freshnessRow?.last_imported as string | null) ?? null;
+} catch (err) {
+	tinError = err instanceof Error ? err.message : String(err);
+	console.error(`[ExchangeAccounts] ${source} render error:`, err);
+}
 ---
 
 <ExchangeTin title={title} class="tile tile--exchange" dataThrough={dataThrough} lastImported={lastImported}>
@@ -94,7 +105,9 @@ const lastImported = (freshnessRow?.last_imported as string | null) ?? null;
 		Add account
 	</button>
 
-	{accountsWithHoldings.length ? (
+	{tinError ? (
+		<p class="exchange-accounts__error">⚠ Temporarily unavailable — try refreshing</p>
+	) : accountsWithHoldings.length ? (
 		<div class="exchange-accounts__list">
 			{accountsWithHoldings.map((account, index) => {
 				const accountIndex = index + 1;
@@ -305,6 +318,13 @@ const lastImported = (freshnessRow?.last_imported as string | null) ?? null;
 		margin: 0;
 		font-size: var(--font-sm);
 		opacity: 0.7;
+	}
+
+	.exchange-accounts__error {
+		margin: 0;
+		font-size: var(--font-sm);
+		color: #fca5a5;
+		opacity: 0.9;
 	}
 </style>
 
