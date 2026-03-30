@@ -78,6 +78,38 @@ export const POST: APIRoute = async ({ request }) => {
       }
     }
 
+    // If the user marked this as worthless ($0), record the contract address so
+    // future airdrops from the same contract are auto-resolved without prompting.
+    if (pricePerToken === 0) {
+      try {
+        const evtResult = await db.execute({
+          sql: `SELECT ale.contract_address, t.chain, t.token_symbol
+                FROM asset_lifecycle_events ale
+                LEFT JOIN transactions t ON t.id = ale.source_id AND t.tenant_id = ale.tenant_id
+                WHERE ale.tenant_id = ? AND ale.source_id = ?
+                LIMIT 1`,
+          args: [tenantId, sellSourceId],
+        });
+        const ev = evtResult.rows[0] as Record<string, unknown> | undefined;
+        const contractAddr = typeof ev?.contract_address === 'string' ? ev.contract_address.toLowerCase() : null;
+        const chain        = typeof ev?.chain         === 'string' ? ev.chain                              : null;
+        const symbol       = typeof ev?.token_symbol  === 'string' ? ev.token_symbol.toUpperCase()         : null;
+
+        if (contractAddr && chain && symbol) {
+          const scamId = randomId();
+          await db.execute({
+            sql: `INSERT INTO user_scam_contracts (id, tenant_id, chain, symbol, contract_address, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?)
+                  ON CONFLICT (tenant_id, chain, contract_address) DO NOTHING`,
+            args: [scamId, tenantId, chain, symbol, contractAddr, now],
+          });
+        }
+      } catch (scamErr) {
+        // Non-fatal — the cost-basis save already succeeded
+        console.warn('[cost-basis] failed to record scam contract:', scamErr);
+      }
+    }
+
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: {

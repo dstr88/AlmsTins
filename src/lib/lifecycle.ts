@@ -729,6 +729,17 @@ async function autoResolveKnownContracts(tenantId: string): Promise<void> {
 
 	if (candidates.rows.length === 0) return;
 
+	// Fetch user-confirmed scam contracts for this tenant once, before the loop.
+	const userScamResult = await db.execute({
+		sql: `SELECT chain, contract_address FROM user_scam_contracts WHERE tenant_id = ?`,
+		args: [tenantId],
+	});
+	const userScamSet = new Set(
+		userScamResult.rows.map(
+			(r) => `${String(r.chain)}:${String(r.contract_address).toLowerCase()}`,
+		),
+	);
+
 	let resolved = 0;
 	const now = new Date().toISOString();
 
@@ -740,7 +751,9 @@ async function autoResolveKnownContracts(tenantId: string): Promise<void> {
 		const amount        = typeof row.amount === 'number' ? row.amount : 0;
 		if (!sourceId || !contractAddr || !symbol || !chain || amount <= 0) continue;
 
-		const verdict = classifyContract(chain, symbol, contractAddr);
+		// User-confirmed scams take precedence over the hardcoded classifier.
+		const userKey = `${chain}:${contractAddr.toLowerCase()}`;
+		const verdict = userScamSet.has(userKey) ? 'scam' : classifyContract(chain, symbol, contractAddr);
 		if (verdict === 'unknown') continue; // can't auto-resolve without a verdict
 
 		const isStable = KNOWN_STABLECOIN_SYMBOLS.has(symbol);
