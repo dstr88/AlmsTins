@@ -84,14 +84,20 @@ function providerForChain(chainId: number): Provider {
   return chainId === CHAIN_IDS.avalanche ? 'snowtrace' : 'etherscan';
 }
 
-function getApiKey(provider: Provider): string {
+function getApiKey(provider: Provider): string | null {
   if (provider === 'snowtrace') {
     const k = import.meta.env.SNOWTRACE_API_KEY;
-    if (!k) throw new Error('Missing SNOWTRACE_API_KEY');
+    if (!k) {
+      console.warn('[scan] SNOWTRACE_API_KEY not set — Avalanche chain will be skipped');
+      return null;
+    }
     return String(k);
   }
   const k = import.meta.env.ETHERSCAN_API_KEY;
-  if (!k) throw new Error('Missing ETHERSCAN_API_KEY');
+  if (!k) {
+    console.warn('[scan] ETHERSCAN_API_KEY not set — Ethereum/Polygon chains will be skipped');
+    return null;
+  }
   return String(k);
 }
 
@@ -120,9 +126,10 @@ function normalizeAddress(address: string): string {
   return String(address ?? '').trim().toLowerCase();
 }
 
-function buildUrl(chainId: number, params: Record<string, string | number>): string {
+function buildUrl(chainId: number, params: Record<string, string | number>): string | null {
   const provider = providerForChain(chainId);
   const apikey = getApiKey(provider);
+  if (!apikey) return null; // key missing — caller must handle
 
   const query = new URLSearchParams({ apikey });
   // Etherscan v2 requires chainid; Snowtrace doesn't, but harmless to omit
@@ -315,6 +322,7 @@ export async function getNativeBalanceWei({
     address: addr,
     tag: 'latest',
   });
+  if (!url) return 0n;
 
   const payload = await fetchJsonWithRetries(url, { provider, requestId });
   // For balance calls, status=0 is a real error (not "No tx found")
@@ -352,6 +360,7 @@ export async function getTokentxPage({
     offset,
     sort: 'desc',
   });
+  if (!url) return [];
 
   const payload = await fetchJsonWithRetries(url, { provider, requestId });
   const items = readResultArray<TokenTx>(payload, provider);
@@ -435,6 +444,7 @@ export async function getNftTransfers({
     offset,
     sort: 'desc',
   });
+  if (!url) return [];
 
   const payload = await fetchJsonWithRetries(url, { provider, requestId });
   const items = readResultArray<NftTx>(payload, provider);
@@ -466,6 +476,7 @@ export async function getCodeHex({
     address: addr,
     tag: 'latest',
   });
+  if (!url) return '0x'; // treat as non-contract when key is missing
 
   const payload = await fetchJsonWithRetries(url, { provider, requestId });
 
@@ -503,7 +514,7 @@ export function _debugClearCaches() {
 export function buildEtherscanV2Url(
   chainOrChainId: 'ethereum' | 'polygon' | number,
   params: Record<string, string | number>,
-) {
+): string | null {
   const chainId =
     typeof chainOrChainId === 'number'
       ? chainOrChainId
@@ -516,9 +527,11 @@ export function buildEtherscanV2Url(
 }
 
 export async function requestEtherscan(
-  url: string,
+  url: string | null,
   opts?: { requestId?: string; attempts?: number; minIntervalMs?: number; backoffMs?: number; cacheTtlMs?: number },
 ) {
+  // Guard: null URL means the API key is missing — return empty result instead of crashing.
+  if (!url) return { status: '0', message: 'skipped', result: [] };
   // For these legacy callers, URL is already an etherscan URL.
   // providerForChain is safe here, but url already implies etherscan; keep it consistent.
   const provider: Provider = 'etherscan';

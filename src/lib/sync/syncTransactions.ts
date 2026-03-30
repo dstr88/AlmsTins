@@ -379,6 +379,10 @@ async function callScanApi(chain: ScanChain, params: Record<string, string | num
 	}
 
 	const url = buildScanUrl(chain, params);
+	if (!url) {
+		console.warn('[SCAN] No URL for chain', chain, '— API key likely missing. Returning empty result.');
+		return { status: '0', message: 'skipped', result: [] };
+	}
 	const response = await fetch(url);
 	const payload = await response.json();
 	const redactedUrl = url.replace(/apikey=[^&]+/i, 'apikey=[redacted]');

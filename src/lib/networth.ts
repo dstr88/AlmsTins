@@ -2,6 +2,9 @@ import { db } from '@/lib/db';
 import type { SupportedChain } from '@/lib/constants';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
 import { repriceMissingWalletTokens } from '@/lib/repriceMissingWalletTokens';
+import { computeHoldings, type ImportRow } from '@/lib/exchangeHoldings';
+import { getTickersUSD } from '@/lib/coinpaprikaProvider';
+import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
 
 export type NetWorthRow = {
 	walletId: string;
@@ -278,6 +281,103 @@ export async function getNetWorthSummary(tenantId: string): Promise<NetWorthSumm
 	};
 }
 
+type ExchangeTin = {
+	tinId: string;
+	tinName: string;
+	assetsUsd: number;
+	freeAssetsUsd: number;
+	debtUsd: number;
+	netUsd: number;
+};
+
+async function getExchangeTinsForTenant(tenantId: string): Promise<ExchangeTin[]> {
+	try {
+		const accountsResult = await db.execute({
+			sql: `SELECT id, name, source FROM exchange_accounts WHERE tenant_id = ? ORDER BY created_at ASC`,
+			args: [tenantId],
+		});
+
+		const allSymbols = new Set<string>();
+		const accountHoldings: Array<{ id: string; name: string; source: string; holdings: ReturnType<typeof computeHoldings> }> = [];
+
+		for (const acctRow of accountsResult.rows) {
+			const id = typeof acctRow.id === 'string' ? acctRow.id : '';
+			const name = typeof acctRow.name === 'string' ? acctRow.name : 'Account';
+			const source = typeof acctRow.source === 'string' ? acctRow.source : '';
+			if (!id) continue;
+
+			const txResult = await db.execute({
+				sql: `SELECT timestamp_utc, asset_symbol, direction, currency, amount,
+				            to_currency, to_amount, native_usd, kind, description
+				      FROM import_transactions
+				      WHERE tenant_id = ? AND account_id = ?
+				      ORDER BY timestamp_utc ASC`,
+				args: [tenantId, id],
+			});
+
+			const rows: ImportRow[] = txResult.rows.map((r: any) => ({
+				timestamp_utc: typeof r.timestamp_utc === 'string' ? r.timestamp_utc : '',
+				asset_symbol:  typeof r.asset_symbol  === 'string' ? r.asset_symbol  : null,
+				direction:     typeof r.direction     === 'string' ? r.direction     : null,
+				currency:      typeof r.currency      === 'string' ? r.currency      : null,
+				amount:        typeof r.amount        === 'number' ? r.amount        : null,
+				to_currency:   typeof r.to_currency   === 'string' ? r.to_currency   : null,
+				to_amount:     typeof r.to_amount     === 'number' ? r.to_amount     : null,
+				native_usd:    typeof r.native_usd    === 'number' ? r.native_usd    : null,
+				kind:          typeof r.kind          === 'string' ? r.kind          : null,
+				description:   typeof r.description   === 'string' ? r.description   : null,
+			}));
+
+			const holdings = computeHoldings(rows);
+			holdings.forEach((h) => allSymbols.add(h.symbol));
+			accountHoldings.push({ id, name, source, holdings });
+		}
+
+		// Price all holdings via CoinPaprika
+		const priceMap: Record<string, number> = {};
+		if (allSymbols.size > 0) {
+			try {
+				const syms = new Set(sanitizeSymbols(Array.from(allSymbols)));
+				const tickers = (await getTickersUSD()) as Array<{ symbol?: string; quotes?: { USD?: { price?: number } } }>;
+				for (const t of tickers) {
+					const sym = String(t.symbol ?? '').trim().toUpperCase();
+					if (syms.has(sym) && typeof t.quotes?.USD?.price === 'number') {
+						priceMap[sym] = t.quotes.USD.price;
+					}
+				}
+			} catch (err) {
+				console.warn('[networth] exchange price fetch failed:', err);
+			}
+		}
+
+		const result: ExchangeTin[] = [];
+		for (const { id, name, source, holdings } of accountHoldings) {
+			const assetsUsd = holdings.reduce((sum, h) => {
+				const price = priceMap[h.symbol] ?? 0;
+				return sum + (h.balance + h.staked) * price;
+			}, 0);
+			if (assetsUsd < 0.01) continue; // skip empty/unpriced accounts
+
+			// Capitalise source for display: "coinbase" → "Coinbase"
+			const displaySource = source.charAt(0).toUpperCase() + source.slice(1);
+			result.push({
+				tinId: `exchange:${id}`,
+				tinName: `${displaySource} · ${name}`,
+				assetsUsd,
+				freeAssetsUsd: assetsUsd,
+				debtUsd: 0,
+				netUsd: assetsUsd,
+			});
+		}
+
+		console.log('[networth] exchange tins', result.map((t) => ({ name: t.tinName, assetsUsd: t.assetsUsd })));
+		return result;
+	} catch (err) {
+		console.error('[networth] getExchangeTinsForTenant failed:', err);
+		return [];
+	}
+}
+
 export async function getLatestNetWorthSummary(tenantId: string): Promise<LatestNetWorthSummary> {
 	console.log('[networth.summary] START');
 
@@ -479,7 +579,7 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		aaveIncluded: aaveIncluded,
 	});
 
-	const tins = byWalletTotals.map((wallet) => ({
+	const walletTins = byWalletTotals.map((wallet) => ({
 		tinId: wallet.walletId,
 		tinName: wallet.walletLabel,
 		assetsUsd: wallet.assetsUsd,
@@ -488,12 +588,17 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		netUsd: wallet.assetsUsd - wallet.debtUsd,
 	}));
 
+	// Add exchange account holdings to the tins list and grand totals
+	const exchangeTins = await getExchangeTinsForTenant(tenantId);
+	const tins = [...walletTins, ...exchangeTins];
+	const exchangeAssetsTotal = exchangeTins.reduce((s, t) => s + t.assetsUsd, 0);
+
 	return {
-		totalUsd: totalAssetsUsd,
+		totalUsd: totalAssetsUsd + exchangeAssetsTotal,
 		byWallet: byWalletTotals,
 		byChain: byChainTotals,
-		totalAssetsUsd,
-		totalFreeAssetsUsd,
+		totalAssetsUsd: totalAssetsUsd + exchangeAssetsTotal,
+		totalFreeAssetsUsd: totalFreeAssetsUsd + exchangeAssetsTotal,
 		totalDebtUsd,
 		tins,
 		aaveIncluded,

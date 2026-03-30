@@ -77,7 +77,7 @@ export async function fetchAccountData(chain: EtherscanChain, params: ScanParams
 	const chainId = ETHERSCAN_CHAIN_IDS[chain];
 	const url = buildEtherscanV2Url(chainId, params);
 	const payload = await requestEtherscan(url);
-	const redactedUrl = url.replace(/apikey=[^&]+/i, 'apikey=[redacted]');
+	const redactedUrl = url ? url.replace(/apikey=[^&]+/i, 'apikey=[redacted]') : '(no url — key missing)';
 	console.log('[ETH scan]', {
 		provider: 'etherscan_v2',
 		chain,
@@ -94,7 +94,7 @@ export async function fetchEthereumScan(params: ScanParams) {
 	// Etherscan fetch is centralized in src/lib/etherscan.ts.
 	const url = buildEtherscanV2Url(ETHEREUM_CHAIN_ID, params);
 	const payload = await requestEtherscan(url);
-	const redactedUrl = url.replace(/apikey=[^&]+/i, 'apikey=[redacted]');
+	const redactedUrl = url ? url.replace(/apikey=[^&]+/i, 'apikey=[redacted]') : '(no url — key missing)';
 
 	console.log('[ETH scan]', {
 		provider: 'etherscan_v2',
@@ -108,9 +108,12 @@ export async function fetchEthereumScan(params: ScanParams) {
 	return payload;
 }
 
-function buildSnowtraceUrl(params: ScanParams) {
+function buildSnowtraceUrl(params: ScanParams): string | null {
 	const apiKey = import.meta.env.SNOWTRACE_API_KEY;
-	if (!apiKey) throw new Error('Missing SNOWTRACE_API_KEY');
+	if (!apiKey) {
+		console.warn('[scan] SNOWTRACE_API_KEY not set — Avalanche chain will be skipped');
+		return null;
+	}
 	const query = new URLSearchParams({ apikey: apiKey });
 	for (const [key, value] of Object.entries(params)) {
 		if (value !== undefined && value !== null) {

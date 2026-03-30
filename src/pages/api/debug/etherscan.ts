@@ -12,7 +12,7 @@ export const GET: APIRoute = async () => {
 	try {
 		const nativeParams = { module: 'account', action: 'balance', address, tag: 'latest' };
 		const nativeUrl = buildScanUrl('ethereum', nativeParams);
-		const nativeRedacted = nativeUrl.replace(/apikey=[^&]+/i, 'apikey=[redacted]');
+		const nativeRedacted = nativeUrl ? nativeUrl.replace(/apikey=[^&]+/i, 'apikey=[redacted]') : '(key missing)';
 		console.log('[debug.etherscan] native url', nativeRedacted);
 
 		const nativeBalance = await fetchEthereumScan(nativeParams);
@@ -25,8 +25,8 @@ export const GET: APIRoute = async () => {
 			tag: 'latest',
 		});
 
-		const usdcUrl = buildScanUrl('ethereum', ercParams(USDC)).replace(/apikey=[^&]+/i, 'apikey=[redacted]');
-		const usdtUrl = buildScanUrl('ethereum', ercParams(USDT)).replace(/apikey=[^&]+/i, 'apikey=[redacted]');
+		const usdcUrl = (buildScanUrl('ethereum', ercParams(USDC)) ?? '').replace(/apikey=[^&]+/i, 'apikey=[redacted]');
+		const usdtUrl = (buildScanUrl('ethereum', ercParams(USDT)) ?? '').replace(/apikey=[^&]+/i, 'apikey=[redacted]');
 		console.log('[debug.etherscan] usdc url', usdcUrl);
 		console.log('[debug.etherscan] usdt url', usdtUrl);
 
