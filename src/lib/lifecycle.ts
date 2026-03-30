@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { db } from './db';
 import { getCache, setCache } from './tursoCache';
 import { tryAcquireLock } from './cacheLock';
+import { classifyContract, STABLECOIN_SYMBOLS as KNOWN_STABLECOIN_SYMBOLS } from './knownContracts';
 import {
 	type TransactionClass,
 	AAVE_POOL_ADDRESSES,
@@ -179,7 +180,7 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 	});
 
 	const onchainResult = await db.execute({
-		sql: `SELECT id, hash, chain, block_number, token_symbol, token_decimals, value, usd_value, timestamp, tx_type, from_address, to_address
+		sql: `SELECT id, hash, chain, block_number, token_symbol, token_decimals, value, usd_value, timestamp, tx_type, from_address, to_address, contract_address
 			FROM transactions
 			WHERE tenant_id = ?`,
 		args: [tenantId],
@@ -480,6 +481,8 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 			tx_hash:      hash,
 			exchange_withdrawal_id: null,
 			transaction_class: classifyOnchainTxWithContext(classifyRow, group, events),
+			contract_address: row.contract_address ? String(row.contract_address).toLowerCase() : null,
+			chain:        row.chain ? String(row.chain) : null,
 		};
 	});
 	const transformMs = Date.now() - transformStart;
@@ -636,8 +639,8 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 	for (const event of eventRows) {
 			await db.execute({
 				sql: `INSERT OR IGNORE INTO asset_lifecycle_events
-					(id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, tx_hash, exchange_withdrawal_id, transaction_class, linked_transfer, confidence, created_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+					(id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, tx_hash, exchange_withdrawal_id, transaction_class, linked_transfer, confidence, contract_address, created_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 					-- UNIQUE index on (tenant_id, source_id) makes IGNORE skip true duplicates
 					-- even when concurrent rebuilds generate different 'id' UUIDs`,
 				args: [
@@ -655,6 +658,7 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 					event.transaction_class,
 					event.linked_transfer,
 					event.confidence,
+					(event as any).contract_address ?? null,
 				],
 			});
 	}
@@ -693,6 +697,85 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 			// Dynamic import failure (e.g. circular dep caught at runtime) — non-fatal.
 			console.warn('[lifecycle] could not load pricing module:', err);
 		}
+	}
+
+	// ── Auto-resolve known scam tokens and verified stablecoins ──────────────
+	// Runs in the background after every lifecycle rebuild.
+	// Finds 'other'-class OUT events with a contract_address and no existing
+	// manual_cost_basis entry, then auto-inserts $0 for confirmed scams or
+	// $1.00 for verified stablecoin transfers.
+	autoResolveKnownContracts(tenantId).catch((err: unknown) => {
+		console.warn('[lifecycle] auto-resolve pass failed:', err);
+	});
+}
+
+async function autoResolveKnownContracts(tenantId: string): Promise<void> {
+	// Find all 'other'-class OUT events that have a contract address
+	// and haven't been manually resolved yet.
+	const candidates = await db.execute({
+		sql: `SELECT ale.source_id, ale.amount, ale.contract_address, ale.tx_hash,
+		            t.token_symbol, t.chain
+		      FROM asset_lifecycle_events ale
+		      LEFT JOIN transactions t ON t.id = ale.source_id AND t.tenant_id = ale.tenant_id
+		      WHERE ale.tenant_id = ?
+		        AND ale.direction = 'out'
+		        AND ale.transaction_class = 'other'
+		        AND ale.contract_address IS NOT NULL
+		        AND ale.source_id NOT IN (
+		              SELECT sell_source_id FROM manual_cost_basis WHERE tenant_id = ?
+		            )`,
+		args: [tenantId, tenantId],
+	});
+
+	if (candidates.rows.length === 0) return;
+
+	let resolved = 0;
+	const now = new Date().toISOString();
+
+	for (const row of candidates.rows) {
+		const sourceId      = typeof row.source_id === 'string' ? row.source_id : '';
+		const contractAddr  = typeof row.contract_address === 'string' ? row.contract_address : '';
+		const symbol        = typeof row.token_symbol === 'string' ? row.token_symbol.toUpperCase() : '';
+		const chain         = typeof row.chain === 'string' ? row.chain : '';
+		const amount        = typeof row.amount === 'number' ? row.amount : 0;
+		if (!sourceId || !contractAddr || !symbol || !chain || amount <= 0) continue;
+
+		const verdict = classifyContract(chain, symbol, contractAddr);
+		if (verdict === 'unknown') continue; // can't auto-resolve without a verdict
+
+		const isStable = KNOWN_STABLECOIN_SYMBOLS.has(symbol);
+		let pricePerToken: number;
+		let notes: string;
+
+		if (verdict === 'scam') {
+			pricePerToken = 0;
+			notes = `Auto-detected: contract ${contractAddr} is not the legitimate ${symbol} contract on ${chain}. Likely scam airdrop — zero taxable value.`;
+		} else if (verdict === 'legitimate' && isStable) {
+			// Real USDC/USDT/DAI transfer with no matching buy lot — cost basis $1.00
+			pricePerToken = 1.00;
+			notes = `Auto-resolved: verified ${symbol} transfer (contract ${contractAddr} matches known-good address on ${chain}).`;
+		} else {
+			// Legitimate but non-stablecoin — don't auto-resolve, user needs to enter price
+			continue;
+		}
+
+		try {
+			const id = randomUUID();
+			await db.execute({
+				sql: `INSERT INTO manual_cost_basis
+				        (id, tenant_id, sell_source_id, quantity, price_per_token, buy_date_iso, notes, created_at, updated_at)
+				      VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
+				      ON CONFLICT (tenant_id, sell_source_id) DO NOTHING`,
+				args: [id, tenantId, sourceId, Math.abs(amount), pricePerToken, notes, now, now],
+			});
+			resolved++;
+		} catch (err) {
+			console.warn('[lifecycle] auto-resolve insert failed for', sourceId, err);
+		}
+	}
+
+	if (resolved > 0) {
+		console.log(`[lifecycle] auto-resolved ${resolved} 'other'-class events for tenant ${tenantId}`);
 	}
 }
 

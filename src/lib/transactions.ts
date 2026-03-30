@@ -11,6 +11,7 @@ export type NewTransaction = {
 	value?: string;
 	tokenSymbol?: string;
 	tokenDecimals?: number;
+	contractAddress?: string;
 	txType?: string;
 	status?: string;
 	feePaid?: string;
@@ -64,8 +65,8 @@ export async function bulkUpsertTransactions(tenantId: string, txs: NewTransacti
 	if (!txs.length) return [];
 	const statements = txs.map((tx) => ({
 		sql: `INSERT INTO transactions
-      (tenant_id, wallet_id, hash, chain, block_number, timestamp, from_address, to_address, value, token_symbol, token_decimals, tx_type, status, fee_paid, metadata_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (tenant_id, wallet_id, hash, chain, block_number, timestamp, from_address, to_address, value, token_symbol, token_decimals, contract_address, tx_type, status, fee_paid, metadata_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(tenant_id, hash, chain) DO UPDATE SET
         wallet_id = excluded.wallet_id,
         block_number = excluded.block_number,
@@ -75,6 +76,7 @@ export async function bulkUpsertTransactions(tenantId: string, txs: NewTransacti
         value = excluded.value,
         token_symbol = excluded.token_symbol,
         token_decimals = excluded.token_decimals,
+        contract_address = excluded.contract_address,
         tx_type = excluded.tx_type,
         status = excluded.status,
         fee_paid = excluded.fee_paid,
@@ -92,6 +94,7 @@ export async function bulkUpsertTransactions(tenantId: string, txs: NewTransacti
 			tx.value ?? null,
 			tx.tokenSymbol ?? null,
 			tx.tokenDecimals ?? null,
+			tx.contractAddress ?? null,
 			tx.txType ?? null,
 			tx.status ?? null,
 			tx.feePaid ?? null,

@@ -174,6 +174,7 @@ export function normalizeScanResults(nativeTxs: ScanTx[], tokenTxs: ScanTx[], ch
 			value: tx.value,
 			tokenSymbol: tx.tokenSymbol,
 			tokenDecimals: tx.tokenDecimal ? Number(tx.tokenDecimal) : undefined,
+			contractAddress: tx.contractAddress ? tx.contractAddress.toLowerCase() : undefined,
 			txType: tx.to?.toLowerCase() === wallet.address ? 'token_in' : 'token_out',
 			status: 'confirmed',
 			metadata: { tokenName: tx.tokenName, source: 'scan_token' },
