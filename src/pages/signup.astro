@@ -16,7 +16,7 @@ const message =
 
 const session = await getAuthSession(Astro.request);
 if (session) {
-	return Astro.redirect('/transition', 303);
+	return Astro.redirect('/dashboard', 303);
 }
 ---
 
