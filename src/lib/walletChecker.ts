@@ -14,16 +14,22 @@
 
 // ─── Address detection ────────────────────────────────────────────────────────
 
-const EVM_REGEX = /^0x[0-9a-fA-F]{40}$/;
-const SUI_REGEX = /^0x[0-9a-fA-F]{64}$/;
-const SOLANA_REGEX = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const EVM_REGEX     = /^0x[0-9a-fA-F]{40}$/;
+const SUI_REGEX     = /^0x[0-9a-fA-F]{64}$/;
+const SOLANA_REGEX  = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+// Bitcoin: Legacy (1...), P2SH (3...), Bech32 (bc1...)
+const BTC_REGEX     = /^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-zA-HJ-NP-Z0-9]{6,87})$/;
+// Litecoin: Legacy (L/M...), P2SH (3...), Bech32 (ltc1...)
+const LTC_REGEX     = /^([LM][a-km-zA-HJ-NP-Z1-9]{26,33}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|ltc1[a-zA-HJ-NP-Z0-9]{6,87})$/;
 
-export type Chain = 'evm' | 'sui' | 'solana' | 'unknown';
+export type Chain = 'evm' | 'sui' | 'solana' | 'bitcoin' | 'litecoin' | 'unknown';
 
 export function detectChain(address: string): Chain {
-  if (SUI_REGEX.test(address)) return 'sui';   // check before EVM (both start with 0x)
-  if (EVM_REGEX.test(address)) return 'evm';
-  if (SOLANA_REGEX.test(address)) return 'solana';
+  if (SUI_REGEX.test(address))     return 'sui';       // check before EVM (both start with 0x)
+  if (EVM_REGEX.test(address))     return 'evm';
+  if (SOLANA_REGEX.test(address))  return 'solana';
+  if (LTC_REGEX.test(address))     return 'litecoin';  // check before BTC (some overlap on 3...)
+  if (BTC_REGEX.test(address))     return 'bitcoin';
   return 'unknown';
 }
 
@@ -82,7 +88,9 @@ export interface WalletCheckResult {
     mixer: boolean;
     sanctioned: boolean;
   };
+  ensName: string | null;
   multiSig: boolean | null;
+  chainabuseReports: number | null;
   holdings: Array<{
     symbol: string;
     name: string;
@@ -181,13 +189,13 @@ function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
-// GoPlus chain_id map — Sui not supported by GoPlus address_security endpoint
-const GOPLUS_CHAIN_ID: Record<Chain, string | null> = {
-  evm:     '1',   // Ethereum mainnet
-  solana:  'solana',
-  sui:     null,  // GoPlus does not support Sui address security
-  unknown: null,
-};
+// GoPlus chain IDs — check EVM across multiple chains, merge flags
+// Solana supported; Bitcoin/Litecoin/Sui not supported by this endpoint
+const GOPLUS_EVM_CHAINS = [
+  { id: '1',   label: 'Ethereum' },
+  { id: '56',  label: 'BSC' },
+  { id: '137', label: 'Polygon' },
+];
 
 // GoPlus Security — free, no API key needed
 // https://gopluslabs.io/
@@ -196,33 +204,42 @@ async function fetchGoPlusFlags(
 ): Promise<{ flags: Partial<WalletCheckResult['flags']>; errors: string[] }> {
   const errors: string[] = [];
   const flags: Partial<WalletCheckResult['flags']> = {};
-  const chainId = GOPLUS_CHAIN_ID[detectChain(address)];
-  if (!chainId) return { flags, errors }; // chain not supported — skip silently
-  try {
-    const res = await fetchWithTimeout(
-      `https://api.gopluslabs.io/api/v1/address_security/${encodeURIComponent(address)}?chain_id=${chainId}`,
-    );
-    if (!res.ok) {
-      errors.push(`GoPlus returned ${res.status}`);
-      return { flags, errors };
-    }
-    const json = await res.json() as Record<string, any>;
-    const d = json?.result ?? {};
-    const flag = (v: unknown) => String(v) === '1';
-    flags.blacklisted         = flag(d.blacklist_doubt);
-    flags.phishing            = flag(d.phishing_activities);
-    flags.honeypotRelated     = flag(d.honeypot_related_address);
-    flags.stealingAttack      = flag(d.stealing_attack);
-    flags.darkwebTransactions = flag(d.darkweb_transactions);
-    flags.cybercrime          = flag(d.cybercrime);
-    flags.moneyLaundering     = flag(d.money_laundering);
-    flags.financialCrime      = flag(d.financial_crime);
-    flags.blackmail           = flag(d.blackmail_activities);
-    flags.mixer               = flag(d.mixer);
-    flags.sanctioned          = flag(d.sanctioned);
-  } catch (err) {
-    errors.push('GoPlus unavailable');
+  const chain = detectChain(address);
+
+  if (chain === 'bitcoin' || chain === 'litecoin' || chain === 'sui' || chain === 'unknown') {
+    return { flags, errors }; // chain not supported — skip silently
   }
+
+  const chainIds = chain === 'evm' ? GOPLUS_EVM_CHAINS : [{ id: 'solana', label: 'Solana' }];
+
+  const flag = (v: unknown) => String(v) === '1';
+
+  // Run all chain checks in parallel and merge (any positive flag wins)
+  await Promise.allSettled(chainIds.map(async ({ id, label }) => {
+    try {
+      const res = await fetchWithTimeout(
+        `https://api.gopluslabs.io/api/v1/address_security/${encodeURIComponent(address)}?chain_id=${id}`,
+      );
+      if (!res.ok) { errors.push(`GoPlus(${label}) returned ${res.status}`); return; }
+      const json = await res.json() as Record<string, any>;
+      const d = json?.result ?? {};
+      // OR-merge: once a flag is true on any chain it stays true
+      if (flag(d.blacklist_doubt))          flags.blacklisted         = true;
+      if (flag(d.phishing_activities))      flags.phishing            = true;
+      if (flag(d.honeypot_related_address)) flags.honeypotRelated     = true;
+      if (flag(d.stealing_attack))          flags.stealingAttack      = true;
+      if (flag(d.darkweb_transactions))     flags.darkwebTransactions = true;
+      if (flag(d.cybercrime))               flags.cybercrime          = true;
+      if (flag(d.money_laundering))         flags.moneyLaundering     = true;
+      if (flag(d.financial_crime))          flags.financialCrime      = true;
+      if (flag(d.blackmail_activities))     flags.blackmail           = true;
+      if (flag(d.mixer))                    flags.mixer               = true;
+      if (flag(d.sanctioned))               flags.sanctioned          = true;
+    } catch {
+      errors.push(`GoPlus(${label}) unavailable`);
+    }
+  }));
+
   return { flags, errors };
 }
 
@@ -697,6 +714,92 @@ async function fetchEntityLabel(address: string): Promise<WalletCheckResult['ent
   return null;
 }
 
+// ─── ENS reverse lookup ───────────────────────────────────────────────────────
+// Uses ENS ReverseRecords contract via Alchemy eth_call — no extra API key needed.
+// Contract 0x3671aE578E63FdF66ad4F3E12CC0c0d71Ac7510C · getNames(address[])
+// Selector 0x3a0c74c8 (keccak256("getNames(address[])")[0..3])
+
+async function fetchENSName(address: string): Promise<string | null> {
+  if (detectChain(address) !== 'evm') return null;
+  const apiKey = process.env.ALCHEMY_API_KEY ?? import.meta.env.ALCHEMY_API_KEY ?? '';
+  if (!apiKey) return null;
+
+  try {
+    const REVERSE_RECORDS = '0x3671aE578E63FdF66ad4F3E12CC0c0d71Ac7510C';
+    const addr = address.toLowerCase().slice(2).padStart(64, '0');
+    // ABI-encode: getNames(address[]) with one element
+    const calldata =
+      '0x3a0c74c8' +
+      '0000000000000000000000000000000000000000000000000000000000000020' + // offset
+      '0000000000000000000000000000000000000000000000000000000000000001' + // length = 1
+      addr;                                                                 // address
+
+    const res = await fetchWithTimeout(
+      `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1,
+          method: 'eth_call',
+          params: [{ to: REVERSE_RECORDS, data: calldata }, 'latest'],
+        }),
+      },
+    );
+
+    if (!res.ok) return null;
+    const json = await res.json() as any;
+    const hex: string = json?.result;
+    if (!hex || hex === '0x' || hex.length < 258) return null;
+
+    // ABI decode string[]:
+    // hex[0..63]    outer offset (0x20)
+    // hex[64..127]  array length (1)
+    // hex[128..191] string[0] offset (0x20)
+    // hex[192..255] string[0] byte length
+    // hex[256..]    string bytes
+    const data = hex.slice(2); // strip 0x
+    const strLen = parseInt(data.slice(192, 256), 16);
+    if (!strLen || strLen > 200) return null;
+
+    const strHex = data.slice(256, 256 + strLen * 2);
+    const name = Buffer.from(strHex, 'hex').toString('utf8').trim();
+    return name && name.includes('.') ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Chainabuse community reports ─────────────────────────────────────────────
+// Free tier available — set CHAINABUSE_API_KEY env var to enable.
+// https://www.chainabuse.com/
+
+async function fetchChainavuseReports(address: string): Promise<{ count: number | null; errors: string[] }> {
+  const apiKey = process.env.CHAINABUSE_API_KEY ?? import.meta.env.CHAINABUSE_API_KEY ?? '';
+  if (!apiKey) return { count: null, errors: [] }; // not configured — skip silently
+
+  const chain = detectChain(address);
+  const network =
+    chain === 'evm'      ? 'ethereum' :
+    chain === 'solana'   ? 'solana' :
+    chain === 'bitcoin'  ? 'bitcoin' :
+    chain === 'litecoin' ? 'litecoin' : null;
+  if (!network) return { count: null, errors: [] };
+
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.chainabuse.com/v0/reports?address=${encodeURIComponent(address)}&network=${network}`,
+      { headers: { 'X-API-KEY': apiKey } },
+    );
+    if (!res.ok) return { count: null, errors: [`Chainabuse returned ${res.status}`] };
+    const json = await res.json() as any;
+    const count = Array.isArray(json?.reports) ? json.reports.length : (json?.total ?? null);
+    return { count: typeof count === 'number' ? count : null, errors: [] };
+  } catch {
+    return { count: null, errors: ['Chainabuse unavailable'] };
+  }
+}
+
 // ─── Main orchestrator ────────────────────────────────────────────────────────
 
 export async function checkWallet(address: string): Promise<WalletCheckResult> {
@@ -710,34 +813,41 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
     mixer: false, sanctioned: false,
   };
 
+  const noActivity = { firstSeen: null, lastActivity: null, txCount: null, totalReceivedEth: null, totalSentEth: null, ethBalance: null };
+
   // Run all fetchers in parallel — each is independently fault-tolerant
-  const [goplusResult, activityResult, holdingsResult, honeypotResult, multiSigResult, entityLabelResult] =
+  const [goplusResult, activityResult, holdingsResult, honeypotResult, multiSigResult, entityLabelResult, ensResult, chainabuseResult] =
     await Promise.allSettled([
       fetchGoPlusFlags(address),
-      chain === 'evm'     ? fetchEtherscanActivity(address)
-        : chain === 'sui'   ? fetchSuiActivity(address)
-        : Promise.resolve({ activity: { firstSeen: null, lastActivity: null, txCount: null, totalReceivedEth: null, totalSentEth: null, ethBalance: null }, errors: ['Activity tracking not available for this chain'] }),
-      chain === 'evm'     ? fetchTokenBalances(address)
-        : chain === 'sui'   ? fetchSuiHoldings(address)
-        : Promise.resolve({ holdings: [], errors: ['Token balances not available for this chain'] }),
-      chain === 'evm' ? fetchHoneypotCheck(address)    : Promise.resolve({ honeypot: { checked: false, isHoneypot: null, reason: 'EVM only' }, errors: [] }),
-      chain === 'evm' ? fetchMultiSigCheck(address)    : Promise.resolve({ multiSig: null, errors: [] }),
+      chain === 'evm'                          ? fetchEtherscanActivity(address)
+        : chain === 'sui'                      ? fetchSuiActivity(address)
+        : Promise.resolve({ activity: noActivity, errors: [`Activity tracking not available for ${chain}`] }),
+      chain === 'evm'                          ? fetchTokenBalances(address)
+        : chain === 'sui'                      ? fetchSuiHoldings(address)
+        : Promise.resolve({ holdings: [], errors: [`Token balances not available for ${chain}`] }),
+      chain === 'evm' ? fetchHoneypotCheck(address) : Promise.resolve({ honeypot: { checked: false, isHoneypot: null, reason: `EVM only` as string | null }, errors: [] }),
+      chain === 'evm' ? fetchMultiSigCheck(address) : Promise.resolve({ multiSig: null, errors: [] }),
       fetchEntityLabel(address),
+      fetchENSName(address),
+      fetchChainavuseReports(address),
     ]);
 
-  const goplus      = goplusResult.status      === 'fulfilled' ? goplusResult.value      : { flags: {}, errors: ['GoPlus check failed'] };
-  const activity    = activityResult.status    === 'fulfilled' ? activityResult.value    : { activity: { firstSeen: null, lastActivity: null, txCount: null, totalReceivedEth: null, totalSentEth: null, ethBalance: null }, errors: ['Activity check failed'] };
-  const holdings    = holdingsResult.status    === 'fulfilled' ? holdingsResult.value    : { holdings: [], errors: ['Holdings check failed'] };
-  const honeypot    = honeypotResult.status    === 'fulfilled' ? honeypotResult.value    : { honeypot: { checked: false, isHoneypot: null, reason: null }, errors: ['Honeypot check failed'] };
-  const multiSig    = multiSigResult.status    === 'fulfilled' ? multiSigResult.value    : { multiSig: null, errors: [] };
-  const entityLabel = entityLabelResult.status === 'fulfilled' ? entityLabelResult.value : null;
+  const goplus       = goplusResult.status       === 'fulfilled' ? goplusResult.value       : { flags: {}, errors: ['GoPlus check failed'] };
+  const activity     = activityResult.status     === 'fulfilled' ? activityResult.value     : { activity: noActivity, errors: ['Activity check failed'] };
+  const holdings     = holdingsResult.status     === 'fulfilled' ? holdingsResult.value     : { holdings: [], errors: ['Holdings check failed'] };
+  const honeypot     = honeypotResult.status     === 'fulfilled' ? honeypotResult.value     : { honeypot: { checked: false, isHoneypot: null, reason: null }, errors: ['Honeypot check failed'] };
+  const multiSig     = multiSigResult.status     === 'fulfilled' ? multiSigResult.value     : { multiSig: null, errors: [] };
+  const entityLabel  = entityLabelResult.status  === 'fulfilled' ? entityLabelResult.value  : null;
+  const ensName      = ensResult.status          === 'fulfilled' ? ensResult.value          : null;
+  const chainabuse   = chainabuseResult.status   === 'fulfilled' ? chainabuseResult.value   : { count: null, errors: [] };
 
   allErrors.push(
-    ...(goplus.errors ?? []),
-    ...(activity.errors ?? []),
-    ...(holdings.errors ?? []),
-    ...(honeypot.errors ?? []),
-    ...(multiSig.errors ?? []),
+    ...(goplus.errors    ?? []),
+    ...(activity.errors  ?? []),
+    ...(holdings.errors  ?? []),
+    ...(honeypot.errors  ?? []),
+    ...(multiSig.errors  ?? []),
+    ...(chainabuse.errors ?? []),
   );
 
   const flags: WalletCheckResult['flags'] = { ...emptyFlags, ...(goplus.flags ?? {}) };
@@ -757,6 +867,8 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
     scamScore: score,
     scamLevel: level,
     flags,
+    ensName,
+    chainabuseReports: chainabuse.count,
     multiSig:      multiSig.multiSig,
     holdings:      holdings.holdings,
     activity:      activity.activity,

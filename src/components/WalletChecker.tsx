@@ -17,7 +17,13 @@ function fmt(iso: string | null): string {
 }
 
 function chainLabel(chain: string): string {
-  return { evm: 'Ethereum Mainnet', sui: 'Sui', solana: 'Solana' }[chain] ?? 'Unknown chain';
+  return {
+    evm:      'Ethereum / EVM',
+    sui:      'Sui',
+    solana:   'Solana',
+    bitcoin:  'Bitcoin',
+    litecoin: 'Litecoin',
+  }[chain] ?? 'Unknown chain';
 }
 
 function isNewWallet(firstSeen: string | null): boolean {
@@ -124,8 +130,24 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
         <FlagRow label="Financial crime"              active={f.financialCrime} />
         <FlagRow label="Blackmail / extortion"        active={f.blackmail} />
         <FlagRow label="Mixer / Tornado Cash use"     active={f.mixer} />
+
+        {/* Chainabuse community reports */}
+        {result.chainabuseReports !== null && (
+          <div style={{
+            marginTop: '1rem', padding: '0.75rem 1rem', borderRadius: '10px',
+            background: result.chainabuseReports > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${result.chainabuseReports > 0 ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)'}`,
+          }}>
+            <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600, color: result.chainabuseReports > 0 ? '#fca5a5' : 'rgba(255,255,255,0.55)' }}>
+              {result.chainabuseReports > 0
+                ? `🚨 ${result.chainabuseReports} community scam report${result.chainabuseReports !== 1 ? 's' : ''} on Chainabuse`
+                : '✅ No Chainabuse community reports'}
+            </p>
+          </div>
+        )}
+
         <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
-          Source: GoPlus Security public database. Results are reported, not legally confirmed.
+          Source: GoPlus Security (ETH, BSC, Polygon) + Chainabuse community reports. Results are reported, not legally confirmed.
         </p>
       </div>
     );
@@ -391,7 +413,7 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
           onKeyDown={handleKey}
           maxLength={128}
           rows={2}
-          placeholder="Paste any wallet address — Ethereum, Solana, Sui..."
+          placeholder="Paste any wallet address — Ethereum, Bitcoin, Solana, Litecoin, Sui..."
           spellCheck={false}
           autoComplete="off"
           style={{
@@ -453,15 +475,40 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
       {result && (
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.5rem' }}>
 
-          {/* Chain + cache badge */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          {/* Chain + ENS + cache badges */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: result.ensName ? '0.5rem' : '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', padding: '0.3rem 0.75rem', borderRadius: '999px' }}>
-              Checked on: {chainLabel(result.chain)}
+              {chainLabel(result.chain)}
             </span>
-            {cached && (
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>⚡ Cached result</span>
-            )}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              {result.chainabuseReports !== null && result.chainabuseReports > 0 && (
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#fca5a5', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', padding: '0.3rem 0.75rem', borderRadius: '999px' }}>
+                  🚨 {result.chainabuseReports} community report{result.chainabuseReports !== 1 ? 's' : ''}
+                </span>
+              )}
+              {cached && (
+                <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>⚡ Cached</span>
+              )}
+            </div>
           </div>
+
+          {/* ENS name */}
+          {result.ensName && (
+            <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ENS</span>
+              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a78bfa', fontFamily: 'ui-monospace, monospace' }}>
+                {result.ensName}
+              </span>
+              <a
+                href={`https://app.ens.domains/${result.ensName}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '0.75rem', color: 'rgba(167,139,250,0.6)', textDecoration: 'none' }}
+              >
+                ↗
+              </a>
+            </div>
+          )}
 
           {/* Scam meter */}
           <ScamMeter score={result.scamScore} level={result.scamLevel} />
