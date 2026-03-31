@@ -1,0 +1,221 @@
+---
+// SmartImport.astro
+// Drop-zone that auto-detects any supported CSV and routes it to the right tin.
+---
+
+<div class="smart-import" id="smart-import">
+  <input type="file" accept=".csv,text/csv" class="smart-import__input" id="smart-import-input" multiple />
+
+  <div class="smart-import__drop" id="smart-import-drop">
+    <svg class="smart-import__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+    </svg>
+    <p class="smart-import__label">Drop any exchange CSV here</p>
+    <p class="smart-import__sub">Crypto.com · Coinbase · Exodus · Gemini · Robinhood · Cash App · Venmo</p>
+    <button class="smart-import__btn" id="smart-import-browse">Browse files</button>
+  </div>
+
+  <div class="smart-import__results" id="smart-import-results"></div>
+</div>
+
+<style>
+  .smart-import {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .smart-import__input {
+    display: none;
+  }
+
+  .smart-import__drop {
+    border: 2px dashed #d97706;
+    border-radius: 12px;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .smart-import__drop.drag-over {
+    background: rgba(217, 119, 6, 0.08);
+    border-color: #f59e0b;
+  }
+
+  .smart-import__icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    color: #d97706;
+  }
+
+  .smart-import__label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f7f2eb;
+    margin: 0;
+  }
+
+  .smart-import__sub {
+    font-size: 0.75rem;
+    color: #a38b6b;
+    margin: 0;
+  }
+
+  .smart-import__btn {
+    margin-top: 0.5rem;
+    padding: 0.4rem 1.2rem;
+    background: #d97706;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .smart-import__btn:hover { background: #b45309; }
+
+  /* Result rows */
+  .smart-import__results {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .si-result {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    background: #1e1600;
+    border: 1px solid #3d2f00;
+  }
+
+  .si-result--processing { border-color: #d97706; color: #f7f2eb; }
+  .si-result--success    { border-color: #22c55e; color: #bbf7d0; }
+  .si-result--error      { border-color: #ef4444; color: #fca5a5; }
+
+  .si-spinner {
+    width: 1rem; height: 1rem;
+    border: 2px solid #d97706;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: si-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes si-spin { to { transform: rotate(360deg); } }
+
+  .si-icon { font-size: 1.1rem; flex-shrink: 0; }
+  .si-text { flex: 1; }
+  .si-file { color: #a38b6b; font-size: 0.75rem; }
+</style>
+
+<script is:inline>
+(function () {
+  const drop     = document.getElementById('smart-import-drop');
+  const input    = document.getElementById('smart-import-input');
+  const browse   = document.getElementById('smart-import-browse');
+  const results  = document.getElementById('smart-import-results');
+
+  if (!drop || !input || !browse || !results) return;
+
+  // Browse button
+  browse.addEventListener('click', (e) => {
+    e.stopPropagation();
+    input.click();
+  });
+
+  drop.addEventListener('click', () => input.click());
+
+  input.addEventListener('change', () => {
+    if (input.files) processFiles(Array.from(input.files));
+    input.value = '';
+  });
+
+  // Drag & drop
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drag-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer?.files ?? []).filter(f => f.name.endsWith('.csv'));
+    if (files.length) processFiles(files);
+  });
+
+  async function processFiles(files) {
+    for (const file of files) {
+      await processOne(file);
+    }
+  }
+
+  async function processOne(file) {
+    const row = addResult('processing', file.name, `Detecting exchange…`);
+
+    try {
+      // Step 1: detect
+      const detectForm = new FormData();
+      detectForm.append('file', file);
+      const detectRes = await fetch('/api/import/detect', { method: 'POST', body: detectForm });
+      const detected = await detectRes.json();
+
+      if (!detected.detected) {
+        setResult(row, 'error', file.name, detected.error ?? 'Unknown format');
+        return;
+      }
+
+      setResult(row, 'processing', file.name, `Detected: ${detected.name} — importing…`);
+
+      // Step 2: import to the right endpoint
+      const importForm = new FormData();
+      importForm.append('file', file);
+      const importRes = await fetch(detected.endpoint, { method: 'POST', body: importForm });
+      const result = await importRes.json();
+
+      if (!importRes.ok || result.error) {
+        setResult(row, 'error', file.name, result.error ?? `Import failed (${importRes.status})`);
+        return;
+      }
+
+      const inserted = result.inserted ?? result.count ?? '?';
+      const skipped  = result.skipped != null ? ` · ${result.skipped} dupes skipped` : '';
+      setResult(row, 'success', file.name, `✓ ${detected.name} — ${inserted} rows imported${skipped}`);
+
+      // Trigger lifecycle rebuild silently
+      fetch('/api/lifecycle/rebuild', { method: 'POST' }).catch(() => {});
+
+    } catch (err) {
+      setResult(row, 'error', file.name, `Unexpected error: ${err?.message ?? err}`);
+    }
+  }
+
+  function addResult(state, filename, message) {
+    const div = document.createElement('div');
+    div.className = `si-result si-result--${state}`;
+    div.innerHTML = resultHTML(state, filename, message);
+    results.prepend(div);
+    return div;
+  }
+
+  function setResult(div, state, filename, message) {
+    div.className = `si-result si-result--${state}`;
+    div.innerHTML = resultHTML(state, filename, message);
+  }
+
+  function resultHTML(state, filename, message) {
+    const icon = state === 'processing'
+      ? '<div class="si-spinner"></div>'
+      : `<span class="si-icon">${state === 'success' ? '✅' : '❌'}</span>`;
+    return `${icon}<div class="si-text"><div>${message}</div><div class="si-file">${filename}</div></div>`;
+  }
+})();
+</script>

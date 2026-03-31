@@ -15,6 +15,7 @@ import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.
 import CustomWalletCard from '@/components/dashboard/CustomWalletCard.astro';
 import SuiWalletTin from '@/components/dashboard/SuiWalletTin.astro';
 import AddTransactionModal from '@/components/dashboard/AddTransactionModal.astro';
+import SmartImport from '@/components/dashboard/SmartImport.astro';
 import { getAllActiveWallets } from '@/lib/wallets';
 import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
@@ -81,6 +82,10 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			<div class="vault-section-divider vault-section-divider--exchange">
 				<span class="vault-section-divider__label">Centralized Exchanges</span>
 				<span class="vault-section-divider__line"></span>
+			</div>
+
+			<div class="smart-import-bar">
+				<SmartImport />
 			</div>
 
 			<div class="vault-lane vault-lane--row2 exchange-lane">
@@ -433,6 +438,11 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		.vault-section-divider--exchange {
 			grid-area: div2;
+		}
+
+		.smart-import-bar {
+			grid-column: 1 / -1;
+			padding: 0 0 0.5rem;
 		}
 
 		.vault-section-divider--onchain {

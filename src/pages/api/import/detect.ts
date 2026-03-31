@@ -1,0 +1,124 @@
+/**
+ * POST /api/import/detect
+ *
+ * Reads the first line of a CSV upload and fingerprints which exchange it
+ * came from. Returns the detected source, display name, and the import
+ * endpoint to POST the full file to.
+ *
+ * Body: multipart/form-data with a "file" field (only the first ~2 KB is
+ * needed, but the full file is accepted so the client doesn't need to slice).
+ */
+
+import type { APIRoute } from 'astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+export const prerender = false;
+
+// ── Fingerprint table ────────────────────────────────────────────────────────
+// Each entry lists headers that MUST all be present for a match.
+// More-specific signatures are listed first so they win ties.
+const SIGNATURES = [
+  {
+    source: 'crypto_com',
+    name: 'Crypto.com',
+    endpoint: '/api/import/crypto-com',
+    required: ['Transaction Description', 'Transaction Kind', 'Native Amount (in USD)'],
+  },
+  {
+    source: 'exodus',
+    name: 'Exodus',
+    endpoint: '/api/import/exodus',
+    required: ['FROMPORTFOLIO', 'TOPORTFOLIO', 'INAMOUNT', 'PERSONALNOTE'],
+  },
+  {
+    source: 'coinbase',
+    name: 'Coinbase',
+    endpoint: '/api/import/coinbase',
+    required: ['Quantity Transacted', 'Total (inclusive of fees and/or spread)'],
+  },
+  {
+    source: 'gemini',
+    name: 'Gemini',
+    endpoint: '/api/import/gemini',
+    required: ['Fee (USD) USD'],            // unique double-currency suffix
+  },
+  {
+    source: 'cashapp',
+    name: 'Cash App',
+    endpoint: '/api/import/cashapp',
+    required: ['Asset Type', 'Asset Amount', 'Asset Price'],
+  },
+  {
+    source: 'venmo',
+    name: 'Venmo',
+    endpoint: '/api/import/venmo',
+    required: ['Asset In (Quantity)', 'Transaction Fee (Quantity)'],
+  },
+  {
+    source: 'robinhood',
+    name: 'Robinhood',
+    endpoint: '/api/import/robinhood',
+    required: ['Transaction', 'Quantity', 'Symbol', 'Price'],
+  },
+] as const;
+
+function detectFromHeaders(headerLine: string): (typeof SIGNATURES)[number] | null {
+  // Strip BOM, quotes and extra whitespace
+  const cleaned = headerLine.replace(/^\uFEFF/, '').replace(/\r/g, '');
+
+  // Split on comma — handle both bare and quoted headers
+  const cols = new Set(
+    cleaned.split(',').map((h) => h.replace(/^"|"$/g, '').trim()),
+  );
+
+  for (const sig of SIGNATURES) {
+    if (sig.required.every((col) => cols.has(col))) {
+      return sig;
+    }
+  }
+  return null;
+}
+
+export const POST: APIRoute = async ({ request }) => {
+  try {
+    await requireTenantSession(request);
+
+    const formData = await request.formData();
+    const file = formData.get('file');
+
+    if (!(file instanceof File)) {
+      return json({ error: 'No file provided.' }, 400);
+    }
+
+    // Read only the first 4 KB — we just need the header row
+    const slice = file.slice(0, 4096);
+    const text = await slice.text();
+    const firstLine = text.split('\n')[0] ?? '';
+
+    const match = detectFromHeaders(firstLine);
+
+    if (!match) {
+      return json({
+        detected: false,
+        error: 'Unrecognised CSV format. Is this a supported exchange export?',
+      }, 422);
+    }
+
+    return json({
+      detected: true,
+      source: match.source,
+      name: match.name,
+      endpoint: match.endpoint,
+    });
+  } catch (err) {
+    console.error('[import/detect]', err);
+    return json({ error: 'Detection failed.' }, 500);
+  }
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
