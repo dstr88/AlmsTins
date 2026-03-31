@@ -82,7 +82,11 @@ try {
 		const syms = new Set(sanitizeSymbols(Array.from(priceSymbols)));
 		for (const t of tickers) {
 			const sym = String(t.symbol ?? '').trim().toUpperCase();
-			if (syms.has(sym) && typeof t.quotes?.USD?.price === 'number') priceMap[sym] = t.quotes.USD.price;
+			// First-seen wins: Coinpaprika sorts by rank, so index 0 is the real BTC,
+			// not a later meme token that happens to share the same symbol.
+			if (syms.has(sym) && !(sym in priceMap) && typeof t.quotes?.USD?.price === 'number') {
+				priceMap[sym] = t.quotes.USD.price;
+			}
 		}
 	}
 
