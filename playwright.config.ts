@@ -17,7 +17,7 @@ export default defineConfig({
 	workers: 1,
 	reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
 	use: {
-		baseURL: process.env.BASE_URL ?? 'http://localhost:10000',
+		baseURL: process.env.BASE_URL ?? process.env.E2E_BASE_URL ?? 'https://almstins.com',
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
 		video: 'on-first-retry',
