@@ -3,9 +3,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
-// Exodus CSV columns:
-// DATE, TYPE, OUTAMOUNT, OUTCURRENCY, FEEAMOUNT, FEECURRENCY,
-// TOAMOUNT, TOCURRENCY, TXID, ORDERID, TXURL
+// Actual Exodus CSV columns (confirmed from real export):
+// DATE, TYPE, FROMPORTFOLIO, TOPORTFOLIO,
+// OUTAMOUNT, OUTCURRENCY, FEEAMOUNT, FEECURRENCY,
+// FROMADDRESS, TOADDRESS,
+// OUTTXID, OUTTXURL, INAMOUNT, INCURRENCY, INTXID, INTXURL,
+// ORDERID, PERSONALNOTE
 
 type CsvRow = Record<string, string>;
 
@@ -131,9 +134,10 @@ const buildRows = (csvRow: CsvRow): NormalizedRow[] => {
 	const type = (csvRow['TYPE'] ?? '').toLowerCase().trim();
 	const outAmt    = parseNumber(csvRow['OUTAMOUNT']);
 	const outCur    = normalizeSymbol(csvRow['OUTCURRENCY'] ?? '');
-	const toAmt     = parseNumber(csvRow['TOAMOUNT']);
-	const toCur     = normalizeSymbol(csvRow['TOCURRENCY'] ?? '');
-	const txId      = csvRow['TXID']?.trim() || null;
+	const inAmt     = parseNumber(csvRow['INAMOUNT']);
+	const inCur     = normalizeSymbol(csvRow['INCURRENCY'] ?? '');
+	// Prefer the outgoing TX id, fall back to incoming
+	const txId      = (csvRow['OUTTXID'] ?? csvRow['INTXID'] ?? '').trim() || null;
 
 	const rows: NormalizedRow[] = [];
 
@@ -145,8 +149,8 @@ const buildRows = (csvRow: CsvRow): NormalizedRow[] => {
 				description: 'Exchange',
 				currency: outCur,
 				amount: -Math.abs(outAmt),
-				toCurrency: toCur || null,
-				toAmount: toAmt,
+				toCurrency: inCur || null,
+				toAmount: inAmt,
 				nativeCurrency: null,
 				nativeAmount: null,
 				nativeUsd: null,
@@ -156,13 +160,13 @@ const buildRows = (csvRow: CsvRow): NormalizedRow[] => {
 				assetSymbol: outCur || null,
 			});
 		}
-		// In leg: TOCURRENCY entering the wallet
-		if (toAmt !== null && toCur) {
+		// In leg: INCURRENCY entering the wallet
+		if (inAmt !== null && inCur) {
 			rows.push({
 				timestampUtc: ts,
 				description: 'Exchange',
-				currency: toCur,
-				amount: Math.abs(toAmt),
+				currency: inCur,
+				amount: Math.abs(inAmt),
 				toCurrency: outCur || null,
 				toAmount: outAmt,
 				nativeCurrency: null,
@@ -171,20 +175,20 @@ const buildRows = (csvRow: CsvRow): NormalizedRow[] => {
 				kind: 'Exchange',
 				txHash: txId,
 				direction: 'in',
-				assetSymbol: toCur || null,
+				assetSymbol: inCur || null,
 			});
 		}
 		return rows;
 	}
 
-	// received / deposit → in
+	// received / deposit → in (uses INAMOUNT / INCURRENCY)
 	if (type === 'received' || type === 'deposit') {
-		if (toAmt !== null && toCur) {
+		if (inAmt !== null && inCur) {
 			rows.push({
 				timestampUtc: ts,
 				description: type === 'deposit' ? 'Deposit' : 'Received',
-				currency: toCur,
-				amount: Math.abs(toAmt),
+				currency: inCur,
+				amount: Math.abs(inAmt),
 				toCurrency: null,
 				toAmount: null,
 				nativeCurrency: null,
@@ -193,13 +197,13 @@ const buildRows = (csvRow: CsvRow): NormalizedRow[] => {
 				kind: type === 'deposit' ? 'Deposit' : 'Received',
 				txHash: txId,
 				direction: 'in',
-				assetSymbol: toCur || null,
+				assetSymbol: inCur || null,
 			});
 		}
 		return rows;
 	}
 
-	// sent / withdrawal → out
+	// sent / withdrawal → out (uses OUTAMOUNT / OUTCURRENCY)
 	if (type === 'sent' || type === 'withdrawal') {
 		if (outAmt !== null && outCur) {
 			rows.push({
@@ -221,13 +225,13 @@ const buildRows = (csvRow: CsvRow): NormalizedRow[] => {
 		return rows;
 	}
 
-	// Fallback: treat as 'in' if there's a TOAMOUNT, else 'out'
-	if (toAmt !== null && toCur) {
+	// Fallback: use INAMOUNT if present (in), else OUTAMOUNT (out)
+	if (inAmt !== null && inCur) {
 		rows.push({
 			timestampUtc: ts,
 			description: csvRow['TYPE'] ?? '',
-			currency: toCur,
-			amount: Math.abs(toAmt),
+			currency: inCur,
+			amount: Math.abs(inAmt),
 			toCurrency: null,
 			toAmount: null,
 			nativeCurrency: null,
@@ -236,7 +240,7 @@ const buildRows = (csvRow: CsvRow): NormalizedRow[] => {
 			kind: csvRow['TYPE'] ?? '',
 			txHash: txId,
 			direction: 'in',
-			assetSymbol: toCur || null,
+			assetSymbol: inCur || null,
 		});
 	} else if (outAmt !== null && outCur) {
 		rows.push({
