@@ -47,18 +47,6 @@ export const POST: APIRoute = async ({ request }) => {
 			subscription_data: {
 				metadata: { tenant_id: tenantId },
 			},
-			// Stripe Tax — automatically calculates and collects the correct
-			// sales tax / VAT / GST based on the customer's billing address.
-			// Requires Stripe Tax to be enabled in the Stripe dashboard first.
-			automatic_tax: { enabled: true },
-			// Let Stripe update the customer's address at checkout so tax
-			// calculation has an accurate location.
-			customer_update: {
-				address: 'auto',
-				name: 'auto',
-			},
-			// Allow business customers to enter their tax ID (VAT, GST, etc.)
-			tax_id_collection: { enabled: true },
 		});
 
 		return new Response(JSON.stringify({ url: session.url }), {
