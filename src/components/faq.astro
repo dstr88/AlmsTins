@@ -39,6 +39,9 @@
       <button class="faq-question" type="button" data-modal="faq-borrowed-money">
         I borrowed money through Aave — how does that work in bookkeeping?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-reconciliation">
+        What is the Reconciliation view?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -353,6 +356,59 @@
           as a <em>disposal</em> of your collateral — meaning it can be a taxable event.
           The tracker will surface those events on the bookkeeping page so you can account
           for them.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-reconciliation">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>What is the Reconciliation view?</h1>
+
+        <p>
+          The Reconciliation view is a built-in audit tool that sits at the bottom of your
+          Bookkeeping page. It compares two independent views of your portfolio side by side:
+        </p>
+
+        <ul>
+          <li><strong>What the tin thinks you have</strong> — the coins remaining in your FIFO "Still in Wallet" lots, calculated from every transaction you've ever imported.</li>
+          <li><strong>What your wallets and exchanges actually show</strong> — live balances pulled directly from your connected wallets and exchange CSV uploads.</li>
+        </ul>
+
+        <p>
+          For each coin, it shows the difference in both quantity and estimated dollar value,
+          and flags the severity with a colour:
+        </p>
+
+        <ul>
+          <li>✅ <strong>Balanced</strong> — within 1%. You're good.</li>
+          <li>⚠️ <strong>Over</strong> — your live balance is higher than the tin expects. Usually means there's an inflow the tracker doesn't know about yet.</li>
+          <li>🔴 <strong>Under</strong> — your live balance is lower than expected. Usually means a CSV wasn't uploaded, or coins moved somewhere not yet connected.</li>
+          <li>🔴 <strong>Missing</strong> — the tin shows coins you should have, but the wallet shows zero. Worth investigating.</li>
+          <li>⬜ <strong>Untracked</strong> — coins showing in your wallet that have no transaction history in the system at all.</li>
+        </ul>
+
+        <p>
+          <strong>What if I can't explain a discrepancy?</strong><br />
+          Click any row to expand it. You'll see the last known transaction date, a breakdown
+          of which wallets and exchanges are contributing the live balance, and two options:
+        </p>
+
+        <ul>
+          <li><strong>Add a note</strong> — write down what you think happened so you remember later.</li>
+          <li><strong>Flag for support</strong> — check this box and Donnie will be notified directly. He'll look at your data and follow up personally.</li>
+        </ul>
+
+        <p>
+          The most common causes of a discrepancy are a missing CSV file, an exchange that
+          hasn't been connected yet, or a hardware wallet that isn't being tracked. In most
+          cases, uploading the missing data resolves it immediately.
+        </p>
+
+        <p>
+          <em>Note: the estimated Δ USD column uses your average cost basis as a price
+          estimate, not the current market price. It's a rough guide, not a live valuation.</em>
         </p>
       </div>
     </div>
