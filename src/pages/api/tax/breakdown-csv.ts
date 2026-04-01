@@ -62,7 +62,7 @@ function buildCsv(
 
   const pageHeader = (): string =>
     [
-      row(`${label} — Tax Year ${year}`),
+      row(`${label} — ${year}`),
       row(`Generated: ${genDate}`),
       '',
       row(...headers),
@@ -94,11 +94,11 @@ export const GET: APIRoute = async ({ request, url }) => {
     const bd = await buildAnnualBreakdown(tenantId, year);
 
     let csvContent = '';
-    let filename   = `tax-${year}-${section}.csv`;
+    let filename   = `almstins-${year}-${section}.csv`;
 
     switch (section) {
       case 'needsAttention': {
-        filename = `tax-${year}-needs-attention.csv`;
+        filename = `almstins-${year}-needs-attention.csv`;
         const headers = ['Asset', 'Amount', 'Sale Date', 'Proceeds (USD)', 'Issue'];
         const rows: CsvRow[] = bd.needsAttention.map((i) => [
           i.asset,
@@ -111,7 +111,7 @@ export const GET: APIRoute = async ({ request, url }) => {
         break;
       }
       case 'stillHolding': {
-        filename = `tax-${year}-still-holding.csv`;
+        filename = `almstins-${year}-still-holding.csv`;
         const headers = ['Asset', 'Quantity', 'Acquired', 'Days Held', 'Cost Basis (USD)', 'Term'];
         const rows: CsvRow[] = bd.stillHolding.map((i) => [
           i.asset,
@@ -125,7 +125,7 @@ export const GET: APIRoute = async ({ request, url }) => {
         break;
       }
       case 'shortTerm': {
-        filename = `tax-${year}-short-term.csv`;
+        filename = `almstins-${year}-short-term.csv`;
         const headers = ['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss'];
         const rows: CsvRow[] = bd.shortTerm.map((i) => [
           i.asset,
@@ -141,7 +141,7 @@ export const GET: APIRoute = async ({ request, url }) => {
         break;
       }
       case 'longTerm': {
-        filename = `tax-${year}-long-term.csv`;
+        filename = `almstins-${year}-long-term.csv`;
         const headers = ['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss'];
         const rows: CsvRow[] = bd.longTerm.map((i) => [
           i.asset,
@@ -157,7 +157,7 @@ export const GET: APIRoute = async ({ request, url }) => {
         break;
       }
       case 'income': {
-        filename = `tax-${year}-income.csv`;
+        filename = `almstins-${year}-income.csv`;
         const headers = ['Asset', 'Amount', 'USD Value', 'Date', 'Type', 'Description'];
         const rows: CsvRow[] = bd.income.map((i) => [
           i.asset,

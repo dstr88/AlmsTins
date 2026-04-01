@@ -54,25 +54,25 @@ const fmt = (n: number) =>
 	n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 ---
 
-<Layout title="Tax Center | Almstins" noindex={true}>
+<Layout title="Gains Center | Almstins" noindex={true}>
 	<div class="max-w-4xl mx-auto px-4 py-8 space-y-8">
 
 		<!-- Header + year picker -->
 		<div class="flex items-center justify-between flex-wrap gap-4">
 			<div>
-				<h1 class="text-2xl font-bold">Tax Summary</h1>
+				<h1 class="text-2xl font-bold">Gains Summary</h1>
 				<p class="text-sm text-gray-500 mt-1">
-					Schedule D overview for tax year <strong>{year}</strong>.
-					Exact gain/loss per lot is in the
+					Realized gains overview for <strong>{year}</strong>.
+					Detailed gain/loss per lot is in the
 					<a href="/dashboard/transactions" class="underline text-blue-600 hover:text-blue-800">
-						Form 8949 CSV export
+						CSV export
 					</a>.
 				</p>
 			</div>
 
 			{availableYears.length > 0 && (
 				<form method="get" class="flex items-center gap-2">
-					<label for="year-select" class="text-sm font-medium text-gray-700">Tax year</label>
+					<label for="year-select" class="text-sm font-medium text-gray-700">Calendar year</label>
 					<select
 						id="year-select"
 						name="year"
@@ -244,7 +244,7 @@ const fmt = (n: number) =>
 				<!-- Form 8949 CTA -->
 				<div class="rounded-xl border border-blue-100 bg-blue-50 p-5 flex items-center justify-between flex-wrap gap-4">
 					<div>
-						<p class="font-semibold text-blue-900">Ready for Form 8949?</p>
+						<p class="font-semibold text-blue-900">Ready to export?</p>
 						<p class="text-sm text-blue-700 mt-0.5">
 							Download the line-by-line CSV with short-term vs long-term classification
 							per lot from the transactions page.

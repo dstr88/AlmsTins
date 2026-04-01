@@ -153,15 +153,15 @@ const reviewResult = await db.execute({
 const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 ---
 
-<Layout title="Tax Report | Almstins" noindex={true}>
+<Layout title="Year Summary | Almstins" noindex={true}>
 	<div class="max-w-5xl mx-auto px-4 py-8 space-y-10" id="report-root">
 
 		<!-- Header -->
 		<div class="flex items-start justify-between flex-wrap gap-4">
 			<div>
-				<h1 class="text-2xl font-bold text-gray-900">Tax Report — {taxYear}</h1>
+				<h1 class="text-2xl font-bold text-gray-900">Year Summary — {taxYear}</h1>
 				<p class="text-sm text-gray-500 mt-1">
-					Crypto tax summary for Schedule D (capital gains) and Schedule 1 (ordinary income).
+					Realized gains and losses for {taxYear}. For filing purposes, consult a qualified accountant.
 				</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
@@ -189,7 +189,7 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 				</button>
 				<button id="btn-csv" class="rounded-lg bg-blue-600 hover:bg-blue-700
 				                            text-white text-sm font-medium px-4 py-2 transition-colors">
-					⬇ Download CSV (Form 8949)
+					⬇ Download CSV
 				</button>
 			</div>
 		</div>
@@ -200,7 +200,7 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 				{ label: 'Short-Term Gain/Loss', value: totalSTGain, note: 'Held < 1 year' },
 				{ label: 'Long-Term Gain/Loss',  value: totalLTGain, note: 'Held ≥ 1 year' },
 				{ label: 'Ordinary Income',      value: totalIncome + totalAirdrops, note: 'Staking + airdrops' },
-				{ label: 'Net Capital Gain/Loss', value: totalGain,  note: 'Schedule D total' },
+				{ label: 'Net Capital Gain/Loss', value: totalGain,  note: 'Short + long term' },
 			].map(({ label, value, note }) => (
 				<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-1">
 					<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
@@ -468,7 +468,7 @@ document.getElementById('btn-html')?.addEventListener('click', () => {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Tax Report ${new Date().getFullYear() - 1}</title>
+<title>Year Summary ${new Date().getFullYear() - 1}</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #111; }
   h1 { font-size: 1.6rem; margin-bottom: 4px; }
@@ -530,7 +530,7 @@ document.getElementById('btn-csv')?.addEventListener('click', async () => {
 		URL.revokeObjectURL(url);
 	} finally {
 		btn.disabled = false;
-		btn.textContent = '⬇ Download CSV (Form 8949)';
+		btn.textContent = '⬇ Download CSV';
 	}
 });
 </script>

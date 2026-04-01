@@ -128,15 +128,15 @@ const CATEGORY_OPTIONS = [
 				<h1 class="text-2xl font-bold text-gray-900">Tax Review Queue</h1>
 				<p class="text-sm text-gray-500 mt-1">
 					{items.length === 0
-						? 'All items resolved — your tax report is complete.'
-						: `${items.length} item${items.length !== 1 ? 's' : ''} need your attention before the report is final.`}
+						? 'All items resolved — your Year Summary is complete.'
+						: `${items.length} item${items.length !== 1 ? 's' : ''} need your attention before the summary is final.`}
 				</p>
 			</div>
 			<div class="flex gap-3">
 				<a href="/dashboard/tax/report"
 				   class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white
 				          hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 transition-colors">
-					← Tax Report
+					← Year Summary
 				</a>
 				<button id="run-pipeline"
 				        class="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700
@@ -151,11 +151,11 @@ const CATEGORY_OPTIONS = [
 			<div class="rounded-xl border border-green-200 bg-green-50 p-8 text-center space-y-2">
 				<p class="text-3xl">✅</p>
 				<p class="font-semibold text-green-800">Nothing left to review</p>
-				<p class="text-sm text-green-700">Head to the tax report for your complete summary.</p>
+				<p class="text-sm text-green-700">Head to the Year Summary for your complete breakdown.</p>
 				<a href="/dashboard/tax/report"
 				   class="inline-block mt-2 rounded-lg bg-green-600 hover:bg-green-700
 				          text-white text-sm font-medium px-5 py-2">
-					Open Tax Report →
+					Open Year Summary →
 				</a>
 			</div>
 		)}
