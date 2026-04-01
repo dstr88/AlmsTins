@@ -1,8 +1,12 @@
 ---
 import Footer from "@/components/Footer.astro";
+import DemoBanner from "@/components/DemoBanner.astro";
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
+import { isDemoRequest } from '@/lib/demo';
 import kingSolomon from '@/assets/KingSolomon.png';
+
+const isDemo = isDemoRequest(Astro.request);
 import minerva from '@/assets/Minerva.png';
 const GA_ID = import.meta.env.PUBLIC_GA_ID;
 
@@ -132,6 +136,7 @@ const memberSinceDisplay = memberSinceIso
 </script>
 	</head>
 	<body>
+		{isDemo && <DemoBanner />}
 		<div class="chrome">
 			<header class="chrome__header">
 				<div>

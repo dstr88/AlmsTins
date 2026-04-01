@@ -29,6 +29,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname.startsWith('/api/auth/') ||
 		// Logout — must be public so the session cookie can be cleared even when expired
 		pathname === '/api/logout' ||
+		// Demo mode — set/clear cookie without requiring an auth session
+		pathname === '/api/demo/start' ||
+		pathname === '/api/demo/end' ||
 		// Static assets
 		pathname.startsWith('/_astro/') ||
 		pathname.startsWith('/assets/') ||

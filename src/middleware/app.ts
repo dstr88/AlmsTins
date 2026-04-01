@@ -18,6 +18,7 @@ import { getCountryForIpHash } from '../lib/analytics/geoip';
 import { hashWithSalt } from '../lib/analytics/hash';
 import { getClientIp } from '../lib/analytics/ip';
 import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } from '../lib/analytics/routes';
+import { isDemoRequest } from '../lib/demo';
 function isEnvProbe(pathname: string) {
 	const p = pathname.toLowerCase();
 	return p.includes('/.env') || p.endsWith('.env') || p.includes('.env.');
@@ -135,6 +136,29 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		if (pathname === '/') {
 			return finish(Response.redirect(`https://${canonicalHost}/login`, 303));
 		}
+
+		// ── Demo mode ───────────────────────────────────────────────────────────
+		// Visitors with the demo cookie bypass the auth check entirely.
+		// Mutations (POST/PUT/PATCH/DELETE) are blocked so the seed data stays intact.
+		if (isDemoRequest(request)) {
+			const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method.toUpperCase());
+			if (isMutation && pathname.startsWith('/api/')) {
+				return finish(
+					applySecurityHeaders(
+						new Response(
+							JSON.stringify({
+								error: 'This is a read-only demo. Sign up free to make changes.',
+								demo: true,
+							}),
+							{ status: 403, headers: { 'Content-Type': 'application/json' } },
+						),
+					),
+				);
+			}
+			// Let the route handler render with the demo tenant.
+			return finish(applySecurityHeaders(await next()));
+		}
+		// ── End demo mode ────────────────────────────────────────────────────────
 
 		const session = await getAuthSession(request);
 		const userId = session?.user?.id ? String(session.user.id) : '';
