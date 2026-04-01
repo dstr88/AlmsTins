@@ -2,7 +2,7 @@
 const { variant = "inline" } = Astro.props as { variant?: "inline" | "modal" };
 const body = `
 <h1>Terms of Service</h1>
-<p><strong>Last updated: March 31, 2026</strong></p>
+<p><strong>Last updated: April 1, 2026</strong></p>
 
 <p>
   Welcome to Almstins ("we", "us", "our"). By accessing or using almstins.com — including
@@ -96,7 +96,7 @@ const body = `
 <p>You agree to:</p>
 <ul>
   <li>Use the Service only for lawful purposes</li>
-  <li>Not attempt to reverse-engineer, hack, scrape, or abuse the Service</li>
+  <li>Not attempt to hack, scrape, abuse, or disrupt the hosted Service or its infrastructure, or interfere with other users' data or experience</li>
   <li>Not use the Service to commit fraud, evade taxes, or violate any applicable law</li>
   <li>Keep your login credentials secure — you are responsible for all activity under your account</li>
   <li>Provide accurate information when creating an account or uploading transaction data</li>
@@ -114,11 +114,18 @@ const body = `
   We are not responsible for the accuracy, availability, or actions of these providers.
 </p>
 
-<h2>8. Open Source</h2>
+<h2>8. Open Source &amp; Attribution</h2>
 <p>
   Almstins is open source (MIT License). The source code is available on GitHub. Using the
   hosted Service at almstins.com is subject to these Terms regardless of the open-source nature
   of the underlying code.
+</p>
+<p>
+  While the MIT License does not legally require attribution beyond preserving the copyright
+  notice, we kindly ask that anyone building on this codebase acknowledge Almstins and
+  Donnie Starkey / Titanium Hut as the original creators. A link back to
+  <a href="https://almstins.com">almstins.com</a> or the GitHub repository is always appreciated.
+  Open source runs on goodwill — thank you for being part of that.
 </p>
 
 <h2>9. Changes to the Service or Terms</h2>
