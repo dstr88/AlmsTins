@@ -23,9 +23,11 @@ const message =
     ? "Sign in to continue."
     : error === "Configuration"
       ? "Sign-in is temporarily unavailable. Please try again in a moment."
-      : error
-        ? "Sign-in failed. Please try again."
-        : "";
+      : error === "OAuthAccountNotLinked"
+        ? "LOCKED_OUT"
+        : error
+          ? "Sign-in failed. Please try again."
+          : "";
 
 const signup = searchParams.get("signup");
 const verified = searchParams.get("verified");
@@ -91,7 +93,14 @@ try {
           <h2>Sign in</h2>
           <p>Use Google, GitHub, email + password, or a magic link.</p>
 
-          {message && <p class="notice">{message}</p>}
+          {message === "LOCKED_OUT" ? (
+            <div class="notice locked-out">
+              <strong>Having trouble signing in?</strong>
+              <p>Your account may be temporarily locked. Please <a href="mailto:donnie@titaniumhut.com">contact support</a> and we'll get you back in right away.</p>
+            </div>
+          ) : message ? (
+            <p class="notice">{message}</p>
+          ) : null}
           {notice && <p class="notice success">{notice}</p>}
           {session?.user?.id && (
             <a class="provider-button ghost" href={safeCallbackUrl}>Continue to Dashboard</a>
@@ -445,6 +454,31 @@ try {
       background: rgba(60, 179, 113, 0.12);
       border: 1px solid rgba(60, 179, 113, 0.35);
       color: #b6f3c4;
+    }
+
+    .notice.locked-out {
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      color: #fde68a;
+      padding: 0.9rem 1rem;
+      border-radius: 8px;
+      margin-top: 0.8rem;
+      font-size: 0.9rem;
+    }
+    .notice.locked-out strong {
+      display: block;
+      margin-bottom: 0.3rem;
+      font-size: 0.95rem;
+    }
+    .notice.locked-out p {
+      margin: 0;
+    }
+    .notice.locked-out a {
+      color: #fbbf24;
+      text-decoration: underline;
+    }
+    .notice.locked-out a:hover {
+      color: #fde68a;
     }
   </style>
 </Layout>
