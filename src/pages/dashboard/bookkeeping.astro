@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import OrnateTin from '@/components/OrnatedTin.astro';
 import DrawerHost from '../../components/bookkeeping/DrawerHost';
+import ReconciliationTin from '../../components/bookkeeping/ReconciliationTin';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { buildAnnualBreakdown } from '../../lib/annualBreakdown';
 
@@ -357,6 +358,12 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       </div>
 
     </div><!-- /breakdown-grid -->
+
+    <!-- ══ Reconciliation ══════════════════════════════════════════════════ -->
+    <div class="reconciliation-section">
+      <ReconciliationTin client:load />
+    </div>
+
   </section>
 
   <!-- Drawer mount point -->
@@ -371,6 +378,12 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       flex-direction: column;
       gap: 2rem;
       padding: 1rem 0 3rem;
+    }
+    .reconciliation-section {
+      padding: 0 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
     }
 
     .hero-bleed {
