@@ -93,12 +93,7 @@ try {
           <h2>Sign in</h2>
           <p>Use Google, GitHub, email + password, or a magic link.</p>
 
-          {message === "LOCKED_OUT" ? (
-            <div class="notice locked-out">
-              <strong>Having trouble signing in?</strong>
-              <p>Your account may be temporarily locked. Please <a href="mailto:donnie@titaniumhut.com">contact support</a> and we'll get you back in right away.</p>
-            </div>
-          ) : message ? (
+          {message === "LOCKED_OUT" ? null : message ? (
             <p class="notice">{message}</p>
           ) : null}
           {notice && <p class="notice success">{notice}</p>}
@@ -183,6 +178,25 @@ try {
     </section>
     </div>
   </main>
+
+  {message === "LOCKED_OUT" && (
+    <div class="session-overlay" id="session-overlay">
+      <div class="session-popup" role="alertdialog" aria-modal="true" aria-labelledby="session-title">
+        <div class="session-popup__icon">🔐</div>
+        <h2 id="session-title">You're already signed in</h2>
+        <p>It looks like you have an active session on another browser or device. Sign out first, then try again.</p>
+        <div class="session-popup__actions">
+          <a class="session-popup__btn session-popup__btn--primary" href="/api/auth/signout">Sign out &amp; try again</a>
+          <button class="session-popup__btn session-popup__btn--ghost" id="session-dismiss">Dismiss</button>
+        </div>
+      </div>
+    </div>
+    <script is:inline>
+      document.getElementById('session-dismiss')?.addEventListener('click', function() {
+        document.getElementById('session-overlay')?.remove();
+      });
+    </script>
+  )}
 
   <style>
     :root {
@@ -479,6 +493,87 @@ try {
     }
     .notice.locked-out a:hover {
       color: #fde68a;
+    }
+
+    /* ── Session conflict popup ─────────────────────────── */
+    .session-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+
+    .session-popup {
+      background: #0f1624;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+      animation: popup-in 0.25s ease;
+    }
+
+    @keyframes popup-in {
+      from { opacity: 0; transform: scale(0.93) translateY(12px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .session-popup__icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .session-popup h2 {
+      font-size: 1.35rem;
+      margin: 0 0 0.75rem;
+      color: #f7f2eb;
+    }
+
+    .session-popup p {
+      font-size: 0.95rem;
+      color: rgba(255, 255, 255, 0.65);
+      margin: 0 0 1.75rem;
+      line-height: 1.6;
+    }
+
+    .session-popup__actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .session-popup__btn {
+      display: block;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      border: none;
+      transition: opacity 0.15s ease;
+    }
+
+    .session-popup__btn:hover { opacity: 0.85; }
+
+    .session-popup__btn--primary {
+      background: linear-gradient(135deg, #3b7ef8, #1d4ed8);
+      color: #fff;
+    }
+
+    .session-popup__btn--ghost {
+      background: rgba(255, 255, 255, 0.07);
+      color: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
     }
   </style>
 </Layout>
