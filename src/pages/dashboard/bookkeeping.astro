@@ -6,8 +6,13 @@ import DrawerHost from '../../components/bookkeeping/DrawerHost';
 import ReconciliationTin from '../../components/bookkeeping/ReconciliationTin';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { buildAnnualBreakdown } from '../../lib/annualBreakdown';
+import { getActivePlan } from '../../lib/subscriptions';
 
 const { tenantId } = await requireTenantSession(Astro.request);
+
+// Plan check for Year Summary PDF
+const activePlan = await getActivePlan(tenantId);
+const canDownloadPdf = activePlan.id === 'unlimited';
 
 // Year selector — default to last year
 const currentYear = new Date().getFullYear();
@@ -70,12 +75,12 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
 <Layout title="Bookkeeping | Almstins" noindex={true}>
   <section class="bookkeeping-page">
     <div class="hero-bleed">
-      <NetWorthHero title="Bookkeeping" subtitle="Annual tax breakdown" />
+      <NetWorthHero title="Bookkeeping" subtitle="Annual breakdown" />
     </div>
 
     <!-- ══ Year Selector ════════════════════════════════════════════════════ -->
     <div class="year-bar">
-      <span class="year-bar__label">Tax Year</span>
+      <span class="year-bar__label">Calendar Year</span>
       <div class="year-bar__pills">
         {bd.availableYears.map((y) => (
           <a
@@ -85,6 +90,27 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
             {y}
           </a>
         ))}
+      </div>
+      <div class="year-bar__actions">
+        {canDownloadPdf ? (
+          <a
+            href={`/api/year-summary/report?year=${selectedYear}`}
+            download={`almstins-${selectedYear}-year-summary.pdf`}
+            class="year-summary-btn"
+            title={`Download ${selectedYear} Year Summary PDF`}
+          >
+            ↓ Year Summary PDF
+          </a>
+        ) : (
+          <a
+            href="/dashboard/billing"
+            class="year-summary-btn year-summary-btn--locked"
+            title="Upgrade to Premium to download Year Summary PDF"
+          >
+            🔒 Year Summary PDF
+            <span class="year-summary-badge">Premium</span>
+          </a>
+        )}
       </div>
     </div>
 
@@ -434,6 +460,49 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       background: rgba(250,128,114,0.9);
       color: #0b0f1a;
       border-color: transparent;
+    }
+    .year-bar__actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+    }
+    .year-summary-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 1rem;
+      border-radius: 20px;
+      border: 1px solid rgba(250,128,114,0.6);
+      color: rgba(250,128,114,0.9);
+      background: rgba(250,128,114,0.06);
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .year-summary-btn:hover {
+      background: rgba(250,128,114,0.15);
+      border-color: rgba(250,128,114,0.9);
+    }
+    .year-summary-btn--locked {
+      opacity: 0.55;
+      cursor: default;
+      border-style: dashed;
+    }
+    .year-summary-btn--locked:hover {
+      background: rgba(250,128,114,0.06);
+      border-color: rgba(250,128,114,0.4);
+      opacity: 0.7;
+    }
+    .year-summary-badge {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 8px;
+      background: rgba(250,128,114,0.2);
+      color: rgba(250,128,114,0.9);
+      font-weight: 700;
+      letter-spacing: 0.03em;
     }
 
     /* ── 2×2 + full-width grid ─────────────────────────────── */

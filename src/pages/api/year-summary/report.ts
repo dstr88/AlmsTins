@@ -1,0 +1,441 @@
+/**
+ * GET /api/year-summary/report?year=2024
+ *
+ * Generates a Year Summary PDF for the requested calendar year.
+ * Requires the 'unlimited' ($39/mo) plan — returns 403 for lower tiers.
+ *
+ * Sections:
+ *   1. Cover — tenant name, year, generated date, disclaimer
+ *   2. Summary — realized gains totals, income total, held cost basis
+ *   3. Short-term disposals
+ *   4. Long-term disposals
+ *   5. Received / Earned (income events)
+ *   6. Still Holding (open lots)
+ */
+
+import type { APIRoute } from 'astro';
+import PDFDocument from 'pdfkit';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { buildAnnualBreakdown } from '@/lib/annualBreakdown';
+import { getActivePlan } from '@/lib/subscriptions';
+
+export const prerender = false;
+
+// ── Colour palette ────────────────────────────────────────────────────────────
+const SALMON   = '#FA8072';
+const DARK_BG  = '#1a1a1a';
+const MID_GRAY = '#888888';
+const LIGHT    = '#cccccc';
+const WHITE    = '#ffffff';
+const POS      = '#4ade80';
+const NEG      = '#f87171';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fDate(iso: string | null): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+    });
+  } catch { return iso; }
+}
+
+function fUsd(v: number | null, showSign = false): string {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const sign = showSign ? (v >= 0 ? '+' : '-') : (v < 0 ? '-' : '');
+  return `${sign}$${Math.abs(v).toLocaleString('en-US', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  })}`;
+}
+
+function fQty(v: number): string {
+  return Number.isFinite(v)
+    ? v.toLocaleString('en-US', { maximumFractionDigits: 6 })
+    : '—';
+}
+
+// ── PDF builder ───────────────────────────────────────────────────────────────
+function buildPdf(
+  bd: Awaited<ReturnType<typeof buildAnnualBreakdown>>,
+  year: number,
+  tenantLabel: string,
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'LETTER',
+      margins: { top: 48, bottom: 48, left: 52, right: 52 },
+      info: {
+        Title: `${year} Year Summary — almsTins`,
+        Author: 'almsTins',
+        Creator: 'almsTins',
+      },
+    });
+
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    const PAGE_W = doc.page.width;
+    const MARGIN = 52;
+    const CONTENT_W = PAGE_W - MARGIN * 2;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+    const newPage = () => {
+      doc.addPage();
+      drawPageHeader();
+    };
+
+    const drawPageHeader = () => {
+      doc
+        .rect(0, 0, PAGE_W, 32)
+        .fill(DARK_BG);
+      doc
+        .fontSize(8)
+        .fillColor(SALMON)
+        .font('Helvetica-Bold')
+        .text('almsTins', MARGIN, 10, { continued: true })
+        .fillColor(MID_GRAY)
+        .font('Helvetica')
+        .text(`  ·  ${year} Year Summary  ·  ${tenantLabel}`, { align: 'left' })
+        .fillColor(MID_GRAY)
+        .text(`Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+          MARGIN, 10, { align: 'right', width: CONTENT_W });
+      doc.moveDown(2);
+    };
+
+    const sectionTitle = (title: string) => {
+      if (doc.y > doc.page.height - 120) newPage();
+      doc
+        .moveDown(0.6)
+        .rect(MARGIN, doc.y, CONTENT_W, 20)
+        .fill('#2a2a2a');
+      doc
+        .fontSize(9)
+        .fillColor(SALMON)
+        .font('Helvetica-Bold')
+        .text(title.toUpperCase(), MARGIN + 6, doc.y - 15)
+        .moveDown(0.4);
+    };
+
+    const tableHeaders = (cols: { label: string; width: number; align?: 'left' | 'right' | 'center' }[]) => {
+      let x = MARGIN;
+      doc.fontSize(7).fillColor(MID_GRAY).font('Helvetica-Bold');
+      for (const col of cols) {
+        doc.text(col.label, x, doc.y, { width: col.width, align: col.align ?? 'left', lineBreak: false });
+        x += col.width;
+      }
+      doc.moveDown(0.3);
+      doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor('#333333').lineWidth(0.5).stroke();
+      doc.moveDown(0.3);
+    };
+
+    const tableRow = (
+      cols: { label: string; width: number; align?: 'left' | 'right' | 'center'; color?: string }[],
+      shade: boolean,
+    ) => {
+      if (doc.y > doc.page.height - 60) newPage();
+      if (shade) {
+        doc.rect(MARGIN, doc.y - 1, CONTENT_W, 13).fill('#1e1e1e');
+      }
+      let x = MARGIN;
+      doc.fontSize(7).font('Helvetica');
+      for (const col of cols) {
+        doc
+          .fillColor(col.color ?? LIGHT)
+          .text(col.label, x, doc.y, { width: col.width, align: col.align ?? 'left', lineBreak: false });
+        x += col.width;
+      }
+      doc.moveDown(0.55);
+    };
+
+    const summaryRow = (label: string, value: string, valueColor = WHITE) => {
+      doc
+        .fontSize(9)
+        .font('Helvetica')
+        .fillColor(MID_GRAY)
+        .text(label, MARGIN, doc.y, { width: 280, lineBreak: false })
+        .fillColor(valueColor)
+        .font('Helvetica-Bold')
+        .text(value, MARGIN + 280, doc.y, { width: CONTENT_W - 280, align: 'right' })
+        .moveDown(0.5);
+    };
+
+    // ── PAGE 1: Cover ─────────────────────────────────────────────────────────
+    doc.rect(0, 0, PAGE_W, doc.page.height).fill('#0d0d0d');
+
+    doc
+      .fontSize(36)
+      .fillColor(SALMON)
+      .font('Helvetica-Bold')
+      .text('almsTins', MARGIN, 140);
+
+    doc
+      .fontSize(14)
+      .fillColor(LIGHT)
+      .font('Helvetica')
+      .text(`${year} Year Summary`, MARGIN, doc.y + 8);
+
+    doc
+      .fontSize(10)
+      .fillColor(MID_GRAY)
+      .text(tenantLabel, MARGIN, doc.y + 4)
+      .text(
+        `Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+        MARGIN, doc.y + 2,
+      );
+
+    // Summary box
+    const boxY = 300;
+    doc.roundedRect(MARGIN, boxY, CONTENT_W, 160, 8).fill('#1a1a1a');
+
+    const stGain = bd.totals.shortTermGain ?? 0;
+    const ltGain = bd.totals.longTermGain ?? 0;
+    const income = bd.totals.totalIncome ?? 0;
+    const netGain = stGain + ltGain;
+
+    doc
+      .fontSize(10).fillColor(MID_GRAY).font('Helvetica')
+      .text('Short-term realized gain / loss', MARGIN + 20, boxY + 20, { width: 240, lineBreak: false })
+      .fillColor(stGain >= 0 ? POS : NEG).font('Helvetica-Bold')
+      .text(fUsd(stGain, true), MARGIN + 260, boxY + 20, { width: CONTENT_W - 280, align: 'right' });
+
+    doc
+      .fontSize(10).fillColor(MID_GRAY).font('Helvetica')
+      .text('Long-term realized gain / loss', MARGIN + 20, boxY + 48, { width: 240, lineBreak: false })
+      .fillColor(ltGain >= 0 ? POS : NEG).font('Helvetica-Bold')
+      .text(fUsd(ltGain, true), MARGIN + 260, boxY + 48, { width: CONTENT_W - 280, align: 'right' });
+
+    doc
+      .fontSize(10).fillColor(MID_GRAY).font('Helvetica')
+      .text('Received / Earned', MARGIN + 20, boxY + 76, { width: 240, lineBreak: false })
+      .fillColor(WHITE).font('Helvetica-Bold')
+      .text(fUsd(income), MARGIN + 260, boxY + 76, { width: CONTENT_W - 280, align: 'right' });
+
+    doc.moveTo(MARGIN + 20, boxY + 105).lineTo(MARGIN + CONTENT_W - 20, boxY + 105).strokeColor('#333').lineWidth(0.5).stroke();
+
+    doc
+      .fontSize(11).fillColor(MID_GRAY).font('Helvetica')
+      .text('Net realized gain / loss', MARGIN + 20, boxY + 118, { width: 240, lineBreak: false })
+      .fillColor(netGain >= 0 ? POS : NEG).font('Helvetica-Bold')
+      .text(fUsd(netGain, true), MARGIN + 260, boxY + 118, { width: CONTENT_W - 280, align: 'right' });
+
+    // Disclaimer
+    doc
+      .fontSize(7)
+      .fillColor('#555555')
+      .font('Helvetica')
+      .text(
+        'This Year Summary is generated from the transaction data you have provided to almsTins. ' +
+        'It is intended to help you organise your records and is not financial or legal advice. ' +
+        'almsTins is not a tax preparation service. Please consult a qualified accountant regarding your specific obligations.',
+        MARGIN, doc.page.height - 80,
+        { width: CONTENT_W, align: 'center' },
+      );
+
+    // ── PAGE 2: Summary ───────────────────────────────────────────────────────
+    newPage();
+    sectionTitle(`${year} Summary`);
+
+    summaryRow('Short-term realized gain / loss', fUsd(stGain, true), stGain >= 0 ? POS : NEG);
+    summaryRow('Long-term realized gain / loss', fUsd(ltGain, true), ltGain >= 0 ? POS : NEG);
+    summaryRow('Total received / earned', fUsd(income));
+    summaryRow('Net realized gain / loss', fUsd(netGain, true), netGain >= 0 ? POS : NEG);
+    summaryRow('Open lots — cost basis', fUsd(bd.totals.heldCostBasis));
+    summaryRow('Short-term disposal events', String(bd.shortTerm.length));
+    summaryRow('Long-term disposal events', String(bd.longTerm.length));
+    summaryRow('Income / reward events', String(bd.income.length));
+    summaryRow('Still holding — open lots', String(bd.stillHolding.length));
+
+    // ── PAGE 3+: Short-term disposals ─────────────────────────────────────────
+    if (bd.shortTerm.length > 0) {
+      newPage();
+      sectionTitle('Short-term disposals  (held < 365 days)');
+
+      const cols = [
+        { label: 'Asset',      width: 55 },
+        { label: 'Acquired',   width: 78 },
+        { label: 'Disposed',   width: 78 },
+        { label: 'Days',       width: 38, align: 'right' as const },
+        { label: 'Qty',        width: 72, align: 'right' as const },
+        { label: 'Cost Basis', width: 80, align: 'right' as const },
+        { label: 'Proceeds',   width: 80, align: 'right' as const },
+        { label: 'Gain / Loss',width: 85, align: 'right' as const },
+      ];
+      tableHeaders(cols);
+
+      bd.shortTerm.forEach((lot, i) => {
+        const gain = lot.gainLossUsd ?? 0;
+        tableRow([
+          { label: lot.asset,            width: cols[0].width },
+          { label: fDate(lot.buyDate),   width: cols[1].width },
+          { label: fDate(lot.sellDate),  width: cols[2].width },
+          { label: String(lot.daysHeld), width: cols[3].width, align: 'right' },
+          { label: fQty(lot.amount),     width: cols[4].width, align: 'right' },
+          { label: fUsd(lot.costUsd),    width: cols[5].width, align: 'right' },
+          { label: fUsd(lot.proceedsUsd),width: cols[6].width, align: 'right' },
+          { label: fUsd(gain, true),     width: cols[7].width, align: 'right', color: gain >= 0 ? POS : NEG },
+        ], i % 2 === 1);
+      });
+
+      // subtotal
+      doc.moveDown(0.3);
+      doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor('#444').lineWidth(0.5).stroke();
+      doc.moveDown(0.3);
+      summaryRow('Short-term subtotal', fUsd(stGain, true), stGain >= 0 ? POS : NEG);
+    }
+
+    // ── Long-term disposals ───────────────────────────────────────────────────
+    if (bd.longTerm.length > 0) {
+      newPage();
+      sectionTitle('Long-term disposals  (held ≥ 365 days)');
+
+      const cols = [
+        { label: 'Asset',      width: 55 },
+        { label: 'Acquired',   width: 78 },
+        { label: 'Disposed',   width: 78 },
+        { label: 'Days',       width: 38, align: 'right' as const },
+        { label: 'Qty',        width: 72, align: 'right' as const },
+        { label: 'Cost Basis', width: 80, align: 'right' as const },
+        { label: 'Proceeds',   width: 80, align: 'right' as const },
+        { label: 'Gain / Loss',width: 85, align: 'right' as const },
+      ];
+      tableHeaders(cols);
+
+      bd.longTerm.forEach((lot, i) => {
+        const gain = lot.gainLossUsd ?? 0;
+        tableRow([
+          { label: lot.asset,            width: cols[0].width },
+          { label: fDate(lot.buyDate),   width: cols[1].width },
+          { label: fDate(lot.sellDate),  width: cols[2].width },
+          { label: String(lot.daysHeld), width: cols[3].width, align: 'right' },
+          { label: fQty(lot.amount),     width: cols[4].width, align: 'right' },
+          { label: fUsd(lot.costUsd),    width: cols[5].width, align: 'right' },
+          { label: fUsd(lot.proceedsUsd),width: cols[6].width, align: 'right' },
+          { label: fUsd(gain, true),     width: cols[7].width, align: 'right', color: gain >= 0 ? POS : NEG },
+        ], i % 2 === 1);
+      });
+
+      doc.moveDown(0.3);
+      doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor('#444').lineWidth(0.5).stroke();
+      doc.moveDown(0.3);
+      summaryRow('Long-term subtotal', fUsd(ltGain, true), ltGain >= 0 ? POS : NEG);
+    }
+
+    // ── Received / Earned ─────────────────────────────────────────────────────
+    if (bd.income.length > 0) {
+      newPage();
+      sectionTitle('Received / Earned');
+
+      const cols = [
+        { label: 'Date',   width: 88 },
+        { label: 'Asset',  width: 60 },
+        { label: 'Type',   width: 130 },
+        { label: 'Qty',    width: 90, align: 'right' as const },
+        { label: 'Value',  width: 90, align: 'right' as const },
+        { label: 'Description', width: 90 },
+      ];
+      tableHeaders(cols);
+
+      bd.income.forEach((item, i) => {
+        const typeLabel = item.kind
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+          .trim();
+        tableRow([
+          { label: fDate(item.date),          width: cols[0].width },
+          { label: item.asset,                width: cols[1].width },
+          { label: typeLabel,                 width: cols[2].width },
+          { label: fQty(item.amount),         width: cols[3].width, align: 'right' },
+          { label: fUsd(item.usdValue),       width: cols[4].width, align: 'right' },
+          { label: item.description ?? '—',   width: cols[5].width, color: MID_GRAY },
+        ], i % 2 === 1);
+      });
+
+      doc.moveDown(0.3);
+      doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor('#444').lineWidth(0.5).stroke();
+      doc.moveDown(0.3);
+      summaryRow('Total received / earned', fUsd(income));
+    }
+
+    // ── Still Holding ─────────────────────────────────────────────────────────
+    if (bd.stillHolding.length > 0) {
+      newPage();
+      sectionTitle('Still Holding — Open Lots');
+
+      const cols = [
+        { label: 'Asset',      width: 70 },
+        { label: 'Acquired',   width: 100 },
+        { label: 'Days Held',  width: 70, align: 'right' as const },
+        { label: 'Qty',        width: 110, align: 'right' as const },
+        { label: 'Cost Basis', width: 110, align: 'right' as const },
+        { label: 'Term',       width: 70 },
+      ];
+      tableHeaders(cols);
+
+      bd.stillHolding.forEach((lot, i) => {
+        const term = lot.daysHeld >= 365 ? 'Long' : 'Short';
+        tableRow([
+          { label: lot.asset,            width: cols[0].width },
+          { label: fDate(lot.acquiredDate), width: cols[1].width },
+          { label: String(lot.daysHeld), width: cols[2].width, align: 'right' },
+          { label: fQty(lot.amount),     width: cols[3].width, align: 'right' },
+          { label: fUsd(lot.costUsd),    width: cols[4].width, align: 'right' },
+          { label: term,                 width: cols[5].width, color: term === 'Long' ? POS : SALMON },
+        ], i % 2 === 1);
+      });
+    }
+
+    doc.end();
+  });
+}
+
+// ── Route handler ─────────────────────────────────────────────────────────────
+export const GET: APIRoute = async ({ request }) => {
+  try {
+    const { tenantId } = await requireTenantSession(request);
+
+    // ── Paywall check ─────────────────────────────────────────────────────────
+    const plan = await getActivePlan(tenantId);
+    if (plan.id !== 'unlimited') {
+      return new Response(
+        JSON.stringify({
+          error: 'Year Summary PDF is available on the Premium plan ($39/mo). Upgrade at almstins.com/dashboard/billing.',
+          planRequired: 'unlimited',
+          currentPlan: plan.id,
+        }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // ── Year param ────────────────────────────────────────────────────────────
+    const url = new URL(request.url);
+    const yearParam = url.searchParams.get('year');
+    const year = yearParam ? Number(yearParam) : new Date().getFullYear() - 1;
+
+    if (!Number.isFinite(year) || year < 2015 || year > new Date().getFullYear()) {
+      return new Response(JSON.stringify({ error: 'Invalid year.' }), { status: 400 });
+    }
+
+    // ── Build data + PDF ──────────────────────────────────────────────────────
+    const bd = await buildAnnualBreakdown(tenantId, year);
+    const tenantLabel = `almsTins Account`;
+    const pdfBuffer = await buildPdf(bd, year, tenantLabel);
+
+    return new Response(pdfBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="almstins-${year}-year-summary.pdf"`,
+        'Content-Length': String(pdfBuffer.length),
+        'Cache-Control': 'private, no-store',
+      },
+    });
+  } catch (error) {
+    console.error('[year-summary/report]', error);
+    return new Response(
+      JSON.stringify({ error: 'Failed to generate Year Summary.' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+};
