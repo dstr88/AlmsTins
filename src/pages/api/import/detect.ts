@@ -60,6 +60,12 @@ const SIGNATURES = [
     endpoint: '/api/import/robinhood',
     required: ['Transaction', 'Quantity', 'Symbol', 'Price'],
   },
+  {
+    source: 'kraken',
+    name: 'Kraken',
+    endpoint: '/api/import/kraken',
+    required: ['txid', 'refid', 'aclass'],   // unique to Kraken Ledger History CSV
+  },
 ] as const;
 
 function detectFromHeaders(headerLine: string): (typeof SIGNATURES)[number] | null {
