@@ -42,6 +42,9 @@
       <button class="faq-question" type="button" data-modal="faq-reconciliation">
         What is the Reconciliation view?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-kraken-export">
+        How do I export my Kraken history?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -423,6 +426,30 @@
           This project is still in beta mode, but should provide valuable information
           for your taxes and every year you use it, and the more data you give it,
           the more effective it will be.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-kraken-export">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>How do I export my Kraken history?</h1>
+
+        <p>
+          Kraken offers two CSV exports — make sure you grab the right one:
+        </p>
+        <ol style="margin: 0.75rem 0 0.75rem 1.25rem; line-height: 1.8;">
+          <li>Log in to your Kraken account</li>
+          <li>Go to <strong>Account</strong> → <strong>History</strong></li>
+          <li>Click <strong>Ledgers</strong> (not Trades)</li>
+          <li>Set your date range and click <strong>Export</strong></li>
+          <li>Upload the downloaded CSV into your Kraken tin here</li>
+        </ol>
+        <p>
+          The <em>Ledgers</em> export contains every deposit, withdrawal, trade, and staking
+          reward in one file. The <em>Trades</em> export only covers spot trades and will not
+          import correctly.
         </p>
       </div>
     </div>

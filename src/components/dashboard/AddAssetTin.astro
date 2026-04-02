@@ -105,7 +105,15 @@
 				<span class="add-tin__exchange-name">Exodus</span>
 				<span class="add-tin__exchange-arrow">↓</span>
 			</li>
+			<li class="add-tin__exchange-item" data-add-exchange="kraken" role="button" tabindex="0">
+				<span class="add-tin__exchange-dot add-tin__exchange-dot--amber"></span>
+				<span class="add-tin__exchange-name">Kraken</span>
+				<span class="add-tin__exchange-arrow">↓</span>
+			</li>
 		</ul>
+		<p class="add-tin__export-hint" id="kraken-export-hint" style="display:none;">
+			💡 <strong>Kraken users:</strong> export from <em>Account → History → Ledgers</em> — not the Trades export.
+		</p>
 		<p class="add-tin__coming-soon">
 			More chains &amp; exchanges coming soon.
 		</p>
@@ -523,6 +531,11 @@
 			function activate() {
 				var source = item.dataset.addExchange || '';
 				if (!source) return;
+
+				// Show Kraken export hint only when Kraken is selected
+				var krakenHint = document.getElementById('kraken-export-hint');
+				if (krakenHint) krakenHint.style.display = source === 'kraken' ? 'block' : 'none';
+
 				var addBtn = document.querySelector(
 					'[data-exchange-add][data-exchange-source="' + source + '"]'
 				);
