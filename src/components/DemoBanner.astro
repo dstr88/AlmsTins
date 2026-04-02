@@ -101,3 +101,24 @@
 		.demo-btn { font-size: 0.76rem; padding: 0.32rem 0.7rem; }
 	}
 </style>
+
+<script>
+	// Fire demo_start once per page load (banner appearing = demo is active)
+	if (typeof window.gtag === 'function') {
+		window.gtag('event', 'demo_start', { event_category: 'demo' });
+	}
+
+	// Track "Sign up free" click from demo banner
+	document.querySelector('.demo-btn--signup')?.addEventListener('click', () => {
+		if (typeof window.gtag === 'function') {
+			window.gtag('event', 'demo_signup_click', { event_category: 'demo' });
+		}
+	});
+
+	// Track "Exit demo" click
+	document.querySelector('.demo-btn--exit')?.addEventListener('click', () => {
+		if (typeof window.gtag === 'function') {
+			window.gtag('event', 'demo_exit', { event_category: 'demo' });
+		}
+	});
+</script>
