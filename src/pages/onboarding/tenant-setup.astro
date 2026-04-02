@@ -11,7 +11,7 @@ import Layout from '@/layouts/LoginLayout.astro';
 				Finish setup to unlock your dashboard.
 			</p>
 			<div class="tenant-setup__actions">
-				<form method="POST" action="/api/onboarding/complete">
+				<form id="onboarding-finish-setup" method="POST" action="/api/onboarding/complete">
 					<button type="submit" name="finish-setup" class="tenant-setup__button">Finish setup</button>
 				</form>
 				<a class="tenant-setup__button tenant-setup__button--ghost" href="/api/logout">Sign out</a>

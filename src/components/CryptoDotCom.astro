@@ -14,7 +14,7 @@ const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 1
 ---
 
 <section class="crypto-com">
-	<form class="crypto-com__upload" data-redirect={redirectTo ?? ''}>
+	<form id="csv-upload" class="crypto-com__upload" data-redirect={redirectTo ?? ''}>
 		<label class="crypto-com__file">
 			<input type="file" name="file" accept=".csv" required />
 			<span>Choose CSV</span>

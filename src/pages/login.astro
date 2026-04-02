@@ -103,13 +103,13 @@ try {
         </header>
 
         <div class="providers">
-          <form class="provider-form" method="POST" action="/api/auth/signin/google">
+          <form id="login-google" class="provider-form" method="POST" action="/api/auth/signin/google">
             <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
             <button class="provider-button google" type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Continue with Google</button>
           </form>
 
-          <form class="provider-form" method="POST" action="/api/auth/signin/github">
+          <form id="login-github" class="provider-form" method="POST" action="/api/auth/signin/github">
             <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
             <button class="provider-button github" type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Continue with GitHub</button>
@@ -118,7 +118,7 @@ try {
 
         <div class="divider">or email</div>
 
-        <form class="stack" method="POST" action="/api/auth/callback/credentials">
+        <form id="login-email-password" class="stack" method="POST" action="/api/auth/callback/credentials">
           <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
           <input type="hidden" name="csrfToken" value={csrfToken} />
 
@@ -137,7 +137,7 @@ try {
 
         <div class="divider">or magic link</div>
 
-        <form class="stack" method="POST" action="/api/auth/signin/email">
+        <form id="login-magic-link" class="stack" method="POST" action="/api/auth/signin/email">
           <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
           <input type="hidden" name="csrfToken" value={csrfToken} />
 
