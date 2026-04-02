@@ -1,7 +1,113 @@
 import type { APIRoute } from 'astro';
 import type Stripe from 'stripe';
+import nodemailer from 'nodemailer';
 import { stripe, PRICE_TO_PLAN } from '../../../lib/stripe';
 import { db } from '../../../lib/db';
+
+// ── Email helpers ──────────────────────────────────────────────────────────────
+
+const PLAN_LABELS: Record<string, string> = {
+	starter: 'Starter ($9/mo)',
+	pro: 'Pro ($20/mo)',
+	unlimited: 'Premium ($39/mo)',
+};
+
+function getMailTransport() {
+	const server = import.meta.env.EMAIL_SERVER;
+	const from = import.meta.env.EMAIL_FROM;
+	if (!server || !from) return null;
+	return { transport: nodemailer.createTransport(server), from };
+}
+
+async function sendOwnerNotification(opts: {
+	customerEmail: string;
+	planId: string;
+	tenantId: string;
+	amountPaid: number;
+}) {
+	const mailer = getMailTransport();
+	if (!mailer) return;
+
+	const planLabel = PLAN_LABELS[opts.planId] ?? opts.planId;
+	const amount = (opts.amountPaid / 100).toFixed(2);
+
+	await mailer.transport.sendMail({
+		to: 'titaniumhut@gmail.com',
+		from: mailer.from,
+		subject: `🎉 New almsTins subscriber — ${planLabel}`,
+		text: [
+			'New subscriber on almsTins!',
+			'',
+			`Plan:       ${planLabel}`,
+			`Customer:   ${opts.customerEmail}`,
+			`Amount:     $${amount}`,
+			`Tenant ID:  ${opts.tenantId}`,
+			'',
+			'View in Stripe: https://dashboard.stripe.com/customers',
+		].join('\n'),
+		html: `
+			<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#1a1a1a;color:#f0f0f0;border-radius:10px;padding:32px;">
+				<h2 style="color:#FA8072;margin-top:0;">🎉 New almsTins Subscriber!</h2>
+				<table style="width:100%;border-collapse:collapse;">
+					<tr><td style="padding:8px 0;color:#aaa;">Plan</td><td style="padding:8px 0;font-weight:bold;">${planLabel}</td></tr>
+					<tr><td style="padding:8px 0;color:#aaa;">Customer</td><td style="padding:8px 0;">${opts.customerEmail}</td></tr>
+					<tr><td style="padding:8px 0;color:#aaa;">Amount</td><td style="padding:8px 0;">$${amount}</td></tr>
+					<tr><td style="padding:8px 0;color:#aaa;">Tenant ID</td><td style="padding:8px 0;font-size:12px;color:#888;">${opts.tenantId}</td></tr>
+				</table>
+				<a href="https://dashboard.stripe.com/customers" style="display:inline-block;margin-top:20px;background:#FA8072;color:#1a1a1a;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">View in Stripe →</a>
+			</div>
+		`,
+	});
+}
+
+async function sendWelcomeEmail(opts: {
+	customerEmail: string;
+	planId: string;
+}) {
+	const mailer = getMailTransport();
+	if (!mailer) return;
+
+	const planLabel = PLAN_LABELS[opts.planId] ?? opts.planId;
+
+	await mailer.transport.sendMail({
+		to: opts.customerEmail,
+		from: mailer.from,
+		subject: `Welcome to almsTins — you're on ${planLabel}!`,
+		text: [
+			`Hi there,`,
+			'',
+			`Thanks for subscribing to almsTins! Your ${planLabel} plan is now active.`,
+			'',
+			'Get started by heading to your dashboard:',
+			'https://almstins.com/dashboard',
+			'',
+			'Here\'s what you can do right now:',
+			'  • Upload a CSV from your exchange (Coinbase, Kraken, Exodus, and more)',
+			'  • Add a wallet address to track on-chain holdings',
+			'  • View your bookkeeping breakdown by year',
+			'',
+			'If you ever have questions, reply to this email — Donnie reads every one.',
+			'',
+			'— The almsTins team',
+			'https://almstins.com',
+		].join('\n'),
+		html: `
+			<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#1a1a1a;color:#f0f0f0;border-radius:10px;padding:32px;">
+				<h2 style="color:#FA8072;margin-top:0;">Welcome to almsTins!</h2>
+				<p style="color:#ccc;">Thanks for subscribing. Your <strong style="color:#FA8072;">${planLabel}</strong> plan is now active.</p>
+				<a href="https://almstins.com/dashboard" style="display:inline-block;margin:20px 0;background:#FA8072;color:#1a1a1a;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Go to your dashboard →</a>
+				<p style="color:#aaa;font-size:14px;">Here's what you can do right now:</p>
+				<ul style="color:#ccc;font-size:14px;line-height:1.8;">
+					<li>Upload a CSV from your exchange (Coinbase, Kraken, Exodus, and more)</li>
+					<li>Add a wallet address to track on-chain holdings</li>
+					<li>View your bookkeeping breakdown by year</li>
+				</ul>
+				<p style="color:#aaa;font-size:13px;margin-top:24px;">Questions? Just reply to this email — Donnie reads every one.</p>
+				<p style="color:#555;font-size:12px;margin-top:16px;">almsTins · <a href="https://almstins.com" style="color:#555;">almstins.com</a></p>
+			</div>
+		`,
+	});
+}
 
 export const prerender = false;
 
@@ -95,6 +201,23 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 	});
 
 	console.log(`[webhook] checkout.session.completed — tenant ${tenantId} → ${planId}`);
+
+	// Send notification emails (fire-and-forget — don't let email failure break the webhook)
+	const customerEmail = session.customer_details?.email ?? session.customer_email ?? '';
+	const amountPaid = session.amount_total ?? 0;
+
+	if (customerEmail) {
+		Promise.allSettled([
+			sendOwnerNotification({ customerEmail, planId, tenantId, amountPaid }),
+			sendWelcomeEmail({ customerEmail, planId }),
+		]).then((results) => {
+			results.forEach((r, i) => {
+				if (r.status === 'rejected') {
+					console.error(`[webhook] email ${i === 0 ? 'owner notification' : 'welcome'} failed:`, r.reason);
+				}
+			});
+		});
+	}
 }
 
 async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
