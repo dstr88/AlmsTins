@@ -116,7 +116,12 @@ try {
           </form>
         </div>
 
-        <div class="divider">or email</div>
+        <div class="demo-divider">or explore first</div>
+        <a class="provider-button demo-try" href="/api/demo/start">
+          ▶ Try the demo — no account needed
+        </a>
+
+        <div class="divider">or sign in</div>
 
         <form id="login-email-password" class="stack" method="POST" action="/api/auth/callback/credentials">
           <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
@@ -150,11 +155,6 @@ try {
         </form>
 
         <a class="provider-button ghost" href="/signup">Create an account</a>
-
-        <div class="demo-divider">or explore first</div>
-        <a class="provider-button demo-try" href="/api/demo/start">
-          ▶ Try the demo — no account needed
-        </a>
 
         <a class="checker-link" href="/wallet-checker">🔍 Free Wallet Scam Checker — no account needed</a>
       </div>
