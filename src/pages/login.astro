@@ -156,8 +156,8 @@ try {
 
         <a class="provider-button ghost" href="/signup">Create an account</a>
 
-        <a class="checker-link" href="/wallet-checker">🔍 Free Wallet Scam Checker — no account needed</a>
       </div>
+      <a class="checker-link" href="/wallet-checker">🔍 Free Wallet Scam Checker — no account needed</a>
 
       <script>
         (async () => {
@@ -385,14 +385,21 @@ try {
     .checker-link {
       display: block;
       text-align: center;
-      margin-top: 1rem;
-      font-size: 0.82rem;
-      color: rgba(255, 255, 255, 0.45);
+      margin-top: 1.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #7dd3fc;
       text-decoration: none;
-      transition: color 0.15s;
+      padding: 0.65rem 1rem;
+      border-radius: 10px;
+      border: 1px solid rgba(125, 211, 252, 0.25);
+      background: rgba(125, 211, 252, 0.06);
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
     }
     .checker-link:hover {
-      color: rgba(255, 255, 255, 0.8);
+      color: #fff;
+      background: rgba(125, 211, 252, 0.14);
+      border-color: rgba(125, 211, 252, 0.5);
     }
 
     .demo-divider {
