@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { isContract as checkIsContract } from '@/lib/etherscan';
+import { isContract as checkIsContract, buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
@@ -86,6 +86,30 @@ const KNOWN_CONTRACTS: Record<string, { name: string; url: string }> = {
 	'0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7': { name: 'WAVAX', url: 'https://snowtrace.io/address/0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7' },
 	// Wormhole
 	'0x98f3c9e6e3face36baad05fe09d375ef1464288b': { name: 'Wormhole Bridge', url: 'https://wormhole.com' },
+};
+
+const contractNameCache = new Map<string, { expiresAt: number; name: string | null }>();
+
+const fetchContractName = async (cId: number, address: string): Promise<string | null> => {
+	const key = `${cId}:${address}`;
+	const cached = contractNameCache.get(key);
+	if (cached && cached.expiresAt > Date.now()) return cached.name;
+
+	try {
+		const url = buildEtherscanV2Url(cId, {
+			module: 'contract',
+			action: 'getsourcecode',
+			address,
+		});
+		const data = await requestEtherscan(url, { cacheTtlMs: 60_000 });
+		const result = (data as any)?.result?.[0];
+		const name = result?.ContractName?.trim() || null;
+		contractNameCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, name });
+		return name;
+	} catch {
+		contractNameCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, name: null });
+		return null;
+	}
 };
 
 const fetchIsContract = async (cId: number, address: string) => {
@@ -200,8 +224,8 @@ export const GET: APIRoute = async ({ params, request }) => {
 			}
 
 			// Verify it's actually a contract (not just another wallet)
+			const cId = chainId(chain);
 			try {
-				const cId = chainId(chain);
 				const contract = await fetchIsContract(cId, address);
 				if (!contract) continue;
 			} catch {
@@ -210,15 +234,16 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 			seenAddresses.add(address);
 			const explorer = CHAIN_EXPLORERS[chain] ?? CHAIN_EXPLORERS.ethereum;
+			const verifiedName = await fetchContractName(cId, address).catch(() => null);
 			items.push({
-				name: `${address.slice(0, 6)}…${address.slice(-4)}`,
+				name: verifiedName || `${address.slice(0, 6)}…${address.slice(-4)}`,
 				address,
 				url: `${explorer}/${address}`,
 				chain,
 				txCount,
 				lastSeen,
 				totalValue,
-				isKnown: false,
+				isKnown: Boolean(verifiedName),
 			});
 		}
 
