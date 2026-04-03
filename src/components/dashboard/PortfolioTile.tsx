@@ -5,6 +5,18 @@ const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD',
 const fmtFull = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 type UploadStatus = { ok: boolean; message: string } | null;
+type SyncStatus = { ok: boolean; processed: number; failed: number } | null;
+
+function SyncIcon() {
+	return (
+		<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+			strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+			<polyline points="23 4 23 10 17 10" />
+			<polyline points="1 20 1 14 7 14" />
+			<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+		</svg>
+	);
+}
 
 function CameraIcon() {
 	return (
@@ -20,15 +32,22 @@ export default function PortfolioTile() {
 	const [summary, setSummary] = useState<NetWorthSummary | null>(null);
 	const [uploading, setUploading] = useState(false);
 	const [status, setStatus] = useState<UploadStatus>(null);
+	const [syncing, setSyncing] = useState(false);
+	const [syncStatus, setSyncStatus] = useState<SyncStatus>(null);
 	const fileRef = useRef<HTMLInputElement>(null);
 
-	useEffect(() => {
-		let mounted = true;
+	const loadSummary = (mounted: { current: boolean }) => {
 		fetch('/api/networth/summary')
 			.then((r) => r.json())
-			.then((data) => { if (mounted) setSummary(normalizeNetWorthSummary(data)); })
+			.then((data) => { if (mounted.current) setSummary(normalizeNetWorthSummary(data)); })
 			.catch(() => {});
-		return () => { mounted = false; };
+	};
+
+	const mountedRef = useRef(true);
+	useEffect(() => {
+		mountedRef.current = true;
+		loadSummary(mountedRef);
+		return () => { mountedRef.current = false; };
 	}, []);
 
 	const handleFile = async (file: File | undefined) => {
@@ -58,6 +77,21 @@ export default function PortfolioTile() {
 		}
 	};
 
+	const handleSync = async () => {
+		setSyncing(true);
+		setSyncStatus(null);
+		try {
+			const res = await fetch('/api/import/snapshot-all', { method: 'POST' });
+			const data = await res.json();
+			setSyncStatus({ ok: data.ok ?? res.ok, processed: data.processed ?? 0, failed: data.failed ?? 0 });
+			if (res.ok) loadSummary(mountedRef);
+		} catch {
+			setSyncStatus({ ok: false, processed: 0, failed: 1 });
+		} finally {
+			setSyncing(false);
+		}
+	};
+
 	// tins = per-wallet data that IS sent by the API (byWallet is not in the payload)
 	// Use assetsUsd (gross) instead of netUsd so Aave debt doesn't go negative
 	const tins = (summary?.tins ?? [])
@@ -71,7 +105,7 @@ export default function PortfolioTile() {
 	return (
 		<div className="pt-root">
 
-			{/* ── Import screenshot ─────────────────────────────── */}
+			{/* ── Import screenshot + Sync exchange balances ───── */}
 			<div className="pt-upload">
 				<input ref={fileRef} type="file" accept="image/*"
 					style={{ display: 'none' }}
@@ -84,9 +118,25 @@ export default function PortfolioTile() {
 					<CameraIcon />
 					{uploading ? 'Parsing…' : 'Import Screenshot'}
 				</button>
+				<button type="button"
+					className={`pt-upload-btn${syncing ? ' is-uploading' : ''}`}
+					onClick={handleSync}
+					disabled={syncing}
+					aria-label="Sync exchange balances">
+					<SyncIcon />
+					{syncing ? 'Syncing…' : 'Sync Exchanges'}
+				</button>
 				{status && (
 					<span className={`pt-status${status.ok ? ' pt-status--ok' : ' pt-status--err'}`}>
 						{status.ok ? '✓' : '✗'} {status.message}
+					</span>
+				)}
+				{syncStatus && (
+					<span className={`pt-status${syncStatus.ok ? ' pt-status--ok' : ' pt-status--err'}`}>
+						{syncStatus.ok ? '✓' : '✗'}{' '}
+						{syncStatus.ok
+							? `Synced ${syncStatus.processed} account${syncStatus.processed !== 1 ? 's' : ''}`
+							: `${syncStatus.failed} account${syncStatus.failed !== 1 ? 's' : ''} failed`}
 					</span>
 				)}
 			</div>

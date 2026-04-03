@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { snapshotCexAccount } from '@/lib/cexSnapshot';
 
 // Actual Exodus CSV columns (confirmed from real export):
 // DATE, TYPE, FROMPORTFOLIO, TOPORTFOLIO,
@@ -377,6 +378,8 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	const skippedDuplicates = rawStatements.length - insertedRaw;
+
+	void snapshotCexAccount(tenantId, resolvedAccountId, 'exodus', 'Exodus');
 
 	return new Response(
 		JSON.stringify({

@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { snapshotCexAccount } from '@/lib/cexSnapshot';
 
 type CsvRow = Record<string, string>;
 
@@ -360,6 +361,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 	}
 
 	const skippedDuplicates = (rawStatements.length - insertedRaw) + skippedFiatRows;
+
+	void snapshotCexAccount(tenantId, resolvedAccountId, 'crypto_com', 'Crypto.com');
 
 	return new Response(
 		JSON.stringify({

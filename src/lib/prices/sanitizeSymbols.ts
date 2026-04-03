@@ -22,6 +22,7 @@ export const PRICE_SYMBOL_ALLOWLIST = new Set([
 	'WPOL',
 	'WETH',
 	'WBTC',
+	'AVAX',
 	'AAVE',
 	'STETH',
 	'WSTETH',

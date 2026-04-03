@@ -56,59 +56,138 @@
 }
 
 .vault-activity__nfts {
-	display: grid;
-	gap: 0.6rem;
-}
-
-.vault-nft {
-	display: grid;
-	grid-template-columns: 96px minmax(0, 1fr) auto;
-	gap: 0.75rem;
-	align-items: center;
-	padding: 0.4rem;
-	border-radius: 0.8rem;
-	border: 1px solid rgba(255, 255, 255, 0.14);
-	background: rgba(255, 255, 255, 0.04);
-	color: antiquewhite;
-}
-
-.vault-nft__link {
-	display: contents;
-	color: inherit;
-	text-decoration: none;
-}
-
-.vault-nft__thumb {
-	width: 96px;
-	height: 96px;
-	border-radius: 0.7rem;
-	border: 1px solid rgba(255, 255, 255, 0.2);
-	background: linear-gradient(135deg, rgba(248, 113, 113, 0.25), rgba(14, 165, 233, 0.2));
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	font-weight: 700;
-	letter-spacing: 0.08em;
-}
-
-.vault-nft__meta {
 	display: flex;
 	flex-direction: column;
-	gap: 0.3rem;
-	min-width: 0;
+	gap: 0.35rem;
 }
 
-.vault-nft__title {
+/* ── Collection row ──────────────────────────── */
+.vault-collection {
+	display: flex;
+	flex-direction: column;
+}
+
+.vault-collection__row {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.4rem 0.5rem;
+	border-radius: 0.6rem;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	background: rgba(255, 255, 255, 0.03);
+	cursor: pointer;
+	color: antiquewhite;
+	text-align: left;
+	width: 100%;
+	transition: background 0.12s;
+}
+.vault-collection__row:hover {
+	background: rgba(255, 255, 255, 0.08);
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+.vault-collection__name {
+	font-size: 0.875rem;
 	font-weight: 600;
-	font-size: var(--font-sm);
-	white-space: nowrap;
+	flex: 1;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.vault-nft__token {
+.vault-collection__count {
+	font-size: 0.68rem;
+	font-weight: 700;
+	padding: 0.1rem 0.45rem;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.12);
+	color: inherit;
+	flex-shrink: 0;
+}
+
+.vault-collection__chain {
+	font-size: 0.63rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	opacity: 0.38;
+	flex-shrink: 0;
+}
+
+/* ── Expanded items under a collection ───────── */
+.vault-collection__items {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	padding: 0.2rem 0 0.2rem 0.55rem;
+	border-left: 1px solid rgba(255, 255, 255, 0.07);
+	margin-left: 0.9rem;
+	margin-top: 0.15rem;
+}
+
+.vault-collection__show-more {
 	font-size: 0.75rem;
-	opacity: 0.7;
+	color: rgba(255, 255, 255, 0.45);
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 0.35rem 0.25rem;
+	text-align: left;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+.vault-collection__show-more:hover { color: antiquewhite; }
+
+/* ── Compact NFT row within an expanded collection */
+.vault-nft-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.22rem 0.25rem;
+	border-radius: 0.4rem;
+	transition: background 0.1s;
+}
+.vault-nft-row:hover { background: rgba(255, 255, 255, 0.04); }
+
+.vault-nft-row__link {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex: 1;
+	min-width: 0;
+	color: antiquewhite;
+	text-decoration: none;
+}
+.vault-nft-row__link:hover { opacity: 0.85; }
+
+.vault-nft-row__id {
+	font-size: 0.8rem;
+	opacity: 0.65;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ── NFT image / initials thumb ──────────────── */
+.vault-nft__img {
+	border-radius: 0.4rem;
+	object-fit: cover;
+	flex-shrink: 0;
+	display: block;
+}
+
+.vault-nft__initials {
+	border-radius: 0.4rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.62rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	color: rgba(255, 255, 255, 0.82);
+	flex-shrink: 0;
 }
 
 /* Action buttons — shared base */
@@ -358,4 +437,32 @@
 	color: #7dd3fc;
 	white-space: nowrap;
 	flex-shrink: 0;
+}
+
+/* ── Contracts collapsible toggle ─────────────── */
+.vault-contracts__toggle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	width: 100%;
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: antiquewhite;
+	padding: 0 0 0.3rem;
+	text-align: left;
+	opacity: 0.75;
+	transition: opacity 0.12s;
+}
+.vault-contracts__toggle:hover { opacity: 1; }
+
+.vault-contracts__title {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: var(--font-sm);
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	font-weight: 600;
 }

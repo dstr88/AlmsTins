@@ -4,6 +4,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getNftTransfers, buildEtherscanV2Url, requestEtherscan } from '@/lib/etherscan';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
+import { fetchNftImageUrls } from '@/lib/nftImageUrl';
 
 const ETHERSCAN_KEY = import.meta.env.ETHERSCAN_API_KEY;
 const CACHE_TTL_MS = 1_000;
@@ -33,6 +34,7 @@ export type NftItem = {
 	name: string | null;
 	symbol: string | null;
 	url: string | null;
+	imageUrl: string | null;
 	status: NftStatus;
 };
 
@@ -316,6 +318,7 @@ async function buildNftPayload(tenantId: string, walletId: string): Promise<NftP
 			name,
 			symbol,
 			url,
+			imageUrl: null,
 			status,
 		};
 
@@ -325,9 +328,21 @@ async function buildNftPayload(tenantId: string, walletId: string): Promise<NftP
 		}
 	}
 
+	// Fetch image URLs for the visible items only (max 12), in parallel.
+	// Failures are silently null — never blocks the response beyond the per-call timeouts.
+	const sliced = visibleItems.slice(0, 12);
+	try {
+		const imageUrls = await fetchNftImageUrls(
+			sliced.map((item) => ({ chainId: item.chainId, contract: item.contract, tokenId: item.tokenId })),
+		);
+		imageUrls.forEach((url, i) => { sliced[i].imageUrl = url; });
+	} catch {
+		// Image fetching is best-effort
+	}
+
 	return {
 		ok: true,
-		items: visibleItems.slice(0, 12),
+		items: sliced,
 		allItems,
 		asOf: new Date().toISOString(),
 	};
