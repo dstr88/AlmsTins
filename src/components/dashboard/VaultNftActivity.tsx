@@ -152,6 +152,7 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 	const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
 	const [itemLimits, setItemLimits] = useState<Map<string, number>>(new Map());
 	const [contractsOpen, setContractsOpen] = useState(false);
+	const [nftsOpen, setNftsOpen] = useState(false);
 	const rootRef = useRef<HTMLDivElement | null>(null);
 	const didRevealRef = useRef(false);
 
@@ -281,8 +282,25 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 
 			{/* ── NFTs section ─────────────────────────────── */}
 			<div className="vault-activity__section">
-				<div className="vault-activity__header">
-					<h4>NFTs</h4>
+				<button
+					type="button"
+					className="vault-contracts__toggle"
+					onClick={() => setNftsOpen((v) => !v)}
+					aria-expanded={nftsOpen}
+				>
+					<span className="vault-contracts__title">
+						NFTs
+						{nftState.status === 'ready' && collections.length > 0 && (
+							<span className="vault-collection__count">{collections.length}</span>
+						)}
+					</span>
+					<ChevronIcon open={nftsOpen} />
+				</button>
+
+				{nftsOpen && (
+				<>
+				<div className="vault-activity__header" style={{ marginTop: '0.5rem' }}>
+					<span />
 					<button className="vault-activity__action" type="button" onClick={() => setManageOpen((v) => !v)}>
 						{manageOpen ? 'Close' : 'Manage'}
 					</button>
@@ -440,6 +458,8 @@ export default function VaultNftActivity({ walletId }: VaultNftActivityProps) {
 						);
 					})}
 				</div>
+				</>
+				)}
 			</div>
 
 			{/* ── Contracts section (collapsible) ───────── */}
