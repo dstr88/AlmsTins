@@ -7,6 +7,8 @@ const fmtFull = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'U
 type UploadStatus = { ok: boolean; message: string } | null;
 type SyncStatus = { ok: boolean; processed: number; failed: number } | null;
 
+const fmtPnl = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, signDisplay: 'always' });
+
 function SyncIcon() {
 	return (
 		<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -30,6 +32,7 @@ function CameraIcon() {
 
 export default function PortfolioTile() {
 	const [summary, setSummary] = useState<NetWorthSummary | null>(null);
+	const [costBasis, setCostBasis] = useState<number | null>(null);
 	const [uploading, setUploading] = useState(false);
 	const [status, setStatus] = useState<UploadStatus>(null);
 	const [syncing, setSyncing] = useState(false);
@@ -40,6 +43,10 @@ export default function PortfolioTile() {
 		fetch('/api/networth/summary')
 			.then((r) => r.json())
 			.then((data) => { if (mounted.current) setSummary(normalizeNetWorthSummary(data)); })
+			.catch(() => {});
+		fetch('/api/networth/pnl')
+			.then((r) => r.json())
+			.then((data) => { if (mounted.current && typeof data.heldCostBasisUsd === 'number') setCostBasis(data.heldCostBasisUsd); })
 			.catch(() => {});
 	};
 
@@ -147,12 +154,23 @@ export default function PortfolioTile() {
 			{/* ── Grand total ──────────────────────────────────── */}
 			{!summary
 				? <p className="pt-loading">Loading…</p>
-				: (
-					<div className="pt-hero">
-						<span className="pt-hero__label">Market Value</span>
-						<strong className="pt-hero__value">{fmt.format(assetsTotal)}</strong>
-					</div>
-				)
+				: (() => {
+					const pnl = costBasis != null ? assetsTotal - costBasis : null;
+					const pnlColor = pnl == null ? undefined : pnl >= 0 ? '#86efac' : '#fca5a5';
+					return (
+						<div className="pt-hero">
+							<span className="pt-hero__label">Market Value</span>
+							<div className="pt-hero__row">
+								<strong className="pt-hero__value">{fmt.format(assetsTotal)}</strong>
+								{pnl != null && (
+									<span className="pt-hero__pnl" style={{ color: pnlColor }}>
+										{fmtPnl.format(pnl)}
+									</span>
+								)}
+							</div>
+						</div>
+					);
+				})()
 			}
 
 			{/* ── Per-wallet list ───────────────────────────────── */}
@@ -234,11 +252,24 @@ export default function PortfolioTile() {
 					letter-spacing: 0.1em;
 					opacity: 0.45;
 				}
+				.pt-hero__row {
+					display: flex;
+					align-items: baseline;
+					gap: 0.75rem;
+					flex-wrap: wrap;
+				}
 				.pt-hero__value {
 					font-size: 1.9rem;
 					font-weight: 800;
 					font-variant-numeric: tabular-nums;
 					letter-spacing: -0.02em;
+					line-height: 1;
+				}
+				.pt-hero__pnl {
+					font-size: 1rem;
+					font-weight: 700;
+					font-variant-numeric: tabular-nums;
+					letter-spacing: -0.01em;
 					line-height: 1;
 				}
 
