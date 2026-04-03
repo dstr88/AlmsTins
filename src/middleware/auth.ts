@@ -24,6 +24,8 @@ export function isPublicPath(pathname: string): boolean {
 		pathname.startsWith('/signup/') ||
 		pathname === '/wallet' ||
 		pathname.startsWith('/wallet/') ||
+		pathname === '/wallet-checker' ||
+		pathname.startsWith('/wallet-checker/') ||
 		// All @auth/core routes — callbacks, CSRF, providers, sessions, etc.
 		pathname === '/api/auth' ||
 		pathname.startsWith('/api/auth/') ||
