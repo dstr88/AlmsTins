@@ -45,6 +45,9 @@
       <button class="faq-question" type="button" data-modal="faq-kraken-export">
         How do I export my Kraken history?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-pnl">
+        What is the P&amp;L number next to Market Value?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -426,6 +429,44 @@
           This project is still in beta mode, but should provide valuable information
           for your taxes and every year you use it, and the more data you give it,
           the more effective it will be.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-pnl">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>What is the P&amp;L number next to Market Value?</h1>
+
+        <p>
+          The number shown in green or red next to your Market Value on the Portfolio tile is your <strong>unrealized profit or loss</strong> — how much you're up or down on the coins you're currently holding.
+        </p>
+
+        <p>
+          <strong>How it's calculated:</strong><br />
+          It's the difference between two numbers:
+        </p>
+
+        <ul>
+          <li><strong>Market Value</strong> — what your coins are worth right now at current prices (pulled live from the blockchain and exchange balances).</li>
+          <li><strong>Cost Basis</strong> — what you originally paid for the coins you still hold, calculated using FIFO (first in, first out) matching across all your imported transactions.</li>
+        </ul>
+
+        <p>
+          <strong>P&amp;L = Market Value − Cost Basis</strong>
+        </p>
+
+        <p>
+          If it's <span style="color: #86efac; font-weight: 600;">green</span>, your portfolio is worth more than you paid — you're sitting on unrealized gains. If it's <span style="color: #fca5a5; font-weight: 600;">red</span>, your current market value is below what you paid — you're holding at a loss.
+        </p>
+
+        <p>
+          <strong>"Unrealized" means you haven't sold yet.</strong> No tax event has occurred. The gain or loss only becomes real (and potentially taxable) when you sell, trade, or otherwise dispose of the coins.
+        </p>
+
+        <p>
+          This is the same cost basis methodology used on the Bookkeeping page under "Still in Wallet." The more complete your transaction history (CSV uploads, connected wallets), the more accurate this number will be.
         </p>
       </div>
     </div>
