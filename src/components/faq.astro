@@ -48,6 +48,9 @@
       <button class="faq-question" type="button" data-modal="faq-pnl">
         What is the P&amp;L number next to Market Value?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-sync">
+        How often should I sync my portfolio?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -429,6 +432,40 @@
           This project is still in beta mode, but should provide valuable information
           for your taxes and every year you use it, and the more data you give it,
           the more effective it will be.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-sync">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>How often should I sync my portfolio?</h1>
+
+        <p>
+          It depends on how current you want your numbers to be. Here's a practical guide:
+        </p>
+
+        <ul>
+          <li>
+            <strong>After every CSV upload</strong> — whenever you import a new exchange file, hit Sync right after. This ensures the Portfolio tile reflects your latest computed balances immediately.
+          </li>
+          <li>
+            <strong>Before making decisions</strong> — if you're about to trade, rebalance, or just want to see where you stand, sync first so the numbers are fresh.
+          </li>
+          <li>
+            <strong>Weekly is fine for most people</strong> — the portfolio tile is meant to give you a general picture, not tick-by-tick tracking. Once a week keeps things reasonably up to date without any extra effort.
+          </li>
+        </ul>
+
+        <p>
+          <strong>What the Sync button actually does:</strong><br />
+          It recalculates your exchange balances from all the transactions you've imported and writes a fresh snapshot. On-chain wallets (Ethereum, Polygon, Avalanche) refresh automatically when you open the vault — but exchange balances (Coinbase, Kraken, Gemini, etc.) only update when you sync, because those come from CSV files you've uploaded rather than a live API connection.
+        </p>
+
+        <p>
+          <strong>What it doesn't do:</strong><br />
+          Syncing does not pull new data from your exchange. It only recalculates based on what you've already imported. If you made new trades or deposits, upload a fresh CSV first, then sync.
         </p>
       </div>
     </div>
