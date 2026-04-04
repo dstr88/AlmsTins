@@ -86,7 +86,11 @@ export function computeHoldings(rows: ImportRow[]): Holding[] {
 			lastPurchaseMap.set(sym, row.timestamp_utc);
 		} else if (dir === 'in') {
 			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) + qty);
-			lastPurchaseMap.set(sym, row.timestamp_utc);
+			// Staking income is ordinary income, not a purchase — don't let it
+			// reset the holding-period clock used for long-term capital gains tracking.
+			if (kindLower !== 'staking income') {
+				lastPurchaseMap.set(sym, row.timestamp_utc);
+			}
 			const cost = parseNum(row.native_usd);
 			if (cost === null) {
 				unknownCost.add(sym);
