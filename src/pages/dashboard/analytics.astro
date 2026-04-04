@@ -95,6 +95,53 @@ const byCountry = await query<{
 // E) GA4 summary (last 28 days)
 const ga4 = await getGA4Summary(28).catch(() => null);
 
+// F) Scam checker usage (all-time + per-person breakdown)
+const checkerTotals = await query<{
+	total_checks: number;
+	unique_users: number;
+	unique_addresses: number;
+	cache_hits: number;
+}>(
+	`SELECT
+	   COUNT(*)                     AS total_checks,
+	   COUNT(DISTINCT ip_hash)      AS unique_users,
+	   COUNT(DISTINCT addr_hash)    AS unique_addresses,
+	   SUM(cache_hit)               AS cache_hits
+	 FROM wallet_check_log`,
+);
+
+const checkerByUser = await query<{
+	ip_hash: string;
+	checks: number;
+	unique_addrs: number;
+	last_check: string;
+}>(
+	`SELECT
+	   ip_hash,
+	   COUNT(*)                  AS checks,
+	   COUNT(DISTINCT addr_hash) AS unique_addrs,
+	   MAX(created_at)           AS last_check
+	 FROM wallet_check_log
+	 GROUP BY ip_hash
+	 ORDER BY checks DESC
+	 LIMIT 50`,
+);
+
+const checkerByDay = await query<{
+	day: string;
+	checks: number;
+	unique_users: number;
+}>(
+	`SELECT
+	   substr(created_at, 1, 10) AS day,
+	   COUNT(*)                   AS checks,
+	   COUNT(DISTINCT ip_hash)    AS unique_users
+	 FROM wallet_check_log
+	 GROUP BY day
+	 ORDER BY day DESC
+	 LIMIT 30`,
+);
+
 // Optional: recent detailed events (only if you want it)
 const showLogs = Astro.url.searchParams.get('logs') === '1';
 const recentLogs = showLogs
@@ -391,5 +438,88 @@ const recentLogs = showLogs
 				</div>
 			</div>
 		)}
+
+		<!-- ── Scam Checker Usage ── -->
+		<div style="margin-top: 2.5rem;">
+			<h2 style="font-size: 1.1rem; margin: 0 0 0.75rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">
+				Scam Checker · All-time
+			</h2>
+
+			{checkerTotals[0] ? (() => {
+				const t = checkerTotals[0];
+				return (
+					<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
+						{[
+							{ label: 'Total Checks',      value: num(t.total_checks).toLocaleString()    },
+							{ label: 'Unique Users',       value: num(t.unique_users).toLocaleString()    },
+							{ label: 'Unique Addresses',   value: num(t.unique_addresses).toLocaleString() },
+							{ label: 'Cache Hits',         value: num(t.cache_hits).toLocaleString()      },
+						].map((s) => (
+							<div style="padding: 0.9rem 1rem; border-radius: 1rem; border: 1px solid rgba(234,179,8,0.3); background: rgba(234,179,8,0.06);">
+								<div style="font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.3rem;">{s.label}</div>
+								<div style="font-size: 1.5rem; font-weight: 800;">{s.value}</div>
+							</div>
+						))}
+					</div>
+				);
+			})() : <p style="opacity:0.6;">No checks recorded yet.</p>}
+
+			<!-- Per-day trend -->
+			{checkerByDay.length > 0 && (
+				<div style="margin-bottom: 1.5rem;">
+					<h3 style="font-size: 0.9rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 0.5rem;">Daily Activity (last 30 days)</h3>
+					<div style="overflow-x: auto;">
+						<table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+							<thead>
+								<tr style="opacity: 0.6; text-align: left;">
+									<th style="padding: 0.3rem 0.75rem 0.3rem 0;">Date</th>
+									<th style="padding: 0.3rem 0.75rem;">Checks</th>
+									<th style="padding: 0.3rem 0.75rem;">Unique Users</th>
+								</tr>
+							</thead>
+							<tbody>
+								{checkerByDay.map((r) => (
+									<tr style="border-top: 1px solid rgba(255,255,255,0.08);">
+										<td style="padding: 0.4rem 0.75rem 0.4rem 0; font-family: ui-monospace, monospace;">{str(r.day)}</td>
+										<td style="padding: 0.4rem 0.75rem;">{num(r.checks)}</td>
+										<td style="padding: 0.4rem 0.75rem;">{num(r.unique_users)}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			)}
+
+			<!-- Per-user breakdown -->
+			{checkerByUser.length > 0 && (
+				<div>
+					<h3 style="font-size: 0.9rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 0.5rem;">Per-User Breakdown (top 50, IPs hashed)</h3>
+					<div style="overflow-x: auto;">
+						<table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+							<thead>
+								<tr style="opacity: 0.6; text-align: left;">
+									<th style="padding: 0.3rem 0.75rem 0.3rem 0;">User (hash)</th>
+									<th style="padding: 0.3rem 0.75rem;">Total Checks</th>
+									<th style="padding: 0.3rem 0.75rem;">Unique Addresses</th>
+									<th style="padding: 0.3rem 0.75rem;">Last Seen</th>
+								</tr>
+							</thead>
+							<tbody>
+								{checkerByUser.map((r) => (
+									<tr style="border-top: 1px solid rgba(255,255,255,0.08);">
+										<td style="padding: 0.4rem 0.75rem 0.4rem 0; font-family: ui-monospace, monospace; font-size: 0.75rem; opacity: 0.7;">{str(r.ip_hash).slice(0, 12)}…</td>
+										<td style="padding: 0.4rem 0.75rem; font-weight: 700;">{num(r.checks)}</td>
+										<td style="padding: 0.4rem 0.75rem;">{num(r.unique_addrs)}</td>
+										<td style="padding: 0.4rem 0.75rem; opacity: 0.7; font-family: ui-monospace, monospace; font-size: 0.75rem;">{str(r.last_check).slice(0, 10)}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			)}
+		</div>
+
 	</section>
 </Layout>

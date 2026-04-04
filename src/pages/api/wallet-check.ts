@@ -21,6 +21,9 @@ import {
   setCache,
   checkWallet,
 } from '@/lib/walletChecker';
+import { db } from '@/lib/db';
+import { hashWithSalt } from '@/lib/analytics/hash';
+import { getClientIp } from '@/lib/analytics/ip';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -65,9 +68,28 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     );
   }
 
+  // ── Detect chain ─────────────────────────────────────────────────────────────
+  const chain = /^0x[0-9a-fA-F]{40}$/.test(address) ? 'evm'
+    : /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address) ? 'btc'
+    : /^bc1[a-z0-9]{6,87}$/.test(address) ? 'btc'
+    : /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) ? 'sol'
+    : 'unknown';
+
+  // ── Helper: log the check (fire-and-forget, never blocks the response) ───────
+  const logCheck = (cacheHit: boolean) => {
+    const ipHash   = hashWithSalt(getClientIp(request) ?? ip);
+    const addrHash = hashWithSalt(address);
+    db.execute({
+      sql: `INSERT INTO wallet_check_log (created_at, ip_hash, addr_hash, chain, cache_hit)
+            VALUES (?, ?, ?, ?, ?)`,
+      args: [new Date().toISOString(), ipHash, addrHash, chain, cacheHit ? 1 : 0],
+    }).catch((e) => console.warn('[wallet-check] log failed:', e instanceof Error ? e.message : e));
+  };
+
   // ── Cache hit ────────────────────────────────────────────────────────────────
   const cached = getCached(address);
   if (cached) {
+    logCheck(true);
     return json({ ok: true, result: cached, cached: true });
   }
 
@@ -75,6 +97,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   try {
     const result = await checkWallet(address);
     setCache(address, result);
+    logCheck(false);
     return json({ ok: true, result, cached: false });
   } catch (err) {
     // Sanitized — do not expose internal details
