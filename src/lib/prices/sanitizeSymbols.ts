@@ -27,12 +27,15 @@ export const PRICE_SYMBOL_ALLOWLIST = new Set([
 	'STETH',
 	'WSTETH',
 	'QUICK',
+	'BTCB',
 ]);
 
 const SYMBOL_NORMALIZATION_MAP = new Map<string, string>([
 	['WETH', 'ETH'],
 	['WMATIC', 'MATIC'],
 	['WBTC', 'BTC'],
+	['BTC.B', 'BTC'],
+	['BTCB', 'BTC'],
 	['USDCE', 'USDC'],
 	['USDC.E', 'USDC'],
 	['WSTETH', 'STETH'],
