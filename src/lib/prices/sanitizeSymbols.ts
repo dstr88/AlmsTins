@@ -28,6 +28,9 @@ export const PRICE_SYMBOL_ALLOWLIST = new Set([
 	'WSTETH',
 	'QUICK',
 	'BTCB',
+	'SAVAX',
+	'WAVAX',
+	'WETHE',
 ]);
 
 const SYMBOL_NORMALIZATION_MAP = new Map<string, string>([
@@ -36,6 +39,10 @@ const SYMBOL_NORMALIZATION_MAP = new Map<string, string>([
 	['WBTC', 'BTC'],
 	['BTC.B', 'BTC'],
 	['BTCB', 'BTC'],
+	['SAVAX', 'AVAX'],
+	['WAVAX', 'AVAX'],
+	['WETH.E', 'ETH'],
+	['WETHE', 'ETH'],
 	['USDCE', 'USDC'],
 	['USDC.E', 'USDC'],
 	['WSTETH', 'STETH'],
