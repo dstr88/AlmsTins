@@ -51,6 +51,9 @@
       <button class="faq-question" type="button" data-modal="faq-sync">
         How often should I sync my portfolio?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-unauthorized">
+        Why does my CSV import say "Unauthorized"?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -432,6 +435,43 @@
           This project is still in beta mode, but should provide valuable information
           for your taxes and every year you use it, and the more data you give it,
           the more effective it will be.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-unauthorized">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Why does my CSV import say "Unauthorized"?</h1>
+
+        <p>
+          This error means the app could not verify your identity when you tried to upload the file. It is almost never a problem with the CSV itself. Here are all the known causes:
+        </p>
+
+        <ol style="line-height: 2; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li>
+            <strong>Your session expired.</strong> The most common cause. If you left the tab open for a while without activity, your login session timed out. Sign out, sign back in, and try the upload again.
+          </li>
+          <li>
+            <strong>You are signed into the wrong account.</strong> If you have multiple accounts (personal and a business account for example), make sure you are signed into the correct one before uploading.
+          </li>
+          <li>
+            <strong>Demo mode interference.</strong> If you were browsing the demo and then signed in, the session can occasionally get confused. Sign out fully, clear your browser cookies for this site, and sign back in fresh.
+          </li>
+          <li>
+            <strong>Browser blocked the cookie.</strong> Some browsers in strict privacy mode or with certain extensions block session cookies. Try a different browser or disable tracking protection for this site.
+          </li>
+          <li>
+            <strong>You opened the upload page in a new tab.</strong> Session cookies can behave differently across tabs if you opened a fresh tab rather than navigating within the app. Go back to the main app and navigate to the upload from there.
+          </li>
+          <li>
+            <strong>The server restarted mid-session.</strong> Occasionally a deployment or server restart will invalidate active sessions. Sign out and sign back in to get a fresh session.
+          </li>
+        </ol>
+
+        <p>
+          <strong>The fix in almost every case:</strong> sign out, sign back in, and try again. If the error persists after that, use the Flag for Support option on the Reconciliation page and Donnie will look into it directly.
         </p>
       </div>
     </div>
