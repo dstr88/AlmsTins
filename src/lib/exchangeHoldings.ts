@@ -23,7 +23,24 @@ export type Holding = {
 	stakingYtd: number;
 	stakingYtdUsd: number | null;
 	lastPurchaseAt: string | null;
+	/**
+	 * Symbol shown in the Days field when the coin was never purchased.
+	 * null  = normal purchase — show days held
+	 * '⚡'  = staking income only — no holding-period date
+	 * '🪂'  = airdrop only
+	 * '🎓'  = learning / Coinbase Earn reward only
+	 * '∞'   = earned/received but type is unknown
+	 */
+	earnedSymbol: string | null;
 	costBasis: number | null;
+};
+
+/** Hover tooltip text for each earnedSymbol. Exported so the UI can reuse it. */
+export const EARNED_SYMBOL_TITLES: Record<string, string> = {
+	'⚡': 'Staking reward — earned, not purchased. Each reward starts its own holding period from the date received.',
+	'🪂': 'Airdrop — received free, not purchased. Holding period starts from the airdrop date.',
+	'🎓': 'Learning / Coinbase Earn reward — earned, not purchased. Holding period starts from the reward date.',
+	'∞':  'No purchase recorded — this coin was earned or received, origin type unknown.',
 };
 
 const CURRENT_YEAR = String(new Date().getFullYear());
@@ -54,6 +71,19 @@ const pickQty = (row: ImportRow): number | null => {
 	return row.to_amount ?? row.amount;
 };
 
+function addToSet(map: Map<string, Set<string>>, sym: string, kind: string) {
+	const s = map.get(sym) ?? new Set<string>();
+	s.add(kind);
+	map.set(sym, s);
+}
+
+function resolveEarnedSymbol(kinds: Set<string>): string {
+	if (kinds.has('airdrop'))   return '🪂';
+	if (kinds.has('learning'))  return '🎓';
+	if (kinds.has('staking'))   return '⚡';
+	return '∞';
+}
+
 export function computeHoldings(rows: ImportRow[]): Holding[] {
 	const balanceMap       = new Map<string, number>();
 	const stakedMap        = new Map<string, number>();
@@ -63,6 +93,11 @@ export function computeHoldings(rows: ImportRow[]): Holding[] {
 	const lastSeenMap      = new Map<string, string>();
 	const lotsMap          = new Map<string, Array<{ qty: number; cost: number }>>();
 	const unknownCost      = new Set<string>();
+	// Tracks whether the symbol was ever acquired via a real buy/deposit/unstake.
+	const purchasedEverMap = new Map<string, boolean>();
+	// Tracks which earned-inflow types (staking/airdrop/learning) were seen when
+	// no real purchase was recorded, so we can pick the right symbol.
+	const earnedKindsMap   = new Map<string, Set<string>>();
 
 	for (const row of rows) {
 		const raw = pickSymbol(row);
@@ -83,14 +118,30 @@ export function computeHoldings(rows: ImportRow[]): Holding[] {
 		} else if (isUnstakingIn) {
 			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) + qty);
 			stakedMap.set(sym, Math.max(0, (stakedMap.get(sym) ?? 0) - qty));
+			// Unstaking returns your own coins — counts as a holding event
 			lastPurchaseMap.set(sym, row.timestamp_utc);
+			purchasedEverMap.set(sym, true);
 		} else if (dir === 'in') {
 			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) + qty);
-			// Staking income is ordinary income, not a purchase — don't let it
-			// reset the holding-period clock used for long-term capital gains tracking.
-			if (kindLower !== 'staking income') {
+
+			if (kindLower === 'staking income') {
+				// Staking income is ordinary income, not a purchase — don't let it
+				// reset the holding-period clock used for long-term capital gains tracking.
+				addToSet(earnedKindsMap, sym, 'staking');
+			} else if (kindLower === 'airdrop') {
+				// Airdrops start their own holding period from the drop date.
 				lastPurchaseMap.set(sym, row.timestamp_utc);
+				addToSet(earnedKindsMap, sym, 'airdrop');
+			} else if (kindLower.includes('learning reward') || kindLower.includes('coinbase earn')) {
+				// Coinbase Earn / learning rewards start their own holding period.
+				lastPurchaseMap.set(sym, row.timestamp_utc);
+				addToSet(earnedKindsMap, sym, 'learning');
+			} else {
+				// Regular buy, receive, convert, etc. — real purchase.
+				lastPurchaseMap.set(sym, row.timestamp_utc);
+				purchasedEverMap.set(sym, true);
 			}
+
 			const cost = parseNum(row.native_usd);
 			if (cost === null) {
 				unknownCost.add(sym);
@@ -141,6 +192,10 @@ export function computeHoldings(rows: ImportRow[]): Holding[] {
 		const stakingYtdUsd = stakingYtdUsdMap.get(sym) ?? null;
 		if (bal <= 0 && staked <= 0 && stakingYtd <= 0) continue;
 
+		const hasPurchase  = purchasedEverMap.get(sym) === true;
+		const earnedKinds  = earnedKindsMap.get(sym) ?? new Set<string>();
+		const earnedSymbol = hasPurchase ? null : resolveEarnedSymbol(earnedKinds);
+
 		const lots = lotsMap.get(sym) ?? [];
 		out.push({
 			symbol: sym,
@@ -149,6 +204,7 @@ export function computeHoldings(rows: ImportRow[]): Holding[] {
 			stakingYtd,
 			stakingYtdUsd: stakingYtdUsdMap.has(sym) ? (stakingYtdUsd ?? 0) : null,
 			lastPurchaseAt: lastPurchaseMap.get(sym) ?? lastSeenMap.get(sym) ?? null,
+			earnedSymbol,
 			costBasis: unknownCost.has(sym) || !lots.length ? null : lots.reduce((s, l) => s + l.cost, 0),
 		});
 	}

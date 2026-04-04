@@ -6,7 +6,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { formatCurrency, formatDaysSince, formatNumber } from '@/lib/exchangeTin';
 import { sanitizeSymbols } from '@/lib/prices/sanitizeSymbols';
-import { computeHoldings, type ImportRow, type Holding } from '@/lib/exchangeHoldings';
+import { computeHoldings, EARNED_SYMBOL_TITLES, type ImportRow, type Holding } from '@/lib/exchangeHoldings';
 
 const CURRENT_YEAR = String(new Date().getFullYear());
 
@@ -134,8 +134,16 @@ try {
 										<div class="exchange-holding">
 											<div class="exchange-holding__row exchange-holding__row--top">
 												<div class="exchange-holding__field">
-													<span class="exchange-holding__label">Days</span>
-													<span class="exchange-holding__value">{formatDaysSince(holding.lastPurchaseAt) ?? '—'}</span>
+													<span class="exchange-holding__label" title="Days held since last purchase. Hold 365+ days to qualify for the long-term capital gains tax rate.">Days</span>
+													<span class="exchange-holding__value">
+														{holding.earnedSymbol ? (
+															<abbr class="exchange-holding__earned" title={EARNED_SYMBOL_TITLES[holding.earnedSymbol]}>
+																{holding.lastPurchaseAt ? `${formatDaysSince(holding.lastPurchaseAt)} ` : ''}{holding.earnedSymbol}
+															</abbr>
+														) : (
+															formatDaysSince(holding.lastPurchaseAt) ?? '—'
+														)}
+													</span>
 												</div>
 												<div class="exchange-holding__field">
 													<span class="exchange-holding__label">Ticker</span>
@@ -160,7 +168,7 @@ try {
 												<div class="exchange-holding__row exchange-holding__row--staking">
 													{holding.staked > 0 && (
 														<div class="exchange-holding__field exchange-holding__field--numeric">
-															<span class="exchange-holding__label">🔒 Staked</span>
+															<span class="exchange-holding__label" title="Coins currently locked in the staking protocol. Cannot be sold or transferred until unstaked.">🔒 Staked</span>
 															<span class="exchange-holding__value">
 																{formatNumber(holding.staked, { maximumFractionDigits: 8 })}
 															</span>
@@ -168,7 +176,7 @@ try {
 													)}
 													{holding.stakingYtd > 0 && (
 														<div class="exchange-holding__field exchange-holding__field--numeric">
-															<span class="exchange-holding__label">Earned {CURRENT_YEAR}</span>
+															<span class="exchange-holding__label" title="Staking rewards earned so far this year. Taxed as ordinary income when received.">⚡ Earned {CURRENT_YEAR}</span>
 															<span class="exchange-holding__value">
 																{formatNumber(holding.stakingYtd, { maximumFractionDigits: 8 })}
 																{holding.stakingYtdUsd !== null && (
@@ -191,6 +199,25 @@ try {
 	) : (
 		<p class="exchange-accounts__empty">No accounts yet.</p>
 	)}
+
+	<div class="exchange-legend">
+		<p class="exchange-legend__line">
+			<abbr title="Days held since last purchase — hold 365+ days for the long-term capital gains tax rate">Days</abbr>
+			&nbsp;·&nbsp;
+			<abbr title={EARNED_SYMBOL_TITLES['⚡']}>⚡</abbr> staking reward
+			&nbsp;·&nbsp;
+			<abbr title={EARNED_SYMBOL_TITLES['🪂']}>🪂</abbr> airdrop
+			&nbsp;·&nbsp;
+			<abbr title={EARNED_SYMBOL_TITLES['🎓']}>🎓</abbr> learning reward
+			&nbsp;·&nbsp;
+			<abbr title={EARNED_SYMBOL_TITLES['∞']}>∞</abbr> no purchase on record
+		</p>
+		<p class="exchange-legend__line">
+			<abbr title="Coins currently locked in the staking protocol. Cannot be sold or transferred until unstaked.">🔒 Staked</abbr> = coins locked in staking
+			&nbsp;·&nbsp;
+			<abbr title="Staking rewards earned so far this year. Taxed as ordinary income in the year received.">⚡ Earned</abbr> = rewards received this year
+		</p>
+	</div>
 </ExchangeTin>
 
 <script>
@@ -344,5 +371,35 @@ try {
 
 	.exchange-holding__staking-usd {
 		opacity: 0.7;
+	}
+
+	/* Earned-symbol abbr in the Days field */
+	.exchange-holding__earned {
+		text-decoration: none;
+		cursor: help;
+		border-bottom: 1px dotted rgba(247, 242, 235, 0.3);
+	}
+
+	/* Legend at the bottom of the tin */
+	.exchange-legend {
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+		padding-top: 0.5rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+
+	.exchange-legend__line {
+		margin: 0;
+		font-size: 0.63rem;
+		color: rgba(247, 242, 235, 0.4);
+		letter-spacing: 0.02em;
+		line-height: 1.5;
+	}
+
+	.exchange-legend__line abbr {
+		text-decoration: none;
+		cursor: help;
+		border-bottom: 1px dotted rgba(247, 242, 235, 0.2);
 	}
 </style>
