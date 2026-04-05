@@ -51,7 +51,14 @@ type FetchState =
 			healthByChain: Array<{ chain: string; healthFactor: string | number | null }>;
 			totalCollateralBase: number;
 			totalDebtBase: number;
-			collateralBreakdown: Array<{ symbol: string; amount: number | null; usdValue: number | null }>;
+			collateralBreakdown: Array<{
+				symbol: string;
+				amount: number | null;
+				usdValue: number | null;
+				priceUsd: number | null;
+				purchasePriceUsd: number | null;
+				purchaseAt: string | null;
+			}>;
 			isStale?: boolean;
 			unavailableMessage?: string | null;
 	  };
@@ -171,16 +178,21 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 						(priceFromCached ? normalizedAmount * priceFromCached : null) ??
 						(priceFromOracle ? normalizedAmount * priceFromOracle : null);
 
+					const resolvedPrice = priceFromAave ?? priceFromCached ?? priceFromOracle ?? null;
 					const existing = acc.find((row) => row.symbol === symbol);
 					if (existing) {
 						existing.amount = (existing.amount ?? 0) + normalizedAmount;
 						existing.usdValue =
 							existing.usdValue !== null && usdValue !== null ? existing.usdValue + usdValue : null;
+						if (!existing.priceUsd && resolvedPrice) existing.priceUsd = resolvedPrice;
 					} else {
 						acc.push({
 							symbol,
 							amount: normalizedAmount || null,
 							usdValue,
+							priceUsd: resolvedPrice,
+							purchasePriceUsd: null,
+							purchaseAt: null,
 						});
 					}
 					return acc;
@@ -216,6 +228,30 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 					totalDebtBase:
 						Number.isFinite(totalDebtFromState) && totalDebtFromState > 0 ? totalDebtFromState : computedDebtUsd,
 				};
+
+				// Enrich collateral with cost basis + purchase date from wallet tokens
+				try {
+					const tokensRes = await fetch(`/api/wallets/${walletId}/tokens`);
+					if (tokensRes.ok) {
+						const tokensData = await tokensRes.json();
+						if (tokensData.ok && Array.isArray(tokensData.tokens)) {
+							const bySymbol = new Map<string, any>();
+							for (const t of tokensData.tokens) {
+								bySymbol.set(String(t.tokenSymbol ?? '').toUpperCase(), t);
+							}
+							for (const item of collateralBreakdown) {
+								const t = bySymbol.get(item.symbol.toUpperCase());
+								if (t) {
+									if (t.purchasePriceUsd != null) item.purchasePriceUsd = t.purchasePriceUsd;
+									if (t.purchaseAt) item.purchaseAt = t.purchaseAt;
+									if (!item.priceUsd && t.priceUsd) item.priceUsd = t.priceUsd;
+								}
+							}
+						}
+					}
+				} catch {
+					// non-fatal — Days/P&L will show — if tokens unavailable
+				}
 
 				if (!cancelled) {
 					setState({
@@ -326,35 +362,73 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 
 			<div className="breakdown" style={qtyWidthStyle}>
 				<div className="breakdown-row breakdown-header">
+					<span className="col-days">Days</span>
 					<span className="col-token">Asset</span>
 					<span className="col-qty">Qty</span>
+					<span className="col-price">Price</span>
 					<span className="col-usd">USD</span>
+					<span className="col-pl">P/L</span>
 				</div>
 				{breakdownItems.length ? (
-					breakdownItems.map((item) => (
-						<div className="breakdown-row" key={item.symbol}>
-							<span className="col-token">{item.symbol}</span>
-							<span className="col-qty">
-								{(() => {
-									const qtyText = formatTokenAmountBySymbol(item.symbol, item.amount);
-									const parts = splitAmountForDisplay(qtyText);
-									if (!parts) return qtyText;
-									const fracWidth = Math.max(4, parts.fracPart.length);
-									const paddedFrac = parts.fracPart.padEnd(fracWidth, '0');
-									return (
-										<span className="qty">
-											<span className="qty-whole">{parts.intPart}</span>
-											<span className="qty-dot">.</span>
-											<span className="qty-decimal">{paddedFrac}</span>
-										</span>
-									);
-								})()}
-							</span>
-							<span className="col-usd">
-								{item.usdValue != null ? formatUsd(item.usdValue) : '—'}
-							</span>
-						</div>
-					))
+					breakdownItems.map((item) => {
+						const acquiredMs = item.purchaseAt ? Date.parse(item.purchaseAt) : NaN;
+						const daysHeld = Number.isFinite(acquiredMs)
+							? Math.max(0, Math.floor((Date.now() - acquiredMs) / 86400000))
+							: null;
+
+						const currentPrice = item.priceUsd ?? null;
+						const basisPrice   = item.purchasePriceUsd ?? null;
+						const plPct =
+							currentPrice !== null && basisPrice !== null && basisPrice > 0
+								? ((currentPrice - basisPrice) / basisPrice) * 100
+								: null;
+						const plAbsolute =
+							plPct !== null && item.amount != null
+								? (currentPrice! - basisPrice!) * item.amount
+								: null;
+						const plColor = plPct === null ? undefined : plPct >= 0 ? '#86efac' : '#fca5a5';
+						const plLabel = plPct !== null
+							? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+							: '—';
+
+						return (
+							<div className="breakdown-row" key={item.symbol}>
+								<span className="col-days">{daysHeld ?? '—'}</span>
+								<span className="col-token">{item.symbol}</span>
+								<span className="col-qty">
+									{(() => {
+										const qtyText = formatTokenAmountBySymbol(item.symbol, item.amount);
+										const parts = splitAmountForDisplay(qtyText);
+										if (!parts) return qtyText;
+										const fracWidth = Math.max(4, parts.fracPart.length);
+										const paddedFrac = parts.fracPart.padEnd(fracWidth, '0');
+										return (
+											<span className="qty">
+												<span className="qty-whole">{parts.intPart}</span>
+												<span className="qty-dot">.</span>
+												<span className="qty-decimal">{paddedFrac}</span>
+											</span>
+										);
+									})()}
+								</span>
+								<span className="col-price">
+									{currentPrice != null ? formatUsd(currentPrice) : '—'}
+								</span>
+								<span className="col-usd">
+									{item.usdValue != null ? formatUsd(item.usdValue) : '—'}
+								</span>
+								<span
+									className="col-pl"
+									style={{ color: plColor }}
+									title={plAbsolute !== null
+										? `${plAbsolute >= 0 ? '+' : ''}${formatUsd(plAbsolute)}`
+										: undefined}
+								>
+									{plLabel}
+								</span>
+							</div>
+						);
+					})
 				) : (
 					<div className="breakdown-empty">No collateral positions found.</div>
 				)}

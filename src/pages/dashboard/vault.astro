@@ -784,8 +784,8 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 
 		:global(.defi-summary-tin .breakdown-row) {
 			display: grid;
-			grid-template-columns: 1fr minmax(6ch, auto) minmax(10ch, auto);
-			column-gap: var(--space-md);
+			grid-template-columns: minmax(4ch, auto) 1fr minmax(5ch, auto) minmax(6ch, auto) minmax(8ch, auto) minmax(5ch, auto);
+			column-gap: var(--space-sm);
 			font-size: var(--font-md2);
 			opacity: 0.95;
 			line-height: var(--lh-md);
@@ -799,6 +799,11 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			line-height: var(--lh-md);
 		}
 
+		:global(.defi-summary-tin .col-days) {
+			text-align: left;
+			font-variant-numeric: tabular-nums;
+		}
+
 		:global(.defi-summary-tin .col-token) {
 			white-space: nowrap;
 		}
@@ -809,11 +814,23 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			font-variant-numeric: tabular-nums;
 		}
 
-		:global(.defi-summary-tin .col-usd) {
+		:global(.defi-summary-tin .col-price) {
+			text-align: right;
 			justify-self: end;
+			font-variant-numeric: tabular-nums;
+			opacity: 0.75;
+		}
+
+		:global(.defi-summary-tin .col-usd) {
 			text-align: right;
 			font-weight: 700;
 			font-variant-numeric: tabular-nums;
+		}
+
+		:global(.defi-summary-tin .col-pl) {
+			text-align: right;
+			font-variant-numeric: tabular-nums;
+			font-weight: 600;
 		}
 
 		:global(.defi-summary-tin .breakdown-row:not(.breakdown-header)) {
