@@ -103,7 +103,6 @@
 .wallet-summary__cell--value,
 .wallet-summary__cell--pl {
 	text-align: right;
-	justify-self: end;
 }
 
 .wallet-summary__cell--pl-positive {
