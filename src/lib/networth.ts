@@ -1007,6 +1007,38 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 
 	const tokens = Array.from(accumulator.values());
 
+	// Enrich each token with the earliest import_transactions date for that symbol,
+	// so the vault "Days" column shows how long the user has held the coin rather
+	// than how long ago the snapshot was taken.
+	if (tokens.length > 0) {
+		const symbols = [...new Set(tokens.map((t) => t.tokenSymbol.toUpperCase()))];
+		const placeholders = symbols.map(() => '?').join(', ');
+		try {
+			const earliestResult = await db.execute({
+				sql: `SELECT upper(asset_symbol) AS symbol, MIN(timestamp_utc) AS earliest
+				      FROM import_transactions
+				      WHERE tenant_id = ?
+				        AND asset_symbol IS NOT NULL
+				        AND upper(asset_symbol) IN (${placeholders})
+				      GROUP BY upper(asset_symbol)`,
+				args: [tenantId, ...symbols],
+			});
+			const earliestMap = new Map<string, string>();
+			for (const eRow of earliestResult.rows) {
+				const sym = String(eRow.symbol ?? '').toUpperCase();
+				const earliest = eRow.earliest ? String(eRow.earliest) : null;
+				if (sym && earliest) earliestMap.set(sym, earliest);
+			}
+			for (const token of tokens) {
+				const sym = token.tokenSymbol.toUpperCase();
+				const earliest = earliestMap.get(sym);
+				if (earliest) token.purchaseAt = earliest;
+			}
+		} catch {
+			// non-fatal — purchaseAt will remain undefined and Days will fall back to capturedAt
+		}
+	}
+
 	console.log('[networth.getWalletTokenBreakdown] RESULT', {
 		walletId,
 		address: wallet.address,

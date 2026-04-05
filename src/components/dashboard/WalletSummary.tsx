@@ -23,6 +23,7 @@ type WalletSummaryState =
 					priceUsd?: number | null;
 					unpricedReason?: string | null;
 					capturedAt?: string | null;
+					purchaseAt?: string | null;
 				}>;
 			};
 	  }
@@ -41,6 +42,7 @@ type WalletSummaryState =
 					priceUsd?: number | null;
 					unpricedReason?: string | null;
 					capturedAt?: string | null;
+					purchaseAt?: string | null;
 				}>;
 			};
 	  };
@@ -295,6 +297,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 					priceUsd?: number | null;
 					unpricedReason?: string | null;
 					capturedAt?: string | null;
+					purchaseAt?: string | null;
 				};
 				const tokens: TokenRow[] = Array.isArray(payload.tokens) ? (payload.tokens as TokenRow[]) : [];
 				const totalUsd = tokens.reduce(
@@ -561,9 +564,13 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												valueLabel = currencyFormatter.format(fallbackPrice * amount);
 											}
 										}
-										const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
-										const daysHeld = Number.isFinite(capturedAt)
-											? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
+										const acquiredAt = token.purchaseAt
+											? Date.parse(token.purchaseAt)
+											: token.capturedAt
+												? Date.parse(token.capturedAt)
+												: NaN;
+										const daysHeld = Number.isFinite(acquiredAt)
+											? Math.max(0, Math.floor((Date.now() - acquiredAt) / (1000 * 60 * 60 * 24)))
 											: 0;
 										return (
 											<div
@@ -665,9 +672,13 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												valueLabel = currencyFormatter.format(fallbackPrice * amount);
 											}
 										}
-										const capturedAt = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
-										const daysHeld = Number.isFinite(capturedAt)
-											? Math.max(0, Math.floor((Date.now() - capturedAt) / (1000 * 60 * 60 * 24)))
+										const acquiredAt = token.purchaseAt
+											? Date.parse(token.purchaseAt)
+											: token.capturedAt
+												? Date.parse(token.capturedAt)
+												: NaN;
+										const daysHeld = Number.isFinite(acquiredAt)
+											? Math.max(0, Math.floor((Date.now() - acquiredAt) / (1000 * 60 * 60 * 24)))
 											: 0;
 										return (
 											<div
