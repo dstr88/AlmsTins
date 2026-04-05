@@ -24,6 +24,7 @@ type WalletSummaryState =
 					unpricedReason?: string | null;
 					capturedAt?: string | null;
 					purchaseAt?: string | null;
+					purchasePriceUsd?: number | null;
 				}>;
 			};
 	  }
@@ -43,6 +44,7 @@ type WalletSummaryState =
 					unpricedReason?: string | null;
 					capturedAt?: string | null;
 					purchaseAt?: string | null;
+					purchasePriceUsd?: number | null;
 				}>;
 			};
 	  };
@@ -298,6 +300,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 					unpricedReason?: string | null;
 					capturedAt?: string | null;
 					purchaseAt?: string | null;
+					purchasePriceUsd?: number | null;
 				};
 				const tokens: TokenRow[] = Array.isArray(payload.tokens) ? (payload.tokens as TokenRow[]) : [];
 				const totalUsd = tokens.reduce(
@@ -572,6 +575,25 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 										const daysHeld = Number.isFinite(acquiredAt)
 											? Math.max(0, Math.floor((Date.now() - acquiredAt) / (1000 * 60 * 60 * 24)))
 											: 0;
+										const currentPrice = token.priceUsd ?? null;
+										const basisPrice   = token.purchasePriceUsd ?? null;
+										const plPct =
+											currentPrice !== null &&
+											basisPrice !== null &&
+											basisPrice > 0 &&
+											Number.isFinite(currentPrice) &&
+											Number.isFinite(basisPrice)
+												? ((currentPrice - basisPrice) / basisPrice) * 100
+												: null;
+										const plAbsolute =
+											plPct !== null && currentPrice !== null
+												? (currentPrice - basisPrice!) * Number(token.amount ?? 0)
+												: null;
+										const plColor = plPct === null ? undefined : plPct >= 0 ? '#86efac' : '#fca5a5';
+										const plLabel =
+											plPct !== null
+												? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+												: '—';
 										return (
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
@@ -592,7 +614,13 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
 													{valueLabel}
 												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--pl">—</span>
+												<span
+													className="wallet-summary__cell wallet-summary__cell--pl"
+													style={{ color: plColor }}
+													title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
+												>
+													{plLabel}
+												</span>
 											</div>
 										);
 									})}
@@ -680,6 +708,25 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 										const daysHeld = Number.isFinite(acquiredAt)
 											? Math.max(0, Math.floor((Date.now() - acquiredAt) / (1000 * 60 * 60 * 24)))
 											: 0;
+										const currentPrice = token.priceUsd ?? null;
+										const basisPrice   = token.purchasePriceUsd ?? null;
+										const plPct =
+											currentPrice !== null &&
+											basisPrice !== null &&
+											basisPrice > 0 &&
+											Number.isFinite(currentPrice) &&
+											Number.isFinite(basisPrice)
+												? ((currentPrice - basisPrice) / basisPrice) * 100
+												: null;
+										const plAbsolute =
+											plPct !== null && currentPrice !== null
+												? (currentPrice - basisPrice!) * Number(token.amount ?? 0)
+												: null;
+										const plColor = plPct === null ? undefined : plPct >= 0 ? '#86efac' : '#fca5a5';
+										const plLabel =
+											plPct !== null
+												? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+												: '—';
 										return (
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
@@ -700,7 +747,13 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
 													{valueLabel}
 												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--pl">—</span>
+												<span
+													className="wallet-summary__cell wallet-summary__cell--pl"
+													style={{ color: plColor }}
+													title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
+												>
+													{plLabel}
+												</span>
 											</div>
 										);
 									})}

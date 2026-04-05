@@ -1007,15 +1007,18 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 
 	const tokens = Array.from(accumulator.values());
 
-	// Enrich each token with the earliest import_transactions date for that symbol,
-	// so the vault "Days" column shows how long the user has held the coin rather
-	// than how long ago the snapshot was taken.
+	// Enrich each token with the earliest import_transactions date (for Days column)
+	// and average cost basis price (for P/L column).
 	if (tokens.length > 0) {
 		const symbols = [...new Set(tokens.map((t) => t.tokenSymbol.toUpperCase()))];
 		const placeholders = symbols.map(() => '?').join(', ');
 		try {
-			const earliestResult = await db.execute({
-				sql: `SELECT upper(asset_symbol) AS symbol, MIN(timestamp_utc) AS earliest
+			const enrichResult = await db.execute({
+				sql: `SELECT
+				        upper(asset_symbol)                            AS symbol,
+				        MIN(timestamp_utc)                             AS earliest,
+				        SUM(CASE WHEN amount > 0 THEN ABS(COALESCE(native_usd, 0)) ELSE 0 END) AS total_cost,
+				        SUM(CASE WHEN amount > 0 THEN ABS(amount)     ELSE 0 END) AS total_qty
 				      FROM import_transactions
 				      WHERE tenant_id = ?
 				        AND asset_symbol IS NOT NULL
@@ -1023,19 +1026,21 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				      GROUP BY upper(asset_symbol)`,
 				args: [tenantId, ...symbols],
 			});
-			const earliestMap = new Map<string, string>();
-			for (const eRow of earliestResult.rows) {
+			for (const eRow of enrichResult.rows) {
 				const sym = String(eRow.symbol ?? '').toUpperCase();
 				const earliest = eRow.earliest ? String(eRow.earliest) : null;
-				if (sym && earliest) earliestMap.set(sym, earliest);
-			}
-			for (const token of tokens) {
-				const sym = token.tokenSymbol.toUpperCase();
-				const earliest = earliestMap.get(sym);
-				if (earliest) token.purchaseAt = earliest;
+				const totalCost = typeof eRow.total_cost === 'number' ? eRow.total_cost : Number(eRow.total_cost ?? 0);
+				const totalQty  = typeof eRow.total_qty  === 'number' ? eRow.total_qty  : Number(eRow.total_qty  ?? 0);
+				const avgPrice  = totalQty > 0 && totalCost > 0 ? totalCost / totalQty : null;
+
+				for (const token of tokens) {
+					if (token.tokenSymbol.toUpperCase() !== sym) continue;
+					if (earliest) token.purchaseAt = earliest;
+					if (avgPrice !== null && Number.isFinite(avgPrice)) token.purchasePriceUsd = avgPrice;
+				}
 			}
 		} catch {
-			// non-fatal — purchaseAt will remain undefined and Days will fall back to capturedAt
+			// non-fatal — purchaseAt / purchasePriceUsd remain undefined
 		}
 	}
 
