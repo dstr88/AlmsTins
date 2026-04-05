@@ -550,23 +550,28 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 									{group.items.map((token: any) => {
 										const isUnverified = token.unpricedReason === 'unverified_contract';
 										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
-										let valueLabel = isUnverified
-											? 'Unpriced (unverified)'
-											: token.usdValue == null
-												? 'Unpriced'
-												: currencyFormatter.format(Number(token.usdValue));
-										if (!isUnverified && token.usdValue == null) {
-											const symbol = String(token.tokenSymbol ?? '').toUpperCase();
+										let resolvedUsd: number | null =
+											token.usdValue != null && Number.isFinite(token.usdValue)
+												? Number(token.usdValue)
+												: null;
+										if (!isUnverified && resolvedUsd === null) {
+											const sym = String(token.tokenSymbol ?? '').toUpperCase();
 											let fallbackPrice: number | null = null;
-											if (symbol === 'WBTC') fallbackPrice = 70000;
-											if (symbol === 'LINK') fallbackPrice = 8.85;
-											if (symbol === 'AAVE') fallbackPrice = 112;
-											if (symbol === 'WMATIC') fallbackPrice = 0.095;
+											if (sym === 'WBTC') fallbackPrice = 70000;
+											if (sym === 'LINK') fallbackPrice = 8.85;
+											if (sym === 'AAVE') fallbackPrice = 112;
+											if (sym === 'WMATIC') fallbackPrice = 0.095;
 											if (fallbackPrice) {
-												const amount = Number(token.amount ?? 0);
-												valueLabel = currencyFormatter.format(fallbackPrice * amount);
+												resolvedUsd = fallbackPrice * Number(token.amount ?? 0);
 											}
 										}
+										const valueNode = isUnverified ? (
+											<abbr title="Unverified contract — price cannot be confirmed" style={{ textDecoration: 'none', cursor: 'help' }}>❓</abbr>
+										) : resolvedUsd !== null ? (
+											<>{currencyFormatter.format(resolvedUsd)}</>
+										) : (
+											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help' }}>—</abbr>
+										);
 										const acquiredAt = token.purchaseAt
 											? Date.parse(token.purchaseAt)
 											: token.capturedAt
@@ -611,8 +616,8 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 														maximumFractionDigits: 6,
 													})}
 												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
-													{valueLabel}
+												<span className="wallet-summary__cell wallet-summary__cell--value">
+													{valueNode}
 												</span>
 												<span
 													className="wallet-summary__cell wallet-summary__cell--pl"
@@ -683,23 +688,28 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 									{group.items.map((token: any) => {
 										const isUnverified = token.unpricedReason === 'unverified_contract';
 										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
-										let valueLabel = isUnverified
-											? 'Unpriced (unverified)'
-											: token.usdValue == null
-												? 'Unpriced'
-												: currencyFormatter.format(Number(token.usdValue));
-										if (!isUnverified && token.usdValue == null) {
-											const symbol = String(token.tokenSymbol ?? '').toUpperCase();
+										let resolvedUsd: number | null =
+											token.usdValue != null && Number.isFinite(token.usdValue)
+												? Number(token.usdValue)
+												: null;
+										if (!isUnverified && resolvedUsd === null) {
+											const sym = String(token.tokenSymbol ?? '').toUpperCase();
 											let fallbackPrice: number | null = null;
-											if (symbol === 'WBTC') fallbackPrice = 70000;
-											if (symbol === 'LINK') fallbackPrice = 8.85;
-											if (symbol === 'AAVE') fallbackPrice = 112;
-											if (symbol === 'WMATIC') fallbackPrice = 0.095;
+											if (sym === 'WBTC') fallbackPrice = 70000;
+											if (sym === 'LINK') fallbackPrice = 8.85;
+											if (sym === 'AAVE') fallbackPrice = 112;
+											if (sym === 'WMATIC') fallbackPrice = 0.095;
 											if (fallbackPrice) {
-												const amount = Number(token.amount ?? 0);
-												valueLabel = currencyFormatter.format(fallbackPrice * amount);
+												resolvedUsd = fallbackPrice * Number(token.amount ?? 0);
 											}
 										}
+										const valueNode = isUnverified ? (
+											<abbr title="Unverified contract — price cannot be confirmed" style={{ textDecoration: 'none', cursor: 'help' }}>❓</abbr>
+										) : resolvedUsd !== null ? (
+											<>{currencyFormatter.format(resolvedUsd)}</>
+										) : (
+											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help' }}>—</abbr>
+										);
 										const acquiredAt = token.purchaseAt
 											? Date.parse(token.purchaseAt)
 											: token.capturedAt
@@ -744,8 +754,8 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 														maximumFractionDigits: 6,
 													})}
 												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--value truncate overflow-hidden text-ellipsis whitespace-nowrap">
-													{valueLabel}
+												<span className="wallet-summary__cell wallet-summary__cell--value">
+													{valueNode}
 												</span>
 												<span
 													className="wallet-summary__cell wallet-summary__cell--pl"
