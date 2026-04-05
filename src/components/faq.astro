@@ -54,6 +54,12 @@
       <button class="faq-question" type="button" data-modal="faq-unauthorized">
         Why does my CSV import say "Unauthorized"?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-earned-symbols">
+        What do the symbols ⚡ 🪂 🎓 ∞ mean next to my coin's age?
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-staked-coins">
+        Why does my exchange tin show more coins than my available balance?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -544,6 +550,64 @@
 
         <p>
           This is the same cost basis methodology used on the Bookkeeping page under "Still in Wallet." The more complete your transaction history (CSV uploads, connected wallets), the more accurate this number will be.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-earned-symbols">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>What do the symbols ⚡ 🪂 🎓 ∞ mean next to my coin's age?</h1>
+
+        <p>
+          The <strong>Days</strong> column on your exchange tin shows how long ago you last acquired a coin — which matters for determining whether a future sale would be taxed as a short-term or long-term capital gain.
+        </p>
+
+        <p>
+          When a coin was <em>earned or received</em> rather than purchased outright, a symbol appears alongside the age (or in place of it) to let you know how it came in:
+        </p>
+
+        <ul style="line-height: 2; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>⚡ Staking reward</strong> — the coin was earned through staking, not purchased. The age shown is the date of your last real buy; staking income does not reset the clock.</li>
+          <li><strong>🪂 Airdrop</strong> — the coin was received as an airdrop. The age reflects when the airdrop was received.</li>
+          <li><strong>🎓 Learning reward</strong> — earned through a learn-and-earn program such as Coinbase Earn.</li>
+          <li><strong>∞ Unknown origin</strong> — no purchase record was found. The coin was likely earned, gifted, or transferred in from a source the tracker hasn't seen yet.</li>
+        </ul>
+
+        <p>
+          <strong>Why doesn't staking reset the clock?</strong><br />
+          Staking income arrives as tiny micro-deposits on a regular basis. If each one reset your holding-period timer, a coin you bought years ago could appear to be only days old just because it earned a fraction of a cent overnight. That would unfairly disqualify it from long-term capital gains treatment. The tracker intentionally ignores staking income when calculating the Days value so your original purchase date is preserved.
+        </p>
+
+        <p>
+          <strong>Does earning a coin change my tax situation?</strong><br />
+          Yes — coins received through staking, airdrops, or learn-and-earn programs are generally treated as <em>ordinary income</em> at the time of receipt (based on their fair market value that day), not as a purchase. Talk to your accountant about how to report them correctly.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-staked-coins">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Why does my exchange tin show more coins than my available balance?</h1>
+
+        <p>
+          The <strong>Coins</strong> column on your exchange tin shows your <em>total</em> holdings — liquid balance plus any coins you have locked in staking. Your exchange may only show your "available" balance, which excludes staked coins.
+        </p>
+
+        <p>
+          For example: if you have 0.11 ETH available and 0.208 ETH staked, the tracker shows 0.318 ETH because all of it is yours — it's just temporarily locked earning rewards.
+        </p>
+
+        <p>
+          The <strong>🔒 Staked</strong> line directly below the coin quantity shows the locked portion separately so you can see exactly how much is liquid versus staked at a glance.
+        </p>
+
+        <p>
+          <strong>Why does this matter for taxes?</strong><br />
+          Staked coins are still your property — you just can't spend them until the unbonding period ends. Their cost basis and holding period carry over from when you originally bought them, so the tracker keeps them in your total rather than treating them as gone.
         </p>
       </div>
     </div>
