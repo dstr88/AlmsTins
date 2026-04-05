@@ -1,7 +1,17 @@
 .vault-activity {
 	display: flex;
 	flex-direction: column;
-	gap: var(--space-md);
+	gap: 0;
+}
+
+/* Inner-tin section wrapper */
+.vault-activity__section {
+	position: relative;
+	border: 2px solid salmon;
+	border-radius: 12px;
+	background: darkslategray;
+	margin-top: 1rem;
+	padding: 1.25rem 1rem 0.75rem;
 }
 
 .vault-activity__section h4 {
@@ -101,8 +111,8 @@
 	font-weight: 700;
 	padding: 0.1rem 0.45rem;
 	border-radius: 999px;
-	background: rgba(255, 255, 255, 0.12);
-	color: inherit;
+	background: rgba(0, 0, 0, 0.2);
+	color: #0b0f1a;
 	flex-shrink: 0;
 }
 
@@ -439,30 +449,36 @@
 	flex-shrink: 0;
 }
 
-/* ── Contracts collapsible toggle ─────────────── */
+/* ── Salmon label-tab toggle (tin-inside-a-tin header) ── */
 .vault-contracts__toggle {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.5rem;
-	width: 100%;
-	background: none;
+	position: absolute;
+	top: -14px;
+	left: 1rem;
+	background: salmon;
+	color: #0b0f1a;
+	font-weight: 700;
+	font-size: 0.82rem;
+	padding: 0.35rem 0.75rem;
+	border-radius: 8px;
 	border: none;
 	cursor: pointer;
-	color: antiquewhite;
-	padding: 0 0 0.3rem;
-	text-align: left;
-	opacity: 0.75;
-	transition: opacity 0.12s;
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	z-index: 2;
+	white-space: nowrap;
+	transition: background 0.15s;
+	width: auto;
 }
-.vault-contracts__toggle:hover { opacity: 1; }
+.vault-contracts__toggle:hover { background: #ffa07a; }
 
 .vault-contracts__title {
 	display: flex;
 	align-items: center;
-	gap: 0.5rem;
-	font-size: var(--font-sm);
+	gap: 0.45rem;
+	font-size: 0.82rem;
 	text-transform: uppercase;
-	letter-spacing: 0.12em;
-	font-weight: 600;
+	letter-spacing: 0.1em;
+	font-weight: 700;
+	color: #0b0f1a;
 }
