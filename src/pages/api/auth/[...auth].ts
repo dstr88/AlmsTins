@@ -28,6 +28,13 @@ if (process.env.GITHUB_ID && process.env.GITHUB_SECRET) {
 			clientId: process.env.GITHUB_ID,
 			clientSecret: process.env.GITHUB_SECRET,
 			allowDangerousEmailAccountLinking: true,
+			// Request user:email so GitHub returns the primary verified email
+			// even when the user has it set to private.  Without this scope
+			// GitHub omits the email field entirely, making it impossible to
+			// deduplicate accounts or link OAuth logins to an existing tenant.
+			authorization: {
+				params: { scope: 'read:user user:email' },
+			},
 		}),
 	);
 }
@@ -101,48 +108,84 @@ const authConfig = {
 			// Prefer profile.email (raw provider data) over user.email (adapter user,
 			// which may have a stale/empty email if the DB record predates OAuth).
 			const providerEmail = (profile?.email || user?.email || '') as string;
-			if ((account?.type === 'oauth' || account?.type === 'oidc') && providerEmail) {
-				try {
-					const existing = await db.execute({
-						sql: 'SELECT id FROM auth_users WHERE email = ? LIMIT 1',
-						args: [providerEmail.toLowerCase()],
-					});
-					if (existing.rows.length) {
-						const existingId = String((existing.rows[0] as Record<string, any>).id);
-						if (existingId !== String(user.id ?? '')) {
-							// Patch the user object so the rest of the callback uses the real ID
-							user.id = existingId;
-							// Insert the OAuth account link if not already present
-							await db.execute({
-								sql: `INSERT OR IGNORE INTO auth_accounts
-									(id, user_id, type, provider, provider_account_id,
-									 access_token, token_type, scope, expires_at, refresh_token, id_token, session_state)
-									VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-								args: [
-									crypto.randomUUID(),
+			if (account?.type === 'oauth' || account?.type === 'oidc') {
+				// ── Layer 1: email-based deduplication ──────────────────────────────
+				// If a user with this email already exists under a different user record
+				// (e.g. signed up via email/password first, now signing in with OAuth),
+				// patch the user object to use the existing ID so they land in the same
+				// tenant rather than spawning a new orphan.
+				if (providerEmail) {
+					try {
+						const existing = await db.execute({
+							sql: 'SELECT id FROM auth_users WHERE email = ? LIMIT 1',
+							args: [providerEmail.toLowerCase()],
+						});
+						if (existing.rows.length) {
+							const existingId = String((existing.rows[0] as Record<string, any>).id);
+							if (existingId !== String(user.id ?? '')) {
+								user.id = existingId;
+								await db.execute({
+									sql: `INSERT OR IGNORE INTO auth_accounts
+										(id, user_id, type, provider, provider_account_id,
+										 access_token, token_type, scope, expires_at, refresh_token, id_token, session_state)
+										VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+									args: [
+										crypto.randomUUID(),
+										existingId,
+										account.type,
+										account.provider,
+										account.providerAccountId,
+										account.access_token ?? null,
+										account.token_type ?? null,
+										account.scope ?? null,
+										account.expires_at ?? null,
+										account.refresh_token ?? null,
+										account.id_token ?? null,
+										account.session_state ?? null,
+									],
+								});
+								console.log('[auth][signIn] linked OAuth account to existing user via email', {
 									existingId,
-									account.type,
-									account.provider,
-									account.providerAccountId,
-									account.access_token ?? null,
-									account.token_type ?? null,
-									account.scope ?? null,
-									account.expires_at ?? null,
-									account.refresh_token ?? null,
-									account.id_token ?? null,
-									account.session_state ?? null,
-								],
-							});
-							console.log('[auth][signIn] linked OAuth account to existing user', {
-								existingId,
-								provider: account.provider,
-							});
+									provider: account.provider,
+								});
+							}
 						}
+					} catch (error) {
+						console.warn('[auth][signIn] email-based account linking failed — continuing', {
+							error: error instanceof Error ? error.message : String(error),
+						});
 					}
-				} catch (error) {
-					console.warn('[auth][signIn] account linking failed — continuing', {
-						error: error instanceof Error ? error.message : String(error),
-					});
+				}
+
+				// ── Layer 2: provider_account_id-based deduplication ────────────────
+				// Fallback for when the provider returns no email (e.g. GitHub with a
+				// private email before user:email scope was added, or a misconfiguration).
+				// If we already have an auth_accounts row for this provider + ID, adopt
+				// that existing user rather than creating a new orphan tenant.
+				if (!providerEmail && account.providerAccountId) {
+					try {
+						const existingAccount = await db.execute({
+							sql: `SELECT user_id FROM auth_accounts
+							      WHERE provider = ? AND provider_account_id = ?
+							      LIMIT 1`,
+							args: [account.provider, String(account.providerAccountId)],
+						});
+						if (existingAccount.rows.length) {
+							const existingUserId = String((existingAccount.rows[0] as Record<string, any>).user_id);
+							if (existingUserId !== String(user.id ?? '')) {
+								user.id = existingUserId;
+								console.log('[auth][signIn] linked OAuth account to existing user via provider_account_id', {
+									existingUserId,
+									provider: account.provider,
+									providerAccountId: account.providerAccountId,
+								});
+							}
+						}
+					} catch (error) {
+						console.warn('[auth][signIn] provider_account_id-based linking failed — continuing', {
+							error: error instanceof Error ? error.message : String(error),
+						});
+					}
 				}
 			}
 
