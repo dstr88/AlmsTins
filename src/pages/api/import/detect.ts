@@ -66,15 +66,22 @@ const SIGNATURES = [
     endpoint: '/api/import/kraken',
     required: ['txid', 'refid', 'aclass'],   // unique to Kraken Ledger History CSV
   },
+  {
+    source: 'avalanche_cchain',
+    name: 'Avalanche C-Chain (Snowtrace)',
+    endpoint: '/api/import/snowtrace',
+    required: ['Transaction Hash', 'Value_IN(AVAX)', 'Value_OUT(AVAX)'],
+  },
 ] as const;
 
 function detectFromHeaders(headerLine: string): (typeof SIGNATURES)[number] | null {
-  // Strip BOM, quotes and extra whitespace
+  // Strip BOM and carriage returns
   const cleaned = headerLine.replace(/^\uFEFF/, '').replace(/\r/g, '');
 
-  // Split on comma — handle both bare and quoted headers
+  // Try comma first, then tab (Snowtrace exports TSV despite .csv extension)
+  const delimiter = cleaned.includes('\t') ? '\t' : ',';
   const cols = new Set(
-    cleaned.split(',').map((h) => h.replace(/^"|"$/g, '').trim()),
+    cleaned.split(delimiter).map((h) => h.replace(/^"|"$/g, '').trim()),
   );
 
   for (const sig of SIGNATURES) {
