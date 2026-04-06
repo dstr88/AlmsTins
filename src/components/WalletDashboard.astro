@@ -186,6 +186,9 @@ function parseChains(payload: unknown) {
 					<button type="button" class="ghost" data-cancel-edit hidden>
 						Cancel edit
 					</button>
+					<button type="button" class="ghost danger" data-delete-wallet hidden>
+						Delete wallet
+					</button>
 				</div>
 				<p class="form-status" data-status></p>
 			</form>
@@ -262,6 +265,7 @@ function parseChains(payload: unknown) {
 	const profileForm = document.getElementById('profile-form');
 	const submitLabel = form ? form.querySelector('[data-submit-label]') : null;
 	const cancelEditBtn = form ? form.querySelector('[data-cancel-edit]') : null;
+	const deleteWalletBtn = form ? form.querySelector('[data-delete-wallet]') : null;
 	const clock = document.querySelector('[data-clock]');
 	const avatarInput = document.getElementById('avatar-input');
 	const avatarImg = document.querySelector('[data-avatar]');
@@ -401,6 +405,10 @@ function parseChains(payload: unknown) {
 		setStatus('Edit cancelled.', 'info');
 	});
 
+	deleteWalletBtn?.addEventListener('click', () => {
+		if (editingId) handleDelete(editingId);
+	});
+
 	profileForm?.addEventListener('submit', async (event) => {
 		event.preventDefault();
 		if (!profileForm) return;
@@ -500,6 +508,7 @@ function parseChains(payload: unknown) {
 		setCheckboxValue('isDefault', Boolean(wallet.isDefault));
 		if (submitLabel) submitLabel.textContent = 'Update wallet';
 		if (cancelEditBtn) cancelEditBtn.hidden = false;
+		if (deleteWalletBtn) deleteWalletBtn.hidden = false;
 		form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		setStatus('Editing wallet…', 'info');
 	}
@@ -534,6 +543,7 @@ function parseChains(payload: unknown) {
 		setInputValue('walletId', '');
 		if (submitLabel) submitLabel.textContent = 'Save wallet';
 		if (cancelEditBtn) cancelEditBtn.hidden = true;
+		if (deleteWalletBtn) deleteWalletBtn.hidden = true;
 	}
 
 	function setProfileStatus(message, mode = 'info') {
