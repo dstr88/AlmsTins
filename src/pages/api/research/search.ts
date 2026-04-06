@@ -9,15 +9,16 @@ export const GET: APIRoute = async ({ request }) => {
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
-	const url    = new URL(request.url);
-	const q      = url.searchParams.get('q')?.trim()      ?? '';   // hash, keyword, or note
-	const symbol = url.searchParams.get('symbol')?.trim().toUpperCase() ?? '';
-	const from   = url.searchParams.get('from')?.trim()   ?? '';   // ISO date
-	const to     = url.searchParams.get('to')?.trim()     ?? '';
-	const note   = url.searchParams.get('note')?.trim()   ?? '';
+	const url       = new URL(request.url);
+	const q         = url.searchParams.get('q')?.trim()         ?? '';
+	const symbol    = url.searchParams.get('symbol')?.trim().toUpperCase() ?? '';
+	const from      = url.searchParams.get('from')?.trim()      ?? '';
+	const to        = url.searchParams.get('to')?.trim()        ?? '';
+	const note      = url.searchParams.get('note')?.trim()      ?? '';
+	const direction = url.searchParams.get('direction')?.trim().toLowerCase() ?? '';
 
 	// At least one filter must be present
-	if (!q && !symbol && !from && !to && !note) {
+	if (!q && !symbol && !from && !to && !note && !direction) {
 		return new Response(JSON.stringify({ rows: [], total: 0 }), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' },
@@ -30,6 +31,10 @@ export const GET: APIRoute = async ({ request }) => {
 	if (symbol) {
 		conditions.push('upper(t.asset_symbol) = ?');
 		args.push(symbol);
+	}
+	if (direction === 'in' || direction === 'out') {
+		conditions.push('t.direction = ?');
+		args.push(direction);
 	}
 	if (from) {
 		conditions.push("t.timestamp_utc >= ?");

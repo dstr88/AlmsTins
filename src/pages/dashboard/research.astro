@@ -85,6 +85,7 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
       <div class="col-right">
         <div class="col-header">
           <h2>Results <span id="results-count" class="count-badge"></span></h2>
+          <div id="results-label" class="results-label" style="display:none"></div>
         </div>
         <div id="results-list" class="item-list">
           <div class="empty-msg">Use the search above or click a symbol chip to explore your transactions.</div>
@@ -271,6 +272,13 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
     align-items: center;
     gap: 0.5rem;
   }
+  .results-label {
+    font-size: 0.75rem;
+    color: rgba(251,191,36,0.6);
+    margin-top: 0.25rem;
+    font-style: italic;
+  }
+
   .count-badge {
     background: rgba(251,191,36,0.15);
     color: #fbbf24;
@@ -314,8 +322,8 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
 
   /* ── NA items ────────────────────────────────────────────────────────────── */
   .na-item {
-    padding: 0.75rem 1.1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 1rem 1.1rem 0.95rem;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
     border-left: 3px solid transparent;
     cursor: pointer;
     transition: background 0.12s;
@@ -329,16 +337,20 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.35rem;
   }
-  .na-sym  { font-weight: 700; font-size: 0.95rem; color: #fff; }
-  .na-dir  { font-size: 0.72rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 600; flex-shrink: 0; }
+  .na-sym  { font-weight: 700; font-size: 1rem; color: #fff; }
+  .na-dir  { font-size: 0.72rem; padding: 0.17rem 0.5rem; border-radius: 4px; font-weight: 700; flex-shrink: 0; }
   .na-dir.out { background: rgba(239,68,68,0.15); color: #f87171; }
   .na-dir.in  { background: rgba(52,211,153,0.12); color: #34d399; }
-  .na-amt  { margin-left: auto; font-size: 0.88rem; color: rgba(255,255,255,0.65); font-weight: 600; }
+  .na-amounts { margin-left: auto; text-align: right; }
+  .na-amt  { font-size: 0.9rem; color: rgba(255,255,255,0.75); font-weight: 600; display: block; }
+  .na-usd  { font-size: 0.75rem; color: rgba(255,255,255,0.35); display: block; }
+  .na-mid  { margin-bottom: 0.3rem; }
+  .na-hint { font-size: 0.72rem; color: rgba(251,191,36,0.5); font-style: italic; }
   .na-bot  { display: flex; justify-content: space-between; align-items: center; }
   .na-src  { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
-  .na-dt   { font-size: 0.73rem; color: rgba(255,255,255,0.28); }
+  .na-dt   { font-size: 0.72rem; color: rgba(255,255,255,0.28); }
 
   /* ── Suggested match items ───────────────────────────────────────────────── */
   .suggest-item {
@@ -470,9 +482,10 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
-let activeChip   = '';
-let pendingMatch = null;
-let resolvedOpen = false;
+let activeChip    = '';
+let pendingMatch  = null;
+let resolvedOpen  = false;
+let naContext     = null;   // { sym, dir } when search was triggered from NA click
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -544,12 +557,20 @@ function renderNeedsAttention(data) {
     html += `<div class="section-label">Unresolved transactions</div>`;
     for (const t of data.unmatched) {
       const dir = (t.direction ?? '').toLowerCase();
-      const amt = dir === 'out' ? `-${fmt(t.amount)}` : `+${fmt(t.amount)}`;
-      html += `<div class="na-item" data-sym="${t.asset_symbol}" data-id="${t.id}">
+      const absAmt = Math.abs(Number(t.amount));
+      const amt = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
+      const hint = dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
+      html += `<div class="na-item" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}">
         <div class="na-top">
           <span class="na-sym">${t.asset_symbol}</span>
           <span class="na-dir ${dir}">${dir}</span>
-          <span class="na-amt">${amt}</span>
+          <div class="na-amounts">
+            <span class="na-amt">${amt} ${t.asset_symbol}</span>
+            ${t.native_usd ? `<span class="na-usd">${fmtUsd(t.native_usd)}</span>` : ''}
+          </div>
+        </div>
+        <div class="na-mid">
+          <span class="na-hint">${hint}</span>
         </div>
         <div class="na-bot">
           <span class="na-src">${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}</span>
@@ -578,16 +599,20 @@ function renderNeedsAttention(data) {
 
   list.innerHTML = html;
 
-  // Wire NA item clicks → pre-fill search + fire
+  // Wire NA item clicks → search for OPPOSITE direction (potential matches)
   list.querySelectorAll('.na-item').forEach(el => {
     el.addEventListener('click', () => {
       const sym = el.getAttribute('data-sym');
+      const dir = el.getAttribute('data-dir');   // 'in' or 'out'
       if (!sym) return;
       list.querySelectorAll('.na-item').forEach(i => i.classList.remove('selected'));
       el.classList.add('selected');
+      // Search for the opposite side — that's where the match lives
+      const opposite = dir === 'out' ? 'in' : 'out';
+      naContext = { sym, dir, opposite };
       setActiveChip(sym);
       $('filter-symbol').value = sym;
-      runSearch();
+      runSearchNa(sym, opposite);
     });
   });
 
@@ -653,16 +678,45 @@ document.querySelectorAll('.chip').forEach(chip => {
     const sym = chip.getAttribute('data-sym');
     if (activeChip === sym) {
       setActiveChip('');
+      naContext = null;
       $('filter-symbol').value = '';
+      $('results-label').textContent = '';
+      $('results-label').style.display = 'none';
       $('results-list').innerHTML = '<div class="empty-msg">Search cleared.</div>';
       $('results-count').textContent = '';
     } else {
       setActiveChip(sym);
+      naContext = null;
+      $('results-label').textContent = '';
+      $('results-label').style.display = 'none';
       $('filter-symbol').value = sym;
       runSearch();
     }
   });
 });
+
+// ── NA-triggered search (opposite direction, shows potential matches) ─────────
+async function runSearchNa(sym, direction) {
+  const params = new URLSearchParams({ symbol: sym, direction });
+  const list   = $('results-list');
+  const dirLabel = direction === 'in' ? 'IN (received)' : 'OUT (sent)';
+  const fromLabel = direction === 'in'
+    ? `Showing ${sym} received — potential destinations for your ${sym} send`
+    : `Showing ${sym} sent — potential sources for your ${sym} deposit`;
+
+  list.innerHTML = '<div class="loading-msg">Searching…</div>';
+  $('results-count').textContent = '';
+  $('results-label').textContent = fromLabel;
+  $('results-label').style.display = 'block';
+
+  try {
+    const res  = await fetch('/api/research/search?' + params.toString());
+    const data = await res.json();
+    renderResults(data);
+  } catch (e) {
+    list.innerHTML = `<div class="empty-msg">Search failed: ${e.message}</div>`;
+  }
+}
 
 // ── Search ────────────────────────────────────────────────────────────────────
 async function runSearch() {
@@ -680,6 +734,10 @@ async function runSearch() {
   if (note)   params.set('note', note);
 
   if (!params.toString()) return;
+
+  naContext = null;
+  $('results-label').textContent = '';
+  $('results-label').style.display = 'none';
 
   const list = $('results-list');
   list.innerHTML = '<div class="loading-msg">Searching…</div>';
