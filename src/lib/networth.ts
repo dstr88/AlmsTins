@@ -1022,12 +1022,6 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 	// Enrich each token with the earliest import_transactions date (for Days column)
 	// and average cost basis price (for P/L column).
 	//
-	// Cross-tenant enrichment: a user may have on-chain wallets under one tenant_id and
-	// CEX wallets (Coinbase, Crypto.com, etc.) under a different tenant_id — e.g. when
-	// wallets were added across separate login sessions.  We search all real (non-demo)
-	// tenant_ids so that AVAX purchased on Coinbase correctly informs the "days held"
-	// counter shown on the on-chain wallet tile.
-	//
 	// Only genuine acquisitions are considered for the earliest-date calculation:
 	//   • direction must be 'in'  (skip sells / withdrawals)
 	//   • kind must not be a sell_lock / sell_unlock (cancelled limit orders return
@@ -1065,11 +1059,11 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				          THEN ABS(amount) ELSE 0
 				        END)                                           AS total_qty
 				      FROM import_transactions
-				      WHERE tenant_id NOT LIKE 'demo%'
+				      WHERE tenant_id = ?
 				        AND asset_symbol IS NOT NULL
 				        AND upper(asset_symbol) IN (${placeholders})
 				      GROUP BY upper(asset_symbol)`,
-				args: [...symbols],
+				args: [tenantId, ...symbols],
 			});
 			for (const eRow of enrichResult.rows) {
 				const sym = String(eRow.symbol ?? '').toUpperCase();
