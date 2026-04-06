@@ -323,6 +323,34 @@ export const POST: APIRoute = async ({ request }) => {
 			currency = base;
 			amount = assetAmt !== null ? -Math.abs(assetAmt) : null;
 			nativeUsd = usdAmount !== null ? Math.abs(usdAmount) : null;
+		} else if (txType === 'Credit') {
+			// Incoming crypto — deposits, staking rewards, earn/interest, airdrops, etc.
+			const assetAmt = getAssetAmount(row, base);
+			direction = 'in';
+			currency = base;
+			amount = assetAmt !== null ? Math.abs(assetAmt) : null;
+			nativeUsd = usdAmount !== null ? Math.abs(usdAmount) : null;
+
+			// Map Gemini's Specification field to the canonical kind values used
+			// elsewhere in the app so staking income, airdrops, etc. are handled
+			// correctly (e.g. staking income must NOT reset the holding-period clock).
+			const specLower = spec.toLowerCase();
+			if (specLower.includes('staking') || specLower.includes('stake')) {
+				kind = 'staking income';
+			} else if (specLower.includes('airdrop')) {
+				kind = 'airdrop';
+			} else if (
+				specLower.includes('interest') ||
+				specLower.includes('earn') ||
+				specLower.includes('reward') ||
+				specLower.includes('learning')
+			) {
+				kind = 'learning reward';
+			} else if (specLower.includes('deposit') || specLower.includes('transfer')) {
+				kind = 'crypto_deposit';
+			} else {
+				kind = 'credit';
+			}
 		} else {
 			// Unknown type — skip
 			continue;
