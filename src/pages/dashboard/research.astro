@@ -325,24 +325,24 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
     display: flex;
     gap: 0.75rem;
     padding: 1rem 1.1rem;
-    margin: 0 4px 3px;
+    margin: 0 4px 6px;
     border-radius: 8px;
-    background: rgba(255,255,255,0.035);
+    background: rgba(255,255,255,0.06);
     border-left: 3px solid transparent;
     transition: background 0.12s;
   }
-  .tx-card:last-child { margin-bottom: 4px; }
+  .tx-card:last-child { margin-bottom: 6px; }
 
   /* NA-specific state */
   .tx-card.na-item { cursor: pointer; }
-  .tx-card.na-item:hover { background: rgba(255,255,255,0.04); }
+  .tx-card.na-item:hover { background: rgba(255,255,255,0.09); }
   .tx-card.na-item.selected {
     background: rgba(251,191,36,0.06);
     border-left-color: #fbbf24 !important;
   }
 
   /* Result-card hover */
-  .tx-card.result-card:hover { background: rgba(255,255,255,0.03); }
+  .tx-card.result-card:hover { background: rgba(255,255,255,0.09); }
 
   /* Direction accent borders */
   .tx-card.dir-out { border-left-color: rgba(239,68,68,0.4); }
