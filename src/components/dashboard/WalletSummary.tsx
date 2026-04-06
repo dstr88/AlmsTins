@@ -539,7 +539,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr 2fr' }}
+										style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
@@ -603,7 +603,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr 2fr' }}
+												style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days">
 													{String(daysHeld)}
@@ -611,7 +611,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												<span className="wallet-summary__cell wallet-summary__cell--token">
 													{token.tokenSymbol}
 												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--qty truncate overflow-hidden text-ellipsis whitespace-nowrap">
+												<span className="wallet-summary__cell wallet-summary__cell--qty">
 													{Number(token.amount ?? 0).toLocaleString(undefined, {
 														maximumFractionDigits: 6,
 													})}
@@ -677,7 +677,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr 2fr' }}
+										style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
@@ -741,7 +741,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '80px 3fr 2fr 2fr 2fr' }}
+												style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days">
 													{String(daysHeld)}
@@ -749,7 +749,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												<span className="wallet-summary__cell wallet-summary__cell--token">
 													{token.tokenSymbol}
 												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--qty truncate overflow-hidden text-ellipsis whitespace-nowrap">
+												<span className="wallet-summary__cell wallet-summary__cell--qty">
 													{Number(token.amount ?? 0).toLocaleString(undefined, {
 														maximumFractionDigits: 6,
 													})}
