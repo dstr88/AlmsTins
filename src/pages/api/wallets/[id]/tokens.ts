@@ -8,6 +8,7 @@ import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 
 const ETHEREUM_CHAIN_ID = 1;
 const POLYGON_CHAIN_ID = 137;
+const AVALANCHE_CHAIN_ID = 43114;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -249,6 +250,24 @@ export const GET: APIRoute = async ({ params, request }) => {
 		const status = typeof err?.status === 'number' ? err.status : 500;
 		const code = err?.code ?? 'TOKEN_BREAKDOWN_ERROR';
 		const message = err?.message ?? 'Failed to load tokens';
+
+		// New wallets have no snapshots yet — return empty data instead of 404
+		// so the UI shows "No balance data" rather than "Refresh failed".
+		if (code === 'NO_SNAPSHOTS') {
+			console.log('[wallet.tokens] NO_SNAPSHOTS — returning empty payload', { walletId });
+			return new Response(
+				JSON.stringify({
+					ok: true,
+					walletId,
+					address: null,
+					label: null,
+					snapshots: [],
+					tokens: [],
+					noData: true,
+				}),
+				{ status: 200, headers: { 'Content-Type': 'application/json' } },
+			);
+		}
 
 		console.error('[wallet.tokens] ERROR', {
 			walletId,
