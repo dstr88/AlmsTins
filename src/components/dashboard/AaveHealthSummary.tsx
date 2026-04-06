@@ -324,7 +324,11 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 	const collateralValue = formatUsd(totalCollateral);
 	const debtValue = formatUsd(totalDebt);
 	const netValue = formatUsd(net);
-	const breakdownItems = state.status === 'ready' ? state.collateralBreakdown : [];
+	// Filter out dust positions (less than $0.01 USD value) — these are rounding
+	// remnants that Aave still reports as open supply positions.
+	const breakdownItems = state.status === 'ready'
+		? state.collateralBreakdown.filter((item) => (item.usdValue ?? 0) >= 0.01)
+		: [];
 	const qtyWidthStyle = useMemo(() => {
 		if (state.status !== 'ready' || !breakdownItems.length) {
 			return { ['--qty-int-width' as any]: '1ch', ['--qty-frac-width' as any]: '4ch' } as React.CSSProperties;
