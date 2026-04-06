@@ -437,6 +437,19 @@
 		var submitBtn    = tin.querySelector('[data-add-submit]');
 		var messageEl    = tin.querySelector('[data-add-message]');
 
+		// Cache of existing wallet addresses (lowercased) for duplicate detection.
+		// Populated once on init, updated after a successful add.
+		var existingAddresses = new Set();
+		fetch('/api/wallets')
+			.then(function (r) { return r.ok ? r.json() : []; })
+			.then(function (wallets) {
+				if (!Array.isArray(wallets)) return;
+				wallets.forEach(function (w) {
+					if (w.address) existingAddresses.add(String(w.address).toLowerCase());
+				});
+			})
+			.catch(function () {});
+
 		var CHAIN_PLACEHOLDERS = {
 			bitcoin:   'bc1q… or 1… or 3…',
 			ethereum:  '0x…',
@@ -466,6 +479,10 @@
 				var address = addressInput ? addressInput.value.trim() : '';
 				var chain   = chainSelect  ? chainSelect.value.trim()  : '';
 				if (!address) { setMessage('Enter a wallet address first.'); return; }
+				if (existingAddresses.has(address.toLowerCase())) {
+					setMessage('⚠ Wallet already exists in your list.');
+					return;
+				}
 				submitBtn.disabled = true;
 				setMessage('Saving\u2026');
 				var chains = chain === 'bitcoin' ? ['bitcoin']
@@ -488,6 +505,8 @@
 							return;
 						}
 						if (!res.ok) throw new Error(payload.message || payload.error || 'Unable to add wallet.');
+						// Track the new address so a second add attempt is caught immediately
+						if (address) existingAddresses.add(address.toLowerCase());
 						if (addressInput) addressInput.value = '';
 						setMessage('Wallet added \u2014 reloading\u2026');
 						window.location.reload();
