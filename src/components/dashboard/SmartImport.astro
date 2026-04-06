@@ -118,25 +118,84 @@
   .si-icon { font-size: 1.1rem; flex-shrink: 0; }
   .si-text { flex: 1; }
   .si-file { color: #a38b6b; font-size: 0.75rem; }
+
+  /* ── Fixed toast — always visible regardless of scroll position ── */
+  .si-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    pointer-events: none;
+  }
+  .si-toast-item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.75rem 1.1rem;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    min-width: 260px;
+    max-width: 420px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    animation: si-toast-in 0.2s ease;
+    pointer-events: auto;
+  }
+  @keyframes si-toast-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .si-toast-item.processing { background: #292000; border: 1px solid #d97706; color: #fde68a; }
+  .si-toast-item.success    { background: #052e16; border: 1px solid #22c55e; color: #bbf7d0; }
+  .si-toast-item.error      { background: #2d0a0a; border: 1px solid #ef4444; color: #fca5a5; }
+  .si-toast-msg { flex: 1; line-height: 1.4; }
+  .si-toast-close {
+    background: none; border: none; cursor: pointer;
+    color: inherit; opacity: 0.5; font-size: 1rem; padding: 0;
+    flex-shrink: 0;
+  }
+  .si-toast-close:hover { opacity: 1; }
 </style>
+
+<!-- Fixed toast container — appended to body by JS so it's always on top -->
+<div id="si-toast-container" class="si-toast"></div>
 
 <script is:inline>
 (function () {
-  const drop     = document.getElementById('smart-import-drop');
-  const input    = document.getElementById('smart-import-input');
-  const browse   = document.getElementById('smart-import-browse');
-  const results  = document.getElementById('smart-import-results');
+  const drop    = document.getElementById('smart-import-drop');
+  const input   = document.getElementById('smart-import-input');
+  const browse  = document.getElementById('smart-import-browse');
+  const results = document.getElementById('smart-import-results');
+  const toastEl = document.getElementById('si-toast-container');
 
   if (!drop || !input || !browse || !results) return;
 
+  // ── Toast helpers ─────────────────────────────────────────────────────────
+  // Toasts are fixed to the bottom-right corner so they're visible no matter
+  // where the user is scrolled on the page.
+
+  function showToast(state, message, autoDismissMs) {
+    if (!toastEl) return;
+    const item = document.createElement('div');
+    item.className = `si-toast-item ${state}`;
+    item.innerHTML = `<span class="si-toast-msg">${message}</span>
+      <button class="si-toast-close" onclick="this.parentElement.remove()">✕</button>`;
+    toastEl.appendChild(item);
+    if (autoDismissMs) {
+      setTimeout(() => item.remove(), autoDismissMs);
+    }
+    return item;
+  }
+
+  // One persistent "uploading" toast, swapped to success/error when done
+  let activeToast = null;
+
   // Browse button
-  browse.addEventListener('click', (e) => {
-    e.stopPropagation();
-    input.click();
-  });
-
+  browse.addEventListener('click', (e) => { e.stopPropagation(); input.click(); });
   drop.addEventListener('click', () => input.click());
-
   input.addEventListener('change', () => {
     if (input.files) processFiles(Array.from(input.files));
     input.value = '';
@@ -155,60 +214,70 @@
     if (files.length) {
       processFiles(files);
     } else {
-      // Show a clear message instead of silently ignoring
-      addResult('error', e.dataTransfer?.files?.[0]?.name ?? 'file', 'Not a supported file type. Drop a CSV or ZIP export from a supported exchange.');
+      showToast('error', '❌ Not a supported file type. Drop a CSV or ZIP export from a supported exchange.', 6000);
     }
   });
 
   async function processFiles(files) {
-    for (const file of files) {
-      await processOne(file);
-    }
+    for (const file of files) await processOne(file);
   }
 
   async function processOne(file) {
+    // Inline result row (keeps a history below the dropzone)
     const row = addResult('processing', file.name, `Detecting exchange…`);
+    // Toast in the corner — immediately visible
+    activeToast = showToast('processing', `⏳ Uploading ${file.name}…`, 0);
 
     try {
       // Step 1: detect
       const detectForm = new FormData();
       detectForm.append('file', file);
-      const detectRes = await fetch('/api/import/detect', { method: 'POST', body: detectForm });
-      const detected = await detectRes.json();
+      const detectRes  = await fetch('/api/import/detect', { method: 'POST', body: detectForm });
+      const detected   = await detectRes.json();
 
       if (!detected.detected) {
-        setResult(row, 'error', file.name, detected.error ?? 'Unknown format');
-        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const msg = detected.error ?? 'Unknown format';
+        setResult(row, 'error', file.name, msg);
+        swapToast('error', `❌ ${msg}`, 8000);
         return;
       }
 
       setResult(row, 'processing', file.name, `Detected: ${detected.name} — importing…`);
+      swapToast('processing', `⏳ ${detected.name} detected — importing…`, 0);
 
-      // Step 2: import to the right endpoint
+      // Step 2: import
       const importForm = new FormData();
       importForm.append('file', file);
-      const importRes = await fetch(detected.endpoint, { method: 'POST', body: importForm });
-      const result = await importRes.json();
+      const importRes  = await fetch(detected.endpoint, { method: 'POST', body: importForm });
+      const result     = await importRes.json();
 
       if (!importRes.ok || result.error) {
-        setResult(row, 'error', file.name, result.error ?? `Import failed (${importRes.status})`);
-        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const msg = result.error ?? `Import failed (${importRes.status})`;
+        setResult(row, 'error', file.name, msg);
+        swapToast('error', `❌ ${msg}`, 10000);
         return;
       }
 
-      // Different importers use different field names — normalise them all
       const inserted = result.insertedNormalized ?? result.inserted ?? result.count ?? '?';
       const dupes    = result.skippedDuplicates  ?? result.skipped  ?? null;
       const skipped  = dupes != null ? ` · ${dupes} dupes skipped` : '';
-      setResult(row, 'success', file.name, `✓ ${detected.name} — ${inserted} rows imported${skipped}`);
-      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      const successMsg = `✅ ${detected.name} — ${inserted} rows imported${skipped}`;
 
-      // Trigger lifecycle rebuild silently
+      setResult(row, 'success', file.name, successMsg);
+      swapToast('success', successMsg, 7000);
+
       fetch('/api/lifecycle/rebuild', { method: 'POST' }).catch(() => {});
 
     } catch (err) {
-      setResult(row, 'error', file.name, `Unexpected error: ${err?.message ?? err}`);
+      const msg = `Unexpected error: ${err?.message ?? err}`;
+      setResult(row, 'error', file.name, msg);
+      swapToast('error', `❌ ${msg}`, 10000);
     }
+  }
+
+  function swapToast(state, message, autoDismissMs) {
+    if (activeToast) activeToast.remove();
+    activeToast = showToast(state, message, autoDismissMs);
   }
 
   function addResult(state, filename, message) {
