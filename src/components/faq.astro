@@ -60,6 +60,12 @@
       <button class="faq-question" type="button" data-modal="faq-staked-coins">
         Why does my exchange tin show more coins than my available balance?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-account-identity">
+        How is my account tied to my email address?
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-private-account">
+        How can I keep my Almstins account private?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -608,6 +614,61 @@
         <p>
           <strong>Why does this matter for taxes?</strong><br />
           Staked coins are still your property — you just can't spend them until the unbonding period ends. Their cost basis and holding period carry over from when you originally bought them, so the tracker keeps them in your total rather than treating them as gone.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-account-identity">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>How is my account tied to my email address?</h1>
+
+        <p>
+          Your Almstins account has one true identity: a permanent, unique ID that never changes. Your email address is the key that unlocks it. No matter how you sign in — email and password, Google, or GitHub — as long as the sign-in method can confirm the same email address, you land in the same account every time.
+        </p>
+
+        <p>
+          <strong>How it works step by step:</strong>
+        </p>
+
+        <ol style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li>
+            <strong>First sign-in creates your account.</strong> The moment you sign in for the first time, the system creates a permanent ID tied to your email address and provisions a private data vault (your "tenant") just for you.
+          </li>
+          <li>
+            <strong>Layer 1 — email matching.</strong> Every subsequent sign-in checks whether that email already exists. If you signed up with Google and later try GitHub, and both providers confirm the same email, the system recognises you and drops you straight into your existing vault. No duplicate account is created.
+          </li>
+          <li>
+            <strong>Layer 2 — provider ID fallback.</strong> In rare cases a provider returns no email at all (for example, a GitHub user with a private email before proper scopes are configured). When that happens the system falls back to matching your provider's numeric account ID against our records. If we've seen that GitHub ID before, you're reunited with your account automatically. This is the backstop — it's safe because your numeric GitHub ID is unique and only you can sign in with it.
+          </li>
+        </ol>
+
+        <p>
+          <strong>What this means in practice:</strong> you can sign in from a new browser, a new device, or a new OAuth provider and your wallets, transactions, and tax history are all waiting for you — because your email address is what ties everything together.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-private-account">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>How can I keep my Almstins account private?</h1>
+
+        <p>
+          If you sign in with GitHub, you can set your GitHub email address to <strong>private</strong> in your GitHub account settings. When you do, GitHub does not share your real email with third-party apps — your address stays hidden from Almstins entirely.
+        </p>
+
+        <p>
+          In that mode, the account-linking system relies on Layer 2: your numeric GitHub account ID. As long as you always sign in through GitHub on this device, that ID is enough to find your account reliably.
+        </p>
+
+        <p style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 10px; padding: 1rem 1.1rem; margin-top: 1.25rem;">
+          <strong>⚠️ Important warning — please read before enabling this.</strong><br /><br />
+          Because your account has no email on file, the <em>only</em> way back in is through that exact GitHub sign-in. If you ever lose access to your GitHub account — forgotten password, account suspended, GitHub outage, or a future policy change — there is no recovery path. We cannot look up your account by email, we cannot send a reset link, and we have no other way to verify your identity.<br /><br />
+          <strong>Your data could be permanently inaccessible.</strong> Years of transaction history, cost-basis records, and tax data would be unreachable — not because it was deleted, but because there is no key left to open the door.<br /><br />
+          If you value long-term access to your financial history, we strongly recommend signing in with an email-backed method (Google or email/password) so a recovery path always exists.
         </p>
       </div>
     </div>
