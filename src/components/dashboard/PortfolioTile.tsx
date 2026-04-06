@@ -88,10 +88,16 @@ export default function PortfolioTile() {
 		setSyncing(true);
 		setSyncStatus(null);
 		try {
-			const res = await fetch('/api/import/snapshot-all', { method: 'POST' });
-			const data = await res.json();
-			setSyncStatus({ ok: data.ok ?? res.ok, processed: data.processed ?? 0, failed: data.failed ?? 0 });
-			if (res.ok) loadSummary(mountedRef);
+			const [exchangeRes, walletRes] = await Promise.all([
+				fetch('/api/import/snapshot-all', { method: 'POST' }),
+				fetch('/api/wallets/value/sync-all', { method: 'POST' }),
+			]);
+			const exchangeData = await exchangeRes.json().catch(() => ({}));
+			const ok = exchangeRes.ok || walletRes.ok;
+			const processed = (exchangeData.processed ?? 0) + (walletRes.ok ? 1 : 0);
+			const failed = (!exchangeRes.ok ? 1 : 0) + (!walletRes.ok ? 1 : 0);
+			setSyncStatus({ ok, processed, failed });
+			if (ok) loadSummary(mountedRef);
 		} catch {
 			setSyncStatus({ ok: false, processed: 0, failed: 1 });
 		} finally {
@@ -129,9 +135,9 @@ export default function PortfolioTile() {
 					className={`pt-upload-btn${syncing ? ' is-uploading' : ''}`}
 					onClick={handleSync}
 					disabled={syncing}
-					aria-label="Sync exchange balances">
+					aria-label="Sync all tins">
 					<SyncIcon />
-					{syncing ? 'Syncing…' : 'Sync Exchanges'}
+					{syncing ? 'Syncing…' : 'Sync Tins'}
 				</button>
 				{status && (
 					<span className={`pt-status${status.ok ? ' pt-status--ok' : ' pt-status--err'}`}>
