@@ -43,15 +43,17 @@ export const GET: APIRoute = async ({ request }) => {
 		                                        COALESCE(t.tx_hash, '')
 		                                      )
 		      -- A user-supplied label on the tx_hash means "I know where this came from."
-		      -- That explanation alone is enough to remove it from Needs Attention.
+		      -- Only applies to transactions before 2024 (the departed-exchange era).
+		      -- Post-2024 deposits still require a real matching counterpart.
 		      LEFT JOIN address_labels al_explained ON al_explained.tenant_id = t.tenant_id
 		                                          AND al_explained.address    = COALESCE(t.tx_hash, '__none__')
 		                                          AND al_explained.source     = 'user'
+		                                          AND t.timestamp_utc         < '2024-01-01'
 		      WHERE t.tenant_id = ?
 		        AND t.asset_symbol IS NOT NULL
 		        AND m_out.id IS NULL
 		        AND m_in.id  IS NULL
-		        AND al_explained.id IS NULL          -- skip anything already explained by the user
+		        AND al_explained.id IS NULL          -- skip pre-2024 transactions already explained by the user
 		        AND (
 		          -- OUT with no known internal destination.
 		          -- Exclude completed trades/sells/swaps — these resolved on-platform

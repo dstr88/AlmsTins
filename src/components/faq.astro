@@ -72,6 +72,9 @@
       <button class="faq-question" type="button" data-modal="faq-transfer-matching">
         How does transfer matching work?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-cost-basis-history">
+        Why does cost basis only go back one year?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -763,6 +766,34 @@
 
         <p>
           The engine runs automatically every time you import a new CSV, and you can also trigger it manually from the Research page using the Re-run Matching button.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-cost-basis-history">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Why does cost basis only go back one year?</h1>
+
+        <p>
+          To show you what a transaction was worth in US dollars on the day it happened, Almstins looks up the historical price of that asset from CoinGecko — one of the most trusted price data sources in the industry. That lookup is what populates the dollar figures you see next to your transactions.
+        </p>
+
+        <p>
+          <strong>The free tier has a 365-day limit.</strong> CoinGecko's public API only allows historical price queries going back one year. Ask for a price from two years ago on the free plan and the request is rejected. This is a deliberate restriction — CoinGecko charges for deeper access because maintaining years of clean, timestamped price data across thousands of assets is genuinely expensive.
+        </p>
+
+        <p>
+          <strong>What this means in practice:</strong> if you imported transactions from 2021 or 2022, Almstins can still track the amounts and movements correctly — it just may not be able to attach a historical dollar value to those older rows automatically. Any exchange that included a USD value in its CSV export (Crypto.com and Coinbase both do) will already have the correct figure stored regardless of age.
+        </p>
+
+        <p>
+          <strong>How to unlock full history:</strong> upgrading to a CoinGecko Pro API key removes the 365-day restriction entirely and lets Almstins price every transaction back to the beginning of each asset's trading history. If you manage a large portfolio with significant pre-2024 activity, this is the recommended path. Contact your account administrator or add <code>COINGECKO_API_KEY</code> to your environment to enable it.
+        </p>
+
+        <p>
+          <strong>What about the Needs Attention list?</strong> For deposits that are older than 2024 and came from exchanges that have since left the US market — such as Binance.US or Bittrex — there may be no matching counterpart transaction available at all. For those cases, Almstins lets you label the transaction manually to explain its origin. Once labeled, it is removed from the Needs Attention list automatically. The 2024 boundary is intentional: it covers the period when most regulatory-driven exchange departures occurred, while keeping recent unexplained deposits visible so nothing slips through unnoticed.
         </p>
       </div>
     </div>
