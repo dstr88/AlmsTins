@@ -42,10 +42,16 @@ export const GET: APIRoute = async ({ request }) => {
 		                                        'cex:' || t.source || ':' || COALESCE(t.account_id,''),
 		                                        COALESCE(t.tx_hash, '')
 		                                      )
+		      -- A user-supplied label on the tx_hash means "I know where this came from."
+		      -- That explanation alone is enough to remove it from Needs Attention.
+		      LEFT JOIN address_labels al_explained ON al_explained.tenant_id = t.tenant_id
+		                                          AND al_explained.address    = COALESCE(t.tx_hash, '__none__')
+		                                          AND al_explained.source     = 'user'
 		      WHERE t.tenant_id = ?
 		        AND t.asset_symbol IS NOT NULL
 		        AND m_out.id IS NULL
 		        AND m_in.id  IS NULL
+		        AND al_explained.id IS NULL          -- skip anything already explained by the user
 		        AND (
 		          -- OUT with no known internal destination.
 		          -- Exclude completed trades/sells/swaps — these resolved on-platform

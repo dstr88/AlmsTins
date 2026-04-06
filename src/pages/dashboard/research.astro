@@ -569,7 +569,9 @@ function renderNeedsAttention(data) {
       const dir    = (t.direction ?? '').toLowerCase();
       const absAmt = Math.abs(Number(t.amount));
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
-      const hint   = dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
+      const hint   = t.address_label
+        ? `Source: ${t.address_label}`
+        : dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
       const src    = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
       html += `<div class="tx-card na-item dir-${dir}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}">
         <div class="tx-badge-col"><span class="tx-dir ${dir}">${dir}</span></div>
