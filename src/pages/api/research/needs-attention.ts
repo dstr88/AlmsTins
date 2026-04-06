@@ -103,6 +103,37 @@ export const GET: APIRoute = async ({ request }) => {
 		args: [tenantId],
 	});
 
+	// ── 4: Resolved (confirmed + auto) matches ───────────────────────────────
+	const resolvedResult = await db.execute({
+		sql: `SELECT
+		        m.id AS match_id,
+		        m.asset_symbol,
+		        m.out_amount,
+		        m.in_amount,
+		        m.fee_amount,
+		        m.confidence_score,
+		        m.status,
+		        COALESCE(m.confirmed_at, m.matched_at) AS resolved_at,
+		        t_out.source        AS out_source,
+		        t_out.timestamp_utc AS out_ts,
+		        ea_out.name         AS out_account_name,
+		        t_in.source         AS in_source,
+		        t_in.timestamp_utc  AS in_ts,
+		        ea_in.name          AS in_account_name
+		      FROM transfer_matches m
+		      JOIN import_transactions t_out ON t_out.id = m.out_tx_id
+		      JOIN import_transactions t_in  ON t_in.id  = m.in_tx_id
+		      LEFT JOIN exchange_accounts ea_out ON ea_out.id = t_out.account_id
+		                                        AND ea_out.tenant_id = m.tenant_id
+		      LEFT JOIN exchange_accounts ea_in  ON ea_in.id  = t_in.account_id
+		                                        AND ea_in.tenant_id  = m.tenant_id
+		      WHERE m.tenant_id = ?
+		        AND m.status IN ('confirmed', 'auto')
+		      ORDER BY COALESCE(m.confirmed_at, m.matched_at) DESC
+		      LIMIT 100`,
+		args: [tenantId],
+	});
+
 	// Distinct symbols represented in unmatched items (for chip row in UI)
 	const symbols = [...new Set(
 		(unmatchedResult.rows as any[])
@@ -114,6 +145,7 @@ export const GET: APIRoute = async ({ request }) => {
 		JSON.stringify({
 			unmatched:  unmatchedResult.rows,
 			suggested:  suggestedResult.rows,
+			resolved:   resolvedResult.rows,
 			symbols,
 			total: unmatchedResult.rows.length + suggestedResult.rows.length,
 		}),

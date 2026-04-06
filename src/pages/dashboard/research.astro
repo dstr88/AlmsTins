@@ -71,6 +71,14 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
         <div id="na-list" class="item-list">
           <div class="loading-msg">Loading…</div>
         </div>
+
+        <!-- Resolved tin -->
+        <div class="resolved-header" id="resolved-header" style="display:none">
+          <span>Resolved</span>
+          <span id="resolved-count" class="count-badge-green"></span>
+          <button id="resolved-toggle" class="resolved-toggle" type="button">▾ show</button>
+        </div>
+        <div id="resolved-list" class="resolved-list" style="display:none"></div>
       </div>
 
       <!-- Right: Search results -->
@@ -236,7 +244,7 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
   /* ── Two-column body ────────────────────────────────────────────────────── */
   .research-body {
     display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: 360px 1fr;
     gap: 1.25rem;
     align-items: start;
   }
@@ -271,10 +279,18 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
     font-size: 0.75rem;
     font-weight: 700;
   }
+  .count-badge-green {
+    background: rgba(52,211,153,0.12);
+    color: #34d399;
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
 
   /* ── Item list ───────────────────────────────────────────────────────────── */
   .item-list {
-    max-height: 72vh;
+    max-height: 55vh;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.12) transparent;
@@ -286,67 +302,146 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
     text-align: center;
   }
 
-  /* NA items */
+  /* ── Section labels ───────────────────────────────────────────────────────── */
+  .section-label {
+    padding: 0.55rem 1.1rem 0.3rem;
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  /* ── NA items ────────────────────────────────────────────────────────────── */
   .na-item {
-    padding: 0.7rem 1.1rem;
+    padding: 0.75rem 1.1rem;
     border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid transparent;
     cursor: pointer;
     transition: background 0.12s;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 0.2rem 0.6rem;
   }
   .na-item:hover { background: rgba(255,255,255,0.04); }
-  .na-item.selected { background: rgba(251,191,36,0.07); border-left: 2px solid #fbbf24; }
-  .na-sym   { font-weight: 700; font-size: 0.9rem; color: #fff; }
-  .na-src   { font-size: 0.78rem; color: rgba(255,255,255,0.45); }
-  .na-dir   { font-size: 0.75rem; padding: 0.15rem 0.45rem; border-radius: 4px; align-self: start; }
+  .na-item.selected {
+    background: rgba(251,191,36,0.06);
+    border-left-color: #fbbf24;
+  }
+  .na-top {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.3rem;
+  }
+  .na-sym  { font-weight: 700; font-size: 0.95rem; color: #fff; }
+  .na-dir  { font-size: 0.72rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 600; flex-shrink: 0; }
   .na-dir.out { background: rgba(239,68,68,0.15); color: #f87171; }
   .na-dir.in  { background: rgba(52,211,153,0.12); color: #34d399; }
-  .na-amt   { font-size: 0.82rem; color: rgba(255,255,255,0.6); }
-  .na-date  { font-size: 0.75rem; color: rgba(255,255,255,0.3); grid-column: 1; }
+  .na-amt  { margin-left: auto; font-size: 0.88rem; color: rgba(255,255,255,0.65); font-weight: 600; }
+  .na-bot  { display: flex; justify-content: space-between; align-items: center; }
+  .na-src  { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+  .na-dt   { font-size: 0.73rem; color: rgba(255,255,255,0.28); }
 
-  /* Suggested match items */
+  /* ── Suggested match items ───────────────────────────────────────────────── */
   .suggest-item {
-    padding: 0.7rem 1.1rem;
+    padding: 0.8rem 1.1rem;
     border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid rgba(251,191,36,0.4);
     cursor: pointer;
     transition: background 0.12s;
   }
-  .suggest-item:hover { background: rgba(255,255,255,0.04); }
-  .suggest-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; }
-  .suggest-sym    { font-weight: 700; font-size: 0.88rem; color: #fbbf24; }
-  .suggest-score  { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
-  .suggest-flow   { font-size: 0.8rem; color: rgba(255,255,255,0.6); }
+  .suggest-item:hover { background: rgba(251,191,36,0.04); }
+  .suggest-top  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; }
+  .suggest-sym  { font-weight: 700; font-size: 0.95rem; color: #fbbf24; }
+  .suggest-score { font-size: 0.72rem; color: rgba(255,255,255,0.35); }
+  .suggest-flow  { font-size: 0.8rem; color: rgba(255,255,255,0.65); margin-bottom: 0.2rem; }
+  .suggest-dates { font-size: 0.73rem; color: rgba(255,255,255,0.3); }
+  .suggest-amt   { font-size: 0.78rem; color: rgba(255,255,255,0.45); margin-top: 0.15rem; }
 
-  /* Result rows */
-  .result-row {
-    padding: 0.65rem 1.1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 0.2rem 0.75rem;
+  /* ── Resolved section ────────────────────────────────────────────────────── */
+  .resolved-header {
+    display: flex;
     align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.1rem;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: rgba(52,211,153,0.8);
   }
-  .result-row:hover { background: rgba(255,255,255,0.03); }
-  .result-dir   { font-size: 0.72rem; padding: 0.12rem 0.4rem; border-radius: 4px; font-weight: 600; }
+  .resolved-toggle {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.35);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0.1rem 0.3rem;
+  }
+  .resolved-toggle:hover { color: rgba(255,255,255,0.6); }
+  .resolved-list {
+    max-height: 30vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
+    border-top: 1px solid rgba(52,211,153,0.1);
+  }
+  .resolved-item {
+    padding: 0.7rem 1.1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-left: 3px solid rgba(52,211,153,0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .resolved-top { display: flex; align-items: center; gap: 0.5rem; }
+  .resolved-sym  { font-weight: 700; font-size: 0.9rem; color: rgba(52,211,153,0.85); }
+  .resolved-badge {
+    font-size: 0.68rem; padding: 0.1rem 0.4rem; border-radius: 4px;
+    background: rgba(52,211,153,0.1); color: #34d399; margin-left: auto;
+  }
+  .resolved-flow { font-size: 0.78rem; color: rgba(255,255,255,0.45); }
+  .resolved-meta { font-size: 0.72rem; color: rgba(255,255,255,0.28); }
+
+  /* ── Result cards ────────────────────────────────────────────────────────── */
+  .result-card {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.95rem 1.1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid transparent;
+    transition: background 0.12s;
+  }
+  .result-card:hover { background: rgba(255,255,255,0.03); }
+  .result-card.dir-out { border-left-color: rgba(239,68,68,0.4); }
+  .result-card.dir-in  { border-left-color: rgba(52,211,153,0.35); }
+
+  .result-badge-col { display: flex; flex-direction: column; align-items: flex-start; padding-top: 2px; flex-shrink: 0; }
+  .result-dir {
+    font-size: 0.7rem; padding: 0.18rem 0.5rem; border-radius: 4px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  }
   .result-dir.out { background: rgba(239,68,68,0.15); color: #f87171; }
   .result-dir.in  { background: rgba(52,211,153,0.12); color: #34d399; }
-  .result-main  { min-width: 0; }
-  .result-sym   { font-weight: 700; font-size: 0.88rem; color: #fff; }
-  .result-src   { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
-  .result-desc  { font-size: 0.75rem; color: rgba(255,255,255,0.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .result-right { text-align: right; }
-  .result-amt   { font-size: 0.85rem; color: rgba(255,255,255,0.75); }
-  .result-usd   { font-size: 0.75rem; color: rgba(255,255,255,0.35); }
-  .result-date  { font-size: 0.72rem; color: rgba(255,255,255,0.3); grid-column: 1 / -1; padding-left: 0; }
-  .match-badge  {
+
+  .result-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+
+  .result-row-1 { display: flex; align-items: baseline; gap: 0.5rem; }
+  .result-sym  { font-weight: 700; font-size: 1rem; color: #fff; }
+  .match-badge {
     font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px;
-    background: rgba(52,211,153,0.12); color: #34d399; margin-left: 0.4rem;
+    background: rgba(52,211,153,0.12); color: #34d399;
   }
   .match-badge.suggested { background: rgba(251,191,36,0.12); color: #fbbf24; }
+  .result-amt  { margin-left: auto; font-size: 0.95rem; font-weight: 600; color: rgba(255,255,255,0.85); white-space: nowrap; }
 
-  /* Modal */
+  .result-row-2 { display: flex; align-items: center; gap: 0.5rem; }
+  .result-src  { font-size: 0.78rem; color: rgba(255,255,255,0.4); }
+  .result-usd  { margin-left: auto; font-size: 0.78rem; color: rgba(255,255,255,0.38); white-space: nowrap; }
+
+  .result-row-3 { display: flex; align-items: center; gap: 0.5rem; }
+  .result-desc { font-size: 0.75rem; color: rgba(255,255,255,0.28); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .result-dt   { margin-left: auto; font-size: 0.73rem; color: rgba(255,255,255,0.3); white-space: nowrap; }
+
+  /* ── Modal ───────────────────────────────────────────────────────────────── */
   .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.7);
@@ -369,25 +464,39 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
     font-size: 1.4rem; cursor: pointer;
   }
   .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem; }
-  .match-detail  { font-size: 0.88rem; color: rgba(255,255,255,0.7); line-height: 1.7; }
+  .match-detail  { font-size: 0.88rem; color: rgba(255,255,255,0.7); line-height: 1.8; }
   .match-detail strong { color: #fff; }
 </style>
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
-let activeChip    = '';
-let activeNaItem  = null;
-let pendingMatch  = null;
+let activeChip   = '';
+let pendingMatch = null;
+let resolvedOpen = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
-const fmt = (n) => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 8 });
-const fmtUsd = (n) => n == null ? '' : '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtDate = (s) => {
+const fmt = n => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 8 });
+const fmtUsd = n => n == null ? '' : '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtDT = s => {
   if (!s) return '';
-  try { return new Date(s.replace(' UTC','Z').replace(' ','T')).toLocaleDateString(); } catch { return s.slice(0,10); }
+  try {
+    const d = new Date(s.replace(' UTC','Z').replace(' ','T'));
+    const date = d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+    const time = d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+    return `${date} · ${time}`;
+  } catch { return s.slice(0,16); }
 };
-const sourceName = s => ({
+
+const fmtDate = s => {
+  if (!s) return '';
+  try {
+    return new Date(s.replace(' UTC','Z').replace(' ','T')).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+  } catch { return s.slice(0,10); }
+};
+
+const srcName = s => ({
   coinbase:'Coinbase', crypto_com:'Crypto.com', gemini:'Gemini',
   kraken:'Kraken', exodus:'Exodus', venmo:'Venmo', cashapp:'Cash App', robinhood:'Robinhood',
 })[s] ?? s;
@@ -396,7 +505,6 @@ const sourceName = s => ({
 async function loadNeedsAttention() {
   const list = $('na-list');
   list.innerHTML = '<div class="loading-msg">Loading…</div>';
-
   try {
     const res  = await fetch('/api/research/needs-attention');
     const data = await res.json();
@@ -407,37 +515,46 @@ async function loadNeedsAttention() {
 }
 
 function renderNeedsAttention(data) {
-  const list   = $('na-list');
-  const count  = $('na-count');
-  const total  = data.total ?? 0;
-  count.textContent = total > 0 ? total : '';
+  const list  = $('na-list');
+  const count = $('na-count');
+  const total = data.total ?? 0;
+  count.textContent = total > 0 ? String(total) : '';
 
   let html = '';
 
+  // ── Suggested matches ──────────────────────────────────────────────────────
   if (data.suggested?.length) {
-    html += `<div style="padding:0.5rem 1.1rem 0.25rem;font-size:0.75rem;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.05em">Suggested matches</div>`;
+    html += `<div class="section-label">Suggested matches</div>`;
     for (const m of data.suggested) {
-      html += `<div class="suggest-item" data-match-id="${m.match_id}" data-match='${JSON.stringify(m).replace(/'/g,"&#39;")}'>
-        <div class="suggest-header">
+      const safeM = JSON.stringify(m).replace(/'/g,"&#39;");
+      html += `<div class="suggest-item" data-match-id="${m.match_id}" data-match='${safeM}'>
+        <div class="suggest-top">
           <span class="suggest-sym">${m.asset_symbol}</span>
-          <span class="suggest-score">score ${m.confidence_score}</span>
+          <span class="suggest-score">confidence ${m.confidence_score}</span>
         </div>
-        <div class="suggest-flow">${sourceName(m.out_source)} → ${sourceName(m.in_source)}</div>
-        <div style="font-size:0.75rem;color:rgba(255,255,255,0.3)">${fmtDate(m.out_ts)} → ${fmtDate(m.in_ts)}</div>
+        <div class="suggest-flow">${srcName(m.out_source)}${m.out_account_name ? ' · ' + m.out_account_name : ''} → ${srcName(m.in_source)}${m.in_account_name ? ' · ' + m.in_account_name : ''}</div>
+        <div class="suggest-dates">${fmtDate(m.out_ts)} → ${fmtDate(m.in_ts)}</div>
+        <div class="suggest-amt">Sent ${fmt(m.out_amount)} · Received ${fmt(m.in_amount)}${m.fee_amount ? ' · Fee ' + fmt(m.fee_amount) : ''}</div>
       </div>`;
     }
   }
 
+  // ── Unresolved transactions ────────────────────────────────────────────────
   if (data.unmatched?.length) {
-    html += `<div style="padding:0.5rem 1.1rem 0.25rem;font-size:0.75rem;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.05em">Unresolved transactions</div>`;
+    html += `<div class="section-label">Unresolved transactions</div>`;
     for (const t of data.unmatched) {
       const dir = (t.direction ?? '').toLowerCase();
+      const amt = dir === 'out' ? `-${fmt(t.amount)}` : `+${fmt(t.amount)}`;
       html += `<div class="na-item" data-sym="${t.asset_symbol}" data-id="${t.id}">
-        <span class="na-sym">${t.asset_symbol}</span>
-        <span class="na-dir ${dir}">${dir}</span>
-        <span class="na-src">${sourceName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}</span>
-        <span class="na-amt">${fmt(t.amount)}</span>
-        <span class="na-date">${fmtDate(t.timestamp_utc)}</span>
+        <div class="na-top">
+          <span class="na-sym">${t.asset_symbol}</span>
+          <span class="na-dir ${dir}">${dir}</span>
+          <span class="na-amt">${amt}</span>
+        </div>
+        <div class="na-bot">
+          <span class="na-src">${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}</span>
+          <span class="na-dt">${fmtDT(t.timestamp_utc)}</span>
+        </div>
       </div>`;
     }
   }
@@ -448,22 +565,20 @@ function renderNeedsAttention(data) {
 
   list.innerHTML = html;
 
-  // Wire up NA item clicks → auto-fill search + fire
+  // Wire NA item clicks → pre-fill search + fire
   list.querySelectorAll('.na-item').forEach(el => {
     el.addEventListener('click', () => {
       const sym = el.getAttribute('data-sym');
       if (!sym) return;
-      // highlight
       list.querySelectorAll('.na-item').forEach(i => i.classList.remove('selected'));
       el.classList.add('selected');
-      // fill symbol filter and fire search
       setActiveChip(sym);
       $('filter-symbol').value = sym;
       runSearch();
     });
   });
 
-  // Wire up suggested match clicks → open modal
+  // Wire suggested match clicks → modal
   list.querySelectorAll('.suggest-item').forEach(el => {
     el.addEventListener('click', () => {
       const raw = el.getAttribute('data-match');
@@ -471,7 +586,46 @@ function renderNeedsAttention(data) {
       openMatchModal(JSON.parse(raw.replace(/&#39;/g,"'")));
     });
   });
+
+  // ── Resolved tin ──────────────────────────────────────────────────────────
+  const resolved = data.resolved ?? [];
+  const rHeader  = $('resolved-header');
+  const rList    = $('resolved-list');
+  const rCount   = $('resolved-count');
+
+  if (resolved.length) {
+    rCount.textContent = String(resolved.length);
+    rHeader.style.display = 'flex';
+
+    let rHtml = '';
+    for (const r of resolved) {
+      const autoLabel = r.status === 'auto' ? 'auto' : '✓ confirmed';
+      rHtml += `<div class="resolved-item">
+        <div class="resolved-top">
+          <span class="resolved-sym">${r.asset_symbol}</span>
+          <span class="resolved-badge">${autoLabel}</span>
+        </div>
+        <div class="resolved-flow">${srcName(r.out_source)}${r.out_account_name ? ' · ' + r.out_account_name : ''} → ${srcName(r.in_source)}${r.in_account_name ? ' · ' + r.in_account_name : ''}</div>
+        <div class="resolved-meta">${fmtDate(r.out_ts)} → ${fmtDate(r.in_ts)} &nbsp;·&nbsp; ${fmt(r.out_amount)} → ${fmt(r.in_amount)}</div>
+      </div>`;
+    }
+    rList.innerHTML = rHtml;
+
+    // Honour current open/closed state
+    rList.style.display = resolvedOpen ? 'block' : 'none';
+    $('resolved-toggle').textContent = resolvedOpen ? '▴ hide' : '▾ show';
+  } else {
+    rHeader.style.display = 'none';
+    rList.style.display   = 'none';
+  }
 }
+
+// Toggle resolved list
+$('resolved-toggle').addEventListener('click', () => {
+  resolvedOpen = !resolvedOpen;
+  $('resolved-list').style.display  = resolvedOpen ? 'block' : 'none';
+  $('resolved-toggle').textContent  = resolvedOpen ? '▴ hide' : '▾ show';
+});
 
 // ── Chip row ──────────────────────────────────────────────────────────────────
 function setActiveChip(sym) {
@@ -485,7 +639,6 @@ document.querySelectorAll('.chip').forEach(chip => {
   chip.addEventListener('click', () => {
     const sym = chip.getAttribute('data-sym');
     if (activeChip === sym) {
-      // deselect
       setActiveChip('');
       $('filter-symbol').value = '';
       $('results-list').innerHTML = '<div class="empty-msg">Search cleared.</div>';
@@ -532,7 +685,7 @@ function renderResults(data) {
   const list  = $('results-list');
   const count = $('results-count');
   const rows  = data.rows ?? [];
-  count.textContent = rows.length > 0 ? rows.length : '';
+  count.textContent = rows.length > 0 ? String(rows.length) : '';
 
   if (!rows.length) {
     list.innerHTML = '<div class="empty-msg">No transactions found.</div>';
@@ -542,37 +695,53 @@ function renderResults(data) {
   let html = '';
   for (const t of rows) {
     const dir = (t.direction ?? '').toLowerCase();
-    const isMatchedOut = t.match_id_as_out && t.match_status_as_out !== 'rejected';
-    const isMatchedIn  = t.match_id_as_in  && t.match_status_as_in  !== 'rejected';
-    const matchBadge   = isMatchedOut
-      ? `<span class="match-badge ${t.match_status_as_out === 'suggested' ? 'suggested' : ''}">→ matched</span>`
-      : isMatchedIn
-      ? `<span class="match-badge ${t.match_status_as_in  === 'suggested' ? 'suggested' : ''}">← matched</span>`
-      : '';
-    const label = t.address_label ? `<span style="color:rgba(251,191,36,0.7);font-size:0.75rem"> · ${t.address_label}</span>` : '';
 
-    html += `<div class="result-row">
-      <span class="result-dir ${dir}">${dir}</span>
-      <div class="result-main">
-        <div><span class="result-sym">${t.asset_symbol ?? '?'}</span>${matchBadge}</div>
-        <div class="result-src">${sourceName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}${label}</div>
-        ${t.description ? `<div class="result-desc">${t.description}</div>` : ''}
+    // Match badge
+    const matchStatus = t.match_status_as_out ?? t.match_status_as_in ?? null;
+    const matchDir    = t.match_id_as_out ? '→' : '←';
+    const matchBadge  = (t.match_id_as_out || t.match_id_as_in)
+      ? `<span class="match-badge${matchStatus === 'suggested' ? ' suggested' : ''}">${matchDir} matched</span>`
+      : '';
+
+    // Address label
+    const label = t.address_label
+      ? `<span style="color:rgba(251,191,36,0.65);font-size:0.75rem"> · ${t.address_label}</span>`
+      : '';
+
+    // Amount display (show + / - prefix)
+    const amtDisplay = dir === 'out'
+      ? `−${fmt(Math.abs(t.amount))}`
+      : `+${fmt(t.amount)}`;
+
+    const srcLine = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+
+    html += `<div class="result-card dir-${dir}">
+      <div class="result-badge-col">
+        <span class="result-dir ${dir}">${dir}</span>
       </div>
-      <div class="result-right">
-        <div class="result-amt">${fmt(t.amount)}</div>
-        ${t.native_usd ? `<div class="result-usd">${fmtUsd(t.native_usd)}</div>` : ''}
+      <div class="result-body">
+        <div class="result-row-1">
+          <span class="result-sym">${t.asset_symbol ?? '?'}</span>${matchBadge}
+          <span class="result-amt">${amtDisplay} ${t.asset_symbol ?? ''}</span>
+        </div>
+        <div class="result-row-2">
+          <span class="result-src">${srcLine}${label}</span>
+          ${t.native_usd ? `<span class="result-usd">${fmtUsd(t.native_usd)}</span>` : ''}
+        </div>
+        <div class="result-row-3">
+          ${t.description ? `<span class="result-desc">${t.description}</span>` : '<span class="result-desc"></span>'}
+          <span class="result-dt">${fmtDT(t.timestamp_utc)}</span>
+        </div>
       </div>
-      <div class="result-date">${fmtDate(t.timestamp_utc)}</div>
     </div>`;
   }
   list.innerHTML = html;
 }
 
-// ── Search button & enter key ─────────────────────────────────────────────────
+// ── Button wiring ─────────────────────────────────────────────────────────────
 $('btn-search').addEventListener('click', runSearch);
 $('q').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
 
-// ── Run matching button ───────────────────────────────────────────────────────
 $('btn-run-matching').addEventListener('click', async () => {
   const btn = $('btn-run-matching');
   btn.disabled = true;
@@ -592,13 +761,14 @@ $('btn-run-matching').addEventListener('click', async () => {
 // ── Suggested match modal ─────────────────────────────────────────────────────
 function openMatchModal(match) {
   pendingMatch = match;
-  const body = $('match-modal-body');
-  body.innerHTML = `<div class="match-detail">
+  $('match-modal-body').innerHTML = `<div class="match-detail">
     <strong>${match.asset_symbol}</strong> transfer<br>
-    <strong>From:</strong> ${sourceName(match.out_source)}${match.out_account_name ? ' · ' + match.out_account_name : ''} — ${fmtDate(match.out_ts)}<br>
-    <strong>To:</strong>   ${sourceName(match.in_source)}${match.in_account_name ? ' · ' + match.in_account_name : ''} — ${fmtDate(match.in_ts)}<br>
-    <strong>Sent:</strong> ${fmt(match.out_amount)} &nbsp; <strong>Received:</strong> ${fmt(match.in_amount)} &nbsp; <strong>Fee:</strong> ${match.fee_amount ? fmt(match.fee_amount) : 'none'}<br>
-    <strong>Confidence:</strong> ${match.confidence_score}
+    <strong>From:</strong> ${srcName(match.out_source)}${match.out_account_name ? ' · ' + match.out_account_name : ''}<br>
+    <strong>To:</strong> ${srcName(match.in_source)}${match.in_account_name ? ' · ' + match.in_account_name : ''}<br>
+    <strong>Sent:</strong> ${fmtDT(match.out_ts)}<br>
+    <strong>Received:</strong> ${fmtDT(match.in_ts)}<br>
+    <strong>Amount out:</strong> ${fmt(match.out_amount)} &nbsp; <strong>Amount in:</strong> ${fmt(match.in_amount)}${match.fee_amount ? `&nbsp; <strong>Fee:</strong> ${fmt(match.fee_amount)}` : ''}<br>
+    <strong>Confidence score:</strong> ${match.confidence_score}
   </div>`;
   $('match-modal').style.display = 'flex';
 }
