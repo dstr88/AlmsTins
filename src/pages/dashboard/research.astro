@@ -632,7 +632,7 @@ function renderNeedsAttention(data) {
       const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
       const noteText = t.notes   ? `<span style="font-size:0.72rem;color:rgba(255,255,255,0.45);font-style:italic">${t.notes}</span>` : '';
       const hasAnnotation = !!(t.category || t.notes);
-      html += `<div class="tx-card na-item dir-${dir}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}">
+      html += `<div class="tx-card na-item dir-${dir}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}">
         <div class="tx-badge-col"><span class="tx-dir ${dir}">${dir}</span></div>
         <div class="tx-body">
           <div class="tx-row-1">
@@ -685,6 +685,7 @@ function renderNeedsAttention(data) {
     el.addEventListener('click', () => {
       const sym = el.getAttribute('data-sym');
       const dir = el.getAttribute('data-dir');   // 'in' or 'out'
+      const ts  = el.getAttribute('data-ts');    // ISO timestamp
       if (!sym) return;
       list.querySelectorAll('.na-item').forEach(i => i.classList.remove('selected'));
       el.classList.add('selected');
@@ -693,7 +694,7 @@ function renderNeedsAttention(data) {
       naContext = { sym, dir, opposite };
       setActiveChip(sym);
       $('filter-symbol').value = sym;
-      runSearchNa(sym, opposite);
+      runSearchNa(sym, opposite, ts);
     });
   });
 
@@ -776,14 +777,30 @@ document.querySelectorAll('.chip').forEach(chip => {
   });
 });
 
-// ── NA-triggered search (opposite direction, shows potential matches) ─────────
-async function runSearchNa(sym, direction) {
+// ── NA-triggered search (opposite direction, ±7-day window) ──────────────────
+async function runSearchNa(sym, direction, ts) {
   const params = new URLSearchParams({ symbol: sym, direction });
-  const list   = $('results-list');
-  const dirLabel = direction === 'in' ? 'IN (received)' : 'OUT (sent)';
+
+  // Narrow results to ±7 days around the selected transaction's date
+  // so the user only sees plausible matches, not their entire history.
+  let windowLabel = '';
+  if (ts) {
+    const center = new Date(ts);
+    const before = new Date(center); before.setDate(before.getDate() - 7);
+    const after  = new Date(center); after.setDate(after.getDate()  + 7);
+    const toDate  = d => d.toISOString().slice(0, 10);   // YYYY-MM-DD
+    params.set('from', toDate(before));
+    params.set('to',   toDate(after));
+    // Also pre-fill the date inputs so the user can see / adjust the window
+    $('filter-from').value = toDate(before);
+    $('filter-to').value   = toDate(after);
+    windowLabel = ` within 7 days of ${center.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}`;
+  }
+
+  const list = $('results-list');
   const fromLabel = direction === 'in'
-    ? `Showing ${sym} received — potential destinations for your ${sym} send`
-    : `Showing ${sym} sent — potential sources for your ${sym} deposit`;
+    ? `Showing ${sym} received${windowLabel} — potential sources for your ${sym} send`
+    : `Showing ${sym} sent${windowLabel} — potential destinations for your ${sym} deposit`;
 
   list.innerHTML = '<div class="loading-msg">Searching…</div>';
   $('results-count').textContent = '';
