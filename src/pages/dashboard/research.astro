@@ -337,8 +337,10 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
   .tx-card.na-item { cursor: pointer; }
   .tx-card.na-item:hover { background: rgba(255,255,255,0.09); }
   .tx-card.na-item.selected {
-    background: rgba(251,191,36,0.06);
+    background: rgba(251,191,36,0.10);
     border-left-color: #fbbf24 !important;
+    outline: 1.5px solid rgba(251,191,36,0.55);
+    outline-offset: -1px;
   }
 
   /* Result-card hover */
