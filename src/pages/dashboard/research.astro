@@ -560,7 +560,20 @@ function renderNeedsAttention(data) {
   }
 
   if (!html) {
-    html = '<div class="empty-msg">✅ Nothing needs attention right now.</div>';
+    const emptyMessages = [
+      { icon: '✅', text: "You're all caught up." },
+      { icon: '🎉', text: "Nothing to see here." },
+      { icon: '😎', text: "Clean slate." },
+      { icon: '🏖️', text: "Go touch grass — everything's matched." },
+      { icon: '🔍', text: "Nothing left to investigate." },
+      { icon: '💎', text: "Diamond hands, clean books." },
+      { icon: '🤙', text: "All good. No loose ends." },
+      { icon: '📭', text: "This list is empty." },
+      { icon: '🚀', text: "Houston, we have no problems." },
+      { icon: '🧘', text: "Zen mode. Every transfer accounted for." },
+    ];
+    const pick = emptyMessages[Math.floor(Math.random() * emptyMessages.length)];
+    html = `<div class="empty-msg">${pick.icon} ${pick.text}</div>`;
   }
 
   list.innerHTML = html;
