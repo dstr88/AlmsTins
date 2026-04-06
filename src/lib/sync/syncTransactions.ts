@@ -286,12 +286,16 @@ export async function syncWalletChain(tenantId: string, wallet: Wallet, chain: s
 /**
  * Syncs all chains for a wallet and aggregates stats.
  */
+const EVM_CHAINS = new Set(['ethereum', 'polygon', 'avalanche']);
+
 export async function syncWalletTransactions(tenantId: string, wallet: Wallet): Promise<WalletSyncStats> {
 	const baseChains =
 		Array.isArray(wallet.chains) && wallet.chains.length ? wallet.chains : [...DEFAULT_ERC20_CHAINS];
 	const chainSet = new Set(baseChains.map((value) => value.toLowerCase()));
 	chainSet.add('polygon');
-	const chains = Array.from(chainSet);
+	// Only pass EVM chains to the EVM sync machinery — non-EVM chains (bitcoin, sui, etc.)
+	// have their own dedicated sync endpoints and would throw "Unsupported chain" here.
+	const chains = Array.from(chainSet).filter(c => EVM_CHAINS.has(c));
 	const stats: WalletSyncChainStats[] = [];
 	let totalInserted = 0;
 	let totalSkipped = 0;
