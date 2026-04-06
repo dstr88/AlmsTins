@@ -704,6 +704,34 @@ const tenantWallets = walletResult.rows.map(r => ({
   .addr-tx-amt   { color: rgba(255,255,255,0.65); }
   .addr-tx-dt    { margin-left: auto; color: rgba(255,255,255,0.3); font-size: 0.73rem; white-space: nowrap; }
   .addr-loading  { font-size: 0.83rem; color: rgba(255,255,255,0.3); font-style: italic; }
+
+  /* ── Add-wallet inline form ──────────────────────────────────────────────── */
+  .btn-add-wallet {
+    margin-top: 0.5rem;
+    background: none;
+    border: 1px dashed rgba(52,211,153,0.35);
+    border-radius: 8px;
+    color: rgba(52,211,153,0.75);
+    font-size: 0.83rem;
+    padding: 0.35rem 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-add-wallet:hover { border-color: rgba(52,211,153,0.7); color: #34d399; background: rgba(52,211,153,0.06); }
+  .add-wallet-form { margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .add-wallet-input {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 7px;
+    color: rgba(255,255,255,0.85);
+    font-size: 0.85rem;
+    padding: 0.4rem 0.65rem;
+    outline: none;
+    width: 100%;
+    max-width: 340px;
+  }
+  .add-wallet-input:focus { border-color: rgba(52,211,153,0.5); }
+  .add-wallet-row { display: flex; align-items: center; gap: 0.4rem; }
 </style>
 
 <script>
@@ -1258,7 +1286,11 @@ async function checkAddress(address) {
   }
 }
 
+// Store last lookup for the "Add wallet" flow
+let lastLookupData = null;
+
 function renderAddressPanel(data) {
+  lastLookupData = data;
   const inner = $('addr-panel-inner');
   let html = `<div class="addr-panel-title">Address info</div>`;
 
@@ -1279,10 +1311,26 @@ function renderAddressPanel(data) {
   }
   html += `</div>`;
 
+  // "Add as wallet" button — only when it's not already a registered wallet
+  if (!data.ownWallet) {
+    html += `
+      <div id="add-wallet-area">
+        <button class="btn-add-wallet" type="button" id="btn-show-add-wallet">＋ Add as my wallet</button>
+        <div id="add-wallet-form" style="display:none" class="add-wallet-form">
+          <input id="add-wallet-label" type="text" placeholder="Wallet label (e.g. My LTC wallet)" class="add-wallet-input" />
+          <div class="add-wallet-row">
+            <button class="btn-annotate-save" type="button" id="btn-confirm-add-wallet">Save</button>
+            <button class="btn-annotate-cancel" type="button" id="btn-cancel-add-wallet">Cancel</button>
+            <span id="add-wallet-status" style="font-size:0.8rem;opacity:0.6;margin-left:0.5rem"></span>
+          </div>
+        </div>
+      </div>`;
+  }
+
   // Recent transactions
   const txs = data.recentTxs ?? [];
   if (txs.length) {
-    html += `<div class="addr-txs-label">Recent transactions</div>`;
+    html += `<div class="addr-txs-label" style="margin-top:0.75rem">Recent transactions</div>`;
     for (const t of txs) {
       const dir    = (t.direction ?? '').toLowerCase();
       const absAmt = Math.abs(Number(t.amount ?? 0));
@@ -1298,6 +1346,53 @@ function renderAddressPanel(data) {
   }
 
   inner.innerHTML = html;
+
+  // Wire add-wallet buttons after innerHTML is set
+  const btnShow = $('btn-show-add-wallet');
+  const form    = $('add-wallet-form');
+  if (btnShow && form) {
+    btnShow.addEventListener('click', () => {
+      form.style.display = 'block';
+      btnShow.style.display = 'none';
+      $('add-wallet-label').focus();
+    });
+    $('btn-cancel-add-wallet').addEventListener('click', () => {
+      form.style.display = 'none';
+      btnShow.style.display = '';
+      $('add-wallet-status').textContent = '';
+    });
+    $('btn-confirm-add-wallet').addEventListener('click', () => saveNewWallet(data.address));
+    $('add-wallet-label').addEventListener('keydown', e => { if (e.key === 'Enter') saveNewWallet(data.address); });
+  }
+}
+
+async function saveNewWallet(address) {
+  const label  = $('add-wallet-label')?.value.trim() ?? '';
+  const status = $('add-wallet-status');
+  const btn    = $('btn-confirm-add-wallet');
+  if (!label) { if (status) status.textContent = 'Label is required'; return; }
+
+  btn.disabled = true;
+  if (status) status.textContent = 'Saving…';
+
+  try {
+    const res = await fetch('/api/wallets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, label }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (status) status.textContent = data.message ?? 'Failed to save';
+      btn.disabled = false;
+      return;
+    }
+    // Re-run the lookup so the panel now shows "Your wallet"
+    await checkAddress(address);
+  } catch (e) {
+    if (status) status.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+  }
 }
 
 // ── Add Transaction wallet picker ─────────────────────────────────────────────
