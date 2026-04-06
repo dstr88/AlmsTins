@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import AddTransactionModal from '../../components/dashboard/AddTransactionModal.astro';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { db } from '../../lib/db';
 
@@ -16,6 +17,17 @@ const symbolResult = await db.execute({
   args: [tenantId],
 });
 const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filter(Boolean);
+
+// Load tenant wallets for the "Add Transaction" picker
+const walletResult = await db.execute({
+  sql: `SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY label ASC`,
+  args: [tenantId],
+});
+const tenantWallets = walletResult.rows.map(r => ({
+  id:      String((r as any).id      ?? ''),
+  address: String((r as any).address ?? ''),
+  label:   String((r as any).label   ?? ''),
+}));
 ---
 
 <Layout title="Research | Almstins" noindex={true}>
@@ -56,8 +68,34 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
 
       <div class="search-actions">
         <button id="btn-run-matching" class="btn-secondary" type="button">⚙ Re-run matching</button>
-        <button id="btn-search"       class="btn-primary"   type="button">Search</button>
+        <div class="wallet-picker-wrap">
+          <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
+          <div id="wallet-picker" class="wallet-picker" style="display:none">
+            <div class="wallet-picker-header">Select wallet</div>
+            {tenantWallets.length === 0 ? (
+              <div class="wallet-picker-empty">No wallets found.</div>
+            ) : (
+              tenantWallets.map(w => (
+                <button
+                  class="wallet-picker-item"
+                  type="button"
+                  data-wallet-id={w.id}
+                  data-wallet-label={w.label || w.address.slice(0, 8) + '…'}
+                >
+                  <span class="wpi-label">{w.label || <span style="opacity:0.5">Unnamed</span>}</span>
+                  <span class="wpi-addr">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+        <button id="btn-search" class="btn-primary" type="button">Search</button>
       </div>
+    </div>
+
+    <!-- ── Address lookup panel ───────────────────────────────────────────────── -->
+    <div id="addr-panel" class="addr-panel" style="display:none">
+      <div id="addr-panel-inner"></div>
     </div>
 
     <!-- ── Two-column body ─────────────────────────────────────────────────── -->
@@ -563,6 +601,109 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
   .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem; }
   .match-detail  { font-size: 0.88rem; color: rgba(255,255,255,0.7); line-height: 1.8; }
   .match-detail strong { color: #fff; }
+
+  /* ── Wallet picker popover ───────────────────────────────────────────────── */
+  .wallet-picker-wrap { position: relative; }
+  .wallet-picker {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    min-width: 240px;
+    background: #1a1a1a;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    overflow: hidden;
+    z-index: 200;
+  }
+  .wallet-picker-header {
+    padding: 0.55rem 0.85rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .wallet-picker-empty {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.83rem;
+    color: rgba(255,255,255,0.35);
+  }
+  .wallet-picker-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    color: inherit;
+    padding: 0.6rem 0.85rem;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .wallet-picker-item:last-child { border-bottom: none; }
+  .wallet-picker-item:hover { background: rgba(255,255,255,0.07); }
+  .wpi-label { font-size: 0.88rem; font-weight: 600; color: rgba(255,255,255,0.85); }
+  .wpi-addr  { font-size: 0.73rem; color: rgba(255,255,255,0.35); font-family: monospace; }
+
+  /* ── Address lookup panel ────────────────────────────────────────────────── */
+  .addr-panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .addr-panel-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 0.65rem;
+  }
+  .addr-info-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin-bottom: 0.75rem;
+  }
+  .addr-info-chip {
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.83rem;
+    font-weight: 600;
+  }
+  .addr-info-chip.own    { background: rgba(52,211,153,0.12); color: #34d399; border: 1px solid rgba(52,211,153,0.25); }
+  .addr-info-chip.exchange { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.25); }
+  .addr-info-chip.label  { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
+  .addr-info-chip.unknown { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1); }
+  .addr-txs-label {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .addr-tx-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.8rem;
+  }
+  .addr-tx-row:last-child { border-bottom: none; }
+  .addr-tx-dir { font-size: 0.68rem; font-weight: 700; padding: 0.12rem 0.38rem; border-radius: 4px; }
+  .addr-tx-dir.out { background: rgba(239,68,68,0.15); color: #f87171; }
+  .addr-tx-dir.in  { background: rgba(52,211,153,0.12); color: #34d399; }
+  .addr-tx-sym   { font-weight: 700; color: #fff; }
+  .addr-tx-amt   { color: rgba(255,255,255,0.65); }
+  .addr-tx-dt    { margin-left: auto; color: rgba(255,255,255,0.3); font-size: 0.73rem; white-space: nowrap; }
+  .addr-loading  { font-size: 0.83rem; color: rgba(255,255,255,0.3); font-style: italic; }
 </style>
 
 <script>
@@ -1087,6 +1228,109 @@ window.saveAnnotation   = saveAnnotation;
 window.markLegacy       = markLegacy;
 window.markOwnWallet    = markOwnWallet;
 
+// ── Address lookup ────────────────────────────────────────────────────────────
+const ADDRESS_RE = /^(0x[0-9a-fA-F]{40,}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,})$/;
+
+let addrDebounce = null;
+
+$('q').addEventListener('input', () => {
+  clearTimeout(addrDebounce);
+  const val = $('q').value.trim();
+  if (ADDRESS_RE.test(val)) {
+    addrDebounce = setTimeout(() => checkAddress(val), 400);
+  } else {
+    $('addr-panel').style.display = 'none';
+  }
+});
+
+async function checkAddress(address) {
+  const panel = $('addr-panel');
+  const inner = $('addr-panel-inner');
+  panel.style.display = 'block';
+  inner.innerHTML = `<div class="addr-loading">Looking up ${address.slice(0,10)}…</div>`;
+
+  try {
+    const res  = await fetch('/api/research/address-lookup?address=' + encodeURIComponent(address));
+    const data = await res.json();
+    renderAddressPanel(data);
+  } catch (e) {
+    inner.innerHTML = `<div class="addr-loading">Lookup failed: ${e.message}</div>`;
+  }
+}
+
+function renderAddressPanel(data) {
+  const inner = $('addr-panel-inner');
+  let html = `<div class="addr-panel-title">Address info</div>`;
+
+  // Chips row
+  html += `<div class="addr-info-grid">`;
+  if (data.ownWallet) {
+    const lbl = data.ownWallet.label || data.ownWallet.address.slice(0,8) + '…';
+    html += `<span class="addr-info-chip own">🏠 Your wallet: ${lbl}</span>`;
+  }
+  if (data.knownExchange) {
+    html += `<span class="addr-info-chip exchange">🏦 ${data.knownExchange}</span>`;
+  }
+  if (data.addressLabel && !data.ownWallet) {
+    html += `<span class="addr-info-chip label">🏷 ${data.addressLabel}</span>`;
+  }
+  if (!data.ownWallet && !data.knownExchange && !data.addressLabel) {
+    html += `<span class="addr-info-chip unknown">Unknown address</span>`;
+  }
+  html += `</div>`;
+
+  // Recent transactions
+  const txs = data.recentTxs ?? [];
+  if (txs.length) {
+    html += `<div class="addr-txs-label">Recent transactions</div>`;
+    for (const t of txs) {
+      const dir    = (t.direction ?? '').toLowerCase();
+      const absAmt = Math.abs(Number(t.amount ?? 0));
+      const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
+      const sym    = t.asset_symbol ?? '?';
+      html += `<div class="addr-tx-row">
+        <span class="addr-tx-dir ${dir}">${dir}</span>
+        <span class="addr-tx-sym">${sym}</span>
+        <span class="addr-tx-amt">${amt} ${sym}</span>
+        <span class="addr-tx-dt">${fmtDate(t.timestamp_utc)}</span>
+      </div>`;
+    }
+  }
+
+  inner.innerHTML = html;
+}
+
+// ── Add Transaction wallet picker ─────────────────────────────────────────────
+const btnAddTx     = $('btn-add-tx');
+const walletPicker = $('wallet-picker');
+
+btnAddTx.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isOpen = walletPicker.style.display !== 'none';
+  walletPicker.style.display = isOpen ? 'none' : 'block';
+});
+
+// Close picker when clicking outside
+document.addEventListener('click', (e) => {
+  if (!walletPicker.contains(e.target) && e.target !== btnAddTx) {
+    walletPicker.style.display = 'none';
+  }
+});
+
+// Wire wallet-picker items → open AddTransactionModal
+walletPicker.querySelectorAll('.wallet-picker-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const walletId    = item.getAttribute('data-wallet-id');
+    const walletLabel = item.getAttribute('data-wallet-label');
+    walletPicker.style.display = 'none';
+    document.dispatchEvent(new CustomEvent('open-add-tx', {
+      detail: { walletId, walletLabel },
+    }));
+  });
+});
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadNeedsAttention();
 </script>
+
+<AddTransactionModal />
