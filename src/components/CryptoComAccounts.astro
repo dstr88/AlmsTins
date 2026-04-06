@@ -327,7 +327,7 @@ try {
 												<div class="exchange-holding__field">
 													<span class="exchange-holding__label">Days</span>
 													<span class="exchange-holding__value">
-														{usdValue !== null && usdValue > 1 ? (formatDaysSince(holding.lastPurchaseAt) ?? '—') : '—'}
+														{usdValue === null || usdValue > 1 ? (formatDaysSince(holding.lastPurchaseAt) ?? '—') : '—'}
 													</span>
 												</div>
 												<div class="exchange-holding__field">
