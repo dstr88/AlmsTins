@@ -130,6 +130,19 @@ export const DELETE: APIRoute = async ({ params, request }) => {
 	try {
 		const { tenantId } = await requireTenantSession(request);
 		await requireWalletOwnedByTenant(params.id, tenantId);
+
+		// Cascade-delete linked transactions before removing the wallet record
+		await db.batch([
+			{
+				sql: 'DELETE FROM import_transactions WHERE wallet_id = ? AND tenant_id = ?',
+				args: [params.id, tenantId],
+			},
+			{
+				sql: 'DELETE FROM transactions WHERE wallet_id = ? AND tenant_id = ?',
+				args: [params.id, tenantId],
+			},
+		], 'write');
+
 		const result = await db.execute({
 			sql: 'DELETE FROM wallets WHERE id = ? AND tenant_id = ? RETURNING id',
 			args: [params.id, tenantId],

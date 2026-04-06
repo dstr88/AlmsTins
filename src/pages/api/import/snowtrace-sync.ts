@@ -114,6 +114,13 @@ export const POST: APIRoute = async ({ request }) => {
 		});
 	}
 
+	// Look up wallet_id from wallets table so imported transactions are linked
+	const walletRow = await db.execute({
+		sql: `SELECT id FROM wallets WHERE tenant_id = ? AND lower(address) = ? LIMIT 1`,
+		args: [tenantId, walletAddress.toLowerCase()],
+	});
+	const walletId = walletRow.rows.length ? String(walletRow.rows[0].id ?? '') : null;
+
 	// ── Fetch all pages from Routescan ───────────────────────────────────────
 
 	const allTxs: any[] = [];
@@ -189,14 +196,14 @@ export const POST: APIRoute = async ({ request }) => {
 
 	const normStmts = normRows.map(r => ({
 		sql: `INSERT OR IGNORE INTO import_transactions
-		      (id, tenant_id, source, account_id, import_batch_id, timestamp_utc,
+		      (id, tenant_id, source, account_id, wallet_id, import_batch_id, timestamp_utc,
 		       description, currency, amount,
 		       to_currency, to_amount,
 		       native_currency, native_amount, native_usd,
 		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, 'avalanche_cchain', ?, ?, ?,  ?, 'AVAX', ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, 'AVAX', ?, CURRENT_TIMESTAMP)`,
+		      VALUES (?, ?, 'avalanche_cchain', ?, ?, ?, ?,  ?, 'AVAX', ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, 'AVAX', ?, CURRENT_TIMESTAMP)`,
 		args: [
-			randomUUID(), tenantId, accountId, batchId, r.timestamp,
+			randomUUID(), tenantId, accountId, walletId, batchId, r.timestamp,
 			r.description,
 			r.direction === 'out' ? -r.amount : r.amount,
 			r.kind, r.txHash, r.direction, r.rowHash,
