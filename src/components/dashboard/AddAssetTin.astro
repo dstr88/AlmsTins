@@ -437,15 +437,15 @@
 		var submitBtn    = tin.querySelector('[data-add-submit]');
 		var messageEl    = tin.querySelector('[data-add-message]');
 
-		// Cache of existing wallet addresses (lowercased) for duplicate detection.
-		// Populated once on init, updated after a successful add.
-		var existingAddresses = new Set();
+		// Cache of existing wallets: address (lowercased) → wallet id.
+		// Populated once on init, updated after adds/deletes.
+		var existingWallets = {};
 		fetch('/api/wallets')
 			.then(function (r) { return r.ok ? r.json() : []; })
 			.then(function (wallets) {
 				if (!Array.isArray(wallets)) return;
 				wallets.forEach(function (w) {
-					if (w.address) existingAddresses.add(String(w.address).toLowerCase());
+					if (w.address && w.id) existingWallets[String(w.address).toLowerCase()] = w.id;
 				});
 			})
 			.catch(function () {});
@@ -479,11 +479,18 @@
 				var address = addressInput ? addressInput.value.trim() : '';
 				var chain   = chainSelect  ? chainSelect.value.trim()  : '';
 				if (!address) { setMessage('Enter a wallet address first.'); return; }
-				if (existingAddresses.has(address.toLowerCase())) {
-					setMessage('⚠ Wallet already exists in your list.');
+				submitBtn.disabled = true;
+				var existingId = existingWallets[address.toLowerCase()];
+				if (existingId) {
+					setMessage('Duplicate found — removing old entry\u2026');
+					fetch('/api/wallets/' + existingId, { method: 'DELETE' })
+						.catch(function () {})
+						.finally(function () {
+							delete existingWallets[address.toLowerCase()];
+							submitBtn.click();
+						});
 					return;
 				}
-				submitBtn.disabled = true;
 				setMessage('Saving\u2026');
 				var chains = chain === 'bitcoin' ? ['bitcoin']
 				           : chain ? [chain, 'ethereum', 'polygon', 'avalanche'].filter(function(c, i, a) { return a.indexOf(c) === i; })
@@ -506,7 +513,7 @@
 						}
 						if (!res.ok) throw new Error(payload.message || payload.error || 'Unable to add wallet.');
 						// Track the new address so a second add attempt is caught immediately
-						if (address) existingAddresses.add(address.toLowerCase());
+						if (address && payload.id) existingWallets[address.toLowerCase()] = payload.id;
 						if (addressInput) addressInput.value = '';
 						setMessage('Wallet added \u2014 reloading\u2026');
 						window.location.reload();
