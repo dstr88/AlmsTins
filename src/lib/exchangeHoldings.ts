@@ -203,7 +203,12 @@ export function computeHoldings(rows: ImportRow[]): Holding[] {
 			staked,
 			stakingYtd,
 			stakingYtdUsd: stakingYtdUsdMap.has(sym) ? (stakingYtdUsd ?? 0) : null,
-			lastPurchaseAt: lastPurchaseMap.get(sym) ?? lastSeenMap.get(sym) ?? null,
+			// For staking-only coins the lastSeenMap fallback would show the age of the
+		// most recent staking reward — a misleading and constantly-shifting number.
+		// Suppress it so the UI shows just ⚡ without a confusing days count.
+		lastPurchaseAt: earnedSymbol === '⚡'
+			? null
+			: (lastPurchaseMap.get(sym) ?? lastSeenMap.get(sym) ?? null),
 			earnedSymbol,
 			costBasis: unknownCost.has(sym) || !lots.length ? null : lots.reduce((s, l) => s + l.cost, 0),
 		});
