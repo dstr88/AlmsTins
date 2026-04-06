@@ -59,6 +59,7 @@ export const GET: APIRoute = async ({ request }) => {
 		        AND m_out.id IS NULL
 		        AND m_in.id  IS NULL
 		        AND al_explained.id IS NULL          -- skip pre-2024 transactions explained via address label
+		        AND (t.category IS NULL OR t.category != 'legacy_exchange')  -- legacy exchange label always resolves
 		        AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01') -- skip pre-2024 transactions with a user-set category
 		        AND (
 		          -- OUT with no known internal destination.

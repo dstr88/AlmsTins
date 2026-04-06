@@ -397,8 +397,15 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
   .tx-dt    { margin-left: auto; font-size: 0.72rem; color: rgba(255,255,255,0.3); white-space: nowrap; }
 
   /* ── Annotate button + inline form ──────────────────────────────────────── */
-  .btn-annotate {
+  .card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
     margin-top: 0.45rem;
+    align-items: center;
+  }
+  .btn-annotate {
+    margin-top: 0;
     background: none;
     border: 1px solid rgba(255,255,255,0.12);
     border-radius: 6px;
@@ -410,6 +417,19 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
   }
   .btn-annotate:hover { border-color: rgba(251,191,36,0.4); color: #fbbf24; }
   .btn-annotate.has-note { border-color: rgba(251,191,36,0.35); color: rgba(251,191,36,0.7); }
+
+  .btn-legacy {
+    background: none;
+    border: 1px solid rgba(156,163,175,0.25);
+    border-radius: 6px;
+    color: rgba(156,163,175,0.55);
+    font-size: 0.7rem;
+    padding: 0.2rem 0.55rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-legacy:hover { border-color: rgba(156,163,175,0.5); color: rgba(156,163,175,0.85); }
+  .btn-legacy:disabled { opacity: 0.4; cursor: default; }
 
   .annotate-form {
     margin-top: 0.5rem;
@@ -648,13 +668,20 @@ function renderNeedsAttention(data) {
             <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
           </div>
           ${hasAnnotation ? `<div style="margin-top:0.3rem">${catLabel}${noteText}</div>` : ''}
-          <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
-                  data-tx-id="${t.id}"
-                  data-category="${t.category ?? ''}"
-                  data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
-                  onclick="openAnnotateForm(event, this)">
-            ${hasAnnotation ? '✏️ Edit note' : '📝 Add note'}
-          </button>
+          <div class="card-actions">
+            <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
+                    data-tx-id="${t.id}"
+                    data-category="${t.category ?? ''}"
+                    data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                    onclick="openAnnotateForm(event, this)">
+              ${hasAnnotation ? '✏️ Edit note' : '📝 Add note'}
+            </button>
+            ${dir === 'in' && t.category !== 'legacy_exchange' ? `
+            <button class="btn-legacy"
+                    onclick="markLegacy(event, '${t.id}')">
+              🏚 Legacy exchange
+            </button>` : ''}
+          </div>
           <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
         </div>
       </div>`;
@@ -953,14 +980,15 @@ $('match-reject').addEventListener('click',  () => actOnMatch('reject'));
 
 // ── Annotate inline form ──────────────────────────────────────────────────────
 const DISPOSAL_TYPES = [
-  { value: '',          label: '— select type —' },
-  { value: 'sell',      label: 'Sell' },
-  { value: 'trade',     label: 'Trade (crypto → crypto)' },
-  { value: 'gift_out',  label: 'Gift out (sent to someone)' },
-  { value: 'gift_in',   label: 'Gift in (received as gift)' },
-  { value: 'lost',      label: 'Lost / stolen' },
-  { value: 'donation',  label: 'Donation (charity)' },
-  { value: 'other',     label: 'Other / explained' },
+  { value: '',                 label: '— select type —' },
+  { value: 'sell',             label: 'Sell' },
+  { value: 'trade',            label: 'Trade (crypto → crypto)' },
+  { value: 'gift_out',         label: 'Gift out (sent to someone)' },
+  { value: 'gift_in',          label: 'Gift in (received as gift)' },
+  { value: 'lost',             label: 'Lost / stolen' },
+  { value: 'donation',         label: 'Donation (charity)' },
+  { value: 'legacy_exchange',  label: 'Legacy / defunct exchange (source unavailable)' },
+  { value: 'other',            label: 'Other / explained' },
 ];
 
 function openAnnotateForm(e, btn) {
@@ -1009,6 +1037,30 @@ async function saveAnnotation(e, txId) {
     if (btn) btn.textContent = '⚠ Save failed';
   }
 }
+
+async function markLegacy(e, txId) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: 'legacy_exchange' }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    btn.disabled = false;
+    btn.textContent = '🏚 Legacy exchange';
+  }
+}
+
+// Expose to window so inline onclick="" attributes can find them
+window.openAnnotateForm = openAnnotateForm;
+window.saveAnnotation   = saveAnnotation;
+window.markLegacy       = markLegacy;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadNeedsAttention();
