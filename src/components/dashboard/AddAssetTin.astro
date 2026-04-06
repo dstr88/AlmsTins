@@ -482,6 +482,11 @@
 							submitBtn.disabled = false;
 							return;
 						}
+						if (res.status === 409) {
+							setMessage(payload.message || 'Already tracked — edit the existing wallet instead.');
+							submitBtn.disabled = false;
+							return;
+						}
 						if (!res.ok) throw new Error(payload.message || payload.error || 'Unable to add wallet.');
 						if (addressInput) addressInput.value = '';
 						setMessage('Wallet added \u2014 reloading\u2026');

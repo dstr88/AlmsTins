@@ -73,7 +73,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 		if ('address' in body) {
 			const nextAddress = sanitizeAddress(body.address);
 			if (!nextAddress) {
-				return responseWithError('Address must be a valid 0x string.', 400);
+				return responseWithError('Address must be a valid wallet address (0x… for EVM/Sui, bc1q… / bc1p… / 1… / 3… for Bitcoin).', 400);
 			}
 			updates.push('address = ?');
 			args.push(nextAddress);

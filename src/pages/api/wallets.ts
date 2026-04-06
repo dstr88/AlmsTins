@@ -11,7 +11,7 @@ export const GET: APIRoute = async ({ request }) => {
 	try {
 		const { tenantId } = await requireTenantSession(request);
 		const result = await db.execute({
-			sql: 'SELECT id, address, label, chains, is_default, created_at FROM wallets WHERE tenant_id = ? ORDER BY created_at DESC',
+			sql: 'SELECT id, address, label, chains, is_default, wallet_type, created_at FROM wallets WHERE tenant_id = ? ORDER BY created_at DESC',
 			args: [tenantId],
 		});
 		const wallets = result.rows.map(transformWalletRow);
@@ -97,6 +97,10 @@ export const POST: APIRoute = async ({ request }) => {
 		});
 	} catch (error) {
 		console.error('Failed to create wallet', error);
+		const msg = error instanceof Error ? error.message : String(error);
+		if (msg.includes('UNIQUE') || msg.includes('unique')) {
+			return responseWithError('That address is already being tracked. Edit the existing wallet instead.', 409);
+		}
 		return responseWithError('Unable to save wallet. Please try again.', 500);
 	}
 };
