@@ -320,37 +320,84 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
     border-bottom: 1px solid rgba(255,255,255,0.04);
   }
 
-  /* ── NA items ────────────────────────────────────────────────────────────── */
-  .na-item {
-    padding: 1rem 1.1rem 0.95rem;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+  /* ── Unified transaction card (NA items + result cards share this) ─────────── */
+  .tx-card {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1rem 1.1rem;
+    margin-bottom: 2px;
     border-left: 3px solid transparent;
-    cursor: pointer;
     transition: background 0.12s;
   }
-  .na-item:hover { background: rgba(255,255,255,0.04); }
-  .na-item.selected {
+  .tx-card:last-child { margin-bottom: 0; }
+
+  /* NA-specific state */
+  .tx-card.na-item { cursor: pointer; }
+  .tx-card.na-item:hover { background: rgba(255,255,255,0.04); }
+  .tx-card.na-item.selected {
     background: rgba(251,191,36,0.06);
-    border-left-color: #fbbf24;
+    border-left-color: #fbbf24 !important;
   }
-  .na-top {
+
+  /* Result-card hover */
+  .tx-card.result-card:hover { background: rgba(255,255,255,0.03); }
+
+  /* Direction accent borders */
+  .tx-card.dir-out { border-left-color: rgba(239,68,68,0.4); }
+  .tx-card.dir-in  { border-left-color: rgba(52,211,153,0.35); }
+
+  /* Badge column — direction pill, fixed width */
+  .tx-badge-col {
+    flex-shrink: 0;
+    padding-top: 3px;
+    width: 34px;
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.35rem;
+    flex-direction: column;
+    align-items: flex-start;
   }
-  .na-sym  { font-weight: 700; font-size: 1rem; color: #fff; }
-  .na-dir  { font-size: 0.72rem; padding: 0.17rem 0.5rem; border-radius: 4px; font-weight: 700; flex-shrink: 0; }
-  .na-dir.out { background: rgba(239,68,68,0.15); color: #f87171; }
-  .na-dir.in  { background: rgba(52,211,153,0.12); color: #34d399; }
-  .na-amounts { margin-left: auto; text-align: right; }
-  .na-amt  { font-size: 0.9rem; color: rgba(255,255,255,0.75); font-weight: 600; display: block; }
-  .na-usd  { font-size: 0.75rem; color: rgba(255,255,255,0.35); display: block; }
-  .na-mid  { margin-bottom: 0.3rem; }
-  .na-hint { font-size: 0.72rem; color: rgba(251,191,36,0.5); font-style: italic; }
-  .na-bot  { display: flex; justify-content: space-between; align-items: center; }
-  .na-src  { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
-  .na-dt   { font-size: 0.72rem; color: rgba(255,255,255,0.28); }
+  .tx-dir {
+    font-size: 0.68rem;
+    padding: 0.18rem 0.42rem;
+    border-radius: 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+  .tx-dir.out { background: rgba(239,68,68,0.15); color: #f87171; }
+  .tx-dir.in  { background: rgba(52,211,153,0.12); color: #34d399; }
+
+  /* Body — three rows */
+  .tx-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.28rem; }
+
+  /* Row 1: symbol (left) + token amount (right) */
+  .tx-row-1 { display: flex; align-items: baseline; gap: 0.45rem; }
+  .tx-sym   { font-weight: 700; font-size: 1rem; color: #fff; }
+  .tx-amt   {
+    margin-left: auto;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    white-space: nowrap;
+  }
+
+  /* Row 2: source (left) + USD (right) */
+  .tx-row-2 { display: flex; align-items: center; gap: 0.45rem; }
+  .tx-src   { font-size: 0.78rem; color: rgba(255,255,255,0.4); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-usd   { margin-left: auto; font-size: 0.78rem; color: rgba(255,255,255,0.38); white-space: nowrap; }
+
+  /* Row 3: description or hint (left) + datetime (right) */
+  .tx-row-3 { display: flex; align-items: center; gap: 0.45rem; }
+  .tx-desc  { font-size: 0.73rem; color: rgba(255,255,255,0.27); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .tx-hint  { font-size: 0.73rem; color: rgba(251,191,36,0.5); font-style: italic; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-dt    { margin-left: auto; font-size: 0.72rem; color: rgba(255,255,255,0.3); white-space: nowrap; }
+
+  /* Match badge (inline with symbol) */
+  .match-badge {
+    font-size: 0.68rem; padding: 0.1rem 0.38rem; border-radius: 4px;
+    background: rgba(52,211,153,0.12); color: #34d399; flex-shrink: 0;
+  }
+  .match-badge.suggested { background: rgba(251,191,36,0.12); color: #fbbf24; }
 
   /* ── Suggested match items ───────────────────────────────────────────────── */
   .suggest-item {
@@ -413,45 +460,6 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
   .resolved-flow { font-size: 0.78rem; color: rgba(255,255,255,0.45); }
   .resolved-meta { font-size: 0.72rem; color: rgba(255,255,255,0.28); }
 
-  /* ── Result cards ────────────────────────────────────────────────────────── */
-  .result-card {
-    display: flex;
-    gap: 0.75rem;
-    padding: 0.95rem 1.1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    border-left: 3px solid transparent;
-    transition: background 0.12s;
-  }
-  .result-card:hover { background: rgba(255,255,255,0.03); }
-  .result-card.dir-out { border-left-color: rgba(239,68,68,0.4); }
-  .result-card.dir-in  { border-left-color: rgba(52,211,153,0.35); }
-
-  .result-badge-col { display: flex; flex-direction: column; align-items: flex-start; padding-top: 2px; flex-shrink: 0; }
-  .result-dir {
-    font-size: 0.7rem; padding: 0.18rem 0.5rem; border-radius: 4px;
-    font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
-  }
-  .result-dir.out { background: rgba(239,68,68,0.15); color: #f87171; }
-  .result-dir.in  { background: rgba(52,211,153,0.12); color: #34d399; }
-
-  .result-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
-
-  .result-row-1 { display: flex; align-items: baseline; gap: 0.5rem; }
-  .result-sym  { font-weight: 700; font-size: 1rem; color: #fff; }
-  .match-badge {
-    font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px;
-    background: rgba(52,211,153,0.12); color: #34d399;
-  }
-  .match-badge.suggested { background: rgba(251,191,36,0.12); color: #fbbf24; }
-  .result-amt  { margin-left: auto; font-size: 0.95rem; font-weight: 600; color: rgba(255,255,255,0.85); white-space: nowrap; }
-
-  .result-row-2 { display: flex; align-items: center; gap: 0.5rem; }
-  .result-src  { font-size: 0.78rem; color: rgba(255,255,255,0.4); }
-  .result-usd  { margin-left: auto; font-size: 0.78rem; color: rgba(255,255,255,0.38); white-space: nowrap; }
-
-  .result-row-3 { display: flex; align-items: center; gap: 0.5rem; }
-  .result-desc { font-size: 0.75rem; color: rgba(255,255,255,0.28); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .result-dt   { margin-left: auto; font-size: 0.73rem; color: rgba(255,255,255,0.3); white-space: nowrap; }
 
   /* ── Modal ───────────────────────────────────────────────────────────────── */
   .modal-overlay {
@@ -556,25 +564,26 @@ function renderNeedsAttention(data) {
   if (data.unmatched?.length) {
     html += `<div class="section-label">Unresolved transactions</div>`;
     for (const t of data.unmatched) {
-      const dir = (t.direction ?? '').toLowerCase();
+      const dir    = (t.direction ?? '').toLowerCase();
       const absAmt = Math.abs(Number(t.amount));
-      const amt = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
-      const hint = dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
-      html += `<div class="na-item" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}">
-        <div class="na-top">
-          <span class="na-sym">${t.asset_symbol}</span>
-          <span class="na-dir ${dir}">${dir}</span>
-          <div class="na-amounts">
-            <span class="na-amt">${amt} ${t.asset_symbol}</span>
-            ${t.native_usd ? `<span class="na-usd">${fmtUsd(t.native_usd)}</span>` : ''}
+      const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
+      const hint   = dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
+      const src    = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+      html += `<div class="tx-card na-item dir-${dir}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}">
+        <div class="tx-badge-col"><span class="tx-dir ${dir}">${dir}</span></div>
+        <div class="tx-body">
+          <div class="tx-row-1">
+            <span class="tx-sym">${t.asset_symbol}</span>
+            <span class="tx-amt">${amt} ${t.asset_symbol}</span>
           </div>
-        </div>
-        <div class="na-mid">
-          <span class="na-hint">${hint}</span>
-        </div>
-        <div class="na-bot">
-          <span class="na-src">${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}</span>
-          <span class="na-dt">${fmtDT(t.timestamp_utc)}</span>
+          <div class="tx-row-2">
+            <span class="tx-src">${src}</span>
+            ${t.native_usd ? `<span class="tx-usd">${fmtUsd(t.native_usd)}</span>` : ''}
+          </div>
+          <div class="tx-row-3">
+            <span class="tx-hint">${hint}</span>
+            <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
+          </div>
         </div>
       </div>`;
     }
@@ -765,43 +774,34 @@ function renderResults(data) {
 
   let html = '';
   for (const t of rows) {
-    const dir = (t.direction ?? '').toLowerCase();
-
-    // Match badge
+    const dir         = (t.direction ?? '').toLowerCase();
     const matchStatus = t.match_status_as_out ?? t.match_status_as_in ?? null;
     const matchDir    = t.match_id_as_out ? '→' : '←';
     const matchBadge  = (t.match_id_as_out || t.match_id_as_in)
       ? `<span class="match-badge${matchStatus === 'suggested' ? ' suggested' : ''}">${matchDir} matched</span>`
       : '';
-
-    // Address label
-    const label = t.address_label
-      ? `<span style="color:rgba(251,191,36,0.65);font-size:0.75rem"> · ${t.address_label}</span>`
+    const label       = t.address_label
+      ? `<span style="color:rgba(251,191,36,0.65);font-size:0.72rem"> · ${t.address_label}</span>`
       : '';
-
-    // Amount display (show + / - prefix)
-    const amtDisplay = dir === 'out'
+    const amtDisplay  = dir === 'out'
       ? `−${fmt(Math.abs(t.amount))}`
       : `+${fmt(t.amount)}`;
+    const srcLine     = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
 
-    const srcLine = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
-
-    html += `<div class="result-card dir-${dir}">
-      <div class="result-badge-col">
-        <span class="result-dir ${dir}">${dir}</span>
-      </div>
-      <div class="result-body">
-        <div class="result-row-1">
-          <span class="result-sym">${t.asset_symbol ?? '?'}</span>${matchBadge}
-          <span class="result-amt">${amtDisplay} ${t.asset_symbol ?? ''}</span>
+    html += `<div class="tx-card result-card dir-${dir}">
+      <div class="tx-badge-col"><span class="tx-dir ${dir}">${dir}</span></div>
+      <div class="tx-body">
+        <div class="tx-row-1">
+          <span class="tx-sym">${t.asset_symbol ?? '?'}</span>${matchBadge}
+          <span class="tx-amt">${amtDisplay} ${t.asset_symbol ?? ''}</span>
         </div>
-        <div class="result-row-2">
-          <span class="result-src">${srcLine}${label}</span>
-          ${t.native_usd ? `<span class="result-usd">${fmtUsd(t.native_usd)}</span>` : ''}
+        <div class="tx-row-2">
+          <span class="tx-src">${srcLine}${label}</span>
+          ${t.native_usd ? `<span class="tx-usd">${fmtUsd(t.native_usd)}</span>` : ''}
         </div>
-        <div class="result-row-3">
-          ${t.description ? `<span class="result-desc">${t.description}</span>` : '<span class="result-desc"></span>'}
-          <span class="result-dt">${fmtDT(t.timestamp_utc)}</span>
+        <div class="tx-row-3">
+          <span class="tx-desc">${t.description ?? ''}</span>
+          <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
         </div>
       </div>
     </div>`;
