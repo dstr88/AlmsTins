@@ -106,13 +106,19 @@ try {
           <form id="login-google" class="provider-form" method="POST" action="/api/auth/signin/google">
             <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
-            <button class="provider-button google" type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Continue with Google</button>
+            <button class="provider-button google" type="submit" data-provider="google" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+              <span class="provider-label">Continue with Google</span>
+              <span class="last-used-badge" data-badge="google" hidden>Last used</span>
+            </button>
           </form>
 
           <form id="login-github" class="provider-form" method="POST" action="/api/auth/signin/github">
             <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
             <input type="hidden" name="csrfToken" value={csrfToken} />
-            <button class="provider-button github" type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Continue with GitHub</button>
+            <button class="provider-button github" type="submit" data-provider="github" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+              <span class="provider-label">Continue with GitHub</span>
+              <span class="last-used-badge" data-badge="github" hidden>Last used</span>
+            </button>
           </form>
         </div>
 
@@ -178,6 +184,29 @@ try {
           } catch (e) {
             console.warn("[login] csrf fetch failed", e);
           }
+        })();
+
+        // "Last used" badge — remember which provider was used and highlight it on return
+        (() => {
+          const STORAGE_KEY = 'alms_last_provider';
+          const lastProvider = localStorage.getItem(STORAGE_KEY);
+
+          if (lastProvider) {
+            const badge = document.querySelector(`[data-badge="${lastProvider}"]`);
+            if (badge) {
+              badge.removeAttribute('hidden');
+              // Also add a visual ring to the button so it stands out
+              badge.closest('button')?.classList.add('last-used');
+            }
+          }
+
+          // Record the provider when the user clicks
+          document.querySelectorAll('button[data-provider]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const provider = btn.getAttribute('data-provider');
+              if (provider) localStorage.setItem(STORAGE_KEY, provider);
+            });
+          });
         })();
       </script>
 
@@ -376,6 +405,37 @@ try {
     .provider-button.github {
       background: linear-gradient(135deg, #0f172a, #1f2937);
       border: none;
+    }
+
+    /* "Last used" badge — shown on the provider the user signed in with last */
+    .provider-button {
+      position: relative;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+
+    .provider-label {
+      display: block;
+    }
+
+    .last-used-badge {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.55rem;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.22);
+      color: #fff;
+      margin-top: 0.15rem;
+      width: fit-content;
+      align-self: center;
+    }
+
+    .provider-button.last-used {
+      outline: 2px solid rgba(255, 255, 255, 0.55);
+      outline-offset: 2px;
     }
 
     .provider-button.ghost {

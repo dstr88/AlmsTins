@@ -195,6 +195,52 @@ export async function ensureTenantForUser(userId: string, label?: string | null)
 	const existing = await resolveActiveTenantId(userId);
 	if (existing) return existing;
 
+	// Email-based tenant deduplication: if another auth_users row with the same
+	// email already has an active tenant, join that tenant instead of creating a
+	// new one.  This prevents a second OAuth provider login (e.g. GitHub after
+	// Google) from spawning a duplicate tenant when both providers share the same
+	// verified email address.
+	try {
+		const emailRow = await db.execute({
+			sql: 'SELECT email FROM auth_users WHERE id = ? LIMIT 1',
+			args: [userId],
+		});
+		const email = (emailRow.rows[0] as Record<string, unknown> | undefined)?.email;
+		if (email && typeof email === 'string' && email.includes('@')) {
+			const siblingRow = await db.execute({
+				sql: `SELECT active_tenant_id
+				      FROM auth_users
+				      WHERE email = ?
+				        AND id != ?
+				        AND active_tenant_id IS NOT NULL
+				        AND active_tenant_id != 'default'
+				      LIMIT 1`,
+				args: [email, userId],
+			});
+			const siblingTenantId = (siblingRow.rows[0] as Record<string, unknown> | undefined)?.active_tenant_id;
+			if (siblingTenantId && typeof siblingTenantId === 'string') {
+				// Adopt the existing tenant — add membership and set active
+				const membershipId = crypto.randomUUID();
+				try {
+					await db.execute({
+						sql: `INSERT OR IGNORE INTO tenant_memberships (id, tenant_id, user_id, role, created_at)
+						      VALUES (?, ?, ?, 'member', CURRENT_TIMESTAMP)`,
+						args: [membershipId, siblingTenantId, userId],
+					});
+				} catch {
+					// membership may already exist — non-fatal
+				}
+				if (await tryCasActiveTenant(siblingTenantId)) {
+					return siblingTenantId;
+				}
+				const afterConflict = await readActiveTenantWithRetry();
+				if (afterConflict) return afterConflict;
+			}
+		}
+	} catch {
+		// non-fatal — fall through to normal tenant creation
+	}
+
 	const membershipResult = await db.execute({
 		sql: `SELECT tenant_id
       FROM tenant_memberships
