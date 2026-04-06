@@ -47,6 +47,8 @@ export type LatestNetWorthSummary = {
 	totalAssetsUsd: number;
 	totalFreeAssetsUsd: number;
 	totalDebtUsd: number;
+	/** Total count of all tins: on-chain wallets + exchange accounts + custom wallets */
+	tinCount?: number;
 	tins?: Array<{
 		tinId: string;
 		tinName: string | null;
@@ -488,6 +490,15 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		netUsd: wallet.assetsUsd - wallet.debtUsd,
 	}));
 
+	// Count all tins: on-chain wallets + custom wallets + exchange accounts
+	const [walletCountResult, exchangeCountResult] = await Promise.all([
+		db.execute({ sql: 'SELECT COUNT(*) as count FROM wallets WHERE tenant_id = ?', args: [tenantId] }),
+		db.execute({ sql: 'SELECT COUNT(*) as count FROM exchange_accounts WHERE tenant_id = ?', args: [tenantId] }),
+	]);
+	const tinCount =
+		Number(walletCountResult.rows[0]?.count ?? 0) +
+		Number(exchangeCountResult.rows[0]?.count ?? 0);
+
 	return {
 		totalUsd: totalAssetsUsd,
 		byWallet: byWalletTotals,
@@ -496,6 +507,7 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
 		totalFreeAssetsUsd,
 		totalDebtUsd,
 		tins,
+		tinCount,
 		aaveIncluded,
 	};
 }

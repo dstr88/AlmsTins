@@ -33,6 +33,9 @@ export type NetWorthSummary = {
     netUsd: number;
     aaveIncluded?: boolean;
   }>;
+
+  /** Total count of all tins: on-chain wallets + exchange accounts + custom wallets */
+  tinCount?: number;
 };
 
 // --- helpers: do NOT coerce null/"" -> 0, and never return NaN ---
@@ -167,6 +170,9 @@ export function normalizeNetWorthSummary(payload: any): NetWorthSummary {
       })
     : [];
 
+  const tinCount =
+    typeof s.tinCount === 'number' && Number.isFinite(s.tinCount) ? s.tinCount : undefined;
+
   return {
     totalUsd,
     totalAssetsUsd,
@@ -175,5 +181,6 @@ export function normalizeNetWorthSummary(payload: any): NetWorthSummary {
     byWallet,
     byChain,
     tins,
+    tinCount,
   };
 }

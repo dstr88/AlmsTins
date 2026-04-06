@@ -15,10 +15,21 @@ type WalletBreakdown = {
 	byChain: WalletChainBreakdown[];
 };
 
+type TinBreakdown = {
+	tinId: string;
+	tinName: string;
+	assetsUsd: number;
+	freeAssetsUsd: number;
+	debtUsd: number;
+	netUsd: number;
+};
+
 type NetWorthSummary = {
 	totalUsd: number;
 	byWallet: WalletBreakdown[];
 	byChain: ChainBreakdown[];
+	tins?: TinBreakdown[];
+	tinCount?: number;
 };
 
 type NetWorthResponse = { ok: boolean; summary?: NetWorthSummary };
@@ -68,6 +79,8 @@ export default function NetWorthTable() {
 	const totalUsd = summary?.totalUsd ?? 0;
 	const chainBreakdown = summary?.byChain ?? [];
 	const walletRows = summary?.byWallet ?? [];
+	const tins = summary?.tins ?? [];
+	const tinCount = summary?.tinCount ?? tins.length ?? walletRows.length;
 
 	const donutSegments = useMemo(() => buildSegments(chainBreakdown, totalUsd), [chainBreakdown, totalUsd]);
 
@@ -99,7 +112,7 @@ export default function NetWorthTable() {
 						<p className="text-xs uppercase tracking-wide text-muted-foreground">Aggregate net worth</p>
 						<p className="text-3xl font-semibold">${formatUsd(totalUsd)}</p>
 						<p className="text-sm text-muted-foreground">
-							Last sync gathers latest per-chain ERC-20 + protocol snapshots across {walletRows.length} wallets.
+							{tinCount} tins in the ecosystem — on-chain wallets, exchanges, and custom accounts.
 						</p>
 						<ul className="mt-4 space-y-2 text-sm">
 							{chainBreakdown.map((entry, idx) => {
@@ -128,14 +141,14 @@ export default function NetWorthTable() {
 
 			<div className="rounded-lg border bg-card">
 				<div className="border-b px-4 py-3">
-					<h2 className="text-lg font-semibold">By wallet</h2>
+					<h2 className="text-lg font-semibold">By tin</h2>
 					<p className="text-sm text-muted-foreground">Latest balances and per-chain contributions.</p>
 				</div>
 				<div className="overflow-x-auto">
 					<table className="min-w-full text-sm">
 						<thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
 							<tr>
-								<th className="px-4 py-2 text-left">Wallet</th>
+								<th className="px-4 py-2 text-left">Tin</th>
 								<th className="px-4 py-2 text-left">Total USD</th>
 								<th className="px-4 py-2 text-left">Per chain</th>
 							</tr>
