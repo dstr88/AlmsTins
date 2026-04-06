@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
+import { runTransferMatching } from '@/lib/transferMatcher';
 
 type CsvRow = Record<string, string>;
 
@@ -304,6 +305,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const skippedDuplicates = rawStatements.length - insertedRaw;
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'coinbase', 'Coinbase');
+	void runTransferMatching(tenantId, resolvedAccountId);
 
 	return new Response(
 		JSON.stringify({

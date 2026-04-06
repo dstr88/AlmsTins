@@ -1,0 +1,626 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { requireTenantSession } from '../../lib/requireTenantSession';
+import { db } from '../../lib/db';
+
+const session = await requireTenantSession(Astro.request);
+if (!session) return Astro.redirect('/login');
+const { tenantId } = session;
+
+// Load all distinct symbols the user has data for (for the chip row)
+const symbolResult = await db.execute({
+  sql: `SELECT DISTINCT upper(asset_symbol) as sym
+        FROM import_transactions
+        WHERE tenant_id = ? AND asset_symbol IS NOT NULL
+        ORDER BY upper(asset_symbol) ASC`,
+  args: [tenantId],
+});
+const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filter(Boolean);
+---
+
+<Layout title="Research | Almstins" noindex={true}>
+  <section class="research-page">
+
+    <!-- ── Search card ─────────────────────────────────────────────────────── -->
+    <div class="search-card">
+      <div class="search-tier-1">
+        <span class="search-icon">🔍</span>
+        <input
+          id="q"
+          type="text"
+          placeholder="Search by hash, symbol, keyword, or note…"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="search-tier-2">
+        <select id="filter-symbol">
+          <option value="">All symbols</option>
+          {allSymbols.map(sym => <option value={sym}>{sym}</option>)}
+        </select>
+
+        <input id="filter-from" type="date" title="From date" />
+        <span class="date-sep">→</span>
+        <input id="filter-to"   type="date" title="To date"   />
+
+        <input id="filter-note" type="text" placeholder="Note keyword…" autocomplete="off" />
+      </div>
+
+      <!-- Symbol chips -->
+      <div class="chip-row" id="chip-row">
+        {allSymbols.map(sym => (
+          <button class="chip" data-sym={sym} type="button">{sym}</button>
+        ))}
+      </div>
+
+      <div class="search-actions">
+        <button id="btn-run-matching" class="btn-secondary" type="button">⚙ Re-run matching</button>
+        <button id="btn-search"       class="btn-primary"   type="button">Search</button>
+      </div>
+    </div>
+
+    <!-- ── Two-column body ─────────────────────────────────────────────────── -->
+    <div class="research-body">
+
+      <!-- Left: Needs Attention -->
+      <div class="col-left">
+        <div class="col-header">
+          <h2>Needs Attention <span id="na-count" class="count-badge"></span></h2>
+        </div>
+        <div id="na-list" class="item-list">
+          <div class="loading-msg">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Right: Search results -->
+      <div class="col-right">
+        <div class="col-header">
+          <h2>Results <span id="results-count" class="count-badge"></span></h2>
+        </div>
+        <div id="results-list" class="item-list">
+          <div class="empty-msg">Use the search above or click a symbol chip to explore your transactions.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</Layout>
+
+<!-- ── Suggested match confirmation modal ──────────────────────────────────── -->
+<div class="modal-overlay" id="match-modal" style="display:none">
+  <div class="modal-content">
+    <button class="modal-close" id="match-modal-close">×</button>
+    <h2>Confirm Transfer Match?</h2>
+    <div id="match-modal-body"></div>
+    <div class="modal-actions">
+      <button class="btn-danger"    id="match-reject">Reject</button>
+      <button class="btn-primary"   id="match-confirm">Confirm Match</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .research-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 3rem;
+  }
+
+  /* ── Search card ──────────────────────────────────────────────────────────── */
+  .search-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem 1rem;
+    margin-bottom: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .search-tier-1 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .search-icon { font-size: 1.1rem; opacity: 0.5; flex-shrink: 0; }
+  .search-tier-1 input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 9px;
+    color: #fff;
+    font-size: 1rem;
+    padding: 0.65rem 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-tier-1 input:focus {
+    border-color: rgba(251,191,36,0.6);
+    box-shadow: 0 0 0 3px rgba(251,191,36,0.08);
+  }
+
+  .search-tier-2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .search-tier-2 select,
+  .search-tier-2 input {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.7);
+    font-size: 0.86rem;
+    padding: 0.45rem 0.7rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-tier-2 select:focus,
+  .search-tier-2 input:focus { border-color: rgba(251,191,36,0.5); }
+  .search-tier-2 input[type="date"] { color-scheme: dark; width: 140px; }
+  .search-tier-2 input[type="text"] { flex: 1; min-width: 140px; }
+  .date-sep { opacity: 0.4; font-size: 0.85rem; }
+
+  /* ── Chip row ────────────────────────────────────────────────────────────── */
+  .chip-row {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+  }
+  .chip {
+    flex-shrink: 0;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.7);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .chip:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.28); }
+  .chip.active {
+    border-color: rgba(251,191,36,0.7);
+    background: rgba(251,191,36,0.1);
+    color: #fbbf24;
+  }
+
+  /* ── Search actions ──────────────────────────────────────────────────────── */
+  .search-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    padding-top: 0.2rem;
+  }
+  .btn-primary {
+    background: #fbbf24;
+    color: #000;
+    border: none;
+    border-radius: 9px;
+    padding: 0.55rem 1.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-secondary {
+    background: rgba(255,255,255,0.07);
+    color: rgba(255,255,255,0.65);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 9px;
+    padding: 0.55rem 1rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.12); }
+  .btn-danger {
+    background: rgba(239,68,68,0.15);
+    color: #f87171;
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 9px;
+    padding: 0.5rem 1rem;
+    font-size: 0.88rem;
+    cursor: pointer;
+  }
+
+  /* ── Two-column body ────────────────────────────────────────────────────── */
+  .research-body {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 1.25rem;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .research-body { grid-template-columns: 1fr; }
+  }
+
+  .col-left, .col-right {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .col-header {
+    padding: 0.9rem 1.1rem 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .col-header h2 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .count-badge {
+    background: rgba(251,191,36,0.15);
+    color: #fbbf24;
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  /* ── Item list ───────────────────────────────────────────────────────────── */
+  .item-list {
+    max-height: 72vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.12) transparent;
+  }
+  .loading-msg, .empty-msg {
+    padding: 2rem 1.1rem;
+    color: rgba(255,255,255,0.35);
+    font-size: 0.88rem;
+    text-align: center;
+  }
+
+  /* NA items */
+  .na-item {
+    padding: 0.7rem 1.1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    cursor: pointer;
+    transition: background 0.12s;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.2rem 0.6rem;
+  }
+  .na-item:hover { background: rgba(255,255,255,0.04); }
+  .na-item.selected { background: rgba(251,191,36,0.07); border-left: 2px solid #fbbf24; }
+  .na-sym   { font-weight: 700; font-size: 0.9rem; color: #fff; }
+  .na-src   { font-size: 0.78rem; color: rgba(255,255,255,0.45); }
+  .na-dir   { font-size: 0.75rem; padding: 0.15rem 0.45rem; border-radius: 4px; align-self: start; }
+  .na-dir.out { background: rgba(239,68,68,0.15); color: #f87171; }
+  .na-dir.in  { background: rgba(52,211,153,0.12); color: #34d399; }
+  .na-amt   { font-size: 0.82rem; color: rgba(255,255,255,0.6); }
+  .na-date  { font-size: 0.75rem; color: rgba(255,255,255,0.3); grid-column: 1; }
+
+  /* Suggested match items */
+  .suggest-item {
+    padding: 0.7rem 1.1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .suggest-item:hover { background: rgba(255,255,255,0.04); }
+  .suggest-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; }
+  .suggest-sym    { font-weight: 700; font-size: 0.88rem; color: #fbbf24; }
+  .suggest-score  { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+  .suggest-flow   { font-size: 0.8rem; color: rgba(255,255,255,0.6); }
+
+  /* Result rows */
+  .result-row {
+    padding: 0.65rem 1.1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.2rem 0.75rem;
+    align-items: center;
+  }
+  .result-row:hover { background: rgba(255,255,255,0.03); }
+  .result-dir   { font-size: 0.72rem; padding: 0.12rem 0.4rem; border-radius: 4px; font-weight: 600; }
+  .result-dir.out { background: rgba(239,68,68,0.15); color: #f87171; }
+  .result-dir.in  { background: rgba(52,211,153,0.12); color: #34d399; }
+  .result-main  { min-width: 0; }
+  .result-sym   { font-weight: 700; font-size: 0.88rem; color: #fff; }
+  .result-src   { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+  .result-desc  { font-size: 0.75rem; color: rgba(255,255,255,0.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .result-right { text-align: right; }
+  .result-amt   { font-size: 0.85rem; color: rgba(255,255,255,0.75); }
+  .result-usd   { font-size: 0.75rem; color: rgba(255,255,255,0.35); }
+  .result-date  { font-size: 0.72rem; color: rgba(255,255,255,0.3); grid-column: 1 / -1; padding-left: 0; }
+  .match-badge  {
+    font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px;
+    background: rgba(52,211,153,0.12); color: #34d399; margin-left: 0.4rem;
+  }
+  .match-badge.suggested { background: rgba(251,191,36,0.12); color: #fbbf24; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+  }
+  .modal-content {
+    background: #141414;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 1.75rem;
+    max-width: 520px;
+    width: 92%;
+    position: relative;
+  }
+  .modal-content h2 { margin: 0 0 1rem; font-size: 1.05rem; }
+  .modal-close {
+    position: absolute; top: 12px; right: 14px;
+    background: none; border: none; color: #aaa;
+    font-size: 1.4rem; cursor: pointer;
+  }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem; }
+  .match-detail  { font-size: 0.88rem; color: rgba(255,255,255,0.7); line-height: 1.7; }
+  .match-detail strong { color: #fff; }
+</style>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let activeChip    = '';
+let activeNaItem  = null;
+let pendingMatch  = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const fmt = (n) => n == null ? '—' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 8 });
+const fmtUsd = (n) => n == null ? '' : '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDate = (s) => {
+  if (!s) return '';
+  try { return new Date(s.replace(' UTC','Z').replace(' ','T')).toLocaleDateString(); } catch { return s.slice(0,10); }
+};
+const sourceName = s => ({
+  coinbase:'Coinbase', crypto_com:'Crypto.com', gemini:'Gemini',
+  kraken:'Kraken', exodus:'Exodus', venmo:'Venmo', cashapp:'Cash App', robinhood:'Robinhood',
+})[s] ?? s;
+
+// ── Load Needs Attention ──────────────────────────────────────────────────────
+async function loadNeedsAttention() {
+  const list = $('na-list');
+  list.innerHTML = '<div class="loading-msg">Loading…</div>';
+
+  try {
+    const res  = await fetch('/api/research/needs-attention');
+    const data = await res.json();
+    renderNeedsAttention(data);
+  } catch (e) {
+    list.innerHTML = `<div class="empty-msg">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function renderNeedsAttention(data) {
+  const list   = $('na-list');
+  const count  = $('na-count');
+  const total  = data.total ?? 0;
+  count.textContent = total > 0 ? total : '';
+
+  let html = '';
+
+  if (data.suggested?.length) {
+    html += `<div style="padding:0.5rem 1.1rem 0.25rem;font-size:0.75rem;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.05em">Suggested matches</div>`;
+    for (const m of data.suggested) {
+      html += `<div class="suggest-item" data-match-id="${m.match_id}" data-match='${JSON.stringify(m).replace(/'/g,"&#39;")}'>
+        <div class="suggest-header">
+          <span class="suggest-sym">${m.asset_symbol}</span>
+          <span class="suggest-score">score ${m.confidence_score}</span>
+        </div>
+        <div class="suggest-flow">${sourceName(m.out_source)} → ${sourceName(m.in_source)}</div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.3)">${fmtDate(m.out_ts)} → ${fmtDate(m.in_ts)}</div>
+      </div>`;
+    }
+  }
+
+  if (data.unmatched?.length) {
+    html += `<div style="padding:0.5rem 1.1rem 0.25rem;font-size:0.75rem;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.05em">Unresolved transactions</div>`;
+    for (const t of data.unmatched) {
+      const dir = (t.direction ?? '').toLowerCase();
+      html += `<div class="na-item" data-sym="${t.asset_symbol}" data-id="${t.id}">
+        <span class="na-sym">${t.asset_symbol}</span>
+        <span class="na-dir ${dir}">${dir}</span>
+        <span class="na-src">${sourceName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}</span>
+        <span class="na-amt">${fmt(t.amount)}</span>
+        <span class="na-date">${fmtDate(t.timestamp_utc)}</span>
+      </div>`;
+    }
+  }
+
+  if (!html) {
+    html = '<div class="empty-msg">✅ Nothing needs attention right now.</div>';
+  }
+
+  list.innerHTML = html;
+
+  // Wire up NA item clicks → auto-fill search + fire
+  list.querySelectorAll('.na-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const sym = el.getAttribute('data-sym');
+      if (!sym) return;
+      // highlight
+      list.querySelectorAll('.na-item').forEach(i => i.classList.remove('selected'));
+      el.classList.add('selected');
+      // fill symbol filter and fire search
+      setActiveChip(sym);
+      $('filter-symbol').value = sym;
+      runSearch();
+    });
+  });
+
+  // Wire up suggested match clicks → open modal
+  list.querySelectorAll('.suggest-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const raw = el.getAttribute('data-match');
+      if (!raw) return;
+      openMatchModal(JSON.parse(raw.replace(/&#39;/g,"'")));
+    });
+  });
+}
+
+// ── Chip row ──────────────────────────────────────────────────────────────────
+function setActiveChip(sym) {
+  activeChip = sym;
+  document.querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('active', c.getAttribute('data-sym') === sym);
+  });
+}
+
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const sym = chip.getAttribute('data-sym');
+    if (activeChip === sym) {
+      // deselect
+      setActiveChip('');
+      $('filter-symbol').value = '';
+      $('results-list').innerHTML = '<div class="empty-msg">Search cleared.</div>';
+      $('results-count').textContent = '';
+    } else {
+      setActiveChip(sym);
+      $('filter-symbol').value = sym;
+      runSearch();
+    }
+  });
+});
+
+// ── Search ────────────────────────────────────────────────────────────────────
+async function runSearch() {
+  const params = new URLSearchParams();
+  const q      = $('q').value.trim();
+  const symbol = $('filter-symbol').value.trim();
+  const from   = $('filter-from').value;
+  const to     = $('filter-to').value;
+  const note   = $('filter-note').value.trim();
+
+  if (q)      params.set('q', q);
+  if (symbol) params.set('symbol', symbol);
+  if (from)   params.set('from', from);
+  if (to)     params.set('to', to);
+  if (note)   params.set('note', note);
+
+  if (!params.toString()) return;
+
+  const list = $('results-list');
+  list.innerHTML = '<div class="loading-msg">Searching…</div>';
+  $('results-count').textContent = '';
+
+  try {
+    const res  = await fetch('/api/research/search?' + params.toString());
+    const data = await res.json();
+    renderResults(data);
+  } catch (e) {
+    list.innerHTML = `<div class="empty-msg">Search failed: ${e.message}</div>`;
+  }
+}
+
+function renderResults(data) {
+  const list  = $('results-list');
+  const count = $('results-count');
+  const rows  = data.rows ?? [];
+  count.textContent = rows.length > 0 ? rows.length : '';
+
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty-msg">No transactions found.</div>';
+    return;
+  }
+
+  let html = '';
+  for (const t of rows) {
+    const dir = (t.direction ?? '').toLowerCase();
+    const isMatchedOut = t.match_id_as_out && t.match_status_as_out !== 'rejected';
+    const isMatchedIn  = t.match_id_as_in  && t.match_status_as_in  !== 'rejected';
+    const matchBadge   = isMatchedOut
+      ? `<span class="match-badge ${t.match_status_as_out === 'suggested' ? 'suggested' : ''}">→ matched</span>`
+      : isMatchedIn
+      ? `<span class="match-badge ${t.match_status_as_in  === 'suggested' ? 'suggested' : ''}">← matched</span>`
+      : '';
+    const label = t.address_label ? `<span style="color:rgba(251,191,36,0.7);font-size:0.75rem"> · ${t.address_label}</span>` : '';
+
+    html += `<div class="result-row">
+      <span class="result-dir ${dir}">${dir}</span>
+      <div class="result-main">
+        <div><span class="result-sym">${t.asset_symbol ?? '?'}</span>${matchBadge}</div>
+        <div class="result-src">${sourceName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}${label}</div>
+        ${t.description ? `<div class="result-desc">${t.description}</div>` : ''}
+      </div>
+      <div class="result-right">
+        <div class="result-amt">${fmt(t.amount)}</div>
+        ${t.native_usd ? `<div class="result-usd">${fmtUsd(t.native_usd)}</div>` : ''}
+      </div>
+      <div class="result-date">${fmtDate(t.timestamp_utc)}</div>
+    </div>`;
+  }
+  list.innerHTML = html;
+}
+
+// ── Search button & enter key ─────────────────────────────────────────────────
+$('btn-search').addEventListener('click', runSearch);
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+
+// ── Run matching button ───────────────────────────────────────────────────────
+$('btn-run-matching').addEventListener('click', async () => {
+  const btn = $('btn-run-matching');
+  btn.disabled = true;
+  btn.textContent = '⚙ Running…';
+  try {
+    const res  = await fetch('/api/research/run-matching', { method: 'POST' });
+    const data = await res.json();
+    btn.textContent = `✅ ${data.matched} matched`;
+    await loadNeedsAttention();
+    setTimeout(() => { btn.textContent = '⚙ Re-run matching'; btn.disabled = false; }, 3000);
+  } catch {
+    btn.textContent = '⚙ Re-run matching';
+    btn.disabled = false;
+  }
+});
+
+// ── Suggested match modal ─────────────────────────────────────────────────────
+function openMatchModal(match) {
+  pendingMatch = match;
+  const body = $('match-modal-body');
+  body.innerHTML = `<div class="match-detail">
+    <strong>${match.asset_symbol}</strong> transfer<br>
+    <strong>From:</strong> ${sourceName(match.out_source)}${match.out_account_name ? ' · ' + match.out_account_name : ''} — ${fmtDate(match.out_ts)}<br>
+    <strong>To:</strong>   ${sourceName(match.in_source)}${match.in_account_name ? ' · ' + match.in_account_name : ''} — ${fmtDate(match.in_ts)}<br>
+    <strong>Sent:</strong> ${fmt(match.out_amount)} &nbsp; <strong>Received:</strong> ${fmt(match.in_amount)} &nbsp; <strong>Fee:</strong> ${match.fee_amount ? fmt(match.fee_amount) : 'none'}<br>
+    <strong>Confidence:</strong> ${match.confidence_score}
+  </div>`;
+  $('match-modal').style.display = 'flex';
+}
+
+$('match-modal-close').addEventListener('click', () => { $('match-modal').style.display = 'none'; });
+$('match-modal').addEventListener('click', e => { if (e.target === $('match-modal')) $('match-modal').style.display = 'none'; });
+
+async function actOnMatch(action) {
+  if (!pendingMatch) return;
+  const res = await fetch(`/api/research/matches/${pendingMatch.match_id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  });
+  if (res.ok) {
+    $('match-modal').style.display = 'none';
+    await loadNeedsAttention();
+  }
+}
+$('match-confirm').addEventListener('click', () => actOnMatch('confirm'));
+$('match-reject').addEventListener('click',  () => actOnMatch('reject'));
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadNeedsAttention();
+</script>
