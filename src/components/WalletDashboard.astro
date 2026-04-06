@@ -516,7 +516,7 @@ function parseChains(payload: unknown) {
 	async function handleDelete(id) {
 		const wallet = wallets.find((entry) => entry.id === id);
 		if (!wallet) return;
-		const confirmMsg = `Delete wallet ${wallet.label || wallet.address}? This cannot be undone.`;
+		const confirmMsg = `Delete wallet "${wallet.label || wallet.address}"?\n\nThis will permanently delete the wallet and ALL of its transaction history. This cannot be undone.`;
 		if (!window.confirm(confirmMsg)) return;
 		setStatus('Removing wallet…');
 		try {
