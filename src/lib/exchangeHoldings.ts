@@ -136,6 +136,10 @@ export function computeHoldings(rows: ImportRow[]): Holding[] {
 				// Coinbase Earn / learning rewards start their own holding period.
 				lastPurchaseMap.set(sym, row.timestamp_utc);
 				addToSet(earnedKindsMap, sym, 'learning');
+			} else if (kindLower.includes('sell_lock') || kindLower.includes('sell_unlock')) {
+				// A cancelled limit-sell order returns coins to the account — this is NOT
+				// a new purchase.  The original holding period must be preserved.
+				purchasedEverMap.set(sym, true); // still counts as "ever purchased"
 			} else {
 				// Regular buy, receive, convert, etc. — real purchase.
 				lastPurchaseMap.set(sym, row.timestamp_utc);

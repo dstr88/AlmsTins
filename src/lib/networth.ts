@@ -1021,22 +1021,55 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 
 	// Enrich each token with the earliest import_transactions date (for Days column)
 	// and average cost basis price (for P/L column).
+	//
+	// Cross-tenant enrichment: a user may have on-chain wallets under one tenant_id and
+	// CEX wallets (Coinbase, Crypto.com, etc.) under a different tenant_id — e.g. when
+	// wallets were added across separate login sessions.  We search all real (non-demo)
+	// tenant_ids so that AVAX purchased on Coinbase correctly informs the "days held"
+	// counter shown on the on-chain wallet tile.
+	//
+	// Only genuine acquisitions are considered for the earliest-date calculation:
+	//   • direction must be 'in'  (skip sells / withdrawals)
+	//   • kind must not be a sell_lock / sell_unlock (cancelled limit orders return
+	//     coins to the account but should not reset the holding-period clock)
+	//   • staking income is excluded (ordinary income, not a new cost basis event)
 	if (tokens.length > 0) {
 		const symbols = [...new Set(tokens.map((t) => t.tokenSymbol.toUpperCase()))];
 		const placeholders = symbols.map(() => '?').join(', ');
 		try {
 			const enrichResult = await db.execute({
 				sql: `SELECT
-				        upper(asset_symbol)                            AS symbol,
-				        MIN(timestamp_utc)                             AS earliest,
-				        SUM(CASE WHEN amount > 0 THEN ABS(COALESCE(native_usd, 0)) ELSE 0 END) AS total_cost,
-				        SUM(CASE WHEN amount > 0 THEN ABS(amount)     ELSE 0 END) AS total_qty
+				        upper(asset_symbol) AS symbol,
+				        MIN(CASE
+				          WHEN direction = 'in'
+				           AND (kind IS NULL
+				                OR (lower(kind) NOT LIKE '%sell_lock%'
+				                    AND lower(kind) NOT LIKE '%sell_unlock%'
+				                    AND lower(kind) != 'staking income'))
+				          THEN timestamp_utc
+				        END)                                           AS earliest,
+				        SUM(CASE
+				          WHEN direction = 'in' AND amount > 0
+				           AND (kind IS NULL
+				                OR (lower(kind) NOT LIKE '%sell_lock%'
+				                    AND lower(kind) NOT LIKE '%sell_unlock%'
+				                    AND lower(kind) != 'staking income'))
+				          THEN ABS(COALESCE(native_usd, 0)) ELSE 0
+				        END)                                           AS total_cost,
+				        SUM(CASE
+				          WHEN direction = 'in' AND amount > 0
+				           AND (kind IS NULL
+				                OR (lower(kind) NOT LIKE '%sell_lock%'
+				                    AND lower(kind) NOT LIKE '%sell_unlock%'
+				                    AND lower(kind) != 'staking income'))
+				          THEN ABS(amount) ELSE 0
+				        END)                                           AS total_qty
 				      FROM import_transactions
-				      WHERE tenant_id = ?
+				      WHERE tenant_id NOT LIKE 'demo%'
 				        AND asset_symbol IS NOT NULL
 				        AND upper(asset_symbol) IN (${placeholders})
 				      GROUP BY upper(asset_symbol)`,
-				args: [tenantId, ...symbols],
+				args: [...symbols],
 			});
 			for (const eRow of enrichResult.rows) {
 				const sym = String(eRow.symbol ?? '').toUpperCase();
