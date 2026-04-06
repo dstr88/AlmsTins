@@ -36,6 +36,27 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 		setStatus(null);
 	}
 
+	async function handleDelete(wallet: WalletOverviewWallet) {
+		const confirmed = window.confirm(
+			`Delete wallet "${wallet.label || wallet.address}"?\n\nThis will permanently delete the wallet and ALL of its transaction history. This cannot be undone.`,
+		);
+		if (!confirmed) return;
+
+		try {
+			setStatus('Deleting…');
+			const res = await fetch(`/api/wallets/${wallet.id}`, { method: 'DELETE' });
+			if (!res.ok && res.status !== 204) {
+				throw new Error('Failed to delete wallet');
+			}
+			setWallets((prev) => prev.filter((w) => w.id !== wallet.id));
+			setEditingId(null);
+			setStatus('Wallet deleted.');
+		} catch (err) {
+			console.error('Error deleting wallet', err);
+			setStatus('Unable to delete right now.');
+		}
+	}
+
 	async function handleSave(wallet: WalletOverviewWallet) {
 		const trimmed = draftLabel.trim();
 		if (!trimmed) {
@@ -156,21 +177,51 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 													>
 														Cancel
 													</button>
+													<button
+														type="button"
+														onClick={() => handleDelete(wallet)}
+														style={{
+															padding: '0.3rem 0.7rem',
+															borderRadius: '8px',
+															border: '1px solid rgba(255,100,100,0.5)',
+															background: 'transparent',
+															color: '#ff9f9f',
+															cursor: 'pointer',
+														}}
+													>
+														Delete
+													</button>
 												</div>
 											) : (
-												<button
-													type="button"
-													onClick={() => handleEditClick(wallet)}
-													style={{
-														padding: '0.3rem 0.7rem',
-														borderRadius: '8px',
-														border: '1px solid rgba(255,255,255,0.25)',
-														background: 'transparent',
-														color: 'inherit',
-													}}
-												>
-													Edit
-												</button>
+												<div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+													<button
+														type="button"
+														onClick={() => handleEditClick(wallet)}
+														style={{
+															padding: '0.3rem 0.7rem',
+															borderRadius: '8px',
+															border: '1px solid rgba(255,255,255,0.25)',
+															background: 'transparent',
+															color: 'inherit',
+														}}
+													>
+														Edit
+													</button>
+													<button
+														type="button"
+														onClick={() => handleDelete(wallet)}
+														style={{
+															padding: '0.3rem 0.7rem',
+															borderRadius: '8px',
+															border: '1px solid rgba(255,100,100,0.5)',
+															background: 'transparent',
+															color: '#ff9f9f',
+															cursor: 'pointer',
+														}}
+													>
+														Delete
+													</button>
+												</div>
 											)}
 										</td>
 									</tr>
