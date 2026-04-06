@@ -96,6 +96,15 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 				<ExchangeAccounts source="venmo" title="Venmo" />
 				<ExchangeAccounts source="cashapp" title="Cash App" />
 				<ExchangeAccounts source="exodus" title="Exodus" />
+				<ExchangeAccounts source="avalanche_cchain" title="Avalanche C-Chain" />
+			</div>
+
+			<!-- Avalanche C-Chain sync button -->
+			<div class="avax-sync-bar">
+				<button id="avax-sync-btn" class="avax-sync-btn" type="button">
+					⟳ Sync Avalanche Wallet
+				</button>
+				<span id="avax-sync-status" class="avax-sync-status"></span>
 			</div>
 			<div class="vault-section-divider vault-section-divider--onchain">
 				<span class="vault-section-divider__label">On-Chain Wallets</span>
@@ -444,6 +453,31 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 		.smart-import-bar {
 			grid-column: 1 / -1;
 			padding: 0 0 0.5rem;
+		}
+
+		.avax-sync-bar {
+			grid-column: 1 / -1;
+			display: flex;
+			align-items: center;
+			gap: 0.75rem;
+			padding: 0.25rem 0 0.75rem;
+		}
+		.avax-sync-btn {
+			background: rgba(232,65,66,0.15);
+			border: 1px solid rgba(232,65,66,0.35);
+			color: #f87171;
+			border-radius: 7px;
+			padding: 0.35rem 1rem;
+			font-size: 0.82rem;
+			font-weight: 600;
+			cursor: pointer;
+			transition: background 0.15s;
+		}
+		.avax-sync-btn:hover  { background: rgba(232,65,66,0.25); }
+		.avax-sync-btn:disabled { opacity: 0.5; cursor: default; }
+		.avax-sync-status {
+			font-size: 0.8rem;
+			color: rgba(255,255,255,0.5);
 		}
 
 		.vault-section-divider--onchain {
@@ -959,4 +993,45 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 		}
 
 	</style>
+
+<script is:inline>
+(function () {
+  const btn    = document.getElementById('avax-sync-btn');
+  const status = document.getElementById('avax-sync-status');
+  if (!btn || !status) return;
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = '⟳ Syncing…';
+    status.textContent = '';
+
+    try {
+      const res  = await fetch('/api/import/snowtrace-sync', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        status.style.color = '#f87171';
+        status.textContent = '❌ ' + (data.error ?? 'Sync failed');
+      } else {
+        const newRows = data.inserted ?? 0;
+        const skipped = data.skipped  ?? 0;
+        status.style.color = newRows > 0 ? '#86efac' : 'rgba(255,255,255,0.4)';
+        status.textContent = newRows > 0
+          ? `✅ ${newRows} new transactions imported · ${skipped} already up to date`
+          : `✅ Already up to date (${skipped} transactions checked)`;
+        if (newRows > 0) setTimeout(() => location.reload(), 1500);
+      }
+    } catch (err) {
+      status.style.color = '#f87171';
+      status.textContent = '❌ ' + (err?.message ?? 'Unexpected error');
+    }
+
+    btn.textContent = '⟳ Sync Avalanche Wallet';
+    btn.disabled = false;
+  });
+})();
+</script>
 </Layout>
