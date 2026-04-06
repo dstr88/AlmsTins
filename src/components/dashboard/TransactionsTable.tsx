@@ -44,7 +44,7 @@ export default function TransactionsTable({ walletId }: Props) {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [refreshing, setRefreshing] = useState(false);
-	const [chainFilter, setChainFilter] = useState<'all' | 'ethereum' | 'polygon'>('all');
+	const [chainFilter, setChainFilter] = useState<'all' | 'ethereum' | 'polygon' | 'avalanche' | 'bitcoin'>('all');
 	const [dateFilter, setDateFilter] = useState<'all' | '30d' | 'ytd'>('all');
 
 	const loadTransactions = async (signal?: AbortSignal) => {
@@ -175,11 +175,13 @@ export default function TransactionsTable({ walletId }: Props) {
 					<select
 						className="border rounded px-2 py-1 text-xs"
 						value={chainFilter}
-						onChange={(e) => setChainFilter(e.target.value as 'all' | 'ethereum' | 'polygon')}
+						onChange={(e) => setChainFilter(e.target.value as 'all' | 'ethereum' | 'polygon' | 'avalanche' | 'bitcoin')}
 					>
 						<option value="all">All chains</option>
+						<option value="bitcoin">Bitcoin</option>
 						<option value="ethereum">Ethereum</option>
 						<option value="polygon">Polygon</option>
+						<option value="avalanche">Avalanche</option>
 					</select>
 					<select
 						className="border rounded px-2 py-1 text-xs"

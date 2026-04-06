@@ -6,3 +6,6 @@
  */
 export const DEFAULT_ERC20_CHAINS = ['ethereum', 'polygon', 'avalanche'] as const;
 export type SupportedChain = (typeof DEFAULT_ERC20_CHAINS)[number];
+
+/** Broader set of chains that wallets can be tagged with (includes non-EVM). */
+export type WalletChain = SupportedChain | 'bitcoin' | 'sui' | string;

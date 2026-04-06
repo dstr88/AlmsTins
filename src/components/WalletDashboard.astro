@@ -158,7 +158,7 @@ function parseChains(payload: unknown) {
 		<section class="panel form-panel">
 			<header>
 				<h2>Add wallet</h2>
-				<p>Use ENS-free 0x addresses. You can edit details later.</p>
+				<p>Supports EVM (0x…), Sui, and Bitcoin (bc1…) addresses. You can edit details later.</p>
 			</header>
 
 			<form id="wallet-form">
@@ -169,11 +169,11 @@ function parseChains(payload: unknown) {
 				</label>
 				<label class="field required">
 					<span>Address</span>
-					<input type="text" name="address" placeholder="0x..." required minlength="42" maxlength="66" />
+					<input type="text" name="address" placeholder="0x… or bc1q…" required minlength="26" maxlength="90" />
 				</label>
 				<label class="field">
 					<span>Chains (comma separated)</span>
-					<input type="text" name="chains" placeholder="ethereum, polygon, sui" />
+					<input type="text" name="chains" placeholder="ethereum, polygon, sui, bitcoin" />
 				</label>
 				<label class="checkbox">
 					<input type="checkbox" name="isDefault" />
@@ -341,10 +341,11 @@ function parseChains(payload: unknown) {
 			.split(',')
 			.map((chain) => chain.trim().toLowerCase())
 			.filter(Boolean);
-		// Only force EVM defaults when no chains are provided AND address is not Sui (66 chars)
+		// Auto-detect default chains from address format when none are provided
 		const address = String(formData.get('address') ?? '').trim();
 		const isSuiAddress = address.length === 66 && address.startsWith('0x');
-		const defaultChains = isSuiAddress ? ['sui'] : ['ethereum', 'polygon', 'avalanche'];
+		const isBtcAddress = /^bc1[a-z0-9]{6,87}$/i.test(address) || /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address);
+		const defaultChains = isSuiAddress ? ['sui'] : isBtcAddress ? ['bitcoin'] : ['ethereum', 'polygon', 'avalanche'];
 		const nextChains = parsedChains.length
 			? Array.from(new Set(parsedChains))
 			: defaultChains;

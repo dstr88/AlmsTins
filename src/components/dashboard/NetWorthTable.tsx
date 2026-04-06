@@ -38,6 +38,7 @@ const CHAIN_COLORS: Record<string, string> = {
 	ethereum: '#a855f7',
 	polygon: '#6366f1',
 	avalanche: '#f97316',
+	bitcoin: '#f7931a',
 };
 
 const FALLBACK_COLORS = ['#10b981', '#ec4899', '#facc15', '#0ea5e9', '#f472b6'];

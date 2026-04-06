@@ -15,6 +15,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { runTransferMatching } from '@/lib/transferMatcher';
+import { snapshotCexAccount } from '@/lib/cexSnapshot';
 
 const ROUTESCAN_BASE = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
 const AVAX_DECIMALS  = 18n;
@@ -188,12 +189,12 @@ export const POST: APIRoute = async ({ request }) => {
 
 	const normStmts = normRows.map(r => ({
 		sql: `INSERT OR IGNORE INTO import_transactions
-		      (id, tenant_id, account_id, import_batch_id, timestamp_utc,
+		      (id, tenant_id, source, account_id, import_batch_id, timestamp_utc,
 		       description, currency, amount,
 		       to_currency, to_amount,
 		       native_currency, native_amount, native_usd,
 		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, ?, ?, ?,  ?, 'AVAX', ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, 'AVAX', ?, CURRENT_TIMESTAMP)`,
+		      VALUES (?, ?, 'avalanche_cchain', ?, ?, ?,  ?, 'AVAX', ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, 'AVAX', ?, CURRENT_TIMESTAMP)`,
 		args: [
 			randomUUID(), tenantId, accountId, batchId, r.timestamp,
 			r.description,
@@ -213,7 +214,36 @@ export const POST: APIRoute = async ({ request }) => {
 		insertedNorm += res.reduce((s, r) => s + (r.rowsAffected ?? 0), 0);
 	}
 
-	void runTransferMatching(tenantId, accountId);
+	// Run tenant-wide (no accountId filter) so Coinbase OUTs are scanned
+	// against the newly imported Snowtrace INs, not just Snowtrace OUTs.
+	// Snapshot the account so the Portfolio tin reflects the updated balance
+	void snapshotCexAccount(tenantId, accountId, 'avalanche_cchain', `Avalanche Wallet (${walletAddress.slice(0, 10)}…)`);
+
+	// Register the real on-chain address in the wallets table so the NFT
+	// system and wallet-value sync can query it by actual address.
+	if (walletAddress) {
+		const existingWallet = await db.execute({
+			sql: `SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
+			args: [tenantId, walletAddress],
+		});
+		if (!existingWallet.rows.length) {
+			await db.execute({
+				sql: `INSERT OR IGNORE INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
+				      VALUES (?, ?, ?, ?, ?, 0, 'onchain')`,
+				args: [
+					randomUUID(),
+					tenantId,
+					walletAddress,
+					`Avalanche Wallet (${walletAddress.slice(0, 10)}…)`,
+					JSON.stringify(['ethereum', 'polygon', 'avalanche']),
+				],
+			}).catch(() => { /* already exists — race condition or duplicate is fine */ });
+		}
+	}
+
+	// Run tenant-wide (no accountId filter) so Coinbase OUTs are scanned
+	// against the newly imported Snowtrace INs, not just Snowtrace OUTs.
+	void runTransferMatching(tenantId);
 
 	return new Response(JSON.stringify({
 		inserted:  insertedNorm,

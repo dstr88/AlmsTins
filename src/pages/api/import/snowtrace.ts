@@ -331,7 +331,26 @@ export const POST: APIRoute = async ({ request }) => {
 	}
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'avalanche_cchain', 'Avalanche C-Chain');
-	void runTransferMatching(tenantId, resolvedAccountId);
+
+	// Register the real on-chain address in the wallets table so the NFT
+	// system and wallet-value sync can query it by actual address.
+	if (walletAddress) {
+		db.execute({
+			sql: `INSERT OR IGNORE INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
+			      VALUES (?, ?, ?, ?, ?, 0, 'onchain')`,
+			args: [
+				randomUUID(),
+				tenantId,
+				walletAddress,
+				`Avalanche Wallet (${walletAddress.slice(0, 8)}…)`,
+				JSON.stringify(['ethereum', 'polygon', 'avalanche']),
+			],
+		}).catch(() => { /* already exists — fine */ });
+	}
+
+	// Run tenant-wide so Coinbase/other-exchange OUTs are also scanned
+	// against the newly imported Snowtrace INs.
+	void runTransferMatching(tenantId);
 
 	return new Response(
 		JSON.stringify({

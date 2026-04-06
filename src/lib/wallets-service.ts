@@ -4,11 +4,16 @@ export type WalletRow = Record<string, any>;
 
 export function sanitizeAddress(input: unknown): string | null {
 	if (typeof input !== 'string') return null;
-	const value = input.trim().toLowerCase();
+	const value = input.trim();
+	const lower = value.toLowerCase();
 	// EVM address: 0x + 40 hex chars
-	if (/^0x[a-f0-9]{40}$/.test(value)) return value;
+	if (/^0x[a-f0-9]{40}$/.test(lower)) return lower;
 	// Sui address: 0x + 1–64 hex chars → canonicalize to 0x + 64 chars
-	if (/^0x[a-f0-9]{1,64}$/.test(value)) return '0x' + value.slice(2).padStart(64, '0');
+	if (/^0x[a-f0-9]{1,64}$/.test(lower)) return '0x' + lower.slice(2).padStart(64, '0');
+	// Bitcoin native SegWit bech32 (bc1q...) and Taproot bech32m (bc1p...)
+	if (/^bc1[a-z0-9]{6,87}$/.test(lower)) return lower;
+	// Bitcoin legacy P2PKH (1...) and P2SH (3...) — case-sensitive Base58, preserve original case
+	if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(value)) return value;
 	return null;
 }
 

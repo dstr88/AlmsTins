@@ -88,20 +88,26 @@ export default function PortfolioTile() {
 		setSyncing(true);
 		setSyncStatus(null);
 		try {
-			const [exchangeRes, walletRes, avaxRes] = await Promise.all([
+			const [exchangeRes, walletRes, avaxRes, btcRes] = await Promise.all([
 				fetch('/api/import/snapshot-all', { method: 'POST' }),
 				fetch('/api/wallets/value/sync-all', { method: 'POST' }),
 				fetch('/api/import/snowtrace-sync', { method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({}),
 				}),
+				fetch('/api/import/btc-sync', { method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({}),
+				}),
 			]);
 			const exchangeData = await exchangeRes.json().catch(() => ({}));
 			const avaxData     = await avaxRes.json().catch(() => ({}));
-			const ok = exchangeRes.ok || walletRes.ok || avaxRes.ok;
-			const avaxNew = avaxData.inserted ?? 0;
-			const processed = (exchangeData.processed ?? 0) + (walletRes.ok ? 1 : 0) + (avaxRes.ok ? 1 : 0);
-			const failed = (!exchangeRes.ok ? 1 : 0) + (!walletRes.ok ? 1 : 0) + (!avaxRes.ok ? 1 : 0);
+			const btcData      = await btcRes.json().catch(() => ({}));
+			// btc-sync returns 400 when no BTC wallet is configured — that's not a failure
+			const btcOk = btcRes.ok || btcRes.status === 400;
+			const ok = exchangeRes.ok || walletRes.ok || avaxRes.ok || btcRes.ok;
+			const processed = (exchangeData.processed ?? 0) + (walletRes.ok ? 1 : 0) + (avaxRes.ok ? 1 : 0) + (btcRes.ok ? 1 : 0);
+			const failed = (!exchangeRes.ok ? 1 : 0) + (!walletRes.ok ? 1 : 0) + (!avaxRes.ok ? 1 : 0) + (!btcOk ? 1 : 0);
 			setSyncStatus({ ok, processed, failed });
 			if (ok) loadSummary(mountedRef);
 		} catch {

@@ -46,6 +46,7 @@
 		<label class="add-tin__field">
 			<span class="add-tin__field-label">Chain</span>
 			<select class="add-tin__select" data-add-chain>
+				<option value="bitcoin">Bitcoin (BTC)</option>
 				<option value="ethereum">Ethereum (ETH)</option>
 				<option value="avalanche">Avalanche (AVAX)</option>
 				<option value="polygon">Polygon (POL)</option>
@@ -60,6 +61,7 @@
 				data-add-address
 				autocomplete="off"
 				spellcheck="false"
+				maxlength="90"
 			/>
 		</label>
 		<button class="add-tin__submit" type="button" data-add-submit>
@@ -430,9 +432,28 @@
 		});
 
 		// ── Wallet submit ─────────────────────────────────────────────────
+		var chainSelect  = tin.querySelector('[data-add-chain]');
 		var addressInput = tin.querySelector('[data-add-address]');
 		var submitBtn    = tin.querySelector('[data-add-submit]');
 		var messageEl    = tin.querySelector('[data-add-message]');
+
+		var CHAIN_PLACEHOLDERS = {
+			bitcoin:   'bc1q… or 1… or 3…',
+			ethereum:  '0x…',
+			avalanche: '0x…',
+			polygon:   '0x…',
+		};
+
+		function updatePlaceholder() {
+			if (!chainSelect || !addressInput) return;
+			var chain = chainSelect.value;
+			addressInput.placeholder = CHAIN_PLACEHOLDERS[chain] || '0x…';
+		}
+
+		if (chainSelect) {
+			chainSelect.addEventListener('change', updatePlaceholder);
+			updatePlaceholder();
+		}
 
 		function setMessage(text, isUpgrade) {
 			if (!messageEl) return;
@@ -443,13 +464,17 @@
 		if (submitBtn) {
 			submitBtn.addEventListener('click', function () {
 				var address = addressInput ? addressInput.value.trim() : '';
+				var chain   = chainSelect  ? chainSelect.value.trim()  : '';
 				if (!address) { setMessage('Enter a wallet address first.'); return; }
 				submitBtn.disabled = true;
 				setMessage('Saving\u2026');
+				var chains = chain === 'bitcoin' ? ['bitcoin']
+				           : chain ? [chain, 'ethereum', 'polygon', 'avalanche'].filter(function(c, i, a) { return a.indexOf(c) === i; })
+				           : ['ethereum', 'polygon', 'avalanche'];
 				fetch('/api/wallets', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ address: address }),
+					body: JSON.stringify({ address: address, chains: chains }),
 				}).then(function (res) {
 					return res.json().catch(function () { return {}; }).then(function (payload) {
 						if (res.status === 402) {

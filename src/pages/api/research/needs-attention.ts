@@ -61,6 +61,9 @@ export const GET: APIRoute = async ({ request }) => {
 		        AND al_explained.id IS NULL          -- skip pre-2024 transactions explained via address label
 		        AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange', 'own_wallet'))  -- these labels always resolve regardless of date
 		        AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01') -- skip pre-2024 transactions with a user-set category
+		        -- Small inbound amounts (< $10 USD) are almost always staking rewards /
+		        -- interest that will never have a matching outbound. Suppress to reduce noise.
+		        AND NOT (t.direction = 'in' AND t.native_usd IS NOT NULL AND ABS(t.native_usd) < 10)
 		        AND (
 		          -- OUT with no known internal destination.
 		          -- Exclude completed trades/sells/swaps — these resolved on-platform
