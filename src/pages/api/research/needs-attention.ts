@@ -46,14 +46,26 @@ export const GET: APIRoute = async ({ request }) => {
 		        AND m_out.id IS NULL
 		        AND m_in.id  IS NULL
 		        AND (
-		          -- OUT with no known internal destination
+		          -- OUT with no known internal destination.
+		          -- Exclude completed trades/sells/swaps — these resolved on-platform
+		          -- and will never have a matching deposit elsewhere.
 		          (t.direction = 'out' AND t.kind NOT IN (
 		            'crypto_earn_program_created',
 		            'card_top_up',
 		            'crypto_to_van_sell_order',
 		            'Sell',
 		            'sell',
-		            'crypto_vaulting_purchase'
+		            'crypto_vaulting_purchase',
+		            'crypto_exchange',
+		            'crypto_exchange_fee',
+		            'dust_conversion_debited',
+		            'dust_conversion_credited',
+		            'trade',
+		            'Trade',
+		            'conversion',
+		            'Conversion',
+		            'exchange',
+		            'Exchange'
 		          ))
 		          OR
 		          -- IN with no known origin and unknown kind
