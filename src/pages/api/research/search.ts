@@ -90,8 +90,9 @@ export const GET: APIRoute = async ({ request }) => {
 		                                      AND m_in.in_tx_id   = t.id
 		                                      AND m_in.status != 'rejected'
 		      LEFT JOIN address_labels al      ON al.tenant_id = t.tenant_id
-		                                      AND al.address = (
-		                                        'cex:' || t.source || ':' || COALESCE(t.account_id,'')
+		                                      AND al.address IN (
+		                                        'cex:' || t.source || ':' || COALESCE(t.account_id,''),
+		                                        COALESCE(t.tx_hash, '')
 		                                      )
 		      LEFT JOIN exchange_accounts ea   ON ea.id = t.account_id
 		                                      AND ea.tenant_id = t.tenant_id

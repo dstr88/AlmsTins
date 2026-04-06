@@ -38,8 +38,9 @@ export const GET: APIRoute = async ({ request }) => {
 		      LEFT JOIN exchange_accounts ea   ON ea.id = t.account_id
 		                                      AND ea.tenant_id = t.tenant_id
 		      LEFT JOIN address_labels al      ON al.tenant_id = t.tenant_id
-		                                      AND al.address = (
-		                                        'cex:' || t.source || ':' || COALESCE(t.account_id,'')
+		                                      AND al.address IN (
+		                                        'cex:' || t.source || ':' || COALESCE(t.account_id,''),
+		                                        COALESCE(t.tx_hash, '')
 		                                      )
 		      WHERE t.tenant_id = ?
 		        AND t.asset_symbol IS NOT NULL
