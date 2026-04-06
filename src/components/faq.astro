@@ -66,6 +66,12 @@
       <button class="faq-question" type="button" data-modal="faq-private-account">
         How can I keep my Almstins account private?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-research-page">
+        What is the Research page?
+      </button>
+      <button class="faq-question" type="button" data-modal="faq-transfer-matching">
+        How does transfer matching work?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -669,6 +675,94 @@
           Because your account has no email on file, the <em>only</em> way back in is through that exact GitHub sign-in. If you ever lose access to your GitHub account — forgotten password, account suspended, GitHub outage, or a future policy change — there is no recovery path. We cannot look up your account by email, we cannot send a reset link, and we have no other way to verify your identity.<br /><br />
           <strong>Your data could be permanently inaccessible.</strong> Years of transaction history, cost-basis records, and tax data would be unreachable — not because it was deleted, but because there is no key left to open the door.<br /><br />
           If you value long-term access to your financial history, we strongly recommend signing in with an email-backed method (Google or email/password) so a recovery path always exists.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-research-page">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>What is the Research page?</h1>
+
+        <p>
+          The Research page is a dedicated investigation tool for understanding your full transaction history across every exchange and wallet you have connected. Think of it as a command centre — you can search, identify, and resolve questions about where your coins came from and where they went.
+        </p>
+
+        <p>
+          <strong>The page has two panels:</strong>
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li>
+            <strong>Needs Attention (left).</strong> This panel automatically surfaces transactions that are unresolved — outgoing transfers with no matching deposit found anywhere in your history, and incoming deposits whose source is unknown. It also shows any transfer pairs that the matching engine has flagged for your review. Nothing here requires you to act immediately, but working through it gives you a cleaner, more complete picture of your holdings.
+          </li>
+          <li>
+            <strong>Search Results (right).</strong> A flexible search panel lets you look up transactions by keyword, coin symbol, date range, or note. You can also click any row in the Needs Attention panel and the system pre-fills the search for you — so investigating a mystery deposit is one click away.
+          </li>
+        </ul>
+
+        <p>
+          <strong>Symbol chips</strong> run across the top of the search card. Clicking a coin instantly loads every transaction for that symbol — a fast way to audit a single asset across all your sources at once.
+        </p>
+
+        <p>
+          <strong>Re-run Matching</strong> button at the top lets you trigger the transfer matching engine manually at any time. This is useful after importing new CSV files so any newly uploaded transactions are immediately checked against your existing history.
+        </p>
+
+        <p>
+          The Research page does not change any of your raw transaction data — it only surfaces information and lets you label or confirm relationships between records.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-transfer-matching">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>How does transfer matching work?</h1>
+
+        <p>
+          When you move coins between two accounts you own — for example, withdrawing from Coinbase and depositing into Kraken — each platform records only its half of the move. Your CSV imports will show an outgoing transaction on one side and an incoming transaction on the other, with no obvious link between them.
+        </p>
+
+        <p>
+          The transfer matching engine automatically finds these pairs and links them together, so your portfolio is not double-counted and your history tells a coherent story.
+        </p>
+
+        <p>
+          <strong>How it scores a potential match:</strong>
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Transaction hash (100 pts) —</strong> if the withdrawal and deposit share the same on-chain hash, it is a certain match. No further signals are needed.</li>
+          <li><strong>Known address (50 pts) —</strong> if the destination address of the withdrawal is already recorded as belonging to the receiving exchange, the engine awards strong credit.</li>
+          <li><strong>Amount match (up to 40 pts) —</strong> the received amount is compared to the sent amount minus a reasonable network fee. Amounts within 1% of each other score the maximum. Amounts within 2% still score partial credit.</li>
+          <li><strong>Timing (up to 30 pts) —</strong> the deposit must arrive after the withdrawal. Pairs within an hour score the maximum; pairs within 72 hours score partial credit. A deposit that arrives before the withdrawal is automatically disqualified.</li>
+          <li><strong>Exact amount bonus (10 pts) —</strong> awarded when sent and received amounts are identical to the coin, common in same-network transfers with no fee.</li>
+        </ul>
+
+        <p>
+          <strong>What happens with the score:</strong>
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>90 pts or above —</strong> the pair is matched automatically and silently. No action required.</li>
+          <li><strong>60–89 pts —</strong> the pair is matched automatically but flagged so you can review it on the Research page.</li>
+          <li><strong>35–59 pts —</strong> the pair appears as a suggestion in the Needs Attention panel. You can confirm or reject it with one click.</li>
+          <li><strong>Below 35 pts —</strong> the pair is not recorded. Both transactions remain in the unresolved pool.</li>
+        </ul>
+
+        <p>
+          <strong>Your raw data is never modified.</strong> Every CSV row you upload is stored exactly as imported and never changes. Matches are stored separately as annotations that link two transaction IDs together. If you reject a match or if the engine made a mistake, you can dismiss it and the original records are untouched.
+        </p>
+
+        <p>
+          <strong>Address labels are built automatically.</strong> When a medium-confidence or higher match is made, the engine records the connection between the two accounts. Future imports from those same sources benefit immediately — the address is already known, so matches score higher and resolve faster.
+        </p>
+
+        <p>
+          The engine runs automatically every time you import a new CSV, and you can also trigger it manually from the Research page using the Re-run Matching button.
         </p>
       </div>
     </div>
