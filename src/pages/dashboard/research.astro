@@ -680,6 +680,11 @@ function renderNeedsAttention(data) {
                     onclick="markLegacy(event, '${t.id}')">
               🏚 Legacy exchange
             </button>` : ''}
+            ${dir === 'out' && t.category !== 'own_wallet' ? `
+            <button class="btn-legacy"
+                    onclick="markOwnWallet(event, '${t.id}')">
+              🏠 Own wallet
+            </button>` : ''}
           </div>
           <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
         </div>
@@ -986,6 +991,7 @@ const DISPOSAL_TYPES = [
   { value: 'gift_in',          label: 'Gift in (received as gift)' },
   { value: 'lost',             label: 'Lost / stolen' },
   { value: 'donation',         label: 'Donation (charity)' },
+  { value: 'own_wallet',        label: 'Own wallet (self transfer)' },
   { value: 'legacy_exchange',  label: 'Legacy / defunct exchange (source unavailable)' },
   { value: 'other',            label: 'Other / explained' },
 ];
@@ -1056,10 +1062,30 @@ async function markLegacy(e, txId) {
   }
 }
 
+async function markOwnWallet(e, txId) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: 'own_wallet' }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    btn.disabled = false;
+    btn.textContent = '🏠 Own wallet';
+  }
+}
+
 // Expose to window so inline onclick="" attributes can find them
 window.openAnnotateForm = openAnnotateForm;
 window.saveAnnotation   = saveAnnotation;
 window.markLegacy       = markLegacy;
+window.markOwnWallet    = markOwnWallet;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadNeedsAttention();
