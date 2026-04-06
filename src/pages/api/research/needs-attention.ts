@@ -26,6 +26,7 @@ export const GET: APIRoute = async ({ request }) => {
 		        t.id, t.source, t.account_id, t.timestamp_utc,
 		        t.direction, t.asset_symbol, t.amount, t.to_currency, t.to_amount,
 		        t.native_usd, t.kind, t.tx_hash, t.description,
+		        t.notes, t.category,
 		        ea.name AS account_name,
 		        al.label AS address_label
 		      FROM import_transactions t
@@ -57,7 +58,8 @@ export const GET: APIRoute = async ({ request }) => {
 		        AND t.asset_symbol IS NOT NULL
 		        AND m_out.id IS NULL
 		        AND m_in.id  IS NULL
-		        AND al_explained.id IS NULL          -- skip pre-2024 transactions already explained by the user
+		        AND al_explained.id IS NULL          -- skip pre-2024 transactions explained via address label
+		        AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01') -- skip pre-2024 transactions with a user-set category
 		        AND (
 		          -- OUT with no known internal destination.
 		          -- Exclude completed trades/sells/swaps — these resolved on-platform

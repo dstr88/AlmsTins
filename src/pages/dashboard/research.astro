@@ -394,6 +394,60 @@ const allSymbols = symbolResult.rows.map(r => String((r as any).sym ?? '')).filt
   .tx-hint  { font-size: 0.73rem; color: rgba(251,191,36,0.5); font-style: italic; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tx-dt    { margin-left: auto; font-size: 0.72rem; color: rgba(255,255,255,0.3); white-space: nowrap; }
 
+  /* ── Annotate button + inline form ──────────────────────────────────────── */
+  .btn-annotate {
+    margin-top: 0.45rem;
+    background: none;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    color: rgba(255,255,255,0.4);
+    font-size: 0.7rem;
+    padding: 0.2rem 0.55rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-annotate:hover { border-color: rgba(251,191,36,0.4); color: #fbbf24; }
+  .btn-annotate.has-note { border-color: rgba(251,191,36,0.35); color: rgba(251,191,36,0.7); }
+
+  .annotate-form {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .annotate-form select,
+  .annotate-form input {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 7px;
+    color: rgba(255,255,255,0.8);
+    font-size: 0.8rem;
+    padding: 0.4rem 0.6rem;
+    outline: none;
+    width: 100%;
+  }
+  .annotate-form select:focus,
+  .annotate-form input:focus { border-color: rgba(251,191,36,0.5); }
+  .annotate-form-row { display: flex; gap: 0.4rem; }
+  .btn-annotate-save {
+    background: #fbbf24; color: #000; border: none;
+    border-radius: 7px; padding: 0.38rem 0.9rem;
+    font-size: 0.78rem; font-weight: 700; cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-annotate-save:hover { opacity: 0.88; }
+  .btn-annotate-cancel {
+    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 7px;
+    padding: 0.38rem 0.7rem; font-size: 0.78rem; cursor: pointer;
+  }
+  .category-badge {
+    display: inline-block;
+    font-size: 0.68rem; padding: 0.12rem 0.45rem; border-radius: 4px;
+    background: rgba(251,191,36,0.12); color: #fbbf24;
+    margin-right: 0.35rem; vertical-align: middle;
+  }
+
   /* Match badge (inline with symbol) */
   .match-badge {
     font-size: 0.68rem; padding: 0.1rem 0.38rem; border-radius: 4px;
@@ -569,10 +623,13 @@ function renderNeedsAttention(data) {
       const dir    = (t.direction ?? '').toLowerCase();
       const absAmt = Math.abs(Number(t.amount));
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
-      const hint   = t.address_label
+      const hint    = t.address_label
         ? `Source: ${t.address_label}`
         : dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
-      const src    = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+      const src     = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+      const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
+      const noteText = t.notes   ? `<span style="font-size:0.72rem;color:rgba(255,255,255,0.45);font-style:italic">${t.notes}</span>` : '';
+      const hasAnnotation = !!(t.category || t.notes);
       html += `<div class="tx-card na-item dir-${dir}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}">
         <div class="tx-badge-col"><span class="tx-dir ${dir}">${dir}</span></div>
         <div class="tx-body">
@@ -588,6 +645,15 @@ function renderNeedsAttention(data) {
             <span class="tx-hint">${hint}</span>
             <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
           </div>
+          ${hasAnnotation ? `<div style="margin-top:0.3rem">${catLabel}${noteText}</div>` : ''}
+          <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
+                  data-tx-id="${t.id}"
+                  data-category="${t.category ?? ''}"
+                  data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                  onclick="openAnnotateForm(event, this)">
+            ${hasAnnotation ? '✏️ Edit note' : '📝 Add note'}
+          </button>
+          <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
         </div>
       </div>`;
     }
@@ -865,6 +931,65 @@ async function actOnMatch(action) {
 }
 $('match-confirm').addEventListener('click', () => actOnMatch('confirm'));
 $('match-reject').addEventListener('click',  () => actOnMatch('reject'));
+
+// ── Annotate inline form ──────────────────────────────────────────────────────
+const DISPOSAL_TYPES = [
+  { value: '',          label: '— select type —' },
+  { value: 'sell',      label: 'Sell' },
+  { value: 'trade',     label: 'Trade (crypto → crypto)' },
+  { value: 'gift_out',  label: 'Gift out (sent to someone)' },
+  { value: 'gift_in',   label: 'Gift in (received as gift)' },
+  { value: 'lost',      label: 'Lost / stolen' },
+  { value: 'donation',  label: 'Donation (charity)' },
+  { value: 'other',     label: 'Other / explained' },
+];
+
+function openAnnotateForm(e, btn) {
+  e.stopPropagation();          // don't trigger NA item search click
+  const txId    = btn.getAttribute('data-tx-id');
+  const curCat  = btn.getAttribute('data-category') ?? '';
+  const curNote = btn.getAttribute('data-note') ?? '';
+  const formEl  = document.getElementById('af-' + txId);
+  if (!formEl) return;
+
+  if (formEl.style.display !== 'none') {
+    formEl.style.display = 'none';
+    return;
+  }
+
+  const options = DISPOSAL_TYPES.map(d =>
+    `<option value="${d.value}"${d.value === curCat ? ' selected' : ''}>${d.label}</option>`
+  ).join('');
+
+  formEl.innerHTML = `
+    <select id="af-cat-${txId}">${options}</select>
+    <div class="annotate-form-row">
+      <input id="af-note-${txId}" type="text" placeholder="Add a note…" value="${curNote}" />
+      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">Save</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+    </div>`;
+  formEl.style.display = 'flex';
+}
+
+async function saveAnnotation(e, txId) {
+  e.stopPropagation();
+  const cat  = document.getElementById('af-cat-'  + txId)?.value  ?? '';
+  const note = document.getElementById('af-note-' + txId)?.value  ?? '';
+  const btn  = document.querySelector(`[data-tx-id="${txId}"].btn-annotate`);
+
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    // Reload NA list — transaction may now auto-resolve off the list
+    await loadNeedsAttention();
+  } catch (err) {
+    if (btn) btn.textContent = '⚠ Save failed';
+  }
+}
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadNeedsAttention();
