@@ -140,16 +140,32 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 				const unavailableMessage =
 					activeSummary?.status === 'UNAVAILABLE' ? activeSummary?.message ?? 'Unavailable' : null;
 
-				const symbols = allowlistSymbols(
-					[...supplies, ...borrows]
-						.map((entry) => entry.currency?.symbol ?? '')
-						.filter((symbol): symbol is string => Boolean(symbol)),
-				);
+				// Normalize Avalanche bridge/wrapped token symbols to their base price symbol
+				const normalizePriceSymbol = (sym: string): string => {
+					const upper = sym.trim().toUpperCase();
+					if (upper === 'BTC.B') return 'BTC';
+					if (upper === 'SAVAX') return 'AVAX';   // staked AVAX ≈ AVAX price
+					if (upper === 'WAVAX') return 'AVAX';
+					if (upper === 'WETH' || upper === 'WETH.E') return 'ETH';
+					if (upper === 'WBTC') return 'BTC';
+					if (upper === 'USDT.E' || upper === 'USDT') return 'USDT';
+					if (upper === 'USDC.E' || upper === 'USDC') return 'USDC';
+					if (upper === 'DAI.E' || upper === 'DAI') return 'DAI';
+					if (upper === 'LINK.E' || upper === 'LINK') return 'LINK';
+					if (upper === 'WMATIC' || upper === 'MATIC') return 'POL';
+					return upper;
+				};
+
+				const rawSymbols = [...supplies, ...borrows]
+					.map((entry) => entry.currency?.symbol ?? '')
+					.filter((symbol): symbol is string => Boolean(symbol));
+				// Fetch prices using normalized symbols so bridge tokens get priced
+				const normalizedSymbols = allowlistSymbols(rawSymbols.map(normalizePriceSymbol));
 				let cachedPrices: Record<string, number> = {};
-				if (symbols.length) {
+				if (normalizedSymbols.length) {
 					try {
 						const pricesRes = await fetch(
-							`/api/market/coinpaprika-prices?symbols=${encodeURIComponent(symbols.join(','))}`,
+							`/api/market/coinpaprika-prices?symbols=${encodeURIComponent(normalizedSymbols.join(','))}`,
 						);
 						if (pricesRes.ok) {
 							const pricesData = (await pricesRes.json()) as { prices?: Record<string, number> };
@@ -170,7 +186,8 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 					const normalizedAmount = Number.isFinite(amount) ? amount : 0;
 					const usdFromAave = typeof entry.balanceUsd === 'number' ? entry.balanceUsd : null;
 					const priceFromAave = typeof entry.priceUsd === 'number' ? entry.priceUsd : null;
-					const priceFromCached = typeof cachedPrices[symbol] === 'number' ? cachedPrices[symbol] : null;
+					const priceKey = normalizePriceSymbol(symbol);
+					const priceFromCached = typeof cachedPrices[priceKey] === 'number' ? cachedPrices[priceKey] : null;
 					const priceFromOracle = typeof oraclePrices[symbol] === 'number' ? oraclePrices[symbol] : null;
 					const usdValue =
 						usdFromAave ??
@@ -208,7 +225,8 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 					const symbol = entry.currency?.symbol?.toUpperCase() ?? '';
 					const usdFromAave = typeof entry.debtUsd === 'number' ? entry.debtUsd : null;
 					const priceFromAave = typeof entry.priceUsd === 'number' ? entry.priceUsd : null;
-					const priceFromCached = symbol && typeof cachedPrices[symbol] === 'number' ? cachedPrices[symbol] : null;
+					const debtPriceKey = symbol ? normalizePriceSymbol(symbol) : '';
+					const priceFromCached = debtPriceKey && typeof cachedPrices[debtPriceKey] === 'number' ? cachedPrices[debtPriceKey] : null;
 					const priceFromOracle = symbol && typeof oraclePrices[symbol] === 'number' ? oraclePrices[symbol] : null;
 					const usdValue =
 						usdFromAave ??
@@ -240,7 +258,9 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 								bySymbol.set(String(t.tokenSymbol ?? '').toUpperCase(), t);
 							}
 							for (const item of collateralBreakdown) {
-								const t = bySymbol.get(item.symbol.toUpperCase());
+								// Try exact match first, then normalized (BTC.B→BTC, SAVAX→AVAX, etc.)
+								const t = bySymbol.get(item.symbol.toUpperCase())
+									?? bySymbol.get(normalizePriceSymbol(item.symbol));
 								if (t) {
 									if (t.purchasePriceUsd != null) item.purchasePriceUsd = t.purchasePriceUsd;
 									if (t.purchaseAt) item.purchaseAt = t.purchaseAt;
@@ -361,7 +381,7 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 			<div className="breakdown-title">Collateral breakdown</div>
 
 			<div className="breakdown" style={qtyWidthStyle}>
-				<div className="breakdown-row breakdown-header">
+				<div className="breakdown-row breakdown-header" style={{ display: 'grid', gridTemplateColumns: '44px 2fr 2fr 2fr 2.5fr 1.5fr', columnGap: '0.5rem' }}>
 					<span className="col-days">Days</span>
 					<span className="col-token">Asset</span>
 					<span className="col-qty">Qty</span>
@@ -392,7 +412,7 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 							: '—';
 
 						return (
-							<div className="breakdown-row" key={item.symbol}>
+							<div className="breakdown-row" key={item.symbol} style={{ display: 'grid', gridTemplateColumns: '44px 2fr 2fr 2fr 2.5fr 1.5fr', columnGap: '0.5rem' }}>
 								<span className="col-days">{daysHeld ?? '—'}</span>
 								<span className="col-token">{item.symbol}</span>
 								<span className="col-qty">
