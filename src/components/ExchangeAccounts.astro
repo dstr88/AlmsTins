@@ -136,13 +136,15 @@ try {
 												<div class="exchange-holding__field">
 													<span class="exchange-holding__label" title="Days held since last purchase. Hold 365+ days to qualify for the long-term capital gains tax rate.">Days</span>
 													<span class="exchange-holding__value">
-														{holding.earnedSymbol ? (
-															<abbr class="exchange-holding__earned" title={EARNED_SYMBOL_TITLES[holding.earnedSymbol]}>
-																{holding.lastPurchaseAt ? `${formatDaysSince(holding.lastPurchaseAt)} ` : ''}{holding.earnedSymbol}
-															</abbr>
-														) : (
-															formatDaysSince(holding.lastPurchaseAt) ?? '—'
-														)}
+														{usdValue !== null && usdValue > 1 ? (
+															holding.earnedSymbol ? (
+																<abbr class="exchange-holding__earned" title={EARNED_SYMBOL_TITLES[holding.earnedSymbol]}>
+																	{holding.lastPurchaseAt ? `${formatDaysSince(holding.lastPurchaseAt)} ` : ''}{holding.earnedSymbol}
+																</abbr>
+															) : (
+																formatDaysSince(holding.lastPurchaseAt) ?? '—'
+															)
+														) : '—'}
 													</span>
 												</div>
 												<div class="exchange-holding__field">
