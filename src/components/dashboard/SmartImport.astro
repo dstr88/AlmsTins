@@ -4,7 +4,7 @@
 ---
 
 <div class="smart-import" id="smart-import">
-  <input type="file" accept=".csv,text/csv" class="smart-import__input" id="smart-import-input" multiple />
+  <input type="file" accept=".csv,.tsv,.zip,text/csv,text/tab-separated-values,application/zip,application/x-zip-compressed" class="smart-import__input" id="smart-import-input" multiple />
 
   <div class="smart-import__drop" id="smart-import-drop">
     <svg class="smart-import__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -148,8 +148,16 @@
   drop.addEventListener('drop', (e) => {
     e.preventDefault();
     drop.classList.remove('drag-over');
-    const files = Array.from(e.dataTransfer?.files ?? []).filter(f => f.name.endsWith('.csv'));
-    if (files.length) processFiles(files);
+    const ACCEPTED = ['.csv', '.tsv', '.zip'];
+    const files = Array.from(e.dataTransfer?.files ?? []).filter(f =>
+      ACCEPTED.some(ext => f.name.toLowerCase().endsWith(ext))
+    );
+    if (files.length) {
+      processFiles(files);
+    } else {
+      // Show a clear message instead of silently ignoring
+      addResult('error', e.dataTransfer?.files?.[0]?.name ?? 'file', 'Not a supported file type. Drop a CSV or ZIP export from a supported exchange.');
+    }
   });
 
   async function processFiles(files) {
@@ -170,6 +178,7 @@
 
       if (!detected.detected) {
         setResult(row, 'error', file.name, detected.error ?? 'Unknown format');
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         return;
       }
 
@@ -183,12 +192,16 @@
 
       if (!importRes.ok || result.error) {
         setResult(row, 'error', file.name, result.error ?? `Import failed (${importRes.status})`);
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         return;
       }
 
-      const inserted = result.inserted ?? result.count ?? '?';
-      const skipped  = result.skipped != null ? ` · ${result.skipped} dupes skipped` : '';
+      // Different importers use different field names — normalise them all
+      const inserted = result.insertedNormalized ?? result.inserted ?? result.count ?? '?';
+      const dupes    = result.skippedDuplicates  ?? result.skipped  ?? null;
+      const skipped  = dupes != null ? ` · ${dupes} dupes skipped` : '';
       setResult(row, 'success', file.name, `✓ ${detected.name} — ${inserted} rows imported${skipped}`);
+      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
       // Trigger lifecycle rebuild silently
       fetch('/api/lifecycle/rebuild', { method: 'POST' }).catch(() => {});

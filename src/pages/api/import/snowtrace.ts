@@ -17,6 +17,7 @@
 
 import type { APIRoute } from 'astro';
 import { createHash, randomUUID } from 'node:crypto';
+import { inflateRawSync } from 'node:zlib';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
@@ -25,6 +26,25 @@ import { runTransferMatching } from '@/lib/transferMatcher';
 type CsvRow = Record<string, string>;
 
 // ── CSV parser ────────────────────────────────────────────────────────────────
+
+// ── ZIP extraction ────────────────────────────────────────────────────────────
+// Snowtrace exports a ZIP file (PK header) despite naming it .csv.
+
+function extractCsvFromZip(buf: Buffer): string | null {
+  if (buf[0] !== 0x50 || buf[1] !== 0x4B || buf[2] !== 0x03 || buf[3] !== 0x04) return null;
+  try {
+    const compression    = buf.readUInt16LE(8);
+    const compressedSize = buf.readUInt32LE(18);
+    const filenameLen    = buf.readUInt16LE(26);
+    const extraLen       = buf.readUInt16LE(28);
+    const dataOffset     = 30 + filenameLen + extraLen;
+    if (compression === 0) return buf.slice(dataOffset).toString('utf-8');
+    if (compression === 8) {
+      return inflateRawSync(buf.slice(dataOffset, dataOffset + compressedSize)).toString('utf-8');
+    }
+  } catch { /* fall through */ }
+  return null;
+}
 
 // Snowtrace exports TSV (tab-separated) despite the .csv extension.
 // This parser auto-detects the delimiter from the header line.
@@ -126,16 +146,9 @@ export const POST: APIRoute = async ({ request }) => {
 		return new Response(JSON.stringify({ error: 'Missing file upload.' }), { status: 400 });
 	}
 
-	// detect.ts may have already decompressed the ZIP and stored the raw CSV
-	// text in a hidden "extractedText" field to avoid double-reading the ZIP.
-	let content: string;
-	const extractedText = formData.get('extractedText');
-	if (typeof extractedText === 'string' && extractedText.length > 0) {
-		content = extractedText;
-	} else {
-		const buf = Buffer.from(await fileField.arrayBuffer());
-		content = buf.toString('utf-8');
-	}
+	// Snowtrace wraps the CSV in a ZIP file. Decompress if needed.
+	const buf = Buffer.from(await fileField.arrayBuffer());
+	const content = extractCsvFromZip(buf) ?? buf.toString('utf-8');
 
 	const csvRows = parseCsv(content);
 

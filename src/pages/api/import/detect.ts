@@ -10,7 +10,34 @@
  */
 
 import type { APIRoute } from 'astro';
+import { inflateRawSync } from 'node:zlib';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+
+// ── ZIP extraction (Snowtrace wraps its CSV in a deflate ZIP) ────────────────
+function extractCsvFromZip(buf: Buffer): string | null {
+  // Local file header magic: PK\x03\x04
+  if (buf[0] !== 0x50 || buf[1] !== 0x4B || buf[2] !== 0x03 || buf[3] !== 0x04) {
+    return null;
+  }
+  try {
+    const compression    = buf.readUInt16LE(8);
+    const compressedSize = buf.readUInt32LE(18);
+    const filenameLen    = buf.readUInt16LE(26);
+    const extraLen       = buf.readUInt16LE(28);
+    const dataOffset     = 30 + filenameLen + extraLen;
+
+    if (compression === 0) {
+      // Stored — no compression
+      return buf.slice(dataOffset).toString('utf-8');
+    }
+    if (compression === 8) {
+      // Deflate
+      const compressed = buf.slice(dataOffset, dataOffset + compressedSize);
+      return inflateRawSync(compressed).toString('utf-8');
+    }
+  } catch { /* fall through */ }
+  return null;
+}
 
 export const prerender = false;
 
@@ -103,9 +130,17 @@ export const POST: APIRoute = async ({ request }) => {
       return json({ error: 'No file provided.' }, 400);
     }
 
-    // Read only the first 4 KB — we just need the header row
-    const slice = file.slice(0, 4096);
-    const text = await slice.text();
+    // Read the file — check for ZIP wrapper first (Snowtrace exports ZIP as .csv)
+    const buf = Buffer.from(await file.arrayBuffer());
+    let text: string;
+
+    const extracted = extractCsvFromZip(buf);
+    if (extracted !== null) {
+      text = extracted;
+    } else {
+      // Plain text CSV — just need the header line
+      text = buf.slice(0, 4096).toString('utf-8');
+    }
     const firstLine = text.split('\n')[0] ?? '';
 
     const match = detectFromHeaders(firstLine);
