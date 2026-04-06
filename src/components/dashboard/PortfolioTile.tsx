@@ -88,14 +88,20 @@ export default function PortfolioTile() {
 		setSyncing(true);
 		setSyncStatus(null);
 		try {
-			const [exchangeRes, walletRes] = await Promise.all([
+			const [exchangeRes, walletRes, avaxRes] = await Promise.all([
 				fetch('/api/import/snapshot-all', { method: 'POST' }),
 				fetch('/api/wallets/value/sync-all', { method: 'POST' }),
+				fetch('/api/import/snowtrace-sync', { method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({}),
+				}),
 			]);
 			const exchangeData = await exchangeRes.json().catch(() => ({}));
-			const ok = exchangeRes.ok || walletRes.ok;
-			const processed = (exchangeData.processed ?? 0) + (walletRes.ok ? 1 : 0);
-			const failed = (!exchangeRes.ok ? 1 : 0) + (!walletRes.ok ? 1 : 0);
+			const avaxData     = await avaxRes.json().catch(() => ({}));
+			const ok = exchangeRes.ok || walletRes.ok || avaxRes.ok;
+			const avaxNew = avaxData.inserted ?? 0;
+			const processed = (exchangeData.processed ?? 0) + (walletRes.ok ? 1 : 0) + (avaxRes.ok ? 1 : 0);
+			const failed = (!exchangeRes.ok ? 1 : 0) + (!walletRes.ok ? 1 : 0) + (!avaxRes.ok ? 1 : 0);
 			setSyncStatus({ ok, processed, failed });
 			if (ok) loadSummary(mountedRef);
 		} catch {
