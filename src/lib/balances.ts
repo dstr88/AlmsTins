@@ -225,6 +225,10 @@ export async function getNativeBalance(chain: SupportedChain, address: string): 
 		tag: 'latest',
 	});
 
+	if (!url) {
+		throw new Error(`[balances] No scan URL for chain ${chain} — API key may be missing`);
+	}
+
 	const payload = await scheduleScan(() => fetchScan<ScanBalanceResponse>(chain, url));
 
 	return {
@@ -298,6 +302,11 @@ export async function getErc20Balances(chain: SupportedChain, address: string): 
 				contractaddress: token.contractAddress, // ✅ guaranteed string now
 				tag: 'latest',
 			});
+
+			if (!url) {
+				console.warn('[scan.skip] no URL for chain', chain, '— API key may be missing');
+				continue;
+			}
 
 			const payload = await scheduleScan(() => fetchScan<ScanBalanceResponse>(chain, url));
 
