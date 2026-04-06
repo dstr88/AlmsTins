@@ -42,11 +42,15 @@ export const GET: APIRoute = async ({ request }) => {
 		                                        'cex:' || t.source || ':' || COALESCE(t.account_id,''),
 		                                        COALESCE(t.tx_hash, '')
 		                                      )
-		      -- A user-supplied label on the tx_hash means "I know where this came from."
-		      -- Only applies to transactions before 2024 (the departed-exchange era).
-		      -- Post-2024 deposits still require a real matching counterpart.
+		      -- A user-supplied label means "I know what this is."
+		      -- Matches by tx_hash (when available) or by tx_id: prefix (fallback for rows
+		      -- where the exchange didn't provide a hash).
+		      -- Only applies to transactions before 2024.
 		      LEFT JOIN address_labels al_explained ON al_explained.tenant_id = t.tenant_id
-		                                          AND al_explained.address    = COALESCE(t.tx_hash, '__none__')
+		                                          AND (
+		                                            (t.tx_hash IS NOT NULL AND al_explained.address = t.tx_hash)
+		                                            OR al_explained.address = 'tx_id:' || t.id
+		                                          )
 		                                          AND al_explained.source     = 'user'
 		                                          AND t.timestamp_utc         < '2024-01-01'
 		      WHERE t.tenant_id = ?
