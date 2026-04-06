@@ -75,6 +75,9 @@
       <button class="faq-question" type="button" data-modal="faq-cost-basis-history">
         Why does cost basis only go back one year?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-annotate">
+        How do I label a disposal — gift, sale, or lost coin?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -84,26 +87,21 @@
         <h1>Learn about the project</h1>
 
         <p>
-          I have noticed a need in the industry. There's not really an
-          open-source place for people to see what is inside their wallets. I
-          feel that we should be able to open our wallet and know exactly what
-          is inside. This information is displayed in the vault page of the
-          wallet. You will find a watchlist, a place to add wallets and I'm not
-          sure what will end up on the end. The second row will be a place where
-          your wallets will sit. Each wallet will show their content -The chain
-          and total value of the wallet will be displayed, underneath, you will
-          see the number of days since a coin was transferred into your
-          ecosystem. Maybe, you bought it, traded for it, or it was sent to you.
-          Either way, you will know if it's short or long term capital gaines.
-          You will see the ticker symbol, amount dollar value and profit/loss.
-          The same wallet, with a divider will show Aave DeFi projects, with the
-          loan health at the top of the list. Then, will display the dollar
-          value of the loan, dollar value of your collateral, and break down
-          your collateral. The last section will show NFTs. I didn't realize
-          that there were so many in my wallet. Most of them were useless, so
-          there's a hide button. If you're like me and obsess over having hidden
-          something of value, you can always unhide it.
-          <strong>you can delete any tin that you wish</strong>
+          Almstins exists because crypto portfolios are genuinely hard to understand. Coins move between wallets and exchanges, get traded, staked, gifted, or lost — and most people have no single place that shows the full picture clearly.
+        </p>
+
+        <p>
+          The goal is simple: open your portfolio and know exactly what you have, where it came from, how long you have held it, and what it is worth. That information is displayed across three pages:
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Vault</strong> — live market values for all your connected wallets and exchange accounts. Each coin shows its ticker, amount, current dollar value, profit/loss, and the number of days it has been in your ecosystem. The Vault also surfaces Aave DeFi positions (loan health, collateral breakdown) and NFTs with the option to hide the ones you don't care about.</li>
+          <li><strong>Bookkeeping</strong> — your full transaction history in one place, with realized gains, cost basis, and FIFO lot tracking. This is the page that matters at tax time.</li>
+          <li><strong>Research</strong> — a dedicated investigation tool for finding where coins came from, where they went, and resolving any gaps in your history. The transfer matching engine automatically links withdrawals to deposits across sources, and anything it can't resolve automatically shows up in the Needs Attention panel for you to review.</li>
+        </ul>
+
+        <p>
+          You can delete any tin you no longer need at any time. Your raw transaction data is never modified — everything is stored as imported.
         </p>
       </div>
     </div>
@@ -135,20 +133,19 @@
         <h1>What about transactions</h1>
 
         <p>
-          It is easiest to start from the selling point and work our way back to
-          the beginning. When you sell, trade or send a coin, the coin is gone.
-          We can only do this once, so planning this end just makes sense. You
-          need to know before you sell if you will make a profit and how old the
-          coin is. Its funeral could cost you a lot of profit if you don't plan
-          its execution carefully. That's why I built the bookkeeping page.
-          Coins are grouped. For example if you received this coin in your
-          self-custody wallet from your exchange wallet that information is
-          noted, the sending transaction and receiving action are coupled
-          together, so that it's obvious. However that coin made its way into
-          your exchange wallet is also part of the group, so you have a clear
-          picture of its age, and profit / loss. If the coin mysteriously
-          appeared in your wallet, every attempt will be made to find the value
-          of that coin when it first appeared.
+          Every coin has a life story. It was bought, traded for, staked, gifted, or sent to you from somewhere — and eventually it was sold, moved, or is still sitting in a wallet. Almstins tracks that entire journey.
+        </p>
+
+        <p>
+          Transactions are imported from your exchanges via CSV upload and from self-custody wallets via blockchain API. Once imported, every transaction is stored exactly as received and never modified. Notes and disposal labels you add are stored separately alongside the raw data.
+        </p>
+
+        <p>
+          The Bookkeeping page groups transactions by coin and calculates cost basis using FIFO (first-in, first-out). When you sell or trade a coin, the oldest lot is consumed first. The age of each lot determines whether a disposal is a short-term or long-term capital gain — a distinction that can make a significant difference to your tax bill.
+        </p>
+
+        <p>
+          The Research page handles the harder question: what about transactions that don't have an obvious counterpart? When you withdraw from Coinbase and deposit to Kraken, each platform records only its half. The transfer matching engine automatically finds those pairs across all your sources. Anything it can't confidently match surfaces in the Needs Attention panel, where you can investigate, confirm, or annotate it yourself.
         </p>
       </div>
     </div>
@@ -193,33 +190,44 @@
 
         <h1>What does the project currently support?</h1>
 
-        <ul>
-          <li>
-            self-custody wallets:
-            <ol>
-              <li>
-                wallet value, age of coins, coins, amount of coins, their value
-                and profit/loss
-              </li>
-              <li>Aave Defi health, loan amount, collateral amount, then listed coins</li>
-              <li>
-                NFTs -with the option to hide and unhide all, webpages that have
-                interacted with the wallet
-              </li>
-            </ol>
-          </li>
-          <li>
-            Exchange wallets: You can upload a CSV file into your tin, and the
-            transactions will be passed to the bookkeeping page. Because there's
-            no standardized format for CSV files from exchanges, each one is
-            uploaded differently. Only some are supported.
-          </li>
-          <li>
-            Coin Tracking: Each coin has a lifecycle as it makes its way through
-            your finances. From the incubators of inception, to the cold hard
-            tomb of defeat, each transaction is grouped to the same coin. The
-            final resting place is the snapshot view.
-          </li>
+        <p><strong>Self-custody wallets (live blockchain data)</strong></p>
+        <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li>EVM chains: Ethereum, Polygon, Avalanche, and others</li>
+          <li>Coin balances, age of holdings, ticker, amount, current value, profit/loss</li>
+          <li>Aave DeFi positions — loan health, collateral breakdown, debt tracking</li>
+          <li>NFTs — with hide/unhide per token</li>
+        </ul>
+
+        <p><strong>Exchange CSV imports</strong></p>
+        <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li>Coinbase</li>
+          <li>Crypto.com</li>
+          <li>Gemini (Buy, Debit, and Credit rows including staking, airdrops, and learning rewards)</li>
+          <li>Kraken (Ledgers export)</li>
+          <li>Exodus</li>
+          <li>Cash App</li>
+          <li>Robinhood</li>
+          <li>Venmo</li>
+        </ul>
+
+        <p><strong>Bookkeeping</strong></p>
+        <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li>Full transaction history across all sources in one view</li>
+          <li>FIFO cost basis and realized gains calculation</li>
+          <li>Short-term vs. long-term gain classification by hold time</li>
+          <li>Reconciliation view — compares computed balances against live wallet data</li>
+          <li>Downloadable transaction list</li>
+        </ul>
+
+        <p><strong>Research page</strong></p>
+        <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li>Transfer matching engine — automatically links withdrawals to deposits across sources using transaction hash, address, amount, and timing signals</li>
+          <li>Needs Attention panel — surfaces unresolved transactions and suggested matches</li>
+          <li>Full-text search across all transactions by hash, symbol, date range, or keyword</li>
+          <li>Symbol chips for one-click per-asset audit</li>
+          <li>Disposal annotations — label any transaction as a sale, trade, gift, donation, or loss directly from the Research page</li>
+          <li>Address labels — known wallet addresses labeled automatically; custom labels storable by transaction hash or ID</li>
+          <li>Resolved tin — confirmed matches archived at the bottom of the panel</li>
         </ul>
       </div>
     </div>
@@ -230,31 +238,27 @@
 
         <h1>What are you working on now?</h1>
 
-        <ol>
+        <p>The core portfolio tracker, bookkeeping engine, and Research page are live. Here is what is actively being developed or planned next:</p>
+
+        <ol style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
           <li>
-            The tin inside bookkeeping called "allTransactions" does not scroll. I'm
-            sure there's a great reason for this, but I am not sure what it is.
-            They all should download, and I am working to get them to scroll.
+            <strong>More exchange importers.</strong> The eight currently supported exchanges cover the majority of US users, but there are more to add. Bybit, OKX, and Kraken Pro are on the list. If your exchange is not supported, use the Flag for Support option and it will be prioritised.
           </li>
           <li>
-            I am exploring options with the API calls. The free APIs plan has its
-            quirks and doesn't always want to do what I want. I want things to
-            load much faster than they do.
+            <strong>Historical price backfill for older transactions.</strong> The free CoinGecko API only reaches back 365 days. A paid API key unlocks full history for transactions from 2021 and earlier. This will be added as an optional upgrade for users with deep historical data.
           </li>
           <li>
-            The allTransactions tin in the vault doesn't scroll either. It's there
-            temporarily. I am not sure what I will put in its place yet. Any ideas??
+            <strong>Research page — bulk annotation.</strong> Currently you annotate one transaction at a time. The plan is to allow selecting multiple transactions and applying a disposal type or note to all of them in one step.
           </li>
           <li>
-            I want to revamp the add a wallet. I am not sure why it says I have
-            $0.04, and I'll try not to spend it all at once, but I would like one
-            place that users import their wallet and exchange tins. I'm thinking
-            that I will put a drop-down menu instead of stretching different
-            exchanges across the bottom of the screen. The problem is that it just
-            looks bare without wallets. This is short term. Longer term I want to
-            add functionality to other chains.
+            <strong>Tax report export.</strong> A downloadable summary formatted for Schedule D (US) and equivalent international formats — gains, losses, short-term vs. long-term, grouped by tax year.
           </li>
-          <li><strong>1/30 I saw my first subscriber today.  I was thankful for the person, but felt bad because there was no documentation.</strong>As we enjoyed a snow day at home, I wrote documentation for my project, and for the first time I feel like someone noticed its worth.  -so thankful.</li>
+          <li>
+            <strong>Additional chain support.</strong> Solana, Cardano, and Bitcoin on-chain wallet reading are planned. Currently only EVM-compatible chains (Ethereum, Polygon, Avalanche, etc.) are supported for live wallet data.
+          </li>
+          <li>
+            <strong>Events page.</strong> A calendar view of significant portfolio events — large deposits, disposals, staking rewards milestones. Currently disabled in the nav; coming soon.
+          </li>
         </ol>
       </div>
     </div>
@@ -794,6 +798,44 @@
 
         <p>
           <strong>What about the Needs Attention list?</strong> For deposits that are older than 2024 and came from exchanges that have since left the US market — such as Binance.US or Bittrex — there may be no matching counterpart transaction available at all. For those cases, Almstins lets you label the transaction manually to explain its origin. Once labeled, it is removed from the Needs Attention list automatically. The 2024 boundary is intentional: it covers the period when most regulatory-driven exchange departures occurred, while keeping recent unexplained deposits visible so nothing slips through unnoticed.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-annotate">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>How do I label a disposal — gift, sale, or lost coin?</h1>
+
+        <p>
+          Not every outgoing transaction is a sale. Crypto can leave your wallet as a gift, a charitable donation, a trade, or a loss — and each of those is treated differently for tax purposes. Almstins lets you label any transaction with its disposal type so your records are accurate and your tax preparer has everything they need.
+        </p>
+
+        <p><strong>How to annotate a transaction:</strong></p>
+        <ol style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li>Go to the <strong>Research</strong> page.</li>
+          <li>Find the transaction in the <strong>Needs Attention</strong> panel or search for it in the right panel.</li>
+          <li>Click the <strong>📝 Add note</strong> button at the bottom of the transaction card.</li>
+          <li>Choose a disposal type from the dropdown and optionally add a free-text note.</li>
+          <li>Click <strong>Save</strong>.</li>
+        </ol>
+
+        <p>The note and category are written directly onto the transaction record, so they follow the transaction everywhere it appears — Bookkeeping, Research, and any future exports.</p>
+
+        <p><strong>Available disposal types:</strong></p>
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Sell</strong> — a straightforward sale for fiat or stablecoin. Capital gain or loss applies.</li>
+          <li><strong>Trade (crypto → crypto)</strong> — exchanging one cryptocurrency for another. Also a taxable disposal in the US — the gain or loss is calculated at the time of the trade.</li>
+          <li><strong>Gift out</strong> — crypto sent to another person as a gift. Not a taxable event for the sender at the time of the gift, but the recipient inherits your cost basis. Gifts above the annual exclusion limit ($18,000 in 2024) may require a gift tax return.</li>
+          <li><strong>Gift in</strong> — crypto received as a gift. Not taxable income. Your cost basis is the donor's original cost basis.</li>
+          <li><strong>Lost / stolen</strong> — coins that are permanently inaccessible. Whether this is deductible as a loss depends on your jurisdiction and when it occurred. Consult a tax professional.</li>
+          <li><strong>Donation</strong> — crypto sent to a registered charity. If held for more than one year, you may deduct the fair market value at the time of donation without recognising a capital gain. If held for less than one year, the deduction is limited to your cost basis.</li>
+          <li><strong>Other / explained</strong> — for anything that doesn't fit the above categories. Use the free-text note to describe it.</li>
+        </ul>
+
+        <p style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 10px; padding: 0.9rem 1rem; margin-top: 1rem;">
+          <strong>⚠️ This is not tax advice.</strong> Almstins helps you organise and label your transaction history — it does not file returns or provide legal or tax guidance. Tax treatment of crypto varies by jurisdiction and individual circumstances. Always consult a qualified tax professional before making decisions based on this data.
         </p>
       </div>
     </div>
