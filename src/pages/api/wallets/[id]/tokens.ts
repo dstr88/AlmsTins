@@ -251,9 +251,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 		const code = err?.code ?? 'TOKEN_BREAKDOWN_ERROR';
 		const message = err?.message ?? 'Failed to load tokens';
 
-		// New wallets have no snapshots yet — return empty data instead of 404
-		// so the UI shows "No balance data" rather than "Refresh failed".
-		if (code === 'NO_SNAPSHOTS') {
+		// Wallets with no snapshots yet, or snapshots with empty payloads — return
+		// empty data instead of 404 so the UI shows "No balance data" rather than "Refresh failed".
+		if (code === 'NO_SNAPSHOTS' || code === 'EMPTY_SNAPSHOTS') {
 			console.log('[wallet.tokens] NO_SNAPSHOTS — returning empty payload', { walletId });
 			return new Response(
 				JSON.stringify({
