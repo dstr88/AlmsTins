@@ -12,11 +12,39 @@ type Props = {
 
 type WalletState = WalletOverviewWallet[];
 
+const SYMBOL_CHAINS: Record<string, string[]> = {
+	LTC:  ['litecoin'],
+	BTC:  ['bitcoin'],
+	ETH:  ['ethereum', 'polygon', 'avalanche'],
+	SOL:  ['solana'],
+	SUI:  ['sui'],
+	AVAX: ['avalanche'],
+	MATIC:['polygon'],
+};
+
+function symbolToChains(symbol: string, address: string): string[] {
+	const s = symbol.trim().toUpperCase();
+	if (SYMBOL_CHAINS[s]) return SYMBOL_CHAINS[s];
+	if (!s) {
+		const l = address.toLowerCase();
+		if (l.startsWith('ltc1'))                           return ['litecoin'];
+		if (l.startsWith('bc1') || /^[13]/.test(address))  return ['bitcoin'];
+		if (/^0x[a-f0-9]{64}$/.test(l))                    return ['sui'];
+	}
+	return s ? [s.toLowerCase()] : ['ethereum', 'polygon', 'avalanche'];
+}
+
 export function WalletOverview({ wallets: initialWallets }: Props) {
 	const [wallets, setWallets] = useState<WalletState>(initialWallets);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [draftLabel, setDraftLabel] = useState('');
 	const [status, setStatus] = useState<string | null>(null);
+
+	const [addAddress, setAddAddress] = useState('');
+	const [addLabel,   setAddLabel]   = useState('');
+	const [addSymbol,  setAddSymbol]  = useState('');
+	const [addStatus,  setAddStatus]  = useState<string | null>(null);
+	const [adding,     setAdding]     = useState(false);
 
 	// Simple hydration check to ensure the component is interactive in the browser.
 	React.useEffect(() => {
@@ -89,6 +117,44 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 		}
 	}
 
+	const inputStyle: React.CSSProperties = {
+		flex: 1,
+		minWidth: '200px',
+		padding: '0.38rem 0.6rem',
+		borderRadius: '8px',
+		border: '1px solid rgba(255,255,255,0.15)',
+		background: 'rgba(255,255,255,0.05)',
+		color: 'inherit',
+		fontSize: '0.85rem',
+	};
+
+	async function handleAdd() {
+		const address = addAddress.replace(/\s+/g, '');
+		const label   = addLabel.trim();
+		if (!address) { setAddStatus('Address is required'); return; }
+		if (!label)   { setAddStatus('Label is required');   return; }
+		const chains = symbolToChains(addSymbol, address);
+		setAdding(true);
+		setAddStatus('Saving…');
+		try {
+			const res  = await fetch('/api/wallets', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ address, label, chains }),
+			});
+			const data = await res.json();
+			if (!res.ok) { setAddStatus(data.message ?? 'Failed to save'); setAdding(false); return; }
+			setWallets(prev => [...prev, { id: data.id, address: data.address, label: data.label }]);
+			setAddAddress('');
+			setAddLabel('');
+			setAddSymbol('');
+			setAddStatus('Wallet added.');
+		} catch (e: any) {
+			setAddStatus('Error: ' + e.message);
+		}
+		setAdding(false);
+	}
+
 	return (
 		<div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 			<header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -101,7 +167,61 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 				) : null}
 			</header>
 
-			<div style={{ overflowX: 'auto' }}>
+			<div style={{
+				background: 'rgba(255,255,255,0.03)',
+				border: '1px solid rgba(255,255,255,0.09)',
+				borderRadius: '12px',
+				padding: '1rem 1.1rem',
+			}}>
+				<div style={{ fontSize: '0.82rem', opacity: 0.55, marginBottom: '0.6rem' }}>Add a wallet</div>
+				<div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+					<input
+						type="text"
+						placeholder="Address"
+						value={addAddress}
+						onChange={e => setAddAddress(e.target.value)}
+						style={inputStyle}
+					/>
+					<input
+						type="text"
+						placeholder="Label"
+						value={addLabel}
+						onChange={e => setAddLabel(e.target.value)}
+						style={{ ...inputStyle, maxWidth: '180px' }}
+					/>
+					<input
+						type="text"
+						placeholder="Symbol (e.g. LTC)"
+						value={addSymbol}
+						onChange={e => setAddSymbol(e.target.value)}
+						style={{ ...inputStyle, maxWidth: '130px' }}
+					/>
+					<button
+						type="button"
+						onClick={handleAdd}
+						disabled={adding}
+						style={{
+							padding: '0.38rem 1rem',
+							borderRadius: '8px',
+							border: 'none',
+							background: '#fbbf24',
+							color: '#000',
+							fontWeight: 700,
+							fontSize: '0.85rem',
+							cursor: adding ? 'default' : 'pointer',
+							opacity: adding ? 0.6 : 1,
+							whiteSpace: 'nowrap',
+						}}
+					>
+						Add
+					</button>
+				</div>
+				{addStatus && (
+					<div style={{ fontSize: '0.78rem', opacity: 0.65, marginTop: '0.4rem' }}>{addStatus}</div>
+				)}
+			</div>
+
+		<div style={{ overflowX: 'auto' }}>
 				<table
 					style={{
 						width: '100%',
