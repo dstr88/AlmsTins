@@ -1257,7 +1257,16 @@ window.markLegacy       = markLegacy;
 window.markOwnWallet    = markOwnWallet;
 
 // ── Address lookup ────────────────────────────────────────────────────────────
-const ADDRESS_RE = /^(0x[0-9a-fA-F]{40,}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,})$/;
+const ADDRESS_RE = /^(0x[0-9a-fA-F]{40,}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,}|ltc1[a-z0-9]{25,})$/i;
+
+function detectNetwork(address) {
+  const lower = address.toLowerCase();
+  if (lower.startsWith('ltc1'))                          return { symbol: 'LTC', chains: ['litecoin'] };
+  if (lower.startsWith('bc1') || /^[13]/.test(address)) return { symbol: 'BTC', chains: ['bitcoin'] };
+  if (/^0x[a-f0-9]{64}$/.test(lower))                   return { symbol: 'SUI', chains: ['sui'] };
+  if (/^0x[a-f0-9]{40}$/.test(lower))                   return { symbol: 'ETH', chains: ['ethereum', 'polygon', 'avalanche'] };
+  return { symbol: '', chains: [] };
+}
 
 let addrDebounce = null;
 
@@ -1318,6 +1327,7 @@ function renderAddressPanel(data) {
         <button class="btn-add-wallet" type="button" id="btn-show-add-wallet">＋ Add as my wallet</button>
         <div id="add-wallet-form" style="display:none" class="add-wallet-form">
           <input id="add-wallet-label" type="text" placeholder="Wallet label (e.g. My LTC wallet)" class="add-wallet-input" />
+          <input id="add-wallet-symbol" type="text" placeholder="Symbol (e.g. LTC, BTC, ETH)" class="add-wallet-input" style="margin-top:0.4rem" />
           <div class="add-wallet-row">
             <button class="btn-annotate-save" type="button" id="btn-confirm-add-wallet">Save</button>
             <button class="btn-annotate-cancel" type="button" id="btn-cancel-add-wallet">Cancel</button>
@@ -1354,6 +1364,11 @@ function renderAddressPanel(data) {
     btnShow.addEventListener('click', () => {
       form.style.display = 'block';
       btnShow.style.display = 'none';
+      // Auto-fill symbol from address prefix
+      const symbolInput = $('add-wallet-symbol');
+      if (symbolInput && !symbolInput.value) {
+        symbolInput.value = detectNetwork(data.address).symbol;
+      }
       $('add-wallet-label').focus();
     });
     $('btn-cancel-add-wallet').addEventListener('click', () => {
@@ -1366,11 +1381,26 @@ function renderAddressPanel(data) {
   }
 }
 
+function symbolToChains(symbol, address) {
+  const s = symbol.trim().toUpperCase();
+  const knownMap = {
+    LTC: ['litecoin'], BTC: ['bitcoin'], ETH: ['ethereum', 'polygon', 'avalanche'],
+    SOL: ['solana'], SUI: ['sui'], AVAX: ['avalanche'], MATIC: ['polygon'],
+  };
+  if (knownMap[s]) return knownMap[s];
+  // Fall back to auto-detected chains if user left symbol blank or unknown
+  if (!s) return detectNetwork(address).chains;
+  return [s.toLowerCase()];
+}
+
 async function saveNewWallet(address) {
   const label  = $('add-wallet-label')?.value.trim() ?? '';
+  const symbol = $('add-wallet-symbol')?.value ?? '';
   const status = $('add-wallet-status');
   const btn    = $('btn-confirm-add-wallet');
   if (!label) { if (status) status.textContent = 'Label is required'; return; }
+
+  const chains = symbolToChains(symbol, address);
 
   btn.disabled = true;
   if (status) status.textContent = 'Saving…';
@@ -1379,7 +1409,7 @@ async function saveNewWallet(address) {
     const res = await fetch('/api/wallets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address, label }),
+      body: JSON.stringify({ address, label, chains }),
     });
     const data = await res.json();
     if (!res.ok) {

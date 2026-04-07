@@ -76,7 +76,7 @@ export const POST: APIRoute = async ({ request }) => {
 		// Standard on-chain wallet (EVM, Sui, or Bitcoin — address validation handles all)
 		const address = sanitizeAddress(body.address);
 		if (!address) {
-			return responseWithError('A valid wallet address is required (0x… for EVM/Sui, bc1q… / bc1p… / 1… / 3… for Bitcoin).', 400);
+			return responseWithError('A valid wallet address is required (0x… for EVM/Sui, bc1q… / bc1p… / 1… / 3… for Bitcoin, ltc1q… for Litecoin).', 400);
 		}
 		const label =
 			typeof body.label === 'string' && body.label.trim().length ? body.label.trim() : deriveDefaultLabel(address);

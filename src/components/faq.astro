@@ -78,6 +78,9 @@
       <button class="faq-question" type="button" data-modal="faq-annotate">
         How do I label a disposal — gift, sale, or lost coin?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-custodial-address">
+        If an exchange sends crypto from an address, does that address belong to me?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -860,6 +863,34 @@
           The <em>Ledgers</em> export contains every deposit, withdrawal, trade, and staking
           reward in one file. The <em>Trades</em> export only covers spot trades and will not
           import correctly.
+        </p>
+      </div>
+    </div>
+    <div class="modal-overlay welcome-modal" id="faq-custodial-address">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>If an exchange sends crypto from an address, does that address belong to me?</h1>
+
+        <p>
+          Not necessarily. When an exchange like Venmo, Coinbase, or Kraken sends you crypto, the transaction originates from <em>their</em> wallet — not yours. Exchanges pool funds across thousands of users into shared hot wallets. The address in the "From" field belongs to the exchange's infrastructure, not to your personal account.
+        </p>
+
+        <p>
+          There are two fundamentally different ways to hold crypto:
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Custodial (exchange accounts)</strong> — the exchange holds your private keys. You have a balance in their system and they move funds on your behalf. The on-chain addresses belong to them. Venmo, Coinbase, Kraken, and Gemini all work this way.</li>
+          <li><strong>Self-custody (your own wallet)</strong> — you hold the private keys. The address is yours and yours alone. No one else can send from it. MetaMask, hardware wallets (Ledger, Trezor), and similar tools work this way.</li>
+        </ul>
+
+        <p>
+          This matters when using the Research page's address lookup. If you paste an address from an exchange transaction, you will see <em>that exchange's</em> activity — all transfers in and out of their shared pool — not just your personal history. To track your own funds accurately, use the addresses from wallets you personally control.
+        </p>
+
+        <p style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 10px; padding: 0.9rem 1rem; margin-top: 1rem;">
+          <strong>Tip:</strong> If you received crypto through Venmo and then sold it, your transaction is recorded in Venmo's internal ledger. The on-chain address is just their backend — tracking it won't show your personal balance.
         </p>
       </div>
     </div>

@@ -14,6 +14,8 @@ export function sanitizeAddress(input: unknown): string | null {
 	if (/^bc1[a-z0-9]{6,87}$/.test(lower)) return lower;
 	// Bitcoin legacy P2PKH (1...) and P2SH (3...) — case-sensitive Base58, preserve original case
 	if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(value)) return value;
+	// Litecoin native SegWit bech32 (ltc1q...) and Taproot bech32m (ltc1p...)
+	if (/^ltc1[a-z0-9]{6,87}$/.test(lower)) return lower;
 	return null;
 }
 
