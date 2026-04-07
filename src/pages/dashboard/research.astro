@@ -81,6 +81,7 @@ const tenantWallets = walletResult.rows.map(r => ({
                   type="button"
                   data-wallet-id={w.id}
                   data-wallet-label={w.label || w.address.slice(0, 8) + '…'}
+                  data-wallet-address={w.address}
                 >
                   <span class="wpi-label">{w.label || <span style="opacity:0.5">Unnamed</span>}</span>
                   <span class="wpi-addr">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span>
@@ -468,6 +469,18 @@ const tenantWallets = walletResult.rows.map(r => ({
   .btn-legacy:hover { border-color: rgba(156,163,175,0.5); color: rgba(156,163,175,0.85); }
   .btn-legacy:disabled { opacity: 0.4; cursor: default; }
 
+  .btn-transfer {
+    background: none;
+    border: 1px solid rgba(99,179,237,0.3);
+    border-radius: 6px;
+    color: rgba(99,179,237,0.65);
+    font-size: 0.7rem;
+    padding: 0.2rem 0.55rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-transfer:hover { border-color: rgba(99,179,237,0.6); color: rgba(99,179,237,1); }
+
   .annotate-form {
     margin-top: 0.5rem;
     display: flex;
@@ -850,9 +863,10 @@ function renderNeedsAttention(data) {
               🏚 Legacy exchange
             </button>` : ''}
             ${dir === 'out' && t.category !== 'own_wallet' ? `
-            <button class="btn-legacy"
-                    onclick="markOwnWallet(event, '${t.id}')">
-              🏠 Own wallet
+            <button class="btn-transfer"
+                    data-tx-id="${t.id}"
+                    onclick="openTransferForm(event, this)">
+              → Transfer to wallet
             </button>` : ''}
           </div>
           <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
@@ -1250,11 +1264,75 @@ async function markOwnWallet(e, txId) {
   }
 }
 
+function openTransferForm(e, btn) {
+  e.stopPropagation();
+  const txId   = btn.getAttribute('data-tx-id');
+  const formEl = document.getElementById('af-' + txId);
+  if (!formEl) return;
+
+  if (formEl.style.display !== 'none') {
+    formEl.style.display = 'none';
+    return;
+  }
+
+  // Build wallet options from the wallet-picker items already in the DOM
+  const walletItems = Array.from(document.querySelectorAll('.wallet-picker-item'));
+  const walletOptions = walletItems.map(el => {
+    const id    = el.getAttribute('data-wallet-id') ?? '';
+    const label = el.getAttribute('data-wallet-label') ?? id;
+    const addr  = el.getAttribute('data-wallet-address') ?? '';
+    return `<option value="${label}" data-addr="${addr}">${label}${addr ? '  (' + addr.slice(0,6) + '…' + addr.slice(-4) + ')' : ''}</option>`;
+  }).join('');
+
+  formEl.innerHTML = `
+    <div style="font-size:0.78rem;opacity:0.55;margin-bottom:0.35rem">Where did this transfer go?</div>
+    ${walletOptions ? `<select id="af-twallet-${txId}">
+      <option value="">— pick a tracked wallet —</option>
+      ${walletOptions}
+    </select>` : ''}
+    <input id="af-taddr-${txId}"  type="text" placeholder="Or enter an address or label…" />
+    <input id="af-tnote-${txId}"  type="text" placeholder="Optional note…" />
+    <div class="annotate-form-row">
+      <button class="btn-annotate-save" onclick="saveTransfer(event,'${txId}')">Save</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+      <span id="af-tstatus-${txId}" style="font-size:0.78rem;opacity:0.55;margin-left:0.4rem"></span>
+    </div>`;
+  formEl.style.display = 'flex';
+}
+
+async function saveTransfer(e, txId) {
+  e.stopPropagation();
+  const walletSel  = document.getElementById('af-twallet-' + txId);
+  const addrInput  = document.getElementById('af-taddr-'   + txId);
+  const noteInput  = document.getElementById('af-tnote-'   + txId);
+  const statusEl   = document.getElementById('af-tstatus-' + txId);
+
+  const destination = walletSel?.value.trim() || addrInput?.value.trim() || '';
+  const extra       = noteInput?.value.trim() ?? '';
+  const note        = [destination ? `To: ${destination}` : '', extra].filter(Boolean).join(' · ');
+
+  if (statusEl) statusEl.textContent = 'Saving…';
+
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: 'own_wallet', note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    if (statusEl) statusEl.textContent = '⚠ Save failed';
+  }
+}
+
 // Expose to window so inline onclick="" attributes can find them
-window.openAnnotateForm = openAnnotateForm;
-window.saveAnnotation   = saveAnnotation;
-window.markLegacy       = markLegacy;
-window.markOwnWallet    = markOwnWallet;
+window.openAnnotateForm  = openAnnotateForm;
+window.saveAnnotation    = saveAnnotation;
+window.markLegacy        = markLegacy;
+window.markOwnWallet     = markOwnWallet;
+window.openTransferForm  = openTransferForm;
+window.saveTransfer      = saveTransfer;
 
 // ── Address lookup ────────────────────────────────────────────────────────────
 const ADDRESS_RE = /^(0x[0-9a-fA-F]{40,}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,}|ltc1[a-z0-9]{25,})$/i;
