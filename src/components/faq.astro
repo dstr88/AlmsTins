@@ -81,6 +81,9 @@
       <button class="faq-question" type="button" data-modal="faq-custodial-address">
         If an exchange sends crypto from an address, does that address belong to me?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-address-labels">
+        How does address labeling work?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -897,6 +900,36 @@
           <strong>Tip:</strong> If you received crypto through Venmo and then sold it, your transaction is recorded in Venmo's internal ledger. The on-chain address is just their backend — tracking it won't show your personal balance.
         </p>
       </div>
+    <div class="modal-overlay welcome-modal" id="faq-address-labels">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>How does address labeling work?</h1>
+
+        <p>
+          There are two kinds of addresses in Almstins: wallets you own (tracked in the Vault), and addresses that belong to exchanges, services, or other people that simply appear in your transaction history. The <strong>Address Labels</strong> section on the Wallets page is for the second kind — giving a name to an address without adding it to your Vault.
+        </p>
+
+        <p>
+          <strong>Your personal labels</strong> are private to your account. If you tag an address as "Venmo LTC pool," that label shows up whenever that address appears in your history — in the Research page lookup, in transaction details, and anywhere the address is referenced.
+        </p>
+
+        <p>
+          <strong>Community labels</strong> work automatically in the background:
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li>Every time you save an address label, a silent vote is recorded. There is no UI for this — it just happens.</li>
+          <li>When 3 users independently label the same address with the same name, it becomes a <strong>global community label</strong> visible to everyone.</li>
+          <li>If 5 users later label the same address differently, the community label is updated to reflect the correction.</li>
+          <li>Your personal label always takes priority over a community label if they disagree.</li>
+        </ul>
+
+        <p>
+          <strong>On the Research page</strong>, when you look up an address the panel shows two copy buttons — one for the address itself, one for its label — so you can grab either with one click. Community labels are marked with a 🌐 badge so you know the name came from other users rather than your own tagging.
+        </p>
+      </div>
+    </div>
     </div>
   </div>
 
