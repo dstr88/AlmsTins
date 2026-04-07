@@ -126,6 +126,10 @@ const tenantWallets = walletResult.rows.map(r => ({
           <h2>Results <span id="results-count" class="count-badge"></span></h2>
           <div id="results-label" class="results-label" style="display:none"></div>
         </div>
+
+        <!-- Action panel: shown when an NA item is selected -->
+        <div id="na-action-panel" style="display:none"></div>
+
         <div id="results-list" class="item-list">
           <div class="empty-msg">Use the search above or click a symbol chip to explore your transactions.</div>
         </div>
@@ -533,6 +537,77 @@ const tenantWallets = walletResult.rows.map(r => ({
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
+
+  /* ── NA action panel (right column) ───────────────────────────────────────── */
+  #na-action-panel {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 1rem;
+  }
+  .nap-from {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: rgba(255,255,255,0.3);
+    margin-bottom: 0.5rem;
+  }
+  .nap-tx {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+  }
+  .nap-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+  }
+  .nap-btn-dispose {
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid rgba(251,191,36,0.35);
+    background: rgba(251,191,36,0.08);
+    color: #fbbf24;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .nap-btn-dispose:hover { background: rgba(251,191,36,0.15); }
+  .nap-btn-forward {
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid rgba(99,179,237,0.35);
+    background: rgba(99,179,237,0.08);
+    color: rgba(99,179,237,1);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .nap-btn-forward:hover { background: rgba(99,179,237,0.15); }
+  .nap-form {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .nap-form select,
+  .nap-form input {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 7px;
+    color: rgba(255,255,255,0.85);
+    font-size: 0.82rem;
+    padding: 0.4rem 0.6rem;
+    outline: none;
+    width: 100%;
+  }
+  .nap-form select:focus, .nap-form input:focus { border-color: rgba(251,191,36,0.5); }
+  .nap-form-row { display: flex; gap: 0.4rem; margin-top: 0.2rem; }
   .btn-annotate-save {
     background: #fbbf24; color: #000; border: none;
     border-radius: 7px; padding: 0.38rem 0.9rem;
@@ -962,16 +1037,25 @@ function renderNeedsAttention(data) {
 
   list.innerHTML = html;
 
-  // Wire NA item clicks → search for OPPOSITE direction (potential matches)
+  // Wire NA item clicks → action panel + search
   list.querySelectorAll('.na-item').forEach(el => {
     el.addEventListener('click', () => {
-      const sym = el.getAttribute('data-sym');
-      const dir = el.getAttribute('data-dir');   // 'in' or 'out'
-      const ts  = el.getAttribute('data-ts');    // ISO timestamp
+      const sym  = el.getAttribute('data-sym');
+      const dir  = el.getAttribute('data-dir');
+      const ts   = el.getAttribute('data-ts');
+      const txId = el.getAttribute('data-id');
+      const src  = el.getAttribute('data-src') ?? '';
+      const cat  = el.querySelector('[data-category]')?.getAttribute('data-category') ?? '';
+      const note = el.querySelector('[data-note]')?.getAttribute('data-note') ?? '';
       if (!sym) return;
       list.querySelectorAll('.na-item').forEach(i => i.classList.remove('selected'));
       el.classList.add('selected');
-      // Search for the opposite side — that's where the match lives
+
+      // Populate the right-panel action panel
+      renderNaActionPanel({ txId, sym, dir, src, cat, note,
+        amt: el.querySelector('.tx-amt')?.textContent ?? '' });
+
+      // Search for potential matches on the opposite side
       const opposite = dir === 'out' ? 'in' : 'out';
       naContext = { sym, dir, opposite };
       setActiveChip(sym);
@@ -1345,6 +1429,122 @@ const DISPOSAL_TYPES_ONLY = DISPOSAL_TYPES.filter(d =>
   !['own_wallet','legacy_exchange'].includes(d.value)
 );
 
+// ── Right-panel action panel ───────────────────────────────────────────────────
+function renderNaActionPanel({ txId, sym, dir, src, cat, note, amt }) {
+  const panel = $('na-action-panel');
+  panel.style.display = 'block';
+
+  const walletItems = Array.from(document.querySelectorAll('.wallet-picker-item'));
+  const walletOptions = walletItems.map(el => {
+    const label = el.getAttribute('data-wallet-label') ?? '';
+    const addr  = el.getAttribute('data-wallet-address') ?? '';
+    return `<option value="${label}">${label}${addr ? '  (' + addr.slice(0,6) + '…' + addr.slice(-4) + ')' : ''}</option>`;
+  }).join('');
+
+  const disposeOptions = DISPOSAL_TYPES_ONLY.map(d =>
+    `<option value="${d.value}"${d.value === cat ? ' selected' : ''}>${d.label}</option>`
+  ).join('');
+
+  panel.innerHTML = `
+    <div class="nap-from">From: ${src}</div>
+    <div class="nap-tx">${dir === 'out' ? '↑' : '↓'} ${amt} &nbsp;·&nbsp; ${sym}</div>
+    ${dir === 'out' ? `
+    <div class="nap-actions">
+      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">📤 Dispose</button>
+      <button class="nap-btn-forward" onclick="napShowForward('${txId}')">↗ Forward</button>
+    </div>
+    <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
+    ` : `
+    <div class="nap-actions">
+      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">📝 Annotate</button>
+      <button class="nap-btn-forward" onclick="markLegacy(event,'${txId}')" style="border-color:rgba(156,163,175,0.3);background:rgba(156,163,175,0.06);color:rgba(156,163,175,0.8)">🏚 Legacy exchange</button>
+    </div>
+    <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
+    `}`;
+
+  // store for use by napShow* functions
+  panel._txId         = txId;
+  panel._disposeOpts  = disposeOptions;
+  panel._walletOpts   = walletOptions;
+  panel._src          = src;
+  panel._note         = note;
+}
+
+function napShowDispose(txId) {
+  const panel = $('na-action-panel');
+  const form  = $('nap-form-' + txId);
+  if (!form) return;
+  form.style.display = 'flex';
+  form.innerHTML = `
+    <select id="nap-cat-${txId}">${panel._disposeOpts}</select>
+    <input  id="nap-note-${txId}" type="text" placeholder="Add a note…" value="${panel._note ?? ''}" />
+    <div class="nap-form-row">
+      <button class="btn-annotate-save" onclick="napSaveDispose('${txId}')">Save</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('nap-form-${txId}').style.display='none'">✕</button>
+      <span id="nap-status-${txId}" style="font-size:0.78rem;opacity:0.55;margin-left:0.4rem"></span>
+    </div>`;
+}
+
+function napShowForward(txId) {
+  const panel = $('na-action-panel');
+  const form  = $('nap-form-' + txId);
+  if (!form) return;
+  form.style.display = 'flex';
+  form.innerHTML = `
+    <div style="font-size:0.78rem;opacity:0.55">Forwarded to…</div>
+    ${panel._walletOpts ? `<select id="nap-fwallet-${txId}">
+      <option value="">— pick a tracked wallet —</option>
+      ${panel._walletOpts}
+    </select>` : ''}
+    <input id="nap-faddr-${txId}" type="text" placeholder="Or type an exchange / address…" />
+    <input id="nap-fnote-${txId}" type="text" placeholder="Optional note…" />
+    <div class="nap-form-row">
+      <button class="btn-annotate-save" onclick="napSaveForward('${txId}')">Save</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('nap-form-${txId}').style.display='none'">✕</button>
+      <span id="nap-status-${txId}" style="font-size:0.78rem;opacity:0.55;margin-left:0.4rem"></span>
+    </div>`;
+}
+
+async function napSaveDispose(txId) {
+  const cat    = document.getElementById('nap-cat-'  + txId)?.value ?? '';
+  const note   = document.getElementById('nap-note-' + txId)?.value ?? '';
+  const status = $('nap-status-' + txId);
+  if (status) status.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    $('na-action-panel').style.display = 'none';
+    await loadNeedsAttention();
+  } catch (e) {
+    if (status) status.textContent = '⚠ ' + e.message;
+  }
+}
+
+async function napSaveForward(txId) {
+  const walletSel = document.getElementById('nap-fwallet-' + txId);
+  const addrInput = document.getElementById('nap-faddr-'   + txId);
+  const noteInput = document.getElementById('nap-fnote-'   + txId);
+  const status    = $('nap-status-' + txId);
+  const dest = walletSel?.value.trim() || addrInput?.value.trim() || '';
+  const extra = noteInput?.value.trim() ?? '';
+  const note = [dest ? `To: ${dest}` : '', extra].filter(Boolean).join(' · ');
+  if (status) status.textContent = 'Saving…';
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: 'own_wallet', note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    $('na-action-panel').style.display = 'none';
+    await loadNeedsAttention();
+  } catch (e) {
+    if (status) status.textContent = '⚠ ' + e.message;
+  }
+}
+
 function openDisposeForm(e, btn) {
   e.stopPropagation();
   const txId    = btn.getAttribute('data-tx-id');
@@ -1440,6 +1640,10 @@ window.markOwnWallet     = markOwnWallet;
 window.openDisposeForm   = openDisposeForm;
 window.openForwardForm   = openForwardForm;
 window.saveTransfer      = saveTransfer;
+window.napShowDispose    = napShowDispose;
+window.napShowForward    = napShowForward;
+window.napSaveDispose    = napSaveDispose;
+window.napSaveForward    = napSaveForward;
 
 // ── Address lookup ────────────────────────────────────────────────────────────
 const ADDRESS_RE = /^(0x[0-9a-fA-F]{40,}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,}|ltc1[a-z0-9]{25,})$/i;

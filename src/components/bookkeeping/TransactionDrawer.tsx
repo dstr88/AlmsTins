@@ -11,6 +11,7 @@ export interface DrawerItem {
   groupId: string;
   txHash: string | null;
   transactionClass: string;
+  sourceType: string;
 }
 
 interface TransactionDrawerProps {
@@ -145,6 +146,14 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const [actionMode, setActionMode] = useState<'idle' | 'dispose' | 'forward'>('idle');
+  const [disposeCategory, setDisposeCategory] = useState('sell');
+  const [disposeNote, setDisposeNote] = useState('');
+  const [forwardDest, setForwardDest] = useState('');
+  const [forwardNote, setForwardNote] = useState('');
+  const [actionStatus, setActionStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const drawerRef = useRef<HTMLDivElement>(null);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
 
@@ -196,6 +205,13 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
       setNotes('');
       setSaveStatus('idle');
       setSaveError(null);
+      setActionMode('idle');
+      setDisposeCategory('sell');
+      setDisposeNote('');
+      setForwardDest('');
+      setForwardNote('');
+      setActionStatus('idle');
+      setActionError(null);
     }
   }, [item?.sourceId]);
 
@@ -287,6 +303,25 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
       setSaveError(err instanceof Error ? err.message : 'Save failed');
     }
   }, [item, pricePerToken, buyDate, notes, onClose]);
+
+  const handleAnnotate = useCallback(async (category: string, note: string) => {
+    if (!item) return;
+    setActionStatus('saving');
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/research/annotate/${item.sourceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, note: note || undefined }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setActionStatus('success');
+      setTimeout(() => { onClose(); window.location.reload(); }, 1200);
+    } catch (err: unknown) {
+      setActionStatus('error');
+      setActionError(err instanceof Error ? err.message : 'Save failed');
+    }
+  }, [item, onClose]);
 
   if (!isOpen) return null;
 
@@ -429,6 +464,189 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 
         {/* ── Body ───────────────────────────────────────────────────────── */}
         <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+
+          {/* ── Dispose / Forward actions ────────────────────────────────── */}
+          <section>
+            <SectionHeading>Actions</SectionHeading>
+
+            {/* Source badge */}
+            {item.sourceType && (
+              <div style={{ fontSize: '0.78rem', opacity: 0.5, marginBottom: '0.85rem' }}>
+                From: <span style={{ fontWeight: 600, opacity: 1, color: 'rgba(255,255,255,0.75)' }}>{item.sourceType}</span>
+              </div>
+            )}
+
+            {/* Action toggle buttons */}
+            {actionMode === 'idle' && (
+              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setActionMode('dispose')}
+                  style={{
+                    padding: '0.45rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(248,113,113,0.35)',
+                    background: 'rgba(248,113,113,0.1)',
+                    color: '#fca5a5',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    transition: 'background 0.12s',
+                  }}
+                >
+                  📤 Dispose
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActionMode('forward')}
+                  style={{
+                    padding: '0.45rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(96,165,250,0.35)',
+                    background: 'rgba(96,165,250,0.1)',
+                    color: '#93c5fd',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    transition: 'background 0.12s',
+                  }}
+                >
+                  ↗ Forward
+                </button>
+              </div>
+            )}
+
+            {/* Dispose form */}
+            {actionMode === 'dispose' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <p style={{ fontSize: '0.8rem', opacity: 0.45, margin: 0, fontStyle: 'italic' }}>
+                  Mark how this asset left your wallet.
+                </p>
+                <FormField label="Disposal type">
+                  <select
+                    value={disposeCategory}
+                    onChange={(e) => setDisposeCategory(e.target.value)}
+                    style={{ ...inputStyle, cursor: 'pointer' }}
+                  >
+                    <option value="sell">Sale</option>
+                    <option value="trade">Trade / Swap</option>
+                    <option value="gift_out">Gift Out</option>
+                    <option value="lost">Lost / Stolen</option>
+                    <option value="donation">Donation</option>
+                    <option value="other">Other</option>
+                  </select>
+                </FormField>
+                <FormField label="Note (optional)">
+                  <textarea
+                    rows={2}
+                    placeholder="Add a note…"
+                    value={disposeNote}
+                    onChange={(e) => setDisposeNote(e.target.value)}
+                    style={{ ...inputStyle, resize: 'vertical', minHeight: '56px', fontFamily: 'inherit', lineHeight: 1.5 }}
+                  />
+                </FormField>
+                {actionError && <p style={{ fontSize: '0.82rem', color: '#f87171', margin: 0 }}>{actionError}</p>}
+                {actionStatus === 'success' && <p style={{ fontSize: '0.82rem', color: '#4ade80', margin: 0 }}>✓ Saved — refreshing…</p>}
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    disabled={actionStatus === 'saving'}
+                    onClick={() => handleAnnotate(disposeCategory, disposeNote)}
+                    style={{
+                      padding: '0.45rem 1rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(248,113,113,0.4)',
+                      background: actionStatus === 'saving' ? 'rgba(248,113,113,0.06)' : 'rgba(248,113,113,0.15)',
+                      color: actionStatus === 'saving' ? 'rgba(248,113,113,0.4)' : '#fca5a5',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: actionStatus === 'saving' ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {actionStatus === 'saving' ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setActionMode('idle'); setActionError(null); }}
+                    style={{
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'transparent',
+                      color: 'rgba(255,255,255,0.35)',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Forward form */}
+            {actionMode === 'forward' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <p style={{ fontSize: '0.8rem', opacity: 0.45, margin: 0, fontStyle: 'italic' }}>
+                  Mark this as a transfer to one of your own wallets.
+                </p>
+                <FormField label="Forwarded to (wallet / exchange)">
+                  <input
+                    type="text"
+                    placeholder="e.g. Coinbase, My Ledger, 0x1234…"
+                    value={forwardDest}
+                    onChange={(e) => setForwardDest(e.target.value)}
+                    style={inputStyle}
+                  />
+                </FormField>
+                <FormField label="Note (optional)">
+                  <textarea
+                    rows={2}
+                    placeholder="Add a note…"
+                    value={forwardNote}
+                    onChange={(e) => setForwardNote(e.target.value)}
+                    style={{ ...inputStyle, resize: 'vertical', minHeight: '56px', fontFamily: 'inherit', lineHeight: 1.5 }}
+                  />
+                </FormField>
+                {actionError && <p style={{ fontSize: '0.82rem', color: '#f87171', margin: 0 }}>{actionError}</p>}
+                {actionStatus === 'success' && <p style={{ fontSize: '0.82rem', color: '#4ade80', margin: 0 }}>✓ Saved — refreshing…</p>}
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    disabled={actionStatus === 'saving' || !forwardDest.trim()}
+                    onClick={() => handleAnnotate('own_wallet', [forwardDest.trim(), forwardNote.trim()].filter(Boolean).join(' — '))}
+                    style={{
+                      padding: '0.45rem 1rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(96,165,250,0.4)',
+                      background: (actionStatus === 'saving' || !forwardDest.trim()) ? 'rgba(96,165,250,0.06)' : 'rgba(96,165,250,0.15)',
+                      color: (actionStatus === 'saving' || !forwardDest.trim()) ? 'rgba(96,165,250,0.4)' : '#93c5fd',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: (actionStatus === 'saving' || !forwardDest.trim()) ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {actionStatus === 'saving' ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setActionMode('idle'); setActionError(null); }}
+                    style={{
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'transparent',
+                      color: 'rgba(255,255,255,0.35)',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
 
           {/* ── Scam / unrecognised warning banner ───────────────────────── */}
           {item.transactionClass === 'other' && (() => {

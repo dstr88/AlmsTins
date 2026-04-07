@@ -40,6 +40,8 @@ export type UnsettledItem = {
   txHash: string | null;
   /** Raw transaction_class from the lifecycle event — 'other' is the key scam signal */
   transactionClass: string;
+  /** Import source name (e.g. "Venmo", "Coinbase CSV") */
+  sourceType: string;
 };
 
 export type HeldPosition = {
@@ -139,7 +141,8 @@ export async function buildAnnualBreakdown(
                e.transaction_class AS transaction_class,
                e.source_id         AS source_id,
                e.group_id          AS group_id,
-               e.tx_hash           AS tx_hash
+               e.tx_hash           AS tx_hash,
+               e.source_type       AS source_type
           FROM asset_lifecycle_events e
           LEFT JOIN asset_lifecycle_groups g
             ON g.id = e.group_id AND g.tenant_id = e.tenant_id
@@ -209,6 +212,7 @@ export async function buildAnnualBreakdown(
       source_id:         '' as unknown,
       group_id:          '' as unknown,
       tx_hash:           null as unknown,
+      source_type:       'sui' as unknown,
     }];
   });
 
@@ -242,11 +246,12 @@ export async function buildAnnualBreakdown(
         source_id:         '' as unknown,
         group_id:          '' as unknown,
         tx_hash:           null as unknown,
+        source_type:       'manual' as unknown,
       }];
     } catch { return []; }
   });
 
-  type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; transaction_class: unknown; source_id: unknown; group_id: unknown; tx_hash: unknown };
+  type RawEvent = { asset_symbol: unknown; direction: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; transaction_class: unknown; source_id: unknown; group_id: unknown; tx_hash: unknown; source_type: unknown };
   const events = [
     ...(eventsResult.rows as unknown as RawEvent[])
       .filter((r) => r && !SKIP_CLASSES.has(toStr(r.transaction_class))),
@@ -306,6 +311,7 @@ export async function buildAnnualBreakdown(
               groupId: typeof row.group_id === 'string' ? row.group_id : '',
               txHash: typeof row.tx_hash === 'string' ? row.tx_hash : null,
               transactionClass: txClass,
+              sourceType: typeof row.source_type === 'string' ? row.source_type : '',
             });
           }
           break;

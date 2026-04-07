@@ -214,6 +214,92 @@ try {
     </div>
   </main>
 
+  <!-- ── Anonymous question / FAQ suggestion box ──────────────────────── -->
+  <div class="contact-section">
+    <div class="contact-card">
+      <h3 class="contact-heading">What's keeping you from signing up today?</h3>
+      <p class="contact-sub">Have a question? We read everything — great questions end up in the FAQ.</p>
+      <form id="contact-form" autocomplete="off" novalidate>
+        <input
+          id="contact-subject"
+          type="text"
+          name="subject"
+          maxlength="120"
+          placeholder="Subject"
+          class="contact-input"
+          required
+        />
+        <div class="contact-body-wrap">
+          <textarea
+            id="contact-body"
+            name="body"
+            maxlength="500"
+            rows="4"
+            placeholder="Your question or thought…"
+            class="contact-input contact-textarea"
+            required
+          ></textarea>
+          <div class="contact-char"><span id="contact-char-count">0</span> / 500</div>
+        </div>
+        <button type="submit" class="contact-submit">Submit anonymously</button>
+        <p id="contact-status" class="contact-status" hidden></p>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const form    = document.getElementById('contact-form') as HTMLFormElement | null;
+      const body    = document.getElementById('contact-body') as HTMLTextAreaElement | null;
+      const counter = document.getElementById('contact-char-count');
+      const status  = document.getElementById('contact-status');
+
+      body?.addEventListener('input', () => {
+        if (counter) counter.textContent = String(body.value.length);
+      });
+
+      form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const subject = (document.getElementById('contact-subject') as HTMLInputElement)?.value.trim();
+        const bodyVal = body?.value.trim();
+        if (!subject || !bodyVal) return;
+
+        const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+
+        try {
+          const res = await fetch('/api/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject, body: bodyVal }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            form.reset();
+            if (counter) counter.textContent = '0';
+            if (status) {
+              status.textContent = '✓ Submitted — thanks!';
+              status.style.color = '#4ade80';
+              status.hidden = false;
+            }
+          } else {
+            throw new Error(data.error ?? 'Submit failed');
+          }
+        } catch (err: unknown) {
+          if (status) {
+            status.textContent = err instanceof Error ? err.message : 'Something went wrong';
+            status.style.color = '#f87171';
+            status.hidden = false;
+          }
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Submit anonymously';
+        }
+      });
+    })();
+  </script>
+
   {message === "LOCKED_OUT" && (
     <div class="session-overlay" id="session-overlay">
       <div class="session-popup" role="alertdialog" aria-modal="true" aria-labelledby="session-title">
@@ -671,6 +757,85 @@ try {
       background: rgba(255, 255, 255, 0.07);
       color: rgba(255, 255, 255, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    /* ── Contact / FAQ box ─────────────────────────────────────────── */
+    .contact-section {
+      display: flex;
+      justify-content: center;
+      padding: 3rem 1.5rem 5rem;
+      background: #05060c;
+    }
+
+    .contact-card {
+      width: 100%;
+      max-width: 580px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 16px;
+      padding: 2rem 2rem 1.75rem;
+    }
+
+    .contact-heading {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #f7f2eb;
+      margin: 0 0 0.4rem;
+    }
+
+    .contact-sub {
+      font-size: 0.82rem;
+      opacity: 0.45;
+      margin: 0 0 1.25rem;
+      line-height: 1.5;
+    }
+
+    .contact-input {
+      width: 100%;
+      box-sizing: border-box;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: rgba(255,255,255,0.9);
+      font-size: 0.9rem;
+      padding: 0.55rem 0.8rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+      display: block;
+      margin-bottom: 0.75rem;
+    }
+    .contact-input:focus { border-color: rgba(99,102,241,0.5); }
+
+    .contact-body-wrap { position: relative; margin-bottom: 0.75rem; }
+    .contact-body-wrap .contact-input { margin-bottom: 0; resize: vertical; min-height: 100px; line-height: 1.5; }
+
+    .contact-textarea { resize: vertical; }
+
+    .contact-char {
+      text-align: right;
+      font-size: 0.72rem;
+      opacity: 0.35;
+      margin-top: 0.25rem;
+    }
+
+    .contact-submit {
+      padding: 0.55rem 1.4rem;
+      border-radius: 8px;
+      border: 1px solid rgba(99,102,241,0.4);
+      background: rgba(99,102,241,0.12);
+      color: rgba(165,180,252,0.9);
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .contact-submit:hover:not(:disabled) { background: rgba(99,102,241,0.22); }
+    .contact-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .contact-status {
+      font-size: 0.82rem;
+      margin: 0.75rem 0 0;
     }
   </style>
 </Layout>

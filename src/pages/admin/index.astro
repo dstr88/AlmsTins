@@ -45,6 +45,18 @@ const safeQ = async (sql: string, args: any[] = []): Promise<Record<string, any>
 	try { return await q(sql, args); } catch { return []; }
 };
 
+// ── Auto-cleanup: remove old unprotected messages ────────────────────────────
+const fifteenDaysAgo = daysAgo(15);
+await safeQ(
+  `DELETE FROM contact_messages WHERE persisted = 0 AND created_at < ?`,
+  [fifteenDaysAgo],
+);
+
+// ── Load inbox messages ───────────────────────────────────────────────────────
+const inboxMessages = await safeQ(
+  `SELECT id, subject, body, created_at, persisted FROM contact_messages ORDER BY created_at DESC`,
+);
+
 // ── Queries (run in parallel) ─────────────────────────────────────────────────
 const [
 	totalUsers,
@@ -264,6 +276,87 @@ const fmtDate = (iso: string | null) => {
 		.dot-gray { background: rgba(255,255,255,0.2); }
 
 		.refresh-note { font-size: 0.72rem; color: rgba(255,255,255,0.25); margin-top: 0.3rem; }
+
+		/* ── Inbox ─────────────────────────────────────────────────────── */
+		.inbox-count {
+			display: inline-block;
+			margin-left: 0.6rem;
+			font-size: 0.72rem;
+			font-weight: 600;
+			padding: 0.1rem 0.5rem;
+			border-radius: 999px;
+			background: rgba(99,102,241,0.15);
+			color: rgba(165,180,252,0.8);
+			vertical-align: middle;
+		}
+		.inbox-note {
+			font-size: 0.78rem;
+			opacity: 0.4;
+			margin: -0.5rem 0 1rem;
+			font-style: italic;
+		}
+		.inbox-list { display: flex; flex-direction: column; gap: 0.85rem; }
+		.inbox-card {
+			background: rgba(255,255,255,0.03);
+			border: 1px solid rgba(255,255,255,0.08);
+			border-radius: 10px;
+			padding: 1rem 1.1rem 0.85rem;
+			transition: opacity 0.25s;
+		}
+		.inbox-card-head {
+			display: flex;
+			align-items: baseline;
+			justify-content: space-between;
+			gap: 0.75rem;
+			margin-bottom: 0.4rem;
+			flex-wrap: wrap;
+		}
+		.inbox-subject {
+			font-weight: 700;
+			font-size: 0.92rem;
+			color: #f7f2eb;
+		}
+		.inbox-date {
+			font-size: 0.72rem;
+			opacity: 0.35;
+			white-space: nowrap;
+		}
+		.inbox-body {
+			font-size: 0.84rem;
+			line-height: 1.55;
+			opacity: 0.75;
+			margin: 0 0 0.75rem;
+			white-space: pre-wrap;
+		}
+		.inbox-actions {
+			display: flex;
+			align-items: center;
+			gap: 1rem;
+		}
+		.inbox-persist-label {
+			display: flex;
+			align-items: center;
+			gap: 0.35rem;
+			font-size: 0.78rem;
+			opacity: 0.55;
+			cursor: pointer;
+			user-select: none;
+		}
+		.inbox-persist-check { cursor: pointer; accent-color: #6366f1; }
+		.inbox-delete-btn {
+			margin-left: auto;
+			padding: 0.3rem 0.8rem;
+			border-radius: 6px;
+			border: 1px solid rgba(248,113,113,0.3);
+			background: rgba(248,113,113,0.08);
+			color: #fca5a5;
+			font-size: 0.78rem;
+			font-weight: 600;
+			cursor: pointer;
+			transition: background 0.12s;
+		}
+		.inbox-delete-btn:hover:not(:disabled) { background: rgba(248,113,113,0.18); }
+		.inbox-delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 		/* GA4 section */
 		.ga4-unavailable {
@@ -550,6 +643,90 @@ const fmtDate = (iso: string | null) => {
 	</div>
 
 	<p class="refresh-note">Data is live — refresh the page for updated stats.</p>
+
+	<!-- ── Question Inbox ─────────────────────────────────────────────── -->
+	<div class="section" id="inbox-section">
+		<div class="section-title">
+			Question Inbox
+			<span class="inbox-count">{inboxMessages.length} message{inboxMessages.length !== 1 ? 's' : ''}</span>
+		</div>
+		<p class="inbox-note">Submitted anonymously from the login page. Messages auto-delete after 15 days unless marked Persist.</p>
+
+		{inboxMessages.length === 0 ? (
+			<p style="opacity:0.35; font-size:0.85rem; padding:1rem 0;">No messages yet.</p>
+		) : (
+			<div class="inbox-list" id="inbox-list">
+				{inboxMessages.map((msg) => (
+					<div class="inbox-card" data-id={msg.id}>
+						<div class="inbox-card-head">
+							<span class="inbox-subject">{msg.subject}</span>
+							<span class="inbox-date">{new Date(String(msg.created_at)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+						</div>
+						<p class="inbox-body">{msg.body}</p>
+						<div class="inbox-actions">
+							<label class="inbox-persist-label">
+								<input
+									type="checkbox"
+									class="inbox-persist-check"
+									data-id={msg.id}
+									checked={Boolean(msg.persisted)}
+								/>
+								Persist
+							</label>
+							<button class="inbox-delete-btn" data-id={msg.id}>Delete</button>
+						</div>
+					</div>
+				))}
+			</div>
+		)}
+	</div>
 </div>
+
+<script>
+	// ── Inbox interactions ────────────────────────────────────────────────────
+	document.addEventListener('click', async (e: MouseEvent) => {
+		const btn = (e.target as Element).closest<HTMLButtonElement>('.inbox-delete-btn');
+		if (!btn) return;
+		const id   = btn.dataset.id;
+		const card = btn.closest<HTMLElement>('.inbox-card');
+		if (!id || !card) return;
+
+		btn.disabled = true;
+		btn.textContent = 'Deleting…';
+
+		try {
+			const res = await fetch(`/api/admin/contact/${id}`, { method: 'DELETE' });
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			card.style.opacity = '0';
+			card.style.transition = 'opacity 0.25s';
+			setTimeout(() => card.remove(), 260);
+		} catch {
+			btn.disabled = false;
+			btn.textContent = 'Delete';
+			alert('Failed to delete message.');
+		}
+	});
+
+	document.addEventListener('change', async (e: Event) => {
+		const chk = (e.target as Element).closest<HTMLInputElement>('.inbox-persist-check');
+		if (!chk) return;
+		const id = chk.dataset.id;
+		if (!id) return;
+
+		try {
+			const res = await fetch(`/api/admin/contact/${id}`, {
+				method:  'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body:    JSON.stringify({ persisted: chk.checked }),
+			});
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		} catch {
+			// Revert on failure
+			chk.checked = !chk.checked;
+			alert('Failed to update message.');
+		}
+	});
+</script>
+
 </body>
 </html>

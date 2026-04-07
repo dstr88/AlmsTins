@@ -169,11 +169,13 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     position: sticky;
     top: 0;
     z-index: 50;
+    width: 100%;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.85rem 1.75rem;
+    padding: 0.85rem 1.25rem;
     background: rgba(5, 7, 15, 0.88);
     backdrop-filter: blur(14px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
@@ -245,11 +247,19 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 
   /* ── Page ── */
   .page {
+    width: 100%;
+    box-sizing: border-box;
     max-width: 860px;
     margin: 0 auto;
-    padding: 3rem 1.5rem 6rem;
+    padding: 3rem 1.25rem 6rem;
     color: #f5f8ff;
     font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  @media (max-width: 480px) {
+    .page { padding: 2rem 1rem 4rem; }
+    .topnav { padding: 0.75rem 1rem; }
+    .topnav__login { display: none; }
   }
 
   /* Hero */

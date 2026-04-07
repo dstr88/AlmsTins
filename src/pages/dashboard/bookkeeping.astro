@@ -149,6 +149,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                     data-sell-date={item.sellDate}
                     data-proceeds={item.proceedsUsd != null ? String(item.proceedsUsd) : ''}
                     data-tx-class={item.transactionClass}
+                    data-source-type={item.sourceType}
                   >
                     <span class="tin-row__asset">{item.asset}</span>
                     {scamLikely && <span class="asset-badge asset-badge--scam">⚠ SCAM?</span>}
@@ -935,6 +936,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
         groupId: row.dataset.groupId ?? '',
         txHash: row.dataset.txHash || null,
         transactionClass: row.dataset.txClass ?? '',
+        sourceType: row.dataset.sourceType ?? '',
       };
 
       window.dispatchEvent(new CustomEvent('open-transaction-drawer', { detail }));
