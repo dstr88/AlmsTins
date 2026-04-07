@@ -1,24 +1,40 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import WalletOverview from '../../components/dashboard/WalletOverview';
+import AddressLabels from '../../components/dashboard/AddressLabels';
 import { db } from '../../lib/db';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 
 const { tenantId } = await requireTenantSession(Astro.request);
-const result = await db.execute({
+
+const walletResult = await db.execute({
 	sql: 'SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY created_at ASC',
 	args: [tenantId],
 });
 
-const wallets = result.rows.map((row: Record<string, any>) => ({
-	id: String(row.id),
+const wallets = walletResult.rows.map((row: Record<string, any>) => ({
+	id:      String(row.id),
 	address: String(row.address),
-	label: row.label ? String(row.label) : null,
+	label:   row.label ? String(row.label) : null,
+}));
+
+const labelResult = await db.execute({
+	sql: `SELECT id, address, label, source FROM address_labels
+	      WHERE tenant_id = ? ORDER BY created_at DESC`,
+	args: [tenantId],
+});
+
+const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
+	id:      String(row.id),
+	address: String(row.address),
+	label:   String(row.label),
+	source:  String(row.source),
 }));
 ---
 
 <Layout title="Wallets | Almstins" noindex={true}>
-	<section style="padding: 1.5rem 0;">
+	<section style="padding: 1.5rem 0; display: flex; flex-direction: column; gap: 2.5rem;">
 		<WalletOverview client:load wallets={wallets} />
+		<AddressLabels client:load labels={addressLabels} />
 	</section>
 </Layout>

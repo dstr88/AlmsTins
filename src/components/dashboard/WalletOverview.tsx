@@ -159,8 +159,9 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 		<div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 			<header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 				<div>
-					<p style={{ margin: 0, opacity: 0.7 }}>Wallet management</p>
-					<h1 style={{ margin: 0, fontSize: '1.4rem' }}>Wallet overview</h1>
+					<p style={{ margin: 0, opacity: 0.7 }}>Your tracked wallets</p>
+					<h1 style={{ margin: 0, fontSize: '1.4rem' }}>My Wallets</h1>
+					<p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', opacity: 0.45 }}>Wallets added here are synced to the Vault and tracked as yours.</p>
 				</div>
 				{status ? (
 					<span style={{ fontSize: '0.9rem', opacity: 0.8 }}>{status}</span>
@@ -173,7 +174,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 				borderRadius: '12px',
 				padding: '1rem 1.1rem',
 			}}>
-				<div style={{ fontSize: '0.82rem', opacity: 0.55, marginBottom: '0.6rem' }}>Add a wallet</div>
+				<div style={{ fontSize: '0.82rem', opacity: 0.55, marginBottom: '0.6rem' }}>Add a wallet you own to the Vault</div>
 				<div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
 					<input
 						type="text"
