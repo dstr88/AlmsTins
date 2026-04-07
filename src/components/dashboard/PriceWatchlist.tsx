@@ -259,9 +259,9 @@ export function PriceWatchlist() {
 				>
 					<h2
 						style={{
-							fontSize: '1rem',
-							fontWeight: 600,
-							letterSpacing: '0.04em',
+							fontSize: '0.8rem',
+							fontWeight: 500,
+							letterSpacing: '0.12em',
 							textTransform: 'uppercase',
 						}}
 					>
@@ -274,7 +274,7 @@ export function PriceWatchlist() {
 								opacity: 0.75,
 							}}
 						>
-							From Aave / fallback
+							Source: Aave
 						</span>
 						{showToggle ? (
 							<button
