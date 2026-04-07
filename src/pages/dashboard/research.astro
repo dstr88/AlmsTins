@@ -1350,9 +1350,10 @@ let addrDebounce = null;
 
 $('q').addEventListener('input', () => {
   clearTimeout(addrDebounce);
-  const val = $('q').value.trim();
-  if (ADDRESS_RE.test(val)) {
-    addrDebounce = setTimeout(() => checkAddress(val), 400);
+  const raw      = $('q').value.trim();
+  const stripped = raw.replace(/\s+/g, '');   // drop mid-string spaces from multi-line copy-paste
+  if (ADDRESS_RE.test(stripped)) {
+    addrDebounce = setTimeout(() => checkAddress(stripped), 400);
   } else {
     $('addr-panel').style.display = 'none';
   }
