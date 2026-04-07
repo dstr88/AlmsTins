@@ -456,6 +456,30 @@ const tenantWallets = walletResult.rows.map(r => ({
   .btn-annotate:hover { border-color: rgba(251,191,36,0.4); color: #fbbf24; }
   .btn-annotate.has-note { border-color: rgba(251,191,36,0.35); color: rgba(251,191,36,0.7); }
 
+  .btn-dispose {
+    margin-top: 0;
+    background: none;
+    border: 1px solid rgba(251,191,36,0.2);
+    border-radius: 6px;
+    color: rgba(251,191,36,0.5);
+    font-size: 0.7rem;
+    padding: 0.2rem 0.55rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-dispose:hover { border-color: rgba(251,191,36,0.55); color: #fbbf24; }
+  .btn-dispose.has-note { border-color: rgba(251,191,36,0.35); color: rgba(251,191,36,0.7); }
+
+  .tx-src-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 5px;
+    padding: 0.1rem 0.4rem;
+    color: rgba(255,255,255,0.55);
+  }
+
   .btn-legacy {
     background: none;
     border: 1px solid rgba(156,163,175,0.25);
@@ -501,6 +525,14 @@ const tenantWallets = walletResult.rows.map(r => ({
   .annotate-form select:focus,
   .annotate-form input:focus { border-color: rgba(251,191,36,0.5); }
   .annotate-form-row { display: flex; gap: 0.4rem; }
+  .af-source-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
   .btn-annotate-save {
     background: #fbbf24; color: #000; border: none;
     border-radius: 7px; padding: 0.38rem 0.9rem;
@@ -860,7 +892,7 @@ function renderNeedsAttention(data) {
       const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
       const noteText = t.notes   ? `<span style="font-size:0.72rem;color:rgba(255,255,255,0.45);font-style:italic">${t.notes}</span>` : '';
       const hasAnnotation = !!(t.category || t.notes);
-      html += `<div class="tx-card na-item dir-${dir}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}">
+      html += `<div class="tx-card na-item dir-${dir}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}" data-src="${src}">
         <div class="tx-badge-col"><span class="tx-dir ${dir}">${dir}</span></div>
         <div class="tx-body">
           <div class="tx-row-1">
@@ -868,7 +900,7 @@ function renderNeedsAttention(data) {
             <span class="tx-amt">${amt} ${t.asset_symbol}</span>
           </div>
           <div class="tx-row-2">
-            <span class="tx-src">${src}</span>
+            <span class="tx-src-badge">${src}</span>
             ${t.native_usd ? `<span class="tx-usd">${fmtUsd(t.native_usd)}</span>` : ''}
           </div>
           <div class="tx-row-3">
@@ -877,6 +909,21 @@ function renderNeedsAttention(data) {
           </div>
           ${hasAnnotation ? `<div style="margin-top:0.3rem">${catLabel}${noteText}</div>` : ''}
           <div class="card-actions">
+            ${dir === 'out' ? `
+            <button class="btn-dispose${hasAnnotation ? ' has-note' : ''}"
+                    data-tx-id="${t.id}"
+                    data-category="${t.category ?? ''}"
+                    data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                    onclick="openDisposeForm(event, this)">
+              ${hasAnnotation ? '✏️ Edit disposal' : '📤 Dispose'}
+            </button>
+            ${t.category !== 'own_wallet' ? `
+            <button class="btn-transfer"
+                    data-tx-id="${t.id}"
+                    onclick="openForwardForm(event, this)">
+              ↗ Forward
+            </button>` : ''}
+            ` : `
             <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
                     data-tx-id="${t.id}"
                     data-category="${t.category ?? ''}"
@@ -884,17 +931,11 @@ function renderNeedsAttention(data) {
                     onclick="openAnnotateForm(event, this)">
               ${hasAnnotation ? '✏️ Edit note' : '📝 Add note'}
             </button>
-            ${dir === 'in' && t.category !== 'legacy_exchange' ? `
+            ${t.category !== 'legacy_exchange' ? `
             <button class="btn-legacy"
                     onclick="markLegacy(event, '${t.id}')">
               🏚 Legacy exchange
-            </button>` : ''}
-            ${dir === 'out' && t.category !== 'own_wallet' ? `
-            <button class="btn-transfer"
-                    data-tx-id="${t.id}"
-                    onclick="openTransferForm(event, this)">
-              → Transfer to wallet
-            </button>` : ''}
+            </button>` : ''}`}
           </div>
           <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
         </div>
@@ -1300,34 +1341,63 @@ async function markOwnWallet(e, txId) {
   }
 }
 
-function openTransferForm(e, btn) {
+const DISPOSAL_TYPES_ONLY = DISPOSAL_TYPES.filter(d =>
+  !['own_wallet','legacy_exchange'].includes(d.value)
+);
+
+function openDisposeForm(e, btn) {
+  e.stopPropagation();
+  const txId    = btn.getAttribute('data-tx-id');
+  const curCat  = btn.getAttribute('data-category') ?? '';
+  const curNote = btn.getAttribute('data-note') ?? '';
+  const formEl  = document.getElementById('af-' + txId);
+  const card    = btn.closest('[data-src]');
+  const srcName = card?.getAttribute('data-src') ?? '';
+  if (!formEl) return;
+
+  if (formEl.style.display !== 'none') { formEl.style.display = 'none'; return; }
+
+  const options = DISPOSAL_TYPES_ONLY.map(d =>
+    `<option value="${d.value}"${d.value === curCat ? ' selected' : ''}>${d.label}</option>`
+  ).join('');
+
+  formEl.innerHTML = `
+    <div class="af-source-label">From: ${srcName}</div>
+    <select id="af-cat-${txId}">${options}</select>
+    <div class="annotate-form-row">
+      <input id="af-note-${txId}" type="text" placeholder="Add a note…" value="${curNote}" />
+      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">Save</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+    </div>`;
+  formEl.style.display = 'flex';
+}
+
+function openForwardForm(e, btn) {
   e.stopPropagation();
   const txId   = btn.getAttribute('data-tx-id');
   const formEl = document.getElementById('af-' + txId);
+  const card   = btn.closest('[data-src]');
+  const srcTin = card?.getAttribute('data-src') ?? '';
   if (!formEl) return;
 
-  if (formEl.style.display !== 'none') {
-    formEl.style.display = 'none';
-    return;
-  }
+  if (formEl.style.display !== 'none') { formEl.style.display = 'none'; return; }
 
-  // Build wallet options from the wallet-picker items already in the DOM
   const walletItems = Array.from(document.querySelectorAll('.wallet-picker-item'));
   const walletOptions = walletItems.map(el => {
-    const id    = el.getAttribute('data-wallet-id') ?? '';
-    const label = el.getAttribute('data-wallet-label') ?? id;
+    const label = el.getAttribute('data-wallet-label') ?? '';
     const addr  = el.getAttribute('data-wallet-address') ?? '';
-    return `<option value="${label}" data-addr="${addr}">${label}${addr ? '  (' + addr.slice(0,6) + '…' + addr.slice(-4) + ')' : ''}</option>`;
+    return `<option value="${label}">${label}${addr ? '  (' + addr.slice(0,6) + '…' + addr.slice(-4) + ')' : ''}</option>`;
   }).join('');
 
   formEl.innerHTML = `
-    <div style="font-size:0.78rem;opacity:0.55;margin-bottom:0.35rem">Where did this transfer go?</div>
+    <div class="af-source-label">From: ${srcTin}</div>
+    <div style="font-size:0.78rem;opacity:0.55;margin-bottom:0.35rem">Forwarded to…</div>
     ${walletOptions ? `<select id="af-twallet-${txId}">
       <option value="">— pick a tracked wallet —</option>
       ${walletOptions}
     </select>` : ''}
-    <input id="af-taddr-${txId}"  type="text" placeholder="Or enter an address or label…" />
-    <input id="af-tnote-${txId}"  type="text" placeholder="Optional note…" />
+    <input id="af-taddr-${txId}" type="text" placeholder="Or type an exchange / address / label…" />
+    <input id="af-tnote-${txId}" type="text" placeholder="Optional note…" />
     <div class="annotate-form-row">
       <button class="btn-annotate-save" onclick="saveTransfer(event,'${txId}')">Save</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
@@ -1367,7 +1437,8 @@ window.openAnnotateForm  = openAnnotateForm;
 window.saveAnnotation    = saveAnnotation;
 window.markLegacy        = markLegacy;
 window.markOwnWallet     = markOwnWallet;
-window.openTransferForm  = openTransferForm;
+window.openDisposeForm   = openDisposeForm;
+window.openForwardForm   = openForwardForm;
 window.saveTransfer      = saveTransfer;
 
 // ── Address lookup ────────────────────────────────────────────────────────────
