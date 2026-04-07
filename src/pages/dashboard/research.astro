@@ -694,6 +694,33 @@ const tenantWallets = walletResult.rows.map(r => ({
   .addr-info-chip.exchange { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.25); }
   .addr-info-chip.label  { background: rgba(139,92,246,0.12); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); }
   .addr-info-chip.unknown { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1); }
+
+  .addr-copy-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.65rem;
+  }
+  .addr-copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 7px;
+    color: rgba(255,255,255,0.55);
+    font-size: 0.78rem;
+    padding: 0.28rem 0.6rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .addr-copy-btn:hover { border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.85); }
+  .addr-copy-text { font-family: monospace; }
+  .addr-community-badge {
+    font-size: 0.72rem;
+    opacity: 0.45;
+  }
   .addr-txs-label {
     font-size: 0.72rem;
     color: rgba(255,255,255,0.3);
@@ -1391,6 +1418,28 @@ function renderAddressPanel(data) {
   const inner = $('addr-panel-inner');
   let html = `<div class="addr-panel-title">Address info</div>`;
 
+  // Resolve the best label for this address
+  const resolvedLabel = data.addressLabel || data.globalLabel || data.knownExchange || null;
+  const labelSource   = data.addressLabel  ? (data.addressLabelSource === 'user' ? 'you' : 'auto')
+                      : data.globalLabel   ? 'community'
+                      : data.knownExchange ? 'known'
+                      : null;
+
+  // Copy-button row: [□ address] [□ label] whenever we have a label
+  html += `<div class="addr-copy-row">
+    <button class="addr-copy-btn" onclick="navigator.clipboard.writeText('${data.address}')" title="Copy address">
+      ⧉ <span class="addr-copy-text">${data.address.slice(0,10)}…${data.address.slice(-6)}</span>
+    </button>`;
+  if (resolvedLabel) {
+    html += `<button class="addr-copy-btn" onclick="navigator.clipboard.writeText('${resolvedLabel.replace(/'/g,"\\'")}')" title="Copy label">
+      ⧉ <span class="addr-copy-text">${resolvedLabel}</span>
+    </button>`;
+    if (labelSource === 'community') {
+      html += `<span class="addr-community-badge">🌐 community label</span>`;
+    }
+  }
+  html += `</div>`;
+
   // Chips row
   html += `<div class="addr-info-grid">`;
   if (data.ownWallet) {
@@ -1403,7 +1452,10 @@ function renderAddressPanel(data) {
   if (data.addressLabel && !data.ownWallet) {
     html += `<span class="addr-info-chip label">🏷 ${data.addressLabel}</span>`;
   }
-  if (!data.ownWallet && !data.knownExchange && !data.addressLabel) {
+  if (data.globalLabel && !data.addressLabel && !data.ownWallet && !data.knownExchange) {
+    html += `<span class="addr-info-chip label">🌐 ${data.globalLabel}</span>`;
+  }
+  if (!data.ownWallet && !data.knownExchange && !data.addressLabel && !data.globalLabel) {
     html += `<span class="addr-info-chip unknown">Unknown address</span>`;
   }
   html += `</div>`;

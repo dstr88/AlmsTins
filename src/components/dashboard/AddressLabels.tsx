@@ -80,10 +80,10 @@ export function AddressLabels({ labels: initial }: Props) {
 	return (
 		<div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 			<header>
-				<p style={{ margin: 0, opacity: 0.7 }}>Exchange &amp; external addresses</p>
-				<h2 style={{ margin: 0, fontSize: '1.4rem' }}>Address Labels</h2>
+				<p style={{ margin: 0, opacity: 0.7 }}>Counterparty addresses</p>
+				<h2 style={{ margin: 0, fontSize: '1.4rem' }}>Label Inbound &amp; Outbound Addresses</h2>
 				<p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', opacity: 0.45 }}>
-					Tag addresses that belong to exchanges or other services so they are recognised when they appear in your transaction history. These are <em>not</em> added to your Vault.
+					Tag addresses that send to you or receive from you — exchange hot wallets, other people's wallets, services. These are <em>not</em> your wallets and are <em>not</em> added to the Vault. They just get a name so you can recognise them when they appear in your history.
 				</p>
 			</header>
 

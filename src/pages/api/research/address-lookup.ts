@@ -96,7 +96,18 @@ export const GET: APIRoute = async ({ request }) => {
           WHERE tenant_id = ? AND lower(address) = ? LIMIT 1`,
     args: [tenantId, address],
   });
-  const addressLabel = (labelRes.rows[0]?.label as string | null) ?? null;
+  const addressLabel       = (labelRes.rows[0]?.label  as string | null) ?? null;
+  const addressLabelSource = (labelRes.rows[0]?.source as string | null) ?? null;
+
+  // 2b. Community-promoted global label (only used if no personal label)
+  let globalLabel: string | null = null;
+  if (!addressLabel) {
+    const globalRes = await db.execute({
+      sql: `SELECT label FROM global_address_labels WHERE address = ? LIMIT 1`,
+      args: [address],
+    });
+    globalLabel = (globalRes.rows[0]?.label as string | null) ?? null;
+  }
 
   // 3. Known exchange map
   const knownExchange = KNOWN_EXCHANGES[address] ?? null;
@@ -135,6 +146,8 @@ export const GET: APIRoute = async ({ request }) => {
         }
       : null,
     addressLabel,
+    addressLabelSource,
+    globalLabel,
     knownExchange,
     recentTxs,
   });

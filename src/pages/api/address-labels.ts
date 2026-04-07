@@ -44,6 +44,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const id = crypto.randomUUID();
 
 	try {
+		// Save personal label
 		await db.execute({
 			sql: `INSERT INTO address_labels (id, tenant_id, address, label, source)
 			      VALUES (?, ?, ?, ?, 'user')
@@ -52,6 +53,64 @@ export const POST: APIRoute = async ({ request }) => {
 			                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
 			args: [id, tenantId, address, label],
 		});
+
+		// Cast a community vote (one per user per address)
+		await db.execute({
+			sql: `INSERT INTO global_address_label_votes (id, tenant_id, address, label)
+			      VALUES (?, ?, ?, ?)
+			      ON CONFLICT (tenant_id, address)
+			      DO UPDATE SET label = excluded.label`,
+			args: [crypto.randomUUID(), tenantId, address, label],
+		});
+
+		// Count votes per label for this address
+		const votes = await db.execute({
+			sql: `SELECT label, COUNT(*) as cnt
+			      FROM global_address_label_votes
+			      WHERE address = ?
+			      GROUP BY label
+			      ORDER BY cnt DESC
+			      LIMIT 1`,
+			args: [address],
+		});
+
+		if (votes.rows.length) {
+			const topLabel = String(votes.rows[0].label);
+			const topCount = Number(votes.rows[0].cnt);
+
+			// Check if a global label already exists for this address
+			const existing = await db.execute({
+				sql: `SELECT label, vote_count FROM global_address_labels WHERE address = ? LIMIT 1`,
+				args: [address],
+			});
+
+			if (existing.rows.length === 0 && topCount >= 3) {
+				// First promotion: 3 independent users agree
+				await db.execute({
+					sql: `INSERT INTO global_address_labels (address, label, vote_count)
+					      VALUES (?, ?, ?)`,
+					args: [address, topLabel, topCount],
+				});
+			} else if (existing.rows.length > 0) {
+				const currentLabel = String(existing.rows[0].label);
+				// Correction: 5 users agree on a different label
+				if (topLabel.toLowerCase() !== currentLabel.toLowerCase() && topCount >= 5) {
+					await db.execute({
+						sql: `UPDATE global_address_labels
+						      SET label = ?, vote_count = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+						      WHERE address = ?`,
+						args: [topLabel, topCount, address],
+					});
+				} else {
+					// Just update the vote count for the current label
+					await db.execute({
+						sql: `UPDATE global_address_labels SET vote_count = ?
+						      WHERE address = ? AND lower(label) = lower(?)`,
+						args: [topCount, address, currentLabel],
+					});
+				}
+			}
+		}
 
 		const row = await db.execute({
 			sql: `SELECT id, address, label, source, created_at FROM address_labels
