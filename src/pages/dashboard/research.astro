@@ -1113,8 +1113,17 @@ function renderResults(data) {
 }
 
 // ── Button wiring ─────────────────────────────────────────────────────────────
-$('btn-search').addEventListener('click', runSearch);
-$('q').addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+function maybeAddressLookup() {
+  const stripped = ($('q').value ?? '').replace(/\s+/g, '');
+  if (ADDRESS_RE.test(stripped)) {
+    checkAddress(stripped);
+    return true;
+  }
+  return false;
+}
+
+$('btn-search').addEventListener('click', () => { if (!maybeAddressLookup()) runSearch(); });
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') { if (!maybeAddressLookup()) runSearch(); } });
 
 $('btn-run-matching').addEventListener('click', async () => {
   const btn = $('btn-run-matching');
