@@ -405,6 +405,15 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       flex-direction: column;
       gap: 2rem;
       padding: 1rem 0 3rem;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+
+    .bookkeeping-page > :not(.hero-bleed) {
+      padding-left: clamp(1rem, 3vw, 2.5rem);
+      padding-right: clamp(1rem, 3vw, 2.5rem);
     }
     .reconciliation-section {
       padding: 0 1.5rem;
@@ -729,7 +738,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
     .tin-row--alert:hover .tin-row__cta { opacity: 0.8; color: #fca5a5; }
     .tin-row--income { border-left: 3px solid rgba(168,85,247,0.45); }
 
-    .tin-row__asset  { font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; min-width: 3rem; }
+    .tin-row__asset  { font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; min-width: 3rem; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tin-row__qty    { font-variant-numeric: tabular-nums; opacity: 0.75; }
     .tin-row__date   { opacity: 0.55; font-size: 0.78rem; }
     .tin-row__dates  { display: flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; opacity: 0.6; }
