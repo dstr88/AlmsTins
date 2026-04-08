@@ -2,25 +2,25 @@
 import chartScript from '../scripts/aaveChartClient.ts?url';
 const reserves = [
 	{
-		label: 'USDC · Ethereum Mainnet',
+		label: 'USDC · Ethereum (v3)',
 		reserveId: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-		poolId: 'mainnet_v2',
+		poolId: 'mainnet_v3',
 		color: '#2d7cf7',
 	},
 	{
-		label: 'DAI · Ethereum Mainnet',
-		reserveId: '0x6b175474e89094c44da98b954eedeac495271d0f',
-		poolId: 'mainnet_v2',
+		label: 'USDT · Ethereum (v3)',
+		reserveId: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+		poolId: 'mainnet_v3',
 		color: '#f5b431',
 	},
 	{
-		label: 'USDC · Polygon',
-		reserveId: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
+		label: 'USDC · Polygon (v3)',
+		reserveId: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
 		poolId: 'polygon_v3',
 		color: '#8247e5',
 	},
 	{
-		label: 'USDT · Polygon',
+		label: 'USDT · Polygon (v3)',
 		reserveId: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
 		poolId: 'polygon_v3',
 		color: '#26a17b',
@@ -39,7 +39,7 @@ const windows = [
 	<div class="panel">
 		<header class="panel__header">
 			<div>
-				<p class="eyebrow">Aave Protocol · Live Rates</p>
+				<p class="eyebrow">Aave Protocol v3 · Live Rates</p>
 				<h1>Track supply & borrow yields</h1>
 				<p class="lede">
 					Pull historical APY data directly from the public Aave API and visualize how variable rates shift across
