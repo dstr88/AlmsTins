@@ -64,8 +64,17 @@ const isDebtToken = (s: string) => /^(variableDebt|stableDebt)/i.test(s);
 const isDefiAsset = (s: string) => isAToken(s) || isDebtToken(s);
 const isStable    = (s: string) => STABLECOINS.has(s.replace(/^a/, '').toUpperCase());
 
+// Scam/dust detector — flags tokens with phishing URLs or claim prompts in name
+const SCAM_PATTERNS = [
+  /https?:\/\//i, /www\./i, /\.com/i, /\.xyz/i, /\.site/i, /\.io/i,
+  /t\.me\//i, /claim/i, /visit/i, /reward/i, /airdrop/i, /official.link/i,
+];
+const isScamToken = (s: string) => SCAM_PATTERNS.some(p => p.test(s));
+
 // Split holdings into regular wallet vs DeFi protocol positions
-const walletHoldings = bd.stillHolding.filter(p => !isDefiAsset(p.asset));
+const allWalletHoldings = bd.stillHolding.filter(p => !isDefiAsset(p.asset));
+const walletHoldings = allWalletHoldings.filter(p => !isScamToken(p.asset));
+const dustHoldings   = allWalletHoldings.filter(p => isScamToken(p.asset));
 const defiHoldings   = bd.stillHolding.filter(p => isDefiAsset(p.asset));
 
 const walletCostBasis = walletHoldings.reduce((s, p) => s + (p.costUsd ?? 0), 0);
@@ -385,6 +394,31 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       </div>
 
     </div><!-- /breakdown-grid -->
+
+    <!-- ══ NFT Dust / Scam Tokens ═══════════════════════════════════════════ -->
+    {dustHoldings.length > 0 && (
+      <div class="reconciliation-section">
+        <details class="dust-tin">
+          <summary class="dust-tin__summary">
+            <span class="dust-tin__label">☣ NFT Dust &amp; Scam Tokens</span>
+            <span class="dust-tin__count">{dustHoldings.length} tokens</span>
+            <span class="dust-tin__caret">▾</span>
+          </summary>
+          <div class="dust-tin__body">
+            <p class="dust-tin__note">These tokens contain phishing URLs or claim prompts in their name. They have no real value and are excluded from your cost basis above.</p>
+            <div class="tin-rows">
+              {dustHoldings.map((pos) => (
+                <div class="tin-row tin-row--dust">
+                  <span class="tin-row__asset">{pos.asset}</span>
+                  <span class="tin-row__qty">{fQty(pos.amount)}</span>
+                  <span class="tin-row__date">Since {fDate(pos.acquiredDate)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </details>
+      </div>
+    )}
 
     <!-- ══ Reconciliation ══════════════════════════════════════════════════ -->
     <div class="reconciliation-section">
@@ -873,6 +907,69 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       padding: 0 0.25rem;
     }
     .tin-row--nft { border-left: 3px solid rgba(139,92,246,0.5); }
+
+    /* ── NFT Dust / Scam tin ─────────────────────────────────── */
+    .dust-tin {
+      background: rgba(239,68,68,0.06);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .dust-tin__summary {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.85rem 1.25rem;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+
+    .dust-tin__summary::-webkit-details-marker { display: none; }
+
+    .dust-tin__label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #fca5a5;
+    }
+
+    .dust-tin__count {
+      font-size: 0.75rem;
+      color: rgba(252,165,165,0.6);
+      margin-right: auto;
+    }
+
+    .dust-tin__caret {
+      font-size: 0.75rem;
+      color: rgba(252,165,165,0.6);
+      transition: transform 0.2s;
+    }
+
+    .dust-tin[open] .dust-tin__caret { transform: rotate(180deg); }
+
+    .dust-tin__body {
+      padding: 0 1.25rem 1.25rem;
+    }
+
+    .dust-tin__note {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      color: rgba(252,165,165,0.7);
+      line-height: 1.5;
+    }
+
+    .tin-row--dust {
+      opacity: 0.6;
+      border-left: 3px solid rgba(239,68,68,0.4);
+    }
+
+    .tin-row--dust .tin-row__asset {
+      color: #fca5a5;
+      font-size: 0.82rem !important;
+    }
     .nft-name { font-size: 0.85rem !important; font-weight: 600; }
     .nft-link {
       margin-left: auto;
