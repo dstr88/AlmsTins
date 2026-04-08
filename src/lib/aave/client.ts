@@ -1,31 +1,36 @@
 // src/lib/aave/client.ts
 
+import { AaveV3Avalanche, AaveV3Ethereum, AaveV3Polygon } from '@bgd-labs/aave-address-book';
+
 // ── Aave v3 ───────────────────────────────────────────────────────────────────
 const AAVE_V3_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
 
 // Keep the old name as an alias so nothing else in the file breaks
 const AAVE_GRAPHQL_ENDPOINT = AAVE_V3_GRAPHQL_ENDPOINT;
 
-// Aave v3 market addresses (from https://api.v3.aave.com/graphql markets query)
-const ETHEREUM_MARKET_ADDRESS = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2';
+// Pool addresses sourced from @bgd-labs/aave-address-book — always up to date.
+// No more hardcoded addresses to manually track.
+const ETHEREUM_MARKET_ADDRESS = AaveV3Ethereum.POOL;
 const ETHEREUM_CHAIN_ID = 1;
-const POLYGON_MARKET_ADDRESS = '0x794a61358D6845594F94dc1DB02A252b5b4814aD';
+const POLYGON_MARKET_ADDRESS = AaveV3Polygon.POOL;
 const POLYGON_CHAIN_ID = 137;
+const AVALANCHE_MARKET_ADDRESS = AaveV3Avalanche.POOL;
 const AVALANCHE_CHAIN_ID = 43114;
 
 // ── Aave v4 ───────────────────────────────────────────────────────────────────
-// Aave v4 ("Umbrella") deployed on Ethereum mainnet.
-// Once the official pool address is confirmed, set it in your .env:
-//   AAVE_V4_ETHEREUM_MARKET=0x...
-// Official deployed-contracts reference:
-//   https://docs.aave.com/developers/deployed-contracts/deployed-contracts
+// AaveV4Ethereum is not yet in @bgd-labs/aave-address-book — v4 has not been
+// deployed to mainnet with a stable address as of the current package version.
+// Once it appears in the address book, replace the env var with:
+//   import { AaveV4Ethereum } from '@bgd-labs/aave-address-book';
+//   const ETHEREUM_V4_MARKET_ADDRESS = AaveV4Ethereum.POOL;
 //
-// If Aave v4 ships its own GraphQL endpoint, set:
-//   AAVE_V4_GRAPHQL_ENDPOINT=https://api.v4.aave.com/graphql
-// Until then it falls back to the v3 endpoint (which may serve all markets).
+// Until then, set AAVE_V4_ETHEREUM_MARKET in Render env vars and it will
+// automatically activate. Track address book releases at:
+//   https://github.com/bgd-labs/aave-address-book/releases
 const ETHEREUM_V4_MARKET_ADDRESS: string | null =
 	process.env.AAVE_V4_ETHEREUM_MARKET ?? null;
 
+// Aave v4 may ship its own GraphQL endpoint. Falls back to v3 until then.
 const AAVE_V4_GRAPHQL_ENDPOINT: string =
 	process.env.AAVE_V4_GRAPHQL_ENDPOINT ?? AAVE_V3_GRAPHQL_ENDPOINT;
 
@@ -335,7 +340,7 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 			fallback: POLYGON_MARKET_ADDRESS,
 		});
 		const avalancheMarket = await resolveMarketAddress(AVALANCHE_CHAIN_ID, {
-			warning: 'Avalanche market not available',
+			fallback: AVALANCHE_MARKET_ADDRESS,
 		});
 
 		const ethereum = ethereumMarket.address
@@ -361,7 +366,7 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 					AVALANCHE_CHAIN_ID,
 					'avalanche',
 				)
-			: buildMissingMarketSummary('avalanche', avalancheMarket.warning ?? 'Avalanche market not available');
+			: buildMissingMarketSummary('avalanche', 'Avalanche market not available');
 
 		// ── Aave v4 (Ethereum mainnet) ─────────────────────────────────────────
 		// Only queried when AAVE_V4_ETHEREUM_MARKET is set in env.

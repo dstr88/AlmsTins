@@ -20,6 +20,7 @@
     "@astrojs/node": "^9.5.4",
     "@astrojs/react": "^4.4.2",
     "@auth/core": "^0.34.3",
+    "@bgd-labs/aave-address-book": "^4.44.22",
     "@google-analytics/data": "^5.2.1",
     "@libsql/client": "^0.17.0",
     "@types/pdfkit": "^0.17.5",
