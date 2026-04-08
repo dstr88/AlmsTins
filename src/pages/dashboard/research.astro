@@ -111,6 +111,7 @@ const tenantWallets = walletResult.rows.map(r => ({
       <div class="col-left">
         <div class="col-header">
           <h2>Needs Attention <span id="na-count" class="count-badge"></span></h2>
+          <p class="col-scope">All years · Bookkeeping shows current year only</p>
         </div>
         <div id="na-list" class="item-list">
           <div class="loading-msg">Loading…</div>
@@ -336,6 +337,12 @@ const tenantWallets = walletResult.rows.map(r => ({
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+  .col-scope {
+    margin: 0.25rem 0 0;
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.3);
+    font-style: italic;
   }
   .results-label {
     font-size: 0.75rem;
