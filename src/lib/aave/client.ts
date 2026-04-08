@@ -1,7 +1,10 @@
 // src/lib/aave/client.ts
 
-// Aave v3 public GraphQL endpoint
-const AAVE_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
+// ── Aave v3 ───────────────────────────────────────────────────────────────────
+const AAVE_V3_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
+
+// Keep the old name as an alias so nothing else in the file breaks
+const AAVE_GRAPHQL_ENDPOINT = AAVE_V3_GRAPHQL_ENDPOINT;
 
 // Aave v3 market addresses (from https://api.v3.aave.com/graphql markets query)
 const ETHEREUM_MARKET_ADDRESS = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2';
@@ -9,6 +12,22 @@ const ETHEREUM_CHAIN_ID = 1;
 const POLYGON_MARKET_ADDRESS = '0x794a61358D6845594F94dc1DB02A252b5b4814aD';
 const POLYGON_CHAIN_ID = 137;
 const AVALANCHE_CHAIN_ID = 43114;
+
+// ── Aave v4 ───────────────────────────────────────────────────────────────────
+// Aave v4 ("Umbrella") deployed on Ethereum mainnet.
+// Once the official pool address is confirmed, set it in your .env:
+//   AAVE_V4_ETHEREUM_MARKET=0x...
+// Official deployed-contracts reference:
+//   https://docs.aave.com/developers/deployed-contracts/deployed-contracts
+//
+// If Aave v4 ships its own GraphQL endpoint, set:
+//   AAVE_V4_GRAPHQL_ENDPOINT=https://api.v4.aave.com/graphql
+// Until then it falls back to the v3 endpoint (which may serve all markets).
+const ETHEREUM_V4_MARKET_ADDRESS: string | null =
+	process.env.AAVE_V4_ETHEREUM_MARKET ?? null;
+
+const AAVE_V4_GRAPHQL_ENDPOINT: string =
+	process.env.AAVE_V4_GRAPHQL_ENDPOINT ?? AAVE_V3_GRAPHQL_ENDPOINT;
 
 // --- Public types your API/UI can rely on ---
 
@@ -23,7 +42,7 @@ export type AavePosition = {
 };
 
 export type AaveChainSummary = {
-	chain: 'ethereum' | 'polygon' | 'avalanche';
+	chain: 'ethereum' | 'polygon' | 'avalanche' | 'ethereum_v4';
 	suppliedUsd: number;
 	debtUsd: number;
 	suppliedUsdTotal: number;
@@ -172,11 +191,12 @@ async function fetchUserPositionsForMarket(
 	marketAddress: string,
 	chainId: number,
 	chain: AaveChainSummary['chain'],
+	apiEndpoint: string = AAVE_V3_GRAPHQL_ENDPOINT,
 ): Promise<AaveChainSummary> {
 	const user = userAddress.toLowerCase();
 
 	try {
-		const response = await fetch(AAVE_GRAPHQL_ENDPOINT, {
+		const response = await fetch(apiEndpoint, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
@@ -343,10 +363,26 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 				)
 			: buildMissingMarketSummary('avalanche', avalancheMarket.warning ?? 'Avalanche market not available');
 
+		// ── Aave v4 (Ethereum mainnet) ─────────────────────────────────────────
+		// Only queried when AAVE_V4_ETHEREUM_MARKET is set in env.
+		// v4 uses the same chain ID (1) as v3 but a different pool contract.
+		const ethereumV4: AaveChainSummary = ETHEREUM_V4_MARKET_ADDRESS
+			? await fetchUserPositionsForMarket(
+					normalized,
+					ETHEREUM_V4_MARKET_ADDRESS,
+					ETHEREUM_CHAIN_ID,
+					'ethereum_v4',
+					AAVE_V4_GRAPHQL_ENDPOINT,
+				)
+			: buildMissingMarketSummary(
+					'ethereum_v4',
+					'Aave v4 market not configured — set AAVE_V4_ETHEREUM_MARKET in env once the official address is published at https://docs.aave.com/developers/deployed-contracts/deployed-contracts',
+				);
+
 		return {
 			ok: true,
 			address: normalized,
-			chains: [ethereum, polygon, avalanche],
+			chains: [ethereum, polygon, avalanche, ethereumV4],
 		};
 	} catch (err: any) {
 		console.error('[AAVE] getAavePositionsForWallet failed', err);
