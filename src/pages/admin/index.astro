@@ -76,6 +76,7 @@ const [
 	requestsToday,
 	topRoutes,
 	ga4,
+	totalSpamChecked,
 ] = await Promise.all([
 	safeScalar('SELECT COUNT(*) FROM auth_users'),
 	safeScalar('SELECT COUNT(*) FROM tenant_memberships WHERE created_at >= ?', [daysAgo(1)]),
@@ -115,6 +116,7 @@ const [
 	   ORDER BY hits DESC
 	   LIMIT 8`, [daysAgo(7).slice(0, 10)]),
 	getGA4Summary(28).catch(() => null),
+	safeScalar('SELECT COUNT(DISTINCT addr_hash) FROM wallet_check_log'),
 ]);
 
 const fmt = (iso: string | null) => {
@@ -425,9 +427,14 @@ const fmtDate = (iso: string | null) => {
 				<div class="stat-sub">{logins7d} in last 7 days</div>
 			</div>
 			<div class="stat-card">
-				<div class="stat-label">Wallets</div>
+				<div class="stat-label">Tins</div>
 				<div class="stat-value">{totalWallets}</div>
 				<div class="stat-sub">tracked on-chain</div>
+			</div>
+			<div class="stat-card green">
+				<div class="stat-label">Spam Checked</div>
+				<div class="stat-value">{totalSpamChecked.toLocaleString()}</div>
+				<div class="stat-sub">unique addresses checked</div>
 			</div>
 			<div class="stat-card">
 				<div class="stat-label">Import rows</div>
