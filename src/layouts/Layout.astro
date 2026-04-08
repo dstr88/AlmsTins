@@ -25,14 +25,16 @@ const defaultAvatar = defaultAvatars[Math.floor(Math.random() * defaultAvatars.l
 let lastLoginIso: string | null = null;
 let memberSinceIso: string | null = null;
 let dbEmail: string | null = null;
+let alertEmail: string | null = null;
 if (user?.id) {
   try {
     const [userRow, memberRow] = await Promise.all([
-      db.execute({ sql: 'SELECT last_login, email FROM auth_users WHERE id = ? LIMIT 1', args: [user.id] }),
+      db.execute({ sql: 'SELECT last_login, email, alert_email FROM auth_users WHERE id = ? LIMIT 1', args: [user.id] }),
       db.execute({ sql: 'SELECT created_at FROM tenant_memberships WHERE user_id = ? ORDER BY created_at ASC LIMIT 1', args: [user.id] }),
     ]);
     lastLoginIso = userRow.rows[0] ? String((userRow.rows[0] as any).last_login ?? '') || null : null;
     dbEmail = userRow.rows[0] ? String((userRow.rows[0] as any).email ?? '') || null : null;
+    alertEmail = userRow.rows[0] ? String((userRow.rows[0] as any).alert_email ?? '') || null : null;
     memberSinceIso = memberRow.rows[0] ? String((memberRow.rows[0] as any).created_at ?? '') || null : null;
   } catch { /* non-fatal */ }
 }
@@ -195,8 +197,32 @@ const memberSinceDisplay = memberSinceIso
 							<!-- Meta: email, tenant ID, last login, member since -->
 							<div class="account-meta-block">
 								<div class="account-meta-row">
-									<span class="account-meta-label">Email</span>
+									<span class="account-meta-label">Account email</span>
 									<span class="account-meta-value account-meta-email">{displayEmail ?? '—'}</span>
+								</div>
+								<div class="account-meta-row">
+									<span class="account-meta-label">Alert email</span>
+									<span id="alert-email-display" class="account-meta-value">
+										{alertEmail
+											? <span id="alert-email-text">{alertEmail}</span>
+											: <em id="alert-email-text" class="account-meta-unset">not set</em>
+										}
+										<button type="button" id="alert-email-edit-btn" class="account-inline-edit" title="Edit alert email" aria-label="Edit alert email">✏</button>
+									</span>
+									<form id="alert-email-form" class="alert-email-form" hidden>
+										<input
+											type="email"
+											id="alert-email-input"
+											name="alertEmail"
+											placeholder={displayEmail ?? 'you@example.com'}
+											value={alertEmail ?? ''}
+											autocomplete="email"
+										/>
+										<div class="alert-email-actions">
+											<button type="submit" class="alert-email-save">Save</button>
+											<button type="button" id="alert-email-cancel" class="alert-email-cancel">Cancel</button>
+										</div>
+									</form>
 								</div>
 								{tenantId && (
 									<div class="account-meta-row">
@@ -637,6 +663,81 @@ const memberSinceDisplay = memberSinceIso
 		color: #fecaca;
 	}
 
+	/* ── Alert email inline editor ───────────────────────────────────────── */
+	.account-meta-unset {
+		color: rgba(255, 255, 255, 0.35);
+		font-style: italic;
+		font-size: 0.82rem;
+	}
+
+	.account-inline-edit {
+		background: none;
+		border: none;
+		color: rgba(255, 255, 255, 0.4);
+		cursor: pointer;
+		font-size: 0.75rem;
+		padding: 0 0.2rem;
+		margin-left: 0.25rem;
+		line-height: 1;
+		transition: color 0.15s;
+		vertical-align: middle;
+	}
+	.account-inline-edit:hover { color: #a5b4fc; }
+
+	.alert-email-form {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		margin-top: 0.4rem;
+		width: 100%;
+	}
+
+	.alert-email-form input[type="email"] {
+		width: 100%;
+		background: rgba(255, 255, 255, 0.07);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 8px;
+		color: #fff;
+		font-size: 0.82rem;
+		padding: 0.45rem 0.7rem;
+		outline: none;
+		transition: border-color 0.15s;
+	}
+	.alert-email-form input[type="email"]:focus {
+		border-color: rgba(99, 102, 241, 0.6);
+	}
+
+	.alert-email-actions {
+		display: flex;
+		gap: 0.4rem;
+	}
+
+	.alert-email-save {
+		flex: 1;
+		padding: 0.35rem 0.6rem;
+		border-radius: 6px;
+		border: none;
+		background: rgba(99, 102, 241, 0.25);
+		color: #a5b4fc;
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+	.alert-email-save:hover { background: rgba(99, 102, 241, 0.4); }
+
+	.alert-email-cancel {
+		padding: 0.35rem 0.6rem;
+		border-radius: 6px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: transparent;
+		color: rgba(255, 255, 255, 0.45);
+		font-size: 0.8rem;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+	.alert-email-cancel:hover { background: rgba(255, 255, 255, 0.06); }
+
 	@media (max-width: 720px) {
 		.chrome__header {
 			flex-direction: column;
@@ -706,4 +807,62 @@ const memberSinceDisplay = memberSinceIso
 	}
 
 	document.querySelectorAll<HTMLButtonElement>('.copy-btn[data-copy]').forEach(initCopyBtn);
+
+	// ── Alert email inline editor ────────────────────────────────────────────
+	(() => {
+		const editBtn   = document.getElementById('alert-email-edit-btn') as HTMLButtonElement | null;
+		const cancelBtn = document.getElementById('alert-email-cancel')   as HTMLButtonElement | null;
+		const form      = document.getElementById('alert-email-form')     as HTMLFormElement   | null;
+		const display   = document.getElementById('alert-email-display')  as HTMLElement       | null;
+		const input     = document.getElementById('alert-email-input')    as HTMLInputElement  | null;
+
+		if (!editBtn || !form || !display || !input) return;
+
+		editBtn.addEventListener('click', () => {
+			display.hidden = true;
+			form.hidden = false;
+			input.focus();
+		});
+
+		cancelBtn?.addEventListener('click', () => {
+			form.hidden = true;
+			display.hidden = false;
+		});
+
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const saveBtn = form.querySelector<HTMLButtonElement>('.alert-email-save');
+			if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving\u2026'; }
+
+			try {
+				const res = await fetch('/api/account/alert-email', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ alertEmail: input.value.trim() }),
+				});
+				const data = await res.json();
+				if (!data.ok) throw new Error(data.error ?? 'Save failed');
+
+				// Update display text without a page reload
+				const textEl = document.getElementById('alert-email-text');
+				if (textEl) {
+					const newVal = data.alertEmail ?? '';
+					if (textEl.tagName === 'EM') {
+						const span = document.createElement('span');
+						span.id = 'alert-email-text';
+						span.textContent = newVal || 'not set';
+						textEl.replaceWith(span);
+					} else {
+						textEl.textContent = newVal || 'not set';
+					}
+				}
+				form.hidden = true;
+				display.hidden = false;
+			} catch (err: any) {
+				alert(err?.message ?? 'Could not save alert email. Please try again.');
+			} finally {
+				if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
+			}
+		});
+	})();
 </script>
