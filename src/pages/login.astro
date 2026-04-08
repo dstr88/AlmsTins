@@ -78,11 +78,12 @@ try {
 
         <div class="welcome-copy">
         <h1>Welcome to Almstins — Your Financial Reality, Finally in One Place.</h1>
-        <p>
-          First of all, thanks for joining me on this journey. I am building a product that will track crypto, DeFi, traditional investments, and liabilities in a single intelligent dashboard.
-          It is built for clarity and control. Almstins eliminates fragmented tools, hopping from one wallet to the next and the guesswork. This is the only open source tool that gives you real-time visibility into your net worth, performance, and risk exposure. See all of your wallets in one secure place. Whether you’re building wealth, managing multiple wallets, or optimizing strategies, Almstins helps you move faster, think smarter, keep track of everything in one convenient place and stay ahead.</p>
-          <h3>Security</h3>
-          <p>Built with your security in mind, there's no need to attach your wallet.  Just enter your public address. All the self-custody information is available to anyone who wants to dig for it.  Our database is encrypted, and your data is not for sale.</p> 
+        <ul>
+          <li>Track crypto, DeFi, traditional investments, and liabilities in one dashboard</li>
+          <li>Real-time visibility into your net worth, performance, and risk exposure</li>
+          <li>No wallet connection required — just your public address</li>
+          <li>Encrypted database. Your data is never sold.</li>
+        </ul>
         </div>
       </section>
 
@@ -135,7 +136,7 @@ try {
 
           <label>
             <span>Email address</span>
-            <input type="email" name="email" placeholder="you@company.com" required />
+            <input type="email" name="email" placeholder="you@example.com" required />
           </label>
 
           <label>
@@ -154,7 +155,7 @@ try {
 
           <label>
             <span>Email address</span>
-            <input type="email" name="email" placeholder="you@company.com" required />
+            <input type="email" name="email" placeholder="you@example.com" required />
           </label>
 
           <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Send magic link</button>
@@ -163,8 +164,6 @@ try {
         <a class="provider-button ghost" href="/signup">Create an account</a>
 
       </div>
-      <a class="checker-link" href="/wallet-checker">🔍 Free Wallet Scam Checker — no account needed</a>
-
       <script>
         (async () => {
           try {
@@ -213,6 +212,11 @@ try {
     </section>
     </div>
   </main>
+
+  <!-- ── Scam checker CTA ─────────────────────────────────────────────── -->
+  <div class="checker-bar">
+    <a class="checker-link" href="/wallet-checker">🔍 Free Wallet Scam Checker — no account needed</a>
+  </div>
 
   <!-- ── Anonymous question / FAQ suggestion box ──────────────────────── -->
   <div class="contact-section">
@@ -410,6 +414,17 @@ try {
       color: rgba(255, 255, 255, 0.76);
       line-height: 1.8;
       font-size: 1.15rem;
+    }
+
+    .welcome-copy ul {
+      margin: 0.75rem 0 0;
+      padding-left: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      color: rgba(255, 255, 255, 0.76);
+      line-height: 1.7;
+      font-size: 1.1rem;
     }
 
     .auth-right {
@@ -757,6 +772,14 @@ try {
       background: rgba(255, 255, 255, 0.07);
       color: rgba(255, 255, 255, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    /* ── Scam checker bar ──────────────────────────────────────────── */
+    .checker-bar {
+      display: flex;
+      justify-content: center;
+      padding: 1.5rem 1.5rem 0;
+      background: #05060c;
     }
 
     /* ── Contact / FAQ box ─────────────────────────────────────────── */
