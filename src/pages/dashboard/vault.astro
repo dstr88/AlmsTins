@@ -324,6 +324,15 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			flex-direction: column;
 			gap: 1.5rem;
 			padding: 1rem 0 2rem;
+			max-width: 1400px;
+			width: 100%;
+			margin: 0 auto;
+			box-sizing: border-box;
+		}
+
+		.vault-page > :not(.hero-bleed) {
+			padding-left: clamp(1rem, 3vw, 2.5rem);
+			padding-right: clamp(1rem, 3vw, 2.5rem);
 		}
 
 		.bk-grid {
