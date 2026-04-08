@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import AddTransactionModal from '../../components/dashboard/AddTransactionModal.astro';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { db } from '../../lib/db';
@@ -32,6 +33,10 @@ const tenantWallets = walletResult.rows.map(r => ({
 
 <Layout title="Research | Almstins" noindex={true}>
   <section class="research-page">
+
+    <div class="hero-bleed">
+      <NetWorthHero title="Research" subtitle="Explore & resolve your transactions" />
+    </div>
 
     <!-- ── Search card ─────────────────────────────────────────────────────── -->
     <div class="search-card">
@@ -156,7 +161,23 @@ const tenantWallets = walletResult.rows.map(r => ({
   .research-page {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 1.5rem 1.25rem 3rem;
+    padding: 0 0 3rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .hero-bleed {
+    width: 100vw;
+    margin-left: 50%;
+    transform: translateX(-50%);
+    padding: 0;
+    max-width: none;
+    margin-bottom: 1.75rem;
+  }
+
+  .research-page > :not(.hero-bleed) {
+    padding-left: clamp(1rem, 3vw, 2.5rem);
+    padding-right: clamp(1rem, 3vw, 2.5rem);
   }
 
   /* ── Search card ──────────────────────────────────────────────────────────── */
@@ -166,6 +187,7 @@ const tenantWallets = walletResult.rows.map(r => ({
     border-radius: 14px;
     padding: 1.25rem 1.4rem 1rem;
     margin-bottom: 1.75rem;
+    margin-top: 0;
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
@@ -347,10 +369,14 @@ const tenantWallets = walletResult.rows.map(r => ({
     scrollbar-color: rgba(255,255,255,0.12) transparent;
   }
   .loading-msg, .empty-msg {
-    padding: 2rem 1.1rem;
+    padding: 3rem 1.5rem;
     color: rgba(255,255,255,0.35);
     font-size: 0.88rem;
     text-align: center;
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 10px;
+    margin: 1rem 0.5rem;
+    line-height: 1.6;
   }
 
   /* ── Section labels ───────────────────────────────────────────────────────── */
@@ -418,7 +444,7 @@ const tenantWallets = walletResult.rows.map(r => ({
 
   /* Row 1: symbol (left) + token amount (right) */
   .tx-row-1 { display: flex; align-items: baseline; gap: 0.45rem; }
-  .tx-sym   { font-weight: 700; font-size: 1rem; color: #fff; }
+  .tx-sym   { font-weight: 800; font-size: 1.05rem; color: #fbbf24; letter-spacing: 0.03em; }
   .tx-amt   {
     margin-left: auto;
     font-size: 0.95rem;
