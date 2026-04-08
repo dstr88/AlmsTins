@@ -366,18 +366,26 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 		// ── Aave v4 (Ethereum mainnet) ─────────────────────────────────────────
 		// Only queried when AAVE_V4_ETHEREUM_MARKET is set in env.
 		// v4 uses the same chain ID (1) as v3 but a different pool contract.
-		const ethereumV4: AaveChainSummary = ETHEREUM_V4_MARKET_ADDRESS
-			? await fetchUserPositionsForMarket(
-					normalized,
-					ETHEREUM_V4_MARKET_ADDRESS,
-					ETHEREUM_CHAIN_ID,
-					'ethereum_v4',
-					AAVE_V4_GRAPHQL_ENDPOINT,
-				)
-			: buildMissingMarketSummary(
-					'ethereum_v4',
-					'Aave v4 market not configured — set AAVE_V4_ETHEREUM_MARKET in env once the official address is published at https://docs.aave.com/developers/deployed-contracts/deployed-contracts',
-				);
+		let ethereumV4: AaveChainSummary;
+		if (ETHEREUM_V4_MARKET_ADDRESS) {
+			ethereumV4 = await fetchUserPositionsForMarket(
+				normalized,
+				ETHEREUM_V4_MARKET_ADDRESS,
+				ETHEREUM_CHAIN_ID,
+				'ethereum_v4',
+				AAVE_V4_GRAPHQL_ENDPOINT,
+			);
+		} else {
+			console.warn(
+				'[aave] ethereum_v4 skipped — AAVE_V4_ETHEREUM_MARKET env var is not set. ' +
+				'Find the pool address at https://docs.aave.com/developers/deployed-contracts/deployed-contracts ' +
+				'then add it to your Render environment variables.',
+			);
+			ethereumV4 = buildMissingMarketSummary(
+				'ethereum_v4',
+				'Aave v4 market not configured — set AAVE_V4_ETHEREUM_MARKET in env.',
+			);
+		}
 
 		return {
 			ok: true,
