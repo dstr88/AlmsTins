@@ -1,7 +1,165 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 
 console.log('[island.mount]', 'AaveHealthSummary');
+
+// ── Alert Pill ────────────────────────────────────────────────────────────────
+
+type AlertPref = {
+	threshold: number;
+	direction: 'below' | 'above';
+	enabled: boolean;
+} | null;
+
+function AlertPill({ walletId }: { walletId: string }) {
+	const [pref, setPref]           = useState<AlertPref>(null);
+	const [loading, setLoading]     = useState(true);
+	const [open, setOpen]           = useState(false);
+	const [saving, setSaving]       = useState(false);
+	const [threshold, setThreshold] = useState('1.5');
+	const [direction, setDirection] = useState<'below' | 'above'>('below');
+	const panelRef                  = useRef<HTMLDivElement>(null);
+
+	// Load existing preference
+	useEffect(() => {
+		fetch(`/api/account/alert-preferences?walletId=${encodeURIComponent(walletId)}`)
+			.then((r) => r.json())
+			.then((d) => {
+				if (d.ok && d.preference) {
+					setPref(d.preference);
+					setThreshold(String(d.preference.threshold));
+					setDirection(d.preference.direction);
+				}
+			})
+			.catch(() => {})
+			.finally(() => setLoading(false));
+	}, [walletId]);
+
+	// Close panel on outside click
+	useEffect(() => {
+		if (!open) return;
+		const handler = (e: MouseEvent) => {
+			if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+				setOpen(false);
+			}
+		};
+		document.addEventListener('mousedown', handler);
+		return () => document.removeEventListener('mousedown', handler);
+	}, [open]);
+
+	const save = useCallback(async () => {
+		const parsed = parseFloat(threshold);
+		if (!Number.isFinite(parsed) || parsed <= 0) return;
+		setSaving(true);
+		try {
+			const res  = await fetch('/api/account/alert-preferences', {
+				method:  'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body:    JSON.stringify({ walletId, threshold: parsed, direction, enabled: true }),
+			});
+			const data = await res.json();
+			if (data.ok) {
+				setPref({ threshold: parsed, direction, enabled: true });
+				setOpen(false);
+			}
+		} finally {
+			setSaving(false);
+		}
+	}, [walletId, threshold, direction]);
+
+	const disable = useCallback(async () => {
+		setSaving(true);
+		try {
+			const res  = await fetch('/api/account/alert-preferences', {
+				method:  'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body:    JSON.stringify({
+					walletId,
+					threshold: pref?.threshold ?? 1.5,
+					direction: pref?.direction ?? 'below',
+					enabled: false,
+				}),
+			});
+			const data = await res.json();
+			if (data.ok) {
+				setPref((p) => p ? { ...p, enabled: false } : null);
+				setOpen(false);
+			}
+		} finally {
+			setSaving(false);
+		}
+	}, [walletId, pref]);
+
+	if (loading) return null;
+
+	const isActive = pref?.enabled === true;
+	const pillLabel = isActive
+		? `🔔 HF ${pref!.direction === 'below' ? '<' : '>'} ${pref!.threshold}`
+		: '🔔 Set Alert';
+
+	return (
+		<div className="alert-pill-wrap" ref={panelRef}>
+			<button
+				className={`alert-pill${isActive ? ' alert-pill--active' : ''}`}
+				onClick={() => setOpen((o) => !o)}
+				title={isActive ? 'Edit health factor alert' : 'Set health factor alert'}
+			>
+				{pillLabel}
+			</button>
+
+			{open && (
+				<div className="alert-panel">
+					<p className="alert-panel__title">Health Factor Alert</p>
+					<p className="alert-panel__sub">
+						Get an email when your health factor crosses a threshold.
+						{' '}<a href="/dashboard/vault" onClick={() => setOpen(false)}>Set alert email in Account ↗</a>
+					</p>
+					<div className="alert-panel__row">
+						<label className="alert-panel__label">Alert when HF is</label>
+						<select
+							value={direction}
+							onChange={(e) => setDirection(e.target.value as 'below' | 'above')}
+							className="alert-panel__select"
+						>
+							<option value="below">below</option>
+							<option value="above">above</option>
+						</select>
+					</div>
+					<div className="alert-panel__row">
+						<label className="alert-panel__label">Threshold</label>
+						<input
+							type="number"
+							step="0.1"
+							min="0.1"
+							max="10"
+							value={threshold}
+							onChange={(e) => setThreshold(e.target.value)}
+							className="alert-panel__input"
+						/>
+					</div>
+					<div className="alert-panel__actions">
+						<button
+							className="alert-panel__save"
+							onClick={save}
+							disabled={saving}
+						>
+							{saving ? 'Saving…' : 'Save alert'}
+						</button>
+						{isActive && (
+							<button
+								className="alert-panel__disable"
+								onClick={disable}
+								disabled={saving}
+							>
+								Disable
+							</button>
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
 
 type WalletResponse = {
 	id: string;
@@ -95,7 +253,7 @@ function formatUsd(value: number) {
 	return currencyFormatter.format(value);
 }
 
-export default function AaveHealthSummary({ walletId }: { walletId: string }) {
+export default function AaveHealthSummary({ walletId, showAlertPill = true }: { walletId: string; showAlertPill?: boolean }) {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
 
 	useEffect(() => {
@@ -357,6 +515,7 @@ export default function AaveHealthSummary({ walletId }: { walletId: string }) {
 			<div className="stat-row health">
 				<span className="label">{healthLabel}</span>
 				<span className="value">{healthText}</span>
+				{showAlertPill && <AlertPill walletId={walletId} />}
 			</div>
 
 			<div className="spacer spacer--lg"></div>
