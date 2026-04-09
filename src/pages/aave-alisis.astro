@@ -162,9 +162,97 @@ import LoginLayout from '../layouts/LoginLayout.astro';
       </section>
     </div>
 
+    <!-- Developer Activity -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2>Developer Activity by Chain</h2>
+          <p class="panel-sub">Weekly commits across core repos · GitHub public API · no key required</p>
+        </div>
+        <div class="window-btns" id="dev-window-btns">
+          <button class="window-btn active" data-weeks="12">12w</button>
+          <button class="window-btn" data-weeks="26">26w</button>
+          <button class="window-btn" data-weeks="52">1y</button>
+        </div>
+      </div>
+
+      <!-- Stat cards -->
+      <div class="dev-stat-row" id="dev-stat-row">
+        <div class="dev-stat-card">
+          <span class="chain-dot" style="background:#627eea"></span>
+          <div>
+            <p class="chain-card-label">Ethereum</p>
+            <p class="chain-card-val" id="dev-ethereum">—</p>
+            <p class="dev-trend" id="trend-ethereum"></p>
+          </div>
+        </div>
+        <div class="dev-stat-card">
+          <span class="chain-dot" style="background:#8247e5"></span>
+          <div>
+            <p class="chain-card-label">Polygon</p>
+            <p class="chain-card-val" id="dev-polygon">—</p>
+            <p class="dev-trend" id="trend-polygon"></p>
+          </div>
+        </div>
+        <div class="dev-stat-card">
+          <span class="chain-dot" style="background:#e84142"></span>
+          <div>
+            <p class="chain-card-label">Avalanche</p>
+            <p class="chain-card-val" id="dev-avalanche">—</p>
+            <p class="dev-trend" id="trend-avalanche"></p>
+          </div>
+        </div>
+        <div class="dev-stat-card">
+          <span class="chain-dot" style="background:#28a0f0"></span>
+          <div>
+            <p class="chain-card-label">Arbitrum</p>
+            <p class="chain-card-val" id="dev-arbitrum">—</p>
+            <p class="dev-trend" id="trend-arbitrum"></p>
+          </div>
+        </div>
+      </div>
+
+      <p class="rate-status" id="dev-status">Loading developer data…</p>
+      <div class="chart-shell">
+        <canvas id="dev-chart" aria-label="Weekly developer commits by chain" role="img"></canvas>
+      </div>
+
+      <!-- Repo sources -->
+      <details class="repo-list">
+        <summary>Repos tracked</summary>
+        <div class="repo-grid" id="repo-grid">
+          <div class="repo-group">
+            <p class="repo-chain" style="color:#627eea">Ethereum</p>
+            <code>ethereum/go-ethereum</code>
+            <code>ethereum/consensus-specs</code>
+            <code>ethereum/EIPs</code>
+          </div>
+          <div class="repo-group">
+            <p class="repo-chain" style="color:#8247e5">Polygon</p>
+            <code>maticnetwork/bor</code>
+            <code>0xPolygon/polygon-edge</code>
+            <code>0xPolygon/heimdall</code>
+          </div>
+          <div class="repo-group">
+            <p class="repo-chain" style="color:#e84142">Avalanche</p>
+            <code>ava-labs/avalanchego</code>
+            <code>ava-labs/coreth</code>
+            <code>ava-labs/subnet-evm</code>
+          </div>
+          <div class="repo-group">
+            <p class="repo-chain" style="color:#28a0f0">Arbitrum</p>
+            <code>OffchainLabs/nitro</code>
+            <code>OffchainLabs/bold</code>
+            <code>OffchainLabs/arbitrum-classic</code>
+          </div>
+        </div>
+      </details>
+    </section>
+
     <p class="attribution">
-      Data sourced from <a href="https://defillama.com" target="_blank" rel="noreferrer">DeFiLlama</a>.
-      Refreshed every ~5 minutes.
+      TVL data: <a href="https://defillama.com" target="_blank" rel="noreferrer">DeFiLlama</a> ·
+      Rates: <a href="https://defillama.com/yields" target="_blank" rel="noreferrer">DeFiLlama Yields</a> ·
+      Dev activity: <a href="https://github.com" target="_blank" rel="noreferrer">GitHub public API</a>
     </p>
   </div>
 </LoginLayout>
@@ -610,10 +698,152 @@ import LoginLayout from '../layouts/LoginLayout.astro';
     renderLineChart(tvlData, activeDays);
   });
 
+  // ── Developer activity chart ──────────────────────────────────────────────────
+
+  type DevPayload = {
+    weekLabels: string[];
+    chains: Array<{
+      key:         string;
+      label:       string;
+      color:       string;
+      weekly:      number[];
+      currentWeek: number;
+      trend:       number;
+      totalYear:   number;
+    }>;
+  };
+
+  let devChart: Chart | null = null;
+  let activeDevWeeks = 12;
+
+  function setDevStatus(msg: string, type: 'info' | 'error' | 'success' = 'info') {
+    const el = document.getElementById('dev-status')!;
+    if (!msg) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.textContent = msg;
+    el.dataset.mode = type;
+  }
+
+  function renderDevChart(payload: DevPayload, weeks: number) {
+    const canvas = document.getElementById('dev-chart') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const sliceFrom = 52 - weeks;
+    const labels    = payload.weekLabels.slice(sliceFrom);
+    const datasets  = payload.chains.map((c) => ({
+      label:            c.label,
+      data:             c.weekly.slice(sliceFrom),
+      borderColor:      c.color,
+      backgroundColor:  `${c.color}18`,
+      tension:          0.3,
+      borderWidth:      2,
+      fill:             false,
+      pointRadius:      0,
+      pointHoverRadius: 4,
+    }));
+
+    if (devChart) {
+      devChart.data.labels   = labels;
+      devChart.data.datasets = datasets;
+      devChart.update();
+      return;
+    }
+
+    devChart = new Chart(canvas, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            display:  true,
+            position: 'top',
+            labels: {
+              color:    'rgba(255,255,255,0.8)',
+              boxWidth: 12,
+              padding:  16,
+              font:     { size: 12 },
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} commits`,
+            },
+          },
+        },
+        scales: {
+          y: {
+            grid:  { color: 'rgba(255,255,255,0.07)' },
+            ticks: {
+              color:    'rgba(255,255,255,0.7)',
+              callback: (v) => `${v}`,
+            },
+          },
+          x: {
+            grid:  { display: false },
+            ticks: { color: 'rgba(255,255,255,0.7)', maxTicksLimit: 8 },
+          },
+        },
+      },
+    });
+  }
+
+  async function loadDevActivity(weeks: number) {
+    setDevStatus('Loading developer data…');
+    try {
+      const res = await fetch('/api/dev-activity');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const payload = await res.json() as DevPayload;
+
+      // Stat cards
+      for (const c of payload.chains) {
+        const valEl   = document.getElementById(`dev-${c.key}`);
+        const trendEl = document.getElementById(`trend-${c.key}`);
+        if (valEl)   valEl.textContent   = `${c.currentWeek} commits`;
+        if (trendEl) {
+          const sign = c.trend >= 0 ? '▲' : '▼';
+          trendEl.textContent  = `${sign} ${Math.abs(c.trend)}% vs last week`;
+          trendEl.style.color  = c.trend >= 0 ? '#3ec2a0' : '#ff6a6a';
+        }
+      }
+
+      renderDevChart(payload, weeks);
+      setDevStatus('', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setDevStatus(`Failed to load developer data: ${msg}`, 'error');
+    }
+  }
+
+  // Dev window selector
+  document.getElementById('dev-window-btns')!.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.window-btn');
+    if (!btn) return;
+    (e.currentTarget as HTMLElement).querySelectorAll('.window-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeDevWeeks = Number(btn.dataset.weeks);
+    if (devChart) {
+      // re-render with new window using cached data
+      fetch('/api/dev-activity')
+        .then((r) => r.json())
+        .then((p) => renderDevChart(p as DevPayload, activeDevWeeks))
+        .catch(() => {});
+    }
+  });
+
   // ── Bootstrap ─────────────────────────────────────────────────────────────────
   async function init() {
+    // Fire TVL and dev activity in parallel
+    const [tvlRes] = await Promise.allSettled([
+      fetch('/api/aave-tvl'),
+      loadDevActivity(activeDevWeeks),
+    ]);
+
     try {
-      const res = await fetch('/api/aave-tvl');
+      if (tvlRes.status === 'rejected') throw tvlRes.reason;
+      const res = tvlRes.value as Response;
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as any).message ?? `HTTP ${res.status}`);
@@ -623,19 +853,19 @@ import LoginLayout from '../layouts/LoginLayout.astro';
 
       if (!tvlData.totalTvl && !Object.keys(tvlData.currentChainTvls).length) {
         setStatus('Aave V4 TVL data unavailable — the protocol may not yet have deployments indexed by DeFiLlama.', 'error');
-        return;
+      } else {
+        setStatus('', 'success');
+        renderStats(tvlData);
+        renderBarChart(tvlData);
+        renderLineChart(tvlData, activeDays);
+        renderDonut(tvlData);
+        renderTokenTable(tvlData);
       }
 
-      setStatus('', 'success');
-      renderStats(tvlData);
-      renderBarChart(tvlData);
-      renderLineChart(tvlData, activeDays);
-      renderDonut(tvlData);
-      renderTokenTable(tvlData);
       loadMultiChainRates(activeToken, activeRateDays);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      setStatus(`Failed to load data: ${msg}`, 'error');
+      setStatus(`Failed to load TVL data: ${msg}`, 'error');
     }
   }
 
@@ -993,6 +1223,80 @@ import LoginLayout from '../layouts/LoginLayout.astro';
   .rate-status[data-mode='error'] { border-color: rgba(255,107,107,0.5); color: #ff9b9b; }
   .rate-status[data-mode='success'],
   .rate-status[style*='display: none'] { display: none; }
+
+  /* ── Developer activity ── */
+  .dev-stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 640px) {
+    .dev-stat-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .dev-stat-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+  }
+
+  .dev-trend {
+    margin: 0.2rem 0 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  /* ── Repo list ── */
+  .repo-list {
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 0.65rem 1rem;
+    background: rgba(255,255,255,0.02);
+    font-size: 0.85rem;
+  }
+
+  .repo-list summary {
+    cursor: pointer;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.82rem;
+    user-select: none;
+  }
+
+  .repo-list summary:hover { color: rgba(255,255,255,0.75); }
+
+  .repo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-top: 0.75rem;
+  }
+
+  .repo-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .repo-chain {
+    margin: 0 0 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .repo-group code {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.05);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+  }
 
   /* ── Attribution ── */
   .attribution {
