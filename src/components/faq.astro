@@ -84,6 +84,9 @@
       <button class="faq-question" type="button" data-modal="faq-address-labels">
         How does address labeling work?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-health-alerts">
+        How do Aave health factor alerts work?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -927,6 +930,39 @@
 
         <p>
           <strong>On the Research page</strong>, when you look up an address the panel shows two copy buttons — one for the address itself, one for its label — so you can grab either with one click. Community labels are marked with a 🌐 badge so you know the name came from other users rather than your own tagging.
+        </p>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-health-alerts">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>How do Aave health factor alerts work?</h1>
+
+        <p>
+          If you have an active Aave loan, your <strong>health factor</strong> is the single most important number to watch. It measures how safely your collateral covers your debt. When it drops too close to 1.0, Aave can liquidate your collateral to repay the loan — which usually happens at a bad price for you.
+        </p>
+
+        <p>
+          Almstins checks your health factor every 30 minutes and sends you an email the moment it crosses a threshold you set. You choose:
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li><strong>Direction</strong> — alert when the health factor falls <em>below</em> your threshold (most common) or rises <em>above</em> it.</li>
+          <li><strong>Threshold</strong> — the number that triggers the alert. A value of 1.5 is a reasonable early-warning level; many people set a second alert at 1.2 as a final warning.</li>
+        </ul>
+
+        <p>
+          To set an alert, open any Aave DeFi position on your Vault page and click the <strong>🔔 Set Alert</strong> pill next to your health factor. Once active, the pill turns yellow and shows your current setting — for example, <strong>🔔 HF &lt; 1.5</strong>.
+        </p>
+
+        <p>
+          Alerts are sent to your <strong>alert email</strong>, which can be different from your account login email. You can set or change it in the <strong>Account</strong> menu at the top of any page. If no alert email is set, the pill will prompt you to add one before the alert can fire.
+        </p>
+
+        <p style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 10px; padding: 0.9rem 1rem; margin-top: 1rem;">
+          <strong>Rate limit:</strong> To avoid inbox noise, alerts are sent at most once every 4 hours per wallet, even if your health factor stays below the threshold the entire time. Once the situation is resolved and the health factor recovers, the clock resets.
         </p>
       </div>
     </div>
