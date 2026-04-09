@@ -34,6 +34,8 @@ export function isPublicPath(pathname: string): boolean {
 		// Demo mode — set/clear cookie without requiring an auth session
 		pathname === '/api/demo/start' ||
 		pathname === '/api/demo/end' ||
+		// AaveAlisis — public liquidity dashboard (admin-linked but no auth wall)
+		pathname === '/aave-alisis' ||
 		// Static assets
 		pathname.startsWith('/_astro/') ||
 		pathname.startsWith('/assets/') ||
