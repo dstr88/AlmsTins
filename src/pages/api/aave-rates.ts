@@ -33,6 +33,7 @@ const RATES_QUERY = /* GraphQL */ `
       liquidityRate
       variableBorrowRate
       stableBorrowRate
+      totalLiquidity
     }
   }
 `;
