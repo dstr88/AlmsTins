@@ -135,7 +135,7 @@ async function checkGoPlus(rawUrl: string): Promise<SourceResult> {
     const flagged = json?.result?.phishing_site === 1 || json?.result?.phishing_site === '1';
     const contracts: unknown[] = json?.result?.website_contract_security ?? [];
     const detail = flagged
-      ? 'Confirmed web3 phishing site by GoPlus'
+      ? 'Reported as a phishing site by GoPlus Security'
       : contracts.length
         ? `Clean — ${contracts.length} contract(s) detected on page`
         : 'No phishing signals detected';

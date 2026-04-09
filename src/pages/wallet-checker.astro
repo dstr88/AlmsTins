@@ -842,7 +842,7 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       const tip = document.getElementById('safety-tip')!;
       tip.textContent =
         data.verdict === 'red'
-          ? '🛑 This site has been flagged as malicious. Do NOT connect your wallet or sign any transactions. Close this tab immediately.'
+          ? '🛑 One or more security databases have reported this site. We are not making that determination ourselves — always verify independently. Do NOT connect your wallet or sign any transactions until you are certain.'
           : data.verdict === 'yellow'
           ? '⚠️ This site has limited scan history. Only connect your wallet to sites you found yourself — never through a link in a DM or email.'
           : '✅ No threats detected across all sources. Always double-check the URL in your browser bar before signing any transaction — even safe-looking sites can be typosquatted.';
