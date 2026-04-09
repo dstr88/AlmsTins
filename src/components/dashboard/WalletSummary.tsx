@@ -559,27 +559,39 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											let fallbackPrice: number | null = null;
 											if (sym === 'WBTC') fallbackPrice = 70000;
 											if (sym === 'LINK') fallbackPrice = 8.85;
-											if (sym === 'AAVE') fallbackPrice = 112;
+											if (sym === 'AAVE') fallbackPrice = 150;
 											if (sym === 'WMATIC') fallbackPrice = 0.095;
 											if (fallbackPrice) {
 												resolvedUsd = fallbackPrice * Number(token.amount ?? 0);
 											}
 										}
+										const valueColor = isUnverified
+											? undefined
+											: resolvedUsd !== null && resolvedUsd > 0
+												? '#86efac'
+												: undefined;
 										const valueNode = isUnverified ? (
 											<abbr title="Unverified contract — price cannot be confirmed" style={{ textDecoration: 'none', cursor: 'help' }}>❓</abbr>
 										) : resolvedUsd !== null ? (
-											<>{currencyFormatter.format(resolvedUsd)}</>
+											<span style={{ color: valueColor }}>{currencyFormatter.format(resolvedUsd)}</span>
 										) : (
-											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help' }}>—</abbr>
+											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help', color: 'rgba(255,255,255,0.3)' }}>—</abbr>
 										);
+										// Days held — use purchaseAt (from tx history) when available.
+										// Fall back to capturedAt only if it's genuinely old (>1 day),
+										// otherwise show '—' to avoid misleading "0 days" on fresh snapshots.
 										const acquiredAt = token.purchaseAt
 											? Date.parse(token.purchaseAt)
-											: token.capturedAt
-												? Date.parse(token.capturedAt)
+											: NaN;
+										const capturedMs = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
+										const effectiveMs = Number.isFinite(acquiredAt)
+											? acquiredAt
+											: (Number.isFinite(capturedMs) && (Date.now() - capturedMs) > 86_400_000)
+												? capturedMs
 												: NaN;
-										const daysHeld = Number.isFinite(acquiredAt)
-											? Math.max(0, Math.floor((Date.now() - acquiredAt) / (1000 * 60 * 60 * 24)))
-											: 0;
+										const daysHeld = Number.isFinite(effectiveMs)
+											? Math.max(0, Math.floor((Date.now() - effectiveMs) / (1000 * 60 * 60 * 24)))
+											: null;
 										const currentPrice = token.priceUsd ?? null;
 										const basisPrice   = token.purchasePriceUsd ?? null;
 										const plPct =
@@ -594,10 +606,17 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											plPct !== null && currentPrice !== null
 												? (currentPrice - basisPrice!) * Number(token.amount ?? 0)
 												: null;
-										const plColor = plPct === null ? undefined : plPct >= 0 ? '#86efac' : '#fca5a5';
-										const plLabel =
-											plPct !== null
-												? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+										// Green/red when we have a real P/L; amber '?' when priced but no basis;
+										// muted gray '—' when truly no data.
+										const plColor = plPct !== null
+											? (plPct >= 0 ? '#86efac' : '#fca5a5')
+											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
+												? 'rgba(251,191,36,0.7)'
+												: 'rgba(255,255,255,0.25)';
+										const plLabel = plPct !== null
+											? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
+												? '?'
 												: '—';
 										return (
 											<div
@@ -605,8 +624,8 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												className="wallet-summary__row"
 												style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
 											>
-												<span className="wallet-summary__cell wallet-summary__cell--days">
-													{String(daysHeld)}
+												<span className="wallet-summary__cell wallet-summary__cell--days" style={{ color: daysHeld === null ? 'rgba(255,255,255,0.3)' : undefined }}>
+													{daysHeld === null ? '—' : String(daysHeld)}
 												</span>
 												<span className="wallet-summary__cell wallet-summary__cell--token">
 													{token.tokenSymbol}
@@ -697,27 +716,39 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											let fallbackPrice: number | null = null;
 											if (sym === 'WBTC') fallbackPrice = 70000;
 											if (sym === 'LINK') fallbackPrice = 8.85;
-											if (sym === 'AAVE') fallbackPrice = 112;
+											if (sym === 'AAVE') fallbackPrice = 150;
 											if (sym === 'WMATIC') fallbackPrice = 0.095;
 											if (fallbackPrice) {
 												resolvedUsd = fallbackPrice * Number(token.amount ?? 0);
 											}
 										}
+										const valueColor = isUnverified
+											? undefined
+											: resolvedUsd !== null && resolvedUsd > 0
+												? '#86efac'
+												: undefined;
 										const valueNode = isUnverified ? (
 											<abbr title="Unverified contract — price cannot be confirmed" style={{ textDecoration: 'none', cursor: 'help' }}>❓</abbr>
 										) : resolvedUsd !== null ? (
-											<>{currencyFormatter.format(resolvedUsd)}</>
+											<span style={{ color: valueColor }}>{currencyFormatter.format(resolvedUsd)}</span>
 										) : (
-											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help' }}>—</abbr>
+											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help', color: 'rgba(255,255,255,0.3)' }}>—</abbr>
 										);
+										// Days held — use purchaseAt (from tx history) when available.
+										// Fall back to capturedAt only if it's genuinely old (>1 day),
+										// otherwise show '—' to avoid misleading "0 days" on fresh snapshots.
 										const acquiredAt = token.purchaseAt
 											? Date.parse(token.purchaseAt)
-											: token.capturedAt
-												? Date.parse(token.capturedAt)
+											: NaN;
+										const capturedMs = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
+										const effectiveMs = Number.isFinite(acquiredAt)
+											? acquiredAt
+											: (Number.isFinite(capturedMs) && (Date.now() - capturedMs) > 86_400_000)
+												? capturedMs
 												: NaN;
-										const daysHeld = Number.isFinite(acquiredAt)
-											? Math.max(0, Math.floor((Date.now() - acquiredAt) / (1000 * 60 * 60 * 24)))
-											: 0;
+										const daysHeld = Number.isFinite(effectiveMs)
+											? Math.max(0, Math.floor((Date.now() - effectiveMs) / (1000 * 60 * 60 * 24)))
+											: null;
 										const currentPrice = token.priceUsd ?? null;
 										const basisPrice   = token.purchasePriceUsd ?? null;
 										const plPct =
@@ -732,10 +763,17 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											plPct !== null && currentPrice !== null
 												? (currentPrice - basisPrice!) * Number(token.amount ?? 0)
 												: null;
-										const plColor = plPct === null ? undefined : plPct >= 0 ? '#86efac' : '#fca5a5';
-										const plLabel =
-											plPct !== null
-												? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+										// Green/red when we have a real P/L; amber '?' when priced but no basis;
+										// muted gray '—' when truly no data.
+										const plColor = plPct !== null
+											? (plPct >= 0 ? '#86efac' : '#fca5a5')
+											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
+												? 'rgba(251,191,36,0.7)'
+												: 'rgba(255,255,255,0.25)';
+										const plLabel = plPct !== null
+											? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
+												? '?'
 												: '—';
 										return (
 											<div
@@ -743,8 +781,8 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												className="wallet-summary__row"
 												style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
 											>
-												<span className="wallet-summary__cell wallet-summary__cell--days">
-													{String(daysHeld)}
+												<span className="wallet-summary__cell wallet-summary__cell--days" style={{ color: daysHeld === null ? 'rgba(255,255,255,0.3)' : undefined }}>
+													{daysHeld === null ? '—' : String(daysHeld)}
 												</span>
 												<span className="wallet-summary__cell wallet-summary__cell--token">
 													{token.tokenSymbol}

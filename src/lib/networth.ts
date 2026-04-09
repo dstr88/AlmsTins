@@ -1095,6 +1095,40 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		} catch {
 			// non-fatal — purchaseAt / purchasePriceUsd remain undefined
 		}
+
+		// Second pass: fill purchaseAt from on-chain transactions table for tokens
+		// that had no import_transactions entry (e.g. Alchemy-snapshotted ERC-20s).
+		const missingPurchaseAt = tokens.filter((t) => !t.purchaseAt);
+		if (missingPurchaseAt.length > 0) {
+			try {
+				const syms2 = [...new Set(missingPurchaseAt.map((t) => t.tokenSymbol.toUpperCase()))];
+				const ph2 = syms2.map(() => '?').join(', ');
+				const onchainResult = await db.execute({
+					sql: `SELECT
+					        upper(token_symbol) AS symbol,
+					        MIN(timestamp)      AS earliest
+					      FROM transactions
+					      WHERE tenant_id = ?
+					        AND wallet_id  = ?
+					        AND tx_type IN ('in', 'receive', 'deposit', 'transfer_in')
+					        AND token_symbol IS NOT NULL
+					        AND upper(token_symbol) IN (${ph2})
+					      GROUP BY upper(token_symbol)`,
+					args: [tenantId, walletId, ...syms2],
+				});
+				for (const oRow of onchainResult.rows) {
+					const sym = String(oRow.symbol ?? '').toUpperCase();
+					const earliest = oRow.earliest ? String(oRow.earliest) : null;
+					if (!earliest) continue;
+					for (const token of tokens) {
+						if (token.tokenSymbol.toUpperCase() !== sym) continue;
+						if (!token.purchaseAt) token.purchaseAt = earliest;
+					}
+				}
+			} catch {
+				// non-fatal
+			}
+		}
 	}
 
 	console.log('[networth.getWalletTokenBreakdown] RESULT', {
