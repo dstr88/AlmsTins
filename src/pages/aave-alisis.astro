@@ -43,7 +43,7 @@ import LoginLayout from '../layouts/LoginLayout.astro';
     <section class="panel">
       <div class="panel-header">
         <div>
-          <h2>Supply APY — All Chains</h2>
+          <h2>Aave V3 Supply APY — Multi-Chain</h2>
           <p class="panel-sub">Ethereum · Polygon · Avalanche · Arbitrum on one graph</p>
         </div>
         <div class="token-btns" id="token-btns">
@@ -442,87 +442,18 @@ import LoginLayout from '../layouts/LoginLayout.astro';
       .join('');
   }
 
-  // ── Multi-chain rate comparison ───────────────────────────────────────────────
+  // ── Multi-chain rate comparison (DeFiLlama yields API) ───────────────────────
 
-  type RateSample = { timestamp: number; liquidityRate: string; totalLiquidity?: string };
-
-  const CHAIN_CONFIGS = [
-    { key: 'ethereum', label: 'Ethereum', color: '#627eea', poolId: 'mainnet_v3' },
-    { key: 'polygon',  label: 'Polygon',  color: '#8247e5', poolId: 'polygon_v3'  },
-    { key: 'avalanche',label: 'Avalanche',color: '#e84142', poolId: 'avalanche_v3'},
-    { key: 'arbitrum', label: 'Arbitrum', color: '#28a0f0', poolId: 'arbitrum_v3' },
-  ] as const;
-
-  const TOKEN_RESERVES: Record<string, { decimals: number; unit: string; chains: Record<string, string> }> = {
-    USDC: {
-      decimals: 6,
-      unit: 'USD',
-      chains: {
-        mainnet_v3:   '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-        polygon_v3:   '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359',
-        avalanche_v3: '0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e',
-        arbitrum_v3:  '0xaf88d065e77c8cc2239327c5edb3a432268e5831',
-      },
-    },
-    USDT: {
-      decimals: 6,
-      unit: 'USD',
-      chains: {
-        mainnet_v3:   '0xdac17f958d2ee523a2206206994597c13d831ec7',
-        polygon_v3:   '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
-        avalanche_v3: '0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7',
-        arbitrum_v3:  '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9',
-      },
-    },
-    WETH: {
-      decimals: 18,
-      unit: 'ETH',
-      chains: {
-        mainnet_v3:   '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
-        polygon_v3:   '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619',
-        avalanche_v3: '0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab',
-        arbitrum_v3:  '0x82af49447d8a07e3bd95bd0d56f35241523fbab1',
-      },
-    },
+  const CHAIN_META: Record<string, { label: string; color: string }> = {
+    ethereum: { label: 'Ethereum', color: '#627eea' },
+    polygon:  { label: 'Polygon',  color: '#8247e5' },
+    avalanche:{ label: 'Avalanche',color: '#e84142' },
+    arbitrum: { label: 'Arbitrum', color: '#28a0f0' },
   };
 
   let multiChart: Chart | null = null;
-  let activeToken = 'USDC';
+  let activeToken   = 'USDC';
   let activeRateDays = 30;
-
-  function rayToApy(ray: string | number): number {
-    const n = Number(ray);
-    if (!Number.isFinite(n)) return 0;
-    return (n / 1e27) * 100;
-  }
-
-  function fmtLocked(amount: number, unit: string): string {
-    if (unit === 'ETH') {
-      if (amount >= 1e6) return `${(amount / 1e6).toFixed(2)}M ETH`;
-      if (amount >= 1e3) return `${(amount / 1e3).toFixed(1)}K ETH`;
-      return `${amount.toFixed(0)} ETH`;
-    }
-    return fmt(amount);
-  }
-
-  async function fetchChainRates(poolId: string, reserveId: string): Promise<RateSample[]> {
-    const qs = new URLSearchParams({ poolId, reserveId });
-    const res = await fetch(`/api/aave-rates?${qs}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  }
-
-  function buildRateSeries(samples: RateSample[], days: number) {
-    const cutoff = Date.now() / 1000 - days * 86400;
-    return samples
-      .filter((s) => Number(s.timestamp) >= cutoff)
-      .sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
-      .map((s) => ({
-        x: new Date(Number(s.timestamp) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-        y: rayToApy(s.liquidityRate),
-      }));
-  }
 
   function setRateStatus(msg: string, type: 'info' | 'error' | 'success' = 'info') {
     const el = document.getElementById('rate-status')!;
@@ -534,56 +465,62 @@ import LoginLayout from '../layouts/LoginLayout.astro';
 
   async function loadMultiChainRates(token: string, days: number) {
     setRateStatus('Loading rates…');
-    const tokenCfg = TOKEN_RESERVES[token];
-    if (!tokenCfg) return;
 
-    // Clear locked cards
-    for (const chain of CHAIN_CONFIGS) {
-      const el = document.getElementById(`lock-${chain.key}`);
+    // Reset locked cards
+    Object.keys(CHAIN_META).forEach((key) => {
+      const el = document.getElementById(`lock-${key}`);
       if (el) el.textContent = '—';
-    }
+    });
 
     try {
-      const results = await Promise.all(
-        CHAIN_CONFIGS.map(async (chain) => {
-          const reserveId = tokenCfg.chains[chain.poolId];
-          if (!reserveId) return { chain, series: [], locked: null };
-          const samples = await fetchChainRates(chain.poolId, reserveId);
+      const qs = new URLSearchParams({ token, days: String(days) });
+      const res = await fetch(`/api/aave-chain-rates?${qs}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).message ?? `HTTP ${res.status}`);
+      }
 
-          // Latest total liquidity (raw token units)
-          const latest = samples[samples.length - 1];
-          let locked: number | null = null;
-          if (latest?.totalLiquidity) {
-            locked = Number(latest.totalLiquidity) / Math.pow(10, tokenCfg.decimals);
-          }
+      const payload = await res.json() as {
+        token: string;
+        days:  number;
+        chains: Array<{
+          key:            string;
+          chain:          string;
+          currentApy:     number | null;
+          currentTvlUsd:  number | null;
+          history:        Array<{ date: string; apy: number; tvlUsd: number }>;
+        }>;
+      };
 
-          const series = buildRateSeries(samples, days);
-          return { chain, series, locked };
-        }),
-      );
-
-      // Update locked cards
-      for (const { chain, locked } of results) {
-        const el = document.getElementById(`lock-${chain.key}`);
-        if (el) {
-          el.textContent = locked !== null && locked > 0
-            ? fmtLocked(locked, tokenCfg.unit)
-            : 'N/A';
-        }
+      // Update locked amount cards
+      for (const chainData of payload.chains) {
+        const el = document.getElementById(`lock-${chainData.key}`);
+        if (!el) continue;
+        el.textContent = chainData.currentTvlUsd != null && chainData.currentTvlUsd > 0
+          ? fmt(chainData.currentTvlUsd)
+          : 'N/A';
       }
 
       // Build chart datasets
-      const datasets = results.map(({ chain, series }) => ({
-        label: chain.label,
-        data: series,
-        borderColor: chain.color,
-        backgroundColor: `${chain.color}18`,
-        tension: 0.3,
-        borderWidth: 2,
-        fill: false,
-        pointRadius: 0,
-        pointHoverRadius: 4,
-      }));
+      const datasets = payload.chains
+        .filter((c) => c.history.length > 0)
+        .map((c) => {
+          const meta = CHAIN_META[c.key] ?? { label: c.chain, color: '#aaa' };
+          return {
+            label:           meta.label,
+            data:            c.history.map((p) => ({
+              x: new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+              y: Number(p.apy.toFixed(3)),
+            })),
+            borderColor:     meta.color,
+            backgroundColor: `${meta.color}18`,
+            tension:         0.3,
+            borderWidth:     2,
+            fill:            false,
+            pointRadius:     0,
+            pointHoverRadius:4,
+          };
+        });
 
       const canvas = document.getElementById('multi-chain-chart') as HTMLCanvasElement;
       if (!canvas) return;
@@ -605,29 +542,30 @@ import LoginLayout from '../layouts/LoginLayout.astro';
                 display: true,
                 position: 'top',
                 labels: {
-                  color: 'rgba(255,255,255,0.8)',
+                  color:    'rgba(255,255,255,0.8)',
                   boxWidth: 12,
-                  padding: 16,
-                  font: { size: 12 },
+                  padding:  16,
+                  font:     { size: 12 },
                 },
               },
               tooltip: {
                 callbacks: {
-                  label: (ctx) => ` ${ctx.dataset.label}: ${Number((ctx.raw as any).y).toFixed(2)}%`,
+                  label: (ctx) =>
+                    ` ${ctx.dataset.label}: ${Number((ctx.raw as any).y).toFixed(2)}%`,
                 },
               },
             },
             scales: {
               y: {
-                grid: { color: 'rgba(255,255,255,0.07)' },
+                grid:  { color: 'rgba(255,255,255,0.07)' },
                 ticks: {
-                  color: 'rgba(255,255,255,0.7)',
+                  color:    'rgba(255,255,255,0.7)',
                   callback: (v) => `${v}%`,
                 },
               },
               x: {
-                type: 'category',
-                grid: { display: false },
+                type:  'category',
+                grid:  { display: false },
                 ticks: { color: 'rgba(255,255,255,0.7)', maxTicksLimit: 8 },
               },
             },
