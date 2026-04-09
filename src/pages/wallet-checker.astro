@@ -139,6 +139,8 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     <!-- What we check -->
     <section class="signals" aria-labelledby="signals-heading">
       <h2 id="signals-heading" class="signals__title">What we check</h2>
+
+      <p class="signals__sub">🔍 Wallet Address checker</p>
       <div class="signals__grid">
         {[
           { icon: '🚨', label: 'Known scam databases',    body: 'Cross-referenced against GoPlus Security\'s global blacklist of reported scam, phishing, and drainer wallets.' },
@@ -157,13 +159,53 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
           </div>
         ))}
       </div>
+
+      <p class="signals__sub" style="margin-top:2rem">🌐 dApp / Website checker</p>
+      <div class="signals__grid">
+        {[
+          { icon: '🦊', label: 'MetaMask blocklist',      body: 'Checks against MetaMask\'s own eth-phishing-detect list — over 198,000 crypto phishing domains maintained by the MetaMask security team.' },
+          { icon: '🕵️', label: 'ScamSniffer database',    body: 'The largest web3 phishing domain list available, with over 345,000 reported sites. Updated daily by the ScamSniffer security team.' },
+          { icon: '🛡️', label: 'GoPlus Security',         body: 'Real-time lookup against GoPlus\'s live web3 phishing API — the same engine used by MetaMask, Trust Wallet, and other major wallets.' },
+          { icon: '🔬', label: 'URLScan.io',               body: 'Searches prior security researcher scans of the domain to surface any malicious verdicts from the global security community.' },
+          { icon: '🎣', label: 'OpenPhish feed',           body: 'Cross-references against OpenPhish\'s actively-maintained list of live phishing URLs updated in real time.' },
+          { icon: '🔍', label: 'Google Safe Browsing',     body: 'When configured, queries Google\'s threat database — one of the largest phishing and malware URL repositories in the world.' },
+          { icon: '🦠', label: 'VirusTotal',               body: 'When configured, checks the URL against 70+ antivirus and security engines simultaneously for a comprehensive verdict.' },
+          { icon: '⚠️', label: 'Attribution, not verdict', body: 'We report what third-party databases say. We do not independently declare any site a scam. Always verify before connecting your wallet.' },
+        ].map(s => (
+          <div class="signal-card">
+            <span class="signal-card__icon">{s.icon}</span>
+            <h3 class="signal-card__label">{s.label}</h3>
+            <p class="signal-card__body">{s.body}</p>
+          </div>
+        ))}
+      </div>
     </section>
 
-    <!-- Common scam patterns -->
+    <!-- FAQ -->
     <section class="faq" aria-labelledby="faq-heading">
-      <h2 id="faq-heading" class="faq__title">Common crypto scam patterns</h2>
+      <h2 id="faq-heading" class="faq__title">Common questions &amp; scam patterns</h2>
       <div class="faq__list">
         {[
+          {
+            q: 'What is the dApp / Website checker?',
+            a: 'It\'s a free tool that takes any URL or domain and queries up to 7 independent security databases simultaneously — including MetaMask\'s own phishing blocklist, ScamSniffer, GoPlus, URLScan.io, and OpenPhish. It returns a red, yellow, or green result based on what those databases report. We do not make our own determination — we surface what the security community has already flagged.',
+          },
+          {
+            q: 'What does a red result mean for a website?',
+            a: 'It means one or more of the security databases we query has reported that domain. It does not mean we are calling it a scam — that determination comes from the third-party database. You should treat a red result as a serious warning, do your own additional research, and not connect your wallet until you are certain the site is legitimate.',
+          },
+          {
+            q: 'What does a yellow result mean?',
+            a: 'Yellow means the site is not in any blocklist, but it also has little or no security scan history — so there\'s not enough data to give a clean bill of health. New sites, obscure domains, or recently registered addresses often show yellow. Proceed with caution and verify the site through official channels before connecting.',
+          },
+          {
+            q: 'Can I trust a site just because it shows green?',
+            a: 'No. A green result means the site hasn\'t been reported to any of the databases we check — not that it\'s definitively safe. Brand-new phishing sites get a few hours before they\'re added to blocklists. Always double-check the exact URL in your browser bar, look for the official social media accounts, and never connect a wallet from a link sent in a DM or email.',
+          },
+          {
+            q: 'How do wallet drainer sites work?',
+            a: 'A wallet drainer is a website that mimics a legitimate dApp — a fake NFT mint, a fake token claim, or a fake airdrop. When you connect your MetaMask and sign a transaction, you\'re actually signing a permission that lets the attacker transfer every token out of your wallet in one move. The entire balance can be gone in seconds. The site often disappears within hours.',
+          },
           {
             q: 'What is a honeypot scam?',
             a: 'A honeypot is a token you can buy but never sell. The scammer promotes it, you buy in, the price appears to rise — but when you try to sell, the contract blocks you. The scammer then drains the liquidity and disappears with your ETH.',
@@ -185,8 +227,12 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
             a: 'Not always — but in the context of someone pitching an investment, a wallet created in the last 30 days is a major red flag. Legitimate protocols and businesses have established on-chain history.',
           },
           {
-            q: 'What should I do if this tool flags an address?',
+            q: 'What should I do if this tool flags a wallet address?',
             a: 'Do not send funds. Screenshot the results. If someone is pressuring you to send crypto to a flagged address, that pressure itself is part of the scam. Report the address on chainabuse.com and walk away.',
+          },
+          {
+            q: 'What should I do if the dApp checker flags a website?',
+            a: 'Do not connect your wallet. Close the tab. Find the official project through a trusted source — their verified Twitter/X account or a well-known aggregator like DeFiLlama or CoinGecko. Report the site to MetaMask\'s phishing database at github.com/MetaMask/eth-phishing-detect.',
           },
         ].map(item => (
           <details class="faq__item">
@@ -202,9 +248,10 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 
     <!-- Disclaimer -->
     <p class="disclaimer">
-      Results are sourced from public scam databases including GoPlus Security, Etherscan, Alchemy, and honeypot.is.
-      Findings are reported, not legally confirmed. This tool does not constitute financial or legal advice.
-      Always do your own research before sending cryptocurrency to any address.
+      Wallet check results are sourced from public databases including GoPlus Security, Etherscan, Alchemy, and honeypot.is.
+      dApp / website results are sourced from MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io, and OpenPhish.
+      All findings are reported from third-party databases and are not independently verified by Almstins.
+      This tool does not constitute financial or legal advice. Always do your own research.
       <br />
       <a class="disclaimer__link" href="/">A free tool by Almstins — crypto portfolio tracker &amp; bookkeeping tool.</a>
     </p>
@@ -422,8 +469,17 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   .signals__title {
     font-size: 1.3rem;
     font-weight: 700;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     color: rgba(255, 255, 255, 0.85);
+  }
+
+  .signals__sub {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.4);
+    margin: 0 0 0.85rem;
   }
 
   .signals__grid {
