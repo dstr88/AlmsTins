@@ -69,9 +69,58 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       </p>
     </header>
 
-    <!-- Checker -->
-    <div class="checker-wrap">
+    <!-- Tab switcher -->
+    <div class="checker-tabs" role="tablist" aria-label="Checker type">
+      <button class="checker-tab active" id="tab-btn-wallet" role="tab" aria-selected="true"  aria-controls="panel-wallet" data-tab="wallet">
+        🔍 Wallet Address
+      </button>
+      <button class="checker-tab"        id="tab-btn-dapp"   role="tab" aria-selected="false" aria-controls="panel-dapp"   data-tab="dapp">
+        🌐 dApp / Website
+      </button>
+    </div>
+
+    <!-- Wallet checker panel -->
+    <div id="panel-wallet" class="checker-wrap" role="tabpanel" aria-labelledby="tab-btn-wallet">
       <WalletChecker client:load prefilledAddress={prefilledAddress} />
+    </div>
+
+    <!-- dApp checker panel -->
+    <div id="panel-dapp" class="dapp-panel" role="tabpanel" aria-labelledby="tab-btn-dapp" hidden>
+
+      <div class="dapp-input-row">
+        <input
+          id="dapp-url-input"
+          type="url"
+          placeholder="https://suspicious-dapp.xyz  or just paste the domain"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button id="dapp-check-btn" type="button">Check site</button>
+      </div>
+
+      <div id="dapp-result" class="dapp-result" hidden>
+
+        <!-- Verdict banner -->
+        <div class="verdict-banner" id="verdict-banner">
+          <span class="verdict-icon" id="verdict-icon"></span>
+          <div>
+            <p class="verdict-label" id="verdict-label"></p>
+            <p class="verdict-url"  id="verdict-url"></p>
+          </div>
+        </div>
+
+        <!-- Per-source breakdown -->
+        <ul class="source-list" id="source-list"></ul>
+
+        <!-- Safety tip -->
+        <div class="safety-tip" id="safety-tip"></div>
+      </div>
+
+      <div id="dapp-loading" class="dapp-loading" hidden>
+        <span class="spinner"></span> Querying 7 security databases…
+      </div>
+
+      <div id="dapp-error" class="dapp-error" hidden></div>
     </div>
 
     <!-- Almstins CTA -->
@@ -489,24 +538,324 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     color: #a5b4fc;
   }
 
-  /* Responsive */
+  /* ── Checker tabs ── */
+  .checker-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 0;
+  }
+
+  .checker-tab {
+    padding: 0.65rem 1.2rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.45);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+  }
+
+  .checker-tab:hover { color: rgba(255,255,255,0.75); }
+
+  .checker-tab.active {
+    color: #a5b4fc;
+    border-bottom-color: #a5b4fc;
+  }
+
+  /* ── dApp panel ── */
+  .dapp-panel {
+    margin-bottom: 2.5rem;
+  }
+
+  .dapp-input-row {
+    display: flex;
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+  }
+
+  .dapp-input-row input {
+    flex: 1;
+    padding: 0.8rem 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+    color: #f5f8ff;
+    font-size: 0.95rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .dapp-input-row input:focus { border-color: rgba(165,180,252,0.6); }
+  .dapp-input-row input::placeholder { color: rgba(255,255,255,0.3); }
+
+  .dapp-input-row button {
+    padding: 0.8rem 1.4rem;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, #5767ff, #934dff);
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: filter 0.15s, transform 0.15s;
+  }
+
+  .dapp-input-row button:hover { filter: brightness(1.12); transform: translateY(-1px); }
+  .dapp-input-row button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* ── Loading ── */
+  .dapp-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(165,180,252,0.25);
+    border-top-color: #a5b4fc;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Error ── */
+  .dapp-error {
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    background: rgba(255,107,107,0.08);
+    border: 1px solid rgba(255,107,107,0.3);
+    color: #ff9b9b;
+    font-size: 0.9rem;
+  }
+
+  /* ── Verdict banner ── */
+  .verdict-banner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.2rem 1.4rem;
+    border-radius: 16px;
+    margin-bottom: 1rem;
+  }
+
+  .verdict-banner.red    { background: rgba(255,59,59,0.12);  border: 1px solid rgba(255,59,59,0.35); }
+  .verdict-banner.yellow { background: rgba(255,193,7,0.1);   border: 1px solid rgba(255,193,7,0.3);  }
+  .verdict-banner.green  { background: rgba(52,211,153,0.1);  border: 1px solid rgba(52,211,153,0.3); }
+
+  .verdict-icon { font-size: 2.2rem; line-height: 1; }
+
+  .verdict-label {
+    margin: 0 0 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
+
+  .verdict-banner.red    .verdict-label { color: #ff6b6b; }
+  .verdict-banner.yellow .verdict-label { color: #ffc107; }
+  .verdict-banner.green  .verdict-label { color: #34d399; }
+
+  .verdict-url {
+    margin: 0;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.4);
+    word-break: break-all;
+  }
+
+  /* ── Source list ── */
+  .source-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .source-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    font-size: 0.875rem;
+  }
+
+  .source-item.flagged { border-color: rgba(255,59,59,0.35);   background: rgba(255,59,59,0.07);  }
+  .source-item.clean   { border-color: rgba(52,211,153,0.2);   }
+  .source-item.yellow  { border-color: rgba(255,193,7,0.25);   background: rgba(255,193,7,0.05);  }
+
+  .source-badge {
+    font-size: 1rem;
+    flex-shrink: 0;
+    line-height: 1.4;
+  }
+
+  .source-name {
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+    margin: 0 0 0.15rem;
+  }
+
+  .source-detail {
+    margin: 0;
+    color: rgba(255,255,255,0.45);
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+
+  .source-verdict-dot {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    align-self: center;
+  }
+
+  .dot-red    { background: #ff4d4d; box-shadow: 0 0 8px rgba(255,77,77,0.6); }
+  .dot-green  { background: #34d399; box-shadow: 0 0 8px rgba(52,211,153,0.4); }
+  .dot-yellow { background: #ffc107; box-shadow: 0 0 8px rgba(255,193,7,0.4); }
+  .dot-gray   { background: rgba(255,255,255,0.2); }
+
+  /* ── Safety tip ── */
+  .safety-tip {
+    padding: 0.9rem 1.1rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+
+  /* ── Responsive ── */
   @media (max-width: 600px) {
-    .signals__grid {
-      grid-template-columns: 1fr;
-    }
-    .hero__title {
-      -webkit-text-fill-color: #f5f8ff;
-    }
-    .cta-banner {
-      flex-direction: column;
-      text-align: center;
-    }
-    .cta-banner__icon {
-      align-self: center;
-    }
-    .cta-banner__btn {
-      align-self: stretch;
-      text-align: center;
-    }
+    .signals__grid      { grid-template-columns: 1fr; }
+    .hero__title        { -webkit-text-fill-color: #f5f8ff; }
+    .cta-banner         { flex-direction: column; text-align: center; }
+    .cta-banner__icon   { align-self: center; }
+    .cta-banner__btn    { align-self: stretch; text-align: center; }
+    .dapp-input-row     { flex-direction: column; }
   }
 </style>
+
+<script>
+  // ── Tab switching ─────────────────────────────────────────────────────────────
+  const tabs = document.querySelectorAll<HTMLButtonElement>('.checker-tab');
+  tabs.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      tabs.forEach((t) => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+
+      const target = btn.dataset.tab!;
+      (document.getElementById('panel-wallet') as HTMLElement).hidden = target !== 'wallet';
+      (document.getElementById('panel-dapp')   as HTMLElement).hidden = target !== 'dapp';
+    });
+  });
+
+  // ── dApp checker ──────────────────────────────────────────────────────────────
+  const input   = document.getElementById('dapp-url-input')   as HTMLInputElement;
+  const btn     = document.getElementById('dapp-check-btn')   as HTMLButtonElement;
+  const result  = document.getElementById('dapp-result')      as HTMLElement;
+  const loading = document.getElementById('dapp-loading')     as HTMLElement;
+  const errBox  = document.getElementById('dapp-error')       as HTMLElement;
+
+  function setLoading(on: boolean) {
+    btn.disabled   = on;
+    loading.hidden = !on;
+    result.hidden  = true;
+    errBox.hidden  = true;
+  }
+
+  function verdictDot(v: string): string {
+    if (v === 'flagged')   return 'dot-red';
+    if (v === 'clean' || v === 'whitelisted') return 'dot-green';
+    if (v === 'unscanned') return 'dot-yellow';
+    return 'dot-gray';
+  }
+
+  function sourceClass(v: string): string {
+    if (v === 'flagged')   return 'flagged';
+    if (v === 'unscanned') return 'yellow';
+    return 'clean';
+  }
+
+  function verdictEmoji(v: string): string {
+    if (v === 'flagged') return '🚫';
+    if (v === 'clean' || v === 'whitelisted') return '✅';
+    return '⚠️';
+  }
+
+  async function runCheck() {
+    const raw = input.value.trim();
+    if (!raw) { input.focus(); return; }
+
+    setLoading(true);
+    try {
+      const qs  = new URLSearchParams({ url: raw });
+      const res = await fetch(`/api/dapp-check?${qs}`);
+      const data = await res.json();
+
+      if (!res.ok || data.error) throw new Error(data.message ?? `HTTP ${res.status}`);
+
+      // Verdict banner
+      const banner = document.getElementById('verdict-banner')!;
+      banner.className = `verdict-banner ${data.verdict}`;
+      document.getElementById('verdict-icon')!.textContent  =
+        data.verdict === 'red' ? '🚨' : data.verdict === 'yellow' ? '⚠️' : '✅';
+      document.getElementById('verdict-label')!.textContent =
+        data.verdict === 'red'    ? 'DANGER — Do not connect your wallet' :
+        data.verdict === 'yellow' ? 'CAUTION — Proceed carefully' :
+                                    'LOOKS SAFE — No threats detected';
+      document.getElementById('verdict-url')!.textContent = data.domain;
+
+      // Source list
+      const list = document.getElementById('source-list')!;
+      list.innerHTML = (data.sources as any[]).map((s) => `
+        <li class="source-item ${sourceClass(s.verdict)}">
+          <span class="source-badge">${s.icon}</span>
+          <div>
+            <p class="source-name">${s.name}</p>
+            <p class="source-detail">${s.detail}</p>
+          </div>
+          <span class="source-verdict-dot ${verdictDot(s.verdict)}"></span>
+        </li>`).join('');
+
+      // Safety tip
+      const tip = document.getElementById('safety-tip')!;
+      tip.textContent =
+        data.verdict === 'red'
+          ? '🛑 This site has been flagged as malicious. Do NOT connect your wallet or sign any transactions. Close this tab immediately.'
+          : data.verdict === 'yellow'
+          ? '⚠️ This site has limited scan history. Only connect your wallet to sites you found yourself — never through a link in a DM or email.'
+          : '✅ No threats detected across all sources. Always double-check the URL in your browser bar before signing any transaction — even safe-looking sites can be typosquatted.';
+
+      result.hidden = false;
+    } catch (e) {
+      errBox.textContent = `Check failed: ${e instanceof Error ? e.message : 'Unknown error'}. Try again.`;
+      errBox.hidden = false;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  btn.addEventListener('click', runCheck);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') runCheck(); });
+</script>

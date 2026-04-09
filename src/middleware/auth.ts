@@ -36,6 +36,8 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/demo/end' ||
 		// AaveAlisis — public liquidity dashboard (admin-linked but no auth wall)
 		pathname === '/aave-alisis' ||
+		// dApp safety checker — public API backing the wallet-checker page
+		pathname === '/api/dapp-check' ||
 		// Static assets
 		pathname.startsWith('/_astro/') ||
 		pathname.startsWith('/assets/') ||
