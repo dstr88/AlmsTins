@@ -539,19 +539,25 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			}
 		}
 
+		.exchange-lane {
+			gap: 20px;
+		}
+
 		.exchange-lane > .tile {
 			flex: 1 1 100%;
 		}
 
 		@media (min-width: 720px) {
 			.exchange-lane > .tile {
-				flex: 1 1 calc((100% - 24px) / 2);
+				flex: 1 1 calc((100% - 20px) / 2);
+				max-width: calc((100% - 20px) / 2);
 			}
 		}
 
 		@media (min-width: 1080px) {
 			.exchange-lane > .tile {
-				flex: 1 1 calc((100% - 24px) / 2);
+				flex: 1 1 calc((100% - 20px) / 2);
+				max-width: calc((100% - 20px) / 2);
 			}
 		}
 

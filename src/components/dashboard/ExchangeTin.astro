@@ -19,7 +19,7 @@ const throughLabel = fmtDate(dataThrough);
 const importedLabel = fmtDate(lastImported);
 ---
 
-<section class={`exchange-tin ${className}`}>
+<section class={`exchange-tin ${className}`} data-tin-key={title}>
 	<header class="exchange-tin__header">
 		<div class="exchange-tin__title-group">
 			<h3>{title}</h3>
@@ -29,7 +29,10 @@ const importedLabel = fmtDate(lastImported);
 				</span>
 			)}
 		</div>
-		<slot name="header-actions" />
+		<div class="exchange-tin__header-right">
+			<slot name="header-actions" />
+			<button class="exchange-tin__toggle" data-tin-toggle aria-expanded="false" aria-label="Expand">▾</button>
+		</div>
 	</header>
 	<div class="exchange-tin__body">
 		<slot />
@@ -55,6 +58,14 @@ const importedLabel = fmtDate(lastImported);
 		justify-content: space-between;
 		gap: var(--space-sm);
 		flex-wrap: wrap;
+		cursor: pointer;
+		user-select: none;
+	}
+
+	.exchange-tin__header-right {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
 	}
 
 	.exchange-tin__title-group {
@@ -86,6 +97,31 @@ const importedLabel = fmtDate(lastImported);
 		min-height: 0;
 	}
 
+	.exchange-tin__body[hidden] {
+		display: none;
+	}
+
+	.exchange-tin__toggle {
+		background: none;
+		border: none;
+		color: rgba(251, 191, 36, 0.7);
+		font-size: 1rem;
+		line-height: 1;
+		cursor: pointer;
+		padding: 0.1rem 0.3rem;
+		border-radius: 4px;
+		transition: color 0.15s, transform 0.2s;
+		flex-shrink: 0;
+	}
+
+	.exchange-tin__toggle:hover {
+		color: #fbbf24;
+	}
+
+	.exchange-tin__toggle[aria-expanded="true"] {
+		transform: rotate(180deg);
+	}
+
 	.exchange-tin__add {
 		border-radius: 999px;
 		border: 1px solid rgba(255, 255, 255, 0.18);
@@ -102,3 +138,32 @@ const importedLabel = fmtDate(lastImported);
 		background: rgba(255, 255, 255, 0.16);
 	}
 </style>
+
+<script>
+	// Collapsible exchange tins — default collapsed, state persisted in localStorage.
+	document.querySelectorAll<HTMLElement>('.exchange-tin[data-tin-key]').forEach((tin) => {
+		const key    = `tin-expanded:${tin.dataset.tinKey}`;
+		const body   = tin.querySelector<HTMLElement>('.exchange-tin__body');
+		const toggle = tin.querySelector<HTMLButtonElement>('[data-tin-toggle]');
+		if (!body || !toggle) return;
+
+		// Default: collapsed. Only expand if localStorage says 'true'.
+		const expand = localStorage.getItem(key) === 'true';
+		body.hidden            = !expand;
+		toggle.ariaExpanded    = String(expand);
+
+		const doToggle = () => {
+			const nowHidden = !body.hidden;
+			body.hidden           = nowHidden;
+			toggle.ariaExpanded   = String(!nowHidden);
+			localStorage.setItem(key, String(!nowHidden));
+		};
+
+		toggle.addEventListener('click', (e) => { e.stopPropagation(); doToggle(); });
+		// Also allow clicking the header row itself (but not the "Add" button inside)
+		tin.querySelector('.exchange-tin__header')?.addEventListener('click', (e) => {
+			if ((e.target as HTMLElement).closest('[data-tin-toggle], .exchange-tin__add, button, a')) return;
+			doToggle();
+		});
+	});
+</script>

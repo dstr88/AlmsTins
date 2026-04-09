@@ -293,7 +293,7 @@ try {
 }
 ---
 
-<ExchangeTin title="Crypto.com Accounts" class="tile tile--exchange" dataThrough={dataThrough} lastImported={lastImported}>
+<ExchangeTin title="Crypto.com" class="tile tile--exchange" dataThrough={dataThrough} lastImported={lastImported}>
 	<button slot="header-actions" type="button" class="exchange-tin__add" data-crypto-add>
 		Add Crypto.com account
 	</button>
@@ -302,6 +302,7 @@ try {
 		<p class="crypto-accounts__error">⚠ Temporarily unavailable — try refreshing</p>
 	) : accountsWithHoldings.length ? (
 		<div class="crypto-accounts__list">
+		<p class="crypto-accounts__section-label">Account</p>
 			{accountsWithHoldings.map((account, index) => {
 				const accountIndex = index + 1;
 				return (
@@ -504,6 +505,15 @@ try {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-md);
+	}
+
+	.crypto-accounts__section-label {
+		margin: 0 0 0.1rem;
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: #92400e;
+		opacity: 0.9;
 	}
 
 	.crypto-accounts__empty {
