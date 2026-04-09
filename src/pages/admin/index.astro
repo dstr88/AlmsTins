@@ -214,6 +214,8 @@ const fmtDate = (iso: string | null) => {
 		.stat-card.highlight { border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.08); }
 		.stat-card.green { border-color: rgba(74,222,128,0.25); background: rgba(74,222,128,0.06); }
 		.stat-card.amber { border-color: rgba(251,191,36,0.25); background: rgba(251,191,36,0.06); }
+		.stat-card--link { border-color: rgba(56,189,248,0.25); background: rgba(56,189,248,0.06); transition: background 0.15s, border-color 0.15s; }
+		.stat-card--link:hover { border-color: rgba(56,189,248,0.5); background: rgba(56,189,248,0.12); }
 
 		/* Section */
 		.section { margin-bottom: 2rem; }
@@ -438,6 +440,11 @@ const fmtDate = (iso: string | null) => {
 				<div class="stat-value">{totalSpamChecked.toLocaleString()}</div>
 				<div class="stat-sub">unique addresses checked</div>
 			</div>
+			<a href="/wallet-checker" class="stat-card stat-card--link" style="text-decoration:none; cursor:pointer;">
+				<div class="stat-label">dApp Checker</div>
+				<div class="stat-value">🌐</div>
+				<div class="stat-sub">check a web3 site →</div>
+			</a>
 			<div class="stat-card">
 				<div class="stat-label">Import rows</div>
 				<div class="stat-value">{totalImportRows.toLocaleString()}</div>

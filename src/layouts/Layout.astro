@@ -174,11 +174,13 @@ const memberSinceDisplay = memberSinceIso
 					<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>
 					<a href="/dashboard/research" class={`nav-link ${isActive('/dashboard/research') ? 'active' : ''}`}>Research</a>
 				{isAdmin && (
-					<a href="/admin" class={`nav-link nav-link--admin ${isActive('/admin') ? 'active' : ''}`}>Admin</a>
-					<a href="/admin/support" class={`nav-link nav-link--admin ${isActive('/admin/support') ? 'active' : ''}`}>
-						Support{adminSupportUnread > 0 ? ` (${adminSupportUnread})` : ''}
-					</a>
-					<a href="/aave-alisis" class={`nav-link nav-link--admin ${isActive('/aave-alisis') ? 'active' : ''}`}>AaveAlisis</a>
+					<>
+						<a href="/admin" class={`nav-link nav-link--admin ${isActive('/admin') ? 'active' : ''}`}>Admin</a>
+						<a href="/admin/support" class={`nav-link nav-link--admin ${isActive('/admin/support') ? 'active' : ''}`}>
+							Support{adminSupportUnread > 0 ? ` (${adminSupportUnread})` : ''}
+						</a>
+						<a href="/aave-alisis" class={`nav-link nav-link--admin ${isActive('/aave-alisis') ? 'active' : ''}`}>AaveAlisis</a>
+					</>
 				)}
 
 					<!-- Account dropdown -->
