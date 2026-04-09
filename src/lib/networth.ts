@@ -817,6 +817,18 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				'0xb5c064f955d8e7f38fe0460c556a72987494ee17',
 			]),
 		},
+		avalanche: {
+			// Native AAVE bridged to Avalanche C-Chain via the official Aave bridge
+			AAVE: new Set(['0x63a72806098bd3d9520cc43356dd78afe5d386d9']),
+			// Avalanche USDC (native) and bridged
+			USDC: new Set([
+				'0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e', // native USDC on Avalanche
+				'0xa7d7079b0fead91f3e65f86e8915cb59c1a4c664', // USDC.e (bridged)
+			]),
+			USDT: new Set(['0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7']), // native USDT on Avalanche
+			WBTC: new Set(['0x50b7545627a5162f82a992c33b87adc75187b218']),
+			LINK: new Set(['0x5947bb275c521040051d82396192181b413227a3']),
+		},
 	};
 	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche']);
 
@@ -948,11 +960,13 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				}
 			}
 
-			if (normalizedUsd === null && Number.isFinite(normalizedAmount) && normalizedAmount > 0) {
+			// Apply fallback prices for known symbols when the live price is missing (null or 0).
+			// "=== 0" is treated the same as null — a zero stored price means the lookup failed.
+			if ((normalizedUsd === null || normalizedUsd === 0) && Number.isFinite(normalizedAmount) && normalizedAmount > 0) {
 				let fallbackPrice: number | null = null;
 				if (tokenSymbol === 'WBTC') fallbackPrice = 70000;
 				if (tokenSymbol === 'LINK') fallbackPrice = 8.85;
-				if (tokenSymbol === 'AAVE') fallbackPrice = 112;
+				if (tokenSymbol === 'AAVE') fallbackPrice = 150; // updated Apr 2026; refresh via reprice job
 				if (tokenSymbol === 'WMATIC') fallbackPrice = 0.095;
 				if (fallbackPrice) {
 					normalizedUsd = fallbackPrice * normalizedAmount;

@@ -49,8 +49,14 @@ async function buildAlchemySnapshot(
 	tenantId: string,
 	address: string,
 ) {
-	const alchemyChain = chainId === ETHEREUM_CHAIN_ID ? 'eth-mainnet' : 'polygon-mainnet';
-	const chain = chainId === ETHEREUM_CHAIN_ID ? 'ethereum' : 'polygon';
+	const alchemyChain =
+		chainId === ETHEREUM_CHAIN_ID   ? 'eth-mainnet'     :
+		chainId === AVALANCHE_CHAIN_ID  ? 'avax-mainnet'    :
+		                                  'polygon-mainnet';
+	const chain =
+		chainId === ETHEREUM_CHAIN_ID   ? 'ethereum'  :
+		chainId === AVALANCHE_CHAIN_ID  ? 'avalanche' :
+		                                  'polygon';
 	const balancesResult = await getTokenBalances(alchemyChain, address);
 	const rawBalances = Array.isArray(balancesResult?.tokenBalances) ? balancesResult.tokenBalances : [];
 	const nonZeroBalances = rawBalances.filter((entry) => {
@@ -161,6 +167,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 				const snapshotChains: Array<{ chainId: number }> = [
 					{ chainId: ETHEREUM_CHAIN_ID },
 					{ chainId: POLYGON_CHAIN_ID },
+					{ chainId: AVALANCHE_CHAIN_ID },
 				];
 				for (const { chainId } of snapshotChains) {
 					const breakdown = await buildAlchemySnapshot(chainId, walletId, tenantId, walletAddress);
