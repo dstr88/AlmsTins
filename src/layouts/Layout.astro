@@ -64,6 +64,17 @@ const isAdmin =
   (tenantId ? ADMIN_TENANT_IDS.has(String(tenantId).toLowerCase()) : false) ||
   Boolean(displayEmail && ADMIN_EMAILS.has(displayEmail.toLowerCase()));
 
+// Support unread count — only fetched for admin sessions (one cheap query)
+let adminSupportUnread = 0;
+if (isAdmin) {
+  try {
+    const unreadRow = await db.execute(
+      `SELECT COUNT(*) AS cnt FROM support_messages WHERE from_admin = 0 AND read_at IS NULL`
+    );
+    adminSupportUnread = Number((unreadRow.rows[0] as any)?.cnt ?? 0);
+  } catch { /* non-fatal */ }
+}
+
 export interface Props {
   title?: string;
   description?: string;
@@ -164,6 +175,9 @@ const memberSinceDisplay = memberSinceIso
 					<a href="/dashboard/research" class={`nav-link ${isActive('/dashboard/research') ? 'active' : ''}`}>Research</a>
 				{isAdmin && (
 					<a href="/admin" class={`nav-link nav-link--admin ${isActive('/admin') ? 'active' : ''}`}>Admin</a>
+					<a href="/admin/support" class={`nav-link nav-link--admin ${isActive('/admin/support') ? 'active' : ''}`}>
+						Support{adminSupportUnread > 0 ? ` (${adminSupportUnread})` : ''}
+					</a>
 				)}
 
 					<!-- Account dropdown -->
@@ -274,8 +288,380 @@ const memberSinceDisplay = memberSinceIso
 			</main>
 			<Footer />
 		</div>
+
+		{user && (
+			<>
+				<!-- ── Help pill ──────────────────────────────────────────────────── -->
+				<button id="help-pill" class="help-pill" aria-label="Get help" title="Get help">
+					💬 Help
+					<span id="help-pill-badge" class="help-pill__badge" hidden>0</span>
+				</button>
+
+				<!-- ── Help drawer ───────────────────────────────────────────────── -->
+				<div id="help-drawer" class="help-drawer" role="dialog" aria-modal="true" aria-label="Support chat" hidden>
+					<div class="help-drawer__header">
+						<span class="help-drawer__title">Get Help</span>
+						<button id="help-drawer-close" class="help-drawer__close" aria-label="Close">✕</button>
+					</div>
+					<div class="help-drawer__messages" id="help-messages">
+						<p class="help-drawer__loading">Loading…</p>
+					</div>
+					<div class="help-drawer__compose">
+						<textarea
+							id="help-input"
+							class="help-drawer__input"
+							placeholder="Describe your issue…"
+							maxlength="500"
+							rows="3"
+						></textarea>
+						<div class="help-drawer__footer">
+							<span id="help-char-count" class="help-drawer__count">0 / 500</span>
+							<button id="help-send" class="help-drawer__send">Send</button>
+						</div>
+					</div>
+				</div>
+			</>
+		)}
 	</body>
 </html>
+
+{user && (
+<style>
+	.help-pill {
+		position: fixed;
+		bottom: 1.5rem;
+		right: 1.5rem;
+		z-index: 9000;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4em;
+		padding: 0.5rem 1rem;
+		border-radius: 999px;
+		border: none;
+		background: rgba(30, 35, 50, 0.92);
+		backdrop-filter: blur(10px);
+		color: rgba(255,255,255,0.8);
+		font-size: 0.8rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		cursor: pointer;
+		box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+		transition: background 0.15s, transform 0.15s, color 0.15s;
+	}
+	.help-pill:hover {
+		background: rgba(99,102,241,0.85);
+		color: #fff;
+		transform: translateY(-2px);
+	}
+	.help-pill__badge {
+		background: #ef4444;
+		color: #fff;
+		font-size: 0.65rem;
+		font-weight: 700;
+		min-width: 1.2em;
+		height: 1.2em;
+		padding: 0 0.25em;
+		border-radius: 999px;
+		line-height: 1.2em;
+		text-align: center;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	/* Drawer */
+	.help-drawer {
+		position: fixed;
+		bottom: 4.5rem;
+		right: 1.5rem;
+		z-index: 9001;
+		width: min(380px, calc(100vw - 2rem));
+		max-height: 520px;
+		display: flex;
+		flex-direction: column;
+		border-radius: 18px;
+		background: #13172a;
+		border: 1px solid rgba(255,255,255,0.1);
+		box-shadow: 0 12px 48px rgba(0,0,0,0.55);
+		overflow: hidden;
+		animation: drawer-in 0.2s ease;
+	}
+	.help-drawer[hidden] { display: none; }
+
+	@keyframes drawer-in {
+		from { opacity: 0; transform: translateY(12px) scale(0.97); }
+		to   { opacity: 1; transform: translateY(0) scale(1); }
+	}
+
+	.help-drawer__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.85rem 1.1rem;
+		border-bottom: 1px solid rgba(255,255,255,0.07);
+		flex-shrink: 0;
+	}
+	.help-drawer__title {
+		font-size: 0.88rem;
+		font-weight: 700;
+		color: #e2e8f0;
+	}
+	.help-drawer__close {
+		background: none;
+		border: none;
+		color: rgba(255,255,255,0.4);
+		font-size: 1rem;
+		cursor: pointer;
+		padding: 0.2rem 0.4rem;
+		border-radius: 6px;
+		transition: color 0.12s, background 0.12s;
+	}
+	.help-drawer__close:hover { color: #fff; background: rgba(255,255,255,0.07); }
+
+	.help-drawer__messages {
+		flex: 1;
+		overflow-y: auto;
+		padding: 0.85rem 1.1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		min-height: 80px;
+	}
+	.help-drawer__loading {
+		font-size: 0.8rem;
+		color: rgba(255,255,255,0.35);
+		margin: auto;
+	}
+	.help-drawer__empty {
+		font-size: 0.8rem;
+		color: rgba(255,255,255,0.35);
+		text-align: center;
+		margin: auto;
+		line-height: 1.5;
+	}
+
+	/* Message bubbles */
+	.help-msg {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		max-width: 85%;
+	}
+	.help-msg--user  { align-self: flex-end;  align-items: flex-end; }
+	.help-msg--admin { align-self: flex-start; }
+	.help-msg__text {
+		padding: 0.5rem 0.8rem;
+		border-radius: 14px;
+		font-size: 0.82rem;
+		line-height: 1.5;
+		word-break: break-word;
+	}
+	.help-msg--user  .help-msg__text {
+		background: rgba(99,102,241,0.3);
+		color: #c7d2fe;
+		border-bottom-right-radius: 4px;
+	}
+	.help-msg--admin .help-msg__text {
+		background: rgba(255,255,255,0.07);
+		color: #e2e8f0;
+		border-bottom-left-radius: 4px;
+	}
+	.help-msg__time {
+		font-size: 0.65rem;
+		color: rgba(255,255,255,0.28);
+	}
+
+	/* Compose area */
+	.help-drawer__compose {
+		border-top: 1px solid rgba(255,255,255,0.07);
+		padding: 0.75rem 1.1rem;
+		flex-shrink: 0;
+	}
+	.help-drawer__input {
+		width: 100%;
+		background: rgba(255,255,255,0.05);
+		border: 1px solid rgba(255,255,255,0.1);
+		border-radius: 10px;
+		color: #e2e8f0;
+		font-size: 0.82rem;
+		padding: 0.55rem 0.8rem;
+		resize: none;
+		font-family: inherit;
+		line-height: 1.4;
+		transition: border-color 0.12s;
+	}
+	.help-drawer__input:focus {
+		outline: none;
+		border-color: rgba(99,102,241,0.5);
+	}
+	.help-drawer__footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-top: 0.5rem;
+	}
+	.help-drawer__count {
+		font-size: 0.7rem;
+		color: rgba(255,255,255,0.3);
+	}
+	.help-drawer__count.near-limit { color: #fbbf24; }
+	.help-drawer__count.at-limit   { color: #ef4444; }
+	.help-drawer__send {
+		padding: 0.4rem 1rem;
+		border-radius: 8px;
+		border: none;
+		background: #6366f1;
+		color: #fff;
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+	.help-drawer__send:hover    { background: #4f46e5; }
+	.help-drawer__send:disabled { opacity: 0.5; cursor: default; }
+</style>
+
+<script>
+(function () {
+	const pill    = document.getElementById('help-pill');
+	const drawer  = document.getElementById('help-drawer');
+	const closeBtn= document.getElementById('help-drawer-close');
+	const messages= document.getElementById('help-messages');
+	const input   = document.getElementById('help-input') as HTMLTextAreaElement | null;
+	const sendBtn = document.getElementById('help-send') as HTMLButtonElement | null;
+	const counter = document.getElementById('help-char-count');
+	const badge   = document.getElementById('help-pill-badge');
+	if (!pill || !drawer || !messages || !input || !sendBtn || !counter || !badge) return;
+
+	const LIMIT = 500;
+
+	const fmtDate = (iso: string) => {
+		try {
+			return new Intl.DateTimeFormat('en-US', {
+				month: 'short', day: 'numeric',
+				hour: 'numeric', minute: '2-digit',
+			}).format(new Date(iso));
+		} catch { return ''; }
+	};
+
+	function renderMessages(msgs: any[]) {
+		messages!.innerHTML = '';
+		if (!msgs.length) {
+			const p = document.createElement('p');
+			p.className = 'help-drawer__empty';
+			p.textContent = 'No messages yet.\nDescribe your issue below and we\'ll get back to you.';
+			messages!.appendChild(p);
+			return;
+		}
+		for (const msg of msgs) {
+			const isAdmin = Number(msg.from_admin) === 1;
+			const wrap    = document.createElement('div');
+			wrap.className = `help-msg ${isAdmin ? 'help-msg--admin' : 'help-msg--user'}`;
+
+			const text = document.createElement('div');
+			text.className = 'help-msg__text';
+			text.textContent = msg.body;
+
+			const time = document.createElement('div');
+			time.className = 'help-msg__time';
+			time.textContent = (isAdmin ? 'Support · ' : 'You · ') + fmtDate(msg.created_at);
+
+			wrap.appendChild(text);
+			wrap.appendChild(time);
+			messages!.appendChild(wrap);
+		}
+		messages!.scrollTop = messages!.scrollHeight;
+	}
+
+	async function loadThread() {
+		messages!.innerHTML = '<p class="help-drawer__loading">Loading…</p>';
+		try {
+			const res  = await fetch('/api/support');
+			const data = await res.json();
+			renderMessages(Array.isArray(data.messages) ? data.messages : []);
+			badge!.hidden = true; // cleared on read
+		} catch {
+			messages!.innerHTML = '<p class="help-drawer__empty">Could not load messages.</p>';
+		}
+	}
+
+	// Badge: check unread on page load
+	fetch('/api/support/unread')
+		.then((r) => r.json())
+		.then((d) => {
+			const n = Number(d.unread ?? 0);
+			if (n > 0) {
+				badge!.textContent = String(n);
+				badge!.hidden = false;
+			}
+		})
+		.catch(() => {});
+
+	let drawerOpen = false;
+
+	pill.addEventListener('click', () => {
+		drawerOpen = !drawerOpen;
+		drawer!.hidden = !drawerOpen;
+		if (drawerOpen) {
+			loadThread();
+			setTimeout(() => input!.focus(), 60);
+		}
+	});
+
+	closeBtn!.addEventListener('click', () => {
+		drawerOpen = false;
+		drawer!.hidden = true;
+	});
+
+	// Close on Escape
+	document.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape' && drawerOpen) {
+			drawerOpen = false;
+			drawer!.hidden = true;
+		}
+	});
+
+	// Character counter
+	input.addEventListener('input', () => {
+		const len = input!.value.length;
+		counter!.textContent = `${len} / ${LIMIT}`;
+		counter!.className = 'help-drawer__count' +
+			(len >= LIMIT ? ' at-limit' : len >= LIMIT * 0.85 ? ' near-limit' : '');
+	});
+
+	// Send
+	sendBtn.addEventListener('click', async () => {
+		const text = input!.value.trim();
+		if (!text) return;
+		sendBtn!.disabled = true;
+		sendBtn!.textContent = 'Sending…';
+		try {
+			const res  = await fetch('/api/support', {
+				method:  'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body:    JSON.stringify({ body: text }),
+			});
+			const data = await res.json();
+			if (!data.ok) throw new Error(data.error ?? 'Failed to send.');
+			input!.value = '';
+			counter!.textContent = `0 / ${LIMIT}`;
+			counter!.className = 'help-drawer__count';
+			await loadThread();
+		} catch (err: any) {
+			alert(err?.message ?? 'Could not send message. Please try again.');
+		} finally {
+			sendBtn!.disabled = false;
+			sendBtn!.textContent = 'Send';
+		}
+	});
+
+	// Cmd/Ctrl+Enter to send
+	input.addEventListener('keydown', (e) => {
+		if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') sendBtn!.click();
+	});
+})();
+</script>
+)}
 
 <style>
 	:global(*) {

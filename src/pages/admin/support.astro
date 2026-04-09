@@ -1,0 +1,476 @@
+---
+import { requireAdminSession } from '@/lib/adminGuard';
+import { db } from '@/lib/db';
+
+let adminEmail = '';
+try {
+	const admin = await requireAdminSession(Astro.request);
+	adminEmail = admin.email;
+} catch (resp) {
+	if (resp instanceof Response) {
+		if (resp.status === 401) return Astro.redirect('/login', 303);
+		return Astro.redirect('/dashboard/vault', 303);
+	}
+	return Astro.redirect('/dashboard/vault', 303);
+}
+
+const q = async (sql: string, args: any[] = []) => {
+	const r = await db.execute({ sql, args });
+	return r.rows as Record<string, any>[];
+};
+
+// Load all threads (one row per user, latest message first)
+const threads = await q(`
+	SELECT
+		sm.user_id,
+		au.email          AS user_email,
+		COUNT(*)          AS total_messages,
+		SUM(CASE WHEN sm.from_admin = 0 AND sm.read_at IS NULL THEN 1 ELSE 0 END) AS unread_count,
+		MAX(sm.created_at) AS last_message_at,
+		(
+			SELECT body FROM support_messages s2
+			WHERE s2.user_id = sm.user_id
+			ORDER BY s2.created_at DESC LIMIT 1
+		) AS last_body,
+		(
+			SELECT from_admin FROM support_messages s3
+			WHERE s3.user_id = sm.user_id
+			ORDER BY s3.created_at DESC LIMIT 1
+		) AS last_from_admin
+	FROM support_messages sm
+	LEFT JOIN auth_users au ON au.id = sm.user_id
+	GROUP BY sm.user_id
+	ORDER BY last_message_at DESC
+`).catch(() => [] as Record<string, any>[]);
+
+const totalUnread = threads.reduce((sum, t) => sum + Number(t.unread_count ?? 0), 0);
+
+const fmtDate = (iso: string | null) => {
+	if (!iso) return '';
+	try {
+		return new Intl.DateTimeFormat('en-US', {
+			month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+		}).format(new Date(iso));
+	} catch { return iso; }
+};
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Support Inbox — Admin</title>
+	<meta name="robots" content="noindex" />
+	<style>
+		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+		body {
+			background: #04060c;
+			color: #e2e8f0;
+			font-family: 'Inter', system-ui, sans-serif;
+			min-height: 100vh;
+		}
+		.topbar {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 1rem 2rem;
+			border-bottom: 1px solid rgba(255,255,255,0.07);
+			background: rgba(4,6,12,0.8);
+			backdrop-filter: blur(12px);
+			position: sticky;
+			top: 0;
+			z-index: 10;
+		}
+		.topbar-left { display: flex; align-items: center; gap: 1rem; }
+		.topbar-badge {
+			background: linear-gradient(135deg, #6366f1, #a855f7);
+			color: #fff;
+			font-size: 0.65rem;
+			font-weight: 700;
+			letter-spacing: 0.1em;
+			text-transform: uppercase;
+			padding: 0.2rem 0.6rem;
+			border-radius: 999px;
+		}
+		.topbar h1 { margin: 0; font-size: 1.1rem; font-weight: 600; color: #f1f5f9; }
+		.topbar-right { display: flex; align-items: center; gap: 1rem; font-size: 0.82rem; color: rgba(255,255,255,0.45); }
+		.back-link { color: #818cf8; text-decoration: none; font-size: 0.82rem; }
+		.back-link:hover { color: #a5b4fc; }
+		.unread-badge {
+			background: #ef4444;
+			color: #fff;
+			font-size: 0.65rem;
+			font-weight: 700;
+			padding: 0.15rem 0.5rem;
+			border-radius: 999px;
+		}
+		.page { padding: 2rem; max-width: 1100px; margin: 0 auto; }
+		.page-header {
+			display: flex;
+			align-items: center;
+			gap: 0.75rem;
+			margin-bottom: 1.5rem;
+		}
+		.page-title { font-size: 1.4rem; font-weight: 700; color: #f1f5f9; }
+
+		/* Thread list */
+		.thread-list { display: flex; flex-direction: column; gap: 0; }
+		.thread-row {
+			display: grid;
+			grid-template-columns: 1fr auto;
+			gap: 1rem;
+			align-items: start;
+			padding: 1rem 1.25rem;
+			border-bottom: 1px solid rgba(255,255,255,0.06);
+			cursor: pointer;
+			transition: background 0.12s;
+		}
+		.thread-row:first-child { border-top: 1px solid rgba(255,255,255,0.06); }
+		.thread-row:hover { background: rgba(255,255,255,0.03); }
+		.thread-row.is-unread { background: rgba(99,102,241,0.05); }
+		.thread-row.is-active { background: rgba(99,102,241,0.1); }
+		.thread-email {
+			font-size: 0.88rem;
+			font-weight: 600;
+			color: #c7d2fe;
+			margin-bottom: 0.25rem;
+		}
+		.thread-preview {
+			font-size: 0.8rem;
+			color: rgba(255,255,255,0.5);
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			max-width: 600px;
+		}
+		.thread-preview.from-admin { color: rgba(134,239,172,0.7); }
+		.thread-meta {
+			text-align: right;
+			font-size: 0.75rem;
+			color: rgba(255,255,255,0.35);
+			white-space: nowrap;
+		}
+		.thread-unread-dot {
+			display: inline-block;
+			width: 8px; height: 8px;
+			background: #6366f1;
+			border-radius: 50%;
+			margin-right: 0.35rem;
+			vertical-align: middle;
+		}
+		.empty { color: rgba(255,255,255,0.4); padding: 3rem; text-align: center; font-size: 0.9rem; }
+
+		/* Conversation panel */
+		.convo-panel {
+			display: none;
+			flex-direction: column;
+			gap: 0;
+			margin-top: 2rem;
+			background: rgba(255,255,255,0.025);
+			border: 1px solid rgba(255,255,255,0.08);
+			border-radius: 14px;
+			overflow: hidden;
+		}
+		.convo-panel.is-open { display: flex; }
+		.convo-header {
+			padding: 0.9rem 1.25rem;
+			border-bottom: 1px solid rgba(255,255,255,0.07);
+			font-size: 0.85rem;
+			color: rgba(255,255,255,0.6);
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+		.convo-header strong { color: #c7d2fe; }
+		.convo-close {
+			background: none;
+			border: none;
+			color: rgba(255,255,255,0.4);
+			font-size: 1.1rem;
+			cursor: pointer;
+			padding: 0.2rem 0.4rem;
+			border-radius: 4px;
+		}
+		.convo-close:hover { color: #fff; background: rgba(255,255,255,0.07); }
+		.convo-messages {
+			padding: 1rem 1.25rem;
+			display: flex;
+			flex-direction: column;
+			gap: 0.75rem;
+			max-height: 420px;
+			overflow-y: auto;
+		}
+		.msg-bubble {
+			display: flex;
+			flex-direction: column;
+			gap: 0.2rem;
+			max-width: 72%;
+		}
+		.msg-bubble.from-user { align-self: flex-start; }
+		.msg-bubble.from-admin { align-self: flex-end; align-items: flex-end; }
+		.msg-text {
+			padding: 0.6rem 0.9rem;
+			border-radius: 14px;
+			font-size: 0.85rem;
+			line-height: 1.5;
+			word-break: break-word;
+		}
+		.from-user .msg-text {
+			background: rgba(255,255,255,0.07);
+			color: #e2e8f0;
+			border-bottom-left-radius: 4px;
+		}
+		.from-admin .msg-text {
+			background: rgba(99,102,241,0.25);
+			color: #c7d2fe;
+			border-bottom-right-radius: 4px;
+		}
+		.msg-meta {
+			font-size: 0.68rem;
+			color: rgba(255,255,255,0.3);
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+		}
+		.msg-delete {
+			background: none;
+			border: none;
+			color: rgba(239,68,68,0.5);
+			font-size: 0.7rem;
+			cursor: pointer;
+			padding: 0;
+			transition: color 0.12s;
+		}
+		.msg-delete:hover { color: #ef4444; }
+
+		/* Reply form */
+		.convo-reply {
+			padding: 0.9rem 1.25rem;
+			border-top: 1px solid rgba(255,255,255,0.07);
+			display: flex;
+			gap: 0.75rem;
+			align-items: flex-end;
+		}
+		.reply-input {
+			flex: 1;
+			background: rgba(255,255,255,0.06);
+			border: 1px solid rgba(255,255,255,0.12);
+			border-radius: 10px;
+			color: #e2e8f0;
+			font-size: 0.85rem;
+			padding: 0.6rem 0.85rem;
+			resize: none;
+			min-height: 60px;
+			font-family: inherit;
+		}
+		.reply-input:focus { outline: none; border-color: rgba(99,102,241,0.5); }
+		.reply-send {
+			padding: 0.55rem 1.1rem;
+			border-radius: 10px;
+			border: none;
+			background: #6366f1;
+			color: #fff;
+			font-size: 0.82rem;
+			font-weight: 600;
+			cursor: pointer;
+			white-space: nowrap;
+			transition: background 0.15s;
+		}
+		.reply-send:hover { background: #4f46e5; }
+		.reply-send:disabled { opacity: 0.5; cursor: default; }
+		.reply-status {
+			font-size: 0.75rem;
+			color: rgba(255,255,255,0.4);
+			padding: 0 1.25rem 0.75rem;
+		}
+	</style>
+</head>
+<body>
+	<div class="topbar">
+		<div class="topbar-left">
+			<span class="topbar-badge">Admin</span>
+			<h1>Support Inbox</h1>
+			{totalUnread > 0 && <span class="unread-badge">{totalUnread} unread</span>}
+		</div>
+		<div class="topbar-right">
+			<span>{adminEmail}</span>
+			<a href="/admin" class="back-link">← Dashboard</a>
+		</div>
+	</div>
+
+	<div class="page">
+		<div class="thread-list">
+			{threads.length === 0
+				? <p class="empty">No support messages yet.</p>
+				: threads.map((t) => (
+					<div
+						class={`thread-row${Number(t.unread_count) > 0 ? ' is-unread' : ''}`}
+						data-user-id={t.user_id}
+						data-user-email={t.user_email ?? 'Unknown'}
+					>
+						<div>
+							<div class="thread-email">
+								{Number(t.unread_count) > 0 && <span class="thread-unread-dot"></span>}
+								{t.user_email ?? 'Unknown user'}
+							</div>
+							<div class={`thread-preview${Number(t.last_from_admin) === 1 ? ' from-admin' : ''}`}>
+								{Number(t.last_from_admin) === 1 ? '↩ You: ' : ''}{String(t.last_body ?? '').slice(0, 120)}
+							</div>
+						</div>
+						<div class="thread-meta">
+							<div>{Number(t.total_messages)} msg{Number(t.total_messages) !== 1 ? 's' : ''}</div>
+							<div>{fmtDate(t.last_message_at)}</div>
+						</div>
+					</div>
+				))
+			}
+		</div>
+
+		<!-- Conversation panel — filled by JS -->
+		<div class="convo-panel" id="convo-panel">
+			<div class="convo-header">
+				<span>Conversation with <strong id="convo-email"></strong></span>
+				<button class="convo-close" id="convo-close" title="Close">✕</button>
+			</div>
+			<div class="convo-messages" id="convo-messages"></div>
+			<div class="convo-reply">
+				<textarea class="reply-input" id="reply-input" placeholder="Type a reply…" rows="2"></textarea>
+				<button class="reply-send" id="reply-send">Send</button>
+			</div>
+			<div class="reply-status" id="reply-status"></div>
+		</div>
+	</div>
+
+	<script>
+		const panel       = document.getElementById('convo-panel')!;
+		const convoEmail  = document.getElementById('convo-email')!;
+		const msgContainer= document.getElementById('convo-messages')!;
+		const replyInput  = document.getElementById('reply-input') as HTMLTextAreaElement;
+		const replyBtn    = document.getElementById('reply-send') as HTMLButtonElement;
+		const replyStatus = document.getElementById('reply-status')!;
+		const closeBtn    = document.getElementById('convo-close')!;
+
+		let activeUserId: string | null = null;
+		let activeRow: HTMLElement | null = null;
+
+		const fmtDate = (iso: string) => {
+			try {
+				return new Intl.DateTimeFormat('en-US', {
+					month: 'short', day: 'numeric',
+					hour: 'numeric', minute: '2-digit',
+				}).format(new Date(iso));
+			} catch { return iso; }
+		};
+
+		async function loadThread(userId: string) {
+			const res  = await fetch(`/api/admin/support/thread?userId=${encodeURIComponent(userId)}`);
+			const data = await res.json();
+			return Array.isArray(data.messages) ? data.messages : [];
+		}
+
+		function renderMessages(messages: any[]) {
+			msgContainer.innerHTML = '';
+			if (!messages.length) {
+				msgContainer.innerHTML = '<p style="color:rgba(255,255,255,0.35);font-size:0.82rem">No messages yet.</p>';
+				return;
+			}
+			for (const msg of messages) {
+				const isAdmin = Number(msg.from_admin) === 1;
+				const bubble  = document.createElement('div');
+				bubble.className = `msg-bubble ${isAdmin ? 'from-admin' : 'from-user'}`;
+				bubble.dataset.id = msg.id;
+
+				const text = document.createElement('div');
+				text.className = 'msg-text';
+				text.textContent = msg.body;
+
+				const meta = document.createElement('div');
+				meta.className = 'msg-meta';
+				meta.textContent = fmtDate(msg.created_at);
+
+				const del = document.createElement('button');
+				del.className = 'msg-delete';
+				del.title = 'Delete message';
+				del.textContent = '✕ delete';
+				del.dataset.msgId = msg.id;
+				del.addEventListener('click', async (e) => {
+					e.stopPropagation();
+					if (!confirm('Delete this message?')) return;
+					await fetch(`/api/admin/support/${msg.id}`, { method: 'DELETE' });
+					bubble.remove();
+				});
+
+				meta.appendChild(del);
+				bubble.appendChild(text);
+				bubble.appendChild(meta);
+				msgContainer.appendChild(bubble);
+			}
+			msgContainer.scrollTop = msgContainer.scrollHeight;
+		}
+
+		async function openThread(row: HTMLElement) {
+			if (activeRow) activeRow.classList.remove('is-active');
+			activeRow = row;
+			row.classList.add('is-active');
+			// Clear unread dot
+			row.classList.remove('is-unread');
+			row.querySelector('.thread-unread-dot')?.remove();
+
+			activeUserId = row.dataset.userId ?? null;
+			convoEmail.textContent = row.dataset.userEmail ?? '';
+			panel.classList.add('is-open');
+			msgContainer.innerHTML = '<p style="color:rgba(255,255,255,0.35);font-size:0.82rem">Loading…</p>';
+			replyInput.value = '';
+			replyStatus.textContent = '';
+
+			if (activeUserId) {
+				const msgs = await loadThread(activeUserId);
+				renderMessages(msgs);
+			}
+		}
+
+		document.querySelectorAll<HTMLElement>('.thread-row').forEach((row) => {
+			row.addEventListener('click', () => openThread(row));
+		});
+
+		closeBtn.addEventListener('click', () => {
+			panel.classList.remove('is-open');
+			activeRow?.classList.remove('is-active');
+			activeRow = null;
+			activeUserId = null;
+		});
+
+		replyBtn.addEventListener('click', async () => {
+			if (!activeUserId) return;
+			const text = replyInput.value.trim();
+			if (!text) return;
+			replyBtn.disabled = true;
+			replyStatus.textContent = 'Sending…';
+			try {
+				const res  = await fetch('/api/admin/support', {
+					method:  'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body:    JSON.stringify({ userId: activeUserId, body: text }),
+				});
+				const data = await res.json();
+				if (!data.ok) throw new Error(data.error ?? 'Send failed');
+				replyInput.value = '';
+				replyStatus.textContent = '';
+				// Refresh messages
+				const msgs = await loadThread(activeUserId);
+				renderMessages(msgs);
+			} catch (err: any) {
+				replyStatus.textContent = err?.message ?? 'Failed to send.';
+			} finally {
+				replyBtn.disabled = false;
+			}
+		});
+
+		// Send on Cmd/Ctrl+Enter
+		replyInput.addEventListener('keydown', (e) => {
+			if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') replyBtn.click();
+		});
+	</script>
+</body>
+</html>
