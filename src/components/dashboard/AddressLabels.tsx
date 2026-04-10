@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 export type AddressLabel = {
 	id: string;
@@ -78,14 +78,64 @@ function CopyButton({ text }: { text: string }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function AddressLabels({ labels: initial }: Props) {
-	const [labels,    setLabels]    = useState<AddressLabel[]>(initial);
-	const [address,   setAddress]   = useState('');
-	const [labelText, setLabelText] = useState('');
-	const [status,    setStatus]    = useState<string | null>(null);
-	const [saving,    setSaving]    = useState(false);
-	const [category,  setCategory]  = useState('counterparty');
-	const [chain,     setChain]     = useState('');
-	const [notes,     setNotes]     = useState('');
+	const [labels,       setLabels]       = useState<AddressLabel[]>(initial);
+	const [address,      setAddress]      = useState('');
+	const [labelText,    setLabelText]    = useState('');
+	const [status,       setStatus]       = useState<string | null>(null);
+	const [saving,       setSaving]       = useState(false);
+	const [category,     setCategory]     = useState('counterparty');
+	const [chain,        setChain]        = useState('');
+	const [notes,        setNotes]        = useState('');
+	const [scanning,     setScanning]     = useState(false);
+	const [scanResult,   setScanResult]   = useState<string | null>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	async function handleScanUpload(e: React.ChangeEvent<HTMLInputElement>) {
+		const file = e.target.files?.[0];
+		if (!file) return;
+
+		// Reset so the same file can be picked again
+		e.target.value = '';
+
+		setScanning(true);
+		setScanResult(null);
+		setStatus('Scanning image…');
+
+		try {
+			const form = new FormData();
+			form.append('image', file);
+
+			const res  = await fetch('/api/extract-address', { method: 'POST', body: form });
+			const data = await res.json() as { addresses?: string[]; error?: boolean; message?: string };
+
+			if (!res.ok || data.error) {
+				setStatus(`Scan failed: ${data.message ?? 'Unknown error'}`);
+				setScanning(false);
+				return;
+			}
+
+			const found = data.addresses ?? [];
+			if (found.length === 0) {
+				setStatus('No wallet address found in that image. Try a clearer crop.');
+				setScanning(false);
+				return;
+			}
+
+			// Pre-fill with the first address; if multiple, show a picker
+			setAddress(found[0]);
+			if (found.length === 1) {
+				setScanResult(`✓ Found: ${found[0]}`);
+				setStatus(null);
+			} else {
+				setScanResult(`Found ${found.length} addresses — first one pre-filled. Check the field.`);
+				setStatus(null);
+			}
+		} catch (err: unknown) {
+			setStatus('Scan error: ' + (err instanceof Error ? err.message : 'Unknown'));
+		}
+
+		setScanning(false);
+	}
 
 	async function handleAdd() {
 		const addr = address.replace(/\s+/g, '');
@@ -156,21 +206,79 @@ export function AddressLabels({ labels: initial }: Props) {
 				padding: '1.25rem 1.35rem',
 			}}>
 				<div style={{
-					fontSize: '0.72rem',
-					fontWeight: 700,
-					letterSpacing: '0.1em',
-					textTransform: 'uppercase',
-					opacity: 0.4,
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'space-between',
 					marginBottom: '0.85rem',
+					flexWrap: 'wrap',
+					gap: '0.5rem',
 				}}>
-					Tag an address
+					<span style={{
+						fontSize: '0.72rem',
+						fontWeight: 700,
+						letterSpacing: '0.1em',
+						textTransform: 'uppercase',
+						opacity: 0.4,
+					}}>
+						Tag an address
+					</span>
+
+					{/* Hidden file input */}
+					<input
+						ref={fileInputRef}
+						type="file"
+						accept="image/*"
+						style={{ display: 'none' }}
+						onChange={handleScanUpload}
+					/>
+
+					{/* Scan screenshot button */}
+					<button
+						type="button"
+						onClick={() => fileInputRef.current?.click()}
+						disabled={scanning}
+						title="Upload a screenshot — Claude will read the wallet address for you"
+						style={{
+							display: 'flex',
+							alignItems: 'center',
+							gap: '0.4rem',
+							padding: '0.35rem 0.85rem',
+							borderRadius: '8px',
+							border: '1px solid rgba(167,139,250,0.35)',
+							background: scanning ? 'rgba(167,139,250,0.06)' : 'rgba(167,139,250,0.12)',
+							color: scanning ? 'rgba(167,139,250,0.4)' : '#c4b5fd',
+							fontWeight: 700,
+							fontSize: '0.78rem',
+							cursor: scanning ? 'not-allowed' : 'pointer',
+							whiteSpace: 'nowrap',
+							transition: 'background 0.15s',
+						}}
+					>
+						{scanning ? '⏳ Scanning…' : '📷 Scan Screenshot'}
+					</button>
 				</div>
+
+				{/* Scan result banner */}
+				{scanResult && (
+					<div style={{
+						fontSize: '0.78rem',
+						color: '#4ade80',
+						background: 'rgba(74,222,128,0.07)',
+						border: '1px solid rgba(74,222,128,0.2)',
+						borderRadius: '7px',
+						padding: '0.45rem 0.75rem',
+						marginBottom: '0.75rem',
+					}}>
+						{scanResult}
+					</div>
+				)}
+
 				<div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
 					<input
 						type="text"
 						placeholder="Address (any network)"
 						value={address}
-						onChange={e => setAddress(e.target.value)}
+						onChange={e => { setAddress(e.target.value); setScanResult(null); }}
 						onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
 						style={inputStyle}
 					/>
