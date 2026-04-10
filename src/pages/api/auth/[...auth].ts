@@ -324,7 +324,13 @@ const ensureAbsoluteUrl = (request: Request) => {
 };
 
 const buildAuthRequest = (request: Request) => {
-	const url = ensureAbsoluteUrl(request);
+	const rawUrl = ensureAbsoluteUrl(request);
+	// GitHub recently added an `iss` parameter to their OAuth callback response.
+	// oauth4webapi (used internally by @auth/core) rejects it as unexpected for
+	// non-OIDC providers. Strip it before Auth.js processes the request.
+	const urlObj = new URL(rawUrl);
+	urlObj.searchParams.delete('iss');
+	const url = urlObj.toString();
 	const init: RequestInit = {
 		method: request.method,
 		headers: request.headers,
