@@ -158,7 +158,7 @@ const memberSinceDisplay = memberSinceIso
 					? <a class="dashboard-link" href="/admin">Admin Dashboard</a>
 					: <a class="dashboard-link" href={currentPath}>{
 						currentPath.includes('/bookkeeping') ? 'Bookkeeping' :
-						currentPath.includes('/wallets')     ? 'Wallets' :
+						currentPath.includes('/wallets')     ? 'Addresses' :
 						currentPath.includes('/research')    ? 'Research' :
 						currentPath.includes('/billing')     ? 'Billing' :
 						currentPath.includes('/wallet-checker') ? 'Scam Checker' :
@@ -170,7 +170,7 @@ const memberSinceDisplay = memberSinceIso
 				<nav>
 					<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>Bookkeeping</a>
 					<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
-					<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>Wallets</a>
+					<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>Addresses</a>
 					<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>
 					<a href="/dashboard/research" class={`nav-link ${isActive('/dashboard/research') ? 'active' : ''}`}>Research</a>
 				{isAdmin && (
