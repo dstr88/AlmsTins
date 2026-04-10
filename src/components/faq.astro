@@ -84,6 +84,9 @@
       <button class="faq-question" type="button" data-modal="faq-address-labels">
         How does the Address Book work?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-recognized-tokens">
+        Which tokens are automatically priced and recognized?
+      </button>
       <button class="faq-question" type="button" data-modal="faq-health-alerts">
         How do Aave health factor alerts work?
       </button>
@@ -949,6 +952,54 @@
           <li>If 5 users later agree on a different name, the global label is corrected automatically.</li>
           <li>Your personal label always takes priority over a community label if they disagree.</li>
         </ul>
+      </div>
+    </div>
+
+    <div class="modal-overlay welcome-modal" id="faq-recognized-tokens">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Which tokens are automatically priced and recognized?</h1>
+
+        <p>
+          Almstins maintains a list of known, verified tokens. Tokens on this list get a live price, show up correctly in your Vault and Bookkeeping pages, and are never flagged as potential spam — regardless of which wallet they appear in.
+        </p>
+
+        <p><strong>Currently recognized tokens:</strong></p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem; columns: 2;">
+          <li><strong>BTC</strong> — Bitcoin</li>
+          <li><strong>ETH</strong> — Ethereum</li>
+          <li><strong>WETH</strong> — Wrapped Ether</li>
+          <li><strong>WBTC</strong> — Wrapped Bitcoin</li>
+          <li><strong>USDC</strong> — USD Coin</li>
+          <li><strong>USDT</strong> — Tether</li>
+          <li><strong>SOL</strong> — Solana</li>
+          <li><strong>BNB</strong> — BNB</li>
+          <li><strong>XRP</strong> — XRP</li>
+          <li><strong>ADA</strong> — Cardano</li>
+          <li><strong>LINK</strong> — Chainlink</li>
+          <li><strong>XLM</strong> — Stellar</li>
+          <li><strong>ZEC</strong> — Zcash</li>
+          <li><strong>SUI</strong> — Sui</li>
+          <li><strong>AVAX</strong> — Avalanche</li>
+          <li><strong>WAVAX</strong> — Wrapped AVAX</li>
+          <li><strong>SAVAX</strong> — Staked AVAX</li>
+          <li><strong>POL / MATIC</strong> — Polygon</li>
+          <li><strong>AAVE</strong> — Aave</li>
+          <li><strong>ARB</strong> — Arbitrum</li>
+          <li><strong>STETH</strong> — Lido Staked ETH</li>
+          <li><strong>WSTETH</strong> — Wrapped stETH</li>
+          <li><strong>QUICK</strong> — QuickSwap</li>
+        </ul>
+
+        <p>
+          Wrapped and bridged variants (WETH, WBTC, WAVAX, etc.) are automatically mapped to their underlying asset for pricing — so your wrapped tokens show the correct market value without any manual setup.
+        </p>
+
+        <p style="background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.2); border-radius: 10px; padding: 0.9rem 1rem; margin-top: 0.5rem;">
+          <strong>Don't see your token?</strong> Any token not on this list will show as unpriced in your Vault. This is intentional — unverified contracts are a common vector for spam airdrops. If you hold a legitimate token that's missing, use the <em>Flag for Support</em> option and it will be reviewed for addition.
+        </p>
       </div>
     </div>
 
