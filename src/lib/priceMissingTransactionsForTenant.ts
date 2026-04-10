@@ -121,6 +121,7 @@ const normalizeSymbol = (symbolRaw: string, chain?: string | null) => {
       'DAI',
       'LINK',
       'AAVE',
+      'ARB',
       'POL',
       'AVAX',
     ]);

@@ -787,6 +787,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		'USDC',
 		'USDT',
 		'AAVE',
+		'ARB',
 		'STETH',
 		'WSTETH',
 		'QUICK',
