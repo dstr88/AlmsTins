@@ -49,7 +49,10 @@ export const GET: APIRoute = async ({ request, url }) => {
                t.chain             AS chain,
                -- Wallet label: match the user's wallet address to either side
                w.label             AS wallet_label,
-               w.address           AS wallet_address
+               w.address           AS wallet_address,
+               -- Resolved labels: personal first, fall back to global
+               COALESCE(pal_from.label, gal_from.label) AS from_label,
+               COALESCE(pal_to.label,   gal_to.label)   AS to_label
              FROM asset_lifecycle_events e
              LEFT JOIN transactions t
                ON e.source_id = t.id
@@ -60,6 +63,20 @@ export const GET: APIRoute = async ({ request, url }) => {
                  LOWER(w.address) = LOWER(t.from_address)
                  OR LOWER(w.address) = LOWER(t.to_address)
                )
+             -- Personal label for from_address
+             LEFT JOIN address_labels pal_from
+               ON pal_from.tenant_id = e.tenant_id
+               AND LOWER(pal_from.address) = LOWER(t.from_address)
+             -- Global label for from_address
+             LEFT JOIN global_address_labels gal_from
+               ON LOWER(gal_from.address) = LOWER(t.from_address)
+             -- Personal label for to_address
+             LEFT JOIN address_labels pal_to
+               ON pal_to.tenant_id = e.tenant_id
+               AND LOWER(pal_to.address) = LOWER(t.to_address)
+             -- Global label for to_address
+             LEFT JOIN global_address_labels gal_to
+               ON LOWER(gal_to.address) = LOWER(t.to_address)
              WHERE e.tenant_id = ?
                AND e.group_id = ?
              ORDER BY e.timestamp_utc ASC`,
@@ -80,6 +97,8 @@ export const GET: APIRoute = async ({ request, url }) => {
       chain: toStrOrNull(r.chain),
       wallet_label: toStrOrNull(r.wallet_label),
       wallet_address: toStrOrNull(r.wallet_address),
+      from_label: toStrOrNull(r.from_label),
+      to_label: toStrOrNull(r.to_label),
     }));
 
     return new Response(JSON.stringify(events), {

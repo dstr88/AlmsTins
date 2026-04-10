@@ -33,6 +33,8 @@ interface HistoryEvent {
   chain: string | null;
   wallet_label: string | null;
   wallet_address: string | null;
+  from_label: string | null;
+  to_label: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1072,7 +1074,17 @@ function AccumulationRow({ group }: { group: AccumulationGroup }) {
   );
 }
 
-function AddrRow({ label, address, chain }: { label: string; address: string; chain?: string | null }) {
+function AddrRow({
+  label,
+  address,
+  chain,
+  addressLabel,
+}: {
+  label: string;
+  address: string;
+  chain?: string | null;
+  addressLabel?: string | null;
+}) {
   const url = chain === 'avalanche'
     ? `https://snowtrace.io/address/${address}`
     : chain === 'polygon'
@@ -1081,10 +1093,18 @@ function AddrRow({ label, address, chain }: { label: string; address: string; ch
     ? `https://bscscan.com/address/${address}`
     : `https://etherscan.io/address/${address}`;
   return (
-    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.73rem' }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.73rem', flexWrap: 'wrap' }}>
       <span style={{ opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem', flexShrink: 0 }}>{label}</span>
+      {addressLabel && (
+        <span style={{ color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>{addressLabel}</span>
+      )}
       <a href={url} target="_blank" rel="noopener noreferrer"
-        style={{ color: 'rgba(96,165,250,0.8)', textDecoration: 'none', fontFamily: 'monospace' }}>
+        style={{
+          color: addressLabel ? 'rgba(167,139,250,0.5)' : 'rgba(96,165,250,0.8)',
+          textDecoration: 'none',
+          fontFamily: 'monospace',
+          fontSize: addressLabel ? '0.66rem' : '0.73rem',
+        }}>
         {truncateHash(address)} ↗
       </a>
       <CopyButton text={address} />
@@ -1161,6 +1181,7 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
               label={isIn ? 'from' : 'to'}
               address={counterparty}
               chain={evt.chain}
+              addressLabel={isIn ? evt.from_label : evt.to_label}
             />
           )}
           {evt.chain && (
