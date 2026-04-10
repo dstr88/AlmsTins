@@ -82,7 +82,7 @@
         If an exchange sends crypto from an address, does that address belong to me?
       </button>
       <button class="faq-question" type="button" data-modal="faq-address-labels">
-        How does address labeling work?
+        How does the Address Book work?
       </button>
       <button class="faq-question" type="button" data-modal="faq-health-alerts">
         How do Aave health factor alerts work?
@@ -907,30 +907,48 @@
       <div class="modal-content">
         <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
 
-        <h1>How does address labeling work?</h1>
+        <h1>How does the Address Book work?</h1>
 
         <p>
-          There are two kinds of addresses in Almstins: wallets you own (tracked in the Vault), and addresses that belong to exchanges, services, or other people that simply appear in your transaction history. The <strong>Address Labels</strong> section on the Wallets page is for the second kind — giving a name to an address without adding it to your Vault.
+          When money moves on a blockchain, it moves between addresses — long strings of letters and numbers like <code style="font-size: 0.82em; background: rgba(255,255,255,0.08); padding: 0.1rem 0.35rem; border-radius: 4px;">0x794a61…</code>. By themselves those addresses mean nothing. The Address Book is how you turn them into names like <strong>"Aave V3 Pool · Ethereum"</strong> or <strong>"Crypto.com Deposit"</strong> — so that everywhere an address appears in your history, you see a name instead.
         </p>
 
         <p>
-          <strong>Your personal labels</strong> are private to your account. If you tag an address as "Venmo LTC pool," that label shows up whenever that address appears in your history — in the Research page lookup, in transaction details, and anywhere the address is referenced.
+          The Address Book lives on the <strong>Wallets</strong> page. These are <em>not</em> wallets you own — they are counterparties: exchanges, DeFi protocols, bridges, or other people's wallets that show up in your transaction history.
         </p>
 
-        <p>
-          <strong>Community labels</strong> work automatically in the background:
-        </p>
+        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">How the book gets populated</h2>
+
+        <p>There are three ways an address ends up labeled:</p>
 
         <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
-          <li>Every time you save an address label, a silent vote is recorded. There is no UI for this — it just happens.</li>
-          <li>When 3 users independently label the same address with the same name, it becomes a <strong>global community label</strong> visible to everyone.</li>
-          <li>If 5 users later label the same address differently, the community label is updated to reflect the correction.</li>
-          <li>Your personal label always takes priority over a community label if they disagree.</li>
+          <li><strong>Pre-seeded contracts</strong> — well-known DeFi protocol addresses (Aave V3 on Ethereum, Polygon, and Avalanche) come pre-labeled. You do not need to add these yourself.</li>
+          <li><strong>Manual entry</strong> — type or paste an address, give it a name, pick a category (Exchange, DeFi Protocol, Personal Wallet, Bridge, etc.) and optionally a chain. Hit Save.</li>
+          <li><strong>📷 Scan Screenshot</strong> — some exchanges (like Crypto.com) don't let you copy wallet addresses. Take a screenshot of the address on your phone or desktop, upload it with the Scan Screenshot button, and Claude Vision reads the address out of the image and pre-fills the form for you automatically.</li>
         </ul>
 
+        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">How it connects to mystery transactions</h2>
+
         <p>
-          <strong>On the Research page</strong>, when you look up an address the panel shows two copy buttons — one for the address itself, one for its label — so you can grab either with one click. Community labels are marked with a 🌐 badge so you know the name came from other users rather than your own tagging.
+          Every transaction in your history has a <strong>from address</strong> and a <strong>to address</strong>. When one of those addresses is in your Address Book, Almstins shows the name instead of raw hex — in the transaction drawer, in the Needs Attention panel, and anywhere addresses appear in your history.
         </p>
+
+        <p>
+          This is especially useful for <strong>Needs Attention</strong> items — transactions that couldn't be automatically classified. If the counterparty address is labeled "Aave V3 Pool · Polygon," you immediately know this was a DeFi deposit or withdrawal rather than a mysterious unknown transfer. That context helps you decide the right classification quickly.
+        </p>
+
+        <p style="background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.2); border-radius: 10px; padding: 0.9rem 1rem; margin-top: 0.5rem;">
+          <strong>Tip:</strong> The more addresses you label, the fewer mystery transactions you will have. Start with your exchange deposit addresses — those are the most common source of unresolved transfers.
+        </p>
+
+        <h2 style="font-size: 1rem; margin: 1.25rem 0 0.5rem;">Community labels</h2>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li>Every time you save a label, a silent community vote is recorded in the background.</li>
+          <li>When 3 users independently label the same address the same way, it becomes a <strong>global label</strong> visible to everyone on the platform.</li>
+          <li>If 5 users later agree on a different name, the global label is corrected automatically.</li>
+          <li>Your personal label always takes priority over a community label if they disagree.</li>
+        </ul>
       </div>
     </div>
 

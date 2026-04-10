@@ -7,6 +7,7 @@ import ReconciliationTin from '../../components/bookkeeping/ReconciliationTin';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { buildAnnualBreakdown } from '../../lib/annualBreakdown';
 import { getActivePlan } from '../../lib/subscriptions';
+import { db } from '../../lib/db';
 
 const { tenantId } = await requireTenantSession(Astro.request);
 
@@ -21,6 +22,39 @@ const yearParam   = Astro.url.searchParams.get('year');
 const selectedYear = yearParam ? Number(yearParam) : defaultYear;
 
 const bd = await buildAnnualBreakdown(tenantId, selectedYear);
+
+// ── Counterparty labels for Needs Attention items ────────────────────────────
+// For each mystery transaction, look up the to_address in address_labels and
+// global_address_labels so we can show a human name directly on the row.
+const attentionLabels = new Map<string, string>();
+{
+  const sourceIds = bd.needsAttention.map(i => i.sourceId).filter(Boolean);
+  if (sourceIds.length > 0) {
+    const placeholders = sourceIds.map(() => '?').join(', ');
+    try {
+      const result = await db.execute({
+        sql: `SELECT t.id,
+                     COALESCE(pal.label, gal.label) AS counterparty_label
+              FROM transactions t
+              LEFT JOIN address_labels pal
+                ON pal.tenant_id = ?
+                AND LOWER(pal.address) = LOWER(t.to_address)
+              LEFT JOIN global_address_labels gal
+                ON LOWER(gal.address) = LOWER(t.to_address)
+              WHERE t.id IN (${placeholders})
+                AND (pal.label IS NOT NULL OR gal.label IS NOT NULL)`,
+        args: [tenantId, ...sourceIds],
+      });
+      for (const row of result.rows as { id: unknown; counterparty_label: unknown }[]) {
+        if (row.counterparty_label && row.id) {
+          attentionLabels.set(String(row.id), String(row.counterparty_label));
+        }
+      }
+    } catch (e) {
+      console.warn('[bookkeeping] counterparty label lookup failed', e);
+    }
+  }
+}
 
 // ── Formatters ──────────────────────────────────────────────────────────────
 const fDate = (iso: string | null) => {
@@ -147,6 +181,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                 const isRound = item.amount >= 100 && item.amount === Math.floor(item.amount);
                 const scamLikely = isOther && isRound;
                 const scamPossible = isOther && !isRound;
+                const counterpartyLabel = attentionLabels.get(item.sourceId) ?? null;
                 return (
                   <div
                     class={`tin-row tin-row--alert${scamLikely ? ' tin-row--scam' : ''}`}
@@ -166,7 +201,10 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                     <span class="tin-row__qty">{fQty(item.amount)}</span>
                     <span class="tin-row__date">{fDate(item.sellDate)}</span>
                     <span class="tin-row__usd">{fUsd(item.proceedsUsd)}</span>
-                    <span class="tin-row__note">{scamLikely ? 'Unrecognised · round amount' : scamPossible ? 'Unrecognised transfer' : 'No purchase found'}</span>
+                    {counterpartyLabel
+                      ? <span class="tin-row__note tin-row__note--labeled">→ {counterpartyLabel}</span>
+                      : <span class="tin-row__note">{scamLikely ? 'Unrecognised · round amount' : scamPossible ? 'Unrecognised transfer' : 'No purchase found'}</span>
+                    }
                     <span class="tin-row__cta">Details →</span>
                   </div>
                 );
@@ -781,6 +819,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
     .tin-row__usd    { font-variant-numeric: tabular-nums; }
     .tin-row__gain   { font-weight: 700; font-size: 0.9rem; margin-left: auto; }
     .tin-row__note   { font-size: 0.75rem; opacity: 0.45; font-style: italic; }
+    .tin-row__note--labeled { opacity: 1; font-style: normal; color: #a78bfa; font-weight: 600; }
     .tin-row__kind   { font-size: 0.75rem; opacity: 0.55; }
     .tin-row__term   { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
 
