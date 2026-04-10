@@ -639,7 +639,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 													</span>
 													<span
 														className="wallet-summary__cell wallet-summary__cell--pl"
-														style={{ color: plColor, opacity: 1 }}
+														style={{ color: plColor }}
 														title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
 													>
 														{plLabel}
@@ -798,7 +798,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 													</span>
 													<span
 														className="wallet-summary__cell wallet-summary__cell--pl"
-														style={{ color: plColor, opacity: 1 }}
+														style={{ color: plColor }}
 														title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
 													>
 														{plLabel}
