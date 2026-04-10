@@ -28,6 +28,11 @@ interface HistoryEvent {
   tx_hash: string | null;
   transaction_class: string;
   source_type: string;
+  from_address: string | null;
+  to_address: string | null;
+  chain: string | null;
+  wallet_label: string | null;
+  wallet_address: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -730,9 +735,13 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 
             {!historyLoading && history.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {history.map((evt, idx) => (
-                  <HistoryRow key={evt.id || idx} evt={evt} />
-                ))}
+                {buildDisplayRows(history).map((row, idx) =>
+                  row.type === 'accumulation' ? (
+                    <AccumulationRow key={`acc-${idx}`} group={row} />
+                  ) : (
+                    <HistoryRow key={row.evt.id || idx} evt={row.evt} />
+                  )
+                )}
               </div>
             )}
           </section>
@@ -948,80 +957,231 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
+// ─── History grouping ─────────────────────────────────────────────────────────
+
+type AccumulationGroup = {
+  type: 'accumulation';
+  events: HistoryEvent[];
+  firstDate: string;
+  lastDate: string;
+  totalAmount: number;
+  totalUsd: number | null;
+  count: number;
+};
+
+type DisplayRow =
+  | AccumulationGroup
+  | { type: 'event'; evt: HistoryEvent };
+
+/**
+ * Group consecutive IN events into a single AccumulationRow.
+ * OUT events are always shown individually — they're the taxable events.
+ */
+function buildDisplayRows(events: HistoryEvent[]): DisplayRow[] {
+  const rows: DisplayRow[] = [];
+  let inBucket: HistoryEvent[] = [];
+
+  const flushBucket = () => {
+    if (inBucket.length === 0) return;
+    if (inBucket.length === 1) {
+      // Single buy — still show as accumulation for consistency
+    }
+    const totalAmount = inBucket.reduce((s, e) => s + (e.amount ?? 0), 0);
+    const totalUsd = inBucket.some(e => e.native_usd != null)
+      ? inBucket.reduce((s, e) => s + (e.native_usd ?? 0), 0)
+      : null;
+    rows.push({
+      type: 'accumulation',
+      events: [...inBucket],
+      firstDate: inBucket[0].timestamp_utc,
+      lastDate: inBucket[inBucket.length - 1].timestamp_utc,
+      totalAmount,
+      totalUsd,
+      count: inBucket.length,
+    });
+    inBucket = [];
+  };
+
+  for (const evt of events) {
+    if (evt.direction === 'in') {
+      inBucket.push(evt);
+    } else {
+      flushBucket();
+      rows.push({ type: 'event', evt });
+    }
+  }
+  flushBucket();
+  return rows;
+}
+
+function fMonthYear(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  } catch { return iso; }
+}
+
+function AccumulationRow({ group }: { group: AccumulationGroup }) {
+  const sameDay = group.firstDate.slice(0, 10) === group.lastDate.slice(0, 10);
+  const dateRange = sameDay
+    ? fDate(group.firstDate)
+    : `${fMonthYear(group.firstDate)} – ${fMonthYear(group.lastDate)}`;
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0.25rem',
+      padding: '0.6rem 0.75rem',
+      borderRadius: '7px',
+      background: 'rgba(74,222,128,0.05)',
+      borderLeft: '3px solid rgba(74,222,128,0.3)',
+      fontSize: '0.83rem',
+    }}>
+      {/* Line 1: badge + date range */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+        <span style={{
+          fontWeight: 700, fontSize: '0.72rem', color: '#4ade80',
+          letterSpacing: '0.06em', minWidth: '2.5rem',
+        }}>
+          IN
+        </span>
+        <span style={{ color: '#4ade80', fontWeight: 600 }}>
+          {group.count > 1 ? 'Accumulated' : 'Purchased'}
+        </span>
+        <span style={{ opacity: 0.55, fontSize: '0.78rem' }}>{dateRange}</span>
+        {group.count > 1 && (
+          <span style={{ opacity: 0.35, fontSize: '0.72rem', marginLeft: 'auto', fontStyle: 'italic' }}>
+            {group.count} transactions
+          </span>
+        )}
+      </div>
+      {/* Line 2: total tokens + total cost */}
+      <div style={{ paddingLeft: '3.25rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ opacity: 0.45, fontSize: '0.72rem', marginRight: '0.3rem' }}>total</span>
+          {fQty(group.totalAmount)} tokens
+        </span>
+        {group.totalUsd != null && (
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ opacity: 0.45, fontSize: '0.72rem', marginRight: '0.3rem' }}>cost</span>
+            {fUsd(group.totalUsd)}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddrRow({ label, address, chain }: { label: string; address: string; chain?: string | null }) {
+  const url = chain === 'avalanche'
+    ? `https://snowtrace.io/address/${address}`
+    : chain === 'polygon'
+    ? `https://polygonscan.com/address/${address}`
+    : chain === 'bsc'
+    ? `https://bscscan.com/address/${address}`
+    : `https://etherscan.io/address/${address}`;
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.73rem' }}>
+      <span style={{ opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem', flexShrink: 0 }}>{label}</span>
+      <a href={url} target="_blank" rel="noopener noreferrer"
+        style={{ color: 'rgba(96,165,250,0.8)', textDecoration: 'none', fontFamily: 'monospace' }}>
+        {truncateHash(address)} ↗
+      </a>
+      <CopyButton text={address} />
+    </span>
+  );
+}
+
 function HistoryRow({ evt }: { evt: HistoryEvent }) {
   const isIn = evt.direction === 'in';
   const dirColor = isIn ? '#4ade80' : '#f87171';
   const dirLabel = isIn ? 'IN' : 'OUT';
 
+  // Determine which side is "my wallet" vs "counterparty"
+  const myAddr = evt.wallet_address?.toLowerCase();
+  const fromIsMe = myAddr && evt.from_address?.toLowerCase() === myAddr;
+  const toIsMe   = myAddr && evt.to_address?.toLowerCase()   === myAddr;
+
+  const walletName = evt.wallet_label || (evt.wallet_address ? truncateHash(evt.wallet_address) : null);
+  const counterparty = isIn ? evt.from_address : evt.to_address;
+  const myWalletAddr = isIn ? evt.to_address : evt.from_address;
+
   return (
     <div
       style={{
         display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: '0.4rem 0.75rem',
-        padding: '0.55rem 0.75rem',
+        flexDirection: 'column',
+        gap: '0.35rem',
+        padding: '0.6rem 0.75rem',
         borderRadius: '7px',
         background: 'rgba(255,255,255,0.04)',
         borderLeft: `3px solid ${dirColor}40`,
         fontSize: '0.83rem',
       }}
     >
-      <span
-        style={{
-          fontWeight: 700,
-          fontSize: '0.72rem',
-          color: dirColor,
-          letterSpacing: '0.06em',
-          minWidth: '2.5rem',
-        }}
-      >
-        {dirLabel}
-      </span>
-
-      <span style={{ opacity: 0.55, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-        {fDateTime(evt.timestamp_utc)}
-      </span>
-
-      {evt.amount != null && (
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fQty(evt.amount)}</span>
-      )}
-
-      {evt.native_usd != null && (
-        <span style={{ opacity: 0.7, fontVariantNumeric: 'tabular-nums' }}>
-          {fUsd(evt.native_usd)}
+      {/* Row 1: direction · date · amount · USD · class */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem 0.75rem' }}>
+        <span style={{ fontWeight: 700, fontSize: '0.72rem', color: dirColor, letterSpacing: '0.06em', minWidth: '2.5rem' }}>
+          {dirLabel}
         </span>
+        <span style={{ opacity: 0.55, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+          {fDateTime(evt.timestamp_utc)}
+        </span>
+        {evt.amount != null && (
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fQty(evt.amount)}</span>
+        )}
+        {evt.native_usd != null && (
+          <span style={{ opacity: 0.7, fontVariantNumeric: 'tabular-nums' }}>{fUsd(evt.native_usd)}</span>
+        )}
+        <span style={{ fontSize: '0.72rem', opacity: 0.4, marginLeft: 'auto', fontStyle: 'italic' }}>
+          {evt.transaction_class.replace(/_/g, ' ')}
+        </span>
+      </div>
+
+      {/* Row 2: wallet (source) → destination */}
+      {(myWalletAddr || counterparty) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', paddingLeft: '3.25rem' }}>
+          {myWalletAddr && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.73rem' }}>
+              <span style={{ opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem', flexShrink: 0 }}>
+                {isIn ? 'to wallet' : 'from wallet'}
+              </span>
+              {walletName && (
+                <span style={{ color: '#fbbf24', fontWeight: 600, marginRight: '0.2rem' }}>{walletName}</span>
+              )}
+              <a href={`https://etherscan.io/address/${myWalletAddr}`} target="_blank" rel="noopener noreferrer"
+                style={{ color: 'rgba(96,165,250,0.8)', textDecoration: 'none', fontFamily: 'monospace' }}>
+                {truncateHash(myWalletAddr)} ↗
+              </a>
+              <CopyButton text={myWalletAddr} />
+            </span>
+          )}
+          {counterparty && (
+            <AddrRow
+              label={isIn ? 'from' : 'to'}
+              address={counterparty}
+              chain={evt.chain}
+            />
+          )}
+          {evt.chain && (
+            <span style={{ fontSize: '0.65rem', opacity: 0.35, textTransform: 'uppercase', letterSpacing: '0.05em', paddingLeft: '0' }}>
+              {evt.chain}
+            </span>
+          )}
+        </div>
       )}
 
-      <span
-        style={{
-          fontSize: '0.72rem',
-          opacity: 0.4,
-          marginLeft: 'auto',
-          fontStyle: 'italic',
-        }}
-      >
-        {evt.transaction_class.replace(/_/g, ' ')}
-      </span>
-
+      {/* Row 3: tx hash */}
       {evt.tx_hash && (
-        <span style={{ width: '100%', fontSize: '0.73rem', paddingLeft: '3.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          <span style={{ opacity: 0.35, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
-            {hashType(evt.tx_hash) === 'evm-address' ? 'wallet' : 'tx'}
-          </span>
+        <span style={{ fontSize: '0.73rem', paddingLeft: '3.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ opacity: 0.35, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>tx</span>
           {explorerUrl(evt.tx_hash) ? (
-            <a
-              href={explorerUrl(evt.tx_hash)}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: 'rgba(96,165,250,0.8)', textDecoration: 'none', fontFamily: 'monospace' }}
-            >
+            <a href={explorerUrl(evt.tx_hash)} target="_blank" rel="noopener noreferrer"
+              style={{ color: 'rgba(96,165,250,0.8)', textDecoration: 'none', fontFamily: 'monospace' }}>
               {truncateHash(evt.tx_hash)} ↗
             </a>
           ) : (
-            <span style={{ opacity: 0.4, fontFamily: 'monospace' }}>
-              {truncateHash(evt.tx_hash)}
-            </span>
+            <span style={{ opacity: 0.4, fontFamily: 'monospace' }}>{truncateHash(evt.tx_hash)}</span>
           )}
           <CopyButton text={evt.tx_hash} />
         </span>
