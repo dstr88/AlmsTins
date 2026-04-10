@@ -181,6 +181,93 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       </div>
     </section>
 
+    <!-- Wallet approvals / connections section -->
+    <section class="approvals-section" aria-labelledby="approvals-heading">
+      <h2 id="approvals-heading" class="approvals__title">Is your wallet connected to something it shouldn't be?</h2>
+      <p class="approvals__intro">
+        Every time you connect MetaMask (or any wallet) to a dApp and approve a transaction, you're granting that
+        contract permission to move tokens on your behalf — sometimes with no spending limit and no expiry date.
+        These approvals stay active even after you stop using the site. A compromised or malicious dApp can
+        drain your wallet months later using a permission you forgot you gave.
+      </p>
+
+      <div class="approvals__cards">
+        <div class="approvals__card approvals__card--what">
+          <h3>⚠️ What an approval actually means</h3>
+          <p>
+            When you click "Approve" on a token swap or NFT mint, you're signing a smart contract call that says
+            <em>"this contract can spend X amount of my tokens."</em> Many dApps default to
+            <strong>unlimited approval</strong> — meaning they can take everything you have of that token, any time,
+            forever, until you revoke it.
+          </p>
+          <p>
+            If that dApp is later exploited, rug-pulled, or turns out to have been malicious from the start,
+            the attacker can use your existing approval to empty your wallet — no second signature required.
+          </p>
+        </div>
+
+        <div class="approvals__card approvals__card--how">
+          <h3>🔍 How to see and revoke your approvals</h3>
+          <p>These free tools connect to your wallet (read-only) and show every active approval across all chains — then let you revoke the ones you don't recognize or no longer need.</p>
+          <ul class="approvals__tools">
+            <li>
+              <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer" class="tool-link">
+                <span class="tool-link__name">revoke.cash</span>
+                <span class="tool-link__badge">Most trusted</span>
+              </a>
+              <span class="tool-link__desc">The gold standard. Multi-chain, shows unlimited vs. limited approvals, one-click revoke. No account needed.</span>
+            </li>
+            <li>
+              <a href="https://debank.com" target="_blank" rel="noopener noreferrer" class="tool-link">
+                <span class="tool-link__name">debank.com</span>
+              </a>
+              <span class="tool-link__desc">Full portfolio view plus an approvals tab. Great if you also want to see your DeFi positions alongside your risk exposure.</span>
+            </li>
+            <li>
+              <a href="https://unrekt.me" target="_blank" rel="noopener noreferrer" class="tool-link">
+                <span class="tool-link__name">unrekt.me</span>
+              </a>
+              <span class="tool-link__desc">Simple and fast. Paste your address (no wallet connection required) to see approvals on Ethereum and EVM-compatible chains.</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="approvals__tips">
+        <h3 class="approvals__tips-title">Best practices</h3>
+        <div class="approvals__tips-grid">
+          <div class="approvals__tip">
+            <span class="tip-icon">✂️</span>
+            <div>
+              <strong>Revoke after every interaction</strong>
+              <p>Once you're done with a dApp, revoke its approval. There's no downside — you can re-approve the next time you use it.</p>
+            </div>
+          </div>
+          <div class="approvals__tip">
+            <span class="tip-icon">🔢</span>
+            <div>
+              <strong>Set exact amounts, not unlimited</strong>
+              <p>When approving a swap, some wallets let you set a custom amount. Always approve only what you need for that transaction.</p>
+            </div>
+          </div>
+          <div class="approvals__tip">
+            <span class="tip-icon">🗓️</span>
+            <div>
+              <strong>Audit your approvals regularly</strong>
+              <p>Run a revoke.cash check every few months — especially after any news of a DeFi exploit, since attackers often target old approvals.</p>
+            </div>
+          </div>
+          <div class="approvals__tip">
+            <span class="tip-icon">🦊</span>
+            <div>
+              <strong>Read what MetaMask is actually asking</strong>
+              <p>Before clicking Confirm, expand the transaction details. If it says "Unlimited" next to a token amount — that's a red flag worth pausing on.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- FAQ -->
     <section class="faq" aria-labelledby="faq-heading">
       <h2 id="faq-heading" class="faq__title">Common questions &amp; scam patterns</h2>
@@ -260,6 +347,90 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 </LoginLayout>
 
 <style>
+  /* ── Wallet approvals section ── */
+  .approvals-section {
+    max-width: 860px;
+    margin: 0 auto 4rem;
+    padding: 0 1.5rem;
+  }
+  .approvals__title {
+    font-size: clamp(1.3rem, 2.5vw, 1.75rem);
+    font-weight: 800; letter-spacing: -0.01em;
+    margin: 0 0 0.85rem; color: #f5f8ff;
+  }
+  .approvals__intro {
+    font-size: 0.97rem; color: rgba(255,255,255,0.55);
+    line-height: 1.75; margin: 0 0 1.75rem;
+    max-width: 740px;
+  }
+
+  .approvals__cards {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    margin-bottom: 1.75rem;
+  }
+  @media (max-width: 680px) { .approvals__cards { grid-template-columns: 1fr; } }
+
+  .approvals__card {
+    border-radius: 14px; padding: 1.5rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+  }
+  .approvals__card--what { border-color: rgba(248,113,113,0.2); background: rgba(248,113,113,0.04); }
+  .approvals__card--how  { border-color: rgba(99,102,241,0.2);  background: rgba(99,102,241,0.04); }
+
+  .approvals__card h3 {
+    font-size: 0.95rem; font-weight: 700; margin: 0 0 0.75rem; color: #f5f8ff;
+  }
+  .approvals__card p {
+    font-size: 0.85rem; color: rgba(255,255,255,0.55); line-height: 1.7; margin: 0 0 0.65rem;
+  }
+  .approvals__card p:last-child { margin-bottom: 0; }
+  .approvals__card em  { color: rgba(255,255,255,0.75); font-style: normal; }
+  .approvals__card strong { color: rgba(255,255,255,0.9); }
+
+  /* Tool list */
+  .approvals__tools {
+    list-style: none; padding: 0; margin: 0;
+    display: flex; flex-direction: column; gap: 0.85rem;
+  }
+  .approvals__tools li { display: flex; flex-direction: column; gap: 0.2rem; }
+  .tool-link {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    text-decoration: none; color: #a5b4fc; font-weight: 700; font-size: 0.9rem;
+    transition: color 0.15s;
+  }
+  .tool-link:hover { color: #c7d2fe; }
+  .tool-link__name { text-decoration: underline; text-underline-offset: 3px; }
+  .tool-link__badge {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+    background: rgba(74,222,128,0.15); color: #4ade80;
+    border: 1px solid rgba(74,222,128,0.25); border-radius: 99px;
+    padding: 0.1rem 0.45rem;
+  }
+  .tool-link__desc { font-size: 0.78rem; color: rgba(255,255,255,0.4); line-height: 1.5; }
+
+  /* Tips grid */
+  .approvals__tips {
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; padding: 1.5rem;
+  }
+  .approvals__tips-title {
+    font-size: 0.9rem; font-weight: 700; color: rgba(255,255,255,0.6);
+    text-transform: uppercase; letter-spacing: 0.07em;
+    margin: 0 0 1.1rem;
+  }
+  .approvals__tips-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+  }
+  @media (max-width: 560px) { .approvals__tips-grid { grid-template-columns: 1fr; } }
+
+  .approvals__tip {
+    display: flex; align-items: flex-start; gap: 0.7rem;
+  }
+  .tip-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 0.1rem; }
+  .approvals__tip strong { display: block; font-size: 0.85rem; color: #f5f8ff; margin-bottom: 0.25rem; }
+  .approvals__tip p { font-size: 0.78rem; color: rgba(255,255,255,0.4); line-height: 1.6; margin: 0; }
+
   /* ── Top nav ── */
   .topnav {
     position: sticky;
