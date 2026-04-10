@@ -119,7 +119,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 										<span class="tin-summary__label">Wallet value</span>
 										<span class="tin-summary__value" data-wallet-summary-value>—</span>
 									</div>
-									<WalletSummary client:only="react" walletId={wallet.id} initialData={fullData} />
+									<WalletSummary client:only="react" walletId={wallet.id} initialData={fullData} walletCreatedAt={wallet.createdAt ?? null} />
 								</SalmonTin>
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
 									<div slot="summary" class="tin-summary">

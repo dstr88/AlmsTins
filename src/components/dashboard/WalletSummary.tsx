@@ -110,6 +110,7 @@ type FullWalletSync = {
 
 type WalletSummaryProps = {
 	walletId: string;
+	walletCreatedAt?: string | null;
 	initialData?: {
 		snapshot?: FullWalletSnapshot | null;
 		sync?: FullWalletSync | null;
@@ -123,7 +124,7 @@ const formatLastSync = (value?: string | null) => {
 	return new Date(stamp).toLocaleString();
 };
 
-export default function WalletSummary({ walletId, initialData }: WalletSummaryProps) {
+export default function WalletSummary({ walletId, walletCreatedAt, initialData }: WalletSummaryProps) {
 	const [state, setState] = useState<WalletSummaryState>({ status: 'loading' });
 	const [hideSpam, setHideSpam] = useState(true);
 	const [copied, setCopied] = useState(false);
@@ -575,21 +576,25 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 										) : (
 											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help', color: 'rgba(255,255,255,0.3)' }}>—</abbr>
 										);
-										// Days held — use purchaseAt (from tx history) when available.
-										// Fall back to capturedAt only if it's genuinely old (>1 day),
-										// otherwise show '—' to avoid misleading "0 days" on fresh snapshots.
-										const acquiredAt = token.purchaseAt
-											? Date.parse(token.purchaseAt)
-											: NaN;
+										// Days held priority:
+										// 1. purchaseAt — from imported tx history (most accurate)
+										// 2. capturedAt — when snapshot was taken (updates on sync, lower bound)
+										// 3. walletCreatedAt — when wallet was added to tracking (last resort)
+										// The 1-year (365d) threshold determines short-term vs long-term gains.
+										const acquiredAt = token.purchaseAt ? Date.parse(token.purchaseAt) : NaN;
 										const capturedMs = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
+										const walletMs = walletCreatedAt ? Date.parse(walletCreatedAt) : NaN;
 										const effectiveMs = Number.isFinite(acquiredAt)
 											? acquiredAt
 											: Number.isFinite(capturedMs)
 												? capturedMs
-												: NaN;
+												: Number.isFinite(walletMs)
+													? walletMs
+													: NaN;
 										const daysHeld = Number.isFinite(effectiveMs)
 											? Math.max(0, Math.floor((Date.now() - effectiveMs) / (1000 * 60 * 60 * 24)))
 											: null;
+										const isLongTerm = daysHeld !== null && daysHeld >= 365;
 										const currentPrice = token.priceUsd ?? null;
 										const basisPrice   = token.purchasePriceUsd ?? null;
 										const plPct =
@@ -636,6 +641,20 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												<div className="wallet-summary__row-line2">
 													<span className="wallet-summary__cell wallet-summary__cell--days">
 														{daysHeld === null ? '—' : `${daysHeld}d`}
+														{daysHeld !== null && (
+															<span style={{
+																marginLeft: '0.35rem',
+																padding: '0.05rem 0.3rem',
+																borderRadius: '3px',
+																fontSize: '0.7em',
+																fontWeight: 700,
+																letterSpacing: '0.05em',
+																background: isLongTerm ? 'rgba(134,239,172,0.15)' : 'rgba(251,191,36,0.15)',
+																color: isLongTerm ? '#86efac' : '#fbbf24',
+															}}>
+																{isLongTerm ? 'LT' : 'ST'}
+															</span>
+														)}
 													</span>
 													<span
 														className="wallet-summary__cell wallet-summary__cell--pl"
@@ -734,21 +753,25 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 										) : (
 											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help', color: 'rgba(255,255,255,0.3)' }}>—</abbr>
 										);
-										// Days held — use purchaseAt (from tx history) when available.
-										// Fall back to capturedAt only if it's genuinely old (>1 day),
-										// otherwise show '—' to avoid misleading "0 days" on fresh snapshots.
-										const acquiredAt = token.purchaseAt
-											? Date.parse(token.purchaseAt)
-											: NaN;
+										// Days held priority:
+										// 1. purchaseAt — from imported tx history (most accurate)
+										// 2. capturedAt — when snapshot was taken (updates on sync, lower bound)
+										// 3. walletCreatedAt — when wallet was added to tracking (last resort)
+										// The 1-year (365d) threshold determines short-term vs long-term gains.
+										const acquiredAt = token.purchaseAt ? Date.parse(token.purchaseAt) : NaN;
 										const capturedMs = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
+										const walletMs = walletCreatedAt ? Date.parse(walletCreatedAt) : NaN;
 										const effectiveMs = Number.isFinite(acquiredAt)
 											? acquiredAt
 											: Number.isFinite(capturedMs)
 												? capturedMs
-												: NaN;
+												: Number.isFinite(walletMs)
+													? walletMs
+													: NaN;
 										const daysHeld = Number.isFinite(effectiveMs)
 											? Math.max(0, Math.floor((Date.now() - effectiveMs) / (1000 * 60 * 60 * 24)))
 											: null;
+										const isLongTerm = daysHeld !== null && daysHeld >= 365;
 										const currentPrice = token.priceUsd ?? null;
 										const basisPrice   = token.purchasePriceUsd ?? null;
 										const plPct =
@@ -795,6 +818,20 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												<div className="wallet-summary__row-line2">
 													<span className="wallet-summary__cell wallet-summary__cell--days">
 														{daysHeld === null ? '—' : `${daysHeld}d`}
+														{daysHeld !== null && (
+															<span style={{
+																marginLeft: '0.35rem',
+																padding: '0.05rem 0.3rem',
+																borderRadius: '3px',
+																fontSize: '0.7em',
+																fontWeight: 700,
+																letterSpacing: '0.05em',
+																background: isLongTerm ? 'rgba(134,239,172,0.15)' : 'rgba(251,191,36,0.15)',
+																color: isLongTerm ? '#86efac' : '#fbbf24',
+															}}>
+																{isLongTerm ? 'LT' : 'ST'}
+															</span>
+														)}
 													</span>
 													<span
 														className="wallet-summary__cell wallet-summary__cell--pl"
