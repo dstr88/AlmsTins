@@ -3,6 +3,7 @@ import Layout from "@/layouts/LoginLayout.astro";
 import { getAuthSession } from "../lib/authSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
 import Logo from "../assets/logo.jpeg";
+import DashImg from "../assets/AlmsTinspic.png";
 
 const { searchParams } = Astro.url;
 const error = searchParams.get("error");
@@ -46,17 +47,13 @@ const session = await getAuthSession(Astro.request);
 
 let csrfToken = "";
 try {
-  // Use AUTH_URL (the public domain) instead of Astro.url to avoid
-  // ECONNREFUSED when the server tries to reach itself via localhost on Render.
   const authBase = process.env.AUTH_URL
     ? (/^https?:\/\//i.test(process.env.AUTH_URL)
         ? process.env.AUTH_URL.replace(/\/$/, "")
         : `https://${process.env.AUTH_URL}`)
     : Astro.url.origin;
   const csrfResponse = await fetch(`${authBase}/api/auth/csrf`, {
-    headers: {
-      cookie: Astro.request.headers.get("cookie") ?? "",
-    },
+    headers: { cookie: Astro.request.headers.get("cookie") ?? "" },
   });
   if (csrfResponse.ok) {
     const data = await csrfResponse.json();
@@ -70,181 +67,195 @@ try {
 <Layout>
   <main class="auth-page">
     <div class="auth-shell">
-      <a class="auth-logo" href="/" aria-label="Almstins home">
-        <img src={Logo.src} width="75" height="75" alt="Almstins logo" />
-      </a>
-      <!-- LEFT: Hero + copy + FAQ -->
+
+      <!-- ── LEFT PANEL ─────────────────────────────────────────── -->
       <section class="auth-left">
 
-        <div class="welcome-copy">
-        <h1>Welcome to Almstins — Your Financial Reality, Finally in One Place.</h1>
-        <ul>
-          <li>Track crypto, DeFi, traditional investments, and liabilities in one dashboard</li>
-          <li>Real-time visibility into your net worth, performance, and risk exposure</li>
-          <li>No wallet connection required — just your public address</li>
-          <li>Encrypted database. Your data is never sold.</li>
-        </ul>
-        </div>
-      </section>
-
-      <!-- RIGHT: Sign-in panel -->
-      <section class="auth-right">
-        <div class="signin-card">
-        <header class="signin-head">
-          <h2>Sign in</h2>
-          <p>Use Google, GitHub, email + password, or a magic link.</p>
-
-          {message === "LOCKED_OUT" ? null : message ? (
-            <p class="notice">{message}</p>
-          ) : null}
-          {notice && <p class="notice success">{notice}</p>}
-          {session?.user?.id && (
-            <a class="provider-button ghost" href={safeCallbackUrl}>Continue to Dashboard</a>
-          )}
-        </header>
-
-        <div class="providers">
-          <form id="login-google" class="provider-form" method="POST" action="/api/auth/signin/google">
-            <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
-            <input type="hidden" name="csrfToken" value={csrfToken} />
-            <button class="provider-button google" type="submit" data-provider="google" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
-              <span class="provider-label">Continue with Google</span>
-              <span class="last-used-badge" data-badge="google" hidden>Last used</span>
-            </button>
-          </form>
-
-          <form id="login-github" class="provider-form" method="POST" action="/api/auth/signin/github">
-            <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
-            <input type="hidden" name="csrfToken" value={csrfToken} />
-            <button class="provider-button github" type="submit" data-provider="github" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
-              <span class="provider-label">Continue with GitHub</span>
-              <span class="last-used-badge" data-badge="github" hidden>Last used</span>
-            </button>
-          </form>
-        </div>
-
-        <a class="provider-button new-account" href="/signup">✦ New here? Create a free account</a>
-
-        <div class="demo-divider">or explore first</div>
-        <a class="provider-button demo-try" href="/api/demo/start">
-          ▶ Try the demo — no account needed
+        <!-- Wordmark -->
+        <a href="/" class="wordmark" aria-label="Almstins home">
+          <img src={Logo.src} width="44" height="44" alt="Almstins logo" class="wordmark-img" />
+          <span class="wordmark-text">Almstins</span>
         </a>
 
-        <div class="divider">or sign in</div>
+        <!-- Headline -->
+        <div class="hero-copy">
+          <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
+          <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
+        </div>
 
-        <form id="login-email-password" class="stack" method="POST" action="/api/auth/callback/credentials">
-          <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
-          <input type="hidden" name="csrfToken" value={csrfToken} />
+        <!-- Feature cards -->
+        <div class="feature-grid">
+          <div class="feature-card">
+            <span class="fc-icon">🔐</span>
+            <div>
+              <div class="fc-title">No wallet connection</div>
+              <div class="fc-desc">Read-only via public addresses. We never touch your keys.</div>
+            </div>
+          </div>
+          <div class="feature-card">
+            <span class="fc-icon">📊</span>
+            <div>
+              <div class="fc-title">Real net worth</div>
+              <div class="fc-desc">Crypto + DeFi + loans + cash — one live dashboard.</div>
+            </div>
+          </div>
+          <div class="feature-card">
+            <span class="fc-icon">🧾</span>
+            <div>
+              <div class="fc-title">Year Summary export</div>
+              <div class="fc-desc">Download realized gains and a full transaction ledger.</div>
+            </div>
+          </div>
+          <div class="feature-card">
+            <span class="fc-icon">🛡️</span>
+            <div>
+              <div class="fc-title">Encrypted & private</div>
+              <div class="fc-desc">Your data is encrypted at rest and never sold.</div>
+            </div>
+          </div>
+        </div>
 
-          <label>
-            <span>Email address</span>
-            <input type="email" name="email" placeholder="you@example.com" required />
-          </label>
+        <!-- Trust bar -->
+        <div class="trust-bar">
+          <span>✓ Free to start</span>
+          <span class="trust-dot">·</span>
+          <span>✓ No credit card</span>
+          <span class="trust-dot">·</span>
+          <span>✓ No wallet connection</span>
+        </div>
 
-          <label>
-            <span>Password</span>
-            <input type="password" name="password" minlength="10" required />
-          </label>
+        <!-- Dashboard preview -->
+        <div class="dash-preview">
+          <img src={DashImg.src} alt="Almstins dashboard preview" class="dash-img" loading="lazy" />
+          <div class="dash-preview-fade"></div>
+        </div>
 
-          <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Sign in with email</button>
-        </form>
+      </section>
 
-        <div class="divider">or magic link</div>
+      <!-- ── RIGHT PANEL ────────────────────────────────────────── -->
+      <section class="auth-right">
+        <div class="signin-card">
 
-        <form id="login-magic-link" class="stack" method="POST" action="/api/auth/signin/email">
-          <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
-          <input type="hidden" name="csrfToken" value={csrfToken} />
+          <header class="signin-head">
+            <h2>Sign in</h2>
+            <p>New here? <a href="/signup" class="inline-link">Create a free account →</a></p>
+            {message === "LOCKED_OUT" ? null : message ? (
+              <p class="notice">{message}</p>
+            ) : null}
+            {notice && <p class="notice success">{notice}</p>}
+            {session?.user?.id && (
+              <a class="provider-button ghost" href={safeCallbackUrl}>Continue to Dashboard</a>
+            )}
+          </header>
 
-          <label>
-            <span>Email address</span>
-            <input type="email" name="email" placeholder="you@example.com" required />
-          </label>
+          <!-- Primary providers -->
+          <div class="providers">
+            <form id="login-google" class="provider-form" method="POST" action="/api/auth/signin/google">
+              <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+              <input type="hidden" name="csrfToken" value={csrfToken} />
+              <button class="provider-button google" type="submit" data-provider="google"
+                data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+                <svg class="provider-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="rgba(255,255,255,0.8)" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="rgba(255,255,255,0.6)" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                  <path fill="rgba(255,255,255,0.7)" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span class="provider-label">Continue with Google</span>
+                <span class="last-used-badge" data-badge="google" hidden>Last used</span>
+              </button>
+            </form>
 
-          <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>Send magic link</button>
-        </form>
+            <form id="login-github" class="provider-form" method="POST" action="/api/auth/signin/github">
+              <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+              <input type="hidden" name="csrfToken" value={csrfToken} />
+              <button class="provider-button github" type="submit" data-provider="github"
+                data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+                <svg class="provider-icon" viewBox="0 0 24 24" fill="white" aria-hidden="true">
+                  <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+                </svg>
+                <span class="provider-label">Continue with GitHub</span>
+                <span class="last-used-badge" data-badge="github" hidden>Last used</span>
+              </button>
+            </form>
+          </div>
 
-        <a class="provider-button ghost" href="/signup">Create an account</a>
+          <!-- Demo CTA -->
+          <div class="demo-divider">or explore first</div>
+          <a class="provider-button demo-try" href="/api/demo/start">
+            ▶ Try the demo — no account needed
+          </a>
 
-      </div>
-      <script>
-        (async () => {
-          try {
-            const res = await fetch("/api/auth/csrf", { credentials: "same-origin" });
-            if (!res.ok) return;
-            const data = await res.json();
-            if (!data?.csrfToken) return;
+          <!-- Email toggle -->
+          <div class="email-toggle-wrap">
+            <button class="email-toggle-btn" id="emailToggle" type="button" aria-expanded="false">
+              or sign in with email <span class="toggle-chevron">›</span>
+            </button>
 
-            document.querySelectorAll('input[name="csrfToken"]').forEach((el) => {
-              el.value = data.csrfToken;
-            });
+            <div class="email-panel" id="emailPanel" hidden>
+              <!-- Tab bar -->
+              <div class="email-tabs" role="tablist">
+                <button class="email-tab active" id="tabPass" role="tab" aria-selected="true" type="button">Password</button>
+                <button class="email-tab" id="tabMagic" role="tab" aria-selected="false" type="button">Magic link</button>
+              </div>
 
-            // enable buttons once token is ready
-            document.querySelectorAll("button[data-needs-csrf]").forEach((b) => {
-              b.removeAttribute("disabled");
-            });
-          } catch (e) {
-            console.warn("[login] csrf fetch failed", e);
-          }
-        })();
+              <!-- Email + Password form -->
+              <form id="login-email-password" class="stack email-tab-panel" method="POST" action="/api/auth/callback/credentials">
+                <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+                <input type="hidden" name="csrfToken" value={csrfToken} />
+                <label>
+                  <span>Email address</span>
+                  <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+                </label>
+                <label>
+                  <span>Password</span>
+                  <input type="password" name="password" minlength="10" required autocomplete="current-password" />
+                </label>
+                <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+                  Sign in with email
+                </button>
+              </form>
 
-        // "Last used" badge — remember which provider was used and highlight it on return
-        (() => {
-          const STORAGE_KEY = 'alms_last_provider';
-          const lastProvider = localStorage.getItem(STORAGE_KEY);
+              <!-- Magic link form -->
+              <form id="login-magic-link" class="stack email-tab-panel" method="POST" action="/api/auth/signin/email" hidden>
+                <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+                <input type="hidden" name="csrfToken" value={csrfToken} />
+                <label>
+                  <span>Email address</span>
+                  <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+                </label>
+                <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+                  Send magic link
+                </button>
+              </form>
+            </div>
+          </div>
 
-          if (lastProvider) {
-            const badge = document.querySelector(`[data-badge="${lastProvider}"]`);
-            if (badge) {
-              badge.removeAttribute('hidden');
-              // Also add a visual ring to the button so it stands out
-              badge.closest('button')?.classList.add('last-used');
-            }
-          }
+          <!-- New account link -->
+          <a class="provider-button new-account" href="/signup">✦ New here? Create a free account</a>
 
-          // Record the provider when the user clicks
-          document.querySelectorAll('button[data-provider]').forEach((btn) => {
-            btn.addEventListener('click', () => {
-              const provider = btn.getAttribute('data-provider');
-              if (provider) localStorage.setItem(STORAGE_KEY, provider);
-            });
-          });
-        })();
-      </script>
-
-    </section>
-    </div>
+        </div><!-- /signin-card -->
+      </section>
+    </div><!-- /auth-shell -->
   </main>
 
-  <!-- ── Scam checker CTA ─────────────────────────────────────────────── -->
+  <!-- ── Scam checker bar ──────────────────────────────────────────── -->
   <div class="checker-bar">
     <a class="checker-link" href="/wallet-checker">🔍 Free Wallet Scam Checker — no account needed</a>
   </div>
 
-  <!-- ── Anonymous question / FAQ suggestion box ──────────────────────── -->
-  <div class="contact-section">
-    <div class="contact-card">
-      <h3 class="contact-heading">What's keeping you from signing up today?</h3>
-      <p class="contact-sub">Have a question? We read everything — great questions end up in the FAQ.</p>
+  <!-- ── Hesitation modal (shown after 30s of no interaction) ────────── -->
+  <div class="hesitation-overlay hidden" id="hesitationOverlay" role="dialog" aria-modal="true" aria-labelledby="hesitationTitle">
+    <div class="hesitation-modal">
+      <button class="hesitation-close" id="hesitationClose" aria-label="Close">✕</button>
+      <h3 id="hesitationTitle">Got a question before you sign up?</h3>
+      <p>We read everything — great questions end up in the FAQ.</p>
       <form id="contact-form" autocomplete="off" novalidate>
-        <input
-          id="contact-subject"
-          type="text"
-          name="subject"
-          maxlength="120"
-          placeholder="Subject"
-          class="contact-input"
-          required
-        />
+        <input id="contact-subject" type="text" name="subject" maxlength="120"
+          placeholder="Subject" class="contact-input" required />
         <div class="contact-body-wrap">
-          <textarea
-            id="contact-body"
-            name="body"
-            maxlength="500"
-            rows="4"
-            placeholder="Your question or thought…"
-            class="contact-input contact-textarea"
-            required
-          ></textarea>
+          <textarea id="contact-body" name="body" maxlength="500" rows="4"
+            placeholder="Your question or thought…" class="contact-input contact-textarea" required></textarea>
           <div class="contact-char"><span id="contact-char-count">0</span> / 500</div>
         </div>
         <button type="submit" class="contact-submit">Submit anonymously</button>
@@ -252,59 +263,6 @@ try {
       </form>
     </div>
   </div>
-
-  <script>
-    (() => {
-      const form    = document.getElementById('contact-form') as HTMLFormElement | null;
-      const body    = document.getElementById('contact-body') as HTMLTextAreaElement | null;
-      const counter = document.getElementById('contact-char-count');
-      const status  = document.getElementById('contact-status');
-
-      body?.addEventListener('input', () => {
-        if (counter) counter.textContent = String(body.value.length);
-      });
-
-      form?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const subject = (document.getElementById('contact-subject') as HTMLInputElement)?.value.trim();
-        const bodyVal = body?.value.trim();
-        if (!subject || !bodyVal) return;
-
-        const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
-
-        try {
-          const res = await fetch('/api/contact', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subject, body: bodyVal }),
-          });
-          const data = await res.json();
-          if (data.ok) {
-            form.reset();
-            if (counter) counter.textContent = '0';
-            if (status) {
-              status.textContent = '✓ Submitted — thanks!';
-              status.style.color = '#4ade80';
-              status.hidden = false;
-            }
-          } else {
-            throw new Error(data.error ?? 'Submit failed');
-          }
-        } catch (err: unknown) {
-          if (status) {
-            status.textContent = err instanceof Error ? err.message : 'Something went wrong';
-            status.style.color = '#f87171';
-            status.hidden = false;
-          }
-        } finally {
-          btn.disabled = false;
-          btn.textContent = 'Submit anonymously';
-        }
-      });
-    })();
-  </script>
 
   {message === "LOCKED_OUT" && (
     <div class="session-overlay" id="session-overlay">
@@ -325,548 +283,511 @@ try {
     </script>
   )}
 
+  <script>
+    // ── CSRF refresh ──────────────────────────────────────────────────
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/csrf", { credentials: "same-origin" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data?.csrfToken) return;
+        document.querySelectorAll('input[name="csrfToken"]').forEach((el) => {
+          (el as HTMLInputElement).value = data.csrfToken;
+        });
+        document.querySelectorAll("button[data-needs-csrf]").forEach((b) => {
+          b.removeAttribute("disabled");
+        });
+      } catch (e) {
+        console.warn("[login] csrf fetch failed", e);
+      }
+    })();
+
+    // ── Last-used provider badge ──────────────────────────────────────
+    (() => {
+      const STORAGE_KEY = 'alms_last_provider';
+      const lastProvider = localStorage.getItem(STORAGE_KEY);
+      if (lastProvider) {
+        const badge = document.querySelector(`[data-badge="${lastProvider}"]`);
+        if (badge) {
+          badge.removeAttribute('hidden');
+          (badge.closest('button') as HTMLElement | null)?.classList.add('last-used');
+        }
+      }
+      document.querySelectorAll('button[data-provider]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const provider = btn.getAttribute('data-provider');
+          if (provider) localStorage.setItem(STORAGE_KEY, provider);
+        });
+      });
+    })();
+
+    // ── Email toggle ──────────────────────────────────────────────────
+    (() => {
+      const toggleBtn  = document.getElementById('emailToggle') as HTMLButtonElement;
+      const panel      = document.getElementById('emailPanel');
+      const tabPass    = document.getElementById('tabPass') as HTMLButtonElement;
+      const tabMagic   = document.getElementById('tabMagic') as HTMLButtonElement;
+      const formPass   = document.getElementById('login-email-password');
+      const formMagic  = document.getElementById('login-magic-link');
+      const chevron    = toggleBtn?.querySelector('.toggle-chevron') as HTMLElement;
+
+      toggleBtn?.addEventListener('click', () => {
+        const open = !panel?.hidden;
+        if (panel) panel.hidden = open;
+        toggleBtn.setAttribute('aria-expanded', String(!open));
+        if (chevron) chevron.textContent = open ? '›' : '‹';
+        toggleBtn.classList.toggle('active', !open);
+        if (!open) panel?.querySelector('input')?.focus();
+      });
+
+      function switchTab(showPass: boolean) {
+        tabPass?.classList.toggle('active', showPass);
+        tabMagic?.classList.toggle('active', !showPass);
+        tabPass?.setAttribute('aria-selected', String(showPass));
+        tabMagic?.setAttribute('aria-selected', String(!showPass));
+        if (formPass) (formPass as HTMLElement).hidden = !showPass;
+        if (formMagic) (formMagic as HTMLElement).hidden = showPass;
+      }
+
+      tabPass?.addEventListener('click', () => switchTab(true));
+      tabMagic?.addEventListener('click', () => switchTab(false));
+    })();
+
+    // ── Hesitation modal (30s timer, reset on interaction) ───────────
+    (() => {
+      const overlay = document.getElementById('hesitationOverlay');
+      const closeBtn = document.getElementById('hesitationClose');
+      const form     = document.getElementById('contact-form') as HTMLFormElement | null;
+      const body     = document.getElementById('contact-body') as HTMLTextAreaElement | null;
+      const counter  = document.getElementById('contact-char-count');
+      const status   = document.getElementById('contact-status');
+
+      if (!overlay) return;
+
+      let timer: ReturnType<typeof setTimeout>;
+      const DELAY = 30_000;
+      let shown = false;
+
+      function showModal() {
+        if (shown) return;
+        shown = true;
+        overlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function resetTimer() {
+        clearTimeout(timer);
+        if (!shown) timer = setTimeout(showModal, DELAY);
+      }
+
+      function dismiss() {
+        overlay.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+
+      closeBtn?.addEventListener('click', dismiss);
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) dismiss();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') dismiss();
+      });
+
+      // Reset on meaningful interactions
+      ['click','keydown','scroll','mousemove','touchstart'].forEach(ev => {
+        document.addEventListener(ev, resetTimer, { passive: true });
+      });
+      resetTimer();
+
+      // Char counter
+      body?.addEventListener('input', () => {
+        if (counter) counter.textContent = String(body.value.length);
+      });
+
+      // Form submit
+      form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const subject = (document.getElementById('contact-subject') as HTMLInputElement)?.value.trim();
+        const bodyVal = body?.value.trim();
+        if (!subject || !bodyVal) return;
+        const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        try {
+          const res = await fetch('/api/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subject, body: bodyVal }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            form.reset();
+            if (counter) counter.textContent = '0';
+            if (status) {
+              status.textContent = '✓ Submitted — thanks!';
+              (status as HTMLElement).style.color = '#4ade80';
+              status.hidden = false;
+            }
+            setTimeout(dismiss, 2500);
+          } else { throw new Error(data.error ?? 'Submit failed'); }
+        } catch (err: unknown) {
+          if (status) {
+            status.textContent = err instanceof Error ? err.message : 'Something went wrong';
+            (status as HTMLElement).style.color = '#f87171';
+            status.hidden = false;
+          }
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Submit anonymously';
+        }
+      });
+    })();
+  </script>
+
   <style>
     :root {
       color-scheme: dark;
       font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #131628, #05060c 65%);
+      background: #05060c;
       min-height: 100vh;
       color: #f5f8ff;
     }
 
-    /* ✅ stop vertical centering — allow the page to breathe and scroll naturally */
-    .auth-page {
-      width: 100%;
-    }
+    .auth-page { width: 100%; }
 
+    /* ── Shell ─────────────────────────────────────────────────── */
     .auth-shell {
-      width: 100%;
-      margin: 0;
-      padding: 0;
       display: grid;
       grid-template-columns: 1fr 1fr;
       align-items: stretch;
       min-height: 100vh;
-      background: #0a0f1a;
-      color: #f7f2eb;
+    }
+    @media (max-width: 900px) {
+      .auth-shell { grid-template-columns: 1fr; }
+    }
+
+    /* ── Left panel ────────────────────────────────────────────── */
+    .auth-left {
+      padding: 3rem 3rem 3rem 4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
+      overflow: hidden;
       position: relative;
     }
-
     @media (max-width: 900px) {
-      .auth-shell {
-        min-height: auto;
-        width: calc(100% - 2rem);
-        margin: 0 1rem;
-        grid-template-columns: 1fr;
-        padding-top: 1.5rem;
-      }
+      .auth-left { padding: 2rem 1.5rem 1.5rem; }
     }
 
-    .auth-left {
-      padding: 5rem 3rem 3rem 5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 3rem;
-      background: linear-gradient(to bottom right, #0d1525, #0a0f1a);
+    /* Wordmark */
+    .wordmark {
+      display: inline-flex; align-items: center; gap: 0.75rem;
+      text-decoration: none; width: fit-content;
     }
-
-    .auth-logo {
-      position: absolute;
-      top: 3rem;
-      left: 1rem;
-      width: 75px;
-      height: 75px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 12px;
-      overflow: hidden;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
-      z-index: 20;
-    }
-
-    .auth-logo img {
-      width: 100%;
-      height: 100%;
+    .wordmark-img {
+      width: 44px; height: 44px; border-radius: 10px;
       object-fit: cover;
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+    .wordmark-text {
+      font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em;
+      color: #f5f8ff;
+      background: linear-gradient(135deg, #a5b4fc, #818cf8);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
 
-    .welcome-copy h1 {
-      margin: 3rem 0 0.5rem;
-      font-size: 2.6rem;
-      font-weight: 800;
-      letter-spacing: -0.01em;
+    /* Headline */
+    .hero-copy h1 {
+      font-size: clamp(1.8rem, 3vw, 2.6rem);
+      font-weight: 800; letter-spacing: -0.02em;
+      line-height: 1.15; margin: 0 0 0.75rem;
+    }
+    .hero-sub {
+      font-size: 1rem; color: rgba(255,255,255,0.55);
+      line-height: 1.7; margin: 0;
     }
 
-    .welcome-copy {
-      margin-left: 1.5rem;
-      max-width: 680px;
+    /* Feature cards */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 560px) {
+      .feature-grid { grid-template-columns: 1fr; }
+    }
+    .feature-card {
+      display: flex; align-items: flex-start; gap: 0.7rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+    }
+    .fc-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .fc-title { font-size: 0.85rem; font-weight: 700; color: #f5f8ff; margin-bottom: 0.2rem; }
+    .fc-desc  { font-size: 0.75rem; color: rgba(255,255,255,0.45); line-height: 1.5; }
+
+    /* Trust bar */
+    .trust-bar {
+      display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+      font-size: 0.8rem; color: rgba(255,255,255,0.4);
+    }
+    .trust-dot { opacity: 0.3; }
+
+    /* Dashboard preview */
+    .dash-preview {
+      position: relative; border-radius: 12px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+      max-height: 260px;
+      flex-shrink: 0;
+    }
+    .dash-img { width: 100%; display: block; object-fit: cover; object-position: top; }
+    .dash-preview-fade {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 80px;
+      background: linear-gradient(to bottom, transparent, #0a0f1a);
     }
 
-    @media (max-width: 900px) {
-      .welcome-copy {
-        margin-left: 0;
-      }
-    }
-
-    .welcome-copy p {
-      margin: 0;
-      color: rgba(255, 255, 255, 0.76);
-      line-height: 1.8;
-      font-size: 1.15rem;
-    }
-
-    .welcome-copy ul {
-      margin: 0.75rem 0 0;
-      padding-left: 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.6rem;
-      color: rgba(255, 255, 255, 0.76);
-      line-height: 1.7;
-      font-size: 1.1rem;
-    }
-
+    /* ── Right panel ───────────────────────────────────────────── */
     .auth-right {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-      background: rgba(0, 0, 0, 0.25);
+      display: flex; align-items: center; justify-content: center;
+      padding: 2rem; background: rgba(0,0,0,0.3);
+      border-left: 1px solid rgba(255,255,255,0.06);
     }
 
-    @media (max-width: 900px) {
-      .auth-right {
-        padding: 2rem;
-      }
-    }
-
-    /* ✅ compact sign-in card */
     .signin-card {
-      background: rgba(10, 15, 26, 0.92);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(10, 15, 26, 0.95);
+      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 20px;
-      padding: 3rem 2.5rem;
-      width: 100%;
-      max-width: 460px;
-      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
-      display: grid;
-      gap: 1.4rem;
+      padding: 2.5rem 2rem;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 30px 70px rgba(0,0,0,0.5);
+      display: flex; flex-direction: column; gap: 1.1rem;
     }
 
-    .signin-head h2 {
-      margin: 0 0 0.35rem;
-      font-size: 1.2rem;
-      font-weight: 650;
-    }
+    .signin-head h2 { margin: 0 0 0.25rem; font-size: 1.25rem; font-weight: 700; }
+    .signin-head p  { margin: 0; color: rgba(255,255,255,0.5); font-size: 0.88rem; }
+    .inline-link { color: #a5b4fc; text-decoration: none; }
+    .inline-link:hover { text-decoration: underline; }
 
-    .signin-head p {
-      margin: 0;
-      color: rgba(255, 255, 255, 0.72);
-      font-size: 0.95rem;
-    }
-
-    .providers {
-      display: grid;
-      gap: 1rem;
-    }
-
-    .provider-form {
-      margin: 0;
-    }
+    /* Providers */
+    .providers { display: grid; gap: 0.75rem; }
+    .provider-form { margin: 0; }
 
     .provider-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      text-decoration: none;
-      border-radius: 12px;
-      padding: 1.1rem;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      background: rgba(255, 255, 255, 0.08);
-      color: #fff;
-      font-size: 1.05rem;
-      font-weight: 650;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+      width: 100%; text-decoration: none;
+      border-radius: 12px; padding: 0.9rem 1rem;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.07);
+      color: #fff; font-size: 0.97rem; font-weight: 650;
       cursor: pointer;
-      transition: transform 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+      transition: transform 0.18s ease, opacity 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+      position: relative; flex-direction: column;
     }
-
     .provider-button:hover {
-      opacity: 0.92;
-      transform: translateY(-1px);
-      border-color: rgba(255, 255, 255, 0.35);
+      opacity: 0.9; transform: translateY(-1px);
+      border-color: rgba(255,255,255,0.28);
     }
+    .provider-icon { width: 18px; height: 18px; flex-shrink: 0; position: absolute; left: 1rem; }
+    .provider-label { display: block; }
 
     .provider-button.google {
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
-      border: none;
+      background: linear-gradient(135deg, #3b7ef8, #1d4ed8); border: none; flex-direction: row;
     }
-
     .provider-button.github {
-      background: linear-gradient(135deg, #0f172a, #1f2937);
-      border: none;
-    }
-
-    /* "Last used" badge — shown on the provider the user signed in with last */
-    .provider-button {
-      position: relative;
-      flex-direction: column;
-      gap: 0.1rem;
-    }
-
-    .provider-label {
-      display: block;
+      background: linear-gradient(135deg, #1c2333, #2d3748); border: none; flex-direction: row;
     }
 
     .last-used-badge {
-      display: block;
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      padding: 0.15rem 0.55rem;
-      border-radius: 99px;
-      background: rgba(255, 255, 255, 0.22);
-      color: #fff;
-      margin-top: 0.15rem;
-      width: fit-content;
-      align-self: center;
+      display: block; font-size: 0.65rem; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 0.12rem 0.45rem; border-radius: 99px;
+      background: rgba(255,255,255,0.2); color: #fff;
+      margin-top: 0.1rem; align-self: center;
     }
-
-    .provider-button.last-used {
-      outline: 2px solid rgba(255, 255, 255, 0.55);
-      outline-offset: 2px;
-    }
-
-    .provider-button.ghost {
-      background: rgba(255, 255, 255, 0.06);
-    }
+    .provider-button.last-used { outline: 2px solid rgba(255,255,255,0.4); outline-offset: 2px; }
 
     .provider-button.new-account {
-      background: linear-gradient(135deg, #0f7a55, #0d9466);
-      border: none;
-      font-size: 0.97rem;
+      background: linear-gradient(135deg, #0f7a55, #0d9466); border: none;
+      font-size: 0.9rem; flex-direction: row;
+    }
+    .provider-button.demo-try {
+      background: linear-gradient(135deg, #7c3aed, #5865f2); border: none;
+      font-size: 0.92rem; flex-direction: row;
+    }
+    .provider-button.ghost {
+      background: rgba(255,255,255,0.05); flex-direction: row;
     }
 
+    /* Demo divider */
+    .demo-divider {
+      display: flex; align-items: center; gap: 0.6rem;
+      color: rgba(255,255,255,0.35); font-size: 0.75rem;
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .demo-divider::before, .demo-divider::after {
+      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.09);
+    }
+
+    /* ── Email toggle ──────────────────────────────────────────── */
+    .email-toggle-wrap {
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 12px; overflow: hidden;
+    }
+    .email-toggle-btn {
+      width: 100%; background: rgba(255,255,255,0.04);
+      border: none; color: rgba(255,255,255,0.5); font-size: 0.85rem;
+      font-family: inherit; padding: 0.75rem 1rem;
+      cursor: pointer; text-align: left;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: background 0.15s, color 0.15s;
+    }
+    .email-toggle-btn:hover, .email-toggle-btn.active {
+      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85);
+    }
+    .toggle-chevron { font-size: 1rem; transition: transform 0.2s; }
+    .email-toggle-btn.active .toggle-chevron { transform: rotate(90deg); }
+
+    .email-panel { padding: 1rem; border-top: 1px solid rgba(255,255,255,0.07); }
+
+    /* Tabs */
+    .email-tabs {
+      display: flex; gap: 0; margin-bottom: 1rem;
+      background: rgba(255,255,255,0.04); border-radius: 8px; padding: 3px;
+    }
+    .email-tab {
+      flex: 1; padding: 0.45rem 0.5rem;
+      border: none; background: transparent;
+      color: rgba(255,255,255,0.45); font-size: 0.82rem; font-weight: 600;
+      font-family: inherit; cursor: pointer; border-radius: 6px;
+      transition: background 0.15s, color 0.15s; box-shadow: none;
+    }
+    .email-tab.active {
+      background: rgba(255,255,255,0.1); color: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .email-tab:hover:not(.active) { color: rgba(255,255,255,0.7); }
+
+    /* Stack forms */
+    .stack { display: grid; gap: 0.85rem; }
+    label { display: grid; gap: 0.4rem; color: rgba(255,255,255,0.8); font-weight: 500; font-size: 0.88rem; }
+    input[type="email"], input[type="password"] {
+      border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06); color: #fff;
+      padding: 0.8rem 1rem; font-size: 0.95rem; font-family: inherit;
+    }
+    input:focus { outline: 2px solid rgba(99,102,241,0.7); outline-offset: 1px; }
+    .stack button[type="submit"] {
+      border-radius: 10px; padding: 0.8rem 1rem;
+      border: none; background: linear-gradient(135deg, #5865f2, #7c3aed);
+      color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+      transition: opacity 0.18s, transform 0.18s;
+    }
+    .stack button[type="submit"]:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    /* Notices */
+    .notice {
+      margin-top: 0.6rem;
+      background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.3);
+      color: #ffb5b5; padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.88rem;
+    }
+    .notice.success {
+      background: rgba(60,179,113,0.1); border: 1px solid rgba(60,179,113,0.3); color: #b6f3c4;
+    }
+
+    /* ── Scam checker bar ──────────────────────────────────────── */
+    .checker-bar {
+      display: flex; justify-content: center;
+      padding: 1.25rem 1.5rem 0; background: #05060c;
+    }
     .checker-link {
-      display: block;
-      text-align: center;
-      margin-top: 1.5rem;
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: #7dd3fc;
-      text-decoration: none;
-      padding: 0.65rem 1rem;
-      border-radius: 10px;
-      border: 1px solid rgba(125, 211, 252, 0.25);
-      background: rgba(125, 211, 252, 0.06);
+      display: block; text-align: center; font-size: 0.88rem; font-weight: 600;
+      color: #7dd3fc; text-decoration: none;
+      padding: 0.6rem 1.25rem; border-radius: 10px;
+      border: 1px solid rgba(125,211,252,0.2); background: rgba(125,211,252,0.05);
       transition: background 0.15s, border-color 0.15s, color 0.15s;
     }
-    .checker-link:hover {
-      color: #fff;
-      background: rgba(125, 211, 252, 0.14);
-      border-color: rgba(125, 211, 252, 0.5);
-    }
+    .checker-link:hover { color: #fff; background: rgba(125,211,252,0.12); border-color: rgba(125,211,252,0.45); }
 
-    .demo-divider {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin: 0.5rem 0;
-      color: rgba(255, 255, 255, 0.45);
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+    /* ── Hesitation modal ──────────────────────────────────────── */
+    .hesitation-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 500; padding: 1rem;
     }
-    .demo-divider::before,
-    .demo-divider::after {
-      content: "";
-      flex: 1;
-      height: 1px;
-      background: rgba(255, 255, 255, 0.1);
+    .hesitation-overlay.hidden { display: none !important; }
+    .hesitation-modal {
+      position: relative;
+      background: #0f1624; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px; padding: 2rem; width: 100%; max-width: 480px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+      animation: modalIn 0.22s ease;
     }
-
-    .provider-button.demo-try {
-      background: linear-gradient(135deg, #7c3aed, #5865f2);
-      border: none;
-      font-size: 0.97rem;
+    @keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(10px); } to { opacity:1; transform:none; } }
+    .hesitation-close {
+      position: absolute; top: 0.85rem; right: 0.85rem;
+      background: none; border: none; color: rgba(255,255,255,0.35);
+      font-size: 1rem; cursor: pointer; padding: 0.25rem; line-height: 1;
+      border-radius: 4px; transition: color 0.15s;
     }
-
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin: 2rem 0;
-      color: rgba(255, 255, 255, 0.55);
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .divider::before,
-    .divider::after {
-      content: "";
-      flex: 1;
-      height: 1px;
-      background: rgba(255, 255, 255, 0.12);
-    }
-
-    .stack {
-      display: grid;
-      gap: 0.9rem;
-    }
-
-    label {
-      display: grid;
-      gap: 0.45rem;
-      color: rgba(255, 255, 255, 0.85);
-      font-weight: 520;
-    }
-
-    input {
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      background: rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(4px);
-      color: #fff;
-      padding: 1rem 1.25rem;
-      font-size: 1.05rem;
-    }
-
-    input:focus {
-      outline: 2px solid rgba(84, 144, 255, 0.9);
-      outline-offset: 1px;
-    }
-
-    button {
-      border-radius: 14px;
-      padding: 0.9rem 1rem;
-      border: none;
-      background: linear-gradient(135deg, #5865f2, #7c3aed);
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 750;
-      cursor: pointer;
-      transition: opacity 0.2s ease, transform 0.18s ease, box-shadow 0.2s ease;
-      box-shadow: 0 12px 30px rgba(124, 58, 237, 0.25);
-    }
-
-    button:hover {
-      opacity: 0.95;
-      transform: translateY(-2px);
-      box-shadow: 0 20px 55px rgba(124, 58, 237, 0.4);
-    }
-
-    .notice {
-      margin-top: 0.8rem;
-      background: rgba(255, 107, 107, 0.12);
-      border: 1px solid rgba(255, 107, 107, 0.35);
-      color: #ffb5b5;
-      padding: 0.65rem 0.85rem;
-      border-radius: 12px;
-      font-size: 0.9rem;
-    }
-
-    .notice.success {
-      background: rgba(60, 179, 113, 0.12);
-      border: 1px solid rgba(60, 179, 113, 0.35);
-      color: #b6f3c4;
-    }
-
-    .notice.locked-out {
-      background: rgba(251, 191, 36, 0.1);
-      border: 1px solid rgba(251, 191, 36, 0.4);
-      color: #fde68a;
-      padding: 0.9rem 1rem;
-      border-radius: 8px;
-      margin-top: 0.8rem;
-      font-size: 0.9rem;
-    }
-    .notice.locked-out strong {
-      display: block;
-      margin-bottom: 0.3rem;
-      font-size: 0.95rem;
-    }
-    .notice.locked-out p {
-      margin: 0;
-    }
-    .notice.locked-out a {
-      color: #fbbf24;
-      text-decoration: underline;
-    }
-    .notice.locked-out a:hover {
-      color: #fde68a;
-    }
-
-    /* ── Session conflict popup ─────────────────────────── */
-    .session-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.65);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      padding: 1rem;
-    }
-
-    .session-popup {
-      background: #0f1624;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 20px;
-      padding: 2.5rem 2rem;
-      max-width: 420px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
-      animation: popup-in 0.25s ease;
-    }
-
-    @keyframes popup-in {
-      from { opacity: 0; transform: scale(0.93) translateY(12px); }
-      to   { opacity: 1; transform: scale(1) translateY(0); }
-    }
-
-    .session-popup__icon {
-      font-size: 2.5rem;
-      margin-bottom: 1rem;
-    }
-
-    .session-popup h2 {
-      font-size: 1.35rem;
-      margin: 0 0 0.75rem;
-      color: #f7f2eb;
-    }
-
-    .session-popup p {
-      font-size: 0.95rem;
-      color: rgba(255, 255, 255, 0.65);
-      margin: 0 0 1.75rem;
-      line-height: 1.6;
-    }
-
-    .session-popup__actions {
-      display: flex;
-      flex-direction: column;
-      gap: 0.65rem;
-    }
-
-    .session-popup__btn {
-      display: block;
-      width: 100%;
-      padding: 0.75rem 1rem;
-      border-radius: 10px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      text-align: center;
-      text-decoration: none;
-      border: none;
-      transition: opacity 0.15s ease;
-    }
-
-    .session-popup__btn:hover { opacity: 0.85; }
-
-    .session-popup__btn--primary {
-      background: linear-gradient(135deg, #3b7ef8, #1d4ed8);
-      color: #fff;
-    }
-
-    .session-popup__btn--ghost {
-      background: rgba(255, 255, 255, 0.07);
-      color: rgba(255, 255, 255, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-    }
-
-    /* ── Scam checker bar ──────────────────────────────────────────── */
-    .checker-bar {
-      display: flex;
-      justify-content: center;
-      padding: 1.5rem 1.5rem 0;
-      background: #05060c;
-    }
-
-    /* ── Contact / FAQ box ─────────────────────────────────────────── */
-    .contact-section {
-      display: flex;
-      justify-content: center;
-      padding: 3rem 1.5rem 5rem;
-      background: #05060c;
-    }
-
-    .contact-card {
-      width: 100%;
-      max-width: 580px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.09);
-      border-radius: 16px;
-      padding: 2rem 2rem 1.75rem;
-    }
-
-    .contact-heading {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: #f7f2eb;
-      margin: 0 0 0.4rem;
-    }
-
-    .contact-sub {
-      font-size: 0.82rem;
-      opacity: 0.45;
-      margin: 0 0 1.25rem;
-      line-height: 1.5;
-    }
+    .hesitation-close:hover { color: #fff; }
+    .hesitation-modal h3 { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.4rem; }
+    .hesitation-modal p  { font-size: 0.85rem; color: rgba(255,255,255,0.45); margin: 0 0 1.25rem; }
 
     .contact-input {
-      width: 100%;
-      box-sizing: border-box;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 8px;
-      color: rgba(255,255,255,0.9);
-      font-size: 0.9rem;
-      padding: 0.55rem 0.8rem;
-      font-family: inherit;
-      outline: none;
-      transition: border-color 0.15s;
-      display: block;
-      margin-bottom: 0.75rem;
+      width: 100%; box-sizing: border-box;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; color: rgba(255,255,255,0.9);
+      font-size: 0.88rem; padding: 0.55rem 0.8rem;
+      font-family: inherit; outline: none;
+      transition: border-color 0.15s; display: block; margin-bottom: 0.7rem;
     }
     .contact-input:focus { border-color: rgba(99,102,241,0.5); }
-
-    .contact-body-wrap { position: relative; margin-bottom: 0.75rem; }
-    .contact-body-wrap .contact-input { margin-bottom: 0; resize: vertical; min-height: 100px; line-height: 1.5; }
-
-    .contact-textarea { resize: vertical; }
-
-    .contact-char {
-      text-align: right;
-      font-size: 0.72rem;
-      opacity: 0.35;
-      margin-top: 0.25rem;
-    }
-
+    .contact-body-wrap { position: relative; margin-bottom: 0.7rem; }
+    .contact-body-wrap .contact-input { margin-bottom: 0; resize: vertical; min-height: 90px; line-height: 1.5; }
+    .contact-char { text-align: right; font-size: 0.7rem; opacity: 0.3; margin-top: 0.2rem; }
     .contact-submit {
-      padding: 0.55rem 1.4rem;
-      border-radius: 8px;
-      border: 1px solid rgba(99,102,241,0.4);
-      background: rgba(99,102,241,0.12);
-      color: rgba(165,180,252,0.9);
-      font-size: 0.88rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background 0.15s;
+      padding: 0.5rem 1.25rem; border-radius: 8px;
+      border: 1px solid rgba(99,102,241,0.4); background: rgba(99,102,241,0.12);
+      color: rgba(165,180,252,0.9); font-size: 0.85rem; font-weight: 700;
+      cursor: pointer; transition: background 0.15s; font-family: inherit;
     }
     .contact-submit:hover:not(:disabled) { background: rgba(99,102,241,0.22); }
     .contact-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+    .contact-status { font-size: 0.82rem; margin: 0.65rem 0 0; }
 
-    .contact-status {
-      font-size: 0.82rem;
-      margin: 0.75rem 0 0;
+    /* ── Session popup ─────────────────────────────────────────── */
+    .session-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(4px); display: flex;
+      align-items: center; justify-content: center; z-index: 1000; padding: 1rem;
+    }
+    .session-popup {
+      background: #0f1624; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px; padding: 2.5rem 2rem;
+      max-width: 420px; width: 100%; text-align: center;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+      animation: modalIn 0.25s ease;
+    }
+    .session-popup__icon { font-size: 2.5rem; margin-bottom: 1rem; }
+    .session-popup h2 { font-size: 1.35rem; margin: 0 0 0.75rem; }
+    .session-popup p  { font-size: 0.95rem; color: rgba(255,255,255,0.6); margin: 0 0 1.75rem; line-height: 1.6; }
+    .session-popup__actions { display: flex; flex-direction: column; gap: 0.65rem; }
+    .session-popup__btn {
+      display: block; width: 100%; padding: 0.75rem 1rem;
+      border-radius: 10px; font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; text-align: center; text-decoration: none; border: none;
+      transition: opacity 0.15s;
+    }
+    .session-popup__btn:hover { opacity: 0.85; }
+    .session-popup__btn--primary { background: linear-gradient(135deg,#3b7ef8,#1d4ed8); color: #fff; }
+    .session-popup__btn--ghost {
+      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.6);
+      border: 1px solid rgba(255,255,255,0.12);
     }
   </style>
 </Layout>
