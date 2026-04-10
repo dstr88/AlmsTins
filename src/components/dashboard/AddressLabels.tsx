@@ -5,6 +5,9 @@ export type AddressLabel = {
 	address: string;
 	label: string;
 	source: string;
+	category?: string | null;
+	chain?: string | null;
+	notes?: string | null;
 };
 
 type Props = {
@@ -80,6 +83,9 @@ export function AddressLabels({ labels: initial }: Props) {
 	const [labelText, setLabelText] = useState('');
 	const [status,    setStatus]    = useState<string | null>(null);
 	const [saving,    setSaving]    = useState(false);
+	const [category,  setCategory]  = useState('counterparty');
+	const [chain,     setChain]     = useState('');
+	const [notes,     setNotes]     = useState('');
 
 	async function handleAdd() {
 		const addr = address.replace(/\s+/g, '');
@@ -93,7 +99,7 @@ export function AddressLabels({ labels: initial }: Props) {
 			const res  = await fetch('/api/address-labels', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ address: addr, label: lbl }),
+				body: JSON.stringify({ address: addr, label: lbl, category, chain: chain || null, notes: notes || null }),
 			});
 			const data = await res.json();
 			if (!res.ok) { setStatus(data.message ?? 'Failed to save'); setSaving(false); return; }
@@ -109,6 +115,9 @@ export function AddressLabels({ labels: initial }: Props) {
 			});
 			setAddress('');
 			setLabelText('');
+			setCategory('counterparty');
+			setChain('');
+			setNotes('');
 			setStatus('✓ Label saved.');
 		} catch (e: unknown) {
 			setStatus('Error: ' + (e instanceof Error ? e.message : 'Unknown'));
@@ -173,6 +182,31 @@ export function AddressLabels({ labels: initial }: Props) {
 						onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
 						style={{ ...inputStyle, maxWidth: '260px' }}
 					/>
+					<select
+						value={category}
+						onChange={e => setCategory(e.target.value)}
+						style={{ ...inputStyle, maxWidth: '180px' }}
+					>
+						<option value="counterparty">Counterparty</option>
+						<option value="defi">DeFi Protocol</option>
+						<option value="exchange">Exchange</option>
+						<option value="personal">Personal Wallet</option>
+						<option value="bridge">Bridge</option>
+						<option value="other">Other</option>
+					</select>
+					<select
+						value={chain}
+						onChange={e => setChain(e.target.value)}
+						style={{ ...inputStyle, maxWidth: '150px' }}
+					>
+						<option value="">All chains</option>
+						<option value="ethereum">Ethereum</option>
+						<option value="polygon">Polygon</option>
+						<option value="avalanche">Avalanche</option>
+						<option value="bsc">BSC</option>
+						<option value="arbitrum">Arbitrum</option>
+						<option value="optimism">Optimism</option>
+					</select>
 					<button
 						type="button"
 						onClick={handleAdd}
@@ -252,6 +286,61 @@ export function AddressLabels({ labels: initial }: Props) {
 								}}>
 									{network}
 								</span>
+
+								{/* Category badge */}
+								{(() => {
+									const catColors: Record<string, string> = {
+										defi:     '#a78bfa',
+										exchange: '#fbbf24',
+										personal: '#34d399',
+										bridge:   '#60a5fa',
+									};
+									const catLabels: Record<string, string> = {
+										defi:     'DeFi',
+										exchange: 'Exchange',
+										personal: 'Personal',
+										bridge:   'Bridge',
+										other:    'Other',
+									};
+									const cat = l.category ?? '';
+									if (!cat || cat === 'counterparty') return null;
+									const color = catColors[cat] ?? 'rgba(255,255,255,0.4)';
+									return (
+										<span style={{
+											fontSize: '0.65rem',
+											fontWeight: 700,
+											letterSpacing: '0.06em',
+											color,
+											background: `${color}18`,
+											border: `1px solid ${color}33`,
+											padding: '0.15rem 0.45rem',
+											borderRadius: '999px',
+											flexShrink: 0,
+											textAlign: 'center',
+										}}>
+											{catLabels[cat] ?? cat}
+										</span>
+									);
+								})()}
+
+								{/* Chain badge */}
+								{l.chain && (
+									<span style={{
+										fontSize: '0.65rem',
+										fontWeight: 600,
+										letterSpacing: '0.05em',
+										color: '#94a3b8',
+										background: 'rgba(148,163,184,0.08)',
+										border: '1px solid rgba(148,163,184,0.18)',
+										padding: '0.15rem 0.45rem',
+										borderRadius: '999px',
+										flexShrink: 0,
+										opacity: 0.6,
+										textAlign: 'center',
+									}}>
+										{l.chain}
+									</span>
+								)}
 
 								{/* Label */}
 								<span style={{

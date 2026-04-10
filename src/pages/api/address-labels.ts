@@ -18,7 +18,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const { tenantId } = session;
 
 	const result = await db.execute({
-		sql: `SELECT id, address, label, source, created_at
+		sql: `SELECT id, address, label, source, category, chain, notes, created_at
 		      FROM address_labels
 		      WHERE tenant_id = ?
 		      ORDER BY created_at DESC`,
@@ -35,8 +35,11 @@ export const POST: APIRoute = async ({ request }) => {
 	const { tenantId } = session;
 
 	const body = await request.json();
-	const address = typeof body.address === 'string' ? body.address.replace(/\s+/g, '').toLowerCase() : '';
-	const label   = typeof body.label   === 'string' ? body.label.trim() : '';
+	const address  = typeof body.address  === 'string' ? body.address.replace(/\s+/g, '').toLowerCase() : '';
+	const label    = typeof body.label    === 'string' ? body.label.trim() : '';
+	const category = typeof body.category === 'string' ? body.category.trim() : 'counterparty';
+	const chain    = typeof body.chain    === 'string' ? body.chain.trim()    : null;
+	const notes    = typeof body.notes    === 'string' ? body.notes.trim()    : null;
 
 	if (!address) return json({ error: true, message: 'Address is required' }, 400);
 	if (!label)   return json({ error: true, message: 'Label is required' }, 400);
@@ -46,12 +49,14 @@ export const POST: APIRoute = async ({ request }) => {
 	try {
 		// Save personal label
 		await db.execute({
-			sql: `INSERT INTO address_labels (id, tenant_id, address, label, source)
-			      VALUES (?, ?, ?, ?, 'user')
+			sql: `INSERT INTO address_labels (id, tenant_id, address, label, source, category, chain, notes)
+			      VALUES (?, ?, ?, ?, 'user', ?, ?, ?)
 			      ON CONFLICT (tenant_id, address)
 			      DO UPDATE SET label = excluded.label, source = 'user',
+			                    category = excluded.category, chain = excluded.chain,
+			                    notes = excluded.notes,
 			                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
-			args: [id, tenantId, address, label],
+			args: [id, tenantId, address, label, category, chain, notes],
 		});
 
 		// Cast a community vote (one per user per address)
@@ -113,7 +118,7 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const row = await db.execute({
-			sql: `SELECT id, address, label, source, created_at FROM address_labels
+			sql: `SELECT id, address, label, source, category, chain, notes, created_at FROM address_labels
 			      WHERE tenant_id = ? AND address = ? LIMIT 1`,
 			args: [tenantId, address],
 		});
