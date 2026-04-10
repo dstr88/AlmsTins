@@ -451,25 +451,23 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								</div>
 								{chain.tokens.map((token) => (
 									<div key={`${chain.chain}-${token.symbol}`} className="wallet-summary__row">
-										<span className="wallet-summary__cell wallet-summary__cell--days">
-											{String(token.daysHeld ?? 0)}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--token">
-											{token.symbol}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--qty">
-											{token.amountFormatted}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--value">
-											{token.usdValue == null ? 'Unpriced' : currencyFormatter.format(Number(token.usdValue))}
-										</span>
-										<span className="wallet-summary__cell wallet-summary__cell--pl">
-											{token.profitLoss === 'N/A'
-												? 'N/A'
-												: token.profitLoss?.percent !== undefined
-													? `${token.profitLoss.percent.toFixed(2)}%`
-													: 'N/A'}
-										</span>
+										<div className="wallet-summary__row-line1">
+											<span className="wallet-summary__cell wallet-summary__cell--token">{token.symbol}</span>
+											<span className="wallet-summary__cell wallet-summary__cell--qty">{token.amountFormatted}</span>
+											<span className="wallet-summary__cell wallet-summary__cell--value">
+												{token.usdValue == null ? 'Unpriced' : currencyFormatter.format(Number(token.usdValue))}
+											</span>
+										</div>
+										<div className="wallet-summary__row-line2">
+											<span className="wallet-summary__cell wallet-summary__cell--days">
+												{token.daysHeld != null ? `${token.daysHeld}d` : '—'}
+											</span>
+											<span className="wallet-summary__cell wallet-summary__cell--pl">
+												{token.profitLoss === 'N/A' || token.profitLoss?.percent === undefined
+													? '—'
+													: `${token.profitLoss.percent.toFixed(1)}%`}
+											</span>
+										</div>
 									</div>
 								))}
 							</div>
@@ -619,32 +617,34 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												? '?'
 												: '—';
 										return (
-											<div
-												key={`${token.chain}-${token.tokenSymbol}`}
-												className="wallet-summary__row"
-												style={{}}
-											>
-												<span className="wallet-summary__cell wallet-summary__cell--days" style={{ color: daysHeld === null ? 'rgba(255,255,255,0.3)' : undefined }}>
-													{daysHeld === null ? '—' : String(daysHeld)}
-												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--token">
-													{token.tokenSymbol}
-												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--qty">
-													{Number(token.amount ?? 0).toLocaleString(undefined, {
-														maximumFractionDigits: 6,
-													})}
-												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--value">
-													{valueNode}
-												</span>
-												<span
-													className="wallet-summary__cell wallet-summary__cell--pl"
-													style={{ color: plColor }}
-													title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
-												>
-													{plLabel}
-												</span>
+											<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
+												{/* Line 1: Symbol · Amount · Value */}
+												<div className="wallet-summary__row-line1">
+													<span className="wallet-summary__cell wallet-summary__cell--token">
+														{token.tokenSymbol}
+													</span>
+													<span className="wallet-summary__cell wallet-summary__cell--qty">
+														{Number(token.amount ?? 0).toLocaleString(undefined, {
+															maximumFractionDigits: 6,
+														})}
+													</span>
+													<span className="wallet-summary__cell wallet-summary__cell--value">
+														{valueNode}
+													</span>
+												</div>
+												{/* Line 2: Days held · P/L */}
+												<div className="wallet-summary__row-line2">
+													<span className="wallet-summary__cell wallet-summary__cell--days">
+														{daysHeld === null ? '—' : `${daysHeld}d`}
+													</span>
+													<span
+														className="wallet-summary__cell wallet-summary__cell--pl"
+														style={{ color: plColor, opacity: 1 }}
+														title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
+													>
+														{plLabel}
+													</span>
+												</div>
 											</div>
 										);
 									})}
@@ -776,32 +776,34 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 												? '?'
 												: '—';
 										return (
-											<div
-												key={`${token.chain}-${token.tokenSymbol}`}
-												className="wallet-summary__row"
-												style={{}}
-											>
-												<span className="wallet-summary__cell wallet-summary__cell--days" style={{ color: daysHeld === null ? 'rgba(255,255,255,0.3)' : undefined }}>
-													{daysHeld === null ? '—' : String(daysHeld)}
-												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--token">
-													{token.tokenSymbol}
-												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--qty">
-													{Number(token.amount ?? 0).toLocaleString(undefined, {
-														maximumFractionDigits: 6,
-													})}
-												</span>
-												<span className="wallet-summary__cell wallet-summary__cell--value">
-													{valueNode}
-												</span>
-												<span
-													className="wallet-summary__cell wallet-summary__cell--pl"
-													style={{ color: plColor }}
-													title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
-												>
-													{plLabel}
-												</span>
+											<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
+												{/* Line 1: Symbol · Amount · Value */}
+												<div className="wallet-summary__row-line1">
+													<span className="wallet-summary__cell wallet-summary__cell--token">
+														{token.tokenSymbol}
+													</span>
+													<span className="wallet-summary__cell wallet-summary__cell--qty">
+														{Number(token.amount ?? 0).toLocaleString(undefined, {
+															maximumFractionDigits: 6,
+														})}
+													</span>
+													<span className="wallet-summary__cell wallet-summary__cell--value">
+														{valueNode}
+													</span>
+												</div>
+												{/* Line 2: Days held · P/L */}
+												<div className="wallet-summary__row-line2">
+													<span className="wallet-summary__cell wallet-summary__cell--days">
+														{daysHeld === null ? '—' : `${daysHeld}d`}
+													</span>
+													<span
+														className="wallet-summary__cell wallet-summary__cell--pl"
+														style={{ color: plColor, opacity: 1 }}
+														title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
+													>
+														{plLabel}
+													</span>
+												</div>
 											</div>
 										);
 									})}

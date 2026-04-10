@@ -70,44 +70,67 @@
 .wallet-summary__chain-rows {
 	display: flex;
 	flex-direction: column;
-	gap: var(--space-xs);
 	font-size: var(--font-meta);
 }
 
+/* ── Two-line token row ─────────────────────────────────── */
+
 .wallet-summary__row {
-	display: grid;
-	grid-template-columns: 48px 1.2fr 2.8fr 2.5fr 1.5fr;
-	column-gap: var(--space-sm);
+	display: flex;
+	flex-direction: column;
+	gap: 0.18rem;
+	padding: 0.45rem 0;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.wallet-summary__row:last-child {
+	border-bottom: none;
+}
+
+/* Header row is no longer needed — hide it */
+.wallet-summary__row--header {
+	display: none;
+}
+
+/* Line 1: Token symbol · Amount · Value */
+.wallet-summary__row-line1 {
+	display: flex;
 	align-items: baseline;
+	gap: 0.6rem;
 	font-variant-numeric: tabular-nums;
 }
 
-.wallet-summary__row--header {
-	font-size: var(--font-meta);
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-	opacity: 0.7;
-}
-
-.wallet-summary__cell {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-/* Amount column: allow full number to show — no truncation */
-.wallet-summary__cell--qty {
-	overflow: visible;
-	text-overflow: clip;
+/* Line 2: Days · P/L (dimmer, smaller) */
+.wallet-summary__row-line2 {
+	display: flex;
+	align-items: baseline;
+	gap: 0.6rem;
+	font-size: var(--font-sm);
+	opacity: 0.6;
+	font-variant-numeric: tabular-nums;
 }
 
 .wallet-summary__cell--token {
-	font-weight: 600;
+	font-weight: 700;
+	flex-shrink: 0;
+	min-width: 3.5rem;
 }
 
-.wallet-summary__cell--value,
+.wallet-summary__cell--qty {
+	flex: 1;
+}
+
+.wallet-summary__cell--value {
+	margin-left: auto;
+	text-align: right;
+}
+
+.wallet-summary__cell--days {
+	flex: 1;
+}
+
 .wallet-summary__cell--pl {
+	margin-left: auto;
 	text-align: right;
 }
 
@@ -126,40 +149,8 @@
 }
 
 @media (max-width: 640px) {
-	.wallet-summary__row {
-		grid-template-columns: 1fr 1fr;
-		grid-template-areas:
-			"token value"
-			"days value"
-			"qty value"
-			"pl value";
-		row-gap: var(--space-xs);
-	}
-
-	.wallet-summary__cell--token {
-		grid-area: token;
-	}
-
-	.wallet-summary__cell--days {
-		grid-area: days;
-		text-align: left;
-		justify-self: start;
-		opacity: 0.8;
-	}
-
-	.wallet-summary__cell--qty {
-		grid-area: qty;
-	}
-
-	.wallet-summary__cell--value {
-		grid-area: value;
-	}
-
-	.wallet-summary__cell--pl {
-		grid-area: pl;
-	}
-
-	.wallet-summary__row--header {
-		display: none;
+	.wallet-summary__row-line1,
+	.wallet-summary__row-line2 {
+		flex-wrap: wrap;
 	}
 }
