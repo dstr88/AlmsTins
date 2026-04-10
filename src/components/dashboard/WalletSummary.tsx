@@ -549,11 +549,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 									</div>
 									{group.items.map((token: any) => {
 										const sym = String(token.tokenSymbol ?? '').toUpperCase();
-										// Well-known tokens should never be blocked by unverified_contract —
-										// their Polygon/Ethereum contract addresses are sometimes unrecognised
-										// by the price source but we know the symbol is trustworthy.
-										const KNOWN_TOKENS = new Set(['WBTC','LINK','AAVE','WMATIC','AVAX','USDC','USDT','ETH','MATIC','QUICK','DAI','UNI','CRV','SNX','MKR','COMP']);
-										const isUnverified = token.unpricedReason === 'unverified_contract' && !KNOWN_TOKENS.has(sym);
+										const isUnverified = token.unpricedReason === 'unverified_contract';
 										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
 										let resolvedUsd: number | null =
 											token.usdValue != null && Number.isFinite(token.usdValue)
@@ -710,11 +706,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 									</div>
 									{group.items.map((token: any) => {
 										const sym = String(token.tokenSymbol ?? '').toUpperCase();
-										// Well-known tokens should never be blocked by unverified_contract —
-										// their Polygon/Ethereum contract addresses are sometimes unrecognised
-										// by the price source but we know the symbol is trustworthy.
-										const KNOWN_TOKENS = new Set(['WBTC','LINK','AAVE','WMATIC','AVAX','USDC','USDT','ETH','MATIC','QUICK','DAI','UNI','CRV','SNX','MKR','COMP']);
-										const isUnverified = token.unpricedReason === 'unverified_contract' && !KNOWN_TOKENS.has(sym);
+										const isUnverified = token.unpricedReason === 'unverified_contract';
 										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
 										let resolvedUsd: number | null =
 											token.usdValue != null && Number.isFinite(token.usdValue)
