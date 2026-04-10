@@ -539,7 +539,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
+										style={{}}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
@@ -548,14 +548,18 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 										<span className="wallet-summary__cell wallet-summary__cell--pl">P/L</span>
 									</div>
 									{group.items.map((token: any) => {
-										const isUnverified = token.unpricedReason === 'unverified_contract';
+										const sym = String(token.tokenSymbol ?? '').toUpperCase();
+										// Well-known tokens should never be blocked by unverified_contract —
+										// their Polygon/Ethereum contract addresses are sometimes unrecognised
+										// by the price source but we know the symbol is trustworthy.
+										const KNOWN_TOKENS = new Set(['WBTC','LINK','AAVE','WMATIC','AVAX','USDC','USDT','ETH','MATIC','QUICK','DAI','UNI','CRV','SNX','MKR','COMP']);
+										const isUnverified = token.unpricedReason === 'unverified_contract' && !KNOWN_TOKENS.has(sym);
 										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
 										let resolvedUsd: number | null =
 											token.usdValue != null && Number.isFinite(token.usdValue)
 												? Number(token.usdValue)
 												: null;
-										if (!isUnverified && resolvedUsd === null) {
-											const sym = String(token.tokenSymbol ?? '').toUpperCase();
+										if (resolvedUsd === null) {
 											let fallbackPrice: number | null = null;
 											if (sym === 'WBTC') fallbackPrice = 70000;
 											if (sym === 'LINK') fallbackPrice = 8.85;
@@ -586,7 +590,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 										const capturedMs = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
 										const effectiveMs = Number.isFinite(acquiredAt)
 											? acquiredAt
-											: (Number.isFinite(capturedMs) && (Date.now() - capturedMs) > 86_400_000)
+											: Number.isFinite(capturedMs)
 												? capturedMs
 												: NaN;
 										const daysHeld = Number.isFinite(effectiveMs)
@@ -622,7 +626,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
+												style={{}}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days" style={{ color: daysHeld === null ? 'rgba(255,255,255,0.3)' : undefined }}>
 													{daysHeld === null ? '—' : String(daysHeld)}
@@ -696,7 +700,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
+										style={{}}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
@@ -705,14 +709,18 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 										<span className="wallet-summary__cell wallet-summary__cell--pl">P/L</span>
 									</div>
 									{group.items.map((token: any) => {
-										const isUnverified = token.unpricedReason === 'unverified_contract';
+										const sym = String(token.tokenSymbol ?? '').toUpperCase();
+										// Well-known tokens should never be blocked by unverified_contract —
+										// their Polygon/Ethereum contract addresses are sometimes unrecognised
+										// by the price source but we know the symbol is trustworthy.
+										const KNOWN_TOKENS = new Set(['WBTC','LINK','AAVE','WMATIC','AVAX','USDC','USDT','ETH','MATIC','QUICK','DAI','UNI','CRV','SNX','MKR','COMP']);
+										const isUnverified = token.unpricedReason === 'unverified_contract' && !KNOWN_TOKENS.has(sym);
 										const hasValue = token.usdValue != null && Number.isFinite(token.usdValue);
 										let resolvedUsd: number | null =
 											token.usdValue != null && Number.isFinite(token.usdValue)
 												? Number(token.usdValue)
 												: null;
-										if (!isUnverified && resolvedUsd === null) {
-											const sym = String(token.tokenSymbol ?? '').toUpperCase();
+										if (resolvedUsd === null) {
 											let fallbackPrice: number | null = null;
 											if (sym === 'WBTC') fallbackPrice = 70000;
 											if (sym === 'LINK') fallbackPrice = 8.85;
@@ -743,7 +751,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 										const capturedMs = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
 										const effectiveMs = Number.isFinite(acquiredAt)
 											? acquiredAt
-											: (Number.isFinite(capturedMs) && (Date.now() - capturedMs) > 86_400_000)
+											: Number.isFinite(capturedMs)
 												? capturedMs
 												: NaN;
 										const daysHeld = Number.isFinite(effectiveMs)
@@ -779,7 +787,7 @@ export default function WalletSummary({ walletId, initialData }: WalletSummaryPr
 											<div
 												key={`${token.chain}-${token.tokenSymbol}`}
 												className="wallet-summary__row"
-												style={{ display: 'grid', gridTemplateColumns: '48px 2fr 2fr 2.5fr 2fr' }}
+												style={{}}
 											>
 												<span className="wallet-summary__cell wallet-summary__cell--days" style={{ color: daysHeld === null ? 'rgba(255,255,255,0.3)' : undefined }}>
 													{daysHeld === null ? '—' : String(daysHeld)}
