@@ -110,6 +110,9 @@ export default function PortfolioTile() {
 			const failed = (!exchangeRes.ok ? 1 : 0) + (!walletRes.ok ? 1 : 0) + (!avaxRes.ok ? 1 : 0) + (!btcOk ? 1 : 0);
 			setSyncStatus({ ok, processed, failed });
 			if (ok) loadSummary(mountedRef);
+
+			// Rebuild asset lifecycles so bookkeeping FIFO reflects the latest imports
+			await fetch('/api/lifecycle/rebuild', { method: 'POST' });
 		} catch {
 			setSyncStatus({ ok: false, processed: 0, failed: 1 });
 		} finally {

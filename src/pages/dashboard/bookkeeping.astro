@@ -56,6 +56,37 @@ const attentionLabels = new Map<string, string>();
   }
 }
 
+// ── Source icon helper ───────────────────────────────────────────────────────
+function sourceIcon(source: string | null | undefined): { url: string; alt: string } | null {
+  if (!source) return null;
+  const s = source.toLowerCase().trim();
+  const map: { key: string; domain: string; alt: string }[] = [
+    { key: 'exodus',     domain: 'exodus.com',     alt: 'Exodus'      },
+    { key: 'crypto.com', domain: 'crypto.com',     alt: 'Crypto.com'  },
+    { key: 'cdc',        domain: 'crypto.com',     alt: 'Crypto.com'  },
+    { key: 'venmo',      domain: 'venmo.com',      alt: 'Venmo'       },
+    { key: 'coinbase',   domain: 'coinbase.com',   alt: 'Coinbase'    },
+    { key: 'kraken',     domain: 'kraken.com',     alt: 'Kraken'      },
+    { key: 'binance',    domain: 'binance.com',    alt: 'Binance'     },
+    { key: 'gemini',     domain: 'gemini.com',     alt: 'Gemini'      },
+    { key: 'kucoin',     domain: 'kucoin.com',     alt: 'KuCoin'      },
+    { key: 'robinhood',  domain: 'robinhood.com',  alt: 'Robinhood'   },
+    { key: 'bybit',      domain: 'bybit.com',      alt: 'Bybit'       },
+    { key: 'okx',        domain: 'okx.com',        alt: 'OKX'         },
+    { key: 'bitfinex',   domain: 'bitfinex.com',   alt: 'Bitfinex'    },
+    { key: 'ledger',     domain: 'ledger.com',     alt: 'Ledger'      },
+    { key: 'metamask',   domain: 'metamask.io',    alt: 'MetaMask'    },
+    { key: 'trust',      domain: 'trustwallet.com',alt: 'Trust Wallet'},
+    { key: 'phantom',    domain: 'phantom.app',    alt: 'Phantom'     },
+  ];
+  for (const entry of map) {
+    if (s.includes(entry.key)) {
+      return { url: `https://www.google.com/s2/favicons?domain=${entry.domain}&sz=32`, alt: entry.alt };
+    }
+  }
+  return null;
+}
+
 // ── Formatters ──────────────────────────────────────────────────────────────
 const fDate = (iso: string | null) => {
   if (!iso) return '—';
@@ -195,6 +226,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                     data-tx-class={item.transactionClass}
                     data-source-type={item.sourceType}
                   >
+                    {(() => { const icon = sourceIcon(item.sourceType); return icon ? <img src={icon.url} alt={icon.alt} class="tin-row__source-icon" title={icon.alt} /> : null; })()}
                     <span class="tin-row__asset">{item.asset}</span>
                     {scamLikely && <span class="asset-badge asset-badge--scam">⚠ SCAM?</span>}
                     {scamPossible && <span class="asset-badge asset-badge--verify">VERIFY</span>}
@@ -810,6 +842,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
     .tin-row--alert:hover .tin-row__cta { opacity: 0.8; color: #fca5a5; }
     .tin-row--income { border-left: 3px solid rgba(168,85,247,0.45); }
 
+    .tin-row__source-icon { width: 18px; height: 18px; border-radius: 4px; object-fit: contain; flex-shrink: 0; opacity: 0.85; margin-right: 0.1rem; vertical-align: middle; position: relative; top: -1px; }
     .tin-row__asset  { font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; min-width: 3rem; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tin-row__qty    { font-variant-numeric: tabular-nums; opacity: 0.75; }
     .tin-row__date   { opacity: 0.55; font-size: 0.78rem; }

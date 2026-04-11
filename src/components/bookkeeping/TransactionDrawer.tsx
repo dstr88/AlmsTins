@@ -166,6 +166,43 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
   const [trailLabelSaving, setTrailLabelSaving] = useState(false);
   const [trailLabelSaved, setTrailLabelSaved] = useState(false);
 
+  // Destination trace — "where did it go at Venmo?"
+  type ImportEvent = {
+    id: string;
+    timestamp_utc: string;
+    direction: string | null;
+    amount: number | null;
+    native_usd: number | null;
+    kind: string | null;
+    description: string | null;
+    tx_hash: string | null;
+  };
+  const [traceSource, setTraceSource] = useState('');
+  const [traceInput, setTraceInput] = useState('');
+  const [traceEvents, setTraceEvents] = useState<ImportEvent[]>([]);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [traceError, setTraceError] = useState<string | null>(null);
+
+  const handleTrace = useCallback(async (source: string) => {
+    if (!item || !source.trim()) return;
+    setTraceSource(source.trim());
+    setTraceLoading(true);
+    setTraceError(null);
+    setTraceEvents([]);
+    try {
+      const res = await fetch(
+        `/api/bookkeeping/import-activity?asset=${encodeURIComponent(item.asset)}&source=${encodeURIComponent(source.trim().toLowerCase())}`,
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json() as ImportEvent[];
+      setTraceEvents(data);
+    } catch (err: unknown) {
+      setTraceError(err instanceof Error ? err.message : 'Failed to load');
+    } finally {
+      setTraceLoading(false);
+    }
+  }, [item]);
+
   const drawerRef = useRef<HTMLDivElement>(null);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
 
@@ -227,6 +264,11 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
       setTrailLabelText('');
       setTrailLabelSaving(false);
       setTrailLabelSaved(false);
+      setTraceSource('');
+      setTraceInput('');
+      setTraceEvents([]);
+      setTraceLoading(false);
+      setTraceError(null);
     }
   }, [item?.sourceId]);
 
@@ -436,16 +478,33 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 flexWrap: 'wrap',
               }}
             >
-              <span>Sold {fDate(item.sellDate)}</span>
-              <span style={{ opacity: 0.4 }}>·</span>
-              <span>{fQty(item.amount)} tokens</span>
-              <span style={{ opacity: 0.4 }}>·</span>
-              <span
-                style={{ color: '#fbbf24' }}
-                title="ERC-20 transfers show $0 in the 'Value' field on block explorers — this is the token amount, not the native coin value."
-              >
-                {fUsd(item.proceedsUsd)} proceeds ⓘ
+              <span>
+                {item.transactionClass === 'sell'
+                  ? 'Sold'
+                  : item.transactionClass === 'transfer' || item.transactionClass === 'forward'
+                  ? 'Sent'
+                  : 'Left wallet'}{' '}
+                {fDate(item.sellDate)}
               </span>
+              {item.sourceType && (
+                <>
+                  <span style={{ opacity: 0.4 }}>·</span>
+                  <span>from {item.sourceType}</span>
+                </>
+              )}
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span>{fQty(item.amount)} {item.asset}</span>
+              {item.proceedsUsd != null && item.proceedsUsd > 0 && (
+                <>
+                  <span style={{ opacity: 0.4 }}>·</span>
+                  <span
+                    style={{ color: '#fbbf24' }}
+                    title="The USD value recorded at the time of this transaction."
+                  >
+                    {fUsd(item.proceedsUsd)} proceeds
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -480,122 +539,385 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
         {/* ── Body ───────────────────────────────────────────────────────── */}
         <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
 
-          {/* ── Token Trail ──────────────────────────────────────────────── */}
+          {/* ── Why flagged? ─────────────────────────────────────────────── */}
+          {(() => {
+            const cls = item.transactionClass;
+            const src = item.sourceType;
+            const assetAmt = `${fQty(item.amount)} ${item.asset}`;
+            const date = fDate(item.sellDate);
+            let headline = '';
+            let body = '';
+            let action = '';
+            if (cls === 'sell') {
+              headline = `${assetAmt} was sold on ${date}`;
+              body = 'We have a sale record but no matching purchase. To calculate your gain or loss, enter the price you paid when you originally acquired this asset.';
+              action = 'Use "Set Cost Basis" below → enter what you paid per coin.';
+            } else if (cls === 'transfer' || cls === 'forward') {
+              headline = `${assetAmt} left ${src || 'your wallet'} on ${date}`;
+              body = 'This looks like a transfer, but we couldn\'t match it to a purchase. If you moved it to another wallet you own, mark it as a Forward. If it was a sale or gift, use Dispose.';
+              action = 'Use "Forward" if it went to your own wallet, or "Dispose" if it was a sale/gift/loss.';
+            } else {
+              headline = `${assetAmt} left ${src || 'your wallet'} on ${date}`;
+              body = 'We couldn\'t identify this transaction. Check the Coin Journey and Transaction History below to see what happened, then choose the action that fits.';
+              action = 'Set the cost basis, forward it, or dispose of it using the options below.';
+            }
+            return (
+              <div style={{
+                padding: '0.9rem 1rem',
+                borderRadius: '10px',
+                background: 'rgba(96,165,250,0.06)',
+                border: '1px solid rgba(96,165,250,0.2)',
+                fontSize: '0.83rem',
+                lineHeight: 1.6,
+              }}>
+                <div style={{ fontWeight: 700, color: '#93c5fd', fontSize: '0.88rem', marginBottom: '0.35rem' }}>
+                  ❓ Why is this flagged?
+                </div>
+                <p style={{ margin: '0 0 0.4rem', color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+                  {headline}
+                </p>
+                <p style={{ margin: '0 0 0.45rem', color: 'rgba(255,255,255,0.55)' }}>
+                  {body}
+                </p>
+                <p style={{ margin: 0, color: 'rgba(96,165,250,0.75)', fontSize: '0.78rem' }}>
+                  → {action}
+                </p>
+              </div>
+            );
+          })()}
+
+          {/* ── Coin Journey ─────────────────────────────────────────────── */}
           {!historyLoading && history.length > 0 && (() => {
-            const outEvts = history.filter(e => e.direction === 'out');
-            if (outEvts.length === 0) return null;
-            const outEvt = outEvts[outEvts.length - 1];
-            const walletName = outEvt.wallet_label || (outEvt.wallet_address ? truncateHash(outEvt.wallet_address) : null);
-            const destAddr   = outEvt.to_address;
-            const destLabel  = trailLabelSaved ? trailLabelText : (outEvt.to_label ?? null);
-            const inBook     = !!destLabel;
-            const chain      = outEvt.chain ?? null;
-            const explorerBase = chain === 'avalanche' ? 'https://snowtrace.io'
-              : chain === 'polygon' ? 'https://polygonscan.com'
-              : chain === 'bsc'     ? 'https://bscscan.com'
-              : 'https://etherscan.io';
+            // Sort all events oldest → newest
+            const sorted = [...history].sort(
+              (a, b) => new Date(a.timestamp_utc).getTime() - new Date(b.timestamp_utc).getTime()
+            );
+
+            // Last OUT event for the inline label form
+            const outEvts = sorted.filter(e => e.direction === 'out');
+            const lastOut = outEvts[outEvts.length - 1] ?? null;
+            const lastOutDest   = lastOut?.to_address ?? null;
+            const lastOutLabel  = trailLabelSaved ? trailLabelText : (lastOut?.to_label ?? null);
+            const lastOutInBook = !!lastOutLabel;
+            const lastOutChain  = lastOut?.chain ?? null;
+
+            function explorerBaseFor(chain: string | null) {
+              if (chain === 'avalanche') return 'https://snowtrace.io';
+              if (chain === 'polygon')   return 'https://polygonscan.com';
+              if (chain === 'bsc')       return 'https://bscscan.com';
+              if (chain === 'litecoin')  return 'https://blockexplorer.one/litecoin/mainnet';
+              return 'https://etherscan.io';
+            }
+
+            function addrUrl(chain: string | null, addr: string) {
+              if (chain === 'litecoin') return `https://blockexplorer.one/litecoin/mainnet/address/${addr}`;
+              return `${explorerBaseFor(chain)}/address/${addr}`;
+            }
+
+            function eventIcon(evt: HistoryEvent) {
+              if (evt.direction === 'in')  return '📥';
+              if (evt.direction === 'out') return '📤';
+              return '🔄';
+            }
+
+            function eventTitle(evt: HistoryEvent) {
+              const src = evt.source_type ?? '';
+              const cls = evt.transaction_class ?? '';
+              if (evt.direction === 'in') {
+                if (src) return `Received from ${src}`;
+                if (evt.from_label) return `Received from ${evt.from_label}`;
+                return 'Received';
+              }
+              if (evt.direction === 'out') {
+                if (cls === 'transfer' || cls === 'forward') {
+                  const dest = (trailLabelSaved && evt === lastOut) ? trailLabelText : (evt.to_label ?? null);
+                  if (dest) return `Transferred to ${dest}`;
+                  return 'Transferred out';
+                }
+                if (cls === 'sell') return 'Sold';
+                if (src) return `Sent via ${src}`;
+                return 'Sent out';
+              }
+              if (cls === 'buy') return `Acquired${src ? ` on ${src}` : ''}`;
+              return cls || 'Event';
+            }
+
+            const dotColor = (evt: HistoryEvent) =>
+              evt.direction === 'in' ? '#4ade80' : evt.direction === 'out' ? '#f87171' : '#60a5fa';
 
             return (
               <section style={{
                 padding: '0.85rem 1rem',
                 borderRadius: '10px',
-                background: 'rgba(251,191,36,0.05)',
+                background: 'rgba(251,191,36,0.04)',
                 border: '1px solid rgba(251,191,36,0.18)',
-                display: 'flex', flexDirection: 'column', gap: '0.6rem',
+                display: 'flex', flexDirection: 'column', gap: '0',
                 fontSize: '0.83rem',
               }}>
-                <div style={{ fontWeight: 700, fontSize: '0.74rem', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                  🔍 Token Trail
+                <div style={{ fontWeight: 700, fontSize: '0.74rem', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.9rem' }}>
+                  🗺️ Coin Journey
                 </div>
 
-                {/* Source wallet */}
-                {walletName && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span style={{ opacity: 0.4, fontSize: '0.69rem', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: '4.5rem', flexShrink: 0 }}>In wallet</span>
-                    <span style={{ color: '#fbbf24', fontWeight: 700 }}>{walletName}</span>
-                    {outEvt.wallet_address && (
-                      <span style={{ fontFamily: 'monospace', fontSize: '0.69rem', opacity: 0.4 }}>
-                        ({truncateHash(outEvt.wallet_address)})
-                      </span>
-                    )}
-                  </div>
-                )}
+                {/* Timeline */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                  {sorted.map((evt, idx) => {
+                    const isLast = idx === sorted.length - 1;
+                    const isLastOutEvt = evt === lastOut;
+                    const walletName = evt.wallet_label || (evt.wallet_address ? truncateHash(evt.wallet_address) : null);
+                    const destAddr = evt.to_address;
+                    const destLabel = (trailLabelSaved && isLastOutEvt) ? trailLabelText : (evt.to_label ?? null);
+                    const destInBook = !!destLabel;
+                    const chain = evt.chain ?? null;
 
-                {/* Destination */}
-                {destAddr && (
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span style={{ opacity: 0.4, fontSize: '0.69rem', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: '4.5rem', flexShrink: 0, paddingTop: '0.15rem' }}>Sent to</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1 }}>
-                      {/* Address book status */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {inBook ? (
-                          <span style={{ color: '#4ade80', fontWeight: 700, fontSize: '0.82rem' }}>
-                            ✓ {destLabel}
-                            <span style={{ color: 'rgba(74,222,128,0.5)', fontWeight: 400, fontSize: '0.72rem', marginLeft: '0.35rem' }}>in address book</span>
-                          </span>
-                        ) : (
-                          <span style={{ color: '#f87171', fontWeight: 600, fontSize: '0.78rem' }}>✗ Not in your address book</span>
-                        )}
-                      </div>
-                      {/* Address link */}
-                      <a href={`${explorerBase}/address/${destAddr}`} target="_blank" rel="noopener noreferrer"
-                        style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: 'rgba(96,165,250,0.75)', textDecoration: 'none', wordBreak: 'break-all' }}>
-                        {destAddr} ↗
-                      </a>
-                      {/* Inline add-label form */}
-                      {!inBook && (
-                        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.15rem', flexWrap: 'wrap' }}>
-                          <input
-                            type="text"
-                            placeholder="Label this address…"
-                            value={trailLabelText}
-                            onChange={e => setTrailLabelText(e.target.value)}
-                            style={{
-                              flex: 1, minWidth: '130px',
-                              background: 'rgba(255,255,255,0.06)',
-                              border: '1px solid rgba(255,255,255,0.15)',
-                              borderRadius: '6px', padding: '0.35rem 0.6rem',
-                              color: '#fff', fontSize: '0.8rem', fontFamily: 'inherit',
-                              outline: 'none',
-                            }}
-                          />
-                          <button
-                            disabled={!trailLabelText.trim() || trailLabelSaving}
-                            onClick={async () => {
-                              if (!trailLabelText.trim()) return;
-                              setTrailLabelSaving(true);
-                              try {
-                                await fetch('/api/address-labels', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ address: destAddr, label: trailLabelText.trim(), chain }),
-                                });
-                                setTrailLabelSaved(true);
-                              } finally {
-                                setTrailLabelSaving(false);
-                              }
-                            }}
-                            style={{
-                              padding: '0.35rem 0.75rem', borderRadius: '6px',
-                              border: '1px solid rgba(99,102,241,0.4)',
-                              background: 'rgba(99,102,241,0.15)',
-                              color: '#a5b4fc', fontSize: '0.78rem', fontWeight: 600,
-                              cursor: trailLabelText.trim() ? 'pointer' : 'not-allowed',
-                              opacity: trailLabelText.trim() ? 1 : 0.4,
-                              fontFamily: 'inherit',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {trailLabelSaving ? 'Saving…' : '+ Add to book'}
-                          </button>
+                    return (
+                      <div key={evt.id} style={{ display: 'flex', gap: '0.75rem' }}>
+                        {/* Spine */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: '16px' }}>
+                          <div style={{
+                            width: '12px', height: '12px', borderRadius: '50%',
+                            background: dotColor(evt),
+                            boxShadow: `0 0 6px ${dotColor(evt)}66`,
+                            flexShrink: 0, marginTop: '0.15rem',
+                          }} />
+                          {!isLast && (
+                            <div style={{ width: '2px', flex: 1, background: 'rgba(255,255,255,0.08)', minHeight: '1.5rem' }} />
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+
+                        {/* Content */}
+                        <div style={{ paddingBottom: isLast ? 0 : '1rem', flex: 1, minWidth: 0 }}>
+                          {/* Date + title */}
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.38)', flexShrink: 0 }}>
+                              {fDateTime(evt.timestamp_utc)}
+                            </span>
+                            <span style={{ fontWeight: 700, color: '#f0f4ff', fontSize: '0.83rem' }}>
+                              {eventIcon(evt)} {eventTitle(evt)}
+                            </span>
+                          </div>
+
+                          {/* Amount */}
+                          {evt.amount != null && (
+                            <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.55)', marginBottom: '0.2rem' }}>
+                              {fQty(evt.amount)} {item.asset}
+                              {evt.native_usd != null && (
+                                <span style={{ color: 'rgba(255,255,255,0.3)', marginLeft: '0.4rem' }}>· {fUsd(evt.native_usd)}</span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Wallet holding the coin */}
+                          {walletName && (
+                            <div style={{ fontSize: '0.75rem', color: '#fbbf24', opacity: 0.85 }}>
+                              Wallet: <span style={{ fontWeight: 700 }}>{walletName}</span>
+                              {evt.wallet_address && (
+                                <span style={{ fontFamily: 'monospace', fontSize: '0.68rem', opacity: 0.45, marginLeft: '0.35rem' }}>
+                                  ({truncateHash(evt.wallet_address)})
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Destination address (OUT events) */}
+                          {destAddr && evt.direction === 'out' && (
+                            <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              {destInBook ? (
+                                <span style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 600 }}>
+                                  ✓ {destLabel}
+                                  <span style={{ color: 'rgba(74,222,128,0.45)', fontWeight: 400, marginLeft: '0.3rem' }}>in address book</span>
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.73rem', color: '#f87171', fontWeight: 600 }}>✗ Not in your address book</span>
+                              )}
+                              <a
+                                href={addrUrl(chain, destAddr)}
+                                target="_blank" rel="noopener noreferrer"
+                                style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'rgba(96,165,250,0.7)', textDecoration: 'none', wordBreak: 'break-all' }}
+                              >
+                                {destAddr} ↗
+                              </a>
+                              {/* Inline label form for unknown last-out destination */}
+                              {isLastOutEvt && !lastOutInBook && (
+                                <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.1rem', flexWrap: 'wrap' }}>
+                                  <input
+                                    type="text"
+                                    placeholder="Label this address…"
+                                    value={trailLabelText}
+                                    onChange={e => setTrailLabelText(e.target.value)}
+                                    style={{
+                                      flex: 1, minWidth: '130px',
+                                      background: 'rgba(255,255,255,0.06)',
+                                      border: '1px solid rgba(255,255,255,0.15)',
+                                      borderRadius: '6px', padding: '0.35rem 0.6rem',
+                                      color: '#fff', fontSize: '0.8rem', fontFamily: 'inherit',
+                                      outline: 'none',
+                                    }}
+                                  />
+                                  <button
+                                    disabled={!trailLabelText.trim() || trailLabelSaving}
+                                    onClick={async () => {
+                                      if (!trailLabelText.trim() || !lastOutDest) return;
+                                      setTrailLabelSaving(true);
+                                      try {
+                                        await fetch('/api/address-labels', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ address: lastOutDest, label: trailLabelText.trim(), chain: lastOutChain }),
+                                        });
+                                        setTrailLabelSaved(true);
+                                      } finally {
+                                        setTrailLabelSaving(false);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '0.35rem 0.75rem', borderRadius: '6px',
+                                      border: '1px solid rgba(99,102,241,0.4)',
+                                      background: 'rgba(99,102,241,0.15)',
+                                      color: '#a5b4fc', fontSize: '0.78rem', fontWeight: 600,
+                                      cursor: trailLabelText.trim() ? 'pointer' : 'not-allowed',
+                                      opacity: trailLabelText.trim() ? 1 : 0.4,
+                                      fontFamily: 'inherit', whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {trailLabelSaving ? 'Saving…' : '+ Add to book'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Source address (IN events) */}
+                          {evt.from_address && evt.direction === 'in' && !evt.from_label && (
+                            <a
+                              href={addrUrl(chain, evt.from_address)}
+                              target="_blank" rel="noopener noreferrer"
+                              style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'rgba(96,165,250,0.7)', textDecoration: 'none', wordBreak: 'break-all' }}
+                            >
+                              {evt.from_address} ↗
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </section>
             );
           })()}
+
+          {/* ── Destination trace ────────────────────────────────────────── */}
+          <section style={{
+            padding: '0.85rem 1rem',
+            borderRadius: '10px',
+            background: 'rgba(99,102,241,0.05)',
+            border: '1px solid rgba(99,102,241,0.2)',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: '0.74rem', color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem' }}>
+              🔍 Trace at Destination
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', margin: '0 0 0.65rem', lineHeight: 1.5 }}>
+              Know where this {item.asset} landed? Enter the platform name to see its full history there.
+            </p>
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="e.g. venmo, coinbase, kraken…"
+                value={traceInput}
+                onChange={(e) => setTraceInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleTrace(traceInput); }}
+                style={{
+                  flex: 1, minWidth: '140px',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '6px', padding: '0.38rem 0.65rem',
+                  color: '#fff', fontSize: '0.82rem', fontFamily: 'inherit', outline: 'none',
+                }}
+              />
+              <button
+                disabled={!traceInput.trim() || traceLoading}
+                onClick={() => void handleTrace(traceInput)}
+                style={{
+                  padding: '0.38rem 0.85rem', borderRadius: '6px',
+                  border: '1px solid rgba(99,102,241,0.4)',
+                  background: traceInput.trim() ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.05)',
+                  color: traceInput.trim() ? '#a5b4fc' : 'rgba(165,180,252,0.3)',
+                  fontWeight: 700, fontSize: '0.8rem', cursor: traceInput.trim() ? 'pointer' : 'not-allowed',
+                  fontFamily: 'inherit', whiteSpace: 'nowrap',
+                }}
+              >
+                {traceLoading ? 'Loading…' : 'Look up'}
+              </button>
+            </div>
+
+            {traceError && (
+              <p style={{ fontSize: '0.8rem', color: '#f87171', margin: '0.5rem 0 0' }}>{traceError}</p>
+            )}
+
+            {!traceLoading && traceSource && traceEvents.length === 0 && !traceError && (
+              <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)', margin: '0.6rem 0 0', fontStyle: 'italic' }}>
+                No {item.asset} transactions found at {traceSource}.
+              </p>
+            )}
+
+            {traceEvents.length > 0 && (() => {
+              function kindLabel(kind: string | null, direction: string | null): string {
+                if (kind === 'crypto_purchase' || kind === 'crypto_deposit') return direction === 'in' ? 'Received / Deposit' : 'Sent';
+                if (kind === 'crypto_to_van_sell_order') return 'Sold';
+                if (kind === 'crypto_withdrawal') return 'Withdrawal / Sent out';
+                if (direction === 'in') return 'Received';
+                if (direction === 'out') return 'Sent out';
+                return kind ?? 'Event';
+              }
+              const dotColor = (dir: string | null) =>
+                dir === 'in' ? '#4ade80' : dir === 'out' ? '#f87171' : '#60a5fa';
+
+              return (
+                <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  <div style={{ fontSize: '0.72rem', color: 'rgba(165,180,252,0.6)', marginBottom: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {item.asset} at {traceSource} — {traceEvents.length} event{traceEvents.length !== 1 ? 's' : ''}
+                  </div>
+                  {traceEvents.map((evt, idx) => {
+                    const isLast = idx === traceEvents.length - 1;
+                    return (
+                      <div key={evt.id} style={{ display: 'flex', gap: '0.65rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: '14px' }}>
+                          <div style={{
+                            width: '10px', height: '10px', borderRadius: '50%',
+                            background: dotColor(evt.direction),
+                            boxShadow: `0 0 5px ${dotColor(evt.direction)}66`,
+                            flexShrink: 0, marginTop: '0.2rem',
+                          }} />
+                          {!isLast && <div style={{ width: '2px', flex: 1, background: 'rgba(255,255,255,0.08)', minHeight: '1.2rem' }} />}
+                        </div>
+                        <div style={{ paddingBottom: isLast ? 0 : '0.75rem', flex: 1 }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+                              {fDateTime(evt.timestamp_utc)}
+                            </span>
+                            <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#f0f4ff' }}>
+                              {evt.direction === 'in' ? '📥' : evt.direction === 'out' ? '📤' : '🔄'}{' '}
+                              {kindLabel(evt.kind, evt.direction)}
+                            </span>
+                          </div>
+                          {evt.amount != null && (
+                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
+                              {fQty(Math.abs(evt.amount))} {item.asset}
+                              {evt.native_usd != null && (
+                                <span style={{ color: 'rgba(255,255,255,0.28)', marginLeft: '0.4rem' }}>· {fUsd(evt.native_usd)}</span>
+                              )}
+                            </div>
+                          )}
+                          {evt.description && evt.description !== 'Transfer In' && evt.description !== 'Transfer Out' && (
+                            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>{evt.description}</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </section>
 
           {/* ── Dispose / Forward actions ────────────────────────────────── */}
           <section>
@@ -885,7 +1207,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 fontStyle: 'italic',
               }}
             >
-              Enter the average price you paid per token so this sale can be matched.
+              {item.transactionClass === 'sell'
+                ? `Enter the average price you paid per ${item.asset} so this sale can be matched.`
+                : `Enter the average price you paid per ${item.asset} when you originally acquired it.`}
             </p>
 
             {/* ── Quick-fill buttons ──────────────────────────────────── */}
@@ -929,7 +1253,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <FormField label="Price per Token (USD)">
+              <FormField label={`Price per ${item.asset} (USD)`}>
                 <input
                   type="number"
                   min="0"

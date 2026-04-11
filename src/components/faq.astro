@@ -537,8 +537,13 @@
 
         <p>
           <strong>What the Sync button actually does:</strong><br />
-          It recalculates your exchange balances from all the transactions you've imported and writes a fresh snapshot. On-chain wallets (Ethereum, Polygon, Avalanche) refresh automatically when you open the vault — but exchange balances (Coinbase, Kraken, Gemini, etc.) only update when you sync, because those come from CSV files you've uploaded rather than a live API connection.
+          It runs three things in sequence:
         </p>
+        <ol style="line-height: 1.9; margin: 0.5rem 0 1rem 1.25rem;">
+          <li><strong>Recalculates exchange balances</strong> — writes a fresh snapshot from all your imported CSV transactions so the Portfolio tile shows current numbers.</li>
+          <li><strong>Refreshes on-chain wallet values</strong> — pulls the latest balances from your connected Ethereum, Polygon, and Avalanche wallets.</li>
+          <li><strong>Rebuilds the bookkeeping engine</strong> — re-runs the FIFO cost basis calculation across every transaction you've ever imported, from every source. This is what keeps the Bookkeeping page accurate after a new CSV upload. If a coin was showing in "Needs Attention" because a purchase record was missing, syncing after uploading the correct CSV will resolve it.</li>
+        </ol>
 
         <p>
           <strong>What it doesn't do:</strong><br />

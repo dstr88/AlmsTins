@@ -314,6 +314,7 @@ export function AddressLabels({ labels: initial }: Props) {
 						<option value="bsc">BSC</option>
 						<option value="arbitrum">Arbitrum</option>
 						<option value="optimism">Optimism</option>
+						<option value="litecoin">Litecoin</option>
 					</select>
 					<button
 						type="button"
