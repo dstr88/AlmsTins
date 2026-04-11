@@ -161,6 +161,11 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
   const [actionStatus, setActionStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Token trail — inline address label form
+  const [trailLabelText, setTrailLabelText] = useState('');
+  const [trailLabelSaving, setTrailLabelSaving] = useState(false);
+  const [trailLabelSaved, setTrailLabelSaved] = useState(false);
+
   const drawerRef = useRef<HTMLDivElement>(null);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
 
@@ -219,6 +224,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
       setForwardNote('');
       setActionStatus('idle');
       setActionError(null);
+      setTrailLabelText('');
+      setTrailLabelSaving(false);
+      setTrailLabelSaved(false);
     }
   }, [item?.sourceId]);
 
@@ -471,6 +479,123 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 
         {/* ── Body ───────────────────────────────────────────────────────── */}
         <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+
+          {/* ── Token Trail ──────────────────────────────────────────────── */}
+          {!historyLoading && history.length > 0 && (() => {
+            const outEvts = history.filter(e => e.direction === 'out');
+            if (outEvts.length === 0) return null;
+            const outEvt = outEvts[outEvts.length - 1];
+            const walletName = outEvt.wallet_label || (outEvt.wallet_address ? truncateHash(outEvt.wallet_address) : null);
+            const destAddr   = outEvt.to_address;
+            const destLabel  = trailLabelSaved ? trailLabelText : (outEvt.to_label ?? null);
+            const inBook     = !!destLabel;
+            const chain      = outEvt.chain ?? null;
+            const explorerBase = chain === 'avalanche' ? 'https://snowtrace.io'
+              : chain === 'polygon' ? 'https://polygonscan.com'
+              : chain === 'bsc'     ? 'https://bscscan.com'
+              : 'https://etherscan.io';
+
+            return (
+              <section style={{
+                padding: '0.85rem 1rem',
+                borderRadius: '10px',
+                background: 'rgba(251,191,36,0.05)',
+                border: '1px solid rgba(251,191,36,0.18)',
+                display: 'flex', flexDirection: 'column', gap: '0.6rem',
+                fontSize: '0.83rem',
+              }}>
+                <div style={{ fontWeight: 700, fontSize: '0.74rem', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                  🔍 Token Trail
+                </div>
+
+                {/* Source wallet */}
+                {walletName && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{ opacity: 0.4, fontSize: '0.69rem', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: '4.5rem', flexShrink: 0 }}>In wallet</span>
+                    <span style={{ color: '#fbbf24', fontWeight: 700 }}>{walletName}</span>
+                    {outEvt.wallet_address && (
+                      <span style={{ fontFamily: 'monospace', fontSize: '0.69rem', opacity: 0.4 }}>
+                        ({truncateHash(outEvt.wallet_address)})
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Destination */}
+                {destAddr && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{ opacity: 0.4, fontSize: '0.69rem', textTransform: 'uppercase', letterSpacing: '0.05em', minWidth: '4.5rem', flexShrink: 0, paddingTop: '0.15rem' }}>Sent to</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1 }}>
+                      {/* Address book status */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {inBook ? (
+                          <span style={{ color: '#4ade80', fontWeight: 700, fontSize: '0.82rem' }}>
+                            ✓ {destLabel}
+                            <span style={{ color: 'rgba(74,222,128,0.5)', fontWeight: 400, fontSize: '0.72rem', marginLeft: '0.35rem' }}>in address book</span>
+                          </span>
+                        ) : (
+                          <span style={{ color: '#f87171', fontWeight: 600, fontSize: '0.78rem' }}>✗ Not in your address book</span>
+                        )}
+                      </div>
+                      {/* Address link */}
+                      <a href={`${explorerBase}/address/${destAddr}`} target="_blank" rel="noopener noreferrer"
+                        style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: 'rgba(96,165,250,0.75)', textDecoration: 'none', wordBreak: 'break-all' }}>
+                        {destAddr} ↗
+                      </a>
+                      {/* Inline add-label form */}
+                      {!inBook && (
+                        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.15rem', flexWrap: 'wrap' }}>
+                          <input
+                            type="text"
+                            placeholder="Label this address…"
+                            value={trailLabelText}
+                            onChange={e => setTrailLabelText(e.target.value)}
+                            style={{
+                              flex: 1, minWidth: '130px',
+                              background: 'rgba(255,255,255,0.06)',
+                              border: '1px solid rgba(255,255,255,0.15)',
+                              borderRadius: '6px', padding: '0.35rem 0.6rem',
+                              color: '#fff', fontSize: '0.8rem', fontFamily: 'inherit',
+                              outline: 'none',
+                            }}
+                          />
+                          <button
+                            disabled={!trailLabelText.trim() || trailLabelSaving}
+                            onClick={async () => {
+                              if (!trailLabelText.trim()) return;
+                              setTrailLabelSaving(true);
+                              try {
+                                await fetch('/api/address-labels', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ address: destAddr, label: trailLabelText.trim(), chain }),
+                                });
+                                setTrailLabelSaved(true);
+                              } finally {
+                                setTrailLabelSaving(false);
+                              }
+                            }}
+                            style={{
+                              padding: '0.35rem 0.75rem', borderRadius: '6px',
+                              border: '1px solid rgba(99,102,241,0.4)',
+                              background: 'rgba(99,102,241,0.15)',
+                              color: '#a5b4fc', fontSize: '0.78rem', fontWeight: 600,
+                              cursor: trailLabelText.trim() ? 'pointer' : 'not-allowed',
+                              opacity: trailLabelText.trim() ? 1 : 0.4,
+                              fontFamily: 'inherit',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {trailLabelSaving ? 'Saving…' : '+ Add to book'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            );
+          })()}
 
           {/* ── Dispose / Forward actions ────────────────────────────────── */}
           <section>
