@@ -42,6 +42,14 @@ type TaxPayload = {
 		shortTermCount: number;
 		longTermCount:  number;
 	};
+	byAssetGains?: {
+		asset:   string;
+		stGain:  number;
+		stLots:  number;
+		ltGain:  number;
+		ltLots:  number;
+		netGain: number;
+	}[];
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -189,6 +197,65 @@ const fmtGain = (n: number) => {
 							</div>
 
 						</div>
+					</div>
+				)}
+
+				<!-- Per-asset breakdown -->
+				{(payload.byAssetGains?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+							<h2 class="text-sm font-semibold text-gray-700">Gain / Loss by Asset</h2>
+							<span class="text-xs text-gray-400">FIFO · sorted by impact</span>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Asset</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">ST Gain / Loss</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">ST Lots</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">LT Gain / Loss</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">LT Lots</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Net</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{payload.byAssetGains!.map((row) => (
+									<tr class="hover:bg-gray-50">
+										<td class="px-5 py-3 font-mono font-semibold text-gray-800">{row.asset}</td>
+										<td class={`px-5 py-3 text-right font-medium tabular-nums ${row.stGain < 0 ? 'text-red-600' : row.stGain > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+											{row.stLots > 0 ? fmtGain(row.stGain) : <span class="text-gray-300">—</span>}
+										</td>
+										<td class="px-5 py-3 text-right text-gray-500 tabular-nums">
+											{row.stLots > 0 ? row.stLots : <span class="text-gray-300">—</span>}
+										</td>
+										<td class={`px-5 py-3 text-right font-medium tabular-nums ${row.ltGain < 0 ? 'text-red-600' : row.ltGain > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+											{row.ltLots > 0 ? fmtGain(row.ltGain) : <span class="text-gray-300">—</span>}
+										</td>
+										<td class="px-5 py-3 text-right text-gray-500 tabular-nums">
+											{row.ltLots > 0 ? row.ltLots : <span class="text-gray-300">—</span>}
+										</td>
+										<td class={`px-5 py-3 text-right font-semibold tabular-nums ${row.netGain < 0 ? 'text-red-600' : row.netGain > 0 ? 'text-green-700' : 'text-gray-400'}`}>
+											{fmtGain(row.netGain)}
+										</td>
+									</tr>
+								))}
+								<!-- Totals row -->
+								<tr class="bg-gray-50 font-semibold border-t-2 border-gray-200">
+									<td class="px-5 py-3 text-gray-700">Total</td>
+									<td class={`px-5 py-3 text-right tabular-nums ${(payload.gains?.shortTermGain ?? 0) < 0 ? 'text-red-600' : 'text-green-700'}`}>
+										{fmtGain(payload.gains?.shortTermGain ?? 0)}
+									</td>
+									<td class="px-5 py-3 text-right text-gray-500">{payload.gains?.shortTermCount}</td>
+									<td class={`px-5 py-3 text-right tabular-nums ${(payload.gains?.longTermGain ?? 0) < 0 ? 'text-red-600' : 'text-green-700'}`}>
+										{fmtGain(payload.gains?.longTermGain ?? 0)}
+									</td>
+									<td class="px-5 py-3 text-right text-gray-500">{payload.gains?.longTermCount}</td>
+									<td class={`px-5 py-3 text-right tabular-nums ${(payload.gains?.netGain ?? 0) < 0 ? 'text-red-600' : 'text-green-700'}`}>
+										{fmtGain(payload.gains?.netGain ?? 0)}
+									</td>
+								</tr>
+							</tbody>
+						</table>
 					</div>
 				)}
 

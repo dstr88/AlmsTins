@@ -148,6 +148,34 @@ export const GET: APIRoute = async ({ request, url }) => {
 			longTermCount:  bd.longTerm.length,
 		};
 
+		// ── 6. Per-asset breakdown ────────────────────────────────────────────
+		type AssetRow = {
+			asset: string;
+			stGain: number; stLots: number;
+			ltGain: number; ltLots: number;
+			netGain: number;
+		};
+		const assetMap = new Map<string, AssetRow>();
+		const getRow = (asset: string): AssetRow => {
+			if (!assetMap.has(asset)) {
+				assetMap.set(asset, { asset, stGain: 0, stLots: 0, ltGain: 0, ltLots: 0, netGain: 0 });
+			}
+			return assetMap.get(asset)!;
+		};
+		for (const lot of bd.shortTerm) {
+			const row = getRow(lot.asset);
+			row.stGain += lot.gainLossUsd ?? 0;
+			row.stLots += 1;
+		}
+		for (const lot of bd.longTerm) {
+			const row = getRow(lot.asset);
+			row.ltGain += lot.gainLossUsd ?? 0;
+			row.ltLots += 1;
+		}
+		const byAssetGains = Array.from(assetMap.values())
+			.map((r) => ({ ...r, netGain: r.stGain + r.ltGain }))
+			.sort((a, b) => Math.abs(b.netGain) - Math.abs(a.netGain)); // largest impact first
+
 		return respond({
 			ok: true,
 			year,
@@ -156,6 +184,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			disposals,
 			unpricedOnchain,
 			gains,
+			byAssetGains,
 		});
 	} catch (error) {
 		console.error('[tax/summary] failed:', error);
