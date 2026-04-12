@@ -126,18 +126,22 @@ function buildPdf(
         .moveDown(0.4);
     };
 
+    const ROW_H   = 22;
+    const HDR_H   = 24;
+
     const tableHeaders = (cols: { label: string; width: number; align?: 'left' | 'right' | 'center' }[]) => {
-      // light background band behind headers
-      doc.rect(MARGIN, doc.y - 2, CONTENT_W, 22).fill('#eeeeee');
+      const hdrY = doc.y;
+      doc.rect(MARGIN, hdrY, CONTENT_W, HDR_H).fill('#eeeeee');
       let x = MARGIN;
-      doc.fontSize(14).fillColor(HEADING).font('Helvetica-Bold');
+      doc.fontSize(12).fillColor(HEADING).font('Helvetica-Bold');
       for (const col of cols) {
-        doc.text(col.label, x + 3, doc.y, { width: col.width - 3, align: col.align ?? 'left', lineBreak: false });
+        // pin every header cell to the same Y
+        doc.text(col.label, x + 4, hdrY + 6, { width: col.width - 8, align: col.align ?? 'left', lineBreak: false });
         x += col.width;
       }
-      doc.moveDown(0.4);
+      doc.y = hdrY + HDR_H + 2;
       doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor(RULE).lineWidth(0.75).stroke();
-      doc.moveDown(0.3);
+      doc.y += 3;
     };
 
     const tableRow = (
@@ -145,31 +149,30 @@ function buildPdf(
       shade: boolean,
     ) => {
       if (doc.y > doc.page.height - 60) newPage();
-      const rowH = 22;
+      const rowY = doc.y;  // ← pin once, use for every cell
       if (shade) {
-        doc.rect(MARGIN, doc.y - 1, CONTENT_W, rowH).fill(ALT_ROW);
+        doc.rect(MARGIN, rowY, CONTENT_W, ROW_H).fill(ALT_ROW);
       }
       let x = MARGIN;
-      doc.fontSize(14).font('Helvetica-Bold');
+      doc.fontSize(12).font('Helvetica-Bold');
       for (const col of cols) {
         doc
           .fillColor(col.color ?? BODY)
-          .text(col.label, x + 3, doc.y, { width: col.width - 3, align: col.align ?? 'left', lineBreak: false });
+          .text(col.label, x + 4, rowY + 5, { width: col.width - 8, align: col.align ?? 'left', lineBreak: false });
         x += col.width;
       }
-      doc.moveDown(0.65);
+      // manually advance past the row — never let the loop drift doc.y
+      doc.y = rowY + ROW_H;
     };
 
     const summaryRow = (label: string, value: string, valueColor = HEADING) => {
-      doc
-        .fontSize(14)
-        .font('Helvetica-Bold')
+      const sy = doc.y;
+      doc.fontSize(13).font('Helvetica-Bold')
         .fillColor(LABEL)
-        .text(label, MARGIN, doc.y, { width: 280, lineBreak: false })
-        .fillColor(valueColor)
-        .font('Helvetica-Bold')
-        .text(value, MARGIN + 280, doc.y, { width: CONTENT_W - 280, align: 'right' })
-        .moveDown(0.7);
+        .text(label, MARGIN, sy, { width: 340, lineBreak: false });
+      doc.fillColor(valueColor)
+        .text(value, MARGIN + 340, sy, { width: CONTENT_W - 340, align: 'right', lineBreak: false });
+      doc.y = sy + 22;
     };
 
     // ── PAGE 1: Cover ─────────────────────────────────────────────────────────
