@@ -138,8 +138,8 @@ export type PipelineStats = {
 	pass2Transfers: number;
 	pass2bLoans: number;
 	pass3Income: number;
-	pass3bInterest: number;
-	pass3cDefi: number;
+	pass3Fees: number;
+	pass3bDefi: number;
 	pass4Lots: number;
 	pass4Disposals: number;
 	pass5ReviewItems: number;

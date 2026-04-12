@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS tax_pipeline_runs (
   pass2_transfers INTEGER,
   pass2b_loans    INTEGER,
   pass3_income    INTEGER,
-  pass3b_fees     INTEGER,
+  pass3_fees      INTEGER,
   pass4_lots      INTEGER,
   pass4_disposals INTEGER,
   pass5_review    INTEGER,
