@@ -133,7 +133,7 @@ export async function buildAnnualBreakdown(
   // For "still holding" age calculation: end of year (or now if current year)
   const now = new Date();
   const refDate =
-    year >= now.getFullYear()
+    year >= now.getUTCFullYear()
       ? now.toISOString()
       : yearEnd;
 
@@ -499,7 +499,7 @@ export async function buildAnnualBreakdown(
     .map((r) => Number(r.yr))
     .filter((y) => Number.isFinite(y) && y > 2000);
   // Deduplicate, always include current and previous year
-  const curYear = new Date().getFullYear();
+  const curYear = new Date().getUTCFullYear();
   const yearSet = new Set(availableYears);
   yearSet.add(curYear);
   yearSet.add(curYear - 1);
