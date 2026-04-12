@@ -23,6 +23,7 @@ import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { buildAnnualBreakdown } from '../../../lib/annualBreakdown';
+import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
 
 export const prerender = false;
 
@@ -176,6 +177,72 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.map((r) => ({ ...r, netGain: r.stGain + r.ltGain }))
 			.sort((a, b) => Math.abs(b.netGain) - Math.abs(a.netGain)); // largest impact first
 
+		// ── 7. Tax-loss harvesting — open lots vs current market price ────────
+		// Aggregate stillHolding by asset, fetch spot prices, flag underwater lots.
+		type HarvestRow = {
+			asset: string;
+			totalQty: number;
+			totalCost: number;
+			currentPrice: number | null;
+			currentValue: number | null;
+			unrealizedGainLoss: number | null;
+			shortTermQty: number;   // qty still in short-term window
+			longTermQty: number;    // qty already long-term
+			soonestLotDaysToLT: number | null; // days until oldest ST lot crosses 1yr
+		};
+		const harvestMap = new Map<string, HarvestRow>();
+		for (const lot of bd.stillHolding) {
+			if (!harvestMap.has(lot.asset)) {
+				harvestMap.set(lot.asset, {
+					asset: lot.asset,
+					totalQty: 0, totalCost: 0,
+					currentPrice: null, currentValue: null, unrealizedGainLoss: null,
+					shortTermQty: 0, longTermQty: 0, soonestLotDaysToLT: null,
+				});
+			}
+			const row = harvestMap.get(lot.asset)!;
+			row.totalQty  += lot.amount;
+			row.totalCost += lot.costUsd ?? 0;
+			if (lot.daysHeld >= 365) {
+				row.longTermQty += lot.amount;
+			} else {
+				row.shortTermQty += lot.amount;
+				const daysLeft = 365 - lot.daysHeld;
+				if (row.soonestLotDaysToLT === null || daysLeft < row.soonestLotDaysToLT) {
+					row.soonestLotDaysToLT = daysLeft;
+				}
+			}
+		}
+
+		// Fetch current prices for all held assets
+		let harvestLosses: HarvestRow[] = [];
+		try {
+			const heldAssets = Array.from(harvestMap.keys());
+			if (heldAssets.length > 0) {
+				const tickers = await getTickersUSD() as Array<{ symbol?: string; quotes?: { USD?: { price?: number } } }>;
+				const priceMap = new Map<string, number>();
+				for (const t of tickers) {
+					const sym = String(t.symbol ?? '').toUpperCase();
+					const price = t.quotes?.USD?.price;
+					if (sym && typeof price === 'number' && price > 0) priceMap.set(sym, price);
+				}
+				for (const row of harvestMap.values()) {
+					const price = priceMap.get(row.asset) ?? null;
+					row.currentPrice = price;
+					if (price !== null) {
+						row.currentValue = price * row.totalQty;
+						row.unrealizedGainLoss = row.currentValue - row.totalCost;
+					}
+				}
+			}
+			// Only include underwater lots (negative unrealized gain); sort worst first
+			harvestLosses = Array.from(harvestMap.values())
+				.filter((r) => r.unrealizedGainLoss !== null && r.unrealizedGainLoss < 0)
+				.sort((a, b) => (a.unrealizedGainLoss ?? 0) - (b.unrealizedGainLoss ?? 0));
+		} catch (e) {
+			console.warn('[tax/summary] harvest price fetch failed', e);
+		}
+
 		return respond({
 			ok: true,
 			year,
@@ -185,6 +252,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			unpricedOnchain,
 			gains,
 			byAssetGains,
+			harvestLosses,
 		});
 	} catch (error) {
 		console.error('[tax/summary] failed:', error);
