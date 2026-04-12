@@ -2,16 +2,16 @@
 /**
  * /tax-login
  *
- * Minimal passphrase gate for the tax page.
- * No branding, no nav — just a single textarea and submit button.
- * The passphrase is checked against the TAX_SECRET environment variable.
+ * Passphrase gate for the tax dashboard.
+ * Opaque dark backdrop · centered white card · black "Password" label.
+ * Passphrase is checked against the TAX_SECRET environment variable.
  */
 
 import { hasTaxAccess } from '@/lib/taxAuth';
 
-// Already authenticated → send straight to /tax
+// Already authenticated → straight to dashboard
 if (hasTaxAccess(Astro.request)) {
-	return Astro.redirect('/tax', 302);
+	return Astro.redirect('/tax-home', 302);
 }
 
 const error = Astro.url.searchParams.has('error');
@@ -26,36 +26,42 @@ const error = Astro.url.searchParams.has('error');
 	<link rel="icon" type="image/webp" href="/favicon.webp" />
 	<style>
 		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 		html, body {
 			height: 100%;
 			font-family: 'Inter', system-ui, -apple-system, sans-serif;
 			background: #0f1117;
-			color: #f5f5f5;
 			display: flex;
 			align-items: center;
 			justify-content: center;
 		}
+
+		/* White centered card */
 		.card {
+			background: #ffffff;
+			border-radius: 12px;
 			width: 100%;
-			max-width: 360px;
-			padding: 2.5rem 2rem;
+			max-width: 400px;
+			padding: 2.75rem 2.5rem 2.5rem;
 			display: flex;
 			flex-direction: column;
-			gap: 1.25rem;
+			gap: 1.1rem;
+			box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
 		}
+
 		.label {
-			font-size: 0.75rem;
-			font-weight: 600;
-			letter-spacing: 0.08em;
-			text-transform: uppercase;
-			color: #6b7280;
+			font-size: 1rem;
+			font-weight: 700;
+			color: #000000;
+			letter-spacing: 0.01em;
 		}
+
 		textarea {
 			width: 100%;
-			background: #1a1d27;
-			border: 1px solid #2d3148;
-			border-radius: 0.5rem;
-			color: #f5f5f5;
+			background: #f5f5f5;
+			border: 1.5px solid #d1d5db;
+			border-radius: 8px;
+			color: #111;
 			font-family: inherit;
 			font-size: 1rem;
 			padding: 0.75rem 1rem;
@@ -64,36 +70,39 @@ const error = Astro.url.searchParams.has('error');
 			transition: border-color 0.15s;
 			height: 80px;
 		}
+
 		textarea:focus { border-color: #6366f1; }
-		textarea::placeholder { color: #4b5563; }
+		textarea::placeholder { color: #9ca3af; }
+
+		.error {
+			font-size: 0.82rem;
+			color: #dc2626;
+		}
+
 		button {
 			width: 100%;
-			background: #6366f1;
+			background: #111111;
 			border: none;
-			border-radius: 0.5rem;
+			border-radius: 8px;
 			color: #fff;
 			cursor: pointer;
 			font-family: inherit;
-			font-size: 0.9rem;
+			font-size: 0.95rem;
 			font-weight: 600;
-			padding: 0.7rem 1rem;
+			padding: 0.75rem 1rem;
 			transition: background 0.15s;
 		}
-		button:hover { background: #4f46e5; }
-		button:active { background: #4338ca; }
-		.error {
-			font-size: 0.8rem;
-			color: #f87171;
-			text-align: center;
-		}
+
+		button:hover  { background: #333333; }
+		button:active { background: #000000; }
 	</style>
 </head>
 <body>
 	<div class="card">
-		<p class="label">Tax Documents</p>
+		<p class="label">Password</p>
 
 		<form method="POST" action="/api/tax-login">
-			<div style="display:flex;flex-direction:column;gap:1rem;">
+			<div style="display:flex;flex-direction:column;gap:0.9rem;">
 				<textarea
 					name="passphrase"
 					placeholder="Enter passphrase…"

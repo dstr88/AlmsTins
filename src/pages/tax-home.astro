@@ -1,0 +1,33 @@
+---
+/**
+ * /tax-home
+ *
+ * Placeholder — tax dashboard landing page.
+ * Currently a black screen; real content wired in next.
+ */
+
+import { hasTaxAccess } from '@/lib/taxAuth';
+
+if (!hasTaxAccess(Astro.request)) {
+	return Astro.redirect('/tax-login', 302);
+}
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Tax Dashboard</title>
+	<link rel="icon" type="image/webp" href="/favicon.webp" />
+	<style>
+		html, body {
+			margin: 0;
+			padding: 0;
+			height: 100%;
+			background: #000000;
+		}
+	</style>
+</head>
+<body></body>
+</html>
