@@ -118,9 +118,12 @@ function daysBetween(a: string, b: string): number {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
+export type CostBasisMethod = 'fifo' | 'hifo';
+
 export async function buildAnnualBreakdown(
   tenantId: string,
   year: number,
+  method: CostBasisMethod = 'fifo',
 ): Promise<AnnualBreakdown> {
   const yearStart = `${year}-01-01T00:00:00.000Z`;
   const yearEnd   = `${year}-12-31T23:59:59.999Z`;
@@ -259,8 +262,22 @@ export async function buildAnnualBreakdown(
     ...suiEvents,
   ].sort((a, b) => toStr(a.timestamp_utc).localeCompare(toStr(b.timestamp_utc)));
 
-  // FIFO state
+  // Lot selection — FIFO takes index 0; HIFO picks highest cost-per-unit lot
   type Lot = { amount: number; timestamp: string; costUsd: number | null };
+
+  function selectLotIndex(list: Lot[]): number {
+    if (method === 'fifo' || list.length <= 1) return 0;
+    let bestIdx = 0;
+    let bestCpu = -Infinity;
+    for (let i = 0; i < list.length; i++) {
+      const cpu = list[i].costUsd != null && list[i].amount > 0
+        ? list[i].costUsd! / list[i].amount
+        : 0;
+      if (cpu > bestCpu) { bestCpu = cpu; bestIdx = i; }
+    }
+    return bestIdx;
+  }
+
   const lotsByAsset = new Map<string, Lot[]>();
 
   const needsAttention: UnsettledItem[] = [];
@@ -296,8 +313,7 @@ export async function buildAnnualBreakdown(
       const list    = lotsByAsset.get(asset) ?? [];
 
       while (remaining > 0) {
-        const lot = list[0];
-        if (!lot) {
+        if (list.length === 0) {
           // orphaned — no matching buy found (only flag if it's a real taxable sell)
           if (sellInYear && isTaxable) {
             needsAttention.push({
@@ -316,6 +332,8 @@ export async function buildAnnualBreakdown(
           }
           break;
         }
+        const lotIdx = selectLotIndex(list);
+        const lot    = list[lotIdx];
 
         const take        = Math.min(remaining, lot.amount);
         const costPortion =
@@ -349,7 +367,7 @@ export async function buildAnnualBreakdown(
           lot.costUsd = (lot.costUsd ?? 0) - costPortion;
         }
         lot.amount -= take;
-        if (lot.amount <= 0) list.shift();
+        if (lot.amount <= 0) list.splice(lotIdx, 1);
         remaining -= take;
       }
 

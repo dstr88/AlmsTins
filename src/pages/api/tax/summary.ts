@@ -22,7 +22,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
-import { buildAnnualBreakdown } from '../../../lib/annualBreakdown';
+import { buildAnnualBreakdown, type CostBasisMethod } from '../../../lib/annualBreakdown';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
 
 export const prerender = false;
@@ -48,8 +48,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const session = await requireTenantSession(request);
 	const { tenantId } = session;
 
-	const yearParam = url.searchParams.get('year');
-	const year = yearParam ? Number(yearParam) : new Date().getFullYear();
+	const yearParam   = url.searchParams.get('year');
+	const year        = yearParam ? Number(yearParam) : new Date().getFullYear();
+	const methodParam = url.searchParams.get('method');
+	const method: CostBasisMethod = methodParam === 'hifo' ? 'hifo' : 'fifo';
 
 	if (Number.isNaN(year) || year < 2009 || year > 2100) {
 		return respond({ ok: false, error: 'Invalid year parameter.' }, 400);
@@ -140,7 +142,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		// ── 5. FIFO gain/loss split (short-term vs long-term) ────────────────
 		// buildAnnualBreakdown runs the full FIFO engine — same data the PDF uses.
-		const bd = await buildAnnualBreakdown(tenantId, year);
+		const bd = await buildAnnualBreakdown(tenantId, year, method);
 		const gains = {
 			shortTermGain:  bd.totals.shortTermGain,
 			longTermGain:   bd.totals.longTermGain,
@@ -320,7 +322,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		for (const y of priorYears) {
 			try {
-				const pbd = await buildAnnualBreakdown(tenantId, y);
+				const pbd = await buildAnnualBreakdown(tenantId, y, method);
 				const netGL = pbd.totals.shortTermGain + pbd.totals.longTermGain;
 
 				let deducted       = 0;
@@ -360,7 +362,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		for (const y of [...priorYears, year]) {
 			try {
-				const ybd = y === year ? bd : await buildAnnualBreakdown(tenantId, y);
+				const ybd = y === year ? bd : await buildAnnualBreakdown(tenantId, y, method);
 				yoyRows.push({
 					year:    y,
 					stGain:  ybd.totals.shortTermGain,
@@ -375,6 +377,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		return respond({
 			ok: true,
 			year,
+			method,
 			availableYears: bd.availableYears,
 			ordinaryIncome,
 			disposals,

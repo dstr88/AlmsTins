@@ -79,14 +79,17 @@ type TaxPayload = {
 	}[];
 	carryforwardAvailable?: number;
 	yoyRows?: { year: number; stGain: number; ltGain: number; netGain: number }[];
+	method?: 'fifo' | 'hifo';
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
 const defaultYear = new Date().getFullYear() - 1; // prior tax year
 const yearParam   = Astro.url.searchParams.get('year');
 const year        = yearParam ? Number(yearParam) : defaultYear;
+const methodParam = Astro.url.searchParams.get('method');
+const method      = methodParam === 'hifo' ? 'hifo' : 'fifo';
 
-const apiUrl = new URL(`/api/tax/summary?year=${year}`, Astro.request.url);
+const apiUrl = new URL(`/api/tax/summary?year=${year}&method=${method}`, Astro.request.url);
 const apiRes = await fetch(apiUrl);
 const data: TaxPayload = apiRes.ok ? await apiRes.json() : { ok: false };
 
@@ -128,22 +131,45 @@ const fmtGain = (n: number) => {
 				</p>
 			</div>
 
-			{availableYears.length > 0 && (
-				<form id="gains-year-filter" method="get" class="flex items-center gap-2">
-					<label for="year-select" class="text-sm font-medium text-gray-700">Calendar year</label>
-					<select
-						id="year-select"
-						name="year"
-						onchange="this.form.submit()"
-						class="border border-gray-300 rounded-md px-3 py-1.5 text-sm shadow-sm
-						       focus:outline-none focus:ring-2 focus:ring-blue-500"
-					>
-						{availableYears.map((y) => (
-							<option value={y} selected={y === year}>{y}</option>
-						))}
-					</select>
-				</form>
-			)}
+			<div class="flex items-center flex-wrap gap-3">
+				<!-- Cost basis method toggle -->
+				<div class="flex rounded-lg border border-gray-300 overflow-hidden text-sm font-medium">
+					<a
+						href={`?year=${year}&method=fifo`}
+						class={`px-3 py-1.5 transition-colors ${method === 'fifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+						title="First In, First Out — IRS default"
+					>FIFO</a>
+					<a
+						href={`?year=${year}&method=hifo`}
+						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'hifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+						title="Highest In, First Out — minimizes taxable gain"
+					>HIFO</a>
+				</div>
+
+				{method === 'hifo' && (
+					<span class="text-xs text-indigo-600 font-medium bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
+						HIFO active — selling highest-cost lots first
+					</span>
+				)}
+
+				{availableYears.length > 0 && (
+					<form id="gains-year-filter" method="get" class="flex items-center gap-2">
+						<input type="hidden" name="method" value={method} />
+						<label for="year-select" class="text-sm font-medium text-gray-700">Year</label>
+						<select
+							id="year-select"
+							name="year"
+							onchange="this.form.submit()"
+							class="border border-gray-300 rounded-md px-3 py-1.5 text-sm shadow-sm
+							       focus:outline-none focus:ring-2 focus:ring-indigo-500"
+						>
+							{availableYears.map((y) => (
+								<option value={y} selected={y === year}>{y}</option>
+							))}
+						</select>
+					</form>
+				)}
+			</div>
 		</div>
 
 		<!-- API / data error -->
@@ -518,7 +544,9 @@ const fmtGain = (n: number) => {
 					<div class="px-5 py-3 border-b border-indigo-100 flex items-center justify-between">
 						<div>
 							<h2 class="text-sm font-semibold text-indigo-900">Estimated Tax Liability</h2>
-							<p class="text-xs text-indigo-600 mt-0.5">Based on {year} IRS brackets · estimate only</p>
+							<p class="text-xs text-indigo-600 mt-0.5">
+								Based on {year} IRS brackets · {method === 'hifo' ? 'HIFO' : 'FIFO'} cost basis · estimate only
+							</p>
 						</div>
 						<span class="text-xs text-indigo-400 font-medium">Not financial advice</span>
 					</div>
