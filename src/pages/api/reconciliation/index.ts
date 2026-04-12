@@ -7,7 +7,7 @@
 
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
-import { buildAnnualBreakdown } from '../../../lib/annualBreakdown';
+import { buildAnnualBreakdown, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 import { computeHoldings, type ImportRow } from '../../../lib/exchangeHoldings';
 import { db } from '../../../lib/db';
 import {
@@ -55,7 +55,7 @@ export const GET: APIRoute = async ({ request }) => {
 
     // ── Parallel data fetch ─────────────────────────────────────────────────
     const [bd, walletRows, exchangeRows, lastTxRows, notesRows] = await Promise.all([
-      buildAnnualBreakdown(tenantId, currentYear),
+      buildAnnualBreakdown(tenantId, currentYear, 'fifo', undefined, 'auto' as AnnualBreakdownSource),
 
       db.execute({
         sql: `WITH latest AS (

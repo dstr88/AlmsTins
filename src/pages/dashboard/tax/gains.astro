@@ -121,9 +121,13 @@ type TaxPayload = {
 	defiEvents?: { count: number; byType: DefiTypeRow[] };
 	incomeCrossCheck?: {
 		pipelineTotal:   number | null;
-		inMemoryTotal:   number;
+		displayedTotal:  number;
+		/** Deprecated alias kept for backwards compat — same as displayedTotal */
+		inMemoryTotal?:  number;
 		diff:            number | null;
 		withinTolerance: boolean | null;
+		/** True when both sides read from the pipeline — check is an identity (always passes). */
+		sameSource?:     boolean;
 	};
 	lastPipelineRun?: {
 		startedAt:       string;
@@ -373,17 +377,17 @@ const fmtGain = (n: number) => {
 					</div>
 				)}
 
-				<!-- Income cross-check warning -->
-				{payload.incomeCrossCheck?.withinTolerance === false && (
+				<!-- Income cross-check warning (only shown when sources differ AND diverge) -->
+				{payload.incomeCrossCheck?.withinTolerance === false && !payload.incomeCrossCheck?.sameSource && (
 					<div class="rounded-xl border border-orange-300 bg-orange-50 shadow-sm p-4 flex gap-3">
 						<span class="text-orange-500 text-xl leading-none mt-0.5">⚠</span>
 						<div class="space-y-1">
 							<p class="text-sm font-semibold text-orange-900">
-								Pipeline income total diverges from in-memory calculation
+								Pipeline income total diverges from displayed calculation
 							</p>
 							<p class="text-xs text-orange-700">
 								The classification pipeline shows <strong>{fmt(payload.incomeCrossCheck.pipelineTotal ?? 0)}</strong> but
-								in-memory gives <strong>{fmt(payload.incomeCrossCheck.inMemoryTotal)}</strong>
+								the displayed total is <strong>{fmt(payload.incomeCrossCheck.displayedTotal ?? payload.incomeCrossCheck.inMemoryTotal ?? 0)}</strong>
 								(diff&nbsp;{fmt(Math.abs(payload.incomeCrossCheck.diff ?? 0))}).
 								Re-run the classification pipeline to resolve.
 							</p>

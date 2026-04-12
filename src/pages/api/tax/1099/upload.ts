@@ -18,7 +18,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
-import { buildAnnualBreakdown } from '@/lib/annualBreakdown';
+import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { randomUUID } from 'node:crypto';
 
 export const prerender = false;
@@ -232,7 +232,7 @@ export const POST: APIRoute = async ({ request }) => {
 	// ── Reconcile against computed gains ──────────────────────────────────────
 	let bd: Awaited<ReturnType<typeof buildAnnualBreakdown>>;
 	try {
-		bd = await buildAnnualBreakdown(tenantId, taxYear);
+		bd = await buildAnnualBreakdown(tenantId, taxYear, 'fifo', undefined, 'auto' as AnnualBreakdownSource);
 	} catch (err) {
 		console.error('[1099/upload] breakdown error', err);
 		// Don't fail the upload — store as-is without reconciliation

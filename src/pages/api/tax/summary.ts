@@ -596,22 +596,26 @@ export const GET: APIRoute = async ({ request, url }) => {
 			// tax_disposals may not exist — ignore
 		}
 
-		// ── 10b. Income cross-check (buildAnnualBreakdown vs tax_classifications) ─
-		// Mirrors the gain cross-check above but for ordinary income totals.
-		// In-memory source: annualBreakdown.totals.totalIncome (lifecycle events).
-		// Pipeline source:  tax_classifications SUM(amount_usd) for income+airdrop.
-		// Threshold: $10 absolute or 5% relative (income figures are smaller).
+		// ── 10b. Income cross-check (displayed income vs tax_classifications) ───
+		// When bd.dataSource === 'lifecycle':  compares in-memory income total
+		//   against tax_classifications. Divergence signals a stale pipeline.
+		// When bd.dataSource === 'pipeline':  both sides read tax_classifications;
+		//   the check is an identity (always passes) — sameSource=true is set so
+		//   the UI can hide the banner rather than showing a misleading "all good".
+		// Threshold: $10 absolute or 5% relative (income is smaller than gains).
 		type IncomeCrossCheck = {
 			pipelineTotal:   number | null;
-			inMemoryTotal:   number;
+			displayedTotal:  number;
 			diff:            number | null;
 			withinTolerance: boolean | null;
+			sameSource:      boolean;
 		};
 		let incomeCrossCheck: IncomeCrossCheck = {
 			pipelineTotal:   null,
-			inMemoryTotal:   bd.totals.totalIncome ?? 0,
+			displayedTotal:  bd.totals.totalIncome ?? 0,
 			diff:            null,
 			withinTolerance: null,
+			sameSource:      bd.dataSource === 'pipeline',
 		};
 		try {
 			const incXRes = await db.execute({
@@ -626,18 +630,25 @@ export const GET: APIRoute = async ({ request, url }) => {
 			const ixr = incXRes.rows[0];
 			if (ixr && ixr.total_income !== null) {
 				const pTotal  = Number(ixr.total_income ?? 0);
-				const imTotal = incomeCrossCheck.inMemoryTotal;
-				const diff    = imTotal - pTotal;
-				const scale   = Math.max(Math.abs(imTotal), Math.abs(pTotal), 1);
+				const dTotal  = incomeCrossCheck.displayedTotal;
+				const diff    = dTotal - pTotal;
+				const scale   = Math.max(Math.abs(dTotal), Math.abs(pTotal), 1);
 				const withinTolerance = Math.abs(diff) <= 10 || Math.abs(diff) / scale <= 0.05;
-				if (!withinTolerance) {
+				if (!withinTolerance && bd.dataSource !== 'pipeline') {
+					// Only warn when sources differ — same-source identity checks always pass
 					console.warn(
 						`[tax/summary] INCOME CROSS-CHECK FAIL year=${year} ` +
-						`inMemory=${imTotal.toFixed(2)} pipeline=${pTotal.toFixed(2)} ` +
+						`displayed=${dTotal.toFixed(2)} pipeline=${pTotal.toFixed(2)} ` +
 						`diff=${diff.toFixed(2)}`,
 					);
 				}
-				incomeCrossCheck = { pipelineTotal: pTotal, inMemoryTotal: imTotal, diff, withinTolerance };
+				incomeCrossCheck = {
+					pipelineTotal:  pTotal,
+					displayedTotal: dTotal,
+					diff,
+					withinTolerance,
+					sameSource:     bd.dataSource === 'pipeline',
+				};
 			}
 		} catch {
 			// tax_classifications may not exist — ignore

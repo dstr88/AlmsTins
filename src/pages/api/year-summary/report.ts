@@ -16,7 +16,7 @@
 import type { APIRoute } from 'astro';
 import PDFDocument from 'pdfkit';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { buildAnnualBreakdown } from '@/lib/annualBreakdown';
+import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getActivePlan } from '@/lib/subscriptions';
 
 export const prerender = false;
@@ -432,7 +432,9 @@ export const GET: APIRoute = async ({ request }) => {
     }
 
     // ── Build data + PDF ──────────────────────────────────────────────────────
-    const bd = await buildAnnualBreakdown(tenantId, year);
+    // 'auto': use pipeline tables when available (IRS-accurate); fall back to
+    // lifecycle-events FIFO if the pipeline hasn't run for this year.
+    const bd = await buildAnnualBreakdown(tenantId, year, 'fifo', undefined, 'auto' as AnnualBreakdownSource);
     const tenantLabel = `almsTins Account`;
     const pdfBuffer = await buildPdf(bd, year, tenantLabel);
 
