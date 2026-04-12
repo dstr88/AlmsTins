@@ -78,6 +78,7 @@ type TaxPayload = {
 		endingBalance:  number;
 	}[];
 	carryforwardAvailable?: number;
+	yoyRows?: { year: number; stGain: number; ltGain: number; netGain: number }[];
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -551,7 +552,7 @@ const fmtGain = (n: number) => {
 					</div>
 
 					<!-- Output -->
-					<div class="grid grid-cols-1 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+					<div class="grid grid-cols-1 sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
 						<div class="p-5 space-y-1">
 							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">ST Tax Est.</p>
 							<p id="est-st-tax" class="text-2xl font-bold text-gray-900">—</p>
@@ -567,6 +568,11 @@ const fmtGain = (n: number) => {
 							<p id="est-income-tax" class="text-2xl font-bold text-gray-900">—</p>
 							<p class="text-xs text-gray-500">staking / interest</p>
 						</div>
+						<div id="est-niit-cell" class="p-5 space-y-1 hidden">
+							<p class="text-xs font-semibold uppercase tracking-wide text-orange-500">NIIT (3.8%)</p>
+							<p id="est-niit-tax" class="text-2xl font-bold text-orange-700">—</p>
+							<p class="text-xs text-orange-500">net investment income</p>
+						</div>
 						<div class="p-5 space-y-1 bg-indigo-50">
 							<p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Total Estimate</p>
 							<p id="est-total-tax" class="text-2xl font-bold text-indigo-900">—</p>
@@ -574,10 +580,19 @@ const fmtGain = (n: number) => {
 						</div>
 					</div>
 
+					<!-- NIIT warning banner — shown/hidden by JS -->
+					<div id="est-niit-banner" class="hidden px-5 py-3 border-t border-orange-200 bg-orange-50">
+						<p class="text-xs text-orange-800">
+							<strong>⚠ Net Investment Income Tax applies.</strong> Your total income exceeds the NIIT threshold.
+							An additional 3.8% applies to your crypto gains and income on top of ordinary rates.
+							This is included in the total estimate above.
+						</p>
+					</div>
+
 					<div class="px-5 py-3 border-t border-gray-100 bg-gray-50">
 						<p class="text-xs text-gray-400">
 							Rough estimate using {year} IRS marginal brackets. Does not account for deductions,
-							AMT, NIIT, state taxes, or capital loss carryforward. Short-term gains are stacked on top
+							AMT, state taxes, or capital loss carryforward. Short-term gains are stacked on top
 							of your other income. If you don't have employer withholding covering this amount, you may
 							owe quarterly estimated payments — ask your CPA. Not financial advice.
 						</p>
@@ -708,6 +723,72 @@ const fmtGain = (n: number) => {
 					</div>
 				)}
 
+				<!-- Year-over-year chart -->
+				{(payload.yoyRows?.length ?? 0) > 1 && (() => {
+					const rows = payload.yoyRows!;
+					const maxAbs = Math.max(...rows.map(r => Math.abs(r.netGain)), 1);
+					const BAR_H = 28;
+					const LABEL_W = 48;
+					const VALUE_W = 88;
+					const CHART_W = 400;
+					const SVG_W = LABEL_W + CHART_W + VALUE_W;
+					const SVG_H = rows.length * (BAR_H + 6) + 24;
+					const midX = LABEL_W + CHART_W / 2;
+
+					return (
+						<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+							<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+								<h2 class="text-sm font-semibold text-gray-700">Year-over-Year Realized Gains</h2>
+								<span class="text-xs text-gray-400">ST + LT net · FIFO</span>
+							</div>
+							<div class="px-5 py-4 overflow-x-auto">
+								<svg
+									width={SVG_W}
+									height={SVG_H}
+									viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+									style="font-family: system-ui, sans-serif; display:block; max-width:100%;"
+								>
+									{/* centre line */}
+									<line x1={midX} y1={0} x2={midX} y2={SVG_H - 16} stroke="#e5e7eb" stroke-width="1" />
+
+									{rows.map((r, i) => {
+										const y = i * (BAR_H + 6) + 4;
+										const isGain = r.netGain >= 0;
+										const barW = Math.max(2, (Math.abs(r.netGain) / maxAbs) * (CHART_W / 2 - 4));
+										const barX = isGain ? midX : midX - barW;
+										const fill = isGain ? '#15803d' : '#b91c1c';
+										const valStr = r.netGain === 0 ? '$0'
+											: r.netGain > 0
+												? `+$${(r.netGain / 1000).toFixed(1)}k`
+												: `($${(Math.abs(r.netGain) / 1000).toFixed(1)}k)`;
+
+										return (
+											<g key={r.year}>
+												{/* year label */}
+												<text x={LABEL_W - 6} y={y + BAR_H / 2 + 5} text-anchor="end" font-size="12" fill="#6b7280">{r.year}</text>
+												{/* bar */}
+												<rect x={barX} y={y} width={barW} height={BAR_H} rx="3" fill={fill} opacity="0.85" />
+												{/* value */}
+												<text
+													x={isGain ? midX + barW + 6 : midX - barW - 6}
+													y={y + BAR_H / 2 + 5}
+													text-anchor={isGain ? 'start' : 'end'}
+													font-size="12"
+													font-weight="600"
+													fill={fill}
+												>{valStr}</text>
+											</g>
+										);
+									})}
+
+									{/* axis label */}
+									<text x={midX} y={SVG_H - 2} text-anchor="middle" font-size="10" fill="#9ca3af">Net Realized Gain / (Loss)</text>
+								</svg>
+							</div>
+						</div>
+					);
+				})()}
+
 				<!-- Form 8949 CTA -->
 				<div class="rounded-xl border border-blue-100 bg-blue-50 p-5 flex items-center justify-between flex-wrap gap-4">
 					<div>
@@ -759,6 +840,16 @@ const LT_RATES: Record<string, [number, number][]> = {
   mfj:    [[94050, 0.00], [583750, 0.15], [Infinity, 0.20]],
   mfs:    [[47025, 0.00], [291850, 0.15], [Infinity, 0.20]],
   hoh:    [[63000, 0.00], [551350, 0.15], [Infinity, 0.20]],
+};
+
+// Net Investment Income Tax — 3.8% on NII above MAGI threshold
+// NII includes crypto gains (ST + LT) and staking/interest income
+const NIIT_RATE = 0.038;
+const NIIT_THRESHOLD: Record<string, number> = {
+  single: 200_000,
+  mfj:    250_000,
+  mfs:    125_000,
+  hoh:    200_000,
 };
 
 function marginalRate(income: number, brackets: [number, number][]): number {
@@ -826,22 +917,43 @@ function recalculate() {
   const ltRate = marginalRate(ltOrdinaryBase, ltBrackets);
   const ltTax  = Math.max(0, ltGain) * ltRate;
 
-  // If gains are negative, they offset — show $0 but note the offset
-  const stTax    = stGain    < 0 ? 0 : stResult.tax;
+  // If gains are negative, they offset — show $0
+  const stTax     = stGain       < 0 ? 0 : stResult.tax;
   const incomeTax = cryptoIncome < 0 ? 0 : incomeResult.tax;
-  const totalTax = stTax + incomeTax + ltTax;
+
+  // ── NIIT ────────────────────────────────────────────────────────────────
+  // MAGI approximation = other income + crypto gains + crypto income
+  const magi          = otherIncome + Math.max(0, stGain) + Math.max(0, ltGain) + Math.max(0, cryptoIncome);
+  const niitThreshold = NIIT_THRESHOLD[filing] ?? NIIT_THRESHOLD.single;
+  const niitApplies   = magi > niitThreshold;
+  // NIIT base = net investment income (gains + crypto income), capped at the
+  // amount that exceeds the threshold
+  const nii           = Math.max(0, stGain) + Math.max(0, ltGain) + Math.max(0, cryptoIncome);
+  const niitBase      = niitApplies ? Math.min(nii, magi - niitThreshold) : 0;
+  const niitTax       = niitBase * NIIT_RATE;
+
+  const totalTax = stTax + incomeTax + ltTax + niitTax;
 
   const setText = (id: string, val: string) => {
     const node = document.getElementById(id);
     if (node) node.textContent = val;
   };
+  const setHidden = (id: string, hidden: boolean) => {
+    const node = document.getElementById(id);
+    if (node) node.classList.toggle('hidden', hidden);
+  };
 
-  setText('est-st-tax',     stGain    <= 0 ? '—' : fmtUsd(stTax));
-  setText('est-st-rate',    stGain    <= 0 ? 'no ST gain this year' : `${fmtPct(stResult.rate)} effective rate`);
-  setText('est-lt-tax',     ltGain    <= 0 ? '—' : fmtUsd(ltTax));
-  setText('est-lt-rate',    ltGain    <= 0 ? 'no LT gain this year' : `${fmtPct(ltRate)} capital gains rate`);
+  setText('est-st-tax',     stGain       <= 0 ? '—' : fmtUsd(stTax));
+  setText('est-st-rate',    stGain       <= 0 ? 'no ST gain this year'  : `${fmtPct(stResult.rate)} effective rate`);
+  setText('est-lt-tax',     ltGain       <= 0 ? '—' : fmtUsd(ltTax));
+  setText('est-lt-rate',    ltGain       <= 0 ? 'no LT gain this year'  : `${fmtPct(ltRate)} capital gains rate`);
   setText('est-income-tax', cryptoIncome <= 0 ? '—' : fmtUsd(incomeTax));
-  setText('est-total-tax',  totalTax  <= 0 ? '$0' : fmtUsd(totalTax));
+  setText('est-niit-tax',   fmtUsd(niitTax));
+  setText('est-total-tax',  totalTax     <= 0 ? '$0' : fmtUsd(totalTax));
+
+  // Show NIIT cell + banner only when it applies
+  setHidden('est-niit-cell',   !niitApplies);
+  setHidden('est-niit-banner', !niitApplies);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -352,6 +352,26 @@ export const GET: APIRoute = async ({ request, url }) => {
 		// How much carryforward is available to offset THIS year's gains
 		const carryforwardAvailable = carryBalance;
 
+		// ── 10. Year-over-year gain/loss summary ──────────────────────────────
+		// Build one row per available year so the chart has full history.
+		// We already computed prior years for carryforward; include current year too.
+		type YoYRow = { year: number; stGain: number; ltGain: number; netGain: number };
+		const yoyRows: YoYRow[] = [];
+
+		for (const y of [...priorYears, year]) {
+			try {
+				const ybd = y === year ? bd : await buildAnnualBreakdown(tenantId, y);
+				yoyRows.push({
+					year:    y,
+					stGain:  ybd.totals.shortTermGain,
+					ltGain:  ybd.totals.longTermGain,
+					netGain: ybd.totals.shortTermGain + ybd.totals.longTermGain,
+				});
+			} catch (e) {
+				console.warn(`[tax/summary] yoy: failed year ${y}`, e);
+			}
+		}
+
 		return respond({
 			ok: true,
 			year,
@@ -365,6 +385,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			missingBasis,
 			carryLedger,
 			carryforwardAvailable,
+			yoyRows,
 		});
 	} catch (error) {
 		console.error('[tax/summary] failed:', error);
