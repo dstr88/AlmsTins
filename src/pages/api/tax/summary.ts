@@ -22,6 +22,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
+import { buildAnnualBreakdown } from '../../../lib/annualBreakdown';
 
 export const prerender = false;
 
@@ -136,13 +137,25 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.map((r) => Number(r.y))
 			.filter((y) => y >= 2009 && y <= 2100);
 
+		// ── 5. FIFO gain/loss split (short-term vs long-term) ────────────────
+		// buildAnnualBreakdown runs the full FIFO engine — same data the PDF uses.
+		const bd = await buildAnnualBreakdown(tenantId, year);
+		const gains = {
+			shortTermGain:  bd.totals.shortTermGain,
+			longTermGain:   bd.totals.longTermGain,
+			netGain:        bd.totals.shortTermGain + bd.totals.longTermGain,
+			shortTermCount: bd.shortTerm.length,
+			longTermCount:  bd.longTerm.length,
+		};
+
 		return respond({
 			ok: true,
 			year,
-			availableYears,
+			availableYears: bd.availableYears,
 			ordinaryIncome,
 			disposals,
 			unpricedOnchain,
+			gains,
 		});
 	} catch (error) {
 		console.error('[tax/summary] failed:', error);

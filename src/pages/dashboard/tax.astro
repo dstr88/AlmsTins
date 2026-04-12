@@ -35,6 +35,13 @@ type TaxPayload = {
 		liquidationCount: number;
 	};
 	unpricedOnchain?: number;
+	gains?: {
+		shortTermGain:  number;
+		longTermGain:   number;
+		netGain:        number;
+		shortTermCount: number;
+		longTermCount:  number;
+	};
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -117,6 +124,66 @@ const fmt = (n: number) =>
 					</div>
 				)}
 
+				<!-- ST / LT gain cards -->
+				{payload.gains && (
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-gray-100">
+							<h2 class="text-sm font-semibold text-gray-700">Realized Capital Gains</h2>
+							<p class="text-xs text-gray-400 mt-0.5">FIFO cost basis · Schedule D</p>
+						</div>
+						<div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+
+							<!-- Short-term -->
+							<div class="p-5 space-y-1">
+								<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+									Short-term &nbsp;<span class="normal-case font-normal text-gray-400">(held ≤ 1 yr)</span>
+								</p>
+								<p class={`text-2xl font-bold ${
+									(payload.gains.shortTermGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
+								}`}>
+									{payload.gains.shortTermGain >= 0 ? '+' : ''}{fmt(payload.gains.shortTermGain)}
+								</p>
+								<p class="text-xs text-gray-500">
+									{payload.gains.shortTermCount} lot{payload.gains.shortTermCount !== 1 ? 's' : ''}
+									&nbsp;·&nbsp;taxed as ordinary income
+								</p>
+							</div>
+
+							<!-- Long-term -->
+							<div class="p-5 space-y-1">
+								<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+									Long-term &nbsp;<span class="normal-case font-normal text-gray-400">(held &gt; 1 yr)</span>
+								</p>
+								<p class={`text-2xl font-bold ${
+									(payload.gains.longTermGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
+								}`}>
+									{payload.gains.longTermGain >= 0 ? '+' : ''}{fmt(payload.gains.longTermGain)}
+								</p>
+								<p class="text-xs text-gray-500">
+									{payload.gains.longTermCount} lot{payload.gains.longTermCount !== 1 ? 's' : ''}
+									&nbsp;·&nbsp;0% / 15% / 20% rate
+								</p>
+							</div>
+
+							<!-- Net -->
+							<div class="p-5 space-y-1">
+								<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
+									Net realized
+								</p>
+								<p class={`text-2xl font-bold ${
+									(payload.gains.netGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
+								}`}>
+									{payload.gains.netGain >= 0 ? '+' : ''}{fmt(payload.gains.netGain)}
+								</p>
+								<p class="text-xs text-gray-500">
+									ST + LT combined
+								</p>
+							</div>
+
+						</div>
+					</div>
+				)}
+
 				<!-- Summary cards -->
 				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
@@ -146,7 +213,7 @@ const fmt = (n: number) =>
 						<p class="text-xs text-gray-500">
 							{payload.disposals?.count ?? 0}
 							disposal{(payload.disposals?.count ?? 0) !== 1 ? 's' : ''}
-							&nbsp;·&nbsp;gain/loss in CSV export
+							&nbsp;·&nbsp;gross proceeds
 						</p>
 					</div>
 
