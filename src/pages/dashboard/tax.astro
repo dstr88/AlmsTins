@@ -61,6 +61,15 @@ type TaxPayload = {
 		longTermQty:        number;
 		soonestLotDaysToLT: number | null;
 	}[];
+	missingBasis?: {
+		asset:    string;
+		date:     string;
+		qty:      number;
+		proceeds: number | null;
+		issue:    'no_cost_basis' | 'no_matching_buy';
+		daysHeld: number | null;
+		term:     'short' | 'long' | null;
+	}[];
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -78,6 +87,11 @@ const availableYears = payload?.availableYears ?? [];
 // ── Helpers ────────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
 	n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+
+const fmtDate = (iso: string) => {
+	try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+	catch { return iso; }
+};
 
 // Accounting notation: losses in parentheses, gains with + prefix
 const fmtGain = (n: number) => {
@@ -338,6 +352,78 @@ const fmtGain = (n: number) => {
 								<strong>Note:</strong> Prices are live spot rates. Selling and immediately rebuying
 								may trigger wash-sale–like treatment depending on IRS guidance for your situation.
 								Consult a tax professional before harvesting.
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- Missing cost basis report -->
+				{(payload.missingBasis?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-red-200 bg-red-50 shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-red-200 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-red-900">Missing Cost Basis</h2>
+								<p class="text-xs text-red-700 mt-0.5">These disposals have incomplete records — your gain/loss totals above may be wrong</p>
+							</div>
+							<span class="text-xs text-red-600 font-semibold bg-red-100 px-2 py-0.5 rounded-full">
+								{payload.missingBasis!.length} issue{payload.missingBasis!.length !== 1 ? 's' : ''}
+							</span>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-red-100">
+								<tr>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Asset</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Disposed</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-red-800 uppercase tracking-wide">Qty</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-red-800 uppercase tracking-wide">Proceeds</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Term</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Problem</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Fix</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-red-100 bg-white">
+								{payload.missingBasis!.map((row) => {
+									const isOrphan = row.issue === 'no_matching_buy';
+									return (
+										<tr class="hover:bg-red-50">
+											<td class="px-5 py-3 font-mono font-semibold text-gray-800">{row.asset}</td>
+											<td class="px-5 py-3 text-gray-600">{fmtDate(row.date)}</td>
+											<td class="px-5 py-3 text-right text-gray-600 tabular-nums">
+												{row.qty.toLocaleString('en-US', { maximumFractionDigits: 6 })}
+											</td>
+											<td class="px-5 py-3 text-right tabular-nums text-gray-700">
+												{row.proceeds !== null ? fmt(row.proceeds) : <span class="text-gray-300">—</span>}
+											</td>
+											<td class="px-5 py-3">
+												{row.term
+													? <span class={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${row.term === 'long' ? 'text-green-700 bg-green-50' : 'text-amber-700 bg-amber-50'}`}>
+														{row.term === 'long' ? 'Long' : 'Short'}
+													</span>
+													: <span class="text-gray-300 text-xs">Unknown</span>
+												}
+											</td>
+											<td class="px-5 py-3">
+												{isOrphan
+													? <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-red-700 bg-red-100">No matching buy</span>
+													: <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-orange-700 bg-orange-50">Buy has no price</span>
+												}
+											</td>
+											<td class="px-5 py-3 text-xs text-gray-500">
+												{isOrphan
+													? <a href="/dashboard/bookkeeping" class="underline text-blue-600 hover:text-blue-800">Find in Bookkeeping →</a>
+													: <a href="/dashboard/bookkeeping" class="underline text-blue-600 hover:text-blue-800">Enter cost manually →</a>
+												}
+											</td>
+										</tr>
+									);
+								})}
+							</tbody>
+						</table>
+						<div class="px-5 py-3 border-t border-red-200 bg-red-50">
+							<p class="text-xs text-red-700">
+								<strong>Impact:</strong> "No matching buy" means the IRS may treat the full proceeds as gain.
+								"Buy has no price" means cost basis is assumed $0, overstating your taxable gain.
+								Resolve these in Bookkeeping before filing.
 							</p>
 						</div>
 					</div>

@@ -243,6 +243,58 @@ export const GET: APIRoute = async ({ request, url }) => {
 			console.warn('[tax/summary] harvest price fetch failed', e);
 		}
 
+		// ── 8. Missing cost basis report ─────────────────────────────────────
+		// Two failure modes:
+		//   A) Disposed lot matched a buy but the buy had no USD price (costUsd null)
+		//      → gain/loss is understated; proceeds are known but basis is $0
+		//   B) Disposed lot had no matching buy at all (needsAttention)
+		//      → entire event is unresolved; both basis AND proceeds may be wrong
+		type MissingBasisRow = {
+			asset:       string;
+			date:        string;
+			qty:         number;
+			proceeds:    number | null;
+			issue:       'no_cost_basis' | 'no_matching_buy';
+			daysHeld:    number | null;
+			term:        'short' | 'long' | null;
+		};
+
+		const missingBasis: MissingBasisRow[] = [];
+
+		// Mode A — disposed lots with known proceeds but null cost basis
+		for (const lot of [...bd.shortTerm, ...bd.longTerm]) {
+			if (lot.costUsd === null || lot.costUsd === 0) {
+				missingBasis.push({
+					asset:    lot.asset,
+					date:     lot.sellDate,
+					qty:      lot.amount,
+					proceeds: lot.proceedsUsd,
+					issue:    'no_cost_basis',
+					daysHeld: lot.daysHeld,
+					term:     lot.daysHeld >= 365 ? 'long' : 'short',
+				});
+			}
+		}
+
+		// Mode B — orphaned sells (no matching buy found by FIFO)
+		for (const item of bd.needsAttention) {
+			missingBasis.push({
+				asset:    item.asset,
+				date:     item.sellDate,
+				qty:      item.amount,
+				proceeds: item.proceedsUsd,
+				issue:    'no_matching_buy',
+				daysHeld: null,
+				term:     null,
+			});
+		}
+
+		// Sort: orphaned first (worse problem), then by date descending
+		missingBasis.sort((a, b) => {
+			if (a.issue !== b.issue) return a.issue === 'no_matching_buy' ? -1 : 1;
+			return b.date.localeCompare(a.date);
+		});
+
 		return respond({
 			ok: true,
 			year,
@@ -253,6 +305,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			gains,
 			byAssetGains,
 			harvestLosses,
+			missingBasis,
 		});
 	} catch (error) {
 		console.error('[tax/summary] failed:', error);
