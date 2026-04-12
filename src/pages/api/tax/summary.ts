@@ -328,6 +328,31 @@ export const GET: APIRoute = async ({ request, url }) => {
 			.map((r) => ({ ...r, netGain: r.stGain + r.ltGain }))
 			.sort((a, b) => Math.abs(b.netGain) - Math.abs(a.netGain)); // largest impact first
 
+		// ── 6b. Per-asset lot detail — individual disposal rows for drill-down ──
+		// Grouped by asset, sorted by sell date. Passed to the UI so clicking an
+		// asset row expands the full Form 8949–style lot list without a second fetch.
+		type LotDetail = {
+			amount:      number;
+			buyDate:     string;
+			sellDate:    string;
+			costUsd:     number | null;
+			proceedsUsd: number | null;
+			gainLossUsd: number | null;
+			daysHeld:    number;
+			term:        'short' | 'long';
+		};
+		const lotDetails: Record<string, LotDetail[]> = {};
+		for (const lot of bd.shortTerm) {
+			(lotDetails[lot.asset] ??= []).push({ ...lot, term: 'short' });
+		}
+		for (const lot of bd.longTerm) {
+			(lotDetails[lot.asset] ??= []).push({ ...lot, term: 'long' });
+		}
+		// Sort each asset's lots chronologically by sell date
+		for (const lots of Object.values(lotDetails)) {
+			lots.sort((a, b) => a.sellDate.localeCompare(b.sellDate));
+		}
+
 		// ── 7. Tax-loss harvesting — open lots vs current market price ────────
 		// Aggregate stillHolding by asset, fetch spot prices, flag underwater lots.
 		type HarvestRow = {
@@ -905,6 +930,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			unpricedOnchain,
 			gains,
 			byAssetGains,
+			lotDetails,
 			harvestLosses,
 			missingBasis,
 			carryLedger,
