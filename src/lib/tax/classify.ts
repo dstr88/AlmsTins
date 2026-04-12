@@ -10,10 +10,26 @@
 //
 // Manual overrides (is_manual = 1) are NEVER overwritten.
 // Existing auto classifications are wiped and recomputed each run.
+//
+// ── Reliability guarantees ────────────────────────────────────────────────────
+// 1. ATOMIC PERSIST — all four tables (classifications, review items, lots,
+//    disposals) are written in a single db.batch() call. If any statement
+//    fails the entire write is rolled back; the DB is never left in a state
+//    where, e.g., new lots exist alongside old disposal rows.
+//
+// 2. PIPELINE RUN LOG — every invocation is recorded in tax_pipeline_runs.
+//    The row is inserted with status='running' before any computation begins,
+//    then updated to 'success' or 'failed' when the run ends. The UI can read
+//    this to show "last computed X minutes ago" and warn when data is stale
+//    or when the previous run crashed.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
+
+// Minimal local alias for a Turso batch statement — matches the libsql BatchStatement shape.
+// Using a local type avoids coupling to internal @libsql/core sub-paths.
+type BatchStatement = { sql: string; args?: (string | number | bigint | boolean | null | Uint8Array | ArrayBuffer | Date)[] };
 import type {
 	ClassificationResult,
 	PipelineStats,
@@ -30,6 +46,8 @@ import { buildReviewQueue } from './pass5';
 type DbRow = Record<string, unknown>;
 const s = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
 const n = (v: unknown) => (typeof v === 'number' ? v : null);
+
+const NOW_SQL = `strftime('%Y-%m-%dT%H:%M:%SZ','now')`;
 
 // ── Load raw data ─────────────────────────────────────────────────────────────
 
@@ -128,76 +146,76 @@ async function loadResolvedReviewKeys(tenantId: string): Promise<Set<string>> {
 	return new Set(result.rows.map((r: DbRow) => `${s(r.source_type)}:${s(r.source_id)}:${s(r.reason)}`));
 }
 
-// ── Persist results ───────────────────────────────────────────────────────────
+// ── Statement builders (return SQL arrays, never execute directly) ────────────
+// Each builder produces the full list of BatchStatement objects for its table.
+// They are all collected and executed in one db.batch() call so that the
+// write is atomic: either every table is updated or none is.
 
-async function persistClassifications(
+function buildClassificationStatements(
 	tenantId: string,
 	results: ClassificationResult[],
-): Promise<void> {
-	if (!results.length) return;
+): BatchStatement[] {
+	const stmts: BatchStatement[] = [];
 
-	// Delete auto classifications — manual ones have is_manual = 1 so they survive the UNIQUE constraint update
-	await db.execute({
+	// Wipe previous auto-classifications (manual rows have is_manual=1 and are untouched)
+	stmts.push({
 		sql: `DELETE FROM tax_classifications WHERE tenant_id = ? AND is_manual = 0`,
 		args: [tenantId],
 	});
 
-	// Batch insert (SQLite has 999 variable limit; chunk to be safe)
-	const CHUNK = 50;
-	for (let i = 0; i < results.length; i += CHUNK) {
-		const chunk = results.slice(i, i + CHUNK);
-		for (const r of chunk) {
-			await db.execute({
-				sql: `INSERT OR IGNORE INTO tax_classifications
-				      (id, tenant_id, source_type, source_id, category, sub_category, confidence,
-				       linked_tx_id, linked_source_type, asset_symbol, amount_usd, tax_year,
-				       is_manual, created_at, updated_at)
-				      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0,
-				              strftime('%Y-%m-%dT%H:%M:%SZ','now'),
-				              strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
-				args: [
-					randomUUID(), tenantId,
-					r.sourceType, r.sourceId,
-					r.category, r.subCategory ?? null, r.confidence,
-					r.linkedTxId ?? null, r.linkedSourceType ?? null,
-					r.assetSymbol ?? null, r.amountUsd ?? null, r.taxYear ?? null,
-				],
-			});
-		}
-	}
-}
-
-async function persistReviewItems(tenantId: string, items: ReviewItem[]): Promise<void> {
-	if (!items.length) return;
-	for (const item of items) {
-		await db.execute({
-			sql: `INSERT OR IGNORE INTO tax_review_items
-			      (id, tenant_id, source_type, source_id, reason, reason_detail,
-			       snapshot_json, resolved, created_at, updated_at)
-			      VALUES (?, ?, ?, ?, ?, ?, ?, 0,
-			              strftime('%Y-%m-%dT%H:%M:%SZ','now'),
-			              strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
+	for (const r of results) {
+		stmts.push({
+			sql: `INSERT OR IGNORE INTO tax_classifications
+			      (id, tenant_id, source_type, source_id, category, sub_category, confidence,
+			       linked_tx_id, linked_source_type, asset_symbol, amount_usd, tax_year,
+			       is_manual, created_at, updated_at)
+			      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ${NOW_SQL}, ${NOW_SQL})`,
 			args: [
 				randomUUID(), tenantId,
-				item.sourceType, item.sourceId,
-				item.reason, item.reasonDetail,
-				item.snapshotJson,
+				r.sourceType, r.sourceId,
+				r.category, r.subCategory ?? null, r.confidence,
+				r.linkedTxId ?? null, r.linkedSourceType ?? null,
+				r.assetSymbol ?? null, r.amountUsd ?? null, r.taxYear ?? null,
 			],
 		});
 	}
+
+	return stmts;
 }
 
-async function persistLots(tenantId: string, lots: ReturnType<typeof runFifo>['lots']): Promise<void> {
-	await db.execute({ sql: `DELETE FROM tax_lots WHERE tenant_id = ?`, args: [tenantId] });
+function buildReviewItemStatements(
+	tenantId: string,
+	items: ReviewItem[],
+): BatchStatement[] {
+	return items.map((item) => ({
+		sql: `INSERT OR IGNORE INTO tax_review_items
+		      (id, tenant_id, source_type, source_id, reason, reason_detail,
+		       snapshot_json, resolved, created_at, updated_at)
+		      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ${NOW_SQL}, ${NOW_SQL})`,
+		args: [
+			randomUUID(), tenantId,
+			item.sourceType, item.sourceId,
+			item.reason, item.reasonDetail,
+			item.snapshotJson,
+		],
+	}));
+}
+
+function buildLotStatements(
+	tenantId: string,
+	lots: ReturnType<typeof runFifo>['lots'],
+): BatchStatement[] {
+	const stmts: BatchStatement[] = [];
+
+	stmts.push({ sql: `DELETE FROM tax_lots WHERE tenant_id = ?`, args: [tenantId] });
+
 	for (const lot of lots) {
-		await db.execute({
+		stmts.push({
 			sql: `INSERT INTO tax_lots
 			      (id, tenant_id, asset_symbol, acquired_at, quantity, remaining_qty,
 			       cost_basis_usd, price_per_unit, source_type, source_id, lot_type,
 			       origin_lot_id, is_exhausted, created_at, updated_at)
-			      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-			              strftime('%Y-%m-%dT%H:%M:%SZ','now'),
-			              strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
+			      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${NOW_SQL}, ${NOW_SQL})`,
 			args: [
 				lot.id, tenantId, lot.assetSymbol, lot.acquiredAt,
 				lot.quantity, lot.remainingQty,
@@ -208,18 +226,25 @@ async function persistLots(tenantId: string, lots: ReturnType<typeof runFifo>['l
 			],
 		});
 	}
+
+	return stmts;
 }
 
-async function persistDisposals(tenantId: string, disposals: ReturnType<typeof runFifo>['disposals']): Promise<void> {
-	await db.execute({ sql: `DELETE FROM tax_disposals WHERE tenant_id = ?`, args: [tenantId] });
+function buildDisposalStatements(
+	tenantId: string,
+	disposals: ReturnType<typeof runFifo>['disposals'],
+): BatchStatement[] {
+	const stmts: BatchStatement[] = [];
+
+	stmts.push({ sql: `DELETE FROM tax_disposals WHERE tenant_id = ?`, args: [tenantId] });
+
 	for (const d of disposals) {
-		await db.execute({
+		stmts.push({
 			sql: `INSERT INTO tax_disposals
 			      (id, tenant_id, asset_symbol, disposed_at, quantity, proceeds_usd,
 			       cost_basis_usd, gain_loss_usd, is_short_term, category,
 			       source_type, source_id, lot_id, notes, created_at)
-			      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-			              strftime('%Y-%m-%dT%H:%M:%SZ','now'))`,
+			      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${NOW_SQL})`,
 			args: [
 				d.id, tenantId, d.assetSymbol, d.disposedAt,
 				d.quantity, d.proceedsUsd ?? null,
@@ -230,116 +255,199 @@ async function persistDisposals(tenantId: string, disposals: ReturnType<typeof r
 			],
 		});
 	}
+
+	return stmts;
+}
+
+// ── Pipeline run log helpers ──────────────────────────────────────────────────
+
+async function insertRunRecord(runId: string, tenantId: string): Promise<void> {
+	await db.execute({
+		sql: `INSERT INTO tax_pipeline_runs (id, tenant_id, started_at, status)
+		      VALUES (?, ?, ${NOW_SQL}, 'running')`,
+		args: [runId, tenantId],
+	});
+}
+
+function buildRunSuccessStatement(runId: string, stats: PipelineStats): BatchStatement {
+	return {
+		sql: `UPDATE tax_pipeline_runs
+		      SET status           = 'success',
+		          completed_at     = ${NOW_SQL},
+		          pass1_easy       = ?,
+		          pass2_transfers  = ?,
+		          pass2b_loans     = ?,
+		          pass3_income     = ?,
+		          pass3b_fees      = ?,
+		          pass4_lots       = ?,
+		          pass4_disposals  = ?,
+		          pass5_review     = ?,
+		          total_classified = ?,
+		          total_unknown    = ?
+		      WHERE id = ?`,
+		args: [
+			stats.pass1Easy,
+			stats.pass2Transfers,
+			stats.pass2bLoans,
+			stats.pass3Income,
+			stats.pass3bInterest,
+			stats.pass4Lots,
+			stats.pass4Disposals,
+			stats.pass5ReviewItems,
+			stats.totalClassified,
+			stats.totalUnknown,
+			runId,
+		],
+	};
+}
+
+async function markRunFailed(runId: string, error: unknown): Promise<void> {
+	const msg = error instanceof Error ? error.message : String(error);
+	try {
+		await db.execute({
+			sql: `UPDATE tax_pipeline_runs
+			      SET status = 'failed', completed_at = ${NOW_SQL}, error_message = ?
+			      WHERE id = ?`,
+			args: [msg.slice(0, 2000), runId],
+		});
+	} catch {
+		// Best-effort — don't mask the original error
+	}
 }
 
 // ── Main pipeline ─────────────────────────────────────────────────────────────
 
 export async function runTaxPipeline(tenantId: string): Promise<PipelineStats> {
-	const [importRows, onchainRows, walletAddresses, manualOverrides, resolvedReviewKeys] =
-		await Promise.all([
-			loadImportTransactions(tenantId),
-			loadOnchainTransactions(tenantId),
-			loadWalletAddresses(tenantId),
-			loadManualClassifications(tenantId),
-			loadResolvedReviewKeys(tenantId),
+	const runId = randomUUID();
+
+	// Record that a run has started. This row exists even if everything below
+	// blows up, so the UI can show "last attempted X minutes ago (failed)".
+	await insertRunRecord(runId, tenantId);
+
+	try {
+		const [importRows, onchainRows, walletAddresses, manualOverrides, resolvedReviewKeys] =
+			await Promise.all([
+				loadImportTransactions(tenantId),
+				loadOnchainTransactions(tenantId),
+				loadWalletAddresses(tenantId),
+				loadManualClassifications(tenantId),
+				loadResolvedReviewKeys(tenantId),
+			]);
+
+		// Start with manual overrides already locked in
+		const classifications = new Map<string, ClassificationResult>(manualOverrides);
+		const classifiedKeys = new Set<string>(manualOverrides.keys());
+		const allReviewItems: ReviewItem[] = [];
+
+		// ── Pass 1: Easy classifications ──────────────────────────────────────
+		let pass1Count = 0;
+		for (const row of importRows) {
+			const key = `import:${row.id}`;
+			if (classifiedKeys.has(key)) continue;
+			const result = classifyImportTxPass1(row);
+			if (result) { classifications.set(key, result); classifiedKeys.add(key); pass1Count++; }
+		}
+		for (const row of onchainRows) {
+			const key = `onchain:${row.id}`;
+			if (classifiedKeys.has(key)) continue;
+			const result = classifyOnchainTxPass1(row);
+			if (result) { classifications.set(key, result); classifiedKeys.add(key); pass1Count++; }
+		}
+
+		// ── Pass 2A: Transfer matching ─────────────────────────────────────────
+		const { results: transferResults, reviewItems: transferReview } = matchTransfers(
+			importRows, onchainRows, walletAddresses, classifiedKeys,
+		);
+		for (const r of transferResults) {
+			const key = `${r.sourceType}:${r.sourceId}`;
+			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
+		}
+		allReviewItems.push(...transferReview);
+
+		// ── Pass 2B: Loan detection ────────────────────────────────────────────
+		const { results: loanResults, reviewItems: loanReview } = detectLoans(
+			onchainRows, walletAddresses, classifiedKeys,
+		);
+		for (const r of loanResults) {
+			const key = `${r.sourceType}:${r.sourceId}`;
+			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
+		}
+		allReviewItems.push(...loanReview);
+
+		// ── Pass 3: Income & fees ──────────────────────────────────────────────
+		const { results: incomeResults, reviewItems: incomeReview } = classifyIncomePass3(
+			importRows, classifiedKeys,
+		);
+		for (const r of incomeResults) {
+			const key = `${r.sourceType}:${r.sourceId}`;
+			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
+		}
+		allReviewItems.push(...incomeReview);
+
+		const feeResults = classifyFeesPass3(onchainRows, classifiedKeys);
+		for (const r of feeResults) {
+			const key = `${r.sourceType}:${r.sourceId}`;
+			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
+		}
+
+		// ── Pass 4: FIFO lot matching ──────────────────────────────────────────
+		const { lots, disposals } = runFifo(tenantId, importRows, onchainRows, classifications);
+
+		// ── Pass 5: Build review queue ─────────────────────────────────────────
+		const existingReviewKeys = new Set([
+			...allReviewItems.map((i) => `${i.sourceType}:${i.sourceId}:${i.reason}`),
+			...resolvedReviewKeys,
 		]);
+		const reviewItems5 = buildReviewQueue(importRows, onchainRows, classifications, existingReviewKeys);
+		allReviewItems.push(...reviewItems5);
 
-	// Start with manual overrides already locked in
-	const classifications = new Map<string, ClassificationResult>(manualOverrides);
-	const classifiedKeys = new Set<string>(manualOverrides.keys());
-	const allReviewItems: ReviewItem[] = [];
+		// ── Compute stats ──────────────────────────────────────────────────────
+		const allAutoResults = [...classifications.values()].filter((r) => {
+			const key = `${r.sourceType}:${r.sourceId}`;
+			return !manualOverrides.has(key);
+		});
 
-	// ── Pass 1: Easy classifications ──────────────────────────────────────────
-	let pass1Count = 0;
-	for (const row of importRows) {
-		const key = `import:${row.id}`;
-		if (classifiedKeys.has(key)) continue;
-		const result = classifyImportTxPass1(row);
-		if (result) { classifications.set(key, result); classifiedKeys.add(key); pass1Count++; }
+		const totalUnknown =
+			[...importRows, ...onchainRows].filter((r) => {
+				const key = 'timestamp_utc' in r ? `import:${r.id}` : `onchain:${r.id}`;
+				return !classifiedKeys.has(key);
+			}).length;
+
+		const stats: PipelineStats = {
+			pass1Easy:       pass1Count,
+			pass2Transfers:  transferResults.length / 2,
+			pass2bLoans:     loanResults.length,
+			pass3Income:     incomeResults.length,
+			pass3bInterest:  feeResults.length,
+			pass4Lots:       lots.length,
+			pass4Disposals:  disposals.length,
+			pass5ReviewItems: allReviewItems.length,
+			totalClassified: classifiedKeys.size,
+			totalUnknown,
+		};
+
+		// ── Atomic persist ─────────────────────────────────────────────────────
+		// All four tables are written in a single db.batch() transaction.
+		// If any statement fails every change is rolled back — the DB is never
+		// left with, e.g., fresh lots alongside stale disposal rows.
+		const persistStatements: BatchStatement[] = [
+			...buildClassificationStatements(tenantId, allAutoResults),
+			...buildReviewItemStatements(tenantId, allReviewItems),
+			...buildLotStatements(tenantId, lots),
+			...buildDisposalStatements(tenantId, disposals),
+			// Mark this run as successful (included in the same transaction so
+			// status only flips to 'success' when everything else committed too)
+			buildRunSuccessStatement(runId, stats),
+		];
+
+		await db.batch(persistStatements, 'write');
+
+		return stats;
+
+	} catch (err) {
+		// Update the run record to 'failed' with the error message so the UI
+		// can surface "last run failed — pipeline may be showing stale data"
+		await markRunFailed(runId, err);
+		throw err;
 	}
-	for (const row of onchainRows) {
-		const key = `onchain:${row.id}`;
-		if (classifiedKeys.has(key)) continue;
-		const result = classifyOnchainTxPass1(row);
-		if (result) { classifications.set(key, result); classifiedKeys.add(key); pass1Count++; }
-	}
-
-	// ── Pass 2A: Transfer matching ────────────────────────────────────────────
-	const { results: transferResults, reviewItems: transferReview } = matchTransfers(
-		importRows, onchainRows, walletAddresses, classifiedKeys,
-	);
-	for (const r of transferResults) {
-		const key = `${r.sourceType}:${r.sourceId}`;
-		if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
-	}
-	allReviewItems.push(...transferReview);
-
-	// ── Pass 2B: Loan detection ───────────────────────────────────────────────
-	const { results: loanResults, reviewItems: loanReview } = detectLoans(
-		onchainRows, walletAddresses, classifiedKeys,
-	);
-	for (const r of loanResults) {
-		const key = `${r.sourceType}:${r.sourceId}`;
-		if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
-	}
-	allReviewItems.push(...loanReview);
-
-	// ── Pass 3: Income & fees ─────────────────────────────────────────────────
-	const { results: incomeResults, reviewItems: incomeReview } = classifyIncomePass3(
-		importRows, classifiedKeys,
-	);
-	for (const r of incomeResults) {
-		const key = `${r.sourceType}:${r.sourceId}`;
-		if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
-	}
-	allReviewItems.push(...incomeReview);
-
-	const feeResults = classifyFeesPass3(onchainRows, classifiedKeys);
-	for (const r of feeResults) {
-		const key = `${r.sourceType}:${r.sourceId}`;
-		if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
-	}
-
-	// ── Pass 4: FIFO lot matching ─────────────────────────────────────────────
-	const { lots, disposals } = runFifo(tenantId, importRows, onchainRows, classifications);
-
-	// ── Pass 5: Build review queue ────────────────────────────────────────────
-	const existingReviewKeys = new Set([
-		...allReviewItems.map((i) => `${i.sourceType}:${i.sourceId}:${i.reason}`),
-		...resolvedReviewKeys,
-	]);
-	const reviewItems5 = buildReviewQueue(importRows, onchainRows, classifications, existingReviewKeys);
-	allReviewItems.push(...reviewItems5);
-
-	// ── Persist everything ────────────────────────────────────────────────────
-	const allAutoResults = [...classifications.values()].filter((r) => {
-		const key = `${r.sourceType}:${r.sourceId}`;
-		return !manualOverrides.has(key);
-	});
-
-	await Promise.all([
-		persistClassifications(tenantId, allAutoResults),
-		persistReviewItems(tenantId, allReviewItems),
-		persistLots(tenantId, lots),
-		persistDisposals(tenantId, disposals),
-	]);
-
-	const totalUnknown =
-		[...importRows, ...onchainRows].filter((r) => {
-			const key = 'timestamp_utc' in r ? `import:${r.id}` : `onchain:${r.id}`;
-			return !classifiedKeys.has(key);
-		}).length;
-
-	return {
-		pass1Easy: pass1Count,
-		pass2Transfers: transferResults.length / 2,
-		pass2bLoans: loanResults.length,
-		pass3Income: incomeResults.length,
-		pass3bInterest: feeResults.length,
-		pass4Lots: lots.length,
-		pass4Disposals: disposals.length,
-		pass5ReviewItems: allReviewItems.length,
-		totalClassified: classifiedKeys.size,
-		totalUnknown,
-	};
 }

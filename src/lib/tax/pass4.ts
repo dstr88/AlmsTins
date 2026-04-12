@@ -232,7 +232,13 @@ export function runFifo(
 		let remaining = disp.quantity;
 		const dispMs = new Date(disp.timestamp).getTime();
 
-		while (remaining > 0 && pool.length > 0) {
+		// Use epsilon to guard against floating-point dust (e.g. 1e-14 remaining
+		// after consuming several lot slices). Without this, a phantom near-zero
+		// quantity triggers a spurious "No acquisition lot found" disposal row,
+		// which pollutes the review queue and inflates the completeness score.
+		const EPSILON = 1e-10;
+
+		while (remaining > EPSILON && pool.length > 0) {
 			const lot = pool[0];
 			const consume = Math.min(remaining, lot.remainingQty);
 			const fraction = consume / lot.quantity;
