@@ -1,0 +1,125 @@
+---
+/**
+ * /tax-login
+ *
+ * Minimal passphrase gate for the tax page.
+ * No branding, no nav — just a single textarea and submit button.
+ * The passphrase is checked against the TAX_SECRET environment variable.
+ */
+
+import { hasTaxAccess } from '@/lib/taxAuth';
+
+// Already authenticated → send straight to /tax
+if (hasTaxAccess(Astro.request)) {
+	return Astro.redirect('/tax', 302);
+}
+
+const error = Astro.url.searchParams.has('error');
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Tax Access</title>
+	<link rel="icon" type="image/webp" href="/favicon.webp" />
+	<style>
+		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+		html, body {
+			height: 100%;
+			font-family: 'Inter', system-ui, -apple-system, sans-serif;
+			background: #0f1117;
+			color: #f5f5f5;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.card {
+			width: 100%;
+			max-width: 360px;
+			padding: 2.5rem 2rem;
+			display: flex;
+			flex-direction: column;
+			gap: 1.25rem;
+		}
+		.label {
+			font-size: 0.75rem;
+			font-weight: 600;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: #6b7280;
+		}
+		textarea {
+			width: 100%;
+			background: #1a1d27;
+			border: 1px solid #2d3148;
+			border-radius: 0.5rem;
+			color: #f5f5f5;
+			font-family: inherit;
+			font-size: 1rem;
+			padding: 0.75rem 1rem;
+			resize: none;
+			outline: none;
+			transition: border-color 0.15s;
+			height: 80px;
+		}
+		textarea:focus { border-color: #6366f1; }
+		textarea::placeholder { color: #4b5563; }
+		button {
+			width: 100%;
+			background: #6366f1;
+			border: none;
+			border-radius: 0.5rem;
+			color: #fff;
+			cursor: pointer;
+			font-family: inherit;
+			font-size: 0.9rem;
+			font-weight: 600;
+			padding: 0.7rem 1rem;
+			transition: background 0.15s;
+		}
+		button:hover { background: #4f46e5; }
+		button:active { background: #4338ca; }
+		.error {
+			font-size: 0.8rem;
+			color: #f87171;
+			text-align: center;
+		}
+	</style>
+</head>
+<body>
+	<div class="card">
+		<p class="label">Tax Documents</p>
+
+		<form method="POST" action="/api/tax-login">
+			<div style="display:flex;flex-direction:column;gap:1rem;">
+				<textarea
+					name="passphrase"
+					placeholder="Enter passphrase…"
+					autocomplete="off"
+					autocorrect="off"
+					autocapitalize="off"
+					spellcheck="false"
+					autofocus
+					required
+				></textarea>
+
+				{error && <p class="error">Incorrect passphrase — try again.</p>}
+
+				<button type="submit">Continue →</button>
+			</div>
+		</form>
+	</div>
+
+	<script>
+		// Submit on Enter (Shift+Enter adds newline — intentional)
+		document.querySelector('textarea')?.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' && !e.shiftKey) {
+				e.preventDefault();
+				(e.target as HTMLTextAreaElement).closest('form')?.requestSubmit();
+			}
+		});
+	</script>
+</body>
+</html>

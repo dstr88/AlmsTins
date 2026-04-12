@@ -1,0 +1,784 @@
+---
+/**
+ * /tax
+ *
+ * Consolidated tax page — all tools in one place.
+ * Gated by TAX_SECRET passphrase cookie (not the normal almsTins session).
+ * Also requires a normal session to determine tenantId.
+ *
+ * Sections (all client-side):
+ *   1. Completeness score
+ *   2. Gains summary — ST/LT/Net, per-asset table
+ *   3. Downloads — Form 8949 CSV, Schedule D, FIFO CSV, Year Report
+ *   4. Uploads — 1099-DA/B reconciliation
+ */
+
+import { hasTaxAccess } from '@/lib/taxAuth';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+// ── Auth gates ─────────────────────────────────────────────────────────────
+if (!hasTaxAccess(Astro.request)) {
+	return Astro.redirect('/tax-login', 302);
+}
+
+const sess = await requireTenantSession(Astro.request);
+if (!sess) {
+	// Needs almsTins login to have a tenantId — send back after login
+	return Astro.redirect(`/login?next=/tax`, 302);
+}
+
+const currentYear = new Date().getFullYear();
+const defaultYear = currentYear - 1;
+const years = Array.from({ length: 8 }, (_, i) => currentYear - 1 - i);
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<meta name="robots" content="noindex, nofollow" />
+	<title>Tax Documents {defaultYear}</title>
+	<link rel="icon" type="image/webp" href="/favicon.webp" />
+	<style>
+		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+		html {
+			font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+			font-size: 16px;
+			color: #111827;
+			background: #f9fafb;
+		}
+		body { min-height: 100vh; }
+
+		/* ── Layout ─────────────────────────────────────────────────────── */
+		.page { max-width: 880px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+
+		/* ── Sticky nav tabs ────────────────────────────────────────────── */
+		.tab-bar {
+			position: sticky; top: 0; z-index: 10;
+			background: #f9fafb;
+			border-bottom: 1px solid #e5e7eb;
+			display: flex; gap: 0; overflow-x: auto;
+			margin: 0 -1.25rem 2rem;
+			padding: 0 1.25rem;
+			scrollbar-width: none;
+		}
+		.tab-bar::-webkit-scrollbar { display: none; }
+		.tab {
+			display: inline-flex; align-items: center; gap: 6px;
+			padding: 0.6rem 1rem; font-size: 0.85rem; font-weight: 500;
+			color: #6b7280; text-decoration: none; white-space: nowrap;
+			border-bottom: 2px solid transparent;
+			transition: color 0.12s, border-color 0.12s;
+			cursor: pointer; background: none; border-left: none; border-right: none; border-top: none;
+		}
+		.tab:hover  { color: #111827; }
+		.tab.active { color: #4f46e5; border-bottom-color: #4f46e5; }
+
+		/* ── Section ─────────────────────────────────────────────────────── */
+		.section { scroll-margin-top: 52px; }
+		.section + .section { margin-top: 3rem; }
+		.section-head {
+			display: flex; align-items: baseline; gap: 0.75rem;
+			border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem; margin-bottom: 1.25rem;
+		}
+		.section-title { font-size: 1.1rem; font-weight: 700; color: #111827; }
+		.section-sub   { font-size: 0.78rem; color: #9ca3af; }
+
+		/* ── Cards ───────────────────────────────────────────────────────── */
+		.card {
+			background: #fff; border: 1px solid #e5e7eb;
+			border-radius: 0.75rem; padding: 1.25rem 1.5rem;
+			box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+		}
+
+		/* ── Stat grid ───────────────────────────────────────────────────── */
+		.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+		.stat { background:#fff; border:1px solid #e5e7eb; border-radius:0.75rem; padding:1rem 1.25rem; }
+		.stat-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #9ca3af; }
+		.stat-value { font-size: 1.5rem; font-weight: 800; margin-top: 0.2rem; color: #111827; }
+		.stat-value.gain  { color: #059669; }
+		.stat-value.loss  { color: #dc2626; }
+		.stat-note  { font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem; }
+
+		/* ── Asset table ─────────────────────────────────────────────────── */
+		table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+		th { background:#f3f4f6; font-weight:600; color:#374151; text-align:left; padding:8px 12px; border-bottom:2px solid #e5e7eb; }
+		td { padding:7px 12px; border-bottom:1px solid #f3f4f6; }
+		tr:hover td { background:#fafafa; }
+		.num { text-align:right; font-variant-numeric:tabular-nums; }
+		.gain-text { color:#059669; font-weight:600; }
+		.loss-text { color:#dc2626; font-weight:600; }
+
+		/* ── Download buttons ────────────────────────────────────────────── */
+		.dl-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.75rem; }
+		.dl-btn {
+			display:flex; align-items:center; gap:0.75rem;
+			background:#fff; border:1px solid #e5e7eb; border-radius:0.75rem;
+			padding:1rem 1.25rem; cursor:pointer;
+			text-decoration:none; color:inherit;
+			transition:border-color 0.15s, box-shadow 0.15s;
+		}
+		.dl-btn:hover { border-color:#6366f1; box-shadow:0 2px 8px rgba(99,102,241,0.1); }
+		.dl-icon { font-size:1.5rem; shrink:0; }
+		.dl-label { font-size:0.85rem; font-weight:600; color:#111827; }
+		.dl-sub   { font-size:0.72rem; color:#9ca3af; margin-top:1px; }
+
+		/* ── Upload zone ─────────────────────────────────────────────────── */
+		.drop-zone {
+			border:2px dashed #d1d5db; border-radius:0.75rem;
+			padding:2.5rem 1.5rem; text-align:center;
+			transition:border-color 0.15s, background 0.15s;
+			cursor:pointer;
+		}
+		.drop-zone.over { border-color:#6366f1; background:#f5f3ff; }
+		.drop-zone p   { font-size:0.85rem; color:#6b7280; }
+
+		/* ── Selectors ───────────────────────────────────────────────────── */
+		.ctrl { display:flex; flex-wrap:wrap; align-items:center; gap:0.75rem; margin-bottom:1.25rem; }
+		select, input[type=text], input[type=number] {
+			border:1px solid #d1d5db; border-radius:0.5rem;
+			padding:0.4rem 0.75rem; font-size:0.85rem; font-family:inherit;
+			outline:none; background:#fff; color:#111827;
+			transition:border-color 0.15s;
+		}
+		select:focus, input:focus { border-color:#6366f1; }
+		.btn-primary {
+			background:#4f46e5; color:#fff; border:none; border-radius:0.5rem;
+			padding:0.45rem 1rem; font-size:0.85rem; font-weight:600;
+			cursor:pointer; transition:background 0.15s;
+		}
+		.btn-primary:hover { background:#4338ca; }
+		.btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+		.btn-outline {
+			background:#fff; color:#374151; border:1px solid #d1d5db; border-radius:0.5rem;
+			padding:0.45rem 1rem; font-size:0.85rem; font-weight:500;
+			cursor:pointer; transition:background 0.15s;
+		}
+		.btn-outline:hover { background:#f9fafb; }
+
+		/* ── Completeness ring ───────────────────────────────────────────── */
+		.comp-bar { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+		.comp-ring { position:relative; width:64px; height:64px; shrink:0; }
+		.comp-ring svg { transform:rotate(-90deg); }
+		.comp-ring-label {
+			position:absolute; inset:0; display:flex; flex-direction:column;
+			align-items:center; justify-content:center;
+			font-size:0.8rem; font-weight:800; line-height:1;
+		}
+
+		/* ── Reconciliation table ─────────────────────────────────────────── */
+		.badge {
+			display:inline-block; padding:1px 8px; border-radius:9999px;
+			font-size:0.72rem; font-weight:600;
+		}
+		.badge-green  { background:#d1fae5; color:#065f46; }
+		.badge-amber  { background:#fef3c7; color:#92400e; }
+		.badge-red    { background:#fee2e2; color:#991b1b; }
+
+		/* ── Loading spinner ─────────────────────────────────────────────── */
+		@keyframes spin { to { transform:rotate(360deg); } }
+		.spinner {
+			width:20px; height:20px; border:2px solid #e5e7eb;
+			border-top-color:#6366f1; border-radius:50%;
+			animation:spin 0.7s linear infinite; display:inline-block;
+		}
+
+		/* ── Print ───────────────────────────────────────────────────────── */
+		@media print {
+			.tab-bar, .ctrl, .no-print { display:none !important; }
+			.page { padding:0; }
+		}
+	</style>
+</head>
+<body>
+<div class="page">
+
+	<!-- ── Page header ───────────────────────────────────────────────────── -->
+	<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:0.5rem;">
+		<div>
+			<h1 style="font-size:1.5rem; font-weight:800; color:#111827;">Tax Documents</h1>
+			<p style="font-size:0.82rem; color:#9ca3af; margin-top:2px;">
+				Not a tax preparation service — consult a CPA before filing.
+			</p>
+		</div>
+		<div class="ctrl no-print" style="margin:0;">
+			<label style="font-size:0.8rem;color:#6b7280;">Year</label>
+			<select id="g-year">
+				{years.map(y => <option value={y} selected={y === defaultYear}>{y}</option>)}
+			</select>
+			<label style="font-size:0.8rem;color:#6b7280;">Method</label>
+			<select id="g-method">
+				<option value="fifo">FIFO</option>
+				<option value="hifo">HIFO</option>
+				<option value="lifo">LIFO</option>
+				<option value="spec_id">Spec ID</option>
+			</select>
+			<button class="btn-primary" id="g-reload">Reload</button>
+		</div>
+	</div>
+
+	<!-- ── Tab bar ───────────────────────────────────────────────────────── -->
+	<nav class="tab-bar no-print" id="tab-bar">
+		<button class="tab active" data-target="sec-summary">Summary</button>
+		<button class="tab"        data-target="sec-downloads">Downloads</button>
+		<button class="tab"        data-target="sec-upload">Upload 1099</button>
+	</nav>
+
+	<!-- ═══════════════════════════════════════════════════════════════════ -->
+	<!-- SECTION 1: Summary                                                  -->
+	<!-- ═══════════════════════════════════════════════════════════════════ -->
+	<section class="section" id="sec-summary">
+		<div class="section-head">
+			<span class="section-title">Summary</span>
+			<span class="section-sub" id="summary-year-label"></span>
+		</div>
+
+		<!-- Completeness score -->
+		<div class="card" style="margin-bottom:1rem;" id="comp-card">
+			<div class="comp-bar">
+				<div class="comp-ring">
+					<svg width="64" height="64" viewBox="0 0 64 64">
+						<circle cx="32" cy="32" r="26" fill="none" stroke="#e5e7eb" stroke-width="6"/>
+						<circle id="comp-arc" cx="32" cy="32" r="26" fill="none"
+						        stroke="#6b7280" stroke-width="6" stroke-linecap="round"
+						        stroke-dasharray="163.36" stroke-dashoffset="163.36"
+						        style="transition:stroke-dashoffset 0.8s ease,stroke 0.4s ease"/>
+					</svg>
+					<div class="comp-ring-label">
+						<span id="comp-score" style="color:#6b7280;">—</span>
+					</div>
+				</div>
+				<div style="flex:1; min-width:0;">
+					<div style="font-size:1.1rem; font-weight:800;" id="comp-grade"></div>
+					<div style="font-size:0.8rem; color:#6b7280; margin-top:2px;" id="comp-label">Calculating…</div>
+				</div>
+				<button class="btn-outline no-print" id="comp-toggle" style="display:none;">Details ▾</button>
+			</div>
+			<!-- Pillars (collapsed) -->
+			<div id="comp-pillars" style="display:none; border-top:1px solid #f3f4f6; margin-top:1rem; padding-top:1rem;">
+			</div>
+		</div>
+
+		<!-- Gains stat cards -->
+		<div id="gains-loading" style="color:#9ca3af;font-size:0.85rem;padding:1rem 0;display:flex;align-items:center;gap:0.5rem;">
+			<span class="spinner"></span> Loading gains…
+		</div>
+		<div id="gains-content" style="display:none;">
+			<div class="stat-grid" id="stat-grid"></div>
+
+			<!-- Per-asset table -->
+			<div class="card" style="margin-top:1rem; overflow-x:auto;">
+				<div style="font-size:0.82rem;font-weight:600;color:#374151;margin-bottom:0.75rem;">Per-Asset Breakdown</div>
+				<table id="asset-table">
+					<thead>
+						<tr>
+							<th>Asset</th>
+							<th class="num">Short-term G/(L)</th>
+							<th class="num">Long-term G/(L)</th>
+							<th class="num">Net G/(L)</th>
+							<th class="num">ST Lots</th>
+							<th class="num">LT Lots</th>
+						</tr>
+					</thead>
+					<tbody id="asset-tbody"></tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+
+	<!-- ═══════════════════════════════════════════════════════════════════ -->
+	<!-- SECTION 2: Downloads                                                -->
+	<!-- ═══════════════════════════════════════════════════════════════════ -->
+	<section class="section" id="sec-downloads">
+		<div class="section-head">
+			<span class="section-title">Downloads</span>
+			<span class="section-sub">Use the year &amp; method selectors above</span>
+		</div>
+
+		<div class="dl-grid">
+			<!-- Form 8949 CSV -->
+			<button class="dl-btn" id="dl-8949-csv">
+				<span class="dl-icon">📋</span>
+				<div>
+					<div class="dl-label">Form 8949 CSV</div>
+					<div class="dl-sub">All disposals, IRS box columns</div>
+				</div>
+			</button>
+
+			<!-- Form 8949 Print -->
+			<a class="dl-btn" href="/dashboard/tax/form8949" target="_blank">
+				<span class="dl-icon">🖨</span>
+				<div>
+					<div class="dl-label">Form 8949 Print</div>
+					<div class="dl-sub">IRS-style printable layout</div>
+				</div>
+			</a>
+
+			<!-- Schedule D Print -->
+			<a class="dl-btn" href="/dashboard/tax/schedule-d" target="_blank">
+				<span class="dl-icon">🗂</span>
+				<div>
+					<div class="dl-label">Schedule D</div>
+					<div class="dl-sub">Lines 1a–21 summary, printable</div>
+				</div>
+			</a>
+
+			<!-- Gain/Loss CSV (FIFO/HIFO/LIFO) -->
+			<button class="dl-btn" id="dl-gainloss-csv">
+				<span class="dl-icon">📊</span>
+				<div>
+					<div class="dl-label">Gain/Loss CSV</div>
+					<div class="dl-sub">Per-lot, with cost basis &amp; method</div>
+				</div>
+			</button>
+
+			<!-- Year Report PDF -->
+			<a class="dl-btn" id="dl-report" href="#" target="_blank">
+				<span class="dl-icon">📄</span>
+				<div>
+					<div class="dl-label">Year Summary Report</div>
+					<div class="dl-sub">Full disposal history, printable</div>
+				</div>
+			</a>
+		</div>
+
+		<!-- Status message -->
+		<p id="dl-status" style="font-size:0.8rem;color:#6b7280;margin-top:0.75rem;display:none;"></p>
+	</section>
+
+	<!-- ═══════════════════════════════════════════════════════════════════ -->
+	<!-- SECTION 3: Upload 1099                                              -->
+	<!-- ═══════════════════════════════════════════════════════════════════ -->
+	<section class="section" id="sec-upload">
+		<div class="section-head">
+			<span class="section-title">Upload 1099</span>
+			<span class="section-sub">1099-DA or 1099-B CSV from your exchange</span>
+		</div>
+
+		<div class="card">
+			<form id="upload-form" style="display:flex;flex-direction:column;gap:1rem;">
+				<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.75rem;">
+					<div>
+						<label style="font-size:0.78rem;font-weight:600;color:#6b7280;display:block;margin-bottom:4px;">Form type</label>
+						<select name="formType" id="u-formtype">
+							<option value="1099-da">1099-DA (crypto)</option>
+							<option value="1099-b">1099-B (brokerage)</option>
+						</select>
+					</div>
+					<div>
+						<label style="font-size:0.78rem;font-weight:600;color:#6b7280;display:block;margin-bottom:4px;">Tax year</label>
+						<select name="taxYear" id="u-year">
+							{years.map(y => <option value={y} selected={y === defaultYear}>{y}</option>)}
+						</select>
+					</div>
+					<div>
+						<label style="font-size:0.78rem;font-weight:600;color:#6b7280;display:block;margin-bottom:4px;">Exchange (optional)</label>
+						<input type="text" name="exchangeName" placeholder="Coinbase, Kraken…" style="width:100%;" />
+					</div>
+				</div>
+
+				<!-- Drop zone -->
+				<div class="drop-zone" id="drop-zone">
+					<input type="file" name="file" id="file-input" accept=".csv,text/csv" style="display:none;" required />
+					<div style="font-size:2rem;margin-bottom:0.5rem;">📄</div>
+					<p style="font-weight:600;color:#374151;">Drag &amp; drop CSV here</p>
+					<p>or <span style="color:#6366f1;cursor:pointer;" id="browse-btn">browse files</span></p>
+					<p id="file-name" style="margin-top:0.5rem;font-size:0.8rem;color:#6366f1;display:none;"></p>
+				</div>
+
+				<div style="display:flex;align-items:center;gap:0.75rem;">
+					<button type="submit" class="btn-primary" id="upload-btn">Upload &amp; Reconcile</button>
+					<span id="upload-status" style="font-size:0.82rem;color:#6b7280;display:none;"></span>
+				</div>
+			</form>
+		</div>
+
+		<!-- Reconciliation results -->
+		<div id="recon-results" style="margin-top:1.25rem;display:none;">
+			<div id="recon-banner" class="card" style="margin-bottom:0.75rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem;">
+				<div>
+					<div style="font-weight:700;" id="recon-title">Reconciliation Complete</div>
+					<div style="font-size:0.8rem;color:#6b7280;" id="recon-sub"></div>
+				</div>
+				<div style="display:flex;gap:1rem;font-size:0.8rem;">
+					<span id="ct-matched"></span>
+					<span id="ct-diff"></span>
+					<span id="ct-unmatched"></span>
+				</div>
+			</div>
+			<div style="overflow-x:auto;">
+				<table>
+					<thead>
+						<tr>
+							<th>Asset</th>
+							<th class="num">1099 Proceeds</th>
+							<th class="num">1099 Basis</th>
+							<th class="num">Computed Proceeds</th>
+							<th class="num">Computed Basis</th>
+							<th class="num">Δ Proceeds</th>
+							<th class="num">Δ Basis</th>
+							<th style="text-align:center;">Status</th>
+						</tr>
+					</thead>
+					<tbody id="recon-tbody"></tbody>
+				</table>
+			</div>
+		</div>
+	</section>
+
+</div><!-- /.page -->
+
+<script define:vars={{ defaultYear }}>
+// ── Shared state ─────────────────────────────────────────────────────────────
+const USD = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2}).format(n);
+const fmtGain = n => { const a = USD(Math.abs(n)); return n < 0 ? `(${a})` : n > 0 ? `+${a}` : a; };
+const gainCls = n => n < -0.005 ? 'loss-text' : n > 0.005 ? 'gain-text' : '';
+
+let currentYear   = defaultYear;
+let currentMethod = 'fifo';
+let f8949Data     = null;   // cached Form 8949 payload
+
+// ── Tab nav ───────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(btn => {
+	btn.addEventListener('click', () => {
+		document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+		btn.classList.add('active');
+		const target = document.getElementById(btn.dataset.target);
+		if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	});
+});
+
+// Intersection observer to sync active tab while scrolling
+const sections = ['sec-summary','sec-downloads','sec-upload'].map(id => document.getElementById(id));
+const tabBtns  = document.querySelectorAll('.tab');
+const io = new IntersectionObserver(entries => {
+	for (const e of entries) {
+		if (e.isIntersecting) {
+			tabBtns.forEach(b => b.classList.toggle('active', b.dataset.target === e.target.id));
+		}
+	}
+}, { rootMargin: '-40% 0px -55% 0px' });
+sections.forEach(s => s && io.observe(s));
+
+// ── Global year/method selectors ──────────────────────────────────────────────
+document.getElementById('g-year').addEventListener('change', e => { currentYear = Number(e.target.value); });
+document.getElementById('g-method').addEventListener('change', e => { currentMethod = e.target.value; });
+document.getElementById('g-reload').addEventListener('click', () => {
+	loadCompleteness();
+	loadGains();
+	f8949Data = null;
+	updateReportLink();
+});
+
+function updateReportLink() {
+	const a = document.getElementById('dl-report');
+	if (a) a.href = `/api/year-summary/report?year=${currentYear}`;
+}
+
+// ── SECTION 1: Completeness score ─────────────────────────────────────────────
+async function loadCompleteness() {
+	const CIRC = 2 * Math.PI * 26;
+	const arc   = document.getElementById('comp-arc');
+	const score = document.getElementById('comp-score');
+	const grade = document.getElementById('comp-grade');
+	const label = document.getElementById('comp-label');
+	const toggle = document.getElementById('comp-toggle');
+	const pillarsEl = document.getElementById('comp-pillars');
+
+	try {
+		const res  = await fetch(`/api/tax/completeness?year=${currentYear}`);
+		const data = await res.json();
+		if (!data.ok) return;
+
+		const sc = data.score;
+		const color = sc >= 90 ? '#059669' : sc >= 70 ? '#d97706' : '#dc2626';
+		const offset = CIRC * (1 - sc / 100);
+
+		if (arc)   { arc.style.strokeDashoffset = String(offset); arc.style.stroke = color; }
+		if (score) { score.textContent = String(sc); score.style.color = color; }
+		if (grade) { grade.textContent = data.grade; grade.style.color = color; }
+		if (label) label.textContent = data.label;
+		if (toggle) toggle.style.display = '';
+
+		// Build pillars
+		if (pillarsEl) {
+			pillarsEl.innerHTML = '';
+			const STATUS = { ok:'✅', warning:'⚠️', error:'❌', na:'➖' };
+			const COLORS  = { ok:'#059669', warning:'#d97706', error:'#dc2626', na:'#9ca3af' };
+			for (const p of data.pillars) {
+				const pct = Math.round((p.score / p.maxScore) * 100);
+				const c   = COLORS[p.status] || '#9ca3af';
+				const row = document.createElement('div');
+				row.style.cssText = 'padding:0.6rem 0; display:flex; align-items:flex-start; gap:0.75rem;';
+				row.innerHTML = `
+					<span style="font-size:1rem;margin-top:1px;">${STATUS[p.status]||'➖'}</span>
+					<div style="flex:1;min-width:0;">
+						<div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+							<span style="font-size:0.82rem;font-weight:600;">${p.label}</span>
+							<span style="font-size:0.72rem;font-weight:700;color:${c};">${p.score}/${p.maxScore}</span>
+						</div>
+						<div style="background:#f3f4f6;border-radius:9999px;height:4px;margin:4px 0;">
+							<div style="height:4px;border-radius:9999px;width:${pct}%;background:${c};transition:width 0.7s ease;"></div>
+						</div>
+						<div style="font-size:0.75rem;color:#6b7280;">${p.detail}</div>
+					</div>
+					${p.issueCount > 0 ? `<a href="${p.link}" style="font-size:0.75rem;color:#6366f1;white-space:nowrap;margin-top:2px;">Fix →</a>` : ''}
+				`;
+				pillarsEl.appendChild(row);
+			}
+
+			toggle.addEventListener('click', () => {
+				const open = pillarsEl.style.display === 'none' || pillarsEl.style.display === '';
+				pillarsEl.style.display = open ? 'block' : 'none';
+				toggle.textContent = open ? 'Hide ▴' : 'Details ▾';
+			}, { once: false });
+
+			if (sc < 90) {
+				pillarsEl.style.display = 'block';
+				toggle.textContent = 'Hide ▴';
+			}
+		}
+	} catch(e) { console.warn('[completeness]', e); }
+}
+
+// ── SECTION 1: Gains ──────────────────────────────────────────────────────────
+async function loadGains() {
+	const loading = document.getElementById('gains-loading');
+	const content = document.getElementById('gains-content');
+	const grid    = document.getElementById('stat-grid');
+	const tbody   = document.getElementById('asset-tbody');
+	const yearLbl = document.getElementById('summary-year-label');
+
+	loading.style.display = 'flex';
+	content.style.display = 'none';
+	grid.innerHTML = '';
+	tbody.innerHTML = '';
+
+	try {
+		const res  = await fetch(`/api/tax/summary?year=${currentYear}&method=${currentMethod}`);
+		const data = await res.json();
+		if (!data.ok) { loading.innerHTML = '<span style="color:#dc2626;">Failed to load.</span>'; return; }
+
+		loading.style.display = 'none';
+		content.style.display = 'block';
+		if (yearLbl) yearLbl.textContent = `${currentYear} · ${currentMethod.toUpperCase()}`;
+
+		const g = data.gains ?? {};
+		const st = g.shortTermGain ?? 0;
+		const lt = g.longTermGain  ?? 0;
+		const net = g.netGain ?? (st + lt);
+		const income = data.ordinaryIncome?.total ?? 0;
+
+		const stats = [
+			{ label:'Short-term', value:st,     note:`${g.shortTermCount ?? 0} lots — taxed as ordinary income` },
+			{ label:'Long-term',  value:lt,     note:`${g.longTermCount  ?? 0} lots — preferential rates` },
+			{ label:'Net gain',   value:net,    note:'Before carryforward offset' },
+			{ label:'Crypto income', value:income, note:'Staking, rewards, interest' },
+		];
+
+		for (const s of stats) {
+			const el = document.createElement('div');
+			el.className = 'stat';
+			el.innerHTML = `
+				<div class="stat-label">${s.label}</div>
+				<div class="stat-value ${gainCls(s.value)}">${fmtGain(s.value)}</div>
+				<div class="stat-note">${s.note}</div>
+			`;
+			grid.appendChild(el);
+		}
+
+		// Per-asset table
+		const assets = data.byAssetGains ?? [];
+		if (assets.length === 0) {
+			tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:1.5rem;">No disposals for this year.</td></tr>';
+		} else {
+			for (const a of assets) {
+				const tr = document.createElement('tr');
+				tr.innerHTML = `
+					<td style="font-weight:600;">${a.asset}</td>
+					<td class="num ${gainCls(a.stGain)}">${fmtGain(a.stGain)}</td>
+					<td class="num ${gainCls(a.ltGain)}">${fmtGain(a.ltGain)}</td>
+					<td class="num ${gainCls(a.netGain)}" style="font-weight:700;">${fmtGain(a.netGain)}</td>
+					<td class="num" style="color:#6b7280;">${a.stLots}</td>
+					<td class="num" style="color:#6b7280;">${a.ltLots}</td>
+				`;
+				tbody.appendChild(tr);
+			}
+		}
+	} catch(e) { loading.innerHTML = '<span style="color:#dc2626;">Error loading gains.</span>'; }
+}
+
+// ── SECTION 2: Downloads ──────────────────────────────────────────────────────
+async function getF8949() {
+	if (f8949Data) return f8949Data;
+	const dlStatus = document.getElementById('dl-status');
+	dlStatus.textContent = '⏳ Preparing data…';
+	dlStatus.style.display = 'block';
+	const res  = await fetch(`/api/tax/form8949?year=${currentYear}&method=${currentMethod}`);
+	const data = await res.json();
+	if (data.ok) {
+		f8949Data = data;
+		dlStatus.style.display = 'none';
+	} else {
+		dlStatus.textContent = '❌ Failed to load Form 8949 data.';
+	}
+	return f8949Data;
+}
+
+document.getElementById('dl-8949-csv').addEventListener('click', async () => {
+	const data = await getF8949();
+	if (!data) return;
+
+	const allRows = [];
+	for (const [box, b] of Object.entries(data.boxes)) {
+		for (const r of b.rows) allRows.push({ box, ...r });
+	}
+
+	const header = ['Box','Description','Date Acquired','Date Sold','Proceeds','Cost Basis','Codes','Adjustment','Gain/(Loss)','Days Held'];
+	const lines = [
+		header.join(','),
+		...allRows.map(r => [
+			r.box, `"${r.description}"`, r.dateAcquired, r.dateSold,
+			r.proceeds.toFixed(2), r.costBasis.toFixed(2),
+			r.codes, r.adjustment.toFixed(2), r.gainLoss.toFixed(2), r.daysHeld,
+		].join(',')),
+	];
+	download(`form8949_${currentYear}_${currentMethod}.csv`, lines.join('\n'), 'text/csv');
+});
+
+document.getElementById('dl-gainloss-csv').addEventListener('click', async () => {
+	const dlStatus = document.getElementById('dl-status');
+	dlStatus.textContent = '⏳ Building gain/loss CSV…';
+	dlStatus.style.display = 'block';
+	try {
+		const data = await getF8949();
+		if (!data) return;
+
+		const allRows = [];
+		for (const b of ['C','F']) {
+			const box = data.boxes[b];
+			if (!box) continue;
+			for (const r of box.rows) {
+				allRows.push({
+					term:         b === 'C' ? 'Short-term' : 'Long-term',
+					asset:        r.description,
+					dateAcquired: r.dateAcquired,
+					dateSold:     r.dateSold,
+					proceeds:     r.proceeds.toFixed(2),
+					costBasis:    r.costBasis.toFixed(2),
+					gainLoss:     r.gainLoss.toFixed(2),
+					daysHeld:     r.daysHeld,
+					codes:        r.codes,
+					method:       currentMethod.toUpperCase(),
+				});
+			}
+		}
+		const header = ['Term','Asset','Date Acquired','Date Sold','Proceeds','Cost Basis','Gain/(Loss)','Days Held','Codes','Method'];
+		const lines  = [header.join(','), ...allRows.map(r => Object.values(r).map(v => `"${v}"`).join(','))];
+		download(`gainloss_${currentYear}_${currentMethod}.csv`, lines.join('\n'), 'text/csv');
+		dlStatus.style.display = 'none';
+	} catch(e) { dlStatus.textContent = '❌ Error generating CSV.'; }
+});
+
+function download(filename, content, type) {
+	const blob = new Blob([content], { type });
+	const a = document.createElement('a');
+	a.href = URL.createObjectURL(blob);
+	a.download = filename;
+	a.click();
+}
+
+// ── SECTION 3: Upload 1099 ────────────────────────────────────────────────────
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const fileNameEl = document.getElementById('file-name');
+const browseBtn  = document.getElementById('browse-btn');
+
+browseBtn.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('click', e => { if (e.target !== browseBtn) fileInput.click(); });
+fileInput.addEventListener('change', () => {
+	if (fileInput.files?.[0]) { fileNameEl.textContent = `📎 ${fileInput.files[0].name}`; fileNameEl.style.display = 'block'; }
+});
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+	e.preventDefault(); dropZone.classList.remove('over');
+	const files = e.dataTransfer?.files;
+	if (files?.[0]) {
+		const dt = new DataTransfer(); dt.items.add(files[0]); fileInput.files = dt.files;
+		fileNameEl.textContent = `📎 ${files[0].name}`; fileNameEl.style.display = 'block';
+	}
+});
+
+document.getElementById('upload-form').addEventListener('submit', async e => {
+	e.preventDefault();
+	const btn    = document.getElementById('upload-btn');
+	const status = document.getElementById('upload-status');
+	if (!fileInput.files?.[0]) { status.textContent = 'Select a file first.'; status.style.display = 'block'; return; }
+
+	btn.disabled = true;
+	status.textContent = '⏳ Uploading…';
+	status.style.display = 'block';
+
+	const fd = new FormData(e.currentTarget);
+	try {
+		const res  = await fetch('/api/tax/1099/upload', { method:'POST', body:fd });
+		const data = await res.json();
+		if (!data.ok) { status.textContent = `❌ ${data.error ?? 'Failed'}`; btn.disabled = false; return; }
+
+		status.textContent = `✅ ${data.rowCount} rows processed`;
+		setTimeout(() => status.style.display = 'none', 3000);
+		btn.disabled = false;
+		renderRecon(data.reconciliation ?? []);
+	} catch { status.textContent = '❌ Network error'; btn.disabled = false; }
+});
+
+function renderRecon(rows) {
+	const results = document.getElementById('recon-results');
+	const tbody   = document.getElementById('recon-tbody');
+	tbody.innerHTML = '';
+
+	const matched   = rows.filter(r => r.matchStatus === 'matched').length;
+	const diffs     = rows.filter(r => ['proceeds_diff','basis_diff'].includes(r.matchStatus)).length;
+	const unmatched = rows.filter(r => r.matchStatus === 'unmatched').length;
+
+	document.getElementById('ct-matched').innerHTML   = `<span style="color:#059669;">✓ ${matched} matched</span>`;
+	document.getElementById('ct-diff').innerHTML      = `<span style="color:#d97706;">⚠ ${diffs} difference${diffs!==1?'s':''}</span>`;
+	document.getElementById('ct-unmatched').innerHTML = `<span style="color:#dc2626;">! ${unmatched} unmatched</span>`;
+	document.getElementById('recon-sub').textContent  = `${rows.length} assets compared`;
+
+	const BADGE = {
+		matched:      '<span class="badge badge-green">✓ Matched</span>',
+		proceeds_diff:'<span class="badge badge-amber">Δ Proceeds</span>',
+		basis_diff:   '<span class="badge badge-amber">Δ Basis</span>',
+		unmatched:    '<span class="badge badge-red">! Unmatched</span>',
+	};
+	const DELTA = n => { if (n == null) return '—'; const a = USD(Math.abs(n)); return n >= 0 ? `+${a}` : `(${a})`; };
+	const dCls  = n => n != null && Math.abs(n) > 1 ? (n > 0 ? 'loss-text' : 'gain-text') : '';
+
+	for (const r of rows) {
+		const tr = document.createElement('tr');
+		tr.innerHTML = `
+			<td style="font-weight:600;">${r.formAsset}</td>
+			<td class="num">${r.formProceeds != null ? USD(r.formProceeds) : '—'}</td>
+			<td class="num">${r.formCostBasis != null ? USD(r.formCostBasis) : '—'}</td>
+			<td class="num" style="color:#6b7280;">${r.computedProceeds != null ? USD(r.computedProceeds) : '—'}</td>
+			<td class="num" style="color:#6b7280;">${r.computedBasis    != null ? USD(r.computedBasis)    : '—'}</td>
+			<td class="num ${dCls(r.deltaProceeds)}">${DELTA(r.deltaProceeds)}</td>
+			<td class="num ${dCls(r.deltaBasis)}">${DELTA(r.deltaBasis)}</td>
+			<td style="text-align:center;">${BADGE[r.matchStatus] ?? r.matchStatus}</td>
+		`;
+		tbody.appendChild(tr);
+	}
+	results.style.display = 'block';
+	results.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+updateReportLink();
+loadCompleteness();
+loadGains();
+</script>
+</body>
+</html>
