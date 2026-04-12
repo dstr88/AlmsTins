@@ -59,6 +59,14 @@ const availableYears = payload?.availableYears ?? [];
 // ── Helpers ────────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
 	n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+
+// Accounting notation: losses in parentheses, gains with + prefix
+const fmtGain = (n: number) => {
+	const abs = Math.abs(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+	if (n < 0) return `(${abs})`;
+	if (n > 0) return `+${abs}`;
+	return abs;
+};
 ---
 
 <Layout title="Gains Center | Almstins" noindex={true}>
@@ -141,7 +149,7 @@ const fmt = (n: number) =>
 								<p class={`text-2xl font-bold ${
 									(payload.gains.shortTermGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
 								}`}>
-									{payload.gains.shortTermGain >= 0 ? '+' : ''}{fmt(payload.gains.shortTermGain)}
+									{fmtGain(payload.gains.shortTermGain)}
 								</p>
 								<p class="text-xs text-gray-500">
 									{payload.gains.shortTermCount} lot{payload.gains.shortTermCount !== 1 ? 's' : ''}
@@ -157,7 +165,7 @@ const fmt = (n: number) =>
 								<p class={`text-2xl font-bold ${
 									(payload.gains.longTermGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
 								}`}>
-									{payload.gains.longTermGain >= 0 ? '+' : ''}{fmt(payload.gains.longTermGain)}
+									{fmtGain(payload.gains.longTermGain)}
 								</p>
 								<p class="text-xs text-gray-500">
 									{payload.gains.longTermCount} lot{payload.gains.longTermCount !== 1 ? 's' : ''}
@@ -173,7 +181,7 @@ const fmt = (n: number) =>
 								<p class={`text-2xl font-bold ${
 									(payload.gains.netGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
 								}`}>
-									{payload.gains.netGain >= 0 ? '+' : ''}{fmt(payload.gains.netGain)}
+									{fmtGain(payload.gains.netGain)}
 								</p>
 								<p class="text-xs text-gray-500">
 									ST + LT combined
