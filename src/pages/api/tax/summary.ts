@@ -250,11 +250,34 @@ export const GET: APIRoute = async ({ request, url }) => {
 		// for every prior year.  Without a memo, 5 years of history = 10+ sequential
 		// FIFO runs on every page load.  The cache is request-scoped (lives only for
 		// this response) so it never serves stale data between requests.
+
+		// Load lot pins for Specific ID method — the selectLotIndex engine already
+		// supports pins but summary.ts was never passing them in, so spec_id silently
+		// fell back to FIFO on every request.  Fixed here.
+		let lotPins: Map<string, { acquiredAt: string; amountHint: number }> | undefined;
+		if (method === 'spec_id') {
+			try {
+				const pinsRes = await db.execute({
+					sql: `SELECT disposal_source_id, lot_acquired_at, lot_amount_hint
+					      FROM tax_lot_pins WHERE tenant_id = ?`,
+					args: [tenantId],
+				});
+				lotPins = new Map(
+					(pinsRes.rows as Record<string, unknown>[]).map((r) => [
+						String(r.disposal_source_id),
+						{ acquiredAt: String(r.lot_acquired_at), amountHint: Number(r.lot_amount_hint) },
+					])
+				);
+			} catch {
+				// tax_lot_pins may not exist yet — fall through to FIFO
+			}
+		}
+
 		type BDResult = Awaited<ReturnType<typeof buildAnnualBreakdown>>;
 		const bdCache = new Map<number, BDResult>();
 		const getBd = async (y: number): Promise<BDResult> => {
 			if (bdCache.has(y)) return bdCache.get(y)!;
-			const result = await buildAnnualBreakdown(tenantId, y, method);
+			const result = await buildAnnualBreakdown(tenantId, y, method, lotPins);
 			bdCache.set(y, result);
 			return result;
 		};
@@ -556,6 +579,90 @@ export const GET: APIRoute = async ({ request, url }) => {
 			// tax_disposals may not exist — ignore
 		}
 
+		// ── 10b. Income cross-check (buildAnnualBreakdown vs tax_classifications) ─
+		// Mirrors the gain cross-check above but for ordinary income totals.
+		// In-memory source: annualBreakdown.totals.totalIncome (lifecycle events).
+		// Pipeline source:  tax_classifications SUM(amount_usd) for income+airdrop.
+		// Threshold: $10 absolute or 5% relative (income figures are smaller).
+		type IncomeCrossCheck = {
+			pipelineTotal:   number | null;
+			inMemoryTotal:   number;
+			diff:            number | null;
+			withinTolerance: boolean | null;
+		};
+		let incomeCrossCheck: IncomeCrossCheck = {
+			pipelineTotal:   null,
+			inMemoryTotal:   bd.totals.totalIncome ?? 0,
+			diff:            null,
+			withinTolerance: null,
+		};
+		try {
+			const incXRes = await db.execute({
+				sql: `SELECT SUM(COALESCE(amount_usd, 0)) AS total_income
+				      FROM tax_classifications
+				      WHERE tenant_id = ?
+				        AND category IN ('income', 'airdrop')
+				        AND amount_usd IS NOT NULL AND amount_usd > 0
+				        AND tax_year = ?`,
+				args: [tenantId, year],
+			});
+			const ixr = incXRes.rows[0];
+			if (ixr && ixr.total_income !== null) {
+				const pTotal  = Number(ixr.total_income ?? 0);
+				const imTotal = incomeCrossCheck.inMemoryTotal;
+				const diff    = imTotal - pTotal;
+				const scale   = Math.max(Math.abs(imTotal), Math.abs(pTotal), 1);
+				const withinTolerance = Math.abs(diff) <= 10 || Math.abs(diff) / scale <= 0.05;
+				if (!withinTolerance) {
+					console.warn(
+						`[tax/summary] INCOME CROSS-CHECK FAIL year=${year} ` +
+						`inMemory=${imTotal.toFixed(2)} pipeline=${pTotal.toFixed(2)} ` +
+						`diff=${diff.toFixed(2)}`,
+					);
+				}
+				incomeCrossCheck = { pipelineTotal: pTotal, inMemoryTotal: imTotal, diff, withinTolerance };
+			}
+		} catch {
+			// tax_classifications may not exist — ignore
+		}
+
+		// ── 10c. Last pipeline run status ─────────────────────────────────────
+		// Surfaces the most recent tax_pipeline_runs row so the UI can show
+		// "last run X ago — success/failed" and prompt a rerun if data is stale.
+		type PipelineRunStatus = {
+			startedAt:   string;
+			completedAt: string | null;
+			status:      string;
+			errorMsg:    string | null;
+			totalClassified: number | null;
+			totalUnknown:    number | null;
+		};
+		let lastPipelineRun: PipelineRunStatus | null = null;
+		try {
+			const runRes = await db.execute({
+				sql: `SELECT started_at, completed_at, status, error_message,
+				             total_classified, total_unknown
+				      FROM tax_pipeline_runs
+				      WHERE tenant_id = ?
+				      ORDER BY started_at DESC
+				      LIMIT 1`,
+				args: [tenantId],
+			});
+			if (runRes.rows.length > 0) {
+				const r = runRes.rows[0] as Record<string, unknown>;
+				lastPipelineRun = {
+					startedAt:       String(r.started_at       ?? ''),
+					completedAt:     r.completed_at  ? String(r.completed_at)  : null,
+					status:          String(r.status          ?? 'unknown'),
+					errorMsg:        r.error_message ? String(r.error_message) : null,
+					totalClassified: r.total_classified != null ? Number(r.total_classified) : null,
+					totalUnknown:    r.total_unknown    != null ? Number(r.total_unknown)    : null,
+				};
+			}
+		} catch {
+			// tax_pipeline_runs may not exist — ignore
+		}
+
 		// ── 11. Wash sale shadow tracker ──────────────────────────────────────
 		// Crypto is currently exempt from wash sale rules (IRS treats it as
 		// property, not a security). This section shows what would be disallowed
@@ -607,6 +714,35 @@ export const GET: APIRoute = async ({ request, url }) => {
 			};
 		} catch {
 			// tax_disposals / tax_lots may not exist — ignore
+		}
+
+		// Persist wash sale results so the data survives across requests and can
+		// be used for basis adjustments when legislation passes.
+		// Atomic: DELETE prior rows for this tenant+year then INSERT fresh ones.
+		if (washSaleShadow.items.length > 0) {
+			try {
+				const { randomUUID } = await import('node:crypto');
+				const washStmts = [
+					{
+						sql: `DELETE FROM tax_wash_sales WHERE tenant_id = ? AND tax_year = ?`,
+						args: [tenantId, year],
+					},
+					...washSaleShadow.items.map((item) => ({
+						sql: `INSERT INTO tax_wash_sales
+						      (id, tenant_id, tax_year, asset_symbol, disposed_at,
+						       loss_amount_usd, trigger_acquired_at, disallowed_loss_usd)
+						      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+						args: [
+							randomUUID(), tenantId, year,
+							item.asset, item.disposedAt,
+							item.lossAmount, item.triggerAcquiredAt, item.disallowedLoss,
+						],
+					})),
+				];
+				await db.batch(washStmts, 'write');
+			} catch {
+				// tax_wash_sales may not exist yet — migration may not have run
+			}
 		}
 
 		// ── 11. DeFi events summary ───────────────────────────────────────────
@@ -685,6 +821,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 			carryforwardAvailable,
 			yoyRows,
 			gainCrossCheck,
+			incomeCrossCheck,
+			lastPipelineRun,
 			washSaleShadow,
 			defiEvents,
 		});

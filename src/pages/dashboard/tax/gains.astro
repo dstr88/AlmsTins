@@ -114,6 +114,20 @@ type TaxPayload = {
 	};
 	washSaleShadow?: { totalDisallowed: number; items: WashSaleItem[] };
 	defiEvents?: { count: number; byType: DefiTypeRow[] };
+	incomeCrossCheck?: {
+		pipelineTotal:   number | null;
+		inMemoryTotal:   number;
+		diff:            number | null;
+		withinTolerance: boolean | null;
+	};
+	lastPipelineRun?: {
+		startedAt:       string;
+		completedAt:     string | null;
+		status:          string;
+		errorMsg:        string | null;
+		totalClassified: number | null;
+		totalUnknown:    number | null;
+	} | null;
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -329,6 +343,56 @@ const fmtGain = (n: number) => {
 								Re-run the classification pipeline to regenerate the stored lots.
 							</p>
 						</div>
+					</div>
+				)}
+
+				<!-- Income cross-check warning -->
+				{payload.incomeCrossCheck?.withinTolerance === false && (
+					<div class="rounded-xl border border-orange-300 bg-orange-50 shadow-sm p-4 flex gap-3">
+						<span class="text-orange-500 text-xl leading-none mt-0.5">⚠</span>
+						<div class="space-y-1">
+							<p class="text-sm font-semibold text-orange-900">
+								Pipeline income total diverges from in-memory calculation
+							</p>
+							<p class="text-xs text-orange-700">
+								The classification pipeline shows <strong>{fmt(payload.incomeCrossCheck.pipelineTotal ?? 0)}</strong> but
+								in-memory gives <strong>{fmt(payload.incomeCrossCheck.inMemoryTotal)}</strong>
+								(diff&nbsp;{fmt(Math.abs(payload.incomeCrossCheck.diff ?? 0))}).
+								Re-run the classification pipeline to resolve.
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- Pipeline run status bar -->
+				{payload.lastPipelineRun && (
+					<div class={`rounded-xl border shadow-sm p-3 flex items-center justify-between gap-3 text-xs ${
+						payload.lastPipelineRun.status === 'failed'
+							? 'border-red-300 bg-red-50 text-red-700'
+							: 'border-gray-200 bg-gray-50 text-gray-500'
+					}`}>
+						<div class="flex items-center gap-2">
+							{payload.lastPipelineRun.status === 'success' && <span class="text-green-600 font-bold">✓</span>}
+							{payload.lastPipelineRun.status === 'failed'  && <span class="text-red-500 font-bold">✗</span>}
+							{payload.lastPipelineRun.status === 'running' && <span class="text-yellow-500 font-bold">↻</span>}
+							<span>
+								Pipeline {payload.lastPipelineRun.status}&nbsp;·&nbsp;
+								{payload.lastPipelineRun.completedAt
+									? new Date(payload.lastPipelineRun.completedAt).toLocaleString()
+									: 'in progress'}
+								{payload.lastPipelineRun.totalClassified != null && (
+									<span class="ml-2 text-gray-400">
+										{payload.lastPipelineRun.totalClassified.toLocaleString()} classified
+										{(payload.lastPipelineRun.totalUnknown ?? 0) > 0 && ` · ${payload.lastPipelineRun.totalUnknown} unknown`}
+									</span>
+								)}
+							</span>
+						</div>
+						{payload.lastPipelineRun.status === 'failed' && payload.lastPipelineRun.errorMsg && (
+							<span class="text-red-600 font-mono truncate max-w-xs" title={payload.lastPipelineRun.errorMsg}>
+								{payload.lastPipelineRun.errorMsg.slice(0, 80)}
+							</span>
+						)}
 					</div>
 				)}
 
