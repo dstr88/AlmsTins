@@ -121,16 +121,20 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
             <span class="threat-card__cta">What is this? →</span>
           </button>
           <div class="threat-card__divider"></div>
-          <div class="threat-card__checker">
-            <input
-              class="threat-card__input"
-              type="text"
-              placeholder="Paste a wallet address…"
-              autocomplete="off"
-              spellcheck="false"
-              data-checker="approval"
-            />
-            <button class="threat-card__check-btn" data-checker="approval">Check approvals</button>
+          <div class="threat-card__approval-links">
+            <p class="threat-card__approval-desc">These community-driven tools show you instantly which contracts have their claws in your crypto — and let you revoke them.</p>
+            <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer" class="threat-card__approval-link">
+              <span class="approval-link__name">revoke.cash</span>
+              <span class="approval-link__arrow">↗</span>
+            </a>
+            <a href="https://debank.com" target="_blank" rel="noopener noreferrer" class="threat-card__approval-link">
+              <span class="approval-link__name">debank.com</span>
+              <span class="approval-link__arrow">↗</span>
+            </a>
+            <a href="https://unrekt.me" target="_blank" rel="noopener noreferrer" class="threat-card__approval-link">
+              <span class="approval-link__name">unrekt.me</span>
+              <span class="approval-link__arrow">↗</span>
+            </a>
           </div>
         </div>
 
@@ -815,6 +819,54 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 
   .threat-card__check-btn:hover {
     background: rgba(87, 103, 255, 0.9);
+  }
+
+  /* Approval links (card 3 bottom half) */
+  .threat-card__approval-links {
+    display: flex;
+    flex-direction: column;
+    padding: 1.1rem 1.25rem 1.4rem;
+    background: rgba(0, 0, 0, 0.15);
+    gap: 0;
+  }
+
+  .threat-card__approval-desc {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.6;
+    margin: 0 0 0.85rem;
+  }
+
+  .threat-card__approval-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 0.85rem;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background 0.15s;
+    margin-bottom: 0.3rem;
+    border: 1px solid transparent;
+  }
+
+  .threat-card__approval-link:last-child {
+    margin-bottom: 0;
+  }
+
+  .threat-card__approval-link:hover {
+    background: rgba(165, 180, 252, 0.1);
+    border-color: rgba(165, 180, 252, 0.25);
+  }
+
+  .approval-link__name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #a5b4fc;
+  }
+
+  .approval-link__arrow {
+    font-size: 0.9rem;
+    color: rgba(165, 180, 252, 0.6);
   }
 
   /* Threat modals */
