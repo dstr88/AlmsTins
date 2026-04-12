@@ -245,7 +245,21 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		// ── 5. FIFO gain/loss split (short-term vs long-term) ────────────────
 		// buildAnnualBreakdown runs the full FIFO engine — same data the PDF uses.
-		const bd = await buildAnnualBreakdown(tenantId, year, method);
+		//
+		// Cache: the carryforward loop and YoY chart each call buildAnnualBreakdown
+		// for every prior year.  Without a memo, 5 years of history = 10+ sequential
+		// FIFO runs on every page load.  The cache is request-scoped (lives only for
+		// this response) so it never serves stale data between requests.
+		type BDResult = Awaited<ReturnType<typeof buildAnnualBreakdown>>;
+		const bdCache = new Map<number, BDResult>();
+		const getBd = async (y: number): Promise<BDResult> => {
+			if (bdCache.has(y)) return bdCache.get(y)!;
+			const result = await buildAnnualBreakdown(tenantId, y, method);
+			bdCache.set(y, result);
+			return result;
+		};
+
+		const bd = await getBd(year);
 		const gains = {
 			shortTermGain:  bd.totals.shortTermGain,
 			longTermGain:   bd.totals.longTermGain,
@@ -425,7 +439,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		for (const y of priorYears) {
 			try {
-				const pbd = await buildAnnualBreakdown(tenantId, y, method);
+				const pbd = await getBd(y);
 				const netGL = pbd.totals.shortTermGain + pbd.totals.longTermGain;
 
 				let deducted       = 0;
@@ -643,7 +657,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		for (const y of [...priorYears, year]) {
 			try {
-				const ybd = y === year ? bd : await buildAnnualBreakdown(tenantId, y, method);
+				const ybd = await getBd(y);
 				yoyRows.push({
 					year:    y,
 					stGain:  ybd.totals.shortTermGain,

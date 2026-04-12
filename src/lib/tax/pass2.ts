@@ -164,7 +164,7 @@ export function matchTransfers(
 				linkedSourceType: bestMatch.sourceType,
 				assetSymbol: out.assetSymbol,
 				amountUsd: out.usdValue,
-				taxYear: new Date(out.timestamp).getFullYear(),
+				taxYear: new Date(out.timestamp).getUTCFullYear(),
 			});
 			results.push({
 				sourceType: bestMatch.sourceType,
@@ -175,7 +175,7 @@ export function matchTransfers(
 				linkedSourceType: out.sourceType,
 				assetSymbol: bestMatch.assetSymbol,
 				amountUsd: bestMatch.usdValue,
-				taxYear: new Date(bestMatch.timestamp).getFullYear(),
+				taxYear: new Date(bestMatch.timestamp).getUTCFullYear(),
 			});
 		} else {
 			// Unmatched outgoing — needs review
@@ -217,7 +217,7 @@ export function detectLoans(
 		const dir = onchainDirection(row, walletAddresses);
 		if (!dir) continue;
 
-		const year = new Date(row.timestamp).getFullYear();
+		const year = new Date(row.timestamp).getUTCFullYear();
 
 		if (dir === 'in' && fromIsLender) {
 			// Money coming FROM a lending protocol → loan proceeds (or interest earned)

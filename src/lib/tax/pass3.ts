@@ -14,7 +14,7 @@ import { INCOME_KEYWORDS, LOAN_INTEREST_KEYWORDS } from './constants';
 
 const taxYear = (ts: string) => {
 	const d = new Date(ts);
-	return Number.isNaN(d.getTime()) ? null : d.getFullYear();
+	return Number.isNaN(d.getTime()) ? null : d.getUTCFullYear();
 };
 
 function matchesKeywords(text: string, keywords: string[]): boolean {
@@ -122,7 +122,7 @@ export function classifyFeesPass3(
 				confidence: 0.9,
 				assetSymbol: row.token_symbol ?? 'ETH',
 				amountUsd: row.usd_value,
-				taxYear: new Date(row.timestamp).getFullYear(),
+				taxYear: new Date(row.timestamp).getUTCFullYear(),
 			});
 		}
 	}

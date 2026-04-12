@@ -25,7 +25,7 @@
 import { randomUUID } from 'node:crypto';
 import type { TaxLot, TaxDisposal, ClassificationResult, RawImportTx, RawOnchainTx } from './types';
 
-const taxYear = (ts: string) => new Date(ts).getFullYear();
+const taxYear = (ts: string) => new Date(ts).getUTCFullYear();
 
 /**
  * IRS-correct short-term/long-term determination.
@@ -44,7 +44,7 @@ function isShortTermHold(acquiredAt: string, disposedAt: string): boolean {
 	const acq  = new Date(acquiredAt);
 	const disp = new Date(disposedAt);
 	const oneYearLater = new Date(acq);
-	oneYearLater.setFullYear(acq.getFullYear() + 1);
+	oneYearLater.setUTCFullYear(acq.getUTCFullYear() + 1);
 	// Held exactly 12 months or less → short-term; strictly after → long-term
 	return disp <= oneYearLater;
 }

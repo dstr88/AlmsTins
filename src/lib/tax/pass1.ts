@@ -32,7 +32,7 @@ import type { TaxCategory } from './types';
 
 const taxYear = (ts: string) => {
 	const d = new Date(ts);
-	return Number.isNaN(d.getTime()) ? null : d.getFullYear();
+	return Number.isNaN(d.getTime()) ? null : d.getUTCFullYear();
 };
 
 // ── Coinbase ──────────────────────────────────────────────────────────────────

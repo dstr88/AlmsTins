@@ -129,7 +129,7 @@ export async function buildTaxLotsByYear(tenantId: string): Promise<{
     }
 
     taxLotsByYear = sales.reduce<TaxLotsByYear>((acc, sale) => {
-      const year = new Date(sale.sellDate).getFullYear();
+      const year = new Date(sale.sellDate).getUTCFullYear();
       const key = Number.isFinite(year) ? String(year) : 'Unknown';
       if (!acc[key]) acc[key] = [];
       acc[key].push(sale);
