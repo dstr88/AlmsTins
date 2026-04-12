@@ -22,17 +22,17 @@ import { getActivePlan } from '@/lib/subscriptions';
 export const prerender = false;
 
 // ── Colour palette ────────────────────────────────────────────────────────────
-const SALMON   = '#c0392b';   // deep salmon — legible on white
+const SALMON   = '#c0392b';
 const DARK_BG  = '#1a1a1a';
-const HEADING  = '#111111';   // near-black headings
-const BODY     = '#1a1a1a';   // main body text
-const LABEL    = '#444444';   // secondary labels
-const ALT_ROW  = '#f5f5f5';   // alternating row shade on white page
-const RULE     = '#cccccc';   // divider lines
-const POS      = '#15803d';   // dark green — legible on white
-const NEG      = '#b91c1c';   // dark red — legible on white
+const HEADING  = '#000000';   // true black
+const BODY     = '#000000';   // true black
+const LABEL    = '#333333';   // dark gray labels
+const ALT_ROW  = '#f5f5f5';   // light alternate rows
+const RULE     = '#bbbbbb';   // divider lines
+const POS      = '#15803d';
+const NEG      = '#b91c1c';
 
-// legacy aliases kept so cover-page code compiles unchanged
+// legacy aliases
 const MID_GRAY = LABEL;
 const LIGHT    = BODY;
 const WHITE    = HEADING;
@@ -70,6 +70,7 @@ function buildPdf(
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'LETTER',
+      layout: 'landscape',
       margins: { top: 48, bottom: 48, left: 52, right: 52 },
       info: {
         Title: `${year} Year Summary — almsTins`,
@@ -263,14 +264,14 @@ function buildPdf(
       sectionTitle('Short-term disposals  (held < 365 days)');
 
       const cols = [
-        { label: 'Asset',      width: 52 },
-        { label: 'Acquired',   width: 80 },
-        { label: 'Disposed',   width: 80 },
-        { label: 'Days',       width: 36, align: 'right' as const },
-        { label: 'Qty',        width: 68, align: 'right' as const },
-        { label: 'Cost Basis', width: 72, align: 'right' as const },
-        { label: 'Proceeds',   width: 72, align: 'right' as const },
-        { label: 'Gain / Loss',width: 46, align: 'right' as const },
+        { label: 'Asset',      width: 65  },
+        { label: 'Acquired',   width: 95  },
+        { label: 'Disposed',   width: 95  },
+        { label: 'Days',       width: 48,  align: 'right' as const },
+        { label: 'Qty',        width: 85,  align: 'right' as const },
+        { label: 'Cost Basis', width: 100, align: 'right' as const },
+        { label: 'Proceeds',   width: 100, align: 'right' as const },
+        { label: 'Gain / Loss',width: 100, align: 'right' as const },
       ];
       tableHeaders(cols);
 
@@ -301,14 +302,14 @@ function buildPdf(
       sectionTitle('Long-term disposals  (held ≥ 365 days)');
 
       const cols = [
-        { label: 'Asset',      width: 52 },
-        { label: 'Acquired',   width: 80 },
-        { label: 'Disposed',   width: 80 },
-        { label: 'Days',       width: 36, align: 'right' as const },
-        { label: 'Qty',        width: 68, align: 'right' as const },
-        { label: 'Cost Basis', width: 72, align: 'right' as const },
-        { label: 'Proceeds',   width: 72, align: 'right' as const },
-        { label: 'Gain / Loss',width: 46, align: 'right' as const },
+        { label: 'Asset',      width: 65  },
+        { label: 'Acquired',   width: 95  },
+        { label: 'Disposed',   width: 95  },
+        { label: 'Days',       width: 48,  align: 'right' as const },
+        { label: 'Qty',        width: 85,  align: 'right' as const },
+        { label: 'Cost Basis', width: 100, align: 'right' as const },
+        { label: 'Proceeds',   width: 100, align: 'right' as const },
+        { label: 'Gain / Loss',width: 100, align: 'right' as const },
       ];
       tableHeaders(cols);
 
@@ -338,12 +339,12 @@ function buildPdf(
       sectionTitle('Received / Earned');
 
       const cols = [
-        { label: 'Date',        width: 90 },
-        { label: 'Asset',       width: 52 },
-        { label: 'Type',        width: 140 },
-        { label: 'Qty',         width: 80, align: 'right' as const },
-        { label: 'Value',       width: 80, align: 'right' as const },
-        { label: 'Description', width: 64 },
+        { label: 'Date',        width: 100 },
+        { label: 'Asset',       width: 65  },
+        { label: 'Type',        width: 193 },
+        { label: 'Qty',         width: 110, align: 'right' as const },
+        { label: 'Value',       width: 110, align: 'right' as const },
+        { label: 'Description', width: 110 },
       ];
       tableHeaders(cols);
 
@@ -374,12 +375,12 @@ function buildPdf(
       sectionTitle('Still Holding — Open Lots');
 
       const cols = [
-        { label: 'Asset',      width: 70 },
-        { label: 'Acquired',   width: 110 },
-        { label: 'Days Held',  width: 65, align: 'right' as const },
-        { label: 'Qty',        width: 105, align: 'right' as const },
-        { label: 'Cost Basis', width: 105, align: 'right' as const },
-        { label: 'Term',       width: 51 },
+        { label: 'Asset',      width: 90  },
+        { label: 'Acquired',   width: 130 },
+        { label: 'Days Held',  width: 85,  align: 'right' as const },
+        { label: 'Qty',        width: 141, align: 'right' as const },
+        { label: 'Cost Basis', width: 142, align: 'right' as const },
+        { label: 'Term',       width: 100 },
       ];
       tableHeaders(cols);
 
