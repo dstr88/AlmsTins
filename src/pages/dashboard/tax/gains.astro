@@ -14,6 +14,7 @@
  */
 
 import Layout from '../../layouts/Layout.astro';
+import CompletenessScore from '@/components/tax/CompletenessScore.astro';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type AssetIncome = { symbol: string; amount: number; count: number };
@@ -186,6 +187,9 @@ const fmtGain = (n: number) => {
 				)}
 			</div>
 		</div>
+
+		<!-- Completeness compact banner -->
+		<CompletenessScore year={year} compact={true} />
 
 		<!-- API / data error -->
 		{!payload && (

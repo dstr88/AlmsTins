@@ -10,7 +10,8 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
 
-await requireTenantSession(Astro.request);
+const _authSess = await requireTenantSession(Astro.request);
+if (!_authSess) return Astro.redirect('/login');
 
 // Load current alert email so we can show it / warn if missing
 const session = await getAuthSession(Astro.request).catch(() => null);

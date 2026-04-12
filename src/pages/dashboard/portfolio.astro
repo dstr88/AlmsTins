@@ -8,7 +8,8 @@
 import Layout from '../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
-await requireTenantSession(Astro.request);
+const _authSess = await requireTenantSession(Astro.request);
+if (!_authSess) return Astro.redirect('/login');
 
 // We fetch data client-side so the page renders instantly and
 // the user sees a live price on every visit.

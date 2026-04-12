@@ -7,8 +7,10 @@
  */
 import Layout from '../../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import CompletenessScore from '@/components/tax/CompletenessScore.astro';
 
-await requireTenantSession(Astro.request);
+const _authSess = await requireTenantSession(Astro.request);
+if (!_authSess) return Astro.redirect('/login');
 
 const currentYear  = new Date().getFullYear();
 const priorYear    = currentYear - 1;
@@ -23,6 +25,12 @@ const priorYear    = currentYear - 1;
 			<p class="text-sm text-gray-500 mt-1">
 				All your crypto tax tools in one place. Not a tax preparation service — always consult a CPA before filing.
 			</p>
+		</div>
+
+		<!-- Data Completeness Score -->
+		<div id="completeness" class="scroll-mt-4">
+			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Data Completeness</h2>
+			<CompletenessScore year={priorYear} />
 		</div>
 
 		<!-- Primary tools -->
