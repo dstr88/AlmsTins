@@ -654,3 +654,169 @@ describe('runTaxPipeline — integration (real SQL + FIFO)', () => {
     expect(run).toHaveProperty('total_unknown');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('runTaxPipeline — failure path (real SQL)', () => {
+  // Tests that markRunFailed() is called and the run log shows status='failed'
+  // when the pipeline encounters a DB error mid-run.
+  //
+  // Strategy: drop tax_disposals (which the pipeline writes to at batch time),
+  // run the pipeline, assert the run log shows 'failed'.  Recreate the table
+  // afterwards so subsequent tests continue to work.
+
+  it('writes status=failed and error_message when a DB write fails', async () => {
+    // Drop the table the pipeline batch-writes to — this will cause db.batch()
+    // to fail with "no such table: tax_disposals".
+    await testDb.execute('DROP TABLE IF EXISTS tax_disposals');
+
+    // runTaxPipeline re-throws after markRunFailed() so callers know it failed.
+    // We expect the throw here — what we're verifying is the DB state it leaves.
+    await runTaxPipeline(TENANT).catch(() => { /* expected */ });
+
+    // The run should be recorded as failed.
+    // Query specifically for failed rows — don't use ORDER BY started_at DESC
+    // because started_at has only second precision, making tie-breaking
+    // non-deterministic when multiple runs complete within the same second.
+    const failedRuns = (await testDb.execute({
+      sql: `SELECT error_message FROM tax_pipeline_runs WHERE tenant_id = ? AND status = 'failed'`,
+      args: [TENANT],
+    })).rows as Record<string, unknown>[];
+
+    expect(failedRuns.length).toBeGreaterThan(0);
+    expect(failedRuns[0].error_message).not.toBeNull();
+    expect(String(failedRuns[0].error_message).length).toBeGreaterThan(0);
+
+    // Restore the table so nothing downstream breaks
+    await testDb.execute(`
+      CREATE TABLE IF NOT EXISTS tax_disposals (
+        id              TEXT    NOT NULL PRIMARY KEY,
+        tenant_id       TEXT    NOT NULL,
+        asset_symbol    TEXT    NOT NULL,
+        disposed_at     TEXT    NOT NULL,
+        quantity        REAL    NOT NULL,
+        proceeds_usd    REAL,
+        cost_basis_usd  REAL,
+        gain_loss_usd   REAL,
+        is_short_term   INTEGER NOT NULL DEFAULT 0,
+        category        TEXT    NOT NULL,
+        source_type     TEXT    NOT NULL,
+        source_id       TEXT    NOT NULL,
+        lot_id          TEXT    NOT NULL,
+        notes           TEXT,
+        created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+      )
+    `);
+  });
+
+  it('run log status never gets stuck at running after a failure', async () => {
+    // Confirm there is no row with status='running' left over — markRunFailed
+    // must update the row even when the pipeline throws.
+    const stuck = (await testDb.execute({
+      sql: `SELECT id FROM tax_pipeline_runs WHERE tenant_id = ? AND status = 'running'`,
+      args: [TENANT],
+    })).rows;
+    expect(stuck.length).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('runDuplicateSweep — strategy 2: cross-table integration (real SQL)', () => {
+  // Strategy 2 joins import_transactions against transactions by symbol + qty
+  // within a 5-minute window. Unit tests mock db.execute; this test runs the
+  // actual SQL against a real in-memory DB to verify the query is correct.
+
+  const S2_TENANT = 'strategy2-tenant';
+
+  beforeAll(async () => {
+    // Clear any leftover data for this tenant
+    for (const t of ['import_transactions', 'transactions', 'wallets']) {
+      await testDb.execute({ sql: `DELETE FROM ${t} WHERE tenant_id = ?`, args: [S2_TENANT] });
+    }
+
+    // Insert a wallet so the transactions table FK is satisfied
+    const walletId = randomUUID();
+    await testDb.execute({
+      sql: `INSERT INTO wallets (id, tenant_id, address) VALUES (?,?,?)`,
+      args: [walletId, S2_TENANT, '0xcafe'],
+    });
+
+    // Import row: 3.5 ETH at 12:00:00
+    await testDb.execute({
+      sql: `INSERT INTO import_transactions
+            (id, tenant_id, timestamp_utc, asset_symbol, direction, kind,
+             amount, native_usd, source, import_batch_id, is_duplicate)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      args: [
+        's2-imp-1', S2_TENANT, '2024-08-10T12:00:00Z',
+        'ETH', 'in', 'buy', 3.5, 10500, 'coinbase', 'batch-S2', 0,
+      ],
+    });
+
+    // Onchain row: 3.5 ETH at 12:03:00 (within 5-minute window, same amount)
+    await testDb.execute({
+      sql: `INSERT INTO transactions
+            (id, tenant_id, wallet_id, timestamp, token_symbol, value,
+             tx_type, chain, is_duplicate)
+            VALUES (?,?,?,?,?,?,?,?,?)`,
+      args: [
+        's2-onc-1', S2_TENANT, walletId,
+        '2024-08-10T12:03:00Z', 'ETH', '3.5',
+        'transfer', 'eth', 0,
+      ],
+    });
+  });
+
+  it('strategy 2 matches import and onchain rows by symbol + amount + time window', async () => {
+    const stats = await runDuplicateSweep(S2_TENANT);
+    expect(stats.strategy2CrossTable).toBe(1);
+    expect(stats.totalMarked).toBeGreaterThanOrEqual(1);
+  });
+
+  it('strategy 2 flags the import row as is_duplicate=1 in the DB', async () => {
+    await runDuplicateSweep(S2_TENANT);
+    const res = await testDb.execute({
+      sql: `SELECT is_duplicate FROM import_transactions WHERE id = 's2-imp-1'`,
+      args: [],
+    });
+    expect(Number((res.rows[0] as Record<string, unknown>).is_duplicate)).toBe(1);
+  });
+
+  it('strategy 2 does NOT match when amounts differ by more than 1%', async () => {
+    const S2b = 'strategy2b-tenant';
+    const wId = randomUUID();
+    await testDb.execute({ sql: `INSERT INTO wallets (id, tenant_id, address) VALUES (?,?,?)`, args: [wId, S2b, '0xbabe'] });
+
+    // Import: 1.0 ETH
+    await testDb.execute({
+      sql: `INSERT INTO import_transactions (id, tenant_id, timestamp_utc, asset_symbol, direction, kind, amount, source, import_batch_id, is_duplicate) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      args: [`s2b-imp`, S2b, '2024-08-11T10:00:00Z', 'ETH', 'in', 'buy', 1.0, 'coinbase', 'batch-S2b', 0],
+    });
+    // Onchain: 1.03 ETH (3% diff — outside 1% tolerance)
+    await testDb.execute({
+      sql: `INSERT INTO transactions (id, tenant_id, wallet_id, timestamp, token_symbol, value, tx_type, chain, is_duplicate) VALUES (?,?,?,?,?,?,?,?,?)`,
+      args: [`s2b-onc`, S2b, wId, '2024-08-11T10:01:00Z', 'ETH', '1.03', 'transfer', 'eth', 0],
+    });
+
+    const stats = await runDuplicateSweep(S2b);
+    expect(stats.strategy2CrossTable).toBe(0);
+  });
+
+  it('strategy 2 does NOT match when timestamps are more than 5 minutes apart', async () => {
+    const S2c = 'strategy2c-tenant';
+    const wId = randomUUID();
+    await testDb.execute({ sql: `INSERT INTO wallets (id, tenant_id, address) VALUES (?,?,?)`, args: [wId, S2c, '0xface'] });
+
+    await testDb.execute({
+      sql: `INSERT INTO import_transactions (id, tenant_id, timestamp_utc, asset_symbol, direction, kind, amount, source, import_batch_id, is_duplicate) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      args: [`s2c-imp`, S2c, '2024-08-12T10:00:00Z', 'BTC', 'in', 'buy', 0.5, 'coinbase', 'batch-S2c', 0],
+    });
+    // 6 minutes apart — outside the 5-minute window
+    await testDb.execute({
+      sql: `INSERT INTO transactions (id, tenant_id, wallet_id, timestamp, token_symbol, value, tx_type, chain, is_duplicate) VALUES (?,?,?,?,?,?,?,?,?)`,
+      args: [`s2c-onc`, S2c, wId, '2024-08-12T10:06:00Z', 'BTC', '0.5', 'transfer', 'eth', 0],
+    });
+
+    const stats = await runDuplicateSweep(S2c);
+    expect(stats.strategy2CrossTable).toBe(0);
+  });
+});

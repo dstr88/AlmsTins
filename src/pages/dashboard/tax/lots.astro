@@ -14,11 +14,17 @@ const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/login');
 const { tenantId } = sess;
 
-const yearParam = Astro.url.searchParams.get('year');
-const year = yearParam ? Number(yearParam) : new Date().getFullYear() - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const year        = yearParam ? Number(yearParam) : new Date().getFullYear() - 1;
+const methodParam = Astro.url.searchParams.get('method');
+const method =
+	methodParam === 'hifo'    ? 'hifo'    :
+	methodParam === 'lifo'    ? 'lifo'    :
+	methodParam === 'spec_id' ? 'spec_id' : 'fifo';
 
-// Load current year's disposals and open lots from annualBreakdown
-const bd = await buildAnnualBreakdown(tenantId, year, 'fifo');
+// Load current year's disposals and open lots from annualBreakdown.
+// Method is respected so Spec ID users see basis consistent with gains page.
+const bd = await buildAnnualBreakdown(tenantId, year, method);
 
 // Group settled lots (disposals) by asset for display
 type DisposalGroup = {

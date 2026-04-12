@@ -201,7 +201,7 @@ const fmtGain = (n: number) => {
 						title="Last In, First Out — preferred in down markets"
 					>LIFO</a>
 					<a
-						href={`/dashboard/tax/lots?year=${year}`}
+						href={`/dashboard/tax/lots?year=${year}&method=${method}`}
 						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'spec_id' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
 						title="Specific Identification — manually choose which lot to sell"
 					>Spec ID</a>

@@ -26,7 +26,7 @@ export const prerender = false;
 
 const CACHE_TTL = 10 * 60;
 const STALE_DAYS = 60;      // wallets stale after this many days
-const MAX_SCORE  = 100;
+const MAX_SCORE  = 120;     // 6 pillars × 20 pts each
 const PILLAR_MAX = 20;      // each pillar worth 20 pts
 
 export type PillarStatus = 'ok' | 'warning' | 'error' | 'na';
@@ -99,6 +99,7 @@ export const GET: APIRoute = async ({ request }) => {
 			importUnpricedResult,
 			missingBasisResult,
 			lifecycleResult,
+			pipelineRunResult,
 		] = await Promise.all([
 
 			// 1. Review queue — unresolved items for any year (they pile up)
@@ -154,6 +155,16 @@ export const GET: APIRoute = async ({ request }) => {
 				        AND timestamp_utc >= ? AND timestamp_utc <= ?`,
 				args: [tenantId, yearStart, yearEnd],
 			}),
+
+			// 6. Classification pipeline — most recent run status + age
+			db.execute({
+				sql: `SELECT status, started_at, completed_at, error_message, total_classified
+				      FROM tax_pipeline_runs
+				      WHERE tenant_id = ?
+				      ORDER BY started_at DESC
+				      LIMIT 1`,
+				args: [tenantId],
+			}).catch(() => ({ rows: [] })),  // table may not exist yet
 		]);
 
 		type DbRow = Record<string, unknown>;
@@ -285,9 +296,71 @@ export const GET: APIRoute = async ({ request }) => {
 			link: '/dashboard/tax/review',
 		};
 
+		// ── Pillar 6: Classification Pipeline ────────────────────────────────
+		// Scores pipeline freshness and status.
+		//   20/20 — ran successfully within 7 days
+		//   15/20 — ran successfully 7–30 days ago
+		//    5/20 — ran successfully >30 days ago (stale FIFO data)
+		//    0/20 — last run failed (gain/loss data may be wrong)
+		//   10/20 — never run (lifecycle fallback ok, but no FIFO guarantee)
+		const pipelineRow = (pipelineRunResult.rows[0] ?? null) as DbRow | null;
+		let pipelineScore  = 10;   // default: never run
+		let pipelineStatus: PillarStatus = 'warning';
+		let pipelineDetail = 'Classification pipeline has never been run — gains calculated from raw events';
+		let pipelineIssues: string[] = [];
+
+		if (pipelineRow) {
+			const status      = String(pipelineRow.status ?? '');
+			const completedAt = pipelineRow.completed_at ? String(pipelineRow.completed_at) : null;
+			const errorMsg    = pipelineRow.error_message ? String(pipelineRow.error_message) : null;
+			const classified  = pipelineRow.total_classified != null ? Number(pipelineRow.total_classified) : null;
+			const ageDays     = completedAt
+				? (Date.now() - new Date(completedAt).getTime()) / 86_400_000
+				: null;
+
+			if (status === 'failed') {
+				pipelineScore  = 0;
+				pipelineStatus = 'error';
+				pipelineDetail = 'Last pipeline run failed — gains data may be stale or incorrect';
+				pipelineIssues = [errorMsg ? `Error: ${errorMsg.slice(0, 120)}` : 'Pipeline failed — re-run to regenerate classification data'];
+			} else if (status === 'running') {
+				pipelineScore  = 10;
+				pipelineStatus = 'warning';
+				pipelineDetail = 'Pipeline is currently running';
+			} else if (status === 'success' && ageDays !== null) {
+				if (ageDays <= 7) {
+					pipelineScore  = PILLAR_MAX;
+					pipelineStatus = 'ok';
+					pipelineDetail = classified != null
+						? `Pipeline ran ${Math.round(ageDays * 24)}h ago — ${classified.toLocaleString()} transactions classified`
+						: `Pipeline ran ${Math.round(ageDays * 24)}h ago — data is fresh`;
+				} else if (ageDays <= 30) {
+					pipelineScore  = 15;
+					pipelineStatus = 'warning';
+					pipelineDetail = `Pipeline last ran ${Math.round(ageDays)} days ago — consider re-running`;
+					pipelineIssues = ['Pipeline data is 7–30 days old — re-run to include recent transactions'];
+				} else {
+					pipelineScore  = 5;
+					pipelineStatus = 'error';
+					pipelineDetail = `Pipeline last ran ${Math.round(ageDays)} days ago — gains data is stale`;
+					pipelineIssues = [`Pipeline hasn't run in ${Math.round(ageDays)} days — re-run from the Gains page`];
+				}
+			}
+		}
+
+		const p6: Pillar = {
+			key: 'pipeline', label: 'Classification Pipeline',
+			score: pipelineScore, maxScore: PILLAR_MAX,
+			status: pipelineStatus,
+			issueCount: pipelineIssues.length,
+			detail: pipelineDetail,
+			issues: pipelineIssues,
+			link: '/dashboard/tax/gains',
+		};
+
 		// ── Aggregate ─────────────────────────────────────────────────────────
-		const pillars = [p1, p2, p3, p4, p5];
-		pillars.forEach((p, i) => { p.key = ['review_queue','wallet_sync','price_coverage','transaction_data','cost_basis'][i]; });
+		const pillars = [p1, p2, p3, p4, p5, p6];
+		pillars.forEach((p, i) => { p.key = ['review_queue','wallet_sync','price_coverage','transaction_data','cost_basis','pipeline'][i]; });
 
 		const totalEarned = pillars.reduce((s, p) => s + p.score, 0);
 		const score = Math.round((totalEarned / MAX_SCORE) * 100);
