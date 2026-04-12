@@ -112,6 +112,11 @@ export const GET: APIRoute = async ({ request, url }) => {
 		}
 
 		let byCategory: IncomeCategoryRow[] = [];
+		// Fix 3: when pipeline data is available, recompute byAsset from the same
+		// source (tax_classifications) so the two income tables never diverge.
+		// pipelineByAsset is null when the pipeline hasn't run yet → fall back to
+		// the asset_lifecycle_events query already stored in byAsset above.
+		let pipelineByAsset: typeof byAsset | null = null;
 		try {
 			const catRes = await db.execute({
 				sql: `SELECT category, sub_category,
@@ -147,15 +152,42 @@ export const GET: APIRoute = async ({ request, url }) => {
 				}
 			}
 			byCategory = Array.from(catMap.values()).sort((a, b) => b.total - a.total);
+
+			// Fix 3 — pipeline byAsset (same source as byCategory)
+			if (catRes.rows.length > 0) {
+				const assetRes = await db.execute({
+					sql: `SELECT asset_symbol,
+					             SUM(amount_usd) AS total_usd,
+					             COUNT(*)        AS event_count
+					      FROM tax_classifications
+					      WHERE tenant_id = ?
+					        AND category IN ('income', 'airdrop')
+					        AND amount_usd IS NOT NULL AND amount_usd > 0
+					        AND tax_year = ?
+					      GROUP BY asset_symbol
+					      ORDER BY total_usd DESC`,
+					args: [tenantId, year],
+				});
+				pipelineByAsset = assetRes.rows.map((r) => ({
+					symbol: String(r.asset_symbol ?? ''),
+					amount: Number(r.total_usd    ?? 0),
+					count:  Number(r.event_count  ?? 0),
+				}));
+			}
 		} catch {
 			// tax_classifications may not exist yet (pipeline not run) — ignore
 		}
 
+		// Use pipeline source when available; fall back to lifecycle events.
+		const resolvedByAsset = pipelineByAsset ?? byAsset;
+
 		const ordinaryIncome = {
-			total: byAsset.reduce((s, x) => s + x.amount, 0),
-			count: byAsset.reduce((s, x) => s + x.count,  0),
-			byAsset,
+			total:  resolvedByAsset.reduce((s, x) => s + x.amount, 0),
+			count:  resolvedByAsset.reduce((s, x) => s + x.count,  0),
+			byAsset: resolvedByAsset,
 			byCategory,
+			// Tell the client which data source was used so the UI can show a note
+			incomeSource: pipelineByAsset ? 'pipeline' : 'lifecycle',
 		};
 
 		// ── 2. Disposal summary (outgoing taxable events) ─────────────────────
@@ -425,7 +457,92 @@ export const GET: APIRoute = async ({ request, url }) => {
 		// How much carryforward is available to offset THIS year's gains
 		const carryforwardAvailable = carryBalance;
 
-		// ── 10. Wash sale shadow tracker ──────────────────────────────────────
+		// ── 10. Gain/loss cross-check (buildAnnualBreakdown vs tax_disposals) ───
+		// buildAnnualBreakdown re-runs FIFO in memory from raw import/onchain rows.
+		// tax_disposals is the pipeline's persisted FIFO output.
+		// They should agree. If they diverge by > 1% or > $100 it indicates a
+		// stale pipeline run, a schema mismatch, or a logic bug worth investigating.
+		type GainCrossCheck = {
+			pipelineStGain:  number | null;
+			pipelineLtGain:  number | null;
+			pipelineNet:     number | null;
+			inMemoryStGain:  number;
+			inMemoryLtGain:  number;
+			inMemoryNet:     number;
+			stDiff:          number | null;
+			ltDiff:          number | null;
+			netDiff:         number | null;
+			withinTolerance: boolean | null;  // null when pipeline has no data
+			disposalCount:   number | null;
+		};
+		let gainCrossCheck: GainCrossCheck = {
+			pipelineStGain:  null,
+			pipelineLtGain:  null,
+			pipelineNet:     null,
+			inMemoryStGain:  gains.shortTermGain,
+			inMemoryLtGain:  gains.longTermGain,
+			inMemoryNet:     gains.netGain,
+			stDiff:          null,
+			ltDiff:          null,
+			netDiff:         null,
+			withinTolerance: null,
+			disposalCount:   null,
+		};
+		try {
+			const xcheckRes = await db.execute({
+				sql: `SELECT
+				        SUM(CASE WHEN is_short_term = 1 THEN COALESCE(gain_loss_usd, 0) ELSE 0 END) AS st_gain,
+				        SUM(CASE WHEN is_short_term = 0 THEN COALESCE(gain_loss_usd, 0) ELSE 0 END) AS lt_gain,
+				        SUM(COALESCE(gain_loss_usd, 0))                                              AS net_gain,
+				        COUNT(*)                                                                      AS disposal_count
+				      FROM tax_disposals
+				      WHERE tenant_id = ?
+				        AND strftime('%Y', disposed_at) = ?
+				        AND gain_loss_usd IS NOT NULL`,
+				args: [tenantId, String(year)],
+			});
+			const xr = xcheckRes.rows[0];
+			if (xr && xr.disposal_count !== null && Number(xr.disposal_count) > 0) {
+				const pSt   = Number(xr.st_gain    ?? 0);
+				const pLt   = Number(xr.lt_gain    ?? 0);
+				const pNet  = Number(xr.net_gain   ?? 0);
+				const stDiff  = gains.shortTermGain - pSt;
+				const ltDiff  = gains.longTermGain  - pLt;
+				const netDiff = gains.netGain        - pNet;
+
+				// Tolerance: within $100 absolute AND within 1% of the larger of the two
+				const absTol = 100;
+				const pctTol = 0.01;
+				const scale  = Math.max(Math.abs(gains.netGain), Math.abs(pNet), 1);
+				const withinTolerance = Math.abs(netDiff) <= absTol || Math.abs(netDiff) / scale <= pctTol;
+
+				if (!withinTolerance) {
+					console.warn(
+						`[tax/summary] GAIN CROSS-CHECK FAIL year=${year} ` +
+						`inMemoryNet=${gains.netGain.toFixed(2)} pipelineNet=${pNet.toFixed(2)} ` +
+						`diff=${netDiff.toFixed(2)}`,
+					);
+				}
+
+				gainCrossCheck = {
+					pipelineStGain:  pSt,
+					pipelineLtGain:  pLt,
+					pipelineNet:     pNet,
+					inMemoryStGain:  gains.shortTermGain,
+					inMemoryLtGain:  gains.longTermGain,
+					inMemoryNet:     gains.netGain,
+					stDiff,
+					ltDiff,
+					netDiff,
+					withinTolerance,
+					disposalCount:   Number(xr.disposal_count),
+				};
+			}
+		} catch {
+			// tax_disposals may not exist — ignore
+		}
+
+		// ── 11. Wash sale shadow tracker ──────────────────────────────────────
 		// Crypto is currently exempt from wash sale rules (IRS treats it as
 		// property, not a security). This section shows what would be disallowed
 		// under proposed legislation that would extend wash sale rules to crypto.
@@ -553,6 +670,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			carryLedger,
 			carryforwardAvailable,
 			yoyRows,
+			gainCrossCheck,
 			washSaleShadow,
 			defiEvents,
 		});

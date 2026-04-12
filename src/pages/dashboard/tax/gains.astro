@@ -47,6 +47,7 @@ type TaxPayload = {
 		count: number;
 		byAsset: AssetIncome[];
 		byCategory?: IncomeCategoryRow[];
+		incomeSource?: 'pipeline' | 'lifecycle';
 	};
 	disposals?: {
 		totalProceeds:    number;
@@ -100,6 +101,17 @@ type TaxPayload = {
 	carryforwardAvailable?: number;
 	yoyRows?: { year: number; stGain: number; ltGain: number; netGain: number }[];
 	method?: 'fifo' | 'hifo' | 'lifo' | 'spec_id';
+	gainCrossCheck?: {
+		pipelineStGain:  number | null;
+		pipelineLtGain:  number | null;
+		pipelineNet:     number | null;
+		inMemoryStGain:  number;
+		inMemoryLtGain:  number;
+		inMemoryNet:     number;
+		netDiff:         number | null;
+		withinTolerance: boolean | null;
+		disposalCount:   number | null;
+	};
 	washSaleShadow?: { totalDisallowed: number; items: WashSaleItem[] };
 	defiEvents?: { count: number; byType: DefiTypeRow[] };
 };
@@ -297,6 +309,25 @@ const fmtGain = (n: number) => {
 								</p>
 							</div>
 
+						</div>
+					</div>
+				)}
+
+				<!-- Gain/loss cross-check warning -->
+				{payload.gainCrossCheck?.withinTolerance === false && (
+					<div class="rounded-xl border border-orange-300 bg-orange-50 shadow-sm p-4 flex gap-3">
+						<span class="text-orange-500 text-xl leading-none mt-0.5">⚠</span>
+						<div class="space-y-1">
+							<p class="text-sm font-semibold text-orange-900">
+								Pipeline gain/loss diverges from in-memory calculation
+							</p>
+							<p class="text-xs text-orange-700">
+								The stored <code class="font-mono bg-orange-100 px-1 rounded">tax_disposals</code> net
+								gain is <strong>{fmtGain(payload.gainCrossCheck.pipelineNet ?? 0)}</strong> but
+								in-memory FIFO gives <strong>{fmtGain(payload.gainCrossCheck.inMemoryNet)}</strong>
+								(diff&nbsp;{fmtGain(payload.gainCrossCheck.netDiff ?? 0)}).
+								Re-run the classification pipeline to regenerate the stored lots.
+							</p>
 						</div>
 					</div>
 				)}
@@ -766,9 +797,16 @@ const fmtGain = (n: number) => {
 				{(payload.ordinaryIncome?.byAsset?.length ?? 0) > 0 && (
 					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
 						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-							<h2 class="text-sm font-semibold text-gray-700">
-								Ordinary Income by Asset
-							</h2>
+							<div>
+								<h2 class="text-sm font-semibold text-gray-700">
+									Ordinary Income by Asset
+								</h2>
+								{(payload.ordinaryIncome as any)?.incomeSource === 'pipeline' ? (
+									<p class="text-xs text-indigo-500 mt-0.5">Source: classification pipeline</p>
+								) : (
+									<p class="text-xs text-gray-400 mt-0.5">Source: lifecycle events (run pipeline for full breakdown)</p>
+								)}
+							</div>
 							<span class="text-xs text-gray-400">Schedule 1 · Form 1040</span>
 						</div>
 						<table class="min-w-full text-sm">

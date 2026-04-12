@@ -246,10 +246,10 @@ describe('Multi-lot disposal', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Short-term / long-term holding period', () => {
-	it('marks disposal as short-term when held < 365 days', () => {
+	it('marks disposal as short-term when held < 12 calendar months', () => {
 		const rows = [
 			importTx({ id: 'buy1', timestamp_utc: '2023-01-01T00:00:00Z', amount: 1, native_usd: 40_000 }),
-			// Sell 364 days later
+			// Sell 364 days later — clearly short-term
 			importTx({ id: 'sell1', timestamp_utc: '2023-12-31T00:00:00Z', amount: 1, native_usd: 50_000 }),
 		];
 		const classifications = classifyMap([
@@ -261,11 +261,59 @@ describe('Short-term / long-term holding period', () => {
 		expect(disposals[0].isShortTerm).toBe(true);
 	});
 
-	it('marks disposal as long-term when held ≥ 365 days', () => {
+	it('marks disposal as short-term when held EXACTLY 12 calendar months (IRS boundary)', () => {
+		// IRS rule: "more than 1 year" = long-term. Exactly 12 months = still short-term.
+		// Acquired Jan 1 2022, disposed Jan 1 2023 = exactly 12 months = SHORT-TERM.
+		// The old code using < 365 days would have incorrectly classified this as long-term.
 		const rows = [
 			importTx({ id: 'buy1', timestamp_utc: '2022-01-01T00:00:00Z', amount: 1, native_usd: 40_000 }),
-			// Sell exactly 365 days later
 			importTx({ id: 'sell1', timestamp_utc: '2023-01-01T00:00:00Z', amount: 1, native_usd: 50_000 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy1',  'buy'],
+			['import', 'sell1', 'sell'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+		expect(disposals[0].isShortTerm).toBe(true); // exactly 12 months = short-term per IRS
+	});
+
+	it('marks disposal as long-term when held MORE than 12 calendar months', () => {
+		// Acquired Jan 1 2022, disposed Jan 2 2023 = 12 months + 1 day = LONG-TERM.
+		const rows = [
+			importTx({ id: 'buy1', timestamp_utc: '2022-01-01T00:00:00Z', amount: 1, native_usd: 40_000 }),
+			importTx({ id: 'sell1', timestamp_utc: '2023-01-02T00:00:00Z', amount: 1, native_usd: 50_000 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy1',  'buy'],
+			['import', 'sell1', 'sell'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+		expect(disposals[0].isShortTerm).toBe(false);
+	});
+
+	it('handles leap year correctly: Jan 1 2024 → Jan 1 2025 (366 days) = short-term', () => {
+		// 2024 is a leap year (366 days). Jan 1 2024 → Jan 1 2025 = exactly 12 calendar months.
+		// Despite being 366 days, this is still exactly 12 months = SHORT-TERM.
+		// A naive fixed-day check (≥ 365 days → long-term) would misclassify this.
+		const rows = [
+			importTx({ id: 'buy1', timestamp_utc: '2024-01-01T00:00:00Z', amount: 1, native_usd: 40_000 }),
+			importTx({ id: 'sell1', timestamp_utc: '2025-01-01T00:00:00Z', amount: 1, native_usd: 50_000 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy1',  'buy'],
+			['import', 'sell1', 'sell'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+		expect(disposals[0].isShortTerm).toBe(true); // 366 days but exactly 12 months = short-term
+	});
+
+	it('handles leap year correctly: Jan 1 2024 → Jan 2 2025 (367 days) = long-term', () => {
+		const rows = [
+			importTx({ id: 'buy1', timestamp_utc: '2024-01-01T00:00:00Z', amount: 1, native_usd: 40_000 }),
+			importTx({ id: 'sell1', timestamp_utc: '2025-01-02T00:00:00Z', amount: 1, native_usd: 50_000 }),
 		];
 		const classifications = classifyMap([
 			['import', 'buy1',  'buy'],
@@ -278,12 +326,12 @@ describe('Short-term / long-term holding period', () => {
 
 	it('handles a disposal spanning one short-term and one long-term lot', () => {
 		const rows = [
-			// Lot 1: bought 2 years ago → long-term
+			// Lot 1: bought 2+ years ago → clearly long-term (disposed Jan 2 2024, held > 12 months)
 			importTx({ id: 'buy1', timestamp_utc: '2021-01-01T00:00:00Z', amount: 1, native_usd: 10_000 }),
 			// Lot 2: bought 6 months ago → short-term
 			importTx({ id: 'buy2', timestamp_utc: '2023-06-01T00:00:00Z', amount: 1, native_usd: 20_000 }),
-			// Sell both
-			importTx({ id: 'sell1', timestamp_utc: '2023-12-01T00:00:00Z', amount: 2, native_usd: 60_000 }),
+			// Sell both — disposed Jan 2 2024
+			importTx({ id: 'sell1', timestamp_utc: '2024-01-02T00:00:00Z', amount: 2, native_usd: 60_000 }),
 		];
 		const classifications = classifyMap([
 			['import', 'buy1',  'buy'],
@@ -715,7 +763,7 @@ describe('Swap — to_amount as acquisition quantity', () => {
 		// The disposal should consume 1 ETH lot, not 2000.
 		const rows = [
 			importTx({ id: 'buy-eth',   timestamp_utc: '2022-01-01T00:00:00Z', asset_symbol: 'ETH', amount: 1,     native_usd: 1_500 }),
-			importTx({ id: 'swap-sell', timestamp_utc: '2023-01-01T00:00:00Z', asset_symbol: 'ETH', amount: 1, to_amount: 2_000, native_usd: 2_000 }),
+			importTx({ id: 'swap-sell', timestamp_utc: '2023-01-01T00:00:00Z', asset_symbol: 'ETH', direction: 'out', amount: 1, to_amount: 2_000, native_usd: 2_000 }),
 		];
 		const classifications = classifyMap([
 			['import', 'buy-eth',   'buy'],
@@ -729,6 +777,94 @@ describe('Swap — to_amount as acquisition quantity', () => {
 		expect(disposals[0].proceedsUsd).toBeCloseTo(2_000); // proceeds = native_usd
 		expect(disposals[0].gainLossUsd).toBeCloseTo(500);   // 2000 - 1500
 		expect(disposals[0].category).toBe('swap');
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12 (continued). TWO-ROW CEX SWAP — the Coinbase "Convert" pattern
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Swap — two-row CEX pattern (Coinbase Convert)', () => {
+	// Coinbase reports a Convert as TWO rows both with kind='Convert' → both
+	// classified as 'swap':
+	//   Row A: direction='out', asset='ETH', amount=1   → disposal of ETH
+	//   Row B: direction='in',  asset='USDC', amount=2000 → acquisition lot for USDC
+	//
+	// Before this fix, both rows entered buildDisposals and row B created a
+	// spurious USDC disposal with null cost basis. Row B never entered
+	// buildAcquisitions, so USDC had no lot and future sells were 'unmatched'.
+
+	it('outgoing swap row creates a disposal of the sold asset', () => {
+		const rows = [
+			importTx({ id: 'buy-eth', timestamp_utc: '2022-01-01T00:00:00Z', asset_symbol: 'ETH', amount: 1, native_usd: 1_500 }),
+			importTx({ id: 'swap-out', timestamp_utc: '2023-06-01T00:00:00Z', asset_symbol: 'ETH', direction: 'out', amount: 1, native_usd: 2_000 }),
+			importTx({ id: 'swap-in',  timestamp_utc: '2023-06-01T00:00:00Z', asset_symbol: 'USDC', direction: 'in', amount: 2_000, native_usd: 2_000 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy-eth',  'buy'],
+			['import', 'swap-out', 'swap'],
+			['import', 'swap-in',  'swap'],
+		]);
+
+		const { lots, disposals } = runFifo(TENANT, rows, [], classifications);
+
+		// Exactly ONE disposal: the ETH sold
+		const ethDisposals = disposals.filter(d => d.assetSymbol === 'ETH');
+		expect(ethDisposals).toHaveLength(1);
+		expect(ethDisposals[0].quantity).toBeCloseTo(1);
+		expect(ethDisposals[0].proceedsUsd).toBeCloseTo(2_000);
+		expect(ethDisposals[0].gainLossUsd).toBeCloseTo(500); // 2000 - 1500
+
+		// ZERO USDC disposals — the incoming swap leg must NOT create a disposal
+		const usdcDisposals = disposals.filter(d => d.assetSymbol === 'USDC');
+		expect(usdcDisposals).toHaveLength(0);
+
+		// An acquisition lot for USDC was created
+		const usdcLot = lots.find(l => l.assetSymbol === 'USDC');
+		expect(usdcLot).toBeDefined();
+		expect(usdcLot!.quantity).toBeCloseTo(2_000);
+		expect(usdcLot!.costBasisUsd).toBeCloseTo(2_000); // FMV at swap date = cost basis
+	});
+
+	it('USDC lot from swap-in has correct cost basis for a subsequent sell', () => {
+		// Full round-trip: buy ETH → swap to USDC → sell USDC
+		const rows = [
+			importTx({ id: 'buy-eth',   timestamp_utc: '2022-01-01T00:00:00Z', asset_symbol: 'ETH',  direction: 'in',  amount: 1,     native_usd: 1_500 }),
+			importTx({ id: 'swap-out',  timestamp_utc: '2023-06-01T00:00:00Z', asset_symbol: 'ETH',  direction: 'out', amount: 1,     native_usd: 2_000 }),
+			importTx({ id: 'swap-in',   timestamp_utc: '2023-06-01T00:00:00Z', asset_symbol: 'USDC', direction: 'in',  amount: 2_000, native_usd: 2_000 }),
+			importTx({ id: 'sell-usdc', timestamp_utc: '2023-12-01T00:00:00Z', asset_symbol: 'USDC', direction: 'out', amount: 2_000, native_usd: 2_100 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy-eth',   'buy'],
+			['import', 'swap-out',  'swap'],
+			['import', 'swap-in',   'swap'],
+			['import', 'sell-usdc', 'sell'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+
+		const usdcSell = disposals.find(d => d.sourceId === 'sell-usdc');
+		expect(usdcSell).toBeDefined();
+		expect(usdcSell!.costBasisUsd).toBeCloseTo(2_000); // cost basis from swap-in lot
+		expect(usdcSell!.gainLossUsd).toBeCloseTo(100);    // $2100 - $2000
+		expect(usdcSell!.lotId).not.toBe('unmatched');      // must be matched, not orphaned
+	});
+
+	it('two-row swap produces exactly two lots total (ETH buy + USDC swap-in)', () => {
+		const rows = [
+			importTx({ id: 'buy-eth',  timestamp_utc: '2022-01-01T00:00:00Z', asset_symbol: 'ETH',  direction: 'in',  amount: 1,     native_usd: 1_500 }),
+			importTx({ id: 'swap-out', timestamp_utc: '2023-06-01T00:00:00Z', asset_symbol: 'ETH',  direction: 'out', amount: 1,     native_usd: 2_000 }),
+			importTx({ id: 'swap-in',  timestamp_utc: '2023-06-01T00:00:00Z', asset_symbol: 'USDC', direction: 'in',  amount: 2_000, native_usd: 2_000 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy-eth',  'buy'],
+			['import', 'swap-out', 'swap'],
+			['import', 'swap-in',  'swap'],
+		]);
+
+		const { lots } = runFifo(TENANT, rows, [], classifications);
+		expect(lots).toHaveLength(2);
+		expect(lots.map(l => l.assetSymbol).sort()).toEqual(['ETH', 'USDC']);
 	});
 });
 

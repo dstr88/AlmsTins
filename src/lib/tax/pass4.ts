@@ -1,15 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Pass 4 — Global FIFO lot matching
 //
-// 1. Builds tax_lots from all buy / income / airdrop events across ALL sources
-//    (exchanges + on-chain wallets).  Lots are sorted oldest-first (FIFO).
+// 1. Builds tax_lots from all buy / income / airdrop / swap-in events across
+//    ALL sources (exchanges + on-chain wallets).  Lots are sorted oldest-first.
 //
-// 2. For each disposal (sell / swap / liquidation / burn / nft-sale) consumes
-//    lots in FIFO order, computing:
+// 2. For each disposal (sell / swap-out / liquidation / burn / nft-sale)
+//    consumes lots in FIFO order, computing:
 //      - cost basis (from the lot)
 //      - proceeds (from the disposal)
 //      - gain / loss
-//      - short-term flag (held < 365 days)
+//      - short-term flag: IRS "more than 1 year" = calendar month comparison
+//        (not a fixed 365-day window, which is wrong in leap years and on the
+//        exact 12-month boundary).
+//
+// Two-row CEX swaps (e.g. Coinbase "Convert"):
+//   direction='out' row  → disposal of the sold asset
+//   direction='in'  row  → acquisition lot for the received asset
+// Both are classified as 'swap' by pass1; buildAcquisitions and buildDisposals
+// filter on direction to ensure each leg goes to exactly one side.
 //
 // Returns arrays of TaxLot and TaxDisposal ready for DB insert.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17,9 +25,29 @@
 import { randomUUID } from 'node:crypto';
 import type { TaxLot, TaxDisposal, ClassificationResult, RawImportTx, RawOnchainTx } from './types';
 
-const MS_PER_YEAR = 365 * 24 * 60 * 60 * 1000;
-
 const taxYear = (ts: string) => new Date(ts).getFullYear();
+
+/**
+ * IRS-correct short-term/long-term determination.
+ *
+ * The IRS rule is "more than 1 year" (calendar months), NOT "more than 365 days".
+ * A disposal that occurs exactly 12 calendar months after acquisition is still
+ * short-term — you need to be one day past the 12-month mark for long-term.
+ *
+ * Examples:
+ *   Acquired Jan 1 2023, disposed Jan 1 2024  → exactly 12 months → short-term
+ *   Acquired Jan 1 2023, disposed Jan 2 2024  → more than 12 months → long-term
+ *   Acquired Jan 1 2024 (leap year), disposed Jan 1 2025 → exactly 12 months → short-term
+ *   Acquired Jan 1 2024, disposed Jan 2 2025  → more than 12 months → long-term
+ */
+function isShortTermHold(acquiredAt: string, disposedAt: string): boolean {
+	const acq  = new Date(acquiredAt);
+	const disp = new Date(disposedAt);
+	const oneYearLater = new Date(acq);
+	oneYearLater.setFullYear(acq.getFullYear() + 1);
+	// Held exactly 12 months or less → short-term; strictly after → long-term
+	return disp <= oneYearLater;
+}
 
 type AcquisitionTx = {
 	id: string;
@@ -62,17 +90,26 @@ function buildAcquisitions(
 
 	for (const row of importRows) {
 		const cat = getCategory(classifications, importKey(row.id));
-		if (cat !== 'buy' && cat !== 'income' && cat !== 'airdrop') continue;
 
-		// asset_symbol is the only symbol field selected by the classify.ts query.
-		// (to_currency / currency are not columns on RawImportTx — removed.)
+		// Two-row CEX swap: the incoming leg (direction='in', category='swap') is the
+		// received asset and should create an acquisition lot just like a buy.
+		// The outgoing leg (direction='out') is handled in buildDisposals.
+		const isSwapIn = cat === 'swap' && row.direction === 'in';
+
+		if (cat !== 'buy' && cat !== 'income' && cat !== 'airdrop' && !isSwapIn) continue;
+
+		// asset_symbol is the only symbol field on RawImportTx.
 		const symbol = row.asset_symbol;
 		if (!symbol) continue;
 
-		// For buys: quantity is what was received (to_amount if swap, else amount)
+		// For buys/swap-in: quantity is what was received.
+		// If to_amount is set it overrides amount (some CEX export the received qty there).
 		const qty = row.to_amount !== null ? Math.abs(row.to_amount) : (row.amount !== null ? Math.abs(row.amount) : null);
 		if (!qty) continue;
 
+		// Cost basis = FMV at time of acquisition (native_usd).
+		// For swap-in rows this is the FMV of the received tokens at the swap date —
+		// the correct cost basis for future disposals of those tokens.
 		const totalCost = row.native_usd !== null ? Math.abs(row.native_usd) : null;
 		const ppu = totalCost !== null && qty > 0 ? totalCost / qty : null;
 
@@ -84,7 +121,7 @@ function buildAcquisitions(
 			quantity: qty,
 			pricePerUnit: ppu,
 			costBasisUsd: totalCost,
-			lotType: cat === 'buy' ? 'purchase' : cat === 'income' ? 'income' : 'airdrop',
+			lotType: cat === 'income' ? 'income' : cat === 'airdrop' ? 'airdrop' : 'purchase',
 		});
 	}
 
@@ -130,6 +167,11 @@ function buildDisposals(
 	for (const row of importRows) {
 		const cat = getCategory(classifications, importKey(row.id));
 		if (!disposalCats.has(cat)) continue;
+
+		// Two-row CEX swap: the incoming leg is handled in buildAcquisitions.
+		// Skip it here so a single swap doesn't create both a disposal AND a
+		// spurious second disposal from the received side.
+		if (cat === 'swap' && row.direction === 'in') continue;
 
 		const symbol = row.asset_symbol;
 		if (!symbol) continue;
@@ -232,7 +274,6 @@ export function runFifo(
 		}
 
 		let remaining = disp.quantity;
-		const dispMs = new Date(disp.timestamp).getTime();
 
 		// Use epsilon to guard against floating-point dust (e.g. 1e-14 remaining
 		// after consuming several lot slices). Without this, a phantom near-zero
@@ -249,8 +290,8 @@ export function runFifo(
 			const gainLoss =
 				proceedsSlice !== null && costSlice !== null ? proceedsSlice - costSlice : null;
 
-			const acqMs = new Date(lot.acquiredAt).getTime();
-			const isShortTerm = dispMs - acqMs < MS_PER_YEAR;
+			// IRS calendar-month holding period (see isShortTermHold above).
+			const isShortTerm = isShortTermHold(lot.acquiredAt, disp.timestamp);
 
 			allDisposals.push({
 				id: randomUUID(),
