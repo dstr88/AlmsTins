@@ -133,6 +133,12 @@ type TaxPayload = {
 		totalClassified: number | null;
 		totalUnknown:    number | null;
 	} | null;
+	pipelineStale?: {
+		stale:           boolean;
+		lastRunAt:       string | null;
+		latestImportAt:  string | null;
+		staleSinceMs:    number | null;
+	} | null;
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -414,6 +420,41 @@ const fmtGain = (n: number) => {
 								{payload.lastPipelineRun.errorMsg.slice(0, 80)}
 							</span>
 						)}
+					</div>
+				)}
+
+				<!-- Stale pipeline warning -->
+				<!-- Only shown when: pipeline has run (we're serving its data) AND
+				     new import data has arrived since the last successful run.      -->
+				{payload.pipelineStale?.stale && payload.gains?.dataSource === 'pipeline' && (
+					<div class="rounded-xl border border-amber-300 bg-amber-50 shadow-sm p-4 flex gap-3">
+						<span class="text-amber-500 text-xl leading-none mt-0.5">⚠</span>
+						<div class="space-y-1 flex-1 min-w-0">
+							<p class="text-sm font-semibold text-amber-900">
+								Pipeline data may be out of date
+							</p>
+							<p class="text-xs text-amber-700">
+								New transactions were imported
+								{payload.pipelineStale.staleSinceMs != null && (() => {
+									const ms   = payload.pipelineStale!.staleSinceMs!;
+									const days = Math.floor(ms / 86_400_000);
+									const hrs  = Math.floor(ms / 3_600_000);
+									return days >= 2 ? ` ${days} days`
+									     : hrs  >= 1 ? ` ${hrs} hour${hrs !== 1 ? 's' : ''}`
+									     : ' recently';
+								})()}
+								after the last pipeline run. The gains shown may not reflect your latest data.
+								Re-run the classification pipeline to update.
+							</p>
+							{payload.pipelineStale.lastRunAt && (
+								<p class="text-xs text-amber-600">
+									Last run: {new Date(payload.pipelineStale.lastRunAt).toLocaleString()}
+									{payload.pipelineStale.latestImportAt && (
+										<> · Latest import: {new Date(payload.pipelineStale.latestImportAt).toLocaleString()}</>
+									)}
+								</p>
+							)}
+						</div>
 					</div>
 				)}
 

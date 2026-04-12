@@ -680,6 +680,68 @@ export const GET: APIRoute = async ({ request, url }) => {
 			// tax_pipeline_runs may not exist — ignore
 		}
 
+		// ── 10d. Stale pipeline detection ────────────────────────────────────
+		// If new import data arrived after the last successful pipeline run,
+		// the tax_disposals / tax_lots we're serving are out of date.
+		// We compare MAX(created_at) across import_transactions and
+		// asset_lifecycle_events against the pipeline's completed_at.
+		// pipelineStale is null when the pipeline has never run (no completedAt).
+		type PipelineStaleInfo = {
+			stale:           boolean;
+			lastRunAt:       string | null;  // completed_at of last success run
+			latestImportAt:  string | null;  // newest import row's created_at
+			staleSinceMs:    number | null;  // ms between pipeline run and newest import
+		};
+		let pipelineStale: PipelineStaleInfo = {
+			stale:          false,
+			lastRunAt:      null,
+			latestImportAt: null,
+			staleSinceMs:   null,
+		};
+		try {
+			// Only meaningful if pipeline has successfully run AND we're serving its data
+			const lastSuccessAt = lastPipelineRun?.status === 'success'
+				? lastPipelineRun.completedAt ?? lastPipelineRun.startedAt
+				: null;
+
+			if (lastSuccessAt) {
+				// MAX across both primary data sources the pipeline reads from
+				const [importMaxRes, lifecycleMaxRes] = await Promise.all([
+					db.execute({
+						sql: `SELECT MAX(created_at) AS latest FROM import_transactions WHERE tenant_id = ?`,
+						args: [tenantId],
+					}),
+					db.execute({
+						sql: `SELECT MAX(created_at) AS latest FROM asset_lifecycle_events WHERE tenant_id = ?`,
+						args: [tenantId],
+					}).catch(() => ({ rows: [{ latest: null }] })),
+				]);
+
+				const importLatest    = importMaxRes.rows[0]     ? String((importMaxRes.rows[0] as Record<string, unknown>).latest    ?? '') : '';
+				const lifecycleLatest = lifecycleMaxRes.rows[0]  ? String((lifecycleMaxRes.rows[0] as Record<string, unknown>).latest  ?? '') : '';
+
+				// Most recent data insertion across all sources
+				const latestImportAt = [importLatest, lifecycleLatest]
+					.filter(Boolean)
+					.sort()
+					.at(-1) ?? null;
+
+				if (latestImportAt) {
+					const runTime    = new Date(lastSuccessAt).getTime();
+					const importTime = new Date(latestImportAt).getTime();
+					const staleSinceMs = importTime - runTime;
+					pipelineStale = {
+						stale:          staleSinceMs > 0,
+						lastRunAt:      lastSuccessAt,
+						latestImportAt,
+						staleSinceMs:   staleSinceMs > 0 ? staleSinceMs : null,
+					};
+				}
+			}
+		} catch {
+			// Non-fatal — stale detection is advisory only
+		}
+
 		// ── 11. Wash sale shadow tracker ──────────────────────────────────────
 		// Crypto is currently exempt from wash sale rules (IRS treats it as
 		// property, not a security). This section shows what would be disallowed
@@ -840,6 +902,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			gainCrossCheck,
 			incomeCrossCheck,
 			lastPipelineRun,
+			pipelineStale,
 			washSaleShadow,
 			defiEvents,
 		});
