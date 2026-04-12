@@ -1,0 +1,24 @@
+name: Price Alerts
+
+on:
+  schedule:
+    # Run every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  price-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger price alert check
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ]; then
+            echo "SYNC_URL secret missing."
+            exit 1
+          fi
+          curl -sS --fail \
+            "$SYNC_URL/api/cron/price-alerts?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"

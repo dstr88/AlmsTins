@@ -1,0 +1,314 @@
+---
+/**
+ * /dashboard/alerts
+ *
+ * Manage price alerts. Users set a coin + threshold + direction (above/below)
+ * and receive an email when the price crosses it.
+ */
+import Layout from '../../layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getAuthSession } from '@/lib/authSession';
+import { db } from '@/lib/db';
+
+await requireTenantSession(Astro.request);
+
+// Load current alert email so we can show it / warn if missing
+const session = await getAuthSession(Astro.request).catch(() => null);
+const userId = session?.user?.id ?? null;
+let alertEmail: string | null = null;
+if (userId) {
+	try {
+		const row = await db.execute({ sql: 'SELECT alert_email FROM auth_users WHERE id = ? LIMIT 1', args: [userId] });
+		alertEmail = row.rows[0] ? String((row.rows[0] as Record<string, unknown>).alert_email ?? '') || null : null;
+	} catch {}
+}
+---
+
+<Layout title="Price Alerts | Almstins" noindex={true}>
+	<div class="max-w-3xl mx-auto px-4 py-8 space-y-8">
+
+		<!-- Header -->
+		<div>
+			<h1 class="text-2xl font-bold text-gray-900">Price Alerts</h1>
+			<p class="text-sm text-gray-500 mt-1">
+				Get an email when any asset crosses a price threshold you set.
+				Useful for harvesting decisions and entry/exit timing.
+			</p>
+		</div>
+
+		<!-- No alert email warning -->
+		{!alertEmail && (
+			<div class="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+				<span class="text-amber-500 text-lg mt-0.5">⚠️</span>
+				<div>
+					<p class="font-medium text-amber-800">Alert email not set</p>
+					<p class="text-sm text-amber-700 mt-0.5">
+						You won't receive notifications until you add an alert email in your
+						<a href="/dashboard/account" class="underline hover:no-underline">Account settings</a>.
+					</p>
+				</div>
+			</div>
+		)}
+		{alertEmail && (
+			<p class="text-sm text-gray-500">
+				Alerts will be sent to <span class="font-medium text-gray-700">{alertEmail}</span>.
+				<a href="#" id="edit-email-link" class="text-indigo-500 hover:text-indigo-700 ml-1">Change</a>
+			</p>
+		)}
+
+		<!-- Add Alert form -->
+		<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
+			<h2 class="text-base font-semibold text-gray-800 mb-4">Add New Alert</h2>
+			<form id="add-alert-form" class="space-y-4">
+				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+					<!-- Asset symbol -->
+					<div>
+						<label class="block text-sm font-medium text-gray-700 mb-1">Asset</label>
+						<input type="text" id="new-symbol" placeholder="BTC, ETH, SOL…"
+						       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase
+						              focus:outline-none focus:ring-2 focus:ring-indigo-500"
+						       maxlength="20" required />
+					</div>
+					<!-- Direction -->
+					<div>
+						<label class="block text-sm font-medium text-gray-700 mb-1">Condition</label>
+						<select id="new-direction"
+						        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+						               focus:outline-none focus:ring-2 focus:ring-indigo-500">
+							<option value="above">Price rises above</option>
+							<option value="below">Price drops below</option>
+						</select>
+					</div>
+					<!-- Threshold -->
+					<div>
+						<label class="block text-sm font-medium text-gray-700 mb-1">Price (USD)</label>
+						<div class="relative">
+							<span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+							<input type="number" id="new-threshold" step="any" min="0.000001"
+							       placeholder="e.g. 100000"
+							       class="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm
+							              focus:outline-none focus:ring-2 focus:ring-indigo-500"
+							       required />
+						</div>
+					</div>
+				</div>
+				<div class="flex items-center gap-3">
+					<button type="submit" id="add-btn"
+					        class="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium
+					               px-5 py-2 transition-colors disabled:opacity-50">
+						Add Alert
+					</button>
+					<span id="add-status" class="text-sm text-gray-500 hidden"></span>
+				</div>
+			</form>
+		</div>
+
+		<!-- Existing alerts list -->
+		<div>
+			<h2 class="text-base font-semibold text-gray-800 mb-3">Your Alerts</h2>
+
+			<div id="alerts-loading" class="text-sm text-gray-400 py-4">Loading…</div>
+
+			<div id="alerts-empty" class="hidden rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
+				<p class="text-2xl mb-2">🔔</p>
+				<p class="font-medium text-gray-700">No alerts yet</p>
+				<p class="text-sm text-gray-500 mt-1">Add one above to get started.</p>
+			</div>
+
+			<div id="alerts-error" class="hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+				Failed to load alerts. Please refresh.
+			</div>
+
+			<div id="alerts-list" class="hidden space-y-2"></div>
+		</div>
+
+	</div>
+</Layout>
+
+<script>
+const USD = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
+interface Alert {
+	id: string;
+	assetSymbol: string;
+	direction: string;
+	threshold: number;
+	enabled: boolean;
+	lastAlertedAt: string | null;
+}
+
+let alerts: Alert[] = [];
+
+async function loadAlerts() {
+	const loadingEl  = document.getElementById('alerts-loading')!;
+	const emptyEl    = document.getElementById('alerts-empty')!;
+	const errorEl    = document.getElementById('alerts-error')!;
+	const listEl     = document.getElementById('alerts-list')!;
+
+	try {
+		const res = await fetch('/api/account/price-alerts');
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		const data = await res.json() as { ok: boolean; alerts: Alert[] };
+
+		loadingEl.classList.add('hidden');
+
+		if (!data.ok) throw new Error('API error');
+		alerts = data.alerts;
+
+		if (alerts.length === 0) {
+			emptyEl.classList.remove('hidden');
+			return;
+		}
+
+		renderAlerts();
+		listEl.classList.remove('hidden');
+	} catch (err) {
+		console.error('[alerts] load failed', err);
+		loadingEl.classList.add('hidden');
+		errorEl.classList.remove('hidden');
+	}
+}
+
+function renderAlerts() {
+	const listEl = document.getElementById('alerts-list')!;
+	listEl.innerHTML = '';
+
+	for (const alert of alerts) {
+		const card = document.createElement('div');
+		card.className = 'flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm';
+		card.dataset.id = alert.id;
+
+		const dirLabel = alert.direction === 'above' ? '↑ above' : '↓ below';
+		const lastSent = alert.lastAlertedAt
+			? `Last sent ${new Date(alert.lastAlertedAt).toLocaleDateString()}`
+			: 'Never triggered';
+
+		card.innerHTML = `
+			<div class="flex items-center gap-4 min-w-0">
+				<span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold shrink-0">
+					${alert.assetSymbol.slice(0, 3)}
+				</span>
+				<div class="min-w-0">
+					<p class="font-medium text-gray-900">
+						<span class="text-gray-600 font-normal">${alert.assetSymbol}</span>
+						${dirLabel}
+						<span class="font-semibold">${USD(alert.threshold)}</span>
+					</p>
+					<p class="text-xs text-gray-400">${lastSent}</p>
+				</div>
+			</div>
+			<div class="flex items-center gap-3 shrink-0">
+				<!-- Enabled toggle -->
+				<label class="relative inline-flex items-center cursor-pointer" title="${alert.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}">
+					<input type="checkbox" class="sr-only peer toggle-enabled" ${alert.enabled ? 'checked' : ''}>
+					<div class="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-indigo-600
+					            after:content-[''] after:absolute after:top-0.5 after:left-0.5
+					            after:bg-white after:rounded-full after:h-4 after:w-4
+					            after:transition-all peer-checked:after:translate-x-5"></div>
+				</label>
+				<!-- Delete -->
+				<button class="delete-btn text-gray-400 hover:text-red-500 transition-colors text-lg leading-none" title="Delete alert">×</button>
+			</div>
+		`;
+
+		// Toggle enabled
+		const toggle = card.querySelector<HTMLInputElement>('.toggle-enabled')!;
+		toggle.addEventListener('change', async () => {
+			try {
+				await fetch('/api/account/price-alerts', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ id: alert.id, assetSymbol: alert.assetSymbol, direction: alert.direction, threshold: alert.threshold, enabled: toggle.checked }),
+				});
+				alert.enabled = toggle.checked;
+			} catch (err) {
+				console.error('[alerts] toggle failed', err);
+				toggle.checked = !toggle.checked; // revert
+			}
+		});
+
+		// Delete
+		const delBtn = card.querySelector<HTMLButtonElement>('.delete-btn')!;
+		delBtn.addEventListener('click', async () => {
+			if (!confirm(`Delete alert for ${alert.assetSymbol} ${alert.direction} ${USD(alert.threshold)}?`)) return;
+			try {
+				const res = await fetch(`/api/account/price-alerts?id=${alert.id}`, { method: 'DELETE' });
+				if ((await res.json()).ok) {
+					card.style.transition = 'opacity 0.3s';
+					card.style.opacity = '0';
+					setTimeout(() => {
+						card.remove();
+						alerts = alerts.filter(a => a.id !== alert.id);
+						if (alerts.length === 0) {
+							document.getElementById('alerts-list')!.classList.add('hidden');
+							document.getElementById('alerts-empty')!.classList.remove('hidden');
+						}
+					}, 300);
+				}
+			} catch (err) {
+				console.error('[alerts] delete failed', err);
+			}
+		});
+
+		listEl.appendChild(card);
+	}
+}
+
+// ── Add alert form ────────────────────────────────────────────────────────────
+document.getElementById('add-alert-form')?.addEventListener('submit', async (e) => {
+	e.preventDefault();
+
+	const symbolEl    = document.getElementById('new-symbol') as HTMLInputElement;
+	const directionEl = document.getElementById('new-direction') as HTMLSelectElement;
+	const thresholdEl = document.getElementById('new-threshold') as HTMLInputElement;
+	const addBtn      = document.getElementById('add-btn') as HTMLButtonElement;
+	const statusEl    = document.getElementById('add-status')!;
+
+	const assetSymbol = symbolEl.value.toUpperCase().trim();
+	const direction   = directionEl.value;
+	const threshold   = parseFloat(thresholdEl.value);
+
+	if (!assetSymbol || !threshold || threshold <= 0) return;
+
+	addBtn.disabled = true;
+	statusEl.textContent = 'Saving…';
+	statusEl.classList.remove('hidden');
+
+	try {
+		const res = await fetch('/api/account/price-alerts', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ assetSymbol, direction, threshold }),
+		});
+		const data = await res.json() as { ok: boolean; id?: string; error?: string };
+
+		if (data.ok) {
+			statusEl.textContent = '✅ Alert added!';
+			symbolEl.value = '';
+			thresholdEl.value = '';
+			// Reload to show new alert
+			setTimeout(() => {
+				statusEl.classList.add('hidden');
+				addBtn.disabled = false;
+				loadAlerts();
+			}, 800);
+		} else {
+			statusEl.textContent = `❌ ${data.error ?? 'Failed'}`;
+			addBtn.disabled = false;
+		}
+	} catch {
+		statusEl.textContent = '❌ Network error';
+		addBtn.disabled = false;
+	}
+});
+
+// Force symbol input uppercase
+document.getElementById('new-symbol')?.addEventListener('input', (e) => {
+	const el = e.target as HTMLInputElement;
+	const pos = el.selectionStart ?? 0;
+	el.value = el.value.toUpperCase();
+	el.setSelectionRange(pos, pos);
+});
+
+loadAlerts();
+</script>
