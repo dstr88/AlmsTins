@@ -70,6 +70,14 @@ type TaxPayload = {
 		daysHeld: number | null;
 		term:     'short' | 'long' | null;
 	}[];
+	carryLedger?: {
+		year:           number;
+		netGainLoss:    number;
+		deducted:       number;
+		absorbedByGain: number;
+		endingBalance:  number;
+	}[];
+	carryforwardAvailable?: number;
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -222,6 +230,73 @@ const fmtGain = (n: number) => {
 							</div>
 
 						</div>
+					</div>
+				)}
+
+				<!-- Capital Loss Carryforward -->
+				{(payload.carryforwardAvailable ?? 0) > 0 && (
+					<div class="rounded-xl border border-emerald-200 bg-emerald-50 shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-emerald-200 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-emerald-900">Capital Loss Carryforward</h2>
+								<p class="text-xs text-emerald-700 mt-0.5">Unused losses from prior years that can offset your {year} gains</p>
+							</div>
+							<div class="text-right">
+								<p class="text-xl font-bold text-emerald-800">{fmtGain(-(payload.carryforwardAvailable ?? 0))}</p>
+								<p class="text-xs text-emerald-600">available to apply</p>
+							</div>
+						</div>
+
+						{(payload.carryLedger?.length ?? 0) > 0 && (
+							<table class="min-w-full text-sm">
+								<thead class="bg-emerald-100">
+									<tr>
+										<th class="px-5 py-2.5 text-left  text-xs font-medium text-emerald-800 uppercase tracking-wide">Year</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">Net Gain / Loss</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">Deducted vs Income</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">Absorbed by Gain</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">Ending Balance</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-emerald-100 bg-white">
+									{payload.carryLedger!.filter(r => r.netGainLoss < 0 || r.absorbedByGain > 0 || r.deducted > 0).map((row) => (
+										<tr class="hover:bg-emerald-50">
+											<td class="px-5 py-3 font-semibold text-gray-700">{row.year}</td>
+											<td class={`px-5 py-3 text-right font-medium tabular-nums ${row.netGainLoss < 0 ? 'text-red-600' : 'text-green-700'}`}>
+												{fmtGain(row.netGainLoss)}
+											</td>
+											<td class="px-5 py-3 text-right tabular-nums text-gray-600">
+												{row.deducted > 0 ? fmtGain(-row.deducted) : <span class="text-gray-300">—</span>}
+											</td>
+											<td class="px-5 py-3 text-right tabular-nums text-gray-600">
+												{row.absorbedByGain > 0 ? fmtGain(-row.absorbedByGain) : <span class="text-gray-300">—</span>}
+											</td>
+											<td class={`px-5 py-3 text-right font-semibold tabular-nums ${row.endingBalance > 0 ? 'text-emerald-700' : 'text-gray-400'}`}>
+												{row.endingBalance > 0 ? fmtGain(-row.endingBalance) : '$0'}
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						)}
+
+						<div class="px-5 py-3 border-t border-emerald-200 bg-emerald-50">
+							<p class="text-xs text-emerald-700">
+								<strong>How to use it:</strong> Apply this carryforward against your {year} net gain before calculating tax.
+								Up to $3,000 per year can also offset ordinary income if your net is still negative after applying it.
+								Your tax software or CPA will enter this on Schedule D.
+							</p>
+						</div>
+					</div>
+				)}
+
+				<!-- No carryforward — small note if there were prior loss years -->
+				{(payload.carryforwardAvailable ?? 0) === 0 && (payload.carryLedger?.some(r => r.netGainLoss < 0) ?? false) && (
+					<div class="rounded-lg border border-gray-200 bg-gray-50 px-5 py-3 flex items-center gap-3">
+						<span class="text-gray-400 text-lg">✓</span>
+						<p class="text-xs text-gray-500">
+							You had loss years in the past but the full balance has been used up — no carryforward available for {year}.
+						</p>
 					</div>
 				)}
 
@@ -501,9 +576,10 @@ const fmtGain = (n: number) => {
 
 					<div class="px-5 py-3 border-t border-gray-100 bg-gray-50">
 						<p class="text-xs text-gray-400">
-							This is a rough estimate using IRS marginal brackets. It does not account for deductions,
-							AMT, NIIT, state taxes, or other income. Short-term gains are stacked on top of your
-							other income. Consult a CPA for your actual liability.
+							Rough estimate using {year} IRS marginal brackets. Does not account for deductions,
+							AMT, NIIT, state taxes, or capital loss carryforward. Short-term gains are stacked on top
+							of your other income. If you don't have employer withholding covering this amount, you may
+							owe quarterly estimated payments — ask your CPA. Not financial advice.
 						</p>
 					</div>
 				</div>

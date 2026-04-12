@@ -295,6 +295,63 @@ export const GET: APIRoute = async ({ request, url }) => {
 			return b.date.localeCompare(a.date);
 		});
 
+		// ── 9. Capital loss carryforward ──────────────────────────────────────
+		// Walk all prior years in chronological order. For each year with a net
+		// loss, $3,000 is deductible against ordinary income; the rest carries
+		// forward. Any year with a net gain absorbs any existing carryforward
+		// before reporting taxable gain.
+		//
+		// Returns: per-year ledger + current carryforward balance available this year.
+		type CarryRow = {
+			year:            number;
+			netGainLoss:     number;  // raw ST + LT for that year
+			deducted:        number;  // amount deducted vs ordinary income (max $3k)
+			absorbedByGain:  number;  // carryforward consumed by a gain year
+			endingBalance:   number;  // remaining carryforward after this year
+		};
+
+		const carryLedger: CarryRow[] = [];
+		let carryBalance = 0;
+
+		// Only compute if there are prior years with data
+		const priorYears = bd.availableYears
+			.filter((y) => y < year)
+			.sort((a, b) => a - b); // oldest first
+
+		for (const y of priorYears) {
+			try {
+				const pbd = await buildAnnualBreakdown(tenantId, y);
+				const netGL = pbd.totals.shortTermGain + pbd.totals.longTermGain;
+
+				let deducted       = 0;
+				let absorbedByGain = 0;
+
+				if (netGL < 0) {
+					// Loss year: add to carryforward pool, deduct up to $3k this year
+					const totalLoss = Math.abs(netGL) + carryBalance;
+					deducted     = Math.min(3000, totalLoss);
+					carryBalance = totalLoss - deducted;
+				} else if (netGL > 0 && carryBalance > 0) {
+					// Gain year: carryforward offsets the gain first
+					absorbedByGain = Math.min(carryBalance, netGL);
+					carryBalance   = carryBalance - absorbedByGain;
+				}
+
+				carryLedger.push({
+					year:           y,
+					netGainLoss:    netGL,
+					deducted,
+					absorbedByGain,
+					endingBalance:  carryBalance,
+				});
+			} catch (e) {
+				console.warn(`[tax/summary] carryforward: failed year ${y}`, e);
+			}
+		}
+
+		// How much carryforward is available to offset THIS year's gains
+		const carryforwardAvailable = carryBalance;
+
 		return respond({
 			ok: true,
 			year,
@@ -306,6 +363,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 			byAssetGains,
 			harvestLosses,
 			missingBasis,
+			carryLedger,
+			carryforwardAvailable,
 		});
 	} catch (error) {
 		console.error('[tax/summary] failed:', error);
