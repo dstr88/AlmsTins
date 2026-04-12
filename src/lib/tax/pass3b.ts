@@ -38,7 +38,7 @@ function matchesAny(text: string, keywords: string[]): boolean {
 
 const taxYear = (ts: string) => {
 	const d = new Date(ts);
-	return Number.isNaN(d.getTime()) ? null : d.getFullYear();
+	return Number.isNaN(d.getTime()) ? null : d.getUTCFullYear();
 };
 
 export function classifyDeFiPass3b(
