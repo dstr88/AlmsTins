@@ -111,12 +111,13 @@ const fmtGain = (n: number) => {
 };
 ---
 
-<Layout title="Gains Center | Almstins" noindex={true}>
+<Layout title="Gains Summary | almsTins" noindex={true}>
 	<div class="max-w-4xl mx-auto px-4 py-8 space-y-8">
 
 		<!-- Header + year picker -->
 		<div class="flex items-center justify-between flex-wrap gap-4">
 			<div>
+				<a href="/dashboard/tax" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
 				<h1 class="text-2xl font-bold">Gains Summary</h1>
 				<p class="text-sm text-gray-500 mt-1">
 					Realized gains overview for <strong>{year}</strong>.

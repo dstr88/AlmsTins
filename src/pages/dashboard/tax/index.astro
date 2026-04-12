@@ -1,0 +1,190 @@
+---
+/**
+ * /dashboard/tax — Tax Center hub
+ *
+ * Private landing page linking to every tax tool in almsTins.
+ * Not indexed (noindex) — authenticated users only.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+await requireTenantSession(Astro.request);
+
+const currentYear  = new Date().getFullYear();
+const priorYear    = currentYear - 1;
+---
+
+<Layout title="Tax Center | almsTins" noindex={true}>
+	<div class="max-w-4xl mx-auto px-4 py-10 space-y-10">
+
+		<!-- Header -->
+		<div>
+			<h1 class="text-2xl font-bold text-gray-900">Tax Center</h1>
+			<p class="text-sm text-gray-500 mt-1">
+				All your crypto tax tools in one place. Not a tax preparation service — always consult a CPA before filing.
+			</p>
+		</div>
+
+		<!-- Primary tools -->
+		<section class="space-y-3">
+			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Analysis &amp; Planning</h2>
+
+			<a href="/dashboard/tax/gains" class="tax-card group">
+				<div class="tax-card-icon bg-indigo-50 text-indigo-600">📊</div>
+				<div class="flex-1 min-w-0">
+					<p class="tax-card-title">Gains Summary</p>
+					<p class="tax-card-desc">
+						Short-term vs long-term gains, per-asset breakdown, tax-loss harvesting opportunities,
+						missing cost basis alerts, estimated liability, loss carryforward, and year-over-year chart.
+					</p>
+				</div>
+				<span class="tax-card-arrow">→</span>
+			</a>
+
+			<a href={`/dashboard/tax/report?year=${priorYear}`} class="tax-card group">
+				<div class="tax-card-icon bg-blue-50 text-blue-600">📋</div>
+				<div class="flex-1 min-w-0">
+					<p class="tax-card-title">Year Summary Report <span class="tax-badge">{priorYear}</span></p>
+					<p class="tax-card-desc">
+						Full disposal history with capital gains, ordinary income, loan events, and interest paid.
+						Download as HTML or Form 8949–ready CSV.
+					</p>
+				</div>
+				<span class="tax-card-arrow">→</span>
+			</a>
+
+			<a href="/dashboard/tax/review" class="tax-card group">
+				<div class="tax-card-icon bg-amber-50 text-amber-600">⚠️</div>
+				<div class="flex-1 min-w-0">
+					<p class="tax-card-title">Review Queue</p>
+					<p class="tax-card-desc">
+						Transactions the classifier couldn't categorize automatically. Resolve them here before
+						they affect your report totals.
+					</p>
+				</div>
+				<span class="tax-card-arrow">→</span>
+			</a>
+		</section>
+
+		<!-- PDF export -->
+		<section class="space-y-3">
+			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Export</h2>
+
+			<a href={`/api/year-summary/report?year=${priorYear}`} target="_blank" class="tax-card group">
+				<div class="tax-card-icon bg-red-50 text-red-500">📄</div>
+				<div class="flex-1 min-w-0">
+					<p class="tax-card-title">Year Summary PDF <span class="tax-badge">{priorYear}</span></p>
+					<p class="tax-card-desc">
+						Landscape PDF with cover page, summary totals, short-term disposals, long-term disposals,
+						income events, and open lots. Premium plan required.
+					</p>
+				</div>
+				<span class="tax-card-arrow">↗</span>
+			</a>
+
+			<a href="/dashboard/transactions" class="tax-card group">
+				<div class="tax-card-icon bg-green-50 text-green-600">📥</div>
+				<div class="flex-1 min-w-0">
+					<p class="tax-card-title">FIFO CSV Export</p>
+					<p class="tax-card-desc">
+						Download the line-by-line gain/loss CSV from the transactions page. Includes short-term
+						vs long-term classification per lot — the format your CPA or tax software needs.
+					</p>
+				</div>
+				<span class="tax-card-arrow">→</span>
+			</a>
+		</section>
+
+		<!-- Year picker for prior years -->
+		<section class="space-y-3">
+			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Prior Tax Years</h2>
+			<div class="flex flex-wrap gap-2">
+				{Array.from({ length: 5 }, (_, i) => currentYear - 1 - i).map((y) => (
+					<a
+						href={`/dashboard/tax/report?year=${y}`}
+						class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white
+						       hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 transition-colors"
+					>
+						{y} Report
+					</a>
+				))}
+			</div>
+			<p class="text-xs text-gray-400">Opens the Year Summary Report filtered to that tax year.</p>
+		</section>
+
+		<!-- Disclaimer -->
+		<div class="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4">
+			<p class="text-xs text-gray-400 leading-relaxed">
+				<strong class="text-gray-500">Disclaimer:</strong> almsTins is a record-keeping and analysis tool, not a
+				tax preparation service. The information here is based on the transaction data you have provided and may
+				be incomplete if imports are missing or wallets are unsynced. Nothing on this page constitutes tax,
+				legal, or financial advice. Consult a qualified CPA or tax professional before filing.
+			</p>
+		</div>
+
+	</div>
+</Layout>
+
+<style>
+	.tax-card {
+		display: flex;
+		align-items: flex-start;
+		gap: 1rem;
+		padding: 1rem 1.25rem;
+		border-radius: 0.75rem;
+		border: 1px solid #e5e7eb;
+		background: #fff;
+		text-decoration: none;
+		transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+		cursor: pointer;
+	}
+	.tax-card:hover {
+		border-color: #6366f1;
+		box-shadow: 0 2px 8px rgba(99,102,241,0.08);
+		background: #fafafe;
+	}
+	.tax-card-icon {
+		flex-shrink: 0;
+		width: 2.5rem;
+		height: 2.5rem;
+		border-radius: 0.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.15rem;
+	}
+	.tax-card-title {
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: #111827;
+		margin-bottom: 0.2rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.tax-card-desc {
+		font-size: 0.8rem;
+		color: #6b7280;
+		line-height: 1.5;
+	}
+	.tax-card-arrow {
+		font-size: 1rem;
+		color: #9ca3af;
+		flex-shrink: 0;
+		margin-top: 0.15rem;
+		transition: color 0.15s, transform 0.15s;
+	}
+	.tax-card:hover .tax-card-arrow {
+		color: #6366f1;
+		transform: translateX(3px);
+	}
+	.tax-badge {
+		font-size: 0.7rem;
+		font-weight: 600;
+		background: #ede9fe;
+		color: #7c3aed;
+		border-radius: 999px;
+		padding: 0.1rem 0.5rem;
+	}
+</style>
+
