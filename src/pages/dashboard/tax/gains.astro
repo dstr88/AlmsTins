@@ -402,7 +402,7 @@ const fmtGain = (n: number) => {
 							? 'border-red-300 bg-red-50 text-red-700'
 							: 'border-gray-200 bg-gray-50 text-gray-500'
 					}`}>
-						<div class="flex items-center gap-2">
+						<div class="flex items-center gap-2 min-w-0">
 							{payload.lastPipelineRun.status === 'success' && <span class="text-green-600 font-bold">✓</span>}
 							{payload.lastPipelineRun.status === 'failed'  && <span class="text-red-500 font-bold">✗</span>}
 							{payload.lastPipelineRun.status === 'running' && <span class="text-yellow-500 font-bold">↻</span>}
@@ -418,12 +418,35 @@ const fmtGain = (n: number) => {
 									</span>
 								)}
 							</span>
+							{payload.lastPipelineRun.status === 'failed' && payload.lastPipelineRun.errorMsg && (
+								<span class="text-red-600 font-mono truncate max-w-xs" title={payload.lastPipelineRun.errorMsg}>
+									{payload.lastPipelineRun.errorMsg.slice(0, 80)}
+								</span>
+							)}
 						</div>
-						{payload.lastPipelineRun.status === 'failed' && payload.lastPipelineRun.errorMsg && (
-							<span class="text-red-600 font-mono truncate max-w-xs" title={payload.lastPipelineRun.errorMsg}>
-								{payload.lastPipelineRun.errorMsg.slice(0, 80)}
-							</span>
-						)}
+						<button id="run-pipeline-btn-bar"
+						        class="pipeline-run-btn shrink-0 rounded border border-gray-300 hover:border-indigo-400
+						               hover:text-indigo-600 disabled:opacity-50 text-gray-500 text-xs font-medium
+						               px-2.5 py-1 transition-colors bg-white">
+							Re-run
+						</button>
+					</div>
+				)}
+
+				<!-- First-run prompt: pipeline has never run -->
+				{!payload.lastPipelineRun && payload.gains?.dataSource === 'lifecycle' && (
+					<div class="rounded-xl border border-indigo-200 bg-indigo-50 shadow-sm p-4 flex items-center justify-between gap-4">
+						<div>
+							<p class="text-sm font-semibold text-indigo-900">Run the classification pipeline</p>
+							<p class="text-xs text-indigo-700 mt-0.5">
+								Classify your transactions for IRS-accurate FIFO lot matching, income detection, and Schedule D output.
+							</p>
+						</div>
+						<button id="run-pipeline-btn-first"
+						        class="pipeline-run-btn shrink-0 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60
+						               text-white text-sm font-semibold px-4 py-2 transition-colors">
+							Run Pipeline
+						</button>
 					</div>
 				)}
 
@@ -431,7 +454,7 @@ const fmtGain = (n: number) => {
 				<!-- Only shown when: pipeline has run (we're serving its data) AND
 				     new import data has arrived since the last successful run.      -->
 				{payload.pipelineStale?.stale && payload.gains?.dataSource === 'pipeline' && (
-					<div class="rounded-xl border border-amber-300 bg-amber-50 shadow-sm p-4 flex gap-3">
+					<div class="rounded-xl border border-amber-300 bg-amber-50 shadow-sm p-4 flex items-start gap-3">
 						<span class="text-amber-500 text-xl leading-none mt-0.5">⚠</span>
 						<div class="space-y-1 flex-1 min-w-0">
 							<p class="text-sm font-semibold text-amber-900">
@@ -448,7 +471,6 @@ const fmtGain = (n: number) => {
 									     : ' recently';
 								})()}
 								after the last pipeline run. The gains shown may not reflect your latest data.
-								Re-run the classification pipeline to update.
 							</p>
 							{payload.pipelineStale.lastRunAt && (
 								<p class="text-xs text-amber-600">
@@ -459,6 +481,11 @@ const fmtGain = (n: number) => {
 								</p>
 							)}
 						</div>
+						<button id="run-pipeline-btn-stale"
+						        class="pipeline-run-btn shrink-0 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-60
+						               text-white text-xs font-semibold px-3 py-2 transition-colors">
+							Re-run Pipeline
+						</button>
 					</div>
 				)}
 
@@ -1435,4 +1462,52 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('est-state')?.addEventListener('change', recalculate);
   recalculate();
 });
+
+// ── Pipeline re-run button handler ────────────────────────────────────────────
+// All three buttons (.pipeline-run-btn) share this handler.
+// POST /api/tax/classify → wait → show result → reload page.
+
+(function () {
+  const ENDPOINT = '/api/tax/classify';
+
+  function setAllBtns(disabled: boolean, label: string) {
+    document.querySelectorAll<HTMLButtonElement>('.pipeline-run-btn').forEach((btn) => {
+      btn.disabled = disabled;
+      btn.textContent = label;
+    });
+  }
+
+  async function runPipeline() {
+    setAllBtns(true, '⏳ Running…');
+
+    try {
+      const res  = await fetch(ENDPOINT, { method: 'POST' });
+      const data = await res.json() as { ok: boolean; stats?: Record<string, unknown>; error?: string };
+
+      if (data.ok) {
+        setAllBtns(true, '✓ Done — reloading…');
+        // Brief pause so the user sees the success state, then reload with fresh data
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        const msg = data.error ?? 'Pipeline failed.';
+        setAllBtns(false, 'Re-run Pipeline');
+        // Show error inline near whichever button was clicked
+        document.querySelectorAll<HTMLButtonElement>('.pipeline-run-btn').forEach((btn) => {
+          const err = document.createElement('span');
+          err.className = 'text-xs text-red-600 ml-2';
+          err.textContent = `❌ ${msg}`;
+          btn.insertAdjacentElement('afterend', err);
+          setTimeout(() => err.remove(), 6000);
+        });
+      }
+    } catch {
+      setAllBtns(false, 'Re-run Pipeline');
+      alert('Network error — could not reach the server. Please try again.');
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('.pipeline-run-btn').forEach((btn) => {
+    btn.addEventListener('click', runPipeline);
+  });
+})();
 </script>
