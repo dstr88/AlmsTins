@@ -99,6 +99,8 @@ export type TaxLot = {
 	sourceId: string;
 	lotType: 'purchase' | 'income' | 'airdrop' | 'transfer';
 	originLotId?: string | null;
+	/** Set to true once remainingQty reaches zero during FIFO matching. */
+	isExhausted?: boolean;
 };
 
 // ── Tax disposal ──────────────────────────────────────────────────────────────

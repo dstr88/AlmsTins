@@ -64,7 +64,9 @@ function buildAcquisitions(
 		const cat = getCategory(classifications, importKey(row.id));
 		if (cat !== 'buy' && cat !== 'income' && cat !== 'airdrop') continue;
 
-		const symbol = row.asset_symbol ?? row.to_currency ?? row.currency;
+		// asset_symbol is the only symbol field selected by the classify.ts query.
+		// (to_currency / currency are not columns on RawImportTx — removed.)
+		const symbol = row.asset_symbol;
 		if (!symbol) continue;
 
 		// For buys: quantity is what was received (to_amount if swap, else amount)
@@ -129,7 +131,7 @@ function buildDisposals(
 		const cat = getCategory(classifications, importKey(row.id));
 		if (!disposalCats.has(cat)) continue;
 
-		const symbol = row.asset_symbol ?? row.currency;
+		const symbol = row.asset_symbol;
 		if (!symbol) continue;
 
 		const qty = row.amount !== null ? Math.abs(row.amount) : null;
@@ -271,14 +273,52 @@ export function runFifo(
 
 			if (lot.remainingQty <= 0) {
 				pool.shift();
-				lot.isExhausted = true;
+				lot.isExhausted = true;  // now typed on TaxLot
 			}
 		}
 	}
 
-	// Mark exhausted lots
+	// Final exhaustion pass (catches lots that hit exactly zero during the loop)
 	for (const lot of allLots) {
-		if (lot.remainingQty <= 0) (lot as any).isExhausted = true;
+		if (lot.remainingQty <= 0) lot.isExhausted = true;
+	}
+
+	// ── Invariant assertions ──────────────────────────────────────────────────
+	// Verify the FIFO math produced internally consistent results.
+	// Violations are warnings only — they don't block the write, but they
+	// indicate a logic bug that needs investigation.
+
+	const GLOBAL_EPSILON = 1e-10;
+
+	// 1. No lot should have drifted below zero remaining quantity
+	for (const lot of allLots) {
+		if (lot.remainingQty < -GLOBAL_EPSILON) {
+			console.warn(
+				`[runFifo] INVARIANT VIOLATION: lot ${lot.id} (${lot.assetSymbol}) ` +
+				`has negative remainingQty ${lot.remainingQty.toExponential(4)} — possible double-consumption`,
+			);
+		}
+	}
+
+	// 2. For each matched disposal source, slices should sum ≈ original quantity
+	const slicesBySource = new Map<string, number>();
+	for (const d of allDisposals) {
+		if (d.lotId !== 'unmatched') {
+			slicesBySource.set(d.sourceId, (slicesBySource.get(d.sourceId) ?? 0) + d.quantity);
+		}
+	}
+	for (const disp of disps) {
+		const totalConsumed = slicesBySource.get(disp.id) ?? 0;
+		const isUnmatched = allDisposals.some(
+			(d) => d.sourceId === disp.id && d.lotId === 'unmatched',
+		);
+		if (!isUnmatched && Math.abs(totalConsumed - disp.quantity) > GLOBAL_EPSILON) {
+			console.warn(
+				`[runFifo] INVARIANT VIOLATION: disposal ${disp.id} (${disp.assetSymbol}) ` +
+				`quantity ${disp.quantity} but slices sum to ${totalConsumed} — ` +
+				`diff ${Math.abs(totalConsumed - disp.quantity).toExponential(4)}`,
+			);
+		}
 	}
 
 	return { lots: allLots, disposals: allDisposals };
