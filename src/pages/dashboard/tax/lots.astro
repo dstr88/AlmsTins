@@ -8,7 +8,7 @@
  */
 import Layout from '../../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { buildAnnualBreakdown } from '@/lib/annualBreakdown';
+import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 
 const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/login');
@@ -24,7 +24,9 @@ const method =
 
 // Load current year's disposals and open lots from annualBreakdown.
 // Method is respected so Spec ID users see basis consistent with gains page.
-const bd = await buildAnnualBreakdown(tenantId, year, method);
+// 'auto' source: uses pipeline tables if pipeline has run, lifecycle events otherwise.
+const lotSource: AnnualBreakdownSource = 'auto';
+const bd = await buildAnnualBreakdown(tenantId, year, method, undefined, lotSource);
 
 // Group settled lots (disposals) by asset for display
 type DisposalGroup = {

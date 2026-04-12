@@ -15,7 +15,7 @@
 
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
-import { buildAnnualBreakdown } from '../../../lib/annualBreakdown';
+import { buildAnnualBreakdown, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 
 const PAGE_SIZE = 50; // rows before repeating the page header
 
@@ -91,7 +91,8 @@ export const GET: APIRoute = async ({ request, url }) => {
     const yearRaw = params.get('year');
     const year    = yearRaw ? Number(yearRaw) : new Date().getFullYear() - 1;
 
-    const bd = await buildAnnualBreakdown(tenantId, year);
+    // 'auto': prefer pipeline data when available (IRS calendar-month accurate)
+    const bd = await buildAnnualBreakdown(tenantId, year, 'fifo', undefined, 'auto' as AnnualBreakdownSource);
 
     let csvContent = '';
     let filename   = `almstins-${year}-${section}.csv`;

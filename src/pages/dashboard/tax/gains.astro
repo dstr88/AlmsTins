@@ -62,6 +62,7 @@ type TaxPayload = {
 		netGain:        number;
 		shortTermCount: number;
 		longTermCount:  number;
+		dataSource?:    'pipeline' | 'lifecycle';
 	};
 	byAssetGains?: {
 		asset:   string;
@@ -105,12 +106,16 @@ type TaxPayload = {
 		pipelineStGain:  number | null;
 		pipelineLtGain:  number | null;
 		pipelineNet:     number | null;
-		inMemoryStGain:  number;
-		inMemoryLtGain:  number;
-		inMemoryNet:     number;
+		displayedStGain: number;
+		displayedLtGain: number;
+		displayedNet:    number;
+		/** Deprecated alias kept for backwards compat — same as displayedNet */
+		inMemoryNet?:    number;
 		netDiff:         number | null;
 		withinTolerance: boolean | null;
 		disposalCount:   number | null;
+		/** True when both sides read from the pipeline — check is an identity (always passes). */
+		sameSource?:     boolean;
 	};
 	washSaleShadow?: { totalDisallowed: number; items: WashSaleItem[] };
 	defiEvents?: { count: number; byType: DefiTypeRow[] };
@@ -270,9 +275,25 @@ const fmtGain = (n: number) => {
 				<!-- ST / LT gain cards -->
 				{payload.gains && (
 					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-						<div class="px-5 py-3 border-b border-gray-100">
-							<h2 class="text-sm font-semibold text-gray-700">Realized Capital Gains</h2>
-							<p class="text-xs text-gray-400 mt-0.5">FIFO cost basis · Schedule D</p>
+						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+							<div>
+								<h2 class="text-sm font-semibold text-gray-700">Realized Capital Gains</h2>
+								<p class="text-xs text-gray-400 mt-0.5">
+									{method === 'fifo' ? 'FIFO' : method === 'hifo' ? 'HIFO' : method === 'lifo' ? 'LIFO' : 'Spec ID'} cost basis · Schedule D
+								</p>
+							</div>
+							<!-- Data source badge: shows whether gains came from the pipeline or
+							     were re-computed in-memory from lifecycle events -->
+							{payload.gains.dataSource === 'pipeline'
+								? <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-medium px-2.5 py-1">
+										<span class="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"></span>
+										Pipeline data
+									</span>
+								: <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 border border-gray-200 text-gray-500 text-xs font-medium px-2.5 py-1">
+										<span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>
+										In-memory FIFO
+									</span>
+							}
 						</div>
 						<div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
 
@@ -327,18 +348,18 @@ const fmtGain = (n: number) => {
 					</div>
 				)}
 
-				<!-- Gain/loss cross-check warning -->
-				{payload.gainCrossCheck?.withinTolerance === false && (
+				<!-- Gain/loss cross-check warning (only shown when sources are different AND diverge) -->
+				{payload.gainCrossCheck?.withinTolerance === false && !payload.gainCrossCheck?.sameSource && (
 					<div class="rounded-xl border border-orange-300 bg-orange-50 shadow-sm p-4 flex gap-3">
 						<span class="text-orange-500 text-xl leading-none mt-0.5">⚠</span>
 						<div class="space-y-1">
 							<p class="text-sm font-semibold text-orange-900">
-								Pipeline gain/loss diverges from in-memory calculation
+								Pipeline gain/loss diverges from displayed calculation
 							</p>
 							<p class="text-xs text-orange-700">
 								The stored <code class="font-mono bg-orange-100 px-1 rounded">tax_disposals</code> net
 								gain is <strong>{fmtGain(payload.gainCrossCheck.pipelineNet ?? 0)}</strong> but
-								in-memory FIFO gives <strong>{fmtGain(payload.gainCrossCheck.inMemoryNet)}</strong>
+								the displayed total is <strong>{fmtGain(payload.gainCrossCheck.displayedNet ?? payload.gainCrossCheck.inMemoryNet ?? 0)}</strong>
 								(diff&nbsp;{fmtGain(payload.gainCrossCheck.netDiff ?? 0)}).
 								Re-run the classification pipeline to regenerate the stored lots.
 							</p>

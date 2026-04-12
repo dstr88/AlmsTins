@@ -22,7 +22,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
-import { buildAnnualBreakdown, type CostBasisMethod } from '../../../lib/annualBreakdown';
+import { buildAnnualBreakdown, type CostBasisMethod, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
 
 export const prerender = false;
@@ -273,11 +273,18 @@ export const GET: APIRoute = async ({ request, url }) => {
 			}
 		}
 
+		// Use 'auto' source: if the pipeline has run and tax_disposals has rows for
+		// this tenant+year, buildAnnualBreakdown reads from the pipeline tables
+		// (IRS calendar-month FIFO, accurate is_short_term flag).  Otherwise falls
+		// back to the legacy lifecycle-events path.  Each year is independently
+		// resolved, so prior years with no pipeline data still work correctly.
+		const bdSource: AnnualBreakdownSource = 'auto';
+
 		type BDResult = Awaited<ReturnType<typeof buildAnnualBreakdown>>;
 		const bdCache = new Map<number, BDResult>();
 		const getBd = async (y: number): Promise<BDResult> => {
 			if (bdCache.has(y)) return bdCache.get(y)!;
-			const result = await buildAnnualBreakdown(tenantId, y, method, lotPins);
+			const result = await buildAnnualBreakdown(tenantId, y, method, lotPins, bdSource);
 			bdCache.set(y, result);
 			return result;
 		};
@@ -289,6 +296,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 			netGain:        bd.totals.shortTermGain + bd.totals.longTermGain,
 			shortTermCount: bd.shortTerm.length,
 			longTermCount:  bd.longTerm.length,
+			/** 'pipeline' when tax_disposals was used; 'lifecycle' when FIFO was re-run. */
+			dataSource:     bd.dataSource,
 		};
 
 		// ── 6. Per-asset breakdown ────────────────────────────────────────────
@@ -494,36 +503,41 @@ export const GET: APIRoute = async ({ request, url }) => {
 		// How much carryforward is available to offset THIS year's gains
 		const carryforwardAvailable = carryBalance;
 
-		// ── 10. Gain/loss cross-check (buildAnnualBreakdown vs tax_disposals) ───
-		// buildAnnualBreakdown re-runs FIFO in memory from raw import/onchain rows.
-		// tax_disposals is the pipeline's persisted FIFO output.
-		// They should agree. If they diverge by > 1% or > $100 it indicates a
-		// stale pipeline run, a schema mismatch, or a logic bug worth investigating.
+		// ── 10. Gain/loss cross-check (displayed gains vs tax_disposals) ──────
+		// When bd.dataSource === 'lifecycle':  displayed gains are in-memory FIFO;
+		//   cross-check compares them against the pipeline's persisted output.
+		//   Divergence > $100 or > 1% signals a stale pipeline or logic mismatch.
+		// When bd.dataSource === 'pipeline':  displayed gains ARE from tax_disposals;
+		//   both sides of the check are identical, so it always passes (expected).
+		//   The check still runs so the UI can show "pipeline ✓ self-consistent".
 		type GainCrossCheck = {
 			pipelineStGain:  number | null;
 			pipelineLtGain:  number | null;
 			pipelineNet:     number | null;
-			inMemoryStGain:  number;
-			inMemoryLtGain:  number;
-			inMemoryNet:     number;
+			displayedStGain: number;
+			displayedLtGain: number;
+			displayedNet:    number;
 			stDiff:          number | null;
 			ltDiff:          number | null;
 			netDiff:         number | null;
 			withinTolerance: boolean | null;  // null when pipeline has no data
 			disposalCount:   number | null;
+			/** When true, both sides read from the same pipeline source — check is an identity. */
+			sameSource:      boolean;
 		};
 		let gainCrossCheck: GainCrossCheck = {
 			pipelineStGain:  null,
 			pipelineLtGain:  null,
 			pipelineNet:     null,
-			inMemoryStGain:  gains.shortTermGain,
-			inMemoryLtGain:  gains.longTermGain,
-			inMemoryNet:     gains.netGain,
+			displayedStGain: gains.shortTermGain,
+			displayedLtGain: gains.longTermGain,
+			displayedNet:    gains.netGain,
 			stDiff:          null,
 			ltDiff:          null,
 			netDiff:         null,
 			withinTolerance: null,
 			disposalCount:   null,
+			sameSource:      bd.dataSource === 'pipeline',
 		};
 		try {
 			const xcheckRes = await db.execute({
@@ -547,16 +561,18 @@ export const GET: APIRoute = async ({ request, url }) => {
 				const ltDiff  = gains.longTermGain  - pLt;
 				const netDiff = gains.netGain        - pNet;
 
-				// Tolerance: within $100 absolute AND within 1% of the larger of the two
+				// Tolerance: within $100 absolute OR within 1% of the larger of the two
 				const absTol = 100;
 				const pctTol = 0.01;
 				const scale  = Math.max(Math.abs(gains.netGain), Math.abs(pNet), 1);
 				const withinTolerance = Math.abs(netDiff) <= absTol || Math.abs(netDiff) / scale <= pctTol;
 
-				if (!withinTolerance) {
+				if (!withinTolerance && bd.dataSource !== 'pipeline') {
+					// Only warn when the two sides are different sources — same-source
+					// identity checks always pass and would spam the log.
 					console.warn(
 						`[tax/summary] GAIN CROSS-CHECK FAIL year=${year} ` +
-						`inMemoryNet=${gains.netGain.toFixed(2)} pipelineNet=${pNet.toFixed(2)} ` +
+						`displayedNet=${gains.netGain.toFixed(2)} pipelineNet=${pNet.toFixed(2)} ` +
 						`diff=${netDiff.toFixed(2)}`,
 					);
 				}
@@ -565,14 +581,15 @@ export const GET: APIRoute = async ({ request, url }) => {
 					pipelineStGain:  pSt,
 					pipelineLtGain:  pLt,
 					pipelineNet:     pNet,
-					inMemoryStGain:  gains.shortTermGain,
-					inMemoryLtGain:  gains.longTermGain,
-					inMemoryNet:     gains.netGain,
+					displayedStGain: gains.shortTermGain,
+					displayedLtGain: gains.longTermGain,
+					displayedNet:    gains.netGain,
 					stDiff,
 					ltDiff,
 					netDiff,
 					withinTolerance,
 					disposalCount:   Number(xr.disposal_count),
+					sameSource:      bd.dataSource === 'pipeline',
 				};
 			}
 		} catch {

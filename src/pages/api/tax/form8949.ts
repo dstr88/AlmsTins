@@ -32,7 +32,7 @@
 
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { buildAnnualBreakdown, type CostBasisMethod } from '@/lib/annualBreakdown';
+import { buildAnnualBreakdown, type CostBasisMethod, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getCache, setCache } from '@/lib/tursoCache';
 
 export const prerender = false;
@@ -108,7 +108,9 @@ export const GET: APIRoute = async ({ request }) => {
 		if (cached.value) return json({ ok: true, ...(cached.value as object), cached: true });
 
 		// ── Build breakdown ────────────────────────────────────────────────────
-		const bd = await buildAnnualBreakdown(tenantId, year, method);
+		// 'auto': prefer pipeline data when available (IRS calendar-month accurate);
+		// fall back to lifecycle-events FIFO if pipeline hasn't run for this year.
+		const bd = await buildAnnualBreakdown(tenantId, year, method, undefined, 'auto' as AnnualBreakdownSource);
 
 		// ── Classify each settled lot into a box ──────────────────────────────
 		// Pre-2025 crypto: Box C (short-term) and Box F (long-term)

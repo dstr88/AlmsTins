@@ -779,4 +779,250 @@ describe('Return shape', () => {
 		expect(bd.totals.heldCostBasis).toBe(0);
 		expect(bd.totals.unsettledProceeds).toBe(0);
 	});
+
+	it('dataSource is "lifecycle" when using default source', async () => {
+		setupMock();
+		const bd = await buildAnnualBreakdown(TENANT, 2022);
+		expect(bd.dataSource).toBe('lifecycle');
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 14. Pipeline source path (source='pipeline' / source='auto')
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Setup mock for the pipeline path.
+ * Routes db.execute calls to the pipeline tables (tax_disposals, tax_lots,
+ * tax_classifications) based on SQL content.
+ */
+type PipelineMockOpts = {
+	disposalRows?: object[];     // tax_disposals LEFT JOIN tax_lots
+	lotRows?:      object[];     // tax_lots (open lots — stillHolding)
+	incomeRows?:   object[];     // tax_classifications income/airdrop
+	countRows?:    object[];     // COUNT(*) from tax_disposals (auto source check)
+	manualRows?:   object[];     // manual_cost_basis
+};
+
+function setupPipelineMock(opts: PipelineMockOpts = {}) {
+	mockExecute.mockImplementation(({ sql }: { sql: string }) => {
+		// auto-mode: COUNT(*) FROM tax_disposals to decide which source to use
+		if (sql.includes('COUNT(*)') && sql.includes('tax_disposals') && sql.includes('strftime'))
+			return Promise.resolve({ rows: opts.countRows ?? [{ cnt: 0 }] });
+
+		// tax_disposals LEFT JOIN tax_lots — main settled lots query
+		if (sql.includes('tax_disposals') && sql.includes('LEFT JOIN tax_lots'))
+			return Promise.resolve({ rows: opts.disposalRows ?? [] });
+
+		// tax_lots open lots — stillHolding query
+		if (sql.includes('FROM tax_lots') && sql.includes('is_exhausted'))
+			return Promise.resolve({ rows: opts.lotRows ?? [] });
+
+		// tax_classifications income — joined to import_transactions for dates
+		if (sql.includes('tax_classifications') && sql.includes('import_transactions'))
+			return Promise.resolve({ rows: opts.incomeRows ?? [] });
+
+		// Manual cost basis
+		if (sql.includes('manual_cost_basis'))
+			return Promise.resolve({ rows: opts.manualRows ?? [] });
+
+		// NFT snapshots + hidden list
+		if (sql.includes('wallet_nft_snapshot') || sql.includes('nft_hidden'))
+			return Promise.resolve({ rows: [] });
+
+		// Available years (lifecycle events + sui)
+		return Promise.resolve({ rows: [] });
+	});
+}
+
+/** Build a tax_disposals + tax_lots join row with sensible defaults. */
+function disposalRow(overrides: {
+	is_short_term?: 0 | 1;
+	disposed_at: string;
+	acquired_at?: string | null;
+	lot_id?: string;
+	asset_symbol?: string;
+	quantity?: number;
+	proceeds_usd?: number | null;
+	cost_basis_usd?: number | null;
+	gain_loss_usd?: number | null;
+	source_id?: string;
+	source_type?: string;
+	category?: string;
+}): object {
+	return {
+		asset_symbol:    overrides.asset_symbol   ?? 'BTC',
+		quantity:        overrides.quantity        ?? 1,
+		proceeds_usd:    overrides.proceeds_usd    ?? 30_000,
+		cost_basis_usd:  overrides.cost_basis_usd  ?? 20_000,
+		gain_loss_usd:   overrides.gain_loss_usd   ?? 10_000,
+		is_short_term:   overrides.is_short_term   ?? 1,
+		disposed_at:     overrides.disposed_at,
+		acquired_at:     overrides.acquired_at     ?? '2023-01-01T00:00:00.000Z',
+		source_id:       overrides.source_id       ?? 'disposal-src1',
+		source_type:     overrides.source_type     ?? 'import',
+		category:        overrides.category        ?? 'sell',
+		lot_id:          overrides.lot_id          ?? 'lot-uuid-1',
+		notes:           null,
+	};
+}
+
+describe('Pipeline source path', () => {
+	beforeEach(() => vi.resetAllMocks());
+
+	it('source="pipeline" sets dataSource to "pipeline"', async () => {
+		setupPipelineMock();
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'pipeline');
+		expect(bd.dataSource).toBe('pipeline');
+	});
+
+	it('source="auto" with count=0 falls back to lifecycle (dataSource="lifecycle")', async () => {
+		setupMock(); // lifecycle mock handles all queries
+		// Override just the COUNT check
+		const originalImpl = mockExecute.getMockImplementation();
+		mockExecute.mockImplementation(({ sql }: { sql: string }) => {
+			if (sql.includes('COUNT(*)') && sql.includes('tax_disposals') && sql.includes('strftime'))
+				return Promise.resolve({ rows: [{ cnt: 0 }] });
+			return originalImpl!({ sql } as { sql: string });
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'auto');
+		expect(bd.dataSource).toBe('lifecycle');
+	});
+
+	it('source="auto" with count>0 uses pipeline (dataSource="pipeline")', async () => {
+		setupPipelineMock({ countRows: [{ cnt: 3 }] });
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'auto');
+		expect(bd.dataSource).toBe('pipeline');
+	});
+
+	it('short-term disposal is placed in shortTerm by is_short_term=1', async () => {
+		setupPipelineMock({
+			disposalRows: [
+				disposalRow({ disposed_at: '2023-06-01T00:00:00Z', is_short_term: 1 }),
+			],
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'pipeline');
+		expect(bd.shortTerm).toHaveLength(1);
+		expect(bd.longTerm).toHaveLength(0);
+		expect(bd.shortTerm[0].asset).toBe('BTC');
+		expect(bd.shortTerm[0].gainLossUsd).toBeCloseTo(10_000);
+	});
+
+	it('long-term disposal is placed in longTerm by is_short_term=0', async () => {
+		setupPipelineMock({
+			disposalRows: [
+				disposalRow({
+					disposed_at: '2023-06-01T00:00:00Z',
+					acquired_at: '2022-01-01T00:00:00Z',
+					is_short_term: 0,
+					gain_loss_usd: 20_000,
+				}),
+			],
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'pipeline');
+		expect(bd.longTerm).toHaveLength(1);
+		expect(bd.shortTerm).toHaveLength(0);
+		expect(bd.longTerm[0].gainLossUsd).toBeCloseTo(20_000);
+	});
+
+	it('daysHeld is computed from acquired_at to disposed_at', async () => {
+		// 365-day hold: 2022-06-01 → 2023-06-01
+		setupPipelineMock({
+			disposalRows: [
+				disposalRow({
+					disposed_at: '2023-06-01T00:00:00Z',
+					acquired_at: '2022-06-01T00:00:00Z',
+					is_short_term: 0,
+				}),
+			],
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'pipeline');
+		expect(bd.longTerm[0].daysHeld).toBe(365);
+	});
+
+	it('disposal with lot_id="unmatched" goes to needsAttention', async () => {
+		setupPipelineMock({
+			disposalRows: [
+				disposalRow({
+					disposed_at: '2023-05-01T00:00:00Z',
+					lot_id:      'unmatched',
+					acquired_at: null,
+					proceeds_usd: 15_000,
+					source_id:   'orphan-src',
+					source_type: 'import',
+					category:    'sell',
+				}),
+			],
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'pipeline');
+		expect(bd.needsAttention).toHaveLength(1);
+		expect(bd.shortTerm).toHaveLength(0);
+		expect(bd.needsAttention[0].sourceId).toBe('orphan-src');
+		expect(bd.needsAttention[0].proceedsUsd).toBeCloseTo(15_000);
+	});
+
+	it('open lots appear in stillHolding', async () => {
+		setupPipelineMock({
+			lotRows: [{
+				asset_symbol:   'BTC',
+				acquired_at:    '2023-01-01T00:00:00.000Z',
+				remaining_qty:  0.5,
+				cost_basis_usd: 12_500,
+			}],
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'pipeline');
+		expect(bd.stillHolding).toHaveLength(1);
+		expect(bd.stillHolding[0].asset).toBe('BTC');
+		expect(bd.stillHolding[0].amount).toBeCloseTo(0.5);
+		expect(bd.stillHolding[0].costUsd).toBeCloseTo(12_500);
+	});
+
+	it('income from tax_classifications is mapped correctly', async () => {
+		setupPipelineMock({
+			incomeRows: [{
+				asset_symbol: 'ETH',
+				amount_usd:   500,
+				category:     'income',
+				sub_category: 'staking',
+				source_id:    'inc-src1',
+				source_type:  'import',
+				token_amount: 0.2,
+				tx_date:      '2023-08-01T00:00:00Z',
+				kind:         'Staking Income',
+				description:  'staking reward',
+				tx_notes:     null,
+			}],
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'pipeline');
+		expect(bd.income).toHaveLength(1);
+		expect(bd.income[0].asset).toBe('ETH');
+		expect(bd.income[0].usdValue).toBeCloseTo(500);
+		expect(bd.income[0].amount).toBeCloseTo(0.2);
+		expect(bd.income[0].kind).toBe('staking');  // uses sub_category
+	});
+
+	it('totals are computed from pipeline sections', async () => {
+		setupPipelineMock({
+			disposalRows: [
+				disposalRow({ disposed_at: '2023-04-01T00:00:00Z', is_short_term: 1, gain_loss_usd: 5_000 }),
+				disposalRow({ disposed_at: '2023-08-01T00:00:00Z', acquired_at: '2022-01-01T00:00:00Z', is_short_term: 0, gain_loss_usd: 8_000 }),
+			],
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'pipeline');
+		expect(bd.totals.shortTermGain).toBeCloseTo(5_000);
+		expect(bd.totals.longTermGain).toBeCloseTo(8_000);
+	});
+
+	it('source="auto" with tax_disposals throwing falls back to lifecycle', async () => {
+		// Simulate tax_disposals table not existing (pipeline never run)
+		setupMock(); // lifecycle mock for the fallback path
+		const originalImpl = mockExecute.getMockImplementation();
+		mockExecute.mockImplementation(({ sql }: { sql: string }) => {
+			if (sql.includes('COUNT(*)') && sql.includes('tax_disposals') && sql.includes('strftime'))
+				return Promise.reject(new Error('no such table: tax_disposals'));
+			return originalImpl!({ sql } as { sql: string });
+		});
+		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'auto');
+		expect(bd.dataSource).toBe('lifecycle');
+	});
 });
