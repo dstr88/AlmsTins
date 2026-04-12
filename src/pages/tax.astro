@@ -1,25 +1,6 @@
 ---
-/**
- * /tax
- *
- * Consolidated tax page — all tools in one place.
- * Gated by TAX_SECRET passphrase cookie (not the normal almsTins session).
- * Also requires a normal session to determine tenantId.
- *
- * Sections (all client-side):
- *   1. Completeness score
- *   2. Gains summary — ST/LT/Net, per-asset table
- *   3. Downloads — Form 8949 CSV, Schedule D, FIFO CSV, Year Report
- *   4. Uploads — 1099-DA/B reconciliation
- */
-
-import { hasTaxAccess } from '@/lib/taxAuth';
-import { requireTenantSession } from '@/lib/requireTenantSession';
-
-// ── Auth gates ─────────────────────────────────────────────────────────────
-if (!hasTaxAccess(Astro.request)) {
-	return Astro.redirect('/tax-login', 302);
-}
+// /tax → permanently redirect to /tax-login
+return Astro.redirect('/tax-login', 302);
 
 const sess = await requireTenantSession(Astro.request);
 if (!sess) {
