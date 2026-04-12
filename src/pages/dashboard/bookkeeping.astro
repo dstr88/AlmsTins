@@ -188,6 +188,18 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       </div>
     </div>
 
+    <!-- ══ Tax Readiness Bar ════════════════════════════════════════════════ -->
+    <div class="readiness-bar" id="readiness-bar" data-year={selectedYear}>
+      <div class="readiness-bar__track">
+        <div class="readiness-bar__fill" id="readiness-fill"></div>
+      </div>
+      <div class="readiness-bar__body">
+        <span class="readiness-bar__score" id="readiness-score">—</span>
+        <span class="readiness-bar__label" id="readiness-label">Calculating tax readiness…</span>
+        <a href="/dashboard/tax" class="readiness-bar__link">Tax Readiness →</a>
+      </div>
+    </div>
+
     <!-- ══ 2×2 Grid + Full-Width Income ═════════════════════════════════════ -->
     <div class="breakdown-grid">
 
@@ -503,6 +515,56 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
   </div>
 
   <style>
+    /* ── Tax Readiness Bar ──────────────────────────────────── */
+    .readiness-bar {
+      border-radius: 0.75rem;
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      overflow: hidden;
+    }
+    .readiness-bar__track {
+      height: 4px;
+      background: #2d3148;
+      width: 100%;
+    }
+    .readiness-bar__fill {
+      height: 4px;
+      width: 0%;
+      background: #6b7280;
+      transition: width 0.9s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s ease;
+      border-radius: 0 2px 2px 0;
+    }
+    .readiness-bar__body {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+    }
+    .readiness-bar__score {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #9ca3af;
+      min-width: 2.5rem;
+      letter-spacing: 0.02em;
+    }
+    .readiness-bar__label {
+      font-size: 0.8rem;
+      color: #6b7280;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .readiness-bar__link {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #6366f1;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .readiness-bar__link:hover { color: #818cf8; }
+
     /* ── Page shell ─────────────────────────────────────────── */
     .bookkeeping-page {
       display: flex;
@@ -1082,6 +1144,58 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       .grid-cell--full { height: 40vh; max-height: none; }
     }
   </style>
+
+  <script>
+    // ── Tax Readiness Bar ──────────────────────────────────────────────────────
+    (async () => {
+      const bar   = document.getElementById('readiness-bar');
+      const fill  = document.getElementById('readiness-fill') as HTMLElement | null;
+      const score = document.getElementById('readiness-score');
+      const label = document.getElementById('readiness-label');
+      if (!bar || !fill || !score || !label) return;
+
+      const year = bar.dataset.year ?? String(new Date().getFullYear() - 1);
+
+      function scoreColor(s: number) {
+        if (s >= 90) return '#10b981'; // emerald
+        if (s >= 70) return '#f59e0b'; // amber
+        return '#ef4444';              // red
+      }
+
+      function buildLabel(data: {
+        score: number;
+        label: string;
+        pillars: { status: string; label: string; detail: string; issueCount: number }[];
+      }) {
+        // Pull the most actionable issue across all pillars
+        const issues: string[] = [];
+        for (const p of data.pillars) {
+          if (p.issueCount > 0) issues.push(p.detail);
+        }
+        return issues.length > 0
+          ? `${data.label} — ${issues.slice(0, 2).join(' · ')}`
+          : data.label;
+      }
+
+      try {
+        const res  = await fetch(`/api/tax/completeness?year=${year}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.ok) return;
+
+        const pct   = data.score as number;
+        const color = scoreColor(pct);
+
+        fill.style.width      = `${pct}%`;
+        fill.style.background = color;
+        score.textContent     = `${pct}%`;
+        score.style.color     = color;
+        label.textContent     = buildLabel(data);
+      } catch {
+        // silent — bar stays in loading state
+      }
+    })();
+  </script>
 
   <script>
     // Persist "confirmed held" checkboxes across page loads via localStorage
