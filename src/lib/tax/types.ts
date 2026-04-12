@@ -18,6 +18,11 @@ export type TaxCategory =
 	| 'fee'
 	| 'nft-sale'
 	| 'loan-interest-paid'
+	// ── DeFi ──────────────────────────────────────────────────────────────────
+	| 'lp-deposit'       // sending tokens into a liquidity pool
+	| 'lp-withdrawal'    // receiving tokens back from a liquidity pool
+	| 'rebase-income'    // positive rebase event (OHM, AMPL, etc.) — ordinary income
+	| 'wrapped-swap'     // wrapping/unwrapping (wBTC↔BTC, stETH↔ETH, etc.)
 	| 'unknown';
 
 export type SourceType = 'import' | 'onchain';
@@ -28,7 +33,12 @@ export type ReviewReason =
 	| 'possible_loan'
 	| 'low_confidence'
 	| 'unknown_type'
-	| 'airdrop_unpriced';
+	| 'airdrop_unpriced'
+	// ── DeFi ──────────────────────────────────────────────────────────────────
+	| 'possible_lp_event'         // LP deposit/withdrawal — may be a taxable swap
+	| 'wrapped_token_swap'        // wBTC/stETH wrap — IRS treatment unclear
+	| 'rebase_income_unpriced'    // rebase income with no USD value
+	| 'funding_payment';          // perpetual/margin funding rate
 
 // ── Raw rows from DB ──────────────────────────────────────────────────────────
 
@@ -129,6 +139,7 @@ export type PipelineStats = {
 	pass2bLoans: number;
 	pass3Income: number;
 	pass3bInterest: number;
+	pass3cDefi: number;
 	pass4Lots: number;
 	pass4Disposals: number;
 	pass5ReviewItems: number;

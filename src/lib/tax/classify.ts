@@ -41,6 +41,7 @@ import type {
 import { classifyImportTxPass1, classifyOnchainTxPass1 } from './pass1';
 import { matchTransfers, detectLoans } from './pass2';
 import { classifyIncomePass3, classifyFeesPass3 } from './pass3';
+import { classifyDeFiPass3b } from './pass3b';
 import { runFifo } from './pass4';
 import { buildReviewQueue } from './pass5';
 
@@ -280,6 +281,7 @@ function buildRunSuccessStatement(runId: string, stats: PipelineStats): BatchSta
 		          pass2b_loans     = ?,
 		          pass3_income     = ?,
 		          pass3b_fees      = ?,
+		          pass3c_defi      = ?,
 		          pass4_lots       = ?,
 		          pass4_disposals  = ?,
 		          pass5_review     = ?,
@@ -292,6 +294,7 @@ function buildRunSuccessStatement(runId: string, stats: PipelineStats): BatchSta
 			stats.pass2bLoans,
 			stats.pass3Income,
 			stats.pass3bInterest,
+			stats.pass3cDefi,
 			stats.pass4Lots,
 			stats.pass4Disposals,
 			stats.pass5ReviewItems,
@@ -391,6 +394,16 @@ export async function runTaxPipeline(tenantId: string): Promise<PipelineStats> {
 			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
 		}
 
+		// ── Pass 3b: DeFi event classification ────────────────────────────────
+		const { results: defiResults, reviewItems: defiReview } = classifyDeFiPass3b(
+			importRows, classifiedKeys,
+		);
+		for (const r of defiResults) {
+			const key = `${r.sourceType}:${r.sourceId}`;
+			if (!classifiedKeys.has(key)) { classifications.set(key, r); classifiedKeys.add(key); }
+		}
+		allReviewItems.push(...defiReview);
+
 		// ── Pass 4: FIFO lot matching ──────────────────────────────────────────
 		const { lots, disposals } = runFifo(tenantId, importRows, onchainRows, classifications);
 
@@ -420,6 +433,7 @@ export async function runTaxPipeline(tenantId: string): Promise<PipelineStats> {
 			pass2bLoans:     loanResults.length,
 			pass3Income:     incomeResults.length,
 			pass3bInterest:  feeResults.length,
+			pass3cDefi:      defiResults.length,
 			pass4Lots:       lots.length,
 			pass4Disposals:  disposals.length,
 			pass5ReviewItems: allReviewItems.length,

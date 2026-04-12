@@ -64,7 +64,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const to   = `${year}-12-31T23:59:59.999Z`;
 
 	try {
-		// ── 1. Ordinary income (interest_income events) ───────────────────────
+		// ── 1. Ordinary income — by asset (lifecycle events fallback) ────────
 		const incomeRes = await db.execute({
 			sql: `SELECT ale.asset_symbol, SUM(ale.native_usd) AS total_usd, COUNT(*) AS event_count
 			      FROM asset_lifecycle_events ale
@@ -84,10 +84,78 @@ export const GET: APIRoute = async ({ request, url }) => {
 			count:  Number(r.event_count ?? 0),
 		}));
 
+		// ── 1b. Ordinary income — by category (from pipeline classifications) ─
+		// Groups income and airdrop events by sub_category so the UI can show
+		// "Staking Rewards", "Interest & Earn", "Airdrops", etc. with IRS line refs.
+		type IncomeCategoryRow = {
+			type:     string;
+			label:    string;
+			irsLine:  string;
+			count:    number;
+			total:    number;
+		};
+
+		function normalizeIncomeSubcat(category: string, sub: string | null): { label: string; irsLine: string } {
+			if (category === 'airdrop') return { label: 'Airdrops', irsLine: 'Schedule 1 · Line 8z' };
+			const s = (sub ?? '').toLowerCase();
+			if (s.includes('staking') || s.includes('reward') || s.includes('inflation'))
+				return { label: 'Staking Rewards', irsLine: 'Schedule 1 · Line 8z' };
+			if (s.includes('interest') || s.includes('earn') || s.includes('yield'))
+				return { label: 'Interest & Earn', irsLine: 'Schedule 1 · Line 2b / 8z' };
+			if (s.includes('referral') || s.includes('cashback') || s.includes('bonus'))
+				return { label: 'Referral & Cashback', irsLine: 'Schedule 1 · Line 8z' };
+			if (s.includes('mining'))
+				return { label: 'Mining Income', irsLine: 'Schedule C (self-employment)' };
+			if (s.includes('learn') || s.includes('grant') || s.includes('token-grant'))
+				return { label: 'Learn & Earn / Grants', irsLine: 'Schedule 1 · Line 8z' };
+			return { label: 'Other Income', irsLine: 'Schedule 1 · Line 8z' };
+		}
+
+		let byCategory: IncomeCategoryRow[] = [];
+		try {
+			const catRes = await db.execute({
+				sql: `SELECT category, sub_category,
+				             SUM(amount_usd) AS total_usd, COUNT(*) AS event_count
+				      FROM tax_classifications
+				      WHERE tenant_id = ?
+				        AND category IN ('income', 'airdrop')
+				        AND amount_usd IS NOT NULL AND amount_usd > 0
+				        AND tax_year = ?
+				      GROUP BY category, sub_category
+				      ORDER BY total_usd DESC`,
+				args: [tenantId, year],
+			});
+
+			// Merge rows with the same normalised label
+			const catMap = new Map<string, IncomeCategoryRow>();
+			for (const r of catRes.rows) {
+				const cat = String(r.category ?? '');
+				const sub = typeof r.sub_category === 'string' ? r.sub_category : null;
+				const { label, irsLine } = normalizeIncomeSubcat(cat, sub);
+				const existing = catMap.get(label);
+				if (existing) {
+					existing.count += Number(r.event_count ?? 0);
+					existing.total += Number(r.total_usd   ?? 0);
+				} else {
+					catMap.set(label, {
+						type:    sub ?? cat,
+						label,
+						irsLine,
+						count:   Number(r.event_count ?? 0),
+						total:   Number(r.total_usd   ?? 0),
+					});
+				}
+			}
+			byCategory = Array.from(catMap.values()).sort((a, b) => b.total - a.total);
+		} catch {
+			// tax_classifications may not exist yet (pipeline not run) — ignore
+		}
+
 		const ordinaryIncome = {
 			total: byAsset.reduce((s, x) => s + x.amount, 0),
 			count: byAsset.reduce((s, x) => s + x.count,  0),
 			byAsset,
+			byCategory,
 		};
 
 		// ── 2. Disposal summary (outgoing taxable events) ─────────────────────
@@ -357,7 +425,100 @@ export const GET: APIRoute = async ({ request, url }) => {
 		// How much carryforward is available to offset THIS year's gains
 		const carryforwardAvailable = carryBalance;
 
-		// ── 10. Year-over-year gain/loss summary ──────────────────────────────
+		// ── 10. Wash sale shadow tracker ──────────────────────────────────────
+		// Crypto is currently exempt from wash sale rules (IRS treats it as
+		// property, not a security). This section shows what would be disallowed
+		// under proposed legislation that would extend wash sale rules to crypto.
+		// Display-only — no tax liability is implied by these results.
+		type WashSaleItem = {
+			asset:              string;
+			disposedAt:         string;
+			lossAmount:         number;
+			triggerAcquiredAt:  string;
+			disallowedLoss:     number;
+		};
+		let washSaleShadow: { totalDisallowed: number; items: WashSaleItem[] } = {
+			totalDisallowed: 0,
+			items: [],
+		};
+		try {
+			const washRes = await db.execute({
+				sql: `SELECT
+				        td.asset_symbol,
+				        td.disposed_at,
+				        td.gain_loss_usd                AS loss_amount,
+				        MIN(tl.acquired_at)             AS trigger_acquired_at,
+				        ABS(td.gain_loss_usd)           AS disallowed_loss
+				      FROM tax_disposals td
+				      JOIN tax_lots tl
+				        ON  tl.tenant_id    = td.tenant_id
+				        AND UPPER(tl.asset_symbol) = UPPER(td.asset_symbol)
+				        AND tl.lot_type     = 'purchase'
+				        AND ABS(CAST(julianday(tl.acquired_at) - julianday(td.disposed_at) AS INTEGER)) <= 30
+				      WHERE td.tenant_id     = ?
+				        AND td.gain_loss_usd < -0.01
+				        AND strftime('%Y', td.disposed_at) = ?
+				      GROUP BY td.id
+				      ORDER BY td.gain_loss_usd ASC
+				      LIMIT 100`,
+				args: [tenantId, String(year)],
+			});
+			const washItems: WashSaleItem[] = washRes.rows.map((r) => ({
+				asset:             String(r.asset_symbol         ?? ''),
+				disposedAt:        String(r.disposed_at          ?? ''),
+				lossAmount:        Number(r.loss_amount          ?? 0),
+				triggerAcquiredAt: String(r.trigger_acquired_at  ?? ''),
+				disallowedLoss:    Number(r.disallowed_loss      ?? 0),
+			}));
+			washSaleShadow = {
+				totalDisallowed: washItems.reduce((s, x) => s + x.disallowedLoss, 0),
+				items: washItems,
+			};
+		} catch {
+			// tax_disposals / tax_lots may not exist — ignore
+		}
+
+		// ── 11. DeFi events summary ───────────────────────────────────────────
+		// Groups flagged DeFi classifications from the pipeline for display.
+		type DefiTypeRow = { type: string; label: string; count: number; totalUsd: number };
+		const DEFI_LABELS: Record<string, string> = {
+			'lp-deposit':    'LP Deposits',
+			'lp-withdrawal': 'LP Withdrawals',
+			'rebase-income': 'Rebase Income',
+			'wrapped-swap':  'Wrapped Token Swaps',
+		};
+		let defiEvents: { count: number; byType: DefiTypeRow[] } = { count: 0, byType: [] };
+		try {
+			const defiRes = await db.execute({
+				sql: `SELECT category,
+				             SUM(COALESCE(amount_usd, 0)) AS total_usd,
+				             COUNT(*) AS event_count
+				      FROM tax_classifications
+				      WHERE tenant_id = ?
+				        AND category IN ('lp-deposit','lp-withdrawal','rebase-income','wrapped-swap')
+				        AND tax_year = ?
+				      GROUP BY category
+				      ORDER BY total_usd DESC`,
+				args: [tenantId, year],
+			});
+			const byType: DefiTypeRow[] = defiRes.rows.map((r) => {
+				const cat = String(r.category ?? '');
+				return {
+					type:     cat,
+					label:    DEFI_LABELS[cat] ?? cat,
+					count:    Number(r.event_count ?? 0),
+					totalUsd: Number(r.total_usd   ?? 0),
+				};
+			});
+			defiEvents = {
+				count:  byType.reduce((s, x) => s + x.count, 0),
+				byType,
+			};
+		} catch {
+			// tax_classifications may not exist — ignore
+		}
+
+		// ── 13. Year-over-year gain/loss summary ──────────────────────────────
 		// Build one row per available year so the chart has full history.
 		// We already computed prior years for carryforward; include current year too.
 		type YoYRow = { year: number; stGain: number; ltGain: number; netGain: number };
@@ -392,6 +553,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 			carryLedger,
 			carryforwardAvailable,
 			yoyRows,
+			washSaleShadow,
+			defiEvents,
 		});
 	} catch (error) {
 		console.error('[tax/summary] failed:', error);

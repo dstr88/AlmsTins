@@ -19,6 +19,24 @@ import CompletenessScore from '@/components/tax/CompletenessScore.astro';
 // ── Types ──────────────────────────────────────────────────────────────────
 type AssetIncome = { symbol: string; amount: number; count: number };
 
+type IncomeCategoryRow = {
+	type:    string;
+	label:   string;
+	irsLine: string;
+	count:   number;
+	total:   number;
+};
+
+type WashSaleItem = {
+	asset:             string;
+	disposedAt:        string;
+	lossAmount:        number;
+	triggerAcquiredAt: string;
+	disallowedLoss:    number;
+};
+
+type DefiTypeRow = { type: string; label: string; count: number; totalUsd: number };
+
 type TaxPayload = {
 	ok: boolean;
 	error?: string;
@@ -28,6 +46,7 @@ type TaxPayload = {
 		total: number;
 		count: number;
 		byAsset: AssetIncome[];
+		byCategory?: IncomeCategoryRow[];
 	};
 	disposals?: {
 		totalProceeds:    number;
@@ -81,6 +100,8 @@ type TaxPayload = {
 	carryforwardAvailable?: number;
 	yoyRows?: { year: number; stGain: number; ltGain: number; netGain: number }[];
 	method?: 'fifo' | 'hifo' | 'lifo' | 'spec_id';
+	washSaleShadow?: { totalDisallowed: number; items: WashSaleItem[] };
+	defiEvents?: { count: number; byType: DefiTypeRow[] };
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -699,7 +720,49 @@ const fmtGain = (n: number) => {
 
 				</div>
 
-				<!-- Ordinary Income breakdown by asset -->
+				<!-- Ordinary Income breakdown — by income type (pipeline-powered) -->
+				{(payload.ordinaryIncome?.byCategory?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-gray-700">Ordinary Income by Type</h2>
+								<p class="text-xs text-gray-400 mt-0.5">Each income type maps to a different IRS form line</p>
+							</div>
+							<span class="text-xs text-gray-400">Schedule 1 · Form 1040</span>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Type</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">IRS Line</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Events</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Total Income</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{payload.ordinaryIncome!.byCategory!.map((row) => (
+									<tr class="hover:bg-gray-50">
+										<td class="px-5 py-3 font-medium text-gray-800">{row.label}</td>
+										<td class="px-5 py-3 text-xs text-gray-500 font-mono">{row.irsLine}</td>
+										<td class="px-5 py-3 text-right text-gray-500">{row.count}</td>
+										<td class="px-5 py-3 text-right font-semibold text-gray-900">{fmt(row.total)}</td>
+									</tr>
+								))}
+								<tr class="bg-gray-50 font-semibold">
+									<td class="px-5 py-3 text-gray-700" colspan="2">Total</td>
+									<td class="px-5 py-3 text-right text-gray-500">
+										{payload.ordinaryIncome!.byCategory!.reduce((s, r) => s + r.count, 0)}
+									</td>
+									<td class="px-5 py-3 text-right text-green-700">
+										{fmt(payload.ordinaryIncome!.byCategory!.reduce((s, r) => s + r.total, 0))}
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				)}
+
+				<!-- Ordinary Income breakdown by asset (fallback / supplemental) -->
 				{(payload.ordinaryIncome?.byAsset?.length ?? 0) > 0 && (
 					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
 						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -768,6 +831,106 @@ const fmtGain = (n: number) => {
 					<div class="rounded-lg border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600 text-center">
 						No taxable events found for {year}.
 						If this seems wrong, check that your wallets and exchange imports are up to date.
+					</div>
+				)}
+
+				<!-- Wash Sale Shadow Tracker -->
+				{(payload.washSaleShadow?.items?.length ?? 0) > 0 && (
+					<div class="rounded-xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-amber-200 flex items-start justify-between gap-4">
+							<div>
+								<h2 class="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
+									<span>Wash Sale Shadow Tracker</span>
+									<span class="text-xs font-normal bg-amber-200 text-amber-800 rounded-full px-2 py-0.5">Shadow Mode</span>
+								</h2>
+								<p class="text-xs text-amber-700 mt-0.5">
+									Crypto is currently <strong>exempt</strong> from wash sale rules (IRS treats it as property, not a security).
+									This analysis shows losses that <em>would</em> be disallowed under proposed legislation extending wash sale rules to crypto.
+									No tax is owed — this is for planning only.
+								</p>
+							</div>
+							<div class="text-right shrink-0">
+								<p class="text-lg font-bold text-amber-800">{fmt(payload.washSaleShadow!.totalDisallowed)}</p>
+								<p class="text-xs text-amber-600">would-be disallowed</p>
+							</div>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-amber-100/60">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">Asset</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">Sale Date</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-amber-700 uppercase tracking-wide">Loss</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">Triggered By (Re-buy)</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-amber-700 uppercase tracking-wide">Would Disallow</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-amber-100">
+								{payload.washSaleShadow!.items.map((item) => (
+									<tr class="hover:bg-amber-50/80">
+										<td class="px-5 py-3 font-mono font-medium text-gray-800">{item.asset}</td>
+										<td class="px-5 py-3 text-gray-600">{fmtDate(item.disposedAt)}</td>
+										<td class="px-5 py-3 text-right text-red-700 font-semibold">{fmtGain(item.lossAmount)}</td>
+										<td class="px-5 py-3 text-gray-600">{fmtDate(item.triggerAcquiredAt)}</td>
+										<td class="px-5 py-3 text-right text-amber-800 font-semibold">{fmt(item.disallowedLoss)}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+						<div class="px-5 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-700">
+							A wash sale occurs when you sell at a loss and buy the same asset within 30 days before or after.
+							Under current law, crypto is exempt. Congress has proposed extending wash sale rules to digital assets
+							in several bills — this tracker helps you understand your exposure if that happens.
+						</div>
+					</div>
+				)}
+
+				<!-- DeFi Events -->
+				{(payload.defiEvents?.count ?? 0) > 0 && (
+					<div class="rounded-xl border border-violet-200 bg-white shadow-sm overflow-hidden">
+						<div class="px-5 py-3 border-b border-violet-100 flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold text-violet-900">DeFi Events Flagged for Review</h2>
+								<p class="text-xs text-gray-500 mt-0.5">
+									These transactions have no clear IRS guidance — review each one with your tax advisor.
+								</p>
+							</div>
+							<a href={`/dashboard/tax/review?year=${year}`}
+							   class="text-xs text-violet-600 hover:text-violet-800 font-medium underline">
+								Review queue →
+							</a>
+						</div>
+						<table class="min-w-full text-sm">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Event Type</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Events</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Total USD</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Tax Consideration</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-100">
+								{payload.defiEvents!.byType.map((row) => (
+									<tr class="hover:bg-gray-50">
+										<td class="px-5 py-3 font-medium text-gray-800">{row.label}</td>
+										<td class="px-5 py-3 text-right text-gray-500">{row.count}</td>
+										<td class="px-5 py-3 text-right font-semibold text-gray-900">
+											{row.totalUsd > 0 ? fmt(row.totalUsd) : '—'}
+										</td>
+										<td class="px-5 py-3 text-xs text-gray-500">
+											{row.type === 'lp-deposit'    && 'May be taxable swap at time of deposit'}
+											{row.type === 'lp-withdrawal' && 'May include taxable gain/loss and/or impermanent loss'}
+											{row.type === 'rebase-income' && 'Likely ordinary income at FMV — Schedule 1 Line 8z'}
+											{row.type === 'wrapped-swap'  && 'Property exchange — may realise capital gain/loss'}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+						<div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500">
+							DeFi events are flagged automatically by the classification pipeline.
+							Open the <a href={`/dashboard/tax/review?year=${year}`} class="underline">review queue</a> to
+							confirm or override each transaction.
+						</div>
 					</div>
 				)}
 

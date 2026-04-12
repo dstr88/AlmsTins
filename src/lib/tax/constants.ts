@@ -134,3 +134,57 @@ export const TRANSFER_MATCH_WINDOW_MINUTES = 90;
 /** Transfer match tolerance: the receiving side is allowed to be this much
  *  smaller than the sending side (gas / bridge fees eat some). */
 export const TRANSFER_AMOUNT_TOLERANCE = 0.02; // 2 %
+
+// ── DeFi event detection ──────────────────────────────────────────────────────
+
+/** Keywords that suggest a liquidity pool deposit or withdrawal event. */
+export const DEFI_LP_KEYWORDS = [
+	'liquidity',
+	'pool deposit',
+	'pool withdrawal',
+	'add liquidity',
+	'remove liquidity',
+	'uniswap v2',
+	'uniswap v3',
+	'curve lp',
+	'sushiswap lp',
+	'balancer lp',
+	'provide lp',
+	'lp token',
+	'pool token',
+];
+
+/**
+ * Wrapped token → underlying token pairs.
+ * Wrapping/unwrapping these may be a taxable swap — flag for review.
+ */
+export const WRAPPED_TOKEN_MAP = new Map<string, string>([
+	['WBTC',   'BTC'],
+	['WETH',   'ETH'],
+	['STETH',  'ETH'],
+	['WSTETH', 'STETH'],
+	['CBETH',  'ETH'],
+	['RETH',   'ETH'],
+	['BETH',   'ETH'],
+	['FRXETH', 'ETH'],
+]);
+
+/**
+ * Token symbols whose inbound transactions from exchange platforms are likely
+ * rebase income events (positive rebase = ordinary income at FMV).
+ */
+export const REBASE_TOKEN_SYMBOLS = new Set([
+	'OHM',
+	'GOHM',
+	'AMPL',
+]);
+
+/** Keywords suggesting perpetual / margin funding rate payments or receipts. */
+export const DEFI_FUNDING_KEYWORDS = [
+	'funding rate',
+	'funding payment',
+	'perp funding',
+	'perpetual funding',
+	'margin interest',
+	'borrowing fee',
+];
