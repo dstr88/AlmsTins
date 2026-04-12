@@ -67,7 +67,86 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
         paste the wallet address below. We'll check it against public scam databases,
         honeypot detectors, and on-chain data — instantly.
       </p>
+
+      <!-- Three threats grid -->
+      <div class="threat-grid" role="list">
+        <button class="threat-card" aria-haspopup="dialog" data-modal="modal-phishing" role="listitem">
+          <span class="threat-card__icon">🌐</span>
+          <span class="threat-card__title">Connecting to a malicious site</span>
+          <span class="threat-card__cta">Learn how it works →</span>
+        </button>
+        <button class="threat-card" aria-haspopup="dialog" data-modal="modal-scam" role="listitem">
+          <span class="threat-card__icon">💀</span>
+          <span class="threat-card__title">Investing in a known scam</span>
+          <span class="threat-card__cta">Learn how it works →</span>
+        </button>
+        <button class="threat-card" aria-haspopup="dialog" data-modal="modal-approval" role="listitem">
+          <span class="threat-card__icon">🔓</span>
+          <span class="threat-card__title">Token approval theft</span>
+          <span class="threat-card__cta">Learn how it works →</span>
+        </button>
+      </div>
     </header>
+
+    <!-- Modal: Malicious site / phishing -->
+    <div id="modal-phishing" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-phishing-title">
+      <div class="threat-modal__box">
+        <button class="threat-modal__close" aria-label="Close">&times;</button>
+        <div class="threat-modal__icon">🌐</div>
+        <h2 class="threat-modal__title" id="modal-phishing-title">Connecting to a malicious site</h2>
+        <p class="threat-modal__subtitle">Wallet drainers &amp; phishing dApps</p>
+        <div class="threat-modal__body">
+          <p>Scammers build near-perfect copies of legitimate dApps — fake NFT mints, fake token claims, fake airdrop pages. The site looks real. The URL is close but slightly off (<code>blur-io.xyz</code> instead of <code>blur.io</code>). When you connect your MetaMask and sign what looks like a routine transaction, you're actually handing over permission to drain every token from your wallet in one move.</p>
+          <div class="threat-modal__example">
+            💸 <strong>Real example:</strong> In 2023 a fake Blur.io airdrop page drained over <strong>$1.2 million</strong> from NFT holders within hours of launch. Most victims said they "double-checked the URL" but missed a single character.
+          </div>
+          <p>These sites appear as links in Discord DMs, Twitter/X replies, Telegram groups, and even paid ads. The attacker pays for a Google ad to appear above the real site.</p>
+          <div class="threat-modal__tip">
+            ✅ <strong>How our dApp checker protects you:</strong> Paste the URL before connecting. We query 7 security databases — including MetaMask's own phishing blocklist and ScamSniffer's 345,000-domain database — and return a verdict in seconds. <strong>Golden rule: never click a wallet link sent in a DM.</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Known scam investment -->
+    <div id="modal-scam" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-scam-title">
+      <div class="threat-modal__box">
+        <button class="threat-modal__close" aria-label="Close">&times;</button>
+        <div class="threat-modal__icon">💀</div>
+        <h2 class="threat-modal__title" id="modal-scam-title">Investing in a known scam</h2>
+        <p class="threat-modal__subtitle">Pig butchering, honeypots &amp; rug pulls</p>
+        <div class="threat-modal__body">
+          <p><strong>Pig-butchering</strong> scams build trust over weeks or months — a new contact on a dating app or social media gradually introduces you to a "great investment opportunity." The wallet address they send has often already been reported. <strong>Honeypot tokens</strong> let you buy but block you from selling — the contract is coded to trap your funds while the developer drains the liquidity pool.</p>
+          <div class="threat-modal__example">
+            💸 <strong>Real example:</strong> The FBI's Internet Crime Complaint Center (IC3) reported <strong>$3.3 billion</strong> in crypto investment fraud in 2023 alone — the fastest-growing fraud category. Most victims had never heard of "pig butchering" before it happened to them.
+          </div>
+          <p>A rug pull looks like a legitimate token launch. Developers hype the project, liquidity pours in, then the team withdraws everything overnight and the token goes to zero.</p>
+          <div class="threat-modal__tip">
+            ✅ <strong>How our wallet checker protects you:</strong> Before sending funds to any wallet, paste the address here. We check it against GoPlus Security's global scam blacklist, look for honeypot patterns in associated tokens, and flag mixer use that indicates money laundering. If someone is pressuring you to send crypto quickly — that's the scam.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Token approval theft -->
+    <div id="modal-approval" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-approval-title">
+      <div class="threat-modal__box">
+        <button class="threat-modal__close" aria-label="Close">&times;</button>
+        <div class="threat-modal__icon">🔓</div>
+        <h2 class="threat-modal__title" id="modal-approval-title">Token approval theft</h2>
+        <p class="threat-modal__subtitle">Unlimited approvals &amp; silent drains</p>
+        <div class="threat-modal__body">
+          <p>Every time you click "Approve" on a token swap or NFT mint, you sign a smart-contract message that says <em>"this contract can spend my tokens."</em> Most dApps default to <strong>unlimited approval</strong> — they can take your entire balance of that token, any time, forever, until you explicitly revoke it. These permissions survive long after you've forgotten the site existed.</p>
+          <div class="threat-modal__example">
+            💸 <strong>Real example:</strong> When the Multichain bridge was exploited in 2023, attackers used <strong>old approvals</strong> users had granted months earlier to drain <strong>$125 million</strong>. Many victims hadn't used the bridge in over a year.
+          </div>
+          <p>A compromised dApp, a rug pull, or a zero-day exploit can trigger those approvals the moment it launches — no additional signature from you required.</p>
+          <div class="threat-modal__tip">
+            ✅ <strong>How to protect yourself:</strong> Visit <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer" style="color:#a5b4fc">revoke.cash</a> to see every active approval on your wallet and revoke anything you don't recognise. Always set exact amounts instead of unlimited when a wallet gives you the choice — and revoke after every interaction you're done with.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Tab switcher -->
     <div class="checker-tabs" role="tablist" aria-label="Checker type">
@@ -552,10 +631,10 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   }
 
   .hero__title {
-    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-size: clamp(2.2rem, 5vw, 3.6rem);
     font-weight: 800;
-    line-height: 1.15;
-    margin: 0 0 1rem;
+    line-height: 1.2;
+    margin: 0 0 1.1rem;
     background: linear-gradient(135deg, #f5f8ff 30%, #a5b4fc);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -563,11 +642,164 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   }
 
   .hero__sub {
-    font-size: 1.05rem;
-    color: rgba(255, 255, 255, 0.55);
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.9;
+    max-width: 640px;
+    margin: 0 auto 2rem;
+  }
+
+  /* Threat grid */
+  .threat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    max-width: 860px;
+    margin: 0 auto 2rem;
+  }
+
+  .threat-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1.25rem 1rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    color: inherit;
+    font-family: inherit;
+    text-align: center;
+  }
+
+  .threat-card:hover {
+    background: rgba(165, 180, 252, 0.1);
+    border-color: rgba(165, 180, 252, 0.35);
+    transform: translateY(-2px);
+  }
+
+  .threat-card__icon {
+    font-size: 2rem;
+    line-height: 1;
+  }
+
+  .threat-card__title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #e2e8ff;
+    line-height: 1.35;
+  }
+
+  .threat-card__cta {
+    font-size: 0.75rem;
+    color: #a5b4fc;
+    opacity: 0.8;
+  }
+
+  /* Threat modals */
+  .threat-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+  }
+
+  .threat-modal.open {
+    display: flex;
+  }
+
+  .threat-modal__box {
+    background: #1a1d2e;
+    border: 1px solid rgba(165, 180, 252, 0.2);
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 560px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  }
+
+  .threat-modal__close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.45);
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .threat-modal__close:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.08);
+  }
+
+  .threat-modal__icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .threat-modal__title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #e2e8ff;
+    margin: 0 0 0.5rem;
+  }
+
+  .threat-modal__subtitle {
+    font-size: 0.85rem;
+    color: #f87171;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0 0 1.25rem;
+  }
+
+  .threat-modal__body {
+    font-size: 0.95rem;
+    color: rgba(255,255,255,0.7);
     line-height: 1.75;
-    max-width: 600px;
-    margin: 0 auto;
+  }
+
+  .threat-modal__body p { margin: 0 0 0.9rem; }
+  .threat-modal__body p:last-child { margin-bottom: 0; }
+
+  .threat-modal__example {
+    background: rgba(248, 113, 113, 0.08);
+    border-left: 3px solid #f87171;
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    font-size: 0.88rem;
+    color: rgba(255,255,255,0.65);
+  }
+
+  .threat-modal__tip {
+    background: rgba(52, 211, 153, 0.08);
+    border-left: 3px solid #34d399;
+    border-radius: 4px;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    font-size: 0.88rem;
+    color: rgba(255,255,255,0.65);
+  }
+
+  @media (max-width: 640px) {
+    .threat-grid { grid-template-columns: 1fr; }
   }
 
   /* Checker */
@@ -983,6 +1215,44 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 </style>
 
 <script>
+  // ── Threat modals ─────────────────────────────────────────────────────────────
+  function openModal(id: string) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    const closeBtn = modal.querySelector<HTMLButtonElement>('.threat-modal__close');
+    closeBtn?.focus();
+  }
+
+  function closeModal(modal: HTMLElement) {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('.threat-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      const modalId = card.dataset.modal;
+      if (modalId) openModal(modalId);
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>('.threat-modal').forEach((modal) => {
+    // Close button
+    modal.querySelector('.threat-modal__close')?.addEventListener('click', () => closeModal(modal));
+    // Click backdrop to close
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal(modal);
+    });
+  });
+
+  // Escape key closes any open modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll<HTMLElement>('.threat-modal.open').forEach(closeModal);
+    }
+  });
+
   // ── Tab switching ─────────────────────────────────────────────────────────────
   const tabs = document.querySelectorAll<HTMLButtonElement>('.checker-tab');
   tabs.forEach((btn) => {
