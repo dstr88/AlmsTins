@@ -69,22 +69,71 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       </p>
 
       <!-- Three threats grid -->
-      <div class="threat-grid" role="list">
-        <button class="threat-card" aria-haspopup="dialog" data-modal="modal-phishing" role="listitem">
-          <span class="threat-card__icon">🌐</span>
-          <span class="threat-card__title">Connecting to a malicious site</span>
-          <span class="threat-card__cta">Learn how it works →</span>
-        </button>
-        <button class="threat-card" aria-haspopup="dialog" data-modal="modal-scam" role="listitem">
-          <span class="threat-card__icon">💀</span>
-          <span class="threat-card__title">Investing in a known scam</span>
-          <span class="threat-card__cta">Learn how it works →</span>
-        </button>
-        <button class="threat-card" aria-haspopup="dialog" data-modal="modal-approval" role="listitem">
-          <span class="threat-card__icon">🔓</span>
-          <span class="threat-card__title">Token approval theft</span>
-          <span class="threat-card__cta">Learn how it works →</span>
-        </button>
+      <div class="threat-grid">
+
+        <!-- Card 1: Malicious site -->
+        <div class="threat-card">
+          <button class="threat-card__top" data-modal="modal-phishing" aria-haspopup="dialog">
+            <span class="threat-card__icon">🌐</span>
+            <span class="threat-card__title">Malicious site connection</span>
+            <span class="threat-card__cta">What is this? →</span>
+          </button>
+          <div class="threat-card__divider"></div>
+          <div class="threat-card__checker">
+            <input
+              class="threat-card__input"
+              type="url"
+              placeholder="Paste a URL or domain…"
+              autocomplete="off"
+              spellcheck="false"
+              data-checker="dapp"
+            />
+            <button class="threat-card__check-btn" data-checker="dapp">Check site</button>
+          </div>
+        </div>
+
+        <!-- Card 2: Known scam -->
+        <div class="threat-card">
+          <button class="threat-card__top" data-modal="modal-scam" aria-haspopup="dialog">
+            <span class="threat-card__icon">💀</span>
+            <span class="threat-card__title">Investing in a known scam</span>
+            <span class="threat-card__cta">What is this? →</span>
+          </button>
+          <div class="threat-card__divider"></div>
+          <div class="threat-card__checker">
+            <input
+              class="threat-card__input"
+              type="text"
+              placeholder="Paste a wallet address…"
+              autocomplete="off"
+              spellcheck="false"
+              data-checker="wallet"
+            />
+            <button class="threat-card__check-btn" data-checker="wallet">Check wallet</button>
+          </div>
+        </div>
+
+        <!-- Card 3: Token approval -->
+        <div class="threat-card">
+          <button class="threat-card__top" data-modal="modal-approval" aria-haspopup="dialog">
+            <span class="threat-card__icon">🔓</span>
+            <span class="threat-card__title">Token approval theft</span>
+            <span class="threat-card__cta">What is this? →</span>
+          </button>
+          <div class="threat-card__divider"></div>
+          <div class="threat-card__checker">
+            <input
+              class="threat-card__input"
+              type="text"
+              placeholder="Paste a wallet address…"
+              autocomplete="off"
+              spellcheck="false"
+              data-checker="approval"
+            />
+            <button class="threat-card__check-btn" data-checker="approval">Check approvals</button>
+          </div>
+        </div>
+
       </div>
     </header>
 
@@ -661,23 +710,37 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   .threat-card {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 0.85rem;
-    padding: 2rem 1.5rem;
     background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(165, 180, 252, 0.4);
     border-radius: 16px;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, transform 0.15s;
-    color: inherit;
-    font-family: inherit;
-    text-align: center;
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
 
   .threat-card:hover {
-    background: rgba(165, 180, 252, 0.1);
-    border-color: rgba(165, 180, 252, 0.35);
-    transform: translateY(-3px);
+    border-color: rgba(165, 180, 252, 0.75);
+    box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.1);
+  }
+
+  /* Top half — clickable for modal */
+  .threat-card__top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.75rem 1.5rem 1.5rem;
+    background: none;
+    border: none;
+    color: inherit;
+    font-family: inherit;
+    text-align: center;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.15s;
+  }
+
+  .threat-card__top:hover {
+    background: rgba(165, 180, 252, 0.08);
   }
 
   .threat-card__icon {
@@ -693,9 +756,65 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   }
 
   .threat-card__cta {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: #a5b4fc;
-    opacity: 0.85;
+  }
+
+  /* Divider */
+  .threat-card__divider {
+    height: 1px;
+    background: rgba(165, 180, 252, 0.25);
+    margin: 0;
+  }
+
+  /* Bottom half — input area */
+  .threat-card__checker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1.25rem 1.25rem 1.5rem;
+    background: rgba(0, 0, 0, 0.15);
+  }
+
+  .threat-card__input {
+    width: 100%;
+    padding: 0.6rem 0.85rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #e2e8ff;
+    font-size: 0.9rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+  }
+
+  .threat-card__input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  .threat-card__input:focus {
+    border-color: rgba(165, 180, 252, 0.6);
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .threat-card__check-btn {
+    width: 100%;
+    padding: 0.65rem 1rem;
+    background: rgba(87, 103, 255, 0.7);
+    border: 1px solid rgba(165, 180, 252, 0.4);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .threat-card__check-btn:hover {
+    background: rgba(87, 103, 255, 0.9);
   }
 
   /* Threat modals */
@@ -1230,10 +1349,64 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     document.body.style.overflow = '';
   }
 
-  document.querySelectorAll<HTMLButtonElement>('.threat-card').forEach((card) => {
-    card.addEventListener('click', () => {
-      const modalId = card.dataset.modal;
+  // Top half of each card → open modal
+  document.querySelectorAll<HTMLButtonElement>('.threat-card__top').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const modalId = btn.dataset.modal;
       if (modalId) openModal(modalId);
+    });
+  });
+
+  // Bottom half check buttons
+  document.querySelectorAll<HTMLButtonElement>('.threat-card__check-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const type  = btn.dataset.checker;
+      const input = btn.closest('.threat-card__checker')
+                       ?.querySelector<HTMLInputElement>('.threat-card__input');
+      const value = input?.value.trim() ?? '';
+      if (!value) { input?.focus(); return; }
+
+      if (type === 'dapp') {
+        // Switch to dApp tab, pre-fill, and run check
+        const dappTab   = document.getElementById('tab-btn-dapp') as HTMLButtonElement | null;
+        const walletTab = document.getElementById('tab-btn-wallet') as HTMLButtonElement | null;
+        const dappPanel   = document.getElementById('panel-dapp')   as HTMLElement | null;
+        const walletPanel = document.getElementById('panel-wallet') as HTMLElement | null;
+        const urlInput  = document.getElementById('dapp-url-input') as HTMLInputElement | null;
+        const checkBtn  = document.getElementById('dapp-check-btn') as HTMLButtonElement | null;
+        if (dappTab && walletTab && dappPanel && walletPanel && urlInput && checkBtn) {
+          walletTab.classList.remove('active'); walletTab.setAttribute('aria-selected', 'false');
+          dappTab.classList.add('active');      dappTab.setAttribute('aria-selected', 'true');
+          walletPanel.hidden = true;
+          dappPanel.hidden   = false;
+          urlInput.value = value;
+          dappPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setTimeout(() => checkBtn.click(), 350);
+        }
+      } else if (type === 'wallet') {
+        // Switch to wallet tab and navigate to ?address= so React pre-fills
+        const url = new URL(window.location.href);
+        url.searchParams.set('address', value);
+        url.hash = 'panel-wallet';
+        window.location.href = url.toString();
+      } else if (type === 'approval') {
+        // Open revoke.cash with the address
+        const addr = encodeURIComponent(value);
+        window.open(`https://revoke.cash/address/${addr}`, '_blank', 'noopener,noreferrer');
+      }
+    });
+  });
+
+  // Prevent input clicks from bubbling to card top
+  document.querySelectorAll<HTMLInputElement>('.threat-card__input').forEach((inp) => {
+    inp.addEventListener('click', (e) => e.stopPropagation());
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        (inp.closest('.threat-card__checker')
+             ?.querySelector<HTMLButtonElement>('.threat-card__check-btn'))?.click();
+      }
     });
   });
 
