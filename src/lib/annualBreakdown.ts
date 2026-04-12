@@ -11,6 +11,7 @@
  */
 
 import { db } from './db';
+import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './tax/lotSelection';
 
 // ─── kinds that are taxable ordinary income (not capital events) ──────────────
 const INCOME_KINDS = new Set([
@@ -118,7 +119,8 @@ function daysBetween(a: string, b: string): number {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export type CostBasisMethod = 'fifo' | 'hifo' | 'lifo' | 'spec_id';
+// Re-export so callers can import CostBasisMethod from here (backwards-compatible)
+export type { CostBasisMethod };
 
 export async function buildAnnualBreakdown(
   tenantId: string,
@@ -263,46 +265,11 @@ export async function buildAnnualBreakdown(
     ...suiEvents,
   ].sort((a, b) => toStr(a.timestamp_utc).localeCompare(toStr(b.timestamp_utc)));
 
-  // Lot selection — FIFO takes index 0; HIFO picks highest cost-per-unit lot
-  type Lot = { amount: number; timestamp: string; costUsd: number | null };
-
-  function selectLotIndex(list: Lot[], disposalSourceId?: string): number {
-    if (list.length <= 1) return 0;
-
-    // Specific ID: check if user pinned a lot for this disposal
-    if (method === 'spec_id' && disposalSourceId && lotPins) {
-      const pin = lotPins.get(disposalSourceId);
-      if (pin) {
-        // Find lot with matching acquiredAt (closest amountHint wins on ties)
-        let bestIdx = -1;
-        let bestDiff = Infinity;
-        for (let i = 0; i < list.length; i++) {
-          if (list[i].timestamp === pin.acquiredAt) {
-            const diff = Math.abs(list[i].amount - pin.amountHint);
-            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
-          }
-        }
-        if (bestIdx >= 0) return bestIdx;
-      }
-      // Fall through to FIFO if no pin found
-      return 0;
-    }
-
-    if (method === 'fifo') return 0;
-
-    if (method === 'lifo') return list.length - 1;
-
-    // HIFO: highest cost-per-unit
-    let bestIdx = 0;
-    let bestCpu = -Infinity;
-    for (let i = 0; i < list.length; i++) {
-      const cpu = list[i].costUsd != null && list[i].amount > 0
-        ? list[i].costUsd! / list[i].amount
-        : 0;
-      if (cpu > bestCpu) { bestCpu = cpu; bestIdx = i; }
-    }
-    return bestIdx;
-  }
+  // Lot selection delegated to lotSelection.ts (pure, unit-tested).
+  // Wrap to bind the closure variables (method, lotPins) from this scope.
+  type Lot = SelectableLot;
+  const pickLot = (list: Lot[], disposalSourceId?: string) =>
+    selectLotIndex(list, method, disposalSourceId, lotPins);
 
   const lotsByAsset = new Map<string, Lot[]>();
 
@@ -359,7 +326,7 @@ export async function buildAnnualBreakdown(
           break;
         }
         const disposalSrcId = typeof row.source_id === 'string' ? row.source_id : undefined;
-        const lotIdx = selectLotIndex(list, disposalSrcId);
+        const lotIdx = pickLot(list, disposalSrcId);
         const lot    = list[lotIdx];
 
         const take        = Math.min(remaining, lot.amount);

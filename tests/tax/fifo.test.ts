@@ -658,3 +658,193 @@ describe('Mathematical invariants', () => {
 		}
 	});
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. SWAP to_amount FIELD
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Swap — to_amount as acquisition quantity', () => {
+	it('creates a lot using to_amount quantity when to_amount is set on a buy row', () => {
+		// Exchange reports a convert/swap as one row:
+		//   amount    = 1    (ETH given up — ignored for the acquisition lot)
+		//   to_amount = 2000 (USDC received — becomes the lot quantity)
+		//   native_usd = 2000 (USD value of the USDC received)
+		// The lot for USDC should have quantity 2000, not 1.
+		const rows = [
+			importTx({
+				id:            'swap-buy',
+				timestamp_utc: '2023-01-01T00:00:00Z',
+				asset_symbol:  'USDC',
+				direction:     'in',
+				amount:        1,      // ETH given — irrelevant for the lot
+				to_amount:     2_000,  // USDC received
+				native_usd:    2_000,
+			}),
+		];
+		const classifications = classifyMap([['import', 'swap-buy', 'buy']]);
+
+		const { lots } = runFifo(TENANT, rows, [], classifications);
+
+		expect(lots).toHaveLength(1);
+		expect(lots[0].quantity).toBeCloseTo(2_000);
+		expect(lots[0].remainingQty).toBeCloseTo(2_000);
+		// price per unit: $2000 / 2000 USDC = $1.00
+		expect(lots[0].pricePerUnit).toBeCloseTo(1.0);
+	});
+
+	it('falls back to amount when to_amount is null on a buy row', () => {
+		const rows = [
+			importTx({
+				id:            'buy1',
+				timestamp_utc: '2023-01-01T00:00:00Z',
+				asset_symbol:  'ETH',
+				amount:        2,
+				to_amount:     null, // no to_amount
+				native_usd:    6_000,
+			}),
+		];
+		const classifications = classifyMap([['import', 'buy1', 'buy']]);
+
+		const { lots } = runFifo(TENANT, rows, [], classifications);
+
+		expect(lots[0].quantity).toBeCloseTo(2);
+	});
+
+	it('uses amount (not to_amount) for the disposal quantity on a swap-classified row', () => {
+		// A swap disposal row: amount=1 ETH disposed, to_amount=2000 USDC received.
+		// The disposal should consume 1 ETH lot, not 2000.
+		const rows = [
+			importTx({ id: 'buy-eth',   timestamp_utc: '2022-01-01T00:00:00Z', asset_symbol: 'ETH', amount: 1,     native_usd: 1_500 }),
+			importTx({ id: 'swap-sell', timestamp_utc: '2023-01-01T00:00:00Z', asset_symbol: 'ETH', amount: 1, to_amount: 2_000, native_usd: 2_000 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy-eth',   'buy'],
+			['import', 'swap-sell', 'swap'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+
+		expect(disposals).toHaveLength(1);
+		expect(disposals[0].quantity).toBeCloseTo(1);   // 1 ETH disposed
+		expect(disposals[0].proceedsUsd).toBeCloseTo(2_000); // proceeds = native_usd
+		expect(disposals[0].gainLossUsd).toBeCloseTo(500);   // 2000 - 1500
+		expect(disposals[0].category).toBe('swap');
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. BURN AND LOST DISPOSALS
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Burn and lost disposals', () => {
+	it('creates a burn disposal with zero proceeds and full loss of cost basis', () => {
+		// Sending tokens to a burn address: native_usd = 0.
+		// Expected: proceedsUsd = 0, gainLossUsd = -costBasis (full loss).
+		const rows = [
+			importTx({ id: 'buy1',  timestamp_utc: '2022-01-01T00:00:00Z', amount: 100, native_usd: 500, asset_symbol: 'SHIB' }),
+			importTx({ id: 'burn1', timestamp_utc: '2023-06-01T00:00:00Z', amount: 100, native_usd: 0,   asset_symbol: 'SHIB' }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy1',  'buy'],
+			['import', 'burn1', 'burn'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+
+		expect(disposals).toHaveLength(1);
+		expect(disposals[0].category).toBe('burn');
+		expect(disposals[0].proceedsUsd).toBeCloseTo(0);
+		expect(disposals[0].gainLossUsd).toBeCloseTo(-500); // 0 proceeds - $500 cost
+	});
+
+	it('creates a lost disposal with null proceeds when native_usd is null', () => {
+		// Tokens lost (hack, lost key, etc.) with no known FMV recovery.
+		const rows = [
+			importTx({ id: 'buy1',  timestamp_utc: '2022-01-01T00:00:00Z', amount: 1, native_usd: 40_000 }),
+			importTx({ id: 'lost1', timestamp_utc: '2023-01-01T00:00:00Z', amount: 1, native_usd: null }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy1',  'buy'],
+			['import', 'lost1', 'lost'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+
+		expect(disposals).toHaveLength(1);
+		expect(disposals[0].category).toBe('lost');
+		expect(disposals[0].proceedsUsd).toBeNull();
+		// Can't compute gain/loss without proceeds
+		expect(disposals[0].gainLossUsd).toBeNull();
+	});
+
+	it('exhausts the lot after a full burn', () => {
+		const rows = [
+			importTx({ id: 'buy1',  timestamp_utc: '2022-01-01T00:00:00Z', amount: 1, native_usd: 30_000 }),
+			importTx({ id: 'burn1', timestamp_utc: '2023-01-01T00:00:00Z', amount: 1, native_usd: 0 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy1',  'buy'],
+			['import', 'burn1', 'burn'],
+		]);
+
+		const { lots } = runFifo(TENANT, rows, [], classifications);
+		expect(lots[0].isExhausted).toBe(true);
+		expect(lots[0].remainingQty).toBeCloseTo(0);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 13. LIQUIDATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Liquidation disposals', () => {
+	it('creates a liquidation disposal and computes gain/loss correctly', () => {
+		// Aave liquidated 1 ETH of collateral at $1,800 when cost basis was $2,000.
+		const rows = [
+			importTx({ id: 'buy1',  timestamp_utc: '2022-01-01T00:00:00Z', asset_symbol: 'ETH', amount: 1, native_usd: 2_000 }),
+			importTx({ id: 'liq1',  timestamp_utc: '2022-11-01T00:00:00Z', asset_symbol: 'ETH', amount: 1, native_usd: 1_800 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy1', 'buy'],
+			['import', 'liq1', 'liquidation'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+
+		expect(disposals).toHaveLength(1);
+		expect(disposals[0].category).toBe('liquidation');
+		expect(disposals[0].proceedsUsd).toBeCloseTo(1_800);
+		expect(disposals[0].costBasisUsd).toBeCloseTo(2_000);
+		expect(disposals[0].gainLossUsd).toBeCloseTo(-200); // forced-sale loss
+	});
+
+	it('marks a liquidation disposal short-term when held < 365 days', () => {
+		const rows = [
+			importTx({ id: 'buy1', timestamp_utc: '2022-06-01T00:00:00Z', asset_symbol: 'ETH', amount: 1, native_usd: 2_000 }),
+			// Liquidated 6 months later → short-term
+			importTx({ id: 'liq1', timestamp_utc: '2022-11-01T00:00:00Z', asset_symbol: 'ETH', amount: 1, native_usd: 1_800 }),
+		];
+		const classifications = classifyMap([
+			['import', 'buy1', 'buy'],
+			['import', 'liq1', 'liquidation'],
+		]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+		expect(disposals[0].isShortTerm).toBe(true);
+	});
+
+	it('creates an unmatched liquidation disposal when no lot exists', () => {
+		// Protocol liquidated a position we have no acquisition record for.
+		const rows = [
+			importTx({ id: 'liq1', timestamp_utc: '2022-11-01T00:00:00Z', asset_symbol: 'ETH', amount: 1, native_usd: 1_800 }),
+		];
+		const classifications = classifyMap([['import', 'liq1', 'liquidation']]);
+
+		const { disposals } = runFifo(TENANT, rows, [], classifications);
+
+		expect(disposals).toHaveLength(1);
+		expect(disposals[0].lotId).toBe('unmatched');
+		expect(disposals[0].costBasisUsd).toBeNull();
+		expect(disposals[0].gainLossUsd).toBeNull();
+	});
+});

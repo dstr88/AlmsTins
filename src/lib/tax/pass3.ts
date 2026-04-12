@@ -67,13 +67,13 @@ export function classifyIncomePass3(
 			continue;
 		}
 
-		// Income keyword check
-		if (matchesKeywords(combinedText, INCOME_KEYWORDS)) {
+		// Loan interest paid — checked BEFORE income keywords because "interest paid"
+		// is a substring match for "interest" which appears in INCOME_KEYWORDS
+		if (matchesKeywords(combinedText, LOAN_INTEREST_KEYWORDS)) {
 			results.push({
 				sourceType: 'import',
 				sourceId: row.id,
-				category: 'income',
-				subCategory: kind.toLowerCase().replace(/\s+/g, '-') || 'reward',
+				category: 'loan-interest-paid',
 				confidence: 0.8,
 				assetSymbol: row.asset_symbol,
 				amountUsd: row.native_usd,
@@ -82,12 +82,13 @@ export function classifyIncomePass3(
 			continue;
 		}
 
-		// Loan interest paid (outbound keyword check, catches platforms that report it)
-		if (matchesKeywords(combinedText, LOAN_INTEREST_KEYWORDS)) {
+		// Income keyword check
+		if (matchesKeywords(combinedText, INCOME_KEYWORDS)) {
 			results.push({
 				sourceType: 'import',
 				sourceId: row.id,
-				category: 'loan-interest-paid',
+				category: 'income',
+				subCategory: kind.toLowerCase().replace(/\s+/g, '-') || 'reward',
 				confidence: 0.8,
 				assetSymbol: row.asset_symbol,
 				amountUsd: row.native_usd,
