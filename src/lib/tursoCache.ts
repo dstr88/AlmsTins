@@ -89,3 +89,26 @@ export async function setCache(key: string, value: unknown, ttlSeconds: number) 
 		args: [key, JSON.stringify(value), expiresAt, now],
 	});
 }
+
+/** Delete a single cache entry by exact key. */
+export async function deleteCache(key: string): Promise<void> {
+	await db.execute({
+		sql: `DELETE FROM cache WHERE cache_key = ?`,
+		args: [key],
+	});
+}
+
+/**
+ * Delete all cache entries whose key starts with `prefix`.
+ * Uses a SQL LIKE pattern — safe because we escape `%` and `_` in the prefix.
+ * Useful for busting all tenant-scoped keys after a pipeline run:
+ *   deleteCachePrefix(`t:${tenantId}:`)
+ */
+export async function deleteCachePrefix(prefix: string): Promise<void> {
+	// Escape LIKE special characters in the prefix itself, then append wildcard
+	const escaped = prefix.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+	await db.execute({
+		sql: `DELETE FROM cache WHERE cache_key LIKE ? ESCAPE '\\'`,
+		args: [`${escaped}%`],
+	});
+}

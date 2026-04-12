@@ -26,6 +26,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
+import { deleteCachePrefix } from '@/lib/tursoCache';
 
 // Minimal local alias for a Turso batch statement — matches the libsql BatchStatement shape.
 // Using a local type avoids coupling to internal @libsql/core sub-paths.
@@ -441,6 +442,12 @@ export async function runTaxPipeline(tenantId: string): Promise<PipelineStats> {
 		];
 
 		await db.batch(persistStatements, 'write');
+
+		// Bust all tenant-scoped tax caches so the next page load reads fresh
+		// numbers. Fire-and-forget — a cache bust failure is never worth surfacing.
+		deleteCachePrefix(`t:${tenantId}:`).catch((e) =>
+			console.warn('[classify] cache bust failed (non-fatal)', e),
+		);
 
 		return stats;
 
