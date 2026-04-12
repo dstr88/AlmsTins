@@ -333,10 +333,9 @@ function ChainDonut({ segments, totalUsd }: { segments: DonutSegment[]; totalUsd
 type DonutCenterPanelProps = {
 	totalUsd: number;
 	selectedSegment?: { label: string; amountUsd: number; pct: number; color?: string };
-	extraInfo?: string;
 };
 
-function DonutCenterPanel({ totalUsd, selectedSegment, extraInfo }: DonutCenterPanelProps) {
+function DonutCenterPanel({ totalUsd, selectedSegment }: DonutCenterPanelProps) {
 	const amountFormatter = (value: number) =>
 		value.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
@@ -385,7 +384,6 @@ function DonutCenterPanel({ totalUsd, selectedSegment, extraInfo }: DonutCenterP
 			<p className="donut-center-line1">{selectedSegment.label}</p>
 			<p className="donut-center-line2">{amountFormatter(selectedSegment.amountUsd)}</p>
 			<p className="donut-center-line3">{(selectedSegment.pct * 100).toFixed(1)}% of portfolio</p>
-			<p className="donut-center-line4">{extraInfo ?? 'Snapshot details coming soon'}</p>
 		</div>
 	);
 }

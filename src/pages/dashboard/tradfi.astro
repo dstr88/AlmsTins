@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import SalmonTin from '../../components/dashboard/SalmonTin.astro';
 import LoanPayoffCalculator from '../../components/LoanPayoffCalculator.astro';
+import LoanPaymentsTable from '../../components/LoanPaymentsTable.tsx';
 ---
 
 <Layout title="Traditional Finance | Almstins" noindex={true}>
@@ -22,16 +23,14 @@ import LoanPayoffCalculator from '../../components/LoanPayoffCalculator.astro';
 				<button type="button" class="add-loan-button" data-add-loan>Add another contract</button>
 				<p class="add-loan-status" data-add-loan-status></p>
 			</SalmonTin>
-			<div class="placeholder-card">Placeholder</div>
 			<SalmonTin label="Loan payoff" class="loan-tin">
 				<LoanPayoffCalculator loanId="tradfi-loan-1" />
 			</SalmonTin>
-			<div class="placeholder-card">Empty slot</div>
 		</section>
 
 		<section class="tradfi-table">
-			<h2>Table placeholder</h2>
-			<div class="placeholder-area">TradFi records table coming soon</div>
+			<h2>Payment history</h2>
+			<LoanPaymentsTable client:only="react" />
 		</section>
 	</section>
 
@@ -68,17 +67,7 @@ import LoanPayoffCalculator from '../../components/LoanPayoffCalculator.astro';
 			gap: 0.75rem;
 		}
 
-		.placeholder-card,
-		.placeholder-area {
-			min-height: 120px;
-			border: 1px dashed rgba(255, 255, 255, 0.4);
-			border-radius: 12px;
-			padding: 1rem;
-			color: #f7f2eb;
-			background: rgba(47, 65, 59, 0.6);
-		}
-
-		.totals-row {
+.totals-row {
 			display: flex;
 			justify-content: space-between;
 			align-items: baseline;
