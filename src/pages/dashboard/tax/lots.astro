@@ -1,0 +1,263 @@
+---
+/**
+ * /dashboard/tax/lots
+ *
+ * Specific Identification Lot Manager.
+ * Shows open lots per asset and lets users pin a specific lot to each disposal.
+ * When the Spec ID method is active, the engine uses these pins instead of FIFO.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { buildAnnualBreakdown } from '@/lib/annualBreakdown';
+
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/login');
+const { tenantId } = sess;
+
+const yearParam = Astro.url.searchParams.get('year');
+const year = yearParam ? Number(yearParam) : new Date().getFullYear() - 1;
+
+// Load current year's disposals and open lots from annualBreakdown
+const bd = await buildAnnualBreakdown(tenantId, year, 'fifo');
+
+// Group settled lots (disposals) by asset for display
+type DisposalGroup = {
+	asset: string;
+	disposals: Array<{ sellDate: string; amount: number; proceeds: number | null; gainLoss: number | null; buyDate: string; daysHeld: number; sourceId?: string }>;
+	openLots:  Array<{ acquiredDate: string; amount: number; costUsd: number | null; daysHeld: number }>;
+};
+
+const groupMap = new Map<string, DisposalGroup>();
+const allAssets = new Set<string>();
+
+for (const lot of [...bd.shortTerm, ...bd.longTerm]) {
+	allAssets.add(lot.asset);
+	const g = groupMap.get(lot.asset) ?? { asset: lot.asset, disposals: [], openLots: [] };
+	g.disposals.push({
+		sellDate:  lot.sellDate,
+		amount:    lot.amount,
+		proceeds:  lot.proceedsUsd,
+		gainLoss:  lot.gainLossUsd,
+		buyDate:   lot.buyDate,
+		daysHeld:  lot.daysHeld,
+	});
+	groupMap.set(lot.asset, g);
+}
+
+for (const held of bd.stillHolding) {
+	allAssets.add(held.asset);
+	const g = groupMap.get(held.asset) ?? { asset: held.asset, disposals: [], openLots: [] };
+	g.openLots.push({
+		acquiredDate: held.acquiredDate,
+		amount:       held.amount,
+		costUsd:      held.costUsd,
+		daysHeld:     held.daysHeld,
+	});
+	groupMap.set(held.asset, g);
+}
+
+const groups = [...groupMap.values()].filter(g => g.disposals.length > 0).sort((a, b) => a.asset.localeCompare(b.asset));
+
+const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+const fmtDate = (iso: string) => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return iso; } };
+const fmtQty = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 8 });
+---
+
+<Layout title="Lot Manager | Almstins" noindex={true}>
+	<div class="max-w-5xl mx-auto px-4 py-8 space-y-8">
+
+		<!-- Header -->
+		<div class="flex items-start justify-between flex-wrap gap-4">
+			<div>
+				<a href="/dashboard/tax/gains?method=spec_id&year={year}" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Gains Summary (Spec ID)</a>
+				<h1 class="text-2xl font-bold text-gray-900">Specific ID — Lot Manager</h1>
+				<p class="text-sm text-gray-500 mt-1">
+					For each disposal, choose which open lot you sold. Your pins override FIFO
+					when the <strong>Spec ID</strong> cost basis method is selected.
+				</p>
+			</div>
+			<div class="flex items-center gap-3">
+				<a href="/dashboard/tax/gains?method=spec_id&year={year}"
+				   class="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2">
+					View Spec ID Results →
+				</a>
+			</div>
+		</div>
+
+		<!-- IRS notice -->
+		<div class="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+			<strong>IRS Specific Identification rules:</strong> You must identify the lot <em>before or at the time of sale</em>
+			and receive confirmation from your exchange or broker. Lot pins here are for computational purposes;
+			maintain separate documentation (exchange confirmations, wallet records) as required by IRS Rev. Rul. 2024-28.
+		</div>
+
+		{groups.length === 0 && (
+			<div class="rounded-xl border border-gray-200 bg-gray-50 p-10 text-center">
+				<p class="text-2xl mb-2">📋</p>
+				<p class="font-semibold text-gray-700">No disposals for {year}</p>
+				<p class="text-sm text-gray-500 mt-1">Switch to a year with transactions.</p>
+			</div>
+		)}
+
+		{groups.map(group => (
+			<section class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+				<!-- Asset header -->
+				<div class="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+					<div class="flex items-center gap-3">
+						<span class="inline-flex w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold items-center justify-center shrink-0">
+							{group.asset.slice(0, 3)}
+						</span>
+						<span class="font-semibold text-gray-900">{group.asset}</span>
+						<span class="text-xs text-gray-400">{group.disposals.length} disposal{group.disposals.length !== 1 ? 's' : ''}</span>
+					</div>
+					<span class="text-xs text-gray-400">{group.openLots.length} open lot{group.openLots.length !== 1 ? 's' : ''} remaining</span>
+				</div>
+
+				<!-- Disposals -->
+				<div class="divide-y divide-gray-100">
+					{group.disposals.map((d, idx) => (
+						<div class="px-5 py-4 flex flex-wrap gap-4 items-start justify-between"
+						     data-asset={group.asset}
+						     data-sell-date={d.sellDate}
+						     data-amount={d.amount}>
+
+							<!-- Disposal info -->
+							<div class="min-w-0 space-y-0.5">
+								<p class="font-medium text-gray-900">
+									Sold {fmtQty(d.amount)} {group.asset}
+									{d.proceeds != null && <span class="text-gray-400 font-normal"> for {fmt(d.proceeds)}</span>}
+								</p>
+								<p class="text-xs text-gray-500">
+									Sold {fmtDate(d.sellDate)} ·
+									Using lot acquired {fmtDate(d.buyDate)} ·
+									{d.daysHeld} days held ·
+									{d.daysHeld >= 365 ? <span class="text-green-600 font-medium">Long-term</span> : <span class="text-amber-600 font-medium">Short-term</span>}
+								</p>
+								{d.gainLoss != null && (
+									<p class={`text-xs font-medium ${d.gainLoss >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+										{d.gainLoss >= 0 ? `+${fmt(d.gainLoss)}` : `(${fmt(Math.abs(d.gainLoss))})`} computed with FIFO
+									</p>
+								)}
+							</div>
+
+							<!-- Pin selector -->
+							<div class="flex items-center gap-2 shrink-0">
+								<label class="text-xs text-gray-500 font-medium">Override lot:</label>
+								<select class="lot-pin-select border border-gray-300 rounded-md px-2 py-1.5 text-xs
+								               focus:outline-none focus:ring-2 focus:ring-indigo-500"
+								        data-idx={idx}>
+									<option value="">— use default ({group.openLots.length > 0 ? 'FIFO' : 'orphaned'}) —</option>
+									{group.openLots.map(ol => (
+										<option value={ol.acquiredDate + '|' + ol.amount}>
+											{fmtQty(ol.amount)} acquired {fmtDate(ol.acquiredDate)}
+											{ol.costUsd != null ? ` · ${fmt(ol.costUsd / ol.amount)}/unit` : ''}
+											· {ol.daysHeld >= 365 ? 'LT' : 'ST'}
+										</option>
+									))}
+								</select>
+								<button class="save-pin-btn text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-50 hidden">
+									Save
+								</button>
+								<span class="pin-status text-xs text-gray-400 hidden"></span>
+							</div>
+						</div>
+					))}
+				</div>
+			</section>
+		))}
+
+	</div>
+</Layout>
+
+<script>
+const year = new URLSearchParams(window.location.search).get('year') ?? String(new Date().getFullYear() - 1);
+
+// Load existing pins and pre-select dropdowns
+async function loadPins() {
+	try {
+		const res = await fetch(`/api/tax/lot-pins?year=${year}`);
+		const data = await res.json() as { ok: boolean; pins: Array<{ disposalSourceId: string; lotAcquiredAt: string; lotAmountHint: number }> };
+		if (!data.ok) return;
+
+		// Build a map from sellDate+amount → pin for UI matching
+		// (exact sourceId matching not available on client — use date+amount as proxy)
+		for (const pin of data.pins) {
+			const selects = document.querySelectorAll<HTMLSelectElement>('.lot-pin-select');
+			for (const sel of selects) {
+				const card = sel.closest('[data-sell-date]') as HTMLElement | null;
+				if (!card) continue;
+				// Find matching option
+				const optionVal = `${pin.lotAcquiredAt}|${pin.lotAmountHint}`;
+				const opt = sel.querySelector<HTMLOptionElement>(`option[value="${optionVal}"]`);
+				if (opt) {
+					sel.value = optionVal;
+					showSaved(sel);
+				}
+			}
+		}
+	} catch {}
+}
+
+function showSaved(sel: HTMLSelectElement) {
+	const status = sel.parentElement?.querySelector<HTMLSpanElement>('.pin-status');
+	if (status) {
+		status.textContent = '✓ Pinned';
+		status.classList.remove('hidden');
+	}
+	const btn = sel.parentElement?.querySelector<HTMLButtonElement>('.save-pin-btn');
+	if (btn) btn.classList.add('hidden');
+}
+
+// Wire up all dropdowns
+document.querySelectorAll<HTMLSelectElement>('.lot-pin-select').forEach((sel) => {
+	const card = sel.closest('[data-asset]') as HTMLElement | null;
+	const saveBtn = sel.parentElement?.querySelector<HTMLButtonElement>('.save-pin-btn');
+	const status  = sel.parentElement?.querySelector<HTMLSpanElement>('.pin-status');
+
+	sel.addEventListener('change', () => {
+		if (saveBtn) saveBtn.classList.remove('hidden');
+		if (status)  status.classList.add('hidden');
+	});
+
+	saveBtn?.addEventListener('click', async () => {
+		const val = sel.value;
+		const asset = card?.dataset.asset ?? '';
+		const sellDate = card?.dataset.sellDate ?? '';
+		const amount = parseFloat(card?.dataset.amount ?? '0');
+
+		if (!val || !asset || !sellDate) return;
+
+		const [lotAcquiredAt, lotAmountHintStr] = val.split('|');
+		const lotAmountHint = parseFloat(lotAmountHintStr ?? '0');
+
+		saveBtn.disabled = true;
+		if (status) { status.textContent = 'Saving…'; status.classList.remove('hidden'); }
+
+		try {
+			const res = await fetch('/api/tax/lot-pins', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					// Use sellDate+asset as a proxy disposal ID (approximation)
+					disposalSourceId: `${asset}:${sellDate}:${amount.toFixed(8)}`,
+					lotAcquiredAt,
+					lotAmountHint,
+					taxYear: parseInt(year, 10),
+				}),
+			});
+			const data = await res.json() as { ok: boolean; error?: string };
+			if (data.ok) {
+				showSaved(sel);
+			} else {
+				if (status) status.textContent = `❌ ${data.error ?? 'Failed'}`;
+			}
+		} catch {
+			if (status) status.textContent = '❌ Network error';
+		} finally {
+			saveBtn.disabled = false;
+		}
+	});
+});
+
+loadPins();
+</script>

@@ -79,7 +79,7 @@ type TaxPayload = {
 	}[];
 	carryforwardAvailable?: number;
 	yoyRows?: { year: number; stGain: number; ltGain: number; netGain: number }[];
-	method?: 'fifo' | 'hifo';
+	method?: 'fifo' | 'hifo' | 'lifo' | 'spec_id';
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
@@ -87,7 +87,10 @@ const defaultYear = new Date().getFullYear() - 1; // prior tax year
 const yearParam   = Astro.url.searchParams.get('year');
 const year        = yearParam ? Number(yearParam) : defaultYear;
 const methodParam = Astro.url.searchParams.get('method');
-const method      = methodParam === 'hifo' ? 'hifo' : 'fifo';
+const method =
+	methodParam === 'hifo'    ? 'hifo'    :
+	methodParam === 'lifo'    ? 'lifo'    :
+	methodParam === 'spec_id' ? 'spec_id' : 'fifo';
 
 const apiUrl = new URL(`/api/tax/summary?year=${year}&method=${method}`, Astro.request.url);
 const apiRes = await fetch(apiUrl);
@@ -144,11 +147,23 @@ const fmtGain = (n: number) => {
 						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'hifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
 						title="Highest In, First Out — minimizes taxable gain"
 					>HIFO</a>
+					<a
+						href={`?year=${year}&method=lifo`}
+						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'lifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+						title="Last In, First Out — preferred in down markets"
+					>LIFO</a>
+					<a
+						href={`/dashboard/tax/lots?year=${year}`}
+						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'spec_id' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+						title="Specific Identification — manually choose which lot to sell"
+					>Spec ID</a>
 				</div>
 
-				{method === 'hifo' && (
+				{(method === 'hifo' || method === 'lifo' || method === 'spec_id') && (
 					<span class="text-xs text-indigo-600 font-medium bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
-						HIFO active — selling highest-cost lots first
+						{method === 'hifo' ? 'HIFO active — selling highest-cost lots first' :
+						 method === 'lifo' ? 'LIFO active — selling most-recently-acquired lots first' :
+						 'Spec ID active — using your pinned lot assignments'}
 					</span>
 				)}
 
@@ -545,7 +560,7 @@ const fmtGain = (n: number) => {
 						<div>
 							<h2 class="text-sm font-semibold text-indigo-900">Estimated Tax Liability</h2>
 							<p class="text-xs text-indigo-600 mt-0.5">
-								Based on {year} IRS brackets · {method === 'hifo' ? 'HIFO' : 'FIFO'} cost basis · estimate only
+								Based on {year} IRS brackets · {method.toUpperCase()} cost basis · estimate only
 							</p>
 						</div>
 						<span class="text-xs text-indigo-400 font-medium">Not financial advice</span>

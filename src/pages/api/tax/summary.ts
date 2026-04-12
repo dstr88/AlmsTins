@@ -51,7 +51,10 @@ export const GET: APIRoute = async ({ request, url }) => {
 	const yearParam   = url.searchParams.get('year');
 	const year        = yearParam ? Number(yearParam) : new Date().getFullYear();
 	const methodParam = url.searchParams.get('method');
-	const method: CostBasisMethod = methodParam === 'hifo' ? 'hifo' : 'fifo';
+	const method: CostBasisMethod =
+		methodParam === 'hifo'    ? 'hifo'    :
+		methodParam === 'lifo'    ? 'lifo'    :
+		methodParam === 'spec_id' ? 'spec_id' : 'fifo';
 
 	if (Number.isNaN(year) || year < 2009 || year > 2100) {
 		return respond({ ok: false, error: 'Invalid year parameter.' }, 400);

@@ -1,0 +1,331 @@
+---
+/**
+ * /dashboard/tax/schedule-d
+ *
+ * Schedule D Summary — Capital Gains and Losses.
+ * Summarises Form 8949 box totals into the Schedule D line-by-line format.
+ *
+ * Schedule D line mapping for crypto:
+ *   Part I  Short-Term
+ *     Line 1a → Box A totals (covered, no adjustments)
+ *     Line 1b → Box B totals (uncovered)
+ *     Line 2  → Box C totals  ← most crypto lands here pre-2025
+ *     Line 6  → Capital loss carryover (ST portion)
+ *     Line 7  → Net ST gain or (loss)
+ *   Part II Long-Term
+ *     Line 8a → Box D totals (covered, no adjustments)
+ *     Line 8b → Box E totals (uncovered)
+ *     Line 9  → Box F totals  ← most crypto lands here pre-2025
+ *     Line 14 → Capital loss carryover (LT portion) — always $0 for crypto (all CL carryover is ST)
+ *     Line 15 → Net LT gain or (loss)
+ *   Part III Summary
+ *     Line 16 → Combine lines 7 + 15
+ *     Line 21 → Total capital loss carryover (from prior years, capped at $3,000 deduction)
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+await requireTenantSession(Astro.request);
+
+const currentYear = new Date().getFullYear();
+const defaultYear = currentYear - 1;
+---
+
+<Layout title="Schedule D | Almstins" noindex={true}>
+	<div class="max-w-4xl mx-auto px-4 py-8 space-y-8 print:px-0 print:py-0 print:max-w-none">
+
+		<!-- Header -->
+		<div class="print:hidden flex items-start justify-between flex-wrap gap-4">
+			<div>
+				<a href="/dashboard/tax" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
+				<h1 class="text-2xl font-bold text-gray-900">Schedule D Summary</h1>
+				<p class="text-sm text-gray-500 mt-1">Capital Gains and Losses — IRS Schedule D line-by-line.</p>
+			</div>
+			<div class="flex items-center gap-3 flex-wrap">
+				<select id="year-sel" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+					{Array.from({ length: 8 }, (_, i) => currentYear - 1 - i).map(y => (
+						<option value={y} selected={y === defaultYear}>{y}</option>
+					))}
+				</select>
+				<select id="method-sel" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+					<option value="fifo">FIFO</option>
+					<option value="hifo">HIFO</option>
+					<option value="lifo">LIFO</option>
+					<option value="spec_id">Spec ID</option>
+				</select>
+				<button id="btn-print"
+				        class="print:hidden rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium px-4 py-2 transition-colors hidden">
+					🖨 Print
+				</button>
+			</div>
+		</div>
+
+		<div id="state-loading" class="print:hidden text-center py-16 text-gray-400 text-sm">
+			<div class="animate-spin inline-block w-6 h-6 border-2 border-gray-300 border-t-indigo-500 rounded-full mb-3"></div>
+			<p>Loading Schedule D…</p>
+		</div>
+		<div id="state-error" class="print:hidden hidden rounded-xl border border-red-200 bg-red-50 p-6 text-red-700 text-sm"></div>
+
+		<!-- Schedule D Output -->
+		<div id="sched-d-output" class="hidden space-y-6">
+
+			<!-- Print header (hidden on screen) -->
+			<div class="hidden print:block mb-4 border-b-2 border-black pb-2">
+				<p class="text-xs text-gray-500">SCHEDULE D SUMMARY (Form 1040) — Prepared by Almstins</p>
+				<p class="text-lg font-bold">Schedule D — Capital Gains and Losses</p>
+				<p id="print-year-method" class="text-sm"></p>
+			</div>
+
+			<!-- Disclaimer -->
+			<div class="print:hidden rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+				This summary maps your crypto transactions to Schedule D lines. The totals below flow
+				from your Form 8949 data. Always verify with your CPA before filing.
+			</div>
+
+			<!-- Part I: Short-Term -->
+			<section>
+				<h2 class="text-base font-bold text-gray-900 mb-3 border-b border-gray-200 pb-2">
+					Part I — Short-Term Capital Gains and Losses
+					<span class="text-xs font-normal text-gray-500 ml-2">(Assets held 1 year or less)</span>
+				</h2>
+				<div id="part1-table"></div>
+			</section>
+
+			<!-- Part II: Long-Term -->
+			<section>
+				<h2 class="text-base font-bold text-gray-900 mb-3 border-b border-gray-200 pb-2">
+					Part II — Long-Term Capital Gains and Losses
+					<span class="text-xs font-normal text-gray-500 ml-2">(Assets held more than 1 year)</span>
+				</h2>
+				<div id="part2-table"></div>
+			</section>
+
+			<!-- Part III: Summary -->
+			<section>
+				<h2 class="text-base font-bold text-gray-900 mb-3 border-b border-gray-200 pb-2">
+					Part III — Summary
+				</h2>
+				<div id="part3-table"></div>
+			</section>
+
+			<!-- Next steps panel -->
+			<div id="next-steps" class="print:hidden rounded-xl border border-gray-200 bg-gray-50 p-5 space-y-2">
+				<p class="font-semibold text-gray-800 text-sm">Next steps for your CPA</p>
+				<ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
+					<li>Attach Form 8949 (both parts) to this Schedule D — download from the <a href="/dashboard/tax/form8949" class="text-indigo-600 hover:underline">Form 8949 page</a></li>
+					<li>Enter the Schedule D totals on Form 1040, Line 7 (capital gain/loss)</li>
+					<li>If Line 16 is a loss, also complete the Capital Loss Carryover Worksheet</li>
+					<li>Ordinary crypto income (staking, interest) goes on Schedule 1, Line 8z — not Schedule D</li>
+				</ul>
+			</div>
+
+		</div>
+
+	</div>
+</Layout>
+
+<style>
+.sched-d-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.sched-d-table td, .sched-d-table th { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+.sched-d-table .line-num { width: 3.5rem; font-weight: 700; color: #6b7280; text-align: center; }
+.sched-d-table .line-desc { color: #111827; }
+.sched-d-table .line-note { font-size: 0.7rem; color: #9ca3af; display: block; margin-top: 2px; }
+.sched-d-table .line-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; min-width: 9rem; }
+.sched-d-table .line-val.gain  { color: #059669; }
+.sched-d-table .line-val.loss  { color: #dc2626; }
+.sched-d-table .line-val.zero  { color: #9ca3af; }
+.sched-d-table tr.subtotal td  { border-top: 2px solid #d1d5db; background: #f9fafb; }
+.sched-d-table tr.subtotal .line-val { font-weight: 800; font-size: 1rem; }
+.sched-d-table tr.total td     { border-top: 3px solid #374151; background: #f3f4f6; }
+.sched-d-table tr.total .line-val { font-weight: 900; font-size: 1.05rem; }
+.sched-d-table tr.n-a td       { opacity: 0.5; }
+
+@media print {
+	.sched-d-table td, .sched-d-table th { padding: 4px 8px; font-size: 9pt; }
+	.sched-d-table .line-val { min-width: 6rem; }
+}
+</style>
+
+<script>
+const USD = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
+const fmtGain = (n: number) => { const abs = USD(Math.abs(n)); return n < 0 ? `(${abs})` : n > 0 ? `+${abs}` : abs; };
+const gainClass = (n: number) => n < -0.005 ? 'loss' : n > 0.005 ? 'gain' : 'zero';
+
+interface BoxTotals { proceeds: number; basis: number; gainLoss: number }
+interface BoxData { box: string; rows: unknown[]; totals: BoxTotals }
+
+function buildTable(lines: Array<{
+	num: string;
+	desc: string;
+	note?: string;
+	value: number | null;
+	rowClass?: string;
+	na?: boolean;
+}>): HTMLTableElement {
+	const t = document.createElement('table');
+	t.className = 'sched-d-table';
+	const tb = document.createElement('tbody');
+
+	for (const line of lines) {
+		const tr = document.createElement('tr');
+		if (line.rowClass) tr.className = line.rowClass;
+		if (line.na) tr.className = (tr.className + ' n-a').trim();
+
+		const valHtml = line.value != null
+			? `<span class="${gainClass(line.value)}">${fmtGain(line.value)}</span>`
+			: `<span class="zero">—</span>`;
+
+		tr.innerHTML = `
+			<td class="line-num">${line.num}</td>
+			<td class="line-desc">
+				${line.desc}
+				${line.note ? `<span class="line-note">${line.note}</span>` : ''}
+			</td>
+			<td class="line-val">${valHtml}</td>
+		`;
+		tb.appendChild(tr);
+	}
+	t.appendChild(tb);
+	return t;
+}
+
+async function loadScheduleD() {
+	const yearSel   = (document.getElementById('year-sel')   as HTMLSelectElement).value;
+	const methodSel = (document.getElementById('method-sel') as HTMLSelectElement).value;
+
+	const stLoading = document.getElementById('state-loading')!;
+	const stError   = document.getElementById('state-error')!;
+	const output    = document.getElementById('sched-d-output')!;
+
+	stLoading.classList.remove('hidden');
+	stError.classList.add('hidden');
+	output.classList.add('hidden');
+
+	try {
+		// Fetch Form 8949 data (box totals) and tax summary (carryforward)
+		const [f8949Res, summaryRes] = await Promise.all([
+			fetch(`/api/tax/form8949?year=${yearSel}&method=${methodSel}`),
+			fetch(`/api/tax/summary?year=${yearSel}&method=${methodSel}`),
+		]);
+
+		const [f8949, summary] = await Promise.all([f8949Res.json(), summaryRes.json()]) as [
+			{ ok: boolean; boxes: Record<string, BoxData>; totals: BoxTotals },
+			{ ok: boolean; carryforwardAvailable?: number; gains?: { shortTermGain: number; longTermGain: number; netGain: number } },
+		];
+
+		stLoading.classList.add('hidden');
+
+		if (!f8949.ok) {
+			stError.textContent = 'Failed to load Form 8949 data.';
+			stError.classList.remove('hidden');
+			return;
+		}
+
+		const bA = f8949.boxes.A?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bB = f8949.boxes.B?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bC = f8949.boxes.C?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bD = f8949.boxes.D?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bE = f8949.boxes.E?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+		const bF = f8949.boxes.F?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+
+		const stCarryover = 0;  // ST loss carryover — sourced from prior-year worksheet
+		const ltCarryover = 0;  // LT loss carryover — sourced from prior-year worksheet
+		const totalCarryover = summary.carryforwardAvailable ?? 0;
+		// Split carryover 50/50 between ST/LT as a reasonable default
+		// (actual split comes from prior-year Schedule D Worksheet Line 8)
+		const stCarry = Math.min(totalCarryover / 2, totalCarryover);
+		const ltCarry = Math.max(totalCarryover - stCarry, 0);
+
+		const stNet = bA.gainLoss + bB.gainLoss + bC.gainLoss - stCarry;
+		const ltNet = bD.gainLoss + bE.gainLoss + bF.gainLoss - ltCarry;
+		const combined = stNet + ltNet;
+
+		// ── Part I ──────────────────────────────────────────────────────────
+		const part1El = document.getElementById('part1-table')!;
+		part1El.innerHTML = '';
+		part1El.appendChild(buildTable([
+			{ num: '1a', desc: 'Totals for all short-term transactions reported on Form 1099-B with Box A checked — basis shown to IRS, no adjustments',
+			  note: 'Form 8949 Box A totals', value: bA.gainLoss, na: bA.gainLoss === 0 },
+			{ num: '1b', desc: 'Totals for all short-term transactions where basis was NOT reported to IRS (Box B)',
+			  note: 'Form 8949 Box B totals', value: bB.gainLoss, na: bB.gainLoss === 0 },
+			{ num: '2',  desc: 'Totals for short-term transactions NOT on Form 1099-B — includes all pre-2025 crypto',
+			  note: `Form 8949 Box C · ${f8949.boxes.C?.rows?.length ?? 0} transactions · Proceeds ${USD(bC.proceeds)} · Basis ${USD(bC.basis)}`,
+			  value: bC.gainLoss },
+			{ num: '3',  desc: 'Net short-term gain/loss from partnerships, S-corps, estates, and trusts', value: null, na: true },
+			{ num: '4',  desc: 'Short-term gain from Form 6252, and short-term gain/loss from Forms 4684, 6781, and 8824', value: null, na: true },
+			{ num: '5',  desc: 'Net short-term gain/loss from partnerships, S-corps (Schedule K-1)', value: null, na: true },
+			{ num: '6',  desc: 'Short-term capital loss carryover (from prior-year Schedule D Worksheet)',
+			  note: 'Enter as negative number. Value shown is Almstins estimate from loss carryforward tracker.',
+			  value: stCarry > 0 ? -stCarry : null, na: stCarry === 0 },
+			{ num: '7',  desc: 'Net short-term capital gain or (loss)', rowClass: 'subtotal',
+			  note: 'Lines 1a + 1b + 2 + 3 + 4 + 5 + 6. Transfer to Schedule D line 7.',
+			  value: stNet },
+		]));
+
+		// ── Part II ─────────────────────────────────────────────────────────
+		const part2El = document.getElementById('part2-table')!;
+		part2El.innerHTML = '';
+		part2El.appendChild(buildTable([
+			{ num: '8a', desc: 'Totals for all long-term transactions reported on Form 1099-B with Box D checked — basis shown to IRS, no adjustments',
+			  note: 'Form 8949 Box D totals', value: bD.gainLoss, na: bD.gainLoss === 0 },
+			{ num: '8b', desc: 'Totals for long-term transactions where basis was NOT reported to IRS (Box E)',
+			  note: 'Form 8949 Box E totals', value: bE.gainLoss, na: bE.gainLoss === 0 },
+			{ num: '9',  desc: 'Totals for long-term transactions NOT on Form 1099-B — includes all pre-2025 crypto',
+			  note: `Form 8949 Box F · ${f8949.boxes.F?.rows?.length ?? 0} transactions · Proceeds ${USD(bF.proceeds)} · Basis ${USD(bF.basis)}`,
+			  value: bF.gainLoss },
+			{ num: '10', desc: 'Net long-term gain/loss from partnerships, S-corps, estates, and trusts', value: null, na: true },
+			{ num: '11', desc: 'Long-term capital gain distributions not reported directly on Form 1040', value: null, na: true },
+			{ num: '12', desc: 'Gain from Form 4797, Part I; long-term gain from Forms 2439 and 6252', value: null, na: true },
+			{ num: '13', desc: 'Net long-term gain/loss from partnerships, S-corps (Schedule K-1)', value: null, na: true },
+			{ num: '14', desc: 'Long-term capital loss carryover (from prior-year Schedule D Worksheet)',
+			  value: ltCarry > 0 ? -ltCarry : null, na: ltCarry === 0 },
+			{ num: '15', desc: 'Net long-term capital gain or (loss)', rowClass: 'subtotal',
+			  note: 'Lines 8a + 8b + 9 through 14. Transfer to Form 1040, Line 7.',
+			  value: ltNet },
+		]));
+
+		// ── Part III ────────────────────────────────────────────────────────
+		const allowedDeduction = combined < 0
+			? Math.max(combined, -3000)   // $3,000 annual loss deduction cap
+			: 0;
+		const carryforwardToNextYear = combined < -3000
+			? combined + 3000             // excess after $3k deduction
+			: 0;
+
+		const part3El = document.getElementById('part3-table')!;
+		part3El.innerHTML = '';
+		part3El.appendChild(buildTable([
+			{ num: '16', desc: 'Combine lines 7 and 15. If a loss, go to line 17; if a gain, enter on Form 1040, Line 7.',
+			  rowClass: 'total', note: 'Short-term + Long-term net', value: combined },
+			{ num: '17', desc: 'Are you reporting a gain from Form 2439, 4684, 6252, 6781, or 8824?', value: null, na: true },
+			{ num: '18', desc: 'Unrecaptured Section 1250 gain from installment sales or pass-throughs', value: null, na: true },
+			{ num: '19', desc: 'Net Section 1202 gain (qualified small business stock — 50% exclusion)', value: null, na: true },
+			{ num: '20', desc: 'Collectibles (28% rate) gain or (loss)', value: null, na: true },
+			{ num: '21', desc: 'If line 16 is a loss — your allowable capital loss deduction (max $3,000 / $1,500 if MFS)',
+			  note: 'Enter as negative on Form 1040 line 7. Excess carries forward to next year.',
+			  value: allowedDeduction !== 0 ? allowedDeduction : null, na: combined >= 0 },
+			{ num: '→', desc: 'Capital loss carryforward to next year (not entered on 1040)',
+			  note: 'Retain this amount for next year\'s Schedule D Worksheet.',
+			  value: carryforwardToNextYear !== 0 ? carryforwardToNextYear : null, na: carryforwardToNextYear === 0 },
+		]));
+
+		// Print header
+		(document.getElementById('print-year-method') as HTMLElement).textContent =
+			`Tax Year: ${yearSel} · Cost Basis Method: ${methodSel.toUpperCase()} · Prepared by Almstins`;
+
+		document.getElementById('btn-print')!.classList.remove('hidden');
+		output.classList.remove('hidden');
+
+	} catch (err) {
+		stLoading.classList.add('hidden');
+		stError.textContent = 'Network error — please try again.';
+		stError.classList.remove('hidden');
+	}
+}
+
+document.getElementById('year-sel')?.addEventListener('change', loadScheduleD);
+document.getElementById('method-sel')?.addEventListener('change', loadScheduleD);
+document.getElementById('btn-print')?.addEventListener('click', () => window.print());
+
+loadScheduleD();
+</script>

@@ -66,6 +66,47 @@ const priorYear    = currentYear - 1;
 			</a>
 		</section>
 
+		<!-- IRS Forms section -->
+		<section class="space-y-3">
+			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">IRS Forms</h2>
+
+			<a href="/dashboard/tax/form8949" class="tax-card group">
+				<div class="tax-card-icon bg-slate-50 text-slate-600">📝</div>
+				<div class="flex-1 min-w-0">
+					<p class="tax-card-title">Form 8949</p>
+					<p class="tax-card-desc">
+						Sales and Other Dispositions of Capital Assets. Per-lot disposition table in IRS
+						format, sorted by Box C (short-term) and Box F (long-term). Print-ready + CSV download.
+					</p>
+				</div>
+				<span class="tax-card-arrow">→</span>
+			</a>
+
+			<a href="/dashboard/tax/schedule-d" class="tax-card group">
+				<div class="tax-card-icon bg-slate-50 text-slate-700">🗂</div>
+				<div class="flex-1 min-w-0">
+					<p class="tax-card-title">Schedule D Summary</p>
+					<p class="tax-card-desc">
+						Capital Gains and Losses — line-by-line Schedule D totals (Lines 1a, 1b, 2, 7, 8a, 8b,
+						9, 15, 16, 21). Flows directly from Form 8949 box totals. Print-ready.
+					</p>
+				</div>
+				<span class="tax-card-arrow">→</span>
+			</a>
+
+			<a href="/dashboard/tax/lots" class="tax-card group">
+				<div class="tax-card-icon bg-violet-50 text-violet-600">🎯</div>
+				<div class="flex-1 min-w-0">
+					<p class="tax-card-title">Lot Manager — Specific ID</p>
+					<p class="tax-card-desc">
+						Manually pin each disposal to a specific cost-basis lot. When Spec ID method is active,
+						these pins override FIFO/HIFO/LIFO — the lowest-tax outcome in any scenario.
+					</p>
+				</div>
+				<span class="tax-card-arrow">→</span>
+			</a>
+		</section>
+
 		<!-- 1099 reconciliation -->
 		<a href="/dashboard/tax/1099" class="tax-card group">
 			<div class="tax-card-icon bg-purple-50 text-purple-600">🧾</div>

@@ -1,0 +1,426 @@
+---
+/**
+ * /dashboard/tax/form8949
+ *
+ * Printable IRS Form 8949 — Sales and Other Dispositions of Capital Assets.
+ * Data is fetched client-side so the page can render immediately and the
+ * user can switch year/method without a full page reload.
+ *
+ * Print button opens browser print dialog. CSS @media print hides all chrome.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+await requireTenantSession(Astro.request);
+
+const currentYear = new Date().getFullYear();
+const defaultYear = currentYear - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const initialYear = yearParam ? Number(yearParam) : defaultYear;
+const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
+---
+
+<Layout title="Form 8949 | Almstins" noindex={true}>
+	<div id="app" class="max-w-6xl mx-auto px-4 py-8 space-y-6 print:px-0 print:py-0 print:max-w-none">
+
+		<!-- Screen-only header -->
+		<div class="print:hidden flex items-start justify-between flex-wrap gap-4">
+			<div>
+				<a href="/dashboard/tax" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
+				<h1 class="text-2xl font-bold text-gray-900">Form 8949</h1>
+				<p class="text-sm text-gray-500 mt-1">
+					Sales and Other Dispositions of Capital Assets — attach to Schedule D.
+				</p>
+			</div>
+			<div class="flex items-center gap-3 flex-wrap">
+				<!-- Year + method selectors -->
+				<select id="year-sel" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+					{Array.from({ length: 8 }, (_, i) => currentYear - 1 - i).map(y => (
+						<option value={y} selected={y === initialYear}>{y}</option>
+					))}
+				</select>
+				<select id="method-sel" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+					<option value="fifo"    selected={methodParam === 'fifo'}>FIFO</option>
+					<option value="hifo"    selected={methodParam === 'hifo'}>HIFO</option>
+					<option value="lifo"    selected={methodParam === 'lifo'}>LIFO</option>
+					<option value="spec_id" selected={methodParam === 'spec_id'}>Spec ID</option>
+				</select>
+				<button id="btn-load"
+				        class="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors">
+					Load
+				</button>
+				<button id="btn-csv"
+				        class="rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 transition-colors hidden">
+					↓ CSV
+				</button>
+				<button id="btn-print"
+				        class="rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium px-4 py-2 transition-colors hidden">
+					🖨 Print
+				</button>
+			</div>
+		</div>
+
+		<!-- Loading/error/empty states -->
+		<div id="state-loading" class="print:hidden text-center py-16 text-gray-400 text-sm">
+			<div class="animate-spin inline-block w-6 h-6 border-2 border-gray-300 border-t-indigo-500 rounded-full mb-3"></div>
+			<p>Loading Form 8949…</p>
+		</div>
+		<div id="state-error" class="print:hidden hidden rounded-xl border border-red-200 bg-red-50 p-6 text-red-700 text-sm"></div>
+		<div id="state-empty" class="print:hidden hidden rounded-xl border border-gray-200 bg-gray-50 p-10 text-center">
+			<p class="text-2xl mb-2">📋</p>
+			<p class="font-medium text-gray-700">No disposals found for this year</p>
+			<p class="text-sm text-gray-500 mt-1">Try a different tax year or import more transaction data.</p>
+		</div>
+
+		<!-- Form output — screen summary cards + printable pages -->
+		<div id="form-output" class="hidden space-y-6">
+
+			<!-- Screen-only summary -->
+			<div id="summary-cards" class="print:hidden grid grid-cols-3 gap-4">
+				<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+					<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Total Proceeds</p>
+					<p id="sum-proceeds" class="text-xl font-bold text-gray-900 mt-1"></p>
+				</div>
+				<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+					<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Total Basis</p>
+					<p id="sum-basis" class="text-xl font-bold text-gray-900 mt-1"></p>
+				</div>
+				<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+					<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Net Gain / (Loss)</p>
+					<p id="sum-gain" class="text-xl font-bold mt-1"></p>
+				</div>
+			</div>
+
+			<!-- BO warning -->
+			<div id="bo-warning" class="print:hidden hidden rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+				<strong>⚠ Some rows are marked BO</strong> (basis not reported). These are transactions where
+				no cost basis was recorded. Review your <a href="/dashboard/tax/review" class="underline">Review Queue</a>
+				to resolve missing basis before filing.
+			</div>
+
+			<!-- Form pages container — one page per part -->
+			<div id="form-pages"></div>
+
+		</div>
+
+	</div>
+</Layout>
+
+<style>
+/* ── Print styles ──────────────────────────────────────────────────────────── */
+@media print {
+	body { margin: 0; font-family: Arial, sans-serif; font-size: 9pt; }
+	.form-page {
+		page-break-after: always;
+		padding: 0.4in 0.4in 0.3in;
+		width: 100%;
+		box-sizing: border-box;
+	}
+	.form-page:last-child { page-break-after: avoid; }
+	table { border-collapse: collapse; width: 100%; }
+	th, td { border: 1px solid #000; padding: 2px 4px; font-size: 8pt; }
+	th { background: #e8e8e8 !important; -webkit-print-color-adjust: exact; }
+	.irs-header { border: 2px solid #000; padding: 6px; margin-bottom: 6px; }
+	.part-label { font-size: 11pt; font-weight: bold; margin: 6px 0 4px; }
+	.box-row { display: flex; gap: 16px; align-items: center; margin: 4px 0; }
+	.checkbox { width: 12px; height: 12px; border: 1px solid #000; display: inline-flex; align-items: center; justify-content: center; margin-right: 4px; font-weight: bold; font-size: 9pt; }
+	.totals-row td { font-weight: bold; background: #f0f0f0 !important; -webkit-print-color-adjust: exact; }
+}
+
+/* ── Screen preview styles ─────────────────────────────────────────────────── */
+@media screen {
+	.form-page {
+		background: #fff;
+		border: 1px solid #d1d5db;
+		border-radius: 0.75rem;
+		padding: 1.5rem;
+		box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+		overflow-x: auto;
+	}
+	.irs-header {
+		border: 2px solid #374151;
+		border-radius: 0.375rem;
+		padding: 0.75rem;
+		margin-bottom: 1rem;
+		background: #f9fafb;
+	}
+	table { border-collapse: collapse; width: 100%; font-size: 0.75rem; }
+	th { background: #f3f4f6; font-weight: 600; text-align: left; padding: 6px 8px; border: 1px solid #d1d5db; }
+	td { padding: 4px 8px; border: 1px solid #e5e7eb; }
+	tr:hover td { background: #f9fafb; }
+	.part-label { font-size: 1rem; font-weight: 700; margin: 0 0 0.75rem; }
+	.box-row { display: flex; gap: 1.5rem; align-items: center; margin: 0.5rem 0 1rem; font-size: 0.85rem; }
+	.checkbox { width: 16px; height: 16px; border: 1.5px solid #374151; display: inline-flex; align-items: center; justify-content: center; margin-right: 4px; font-weight: bold; border-radius: 2px; }
+	.checked { background: #1e40af; color: #fff; }
+	.totals-row td { font-weight: 700; background: #f3f4f6; }
+}
+</style>
+
+<script>
+const USD = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
+const fmtGain = (n: number) => { const abs = USD(Math.abs(n)); return n < 0 ? `(${abs})` : n > 0 ? `+${abs}` : abs; };
+
+interface Form8949Row {
+	description: string;
+	dateAcquired: string;
+	dateSold: string;
+	proceeds: number;
+	costBasis: number;
+	codes: string;
+	adjustment: number;
+	gainLoss: number;
+	daysHeld: number;
+}
+interface Form8949Box {
+	box: string;
+	label: string;
+	part: 'I' | 'II';
+	term: string;
+	rows: Form8949Row[];
+	totals: { proceeds: number; basis: number; gainLoss: number };
+}
+
+let currentData: { year: number; method: string; boxes: Record<string, Form8949Box>; totals: { proceeds: number; basis: number; gainLoss: number } } | null = null;
+
+async function loadForm8949() {
+	const yearSel   = (document.getElementById('year-sel')   as HTMLSelectElement).value;
+	const methodSel = (document.getElementById('method-sel') as HTMLSelectElement).value;
+
+	const stLoading = document.getElementById('state-loading')!;
+	const stError   = document.getElementById('state-error')!;
+	const stEmpty   = document.getElementById('state-empty')!;
+	const formOut   = document.getElementById('form-output')!;
+
+	stLoading.classList.remove('hidden');
+	stError.classList.add('hidden');
+	stEmpty.classList.add('hidden');
+	formOut.classList.add('hidden');
+
+	// Update URL without reload
+	const url = new URL(window.location.href);
+	url.searchParams.set('year', yearSel);
+	url.searchParams.set('method', methodSel);
+	history.replaceState(null, '', url);
+
+	try {
+		const res = await fetch(`/api/tax/form8949?year=${yearSel}&method=${methodSel}`);
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		const data = await res.json() as { ok: boolean; error?: string; year: number; method: string; boxes: Record<string, Form8949Box>; totals: { proceeds: number; basis: number; gainLoss: number } };
+
+		stLoading.classList.add('hidden');
+
+		if (!data.ok) {
+			stError.textContent = data.error ?? 'Failed to load form data.';
+			stError.classList.remove('hidden');
+			return;
+		}
+
+		const hasData = (data.boxes.C?.rows.length ?? 0) + (data.boxes.F?.rows.length ?? 0) > 0;
+		if (!hasData) {
+			stEmpty.classList.remove('hidden');
+			return;
+		}
+
+		currentData = data;
+		renderForm(data);
+		formOut.classList.remove('hidden');
+		document.getElementById('btn-csv')!.classList.remove('hidden');
+		document.getElementById('btn-print')!.classList.remove('hidden');
+
+	} catch (err) {
+		stLoading.classList.add('hidden');
+		stError.textContent = 'Network error — please try again.';
+		stError.classList.remove('hidden');
+	}
+}
+
+function renderForm(data: NonNullable<typeof currentData>) {
+	// Summary
+	(document.getElementById('sum-proceeds') as HTMLElement).textContent = USD(data.totals.proceeds);
+	(document.getElementById('sum-basis')    as HTMLElement).textContent = USD(data.totals.basis);
+	const gainEl = document.getElementById('sum-gain')!;
+	gainEl.textContent  = fmtGain(data.totals.gainLoss);
+	gainEl.className    = `text-xl font-bold mt-1 ${data.totals.gainLoss >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
+
+	// BO warning
+	const allRows = [...(data.boxes.C?.rows ?? []), ...(data.boxes.F?.rows ?? [])];
+	const hasBO = allRows.some(r => r.codes.includes('B') || r.codes.includes('BO'));
+	if (hasBO) document.getElementById('bo-warning')!.classList.remove('hidden');
+
+	// Render form pages — one page per Part (I = short-term, II = long-term)
+	const pagesEl = document.getElementById('form-pages')!;
+	pagesEl.innerHTML = '';
+
+	const parts: Array<{ part: 'I' | 'II'; label: string; activeBox: string; allBoxes: string[]; rows: Form8949Row[]; totals: { proceeds: number; basis: number; gainLoss: number } }> = [
+		{
+			part: 'I', label: 'Part I — Short-Term Capital Gains and Losses',
+			activeBox: 'C', allBoxes: ['A', 'B', 'C'],
+			rows: data.boxes.C?.rows ?? [],
+			totals: data.boxes.C?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 },
+		},
+		{
+			part: 'II', label: 'Part II — Long-Term Capital Gains and Losses',
+			activeBox: 'F', allBoxes: ['D', 'E', 'F'],
+			rows: data.boxes.F?.rows ?? [],
+			totals: data.boxes.F?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 },
+		},
+	];
+
+	const boxDescriptions: Record<string, string> = {
+		A: '(A) Basis reported to IRS on 1099-B',
+		B: '(B) Basis NOT reported to IRS on 1099-B',
+		C: '(C) Not reported to you on 1099-B or Form 1099-B not received',
+		D: '(D) Basis reported to IRS on 1099-B',
+		E: '(E) Basis NOT reported to IRS on 1099-B',
+		F: '(F) Not reported to you on 1099-B or Form 1099-B not received',
+	};
+
+	for (const p of parts) {
+		if (p.rows.length === 0) continue;
+
+		const page = document.createElement('div');
+		page.className = 'form-page';
+
+		// IRS header
+		const header = document.createElement('div');
+		header.className = 'irs-header';
+		header.innerHTML = `
+			<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem;">
+				<div>
+					<p style="font-size:0.65rem; color:#6b7280; margin:0;">SCHEDULE D / FORM 8949 ATTACHMENT</p>
+					<p style="font-size:1.1rem; font-weight:800; margin:2px 0;">Form 8949</p>
+					<p style="font-size:0.7rem; color:#374151; margin:0;">Sales and Other Dispositions of Capital Assets</p>
+					<p style="font-size:0.65rem; color:#6b7280; margin:2px 0;">Attach to Schedule D. Department of the Treasury — Internal Revenue Service</p>
+				</div>
+				<div style="text-align:right; font-size:0.75rem;">
+					<p style="margin:0;"><strong>Tax Year:</strong> ${data.year}</p>
+					<p style="margin:2px 0;"><strong>Method:</strong> ${data.method.toUpperCase()}</p>
+					<p style="margin:0; font-size:0.65rem; color:#9ca3af;">Prepared by Almstins — not an IRS-issued form</p>
+				</div>
+			</div>
+		`;
+		page.appendChild(header);
+
+		// Part label
+		const partLabel = document.createElement('p');
+		partLabel.className = 'part-label';
+		partLabel.textContent = p.label;
+		page.appendChild(partLabel);
+
+		// Box checkboxes
+		const boxRow = document.createElement('div');
+		boxRow.className = 'box-row';
+		for (const b of p.allBoxes) {
+			const checked = b === p.activeBox;
+			boxRow.innerHTML += `
+				<label style="cursor:default; display:flex; align-items:center; gap:4px; font-size:0.8rem;">
+					<span class="checkbox ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</span>
+					${boxDescriptions[b]}
+				</label>
+			`;
+		}
+		page.appendChild(boxRow);
+
+		// Note about Box C/F for crypto
+		const note = document.createElement('p');
+		note.style.cssText = 'font-size:0.7rem; color:#6b7280; margin:0 0 12px;';
+		note.textContent = `Note: Crypto transactions are reported in Box ${p.activeBox} ("all other") because exchanges were not required to issue 1099-B for these transactions.`;
+		page.appendChild(note);
+
+		// Table
+		const table = document.createElement('table');
+		table.innerHTML = `
+			<thead>
+				<tr>
+					<th style="width:18%">(a) Description</th>
+					<th style="width:9%">(b) Date Acquired</th>
+					<th style="width:9%">(c) Date Sold</th>
+					<th style="width:10%; text-align:right">(d) Proceeds</th>
+					<th style="width:10%; text-align:right">(e) Cost Basis</th>
+					<th style="width:5%; text-align:center">(f) Codes</th>
+					<th style="width:8%; text-align:right">(g) Adjustment</th>
+					<th style="width:11%; text-align:right">(h) Gain / (Loss)</th>
+				</tr>
+			</thead>
+			<tbody id="tbody-${p.part}"></tbody>
+			<tfoot>
+				<tr class="totals-row">
+					<td colspan="3" style="font-weight:700">Totals (Box ${p.activeBox})</td>
+					<td style="text-align:right">${USD(p.totals.proceeds)}</td>
+					<td style="text-align:right">${USD(p.totals.basis)}</td>
+					<td></td>
+					<td></td>
+					<td style="text-align:right">${fmtGain(p.totals.gainLoss)}</td>
+				</tr>
+			</tfoot>
+		`;
+		page.appendChild(table);
+
+		const tbody = table.querySelector(`#tbody-${p.part}`)!;
+		for (const row of p.rows) {
+			const tr = document.createElement('tr');
+			const gainClass = row.gainLoss < 0 ? 'color:#dc2626' : row.gainLoss > 0 ? 'color:#059669' : '';
+			tr.innerHTML = `
+				<td>${row.description}</td>
+				<td>${row.dateAcquired}</td>
+				<td>${row.dateSold}</td>
+				<td style="text-align:right; font-variant-numeric:tabular-nums">${USD(row.proceeds)}</td>
+				<td style="text-align:right; font-variant-numeric:tabular-nums">${USD(row.costBasis)}</td>
+				<td style="text-align:center; color:#92400e">${row.codes || ''}</td>
+				<td style="text-align:right">${row.adjustment !== 0 ? USD(row.adjustment) : '—'}</td>
+				<td style="text-align:right; font-variant-numeric:tabular-nums; font-weight:500; ${gainClass}">${fmtGain(row.gainLoss)}</td>
+			`;
+			tbody.appendChild(tr);
+		}
+
+		// Row count note
+		const countNote = document.createElement('p');
+		countNote.style.cssText = 'font-size:0.7rem; color:#9ca3af; margin:6px 0 0; text-align:right;';
+		countNote.textContent = `${p.rows.length.toLocaleString()} transaction${p.rows.length !== 1 ? 's' : ''} · See Schedule D for totals`;
+		page.appendChild(countNote);
+
+		pagesEl.appendChild(page);
+	}
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+document.getElementById('btn-csv')?.addEventListener('click', () => {
+	if (!currentData) return;
+	const allRows: Array<{ box: string } & Form8949Row> = [];
+	for (const [box, b] of Object.entries(currentData.boxes)) {
+		for (const r of b.rows) allRows.push({ box, ...r });
+	}
+	const header = ['Box','Description','Date Acquired','Date Sold','Proceeds','Cost Basis','Codes','Adjustment','Gain/(Loss)','Days Held'];
+	const lines = [
+		header.join(','),
+		...allRows.map(r => [
+			r.box,
+			`"${r.description}"`,
+			r.dateAcquired,
+			r.dateSold,
+			r.proceeds.toFixed(2),
+			r.costBasis.toFixed(2),
+			r.codes,
+			r.adjustment.toFixed(2),
+			r.gainLoss.toFixed(2),
+			r.daysHeld,
+		].join(',')),
+	];
+	const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+	const a = document.createElement('a');
+	a.href = URL.createObjectURL(blob);
+	a.download = `form8949_${currentData.year}_${currentData.method}.csv`;
+	a.click();
+});
+
+// ── Print ─────────────────────────────────────────────────────────────────────
+document.getElementById('btn-print')?.addEventListener('click', () => window.print());
+
+// ── Load on demand ────────────────────────────────────────────────────────────
+document.getElementById('btn-load')?.addEventListener('click', loadForm8949);
+document.getElementById('year-sel')?.addEventListener('change', loadForm8949);
+document.getElementById('method-sel')?.addEventListener('change', loadForm8949);
+
+// Auto-load on page open
+loadForm8949();
+</script>

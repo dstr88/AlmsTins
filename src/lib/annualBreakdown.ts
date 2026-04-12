@@ -118,12 +118,13 @@ function daysBetween(a: string, b: string): number {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export type CostBasisMethod = 'fifo' | 'hifo';
+export type CostBasisMethod = 'fifo' | 'hifo' | 'lifo' | 'spec_id';
 
 export async function buildAnnualBreakdown(
   tenantId: string,
   year: number,
   method: CostBasisMethod = 'fifo',
+  lotPins?: Map<string, { acquiredAt: string; amountHint: number }>,
 ): Promise<AnnualBreakdown> {
   const yearStart = `${year}-01-01T00:00:00.000Z`;
   const yearEnd   = `${year}-12-31T23:59:59.999Z`;
@@ -265,8 +266,33 @@ export async function buildAnnualBreakdown(
   // Lot selection — FIFO takes index 0; HIFO picks highest cost-per-unit lot
   type Lot = { amount: number; timestamp: string; costUsd: number | null };
 
-  function selectLotIndex(list: Lot[]): number {
-    if (method === 'fifo' || list.length <= 1) return 0;
+  function selectLotIndex(list: Lot[], disposalSourceId?: string): number {
+    if (list.length <= 1) return 0;
+
+    // Specific ID: check if user pinned a lot for this disposal
+    if (method === 'spec_id' && disposalSourceId && lotPins) {
+      const pin = lotPins.get(disposalSourceId);
+      if (pin) {
+        // Find lot with matching acquiredAt (closest amountHint wins on ties)
+        let bestIdx = -1;
+        let bestDiff = Infinity;
+        for (let i = 0; i < list.length; i++) {
+          if (list[i].timestamp === pin.acquiredAt) {
+            const diff = Math.abs(list[i].amount - pin.amountHint);
+            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+          }
+        }
+        if (bestIdx >= 0) return bestIdx;
+      }
+      // Fall through to FIFO if no pin found
+      return 0;
+    }
+
+    if (method === 'fifo') return 0;
+
+    if (method === 'lifo') return list.length - 1;
+
+    // HIFO: highest cost-per-unit
     let bestIdx = 0;
     let bestCpu = -Infinity;
     for (let i = 0; i < list.length; i++) {
@@ -332,7 +358,8 @@ export async function buildAnnualBreakdown(
           }
           break;
         }
-        const lotIdx = selectLotIndex(list);
+        const disposalSrcId = typeof row.source_id === 'string' ? row.source_id : undefined;
+        const lotIdx = selectLotIndex(list, disposalSrcId);
         const lot    = list[lotIdx];
 
         const take        = Math.min(remaining, lot.amount);
