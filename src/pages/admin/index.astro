@@ -119,6 +119,32 @@ const [
 	safeScalar('SELECT COUNT(DISTINCT addr_hash) FROM wallet_check_log'),
 ]);
 
+// ── Adoption stats (separate pass — these need the above to finish first) ────
+const [
+	tenantsWithWallets,
+	tenantsWithExchanges,
+	totalExchangeAccounts,
+	adoptionRows,
+] = await Promise.all([
+	safeScalar(`SELECT COUNT(DISTINCT tenant_id) FROM wallets WHERE deleted_at IS NULL OR deleted_at = ''`),
+	safeScalar(`SELECT COUNT(DISTINCT tenant_id) FROM exchange_accounts`),
+	safeScalar(`SELECT COUNT(*) FROM exchange_accounts`),
+	safeQ(`
+		SELECT
+			t.id AS tenant_id,
+			COALESCE(u.email, t.id) AS label,
+			(SELECT COUNT(*) FROM wallets w WHERE w.tenant_id = t.id AND (w.deleted_at IS NULL OR w.deleted_at = '')) AS wallet_count,
+			(SELECT COUNT(*) FROM exchange_accounts ea WHERE ea.tenant_id = t.id) AS exchange_count,
+			(SELECT COUNT(DISTINCT batch_id) FROM import_transactions it WHERE it.account_id IN (SELECT id FROM exchange_accounts WHERE tenant_id = t.id)) AS import_batches,
+			u.last_login
+		FROM tenants t
+		LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
+		LEFT JOIN auth_users u ON u.id = tm.user_id
+		ORDER BY wallet_count DESC, exchange_count DESC
+		LIMIT 40
+	`),
+]);
+
 const fmt = (iso: string | null) => {
 	if (!iso) return '—';
 	try { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso)); }
@@ -406,6 +432,75 @@ const fmtDate = (iso: string | null) => {
 
 <div class="page">
 
+	<!-- ── Adoption ─────────────────────────────────────────────── -->
+	<div class="section">
+		<div class="section-title">Adoption — wallets &amp; exchanges plugged in</div>
+		<div class="stat-grid" style="margin-bottom:1rem;">
+			<div class="stat-card highlight">
+				<div class="stat-label">Tenants w/ wallets</div>
+				<div class="stat-value">{tenantsWithWallets}</div>
+				<div class="stat-sub">of {totalTenants} total tenants</div>
+			</div>
+			<div class="stat-card green">
+				<div class="stat-label">Tenants w/ exchanges</div>
+				<div class="stat-value">{tenantsWithExchanges}</div>
+				<div class="stat-sub">CSV import accounts</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Exchange accounts</div>
+				<div class="stat-value">{totalExchangeAccounts}</div>
+				<div class="stat-sub">across all tenants</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">On-chain tins</div>
+				<div class="stat-value">{totalWallets}</div>
+				<div class="stat-sub">active wallet addresses</div>
+			</div>
+		</div>
+		<div class="table-wrap">
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Tenant / email</th>
+						<th style="text-align:right">Wallets</th>
+						<th style="text-align:right">Exchanges</th>
+						<th style="text-align:right">Import batches</th>
+						<th>Last login</th>
+					</tr>
+				</thead>
+				<tbody>
+					{adoptionRows.map((row) => (
+						<tr>
+							<td style="font-size:0.8rem; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{row.label}</td>
+							<td style="text-align:right; font-weight:600; color: {Number(row.wallet_count) > 0 ? '#4ade80' : 'inherit'}">
+								{Number(row.wallet_count) > 0
+									? <span style="color:#4ade80">{row.wallet_count}</span>
+									: <span style="opacity:0.3">0</span>
+								}
+							</td>
+							<td style="text-align:right;">
+								{Number(row.exchange_count) > 0
+									? <span style="color:#818cf8">{row.exchange_count}</span>
+									: <span style="opacity:0.3">0</span>
+								}
+							</td>
+							<td style="text-align:right;">
+								{Number(row.import_batches) > 0
+									? row.import_batches
+									: <span style="opacity:0.3">0</span>
+								}
+							</td>
+							<td style="font-size:0.78rem; opacity:0.65;">{row.last_login ? fmt(String(row.last_login)) : '—'}</td>
+						</tr>
+					))}
+					{adoptionRows.length === 0 && (
+						<tr><td colspan="5" style="opacity:0.35; text-align:center; padding:1.5rem;">No tenants yet</td></tr>
+					)}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
 	<!-- ── KPI Strip ─────────────────────────────────────────────── -->
 	<div class="section">
 		<div class="section-title">Platform overview</div>
@@ -429,11 +524,6 @@ const fmtDate = (iso: string | null) => {
 				<div class="stat-label">Logins today</div>
 				<div class="stat-value">{loginsToday}</div>
 				<div class="stat-sub">{logins7d} in last 7 days</div>
-			</div>
-			<div class="stat-card">
-				<div class="stat-label">Tins</div>
-				<div class="stat-value">{totalWallets}</div>
-				<div class="stat-sub">tracked on-chain</div>
 			</div>
 			<div class="stat-card green">
 				<div class="stat-label">Spam Checked</div>
