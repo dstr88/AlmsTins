@@ -22,13 +22,20 @@ import { getActivePlan } from '@/lib/subscriptions';
 export const prerender = false;
 
 // ── Colour palette ────────────────────────────────────────────────────────────
-const SALMON   = '#FA8072';
+const SALMON   = '#c0392b';   // deep salmon — legible on white
 const DARK_BG  = '#1a1a1a';
-const MID_GRAY = '#888888';
-const LIGHT    = '#cccccc';
-const WHITE    = '#ffffff';
-const POS      = '#4ade80';
-const NEG      = '#f87171';
+const HEADING  = '#111111';   // near-black headings
+const BODY     = '#1a1a1a';   // main body text
+const LABEL    = '#444444';   // secondary labels
+const ALT_ROW  = '#f5f5f5';   // alternating row shade on white page
+const RULE     = '#cccccc';   // divider lines
+const POS      = '#15803d';   // dark green — legible on white
+const NEG      = '#b91c1c';   // dark red — legible on white
+
+// legacy aliases kept so cover-page code compiles unchanged
+const MID_GRAY = LABEL;
+const LIGHT    = BODY;
+const WHITE    = HEADING;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fDate(iso: string | null): string {
@@ -119,14 +126,16 @@ function buildPdf(
     };
 
     const tableHeaders = (cols: { label: string; width: number; align?: 'left' | 'right' | 'center' }[]) => {
+      // light background band behind headers
+      doc.rect(MARGIN, doc.y - 2, CONTENT_W, 22).fill('#eeeeee');
       let x = MARGIN;
-      doc.fontSize(7).fillColor(MID_GRAY).font('Helvetica-Bold');
+      doc.fontSize(14).fillColor(HEADING).font('Helvetica-Bold');
       for (const col of cols) {
-        doc.text(col.label, x, doc.y, { width: col.width, align: col.align ?? 'left', lineBreak: false });
+        doc.text(col.label, x + 3, doc.y, { width: col.width - 3, align: col.align ?? 'left', lineBreak: false });
         x += col.width;
       }
-      doc.moveDown(0.3);
-      doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor('#333333').lineWidth(0.5).stroke();
+      doc.moveDown(0.4);
+      doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor(RULE).lineWidth(0.75).stroke();
       doc.moveDown(0.3);
     };
 
@@ -135,30 +144,31 @@ function buildPdf(
       shade: boolean,
     ) => {
       if (doc.y > doc.page.height - 60) newPage();
+      const rowH = 22;
       if (shade) {
-        doc.rect(MARGIN, doc.y - 1, CONTENT_W, 13).fill('#1e1e1e');
+        doc.rect(MARGIN, doc.y - 1, CONTENT_W, rowH).fill(ALT_ROW);
       }
       let x = MARGIN;
-      doc.fontSize(7).font('Helvetica');
+      doc.fontSize(14).font('Helvetica-Bold');
       for (const col of cols) {
         doc
-          .fillColor(col.color ?? LIGHT)
-          .text(col.label, x, doc.y, { width: col.width, align: col.align ?? 'left', lineBreak: false });
+          .fillColor(col.color ?? BODY)
+          .text(col.label, x + 3, doc.y, { width: col.width - 3, align: col.align ?? 'left', lineBreak: false });
         x += col.width;
       }
-      doc.moveDown(0.55);
+      doc.moveDown(0.65);
     };
 
-    const summaryRow = (label: string, value: string, valueColor = WHITE) => {
+    const summaryRow = (label: string, value: string, valueColor = HEADING) => {
       doc
-        .fontSize(9)
-        .font('Helvetica')
-        .fillColor(MID_GRAY)
+        .fontSize(14)
+        .font('Helvetica-Bold')
+        .fillColor(LABEL)
         .text(label, MARGIN, doc.y, { width: 280, lineBreak: false })
         .fillColor(valueColor)
         .font('Helvetica-Bold')
         .text(value, MARGIN + 280, doc.y, { width: CONTENT_W - 280, align: 'right' })
-        .moveDown(0.5);
+        .moveDown(0.7);
     };
 
     // ── PAGE 1: Cover ─────────────────────────────────────────────────────────
@@ -253,14 +263,14 @@ function buildPdf(
       sectionTitle('Short-term disposals  (held < 365 days)');
 
       const cols = [
-        { label: 'Asset',      width: 55 },
-        { label: 'Acquired',   width: 78 },
-        { label: 'Disposed',   width: 78 },
-        { label: 'Days',       width: 38, align: 'right' as const },
-        { label: 'Qty',        width: 72, align: 'right' as const },
-        { label: 'Cost Basis', width: 80, align: 'right' as const },
-        { label: 'Proceeds',   width: 80, align: 'right' as const },
-        { label: 'Gain / Loss',width: 85, align: 'right' as const },
+        { label: 'Asset',      width: 52 },
+        { label: 'Acquired',   width: 80 },
+        { label: 'Disposed',   width: 80 },
+        { label: 'Days',       width: 36, align: 'right' as const },
+        { label: 'Qty',        width: 68, align: 'right' as const },
+        { label: 'Cost Basis', width: 72, align: 'right' as const },
+        { label: 'Proceeds',   width: 72, align: 'right' as const },
+        { label: 'Gain / Loss',width: 46, align: 'right' as const },
       ];
       tableHeaders(cols);
 
@@ -291,14 +301,14 @@ function buildPdf(
       sectionTitle('Long-term disposals  (held ≥ 365 days)');
 
       const cols = [
-        { label: 'Asset',      width: 55 },
-        { label: 'Acquired',   width: 78 },
-        { label: 'Disposed',   width: 78 },
-        { label: 'Days',       width: 38, align: 'right' as const },
-        { label: 'Qty',        width: 72, align: 'right' as const },
-        { label: 'Cost Basis', width: 80, align: 'right' as const },
-        { label: 'Proceeds',   width: 80, align: 'right' as const },
-        { label: 'Gain / Loss',width: 85, align: 'right' as const },
+        { label: 'Asset',      width: 52 },
+        { label: 'Acquired',   width: 80 },
+        { label: 'Disposed',   width: 80 },
+        { label: 'Days',       width: 36, align: 'right' as const },
+        { label: 'Qty',        width: 68, align: 'right' as const },
+        { label: 'Cost Basis', width: 72, align: 'right' as const },
+        { label: 'Proceeds',   width: 72, align: 'right' as const },
+        { label: 'Gain / Loss',width: 46, align: 'right' as const },
       ];
       tableHeaders(cols);
 
@@ -328,12 +338,12 @@ function buildPdf(
       sectionTitle('Received / Earned');
 
       const cols = [
-        { label: 'Date',   width: 88 },
-        { label: 'Asset',  width: 60 },
-        { label: 'Type',   width: 130 },
-        { label: 'Qty',    width: 90, align: 'right' as const },
-        { label: 'Value',  width: 90, align: 'right' as const },
-        { label: 'Description', width: 90 },
+        { label: 'Date',        width: 90 },
+        { label: 'Asset',       width: 52 },
+        { label: 'Type',        width: 140 },
+        { label: 'Qty',         width: 80, align: 'right' as const },
+        { label: 'Value',       width: 80, align: 'right' as const },
+        { label: 'Description', width: 64 },
       ];
       tableHeaders(cols);
 
@@ -365,11 +375,11 @@ function buildPdf(
 
       const cols = [
         { label: 'Asset',      width: 70 },
-        { label: 'Acquired',   width: 100 },
-        { label: 'Days Held',  width: 70, align: 'right' as const },
-        { label: 'Qty',        width: 110, align: 'right' as const },
-        { label: 'Cost Basis', width: 110, align: 'right' as const },
-        { label: 'Term',       width: 70 },
+        { label: 'Acquired',   width: 110 },
+        { label: 'Days Held',  width: 65, align: 'right' as const },
+        { label: 'Qty',        width: 105, align: 'right' as const },
+        { label: 'Cost Basis', width: 105, align: 'right' as const },
+        { label: 'Term',       width: 51 },
       ];
       tableHeaders(cols);
 
