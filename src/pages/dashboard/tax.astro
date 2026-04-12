@@ -429,6 +429,85 @@ const fmtGain = (n: number) => {
 					</div>
 				)}
 
+				<!-- Estimated Tax Liability -->
+				<div
+					id="tax-estimator"
+					class="rounded-xl border border-indigo-200 bg-white shadow-sm overflow-hidden"
+					data-st-gain={payload.gains?.shortTermGain ?? 0}
+					data-lt-gain={payload.gains?.longTermGain ?? 0}
+					data-ordinary-income={payload.ordinaryIncome?.total ?? 0}
+					data-year={year}
+				>
+					<div class="px-5 py-3 border-b border-indigo-100 flex items-center justify-between">
+						<div>
+							<h2 class="text-sm font-semibold text-indigo-900">Estimated Tax Liability</h2>
+							<p class="text-xs text-indigo-600 mt-0.5">Based on {year} IRS brackets · estimate only</p>
+						</div>
+						<span class="text-xs text-indigo-400 font-medium">Not financial advice</span>
+					</div>
+
+					<!-- Inputs -->
+					<div class="px-5 py-4 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50">
+						<div>
+							<label class="block text-xs font-semibold text-gray-600 mb-1">Filing Status</label>
+							<select id="est-filing-status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+								<option value="single">Single</option>
+								<option value="mfj">Married Filing Jointly</option>
+								<option value="mfs">Married Filing Separately</option>
+								<option value="hoh">Head of Household</option>
+							</select>
+						</div>
+						<div>
+							<label class="block text-xs font-semibold text-gray-600 mb-1">
+								Other Taxable Income (wages, salary, etc.)
+							</label>
+							<div class="relative">
+								<span class="absolute left-3 top-2 text-gray-400 text-sm">$</span>
+								<input
+									id="est-other-income"
+									type="number"
+									min="0"
+									step="1000"
+									value="0"
+									class="w-full border border-gray-300 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+								/>
+							</div>
+						</div>
+					</div>
+
+					<!-- Output -->
+					<div class="grid grid-cols-1 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+						<div class="p-5 space-y-1">
+							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">ST Tax Est.</p>
+							<p id="est-st-tax" class="text-2xl font-bold text-gray-900">—</p>
+							<p id="est-st-rate" class="text-xs text-gray-500">marginal rate</p>
+						</div>
+						<div class="p-5 space-y-1">
+							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">LT Tax Est.</p>
+							<p id="est-lt-tax" class="text-2xl font-bold text-gray-900">—</p>
+							<p id="est-lt-rate" class="text-xs text-gray-500">capital gains rate</p>
+						</div>
+						<div class="p-5 space-y-1">
+							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Crypto Income Tax</p>
+							<p id="est-income-tax" class="text-2xl font-bold text-gray-900">—</p>
+							<p class="text-xs text-gray-500">staking / interest</p>
+						</div>
+						<div class="p-5 space-y-1 bg-indigo-50">
+							<p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Total Estimate</p>
+							<p id="est-total-tax" class="text-2xl font-bold text-indigo-900">—</p>
+							<p class="text-xs text-indigo-500">crypto-related only</p>
+						</div>
+					</div>
+
+					<div class="px-5 py-3 border-t border-gray-100 bg-gray-50">
+						<p class="text-xs text-gray-400">
+							This is a rough estimate using IRS marginal brackets. It does not account for deductions,
+							AMT, NIIT, state taxes, or other income. Short-term gains are stacked on top of your
+							other income. Consult a CPA for your actual liability.
+						</p>
+					</div>
+				</div>
+
 				<!-- Summary cards -->
 				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
@@ -575,3 +654,123 @@ const fmtGain = (n: number) => {
 
 	</div>
 </Layout>
+
+<script>
+// ── 2024 / 2025 IRS Tax Brackets ─────────────────────────────────────────────
+// Ordinary income brackets [threshold, rate]  (marginal, single top of range)
+const ORDINARY: Record<string, [number, number][]> = {
+  single: [
+    [11600,  0.10], [47150,  0.12], [100525, 0.22],
+    [191950, 0.24], [243725, 0.32], [609350, 0.35], [Infinity, 0.37],
+  ],
+  mfj: [
+    [23200,  0.10], [94300,  0.12], [201050, 0.22],
+    [383900, 0.24], [487450, 0.32], [731200, 0.35], [Infinity, 0.37],
+  ],
+  mfs: [
+    [11600,  0.10], [47150,  0.12], [100525, 0.22],
+    [191950, 0.24], [243725, 0.32], [365600, 0.35], [Infinity, 0.37],
+  ],
+  hoh: [
+    [16550,  0.10], [63100,  0.12], [100500, 0.22],
+    [191950, 0.24], [243700, 0.32], [609350, 0.35], [Infinity, 0.37],
+  ],
+};
+
+// Long-term capital gains rate thresholds [threshold, rate]
+const LT_RATES: Record<string, [number, number][]> = {
+  single: [[47025, 0.00], [518900, 0.15], [Infinity, 0.20]],
+  mfj:    [[94050, 0.00], [583750, 0.15], [Infinity, 0.20]],
+  mfs:    [[47025, 0.00], [291850, 0.15], [Infinity, 0.20]],
+  hoh:    [[63000, 0.00], [551350, 0.15], [Infinity, 0.20]],
+};
+
+function marginalRate(income: number, brackets: [number, number][]): number {
+  for (const [top, rate] of brackets) {
+    if (income <= top) return rate;
+  }
+  return brackets[brackets.length - 1][1];
+}
+
+// Compute tax owed on `amount` stacked on top of `base` income using marginal brackets.
+// Returns { tax, effectiveRate }.
+function taxOnAmount(base: number, amount: number, brackets: [number, number][]): { tax: number; rate: number } {
+  if (amount <= 0) return { tax: 0, rate: 0 };
+  let tax = 0;
+  let prev = 0;
+  let remaining = amount;
+  const totalTop = base + amount;
+
+  for (const [top, rate] of brackets) {
+    const sliceTop = Math.min(top, totalTop);
+    if (sliceTop <= base) { prev = sliceTop; continue; }
+    const sliceBottom = Math.max(prev, base);
+    const slice = Math.min(sliceTop - sliceBottom, remaining);
+    if (slice <= 0) { prev = sliceTop; continue; }
+    tax += slice * rate;
+    remaining -= slice;
+    prev = sliceTop;
+    if (remaining <= 0) break;
+  }
+  return { tax, rate: tax / amount };
+}
+
+function fmtUsd(n: number): string {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}
+function fmtPct(r: number): string {
+  return (r * 100).toFixed(1) + '%';
+}
+
+function recalculate() {
+  const el = document.getElementById('tax-estimator');
+  if (!el) return;
+
+  const stGain        = parseFloat(el.dataset.stGain  ?? '0') || 0;
+  const ltGain        = parseFloat(el.dataset.ltGain  ?? '0') || 0;
+  const cryptoIncome  = parseFloat(el.dataset.ordinaryIncome ?? '0') || 0;
+
+  const filingEl = document.getElementById('est-filing-status') as HTMLSelectElement | null;
+  const otherEl  = document.getElementById('est-other-income')  as HTMLInputElement  | null;
+
+  const filing     = (filingEl?.value ?? 'single') as keyof typeof ORDINARY;
+  const otherIncome = Math.max(0, parseFloat(otherEl?.value ?? '0') || 0);
+
+  const ordBrackets = ORDINARY[filing] ?? ORDINARY.single;
+  const ltBrackets  = LT_RATES[filing]  ?? LT_RATES.single;
+
+  // Base = other income
+  // ST gains stacked on top of base (ordinary income treatment)
+  // Crypto income stacked on top of base + ST gains
+  const stResult     = taxOnAmount(otherIncome,                          Math.max(0, stGain),       ordBrackets);
+  const incomeResult = taxOnAmount(otherIncome + Math.max(0, stGain),    Math.max(0, cryptoIncome), ordBrackets);
+
+  // LT gains: rate determined by total ordinary income stacked base
+  const ltOrdinaryBase = otherIncome + Math.max(0, stGain) + Math.max(0, cryptoIncome);
+  const ltRate = marginalRate(ltOrdinaryBase, ltBrackets);
+  const ltTax  = Math.max(0, ltGain) * ltRate;
+
+  // If gains are negative, they offset — show $0 but note the offset
+  const stTax    = stGain    < 0 ? 0 : stResult.tax;
+  const incomeTax = cryptoIncome < 0 ? 0 : incomeResult.tax;
+  const totalTax = stTax + incomeTax + ltTax;
+
+  const setText = (id: string, val: string) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = val;
+  };
+
+  setText('est-st-tax',     stGain    <= 0 ? '—' : fmtUsd(stTax));
+  setText('est-st-rate',    stGain    <= 0 ? 'no ST gain this year' : `${fmtPct(stResult.rate)} effective rate`);
+  setText('est-lt-tax',     ltGain    <= 0 ? '—' : fmtUsd(ltTax));
+  setText('est-lt-rate',    ltGain    <= 0 ? 'no LT gain this year' : `${fmtPct(ltRate)} capital gains rate`);
+  setText('est-income-tax', cryptoIncome <= 0 ? '—' : fmtUsd(incomeTax));
+  setText('est-total-tax',  totalTax  <= 0 ? '$0' : fmtUsd(totalTax));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('est-filing-status')?.addEventListener('change', recalculate);
+  document.getElementById('est-other-income')?.addEventListener('input', recalculate);
+  recalculate();
+});
+</script>
