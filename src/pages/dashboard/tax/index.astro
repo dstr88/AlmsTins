@@ -17,236 +17,298 @@ const priorYear    = currentYear - 1;
 ---
 
 <Layout title="Tax Center | almsTins" noindex={true}>
-	<div class="max-w-4xl mx-auto px-4 py-10 space-y-10">
+	<div class="tax-hub">
 
 		<!-- Header -->
-		<div>
-			<h1 class="text-2xl font-bold text-gray-900">Tax Center</h1>
-			<p class="text-sm text-gray-500 mt-1">
-				All your crypto tax tools in one place. Not a tax preparation service — always consult a CPA before filing.
-			</p>
+		<div class="hub-header">
+			<h1 class="hub-title">Tax Center</h1>
+			<p class="hub-sub">All your crypto tax tools in one place. Not a tax preparation service — always consult a CPA before filing.</p>
 		</div>
 
 		<!-- Data Completeness Score -->
-		<div id="completeness" class="scroll-mt-4">
-			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Data Completeness</h2>
+		<div id="completeness" class="hub-section">
+			<h2 class="section-label">Data Completeness</h2>
 			<CompletenessScore year={priorYear} />
 		</div>
 
-		<!-- Primary tools -->
-		<section class="space-y-3">
-			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Analysis &amp; Planning</h2>
+		<!-- Analysis & Planning -->
+		<section class="hub-section">
+			<h2 class="section-label">Analysis &amp; Planning</h2>
 
-			<a href="/dashboard/tax/gains" class="tax-card group">
-				<div class="tax-card-icon bg-indigo-50 text-indigo-600">📊</div>
-				<div class="flex-1 min-w-0">
-					<p class="tax-card-title">Gains Summary</p>
-					<p class="tax-card-desc">
-						Short-term vs long-term gains, per-asset breakdown, tax-loss harvesting opportunities,
-						missing cost basis alerts, estimated liability, loss carryforward, and year-over-year chart.
-					</p>
+			<a href="/dashboard/tax/gains" class="tax-card">
+				<div class="tax-card__icon" style="background:#eef2ff;color:#4f46e5">📊</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">Gains Summary</p>
+					<p class="tax-card__desc">Short-term vs long-term gains, per-asset breakdown, tax-loss harvesting opportunities, missing cost basis alerts, estimated liability, loss carryforward, and year-over-year chart.</p>
 				</div>
-				<span class="tax-card-arrow">→</span>
+				<span class="tax-card__arrow">→</span>
 			</a>
 
-			<a href={`/dashboard/tax/report?year=${priorYear}`} class="tax-card group">
-				<div class="tax-card-icon bg-blue-50 text-blue-600">📋</div>
-				<div class="flex-1 min-w-0">
-					<p class="tax-card-title">Year Summary Report <span class="tax-badge">{priorYear}</span></p>
-					<p class="tax-card-desc">
-						Full disposal history with capital gains, ordinary income, loan events, and interest paid.
-						Download as HTML or Form 8949–ready CSV.
-					</p>
+			<a href={`/dashboard/tax/report?year=${priorYear}`} class="tax-card">
+				<div class="tax-card__icon" style="background:#eff6ff;color:#2563eb">📋</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">Year Summary Report <span class="tax-badge">{priorYear}</span></p>
+					<p class="tax-card__desc">Full disposal history with capital gains, ordinary income, loan events, and interest paid. Download as HTML or Form 8949–ready CSV.</p>
 				</div>
-				<span class="tax-card-arrow">→</span>
+				<span class="tax-card__arrow">→</span>
 			</a>
 
-			<a href="/dashboard/tax/review" class="tax-card group">
-				<div class="tax-card-icon bg-amber-50 text-amber-600">⚠️</div>
-				<div class="flex-1 min-w-0">
-					<p class="tax-card-title">Review Queue</p>
-					<p class="tax-card-desc">
-						Transactions the classifier couldn't categorize automatically. Resolve them here before
-						they affect your report totals.
-					</p>
+			<a href="/dashboard/tax/review" class="tax-card">
+				<div class="tax-card__icon" style="background:#fffbeb;color:#d97706">⚠️</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">Review Queue</p>
+					<p class="tax-card__desc">Transactions the classifier couldn't categorize automatically. Resolve them here before they affect your report totals.</p>
 				</div>
-				<span class="tax-card-arrow">→</span>
+				<span class="tax-card__arrow">→</span>
 			</a>
 		</section>
 
-		<!-- IRS Forms section -->
-		<section class="space-y-3">
-			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">IRS Forms</h2>
+		<!-- IRS Forms -->
+		<section class="hub-section">
+			<h2 class="section-label">IRS Forms</h2>
 
-			<a href="/dashboard/tax/form8949" class="tax-card group">
-				<div class="tax-card-icon bg-slate-50 text-slate-600">📝</div>
-				<div class="flex-1 min-w-0">
-					<p class="tax-card-title">Form 8949</p>
-					<p class="tax-card-desc">
-						Sales and Other Dispositions of Capital Assets. Per-lot disposition table in IRS
-						format, sorted by Box C (short-term) and Box F (long-term). Print-ready + CSV download.
-					</p>
+			<a href="/dashboard/tax/form8949" class="tax-card">
+				<div class="tax-card__icon" style="background:#f8fafc;color:#475569">📝</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">Form 8949</p>
+					<p class="tax-card__desc">Sales and Other Dispositions of Capital Assets. Per-lot disposition table in IRS format, sorted by Box C (short-term) and Box F (long-term). Print-ready + CSV download.</p>
 				</div>
-				<span class="tax-card-arrow">→</span>
+				<span class="tax-card__arrow">→</span>
 			</a>
 
-			<a href="/dashboard/tax/schedule-d" class="tax-card group">
-				<div class="tax-card-icon bg-slate-50 text-slate-700">🗂</div>
-				<div class="flex-1 min-w-0">
-					<p class="tax-card-title">Schedule D Summary</p>
-					<p class="tax-card-desc">
-						Capital Gains and Losses — line-by-line Schedule D totals (Lines 1a, 1b, 2, 7, 8a, 8b,
-						9, 15, 16, 21). Flows directly from Form 8949 box totals. Print-ready.
-					</p>
+			<a href="/dashboard/tax/schedule-d" class="tax-card">
+				<div class="tax-card__icon" style="background:#f8fafc;color:#334155">🗂</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">Schedule D Summary</p>
+					<p class="tax-card__desc">Capital Gains and Losses — line-by-line Schedule D totals (Lines 1a, 1b, 2, 7, 8a, 8b, 9, 15, 16, 21). Flows directly from Form 8949 box totals. Print-ready.</p>
 				</div>
-				<span class="tax-card-arrow">→</span>
+				<span class="tax-card__arrow">→</span>
 			</a>
 
-			<a href="/dashboard/tax/lots" class="tax-card group">
-				<div class="tax-card-icon bg-violet-50 text-violet-600">🎯</div>
-				<div class="flex-1 min-w-0">
-					<p class="tax-card-title">Lot Manager — Specific ID</p>
-					<p class="tax-card-desc">
-						Manually pin each disposal to a specific cost-basis lot. When Spec ID method is active,
-						these pins override FIFO/HIFO/LIFO — the lowest-tax outcome in any scenario.
-					</p>
+			<a href="/dashboard/tax/lots" class="tax-card">
+				<div class="tax-card__icon" style="background:#f5f3ff;color:#7c3aed">🎯</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">Lot Manager — Specific ID</p>
+					<p class="tax-card__desc">Manually pin each disposal to a specific cost-basis lot. When Spec ID method is active, these pins override FIFO/HIFO/LIFO — the lowest-tax outcome in any scenario.</p>
 				</div>
-				<span class="tax-card-arrow">→</span>
+				<span class="tax-card__arrow">→</span>
 			</a>
 		</section>
 
-		<!-- 1099 reconciliation -->
-		<a href="/dashboard/tax/1099" class="tax-card group">
-			<div class="tax-card-icon bg-purple-50 text-purple-600">🧾</div>
-			<div class="flex-1 min-w-0">
-				<p class="tax-card-title">1099 Reconciliation</p>
-				<p class="tax-card-desc">
-					Upload a 1099-DA or 1099-B CSV from your exchange and compare it against Almstins'
-					computed gains. Quickly spot discrepancies before you file.
-				</p>
-			</div>
-			<span class="tax-card-arrow">→</span>
-		</a>
+		<!-- 1099 Reconciliation -->
+		<section class="hub-section">
+			<h2 class="section-label">Reconciliation</h2>
 
-		<!-- PDF export -->
-		<section class="space-y-3">
-			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Export</h2>
-
-			<a href={`/api/year-summary/report?year=${priorYear}`} target="_blank" class="tax-card group">
-				<div class="tax-card-icon bg-red-50 text-red-500">📄</div>
-				<div class="flex-1 min-w-0">
-					<p class="tax-card-title">Year Summary PDF <span class="tax-badge">{priorYear}</span></p>
-					<p class="tax-card-desc">
-						Landscape PDF with cover page, summary totals, short-term disposals, long-term disposals,
-						income events, and open lots. Premium plan required.
-					</p>
+			<a href="/dashboard/tax/1099" class="tax-card">
+				<div class="tax-card__icon" style="background:#faf5ff;color:#9333ea">🧾</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">1099 Reconciliation</p>
+					<p class="tax-card__desc">Upload a 1099-DA or 1099-B CSV from your exchange and compare it against Almstins' computed gains. Quickly spot discrepancies before you file.</p>
 				</div>
-				<span class="tax-card-arrow">↗</span>
-			</a>
-
-			<a href="/dashboard/transactions" class="tax-card group">
-				<div class="tax-card-icon bg-green-50 text-green-600">📥</div>
-				<div class="flex-1 min-w-0">
-					<p class="tax-card-title">FIFO CSV Export</p>
-					<p class="tax-card-desc">
-						Download the line-by-line gain/loss CSV from the transactions page. Includes short-term
-						vs long-term classification per lot — the format your CPA or tax software needs.
-					</p>
-				</div>
-				<span class="tax-card-arrow">→</span>
+				<span class="tax-card__arrow">→</span>
 			</a>
 		</section>
 
-		<!-- Year picker for prior years -->
-		<section class="space-y-3">
-			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Prior Tax Years</h2>
-			<div class="flex flex-wrap gap-2">
+		<!-- Export -->
+		<section class="hub-section">
+			<h2 class="section-label">Export</h2>
+
+			<a href={`/api/year-summary/report?year=${priorYear}`} target="_blank" class="tax-card">
+				<div class="tax-card__icon" style="background:#fff1f2;color:#e11d48">📄</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">Year Summary PDF <span class="tax-badge">{priorYear}</span></p>
+					<p class="tax-card__desc">Landscape PDF with cover page, summary totals, short-term disposals, long-term disposals, income events, and open lots. Premium plan required.</p>
+				</div>
+				<span class="tax-card__arrow">↗</span>
+			</a>
+
+			<a href="/dashboard/transactions" class="tax-card">
+				<div class="tax-card__icon" style="background:#f0fdf4;color:#16a34a">📥</div>
+				<div class="tax-card__body">
+					<p class="tax-card__title">FIFO CSV Export</p>
+					<p class="tax-card__desc">Download the line-by-line gain/loss CSV from the transactions page. Includes short-term vs long-term classification per lot — the format your CPA or tax software needs.</p>
+				</div>
+				<span class="tax-card__arrow">→</span>
+			</a>
+		</section>
+
+		<!-- Prior Tax Years -->
+		<section class="hub-section">
+			<h2 class="section-label">Prior Tax Years</h2>
+			<div class="year-pills">
 				{Array.from({ length: 5 }, (_, i) => currentYear - 1 - i).map((y) => (
-					<a
-						href={`/dashboard/tax/report?year=${y}`}
-						class="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white
-						       hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 transition-colors"
-					>
-						{y} Report
-					</a>
+					<a href={`/dashboard/tax/report?year=${y}`} class="year-pill">{y} Report</a>
 				))}
 			</div>
-			<p class="text-xs text-gray-400">Opens the Year Summary Report filtered to that tax year.</p>
+			<p class="year-note">Opens the Year Summary Report filtered to that tax year.</p>
 		</section>
 
 		<!-- Disclaimer -->
-		<div class="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4">
-			<p class="text-xs text-gray-400 leading-relaxed">
-				<strong class="text-gray-500">Disclaimer:</strong> almsTins is a record-keeping and analysis tool, not a
-				tax preparation service. The information here is based on the transaction data you have provided and may
-				be incomplete if imports are missing or wallets are unsynced. Nothing on this page constitutes tax,
-				legal, or financial advice. Consult a qualified CPA or tax professional before filing.
-			</p>
+		<div class="disclaimer">
+			<p><strong>Disclaimer:</strong> almsTins is a record-keeping and analysis tool, not a tax preparation service. The information here is based on the transaction data you have provided and may be incomplete if imports are missing or wallets are unsynced. Nothing on this page constitutes tax, legal, or financial advice. Consult a qualified CPA or tax professional before filing.</p>
 		</div>
 
 	</div>
 </Layout>
 
 <style>
+	.tax-hub {
+		max-width: 860px;
+		margin: 0 auto;
+		padding: 2.5rem 1.5rem 4rem;
+		display: flex;
+		flex-direction: column;
+		gap: 2.5rem;
+	}
+
+	/* Header */
+	.hub-header {}
+	.hub-title {
+		font-size: 1.75rem;
+		font-weight: 700;
+		color: #f1f5f9;
+		margin: 0 0 0.4rem;
+	}
+	.hub-sub {
+		font-size: 0.9rem;
+		color: #94a3b8;
+		margin: 0;
+		line-height: 1.6;
+	}
+
+	/* Section */
+	.hub-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+	.section-label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: #64748b;
+		margin: 0 0 0.25rem;
+	}
+
+	/* Cards */
 	.tax-card {
 		display: flex;
 		align-items: flex-start;
 		gap: 1rem;
 		padding: 1rem 1.25rem;
-		border-radius: 0.75rem;
-		border: 1px solid #e5e7eb;
-		background: #fff;
+		border-radius: 12px;
+		border: 1px solid rgba(255,255,255,0.08);
+		background: rgba(255,255,255,0.04);
 		text-decoration: none;
-		transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
-		cursor: pointer;
+		transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 	}
 	.tax-card:hover {
-		border-color: #6366f1;
-		box-shadow: 0 2px 8px rgba(99,102,241,0.08);
-		background: #fafafe;
+		border-color: rgba(99,102,241,0.5);
+		background: rgba(99,102,241,0.06);
+		box-shadow: 0 2px 12px rgba(99,102,241,0.1);
 	}
-	.tax-card-icon {
+	.tax-card__icon {
 		flex-shrink: 0;
 		width: 2.5rem;
 		height: 2.5rem;
-		border-radius: 0.5rem;
+		border-radius: 8px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		font-size: 1.15rem;
 	}
-	.tax-card-title {
+	.tax-card__body {
+		flex: 1;
+		min-width: 0;
+	}
+	.tax-card__title {
 		font-size: 0.95rem;
 		font-weight: 600;
-		color: #111827;
-		margin-bottom: 0.2rem;
+		color: #e2e8f0;
+		margin: 0 0 0.25rem;
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 	}
-	.tax-card-desc {
-		font-size: 0.8rem;
-		color: #6b7280;
-		line-height: 1.5;
+	.tax-card__desc {
+		font-size: 0.82rem;
+		color: #64748b;
+		line-height: 1.55;
+		margin: 0;
 	}
-	.tax-card-arrow {
+	.tax-card__arrow {
 		font-size: 1rem;
-		color: #9ca3af;
+		color: #475569;
 		flex-shrink: 0;
-		margin-top: 0.15rem;
+		margin-top: 0.1rem;
 		transition: color 0.15s, transform 0.15s;
 	}
-	.tax-card:hover .tax-card-arrow {
-		color: #6366f1;
+	.tax-card:hover .tax-card__arrow {
+		color: #818cf8;
 		transform: translateX(3px);
 	}
+
+	/* Badge */
 	.tax-badge {
-		font-size: 0.7rem;
+		font-size: 0.68rem;
 		font-weight: 600;
-		background: #ede9fe;
-		color: #7c3aed;
+		background: rgba(124,58,237,0.15);
+		color: #a78bfa;
 		border-radius: 999px;
 		padding: 0.1rem 0.5rem;
+		vertical-align: middle;
+	}
+
+	/* Year pills */
+	.year-pills {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.year-pill {
+		display: inline-flex;
+		align-items: center;
+		padding: 0.4rem 1rem;
+		border-radius: 8px;
+		border: 1px solid rgba(255,255,255,0.1);
+		background: rgba(255,255,255,0.04);
+		color: #cbd5e1;
+		font-size: 0.85rem;
+		font-weight: 500;
+		text-decoration: none;
+		transition: border-color 0.15s, background 0.15s;
+	}
+	.year-pill:hover {
+		border-color: rgba(99,102,241,0.5);
+		background: rgba(99,102,241,0.08);
+		color: #a5b4fc;
+	}
+	.year-note {
+		font-size: 0.78rem;
+		color: #475569;
+		margin: 0;
+	}
+
+	/* Disclaimer */
+	.disclaimer {
+		border: 1px solid rgba(255,255,255,0.07);
+		background: rgba(255,255,255,0.02);
+		border-radius: 12px;
+		padding: 1rem 1.25rem;
+	}
+	.disclaimer p {
+		font-size: 0.78rem;
+		color: #475569;
+		line-height: 1.65;
+		margin: 0;
+	}
+	.disclaimer strong {
+		color: #64748b;
+	}
+
+	@media (max-width: 600px) {
+		.tax-hub { padding: 1.5rem 1rem 3rem; }
+		.hub-title { font-size: 1.4rem; }
 	}
 </style>
-
