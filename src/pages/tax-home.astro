@@ -1068,8 +1068,36 @@ const availableYears = bd?.availableYears ?? [priorYear];
     }
   }
 
-  // ── Sync all button (navigates to wallets page) ────────────────────────────
-  document.getElementById('sync-all-btn')?.addEventListener('click', () => {
-    window.location.href = '/dashboard/wallets';
+  // ── Sync All — exchange snapshot + lifecycle rebuild, stays on page ──────────
+  const syncBtn = document.getElementById('sync-all-btn') as HTMLButtonElement | null;
+  syncBtn?.addEventListener('click', async () => {
+    syncBtn.disabled = true;
+    syncBtn.textContent = '⏳ Syncing…';
+
+    try {
+      // Step 1: pull latest exchange snapshots
+      const snapRes = await fetch('/api/import/snapshot-all', { method: 'POST' });
+
+      // Step 2: rebuild FIFO lifecycle so gain/loss numbers reflect new data
+      await fetch('/api/lifecycle/rebuild', { method: 'POST' });
+
+      if (snapRes.ok) {
+        syncBtn.textContent = '✓ Done';
+        syncBtn.style.background = 'rgba(52,211,153,.25)';
+        syncBtn.style.borderColor = 'rgba(52,211,153,.5)';
+        syncBtn.style.color = '#6ee7b7';
+        // Reload after a short pause so status dots + progress bar refresh
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        syncBtn.textContent = '✗ Failed — retry';
+        syncBtn.style.background = 'rgba(248,113,113,.2)';
+        syncBtn.style.borderColor = 'rgba(248,113,113,.4)';
+        syncBtn.style.color = '#fca5a5';
+        syncBtn.disabled = false;
+      }
+    } catch {
+      syncBtn.textContent = '✗ Network error';
+      syncBtn.disabled = false;
+    }
   });
 </script>
