@@ -14,6 +14,7 @@
  */
 
 import Layout from '../../../layouts/Layout.astro';
+import { hasTaxAccess } from '@/lib/taxAuth';
 import CompletenessScore from '@/components/tax/CompletenessScore.astro';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -156,6 +157,8 @@ type TaxPayload = {
 };
 
 // ── Fetch data ─────────────────────────────────────────────────────────────
+
+if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
 const defaultYear = new Date().getFullYear() - 1; // prior tax year
 const yearParam   = Astro.url.searchParams.get('year');
 const year        = yearParam ? Number(yearParam) : defaultYear;
