@@ -5,15 +5,8 @@
  * Private landing page linking to every tax tool in almsTins.
  * Not indexed (noindex) — authenticated users only.
  */
-import Layout from '../../../layouts/Layout.astro';
-import { requireTenantSession } from '@/lib/requireTenantSession';
-import CompletenessScore from '@/components/tax/CompletenessScore.astro';
-
-const _authSess = await requireTenantSession(Astro.request);
-if (!_authSess) return Astro.redirect('/login');
-
-const currentYear  = new Date().getFullYear();
-const priorYear    = currentYear - 1;
+// /dashboard/tax → redirect to the tax login gate
+return Astro.redirect('/tax-login', 302);
 ---
 
 <Layout title="Tax Center | almsTins" noindex={true}>
