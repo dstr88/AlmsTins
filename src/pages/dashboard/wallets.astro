@@ -33,7 +33,14 @@ const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
 ---
 
 <Layout title="Wallets | Almstins" noindex={true}>
-	<section style="padding: 1.5rem 0; display: flex; flex-direction: column; gap: 2.5rem;">
+	<section style="
+		max-width: 900px;
+		margin: 0 auto;
+		padding: 2.5rem 1.5rem 4rem;
+		display: flex;
+		flex-direction: column;
+		gap: 3rem;
+	">
 		<WalletOverview client:load wallets={wallets} />
 		<AddressLabels client:load labels={addressLabels} />
 	</section>
