@@ -1,33 +1,1075 @@
 ---
 /**
  * /tax-home
- *
- * Placeholder — tax dashboard landing page.
- * Currently a black screen; real content wired in next.
+ * Tax Preparation Hub — gated by TAX_SECRET passphrase cookie.
  */
-
+import Layout from '../layouts/Layout.astro';
 import { hasTaxAccess } from '@/lib/taxAuth';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { db } from '@/lib/db';
 
-if (!hasTaxAccess(Astro.request)) {
-	return Astro.redirect('/tax-login', 302);
+export const prerender = false;
+
+if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/login', 302);
+const { tenantId } = sess;
+
+const currentYear = new Date().getFullYear();
+const priorYear   = currentYear - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const selectedYear = yearParam ? Number(yearParam) : priorYear;
+
+// ── Parallel data fetch ──────────────────────────────────────────────────────
+const [bd, exchangeRes, walletRes, unclassRes, lastImportRes] = await Promise.all([
+  buildAnnualBreakdown(tenantId, selectedYear, 'fifo', undefined, 'auto' as AnnualBreakdownSource)
+    .catch(() => null),
+
+  db.execute({
+    sql: `SELECT id, source, name FROM exchange_accounts WHERE tenant_id = ? ORDER BY created_at ASC`,
+    args: [tenantId],
+  }).catch(() => ({ rows: [] })),
+
+  db.execute({
+    sql: `SELECT w.id, w.label, w.address, MAX(ws.captured_at) AS last_synced
+          FROM wallets w
+          LEFT JOIN wallet_snapshots ws ON ws.wallet_id = w.id AND ws.tenant_id = w.tenant_id
+          WHERE w.tenant_id = ?
+          GROUP BY w.id, w.label, w.address
+          ORDER BY w.label ASC`,
+    args: [tenantId],
+  }).catch(() => ({ rows: [] })),
+
+  db.execute({
+    sql: `SELECT COUNT(*) AS cnt FROM import_transactions
+          WHERE tenant_id = ? AND (kind IS NULL OR kind = '' OR kind = 'unknown')`,
+    args: [tenantId],
+  }).catch(() => ({ rows: [{ cnt: 0 }] })),
+
+  db.execute({
+    sql: `SELECT account_id, MAX(timestamp_utc) AS last_import
+          FROM import_transactions WHERE tenant_id = ? GROUP BY account_id`,
+    args: [tenantId],
+  }).catch(() => ({ rows: [] })),
+]);
+
+// ── Process gains & losses ───────────────────────────────────────────────────
+type AssetTotal = { asset: string; total: number };
+
+const stGainTotal  = bd ? bd.shortTerm.reduce((s, l) => s + Math.max(0, l.gainLossUsd ?? 0), 0) : 0;
+const ltGainTotal  = bd ? bd.longTerm.reduce((s,  l) => s + Math.max(0, l.gainLossUsd ?? 0), 0) : 0;
+const incomeTotal  = bd ? bd.income.reduce((s, i) => s + (i.usdValue ?? 0), 0) : 0;
+const lossTotal    = bd ? [...bd.shortTerm, ...bd.longTerm].reduce((s, l) => s + Math.min(0, l.gainLossUsd ?? 0), 0) : 0;
+
+// Per-asset gains (only positive)
+const gainByAsset = new Map<string, number>();
+if (bd) {
+  for (const l of [...bd.shortTerm, ...bd.longTerm]) {
+    if ((l.gainLossUsd ?? 0) > 0) gainByAsset.set(l.asset, (gainByAsset.get(l.asset) ?? 0) + (l.gainLossUsd ?? 0));
+  }
 }
+const gainAssets: AssetTotal[] = [...gainByAsset.entries()]
+  .map(([asset, total]) => ({ asset, total }))
+  .sort((a, b) => b.total - a.total);
+
+// Per-asset losses (only negative, sorted worst first)
+const lossByAsset = new Map<string, number>();
+if (bd) {
+  for (const l of [...bd.shortTerm, ...bd.longTerm]) {
+    if ((l.gainLossUsd ?? 0) < 0) lossByAsset.set(l.asset, (lossByAsset.get(l.asset) ?? 0) + (l.gainLossUsd ?? 0));
+  }
+}
+const lossAssets: AssetTotal[] = [...lossByAsset.entries()]
+  .map(([asset, total]) => ({ asset, total }))
+  .sort((a, b) => a.total - b.total);
+
+// Missing cost basis
+const missingBasisCount = bd?.needsAttention?.length ?? 0;
+
+// Unclassified count
+const unclassCount = Number((unclassRes.rows[0] as { cnt: unknown })?.cnt ?? 0);
+
+// Exchange accounts with last import date
+type ExRow = { id: unknown; source: unknown; name: unknown };
+type ImportRow = { account_id: unknown; last_import: unknown };
+const lastImportMap = new Map<string, string>(
+  (lastImportRes.rows as ImportRow[]).map(r => [String(r.account_id), String(r.last_import ?? '')])
+);
+
+const EXCHANGE_LABELS: Record<string, string> = {
+  coinbase: 'Coinbase', coinbase_pro: 'Coinbase Advanced', kraken: 'Kraken',
+  binance: 'Binance', binanceus: 'Binance US', gemini: 'Gemini',
+  ftx: 'FTX', kucoin: 'KuCoin', crypto_com: 'Crypto.com',
+  avalanche_cchain: 'Avalanche C-Chain', ethereum: 'Ethereum',
+  solana: 'Solana', sui: 'Sui',
+};
+const FORM_TYPE: Record<string, string> = {
+  coinbase: '1099-DA', coinbase_pro: '1099-DA', kraken: '1099-DA',
+  binanceus: '1099-DA', gemini: '1099-DA', crypto_com: '1099-DA',
+};
+
+const exchanges = (exchangeRes.rows as ExRow[]).map(r => ({
+  id:        String(r.id),
+  source:    String(r.source),
+  name:      String(r.name ?? EXCHANGE_LABELS[String(r.source)] ?? r.source),
+  label:     EXCHANGE_LABELS[String(r.source)] ?? String(r.name ?? r.source),
+  formType:  FORM_TYPE[String(r.source)] ?? '1099-B',
+  lastImport: lastImportMap.get(String(r.id)) || null,
+}));
+
+// Wallets
+type WalRow = { id: unknown; label: unknown; address: unknown; last_synced: unknown };
+const wallets = (walletRes.rows as WalRow[]).map(r => ({
+  id:         String(r.id),
+  label:      String(r.label ?? ''),
+  address:    String(r.address ?? ''),
+  lastSynced: r.last_synced ? String(r.last_synced) : null,
+}));
+const syncedCount  = wallets.filter(w => w.lastSynced).length;
+const staleCutoff  = new Date(); staleCutoff.setDate(staleCutoff.getDate() - 60);
+const staleWallets = wallets.filter(w => !w.lastSynced || new Date(w.lastSynced) < staleCutoff);
+
+// Helpers
+const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const fmtDate = (s: string | null) => {
+  if (!s) return 'Never';
+  try { return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return s; }
+};
+
+const availableYears = bd?.availableYears ?? [priorYear];
 ---
 
-<!doctype html>
-<html lang="en">
-<head>
-	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Tax Dashboard</title>
-	<link rel="icon" type="image/webp" href="/favicon.webp" />
-	<style>
-		html, body {
-			margin: 0;
-			padding: 0;
-			height: 100%;
-			background: #000000;
-		}
-	</style>
-</head>
-<body></body>
-</html>
+<Layout title="Tax Hub | almsTins" noindex={true}>
+
+  <!-- ── Disclaimer modal ─────────────────────────────────────────────────── -->
+  <div id="disclaimer-modal" class="disc-backdrop" role="dialog" aria-modal="true" aria-labelledby="disc-title" hidden>
+    <div class="disc-box">
+      <div class="disc-icon">⚖️</div>
+      <h2 class="disc-title" id="disc-title">Tax Season Reminder</h2>
+      <p class="disc-body">
+        almsTins is a record-keeping and analysis tool, <strong>not a tax preparation service.</strong>
+        The figures shown are based solely on the transaction data you have imported. Results may be
+        incomplete if any exchange imports, wallet syncs, or manual entries are missing.
+      </p>
+      <p class="disc-body">
+        Nothing on this page constitutes tax, legal, or financial advice.
+        <strong>Always consult a qualified CPA or tax professional before filing.</strong>
+      </p>
+      <button id="disc-ok" class="disc-btn">I understand — let's go</button>
+    </div>
+  </div>
+
+  <div class="tax-home">
+
+    <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+    <header class="tax-hero">
+      <div class="tax-hero__inner">
+        <div class="tax-hero__text">
+          <h1 class="tax-hero__title">Tax Preparation Hub</h1>
+          <p class="tax-hero__sub">
+            Everything in one place — your documents, your gains, your losses, and your downloads.
+            The app already knows what's connected. Check off what you've gathered and you're ready to file.
+          </p>
+          {unclassCount > 0 && (
+            <a href="/dashboard/tax/review" class="review-warning">
+              ⚠️ <strong>{unclassCount} transaction{unclassCount !== 1 ? 's' : ''} need review</strong>
+              — these may affect your gain and income totals. Resolve them before filing. →
+            </a>
+          )}
+        </div>
+
+        <!-- Year bar -->
+        <div class="year-bar">
+          <span class="year-bar__label">Tax Year</span>
+          <div class="year-bar__pills">
+            {availableYears.map(y => (
+              <a href={`/tax-home?year=${y}`} class={`year-pill${y === selectedYear ? ' year-pill--active' : ''}`}>{y}</a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── Row 1 ──────────────────────────────────────────────────────────── -->
+    <div class="tax-row tax-row--1">
+
+      <!-- C1: All Uploads -->
+      <div class="tax-card tax-card--uploads">
+        <div class="card-header card-header--violet">
+          <span class="card-header__icon">📂</span>
+          <h2 class="card-header__title">Document Checklist</h2>
+        </div>
+
+        <div class="card-body">
+          <p class="card-section-label">Traditional Income</p>
+          <ul class="check-list">
+            {['W-2 (Employment income)', '1099-INT (Bank interest)', '1099-DIV (Dividends)', '1099-R (Retirement distributions)', '1099-MISC / 1099-NEC (Other income)', 'SSA-1099 (Social Security)'].map(doc => (
+              <li class="check-item">
+                <input type="checkbox" class="check-box" data-key={`doc_${doc.replace(/\s+/g,'_')}_${selectedYear}`} />
+                <span class="check-label">{doc}</span>
+              </li>
+            ))}
+          </ul>
+
+          {exchanges.length > 0 && (
+            <>
+              <p class="card-section-label" style="margin-top:1.25rem">Crypto Exchange 1099s</p>
+              <ul class="check-list">
+                {exchanges.map(ex => (
+                  <li class="check-item">
+                    <input type="checkbox" class="check-box" data-key={`ex_${ex.id}_${selectedYear}`} />
+                    <span class="check-label">
+                      {ex.label}
+                      <span class="form-badge">{ex.formType}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <div class="upload-zone">
+            <p class="card-section-label" style="margin-bottom:.6rem">Upload 1099 CSV for Reconciliation</p>
+            <div class="upload-dropzone" id="upload-dropzone">
+              <span class="upload-icon">⬆️</span>
+              <span class="upload-text">Drop a CSV here or <label for="csv-file-input" class="upload-browse">browse</label></span>
+              <input id="csv-file-input" type="file" accept=".csv" style="display:none" />
+            </div>
+            <div id="upload-status" class="upload-status" hidden></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- C2 & C3: Sync Status -->
+      <div class="tax-card tax-card--sync">
+        <div class="card-header card-header--cyan">
+          <span class="card-header__icon">🔄</span>
+          <h2 class="card-header__title">Data Sync Status</h2>
+          <button id="sync-all-btn" class="sync-btn">Sync All</button>
+        </div>
+
+        <div class="card-body">
+          <!-- Progress bar -->
+          <div class="sync-progress-wrap">
+            <div class="sync-progress-label">
+              <span>Wallets synced</span>
+              <span>{syncedCount} / {wallets.length}</span>
+            </div>
+            <div class="sync-progress-track">
+              <div class="sync-progress-fill" style={`width:${wallets.length ? Math.round(syncedCount/wallets.length*100) : 0}%`}></div>
+            </div>
+          </div>
+
+          {staleWallets.length > 0 && (
+            <p class="sync-stale-note">
+              ⚠️ {staleWallets.length} wallet{staleWallets.length !== 1 ? 's' : ''} stale (&gt;60 days)
+            </p>
+          )}
+
+          <!-- Wallets table -->
+          {wallets.length > 0 && (
+            <>
+              <p class="card-section-label" style="margin-top:1.25rem">Wallets</p>
+              <ul class="sync-list">
+                {wallets.map(w => {
+                  const stale = !w.lastSynced || new Date(w.lastSynced) < staleCutoff;
+                  return (
+                    <li class="sync-item">
+                      <span class={`sync-dot ${stale ? 'sync-dot--stale' : 'sync-dot--ok'}`}></span>
+                      <span class="sync-name">{w.label || w.address.slice(0,14) + '…'}</span>
+                      <span class="sync-date">{fmtDate(w.lastSynced)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+
+          <!-- Exchanges table -->
+          {exchanges.length > 0 && (
+            <>
+              <p class="card-section-label" style="margin-top:1.25rem">Exchange Imports</p>
+              <ul class="sync-list">
+                {exchanges.map(ex => {
+                  const hasData = !!ex.lastImport;
+                  return (
+                    <li class="sync-item">
+                      <span class={`sync-dot ${hasData ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
+                      <span class="sync-name">{ex.label}</span>
+                      <span class="sync-date">{hasData ? fmtDate(ex.lastImport) : 'No data'}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Row 2 ──────────────────────────────────────────────────────────── -->
+    <div class="tax-row tax-row--2">
+
+      <!-- C1: Gains -->
+      <div class="tax-card tax-card--gains">
+        <div class="card-header card-header--emerald">
+          <span class="card-header__icon">📈</span>
+          <h2 class="card-header__title">Gains — {selectedYear}</h2>
+        </div>
+
+        <div class="card-body">
+          <div class="totals-stack">
+            <div class="total-row">
+              <span class="total-label">Short-term gains</span>
+              <span class="total-val total-val--gain">{fmt(stGainTotal)}</span>
+            </div>
+            <div class="total-row">
+              <span class="total-label">Long-term gains</span>
+              <span class="total-val total-val--gain">{fmt(ltGainTotal)}</span>
+            </div>
+            <div class="total-row total-row--divider">
+              <span class="total-label">Interest &amp; income</span>
+              <span class="total-val total-val--income">{fmt(incomeTotal)}</span>
+            </div>
+            <div class="total-row total-row--grand">
+              <span class="total-label">Total taxable</span>
+              <span class="total-val total-val--gain">{fmt(stGainTotal + ltGainTotal + incomeTotal)}</span>
+            </div>
+          </div>
+
+          {gainAssets.length > 0 ? (
+            <div class="asset-scroll">
+              <p class="card-section-label">By asset</p>
+              <ul class="asset-list">
+                {gainAssets.map(a => (
+                  <li class="asset-row">
+                    <span class="asset-sym">{a.asset}</span>
+                    <span class="asset-amt asset-amt--gain">{fmt(a.total)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p class="empty-note">No gains recorded for {selectedYear}.</p>
+          )}
+        </div>
+      </div>
+
+      <!-- C2: Wailing Wall (losses) -->
+      <div class="tax-card tax-card--losses">
+        <div class="card-header card-header--rose">
+          <span class="card-header__icon">📉</span>
+          <h2 class="card-header__title">Wailing Wall</h2>
+        </div>
+
+        <div class="card-body">
+          <div class="totals-stack">
+            <div class="total-row total-row--grand">
+              <span class="total-label">Total realized losses</span>
+              <span class="total-val total-val--loss">{fmt(lossTotal)}</span>
+            </div>
+          </div>
+
+          {lossAssets.length > 0 ? (
+            <div class="asset-scroll">
+              <p class="card-section-label">By asset — worst first</p>
+              <ul class="asset-list">
+                {lossAssets.map(a => (
+                  <li class="asset-row">
+                    <span class="asset-sym">{a.asset}</span>
+                    <span class="asset-amt asset-amt--loss">{fmt(a.total)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p class="empty-note" style="color:#34d399">No losses — clean year! 🎉</p>
+          )}
+        </div>
+      </div>
+
+      <!-- C3: Missing Cost Basis -->
+      <div class="tax-card tax-card--basis">
+        <div class="card-header card-header--slate">
+          <span class="card-header__icon">🎯</span>
+          <h2 class="card-header__title">Missing Cost Basis</h2>
+        </div>
+
+        <div class="card-body">
+          {missingBasisCount === 0 ? (
+            <div class="basis-clear">
+              <p class="basis-clear__script">nothing to see here!</p>
+              <p class="basis-clear__note">All cost basis resolved ✓</p>
+            </div>
+          ) : (
+            <div class="basis-warning">
+              <p class="basis-warning__count">{missingBasisCount}</p>
+              <p class="basis-warning__label">lots with missing cost basis</p>
+              <a href="/dashboard/tax/lots" class="basis-warning__link">Resolve in Lot Manager →</a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Downloads ─────────────────────────────────────────────────────── -->
+    <section class="downloads">
+      <h2 class="downloads__title">Downloads</h2>
+      <div class="downloads__grid">
+        <a href={`/api/tax/breakdown-csv?year=${selectedYear}&section=all`} class="dl-btn" download>
+          <span class="dl-btn__icon">📊</span>
+          <span>FIFO Gain/Loss CSV</span>
+        </a>
+        <a href={`/dashboard/tax/form8949?year=${selectedYear}`} class="dl-btn">
+          <span class="dl-btn__icon">📝</span>
+          <span>Form 8949</span>
+        </a>
+        <a href={`/dashboard/tax/schedule-d?year=${selectedYear}`} class="dl-btn">
+          <span class="dl-btn__icon">🗂</span>
+          <span>Schedule D</span>
+        </a>
+        <a href={`/api/year-summary/report?year=${selectedYear}`} target="_blank" class="dl-btn">
+          <span class="dl-btn__icon">📄</span>
+          <span>Year Summary PDF</span>
+        </a>
+        <a href={`/dashboard/tax/1099?year=${selectedYear}`} class="dl-btn">
+          <span class="dl-btn__icon">🧾</span>
+          <span>1099 Reconciliation</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- ── Footer disclaimer ─────────────────────────────────────────────── -->
+    <div class="footer-disc">
+      <button id="disc-link-btn" class="disc-link">⚖️ Tax disclaimer &amp; limitations</button>
+    </div>
+
+  </div>
+</Layout>
+
+<style>
+  /* ── Base ────────────────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; }
+
+  .tax-home {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.5rem 5rem;
+    line-height: 1.7;
+  }
+
+  /* ── Disclaimer modal ────────────────────────────────────────────────────── */
+  .disc-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .disc-backdrop[hidden] { display: none; }
+
+  .disc-box {
+    background: #1a1d2e;
+    border: 1px solid rgba(165,180,252,0.25);
+    border-radius: 18px;
+    padding: 2.5rem 2.25rem;
+    max-width: 520px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+  }
+  .disc-icon  { font-size: 2.5rem; margin-bottom: .75rem; }
+  .disc-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #e2e8ff;
+    margin: 0 0 1rem;
+  }
+  .disc-body {
+    font-size: 0.92rem;
+    color: rgba(255,255,255,0.6);
+    line-height: 1.7;
+    margin: 0 0 .75rem;
+    text-align: left;
+  }
+  .disc-body strong { color: rgba(255,255,255,0.85); }
+  .disc-btn {
+    margin-top: 1.25rem;
+    width: 100%;
+    padding: .8rem 1rem;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .disc-btn:hover { opacity: .88; }
+
+  /* ── Hero ────────────────────────────────────────────────────────────────── */
+  .tax-hero {
+    background: linear-gradient(135deg, rgba(99,102,241,.18) 0%, rgba(139,92,246,.12) 60%, rgba(6,182,212,.08) 100%);
+    border: 1px solid rgba(165,180,252,0.15);
+    border-radius: 20px;
+    margin: 2rem 0 2rem;
+    overflow: hidden;
+  }
+  .tax-hero__inner {
+    padding: 2.25rem 2.25rem 0;
+  }
+  .tax-hero__title {
+    font-size: clamp(1.6rem, 3vw, 2.4rem);
+    font-weight: 800;
+    line-height: 1.2;
+    margin: 0 0 .6rem;
+    background: linear-gradient(135deg, #f5f8ff 30%, #a5b4fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .tax-hero__sub {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.55);
+    line-height: 1.7;
+    max-width: 680px;
+    margin: 0 0 1.25rem;
+  }
+
+  .review-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    background: rgba(245,158,11,0.12);
+    border: 1px solid rgba(245,158,11,0.35);
+    border-radius: 10px;
+    padding: .6rem 1rem;
+    font-size: .87rem;
+    color: #fcd34d;
+    text-decoration: none;
+    margin-bottom: 1.25rem;
+    line-height: 1.5;
+    transition: background .15s;
+  }
+  .review-warning:hover { background: rgba(245,158,11,0.2); }
+
+  /* Year bar */
+  .year-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 2.25rem;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    margin-top: 1rem;
+    flex-wrap: wrap;
+  }
+  .year-bar__label {
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: rgba(255,255,255,0.4);
+  }
+  .year-bar__pills { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .year-pill {
+    display: inline-block;
+    padding: .3rem .85rem;
+    border-radius: 20px;
+    border: 1px solid rgba(165,180,252,0.25);
+    font-size: .85rem;
+    font-weight: 600;
+    color: rgba(255,255,255,0.55);
+    text-decoration: none;
+    transition: background .15s, color .15s;
+    line-height: 1.7;
+  }
+  .year-pill:hover { background: rgba(165,180,252,0.12); color: #a5b4fc; }
+  .year-pill--active {
+    background: rgba(99,102,241,0.85);
+    color: #fff;
+    border-color: transparent;
+  }
+
+  /* ── Grid rows ───────────────────────────────────────────────────────────── */
+  .tax-row {
+    display: grid;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .tax-row--1 { grid-template-columns: 1fr 2fr; }
+  .tax-row--2 { grid-template-columns: repeat(3, 1fr); }
+
+  /* ── Cards ───────────────────────────────────────────────────────────────── */
+  .tax-card {
+    border-radius: 16px;
+    background: rgba(255,255,255,0.025);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Colored borders per card */
+  .tax-card--uploads { border: 2px solid rgba(139,92,246,0.5);  }
+  .tax-card--sync    { border: 2px solid rgba(6,182,212,0.5);   }
+  .tax-card--gains   { border: 2px solid rgba(52,211,153,0.5);  }
+  .tax-card--losses  { border: 2px solid rgba(248,113,113,0.5); }
+  .tax-card--basis   { border: 2px solid rgba(148,163,184,0.35);}
+
+  /* Card header bands */
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: 1rem 1.25rem;
+  }
+  .card-header--violet { background: linear-gradient(90deg, rgba(139,92,246,.25), rgba(139,92,246,.08)); border-bottom: 1px solid rgba(139,92,246,.25); }
+  .card-header--cyan   { background: linear-gradient(90deg, rgba(6,182,212,.25),  rgba(6,182,212,.08));  border-bottom: 1px solid rgba(6,182,212,.25);  }
+  .card-header--emerald{ background: linear-gradient(90deg, rgba(52,211,153,.25), rgba(52,211,153,.08)); border-bottom: 1px solid rgba(52,211,153,.25); }
+  .card-header--rose   { background: linear-gradient(90deg, rgba(248,113,113,.25),rgba(248,113,113,.08));border-bottom: 1px solid rgba(248,113,113,.25);}
+  .card-header--slate  { background: linear-gradient(90deg, rgba(148,163,184,.2), rgba(148,163,184,.05));border-bottom: 1px solid rgba(148,163,184,.2); }
+
+  .card-header__icon  { font-size: 1.2rem; }
+  .card-header__title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #e2e8ff;
+    margin: 0;
+    flex: 1;
+    line-height: 1.7;
+  }
+
+  .card-body {
+    padding: 1.25rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-section-label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: rgba(255,255,255,0.35);
+    margin: 0 0 .5rem;
+    line-height: 1.7;
+  }
+
+  /* ── Checklist ───────────────────────────────────────────────────────────── */
+  .check-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+  }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: .35rem .5rem;
+    border-radius: 8px;
+    transition: background .12s;
+    line-height: 1.7;
+  }
+  .check-item:hover { background: rgba(255,255,255,.04); }
+  .check-box {
+    width: 1rem;
+    height: 1rem;
+    accent-color: #8b5cf6;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .check-label {
+    font-size: .88rem;
+    color: rgba(255,255,255,.7);
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    line-height: 1.7;
+  }
+  .check-item:has(.check-box:checked) .check-label { color: rgba(255,255,255,.35); text-decoration: line-through; }
+
+  .form-badge {
+    font-size: .65rem;
+    font-weight: 700;
+    padding: .1rem .4rem;
+    border-radius: 999px;
+    background: rgba(139,92,246,.2);
+    color: #c4b5fd;
+    border: 1px solid rgba(139,92,246,.35);
+  }
+
+  /* ── Upload zone ─────────────────────────────────────────────────────────── */
+  .upload-zone { margin-top: 1.25rem; }
+  .upload-dropzone {
+    border: 2px dashed rgba(139,92,246,.4);
+    border-radius: 10px;
+    padding: 1.1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+    background: rgba(139,92,246,.04);
+  }
+  .upload-dropzone:hover, .upload-dropzone.dragover {
+    background: rgba(139,92,246,.1);
+    border-color: rgba(139,92,246,.7);
+  }
+  .upload-icon { font-size: 1.4rem; display: block; margin-bottom: .3rem; }
+  .upload-text { font-size: .85rem; color: rgba(255,255,255,.45); line-height: 1.7; }
+  .upload-browse { color: #a5b4fc; cursor: pointer; text-decoration: underline; }
+  .upload-status {
+    margin-top: .6rem;
+    font-size: .82rem;
+    padding: .5rem .75rem;
+    border-radius: 8px;
+    line-height: 1.7;
+  }
+  .upload-status.ok   { background: rgba(52,211,153,.1);  color: #6ee7b7; }
+  .upload-status.err  { background: rgba(248,113,113,.1); color: #fca5a5; }
+
+  /* ── Sync card ───────────────────────────────────────────────────────────── */
+  .sync-btn {
+    margin-left: auto;
+    padding: .35rem .9rem;
+    border-radius: 8px;
+    background: rgba(6,182,212,.2);
+    border: 1px solid rgba(6,182,212,.4);
+    color: #67e8f9;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+    line-height: 1.7;
+  }
+  .sync-btn:hover { background: rgba(6,182,212,.35); }
+
+  .sync-progress-wrap { margin-bottom: .5rem; }
+  .sync-progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: .8rem;
+    color: rgba(255,255,255,.45);
+    margin-bottom: .35rem;
+    line-height: 1.7;
+  }
+  .sync-progress-track {
+    height: 8px;
+    background: rgba(255,255,255,.08);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .sync-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #06b6d4, #67e8f9);
+    border-radius: 999px;
+    transition: width .4s ease;
+  }
+  .sync-stale-note {
+    font-size: .8rem;
+    color: #fcd34d;
+    margin: .5rem 0 0;
+    line-height: 1.7;
+  }
+
+  .sync-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+  }
+  .sync-item {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: .35rem .5rem;
+    border-radius: 8px;
+    transition: background .12s;
+    line-height: 1.7;
+  }
+  .sync-item:hover { background: rgba(255,255,255,.04); }
+  .sync-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .sync-dot--ok    { background: #34d399; box-shadow: 0 0 6px #34d399; }
+  .sync-dot--stale { background: #f87171; box-shadow: 0 0 6px #f87171; }
+  .sync-name {
+    font-size: .88rem;
+    color: rgba(255,255,255,.7);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.7;
+  }
+  .sync-date {
+    font-size: .78rem;
+    color: rgba(255,255,255,.35);
+    flex-shrink: 0;
+    line-height: 1.7;
+  }
+
+  /* ── Totals (gains / losses) ─────────────────────────────────────────────── */
+  .totals-stack {
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+    margin-bottom: 1.25rem;
+    background: rgba(0,0,0,.2);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: .3rem 0;
+    line-height: 1.7;
+  }
+  .total-row--divider { border-top: 1px solid rgba(255,255,255,.08); margin-top: .25rem; padding-top: .55rem; }
+  .total-row--grand   { border-top: 1px solid rgba(255,255,255,.12); margin-top: .25rem; padding-top: .55rem; font-weight: 700; }
+  .total-label { font-size: .85rem; color: rgba(255,255,255,.5); }
+  .total-val   { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .total-val--gain   { color: #34d399; }
+  .total-val--loss   { color: #f87171; }
+  .total-val--income { color: #a78bfa; }
+
+  /* ── Asset scroll lists ──────────────────────────────────────────────────── */
+  .asset-scroll {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .asset-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    max-height: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,.1) transparent;
+  }
+  .asset-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .3rem .5rem;
+    border-radius: 8px;
+    transition: background .12s;
+    line-height: 1.7;
+  }
+  .asset-row:hover { background: rgba(255,255,255,.05); }
+  .asset-sym { font-size: .85rem; font-weight: 600; color: rgba(255,255,255,.7); }
+  .asset-amt { font-size: .88rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .asset-amt--gain { color: #34d399; }
+  .asset-amt--loss { color: #f87171; }
+
+  .empty-note {
+    font-size: .88rem;
+    color: rgba(255,255,255,.35);
+    text-align: center;
+    padding: 1.5rem 0;
+    line-height: 1.7;
+  }
+
+  /* ── Missing cost basis ──────────────────────────────────────────────────── */
+  .basis-clear {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    text-align: center;
+  }
+  .basis-clear__script {
+    font-family: 'Brush Script MT', 'Segoe Script', 'Dancing Script', cursive;
+    font-size: 2.2rem;
+    font-style: italic;
+    color: rgba(255,255,255,.25);
+    margin: 0 0 .75rem;
+    line-height: 1.4;
+  }
+  .basis-clear__note {
+    font-size: .82rem;
+    color: rgba(52,211,153,.6);
+    margin: 0;
+    line-height: 1.7;
+  }
+
+  .basis-warning {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: .4rem;
+  }
+  .basis-warning__count { font-size: 3rem; font-weight: 800; color: #fcd34d; line-height: 1; }
+  .basis-warning__label { font-size: .88rem; color: rgba(255,255,255,.5); line-height: 1.7; }
+  .basis-warning__link  { font-size: .85rem; color: #a5b4fc; text-decoration: none; margin-top: .5rem; }
+  .basis-warning__link:hover { text-decoration: underline; }
+
+  /* ── Downloads ───────────────────────────────────────────────────────────── */
+  .downloads {
+    background: rgba(255,255,255,.025);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .downloads__title {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: rgba(255,255,255,.35);
+    margin: 0 0 1rem;
+    line-height: 1.7;
+  }
+  .downloads__grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+  }
+  .dl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .55rem 1.1rem;
+    border-radius: 10px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.12);
+    color: rgba(255,255,255,.7);
+    font-size: .88rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s, border-color .15s, color .15s;
+    line-height: 1.7;
+  }
+  .dl-btn:hover {
+    background: rgba(99,102,241,.15);
+    border-color: rgba(99,102,241,.4);
+    color: #a5b4fc;
+  }
+  .dl-btn__icon { font-size: 1rem; }
+
+  /* ── Footer disclaimer ───────────────────────────────────────────────────── */
+  .footer-disc { text-align: center; padding: 1rem 0 0; }
+  .disc-link {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.25);
+    font-size: .78rem;
+    cursor: pointer;
+    text-decoration: underline;
+    transition: color .15s;
+    line-height: 1.7;
+  }
+  .disc-link:hover { color: rgba(255,255,255,.5); }
+
+  /* ── Responsive ──────────────────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .tax-row--1 { grid-template-columns: 1fr; }
+    .tax-row--2 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .tax-home { padding: 0 1rem 3rem; }
+    .tax-hero__inner { padding: 1.5rem 1.25rem 0; }
+    .year-bar { padding: .75rem 1.25rem; }
+  }
+</style>
+
+<script>
+  // ── Disclaimer modal — shows once per tax season (resets Feb 1) ────────────
+  const now = new Date();
+  // Feb 1 onwards = new filing season for the prior year
+  const seasonYear = now.getMonth() >= 1 ? now.getFullYear() : now.getFullYear() - 1;
+  const discKey    = `tax_disclaimer_seen_${seasonYear}`;
+  const modal      = document.getElementById('disclaimer-modal') as HTMLElement;
+
+  if (!localStorage.getItem(discKey)) {
+    modal.hidden = false;
+  }
+  document.getElementById('disc-ok')?.addEventListener('click', () => {
+    localStorage.setItem(discKey, '1');
+    modal.hidden = true;
+  });
+  document.getElementById('disc-link-btn')?.addEventListener('click', () => {
+    modal.hidden = false;
+  });
+
+  // ── Restore checkbox state from localStorage ───────────────────────────────
+  document.querySelectorAll<HTMLInputElement>('.check-box[data-key]').forEach(cb => {
+    const key = cb.dataset.key!;
+    cb.checked = localStorage.getItem(key) === '1';
+    cb.addEventListener('change', () => {
+      if (cb.checked) localStorage.setItem(key, '1');
+      else localStorage.removeItem(key);
+    });
+  });
+
+  // ── Upload drop zone ───────────────────────────────────────────────────────
+  const dropzone  = document.getElementById('upload-dropzone') as HTMLElement;
+  const fileInput = document.getElementById('csv-file-input') as HTMLInputElement;
+  const statusEl  = document.getElementById('upload-status') as HTMLElement;
+
+  dropzone?.addEventListener('click', () => fileInput?.click());
+  dropzone?.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone?.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    const file = e.dataTransfer?.files[0];
+    if (file) handleUpload(file);
+  });
+  fileInput?.addEventListener('change', () => {
+    if (fileInput.files?.[0]) handleUpload(fileInput.files[0]);
+  });
+
+  async function handleUpload(file: File) {
+    statusEl.hidden = false;
+    statusEl.className = 'upload-status';
+    statusEl.textContent = `Uploading ${file.name}…`;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('formType', '1099-da');
+    fd.append('taxYear', String(new URLSearchParams(location.search).get('year') ?? new Date().getFullYear() - 1));
+    try {
+      const r = await fetch('/api/tax/1099/upload', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (j.ok) {
+        statusEl.className = 'upload-status ok';
+        statusEl.textContent = `✓ ${j.rowCount} rows imported — ${j.reconciliation?.filter((x: {matchStatus:string}) => x.matchStatus === 'matched').length ?? 0} matched.`;
+      } else {
+        statusEl.className = 'upload-status err';
+        statusEl.textContent = `✗ ${j.error ?? 'Upload failed'}`;
+      }
+    } catch {
+      statusEl.className = 'upload-status err';
+      statusEl.textContent = '✗ Network error — please try again.';
+    }
+  }
+
+  // ── Sync all button (navigates to wallets page) ────────────────────────────
+  document.getElementById('sync-all-btn')?.addEventListener('click', () => {
+    window.location.href = '/dashboard/wallets';
+  });
+</script>
