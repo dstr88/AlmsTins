@@ -131,8 +131,11 @@ const isStable    = (s: string) => STABLECOINS.has(s.replace(/^a/, '').toUpperCa
 
 // Scam/dust detector — flags tokens with phishing URLs or claim prompts in name
 const SCAM_PATTERNS = [
-  /https?:\/\//i, /www\./i, /\.com/i, /\.xyz/i, /\.site/i, /\.io/i,
+  /https?:\/\//i, /www\./i,
+  /\.com/i, /\.net/i, /\.xyz/i, /\.site/i, /\.io/i, /\.fi/i,
+  /\.org/i, /\.info/i, /\.co/i, /\.app/i, /\.gg/i,
   /t\.me\//i, /claim/i, /visit/i, /reward/i, /airdrop/i, /official.link/i,
+  /check:/i, /\bwpol\b/i,
 ];
 const isScamToken = (s: string) => SCAM_PATTERNS.some(p => p.test(s));
 

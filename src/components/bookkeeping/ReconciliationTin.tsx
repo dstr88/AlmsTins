@@ -32,6 +32,16 @@ const STATUS_LABEL: Record<ReconciliationStatus, string> = {
   untracked: '⬜ Untracked',
 };
 
+// ── Scam token detector (mirrors bookkeeping.astro) ──────────────────────────
+const SCAM_PATTERNS = [
+  /https?:\/\//i, /www\./i,
+  /\.com/i, /\.net/i, /\.xyz/i, /\.site/i, /\.io/i, /\.fi/i,
+  /\.org/i, /\.info/i, /\.co/i, /\.app/i, /\.gg/i,
+  /t\.me\//i, /claim/i, /visit/i, /reward/i, /airdrop/i, /official.link/i,
+  /check:/i, /\bwpol\b/i,
+];
+const isScamToken = (s: string) => SCAM_PATTERNS.some(p => p.test(s));
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number, dp = 6): string {
   if (Math.abs(n) < 1e-8) return '0';
@@ -245,10 +255,14 @@ export default function ReconciliationTin() {
     setNoteTarget(item);
   };
 
-  // ── Counters ──────────────────────────────────────────────────────────────
-  const flaggedCount   = items.filter(i => i.existingNote?.flaggedForSupport).length;
-  const problemCount   = items.filter(i => i.status !== 'ok' && i.status !== 'untracked').length;
-  const untrackedCount = items.filter(i => i.status === 'untracked').length;
+  // ── Split scam tokens out of main view ───────────────────────────────────
+  const cleanItems = items.filter(i => !isScamToken(i.asset));
+  const scamItems  = items.filter(i =>  isScamToken(i.asset));
+
+  // ── Counters (based on clean items only) ─────────────────────────────────
+  const flaggedCount   = cleanItems.filter(i => i.existingNote?.flaggedForSupport).length;
+  const problemCount   = cleanItems.filter(i => i.status !== 'ok' && i.status !== 'untracked').length;
+  const untrackedCount = cleanItems.filter(i => i.status === 'untracked').length;
 
   return (
     <div style={{ fontFamily: 'inherit', color: '#f7f2eb' }}>
@@ -306,13 +320,13 @@ export default function ReconciliationTin() {
       )}
 
       {/* ── Table ─────────────────────────────────────────────────────────── */}
-      {!loading && !error && items.length === 0 && (
+      {!loading && !error && cleanItems.length === 0 && scamItems.length === 0 && (
         <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.9rem' }}>
           No data yet — upload some CSV files or connect a wallet to get started.
         </div>
       )}
 
-      {!loading && !error && items.length > 0 && (
+      {!loading && !error && (cleanItems.length > 0 || scamItems.length > 0) && (
         <div style={{ overflowX: 'auto' }}>
           {/* Column headers */}
           <div style={{
@@ -334,7 +348,7 @@ export default function ReconciliationTin() {
           </div>
 
           {/* Rows */}
-          {items.map(item => {
+          {cleanItems.map(item => {
             const isExpanded = expanded === item.asset;
             const isFlagged  = item.existingNote?.flaggedForSupport;
             const hasNote    = item.existingNote?.note;
@@ -511,6 +525,65 @@ export default function ReconciliationTin() {
             );
           })}
         </div>
+      )}
+
+      {/* ── Worthless Airdrops ─────────────────────────────────────────────── */}
+      {!loading && !error && scamItems.length > 0 && (
+        <details style={{ marginTop: '1.5rem' }}>
+          <summary style={{
+            display: 'flex', alignItems: 'center', gap: '0.6rem',
+            cursor: 'pointer', userSelect: 'none',
+            padding: '0.65rem 0.75rem',
+            background: 'rgba(248,113,113,0.05)',
+            border: '1px solid rgba(248,113,113,0.2)',
+            borderRadius: 10,
+            fontSize: '0.85rem', fontWeight: 600, color: '#fca5a5',
+            listStyle: 'none',
+          }}>
+            <span>☣️</span>
+            <span>Worthless Airdrops</span>
+            <span style={{
+              background: 'rgba(248,113,113,0.15)',
+              border: '1px solid rgba(248,113,113,0.3)',
+              borderRadius: 999, padding: '0.1rem 0.55rem',
+              fontSize: '0.72rem', fontWeight: 700,
+            }}>{scamItems.length}</span>
+            <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#94a3b8', fontWeight: 400 }}>
+              click to expand
+            </span>
+          </summary>
+          <div style={{
+            border: '1px solid rgba(248,113,113,0.15)',
+            borderTop: 'none',
+            borderRadius: '0 0 10px 10px',
+            padding: '0.75rem',
+            background: 'rgba(248,113,113,0.03)',
+          }}>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0 0 0.75rem', lineHeight: 1.6 }}>
+              These tokens were sent to your wallet unsolicited. Their names contain phishing URLs or "claim" prompts designed to drain your wallet if clicked. They have <strong style={{ color: '#fca5a5' }}>no real value</strong> and are excluded from your reconciliation totals. Do not interact with them.
+            </p>
+            {scamItems.map(item => (
+              <div key={item.asset} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.4rem 0.5rem',
+                borderRadius: 6,
+                borderBottom: '1px solid rgba(255,255,255,0.04)',
+                gap: '1rem',
+              }}>
+                <span style={{
+                  fontSize: '0.82rem', color: 'rgba(255,255,255,0.35)',
+                  fontFamily: 'monospace', wordBreak: 'break-all',
+                  textDecoration: 'line-through',
+                }}>
+                  {item.asset}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#64748b', flexShrink: 0 }}>
+                  $0.00
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {/* ── Note Modal ─────────────────────────────────────────────────────── */}
