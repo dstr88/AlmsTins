@@ -440,6 +440,108 @@ const availableYears = bd?.availableYears ?? [priorYear];
       </div>
     </section>
 
+    <!-- ── FAQ ───────────────────────────────────────────────────────────── -->
+    <section class="faq">
+      <h2 class="faq__title">Frequently Asked Questions</h2>
+
+      <div class="faq__group">
+        <h3 class="faq__group-label">Understanding Your Numbers</h3>
+
+        <details class="faq__item">
+          <summary class="faq__q">What is the difference between short-term and long-term capital gains?</summary>
+          <p class="faq__a">If you sold a crypto asset you held for <strong>365 days or less</strong>, the gain is short-term and taxed as ordinary income — the same rate as your salary. If you held it for <strong>more than 365 days</strong>, the gain is long-term and taxed at the preferential capital gains rate (0%, 15%, or 20% depending on your income). Holding longer before selling almost always results in a lower tax bill.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What is cost basis and why does it matter?</summary>
+          <p class="faq__a">Cost basis is what you originally paid for an asset — including fees. Your taxable gain or loss is the difference between what you received when you sold it and your cost basis. If the IRS cannot find a cost basis record for a disposal, they assume it is <strong>$0</strong>, making the entire sale proceeds taxable. This is why missing cost basis is treated as a critical issue.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What is FIFO and why does the app use it?</summary>
+          <p class="faq__a">FIFO stands for <strong>First In, First Out</strong>. When you sell crypto, FIFO assumes you are selling the oldest coins you own first. It is the IRS default method and the most widely accepted by tax professionals. The app also supports HIFO (Highest In, First Out — minimises gains) and Specific Identification (you pick the exact lot) for users who want to optimise their tax outcome.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What is the "Wailing Wall"?</summary>
+          <p class="faq__a">The Wailing Wall shows your <strong>realised losses</strong> for the year — positions you sold for less than you paid. Losses are not just bad news: they can be used to offset capital gains dollar for dollar, reducing your tax bill. If your losses exceed your gains, up to <strong>$3,000 of the excess</strong> can be deducted against ordinary income, and any remaining amount carries forward to future tax years.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What counts as taxable income from crypto?</summary>
+          <p class="faq__a">Beyond buying and selling, the following are generally treated as ordinary income in the year you receive them: <strong>staking rewards</strong>, <strong>mining income</strong>, <strong>airdrops</strong>, <strong>referral bonuses</strong>, <strong>DeFi interest earned</strong>, and <strong>hard fork proceeds</strong>. The app tracks all of these separately in the Interest &amp; Income line so they flow correctly to Schedule 1 rather than Schedule D.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">Do crypto-to-crypto trades count as taxable events?</summary>
+          <p class="faq__a">Yes. Since 2017 the IRS has made clear that swapping one cryptocurrency for another — even without converting to dollars — is a taxable disposal. When you trade ETH for USDC, for example, you are treated as having sold your ETH at its fair market value at the moment of the swap. The app captures every on-chain swap and calculates the gain or loss automatically.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">Does the wash sale rule apply to crypto?</summary>
+          <p class="faq__a">As of the 2024 tax year, the wash sale rule — which disallows a loss if you repurchase the same asset within 30 days — <strong>does not apply to cryptocurrency</strong> under current IRS guidance (crypto is property, not a security). This means you can sell at a loss to harvest the deduction and immediately buy back the same coin. This is a significant planning opportunity. Note: legislation to change this has been proposed and may pass in future years.</p>
+        </details>
+      </div>
+
+      <div class="faq__group">
+        <h3 class="faq__group-label">Documents &amp; Filing</h3>
+
+        <details class="faq__item">
+          <summary class="faq__q">Do I need every document in the checklist?</summary>
+          <p class="faq__a">Only the ones that apply to you. W-2s apply if you have employment income. 1099-INT applies if you earned bank interest. 1099-R applies if you took a retirement distribution. The checklist is a prompt — not every box needs to be checked. The crypto exchange 1099s are the most important for this page: if your exchange issued one, the IRS received a copy too.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What is a 1099-DA and which exchanges issue one?</summary>
+          <p class="faq__a">Form 1099-DA is the new IRS form introduced for digital assets, first required for the <strong>2025 tax year</strong> (filed in 2026). For 2024 taxes, some exchanges issued 1099-Bs or 1099-MISCs instead. Coinbase, Kraken, Gemini, and Binance US are among the major exchanges expected to issue 1099-DAs going forward. If your exchange issued a form, you should receive it by January 31.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What is 1099 reconciliation and why should I care?</summary>
+          <p class="faq__a">When an exchange sends you a 1099, they send an identical copy to the IRS. If the numbers on that form differ from what you report on your tax return, it triggers an automatic mismatch flag — potentially leading to a notice or audit. The reconciliation tool lets you upload your exchange's 1099 CSV and compare it line by line against the app's computed figures <strong>before you file</strong>, so you can catch and explain any discrepancies.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What is Form 8949?</summary>
+          <p class="faq__a">Form 8949 is the IRS form where every individual capital asset sale must be reported — each disposal on its own line with the date acquired, date sold, proceeds, cost basis, and gain or loss. The totals from Form 8949 flow into Schedule D. The app generates a print-ready and CSV version of Form 8949 from your transaction history.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What is Schedule D?</summary>
+          <p class="faq__a">Schedule D is the IRS summary form for capital gains and losses. It takes the box totals from Form 8949 and rolls them up into short-term and long-term net figures. The net number from Schedule D flows to your Form 1040. Think of Form 8949 as the detail and Schedule D as the summary.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What should I give my CPA?</summary>
+          <p class="faq__a">At minimum: the <strong>Form 8949 CSV</strong>, the <strong>Year Summary PDF</strong>, and a note on any unresolved items from the review queue. If your CPA uses tax software, the Form 8949 CSV imports directly into most platforms. The Year Summary PDF gives them the narrative — income by category, loan events, open positions, and a completeness summary — so they can file with confidence.</p>
+        </details>
+      </div>
+
+      <div class="faq__group">
+        <h3 class="faq__group-label">How the App Works</h3>
+
+        <details class="faq__item">
+          <summary class="faq__q">What does "Sync" do on this page?</summary>
+          <p class="faq__a">The Sync button pulls the latest transaction data from your connected exchange accounts and then rebuilds the FIFO cost basis calculation. This is a targeted sync — it covers your tax-relevant exchange data only. Full wallet chain syncing (on-chain transactions, DeFi positions) is managed separately from the Vault page.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">What is the Review Queue?</summary>
+          <p class="faq__a">The app automatically classifies most transactions — trades, transfers, income events, fees. Occasionally a transaction is ambiguous: an unusual transfer, a token the classifier doesn't recognise, or a wallet-to-wallet move with no matching deposit. These land in the Review Queue. <strong>Unresolved items are excluded from your gain/loss totals</strong>, which means your numbers are understated until they are resolved. Always clear the queue before filing.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">How accurate are the numbers shown here?</summary>
+          <p class="faq__a">The numbers are as accurate as the data you have imported. If every exchange import is complete and every wallet is synced, the figures will be highly accurate. Common sources of error include: missing exchange imports, wallets that have not been synced recently, transactions that were manually entered incorrectly, and unresolved items in the review queue. The Data Completeness score at the top of the hub reflects how complete your data is.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">Why does the selected tax year matter?</summary>
+          <p class="faq__a">Every number on this page — gains, losses, income, missing cost basis — is filtered to the tax year you have selected. Make sure you are on the correct year before downloading any forms or sending figures to your CPA. The year selector at the top of the page controls everything.</p>
+        </details>
+      </div>
+    </section>
+
     <!-- ── Footer disclaimer ─────────────────────────────────────────────── -->
     <div class="footer-disc">
       <button id="disc-link-btn" class="disc-link">⚖️ Tax disclaimer &amp; limitations</button>
@@ -970,6 +1072,87 @@ const availableYears = bd?.availableYears ?? [priorYear];
     color: #a5b4fc;
   }
   .dl-btn__icon { font-size: 1rem; }
+
+  /* ── FAQ ────────────────────────────────────────────────────────────────── */
+  .faq {
+    margin-bottom: 2rem;
+  }
+  .faq__title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #e2e8ff;
+    margin: 0 0 2rem;
+    line-height: 1.7;
+  }
+  .faq__group {
+    margin-bottom: 2rem;
+  }
+  .faq__group-label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: rgba(255,255,255,.35);
+    margin: 0 0 .75rem;
+    line-height: 1.7;
+  }
+  .faq__item {
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 12px;
+    background: rgba(255,255,255,.025);
+    margin-bottom: .5rem;
+    overflow: hidden;
+    transition: border-color .15s;
+  }
+  .faq__item:hover {
+    border-color: rgba(165,180,252,.2);
+  }
+  .faq__item[open] {
+    border-color: rgba(99,102,241,.35);
+    background: rgba(99,102,241,.04);
+  }
+  .faq__q {
+    font-size: .95rem;
+    font-weight: 600;
+    color: #c7d2fe;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    line-height: 1.7;
+    transition: color .15s;
+  }
+  .faq__q::-webkit-details-marker { display: none; }
+  .faq__q::after {
+    content: '+';
+    font-size: 1.2rem;
+    font-weight: 300;
+    color: rgba(165,180,252,.5);
+    flex-shrink: 0;
+    transition: transform .2s;
+  }
+  .faq__item[open] .faq__q::after {
+    transform: rotate(45deg);
+    color: #a5b4fc;
+  }
+  .faq__item[open] .faq__q {
+    color: #e2e8ff;
+  }
+  .faq__a {
+    font-size: .9rem;
+    color: rgba(255,255,255,.55);
+    line-height: 1.7;
+    padding: 0 1.25rem 1.1rem;
+    margin: 0;
+    border-top: 1px solid rgba(255,255,255,.06);
+  }
+  .faq__a strong {
+    color: rgba(255,255,255,.8);
+    font-weight: 600;
+  }
 
   /* ── Footer disclaimer ───────────────────────────────────────────────────── */
   .footer-disc { text-align: center; padding: 1rem 0 0; }
