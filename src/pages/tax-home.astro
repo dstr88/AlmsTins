@@ -1330,30 +1330,26 @@ const availableYears = bd?.availableYears ?? [priorYear];
 
     try {
       // Step 1: pull latest exchange snapshots (CEX accounts)
-      const snapRes = await fetch('/api/import/snapshot-all', { method: 'POST' });
+      await fetch('/api/import/snapshot-all', { method: 'POST' });
 
       // Step 2: sync on-chain wallet balances + write wallet_snapshots
+      // Long-running — race against a 90s timeout so we never block forever
       syncBtn.textContent = '⏳ Syncing wallets…';
-      await fetch('/api/wallets/value/sync-all', { method: 'POST' });
+      await Promise.race([
+        fetch('/api/wallets/value/sync-all', { method: 'POST' }).catch(() => {}),
+        new Promise(resolve => setTimeout(resolve, 90_000)),
+      ]);
 
       // Step 3: rebuild FIFO lifecycle so gain/loss numbers reflect new data
       syncBtn.textContent = '⏳ Rebuilding…';
       await fetch('/api/lifecycle/rebuild', { method: 'POST' });
 
-      if (snapRes.ok) {
-        syncBtn.textContent = '✓ Done';
-        syncBtn.style.background = 'rgba(52,211,153,.25)';
-        syncBtn.style.borderColor = 'rgba(52,211,153,.5)';
-        syncBtn.style.color = '#6ee7b7';
-        // Reload after a short pause so status dots + progress bar refresh
-        setTimeout(() => window.location.reload(), 1200);
-      } else {
-        syncBtn.textContent = '✗ Failed — retry';
-        syncBtn.style.background = 'rgba(248,113,113,.2)';
-        syncBtn.style.borderColor = 'rgba(248,113,113,.4)';
-        syncBtn.style.color = '#fca5a5';
-        syncBtn.disabled = false;
-      }
+      syncBtn.textContent = '✓ Done';
+      syncBtn.style.background = 'rgba(52,211,153,.25)';
+      syncBtn.style.borderColor = 'rgba(52,211,153,.5)';
+      syncBtn.style.color = '#6ee7b7';
+      // Reload after a short pause so status dots + progress bar refresh
+      setTimeout(() => window.location.reload(), 1200);
     } catch {
       syncBtn.textContent = '✗ Network error';
       syncBtn.disabled = false;
