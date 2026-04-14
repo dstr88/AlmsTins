@@ -1,12 +1,12 @@
 /**
  * POST /api/tax/1099/upload
  *
- * Accepts a multipart form with a 1099-DA or 1099-B CSV file.
- * Parses the CSV into structured rows, stores them in tax_1099_uploads,
+ * Accepts a multipart form with a 1099-DA or 1099-B CSV or PDF file.
+ * Parses the file into structured rows, stores them in tax_1099_uploads,
  * then runs reconciliation against computed gains from annualBreakdown.
  *
  * Body (multipart/form-data):
- *   file        — CSV file
+ *   file        — CSV or PDF file
  *   formType    — '1099-da' | '1099-b'
  *   taxYear     — e.g. '2024'
  *   exchangeName — optional, e.g. 'Coinbase'
@@ -20,6 +20,7 @@ import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { randomUUID } from 'node:crypto';
+import pdfParse from 'pdf-parse';
 
 export const prerender = false;
 
@@ -74,6 +75,71 @@ function splitCsvLine(line: string): string[] {
 	}
 	result.push(current);
 	return result;
+}
+
+// ── PDF 1099-DA parser ────────────────────────────────────────────────────────
+// Handles the PayPal / IRS Form 1099-DA PDF layout.
+// Looks for asset headers like "ETHEREUM (ETH) - X9J9K872S" then transaction
+// rows that start with a high-precision unit amount (≥5 decimal places) followed
+// by an acquisition date (or dash) and a sale date.
+function parse1099DAPdf(text: string): NormRow[] {
+	const rows: NormRow[] = [];
+
+	// Asset headers: captures the ticker symbol inside parens, e.g. (ETH)
+	const assetRe = /\(([A-Z]{2,6})\)\s*[-–]\s*\w+/g;
+
+	// Transaction rows: units (≥5 decimal places), acq_date or "-", sold_date, proceeds
+	// e.g. "0.03303256 10/7/2025 12/22/2025 98.00"
+	// e.g. "0.00000142 - 5/23/2025 0.00"
+	const txRe = /(\d+\.\d{5,})\s+([\d/]+|-)\s+([\d/]+)\s+(\d[\d,.]*)/g;
+
+	// Build sorted list of asset positions so we can match each tx to its symbol
+	const assets: Array<{ pos: number; symbol: string }> = [];
+	let m: RegExpExecArray | null;
+	while ((m = assetRe.exec(text)) !== null) {
+		assets.push({ pos: m.index, symbol: m[1] });
+	}
+
+	while ((m = txRe.exec(text)) !== null) {
+		const pos = m.index;
+
+		// Skip if this match sits inside a "Sub-Total" or "Total" line
+		const before = text.slice(Math.max(0, pos - 40), pos);
+		if (/(?:Sub-?Total|Grand\s*Total)\s*$/i.test(before)) continue;
+
+		// Nearest asset header before this position → symbol
+		let symbol = '';
+		for (const a of assets) {
+			if (a.pos < pos) symbol = a.symbol;
+			else break;
+		}
+		if (!symbol) continue;
+
+		const acquiredRaw = m[2] === '-' ? '' : m[2];
+		const soldRaw     = m[3];
+		const proceedsRaw = m[4];
+
+		// Basis: look in the 150 chars after proceeds for the first number,
+		// skipping a lone "X" (the "proceeds is cash only" checkbox marker)
+		const after      = text.slice(pos + m[0].length, pos + m[0].length + 150);
+		const basisMatch = /^\s*(?:X\s*)?([\d,.]+)/.exec(after);
+		const basisRaw   = basisMatch ? basisMatch[1] : '';
+
+		const proceeds = parseFloat(proceedsRaw.replace(/,/g, ''));
+		const basis    = basisRaw ? parseFloat(basisRaw.replace(/,/g, '')) : null;
+
+		rows.push({
+			asset:      symbol,
+			proceeds:   Number.isFinite(proceeds) ? proceeds  : null,
+			costBasis:  Number.isFinite(basis)    ? basis     : null,
+			acquiredAt: acquiredRaw || null,
+			disposedAt: soldRaw     || null,
+			rawProceeds: proceedsRaw,
+			rawBasis:    basisRaw,
+		});
+	}
+
+	return rows;
 }
 
 // ── Column name normalisation ─────────────────────────────────────────────────
@@ -181,42 +247,51 @@ export const POST: APIRoute = async ({ request }) => {
 	const exchangeName = String(formData.get('exchangeName') ?? '').trim() || null;
 
 	if (!file || file.size === 0) return json({ ok: false, error: 'No file provided' }, 400);
-	if (file.size > 5 * 1024 * 1024) return json({ ok: false, error: 'File too large (max 5 MB)' }, 400);
-
-	// Detect PDF upload and give a helpful error
-	const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-	if (isPdf) {
-		return json({
-			ok: false,
-			error: 'PDF files are not supported. Most exchanges offer a CSV export of your 1099-DA — use that instead. If your exchange only provides a PDF (e.g. PayPal), contact support and we can convert it for you.',
-		}, 422);
-	}
+	if (file.size > 10 * 1024 * 1024) return json({ ok: false, error: 'File too large (max 10 MB)' }, 400);
 
 	const taxYear = parseInt(String(taxYearRaw ?? new Date().getFullYear() - 1), 10);
 	if (!Number.isFinite(taxYear) || taxYear < 2015 || taxYear > 2030) {
 		return json({ ok: false, error: 'Invalid tax year' }, 400);
 	}
 
-	// Read CSV text
-	let csvText: string;
-	try {
-		csvText = await file.text();
-	} catch {
-		return json({ ok: false, error: 'Could not read file' }, 400);
-	}
+	const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
-	// Parse
+	let csvText = '';
 	let parsedRows: NormRow[];
-	try {
-		const rawRows = parseCsv(csvText);
-		parsedRows = rawRows.map(r => normaliseRow(r, formType)).filter((r): r is NormRow => r !== null);
-	} catch (err) {
-		console.error('[1099/upload] parse error', err);
-		return json({ ok: false, error: 'Failed to parse CSV' }, 422);
-	}
 
-	if (parsedRows.length === 0) {
-		return json({ ok: false, error: 'No data rows found in CSV. Check that this is a valid 1099-DA/B file.' }, 422);
+	if (isPdf) {
+		// ── PDF path: extract text and parse 1099-DA transaction blocks ──────────
+		try {
+			const buffer = Buffer.from(await file.arrayBuffer());
+			const pdfData = await pdfParse(buffer);
+			parsedRows = parse1099DAPdf(pdfData.text);
+		} catch (err) {
+			console.error('[1099/upload] PDF parse error', err);
+			return json({ ok: false, error: 'Could not read PDF. Make sure it is a valid 1099-DA or 1099-B form.' }, 422);
+		}
+
+		if (parsedRows.length === 0) {
+			return json({ ok: false, error: 'No transactions found in this PDF. Only Form 1099-DA PDFs are supported — try a CSV export if available.' }, 422);
+		}
+	} else {
+		// ── CSV path ──────────────────────────────────────────────────────────────
+		try {
+			csvText = await file.text();
+		} catch {
+			return json({ ok: false, error: 'Could not read file' }, 400);
+		}
+
+		try {
+			const rawRows = parseCsv(csvText);
+			parsedRows = rawRows.map(r => normaliseRow(r, formType)).filter((r): r is NormRow => r !== null);
+		} catch (err) {
+			console.error('[1099/upload] CSV parse error', err);
+			return json({ ok: false, error: 'Failed to parse CSV' }, 422);
+		}
+
+		if (parsedRows.length === 0) {
+			return json({ ok: false, error: 'No data rows found in CSV. Check that this is a valid 1099-DA/B file.' }, 422);
+		}
 	}
 
 	// Store upload record
