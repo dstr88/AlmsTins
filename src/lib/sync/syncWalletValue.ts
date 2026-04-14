@@ -59,16 +59,6 @@ export async function syncWalletValuesForAllWallets(tenantId: string): Promise<W
 					sampleToken: breakdown.tokens[0] ?? null,
 				});
 
-				// Skip inserting empty zero-value snapshots to avoid clutter.
-				if (breakdown.totalUsd === 0 && breakdown.tokens.length === 0) {
-					console.log('[VALUE] skipping snapshot', {
-						walletId: wallet.id,
-						chain: breakdown.chain,
-						reason: 'totalUsd===0 && tokens.length===0',
-					});
-					continue;
-				}
-
 				console.log('[VALUE] inserting snapshot', {
 					walletId: wallet.id,
 					chain: breakdown.chain,

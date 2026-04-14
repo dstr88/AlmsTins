@@ -290,14 +290,21 @@ const availableYears = bd?.availableYears ?? [priorYear];
           {exchanges.length > 0 && (
             <>
               <p class="card-section-label" style="margin-top:1.25rem">Exchange Imports</p>
-              <ul class="sync-list">
+              <ul class="sync-list" id="exchange-list">
                 {exchanges.map(ex => {
                   const hasData = !!ex.lastImport;
                   return (
-                    <li class="sync-item">
+                    <li class="sync-item" data-account-id={ex.id}>
                       <span class={`sync-dot ${hasData ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
                       <span class="sync-name">{ex.label}</span>
                       <span class="sync-date">{hasData ? fmtDate(ex.lastImport) : 'No data'}</span>
+                      <button
+                        class="del-account-btn"
+                        data-account-id={ex.id}
+                        data-label={ex.label}
+                        title={`Remove ${ex.label}`}
+                        aria-label={`Remove ${ex.label}`}
+                      >✕</button>
                     </li>
                   );
                 })}
@@ -470,6 +477,15 @@ const availableYears = bd?.availableYears ?? [priorYear];
         <details class="faq__item">
           <summary class="faq__q">What counts as taxable income from crypto?</summary>
           <p class="faq__a">Beyond buying and selling, the following are generally treated as ordinary income in the year you receive them: <strong>staking rewards</strong>, <strong>mining income</strong>, <strong>airdrops</strong>, <strong>referral bonuses</strong>, <strong>DeFi interest earned</strong>, and <strong>hard fork proceeds</strong>. The app tracks all of these separately in the Interest &amp; Income line so they flow correctly to Schedule 1 rather than Schedule D.</p>
+        </details>
+
+        <details class="faq__item">
+          <summary class="faq__q">Are Crypto.com card rebates taxable?</summary>
+          <p class="faq__a">
+            <strong>No — card rebates are not taxable income.</strong> The IRS treats credit and debit card rebates as a <em>reduction in purchase price</em>, not as compensation or income. When you earn a "Card Rebate" in CRO through your Crypto.com Visa card, it works like cash back on a regular credit card — you simply paid a little less for that purchase. Because it is not income, it does not appear on Schedule 1 and is not added to your ordinary income total.
+            <br /><br />
+            This is different from <strong>staking rewards</strong>, <strong>referral bonuses</strong>, and <strong>earn interest</strong> — which <em>are</em> ordinary income. The app automatically separates them: any transaction whose description starts with "Card Rebate" in your Crypto.com CSV is moved to a dedicated non-taxable section in the Year Summary report so your taxable income total stays accurate.
+          </p>
         </details>
 
         <details class="faq__item">
@@ -922,6 +938,24 @@ const availableYears = bd?.availableYears ?? [priorYear];
     flex-shrink: 0;
     line-height: 1.7;
   }
+  .del-account-btn {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 6px;
+    color: rgba(255,255,255,.35);
+    font-size: .72rem;
+    line-height: 1;
+    padding: 2px 7px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .del-account-btn:hover {
+    color: #f87171;
+    border-color: rgba(248,113,113,.5);
+    background: rgba(248,113,113,.12);
+  }
+  .del-account-btn:disabled { cursor: not-allowed; opacity: .4; }
 
   /* ── Totals (gains / losses) ─────────────────────────────────────────────── */
   .totals-stack {
@@ -1251,6 +1285,43 @@ const availableYears = bd?.availableYears ?? [priorYear];
     }
   }
 
+  // ── Delete exchange account ────────────────────────────────────────────────
+  document.getElementById('exchange-list')?.addEventListener('click', async (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.del-account-btn');
+    if (!btn) return;
+
+    const accountId = btn.dataset.accountId!;
+    const label     = btn.dataset.label ?? 'this account';
+
+    if (!confirm(`Remove "${label}" and all its imported data?\n\nThis cannot be undone.`)) return;
+
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    try {
+      const res  = await fetch(`/api/exchange-accounts/${accountId}`, { method: 'DELETE' });
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        // Fade out and remove the row
+        const row = btn.closest<HTMLLIElement>('.sync-item');
+        if (row) {
+          row.style.transition = 'opacity 0.3s';
+          row.style.opacity = '0';
+          setTimeout(() => row.remove(), 320);
+        }
+      } else {
+        alert(`Could not delete: ${data.error ?? 'unknown error'}`);
+        btn.disabled = false;
+        btn.textContent = '✕';
+      }
+    } catch {
+      alert('Network error — please try again.');
+      btn.disabled = false;
+      btn.textContent = '✕';
+    }
+  });
+
   // ── Sync All — exchange snapshot + lifecycle rebuild, stays on page ──────────
   const syncBtn = document.getElementById('sync-all-btn') as HTMLButtonElement | null;
   syncBtn?.addEventListener('click', async () => {
@@ -1258,10 +1329,15 @@ const availableYears = bd?.availableYears ?? [priorYear];
     syncBtn.textContent = '⏳ Syncing…';
 
     try {
-      // Step 1: pull latest exchange snapshots
+      // Step 1: pull latest exchange snapshots (CEX accounts)
       const snapRes = await fetch('/api/import/snapshot-all', { method: 'POST' });
 
-      // Step 2: rebuild FIFO lifecycle so gain/loss numbers reflect new data
+      // Step 2: sync on-chain wallet balances + write wallet_snapshots
+      syncBtn.textContent = '⏳ Syncing wallets…';
+      await fetch('/api/wallets/value/sync-all', { method: 'POST' });
+
+      // Step 3: rebuild FIFO lifecycle so gain/loss numbers reflect new data
+      syncBtn.textContent = '⏳ Rebuilding…';
       await fetch('/api/lifecycle/rebuild', { method: 'POST' });
 
       if (snapRes.ok) {

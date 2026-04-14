@@ -141,9 +141,14 @@ export const POST: APIRoute = async ({ request }) => {
       // Plain text CSV — just need the header line
       text = buf.slice(0, 4096).toString('utf-8');
     }
-    const firstLine = text.split('\n')[0] ?? '';
-
-    const match = detectFromHeaders(firstLine);
+    // Some exports (e.g. Gemini from Google Sheets) prepend a spreadsheet title
+    // row before the real header. Scan the first 10 lines to find a match.
+    const lines = text.split('\n').slice(0, 10);
+    let match: ReturnType<typeof detectFromHeaders> = null;
+    for (const line of lines) {
+      match = detectFromHeaders(line);
+      if (match) break;
+    }
 
     if (!match) {
       return json({

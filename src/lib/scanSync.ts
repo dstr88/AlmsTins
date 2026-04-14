@@ -108,13 +108,11 @@ export async function fetchEthereumScan(params: ScanParams) {
 	return payload;
 }
 
-function buildSnowtraceUrl(params: ScanParams): string | null {
+function buildSnowtraceUrl(params: ScanParams): string {
+	// API key is optional — Routescan free tier works without one.
+	// If SNOWTRACE_API_KEY is set it will be included for higher rate limits.
 	const apiKey = import.meta.env.SNOWTRACE_API_KEY;
-	if (!apiKey) {
-		console.warn('[scan] SNOWTRACE_API_KEY not set — Avalanche chain will be skipped');
-		return null;
-	}
-	const query = new URLSearchParams({ apikey: apiKey });
+	const query = new URLSearchParams(apiKey ? { apikey: apiKey } : {});
 	for (const [key, value] of Object.entries(params)) {
 		if (value !== undefined && value !== null) {
 			query.set(key, String(value));

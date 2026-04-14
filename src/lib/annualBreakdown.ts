@@ -110,6 +110,8 @@ export type AnnualBreakdown = {
   shortTerm: SettledLot[];
   longTerm: SettledLot[];
   income: IncomeItem[];
+  /** Card rebates (Crypto.com "Card Rebate" transactions) — non-taxable, shown separately. */
+  cardRebates: IncomeItem[];
   nftHoldings: NftHolding[];
   totals: SectionTotals;
   /** Which data source was actually used to compute capital gains/income. */
@@ -178,6 +180,7 @@ export async function buildAnnualBreakdown(
   let longTerm: SettledLot[]             = [];
   let stillHolding: HeldPosition[]       = [];
   let income: IncomeItem[]               = [];
+  let cardRebates: IncomeItem[]          = [];
 
   if (resolvedSource === 'pipeline') {
     // ── PIPELINE PATH ────────────────────────────────────────────────────
@@ -298,7 +301,7 @@ export async function buildAnnualBreakdown(
               LEFT JOIN import_transactions it
                 ON it.id = tc.source_id AND tc.source_type = 'import'
              WHERE tc.tenant_id = ?
-               AND tc.category IN ('income', 'airdrop')
+               AND tc.category IN ('income', 'airdrop', 'card-rebate')
                AND tc.tax_year = ?
              ORDER BY tx_date DESC`,
       args: [tenantId, year],
@@ -310,16 +313,21 @@ export async function buildAnnualBreakdown(
       token_amount: unknown; tx_date: unknown; kind: unknown;
       description: unknown; tx_notes: unknown;
     };
-    income = (incomeRes.rows as unknown as RawIncome[]).map((r) => ({
-      asset:       toStr(r.asset_symbol).toUpperCase(),
-      amount:      Math.abs(Number(r.token_amount ?? 0)),
-      usdValue:    toNum(r.amount_usd),
-      date:        toStr(r.tx_date),
-      kind:        toStr(r.sub_category ?? r.category),
-      description: typeof r.description === 'string' ? r.description
-                 : typeof r.tx_notes    === 'string' ? r.tx_notes
-                 : null,
-    }));
+    const allIncomeRows = (incomeRes.rows as unknown as RawIncome[]).map((r) => {
+      const item: IncomeItem = {
+        asset:       toStr(r.asset_symbol).toUpperCase(),
+        amount:      Math.abs(Number(r.token_amount ?? 0)),
+        usdValue:    toNum(r.amount_usd),
+        date:        toStr(r.tx_date),
+        kind:        toStr(r.sub_category ?? r.category),
+        description: typeof r.description === 'string' ? r.description
+                   : typeof r.tx_notes    === 'string' ? r.tx_notes
+                   : null,
+      };
+      return { item, isCardRebate: toStr(r.category) === 'card-rebate' };
+    });
+    income      = allIncomeRows.filter((r) => !r.isCardRebate).map((r) => r.item);
+    cardRebates = allIncomeRows.filter((r) =>  r.isCardRebate).map((r) => r.item);
 
   } else {
     // ── LIFECYCLE PATH (original) ────────────────────────────────────────
@@ -585,18 +593,25 @@ export async function buildAnnualBreakdown(
     });
 
     type RawImport = { asset_symbol: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; kind: unknown; description: unknown; notes: unknown };
-    income = (incomeResult.rows as unknown as RawImport[])
-      .filter((r) => INCOME_KINDS.has(toStr(r.kind)))
-      .map((r) => ({
-        asset:       toStr(r.asset_symbol).toUpperCase(),
-        amount:      Math.abs(Number(r.amount ?? 0)),
-        usdValue:    toNum(r.native_usd),
-        date:        toStr(r.timestamp_utc),
-        kind:        toStr(r.kind),
-        description: typeof r.description === 'string' ? r.description
-                   : typeof r.notes === 'string'       ? r.notes
-                   : null,
-      }));
+    const isCardRebate = (r: RawImport) =>
+      /^card rebate/i.test(toStr(r.description).trimStart());
+
+    const toIncomeItem = (r: RawImport): IncomeItem => ({
+      asset:       toStr(r.asset_symbol).toUpperCase(),
+      amount:      Math.abs(Number(r.amount ?? 0)),
+      usdValue:    toNum(r.native_usd),
+      date:        toStr(r.timestamp_utc),
+      kind:        toStr(r.kind),
+      description: typeof r.description === 'string' ? r.description
+                 : typeof r.notes === 'string'       ? r.notes
+                 : null,
+    });
+
+    const incomeKindRows = (incomeResult.rows as unknown as RawImport[])
+      .filter((r) => INCOME_KINDS.has(toStr(r.kind)));
+
+    income      = incomeKindRows.filter((r) => !isCardRebate(r)).map(toIncomeItem);
+    cardRebates = incomeKindRows.filter(isCardRebate).map(toIncomeItem);
   } // end source branch
 
   // ── 4. NFT holdings — parse wallet_nft_snapshot, filter spam ────────────
@@ -720,6 +735,7 @@ export async function buildAnnualBreakdown(
     shortTerm,
     longTerm,
     income,
+    cardRebates,
     nftHoldings,
     totals,
     dataSource: resolvedSource,

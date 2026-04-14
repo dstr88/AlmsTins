@@ -85,9 +85,28 @@ export function classifyImportTxPass1(row: RawImportTx): ClassificationResult | 
 
 	let result: { category: TaxCategory; sub?: string } | null = null;
 
+	// Crypto.com "Card Rebate" transactions are a purchase discount (like credit-card
+	// cash back), not taxable ordinary income.  Intercept them before the kind-based
+	// classifier can assign category='income'.
+	if (row.source === 'crypto_com') {
+		const desc = (row.description ?? '').trimStart();
+		if (/^card rebate/i.test(desc)) {
+			return {
+				sourceType: 'import',
+				sourceId: row.id,
+				category: 'card-rebate',
+				subCategory: 'crypto-com-card-rebate',
+				confidence: 1.0,
+				assetSymbol: row.asset_symbol,
+				amountUsd: row.native_usd,
+				taxYear: taxYear(row.timestamp_utc),
+			};
+		}
+	}
+
 	if (row.source === 'coinbase') {
 		result = classifyCoinbaseKind(kind);
-	} else if (row.source === 'crypto-com') {
+	} else if (row.source === 'crypto_com') {
 		result = classifyCryptoComKind(kind);
 	}
 

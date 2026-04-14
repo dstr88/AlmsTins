@@ -18,6 +18,8 @@ export type TaxCategory =
 	| 'fee'
 	| 'nft-sale'
 	| 'loan-interest-paid'
+	// ── Non-taxable ────────────────────────────────────────────────────────────
+	| 'card-rebate'      // credit/debit card rebates — treated as purchase discount, not income
 	// ── DeFi ──────────────────────────────────────────────────────────────────
 	| 'lp-deposit'       // sending tokens into a liquidity pool
 	| 'lp-withdrawal'    // receiving tokens back from a liquidity pool
@@ -55,6 +57,7 @@ export type RawImportTx = {
 	source: string;
 	notes: string | null;
 	category: string | null;
+	description: string | null;
 };
 
 export type RawOnchainTx = {

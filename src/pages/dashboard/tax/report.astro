@@ -79,12 +79,13 @@ const totalSTGain  = stDisposals.reduce((sum, d) => sum + (d.gainLoss ?? 0), 0);
 const totalLTGain  = ltDisposals.reduce((sum, d) => sum + (d.gainLoss ?? 0), 0);
 const totalGain    = totalSTGain + totalLTGain;
 
-// ── Ordinary income ───────────────────────────────────────────────────────────
+// ── Ordinary income (excludes Card Rebates) ───────────────────────────────────
 const incomeResult = await db.execute({
 	sql: `SELECT source, asset_symbol, SUM(ABS(native_usd)) AS total_usd, COUNT(*) AS cnt
 	      FROM import_transactions
 	      WHERE tenant_id = ? AND category = 'income'
 	        AND strftime('%Y', timestamp_utc) = ?
+	        AND (description IS NULL OR description NOT LIKE 'Card Rebate%')
 	      GROUP BY source, asset_symbol
 	      ORDER BY total_usd DESC`,
 	args: [tenantId, String(taxYear)],
@@ -111,6 +112,25 @@ const airdropRows: AirdropRow[] = airdropResult.rows.map((r: DbRow) => ({
 	total: n(r.total_usd) ?? 0, count: Number(r.cnt ?? 0),
 }));
 const totalAirdrops = airdropRows.reduce((sum, r) => sum + r.total, 0);
+
+// ── Card rebates (non-taxable) ────────────────────────────────────────────────
+const cardRebateResult = await db.execute({
+	sql: `SELECT source, asset_symbol, SUM(ABS(native_usd)) AS total_usd, COUNT(*) AS cnt
+	      FROM import_transactions
+	      WHERE tenant_id = ?
+	        AND strftime('%Y', timestamp_utc) = ?
+	        AND (category = 'card-rebate' OR
+	             (category = 'income' AND description LIKE 'Card Rebate%'))
+	      GROUP BY source, asset_symbol
+	      ORDER BY total_usd DESC`,
+	args: [tenantId, String(taxYear)],
+});
+type CardRebateRow = { source: string; symbol: string; total: number; count: number };
+const cardRebateRows: CardRebateRow[] = cardRebateResult.rows.map((r: DbRow) => ({
+	source: s(r.source), symbol: s(r.asset_symbol),
+	total: n(r.total_usd) ?? 0, count: Number(r.cnt ?? 0),
+}));
+const totalCardRebates = cardRebateRows.reduce((sum, r) => sum + r.total, 0);
 
 // ── Loan events ───────────────────────────────────────────────────────────────
 const loanResult = await db.execute({
@@ -360,6 +380,48 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 			</section>
 		)}
 
+		<!-- Card Rebates — Non-taxable -->
+		{cardRebateRows.length > 0 && (
+			<section>
+				<h2 class="text-lg font-semibold text-gray-800 mb-1">
+					Card Rebates
+					<span class="text-sm font-normal text-gray-400 ml-2">(non-taxable — treated as purchase discount)</span>
+				</h2>
+				<p class="text-sm text-gray-500 mb-3">
+					These "Card Rebate" rewards are not reported as income. The IRS treats credit/debit card rebates
+					as a reduction in purchase price, not taxable compensation.
+				</p>
+				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+					<table class="min-w-full text-sm">
+						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+							<tr>
+								<th class="px-4 py-2.5 text-left">Source</th>
+								<th class="px-4 py-2.5 text-left">Asset</th>
+								<th class="px-4 py-2.5 text-left">Type</th>
+								<th class="px-4 py-2.5 text-right">Events</th>
+								<th class="px-4 py-2.5 text-right">Est. Value</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-100">
+							{cardRebateRows.map((r) => (
+								<tr class="hover:bg-gray-50">
+									<td class="px-4 py-2.5 text-gray-700 capitalize">{r.source.replace(/_/g, ' ')}</td>
+									<td class="px-4 py-2.5 font-mono text-gray-900">{r.symbol}</td>
+									<td class="px-4 py-2.5 text-gray-500">Card Rebate</td>
+									<td class="px-4 py-2.5 text-right text-gray-500">{r.count}</td>
+									<td class="px-4 py-2.5 text-right text-gray-400">{fmtUSD(r.total)}</td>
+								</tr>
+							))}
+							<tr class="bg-gray-50 font-semibold text-sm">
+								<td colspan="4" class="px-4 py-2.5 text-gray-500">Total (not reported as income)</td>
+								<td class="px-4 py-2.5 text-right text-gray-400">{fmtUSD(totalCardRebates)}</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+		)}
+
 		<!-- Loans -->
 		{loanRows.length > 0 && (
 			<section>
@@ -397,7 +459,7 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 		)}
 
 		<!-- No data fallback -->
-		{disposals.length === 0 && incomeRows.length === 0 && airdropRows.length === 0 && loanRows.length === 0 && (
+		{disposals.length === 0 && incomeRows.length === 0 && airdropRows.length === 0 && cardRebateRows.length === 0 && loanRows.length === 0 && (
 			<div class="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center space-y-2">
 				<p class="text-2xl">📂</p>
 				<p class="font-semibold text-gray-700">No classified tax events for {taxYear}</p>

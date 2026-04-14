@@ -7,7 +7,6 @@
  */
 import Layout from '../../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-
 import { hasTaxAccess } from '@/lib/taxAuth';
 
 if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
@@ -19,151 +18,354 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 ---
 
 <Layout title="1099 Reconciliation | Almstins" noindex={true}>
-	<div class="max-w-5xl mx-auto px-4 py-8 space-y-8">
+  <div class="recon-page">
 
-		<!-- Header -->
-		<div>
-			<a href="/dashboard/tax" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
-			<h1 class="text-2xl font-bold text-gray-900">1099 Reconciliation</h1>
-			<p class="text-sm text-gray-500 mt-1">
-				Upload a 1099-DA or 1099-B CSV from your exchange and compare it against what Almstins calculated.
-				Discrepancies flag potential errors before you file.
-			</p>
-		</div>
+    <!-- Header -->
+    <div class="recon-header">
+      <a href="/tax-home" class="recon-back">← Tax Hub</a>
+      <h1 class="recon-title">1099 Reconciliation</h1>
+      <p class="recon-sub">
+        Upload a 1099-DA or 1099-B CSV from your exchange and compare it line-by-line against what Almstins calculated.
+        Catch discrepancies before you file.
+      </p>
+    </div>
 
-		<!-- Upload card -->
-		<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-6">
-			<h2 class="text-base font-semibold text-gray-800 mb-4">Upload New Form</h2>
+    <!-- Upload card -->
+    <div class="recon-card">
+      <h2 class="recon-card__title">Upload New Form</h2>
 
-			<form id="upload-form" class="space-y-4" enctype="multipart/form-data">
-				<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-					<!-- Form type -->
-					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Form type</label>
-						<select id="form-type" name="formType"
-						        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-						               focus:outline-none focus:ring-2 focus:ring-indigo-500">
-							<option value="1099-da">1099-DA (crypto)</option>
-							<option value="1099-b">1099-B (brokerage)</option>
-						</select>
-					</div>
-					<!-- Tax year -->
-					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Tax year</label>
-						<select id="tax-year" name="taxYear"
-						        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-						               focus:outline-none focus:ring-2 focus:ring-indigo-500">
-							{years.map(y => <option value={y} selected={y === currentYear - 1}>{y}</option>)}
-						</select>
-					</div>
-					<!-- Exchange name -->
-					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Exchange (optional)</label>
-						<input type="text" id="exchange-name" name="exchangeName"
-						       placeholder="e.g. Coinbase, Kraken…"
-						       class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
-						              focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-					</div>
-				</div>
+      <form id="upload-form" enctype="multipart/form-data">
+        <div class="form-grid">
 
-				<!-- File drop zone -->
-				<div id="drop-zone"
-				     class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center
-				            hover:border-indigo-400 transition-colors cursor-pointer">
-					<input type="file" id="file-input" name="file" accept=".csv,text/csv" class="hidden" required />
-					<p class="text-3xl mb-2">📄</p>
-					<p class="font-medium text-gray-700">Drag &amp; drop your CSV here</p>
-					<p class="text-sm text-gray-400 mt-1">or <span class="text-indigo-600 hover:underline cursor-pointer" id="browse-btn">browse files</span></p>
-					<p id="file-name" class="text-sm text-indigo-700 mt-2 font-medium hidden"></p>
-				</div>
+          <!-- Form type -->
+          <div class="form-field">
+            <label class="form-label">Form type</label>
+            <select id="form-type" name="formType" class="form-select">
+              <option value="1099-da">1099-DA (crypto)</option>
+              <option value="1099-b">1099-B (brokerage)</option>
+            </select>
+          </div>
 
-				<div class="flex items-center gap-3">
-					<button type="submit" id="upload-btn"
-					        class="rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50
-					               text-white text-sm font-medium px-5 py-2 transition-colors">
-						Upload &amp; Reconcile
-					</button>
-					<span id="upload-status" class="text-sm text-gray-500 hidden"></span>
-				</div>
-			</form>
-		</div>
+          <!-- Tax year -->
+          <div class="form-field">
+            <label class="form-label">Tax year</label>
+            <select id="tax-year" name="taxYear" class="form-select">
+              {years.map(y => <option value={y} selected={y === currentYear - 1}>{y}</option>)}
+            </select>
+          </div>
 
-		<!-- Reconciliation results -->
-		<div id="results-section" class="hidden space-y-6">
+          <!-- Exchange name -->
+          <div class="form-field">
+            <label class="form-label">Exchange <span class="form-optional">(optional)</span></label>
+            <input type="text" id="exchange-name" name="exchangeName"
+                   placeholder="e.g. Coinbase, Kraken…"
+                   class="form-input" />
+          </div>
+        </div>
 
-			<!-- Summary banner -->
-			<div id="results-banner" class="rounded-xl border p-4 flex flex-wrap gap-4 items-center justify-between">
-				<div>
-					<p class="font-semibold text-gray-800" id="results-title">Reconciliation Complete</p>
-					<p class="text-sm text-gray-500" id="results-subtitle"></p>
-				</div>
-				<div class="flex gap-4 text-sm">
-					<span class="flex items-center gap-1">
-						<span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-						<span id="count-matched">0 matched</span>
-					</span>
-					<span class="flex items-center gap-1">
-						<span class="w-3 h-3 rounded-full bg-amber-400 inline-block"></span>
-						<span id="count-diff">0 differences</span>
-					</span>
-					<span class="flex items-center gap-1">
-						<span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
-						<span id="count-unmatched">0 unmatched</span>
-					</span>
-				</div>
-			</div>
+        <!-- File drop zone -->
+        <div id="drop-zone" class="drop-zone">
+          <input type="file" id="file-input" name="file" accept=".csv,text/csv" style="display:none" required />
+          <span class="drop-zone__icon">📄</span>
+          <p class="drop-zone__primary">Drag &amp; drop your CSV here</p>
+          <p class="drop-zone__secondary">or <span id="browse-btn" class="drop-zone__browse">browse files</span></p>
+          <p id="file-name" class="drop-zone__filename" style="display:none"></p>
+        </div>
 
-			<!-- Results table -->
-			<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-				<table class="w-full text-sm">
-					<thead class="bg-gray-50 border-b border-gray-200">
-						<tr>
-							<th class="text-left px-4 py-3 font-semibold text-gray-600">Asset</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">1099 Proceeds</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">1099 Basis</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Almstins Proceeds</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Almstins Basis</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Δ Proceeds</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Δ Basis</th>
-							<th class="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-						</tr>
-					</thead>
-					<tbody id="results-tbody" class="divide-y divide-gray-100 bg-white"></tbody>
-				</table>
-			</div>
+        <div class="form-actions">
+          <button type="submit" id="upload-btn" class="upload-btn">Upload &amp; Reconcile</button>
+          <span id="upload-status" class="upload-status" style="display:none"></span>
+        </div>
+      </form>
+    </div>
 
-			<!-- Guidance -->
-			<div class="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800 space-y-1">
-				<p class="font-semibold">How to read this</p>
-				<ul class="list-disc list-inside space-y-0.5 text-blue-700">
-					<li><strong>Matched</strong> — Almstins and the exchange agree within $1.</li>
-					<li><strong>Proceeds diff</strong> — The exchange reported different proceeds. Check if you have missing trades in Almstins.</li>
-					<li><strong>Basis diff</strong> — Cost basis differs. May indicate wash-sale adjustments or missing import data.</li>
-					<li><strong>Unmatched</strong> — The exchange reported transactions for an asset Almstins has no record of. Import the missing data.</li>
-				</ul>
-			</div>
-		</div>
+    <!-- Reconciliation results -->
+    <div id="results-section" style="display:none">
 
-		<!-- Past uploads -->
-		<div>
-			<h2 class="text-base font-semibold text-gray-800 mb-3">Previous Uploads</h2>
-			<div id="history-loading" class="text-sm text-gray-400">Loading…</div>
-			<div id="history-empty" class="hidden text-sm text-gray-400">No uploads yet.</div>
-			<div id="history-list" class="hidden space-y-2"></div>
-		</div>
+      <!-- Summary banner -->
+      <div id="results-banner" class="results-banner">
+        <div>
+          <p class="results-banner__title" id="results-title">Reconciliation Complete</p>
+          <p class="results-banner__sub" id="results-subtitle"></p>
+        </div>
+        <div class="results-banner__counts">
+          <span class="count-pill count-pill--green">
+            <span class="count-dot count-dot--green"></span>
+            <span id="count-matched">0 matched</span>
+          </span>
+          <span class="count-pill count-pill--amber">
+            <span class="count-dot count-dot--amber"></span>
+            <span id="count-diff">0 differences</span>
+          </span>
+          <span class="count-pill count-pill--red">
+            <span class="count-dot count-dot--red"></span>
+            <span id="count-unmatched">0 unmatched</span>
+          </span>
+        </div>
+      </div>
 
-	</div>
+      <!-- Results table -->
+      <div class="recon-card" style="padding:0;overflow:hidden">
+        <div class="table-scroll">
+          <table class="recon-table">
+            <thead>
+              <tr>
+                <th>Asset</th>
+                <th class="text-right">1099 Proceeds</th>
+                <th class="text-right">1099 Basis</th>
+                <th class="text-right">Almstins Proceeds</th>
+                <th class="text-right">Almstins Basis</th>
+                <th class="text-right">Δ Proceeds</th>
+                <th class="text-right">Δ Basis</th>
+                <th class="text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody id="results-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Guidance -->
+      <div class="guidance-box">
+        <p class="guidance-box__title">How to read this</p>
+        <ul class="guidance-box__list">
+          <li><strong>Matched</strong> — Almstins and the exchange agree within $1.</li>
+          <li><strong>Proceeds diff</strong> — The exchange reported different proceeds. Check for missing trades in Almstins.</li>
+          <li><strong>Basis diff</strong> — Cost basis differs. May indicate wash-sale adjustments or missing import data.</li>
+          <li><strong>Unmatched</strong> — The exchange reported an asset Almstins has no record of. Import the missing data.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Past uploads -->
+    <div class="recon-card">
+      <h2 class="recon-card__title">Previous Uploads</h2>
+      <div id="history-loading" class="history-placeholder">Loading…</div>
+      <div id="history-empty" class="history-placeholder" style="display:none">No uploads yet.</div>
+      <div id="history-list" style="display:none"></div>
+    </div>
+
+  </div>
 </Layout>
+
+<style>
+  .recon-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    line-height: 1.7;
+  }
+
+  /* Header */
+  .recon-back {
+    display: inline-block;
+    font-size: .8rem;
+    color: #a5b4fc;
+    text-decoration: none;
+    margin-bottom: .5rem;
+    transition: color .15s;
+  }
+  .recon-back:hover { color: #e2e8ff; }
+  .recon-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #e2e8ff;
+    margin: 0 0 .4rem;
+  }
+  .recon-sub {
+    font-size: .9rem;
+    color: #64748b;
+    margin: 0;
+    max-width: 680px;
+  }
+
+  /* Card */
+  .recon-card {
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px;
+    padding: 1.5rem;
+  }
+  .recon-card__title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #e2e8ff;
+    margin: 0 0 1.25rem;
+  }
+
+  /* Form */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .form-field { display: flex; flex-direction: column; gap: .35rem; }
+  .form-label {
+    font-size: .78rem;
+    font-weight: 600;
+    color: rgba(255,255,255,.5);
+  }
+  .form-optional { font-weight: 400; opacity: .6; }
+  .form-select, .form-input {
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px;
+    color: #e2e8ff;
+    font-size: .9rem;
+    font-family: inherit;
+    padding: .55rem .85rem;
+    outline: none;
+    transition: border-color .15s;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .form-select:focus, .form-input:focus { border-color: rgba(99,102,241,.6); }
+  .form-select option { background: #1a1d2e; }
+  .form-input::placeholder { color: rgba(255,255,255,.25); }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed rgba(99,102,241,.35);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(99,102,241,.03);
+    transition: background .15s, border-color .15s;
+    margin-bottom: 1.25rem;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    background: rgba(99,102,241,.08);
+    border-color: rgba(99,102,241,.6);
+  }
+  .drop-zone__icon { font-size: 2rem; display: block; margin-bottom: .5rem; }
+  .drop-zone__primary { font-size: .95rem; font-weight: 600; color: rgba(255,255,255,.65); margin: 0 0 .25rem; }
+  .drop-zone__secondary { font-size: .85rem; color: rgba(255,255,255,.35); margin: 0; }
+  .drop-zone__browse { color: #a5b4fc; cursor: pointer; text-decoration: underline; }
+  .drop-zone__filename { font-size: .85rem; color: #a5b4fc; margin: .5rem 0 0; font-weight: 600; }
+
+  /* Form actions */
+  .form-actions { display: flex; align-items: center; gap: 1rem; }
+  .upload-btn {
+    padding: .65rem 1.5rem;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: .9rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .upload-btn:hover { opacity: .88; }
+  .upload-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .upload-status { font-size: .85rem; color: #94a3b8; line-height: 1.7; }
+
+  /* Results banner */
+  .results-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-radius: 12px;
+    border: 1px solid rgba(52,211,153,.25);
+    background: rgba(52,211,153,.06);
+  }
+  .results-banner--warn {
+    border-color: rgba(251,191,36,.25);
+    background: rgba(251,191,36,.06);
+  }
+  .results-banner__title { font-size: .95rem; font-weight: 700; color: #e2e8ff; margin: 0 0 .15rem; }
+  .results-banner__sub { font-size: .82rem; color: #64748b; margin: 0; }
+  .results-banner__counts { display: flex; gap: .75rem; flex-wrap: wrap; }
+  .count-pill {
+    display: flex; align-items: center; gap: .4rem;
+    font-size: .8rem; color: rgba(255,255,255,.6);
+  }
+  .count-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .count-dot--green { background: #34d399; }
+  .count-dot--amber { background: #fbbf24; }
+  .count-dot--red   { background: #f87171; }
+
+  /* Results table */
+  .table-scroll { overflow-x: auto; }
+  .recon-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .85rem;
+  }
+  .recon-table thead tr {
+    background: rgba(255,255,255,.04);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .recon-table th {
+    padding: .65rem 1rem;
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #64748b;
+    white-space: nowrap;
+  }
+  .recon-table td {
+    padding: .6rem 1rem;
+    color: rgba(255,255,255,.65);
+    border-bottom: 1px solid rgba(255,255,255,.04);
+    white-space: nowrap;
+  }
+  .recon-table tbody tr:hover td { background: rgba(255,255,255,.03); }
+  .text-right { text-align: right; }
+  .text-center { text-align: center; }
+
+  /* Guidance box */
+  .guidance-box {
+    background: rgba(99,102,241,.07);
+    border: 1px solid rgba(99,102,241,.2);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+  }
+  .guidance-box__title {
+    font-size: .85rem;
+    font-weight: 700;
+    color: #a5b4fc;
+    margin: 0 0 .5rem;
+  }
+  .guidance-box__list {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: .83rem;
+    color: rgba(255,255,255,.5);
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+  }
+  .guidance-box__list strong { color: rgba(255,255,255,.75); }
+
+  /* History */
+  .history-placeholder { font-size: .88rem; color: #475569; line-height: 1.7; }
+
+  @media (max-width: 640px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .recon-page { padding: 1.5rem 1rem 3rem; }
+  }
+</style>
 
 <script>
 const USD = (n: number | null) => n != null
-	? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
-	: '—';
+  ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
+  : '—';
 
 const DELTA = (n: number | null) => {
-	if (n == null) return '—';
-	const abs = USD(Math.abs(n));
-	return n >= 0 ? `+${abs}` : `(${abs})`;
+  if (n == null) return '—';
+  const abs = USD(Math.abs(n));
+  return n >= 0 ? `+${abs}` : `(${abs})`;
 };
 
 // ── Drag-and-drop / file picker ────────────────────────────────────────────
@@ -173,220 +375,195 @@ const fileNameEl = document.getElementById('file-name')!;
 const browseBtn  = document.getElementById('browse-btn')!;
 
 function showFileName(name: string) {
-	fileNameEl.textContent = `📎 ${name}`;
-	fileNameEl.classList.remove('hidden');
+  fileNameEl.textContent = `📎 ${name}`;
+  fileNameEl.style.display = 'block';
 }
 
 browseBtn.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('click', (e) => {
-	if ((e.target as HTMLElement).id !== 'browse-btn') fileInput.click();
+  if ((e.target as HTMLElement).id !== 'browse-btn') fileInput.click();
 });
 fileInput.addEventListener('change', () => {
-	if (fileInput.files?.[0]) showFileName(fileInput.files[0].name);
+  if (fileInput.files?.[0]) showFileName(fileInput.files[0].name);
 });
-
-dropZone.addEventListener('dragover', (e) => {
-	e.preventDefault();
-	dropZone.classList.add('border-indigo-400', 'bg-indigo-50');
-});
-dropZone.addEventListener('dragleave', () => {
-	dropZone.classList.remove('border-indigo-400', 'bg-indigo-50');
-});
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', (e) => {
-	e.preventDefault();
-	dropZone.classList.remove('border-indigo-400', 'bg-indigo-50');
-	const files = e.dataTransfer?.files;
-	if (files?.[0]) {
-		const dt = new DataTransfer();
-		dt.items.add(files[0]);
-		fileInput.files = dt.files;
-		showFileName(files[0].name);
-	}
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const files = e.dataTransfer?.files;
+  if (files?.[0]) {
+    const dt = new DataTransfer();
+    dt.items.add(files[0]);
+    fileInput.files = dt.files;
+    showFileName(files[0].name);
+  }
 });
 
 // ── Upload form ────────────────────────────────────────────────────────────
 document.getElementById('upload-form')?.addEventListener('submit', async (e) => {
-	e.preventDefault();
+  e.preventDefault();
+  const uploadBtn = document.getElementById('upload-btn') as HTMLButtonElement;
+  const statusEl  = document.getElementById('upload-status')!;
 
-	const uploadBtn  = document.getElementById('upload-btn') as HTMLButtonElement;
-	const statusEl   = document.getElementById('upload-status')!;
+  if (!fileInput.files?.[0]) {
+    statusEl.textContent = 'Please select a file.';
+    statusEl.style.display = 'inline';
+    return;
+  }
 
-	if (!fileInput.files?.[0]) {
-		statusEl.textContent = 'Please select a file.';
-		statusEl.classList.remove('hidden');
-		return;
-	}
+  uploadBtn.disabled = true;
+  statusEl.textContent = '⏳ Uploading and reconciling…';
+  statusEl.style.display = 'inline';
 
-	uploadBtn.disabled = true;
-	statusEl.textContent = '⏳ Uploading and reconciling…';
-	statusEl.classList.remove('hidden');
+  const fd = new FormData(e.currentTarget as HTMLFormElement);
 
-	const fd = new FormData(e.currentTarget as HTMLFormElement);
+  try {
+    const res = await fetch('/api/tax/1099/upload', { method: 'POST', body: fd });
+    const data = await res.json() as {
+      ok: boolean; error?: string; uploadId?: string; rowCount?: number;
+      reconciliation?: Array<{
+        id: string; formAsset: string;
+        formProceeds: number | null; formCostBasis: number | null;
+        computedProceeds: number | null; computedBasis: number | null;
+        matchStatus: string; deltaProceeds: number | null; deltaBasis: number | null;
+      }>;
+    };
 
-	try {
-		const res = await fetch('/api/tax/1099/upload', { method: 'POST', body: fd });
-		const data = await res.json() as {
-			ok: boolean;
-			error?: string;
-			uploadId?: string;
-			rowCount?: number;
-			reconciliation?: Array<{
-				id: string;
-				formAsset: string;
-				formProceeds: number | null;
-				formCostBasis: number | null;
-				computedProceeds: number | null;
-				computedBasis: number | null;
-				matchStatus: string;
-				deltaProceeds: number | null;
-				deltaBasis: number | null;
-			}>;
-		};
+    if (!data.ok) {
+      statusEl.textContent = `❌ ${data.error ?? 'Upload failed'}`;
+      uploadBtn.disabled = false;
+      return;
+    }
 
-		if (!data.ok) {
-			statusEl.textContent = `❌ ${data.error ?? 'Upload failed'}`;
-			uploadBtn.disabled = false;
-			return;
-		}
-
-		statusEl.textContent = `✅ ${data.rowCount} rows processed`;
-		setTimeout(() => statusEl.classList.add('hidden'), 3000);
-		uploadBtn.disabled = false;
-
-		renderReconciliation(data.reconciliation ?? []);
-		loadHistory();
-	} catch (err) {
-		console.error('[1099] upload error', err);
-		statusEl.textContent = '❌ Network error';
-		uploadBtn.disabled = false;
-	}
+    statusEl.textContent = `✅ ${data.rowCount} rows processed`;
+    setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    uploadBtn.disabled = false;
+    renderReconciliation(data.reconciliation ?? []);
+    loadHistory();
+  } catch (err) {
+    console.error('[1099] upload error', err);
+    statusEl.textContent = '❌ Network error';
+    uploadBtn.disabled = false;
+  }
 });
 
 // ── Render reconciliation table ────────────────────────────────────────────
 function renderReconciliation(rows: Array<{
-	formAsset: string;
-	formProceeds: number | null;
-	formCostBasis: number | null;
-	computedProceeds: number | null;
-	computedBasis: number | null;
-	matchStatus: string;
-	deltaProceeds: number | null;
-	deltaBasis: number | null;
+  formAsset: string;
+  formProceeds: number | null; formCostBasis: number | null;
+  computedProceeds: number | null; computedBasis: number | null;
+  matchStatus: string; deltaProceeds: number | null; deltaBasis: number | null;
 }>) {
-	const section = document.getElementById('results-section')!;
-	const tbody   = document.getElementById('results-tbody')!;
-	tbody.innerHTML = '';
+  const section = document.getElementById('results-section')!;
+  const tbody   = document.getElementById('results-tbody')!;
+  tbody.innerHTML = '';
 
-	const matched   = rows.filter(r => r.matchStatus === 'matched').length;
-	const diffs     = rows.filter(r => ['proceeds_diff', 'basis_diff'].includes(r.matchStatus)).length;
-	const unmatched = rows.filter(r => r.matchStatus === 'unmatched').length;
+  const matched   = rows.filter(r => r.matchStatus === 'matched').length;
+  const diffs     = rows.filter(r => ['proceeds_diff','basis_diff'].includes(r.matchStatus)).length;
+  const unmatched = rows.filter(r => r.matchStatus === 'unmatched').length;
 
-	document.getElementById('count-matched')!.textContent   = `${matched} matched`;
-	document.getElementById('count-diff')!.textContent      = `${diffs} difference${diffs !== 1 ? 's' : ''}`;
-	document.getElementById('count-unmatched')!.textContent = `${unmatched} unmatched`;
-	document.getElementById('results-subtitle')!.textContent = `${rows.length} asset${rows.length !== 1 ? 's' : ''} compared`;
+  document.getElementById('count-matched')!.textContent   = `${matched} matched`;
+  document.getElementById('count-diff')!.textContent      = `${diffs} difference${diffs !== 1 ? 's' : ''}`;
+  document.getElementById('count-unmatched')!.textContent = `${unmatched} unmatched`;
+  document.getElementById('results-subtitle')!.textContent = `${rows.length} asset${rows.length !== 1 ? 's' : ''} compared`;
 
-	const banner = document.getElementById('results-banner')!;
-	if (unmatched > 0 || diffs > 0) {
-		banner.className = 'rounded-xl border border-amber-200 bg-amber-50 p-4 flex flex-wrap gap-4 items-center justify-between';
-	} else {
-		banner.className = 'rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex flex-wrap gap-4 items-center justify-between';
-	}
+  const banner = document.getElementById('results-banner')!;
+  if (unmatched > 0 || diffs > 0) banner.classList.add('results-banner--warn');
+  else banner.classList.remove('results-banner--warn');
 
-	for (const row of rows) {
-		const statusBadge = {
-			matched:      '<span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700 font-medium">✓ Matched</span>',
-			proceeds_diff:'<span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 font-medium">Δ Proceeds</span>',
-			basis_diff:   '<span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700 font-medium">Δ Basis</span>',
-			unmatched:    '<span class="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 font-medium">! Unmatched</span>',
-			extra:        '<span class="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">Extra</span>',
-		}[row.matchStatus] ?? row.matchStatus;
+  const STATUS_BADGE: Record<string, string> = {
+    matched:      '<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.3)">✓ Matched</span>',
+    proceeds_diff:'<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)">Δ Proceeds</span>',
+    basis_diff:   '<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)">Δ Basis</span>',
+    unmatched:    '<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3)">! Unmatched</span>',
+    extra:        '<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(99,102,241,.15);color:#a5b4fc;border:1px solid rgba(99,102,241,.3)">Extra</span>',
+  };
 
-		const deltaPC = row.deltaProceeds;
-		const deltaBc = row.deltaBasis;
-		const pcClass = deltaPC != null && Math.abs(deltaPC) > 1 ? (deltaPC > 0 ? 'text-red-600' : 'text-emerald-600') : 'text-gray-500';
-		const bcClass = deltaBc != null && Math.abs(deltaBc) > 1 ? (deltaBc > 0 ? 'text-red-600' : 'text-emerald-600') : 'text-gray-500';
+  for (const row of rows) {
+    const badge  = STATUS_BADGE[row.matchStatus] ?? row.matchStatus;
+    const dpCol  = row.deltaProceeds != null && Math.abs(row.deltaProceeds) > 1
+      ? (row.deltaProceeds > 0 ? '#f87171' : '#34d399') : 'rgba(255,255,255,.35)';
+    const dbCol  = row.deltaBasis != null && Math.abs(row.deltaBasis) > 1
+      ? (row.deltaBasis > 0 ? '#f87171' : '#34d399') : 'rgba(255,255,255,.35)';
 
-		const tr = document.createElement('tr');
-		tr.className = 'hover:bg-gray-50';
-		tr.innerHTML = `
-			<td class="px-4 py-3 font-medium text-gray-900">${row.formAsset}</td>
-			<td class="px-4 py-3 text-right tabular-nums text-gray-700">${USD(row.formProceeds)}</td>
-			<td class="px-4 py-3 text-right tabular-nums text-gray-700">${USD(row.formCostBasis)}</td>
-			<td class="px-4 py-3 text-right tabular-nums text-gray-500">${USD(row.computedProceeds)}</td>
-			<td class="px-4 py-3 text-right tabular-nums text-gray-500">${USD(row.computedBasis)}</td>
-			<td class="px-4 py-3 text-right tabular-nums font-medium ${pcClass}">${DELTA(row.deltaProceeds)}</td>
-			<td class="px-4 py-3 text-right tabular-nums font-medium ${bcClass}">${DELTA(row.deltaBasis)}</td>
-			<td class="px-4 py-3 text-center">${statusBadge}</td>
-		`;
-		tbody.appendChild(tr);
-	}
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:700;color:#e2e8ff">${row.formAsset}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums">${USD(row.formProceeds)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums">${USD(row.formCostBasis)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.4)">${USD(row.computedProceeds)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.4)">${USD(row.computedBasis)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:${dpCol}">${DELTA(row.deltaProceeds)}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:${dbCol}">${DELTA(row.deltaBasis)}</td>
+      <td style="text-align:center">${badge}</td>
+    `;
+    tbody.appendChild(tr);
+  }
 
-	section.classList.remove('hidden');
-	section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  section.style.display = 'flex';
+  section.style.flexDirection = 'column';
+  section.style.gap = '1.25rem';
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Past uploads history ───────────────────────────────────────────────────
 async function loadHistory() {
-	const loadingEl = document.getElementById('history-loading')!;
-	const emptyEl   = document.getElementById('history-empty')!;
-	const listEl    = document.getElementById('history-list')!;
+  const loadingEl = document.getElementById('history-loading')!;
+  const emptyEl   = document.getElementById('history-empty')!;
+  const listEl    = document.getElementById('history-list')!;
 
-	try {
-		const res = await fetch('/api/tax/1099/list');
-		const data = await res.json() as {
-			ok: boolean;
-			uploads: Array<{ id: string; formType: string; exchangeName: string | null; taxYear: number; filename: string; rowCount: number | null; createdAt: string }>;
-		};
+  try {
+    const res  = await fetch('/api/tax/1099/list');
+    const data = await res.json() as {
+      ok: boolean;
+      uploads: Array<{ id: string; formType: string; exchangeName: string | null; taxYear: number; filename: string; rowCount: number | null; createdAt: string }>;
+    };
 
-		loadingEl.classList.add('hidden');
+    loadingEl.style.display = 'none';
 
-		if (!data.ok || !data.uploads.length) {
-			emptyEl.classList.remove('hidden');
-			return;
-		}
+    if (!data.ok || !data.uploads.length) { emptyEl.style.display = 'block'; return; }
 
-		listEl.innerHTML = '';
-		for (const u of data.uploads) {
-			const div = document.createElement('div');
-			div.className = 'flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm';
-			div.innerHTML = `
-				<div class="min-w-0">
-					<p class="font-medium text-gray-900 truncate">${u.filename}</p>
-					<p class="text-xs text-gray-400">
-						${u.formType.toUpperCase()} · ${u.taxYear}
-						${u.exchangeName ? ` · ${u.exchangeName}` : ''}
-						· ${u.rowCount ?? '?'} rows
-						· Uploaded ${new Date(u.createdAt).toLocaleDateString()}
-					</p>
-				</div>
-				<a href="/dashboard/tax/1099?uploadId=${u.id}"
-				   class="text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap">View →</a>
-			`;
-			listEl.appendChild(div);
-		}
-		listEl.classList.remove('hidden');
-	} catch (err) {
-		console.error('[1099] history error', err);
-		loadingEl.classList.add('hidden');
-		emptyEl.classList.remove('hidden');
-	}
+    listEl.innerHTML = '';
+    for (const u of data.uploads) {
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.75rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);margin-bottom:.5rem';
+      div.innerHTML = `
+        <div style="min-width:0">
+          <p style="font-size:.88rem;font-weight:600;color:#e2e8ff;margin:0 0 .15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.filename}</p>
+          <p style="font-size:.75rem;color:#475569;margin:0">
+            ${u.formType.toUpperCase()} · ${u.taxYear}
+            ${u.exchangeName ? ` · ${u.exchangeName}` : ''}
+            · ${u.rowCount ?? '?'} rows
+            · Uploaded ${new Date(u.createdAt).toLocaleDateString()}
+          </p>
+        </div>
+        <a href="/dashboard/tax/1099?uploadId=${u.id}"
+           style="font-size:.85rem;font-weight:600;color:#a5b4fc;text-decoration:none;white-space:nowrap;flex-shrink:0">
+          View →
+        </a>
+      `;
+      listEl.appendChild(div);
+    }
+    listEl.style.display = 'block';
+  } catch (err) {
+    console.error('[1099] history error', err);
+    loadingEl.style.display = 'none';
+    emptyEl.style.display = 'block';
+  }
 }
 
 // Load history on page load; also handle ?uploadId deep-link
 (async () => {
-	await loadHistory();
-
-	const params = new URLSearchParams(window.location.search);
-	const uploadId = params.get('uploadId');
-	if (uploadId) {
-		try {
-			const res = await fetch(`/api/tax/1099/reconciliation?uploadId=${uploadId}`);
-			const data = await res.json();
-			if (data.ok) {
-				renderReconciliation(data.reconciliation ?? []);
-			}
-		} catch {}
-	}
+  await loadHistory();
+  const params   = new URLSearchParams(window.location.search);
+  const uploadId = params.get('uploadId');
+  if (uploadId) {
+    try {
+      const res  = await fetch(`/api/tax/1099/reconciliation?uploadId=${uploadId}`);
+      const data = await res.json();
+      if (data.ok) renderReconciliation(data.reconciliation ?? []);
+    } catch {}
+  }
 })();
 </script>

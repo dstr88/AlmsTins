@@ -122,17 +122,20 @@ export async function snapshotCexAccount(
 
 		const holdings = computeHoldings(rows);
 		const active = holdings.filter((h) => h.balance + h.staked > 0.000001);
-		if (!active.length) return;
 
-		const symbols = active.map((h) => normalizeSymbol(h.symbol));
+		// Even if the wallet is now empty (all transferred out), still write a
+		// $0 snapshot so the wallet shows as synced rather than "Never".
 		let priceMap: Record<string, number> = {};
-		try {
-			priceMap = await fetchPricesForSymbols(symbols);
-		} catch (err) {
-			console.warn('[cexSnapshot] price fetch failed, proceeding with null prices', {
-				source,
-				err,
-			});
+		if (active.length) {
+			const symbols = active.map((h) => normalizeSymbol(h.symbol));
+			try {
+				priceMap = await fetchPricesForSymbols(symbols);
+			} catch (err) {
+				console.warn('[cexSnapshot] price fetch failed, proceeding with null prices', {
+					source,
+					err,
+				});
+			}
 		}
 
 		const tokens = active.map((h) => {

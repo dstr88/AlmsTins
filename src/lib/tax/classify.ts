@@ -56,7 +56,7 @@ const NOW_SQL = `strftime('%Y-%m-%dT%H:%M:%SZ','now')`;
 async function loadImportTransactions(tenantId: string): Promise<RawImportTx[]> {
 	const result = await db.execute({
 		sql: `SELECT id, timestamp_utc, asset_symbol, direction, kind, amount,
-		             to_amount, native_usd, tx_hash, source, notes, category
+		             to_amount, native_usd, tx_hash, source, notes, category, description
 		      FROM import_transactions
 		      WHERE tenant_id = ?
 		      ORDER BY timestamp_utc ASC`,
@@ -75,6 +75,7 @@ async function loadImportTransactions(tenantId: string): Promise<RawImportTx[]> 
 		source: s(r.source),
 		notes: typeof r.notes === 'string' ? r.notes : null,
 		category: typeof r.category === 'string' ? r.category : null,
+		description: typeof r.description === 'string' ? r.description : null,
 	}));
 }
 
