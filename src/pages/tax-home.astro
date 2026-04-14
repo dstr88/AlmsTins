@@ -203,11 +203,29 @@ const availableYears = bd?.availableYears ?? [priorYear];
 
         <div class="card-body">
           <p class="card-section-label">Traditional Income</p>
-          <ul class="check-list">
-            {['W-2 (Employment income)', '1099-INT (Bank interest)', '1099-DIV (Dividends)', '1099-R (Retirement distributions)', '1099-MISC / 1099-NEC (Other income)', 'SSA-1099 (Social Security)'].map(doc => (
-              <li class="check-item">
-                <input type="checkbox" class="check-box" data-key={`doc_${doc.replace(/\s+/g,'_')}_${selectedYear}`} />
-                <span class="check-label">{doc}</span>
+          <ul class="check-list" id="doc-checklist">
+            {[
+              { label: 'W-2 (Employment income)',              type: 'w2'        },
+              { label: '1099-INT (Bank interest)',             type: '1099-int'  },
+              { label: '1099-DIV (Dividends)',                 type: '1099-div'  },
+              { label: '1099-R (Retirement distributions)',    type: '1099-r'    },
+              { label: '1099-MISC / 1099-NEC (Other income)', type: '1099-misc' },
+              { label: 'SSA-1099 (Social Security)',           type: 'ssa-1099'  },
+            ].map(doc => (
+              <li class="check-item" data-doc-type={doc.type}>
+                <input type="checkbox" class="check-box" data-key={`doc_${doc.type}_${selectedYear}`} />
+                <span class="check-label">{doc.label}</span>
+                <span class="doc-attachments" data-doc-attachments={doc.type}></span>
+                <label class="doc-upload-btn" title={`Upload ${doc.label}`}>
+                  📎
+                  <input
+                    type="file"
+                    class="doc-file-input"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    data-doc-type={doc.type}
+                    style="display:none"
+                  />
+                </label>
               </li>
             ))}
           </ul>
@@ -230,11 +248,11 @@ const availableYears = bd?.availableYears ?? [priorYear];
           )}
 
           <div class="upload-zone">
-            <p class="card-section-label" style="margin-bottom:.6rem">Upload 1099 CSV for Reconciliation</p>
+            <p class="card-section-label" style="margin-bottom:.6rem">Upload 1099 CSV/PDF for Reconciliation</p>
             <div class="upload-dropzone" id="upload-dropzone">
               <span class="upload-icon">⬆️</span>
-              <span class="upload-text">Drop a CSV here or <label for="csv-file-input" class="upload-browse">browse</label></span>
-              <input id="csv-file-input" type="file" accept=".csv" style="display:none" />
+              <span class="upload-text">Drop a CSV or PDF here or <label for="csv-file-input" class="upload-browse">browse</label></span>
+              <input id="csv-file-input" type="file" accept=".csv,.pdf,application/pdf" style="display:none" />
             </div>
             <div id="upload-status" class="upload-status" hidden></div>
           </div>
@@ -815,6 +833,51 @@ const availableYears = bd?.availableYears ?? [priorYear];
   }
   .check-item:has(.check-box:checked) .check-label { color: rgba(255,255,255,.35); text-decoration: line-through; }
 
+  /* doc upload button (📎) */
+  .doc-upload-btn {
+    margin-left: auto;
+    cursor: pointer;
+    font-size: .85rem;
+    opacity: 0.45;
+    border-radius: 4px;
+    padding: 0 .15rem;
+    transition: opacity .15s;
+    flex-shrink: 0;
+  }
+  .doc-upload-btn:hover { opacity: 1; }
+
+  /* attachment chips shown after upload */
+  .doc-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem;
+    align-items: center;
+  }
+  .doc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    font-size: .7rem;
+    padding: .1rem .4rem;
+    border-radius: 999px;
+    background: rgba(139,92,246,.18);
+    border: 1px solid rgba(139,92,246,.35);
+    color: #c4b5fd;
+    text-decoration: none;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .doc-chip:hover { background: rgba(139,92,246,.3); }
+  .doc-chip-del {
+    cursor: pointer;
+    opacity: .6;
+    font-size: .65rem;
+    flex-shrink: 0;
+  }
+  .doc-chip-del:hover { opacity: 1; color: #f87171; }
+
   .form-badge {
     font-size: .65rem;
     font-weight: 700;
@@ -1240,6 +1303,99 @@ const availableYears = bd?.availableYears ?? [priorYear];
     cb.addEventListener('change', () => {
       if (cb.checked) localStorage.setItem(key, '1');
       else localStorage.removeItem(key);
+    });
+  });
+
+  // ── Tax document uploads (W-2, 1099-INT, etc.) ────────────────────────────
+  const taxYear = new URLSearchParams(location.search).get('year') ?? String(new Date().getFullYear() - 1);
+
+  function renderDocChip(doc: { id: string; filename: string }, container: HTMLElement, cb: HTMLInputElement) {
+    const chip = document.createElement('a');
+    chip.href = `/api/tax/documents/${doc.id}`;
+    chip.target = '_blank';
+    chip.rel = 'noopener';
+    chip.className = 'doc-chip';
+    chip.title = doc.filename;
+
+    const name = document.createElement('span');
+    name.textContent = doc.filename.length > 18 ? doc.filename.slice(0, 15) + '…' : doc.filename;
+    chip.appendChild(name);
+
+    const del = document.createElement('span');
+    del.className = 'doc-chip-del';
+    del.textContent = '✕';
+    del.title = 'Remove';
+    del.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!confirm(`Remove "${doc.filename}"?`)) return;
+      const res = await fetch(`/api/tax/documents/${doc.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        chip.remove();
+        // Uncheck the checkbox if no more docs for this type
+        if (container.childElementCount === 0) {
+          cb.checked = false;
+          localStorage.removeItem(cb.dataset.key!);
+        }
+      }
+    });
+    chip.appendChild(del);
+    container.appendChild(chip);
+  }
+
+  // Load existing documents and render chips
+  async function loadDocs() {
+    try {
+      const res = await fetch(`/api/tax/documents?year=${taxYear}`);
+      if (!res.ok) return;
+      const { docs } = await res.json();
+      for (const doc of docs) {
+        const li = document.querySelector<HTMLElement>(`[data-doc-type="${doc.docType}"]`);
+        const container = li?.querySelector<HTMLElement>('[data-doc-attachments]');
+        const cb = li?.querySelector<HTMLInputElement>('.check-box');
+        if (!container || !cb) continue;
+        renderDocChip(doc, container, cb);
+        cb.checked = true;
+        localStorage.setItem(cb.dataset.key!, '1');
+      }
+    } catch { /* ignore */ }
+  }
+  loadDocs();
+
+  // Handle per-doc-type file uploads
+  document.querySelectorAll<HTMLInputElement>('.doc-file-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const docType = input.dataset.docType!;
+      const li = input.closest<HTMLElement>('[data-doc-type]');
+      const container = li?.querySelector<HTMLElement>('[data-doc-attachments]');
+      const cb = li?.querySelector<HTMLInputElement>('.check-box');
+      if (!container || !cb) return;
+
+      const label = input.closest<HTMLLabelElement>('.doc-upload-btn');
+      if (label) label.textContent = '⏳';
+
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('docType', docType);
+      fd.append('taxYear', taxYear);
+      try {
+        const res = await fetch('/api/tax/documents', { method: 'POST', body: fd });
+        const json = await res.json();
+        if (json.ok) {
+          renderDocChip(json.doc, container, cb);
+          cb.checked = true;
+          localStorage.setItem(cb.dataset.key!, '1');
+        } else {
+          alert(`Upload failed: ${json.error ?? 'Unknown error'}`);
+        }
+      } catch {
+        alert('Network error — please try again.');
+      } finally {
+        if (label) label.textContent = '📎';
+        input.value = ''; // reset so same file can be re-picked
+      }
     });
   });
 
