@@ -183,6 +183,15 @@ export const POST: APIRoute = async ({ request }) => {
 	if (!file || file.size === 0) return json({ ok: false, error: 'No file provided' }, 400);
 	if (file.size > 5 * 1024 * 1024) return json({ ok: false, error: 'File too large (max 5 MB)' }, 400);
 
+	// Detect PDF upload and give a helpful error
+	const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+	if (isPdf) {
+		return json({
+			ok: false,
+			error: 'PDF files are not supported. Most exchanges offer a CSV export of your 1099-DA — use that instead. If your exchange only provides a PDF (e.g. PayPal), contact support and we can convert it for you.',
+		}, 422);
+	}
+
 	const taxYear = parseInt(String(taxYearRaw ?? new Date().getFullYear() - 1), 10);
 	if (!Number.isFinite(taxYear) || taxYear < 2015 || taxYear > 2030) {
 		return json({ ok: false, error: 'Invalid tax year' }, 400);

@@ -65,7 +65,7 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 
         <!-- File drop zone -->
         <div id="drop-zone" class="drop-zone">
-          <input type="file" id="file-input" name="file" accept=".csv,text/csv" style="display:none" required />
+          <input type="file" id="file-input" name="file" accept=".csv,text/csv,.pdf,application/pdf" style="display:none" required />
           <span class="drop-zone__icon">📄</span>
           <p class="drop-zone__primary">Drag &amp; drop your CSV here</p>
           <p class="drop-zone__secondary">or <span id="browse-btn" class="drop-zone__browse">browse files</span></p>
