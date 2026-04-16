@@ -240,11 +240,7 @@
 	}
 }
 
-@media (min-width: 1280px) {
-	.exchange-lane {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-	}
-}
+/* Exchange lane caps at 2 columns — cards have enough content to warrant width */
 
 .exchange-empty {
 	margin: 0;
@@ -301,6 +297,13 @@
 	min-height: 0;
 	height: 100%;
 	max-height: 100%;
+}
+
+/* In the exchange grid, tiles should size to content, not stretch */
+.exchange-lane > .tile {
+	height: auto;
+	max-height: none;
+	align-self: start;
 }
 
 .tile.placeholder-card {
