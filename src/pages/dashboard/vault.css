@@ -30,6 +30,8 @@
 	width: 100%;
 	margin: 0 auto;
 	box-sizing: border-box;
+	background: #0d1117;
+	min-height: 100vh;
 }
 
 .vault-page > :not(.hero-bleed) {
@@ -120,11 +122,6 @@
 @media (min-width: 720px) {
 	.vault-lane:not(.exchange-lane) > .tile {
 		flex: 1 1 calc((100% - 24px) / 2);
-	}
-
-	.exchange-lane > .tile {
-		flex: 0 0 calc((100% - 20px) / 2);
-		max-width: calc((100% - 20px) / 2);
 	}
 }
 
@@ -217,24 +214,35 @@
 	}
 }
 
-/* ── Exchange lane: wrapping, 2-per-row at desktop ────────────────────────── */
+/* ── Exchange lane: CSS grid, 1→2→3 cols ─────────────────────────────────── */
 .exchange-lane {
+	display: grid;
+	grid-template-columns: 1fr;
 	gap: 20px;
-	align-items: flex-start;
-	flex-direction: row;
-	flex-wrap: wrap;
+	align-items: start;
+	/* override vault-lane flex defaults */
+	flex-wrap: unset;
+	flex-direction: unset;
 }
 
 .exchange-lane > .tile {
-	flex: 1 1 100%;
 	min-width: 0;
+	width: 100%;
 	box-sizing: border-box;
+	/* undo any inherited flex sizing */
+	flex: none;
+	max-width: none;
 }
 
-@media (min-width: 1080px) {
-	.exchange-lane > .tile {
-		flex: 0 0 calc((100% - 20px) / 2);
-		max-width: calc((100% - 20px) / 2);
+@media (min-width: 720px) {
+	.exchange-lane {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (min-width: 1280px) {
+	.exchange-lane {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 	}
 }
 
