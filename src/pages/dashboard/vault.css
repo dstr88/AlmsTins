@@ -204,6 +204,12 @@
 	.vault-lane:not(.exchange-lane) > .tile {
 		flex: 0 0 calc((100% - (var(--grid-gap, 24px) * 2)) / 3);
 	}
+
+	/* Wallet stacks: 2 per row at all desktop widths */
+	.vault-lane--row3 > .tile {
+		flex: 0 0 calc((100% - 24px) / 2);
+		max-width: calc((100% - 24px) / 2);
+	}
 }
 
 /* ── Exchange lane: single column, full width ─────────────────────────────── */
