@@ -19,6 +19,7 @@ import {
 	LENDING_PROTOCOL_ADDRESSES,
 	TRANSFER_AMOUNT_TOLERANCE,
 	TRANSFER_MATCH_WINDOW_MINUTES,
+	TRANSFER_MATCH_WINDOW_CEX_MINUTES,
 } from './constants';
 
 type AnyTx = {
@@ -142,7 +143,13 @@ export function matchTransfers(
 			const incMs = toMs(inc.timestamp);
 			const diffMs = Math.abs(incMs - outMs);
 			const diffMin = diffMs / 60_000;
-			if (diffMin > TRANSFER_MATCH_WINDOW_MINUTES) continue;
+			// Use a wider window when both sides are CEX imports — CSV timestamps
+			// can be delayed by hours (e.g. LTC sent to Coinbase posts later).
+			const windowMin =
+				out.sourceType === 'import' && inc.sourceType === 'import'
+					? TRANSFER_MATCH_WINDOW_CEX_MINUTES
+					: TRANSFER_MATCH_WINDOW_MINUTES;
+			if (diffMin > windowMin) continue;
 
 			// Prefer the closest in time
 			if (diffMs < bestTimeDiff) {
@@ -237,7 +244,7 @@ export function detectLoans(
 				sourceType: 'onchain',
 				sourceId: row.id,
 				reason: 'possible_loan',
-				reasonDetail: `Received ${row.token_symbol ?? 'tokens'} from a lending protocol (${from.slice(0, 10)}…). Auto-classified as loan proceeds (not taxable). Confirm below or correct if it was actually interest earned (ordinary income).`,
+				reasonDetail: `Received ${row.token_symbol ?? 'tokens'} from a lending protocol (${from.slice(0, 10)}…). Auto-classified as loan proceeds — borrowing is NOT a taxable event (you owe it back). Note: if you later swapped or sold these borrowed tokens, THAT disposal is a separate taxable event captured elsewhere. Correct this classification if it was interest earned (ordinary income) rather than a borrow.`,
 				snapshotJson: JSON.stringify({ amount: row.value, symbol: row.token_symbol, timestamp: row.timestamp, from }),
 			});
 		} else if (dir === 'out' && toIsLender) {
@@ -255,8 +262,8 @@ export function detectLoans(
 			reviewItems.push({
 				sourceType: 'onchain',
 				sourceId: row.id,
-				reason: 'possible_loan',
-				reasonDetail: `Sent ${row.token_symbol ?? 'tokens'} to a lending protocol (${to.slice(0, 10)}…). Auto-classified as collateral deposit or loan repayment (not taxable). Confirm below or correct if this was something else.`,
+				reason: 'possible_collateral_deposit',
+				reasonDetail: `Sent ${row.token_symbol ?? 'tokens'} to a lending protocol (${to.slice(0, 10)}…). Auto-classified as collateral deposit or loan repayment — moving assets into Aave/Compound as collateral is NOT a taxable disposition (you still own them). Only a forced liquidation of your collateral would be taxable. Confirm below or correct if this was a different type of transaction.`,
 				snapshotJson: JSON.stringify({ amount: row.value, symbol: row.token_symbol, timestamp: row.timestamp, to }),
 			});
 		}

@@ -39,8 +39,8 @@ export type DedupStats = {
 };
 
 const AMOUNT_TOLERANCE  = 0.01;  // 1 %
-const CROSS_WINDOW_SEC  = 300;   // 5 minutes
-const IMPORT_WINDOW_SEC = 30;    // 30 seconds
+const CROSS_WINDOW_SEC  = 300;   // 5 minutes (cross-table: import vs on-chain)
+const IMPORT_WINDOW_SEC = 300;   // 5 minutes (within-import, was 30s — widened to catch re-uploads)
 
 type DbRow = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
@@ -206,7 +206,8 @@ export async function runDuplicateSweep(tenantId: string): Promise<DedupStats> {
 			for (let j = i + 1; j < group.length; j++) {
 				const candidate = group[j];
 				if (seenImportIds.has(candidate.id)) continue;
-				if (candidate.batchId === keeper.batchId) continue;
+				// Allow same-batch matches — re-uploading the same CSV creates
+				// duplicates in the same batch with identical fields.
 				if (Math.abs(candidate.tsMs - keeper.tsMs) > windowMs3) continue;
 				const ratio = keeper.qty > 0 ? Math.abs(candidate.qty - keeper.qty) / keeper.qty : 1;
 				if (ratio > AMOUNT_TOLERANCE) continue;

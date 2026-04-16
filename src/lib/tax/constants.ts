@@ -7,20 +7,24 @@
 
 /** Lowercase Ethereum addresses for known lending protocol pools. */
 export const LENDING_PROTOCOL_ADDRESSES = new Set([
-	// Aave V3 — Ethereum
-	'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2',
-	// Aave V3 — Polygon / Avalanche / Arbitrum / Optimism (same proxy address)
-	'0x794a61358d6845594f94dc1db02a252b5b4814ad',
-	// Aave V2 — Ethereum
-	'0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9',
-	// Aave V2 — Polygon
-	'0x8dff5e27ea6b7ac08ebfdf9eb090f32ee9a30fcf',
-	// Compound V3 — Ethereum (USDC market)
-	'0xc3d688b66703497daa19211eedff47f25384cdc3',
-	// Compound V2 — Ethereum comptroller
-	'0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b',
-	// Maker / DAI (DSS)
-	'0x9759a6ac90977b93b58547b4a71c78317f391a28',
+	// ── Aave V2 ──────────────────────────────────────────────────────────────
+	'0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9', // Ethereum V2 LendingPool
+	'0x8dff5e27ea6b7ac08ebfdf9eb090f32ee9a30fcf', // Polygon V2 LendingPool
+	'0x4f01aed16d97e3ab5ab2b501154dc9bb0f1a5a2c', // Avalanche V2 LendingPool
+	// ── Aave V3 ──────────────────────────────────────────────────────────────
+	'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', // Ethereum V3 Pool
+	'0x794a61358d6845594f94dc1db02a252b5b4814ad', // Polygon V3 / Avalanche V3 / Arbitrum V3 / Optimism V3
+	'0xa97684ead0e402dc232d5a977953df7ecbab3cdb', // Avalanche V3 PoolAddressesProvider
+	'0x8145edddf43f50276641b55bd3ad95944510021e', // Avalanche V3 Pool (alternate proxy)
+	// ── Aave V2 Ethereum wrappers / helpers ──────────────────────────────────
+	'0xcc9a0b7c43dc2a5f023bb9b738e45b0ef6f4bf0e', // Aave V2 ETH Gateway
+	'0x1c91347f2a44538ce62ef789017b69f63b8a99a6', // Aave V2 WETH Gateway (Avalanche)
+	// ── Compound V3 ──────────────────────────────────────────────────────────
+	'0xc3d688b66703497daa19211eedff47f25384cdc3', // Compound V3 Ethereum USDC market
+	// ── Compound V2 ──────────────────────────────────────────────────────────
+	'0x3d9819210a31b4961b30ef54be2aed79b9c9cd3b', // Compound V2 Ethereum comptroller
+	// ── Maker / DAI ──────────────────────────────────────────────────────────
+	'0x9759a6ac90977b93b58547b4a71c78317f391a28', // Maker DSS
 ]);
 
 /** Addresses that indicate a coin is permanently burned / destroyed. */
@@ -128,8 +132,16 @@ export const INCOME_KEYWORDS = [
 export const LOAN_INTEREST_KEYWORDS = ['interest paid', 'borrow fee', 'accrued interest'];
 
 /** Transfer match window: transactions within this many minutes of each other
- *  can be considered the same wallet-to-wallet transfer. */
+ *  can be considered the same wallet-to-wallet transfer (on-chain pairs). */
 export const TRANSFER_MATCH_WINDOW_MINUTES = 90;
+
+/**
+ * Wider transfer match window for CEX→CEX or CEX→on-chain pairs.
+ * CEX CSV exports often have coarse timestamps (daily batches, delayed
+ * posting) so a 90-minute window misses legitimate transfers like
+ * LTC sent to Coinbase that posts hours later.
+ */
+export const TRANSFER_MATCH_WINDOW_CEX_MINUTES = 360; // 6 hours
 
 /** Transfer match tolerance: the receiving side is allowed to be this much
  *  smaller than the sending side (gas / bridge fees eat some). */
@@ -160,6 +172,8 @@ export const DEFI_LP_KEYWORDS = [
  */
 export const WRAPPED_TOKEN_MAP = new Map<string, string>([
 	['WBTC',   'BTC'],
+	['BTC.B',  'BTC'],  // Avalanche Bridge wrapped Bitcoin
+	['BTCB',   'BTC'],  // alternate symbol same asset
 	['WETH',   'ETH'],
 	['STETH',  'ETH'],
 	['WSTETH', 'STETH'],
@@ -167,6 +181,8 @@ export const WRAPPED_TOKEN_MAP = new Map<string, string>([
 	['RETH',   'ETH'],
 	['BETH',   'ETH'],
 	['FRXETH', 'ETH'],
+	['WAVAX',  'AVAX'], // Wrapped AVAX (common in Aave collateral)
+	['SAVAX',  'AVAX'], // Staked AVAX (Benqi liquid staking)
 ]);
 
 /**

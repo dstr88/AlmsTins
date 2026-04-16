@@ -52,10 +52,17 @@ export type TransactionClass =
  * Avalanche V3 : 0x794a61358d6845594f94dc1db02a252b5b4814ad
  */
 export const AAVE_POOL_ADDRESSES = new Set<string>([
-	'0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9', // Ethereum V2
-	'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', // Ethereum V3
-	'0x8dff5e27ea6b7ac08ebfdf9eb090f32ee9a30fcf', // Polygon V2
-	'0x794a61358d6845594f94dc1db02a252b5b4814ad', // Polygon V3 / Avalanche V3
+	// ── V2 ───────────────────────────────────────────────────────────────────
+	'0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9', // Ethereum V2 LendingPool
+	'0x8dff5e27ea6b7ac08ebfdf9eb090f32ee9a30fcf', // Polygon V2 LendingPool
+	'0x4f01aed16d97e3ab5ab2b501154dc9bb0f1a5a2c', // Avalanche V2 LendingPool
+	// ── V3 ───────────────────────────────────────────────────────────────────
+	'0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2', // Ethereum V3 Pool
+	'0x794a61358d6845594f94dc1db02a252b5b4814ad', // Polygon V3 / Avalanche V3 / Arbitrum V3 / Optimism V3
+	'0x8145edddf43f50276641b55bd3ad95944510021e', // Avalanche V3 Pool (alternate proxy)
+	// ── Gateways (ETH/AVAX native → WETH/WAVAX, sent to these before the pool) ─
+	'0xcc9a0b7c43dc2a5f023bb9b738e45b0ef6f4bf0e', // V2 ETH Gateway (Ethereum)
+	'0x1c91347f2a44538ce62ef789017b69f63b8a99a6', // V2 WETH Gateway (Avalanche)
 ]);
 
 /** The Ethereum zero address — used to detect aToken mint (interest accrual). */
