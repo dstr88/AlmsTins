@@ -90,6 +90,9 @@
       <button class="faq-question" type="button" data-modal="faq-health-alerts">
         How do Aave health factor alerts work?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-reconciliation-delta">
+        Why does my monthly reconciliation show a delta even when nothing went wrong?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -1037,6 +1040,54 @@
 
         <p style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 10px; padding: 0.9rem 1rem; margin-top: 1rem;">
           <strong>Rate limit:</strong> To avoid inbox noise, alerts are sent at most once every 4 hours per wallet, even if your health factor stays below the threshold the entire time. Once the situation is resolved and the health factor recovers, the clock resets.
+        </p>
+      </div>
+    </div>
+    <div class="modal-overlay welcome-modal" id="faq-reconciliation-delta">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>Why does my monthly reconciliation show a delta even when nothing went wrong?</h1>
+
+        <p>
+          The monthly checkbook works in <strong>dollar amounts</strong> — opening balance, inflows, outflows, and closing balance are all in USD. That means even a perfectly clean month with zero missing transactions will show a delta, because the dollar value of your coins changes with the market every single day.
+        </p>
+
+        <p>
+          <strong>Example:</strong> You open January with $10,000 in Bitcoin. You buy nothing, sell nothing, and move nothing. But Bitcoin rises 20% during the month. Your closing balance is $12,000. The checkbook formula says:
+        </p>
+
+        <blockquote style="background: rgba(255,255,255,0.05); border-left: 3px solid #e8a020; padding: 0.75rem 1rem; margin: 0.75rem 0; border-radius: 0 8px 8px 0;">
+          Expected closing = $10,000 + $0 − $0 = $10,000<br />
+          Actual closing = $12,000<br />
+          Delta = +$2,000
+        </blockquote>
+
+        <p>
+          That $2,000 delta is not a problem. It is unrealized appreciation — exactly what you want to see. The dollar-based checkbook cannot distinguish between "coins appeared from nowhere" and "coins you already had became more valuable."
+        </p>
+
+        <p>
+          <strong>The right way to check for missing data is to count coins, not dollars.</strong>
+        </p>
+
+        <p>
+          If you held 0.10 BTC at the start of the month, bought nothing, sold nothing, and still hold 0.10 BTC at the end — the books balance perfectly regardless of price. A coin-quantity reconciliation is immune to market movements because price does not affect how many coins you own.
+        </p>
+
+        <p>
+          <strong>How to use this in practice:</strong>
+        </p>
+
+        <ul style="line-height: 1.9; margin: 0.75rem 0 0.75rem 1.25rem;">
+          <li>A <strong>dollar delta</strong> on a quiet month is almost always price appreciation or depreciation. Normal.</li>
+          <li>A <strong>coin-count discrepancy</strong> — where your expected quantity and actual quantity don't match — always means something is missing: a transaction wasn't imported, a transfer lost one side, or an exchange isn't connected yet.</li>
+          <li>The <strong>Reconciliation view</strong> on the Bookkeeping page works in coin quantities for exactly this reason. Use it to find data gaps. Use the monthly checkbook to see cash-flow trends over time.</li>
+          <li>If your dollar delta is large and <em>negative</em> in a month where prices were flat or up, that is worth investigating — it suggests coins left your portfolio without a matching transaction record.</li>
+        </ul>
+
+        <p>
+          The monthly checkbook also separately tracks <strong>unmatched transfer halves</strong> — transactions classified as transfers that have no matching counterpart in your data. Those are flagged with a warning and broken out by asset so you can trace exactly which transaction disappeared.
         </p>
       </div>
     </div>
