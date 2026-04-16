@@ -228,6 +228,7 @@
 .exchange-lane > .tile {
 	flex: 1 1 100%;
 	min-width: 0;
+	box-sizing: border-box;
 }
 
 @media (min-width: 1080px) {
