@@ -4,14 +4,14 @@
 	gap: 0;
 }
 
-/* Inner-tin section wrapper */
+/* Inner-tin section wrapper — no box, just a divider row + content */
 .vault-activity__section {
-	position: relative;
-	border: 2px solid salmon;
-	border-radius: 12px;
-	background: darkslategray;
-	margin-top: 1rem;
-	padding: 1.25rem 1rem 0.75rem;
+	position: static;
+	border: none;
+	border-radius: 0;
+	background: none;
+	margin-top: 0.75rem;
+	padding: 0;
 }
 
 .vault-activity__section h4 {
@@ -449,36 +449,41 @@
 	flex-shrink: 0;
 }
 
-/* ── Salmon label-tab toggle (tin-inside-a-tin header) ── */
+/* ── Section divider toggle ── */
 .vault-contracts__toggle {
-	position: absolute;
-	top: -14px;
-	left: 1rem;
-	background: salmon;
-	color: #0b0f1a;
-	font-weight: 700;
-	font-size: 0.82rem;
-	padding: 0.35rem 0.75rem;
-	border-radius: 8px;
-	border: none;
-	cursor: pointer;
+	position: static;
 	display: flex;
 	align-items: center;
-	gap: 0.45rem;
-	z-index: 2;
+	gap: 0.6rem;
+	width: 100%;
+	background: none;
+	border: none;
+	border-top: 1px dashed rgba(250, 128, 114, 0.35);
+	padding: 0.55rem 0 0.35rem;
+	cursor: pointer;
+	color: salmon;
+	font-size: 0.7rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.14em;
 	white-space: nowrap;
-	transition: background 0.15s;
-	width: auto;
+	margin-top: 0.5rem;
 }
-.vault-contracts__toggle:hover { background: #ffa07a; }
+.vault-contracts__toggle::after {
+	content: '';
+	flex: 1;
+	height: 0;
+	border-top: 1px dashed rgba(250, 128, 114, 0.35);
+}
+.vault-contracts__toggle:hover { color: #ffa07a; }
 
 .vault-contracts__title {
 	display: flex;
 	align-items: center;
 	gap: 0.45rem;
-	font-size: 0.82rem;
+	font-size: 0.7rem;
 	text-transform: uppercase;
-	letter-spacing: 0.1em;
+	letter-spacing: 0.14em;
 	font-weight: 700;
-	color: #0b0f1a;
+	color: inherit;
 }
