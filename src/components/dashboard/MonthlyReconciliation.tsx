@@ -1,0 +1,295 @@
+/**
+ * MonthlyReconciliation — checkbook-style monthly portfolio reconciliation tile.
+ *
+ * Shows per-month:
+ *   Opening balance + inflows - outflows = expected closing
+ *   vs. actual closing from wallet snapshots
+ *   delta = unexplained difference (price change + missing data)
+ *
+ * Flags unmatched transfer halves (transactions that disappeared from the data).
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+
+// ── Types (mirrors src/lib/monthlyReconciliation.ts) ─────────────────────────
+
+type MonthlyAssetRow = {
+	assetSymbol: string;
+	inflowsQty: number;
+	inflowsUsd: number;
+	outflowsQty: number;
+	outflowsUsd: number;
+	unmatchedOutQty: number;
+	unmatchedOutUsd: number;
+	unmatchedInQty: number;
+	unmatchedInUsd: number;
+	txCount: number;
+};
+
+type MonthlyReconciliation = {
+	yearMonth: string;
+	openingAssetsUsd: number | null;
+	closingAssetsUsd: number | null;
+	inflowsUsd: number;
+	outflowsUsd: number;
+	transferInUsd: number;
+	transferOutUsd: number;
+	unmatchedOutUsd: number;
+	unmatchedInUsd: number;
+	expectedClosingUsd: number | null;
+	deltaUsd: number | null;
+	txCount: number;
+	unmatchedTxCount: number;
+	assets: MonthlyAssetRow[];
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const usd = (n: number | null | undefined) =>
+	n == null
+		? '—'
+		: n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+const sign = (n: number) => (n >= 0 ? '+' : '');
+
+function deltaColor(delta: number | null): string {
+	if (delta == null) return '#888';
+	if (Math.abs(delta) < 50) return '#4ade80';   // green — balanced
+	if (delta > 0) return '#4ade80';               // gain
+	return '#e05555';                              // loss / data gap
+}
+
+function monthLabel(ym: string): string {
+	const [y, m] = ym.split('-');
+	const date = new Date(Number(y), Number(m) - 1, 1);
+	return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function MonthlyReconciliationTile() {
+	const [months, setMonths]       = useState<string[]>([]);
+	const [selected, setSelected]   = useState<string>('');
+	const [data, setData]           = useState<MonthlyReconciliation | null>(null);
+	const [loading, setLoading]     = useState(false);
+	const [expanded, setExpanded]   = useState(false); // per-asset breakdown
+
+	// Load available months on mount
+	useEffect(() => {
+		fetch('/api/reconciliation/monthly?months=all')
+			.then((r) => r.json())
+			.then((j: { months: string[] }) => {
+				const ms = j.months ?? [];
+				setMonths(ms);
+				if (ms.length) setSelected(ms[0]);
+			})
+			.catch(() => {});
+	}, []);
+
+	const load = useCallback((month: string) => {
+		if (!month) return;
+		setLoading(true);
+		setData(null);
+		fetch(`/api/reconciliation/monthly?month=${month}`)
+			.then((r) => r.json())
+			.then((j: { data: MonthlyReconciliation }) => setData(j.data ?? null))
+			.catch(() => {})
+			.finally(() => setLoading(false));
+	}, []);
+
+	const recompute = useCallback((month: string) => {
+		if (!month) return;
+		setLoading(true);
+		fetch('/api/reconciliation/monthly', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ month }),
+		})
+			.then((r) => r.json())
+			.then((j: { data: MonthlyReconciliation }) => setData(j.data ?? null))
+			.catch(() => {})
+			.finally(() => setLoading(false));
+	}, []);
+
+	useEffect(() => {
+		if (selected) load(selected);
+	}, [selected, load]);
+
+	const hasUnmatched = data && (data.unmatchedOutUsd > 0 || data.unmatchedInUsd > 0);
+
+	return (
+		<div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+
+			{/* Month selector */}
+			<div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+				<select
+					value={selected}
+					onChange={(e) => setSelected(e.target.value)}
+					style={{
+						background: '#1a1f2b', border: '1px solid rgba(232,160,32,0.4)',
+						color: '#e0e0e0', borderRadius: 8, padding: '0.35rem 0.6rem',
+						fontSize: '0.85rem', cursor: 'pointer',
+					}}
+				>
+					{months.map((m) => (
+						<option key={m} value={m}>{monthLabel(m)}</option>
+					))}
+				</select>
+				<button
+					onClick={() => recompute(selected)}
+					disabled={loading || !selected}
+					style={{
+						background: 'none', border: '1px solid rgba(232,160,32,0.45)',
+						color: '#e8a020', borderRadius: 8, padding: '0.3rem 0.7rem',
+						fontSize: '0.75rem', cursor: 'pointer', textTransform: 'uppercase',
+						letterSpacing: '0.1em', opacity: loading ? 0.5 : 1,
+					}}
+				>
+					{loading ? 'Computing…' : '↻ Recompute'}
+				</button>
+			</div>
+
+			{loading && (
+				<p style={{ color: '#888', fontSize: '0.85rem', margin: 0 }}>Computing…</p>
+			)}
+
+			{data && !loading && (
+				<>
+					{/* Checkbook summary */}
+					<div style={{
+						background: '#111827', borderRadius: 10, padding: '0.85rem 1rem',
+						display: 'flex', flexDirection: 'column', gap: '0.45rem',
+						border: '1px solid rgba(255,255,255,0.07)',
+					}}>
+						<Row label="Opening balance" value={usd(data.openingAssetsUsd)} />
+						<Row label="+ Inflows (buys, income)" value={usd(data.inflowsUsd)} color="#4ade80" />
+						<Row label="− Outflows (sells, fees)" value={`−${usd(data.outflowsUsd)}`} color="#e05555" />
+						{(data.transferInUsd > 0 || data.transferOutUsd > 0) && (
+							<Row
+								label="± Matched transfers (net)"
+								value={usd(data.transferInUsd - data.transferOutUsd)}
+								color="#888"
+								muted
+							/>
+						)}
+						<div style={{ borderTop: '1px dashed rgba(232,160,32,0.25)', margin: '0.2rem 0' }} />
+						<Row label="Expected closing" value={usd(data.expectedClosingUsd)} />
+						<Row label="Actual closing (wallets)" value={usd(data.closingAssetsUsd)} bold />
+						<div style={{ borderTop: '1px solid rgba(232,160,32,0.35)', margin: '0.2rem 0' }} />
+						<Row
+							label="Delta (price change + gaps)"
+							value={data.deltaUsd != null ? `${sign(data.deltaUsd)}${usd(data.deltaUsd)}` : '—'}
+							color={deltaColor(data.deltaUsd)}
+							bold
+						/>
+					</div>
+
+					{/* Unmatched transfer warning */}
+					{hasUnmatched && (
+						<div style={{
+							background: 'rgba(224,85,85,0.1)', border: '1px solid rgba(224,85,85,0.4)',
+							borderRadius: 8, padding: '0.65rem 0.85rem',
+							fontSize: '0.8rem', color: '#fca5a5',
+							display: 'flex', flexDirection: 'column', gap: '0.3rem',
+						}}>
+							<span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+								⚠ {data.unmatchedTxCount} unmatched transfer{data.unmatchedTxCount !== 1 ? 's' : ''} — data gap detected
+							</span>
+							{data.unmatchedOutUsd > 0 && (
+								<span>Sent out with no inbound record: {usd(data.unmatchedOutUsd)} — transaction may have disappeared from source data</span>
+							)}
+							{data.unmatchedInUsd > 0 && (
+								<span>Received with no outbound record: {usd(data.unmatchedInUsd)} — check if source wallet/exchange is connected</span>
+							)}
+						</div>
+					)}
+
+					{/* Per-asset breakdown toggle */}
+					{data.assets.length > 0 && (
+						<button
+							onClick={() => setExpanded((x) => !x)}
+							style={{
+								background: 'none', border: '1px dashed rgba(232,160,32,0.3)',
+								color: '#e8a020', borderRadius: 8, padding: '0.3rem 0.75rem',
+								fontSize: '0.72rem', cursor: 'pointer', textTransform: 'uppercase',
+								letterSpacing: '0.12em', alignSelf: 'flex-start',
+							}}
+						>
+							{expanded ? '▲ Hide' : '▼ Show'} asset breakdown ({data.assets.length})
+						</button>
+					)}
+
+					{expanded && (
+						<div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+							{/* Header */}
+							<div style={{
+								display: 'grid', gridTemplateColumns: '4rem 1fr 1fr 1fr',
+								gap: '0.5rem', padding: '0.25rem 0.5rem',
+								fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em',
+								color: '#888',
+							}}>
+								<span>Asset</span>
+								<span style={{ textAlign: 'right' }}>In</span>
+								<span style={{ textAlign: 'right' }}>Out</span>
+								<span style={{ textAlign: 'right' }}>⚠ Gap</span>
+							</div>
+							{data.assets.map((a) => {
+								const hasGap = a.unmatchedOutUsd > 0 || a.unmatchedInUsd > 0;
+								return (
+									<div key={a.assetSymbol} style={{
+										display: 'grid', gridTemplateColumns: '4rem 1fr 1fr 1fr',
+										gap: '0.5rem', padding: '0.3rem 0.5rem',
+										background: hasGap ? 'rgba(224,85,85,0.06)' : 'rgba(255,255,255,0.02)',
+										borderRadius: 6, fontSize: '0.8rem', alignItems: 'center',
+									}}>
+										<span style={{ fontWeight: 700, color: '#e8a020' }}>{a.assetSymbol}</span>
+										<span style={{ textAlign: 'right', color: '#4ade80' }}>
+											{usd(a.inflowsUsd)}
+										</span>
+										<span style={{ textAlign: 'right', color: '#e05555' }}>
+											{a.outflowsUsd > 0 ? `−${usd(a.outflowsUsd)}` : '—'}
+										</span>
+										<span style={{ textAlign: 'right', color: hasGap ? '#fca5a5' : '#444' }}>
+											{hasGap ? usd(a.unmatchedOutUsd + a.unmatchedInUsd) : '—'}
+										</span>
+									</div>
+								);
+							})}
+						</div>
+					)}
+
+					<p style={{ margin: 0, fontSize: '0.7rem', color: '#555' }}>
+						{data.txCount} transactions · snapshots from wallet sync
+					</p>
+				</>
+			)}
+
+			{!loading && !data && selected && (
+				<p style={{ color: '#888', fontSize: '0.85rem', margin: 0 }}>No data for this month.</p>
+			)}
+		</div>
+	);
+}
+
+// ── Row sub-component ─────────────────────────────────────────────────────────
+
+function Row({
+	label, value, color, bold, muted,
+}: {
+	label: string;
+	value: string;
+	color?: string;
+	bold?: boolean;
+	muted?: boolean;
+}) {
+	return (
+		<div style={{
+			display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+			fontSize: muted ? '0.78rem' : '0.85rem',
+			opacity: muted ? 0.65 : 1,
+		}}>
+			<span style={{ color: '#888' }}>{label}</span>
+			<span style={{ color: color ?? '#e0e0e0', fontWeight: bold ? 700 : 400 }}>{value}</span>
+		</div>
+	);
+}
