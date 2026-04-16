@@ -42,7 +42,7 @@
 	display: grid;
 	grid-template-columns: 1fr;
 	gap: 24px;
-	align-items: stretch;
+	align-items: start;        /* FIX Bug 1: was stretch — prevents half-width side-effects */
 	position: relative;
 	--row1-height: 360px;
 	grid-template-areas:
@@ -50,6 +50,7 @@
 		'r1c2'
 		'r1c3'
 		'div2'
+		'smart'
 		'row2'
 		'div3'
 		'row3';
@@ -59,12 +60,13 @@
 	.bk-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		grid-template-areas:
-			'r1c1 r1c2'
-			'r1c3 r1c3'
-			'div2 div2'
-			'row2 row2'
-			'div3 div3'
-			'row3 row3';
+			'r1c1  r1c2'
+			'r1c3  r1c3'
+			'div2  div2'
+			'smart smart'
+			'row2  row2'
+			'div3  div3'
+			'row3  row3';
 	}
 }
 
@@ -72,10 +74,11 @@
 	.bk-grid {
 		--grid-gap: 24px;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		grid-template-rows: var(--row1-height) auto auto auto auto;
+		grid-template-rows: var(--row1-height) auto auto auto auto auto;
 		grid-template-areas:
 			'r1c1  r1c2  r1c3'
 			'div2  div2  div2'
+			'smart smart smart'
 			'row2  row2  row2'
 			'div3  div3  div3'
 			'row3  row3  row3';
@@ -134,7 +137,7 @@
 .vault-section-divider--exchange { grid-area: div2; }
 
 .smart-import-bar {
-	grid-column: 1 / -1;
+	grid-area: smart;
 	padding: 0 0 0.5rem;
 }
 
