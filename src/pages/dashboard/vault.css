@@ -121,6 +121,11 @@
 	.vault-lane:not(.exchange-lane) > .tile {
 		flex: 1 1 calc((100% - 24px) / 2);
 	}
+
+	.exchange-lane > .tile {
+		flex: 0 0 calc((100% - 20px) / 2);
+		max-width: calc((100% - 20px) / 2);
+	}
 }
 
 .vault-lane--row2 { grid-area: row2; }
