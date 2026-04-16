@@ -1,4 +1,6 @@
 ---
+import './SalmonTin.css';
+
 interface Props {
 	label: string;
 	class?: string;
@@ -20,54 +22,3 @@ const hasSummary = Astro.slots.has('summary');
 	</div>
 </div>
 
-<style>
-	.salmon-tin {
-		position: relative;
-		background: darkslategray;
-		color: #f7f2eb;
-		border: 2px solid salmon;
-		border-radius: 12px;
-		padding: 2.5rem 1.25rem 1.25rem;
-		display: flex;
-		flex-direction: column;
-		height: 100%;
-		box-sizing: border-box;
-		overflow: visible;
-	}
-
-	.salmon-tin__label {
-		position: absolute;
-		top: -12px;
-		left: 1rem;
-		background: salmon;
-		color: #0b0f1a;
-		font-weight: 700;
-		font-size: 1rem;
-		padding: 0.4rem 0.8rem;
-		border-radius: 8px;
-		z-index: 2;
-	}
-
-	.salmon-tin__summary {
-		margin-top: 0.2rem;
-		padding-bottom: 0.5rem;
-	}
-
-	.salmon-tin__body {
-		position: relative;
-		z-index: 1;
-		flex: 1 1 auto;
-		min-height: 0;
-		overflow-y: auto;
-		display: flex;
-		flex-direction: column;
-		padding: 0.75rem 0.5rem 1.25rem;
-		box-sizing: border-box;
-		-webkit-overflow-scrolling: touch;
-	}
-
-	.salmon-tin::before,
-	.salmon-tin::after {
-		display: none !important;
-	}
-</style>

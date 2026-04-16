@@ -1,4 +1,6 @@
 ---
+import './ExchangeTin.css';
+
 interface Props {
 	title: string;
 	class?: string;
@@ -39,105 +41,6 @@ const importedLabel = fmtDate(lastImported);
 	</div>
 </section>
 
-<style>
-	.exchange-tin {
-		background: #191200;
-		color: #f7f2eb;
-		border: 2px solid #d97706;
-		border-radius: 12px;
-		padding: var(--space-md);
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-md);
-		min-height: 0;
-	}
-
-	.exchange-tin__header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-sm);
-		flex-wrap: wrap;
-		cursor: pointer;
-		user-select: none;
-	}
-
-	.exchange-tin__header-right {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-	}
-
-	.exchange-tin__title-group {
-		display: flex;
-		flex-direction: column;
-		gap: 0.15rem;
-	}
-
-	.exchange-tin__header h3 {
-		margin: 0;
-		font-size: var(--font-lg);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: #fbbf24;
-	}
-
-	.exchange-tin__freshness {
-		font-size: 0.68rem;
-		color: #92400e;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		opacity: 0.85;
-	}
-
-	.exchange-tin__body {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-md);
-		min-height: 0;
-	}
-
-	.exchange-tin__body[hidden] {
-		display: none;
-	}
-
-	.exchange-tin__toggle {
-		background: none;
-		border: none;
-		color: rgba(251, 191, 36, 0.7);
-		font-size: 1rem;
-		line-height: 1;
-		cursor: pointer;
-		padding: 0.1rem 0.3rem;
-		border-radius: 4px;
-		transition: color 0.15s, transform 0.2s;
-		flex-shrink: 0;
-	}
-
-	.exchange-tin__toggle:hover {
-		color: #fbbf24;
-	}
-
-	.exchange-tin__toggle[aria-expanded="true"] {
-		transform: rotate(180deg);
-	}
-
-	.exchange-tin__add {
-		border-radius: 999px;
-		border: 1px solid rgba(255, 255, 255, 0.18);
-		background: rgba(255, 255, 255, 0.08);
-		color: inherit;
-		padding: 0.35rem 0.8rem;
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		cursor: pointer;
-	}
-
-	.exchange-tin__add:hover {
-		background: rgba(255, 255, 255, 0.16);
-	}
-</style>
 
 <script>
 	// Collapsible exchange tins — default collapsed, state persisted in localStorage.

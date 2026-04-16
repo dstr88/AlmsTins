@@ -1,0 +1,97 @@
+.exchange-tin {
+	background: #1a1f2b;
+	color: #e0e0e0;
+	border: 2px solid #e8a020;
+	border-radius: 12px;
+	padding: var(--space-md);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-md);
+	min-height: 0;
+}
+
+.exchange-tin__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-sm);
+	flex-wrap: wrap;
+	cursor: pointer;
+	user-select: none;
+}
+
+.exchange-tin__header-right {
+	display: flex;
+	align-items: center;
+	gap: var(--space-sm);
+}
+
+.exchange-tin__title-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+
+.exchange-tin__header h3 {
+	margin: 0;
+	font-size: var(--font-lg);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: #e8a020;
+}
+
+.exchange-tin__freshness {
+	font-size: 0.68rem;
+	color: #888;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	opacity: 0.85;
+}
+
+.exchange-tin__body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-md);
+	min-height: 0;
+}
+
+.exchange-tin__body[hidden] {
+	display: none;
+}
+
+.exchange-tin__toggle {
+	background: none;
+	border: none;
+	color: rgba(232, 160, 32, 0.7);
+	font-size: 1rem;
+	line-height: 1;
+	cursor: pointer;
+	padding: 0.1rem 0.3rem;
+	border-radius: 4px;
+	transition: color 0.15s, transform 0.2s;
+	flex-shrink: 0;
+}
+
+.exchange-tin__toggle:hover {
+	color: #e8a020;
+}
+
+.exchange-tin__toggle[aria-expanded="true"] {
+	transform: rotate(180deg);
+}
+
+.exchange-tin__add {
+	border-radius: 999px;
+	border: 1px solid rgba(255, 255, 255, 0.18);
+	background: rgba(255, 255, 255, 0.08);
+	color: inherit;
+	padding: 0.35rem 0.8rem;
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	cursor: pointer;
+}
+
+.exchange-tin__add:hover {
+	background: rgba(255, 255, 255, 0.16);
+}
