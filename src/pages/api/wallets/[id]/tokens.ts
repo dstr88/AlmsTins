@@ -116,20 +116,113 @@ async function buildAlchemySnapshot(
 	};
 }
 
-async function fetchSolanaBalance(address: string): Promise<number | null> {
+// Known SPL token mints → symbol + DefiLlama price ID
+const SPL_TOKEN_MINTS: Record<string, { symbol: string; llamaId: string }> = {
+	'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3': { symbol: 'PYTH',  llamaId: 'coingecko:pyth-network' },
+	'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': { symbol: 'USDC',  llamaId: 'coingecko:usd-coin' },
+	'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': { symbol: 'USDT',  llamaId: 'coingecko:tether' },
+	'So11111111111111111111111111111111111111112':    { symbol: 'WSOL',  llamaId: 'coingecko:solana' },
+	'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263': { symbol: 'BONK',  llamaId: 'coingecko:bonk' },
+	'jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL':  { symbol: 'JTO',   llamaId: 'coingecko:jito-governance-token' },
+	'7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs': { symbol: 'ETH',   llamaId: 'coingecko:ethereum' },
+	'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So':  { symbol: 'MSOL',  llamaId: 'coingecko:msol' },
+	'bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1':  { symbol: 'BSOL',  llamaId: 'coingecko:blazestake-staked-sol' },
+};
+
+const SOLANA_TOKEN_PROGRAM  = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const SOLANA_STAKE_PROGRAM  = 'Stake11111111111111111111111111111111111111112';
+const SOLANA_RPC             = 'https://api.mainnet-beta.solana.com';
+
+async function solanaRpc<T = unknown>(method: string, params: unknown[]): Promise<T | null> {
 	try {
-		const res = await fetch('https://api.mainnet-beta.solana.com', {
+		const res = await fetch(SOLANA_RPC, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [address] }),
+			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
 		});
-		const json = await res.json() as { result?: { value?: number } };
-		const lamports = json?.result?.value;
-		if (typeof lamports !== 'number') return null;
-		return lamports / 1_000_000_000;
+		if (!res.ok) return null;
+		const json = await res.json() as { result?: T; error?: unknown };
+		if (json?.error) return null;
+		return json?.result ?? null;
 	} catch {
 		return null;
 	}
+}
+
+type SolanaTokenEntry = {
+	symbol: string;
+	amount: number;
+	tokenAddress: string;
+	llamaId: string;
+};
+
+async function fetchSolanaTokens(address: string): Promise<SolanaTokenEntry[]> {
+	const tokens: SolanaTokenEntry[] = [];
+
+	// 1. Native SOL
+	const nativeResult = await solanaRpc<{ value?: number }>('getBalance', [address]);
+	const lamports = nativeResult?.value;
+	if (typeof lamports === 'number' && lamports > 0) {
+		tokens.push({ symbol: 'SOL', amount: lamports / 1_000_000_000, tokenAddress: 'native', llamaId: 'coingecko:solana' });
+	}
+
+	// 2. SPL token balances (PYTH, USDC, etc.)
+	type TokenAccountsResult = { value?: Array<{ account?: { data?: { parsed?: { info?: { mint?: string; tokenAmount?: { uiAmount?: number } } } } } }> };
+	const splResult = await solanaRpc<TokenAccountsResult>('getTokenAccountsByOwner', [
+		address,
+		{ programId: SOLANA_TOKEN_PROGRAM },
+		{ encoding: 'jsonParsed' },
+	]);
+	for (const acc of (splResult as any)?.value ?? []) {
+		const info = acc?.account?.data?.parsed?.info;
+		if (!info) continue;
+		const mint: string = info.mint ?? '';
+		const uiAmount: number = info.tokenAmount?.uiAmount ?? 0;
+		if (!mint || uiAmount <= 0) continue;
+		const known = SPL_TOKEN_MINTS[mint];
+		if (!known) continue;
+		// Merge with existing entry if same symbol (e.g. multiple USDC accounts)
+		const existing = tokens.find((t) => t.symbol === known.symbol);
+		if (existing) {
+			existing.amount += uiAmount;
+		} else {
+			tokens.push({ symbol: known.symbol, amount: uiAmount, tokenAddress: mint, llamaId: known.llamaId });
+		}
+	}
+
+	// 3. Staked SOL — find stake accounts where wallet is the withdrawer (offset 44)
+	// Base58-encode the pubkey bytes for the memcmp filter — the RPC accepts base58 string directly
+	type StakeAccountsResult = Array<{ account?: { lamports?: number } }>;
+	const stakeResult = await solanaRpc<StakeAccountsResult>('getProgramAccounts', [
+		SOLANA_STAKE_PROGRAM,
+		{
+			encoding: 'base64',
+			filters: [{ memcmp: { offset: 44, bytes: address } }],
+		},
+	]);
+	let stakedLamports = 0;
+	for (const acc of stakeResult ?? []) {
+		const l = acc?.account?.lamports;
+		if (typeof l === 'number' && l > 0) stakedLamports += l;
+	}
+	if (stakedLamports > 0) {
+		const stakedSol = stakedLamports / 1_000_000_000;
+		const existing = tokens.find((t) => t.symbol === 'SOL');
+		if (existing) {
+			existing.amount += stakedSol;
+		} else {
+			tokens.push({ symbol: 'SOL', amount: stakedSol, tokenAddress: 'native', llamaId: 'coingecko:solana' });
+		}
+	}
+
+	return tokens;
+}
+
+async function fetchSolanaBalance(address: string): Promise<number | null> {
+	const result = await solanaRpc<{ value?: number }>('getBalance', [address]);
+	const lamports = result?.value;
+	if (typeof lamports !== 'number') return null;
+	return lamports / 1_000_000_000;
 }
 
 async function fetchSuiBalance(address: string): Promise<number | null> {
@@ -148,25 +241,29 @@ async function fetchSuiBalance(address: string): Promise<number | null> {
 	}
 }
 
-const DEFI_LLAMA_IDS: Record<string, string> = {
-	solana: 'coingecko:solana',
-	sui: 'coingecko:sui',
-};
-
-async function fetchNativePrice(coinId: 'solana' | 'sui'): Promise<number | null> {
-	const llamaId = DEFI_LLAMA_IDS[coinId];
-	if (!llamaId) return null;
+async function fetchDefiLlamaPrices(llamaIds: string[]): Promise<Record<string, number>> {
+	if (!llamaIds.length) return {};
 	try {
-		const res = await fetch(`https://coins.llama.fi/prices/current/${llamaId}`, {
+		const ids = [...new Set(llamaIds)].join(',');
+		const res = await fetch(`https://coins.llama.fi/prices/current/${ids}`, {
 			headers: { 'Accept': 'application/json' },
 		});
-		if (!res.ok) return null;
+		if (!res.ok) return {};
 		const json = await res.json() as { coins?: Record<string, { price?: number }> };
-		const price = json?.coins?.[llamaId]?.price;
-		return typeof price === 'number' && price > 0 ? price : null;
+		const prices: Record<string, number> = {};
+		for (const [id, data] of Object.entries(json?.coins ?? {})) {
+			if (typeof data?.price === 'number' && data.price > 0) prices[id] = data.price;
+		}
+		return prices;
 	} catch {
-		return null;
+		return {};
 	}
+}
+
+async function fetchNativePrice(coinId: 'solana' | 'sui'): Promise<number | null> {
+	const llamaId = coinId === 'solana' ? 'coingecko:solana' : 'coingecko:sui';
+	const prices = await fetchDefiLlamaPrices([llamaId]);
+	return prices[llamaId] ?? null;
 }
 
 export const prerender = false;
@@ -238,23 +335,34 @@ export const GET: APIRoute = async ({ params, request }) => {
 				}
 
 				if (isSolana) {
-					const solBalance = await fetchSolanaBalance(walletAddress);
-					if (solBalance !== null) {
-						const solPrice = await fetchNativePrice('solana');
+					const solTokens = await fetchSolanaTokens(walletAddress);
+					if (solTokens.length > 0) {
+						// Batch-fetch prices for all discovered tokens in one DefiLlama call
+						const llamaIds = [...new Set(solTokens.map((t) => t.llamaId))];
+						const prices = await fetchDefiLlamaPrices(llamaIds);
+						const pricedTokens = solTokens.map((t) => {
+							const priceUsd = prices[t.llamaId] ?? null;
+							return {
+								symbol: t.symbol,
+								amount: t.amount,
+								priceUsd,
+								valueUsd: priceUsd !== null ? t.amount * priceUsd : null,
+								tokenAddress: t.tokenAddress,
+							};
+						});
+						const totalUsd = pricedTokens.reduce((s, t) => s + (t.valueUsd ?? 0), 0);
 						await insertWalletSnapshotFromValueBreakdown({
 							tenantId,
 							walletId,
 							chain: 'solana',
-							tokens: [{
-								symbol: 'SOL',
-								amount: solBalance,
-								priceUsd: solPrice,
-								valueUsd: solPrice !== null ? solBalance * solPrice : null,
-								tokenAddress: 'native',
-							}],
-							totalUsd: solPrice !== null ? solBalance * solPrice : 0,
+							tokens: pricedTokens,
+							totalUsd,
 						});
-						console.log('[tokens.refreshMissing] SOLANA SNAPSHOT', { solBalance, solPrice });
+						console.log('[tokens.refreshMissing] SOLANA SNAPSHOT', {
+							tokenCount: pricedTokens.length,
+							symbols: pricedTokens.map((t) => t.symbol),
+							totalUsd,
+						});
 					}
 				}
 

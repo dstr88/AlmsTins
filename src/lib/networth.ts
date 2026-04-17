@@ -793,6 +793,12 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		'QUICK',
 		'SOL',
 		'SUI',
+		'PYTH',
+		'BONK',
+		'JTO',
+		'MSOL',
+		'BSOL',
+		'WSOL',
 	]);
 	const VERIFIED_CONTRACTS_BY_CHAIN: Record<string, Record<string, Set<string>>> = {
 		ethereum: {
@@ -973,8 +979,11 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				if (tokenSymbol === 'LINK') fallbackPrice = 8.85;
 				if (tokenSymbol === 'AAVE') fallbackPrice = 150; // updated Apr 2026; refresh via reprice job
 				if (tokenSymbol === 'WMATIC') fallbackPrice = 0.095;
-				if (tokenSymbol === 'SOL') fallbackPrice = 135; // updated Apr 2026; refresh via reprice job
-				if (tokenSymbol === 'SUI') fallbackPrice = 2.2;  // updated Apr 2026; refresh via reprice job
+				if (tokenSymbol === 'SOL' || tokenSymbol === 'WSOL' || tokenSymbol === 'MSOL' || tokenSymbol === 'BSOL') fallbackPrice = 135; // updated Apr 2026
+				if (tokenSymbol === 'SUI')  fallbackPrice = 2.2;   // updated Apr 2026
+				if (tokenSymbol === 'PYTH') fallbackPrice = 0.25;  // updated Apr 2026
+				if (tokenSymbol === 'JTO')  fallbackPrice = 1.80;  // updated Apr 2026
+				if (tokenSymbol === 'BONK') fallbackPrice = 0.000018; // updated Apr 2026
 				if (fallbackPrice) {
 					normalizedUsd = fallbackPrice * normalizedAmount;
 					if (import.meta.env.WALLET_DEBUG === '1') {
