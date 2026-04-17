@@ -134,12 +134,17 @@ const getChainBadge = (chains: string[]): string => {
 					const chainBadge = getChainBadge(wallet.chains);
 					return (
 						<div class="vault-stack-tin tile">
-							<div class="wallet-label-box">
+							<div class="wallet-label-box" data-address={wallet.address}>
 								{displayLabel}
-								<span class="wallet-chain-badge">{chainBadge}</span>
+								<button class="wallet-copy-btn" aria-label="Copy address" title={wallet.address}>
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+										<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+									</svg>
+								</button>
 							</div>
 							<div class="wallet-stack" data-accordion="wallet-stack">
-								<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
+								<SalmonTin label={chainBadge} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label">Wallet value</span>
 										<span class="tin-summary__value" data-wallet-summary-value>—</span>
@@ -295,6 +300,20 @@ const getChainBadge = (chains: string[]): string => {
 		document.querySelectorAll('.wallet-summary-tin').forEach((tin) => attachSummaryObserver(tin, updateWalletSummary));
 		document.querySelectorAll('.defi-summary-tin').forEach((tin) => attachSummaryObserver(tin, updateDefiSummary));
 		document.querySelectorAll('.wallet-tin--future').forEach((tin) => attachSummaryObserver(tin, updateNftSummary));
+
+		// Copy wallet address on button click
+		document.querySelectorAll('.wallet-copy-btn').forEach((btn) => {
+			btn.addEventListener('click', (e) => {
+				e.stopPropagation();
+				const box = (btn as HTMLElement).closest('.wallet-label-box') as HTMLElement | null;
+				const address = box?.dataset?.address ?? '';
+				if (!address) return;
+				navigator.clipboard.writeText(address).then(() => {
+					btn.classList.add('copied');
+					setTimeout(() => btn.classList.remove('copied'), 1500);
+				}).catch(() => {});
+			});
+		});
 
 		// Wallet import is handled by AddAssetTin component's own script.
 	</script>

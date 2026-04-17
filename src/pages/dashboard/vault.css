@@ -367,6 +367,25 @@
 	text-transform: uppercase;
 }
 
+.wallet-copy-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: none;
+	border: none;
+	padding: 0.1rem 0.2rem;
+	cursor: pointer;
+	color: rgba(0, 0, 0, 0.55);
+	transition: color 0.15s;
+	line-height: 1;
+}
+.wallet-copy-btn:hover {
+	color: rgba(0, 0, 0, 0.85);
+}
+.wallet-copy-btn.copied {
+	color: #1a7f5a;
+}
+
 .wallet-chain-badge {
 	display: inline-flex;
 	align-items: center;
