@@ -18,6 +18,25 @@ return Astro.redirect('/tax-login', 302);
 			<p class="hub-sub">All your crypto tax tools in one place. Not a tax preparation service — always consult a CPA before filing.</p>
 		</div>
 
+		<!-- TurboTax Quick Access -->
+		<div class="doc-section">
+			<p class="doc-tile__label">TurboTax Documents</p>
+			<div class="doc-grid">
+				<a href="/dashboard/tax/gains" class="doc-tile">
+					<span class="doc-pill">📊 Gains Summary</span>
+				</a>
+				<a href={`/dashboard/tax/report?year=${priorYear}`} class="doc-tile">
+					<span class="doc-pill">📋 Year Summary</span>
+				</a>
+				<a href="/dashboard/tax/form8949" class="doc-tile">
+					<span class="doc-pill">📝 Form 8949</span>
+				</a>
+				<a href="/dashboard/tax/schedule-d" class="doc-tile">
+					<span class="doc-pill">🗂 Schedule D</span>
+				</a>
+			</div>
+		</div>
+
 		<!-- Data Completeness Score -->
 		<div id="completeness" class="hub-section">
 			<h2 class="section-label">Data Completeness</h2>
@@ -281,6 +300,59 @@ return Astro.redirect('/tax-login', 302);
 		font-size: 0.78rem;
 		color: #475569;
 		margin: 0;
+	}
+
+	/* TurboTax doc tiles */
+	.doc-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+	.doc-tile__label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: #64748b;
+		margin: 0;
+	}
+	.doc-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+		gap: 0.65rem;
+	}
+	.doc-tile {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid rgba(255,255,255,0.08);
+		background: rgba(255,255,255,0.03);
+		border-radius: 12px;
+		padding: 0.85rem 1rem;
+		text-decoration: none;
+		transition: border-color 0.15s, background 0.15s;
+	}
+	.doc-tile:hover {
+		border-color: rgba(99,102,241,0.5);
+		background: rgba(99,102,241,0.08);
+	}
+	.doc-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.3rem 0.85rem;
+		border-radius: 999px;
+		border: 1px solid rgba(255,255,255,0.1);
+		background: rgba(255,255,255,0.05);
+		color: #cbd5e1;
+		font-size: 0.82rem;
+		font-weight: 500;
+		transition: border-color 0.15s, background 0.15s, color 0.15s;
+	}
+	.doc-tile:hover .doc-pill {
+		border-color: rgba(99,102,241,0.4);
+		background: rgba(99,102,241,0.12);
+		color: #a5b4fc;
 	}
 
 	/* Disclaimer */
