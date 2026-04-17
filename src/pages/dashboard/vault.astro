@@ -7,6 +7,7 @@ import AddAssetTin from '@/components/dashboard/AddAssetTin.astro';
 import PriceWatchlist from '@/components/dashboard/PriceWatchlist';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
+import SolanaDefiSummary from '@/components/dashboard/SolanaDefiSummary';
 import VaultNftActivity from '@/components/dashboard/VaultNftActivity';
 import CryptoComAccounts from '../../components/CryptoComAccounts.astro';
 import ExchangeAccounts from '../../components/ExchangeAccounts.astro';
@@ -153,10 +154,15 @@ const getChainBadge = (chains: string[]): string => {
 								</SalmonTin>
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
 									<div slot="summary" class="tin-summary">
-										<span class="tin-summary__label" data-defi-summary-label>Health</span>
+										<span class="tin-summary__label" data-defi-summary-label>
+											{wallet.chains.includes('solana') ? 'Protocols' : 'Health'}
+										</span>
 										<span class="tin-summary__value" data-defi-summary-value>—</span>
 									</div>
-									<AaveHealthSummary client:only="react" walletId={wallet.id} />
+									{wallet.chains.includes('solana')
+										? <SolanaDefiSummary client:only="react" walletId={wallet.id} />
+										: <AaveHealthSummary client:only="react" walletId={wallet.id} />
+									}
 								</SalmonTin>
 								<SalmonTin label="NFTs" class="wallet-tin--future is-collapsed">
 									<div slot="summary" class="tin-summary">
