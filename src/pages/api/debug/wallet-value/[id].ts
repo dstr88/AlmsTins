@@ -40,7 +40,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 			address: row.address,
 			label: row.label ?? null,
 			chains: safeParseChains(row.chains).filter(
-				(chain): chain is SupportedChain => DEFAULT_ERC20_CHAINS.includes(chain as SupportedChain),
+				(chain): chain is (typeof DEFAULT_ERC20_CHAINS)[number] => DEFAULT_ERC20_CHAINS.includes(chain as (typeof DEFAULT_ERC20_CHAINS)[number]),
 			),
 		};
 

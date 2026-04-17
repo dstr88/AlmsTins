@@ -34,7 +34,7 @@ async function scheduleScan<T>(fn: () => Promise<T>, delayMs = SCAN_DELAY_MS): P
 	return next;
 }
 
-const NATIVE_TOKEN_META: Record<SupportedChain, { symbol: string; decimals: number }> = {
+const NATIVE_TOKEN_META: Partial<Record<SupportedChain, { symbol: string; decimals: number }>> = {
 	ethereum: { symbol: 'ETH', decimals: 18 },
 	polygon: { symbol: 'MATIC', decimals: 18 },
 	avalanche: { symbol: 'AVAX', decimals: 18 },
@@ -49,7 +49,7 @@ type ChainToken = {
 };
 
 // Core L1 + blue-chip tokens we track across chains and Aave markets.
-const TRACKED_TOKENS: Record<SupportedChain, ChainToken[]> = {
+const TRACKED_TOKENS: Partial<Record<SupportedChain, ChainToken[]>> = {
 	ethereum: [
 		{ symbol: 'ETH', type: 'native', decimals: 18, coingeckoId: 'ethereum' },
 		{
@@ -211,9 +211,9 @@ export async function getNativeBalance(chain: SupportedChain, address: string): 
 		return {
 			chain,
 			address,
-			tokenSymbol: NATIVE_TOKEN_META[chain].symbol,
+			tokenSymbol: NATIVE_TOKEN_META[chain]?.symbol ?? chain.toUpperCase(),
 			tokenAddress: null,
-			decimals: NATIVE_TOKEN_META[chain].decimals,
+			decimals: NATIVE_TOKEN_META[chain]?.decimals ?? 18,
 			rawBalance: toBigInt(payload.result),
 		};
 	}
@@ -234,9 +234,9 @@ export async function getNativeBalance(chain: SupportedChain, address: string): 
 	return {
 		chain,
 		address,
-		tokenSymbol: NATIVE_TOKEN_META[chain].symbol,
+		tokenSymbol: NATIVE_TOKEN_META[chain]?.symbol ?? chain.toUpperCase(),
 		tokenAddress: null,
-		decimals: NATIVE_TOKEN_META[chain].decimals,
+		decimals: NATIVE_TOKEN_META[chain]?.decimals ?? 18,
 		rawBalance: toBigInt(payload.result),
 	};
 }

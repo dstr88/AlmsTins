@@ -116,6 +116,49 @@ async function buildAlchemySnapshot(
 	};
 }
 
+async function fetchSolanaBalance(address: string): Promise<number | null> {
+	try {
+		const res = await fetch('https://api.mainnet-beta.solana.com', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [address] }),
+		});
+		const json = await res.json() as { result?: { value?: number } };
+		const lamports = json?.result?.value;
+		if (typeof lamports !== 'number') return null;
+		return lamports / 1_000_000_000;
+	} catch {
+		return null;
+	}
+}
+
+async function fetchSuiBalance(address: string): Promise<number | null> {
+	try {
+		const res = await fetch('https://fullnode.mainnet.sui.io/', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'suix_getBalance', params: [address, '0x2::sui::SUI'] }),
+		});
+		const json = await res.json() as { result?: { totalBalance?: string | number } };
+		const mist = json?.result?.totalBalance;
+		if (mist === undefined || mist === null) return null;
+		return Number(mist) / 1_000_000_000;
+	} catch {
+		return null;
+	}
+}
+
+async function fetchCoinGeckoPrice(coinId: 'solana' | 'sui'): Promise<number | null> {
+	try {
+		const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
+		const json = await res.json() as Record<string, { usd?: number }>;
+		const price = json?.[coinId]?.usd;
+		return typeof price === 'number' ? price : null;
+	} catch {
+		return null;
+	}
+}
+
 export const prerender = false;
 
 export const GET: APIRoute = async ({ params, request }) => {
@@ -142,7 +185,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	try {
 		await requireWalletOwnedByTenant(walletId, tenantId);
 		const walletResult = await db.execute({
-			sql: 'SELECT id, address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+			sql: 'SELECT id, address, chains FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 			args: [walletId, tenantId],
 		});
 		if (!walletResult.rows?.length) {
@@ -152,27 +195,78 @@ export const GET: APIRoute = async ({ params, request }) => {
 			});
 		}
 		const refreshMissing = url.searchParams.get('refreshMissing') === '1';
-		const walletRow = walletResult.rows?.[0] as { address?: string | null } | undefined;
+		const walletRow = walletResult.rows?.[0] as { address?: string | null; chains?: string | null } | undefined;
 		const walletAddress = String(walletRow?.address ?? '').trim();
+		let walletChains: string[] = [];
+		try { walletChains = JSON.parse(String(walletRow?.chains ?? '[]')); } catch { /* ignore */ }
+
 		if (refreshMissing) {
 			const refreshStart = Date.now();
 			console.log('[tokens.refreshMissing] START', { requestId, walletId, tenantId });
 			if (walletAddress) {
-				// Alchemy supports eth-mainnet and polygon-mainnet only.
-				// Avalanche balances come from the on-chain sync (not Alchemy snapshots).
-				const snapshotChains: Array<{ chainId: number }> = [
-					{ chainId: ETHEREUM_CHAIN_ID },
-					{ chainId: POLYGON_CHAIN_ID },
-				];
-				for (const { chainId } of snapshotChains) {
-					const breakdown = await buildAlchemySnapshot(chainId, walletId, tenantId, walletAddress);
-					await insertWalletSnapshotFromValueBreakdown(breakdown);
-					console.log('[tokens.refreshMissing] SNAPSHOT', {
-						chainId,
-						tokenCount: breakdown.tokens.length,
-						totalsUsd: breakdown.totalUsd ?? 0,
-					});
-					await sleep(100);
+				const isSolana = walletChains.includes('solana');
+				const isSui    = walletChains.includes('sui');
+				const isEvm    = !isSolana && !isSui;
+
+				if (isEvm) {
+					// Alchemy supports eth-mainnet and polygon-mainnet only.
+					// Avalanche balances come from the on-chain sync (not Alchemy snapshots).
+					const snapshotChains: Array<{ chainId: number }> = [
+						{ chainId: ETHEREUM_CHAIN_ID },
+						{ chainId: POLYGON_CHAIN_ID },
+					];
+					for (const { chainId } of snapshotChains) {
+						const breakdown = await buildAlchemySnapshot(chainId, walletId, tenantId, walletAddress);
+						await insertWalletSnapshotFromValueBreakdown(breakdown);
+						console.log('[tokens.refreshMissing] EVM SNAPSHOT', {
+							chainId,
+							tokenCount: breakdown.tokens.length,
+							totalsUsd: breakdown.totalUsd ?? 0,
+						});
+						await sleep(100);
+					}
+				}
+
+				if (isSolana) {
+					const solBalance = await fetchSolanaBalance(walletAddress);
+					if (solBalance !== null) {
+						const solPrice = await fetchCoinGeckoPrice('solana');
+						await insertWalletSnapshotFromValueBreakdown({
+							tenantId,
+							walletId,
+							chain: 'solana',
+							tokens: [{
+								symbol: 'SOL',
+								amount: solBalance,
+								priceUsd: solPrice,
+								valueUsd: solPrice !== null ? solBalance * solPrice : null,
+								tokenAddress: 'native',
+							}],
+							totalUsd: solPrice !== null ? solBalance * solPrice : 0,
+						});
+						console.log('[tokens.refreshMissing] SOLANA SNAPSHOT', { solBalance, solPrice });
+					}
+				}
+
+				if (isSui) {
+					const suiBalance = await fetchSuiBalance(walletAddress);
+					if (suiBalance !== null) {
+						const suiPrice = await fetchCoinGeckoPrice('sui');
+						await insertWalletSnapshotFromValueBreakdown({
+							tenantId,
+							walletId,
+							chain: 'sui',
+							tokens: [{
+								symbol: 'SUI',
+								amount: suiBalance,
+								priceUsd: suiPrice,
+								valueUsd: suiPrice !== null ? suiBalance * suiPrice : null,
+								tokenAddress: 'native',
+							}],
+							totalUsd: suiPrice !== null ? suiBalance * suiPrice : 0,
+						});
+						console.log('[tokens.refreshMissing] SUI SNAPSHOT', { suiBalance, suiPrice });
+					}
 				}
 			}
 			console.log('[tokens.refreshMissing] END', {

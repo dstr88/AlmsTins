@@ -18,7 +18,7 @@ type DefiLlamaResponse = {
 const CACHE_TTL_MS = 60 * 1000;
 const cache = new Map<string, { priceUsd: number; expiresAt: number }>();
 
-const CHAIN_KEY_MAP: Record<SupportedChain, string> = {
+const CHAIN_KEY_MAP: Partial<Record<SupportedChain, string>> = {
 	ethereum: 'ethereum',
 	polygon: 'polygon',
 	avalanche: 'avalanche',

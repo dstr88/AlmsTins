@@ -14,8 +14,6 @@ import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCar
 import PortfolioTile from '../../components/dashboard/PortfolioTile';
 import Tin0AllTransactions from '../../components/dashboard/Tin0AllTransactions.astro';
 import CustomWalletCard from '@/components/dashboard/CustomWalletCard.astro';
-import SuiWalletTin from '@/components/dashboard/SuiWalletTin.astro';
-import SolanaWalletTin from '@/components/dashboard/SolanaWalletTin.astro';
 import AddTransactionModal from '@/components/dashboard/AddTransactionModal.astro';
 import SmartImport from '@/components/dashboard/SmartImport.astro';
 import { getAllActiveWallets } from '@/lib/wallets';
@@ -42,24 +40,11 @@ const walletsSorted = [...wallets].sort((a, b) => {
 });
 console.log('[vault] total ms', Date.now() - pageStart);
 
-const onchainWallets = walletsSorted.filter(
-	(w) => (w.walletType ?? 'onchain') === 'onchain'
-		&& !w.chains.includes('sui')
-		&& !w.chains.includes('solana'),
-);
+const onchainWallets = walletsSorted.filter((w) => (w.walletType ?? 'onchain') === 'onchain');
 const customWallets  = walletsSorted.filter((w) => w.walletType === 'custom');
-const suiWallets     = walletsSorted.filter((w) => w.chains.includes('sui'));
-const solanaWallets  = walletsSorted.filter((w) => w.chains.includes('solana'));
 
 const walletsWithData = await Promise.all(
 	onchainWallets.map(async (wallet) => ({
-		wallet,
-		fullData: await getWalletWithLatestData(tenantId, wallet.id),
-	})),
-);
-
-const solanaWalletsWithData = await Promise.all(
-	solanaWallets.map(async (wallet) => ({
 		wallet,
 		fullData: await getWalletWithLatestData(tenantId, wallet.id),
 	})),
@@ -181,74 +166,6 @@ const getChainBadge = (chains: string[]): string => {
 				})}
 			</div>
 		</section>
-
-		{suiWallets.length > 0 && (
-			<section class="vault-sui-section">
-				<div class="vault-section-divider vault-section-divider--sui">
-					<span class="vault-section-divider__label">Sui Wallets</span>
-					<span class="vault-section-divider__line"></span>
-				</div>
-				<div class="vault-lane vault-lane--sui">
-					{suiWallets.map((wallet) => (
-						<div class="tile sui-tile">
-							<SuiWalletTin
-								walletId={wallet.id}
-								label={(wallet.label ?? wallet.address.slice(-5)).toUpperCase()}
-							/>
-						</div>
-					))}
-				</div>
-			</section>
-		)}
-
-		{solanaWalletsWithData.length > 0 && (
-			<section class="vault-solana-section">
-				<div class="vault-section-divider vault-section-divider--solana">
-					<span class="vault-section-divider__label">Solana Wallets</span>
-					<span class="vault-section-divider__line"></span>
-				</div>
-				<div class="vault-lane vault-lane--row3">
-					{solanaWalletsWithData.map(({ wallet }) => {
-						const displayLabel = formatWalletLabel(wallet);
-						return (
-							<div class="vault-stack-tin tile">
-								<div class="wallet-label-box">
-									{displayLabel}
-									<span class="wallet-chain-badge">SOL</span>
-								</div>
-								<div class="wallet-stack" data-accordion="wallet-stack">
-									<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
-										<div slot="summary" class="tin-summary">
-											<span class="tin-summary__label">SOL Balance</span>
-											<span class="tin-summary__value" data-wallet-summary-value>—</span>
-										</div>
-										<SolanaWalletTin
-											walletId={wallet.id}
-											address={wallet.address}
-											label={displayLabel.toUpperCase()}
-										/>
-									</SalmonTin>
-									<SalmonTin label="Loans" class="defi-summary-tin wallet-tin--defi is-collapsed">
-										<div slot="summary" class="tin-summary">
-											<span class="tin-summary__label">DeFi</span>
-											<span class="tin-summary__value" data-defi-summary-value>—</span>
-										</div>
-										<AaveHealthSummary client:only="react" walletId={wallet.id} />
-									</SalmonTin>
-									<SalmonTin label="NFTs" class="wallet-tin--future is-collapsed">
-										<div slot="summary" class="tin-summary">
-											<span class="tin-summary__label">NFTs</span>
-											<span class="tin-summary__value" data-nft-summary-value>—</span>
-										</div>
-										<VaultNftActivity client:only="react" walletId={wallet.id} />
-									</SalmonTin>
-								</div>
-							</div>
-						);
-					})}
-				</div>
-			</section>
-		)}
 
 		{customWallets.length > 0 && (
 			<section class="vault-custom-section">
