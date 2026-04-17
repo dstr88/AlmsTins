@@ -172,12 +172,19 @@
         <h1>Bookkeeping page</h1>
 
         <p>
-          This is where my project should help lots of people. They can see all
-          their transactions in one place. They can see their realized gaines
-          on this page. They can download either list. they can add notes to
-          each transaction. Maybe, one day I will think of other things to put
-          on this page, but for now I think this information is so powerful,
-          it's all the page needs.
+          The Bookkeeping page is where everything comes together. Every transaction imported from every exchange and wallet appears in one unified history — sorted, searchable, and organized by asset.
+        </p>
+
+        <p>
+          For each coin you hold, the page shows your full lot history: when you acquired it, what you paid (cost basis), and whether any of it has been disposed of. Realized gains and losses are calculated automatically using FIFO (first-in, first-out) matching — the same method the IRS expects. The short-term versus long-term split is handled for you based on actual hold time.
+        </p>
+
+        <p>
+          You can download your full transaction list as a CSV at any time. You can also add notes to individual transactions — useful for annotating gifts, donations, lost coins, or anything your accountant will need context on.
+        </p>
+
+        <p>
+          At the bottom of the page, the <strong>Reconciliation view</strong> compares the balances the pipeline computed against what your live wallets and exchanges actually show — so you can spot missing data before it becomes a problem at tax time.
         </p>
       </div>
     </div>
@@ -207,7 +214,10 @@
 
         <p><strong>Self-custody wallets (live blockchain data)</strong></p>
         <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
-          <li>EVM chains: Ethereum, Polygon, Avalanche, and others</li>
+          <li>EVM chains: Ethereum, Polygon, Avalanche, Arbitrum, and others</li>
+          <li>Sui (SUI) — native wallet balances and transaction sync</li>
+          <li>Solana (SOL) — native wallet balances</li>
+          <li>Bitcoin (BTC) and Litecoin (LTC) — address tracking</li>
           <li>Coin balances, age of holdings, ticker, amount, current value, profit/loss</li>
           <li>Aave DeFi positions — loan health, collateral breakdown, debt tracking</li>
           <li>NFTs — with hide/unhide per token</li>
@@ -266,10 +276,10 @@
             <strong>Research page — bulk annotation.</strong> Currently you annotate one transaction at a time. The plan is to allow selecting multiple transactions and applying a disposal type or note to all of them in one step.
           </li>
           <li>
-            <strong>Tax report export.</strong> A downloadable summary formatted for Schedule D (US) and equivalent international formats — gains, losses, short-term vs. long-term, grouped by tax year.
+            <strong>Tax report export.</strong> The tax pipeline now classifies every transaction using FIFO lot matching and generates a Form 8949-style PDF (short-term Box C + long-term Box F) ready to attach to your return. Full Schedule D integration and international equivalents are coming.
           </li>
           <li>
-            <strong>Additional chain support.</strong> Solana, Cardano, and Bitcoin on-chain wallet reading are planned. Currently only EVM-compatible chains (Ethereum, Polygon, Avalanche, etc.) are supported for live wallet data.
+            <strong>Additional chain support.</strong> Solana and Sui wallets are now live. Cardano is next on the list. Solana transaction history sync (beyond balance) is in progress.
           </li>
           <li>
             <strong>Events page.</strong> A calendar view of significant portfolio events — large deposits, disposals, staking rewards milestones. Currently disabled in the nav; coming soon.
@@ -472,9 +482,19 @@
         <h1>Is this software for filing returns?</h1>
 
         <p>
-          This project is still in beta mode, but should provide valuable information
-          for your taxes and every year you use it, and the more data you give it,
-          the more effective it will be.
+          Almstins is not a tax preparation service and does not file returns on your behalf. What it does is organize the underlying data your accountant or tax software needs — and for crypto, that data is genuinely difficult to assemble on your own.
+        </p>
+
+        <p>
+          The tax pipeline classifies every transaction across all your connected exchanges and wallets, runs FIFO lot matching to calculate cost basis, and flags anything that needs your attention (missing prices, unmatched transfers, borrowed assets). It generates a <strong>Form 8949-style PDF</strong> — short-term gains in Box C and long-term gains in Box F — that you can attach to your return or hand directly to your accountant.
+        </p>
+
+        <p>
+          The more complete your imported data, the more accurate the output. Every CSV you upload and every wallet you connect improves the picture. The pipeline gets smarter over time as you resolve flagged items.
+        </p>
+
+        <p style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2); border-radius: 10px; padding: 0.9rem 1rem; margin-top: 1rem;">
+          <strong>⚠️ This is not tax advice.</strong> Always verify the output with a qualified tax professional before filing. Tax treatment of crypto varies by jurisdiction and individual circumstances.
         </p>
       </div>
     </div>
@@ -544,7 +564,7 @@
         </p>
         <ol style="line-height: 1.9; margin: 0.5rem 0 1rem 1.25rem;">
           <li><strong>Recalculates exchange balances</strong> — writes a fresh snapshot from all your imported CSV transactions so the Portfolio tile shows current numbers.</li>
-          <li><strong>Refreshes on-chain wallet values</strong> — pulls the latest balances from your connected Ethereum, Polygon, and Avalanche wallets.</li>
+          <li><strong>Refreshes on-chain wallet values</strong> — pulls the latest balances from your connected EVM wallets (Ethereum, Polygon, Avalanche, Arbitrum), Sui wallets, and Solana wallets.</li>
           <li><strong>Rebuilds the bookkeeping engine</strong> — re-runs the FIFO cost basis calculation across every transaction you've ever imported, from every source. This is what keeps the Bookkeeping page accurate after a new CSV upload. If a coin was showing in "Needs Attention" because a purchase record was missing, syncing after uploading the correct CSV will resolve it.</li>
         </ol>
 
