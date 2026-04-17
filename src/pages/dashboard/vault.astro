@@ -8,6 +8,7 @@ import PriceWatchlist from '@/components/dashboard/PriceWatchlist';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
 import SolanaDefiSummary from '@/components/dashboard/SolanaDefiSummary';
+import SovrynDefiSummary from '@/components/dashboard/SovrynDefiSummary';
 import VaultNftActivity from '@/components/dashboard/VaultNftActivity';
 import CryptoComAccounts from '../../components/CryptoComAccounts.astro';
 import ExchangeAccounts from '../../components/ExchangeAccounts.astro';
@@ -58,10 +59,11 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 };
 
 const getChainBadge = (chains: string[]): string => {
-	if (chains.includes('solana'))   return 'SOL';
-	if (chains.includes('sui'))      return 'SUI';
-	if (chains.includes('bitcoin'))  return 'BTC';
-	if (chains.includes('litecoin')) return 'LTC';
+	if (chains.includes('solana'))    return 'SOL';
+	if (chains.includes('sui'))       return 'SUI';
+	if (chains.includes('bitcoin'))   return 'BTC';
+	if (chains.includes('litecoin'))  return 'LTC';
+	if (chains.includes('rootstock')) return 'RBTC';
 	// EVM: label by most-specific single chain, or 'ETH' for multi-chain
 	const evmOnly = chains.filter(c => ['ethereum','polygon','avalanche','arbitrum'].includes(c));
 	if (evmOnly.length === 1) {
@@ -155,13 +157,17 @@ const getChainBadge = (chains: string[]): string => {
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label" data-defi-summary-label>
-											{wallet.chains.includes('solana') ? 'Protocols' : 'Health'}
+											{wallet.chains.includes('solana')    ? 'Protocols'
+											: wallet.chains.includes('rootstock') ? 'Sovryn'
+											: 'Health'}
 										</span>
 										<span class="tin-summary__value" data-defi-summary-value>—</span>
 									</div>
 									{wallet.chains.includes('solana')
-										? <SolanaDefiSummary client:only="react" walletId={wallet.id} />
-										: <AaveHealthSummary client:only="react" walletId={wallet.id} />
+										? <SolanaDefiSummary  client:only="react" walletId={wallet.id} />
+										: wallet.chains.includes('rootstock')
+										? <SovrynDefiSummary  client:only="react" walletId={wallet.id} />
+										: <AaveHealthSummary  client:only="react" walletId={wallet.id} />
 									}
 								</SalmonTin>
 								<SalmonTin label="NFTs" class="wallet-tin--future is-collapsed">

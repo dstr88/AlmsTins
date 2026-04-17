@@ -380,6 +380,81 @@ async function fetchDefiLlamaPrices(llamaIds: string[]): Promise<Record<string, 
 	}
 }
 
+// ── Rootstock (RSK) ──────────────────────────────────────────────────────────
+
+const RSK_RPC = 'https://public-node.rsk.co';
+
+async function rskRpc<T = unknown>(method: string, params: unknown[]): Promise<T | null> {
+	try {
+		const res = await fetch(RSK_RPC, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+		});
+		if (!res.ok) return null;
+		const json = await res.json() as { result?: T; error?: unknown };
+		if (json?.error) return null;
+		return json?.result ?? null;
+	} catch {
+		return null;
+	}
+}
+
+type RskTokenDef = { symbol: string; address: string; decimals: number; llamaId: string };
+
+// All significant Rootstock / Sovryn ecosystem tokens
+const RSK_TOKENS: RskTokenDef[] = [
+	{ symbol: 'SOV',   address: '0xEFc78fc7D48b64958315949279bA181C2114ABBd', decimals: 18, llamaId: 'coingecko:sovryn' },
+	{ symbol: 'XUSD',  address: '0xb5999795BE0EbB5bAb23144AA5FD6A02D080299E', decimals: 18, llamaId: 'coingecko:xusd' },
+	{ symbol: 'BPRO',  address: '0x440cd83c160de5c96ddb20246815ea44c7abbca8', decimals: 18, llamaId: 'coingecko:bpro' },
+	{ symbol: 'RIF',   address: '0x2aCC95758f8b5F583470bA265Eb685a8F45fC9D5', decimals: 18, llamaId: 'coingecko:rif-token' },
+	{ symbol: 'RUSDT', address: '0xEf213441a85DF4d7acBdAe0Cf78004E1e486BB96', decimals: 18, llamaId: 'coingecko:tether' },
+	{ symbol: 'DLLR',  address: '0xc1411567d2670e24d9bdA715A9B74B40E20e3Ee2', decimals: 18, llamaId: 'coingecko:sovryn-dollar' },
+	{ symbol: 'ZUSD',  address: '0xdB107FA69E33f05180a4C2cE9c2E7CB481645C2d', decimals: 18, llamaId: 'coingecko:zusd' },
+	{ symbol: 'WRBTC', address: '0x542FDA317318eBF1d3DEAf76E0b632741A7e677d', decimals: 18, llamaId: 'coingecko:rootstock' },
+	{ symbol: 'MOC',   address: '0x9aC7Fe28967b30e3a4E6E03286D715B42B453d10', decimals: 18, llamaId: 'coingecko:moc' },
+	{ symbol: 'FISH',  address: '0x055A902303746382FBB7D18f6aE0df56eFDc5213', decimals: 18, llamaId: 'coingecko:babelfish-usd' },
+];
+
+// ERC20 balanceOf(address) selector — standard across all ERC20-compatible tokens on RSK
+const BALANCE_OF_SELECTOR = '0x70a08231';
+
+async function fetchRootstockTokens(address: string): Promise<Array<{ symbol: string; amount: number; tokenAddress: string; llamaId: string }>> {
+	const tokens: Array<{ symbol: string; amount: number; tokenAddress: string; llamaId: string }> = [];
+
+	// 1. Native RBTC balance (1:1 peg with BTC, 18 decimals)
+	const balanceHex = await rskRpc<string>('eth_getBalance', [address, 'latest']);
+	if (balanceHex && typeof balanceHex === 'string') {
+		try {
+			const wei = BigInt(balanceHex);
+			if (wei > 0n) {
+				tokens.push({ symbol: 'RBTC', amount: toDecimal(wei, 18), tokenAddress: 'native', llamaId: 'coingecko:rootstock' });
+			}
+		} catch { /* ignore parse errors */ }
+	}
+
+	// 2. ERC20-style token balances via eth_call → balanceOf(address)
+	const paddedAddr = '000000000000000000000000' + address.slice(2).toLowerCase();
+	const callData   = BALANCE_OF_SELECTOR + paddedAddr;
+
+	for (const token of RSK_TOKENS) {
+		try {
+			const result = await rskRpc<string>('eth_call', [
+				{ to: token.address, data: callData },
+				'latest',
+			]);
+			if (!result || result === '0x' || result === '0x0000000000000000000000000000000000000000000000000000000000000000') continue;
+			const raw = BigInt(result);
+			if (raw <= 0n) continue;
+			const amount = toDecimal(raw, token.decimals);
+			if (!Number.isFinite(amount) || amount <= 0) continue;
+			tokens.push({ symbol: token.symbol, amount, tokenAddress: token.address.toLowerCase(), llamaId: token.llamaId });
+		} catch { /* soft-fail per token */ }
+	}
+
+	return tokens;
+}
+
 async function fetchNativePrice(coinId: 'solana' | 'sui'): Promise<number | null> {
 	const llamaId = coinId === 'solana' ? 'coingecko:solana' : 'coingecko:sui';
 	const prices = await fetchDefiLlamaPrices([llamaId]);
@@ -431,9 +506,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 			const refreshStart = Date.now();
 			console.log('[tokens.refreshMissing] START', { requestId, walletId, tenantId });
 			if (walletAddress) {
-				const isSolana = walletChains.includes('solana');
-				const isSui    = walletChains.includes('sui');
-				const isEvm    = !isSolana && !isSui;
+				const isSolana    = walletChains.includes('solana');
+				const isSui       = walletChains.includes('sui');
+				const isRootstock = walletChains.includes('rootstock');
+				const isEvm       = !isSolana && !isSui && !isRootstock;
 
 				if (isEvm) {
 					// Alchemy supports eth-mainnet and polygon-mainnet only.
@@ -479,6 +555,37 @@ export const GET: APIRoute = async ({ params, request }) => {
 							totalUsd,
 						});
 						console.log('[tokens.refreshMissing] SOLANA SNAPSHOT', {
+							tokenCount: pricedTokens.length,
+							symbols: pricedTokens.map((t) => t.symbol),
+							totalUsd,
+						});
+					}
+				}
+
+				if (isRootstock) {
+					const rskTokens = await fetchRootstockTokens(walletAddress);
+					if (rskTokens.length > 0) {
+						const llamaIds = [...new Set(rskTokens.map((t) => t.llamaId))];
+						const prices   = await fetchDefiLlamaPrices(llamaIds);
+						const pricedTokens = rskTokens.map((t) => {
+							const priceUsd = prices[t.llamaId] ?? null;
+							return {
+								symbol:       t.symbol,
+								amount:       t.amount,
+								priceUsd,
+								valueUsd:     priceUsd !== null ? t.amount * priceUsd : null,
+								tokenAddress: t.tokenAddress,
+							};
+						});
+						const totalUsd = pricedTokens.reduce((s, t) => s + (t.valueUsd ?? 0), 0);
+						await insertWalletSnapshotFromValueBreakdown({
+							tenantId,
+							walletId,
+							chain: 'rootstock',
+							tokens: pricedTokens,
+							totalUsd,
+						});
+						console.log('[tokens.refreshMissing] RSK SNAPSHOT', {
 							tokenCount: pricedTokens.length,
 							symbols: pricedTokens.map((t) => t.symbol),
 							totalUsd,

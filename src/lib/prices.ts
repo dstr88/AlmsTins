@@ -22,6 +22,7 @@ const CHAIN_KEY_MAP: Partial<Record<SupportedChain, string>> = {
 	ethereum: 'ethereum',
 	polygon: 'polygon',
 	avalanche: 'avalanche',
+	rootstock: 'rsk',
 };
 
 /**

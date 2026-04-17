@@ -799,6 +799,18 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		'MSOL',
 		'BSOL',
 		'WSOL',
+		// Rootstock / Sovryn
+		'RBTC',
+		'WRBTC',
+		'SOV',
+		'XUSD',
+		'BPRO',
+		'RIF',
+		'RUSDT',
+		'DLLR',
+		'ZUSD',
+		'MOC',
+		'FISH',
 	]);
 	const VERIFIED_CONTRACTS_BY_CHAIN: Record<string, Record<string, Set<string>>> = {
 		ethereum: {
@@ -838,8 +850,20 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			WBTC: new Set(['0x50b7545627a5162f82a992c33b87adc75187b218']),
 			LINK: new Set(['0x5947bb275c521040051d82396192181b413227a3']),
 		},
+		rootstock: {
+			SOV:   new Set(['0xefc78fc7d48b64958315949279ba181c2114abbd']),
+			XUSD:  new Set(['0xb5999795be0ebb5bab23144aa5fd6a02d080299e']),
+			BPRO:  new Set(['0x440cd83c160de5c96ddb20246815ea44c7abbca8']),
+			RIF:   new Set(['0x2acc95758f8b5f583470ba265eb685a8f45fc9d5']),
+			RUSDT: new Set(['0xef213441a85df4d7acbdae0cf78004e1e486bb96']),
+			DLLR:  new Set(['0xc1411567d2670e24d9bda715a9b74b40e20e3ee2']),
+			ZUSD:  new Set(['0xdb107fa69e33f05180a4c2cce9c2e7cb481645c2d']),
+			WRBTC: new Set(['0x542fda317318ebf1d3deaf76e0b632741a7e677d']),
+			MOC:   new Set(['0x9ac7fe28967b30e3a4e6e03286d715b42b453d10']),
+			FISH:  new Set(['0x055a902303746382fbb7d18f6ae0df56efdc5213']),
+		},
 	};
-	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche', 'solana', 'sui']);
+	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock']);
 
 	function normalizeSymbol(symbol: string) {
 		const upper = symbol.toUpperCase();
@@ -854,6 +878,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		if (lower.includes('eth')) return 'ethereum';
 		if (lower === 'solana' || lower.includes('sol-mainnet')) return 'solana';
 		if (lower === 'sui') return 'sui';
+		if (lower === 'rootstock' || lower === 'rsk') return 'rootstock';
 		return lower;
 	}
 
@@ -984,6 +1009,14 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				if (tokenSymbol === 'PYTH') fallbackPrice = 0.25;  // updated Apr 2026
 				if (tokenSymbol === 'JTO')  fallbackPrice = 1.80;  // updated Apr 2026
 				if (tokenSymbol === 'BONK') fallbackPrice = 0.000018; // updated Apr 2026
+				// Rootstock / Sovryn fallbacks
+				if (tokenSymbol === 'RBTC' || tokenSymbol === 'WRBTC') fallbackPrice = 85000; // ~BTC price Apr 2026
+				if (tokenSymbol === 'SOV')   fallbackPrice = 0.45;   // updated Apr 2026
+				if (tokenSymbol === 'BPRO')  fallbackPrice = 85000;  // BitPRO backed by BTC
+				if (tokenSymbol === 'RIF')   fallbackPrice = 0.08;   // updated Apr 2026
+				if (tokenSymbol === 'XUSD' || tokenSymbol === 'RUSDT' || tokenSymbol === 'DLLR' || tokenSymbol === 'ZUSD') fallbackPrice = 1.00;
+				if (tokenSymbol === 'MOC')   fallbackPrice = 0.40;   // updated Apr 2026
+				if (tokenSymbol === 'FISH')  fallbackPrice = 0.002;  // updated Apr 2026
 				if (fallbackPrice) {
 					normalizedUsd = fallbackPrice * normalizedAmount;
 					if (import.meta.env.WALLET_DEBUG === '1') {

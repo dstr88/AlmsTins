@@ -2,14 +2,12 @@
 /**
  * /dashboard/tax/lots
  *
- * Specific Identification Lot Manager.
- * Shows open lots per asset and lets users pin a specific lot to each disposal.
+ * Lot Manager — lets users pin a specific lot to each disposal.
  * When the Spec ID method is active, the engine uses these pins instead of FIFO.
  */
 import Layout from '../../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
-
 import { hasTaxAccess } from '@/lib/taxAuth';
 
 if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
@@ -25,205 +23,475 @@ const method =
 	methodParam === 'lifo'    ? 'lifo'    :
 	methodParam === 'spec_id' ? 'spec_id' : 'fifo';
 
-// Load current year's disposals and open lots from annualBreakdown.
-// Method is respected so Spec ID users see basis consistent with gains page.
-// 'auto' source: uses pipeline tables if pipeline has run, lifecycle events otherwise.
 const lotSource: AnnualBreakdownSource = 'auto';
 const bd = await buildAnnualBreakdown(tenantId, year, method, undefined, lotSource);
 
-// Group settled lots (disposals) by asset for display
+type Disposal = {
+	sellDate: string;
+	amount: number;
+	proceeds: number | null;
+	gainLoss: number | null;
+	buyDate: string;
+	daysHeld: number;
+};
+type OpenLot = { acquiredDate: string; amount: number; costUsd: number | null; daysHeld: number };
 type DisposalGroup = {
 	asset: string;
-	disposals: Array<{ sellDate: string; amount: number; proceeds: number | null; gainLoss: number | null; buyDate: string; daysHeld: number; sourceId?: string }>;
-	openLots:  Array<{ acquiredDate: string; amount: number; costUsd: number | null; daysHeld: number }>;
+	disposals: Disposal[];
+	openLots: OpenLot[];
+	hasMissingBasis: boolean;
 };
 
 const groupMap = new Map<string, DisposalGroup>();
-const allAssets = new Set<string>();
 
 for (const lot of [...bd.shortTerm, ...bd.longTerm]) {
-	allAssets.add(lot.asset);
-	const g = groupMap.get(lot.asset) ?? { asset: lot.asset, disposals: [], openLots: [] };
+	const g = groupMap.get(lot.asset) ?? { asset: lot.asset, disposals: [], openLots: [], hasMissingBasis: false };
 	g.disposals.push({
-		sellDate:  lot.sellDate,
-		amount:    lot.amount,
-		proceeds:  lot.proceedsUsd,
-		gainLoss:  lot.gainLossUsd,
-		buyDate:   lot.buyDate,
-		daysHeld:  lot.daysHeld,
+		sellDate: lot.sellDate,
+		amount:   lot.amount,
+		proceeds: lot.proceedsUsd,
+		gainLoss: lot.gainLossUsd,
+		buyDate:  lot.buyDate,
+		daysHeld: lot.daysHeld,
 	});
 	groupMap.set(lot.asset, g);
 }
 
 for (const held of bd.stillHolding) {
-	allAssets.add(held.asset);
-	const g = groupMap.get(held.asset) ?? { asset: held.asset, disposals: [], openLots: [] };
-	g.openLots.push({
-		acquiredDate: held.acquiredDate,
-		amount:       held.amount,
-		costUsd:      held.costUsd,
-		daysHeld:     held.daysHeld,
-	});
+	const g = groupMap.get(held.asset) ?? { asset: held.asset, disposals: [], openLots: [], hasMissingBasis: false };
+	g.openLots.push({ acquiredDate: held.acquiredDate, amount: held.amount, costUsd: held.costUsd, daysHeld: held.daysHeld });
 	groupMap.set(held.asset, g);
 }
 
-const groups = [...groupMap.values()].filter(g => g.disposals.length > 0).sort((a, b) => a.asset.localeCompare(b.asset));
+for (const g of groupMap.values()) {
+	g.hasMissingBasis = g.disposals.some(d => d.gainLoss === null);
+	// Missing disposals first within each group
+	g.disposals.sort((a, b) => {
+		if ((a.gainLoss === null) !== (b.gainLoss === null)) return a.gainLoss === null ? -1 : 1;
+		return 0;
+	});
+}
 
-const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+const groups = [...groupMap.values()]
+	.filter(g => g.disposals.length > 0)
+	.sort((a, b) => {
+		if (a.hasMissingBasis !== b.hasMissingBasis) return a.hasMissingBasis ? -1 : 1;
+		return a.asset.localeCompare(b.asset);
+	});
+
+const missingCount = groups.reduce((acc, g) => acc + g.disposals.filter(d => d.gainLoss === null).length, 0);
+
+const fmt     = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 const fmtDate = (iso: string) => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return iso; } };
-const fmtQty = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 8 });
+const fmtQty  = (n: number)   => n.toLocaleString('en-US', { maximumFractionDigits: 8 });
+
+// For a disposal, filter open lots to only those acquired BEFORE the sale date
+// (lots bought after the sale can't be what was sold — weed those out)
+const relevantLots = (openLots: OpenLot[], sellDate: string) =>
+	openLots.filter(ol => ol.acquiredDate < sellDate);
 ---
 
 <Layout title="Lot Manager | Almstins" noindex={true}>
-	<div class="max-w-5xl mx-auto px-4 py-8 space-y-8">
+<div class="lm-page">
 
-		<!-- Header -->
-		<div class="flex items-start justify-between flex-wrap gap-4">
-			<div>
-				<a href="/dashboard/tax/gains?method=spec_id&year={year}" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Gains Summary (Spec ID)</a>
-				<h1 class="text-2xl font-bold text-gray-900">Specific ID — Lot Manager</h1>
-				<p class="text-sm text-gray-500 mt-1">
-					For each disposal, choose which open lot you sold. Your pins override FIFO
-					when the <strong>Spec ID</strong> cost basis method is selected.
-				</p>
-			</div>
-			<div class="flex items-center gap-3">
-				<a href="/dashboard/tax/gains?method=spec_id&year={year}"
-				   class="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2">
-					View Spec ID Results →
-				</a>
-			</div>
+	<!-- Header -->
+	<div class="lm-header">
+		<a href={`/dashboard/tax/gains?method=spec_id&year=${year}`} class="lm-back">← Back to Gains Summary</a>
+		<div class="lm-header__row">
+			<h1 class="lm-title">Lot Manager</h1>
+			<a href={`/dashboard/tax/gains?method=spec_id&year=${year}`} class="lm-results-btn">View Results →</a>
 		</div>
+		<p class="lm-subtitle">
+			Choose which lot you sold for each disposal. Pins are used when <strong>Specific ID</strong> is your cost basis method.
+		</p>
+	</div>
 
-		<!-- IRS notice -->
-		<div class="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
-			<strong>IRS Specific Identification rules:</strong> You must identify the lot <em>before or at the time of sale</em>
-			and receive confirmation from your exchange or broker. Lot pins here are for computational purposes;
-			maintain separate documentation (exchange confirmations, wallet records) as required by IRS Rev. Rul. 2024-28.
+	{groups.length === 0 && (
+		<div class="lm-empty">
+			<p class="lm-empty__icon">📋</p>
+			<p class="lm-empty__title">No disposals for {year}</p>
+			<p class="lm-empty__sub">Switch to a year with transactions.</p>
 		</div>
+	)}
 
-		{groups.length === 0 && (
-			<div class="rounded-xl border border-gray-200 bg-gray-50 p-10 text-center">
-				<p class="text-2xl mb-2">📋</p>
-				<p class="font-semibold text-gray-700">No disposals for {year}</p>
-				<p class="text-sm text-gray-500 mt-1">Switch to a year with transactions.</p>
-			</div>
-		)}
+	{groups.map(group => {
+		const missingDisposals  = group.disposals.filter(d => d.gainLoss === null);
+		const resolvedDisposals = group.disposals.filter(d => d.gainLoss !== null);
 
-		{groups.map(group => (
-			<section class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+		return (
+			<section class="lm-group" id={group.hasMissingBasis ? 'missing-basis' : undefined}>
+
 				<!-- Asset header -->
-				<div class="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
-					<div class="flex items-center gap-3">
-						<span class="inline-flex w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold items-center justify-center shrink-0">
-							{group.asset.slice(0, 3)}
-						</span>
-						<span class="font-semibold text-gray-900">{group.asset}</span>
-						<span class="text-xs text-gray-400">{group.disposals.length} disposal{group.disposals.length !== 1 ? 's' : ''}</span>
+				<div class="lm-group__header">
+					<div class="lm-group__header-left">
+						<span class="lm-avatar">{group.asset.slice(0, 3)}</span>
+						<span class="lm-asset">{group.asset}</span>
+						{group.hasMissingBasis && (
+							<span class="lm-badge lm-badge--warn">Needs attention</span>
+						)}
 					</div>
-					<span class="text-xs text-gray-400">{group.openLots.length} open lot{group.openLots.length !== 1 ? 's' : ''} remaining</span>
+					<span class="lm-group__meta">{group.disposals.length} disposal{group.disposals.length !== 1 ? 's' : ''}</span>
 				</div>
 
-				<!-- Disposals -->
-				<div class="divide-y divide-gray-100">
-					{group.disposals.map((d, idx) => (
-						<div class="px-5 py-4 flex flex-wrap gap-4 items-start justify-between"
+				<!-- ── MISSING DISPOSALS — hero treatment ── -->
+				{missingDisposals.map((d, idx) => {
+					const lots = relevantLots(group.openLots, d.sellDate);
+					return (
+						<div class="lm-hero"
 						     data-asset={group.asset}
 						     data-sell-date={d.sellDate}
 						     data-amount={d.amount}>
 
-							<!-- Disposal info -->
-							<div class="min-w-0 space-y-0.5">
-								<p class="font-medium text-gray-900">
-									Sold {fmtQty(d.amount)} {group.asset}
-									{d.proceeds != null && <span class="text-gray-400 font-normal"> for {fmt(d.proceeds)}</span>}
-								</p>
-								<p class="text-xs text-gray-500">
-									Sold {fmtDate(d.sellDate)} ·
-									Using lot acquired {fmtDate(d.buyDate)} ·
-									{d.daysHeld} days held ·
-									{d.daysHeld >= 365 ? <span class="text-green-600 font-medium">Long-term</span> : <span class="text-amber-600 font-medium">Short-term</span>}
-								</p>
-								{d.gainLoss != null && (
-									<p class={`text-xs font-medium ${d.gainLoss >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-										{d.gainLoss >= 0 ? `+${fmt(d.gainLoss)}` : `(${fmt(Math.abs(d.gainLoss))})`} computed with FIFO
+							<!-- Big coin display -->
+							<div class="lm-hero__coin">
+								<span class="lm-hero__symbol">{group.asset}</span>
+								<span class="lm-hero__amount">{fmtQty(d.amount)} {group.asset}</span>
+								{d.proceeds != null && (
+									<span class="lm-hero__proceeds">{fmt(d.proceeds)}</span>
+								)}
+								<span class="lm-hero__date">Sold {fmtDate(d.sellDate)}</span>
+							</div>
+
+							<!-- No purchase record callout -->
+							<div class="lm-hero__problem">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+								<span>No purchase record found — select the lot you sold to fix the gain/loss calculation.</span>
+							</div>
+
+							<!-- Lot selector -->
+							<div class="lm-hero__selector">
+								<label class="lm-hero__label">Which lot did you sell?</label>
+								{lots.length === 0 ? (
+									<p class="lm-hero__no-lots">
+										No open lots acquired before {fmtDate(d.sellDate)} — the purchase may not be imported yet.
 									</p>
+								) : (
+									<div class="lm-hero__select-row">
+										<select class="lm-select lot-pin-select" data-idx={idx}>
+											<option value="">— choose a lot —</option>
+											{lots.map(ol => (
+												<option value={ol.acquiredDate + '|' + ol.amount}>
+													{fmtQty(ol.amount)} acquired {fmtDate(ol.acquiredDate)}
+													{ol.costUsd != null ? ` · ${fmt(ol.costUsd / ol.amount)}/unit` : ''}
+													· {ol.daysHeld >= 365 ? 'Long-term' : 'Short-term'}
+												</option>
+											))}
+										</select>
+										<button class="lm-save-btn save-pin-btn hidden">Save</button>
+										<span class="lm-pin-status pin-status hidden"></span>
+									</div>
 								)}
 							</div>
-
-							<!-- Pin selector -->
-							<div class="flex items-center gap-2 shrink-0">
-								<label class="text-xs text-gray-500 font-medium">Override lot:</label>
-								<select class="lot-pin-select border border-gray-300 rounded-md px-2 py-1.5 text-xs
-								               focus:outline-none focus:ring-2 focus:ring-indigo-500"
-								        data-idx={idx}>
-									<option value="">— use default ({group.openLots.length > 0 ? 'FIFO' : 'orphaned'}) —</option>
-									{group.openLots.map(ol => (
-										<option value={ol.acquiredDate + '|' + ol.amount}>
-											{fmtQty(ol.amount)} acquired {fmtDate(ol.acquiredDate)}
-											{ol.costUsd != null ? ` · ${fmt(ol.costUsd / ol.amount)}/unit` : ''}
-											· {ol.daysHeld >= 365 ? 'LT' : 'ST'}
-										</option>
-									))}
-								</select>
-								<button class="save-pin-btn text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-50 hidden">
-									Save
-								</button>
-								<span class="pin-status text-xs text-gray-400 hidden"></span>
-							</div>
 						</div>
-					))}
-				</div>
-			</section>
-		))}
+					);
+				})}
 
-	</div>
+				<!-- ── RESOLVED DISPOSALS — collapsed by default ── -->
+				{resolvedDisposals.length > 0 && (
+					<details class="lm-resolved">
+						<summary class="lm-resolved__toggle">
+							{resolvedDisposals.length} resolved disposal{resolvedDisposals.length !== 1 ? 's' : ''} — show
+						</summary>
+						<div class="lm-resolved__body">
+							{resolvedDisposals.map((d, rawIdx) => {
+								const idx = missingDisposals.length + rawIdx;
+								const lots = relevantLots(group.openLots, d.sellDate);
+								return (
+									<div class="lm-disposal"
+									     data-asset={group.asset}
+									     data-sell-date={d.sellDate}
+									     data-amount={d.amount}>
+										<div class="lm-disposal__info">
+											<p class="lm-disposal__headline">
+												Sold {fmtQty(d.amount)} {group.asset}
+												{d.proceeds != null && <span class="lm-disposal__proceeds"> for {fmt(d.proceeds)}</span>}
+											</p>
+											<p class="lm-disposal__meta">
+												{fmtDate(d.sellDate)} · lot acquired {fmtDate(d.buyDate)} · {d.daysHeld} days ·
+												{d.daysHeld >= 365
+													? <span class="lm-term lm-term--long">Long-term</span>
+													: <span class="lm-term lm-term--short">Short-term</span>}
+											</p>
+											{d.gainLoss != null && (
+												<p class={`lm-disposal__gain${d.gainLoss >= 0 ? ' lm-disposal__gain--pos' : ' lm-disposal__gain--neg'}`}>
+													{d.gainLoss >= 0 ? `+${fmt(d.gainLoss)}` : `(${fmt(Math.abs(d.gainLoss))})`}
+												</p>
+											)}
+										</div>
+										<div class="lm-pin-row">
+											<label class="lm-pin-label">Override lot:</label>
+											<select class="lm-select lm-select--sm lot-pin-select" data-idx={idx}>
+												<option value="">Automatic (earliest purchase first)</option>
+												{lots.map(ol => (
+													<option value={ol.acquiredDate + '|' + ol.amount}>
+														{fmtQty(ol.amount)} acquired {fmtDate(ol.acquiredDate)}
+														{ol.costUsd != null ? ` · ${fmt(ol.costUsd / ol.amount)}/unit` : ''}
+													</option>
+												))}
+											</select>
+											<button class="lm-save-btn lm-save-btn--sm save-pin-btn hidden">Save</button>
+											<span class="lm-pin-status pin-status hidden"></span>
+										</div>
+									</div>
+								);
+							})}
+						</div>
+					</details>
+				)}
+			</section>
+		);
+	})}
+
+	<!-- IRS notice — at bottom, collapsible -->
+	{groups.length > 0 && (
+		<details class="lm-irs">
+			<summary>IRS Specific Identification rules</summary>
+			<p>
+				You must identify the lot <em>before or at the time of sale</em> and receive confirmation from your
+				exchange or broker. Lot pins here are for computational purposes — maintain separate documentation
+				(exchange confirmations, wallet records) as required by IRS Rev. Rul. 2024-28.
+			</p>
+		</details>
+	)}
+
+</div>
 </Layout>
+
+<style>
+.lm-page {
+	max-width: 720px;
+	margin: 0 auto;
+	padding: 2.5rem 2rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+/* ── Header ── */
+.lm-header { display: flex; flex-direction: column; gap: 0.25rem; }
+.lm-back { font-size: 0.75rem; color: #818cf8; text-decoration: none; }
+.lm-back:hover { color: #a5b4fc; }
+.lm-header__row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-top: 0.25rem; }
+.lm-title { font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0; }
+.lm-subtitle { font-size: 0.85rem; color: #64748b; margin: 0.25rem 0 0; }
+.lm-results-btn { background: #4f46e5; color: #fff; font-size: 0.8rem; font-weight: 600; padding: 0.45rem 0.9rem; border-radius: 8px; text-decoration: none; white-space: nowrap; }
+.lm-results-btn:hover { background: #4338ca; }
+
+/* ── Empty state ── */
+.lm-empty { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 3rem 1rem; text-align: center; }
+.lm-empty__icon { font-size: 2rem; margin: 0 0 0.5rem; }
+.lm-empty__title { font-size: 1rem; font-weight: 600; color: #e2e8f0; margin: 0; }
+.lm-empty__sub { font-size: 0.8rem; color: #64748b; margin: 0.25rem 0 0; }
+
+/* ── Group card ── */
+.lm-group { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; overflow: hidden; }
+.lm-group__header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1.25rem; background: #1e293b; gap: 0.5rem; flex-wrap: wrap; }
+.lm-group__header-left { display: flex; align-items: center; gap: 0.6rem; }
+.lm-avatar { width: 2rem; height: 2rem; border-radius: 50%; background: #312e81; color: #a5b4fc; font-size: 0.68rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.lm-asset { font-weight: 700; color: #e2e8f0; font-size: 1rem; }
+.lm-group__meta { font-size: 0.75rem; color: #475569; }
+
+/* badges */
+.lm-badge { font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; }
+.lm-badge--warn { background: #431407; color: #fb923c; border: 1px solid #7c2d12; }
+
+/* ── Hero card (missing disposal) ── */
+.lm-hero {
+	padding: 2rem 1.5rem 1.5rem;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 1.25rem;
+	border-top: 1px solid #3b1309;
+	background: #140a06;
+}
+
+.lm-hero__coin {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.2rem;
+	text-align: center;
+}
+
+.lm-hero__symbol {
+	font-size: 0.75rem;
+	font-weight: 700;
+	color: #f97316;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+}
+
+.lm-hero__amount {
+	font-size: 2rem;
+	font-weight: 800;
+	color: #f1f5f9;
+	letter-spacing: -0.02em;
+	line-height: 1.1;
+}
+
+.lm-hero__proceeds {
+	font-size: 1.1rem;
+	color: #94a3b8;
+	font-weight: 500;
+}
+
+.lm-hero__date {
+	font-size: 0.8rem;
+	color: #475569;
+	margin-top: 0.1rem;
+}
+
+.lm-hero__problem {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+	background: #1c1006;
+	border: 1px solid #7c2d12;
+	border-radius: 8px;
+	padding: 0.65rem 0.875rem;
+	font-size: 0.82rem;
+	color: #fdba74;
+	width: 100%;
+	max-width: 480px;
+	line-height: 1.5;
+}
+.lm-hero__problem svg { flex-shrink: 0; margin-top: 1px; }
+
+.lm-hero__selector { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 0.5rem; }
+.lm-hero__label { font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-align: center; }
+
+.lm-hero__select-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+.lm-hero__no-lots {
+	font-size: 0.8rem;
+	color: #64748b;
+	text-align: center;
+	font-style: italic;
+	padding: 0.5rem;
+}
+
+/* ── Select / save controls ── */
+.lm-select {
+	flex: 1;
+	min-width: 0;
+	background: #1e293b;
+	border: 1px solid #334155;
+	color: #e2e8f0;
+	border-radius: 8px;
+	padding: 0.5rem 0.6rem;
+	font-size: 0.82rem;
+	outline: none;
+}
+.lm-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.25); }
+.lm-select--sm { padding: 0.35rem 0.5rem; font-size: 0.78rem; border-radius: 6px; }
+
+.lm-save-btn {
+	background: none;
+	border: 1px solid #4f46e5;
+	color: #818cf8;
+	font-size: 0.8rem;
+	font-weight: 700;
+	padding: 0.45rem 0.8rem;
+	border-radius: 8px;
+	cursor: pointer;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+.lm-save-btn:hover { background: #1e1b4b; }
+.lm-save-btn--sm { font-size: 0.75rem; padding: 0.3rem 0.55rem; border-radius: 6px; }
+.lm-save-btn.hidden, .lm-save-btn--sm.hidden { display: none; }
+
+.lm-pin-status { font-size: 0.75rem; color: #64748b; }
+.lm-pin-status.hidden { display: none; }
+
+/* ── Resolved disposals (collapsible) ── */
+.lm-resolved { border-top: 1px solid #1e293b; }
+.lm-resolved__toggle {
+	cursor: pointer;
+	list-style: none;
+	padding: 0.65rem 1.25rem;
+	font-size: 0.78rem;
+	color: #475569;
+	user-select: none;
+}
+.lm-resolved__toggle:hover { color: #94a3b8; }
+.lm-resolved__toggle::marker { display: none; }
+.lm-resolved__toggle::-webkit-details-marker { display: none; }
+
+.lm-resolved__body { border-top: 1px solid #1e293b; }
+
+.lm-disposal {
+	padding: 0.875rem 1.25rem;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: flex-start;
+	justify-content: space-between;
+	border-top: 1px solid #1e293b;
+}
+.lm-disposal:first-child { border-top: none; }
+.lm-disposal__info { min-width: 0; }
+.lm-disposal__headline { font-size: 0.88rem; font-weight: 600; color: #cbd5e1; margin: 0 0 0.2rem; }
+.lm-disposal__proceeds { color: #475569; font-weight: 400; }
+.lm-disposal__meta { font-size: 0.75rem; color: #475569; margin: 0 0 0.15rem; }
+.lm-term--long { color: #4ade80; font-weight: 600; }
+.lm-term--short { color: #fb923c; font-weight: 600; }
+.lm-disposal__gain { font-size: 0.78rem; font-weight: 600; margin: 0; }
+.lm-disposal__gain--pos { color: #4ade80; }
+.lm-disposal__gain--neg { color: #f87171; }
+
+.lm-pin-row { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; flex-wrap: wrap; }
+.lm-pin-label { font-size: 0.72rem; color: #475569; font-weight: 600; white-space: nowrap; }
+
+/* ── IRS notice (at bottom) ── */
+.lm-irs {
+	background: #0f172a;
+	border: 1px solid #1e3a5f;
+	border-radius: 10px;
+	padding: 0.75rem 1rem;
+	font-size: 0.78rem;
+	color: #60a5fa;
+}
+.lm-irs summary {
+	cursor: pointer;
+	font-weight: 600;
+	color: #93c5fd;
+	user-select: none;
+}
+.lm-irs p { margin: 0.5rem 0 0; line-height: 1.55; }
+</style>
 
 <script>
 const year = new URLSearchParams(window.location.search).get('year') ?? String(new Date().getFullYear() - 1);
 
-// Load existing pins and pre-select dropdowns
 async function loadPins() {
 	try {
-		const res = await fetch(`/api/tax/lot-pins?year=${year}`);
+		const res  = await fetch(`/api/tax/lot-pins?year=${year}`);
 		const data = await res.json() as { ok: boolean; pins: Array<{ disposalSourceId: string; lotAcquiredAt: string; lotAmountHint: number }> };
 		if (!data.ok) return;
-
-		// Build a map from sellDate+amount → pin for UI matching
-		// (exact sourceId matching not available on client — use date+amount as proxy)
 		for (const pin of data.pins) {
-			const selects = document.querySelectorAll<HTMLSelectElement>('.lot-pin-select');
-			for (const sel of selects) {
-				const card = sel.closest('[data-sell-date]') as HTMLElement | null;
-				if (!card) continue;
-				// Find matching option
+			for (const sel of document.querySelectorAll<HTMLSelectElement>('.lot-pin-select')) {
 				const optionVal = `${pin.lotAcquiredAt}|${pin.lotAmountHint}`;
 				const opt = sel.querySelector<HTMLOptionElement>(`option[value="${optionVal}"]`);
-				if (opt) {
-					sel.value = optionVal;
-					showSaved(sel);
-				}
+				if (opt) { sel.value = optionVal; showSaved(sel); }
 			}
 		}
 	} catch {}
 }
 
 function showSaved(sel: HTMLSelectElement) {
-	const status = sel.parentElement?.querySelector<HTMLSpanElement>('.pin-status');
-	if (status) {
-		status.textContent = '✓ Pinned';
-		status.classList.remove('hidden');
-	}
-	const btn = sel.parentElement?.querySelector<HTMLButtonElement>('.save-pin-btn');
+	const status = sel.closest('.lm-hero__select-row, .lm-pin-row')?.querySelector<HTMLSpanElement>('.pin-status');
+	if (status) { status.textContent = '✓ Pinned'; status.classList.remove('hidden'); }
+	const btn = sel.closest('.lm-hero__select-row, .lm-pin-row')?.querySelector<HTMLButtonElement>('.save-pin-btn');
 	if (btn) btn.classList.add('hidden');
 }
 
-// Wire up all dropdowns
 document.querySelectorAll<HTMLSelectElement>('.lot-pin-select').forEach((sel) => {
-	const card = sel.closest('[data-asset]') as HTMLElement | null;
-	const saveBtn = sel.parentElement?.querySelector<HTMLButtonElement>('.save-pin-btn');
-	const status  = sel.parentElement?.querySelector<HTMLSpanElement>('.pin-status');
+	const card    = sel.closest('[data-asset]') as HTMLElement | null;
+	const row     = sel.closest('.lm-hero__select-row, .lm-pin-row') as HTMLElement | null;
+	const saveBtn = row?.querySelector<HTMLButtonElement>('.save-pin-btn');
+	const status  = row?.querySelector<HTMLSpanElement>('.pin-status');
 
 	sel.addEventListener('change', () => {
 		if (saveBtn) saveBtn.classList.remove('hidden');
@@ -231,11 +499,10 @@ document.querySelectorAll<HTMLSelectElement>('.lot-pin-select').forEach((sel) =>
 	});
 
 	saveBtn?.addEventListener('click', async () => {
-		const val = sel.value;
-		const asset = card?.dataset.asset ?? '';
+		const val      = sel.value;
+		const asset    = card?.dataset.asset ?? '';
 		const sellDate = card?.dataset.sellDate ?? '';
-		const amount = parseFloat(card?.dataset.amount ?? '0');
-
+		const amount   = parseFloat(card?.dataset.amount ?? '0');
 		if (!val || !asset || !sellDate) return;
 
 		const [lotAcquiredAt, lotAmountHintStr] = val.split('|');
@@ -245,11 +512,10 @@ document.querySelectorAll<HTMLSelectElement>('.lot-pin-select').forEach((sel) =>
 		if (status) { status.textContent = 'Saving…'; status.classList.remove('hidden'); }
 
 		try {
-			const res = await fetch('/api/tax/lot-pins', {
+			const res  = await fetch('/api/tax/lot-pins', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					// Use sellDate+asset as a proxy disposal ID (approximation)
 					disposalSourceId: `${asset}:${sellDate}:${amount.toFixed(8)}`,
 					lotAcquiredAt,
 					lotAmountHint,
@@ -257,11 +523,8 @@ document.querySelectorAll<HTMLSelectElement>('.lot-pin-select').forEach((sel) =>
 				}),
 			});
 			const data = await res.json() as { ok: boolean; error?: string };
-			if (data.ok) {
-				showSaved(sel);
-			} else {
-				if (status) status.textContent = `❌ ${data.error ?? 'Failed'}`;
-			}
+			if (data.ok) { showSaved(sel); }
+			else if (status) { status.textContent = `❌ ${data.error ?? 'Failed'}`; }
 		} catch {
 			if (status) status.textContent = '❌ Network error';
 		} finally {
@@ -271,4 +534,8 @@ document.querySelectorAll<HTMLSelectElement>('.lot-pin-select').forEach((sel) =>
 });
 
 loadPins();
+
+if (window.location.hash === '#missing-basis') {
+	document.getElementById('missing-basis')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 </script>
