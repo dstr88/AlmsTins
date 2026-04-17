@@ -32,6 +32,7 @@ export type SourceType = 'import' | 'onchain';
 export type ReviewReason =
 	| 'unmatched_transfer'
 	| 'missing_price'
+	| 'missing_cost_basis'        // acquisition (buy/transfer-in/loan) has no USD price → null lot basis
 	| 'possible_loan'
 	| 'low_confidence'
 	| 'unknown_type'

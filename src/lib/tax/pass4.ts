@@ -96,11 +96,44 @@ function buildAcquisitions(
 		// The outgoing leg (direction='out') is handled in buildDisposals.
 		const isSwapIn = cat === 'swap' && row.direction === 'in';
 
-		if (cat !== 'buy' && cat !== 'income' && cat !== 'airdrop' && !isSwapIn) continue;
+		// Loan-proceeds: tokens received from a DeFi borrow (Aave, Compound, etc.).
+		// The borrow itself is not taxable, but the borrowed tokens ARE property — if
+		// you later sell or swap them, that disposal needs a cost basis.  FMV at the
+		// time the loan proceeds hit the wallet is the correct basis (IRC § 1012).
+		const isLoanIn = cat === 'loan-proceeds' && row.direction === 'in';
+
+		// Unmatched transfer-in WITH a known price: tokens received from a source
+		// outside the tracked import universe (e.g. Binance, a second hardware wallet).
+		// The transfer itself is not taxable, but if no other lot exists for this asset
+		// (because the purchase was never imported) we need a lot here so that future
+		// disposals can match against something rather than landing as "unmatched".
+		// We only create the lot when native_usd is non-null — silent null-price
+		// transfers are flagged for review by pass5 instead (see missing_cost_basis).
+		//
+		// Exclusions:
+		//   • Fiat symbols (USD, EUR, etc.) — never belong in the crypto lot pool
+		//   • crypto_earn_program_withdrawn — principal returning from Crypto.com Earn;
+		//     the original purchase lot already exists, creating another here
+		//     would double-count and inflate cost basis.
+		const FIAT_SYMBOLS = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD']);
+		const isUnmatchedTransferIn = cat === 'transfer'
+			&& row.direction === 'in'
+			&& row.native_usd !== null
+			&& !!row.asset_symbol
+			&& !FIAT_SYMBOLS.has(row.asset_symbol.toUpperCase())
+			&& row.kind !== 'crypto_earn_program_withdrawn';
+
+		if (cat !== 'buy' && cat !== 'income' && cat !== 'airdrop'
+			&& !isSwapIn && !isLoanIn && !isUnmatchedTransferIn) continue;
 
 		// asset_symbol is the only symbol field on RawImportTx.
 		const symbol = row.asset_symbol;
 		if (!symbol) continue;
+
+		// Never put fiat currencies in the crypto lot pool — USD/EUR/etc. are not
+		// capital assets and should not appear on Form 8949.
+		const FIAT_LOT_SYMBOLS = new Set(['USD', 'EUR', 'GBP', 'CAD', 'AUD']);
+		if (FIAT_LOT_SYMBOLS.has(symbol.toUpperCase())) continue;
 
 		// For buys/swap-in: quantity is what was received.
 		// If to_amount is set it overrides amount (some CEX export the received qty there).
@@ -110,6 +143,7 @@ function buildAcquisitions(
 		// Cost basis = FMV at time of acquisition (native_usd).
 		// For swap-in rows this is the FMV of the received tokens at the swap date —
 		// the correct cost basis for future disposals of those tokens.
+		// For loan-proceeds: FMV at borrow time = correct basis under IRC § 1012.
 		const totalCost = row.native_usd !== null ? Math.abs(row.native_usd) : null;
 		const ppu = totalCost !== null && qty > 0 ? totalCost / qty : null;
 
@@ -121,7 +155,10 @@ function buildAcquisitions(
 			quantity: qty,
 			pricePerUnit: ppu,
 			costBasisUsd: totalCost,
-			lotType: cat === 'income' ? 'income' : cat === 'airdrop' ? 'airdrop' : 'purchase',
+			lotType: cat === 'income' ? 'income'
+				: cat === 'airdrop' ? 'airdrop'
+				: (isUnmatchedTransferIn || isLoanIn) ? 'transfer'
+				: 'purchase',
 		});
 	}
 

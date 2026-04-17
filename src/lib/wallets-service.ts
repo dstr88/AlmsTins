@@ -16,6 +16,8 @@ export function sanitizeAddress(input: unknown): string | null {
 	if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(value)) return value;
 	// Litecoin native SegWit bech32 (ltc1q...) and Taproot bech32m (ltc1p...)
 	if (/^ltc1[a-z0-9]{6,87}$/.test(lower)) return lower;
+	// Solana — base58 public key, 32–44 chars from the base58 alphabet
+	if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) return value;
 	return null;
 }
 

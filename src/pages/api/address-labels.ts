@@ -18,7 +18,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const { tenantId } = session;
 
 	const result = await db.execute({
-		sql: `SELECT id, address, label, source, category, chain, notes, created_at
+		sql: `SELECT id, address, label, source, category, chain, notes, phone_number, created_at
 		      FROM address_labels
 		      WHERE tenant_id = ?
 		      ORDER BY created_at DESC`,
@@ -37,27 +37,44 @@ export const POST: APIRoute = async ({ request }) => {
 	const body = await request.json();
 	const address  = typeof body.address  === 'string' ? body.address.replace(/\s+/g, '').toLowerCase() : '';
 	const label    = typeof body.label    === 'string' ? body.label.trim() : '';
-	const category = typeof body.category === 'string' ? body.category.trim() : 'counterparty';
-	const chain    = typeof body.chain    === 'string' ? body.chain.trim()    : null;
-	const notes    = typeof body.notes    === 'string' ? body.notes.trim()    : null;
+	const category    = typeof body.category    === 'string' ? body.category.trim()    : 'counterparty';
+	const chain       = typeof body.chain       === 'string' ? body.chain.trim()       : null;
+	const notes       = typeof body.notes       === 'string' ? body.notes.trim()       : null;
+	const phoneNumber = typeof body.phoneNumber === 'string' ? body.phoneNumber.trim() : null;
 
 	if (!address) return json({ error: true, message: 'Address is required' }, 400);
 	if (!label)   return json({ error: true, message: 'Label is required' }, 400);
 
 	const id = crypto.randomUUID();
 
+	// Normalise phone to null so COALESCE(phone_number, '') comparison is consistent
+	const phone = phoneNumber || null;
+
 	try {
-		// Save personal label
-		await db.execute({
-			sql: `INSERT INTO address_labels (id, tenant_id, address, label, source, category, chain, notes)
-			      VALUES (?, ?, ?, ?, 'user', ?, ?, ?)
-			      ON CONFLICT (tenant_id, address)
-			      DO UPDATE SET label = excluded.label, source = 'user',
-			                    category = excluded.category, chain = excluded.chain,
-			                    notes = excluded.notes,
-			                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
-			args: [id, tenantId, address, label, category, chain, notes],
+		// Unique key is (tenant_id, address, COALESCE(phone_number, ''))
+		// — same address + same phone = update; same address + different phone = new row
+		const existing = await db.execute({
+			sql: `SELECT id FROM address_labels
+			      WHERE tenant_id = ? AND address = ? AND COALESCE(phone_number, '') = ?
+			      LIMIT 1`,
+			args: [tenantId, address, phone ?? ''],
 		});
+
+		if (existing.rows.length > 0) {
+			await db.execute({
+				sql: `UPDATE address_labels
+				      SET label = ?, source = 'user', category = ?, chain = ?, notes = ?, phone_number = ?,
+				          updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+				      WHERE tenant_id = ? AND address = ? AND COALESCE(phone_number, '') = ?`,
+				args: [label, category, chain, notes, phone, tenantId, address, phone ?? ''],
+			});
+		} else {
+			await db.execute({
+				sql: `INSERT INTO address_labels (id, tenant_id, address, label, source, category, chain, notes, phone_number)
+				      VALUES (?, ?, ?, ?, 'user', ?, ?, ?, ?)`,
+				args: [id, tenantId, address, label, category, chain, notes, phone],
+			});
+		}
 
 		// Cast a community vote (one per user per address)
 		await db.execute({
@@ -118,9 +135,9 @@ export const POST: APIRoute = async ({ request }) => {
 		}
 
 		const row = await db.execute({
-			sql: `SELECT id, address, label, source, category, chain, notes, created_at FROM address_labels
-			      WHERE tenant_id = ? AND address = ? LIMIT 1`,
-			args: [tenantId, address],
+			sql: `SELECT id, address, label, source, category, chain, notes, phone_number, created_at FROM address_labels
+			      WHERE tenant_id = ? AND address = ? AND COALESCE(phone_number, '') = ? LIMIT 1`,
+			args: [tenantId, address, phone ?? ''],
 		});
 
 		return json(row.rows[0], 201);

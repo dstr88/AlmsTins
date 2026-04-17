@@ -8,6 +8,7 @@ export type AddressLabel = {
 	category?: string | null;
 	chain?: string | null;
 	notes?: string | null;
+	phone_number?: string | null;
 };
 
 type Props = {
@@ -86,6 +87,7 @@ export function AddressLabels({ labels: initial }: Props) {
 	const [category,     setCategory]     = useState('counterparty');
 	const [chain,        setChain]        = useState('');
 	const [notes,        setNotes]        = useState('');
+	const [phoneNumber,  setPhoneNumber]  = useState('');
 	const [scanning,     setScanning]     = useState(false);
 	const [scanResult,   setScanResult]   = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -149,7 +151,7 @@ export function AddressLabels({ labels: initial }: Props) {
 			const res  = await fetch('/api/address-labels', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ address: addr, label: lbl, category, chain: chain || null, notes: notes || null }),
+				body: JSON.stringify({ address: addr, label: lbl, category, chain: chain || null, notes: notes || null, phoneNumber: phoneNumber || null }),
 			});
 			const data = await res.json();
 			if (!res.ok) { setStatus(data.message ?? 'Failed to save'); setSaving(false); return; }
@@ -168,6 +170,7 @@ export function AddressLabels({ labels: initial }: Props) {
 			setCategory('counterparty');
 			setChain('');
 			setNotes('');
+			setPhoneNumber('');
 			setStatus('✓ Label saved.');
 		} catch (e: unknown) {
 			setStatus('Error: ' + (e instanceof Error ? e.message : 'Unknown'));
@@ -316,6 +319,14 @@ export function AddressLabels({ labels: initial }: Props) {
 						<option value="optimism">Optimism</option>
 						<option value="litecoin">Litecoin</option>
 					</select>
+					<input
+						type="tel"
+						placeholder="Phone # (optional, e.g. Venmo)"
+						value={phoneNumber}
+						onChange={e => setPhoneNumber(e.target.value)}
+						onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
+						style={{ ...inputStyle, maxWidth: '220px' }}
+					/>
 					<button
 						type="button"
 						onClick={handleAdd}
@@ -462,20 +473,36 @@ export function AddressLabels({ labels: initial }: Props) {
 									{l.label}
 								</span>
 
-								{/* Address */}
-								<span style={{
+								{/* Address + optional phone number */}
+								<div style={{
 									display: 'flex',
-									alignItems: 'center',
-									gap: '0.2rem',
-									fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-									fontSize: '0.75rem',
-									color: 'rgba(255,255,255,0.4)',
+									flexDirection: 'column',
+									gap: '0.15rem',
 									flex: 1,
 									minWidth: '120px',
 								}}>
-									{truncateAddress(l.address)}
-									<CopyButton text={l.address} />
-								</span>
+									<span style={{
+										display: 'flex',
+										alignItems: 'center',
+										gap: '0.2rem',
+										fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+										fontSize: '0.75rem',
+										color: 'rgba(255,255,255,0.4)',
+									}}>
+										{truncateAddress(l.address)}
+										<CopyButton text={l.address} />
+									</span>
+									{l.phone_number && (
+										<span style={{
+											fontSize: '0.72rem',
+											color: 'rgba(251,191,36,0.7)',
+											fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+											letterSpacing: '0.02em',
+										}}>
+											{l.phone_number}
+										</span>
+									)}
+								</div>
 
 								{/* Source badge */}
 								{l.source === 'auto' && (

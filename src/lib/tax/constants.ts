@@ -88,6 +88,7 @@ export const CRYPTOCOM_INCOME_KINDS = new Set([
 export const CRYPTOCOM_BUY_KINDS = new Set([
 	'crypto_purchase',
 	'viban_purchase',
+	'van_purchase',
 	'recurring_buy_order',
 	'dust_conversion_credited',
 ]);

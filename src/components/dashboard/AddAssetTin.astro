@@ -52,6 +52,7 @@
 				<option value="polygon">Polygon (POL)</option>
 				<option value="arbitrum">Arbitrum (ARB)</option>
 				<option value="litecoin">Litecoin (LTC)</option>
+				<option value="solana">Solana (SOL)</option>
 				<option value="sui">Sui (SUI)</option>
 			</select>
 		</label>
@@ -162,9 +163,9 @@
 <style>
 	.add-tin {
 		position: relative;
-		background: darkslategray;
-		color: #f7f2eb;
-		border: 2px solid salmon;
+		background: #1a1f2b;
+		color: #e0e0e0;
+		border: 2px dashed #e8a020;
 		border-radius: 12px;
 		padding: 1.25rem;
 		display: flex;
@@ -187,7 +188,7 @@
 		width: 1.75rem;
 		height: 1.75rem;
 		border-radius: 50%;
-		background: salmon;
+		background: #e8a020;
 		color: #0b0f1a;
 		font-size: 1rem;
 		font-weight: 900;
@@ -225,9 +226,9 @@
 	}
 
 	.add-tin__tab.is-active {
-		background: salmon;
+		background: #e8a020;
 		color: #0b0f1a;
-		border-color: salmon;
+		border-color: #e8a020;
 		font-weight: 700;
 	}
 
@@ -458,6 +459,8 @@
 			ethereum:  '0x…',
 			avalanche: '0x…',
 			polygon:   '0x…',
+			solana:    'Base58 address…',
+			sui:       '0x…',
 		};
 
 		function updatePlaceholder() {
@@ -495,7 +498,8 @@
 					return;
 				}
 				setMessage('Saving\u2026');
-				var chains = chain === 'bitcoin' ? ['bitcoin']
+				var SINGLE_CHAIN = { bitcoin: true, litecoin: true, solana: true, sui: true };
+				var chains = SINGLE_CHAIN[chain] ? [chain]
 				           : chain ? [chain, 'ethereum', 'polygon', 'avalanche'].filter(function(c, i, a) { return a.indexOf(c) === i; })
 				           : ['ethereum', 'polygon', 'avalanche'];
 				fetch('/api/wallets', {

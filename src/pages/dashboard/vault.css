@@ -55,6 +55,7 @@
 		'smart'
 		'row2'
 		'div3'
+		'pills'
 		'row3';
 }
 
@@ -68,6 +69,7 @@
 			'smart smart'
 			'row2  row2'
 			'div3  div3'
+			'pills pills'
 			'row3  row3';
 	}
 }
@@ -83,6 +85,7 @@
 			'smart smart smart'
 			'row2  row2  row2'
 			'div3  div3  div3'
+			'pills pills pills'
 			'row3  row3  row3';
 		grid-auto-flow: row;
 	}
@@ -207,10 +210,10 @@
 		flex: 0 0 calc((100% - (var(--grid-gap, 24px) * 2)) / 3);
 	}
 
-	/* Wallet stacks: 2 per row at all desktop widths */
+	/* Wallet stacks: 3 per row at xl desktop */
 	.vault-lane--row3 > .tile {
-		flex: 0 0 calc((100% - 24px) / 2);
-		max-width: calc((100% - 24px) / 2);
+		flex: 0 0 calc((100% - 48px) / 3);
+		max-width: calc((100% - 48px) / 3);
 	}
 }
 
@@ -803,8 +806,33 @@ h2 {
 	font-weight: 600;
 }
 
-/* ── Sui / custom section divider labels (same orange pattern) ────────────── */
+/* ── Wallet address pills row ─────────────────────────────────────────────── */
+.vault-wallet-pills {
+	grid-area: pills;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	padding: 0 0 0.25rem;
+}
+
+.vault-wallet-pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.25rem 0.85rem;
+	border-radius: 999px;
+	background: rgba(45, 212, 168, 0.15);
+	border: 1px solid rgba(45, 212, 168, 0.45);
+	color: #2dd4a8;
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	cursor: default;
+}
+
+/* ── Sui / Solana / custom section divider labels ─────────────────────────── */
 .vault-section-divider--sui .vault-section-divider__label,
+.vault-section-divider--solana .vault-section-divider__label,
 .vault-section-divider--custom .vault-section-divider__label {
 	color: #e8a020;
 }

@@ -69,13 +69,38 @@ export function buildReviewQueue(
 			});
 		}
 
-		// Missing price on taxable event
+		// Missing price on taxable disposal event
 		if (taxableCategories.has(cls.category) && !row.native_usd && !alreadyQueued('import', row.id, 'missing_price')) {
 			items.push({
 				sourceType: 'import',
 				sourceId: row.id,
 				reason: 'missing_price',
 				reasonDetail: `${cls.category} of ${row.asset_symbol ?? 'tokens'} on ${row.timestamp_utc.slice(0, 10)} has no USD value. Enter the price per token on that date to calculate gain/loss.`,
+				snapshotJson: JSON.stringify({
+					symbol: row.asset_symbol,
+					amount: row.amount,
+					timestamp: row.timestamp_utc,
+					category: cls.category,
+				}),
+			});
+		}
+
+		// Missing cost basis on acquisition event (buy, income, airdrop, transfer-in,
+		// loan-proceeds).  These silently produce a null-basis lot in pass4 and only
+		// surface on the Form 8949 as a "—" column — flag them here so the user can
+		// enter the price before tax time rather than discovering it filing day.
+		const acquisitionCategories = new Set(['buy', 'income', 'airdrop', 'transfer', 'loan-proceeds']);
+		if (
+			acquisitionCategories.has(cls.category)
+			&& row.direction === 'in'
+			&& !row.native_usd
+			&& !alreadyQueued('import', row.id, 'missing_cost_basis')
+		) {
+			items.push({
+				sourceType: 'import',
+				sourceId: row.id,
+				reason: 'missing_cost_basis',
+				reasonDetail: `${cls.category} of ${row.asset_symbol ?? 'tokens'} on ${row.timestamp_utc.slice(0, 10)} has no USD value. Without a cost basis this lot will show as "$0" on Form 8949 — enter the fair market value per token on the acquisition date.`,
 				snapshotJson: JSON.stringify({
 					symbol: row.asset_symbol,
 					amount: row.amount,

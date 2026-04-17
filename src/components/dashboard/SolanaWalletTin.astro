@@ -1,0 +1,141 @@
+---
+type Props = {
+	walletId: string;
+	label: string;
+	address: string;
+};
+
+const { walletId, label, address } = Astro.props as Props;
+---
+
+<section class="sol-tin" data-wallet-id={walletId} data-address={address}>
+	<div class="sol-tin__header">
+		<span class="sol-tin__label">{label}</span>
+		<span class="sol-tin__address">{address.slice(0, 6)}…{address.slice(-4)}</span>
+	</div>
+	<div class="sol-tin__balance" aria-live="polite">
+		<span class="sol-tin__balance-value" data-sol-balance>—</span>
+		<span class="sol-tin__balance-unit">SOL</span>
+	</div>
+	<div class="sol-tin__controls">
+		<span class="sol-tin__status" aria-live="polite"></span>
+		<button type="button" class="sol-tin__sync-btn">Sync</button>
+	</div>
+</section>
+
+<script>
+	document.querySelectorAll<HTMLElement>('.sol-tin').forEach((tin) => {
+		const walletId = tin.dataset.walletId;
+		const address  = tin.dataset.address;
+		const status   = tin.querySelector<HTMLElement>('.sol-tin__status');
+		const syncBtn  = tin.querySelector<HTMLButtonElement>('.sol-tin__sync-btn');
+		const balanceEl = tin.querySelector<HTMLElement>('[data-sol-balance]');
+
+		const setStatus = (msg: string) => { if (status) status.textContent = msg; };
+
+		const fetchBalance = async () => {
+			if (!address) return;
+			try {
+				const res = await fetch('/api/wallets/' + walletId + '/solana-balances');
+				if (!res.ok) return;
+				const data = await res.json() as { solBalance?: number };
+				if (balanceEl && data.solBalance != null) {
+					balanceEl.textContent = data.solBalance.toLocaleString(undefined, { maximumFractionDigits: 4 });
+				}
+			} catch {
+				// silent — balance is cosmetic
+			}
+		};
+
+		const doSync = async () => {
+			if (!walletId) return;
+			setStatus('Syncing…');
+			try {
+				const res  = await fetch(`/api/wallets/${walletId}/solana-sync`, { method: 'POST' });
+				const data = await res.json() as { inserted?: number; message?: string };
+				if (!res.ok) throw new Error(data?.message ?? 'Sync failed');
+				setStatus(`Synced ${data.inserted ?? 0} new transactions.`);
+				await fetchBalance();
+				setTimeout(() => window.location.reload(), 800);
+			} catch (err) {
+				setStatus(err instanceof Error ? err.message : 'Sync failed.');
+			}
+		};
+
+		syncBtn?.addEventListener('click', () => void doSync());
+		void fetchBalance();
+	});
+</script>
+
+<style>
+	.sol-tin {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm, 0.75rem);
+	}
+
+	.sol-tin__header {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+
+	.sol-tin__label {
+		font-size: 0.9rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.sol-tin__address {
+		font-size: 0.7rem;
+		opacity: 0.45;
+		font-family: monospace;
+	}
+
+	.sol-tin__balance {
+		display: flex;
+		align-items: baseline;
+		gap: 0.35rem;
+	}
+
+	.sol-tin__balance-value {
+		font-size: 1.6rem;
+		font-weight: 700;
+		color: #a78bfa;
+	}
+
+	.sol-tin__balance-unit {
+		font-size: 0.8rem;
+		opacity: 0.6;
+		text-transform: uppercase;
+	}
+
+	.sol-tin__controls {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+
+	.sol-tin__status {
+		font-size: var(--font-sm, 0.8rem);
+		opacity: 0.65;
+	}
+
+	.sol-tin__sync-btn {
+		font-size: 0.8rem;
+		padding: 0.3rem 0.85rem;
+		border-radius: 999px;
+		border: 1px solid rgba(167, 139, 250, 0.7);
+		background: rgba(167, 139, 250, 0.12);
+		color: #ddd6fe;
+		cursor: pointer;
+		transition: background 0.15s ease;
+	}
+
+	.sol-tin__sync-btn:hover {
+		background: rgba(167, 139, 250, 0.25);
+	}
+</style>

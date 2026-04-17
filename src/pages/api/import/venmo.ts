@@ -120,15 +120,17 @@ const parseNumber = (value: string | null | undefined): number | null => {
 };
 
 const buildRowHash = (row: NormalizedRow) => {
+	// Hash on transaction identity only — NOT description, which differs between
+	// the "transactions" and "gains" CSV formats for the same real event.
+	// Using (timestamp, symbol, quantity, nativeUsd, direction) uniquely identifies
+	// a Venmo crypto event without conflating separate buys/sells of the same amount.
 	const payload = JSON.stringify([
 		'venmo',
 		row.timestampUtc,
-		row.description,
 		row.currency,
 		row.amount ?? '',
-		row.toCurrency,
-		row.toAmount ?? '',
-		row.kind,
+		row.nativeUsd ?? '',
+		row.direction,
 	]);
 	return createHash('sha256').update(payload).digest('hex');
 };
