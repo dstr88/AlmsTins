@@ -148,12 +148,22 @@ async function fetchSuiBalance(address: string): Promise<number | null> {
 	}
 }
 
-async function fetchCoinGeckoPrice(coinId: 'solana' | 'sui'): Promise<number | null> {
+const DEFI_LLAMA_IDS: Record<string, string> = {
+	solana: 'coingecko:solana',
+	sui: 'coingecko:sui',
+};
+
+async function fetchNativePrice(coinId: 'solana' | 'sui'): Promise<number | null> {
+	const llamaId = DEFI_LLAMA_IDS[coinId];
+	if (!llamaId) return null;
 	try {
-		const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
-		const json = await res.json() as Record<string, { usd?: number }>;
-		const price = json?.[coinId]?.usd;
-		return typeof price === 'number' ? price : null;
+		const res = await fetch(`https://coins.llama.fi/prices/current/${llamaId}`, {
+			headers: { 'Accept': 'application/json' },
+		});
+		if (!res.ok) return null;
+		const json = await res.json() as { coins?: Record<string, { price?: number }> };
+		const price = json?.coins?.[llamaId]?.price;
+		return typeof price === 'number' && price > 0 ? price : null;
 	} catch {
 		return null;
 	}
@@ -230,7 +240,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 				if (isSolana) {
 					const solBalance = await fetchSolanaBalance(walletAddress);
 					if (solBalance !== null) {
-						const solPrice = await fetchCoinGeckoPrice('solana');
+						const solPrice = await fetchNativePrice('solana');
 						await insertWalletSnapshotFromValueBreakdown({
 							tenantId,
 							walletId,
@@ -251,7 +261,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 				if (isSui) {
 					const suiBalance = await fetchSuiBalance(walletAddress);
 					if (suiBalance !== null) {
-						const suiPrice = await fetchCoinGeckoPrice('sui');
+						const suiPrice = await fetchNativePrice('sui');
 						await insertWalletSnapshotFromValueBreakdown({
 							tenantId,
 							walletId,

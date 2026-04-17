@@ -973,6 +973,8 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				if (tokenSymbol === 'LINK') fallbackPrice = 8.85;
 				if (tokenSymbol === 'AAVE') fallbackPrice = 150; // updated Apr 2026; refresh via reprice job
 				if (tokenSymbol === 'WMATIC') fallbackPrice = 0.095;
+				if (tokenSymbol === 'SOL') fallbackPrice = 135; // updated Apr 2026; refresh via reprice job
+				if (tokenSymbol === 'SUI') fallbackPrice = 2.2;  // updated Apr 2026; refresh via reprice job
 				if (fallbackPrice) {
 					normalizedUsd = fallbackPrice * normalizedAmount;
 					if (import.meta.env.WALLET_DEBUG === '1') {
