@@ -116,6 +116,109 @@ async function buildAlchemySnapshot(
 	};
 }
 
+// ── Solana PDA derivation (no external library required) ─────────────────────
+
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+function base58ToBytes(input: string): Uint8Array {
+	let n = 0n;
+	for (const ch of input) {
+		const idx = BASE58_ALPHABET.indexOf(ch);
+		if (idx < 0) throw new Error(`Invalid base58 char: ${ch}`);
+		n = n * 58n + BigInt(idx);
+	}
+	const bytes: number[] = [];
+	while (n > 0n) { bytes.unshift(Number(n & 0xffn)); n >>= 8n; }
+	let leading = 0;
+	for (const ch of input) { if (ch === '1') leading++; else break; }
+	return new Uint8Array([...Array(leading).fill(0), ...bytes]);
+}
+
+// ed25519 constants for curve membership check
+const ED_P  = (1n << 255n) - 19n;
+// d = -121665/121666 mod p  (standard ed25519 constant)
+const ED_D  = 37095705934669439343138083508754565189542113879843219016388785533085940283555n;
+
+function modPow(base: bigint, exp: bigint, mod: bigint): bigint {
+	let result = 1n; base %= mod;
+	while (exp > 0n) {
+		if (exp & 1n) result = result * base % mod;
+		exp >>= 1n; base = base * base % mod;
+	}
+	return result;
+}
+
+function isOnEd25519Curve(point: Uint8Array): boolean {
+	// Decode y from 32-byte little-endian, clear sign bit
+	let y = 0n;
+	for (let i = 31; i >= 0; i--) y = (y << 8n) | BigInt(point[i]);
+	y &= (1n << 255n) - 1n;
+	if (y >= ED_P) return false;
+	const y2 = y * y % ED_P;
+	const u  = (y2 - 1n + ED_P) % ED_P;
+	const v  = (ED_D * y2 % ED_P + 1n) % ED_P;
+	const v3 = v * v % ED_P * v % ED_P;
+	const v7 = v3 * v3 % ED_P * v % ED_P;
+	const x  = u * v3 % ED_P * modPow(u * v7 % ED_P, (ED_P - 5n) / 8n, ED_P) % ED_P;
+	const vx2 = v * x * x % ED_P;
+	return vx2 === u % ED_P || vx2 === (ED_P - u) % ED_P;
+}
+
+async function findPda(seeds: (Uint8Array | string)[], programId: Uint8Array): Promise<Uint8Array | null> {
+	const enc = new TextEncoder();
+	const marker = enc.encode('ProgramDerivedAddress');
+	for (let bump = 255; bump >= 0; bump--) {
+		const parts: Uint8Array[] = [
+			...seeds.map((s) => (typeof s === 'string' ? enc.encode(s) : s)),
+			new Uint8Array([bump]),
+			programId,
+			marker,
+		];
+		const totalLen = parts.reduce((n, p) => n + p.length, 0);
+		const buf = new Uint8Array(totalLen);
+		let off = 0;
+		for (const p of parts) { buf.set(p, off); off += p.length; }
+		const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
+		if (!isOnEd25519Curve(hash)) return hash;
+	}
+	return null;
+}
+
+const PYTH_STAKING_PROGRAM = base58ToBytes('pytS9TFNez6VM5kMon3apkp9zsEFXDfNnGFZ2aSbKbE');
+
+async function fetchPythStakedBalance(walletAddress: string): Promise<number | null> {
+	try {
+		const walletBytes = base58ToBytes(walletAddress);
+		// Derive stake_metadata PDA
+		const metadataPda = await findPda(['stake_metadata', walletBytes], PYTH_STAKING_PROGRAM);
+		if (!metadataPda) return null;
+		// Derive custody token account PDA
+		const custodyPda = await findPda(['stake_account_custody', metadataPda], PYTH_STAKING_PROGRAM);
+		if (!custodyPda) return null;
+		// Encode custody PDA back to base58 for the RPC call
+		const custodyAddress = bytesToBase58(custodyPda);
+		const result = await solanaRpc<{ value?: { amount?: string; decimals?: number } }>(
+			'getTokenAccountBalance',
+			[custodyAddress],
+		);
+		const amount = result?.value?.amount;
+		const decimals = result?.value?.decimals ?? 6;
+		if (!amount) return null;
+		return Number(amount) / 10 ** decimals;
+	} catch {
+		return null;
+	}
+}
+
+function bytesToBase58(bytes: Uint8Array): string {
+	let n = 0n;
+	for (const b of bytes) n = n * 256n + BigInt(b);
+	let out = '';
+	while (n > 0n) { out = BASE58_ALPHABET[Number(n % 58n)] + out; n = n / 58n; }
+	for (const b of bytes) { if (b !== 0) break; out = '1' + out; }
+	return out;
+}
+
 // Known SPL token mints → symbol + DefiLlama price ID
 const SPL_TOKEN_MINTS: Record<string, { symbol: string; llamaId: string }> = {
 	'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3': { symbol: 'PYTH',  llamaId: 'coingecko:pyth-network' },
@@ -213,6 +316,23 @@ async function fetchSolanaTokens(address: string): Promise<SolanaTokenEntry[]> {
 		} else {
 			tokens.push({ symbol: 'SOL', amount: stakedSol, tokenAddress: 'native', llamaId: 'coingecko:solana' });
 		}
+	}
+
+	// 4. Pyth staking contract — staked PYTH locked in the governance program
+	const pythStaked = await fetchPythStakedBalance(address);
+	if (pythStaked !== null && pythStaked > 0) {
+		const existing = tokens.find((t) => t.symbol === 'PYTH');
+		if (existing) {
+			existing.amount += pythStaked;
+		} else {
+			tokens.push({
+				symbol: 'PYTH',
+				amount: pythStaked,
+				tokenAddress: 'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3',
+				llamaId: 'coingecko:pyth-network',
+			});
+		}
+		console.log('[tokens.solana] pyth staked balance', { address, pythStaked });
 	}
 
 	return tokens;
