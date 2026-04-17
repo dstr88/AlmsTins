@@ -791,6 +791,8 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		'STETH',
 		'WSTETH',
 		'QUICK',
+		'SOL',
+		'SUI',
 	]);
 	const VERIFIED_CONTRACTS_BY_CHAIN: Record<string, Record<string, Set<string>>> = {
 		ethereum: {
@@ -831,7 +833,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			LINK: new Set(['0x5947bb275c521040051d82396192181b413227a3']),
 		},
 	};
-	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche']);
+	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche', 'solana', 'sui']);
 
 	function normalizeSymbol(symbol: string) {
 		const upper = symbol.toUpperCase();
@@ -844,6 +846,8 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		if (lower.includes('polygon') || lower.includes('matic')) return 'polygon';
 		if (lower.includes('avax') || lower.includes('avalanche')) return 'avalanche';
 		if (lower.includes('eth')) return 'ethereum';
+		if (lower === 'solana' || lower.includes('sol-mainnet')) return 'solana';
+		if (lower === 'sui') return 'sui';
 		return lower;
 	}
 
