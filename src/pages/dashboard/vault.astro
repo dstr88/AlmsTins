@@ -58,10 +58,33 @@ const walletsWithData = await Promise.all(
 	})),
 );
 
+const solanaWalletsWithData = await Promise.all(
+	solanaWallets.map(async (wallet) => ({
+		wallet,
+		fullData: await getWalletWithLatestData(tenantId, wallet.id),
+	})),
+);
+
 const formatWalletLabel = (wallet: { label?: string | null; address: string }) => {
 	const label = wallet.label?.trim();
 	if (label) return label;
 	return wallet.address.slice(-5);
+};
+
+const getChainBadge = (chains: string[]): string => {
+	if (chains.includes('solana'))   return 'SOL';
+	if (chains.includes('sui'))      return 'SUI';
+	if (chains.includes('bitcoin'))  return 'BTC';
+	if (chains.includes('litecoin')) return 'LTC';
+	// EVM: label by most-specific single chain, or 'ETH' for multi-chain
+	const evmOnly = chains.filter(c => ['ethereum','polygon','avalanche','arbitrum'].includes(c));
+	if (evmOnly.length === 1) {
+		if (evmOnly[0] === 'avalanche') return 'AVAX';
+		if (evmOnly[0] === 'polygon')   return 'POL';
+		if (evmOnly[0] === 'arbitrum')  return 'ARB';
+		return 'ETH';
+	}
+	return 'ETH';
 };
 ---
 
@@ -123,9 +146,13 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 						? { label: fullData.metadata.label, address: fullData.metadata.address }
 						: wallet;
 					const displayLabel = formatWalletLabel(labelSource);
+					const chainBadge = getChainBadge(wallet.chains);
 					return (
 						<div class="vault-stack-tin tile">
-							<div class="wallet-label-box">{displayLabel}</div>
+							<div class="wallet-label-box">
+								{displayLabel}
+								<span class="wallet-chain-badge">{chainBadge}</span>
+							</div>
 							<div class="wallet-stack" data-accordion="wallet-stack">
 								<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
 									<div slot="summary" class="tin-summary">
@@ -174,22 +201,51 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 			</section>
 		)}
 
-		{solanaWallets.length > 0 && (
+		{solanaWalletsWithData.length > 0 && (
 			<section class="vault-solana-section">
 				<div class="vault-section-divider vault-section-divider--solana">
 					<span class="vault-section-divider__label">Solana Wallets</span>
 					<span class="vault-section-divider__line"></span>
 				</div>
-				<div class="vault-lane vault-lane--solana">
-					{solanaWallets.map((wallet) => (
-						<div class="tile solana-tile">
-							<SolanaWalletTin
-								walletId={wallet.id}
-								address={wallet.address}
-								label={(wallet.label ?? wallet.address.slice(-5)).toUpperCase()}
-							/>
-						</div>
-					))}
+				<div class="vault-lane vault-lane--row3">
+					{solanaWalletsWithData.map(({ wallet }) => {
+						const displayLabel = formatWalletLabel(wallet);
+						return (
+							<div class="vault-stack-tin tile">
+								<div class="wallet-label-box">
+									{displayLabel}
+									<span class="wallet-chain-badge">SOL</span>
+								</div>
+								<div class="wallet-stack" data-accordion="wallet-stack">
+									<SalmonTin label={displayLabel.toUpperCase()} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
+										<div slot="summary" class="tin-summary">
+											<span class="tin-summary__label">SOL Balance</span>
+											<span class="tin-summary__value" data-wallet-summary-value>—</span>
+										</div>
+										<SolanaWalletTin
+											walletId={wallet.id}
+											address={wallet.address}
+											label={displayLabel.toUpperCase()}
+										/>
+									</SalmonTin>
+									<SalmonTin label="Loans" class="defi-summary-tin wallet-tin--defi is-collapsed">
+										<div slot="summary" class="tin-summary">
+											<span class="tin-summary__label">DeFi</span>
+											<span class="tin-summary__value" data-defi-summary-value>—</span>
+										</div>
+										<AaveHealthSummary client:only="react" walletId={wallet.id} />
+									</SalmonTin>
+									<SalmonTin label="NFTs" class="wallet-tin--future is-collapsed">
+										<div slot="summary" class="tin-summary">
+											<span class="tin-summary__label">NFTs</span>
+											<span class="tin-summary__value" data-nft-summary-value>—</span>
+										</div>
+										<VaultNftActivity client:only="react" walletId={wallet.id} />
+									</SalmonTin>
+								</div>
+							</div>
+						);
+					})}
 				</div>
 			</section>
 		)}

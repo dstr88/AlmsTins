@@ -355,6 +355,9 @@
 
 .wallet-label-box {
 	align-self: center;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
 	padding: 0.35rem 1.25rem;
 	background: rgba(250, 128, 114, 0.8);
 	border-radius: 999px;
@@ -362,6 +365,18 @@
 	font-weight: 700;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
+}
+
+.wallet-chain-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.1rem 0.45rem;
+	border-radius: 999px;
+	background: rgba(0, 0, 0, 0.25);
+	color: #0b0f1a;
+	font-size: 0.65rem;
+	font-weight: 800;
+	letter-spacing: 0.08em;
 }
 
 .wallet-stack {
