@@ -17,13 +17,15 @@ CREATE TABLE IF NOT EXISTS promo_codes (
 );
 
 CREATE TABLE IF NOT EXISTS promo_redemptions (
-  id                TEXT    NOT NULL PRIMARY KEY,
-  tenant_id         TEXT    NOT NULL,
-  code              TEXT    NOT NULL,
-  plan_id           TEXT    NOT NULL,
-  redeemed_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-  access_expires_at TEXT    NOT NULL,
-  UNIQUE (tenant_id, code)   -- one redemption per code per tenant
+  id                   TEXT NOT NULL PRIMARY KEY,
+  tenant_id            TEXT NOT NULL,
+  code                 TEXT NOT NULL,
+  plan_id              TEXT NOT NULL,
+  redeemed_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  access_expires_at    TEXT NOT NULL,
+  warning_30d_sent_at  TEXT,   -- set when 30-day warning email is sent
+  warning_7d_sent_at   TEXT,   -- set when 7-day warning email is sent
+  UNIQUE (tenant_id, code)     -- one redemption per code per tenant
 );
 
 CREATE INDEX IF NOT EXISTS idx_promo_redemptions_tenant

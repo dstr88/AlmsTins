@@ -5,6 +5,7 @@ import DemoBanner from "@/components/DemoBanner.astro";
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
 import { isDemoRequest } from '@/lib/demo';
+import { getActivePlan } from '@/lib/subscriptions';
 import kingSolomon from '@/assets/KingSolomon.png';
 
 const isDemo = isDemoRequest(Astro.request);
@@ -92,6 +93,27 @@ const {
   noindex = false,
 } = Astro.props;
 
+// ── Promo expiry banner ───────────────────────────────────────────────────────
+const PROMO_EXPIRY_SENTINEL = '9999-12-31T23:59:59Z';
+let promoDaysLeft: number | null = null;
+let promoExpiryDisplay: string | null = null;
+if (tenantId) {
+  try {
+    const plan = await getActivePlan(tenantId);
+    const expiresAt = (plan as any).promoExpiresAt as string | undefined;
+    if (expiresAt && expiresAt !== PROMO_EXPIRY_SENTINEL) {
+      const msLeft = new Date(expiresAt).getTime() - Date.now();
+      const days = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+      if (days <= 30 && days > 0) {
+        promoDaysLeft = days;
+        promoExpiryDisplay = new Intl.DateTimeFormat('en-US', {
+          month: 'long', day: 'numeric', year: 'numeric'
+        }).format(new Date(expiresAt));
+      }
+    }
+  } catch { /* non-fatal */ }
+}
+
 const fmtDate = (iso: string | null) => {
   if (!iso) return null;
   try {
@@ -151,6 +173,19 @@ const memberSinceDisplay = memberSinceIso
 	</head>
 	<body>
 		{isDemo && <DemoBanner />}
+		{promoDaysLeft !== null && (
+			<div class="promo-expiry-banner">
+				<span class="promo-expiry-banner__icon">⏳</span>
+				<span class="promo-expiry-banner__text">
+					Your free year ends in <strong>{promoDaysLeft} day{promoDaysLeft === 1 ? '' : 's'}</strong>
+					{promoExpiryDisplay ? ` (${promoExpiryDisplay})` : ''}.
+					Keep your access — upgrade before it expires.
+				</span>
+				<a href="/dashboard/billing" class="promo-expiry-banner__btn">
+					View Plans →
+				</a>
+			</div>
+		)}
 		<div class="chrome">
 			<header class="chrome__header">
 				<div>

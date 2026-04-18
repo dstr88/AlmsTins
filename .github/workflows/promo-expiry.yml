@@ -1,0 +1,24 @@
+name: Promo Expiry Warnings
+
+on:
+  schedule:
+    # Run daily at 10:00 AM UTC
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+jobs:
+  promo-expiry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send promo expiry warning emails
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ]; then
+            echo "SYNC_URL secret missing."
+            exit 1
+          fi
+          curl -sS --fail \
+            "$SYNC_URL/api/cron/promo-expiry?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"
