@@ -14,6 +14,11 @@ import { hasTaxAccess } from '@/lib/taxAuth';
 if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
 const { tenantId } = await requireTenantSession(Astro.request);
 
+const currentYear = new Date().getFullYear();
+const defaultYear = currentYear - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const selectedYear = yearParam ? Number(yearParam) : defaultYear;
+
 type ReviewRow = {
 	id: string;
 	source_type: string;
@@ -35,10 +40,32 @@ type ReviewRow = {
 type DbRow = Record<string, unknown>;
 const s = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
 
+// Fetch available years so the selector only shows years that have items
+const yearsRes = await db.execute({
+	sql: `SELECT DISTINCT strftime('%Y', COALESCE(
+	        json_extract(snapshot_json, '$.timestamp'), created_at
+	      )) AS yr
+	      FROM tax_review_items
+	      WHERE tenant_id = ? AND resolved = 0
+	      ORDER BY yr DESC`,
+	args: [tenantId],
+}).catch(() => ({ rows: [] }));
+const availableYears: number[] = (yearsRes.rows as DbRow[])
+	.map(r => Number(r.yr))
+	.filter(y => y >= 2009 && y <= 2100);
+
+// If the selected year has no items, fall back to the first available year
+const activeYear = availableYears.includes(selectedYear)
+	? selectedYear
+	: (availableYears[0] ?? defaultYear);
+
 const result = await db.execute({
 	sql: `SELECT id, source_type, source_id, reason, reason_detail, snapshot_json, notes, created_at
 	      FROM tax_review_items
 	      WHERE tenant_id = ? AND resolved = 0
+	        AND strftime('%Y', COALESCE(
+	              json_extract(snapshot_json, '$.timestamp'), created_at
+	            )) = ?
 	      ORDER BY
 	        CASE reason
 	          WHEN 'unmatched_transfer' THEN 1
@@ -50,7 +77,7 @@ const result = await db.execute({
 	          ELSE 7
 	        END,
 	        created_at DESC`,
-	args: [tenantId],
+	args: [tenantId, String(activeYear)],
 });
 
 const items: ReviewRow[] = result.rows.map((r: DbRow) => {
@@ -128,15 +155,23 @@ const CATEGORY_OPTIONS = [
 		<div class="rq-header">
 			<div>
 				<a href="/dashboard/tax" class="page-back">← Tax Center</a>
-				<h1 class="page-title">Tax Review Queue</h1>
+				<h1 class="page-title">Tax Review Queue — {activeYear}</h1>
 				<p class="page-subtitle">
 					{items.length === 0
-						? 'All items resolved — your Year Summary is complete.'
-						: `${items.length} item${items.length !== 1 ? 's' : ''} need${items.length === 1 ? 's' : ''} your attention before the summary is final.`}
+						? `No unresolved items for ${activeYear}.`
+						: `${items.length} item${items.length !== 1 ? 's' : ''} need${items.length === 1 ? 's' : ''} your attention before the ${activeYear} summary is final.`}
 				</p>
 			</div>
 			<div class="header-actions">
-				<a href="/dashboard/tax/report" class="rq-btn rq-btn--ghost">← Year Summary</a>
+				<select id="year-sel" class="rq-select" aria-label="Tax year">
+					{availableYears.length === 0
+						? <option value={activeYear}>{activeYear}</option>
+						: availableYears.map(y => (
+							<option value={y} selected={y === activeYear}>{y}</option>
+						))
+					}
+				</select>
+				<a href={`/dashboard/tax/report?year=${activeYear}`} class="rq-btn rq-btn--ghost">← Year Summary</a>
 				<button id="run-pipeline" class="rq-btn rq-btn--primary">🔄 Re-classify All</button>
 			</div>
 		</div>
@@ -285,6 +320,19 @@ const CATEGORY_OPTIONS = [
 	flex-wrap: wrap;
 	align-items: center;
 }
+.rq-select {
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.12);
+	border-radius: 8px;
+	color: #e5e7eb;
+	font-size: .875rem;
+	padding: .45rem .75rem;
+	outline: none;
+	cursor: pointer;
+	transition: border-color .15s;
+}
+.rq-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.2); }
+.rq-select option { background: #1a1f2e; color: #e5e7eb; }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────────── */
 .rq-btn {
@@ -470,13 +518,22 @@ const CATEGORY_OPTIONS = [
 </style>
 
 <script>
+// ── Year selector — reload page with ?year= param ────────────────────────────
+document.getElementById('year-sel')?.addEventListener('change', (e) => {
+	const year = (e.currentTarget as HTMLSelectElement).value;
+	const url  = new URL(window.location.href);
+	url.searchParams.set('year', year);
+	window.location.href = url.toString();
+});
+
 // ── Re-classify button ────────────────────────────────────────────────────────
 document.getElementById('run-pipeline')?.addEventListener('click', async (e) => {
 	const btn = e.currentTarget as HTMLButtonElement;
 	btn.disabled = true;
 	btn.textContent = '⏳ Running…';
 	try {
-		const res = await fetch('/api/tax/classify', { method: 'POST' });
+		const year = new URL(window.location.href).searchParams.get('year') ?? String(new Date().getFullYear() - 1);
+	const res = await fetch('/api/tax/classify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year }) });
 		const data = await res.json();
 		if (data.ok) {
 			btn.textContent = '✅ Done — reloading…';

@@ -82,10 +82,10 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 				<div id="empty-tokens-list" class="empty-state__chips"></div>
 			</div>
 
-			<div class="empty-state__actions">
-				<a href="/dashboard/tax/review" class="es-btn es-btn--primary">🔍 Open Review Queue</a>
+			<div class="empty-state__actions" id="empty-actions">
+				<a href="/dashboard/tax/review" class="es-btn es-btn--primary" id="btn-review-queue">🔍 Open Review Queue</a>
 				<a href="/dashboard/bookkeeping" class="es-btn es-btn--secondary">📥 Import Transactions</a>
-				<a href="/dashboard/tax" class="es-btn es-btn--secondary">⚙️ Run Classification Pipeline</a>
+				<a href="/dashboard/tax" class="es-btn es-btn--secondary" id="btn-pipeline">⚙️ Run Classification Pipeline</a>
 			</div>
 		</div>
 
@@ -872,6 +872,15 @@ document.getElementById('btn-print')?.addEventListener('click', () => window.pri
 document.getElementById('btn-load')?.addEventListener('click', loadForm8949);
 document.getElementById('year-sel')?.addEventListener('change', loadForm8949);
 document.getElementById('method-sel')?.addEventListener('change', loadForm8949);
+
+// Keep "Open Review Queue" link in sync with the selected year
+function syncReviewLink() {
+	const year = (document.getElementById('year-sel') as HTMLSelectElement)?.value;
+	const link = document.getElementById('btn-review-queue') as HTMLAnchorElement | null;
+	if (link && year) link.href = `/dashboard/tax/review?year=${year}`;
+}
+document.getElementById('year-sel')?.addEventListener('change', syncReviewLink);
+syncReviewLink();
 
 // Auto-load on page open
 loadForm8949();
