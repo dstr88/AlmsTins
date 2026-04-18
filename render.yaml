@@ -1,0 +1,24 @@
+services:
+  # ── Monthly digest cron ────────────────────────────────────────────────────
+  # Fires at 06:00 UTC on the 1st of every month.
+  # Queries the prior month's flagged transactions and writes a monthly_digests
+  # row per tenant.  The vault pill appears when item_count > 0.
+  #
+  # Required env vars (set in Render dashboard):
+  #   CRON_SECRET        — same value as on your web service
+  #   APP_URL            — e.g. https://almstins.com
+  - type: cron
+    name: monthly-digest
+    runtime: image
+    image:
+      url: docker.io/curlimages/curl:latest
+    schedule: "0 6 1 * *"
+    startCommand: >-
+      curl -sf
+      -H "x-cron-secret: $CRON_SECRET"
+      "$APP_URL/api/cron/monthly-digest"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false

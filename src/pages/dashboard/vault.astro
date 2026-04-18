@@ -21,6 +21,7 @@ import SmartImport from '@/components/dashboard/SmartImport.astro';
 import { getAllActiveWallets } from '@/lib/wallets';
 import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { db } from '@/lib/db';
 
 const ENABLE_ALL_TX = false;
 
@@ -44,6 +45,29 @@ console.log('[vault] total ms', Date.now() - pageStart);
 
 const onchainWallets = walletsSorted.filter((w) => (w.walletType ?? 'onchain') === 'onchain');
 const customWallets  = walletsSorted.filter((w) => w.walletType === 'custom');
+
+// ── Monthly digest pill ────────────────────────────────────────────────────────
+let digestCount = 0;
+let digestMonth = '';
+try {
+	const digestRes = await db.execute({
+		sql: `SELECT year_month, item_count FROM monthly_digests
+		      WHERE tenant_id = ? AND item_count > 0 AND dismissed_at IS NULL
+		      ORDER BY year_month DESC LIMIT 1`,
+		args: [tenantId],
+	});
+	if (digestRes.rows.length > 0) {
+		const row = digestRes.rows[0] as Record<string, unknown>;
+		digestCount = Number(row.item_count ?? 0);
+		const ym    = String(row.year_month ?? '');
+		if (ym) {
+			const [y, m] = ym.split('-');
+			digestMonth  = new Date(Number(y), Number(m) - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+		}
+	}
+} catch {
+	// monthly_digests table may not exist yet — migration pending
+}
 
 const walletsWithData = await Promise.all(
 	onchainWallets.map(async (wallet) => ({
@@ -86,9 +110,16 @@ const getChainBadge = (chains: string[]): string => {
 			<SalmonTin label="Watchlist" class="tile tile--r1c1">
 				<PriceWatchlist client:only="react" />
 			</SalmonTin>
-			<SalmonTin label="Portfolio" class="tile tile--r1c2">
-				<PortfolioTile client:only="react" />
-			</SalmonTin>
+			<div class="tile tile--r1c2 portfolio-digest-wrapper">
+				<SalmonTin label="Portfolio">
+					<PortfolioTile client:only="react" />
+				</SalmonTin>
+				{digestCount > 0 && (
+					<a href="/dashboard/tax/review" class="digest-pill">
+						⚠ {digestCount} flagged · {digestMonth}
+					</a>
+				)}
+			</div>
 			<div class="tile tile--r1c3">
 				{ENABLE_ALL_TX
 					? <Tin0AllTransactions client:visible />

@@ -870,3 +870,34 @@ h2 {
 .vault-section-divider--custom .vault-section-divider__label {
 	color: #e8a020;
 }
+
+/* ── Monthly digest pill ──────────────────────────────────────────────────── */
+.portfolio-digest-wrapper {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+.digest-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	align-self: flex-end;
+	margin-top: 0.5rem;
+	padding: 0.3rem 0.85rem;
+	border-radius: 999px;
+	background: rgba(251, 191, 36, 0.12);
+	border: 1px solid rgba(251, 191, 36, 0.45);
+	color: #fbbf24;
+	font-size: 0.72rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-decoration: none;
+	transition: background 0.15s, border-color 0.15s;
+	white-space: nowrap;
+}
+
+.digest-pill:hover {
+	background: rgba(251, 191, 36, 0.22);
+	border-color: rgba(251, 191, 36, 0.7);
+}
