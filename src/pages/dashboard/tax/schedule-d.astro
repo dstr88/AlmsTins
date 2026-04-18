@@ -358,15 +358,13 @@ const defaultYear = currentYear - 1;
 .sched-d-table tr:last-child td { border-bottom: none; }
 
 @media print {
-	.sched-d-table td { padding: 4px 8px; font-size: 9pt; color: #000; }
-	.sched-d-table .line-num { color: #374151; }
-	.sched-d-table .line-desc { color: #000; }
-	.sched-d-table .line-val { color: #000; }
-	.sched-d-table .line-val.gain { color: #065f46; }
-	.sched-d-table .line-val.loss { color: #991b1b; }
-	.sched-d-table tr.subtotal td { background: #f1f5f9; }
-	.sched-d-table tr.total td { background: #e2e8f0; }
-	.sched-d-table .line-val { min-width: 6rem; }
+	.sched-d-table td { padding: 4px 8px; font-size: 9pt; color: #000 !important; }
+	.sched-d-table td * { color: inherit !important; }
+	.sched-d-table .line-num { color: #374151 !important; }
+	.sched-d-table tr.subtotal td { background: #f1f5f9 !important; color: #000 !important; }
+	.sched-d-table tr.total td { background: #e2e8f0 !important; color: #000 !important; }
+	.sched-d-table tr.n-a td { opacity: 0.5 !important; }
+	.sched-d-table { min-width: 100%; }
 }
 </style>
 
