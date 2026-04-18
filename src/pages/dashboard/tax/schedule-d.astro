@@ -89,7 +89,7 @@ const defaultYear = currentYear - 1;
 					Part I — Short-Term Capital Gains and Losses
 					<span class="sd-section-sub">(Assets held 1 year or less)</span>
 				</h2>
-				<div class="sd-table-card" id="part1-table" style="color:#111827;"></div>
+				<div class="sd-table-card" id="part1-table"></div>
 			</section>
 
 			<!-- Part II: Long-Term -->
@@ -98,13 +98,13 @@ const defaultYear = currentYear - 1;
 					Part II — Long-Term Capital Gains and Losses
 					<span class="sd-section-sub">(Assets held more than 1 year)</span>
 				</h2>
-				<div class="sd-table-card" id="part2-table" style="color:#111827;"></div>
+				<div class="sd-table-card" id="part2-table"></div>
 			</section>
 
 			<!-- Part III: Summary -->
 			<section class="sd-section">
 				<h2 class="sd-section-title">Part III — Summary</h2>
-				<div class="sd-table-card" id="part3-table" style="color:#111827;"></div>
+				<div class="sd-table-card" id="part3-table"></div>
 			</section>
 
 			<!-- Next steps panel -->
@@ -269,10 +269,10 @@ const defaultYear = currentYear - 1;
 
 /* ── Table card ────────────────────────────────────────────────────────────── */
 .sd-table-card {
-	background: #fff;
-	border-radius: 10px;
+	background: #161b27;
+	border-radius: 12px;
 	overflow: hidden;
-	border: 1px solid rgba(255,255,255,.08);
+	border: 1px solid rgba(255,255,255,.07);
 }
 
 /* ── Schedule D table — must NOT be scoped (table built by JS) ─────────────── */
@@ -308,23 +308,64 @@ const defaultYear = currentYear - 1;
 
 <!-- Table styles must be global — table DOM is built by JS, Astro scoping won't reach it -->
 <style is:global>
-.sched-d-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-.sched-d-table td { padding: 9px 14px; border-bottom: 1px solid #e5e7eb; color: #111827; }
-.sched-d-table .line-num { width: 3rem; font-weight: 700; color: #6b7280; text-align: center; font-size: .8rem; }
-.sched-d-table .line-desc { color: #111827; line-height: 1.5; }
-.sched-d-table .line-note { font-size: 0.72rem; color: #9ca3af; display: block; margin-top: 3px; line-height: 1.4; }
-.sched-d-table .line-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; min-width: 9rem; white-space: nowrap; }
-.sched-d-table .line-val.gain { color: #059669; }
-.sched-d-table .line-val.loss { color: #dc2626; }
-.sched-d-table .line-val.zero { color: #9ca3af; }
-.sched-d-table tr.subtotal td { border-top: 2px solid #d1d5db; background: #f8fafc; }
-.sched-d-table tr.subtotal .line-val { font-weight: 800; font-size: 1rem; }
-.sched-d-table tr.total td { border-top: 3px solid #374151; background: #f1f5f9; }
-.sched-d-table tr.total .line-val { font-weight: 900; font-size: 1.05rem; }
-.sched-d-table tr.n-a td { opacity: 0.55; color: #9ca3af; }
+.sched-d-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.sched-d-table td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.sched-d-table .line-num {
+	width: 3rem;
+	font-weight: 700;
+	color: #6366f1;
+	text-align: center;
+	font-size: .85rem;
+	vertical-align: top;
+	padding-top: 14px;
+}
+.sched-d-table .line-desc { color: #e5e7eb; line-height: 1.6; }
+.sched-d-table .line-note {
+	font-size: 0.72rem;
+	color: #6b7280;
+	display: block;
+	margin-top: 3px;
+	line-height: 1.4;
+}
+.sched-d-table .line-val {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+	font-size: 0.95rem;
+	min-width: 8rem;
+	white-space: nowrap;
+	color: #e5e7eb;
+	vertical-align: top;
+	padding-top: 14px;
+}
+.sched-d-table .line-val.gain { color: #34d399; }
+.sched-d-table .line-val.loss { color: #f87171; }
+.sched-d-table .line-val.zero { color: #4b5563; }
+.sched-d-table tr:hover td { background: rgba(255,255,255,.02); }
+.sched-d-table tr.subtotal td {
+	border-top: 1px solid rgba(99,102,241,.3);
+	background: rgba(99,102,241,.07);
+}
+.sched-d-table tr.subtotal .line-desc { color: #fff; font-weight: 600; }
+.sched-d-table tr.subtotal .line-val { font-weight: 800; font-size: 1.05rem; }
+.sched-d-table tr.total td {
+	border-top: 2px solid rgba(99,102,241,.4);
+	background: rgba(99,102,241,.12);
+}
+.sched-d-table tr.total .line-desc { color: #fff; font-weight: 700; }
+.sched-d-table tr.total .line-val { font-weight: 900; font-size: 1.1rem; }
+.sched-d-table tr.n-a td { opacity: 0.3; }
 .sched-d-table tr:last-child td { border-bottom: none; }
+
 @media print {
-	.sched-d-table td { padding: 4px 8px; font-size: 9pt; }
+	.sched-d-table td { padding: 4px 8px; font-size: 9pt; color: #000; }
+	.sched-d-table .line-num { color: #374151; }
+	.sched-d-table .line-desc { color: #000; }
+	.sched-d-table .line-val { color: #000; }
+	.sched-d-table .line-val.gain { color: #065f46; }
+	.sched-d-table .line-val.loss { color: #991b1b; }
+	.sched-d-table tr.subtotal td { background: #f1f5f9; }
+	.sched-d-table tr.total td { background: #e2e8f0; }
 	.sched-d-table .line-val { min-width: 6rem; }
 }
 </style>
