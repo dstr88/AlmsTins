@@ -217,6 +217,31 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 	gap: .5rem;
 }
 
+.asset-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: .35rem;
+	padding: .28rem .65rem;
+	border-radius: 6px;
+	font-size: .8rem;
+	font-weight: 500;
+	border: 1px solid;
+	line-height: 1.4;
+}
+.asset-chip--no-buy {
+	background: rgba(239,68,68,.12);
+	border-color: rgba(239,68,68,.3);
+	color: #fca5a5;
+}
+.asset-chip--no-basis {
+	background: rgba(251,191,36,.12);
+	border-color: rgba(251,191,36,.3);
+	color: #fde68a;
+}
+.asset-chip strong { color: #fff; }
+.chip-badge { font-size: .7rem; font-weight: 400; opacity: .8; }
+.chip-count { font-size: .7rem; opacity: .65; }
+
 .empty-state__actions {
 	border-top: 1px solid rgba(251,191,36,.2);
 	padding-top: 1rem;
@@ -370,32 +395,8 @@ async function loadForm8949() {
 		const hasData = totalRows > 0;
 
 		if (!hasData) {
-			// Populate diagnostic context from the summary totals
-			const hasTotals = data.totals && (data.totals.proceeds !== 0 || data.totals.basis !== 0);
-			const ctxEl = document.getElementById('empty-context')!;
-			if (hasTotals) {
-				ctxEl.textContent = `AlmsTins found transaction data for ${yearSel} (${USD(data.totals.proceeds)} in proceeds) but the transactions haven't been matched into disposal lots yet. Run the classification pipeline to generate your Form 8949 rows.`;
-				// Highlight the pipeline action
-				document.getElementById('diag-pipeline')!.style.fontWeight = '700';
-			} else {
-				ctxEl.textContent = `No transaction data was found for ${yearSel}. Make sure you've imported all your exchange CSVs and synced your wallets for this tax year.`;
-				document.getElementById('diag-no-data')!.style.fontWeight = '700';
-			}
-
-			// Show token list if the API returned any
-			if (Array.isArray((data as any).unresolvedAssets) && (data as any).unresolvedAssets.length > 0) {
-				const tokenSection = document.getElementById('empty-tokens')!;
-				const tokenList    = document.getElementById('empty-tokens-list')!;
-				tokenSection.classList.remove('hidden');
-				for (const sym of (data as any).unresolvedAssets as string[]) {
-					const chip = document.createElement('span');
-					chip.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-200 text-amber-900';
-					chip.textContent = sym;
-					tokenList.appendChild(chip);
-				}
-			}
-
 			stEmpty.classList.remove('hidden');
+			await populateDiagnostics(yearSel, methodSel, data.totals);
 			return;
 		}
 
@@ -572,6 +573,129 @@ function renderForm(data: NonNullable<typeof currentData>) {
 		page.appendChild(countNote);
 
 		pagesEl.appendChild(page);
+	}
+}
+
+// ── Diagnostic enrichment for empty state ────────────────────────────────────
+async function populateDiagnostics(year: string, method: string, _totals: { proceeds: number; basis: number; gainLoss: number }) {
+	const ctxEl         = document.getElementById('empty-context')!;
+	const diagPipeline  = document.getElementById('diag-pipeline')!;
+	const diagMissingBuy = document.getElementById('diag-missing-buy')!;
+	const diagNoData    = document.getElementById('diag-no-data')!;
+	const emptyTokens   = document.getElementById('empty-tokens')!;
+	const tokensList    = document.getElementById('empty-tokens-list')!;
+	const actionsEl     = document.querySelector('.empty-state__actions')!;
+
+	try {
+		const res = await fetch(`/api/tax/summary?year=${year}&method=${method}`);
+		if (!res.ok) return;
+		const summary = await res.json() as {
+			ok: boolean;
+			gains?: { dataSource?: string };
+			disposals?: { count?: number };
+			lastPipelineRun?: { status?: string; completedAt?: string | null } | null;
+			missingBasis?: Array<{ asset: string; date: string; qty: number; proceeds: number | null; issue: 'no_cost_basis' | 'no_matching_buy' }>;
+		};
+		if (!summary.ok) return;
+
+		const missingBasis   = summary.missingBasis   ?? [];
+		const disposalCount  = summary.disposals?.count ?? 0;
+		const dataSource     = summary.gains?.dataSource ?? 'lifecycle';
+		const lastRun        = summary.lastPipelineRun ?? null;
+
+		const pipelineRan  = lastRun !== null && dataSource === 'pipeline';
+		const hasNoImports = disposalCount === 0 && missingBasis.length === 0;
+
+		// ── Group issues by asset ────────────────────────────────────────────
+		const assetIssues = new Map<string, { noBuy: number; noBasis: number }>();
+		for (const item of missingBasis) {
+			if (!assetIssues.has(item.asset)) assetIssues.set(item.asset, { noBuy: 0, noBasis: 0 });
+			const entry = assetIssues.get(item.asset)!;
+			if (item.issue === 'no_matching_buy') entry.noBuy++;
+			else entry.noBasis++;
+		}
+		const affectedAssets = Array.from(assetIssues.keys());
+		const totalMissing   = missingBasis.length;
+		const totalNoBuy     = missingBasis.filter(m => m.issue === 'no_matching_buy').length;
+		const totalNoBasis   = missingBasis.filter(m => m.issue === 'no_cost_basis').length;
+
+		// ── Update headline context ──────────────────────────────────────────
+		if (hasNoImports) {
+			ctxEl.textContent = `No transactions were found for ${year}. Import transactions for your wallets or exchanges first, then re-run the pipeline.`;
+		} else if (!pipelineRan) {
+			ctxEl.textContent = `AlmsTins found transactions for ${year} but the classification pipeline hasn't run yet. Run the pipeline from the Tax Center to match buys and sells into taxable lots.`;
+		} else if (affectedAssets.length > 0) {
+			const named = affectedAssets.slice(0, 4).join(', ') + (affectedAssets.length > 4 ? ` +${affectedAssets.length - 4} more` : '');
+			ctxEl.textContent = `${affectedAssets.length} coin${affectedAssets.length === 1 ? '' : 's'} (${named}) ${affectedAssets.length === 1 ? 'has' : 'have'} ${totalMissing} unresolved transaction${totalMissing === 1 ? '' : 's'}. These must be fixed before Form 8949 can be generated.`;
+		} else {
+			ctxEl.textContent = `The pipeline ran but found no taxable disposals for ${year}. If you didn't sell any crypto this year that's expected — otherwise check your imports.`;
+		}
+
+		// ── Highlight the relevant diagnostic bullet, dim the others ────────
+		const dim  = (el: HTMLElement) => { el.style.opacity = '0.38'; el.style.textDecoration = 'none'; };
+		const show = (el: HTMLElement) => { el.style.opacity = '1'; };
+
+		if (hasNoImports) {
+			dim(diagPipeline); dim(diagMissingBuy); show(diagNoData);
+			diagNoData.innerHTML = `<strong>No transactions found for ${year}</strong> — nothing has been imported for this year yet`;
+		} else if (!pipelineRan) {
+			show(diagPipeline); dim(diagMissingBuy); dim(diagNoData);
+			diagPipeline.innerHTML = `<strong>Pipeline not run</strong> — transactions exist for ${year} but haven't been classified into taxable lots yet`;
+		} else if (totalNoBuy > 0) {
+			dim(diagPipeline); show(diagMissingBuy); dim(diagNoData);
+			const coinList = affectedAssets.filter(a => (assetIssues.get(a)?.noBuy ?? 0) > 0).slice(0, 3).join(', ');
+			diagMissingBuy.innerHTML = `<strong>${totalNoBuy} sell${totalNoBuy === 1 ? '' : 's'} with no matching purchase record</strong> — ${coinList} · the buy transaction is either missing from your imports or happened on a platform you haven't connected yet`;
+		} else if (totalNoBasis > 0) {
+			dim(diagPipeline); show(diagMissingBuy); dim(diagNoData);
+			const coinList = affectedAssets.slice(0, 3).join(', ');
+			diagMissingBuy.innerHTML = `<strong>${totalNoBasis} lot${totalNoBasis === 1 ? '' : 's'} missing purchase price or date</strong> — ${coinList} · the buy was found but its USD value at purchase time is unknown`;
+		} else {
+			dim(diagPipeline); dim(diagMissingBuy); show(diagNoData);
+			diagNoData.innerHTML = `<strong>No disposals in ${year}</strong> — the pipeline ran successfully but found no sells, swaps, or trades to report`;
+		}
+
+		// ── Coin chips ───────────────────────────────────────────────────────
+		if (affectedAssets.length > 0) {
+			tokensList.innerHTML = '';
+			for (const asset of affectedAssets) {
+				const info     = assetIssues.get(asset)!;
+				const hasNoBuy = info.noBuy > 0;
+				const count    = info.noBuy + info.noBasis;
+				const chip     = document.createElement('span');
+				chip.className = `asset-chip asset-chip--${hasNoBuy ? 'no-buy' : 'no-basis'}`;
+				chip.innerHTML =
+					`<strong>${asset}</strong>` +
+					`<span class="chip-badge">${hasNoBuy ? '⚠ no purchase record' : '⚠ missing price'}</span>` +
+					(count > 1 ? `<span class="chip-count">×${count}</span>` : '');
+				tokensList.appendChild(chip);
+			}
+			emptyTokens.classList.remove('hidden');
+		}
+
+		// ── Action buttons — reorder and relabel based on what's actually wrong ─
+		const buttons  = Array.from(actionsEl.querySelectorAll<HTMLAnchorElement>('.es-btn'));
+		const [reviewBtn, importBtn, pipelineBtn] = buttons;
+
+		if (hasNoImports) {
+			if (importBtn)   { importBtn.innerHTML   = '📥 Import Transactions — add data for ' + year; importBtn.className   = 'es-btn es-btn--primary'; }
+			if (reviewBtn)   { reviewBtn.className   = 'es-btn es-btn--secondary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = '⚙️ Run Pipeline — after importing'; pipelineBtn.className = 'es-btn es-btn--secondary'; }
+		} else if (!pipelineRan) {
+			if (pipelineBtn) { pipelineBtn.innerHTML = `⚙️ Run Pipeline — classify transactions for ${year}`; pipelineBtn.className = 'es-btn es-btn--primary'; }
+			if (reviewBtn)   { reviewBtn.className   = 'es-btn es-btn--secondary'; }
+			if (importBtn)   { importBtn.className   = 'es-btn es-btn--secondary'; }
+		} else if (totalNoBuy > 0) {
+			if (reviewBtn)   { reviewBtn.innerHTML   = `🔍 Review Queue — find the missing buys for ${totalNoBuy} sell${totalNoBuy === 1 ? '' : 's'}`; reviewBtn.className = 'es-btn es-btn--primary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = '⚙️ Re-run Pipeline — after adding missing records'; pipelineBtn.className = 'es-btn es-btn--secondary'; }
+			if (importBtn)   { importBtn.className   = 'es-btn es-btn--secondary'; }
+		} else if (totalNoBasis > 0) {
+			if (reviewBtn)   { reviewBtn.innerHTML   = `🔍 Review Queue — enter purchase prices for ${totalNoBasis} lot${totalNoBasis === 1 ? '' : 's'}`; reviewBtn.className = 'es-btn es-btn--primary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = '⚙️ Re-run Pipeline — after fixing missing prices'; pipelineBtn.className = 'es-btn es-btn--secondary'; }
+			if (importBtn)   { importBtn.className   = 'es-btn es-btn--secondary'; }
+		}
+
+	} catch (e) {
+		console.warn('[form8949] populateDiagnostics failed:', e);
 	}
 }
 
