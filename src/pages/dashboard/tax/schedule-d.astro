@@ -319,10 +319,10 @@ const defaultYear = currentYear - 1;
 	vertical-align: top;
 	padding-top: 15px;
 }
-.sched-d-table .line-desc { color: #fff; line-height: 1.6; }
+.sched-d-table .line-desc { color: #ffffff; line-height: 1.6; }
 .sched-d-table .line-note {
 	font-size: 0.78rem;
-	color: #9ca3af;
+	color: #cbd5e1;
 	display: block;
 	margin-top: 3px;
 	line-height: 1.4;
@@ -334,27 +334,27 @@ const defaultYear = currentYear - 1;
 	font-size: 1rem;
 	min-width: 8rem;
 	white-space: nowrap;
-	color: #f1f5f9;
+	color: #ffffff;
 	vertical-align: top;
 	padding-top: 15px;
 }
-.sched-d-table .line-val.gain { color: #34d399; }
-.sched-d-table .line-val.loss { color: #f87171; }
-.sched-d-table .line-val.zero { color: #4b5563; }
-.sched-d-table tr:hover td { background: rgba(255,255,255,.02); }
+.sched-d-table .line-val.gain { color: #6ee7b7; }
+.sched-d-table .line-val.loss { color: #fca5a5; }
+.sched-d-table .line-val.zero { color: #94a3b8; }
+.sched-d-table tr:hover td { background: rgba(255,255,255,.03); }
 .sched-d-table tr.subtotal td {
-	border-top: 1px solid rgba(99,102,241,.3);
-	background: rgba(99,102,241,.07);
-}
-.sched-d-table tr.subtotal .line-desc { color: #fff; font-weight: 600; }
-.sched-d-table tr.subtotal .line-val { font-weight: 800; font-size: 1.05rem; }
-.sched-d-table tr.total td {
-	border-top: 2px solid rgba(99,102,241,.4);
+	border-top: 1px solid rgba(99,102,241,.4);
 	background: rgba(99,102,241,.12);
 }
-.sched-d-table tr.total .line-desc { color: #fff; font-weight: 700; }
+.sched-d-table tr.subtotal .line-desc { color: #ffffff; font-weight: 600; }
+.sched-d-table tr.subtotal .line-val { font-weight: 800; font-size: 1.05rem; }
+.sched-d-table tr.total td {
+	border-top: 2px solid rgba(99,102,241,.5);
+	background: rgba(99,102,241,.18);
+}
+.sched-d-table tr.total .line-desc { color: #ffffff; font-weight: 700; }
 .sched-d-table tr.total .line-val { font-weight: 900; font-size: 1.1rem; }
-.sched-d-table tr.n-a td { opacity: 0.3; }
+.sched-d-table tr.n-a td { opacity: 0.45; }
 .sched-d-table tr:last-child td { border-bottom: none; }
 
 @media print {
@@ -394,18 +394,23 @@ function buildTable(lines: Array<{
 		const tr = document.createElement('tr');
 		if (line.rowClass) tr.className = line.rowClass;
 		if (line.na) tr.className = (tr.className + ' n-a').trim();
+		if (line.rowClass === 'subtotal') tr.style.cssText = 'background:rgba(99,102,241,.12);border-top:1px solid rgba(99,102,241,.4);';
+		if (line.rowClass === 'total')    tr.style.cssText = 'background:rgba(99,102,241,.18);border-top:2px solid rgba(99,102,241,.5);';
 
+		const gc = line.value != null ? gainClass(line.value) : 'zero';
+		const valColor = gc === 'gain' ? '#6ee7b7' : gc === 'loss' ? '#fca5a5' : '#94a3b8';
 		const valHtml = line.value != null
-			? `<span class="${gainClass(line.value)}">${fmtGain(line.value)}</span>`
-			: `<span class="zero">—</span>`;
+			? `<span style="color:${valColor}">${fmtGain(line.value)}</span>`
+			: `<span style="color:#94a3b8">—</span>`;
 
+		const naOpacity = line.na ? 'opacity:0.45;' : '';
 		tr.innerHTML = `
-			<td class="line-num">${line.num}</td>
-			<td class="line-desc">
+			<td class="line-num" style="${naOpacity}color:#818cf8;font-weight:700;text-align:center;font-size:.9rem;width:3rem;vertical-align:top;padding:13px 16px;">${line.num}</td>
+			<td class="line-desc" style="${naOpacity}color:#ffffff;vertical-align:top;padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.06);">
 				${line.desc}
-				${line.note ? `<span class="line-note">${line.note}</span>` : ''}
+				${line.note ? `<span style="font-size:0.78rem;color:#cbd5e1;display:block;margin-top:3px;line-height:1.4;">${line.note}</span>` : ''}
 			</td>
-			<td class="line-val">${valHtml}</td>
+			<td style="${naOpacity}color:#ffffff;text-align:right;font-weight:600;font-size:1rem;min-width:8rem;white-space:nowrap;vertical-align:top;padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.06);">${valHtml}</td>
 		`;
 		tb.appendChild(tr);
 	}
