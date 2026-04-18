@@ -7,6 +7,7 @@ import Layout from '../layouts/Layout.astro';
 import { hasTaxAccess } from '@/lib/taxAuth';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { getActivePlan } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
 
 export const prerender = false;
@@ -15,6 +16,17 @@ if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
 const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/login', 302);
 const { tenantId } = sess;
+
+// ── Admin check (mirrors Layout.astro logic) ─────────────────────────────────
+const ADMIN_TENANT_IDS = new Set(
+  (process.env.ADMIN_TENANT_IDS ?? process.env.ADMIN_TENANT_ID ?? '')
+    .split(',').map((id: string) => id.trim().toLowerCase()).filter(Boolean)
+);
+const isAdmin = Boolean(tenantId && ADMIN_TENANT_IDS.has(String(tenantId).toLowerCase()));
+
+// ── Plan check ────────────────────────────────────────────────────────────────
+const activePlan = await getActivePlan(tenantId);
+const canDownload = activePlan.id !== 'free';
 
 const currentYear = new Date().getFullYear();
 const priorYear   = currentYear - 1;
@@ -441,27 +453,76 @@ const availableYears = bd?.availableYears ?? [priorYear];
     <!-- ── Downloads ─────────────────────────────────────────────────────── -->
     <section class="downloads">
       <h2 class="downloads__title">Downloads</h2>
+
+      <!-- Customer downloads — paywalled for free users -->
+      <div class="downloads__group-label">For your tax preparer</div>
       <div class="downloads__grid">
-        <a href={`/api/tax/breakdown-csv?year=${selectedYear}&section=all`} class="dl-btn" download>
-          <span class="dl-btn__icon">📊</span>
-          <span>FIFO Gain/Loss CSV</span>
-        </a>
-        <a href={`/dashboard/tax/form8949?year=${selectedYear}`} class="dl-btn">
-          <span class="dl-btn__icon">📝</span>
-          <span>Form 8949</span>
-        </a>
-        <a href={`/dashboard/tax/schedule-d?year=${selectedYear}`} class="dl-btn">
-          <span class="dl-btn__icon">🗂</span>
-          <span>Schedule D</span>
-        </a>
-        <a href={`/api/year-summary/report?year=${selectedYear}`} target="_blank" class="dl-btn">
-          <span class="dl-btn__icon">📄</span>
-          <span>Year Summary PDF</span>
-        </a>
-        <a href={`/dashboard/tax/1099?year=${selectedYear}`} class="dl-btn">
-          <span class="dl-btn__icon">🧾</span>
-          <span>1099 Reconciliation</span>
-        </a>
+        {canDownload ? (
+          <a href={`/api/tax/breakdown-csv?year=${selectedYear}&section=all`} class="dl-btn" download>
+            <span class="dl-btn__icon">📊</span>
+            <span>FIFO Gain/Loss CSV</span>
+          </a>
+        ) : (
+          <a href="/dashboard/billing" class="dl-btn dl-btn--paywall" title="Available on any paid plan">
+            <span class="dl-btn__icon">📊</span>
+            <span>FIFO Gain/Loss CSV</span>
+            <span class="dl-btn__plan-badge">Paid</span>
+          </a>
+        )}
+        {canDownload ? (
+          <a href={`/api/year-summary/report?year=${selectedYear}`} target="_blank" class="dl-btn">
+            <span class="dl-btn__icon">📄</span>
+            <span>Year Summary PDF</span>
+          </a>
+        ) : (
+          <a href="/dashboard/billing" class="dl-btn dl-btn--paywall" title="Available on any paid plan">
+            <span class="dl-btn__icon">📄</span>
+            <span>Year Summary PDF</span>
+            <span class="dl-btn__plan-badge">Paid</span>
+          </a>
+        )}
+      </div>
+
+      <!-- Admin-only downloads — active for admin, grayed out for everyone else -->
+      <div class="downloads__group-label downloads__group-label--admin">
+        Advanced tax forms
+        {!isAdmin && <span class="downloads__admin-badge">Owner only</span>}
+      </div>
+      <div class="downloads__grid">
+        {isAdmin ? (
+          <>
+            <a href={`/dashboard/tax/form8949?year=${selectedYear}`} class="dl-btn">
+              <span class="dl-btn__icon">📝</span>
+              <span>Form 8949</span>
+            </a>
+            <a href={`/dashboard/tax/schedule-d?year=${selectedYear}`} class="dl-btn">
+              <span class="dl-btn__icon">🗂</span>
+              <span>Schedule D</span>
+            </a>
+            <a href={`/dashboard/tax/1099?year=${selectedYear}`} class="dl-btn">
+              <span class="dl-btn__icon">🧾</span>
+              <span>1099 Reconciliation</span>
+            </a>
+          </>
+        ) : (
+          <>
+            <span class="dl-btn dl-btn--locked" title="Available to account owner only">
+              <span class="dl-btn__icon">📝</span>
+              <span>Form 8949</span>
+              <span class="dl-btn__lock">🔒</span>
+            </span>
+            <span class="dl-btn dl-btn--locked" title="Available to account owner only">
+              <span class="dl-btn__icon">🗂</span>
+              <span>Schedule D</span>
+              <span class="dl-btn__lock">🔒</span>
+            </span>
+            <span class="dl-btn dl-btn--locked" title="Available to account owner only">
+              <span class="dl-btn__icon">🧾</span>
+              <span>1099 Reconciliation</span>
+              <span class="dl-btn__lock">🔒</span>
+            </span>
+          </>
+        )}
       </div>
     </section>
 
@@ -1169,6 +1230,63 @@ const availableYears = bd?.availableYears ?? [priorYear];
     color: #a5b4fc;
   }
   .dl-btn__icon { font-size: 1rem; }
+  .dl-btn--locked {
+    cursor: default;
+    opacity: .35;
+    pointer-events: none;
+  }
+  .dl-btn--paywall {
+    opacity: .55;
+    border-color: rgba(251,191,36,.2);
+  }
+  .dl-btn--paywall:hover {
+    background: rgba(251,191,36,.08);
+    border-color: rgba(251,191,36,.4);
+    color: #fde68a;
+    opacity: 1;
+  }
+  .dl-btn__plan-badge {
+    font-size: .62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    background: rgba(251,191,36,.15);
+    border: 1px solid rgba(251,191,36,.3);
+    color: #fbbf24;
+    padding: .1rem .4rem;
+    border-radius: 5px;
+    margin-left: .2rem;
+  }
+  .dl-btn__lock {
+    font-size: .75rem;
+    margin-left: .2rem;
+    opacity: .6;
+  }
+  .downloads__group-label {
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: rgba(255,255,255,.3);
+    margin: 1rem 0 .6rem;
+  }
+  .downloads__group-label--admin {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-top: 1.4rem;
+  }
+  .downloads__admin-badge {
+    font-size: .62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    background: rgba(251,191,36,.12);
+    border: 1px solid rgba(251,191,36,.25);
+    color: rgba(251,191,36,.7);
+    padding: .1rem .45rem;
+    border-radius: 5px;
+  }
 
   /* ── FAQ ────────────────────────────────────────────────────────────────── */
   .faq {

@@ -42,7 +42,26 @@ export const PLANS: Record<PlanId, PlanConfig> = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Resolve the active plan for a tenant. Falls back to 'free' if no row exists. */
-export async function getActivePlan(tenantId: string): Promise<PlanConfig> {
+export async function getActivePlan(tenantId: string): Promise<PlanConfig & { promoExpiresAt?: string }> {
+  // ── Promo check (takes priority over Stripe subscription) ─────────────────
+  try {
+    const promoResult = await db.execute({
+      sql: `SELECT plan_id, access_expires_at FROM promo_redemptions
+            WHERE tenant_id = ? AND access_expires_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            ORDER BY access_expires_at DESC LIMIT 1`,
+      args: [tenantId],
+    });
+    const promoRow = promoResult.rows[0] as Record<string, unknown> | undefined;
+    if (promoRow?.plan_id) {
+      const planId = promoRow.plan_id as string;
+      const plan = PLANS[planId as PlanId] ?? PLANS.free;
+      return { ...plan, promoExpiresAt: promoRow.access_expires_at as string };
+    }
+  } catch {
+    // Table may not exist yet during migration — fall through to subscription check
+  }
+
+  // ── Stripe subscription check ─────────────────────────────────────────────
   const result = await db.execute({
     sql: `SELECT plan_id, status FROM subscriptions WHERE tenant_id = ? LIMIT 1`,
     args: [tenantId],

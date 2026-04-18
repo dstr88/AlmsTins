@@ -25,7 +25,7 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 ---
 
 <Layout title="Form 8949 | Almstins" noindex={true}>
-	<div id="app" class="max-w-6xl mx-auto px-4 py-8 space-y-6 print:px-0 print:py-0 print:max-w-none">
+	<div id="app" class="max-w-6xl mx-auto px-6 sm:px-10 py-8 space-y-6 print:px-0 print:py-0 print:max-w-none">
 
 		<!-- Screen-only header -->
 		<div class="print:hidden flex items-start justify-between flex-wrap gap-4">
@@ -70,10 +70,43 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 			<p>Loading Form 8949…</p>
 		</div>
 		<div id="state-error" class="print:hidden hidden rounded-xl border border-red-200 bg-red-50 p-6 text-red-700 text-sm"></div>
-		<div id="state-empty" class="print:hidden hidden rounded-xl border border-gray-200 bg-gray-50 p-10 text-center">
-			<p class="text-2xl mb-2">📋</p>
-			<p class="font-medium text-gray-700">No disposals found for this year</p>
-			<p class="text-sm text-gray-500 mt-1">Try a different tax year or import more transaction data.</p>
+		<div id="state-empty" class="print:hidden hidden rounded-xl border border-amber-200 bg-amber-50 p-6 space-y-4">
+			<div class="flex items-start gap-3">
+				<span class="text-2xl">⚠️</span>
+				<div>
+					<p class="font-semibold text-amber-900 text-base">No classified disposals found for this year</p>
+					<p class="text-sm text-amber-800 mt-1" id="empty-context">AlmsTins found transactions for this year but none have been matched into taxable disposal lots yet.</p>
+				</div>
+			</div>
+
+			<div class="border-t border-amber-200 pt-4 space-y-2">
+				<p class="text-xs font-semibold text-amber-900 uppercase tracking-wide">What this usually means</p>
+				<ul class="text-sm text-amber-800 space-y-1 list-disc list-inside">
+					<li id="diag-pipeline"><strong>Pipeline not run</strong> — transactions need to be classified before lots can be matched</li>
+					<li id="diag-missing-buy">A sell transaction exists but the matching buy is missing — check the Review Queue</li>
+					<li id="diag-no-data">No transactions were imported for this year yet</li>
+				</ul>
+			</div>
+
+			<div id="empty-tokens" class="border-t border-amber-200 pt-4 hidden">
+				<p class="text-xs font-semibold text-amber-900 uppercase tracking-wide mb-2">Tokens with unresolved transactions this year</p>
+				<div id="empty-tokens-list" class="flex flex-wrap gap-2"></div>
+			</div>
+
+			<div class="border-t border-amber-200 pt-4 flex flex-wrap gap-3">
+				<a href="/dashboard/tax/review"
+				   class="inline-flex items-center gap-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 transition-colors">
+					🔍 Open Review Queue
+				</a>
+				<a href="/dashboard/bookkeeping"
+				   class="inline-flex items-center gap-2 rounded-lg border border-amber-400 hover:bg-amber-100 text-amber-900 text-sm font-semibold px-4 py-2 transition-colors">
+					📥 Import Transactions
+				</a>
+				<a href="/dashboard/tax"
+				   class="inline-flex items-center gap-2 rounded-lg border border-amber-400 hover:bg-amber-100 text-amber-900 text-sm font-semibold px-4 py-2 transition-colors">
+					⚙️ Run Classification Pipeline
+				</a>
+			</div>
 		</div>
 
 		<!-- Form output — screen summary cards + printable pages -->
@@ -219,8 +252,36 @@ async function loadForm8949() {
 			return;
 		}
 
-		const hasData = (data.boxes.C?.rows.length ?? 0) + (data.boxes.F?.rows.length ?? 0) > 0;
+		// Check ALL boxes (A-F), not just C and F
+		const totalRows = Object.values(data.boxes ?? {}).reduce((sum, b) => sum + (b.rows?.length ?? 0), 0);
+		const hasData = totalRows > 0;
+
 		if (!hasData) {
+			// Populate diagnostic context from the summary totals
+			const hasTotals = data.totals && (data.totals.proceeds !== 0 || data.totals.basis !== 0);
+			const ctxEl = document.getElementById('empty-context')!;
+			if (hasTotals) {
+				ctxEl.textContent = `AlmsTins found transaction data for ${yearSel} (${USD(data.totals.proceeds)} in proceeds) but the transactions haven't been matched into disposal lots yet. Run the classification pipeline to generate your Form 8949 rows.`;
+				// Highlight the pipeline action
+				document.getElementById('diag-pipeline')!.style.fontWeight = '700';
+			} else {
+				ctxEl.textContent = `No transaction data was found for ${yearSel}. Make sure you've imported all your exchange CSVs and synced your wallets for this tax year.`;
+				document.getElementById('diag-no-data')!.style.fontWeight = '700';
+			}
+
+			// Show token list if the API returned any
+			if (Array.isArray((data as any).unresolvedAssets) && (data as any).unresolvedAssets.length > 0) {
+				const tokenSection = document.getElementById('empty-tokens')!;
+				const tokenList    = document.getElementById('empty-tokens-list')!;
+				tokenSection.classList.remove('hidden');
+				for (const sym of (data as any).unresolvedAssets as string[]) {
+					const chip = document.createElement('span');
+					chip.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-200 text-amber-900';
+					chip.textContent = sym;
+					tokenList.appendChild(chip);
+				}
+			}
+
 			stEmpty.classList.remove('hidden');
 			return;
 		}
@@ -246,8 +307,8 @@ function renderForm(data: NonNullable<typeof currentData>) {
 	gainEl.textContent  = fmtGain(data.totals.gainLoss);
 	gainEl.className    = `text-xl font-bold mt-1 ${data.totals.gainLoss >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
 
-	// BO warning
-	const allRows = [...(data.boxes.C?.rows ?? []), ...(data.boxes.F?.rows ?? [])];
+	// BO warning — check all boxes
+	const allRows = Object.values(data.boxes ?? {}).flatMap(b => b.rows ?? []);
 	const hasBO = allRows.some(r => r.codes.includes('B') || r.codes.includes('BO'));
 	if (hasBO) document.getElementById('bo-warning')!.classList.remove('hidden');
 
@@ -255,18 +316,32 @@ function renderForm(data: NonNullable<typeof currentData>) {
 	const pagesEl = document.getElementById('form-pages')!;
 	pagesEl.innerHTML = '';
 
+	// Build parts from whichever boxes actually have rows
+	const shortTermBoxes = ['A', 'B', 'C'].filter(b => (data.boxes[b]?.rows?.length ?? 0) > 0);
+	const longTermBoxes  = ['D', 'E', 'F'].filter(b => (data.boxes[b]?.rows?.length ?? 0) > 0);
+
+	// Merge rows and totals across all populated boxes within each part
+	function mergeBoxes(boxes: string[]) {
+		const rows: Form8949Row[] = boxes.flatMap(b => data.boxes[b]?.rows ?? []);
+		const totals = boxes.reduce((acc, b) => {
+			const t = data.boxes[b]?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 };
+			return { proceeds: acc.proceeds + t.proceeds, basis: acc.basis + t.basis, gainLoss: acc.gainLoss + t.gainLoss };
+		}, { proceeds: 0, basis: 0, gainLoss: 0 });
+		// Use the highest box letter as the "active" box label
+		const activeBox = boxes[boxes.length - 1] ?? '';
+		return { rows, totals, activeBox };
+	}
+
 	const parts: Array<{ part: 'I' | 'II'; label: string; activeBox: string; allBoxes: string[]; rows: Form8949Row[]; totals: { proceeds: number; basis: number; gainLoss: number } }> = [
 		{
 			part: 'I', label: 'Part I — Short-Term Capital Gains and Losses',
-			activeBox: 'C', allBoxes: ['A', 'B', 'C'],
-			rows: data.boxes.C?.rows ?? [],
-			totals: data.boxes.C?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 },
+			allBoxes: ['A', 'B', 'C'],
+			...mergeBoxes(shortTermBoxes.length > 0 ? shortTermBoxes : ['C']),
 		},
 		{
 			part: 'II', label: 'Part II — Long-Term Capital Gains and Losses',
-			activeBox: 'F', allBoxes: ['D', 'E', 'F'],
-			rows: data.boxes.F?.rows ?? [],
-			totals: data.boxes.F?.totals ?? { proceeds: 0, basis: 0, gainLoss: 0 },
+			allBoxes: ['D', 'E', 'F'],
+			...mergeBoxes(longTermBoxes.length > 0 ? longTermBoxes : ['F']),
 		},
 	];
 

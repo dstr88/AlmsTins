@@ -411,11 +411,11 @@ export const GET: APIRoute = async ({ request }) => {
 
     // ── Paywall check ─────────────────────────────────────────────────────────
     const plan = await getActivePlan(tenantId);
-    if (plan.id !== 'unlimited') {
+    if (plan.id === 'free') {
       return new Response(
         JSON.stringify({
-          error: 'Year Summary PDF is available on the Premium plan ($39/mo). Upgrade at almstins.com/dashboard/billing.',
-          planRequired: 'unlimited',
+          error: 'The Year Summary PDF is available on any paid plan. Upgrade at almstins.com/dashboard/billing.',
+          planRequired: 'paid',
           currentPlan: plan.id,
         }),
         { status: 403, headers: { 'Content-Type': 'application/json' } },

@@ -16,6 +16,7 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
+import { getActivePlan } from '../../../lib/subscriptions';
 
 const PAGE_SIZE = 50; // rows before repeating the page header
 
@@ -86,6 +87,20 @@ export const GET: APIRoute = async ({ request, url }) => {
     const session = await requireTenantSession(request);
     const { tenantId } = session ?? {}
     if (!tenantId) return new Response('Unauthorized', { status: 401 });
+
+    // ── Paywall check ─────────────────────────────────────────────────────────
+    const plan = await getActivePlan(tenantId);
+    if (plan.id === 'free') {
+      return new Response(
+        JSON.stringify({
+          error: 'The Gain/Loss CSV is available on any paid plan. Upgrade at almstins.com/dashboard/billing.',
+          planRequired: 'paid',
+          currentPlan: plan.id,
+        }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
     const params  = new URL(url).searchParams;
     const section = params.get('section') ?? 'shortTerm';
     const yearRaw = params.get('year');
