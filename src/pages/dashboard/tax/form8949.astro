@@ -28,49 +28,38 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 	<div id="app">
 
 		<!-- Screen-only header -->
-		<div class="print:hidden flex items-start justify-between flex-wrap gap-4">
-			<div>
-				<a href="/dashboard/tax" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
-				<h1 class="text-2xl font-bold text-gray-900">Form 8949</h1>
-				<p class="text-sm text-gray-500 mt-1">
-					Sales and Other Dispositions of Capital Assets — attach to Schedule D.
-				</p>
+		<div class="f8-header">
+			<div class="f8-header__left">
+				<a href="/dashboard/tax" class="f8-back">← Tax Center</a>
+				<h1 class="f8-title">Form 8949</h1>
+				<p class="f8-subtitle">Sales and Other Dispositions of Capital Assets — attach to Schedule D.</p>
 			</div>
-			<div class="flex items-center gap-3 flex-wrap">
+			<div class="f8-controls">
 				<!-- Year + method selectors -->
-				<select id="year-sel" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+				<select id="year-sel" class="f8-select">
 					{Array.from({ length: 8 }, (_, i) => currentYear - 1 - i).map(y => (
 						<option value={y} selected={y === initialYear}>{y}</option>
 					))}
 				</select>
-				<select id="method-sel" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+				<select id="method-sel" class="f8-select">
 					<option value="fifo"    selected={methodParam === 'fifo'}>FIFO</option>
 					<option value="hifo"    selected={methodParam === 'hifo'}>HIFO</option>
 					<option value="lifo"    selected={methodParam === 'lifo'}>LIFO</option>
 					<option value="spec_id" selected={methodParam === 'spec_id'}>Spec ID</option>
 				</select>
-				<button id="btn-load"
-				        class="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 transition-colors">
-					Load
-				</button>
-				<button id="btn-csv"
-				        class="rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 transition-colors hidden">
-					↓ CSV
-				</button>
-				<button id="btn-print"
-				        class="rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium px-4 py-2 transition-colors hidden">
-					🖨 Print
-				</button>
+				<button id="btn-load" class="f8-btn f8-btn--primary">Load</button>
+				<button id="btn-csv"  class="f8-btn f8-btn--ghost hidden">↓ CSV</button>
+				<button id="btn-print" class="f8-btn f8-btn--dark hidden">🖨 Print</button>
 			</div>
 		</div>
 
 		<!-- Loading/error/empty states -->
-		<div id="state-loading" class="print:hidden text-center py-16 text-gray-400 text-sm">
-			<div class="animate-spin inline-block w-6 h-6 border-2 border-gray-300 border-t-indigo-500 rounded-full mb-3"></div>
+		<div id="state-loading" class="f8-state-loading">
+			<div class="f8-spinner"></div>
 			<p>Loading Form 8949…</p>
 		</div>
-		<div id="state-error" class="print:hidden hidden rounded-xl border border-red-200 bg-red-50 p-6 text-red-700 text-sm"></div>
-		<div id="state-empty" class="print:hidden hidden empty-state">
+		<div id="state-error" class="f8-state-error hidden"></div>
+		<div id="state-empty" class="hidden empty-state">
 			<div class="empty-state__header">
 				<span class="empty-state__icon">⚠️</span>
 				<div>
@@ -101,28 +90,28 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 		</div>
 
 		<!-- Form output — screen summary cards + printable pages -->
-		<div id="form-output" class="hidden space-y-6">
+		<div id="form-output" class="hidden f8-form-output">
 
 			<!-- Screen-only summary -->
-			<div id="summary-cards" class="print:hidden grid grid-cols-3 gap-4">
-				<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-					<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Total Proceeds</p>
-					<p id="sum-proceeds" class="text-xl font-bold text-gray-900 mt-1"></p>
+			<div id="summary-cards" class="f8-summary-cards">
+				<div class="f8-card">
+					<p class="f8-card__label">Total Proceeds</p>
+					<p id="sum-proceeds" class="f8-card__value"></p>
 				</div>
-				<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-					<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Total Basis</p>
-					<p id="sum-basis" class="text-xl font-bold text-gray-900 mt-1"></p>
+				<div class="f8-card">
+					<p class="f8-card__label">Total Basis</p>
+					<p id="sum-basis" class="f8-card__value"></p>
 				</div>
-				<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-					<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Net Gain / (Loss)</p>
-					<p id="sum-gain" class="text-xl font-bold mt-1"></p>
+				<div class="f8-card">
+					<p class="f8-card__label">Net Gain / (Loss)</p>
+					<p id="sum-gain" class="f8-card__value"></p>
 				</div>
 			</div>
 
 			<!-- BO warning -->
-			<div id="bo-warning" class="print:hidden hidden rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+			<div id="bo-warning" class="f8-bo-warning hidden">
 				<strong>⚠ Some rows are marked BO</strong> (basis not reported). These are transactions where
-				no cost basis was recorded. Review your <a href="/dashboard/tax/review" class="underline">Review Queue</a>
+				no cost basis was recorded. Review your <a href="/dashboard/tax/review" class="f8-link">Review Queue</a>
 				to resolve missing basis before filing.
 			</div>
 
@@ -135,7 +124,7 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 </Layout>
 
 <style>
-/* Safety net — Tailwind may not generate .hidden if it's not in a template */
+/* ── Global safety nets ────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 
 /* ── Page layout ───────────────────────────────────────────────────────────── */
@@ -155,6 +144,150 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 @media print {
 	#app { max-width: none; padding: 0; }
 }
+
+/* ── Screen-only header ────────────────────────────────────────────────────── */
+.f8-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 1rem;
+}
+@media print { .f8-header { display: none; } }
+
+.f8-back {
+	display: inline-block;
+	font-size: .75rem;
+	font-weight: 500;
+	color: #6366f1;
+	text-decoration: none;
+	margin-bottom: .3rem;
+}
+.f8-back:hover { color: #818cf8; }
+
+.f8-title { font-size: 1.5rem; font-weight: 700; color: #fff; margin: 0; }
+.f8-subtitle { font-size: .875rem; color: #9ca3af; margin: .25rem 0 0; }
+
+.f8-controls {
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	flex-wrap: wrap;
+}
+
+.f8-select {
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.12);
+	border-radius: 8px;
+	color: #e5e7eb;
+	font-size: .875rem;
+	padding: .45rem .75rem;
+	outline: none;
+	cursor: pointer;
+	transition: border-color .15s;
+}
+.f8-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.2); }
+.f8-select option { background: #1a1f2e; color: #e5e7eb; }
+
+.f8-btn {
+	border-radius: 8px;
+	font-size: .875rem;
+	font-weight: 500;
+	padding: .45rem 1rem;
+	cursor: pointer;
+	border: 1px solid transparent;
+	transition: background .15s;
+	white-space: nowrap;
+}
+.f8-btn--primary { background: #4f46e5; color: #fff; }
+.f8-btn--primary:hover { background: #4338ca; }
+.f8-btn--ghost { background: rgba(255,255,255,.05); color: #d1d5db; border-color: rgba(255,255,255,.1); }
+.f8-btn--ghost:hover { background: rgba(255,255,255,.09); }
+.f8-btn--dark { background: #1f2937; color: #fff; }
+.f8-btn--dark:hover { background: #111827; }
+
+/* ── Loading state ─────────────────────────────────────────────────────────── */
+.f8-state-loading {
+	text-align: center;
+	padding: 4rem 0;
+	color: #6b7280;
+	font-size: .875rem;
+}
+@media print { .f8-state-loading { display: none; } }
+
+.f8-spinner {
+	display: block;
+	width: 1.5rem;
+	height: 1.5rem;
+	border: 2px solid rgba(255,255,255,.1);
+	border-top-color: #6366f1;
+	border-radius: 50%;
+	animation: f8spin .7s linear infinite;
+	margin: 0 auto .75rem;
+}
+@keyframes f8spin { to { transform: rotate(360deg); } }
+
+/* ── Error state ───────────────────────────────────────────────────────────── */
+.f8-state-error {
+	border: 1px solid rgba(239,68,68,.25);
+	background: rgba(239,68,68,.07);
+	border-radius: 12px;
+	padding: 1.25rem 1.5rem;
+	color: #fca5a5;
+	font-size: .875rem;
+}
+@media print { .f8-state-error { display: none; } }
+
+/* ── Summary cards ─────────────────────────────────────────────────────────── */
+.f8-form-output {
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+.f8-summary-cards {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 1rem;
+}
+@media (max-width: 640px) { .f8-summary-cards { grid-template-columns: 1fr; } }
+@media print { .f8-summary-cards { display: none; } }
+
+.f8-card {
+	background: #161b27;
+	border: 1px solid rgba(255,255,255,.07);
+	border-radius: 12px;
+	padding: 1rem 1.25rem;
+}
+.f8-card__label {
+	font-size: .7rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: .07em;
+	color: #6b7280;
+	margin: 0 0 .3rem;
+}
+.f8-card__value {
+	font-size: 1.25rem;
+	font-weight: 700;
+	color: #fff;
+	margin: 0;
+}
+.f8-gain--positive { color: #34d399 !important; }
+.f8-gain--negative { color: #f87171 !important; }
+
+/* ── BO warning ────────────────────────────────────────────────────────────── */
+.f8-bo-warning {
+	border: 1px solid rgba(251,191,36,.2);
+	background: rgba(251,191,36,.07);
+	border-radius: 10px;
+	padding: 1rem 1.25rem;
+	font-size: .875rem;
+	color: #fde68a;
+	line-height: 1.6;
+}
+@media print { .f8-bo-warning { display: none; } }
+.f8-link { color: #818cf8; text-decoration: underline; }
+.f8-link:hover { color: #a5b4fc; }
 
 /* ── Empty / diagnostic state ──────────────────────────────────────────────── */
 .empty-state {
@@ -422,7 +555,7 @@ function renderForm(data: NonNullable<typeof currentData>) {
 	(document.getElementById('sum-basis')    as HTMLElement).textContent = USD(data.totals.basis);
 	const gainEl = document.getElementById('sum-gain')!;
 	gainEl.textContent  = fmtGain(data.totals.gainLoss);
-	gainEl.className    = `text-xl font-bold mt-1 ${data.totals.gainLoss >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
+	gainEl.className    = `f8-card__value ${data.totals.gainLoss >= 0 ? 'f8-gain--positive' : 'f8-gain--negative'}`;
 
 	// BO warning — check all boxes
 	const allRows = Object.values(data.boxes ?? {}).flatMap(b => b.rows ?? []);
