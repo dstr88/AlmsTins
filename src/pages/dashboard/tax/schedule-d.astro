@@ -398,10 +398,10 @@ function buildTable(lines: Array<{
 		if (line.rowClass === 'total')    tr.style.cssText = 'background:rgba(99,102,241,.18);border-top:2px solid rgba(99,102,241,.5);';
 
 		const gc = line.value != null ? gainClass(line.value) : 'zero';
-		const valColor = gc === 'gain' ? '#6ee7b7' : gc === 'loss' ? '#fca5a5' : '#94a3b8';
+		const valColor = gc === 'gain' ? '#6ee7b7' : gc === 'loss' ? '#fca5a5' : '#e2e8f0';
 		const valHtml = line.value != null
 			? `<span style="color:${valColor}">${fmtGain(line.value)}</span>`
-			: `<span style="color:#94a3b8">—</span>`;
+			: `<span style="color:#e2e8f0">—</span>`;
 
 		const naOpacity = line.na ? 'opacity:0.45;' : '';
 		tr.innerHTML = `
