@@ -1,0 +1,977 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+
+const defaultYear = new Date().getFullYear() - 1;
+const yearParam   = Astro.url.searchParams.get('year');
+const year        = yearParam ? Number(yearParam) : defaultYear;
+
+const apiUrl = new URL(`/api/tax/summary?year=${year}&method=fifo`, Astro.request.url);
+const apiRes = await fetch(apiUrl);
+const data: any = apiRes.ok ? await apiRes.json() : { ok: false };
+
+const byAssetGains: any[]                  = data.byAssetGains  ?? [];
+const lotDetails:   Record<string, any[]>  = data.lotDetails    ?? {};
+const harvestLosses: any[]                 = data.harvestLosses ?? [];
+const availableYears: number[]             = data.availableYears ?? [defaultYear];
+
+// ── Coin classification ────────────────────────────────────────────────────────
+type CoinType = 'L1' | 'DeFi' | 'Wrapped' | 'Stable' | 'Other';
+function classifyCoin(symbol: string): CoinType {
+	const s = symbol.toUpperCase().split('.')[0];
+	const L1s     = new Set(['BTC','ETH','SOL','AVAX','SUI','LTC','MATIC','BNB','ADA','DOT','ATOM','NEAR','FTM','ALGO','RSK','RBTC','ONE','HBAR','APT']);
+	const wrapped = new Set(['WBTC','WETH','WAVAX','WRBTC','WMATIC','WBNB','WSOL','SAVAX']);
+	const stables = new Set(['USDC','USDT','DAI','BUSD','XUSD','DLLR','ZUSD','RUSDT','TUSD','FRAX','LUSD','USDD','GUSD','USDP']);
+	const defi    = new Set(['AAVE','UNI','COMP','SOV','MOC','FISH','BPRO','RIF','CRV','MKR','SNX','YFI','SUSHI','PYTH','GMX','GNS','LINK','GRT']);
+	if (wrapped.has(s)) return 'Wrapped';
+	if (L1s.has(s))     return 'L1';
+	if (stables.has(s)) return 'Stable';
+	if (defi.has(s))    return 'DeFi';
+	return 'Other';
+}
+
+// ── Grade from gain % ──────────────────────────────────────────────────────────
+function getGrade(gainPct: number | null): { grade: string; cls: string } {
+	if (gainPct === null) return { grade: '?',  cls: 'grade-unknown'    };
+	if (gainPct >  100)   return { grade: 'A+', cls: 'grade-aplus'      };
+	if (gainPct >   50)   return { grade: 'A',  cls: 'grade-a'          };
+	if (gainPct >   20)   return { grade: 'B',  cls: 'grade-b'          };
+	if (gainPct >    0)   return { grade: 'C+', cls: 'grade-c'          };
+	if (gainPct >  -20)   return { grade: 'D',  cls: 'grade-d'          };
+	return                       { grade: 'F',  cls: 'grade-f'          };
+}
+
+// ── Per-asset lot stats ────────────────────────────────────────────────────────
+function getLotStats(asset: string) {
+	const lots = lotDetails[asset] ?? [];
+	let cost = 0, proceeds = 0, lastSell = '', firstBuy = '';
+	for (const lot of lots) {
+		cost     += lot.costUsd     ?? 0;
+		proceeds += lot.proceedsUsd ?? 0;
+		if (!lastSell || lot.sellDate > lastSell) lastSell = lot.sellDate;
+		if (!firstBuy  || lot.buyDate  < firstBuy) firstBuy = lot.buyDate;
+	}
+	const gainPct = cost > 0 ? ((proceeds - cost) / cost) * 100 : null;
+	return { cost, proceeds, lastSell, firstBuy, gainPct, lotCount: lots.length };
+}
+
+// ── Graduated vs Still Enrolled ────────────────────────────────────────────────
+const heldSet     = new Set(harvestLosses.map((h: any) => h.asset));
+const graduated   = byAssetGains.filter((a: any) => !heldSet.has(a.asset));
+const enrolled    = harvestLosses;
+const gainsByAsset = new Map(byAssetGains.map((a: any) => [a.asset, a]));
+
+// ── Group by coin type ─────────────────────────────────────────────────────────
+function groupByType<T>(arr: T[], key: (item: T) => string): Record<CoinType, T[]> {
+	const out: Record<string, T[]> = { L1: [], DeFi: [], Wrapped: [], Stable: [], Other: [] };
+	for (const item of arr) {
+		out[classifyCoin(key(item))].push(item);
+	}
+	return out as Record<CoinType, T[]>;
+}
+const gradGroups   = groupByType(graduated,    (a: any) => a.asset);
+const enrollGroups = groupByType(enrolled,     (h: any) => h.asset);
+
+const TYPE_ORDER: CoinType[] = ['L1', 'DeFi', 'Wrapped', 'Stable', 'Other'];
+const TYPE_META: Record<CoinType, { label: string; icon: string }> = {
+	L1:      { label: 'Layer 1s',    icon: '⛓️' },
+	DeFi:    { label: 'DeFi Tokens', icon: '⚡' },
+	Wrapped: { label: 'Wrapped',     icon: '🎁' },
+	Stable:  { label: 'Stablecoins', icon: '🏛️' },
+	Other:   { label: 'Other',       icon: '🔮' },
+};
+
+// ── Totals ─────────────────────────────────────────────────────────────────────
+const totalGradGain = graduated.reduce((s: number, a: any) => s + a.netGain, 0);
+
+// ── Formatters ─────────────────────────────────────────────────────────────────
+function fmt(n: number) {
+	return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+}
+function fmtDate(d: string) {
+	if (!d) return '—';
+	try { return new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+	catch { return d.slice(0, 10); }
+}
+function fmtQty(n: number) {
+	return n.toLocaleString('en-US', { maximumFractionDigits: 8 });
+}
+function logoUrl(symbol: string) {
+	return `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/${symbol.toLowerCase().split('.')[0]}.svg`;
+}
+function timelineId(asset: string) {
+	return `tl-${asset.replace(/[^a-z0-9]/gi, '_')}`;
+}
+---
+
+<Layout title={`Memory Lane ${year} | almsTins`} noindex={true}>
+<div class="ml-page">
+
+	<!-- ── Back link ─────────────────────────────────────────────────────── -->
+	<a href="/dashboard/vault" class="ml-back">← Dashboard</a>
+
+	<!-- ── Hero ──────────────────────────────────────────────────────────── -->
+	<header class="ml-hero">
+		<div class="ml-hero__cap">🎓</div>
+		<h1 class="ml-hero__title">Memory Lane</h1>
+		<p class="ml-hero__sub">Class of {year} — every coin you've bought, held, and sold</p>
+
+		<div class="ml-year-pills">
+			{availableYears.map((y) => (
+				<a href={`?year=${y}`} class={`ml-year-pill${y === year ? ' active' : ''}`}>{y}</a>
+			))}
+		</div>
+	</header>
+
+	<!-- ── Stats banner ──────────────────────────────────────────────────── -->
+	{(graduated.length > 0 || enrolled.length > 0) && (
+		<div class="ml-stats">
+			<div class="ml-stat">
+				<span class="ml-stat__num">{graduated.length}</span>
+				<span class="ml-stat__label">Graduated</span>
+			</div>
+			<div class="ml-stat">
+				<span class={`ml-stat__num ${totalGradGain >= 0 ? 'positive' : 'negative'}`}>
+					{fmt(totalGradGain)}
+				</span>
+				<span class="ml-stat__label">Realized P&L</span>
+			</div>
+			<div class="ml-stat">
+				<span class="ml-stat__num enrolled-num">{enrolled.length}</span>
+				<span class="ml-stat__label">Still Enrolled</span>
+			</div>
+		</div>
+	)}
+
+	<!-- ══════════════════════════════════════════════════════════════════════
+	     GRADUATED SECTION
+	══════════════════════════════════════════════════════════════════════ -->
+	{graduated.length > 0 && (
+		<section class="ml-section">
+			<div class="ml-section__header ml-section__header--grad">
+				<span class="ml-section__icon">🎓</span>
+				<div>
+					<h2 class="ml-section__title">Graduated</h2>
+					<p class="ml-section__sub">Fully exited — the journey is complete</p>
+				</div>
+				<span class="ml-section__count">{graduated.length} coin{graduated.length !== 1 ? 's' : ''}</span>
+			</div>
+
+			{TYPE_ORDER.map((type) => {
+				const group = gradGroups[type];
+				if (!group?.length) return null;
+				const meta = TYPE_META[type];
+				return (
+					<div class="ml-type-group">
+						<div class="ml-type-label">
+							<span>{meta.icon}</span>
+							<span>{meta.label}</span>
+						</div>
+						<div class="ml-cards">
+							{group.map((asset: any) => {
+								const stats  = getLotStats(asset.asset);
+								const grade  = getGrade(stats.gainPct);
+								const lots   = lotDetails[asset.asset] ?? [];
+								const isWin  = asset.netGain >= 0;
+								return (
+									<div class={`ml-card ml-card--grad${isWin ? ' ml-card--win' : ' ml-card--loss'}`}
+									     data-asset={asset.asset}>
+										<div class="ml-card__inner">
+
+											<!-- Coin identity -->
+											<div class="ml-card__top">
+												<div class="ml-logo-wrap">
+													<img class="ml-coin-logo"
+													     src={logoUrl(asset.asset)}
+													     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+													     alt={asset.asset} />
+													<div class="ml-coin-fallback" style="display:none">{asset.asset.slice(0, 3)}</div>
+												</div>
+												<div class="ml-card__nameblock">
+													<span class="ml-coin-ticker">{asset.asset}</span>
+													<span class="ml-grad-date">🎓 {fmtDate(stats.lastSell)}</span>
+												</div>
+												<div class={`ml-grade ${grade.cls}`} title={`Final grade: ${grade.grade}`}>
+													{grade.grade}
+												</div>
+											</div>
+
+											<!-- P&L -->
+											<div class="ml-card__pnl">
+												<span class={`ml-pnl-num ${isWin ? 'positive' : 'negative'}`}>
+													{isWin ? '+' : ''}{fmt(asset.netGain)}
+												</span>
+												{stats.gainPct !== null && (
+													<span class={`ml-pnl-pct ${isWin ? 'positive' : 'negative'}`}>
+														{isWin ? '+' : ''}{stats.gainPct.toFixed(1)}%
+													</span>
+												)}
+											</div>
+
+											<!-- Meta -->
+											<div class="ml-card__meta">
+												{lots.length > 0 && <span>{lots.length} lot{lots.length !== 1 ? 's' : ''}</span>}
+												{lots.length > 0 && (asset.stLots > 0 || asset.ltLots > 0) && <span>·</span>}
+												{asset.stLots > 0 && <span class="st-tag">{asset.stLots} short-term</span>}
+												{asset.stLots > 0 && asset.ltLots > 0 && <span>·</span>}
+												{asset.ltLots > 0 && <span class="lt-tag">{asset.ltLots} long-term</span>}
+											</div>
+
+											{/* Transcript toggle */}
+											{lots.length > 0 && (
+												<button class="ml-transcript-btn" data-asset={asset.asset}>
+													View Transcript <span class="ml-chevron">▾</span>
+												</button>
+											)}
+										</div>
+
+										{/* Expanded timeline */}
+										{lots.length > 0 && (
+											<div class="ml-timeline" id={timelineId(asset.asset)} hidden>
+												<div class="ml-timeline__header">
+													{asset.asset} · Full Trading History · {lots.length} disposal{lots.length !== 1 ? 's' : ''}
+												</div>
+												<div class="ml-timeline__track">
+													{lots.map((lot: any) => {
+														const gain = lot.gainLossUsd ?? 0;
+														const isLotWin = gain >= 0;
+														return (
+															<div class="ml-tl-pair">
+																<!-- BUY node -->
+																<div class="ml-tl-node">
+																	<div class="ml-tl-dot ml-tl-dot--buy"></div>
+																	<div class="ml-tl-content">
+																		<span class="ml-tl-action buy">BUY</span>
+																		<span class="ml-tl-date">{fmtDate(lot.buyDate)}</span>
+																		<span class="ml-tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
+																		<span class="ml-tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
+																	</div>
+																</div>
+																<!-- Connector -->
+																<div class="ml-tl-connector">
+																	<div class="ml-tl-line"></div>
+																	<span class="ml-tl-held">
+																		{lot.daysHeld}d held ·
+																		<span class={lot.term === 'long' ? 'lt-badge' : 'st-badge'}>
+																			{lot.term === 'long' ? 'Long-term' : 'Short-term'}
+																		</span>
+																	</span>
+																</div>
+																<!-- SELL node -->
+																<div class="ml-tl-node">
+																	<div class={`ml-tl-dot ml-tl-dot--sell ${isLotWin ? 'win' : 'loss'}`}></div>
+																	<div class="ml-tl-content">
+																		<span class="ml-tl-action sell">SELL</span>
+																		<span class="ml-tl-date">{fmtDate(lot.sellDate)}</span>
+																		<span class="ml-tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
+																		<span class="ml-tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
+																		{lot.gainLossUsd != null && (
+																			<span class={`ml-tl-gain ${isLotWin ? 'positive' : 'negative'}`}>
+																				{isLotWin ? '+' : ''}{fmt(lot.gainLossUsd)}
+																			</span>
+																		)}
+																	</div>
+																</div>
+															</div>
+														);
+													})}
+												</div>
+											</div>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					</div>
+				);
+			})}
+		</section>
+	)}
+
+	<!-- ══════════════════════════════════════════════════════════════════════
+	     STILL ENROLLED SECTION
+	══════════════════════════════════════════════════════════════════════ -->
+	{enrolled.length > 0 && (
+		<section class="ml-section">
+			<div class="ml-section__header ml-section__header--enroll">
+				<span class="ml-section__icon">📚</span>
+				<div>
+					<h2 class="ml-section__title">Still Enrolled</h2>
+					<p class="ml-section__sub">Open positions — grade still being calculated</p>
+				</div>
+				<span class="ml-section__count">{enrolled.length} coin{enrolled.length !== 1 ? 's' : ''}</span>
+			</div>
+
+			{TYPE_ORDER.map((type) => {
+				const group = enrollGroups[type];
+				if (!group?.length) return null;
+				const meta = TYPE_META[type];
+				return (
+					<div class="ml-type-group">
+						<div class="ml-type-label">
+							<span>{meta.icon}</span>
+							<span>{meta.label}</span>
+						</div>
+						<div class="ml-cards">
+							{group.map((h: any) => {
+								const soldGains = gainsByAsset.get(h.asset);
+								const lots      = lotDetails[h.asset] ?? [];
+								const isUp      = (h.unrealizedGainLoss ?? 0) >= 0;
+								return (
+									<div class="ml-card ml-card--enroll" data-asset={h.asset}>
+										<div class="ml-card__inner">
+
+											<div class="ml-card__top">
+												<div class="ml-logo-wrap">
+													<img class="ml-coin-logo"
+													     src={logoUrl(h.asset)}
+													     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+													     alt={h.asset} />
+													<div class="ml-coin-fallback" style="display:none">{h.asset.slice(0, 3)}</div>
+												</div>
+												<div class="ml-card__nameblock">
+													<span class="ml-coin-ticker">{h.asset}</span>
+													<span class="ml-enroll-status">📚 In progress</span>
+												</div>
+												<div class="ml-grade grade-incomplete" title="Grade in progress">IP</div>
+											</div>
+
+											<div class="ml-card__pnl">
+												{h.unrealizedGainLoss != null ? (
+													<span class={`ml-pnl-num ${isUp ? 'positive' : 'negative'}`}>
+														{isUp ? '+' : ''}{fmt(h.unrealizedGainLoss)}
+													</span>
+												) : (
+													<span class="ml-pnl-num neutral">Unpriced</span>
+												)}
+												<span class="ml-pnl-label">unrealized</span>
+											</div>
+
+											<div class="ml-card__meta">
+												<span>{fmtQty(h.totalQty)} held</span>
+												{h.currentPrice != null && (
+													<>
+														<span>·</span>
+														<span>${h.currentPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })} / coin</span>
+													</>
+												)}
+											</div>
+
+											{soldGains && (
+												<div class="ml-card__sold-note">
+													Also sold {soldGains.stLots + soldGains.ltLots} lot(s) this year &middot; {fmt(soldGains.netGain)} realized
+												</div>
+											)}
+
+											{lots.length > 0 && (
+												<button class="ml-transcript-btn ml-transcript-btn--enroll" data-asset={h.asset}>
+													View Sold Lots <span class="ml-chevron">▾</span>
+												</button>
+											)}
+										</div>
+
+										{lots.length > 0 && (
+											<div class="ml-timeline ml-timeline--enroll" id={timelineId(h.asset)} hidden>
+												<div class="ml-timeline__header">
+													{h.asset} · Sold Lots This Year · {lots.length} disposal{lots.length !== 1 ? 's' : ''}
+												</div>
+												<div class="ml-timeline__track">
+													{lots.map((lot: any) => {
+														const gain = lot.gainLossUsd ?? 0;
+														const isLotWin = gain >= 0;
+														return (
+															<div class="ml-tl-pair">
+																<div class="ml-tl-node">
+																	<div class="ml-tl-dot ml-tl-dot--buy"></div>
+																	<div class="ml-tl-content">
+																		<span class="ml-tl-action buy">BUY</span>
+																		<span class="ml-tl-date">{fmtDate(lot.buyDate)}</span>
+																		<span class="ml-tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
+																		<span class="ml-tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
+																	</div>
+																</div>
+																<div class="ml-tl-connector">
+																	<div class="ml-tl-line"></div>
+																	<span class="ml-tl-held">
+																		{lot.daysHeld}d ·
+																		<span class={lot.term === 'long' ? 'lt-badge' : 'st-badge'}>
+																			{lot.term === 'long' ? 'Long-term' : 'Short-term'}
+																		</span>
+																	</span>
+																</div>
+																<div class="ml-tl-node">
+																	<div class={`ml-tl-dot ml-tl-dot--sell ${isLotWin ? 'win' : 'loss'}`}></div>
+																	<div class="ml-tl-content">
+																		<span class="ml-tl-action sell">SELL</span>
+																		<span class="ml-tl-date">{fmtDate(lot.sellDate)}</span>
+																		<span class="ml-tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
+																		<span class="ml-tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
+																		{lot.gainLossUsd != null && (
+																			<span class={`ml-tl-gain ${isLotWin ? 'positive' : 'negative'}`}>
+																				{isLotWin ? '+' : ''}{fmt(lot.gainLossUsd)}
+																			</span>
+																		)}
+																	</div>
+																</div>
+															</div>
+														);
+													})}
+												</div>
+											</div>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					</div>
+				);
+			})}
+		</section>
+	)}
+
+	<!-- ── Empty state ────────────────────────────────────────────────────── -->
+	{graduated.length === 0 && enrolled.length === 0 && (
+		<div class="ml-empty">
+			<div class="ml-empty__icon">📭</div>
+			<p class="ml-empty__title">No activity found for {year}</p>
+			<p class="ml-empty__sub">Select a different year above, or make sure your transactions are synced.</p>
+		</div>
+	)}
+
+</div>
+</Layout>
+
+<style>
+/* ── Page shell ───────────────────────────────────────────────────────── */
+.ml-page {
+	max-width: 1040px;
+	margin: 0 auto;
+	padding: 1.5rem 1.25rem 6rem;
+	color: #f1f5f9;
+}
+
+.ml-back {
+	display: inline-block;
+	font-size: 0.78rem;
+	color: #64748b;
+	text-decoration: none;
+	margin-bottom: 1.5rem;
+	transition: color 0.15s;
+}
+.ml-back:hover { color: #94a3b8; }
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.ml-hero {
+	text-align: center;
+	padding: 2rem 0 2.5rem;
+}
+.ml-hero__cap {
+	font-size: 4.5rem;
+	display: inline-block;
+	animation: float 3.5s ease-in-out infinite;
+	margin-bottom: 0.4rem;
+}
+@keyframes float {
+	0%, 100% { transform: translateY(0) rotate(-2deg); }
+	50%       { transform: translateY(-12px) rotate(2deg); }
+}
+.ml-hero__title {
+	font-size: clamp(2.75rem, 7vw, 4.5rem);
+	font-weight: 900;
+	letter-spacing: -0.04em;
+	line-height: 1;
+	margin: 0 0 0.6rem;
+	background: linear-gradient(135deg, #f59e0b 0%, #fcd34d 45%, #f59e0b 100%);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+.ml-hero__sub {
+	font-size: 1rem;
+	color: #64748b;
+	margin: 0 0 1.75rem;
+}
+
+/* Year pills */
+.ml-year-pills {
+	display: flex;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+.ml-year-pill {
+	padding: 0.35rem 1.1rem;
+	border-radius: 999px;
+	border: 1px solid rgba(255,255,255,0.1);
+	background: rgba(255,255,255,0.03);
+	color: #64748b;
+	font-size: 0.82rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: all 0.15s;
+}
+.ml-year-pill:hover { border-color: rgba(245,158,11,0.4); color: #fbbf24; }
+.ml-year-pill.active {
+	background: rgba(245,158,11,0.12);
+	border-color: rgba(245,158,11,0.45);
+	color: #fbbf24;
+}
+
+/* ── Stats banner ─────────────────────────────────────────────────────── */
+.ml-stats {
+	display: flex;
+	justify-content: center;
+	gap: 3rem;
+	flex-wrap: wrap;
+	padding: 1.75rem 2rem;
+	background: rgba(255,255,255,0.025);
+	border: 1px solid rgba(255,255,255,0.07);
+	border-radius: 20px;
+	margin-bottom: 3.5rem;
+}
+.ml-stat {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.3rem;
+}
+.ml-stat__num {
+	font-size: 2.25rem;
+	font-weight: 900;
+	line-height: 1;
+	letter-spacing: -0.02em;
+	color: #f1f5f9;
+}
+.ml-stat__num.positive  { color: #4ade80; text-shadow: 0 0 24px rgba(74,222,128,0.35); }
+.ml-stat__num.negative  { color: #f87171; text-shadow: 0 0 24px rgba(248,113,113,0.35); }
+.ml-stat__num.enrolled-num { color: #818cf8; }
+.ml-stat__label {
+	font-size: 0.68rem;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	color: #475569;
+	font-weight: 700;
+}
+
+/* ── Section ──────────────────────────────────────────────────────────── */
+.ml-section { margin-bottom: 4.5rem; }
+
+.ml-section__header {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	padding: 1.25rem 1.5rem;
+	border-radius: 18px;
+	margin-bottom: 2rem;
+}
+.ml-section__header--grad {
+	background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(251,191,36,0.04));
+	border: 1px solid rgba(245,158,11,0.22);
+}
+.ml-section__header--enroll {
+	background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.04));
+	border: 1px solid rgba(99,102,241,0.22);
+}
+.ml-section__icon { font-size: 2.25rem; flex-shrink: 0; }
+.ml-section__title {
+	font-size: 1.6rem;
+	font-weight: 900;
+	margin: 0 0 0.15rem;
+	letter-spacing: -0.02em;
+}
+.ml-section__sub { font-size: 0.82rem; color: #475569; margin: 0; }
+.ml-section__count {
+	margin-left: auto;
+	font-size: 0.82rem;
+	font-weight: 700;
+	color: #475569;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+/* ── Type group ───────────────────────────────────────────────────────── */
+.ml-type-group { margin-bottom: 2.25rem; }
+.ml-type-label {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	font-size: 0.68rem;
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.14em;
+	color: #334155;
+	margin-bottom: 0.9rem;
+	padding-left: 0.1rem;
+}
+
+/* ── Cards grid ───────────────────────────────────────────────────────── */
+.ml-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+	gap: 1.1rem;
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+.ml-card {
+	border-radius: 22px;
+	overflow: hidden;
+	cursor: pointer;
+	animation: cardIn 0.45s ease both;
+	transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ml-card:hover {
+	transform: translateY(-6px);
+	box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+@keyframes cardIn {
+	from { opacity: 0; transform: translateY(24px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Graduated — winner */
+.ml-card--grad {
+	border: 2px solid rgba(245,158,11,0.25);
+	background: linear-gradient(160deg,
+		rgba(245,158,11,0.07) 0%,
+		rgba(15,17,30,0.97)  55%);
+}
+.ml-card--grad.ml-card--win {
+	border-color: rgba(74,222,128,0.28);
+	background: linear-gradient(160deg,
+		rgba(74,222,128,0.07) 0%,
+		rgba(15,17,30,0.97)  55%);
+}
+.ml-card--grad.ml-card--loss {
+	border-color: rgba(248,113,113,0.22);
+	background: linear-gradient(160deg,
+		rgba(248,113,113,0.06) 0%,
+		rgba(15,17,30,0.97)   55%);
+}
+
+/* Still enrolled */
+.ml-card--enroll {
+	border: 2px solid rgba(99,102,241,0.22);
+	background: linear-gradient(160deg,
+		rgba(99,102,241,0.07) 0%,
+		rgba(15,17,30,0.97)  55%);
+}
+
+.ml-card__inner {
+	padding: 1.4rem 1.4rem 1.2rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.9rem;
+}
+
+/* ── Card top row ─────────────────────────────────────────────────────── */
+.ml-card__top {
+	display: flex;
+	align-items: center;
+	gap: 0.9rem;
+}
+.ml-logo-wrap {
+	flex-shrink: 0;
+	width: 48px;
+	height: 48px;
+	position: relative;
+}
+.ml-coin-logo {
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	object-fit: contain;
+	background: rgba(255,255,255,0.06);
+	padding: 5px;
+	border: 1px solid rgba(255,255,255,0.08);
+}
+.ml-coin-fallback {
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.7rem;
+	font-weight: 900;
+	background: linear-gradient(135deg, #5767ff, #934dff);
+	color: #fff;
+	letter-spacing: -0.02em;
+	border: 1px solid rgba(255,255,255,0.1);
+}
+.ml-card__nameblock {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+.ml-coin-ticker {
+	font-size: 1.5rem;
+	font-weight: 900;
+	color: #f1f5f9;
+	letter-spacing: -0.03em;
+	line-height: 1;
+}
+.ml-grad-date    { font-size: 0.72rem; color: #d97706; font-weight: 600; }
+.ml-enroll-status { font-size: 0.72rem; color: #818cf8; font-weight: 600; }
+
+/* ── Grade badge ──────────────────────────────────────────────────────── */
+.ml-grade {
+	width: 46px;
+	height: 46px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.95rem;
+	font-weight: 900;
+	font-style: italic;
+	flex-shrink: 0;
+	border: 2.5px solid currentColor;
+	transform: rotate(-8deg);
+	animation: stampIn 0.5s 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+@keyframes stampIn {
+	from { opacity: 0; transform: rotate(-15deg) scale(0.5); }
+	to   { opacity: 1; transform: rotate(-8deg)  scale(1);   }
+}
+.grade-aplus   { color: #22c55e; background: rgba(34,197,94,0.12);   box-shadow: 0 0 14px rgba(34,197,94,0.3);   }
+.grade-a       { color: #4ade80; background: rgba(74,222,128,0.1);   box-shadow: 0 0 12px rgba(74,222,128,0.25); }
+.grade-b       { color: #86efac; background: rgba(134,239,172,0.08); }
+.grade-c       { color: #fbbf24; background: rgba(251,191,36,0.1);   }
+.grade-d       { color: #f97316; background: rgba(249,115,22,0.1);   }
+.grade-f       { color: #ef4444; background: rgba(239,68,68,0.12);   box-shadow: 0 0 12px rgba(239,68,68,0.25); }
+.grade-unknown { color: #475569; background: rgba(71,85,105,0.1);    }
+.grade-incomplete {
+	color: #818cf8;
+	background: rgba(129,140,248,0.1);
+	font-style: normal;
+	font-size: 0.6rem;
+	letter-spacing: 0.05em;
+}
+
+/* ── P&L ──────────────────────────────────────────────────────────────── */
+.ml-card__pnl {
+	display: flex;
+	align-items: baseline;
+	gap: 0.65rem;
+	flex-wrap: wrap;
+}
+.ml-pnl-num {
+	font-size: 1.9rem;
+	font-weight: 900;
+	letter-spacing: -0.03em;
+	line-height: 1;
+}
+.ml-pnl-num.positive { color: #4ade80; text-shadow: 0 0 22px rgba(74,222,128,0.3); }
+.ml-pnl-num.negative { color: #f87171; text-shadow: 0 0 22px rgba(248,113,113,0.3); }
+.ml-pnl-num.neutral  { color: #475569; }
+.ml-pnl-pct {
+	font-size: 0.95rem;
+	font-weight: 700;
+}
+.ml-pnl-pct.positive { color: #4ade80; }
+.ml-pnl-pct.negative { color: #f87171; }
+.ml-pnl-label { font-size: 0.72rem; color: #475569; font-style: italic; }
+
+/* ── Meta / tags ──────────────────────────────────────────────────────── */
+.ml-card__meta {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-size: 0.75rem;
+	color: #334155;
+	flex-wrap: wrap;
+}
+.st-tag { color: #fbbf24; font-weight: 700; }
+.lt-tag { color: #818cf8; font-weight: 700; }
+
+/* Sold note (enrolled with partial exits) */
+.ml-card__sold-note {
+	font-size: 0.72rem;
+	color: #6366f1;
+	background: rgba(99,102,241,0.08);
+	border: 1px solid rgba(99,102,241,0.15);
+	border-radius: 8px;
+	padding: 0.45rem 0.7rem;
+}
+
+/* ── Transcript button ────────────────────────────────────────────────── */
+.ml-transcript-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	padding: 0.6rem 1rem;
+	border-radius: 12px;
+	border: 1px solid rgba(255,255,255,0.09);
+	background: rgba(255,255,255,0.03);
+	color: #64748b;
+	font-size: 0.8rem;
+	font-weight: 700;
+	cursor: pointer;
+	width: 100%;
+	font-family: inherit;
+	letter-spacing: 0.02em;
+	transition: all 0.15s;
+	margin-top: 0.1rem;
+}
+.ml-transcript-btn:hover {
+	border-color: rgba(245,158,11,0.35);
+	color: #fbbf24;
+	background: rgba(245,158,11,0.05);
+}
+.ml-transcript-btn--enroll:hover {
+	border-color: rgba(99,102,241,0.35);
+	color: #818cf8;
+	background: rgba(99,102,241,0.05);
+}
+.ml-transcript-btn.open {
+	border-color: rgba(245,158,11,0.3);
+	color: #fbbf24;
+}
+.ml-chevron {
+	font-size: 1rem;
+	transition: transform 0.2s ease;
+	display: inline-block;
+}
+.ml-transcript-btn.open .ml-chevron { transform: rotate(180deg); }
+
+/* ── Timeline ─────────────────────────────────────────────────────────── */
+.ml-timeline {
+	border-top: 1px solid rgba(255,255,255,0.06);
+	background: rgba(0,0,0,0.3);
+	padding: 1.25rem 1.4rem 1.5rem;
+}
+.ml-timeline--enroll {
+	border-top-color: rgba(99,102,241,0.15);
+}
+.ml-timeline__header {
+	font-size: 0.68rem;
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	color: #334155;
+	margin-bottom: 1.25rem;
+}
+.ml-timeline__track {
+	display: flex;
+	flex-direction: column;
+}
+
+/* Lot pair */
+.ml-tl-pair { display: flex; flex-direction: column; }
+.ml-tl-pair:not(:last-child) { margin-bottom: 0.25rem; }
+
+/* Node row */
+.ml-tl-node {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.85rem;
+}
+.ml-tl-dot {
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	margin-top: 0.35rem;
+}
+.ml-tl-dot--buy           { background: #6366f1; box-shadow: 0 0 8px rgba(99,102,241,0.5); }
+.ml-tl-dot--sell.win      { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.5);  }
+.ml-tl-dot--sell.loss     { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.4);  }
+
+.ml-tl-content {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem 0.65rem;
+	padding-bottom: 0.3rem;
+	font-size: 0.8rem;
+}
+.ml-tl-action {
+	font-weight: 800;
+	font-size: 0.65rem;
+	letter-spacing: 0.1em;
+	padding: 0.1rem 0.45rem;
+	border-radius: 4px;
+}
+.ml-tl-action.buy  { background: rgba(99,102,241,0.15); color: #818cf8; }
+.ml-tl-action.sell { background: rgba(239,68,68,0.1);   color: #f87171; }
+.ml-tl-date  { color: #64748b; }
+.ml-tl-qty   { color: #e2e8f0; font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; }
+.ml-tl-usd   { color: #475569; }
+.ml-tl-gain  { font-weight: 800; }
+.ml-tl-gain.positive { color: #4ade80; }
+.ml-tl-gain.negative { color: #f87171; }
+
+/* Connector (the vertical line between buy and sell) */
+.ml-tl-connector {
+	display: flex;
+	align-items: center;
+	gap: 0.85rem;
+	padding: 0.05rem 0;
+	margin-left: 4px;
+}
+.ml-tl-line {
+	width: 3px;
+	height: 24px;
+	background: linear-gradient(to bottom,
+		rgba(99,102,241,0.5),
+		rgba(239,68,68,0.35));
+	border-radius: 2px;
+	flex-shrink: 0;
+}
+.ml-tl-held { font-size: 0.7rem; color: #334155; white-space: nowrap; }
+.lt-badge { color: #818cf8; font-weight: 800; }
+.st-badge { color: #d97706; font-weight: 800; }
+
+/* ── Empty state ──────────────────────────────────────────────────────── */
+.ml-empty {
+	text-align: center;
+	padding: 6rem 2rem;
+}
+.ml-empty__icon  { font-size: 3.5rem; margin-bottom: 1rem; }
+.ml-empty__title { font-size: 1.25rem; font-weight: 700; color: #64748b; margin: 0 0 0.5rem; }
+.ml-empty__sub   { font-size: 0.9rem;  color: #334155; margin: 0; }
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+	.ml-cards    { grid-template-columns: 1fr; }
+	.ml-stats    { gap: 1.5rem; }
+	.ml-stat__num { font-size: 1.75rem; }
+	.ml-pnl-num  { font-size: 1.5rem; }
+}
+</style>
+
+<script>
+// ── Staggered card entrance ───────────────────────────────────────────────────
+document.querySelectorAll<HTMLElement>('.ml-card').forEach((card, i) => {
+	card.style.animationDelay = `${i * 0.06}s`;
+});
+
+// ── Transcript toggle ─────────────────────────────────────────────────────────
+function toggleTimeline(asset: string) {
+	const id       = 'tl-' + asset.replace(/[^a-z0-9]/gi, '_');
+	const timeline = document.getElementById(id);
+	if (!timeline) return;
+	const isOpen = !timeline.hidden;
+	timeline.hidden = isOpen;
+	// Update all buttons for this asset
+	document.querySelectorAll<HTMLButtonElement>(`[data-asset="${CSS.escape(asset)}"].ml-transcript-btn`)
+		.forEach(btn => btn.classList.toggle('open', !isOpen));
+}
+
+// Button clicks
+document.querySelectorAll<HTMLButtonElement>('.ml-transcript-btn').forEach(btn => {
+	btn.addEventListener('click', (e) => {
+		e.stopPropagation();
+		toggleTimeline(btn.dataset.asset!);
+	});
+});
+
+// Card click (anywhere on the card) also toggles
+document.querySelectorAll<HTMLElement>('.ml-card').forEach(card => {
+	card.addEventListener('click', () => {
+		const asset = card.dataset.asset;
+		if (asset) toggleTimeline(asset);
+	});
+});
+</script>
