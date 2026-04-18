@@ -289,7 +289,7 @@ const defaultYear = currentYear - 1;
 .sched-d-table tr.subtotal .line-val { font-weight: 800; font-size: 1rem; }
 .sched-d-table tr.total td { border-top: 3px solid #374151; background: #f1f5f9; }
 .sched-d-table tr.total .line-val { font-weight: 900; font-size: 1.05rem; }
-.sched-d-table tr.n-a td { opacity: 0.4; }
+.sched-d-table tr.n-a td { opacity: 0.55; color: #9ca3af; }
 .sched-d-table tr:last-child td { border-bottom: none; }
 
 /* ── Next steps ────────────────────────────────────────────────────────────── */
@@ -421,9 +421,9 @@ async function loadScheduleD() {
 		part1El.innerHTML = '';
 		part1El.appendChild(buildTable([
 			{ num: '1a', desc: 'Totals for all short-term transactions reported on Form 1099-B with Box A checked — basis shown to IRS, no adjustments',
-			  note: 'Form 8949 Box A totals', value: bA.gainLoss, na: bA.gainLoss === 0 },
+			  note: 'Form 8949 Box A totals', value: bA.gainLoss },
 			{ num: '1b', desc: 'Totals for all short-term transactions where basis was NOT reported to IRS (Box B)',
-			  note: 'Form 8949 Box B totals', value: bB.gainLoss, na: bB.gainLoss === 0 },
+			  note: 'Form 8949 Box B totals', value: bB.gainLoss },
 			{ num: '2',  desc: 'Totals for short-term transactions NOT on Form 1099-B — includes all pre-2025 crypto',
 			  note: `Form 8949 Box C · ${f8949.boxes.C?.rows?.length ?? 0} transactions · Proceeds ${USD(bC.proceeds)} · Basis ${USD(bC.basis)}`,
 			  value: bC.gainLoss },
@@ -443,9 +443,9 @@ async function loadScheduleD() {
 		part2El.innerHTML = '';
 		part2El.appendChild(buildTable([
 			{ num: '8a', desc: 'Totals for all long-term transactions reported on Form 1099-B with Box D checked — basis shown to IRS, no adjustments',
-			  note: 'Form 8949 Box D totals', value: bD.gainLoss, na: bD.gainLoss === 0 },
+			  note: 'Form 8949 Box D totals', value: bD.gainLoss },
 			{ num: '8b', desc: 'Totals for long-term transactions where basis was NOT reported to IRS (Box E)',
-			  note: 'Form 8949 Box E totals', value: bE.gainLoss, na: bE.gainLoss === 0 },
+			  note: 'Form 8949 Box E totals', value: bE.gainLoss },
 			{ num: '9',  desc: 'Totals for long-term transactions NOT on Form 1099-B — includes all pre-2025 crypto',
 			  note: `Form 8949 Box F · ${f8949.boxes.F?.rows?.length ?? 0} transactions · Proceeds ${USD(bF.proceeds)} · Basis ${USD(bF.basis)}`,
 			  value: bF.gainLoss },
