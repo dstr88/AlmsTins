@@ -308,21 +308,21 @@ const defaultYear = currentYear - 1;
 
 <!-- Table styles must be global — table DOM is built by JS, Astro scoping won't reach it -->
 <style is:global>
-.sched-d-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-.sched-d-table td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.sched-d-table { width: 100%; border-collapse: collapse; font-size: 1rem; }
+.sched-d-table td { padding: 13px 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
 .sched-d-table .line-num {
 	width: 3rem;
 	font-weight: 700;
-	color: #6366f1;
+	color: #818cf8;
 	text-align: center;
-	font-size: .85rem;
+	font-size: .9rem;
 	vertical-align: top;
-	padding-top: 14px;
+	padding-top: 15px;
 }
-.sched-d-table .line-desc { color: #e5e7eb; line-height: 1.6; }
+.sched-d-table .line-desc { color: #fff; line-height: 1.6; }
 .sched-d-table .line-note {
-	font-size: 0.72rem;
-	color: #6b7280;
+	font-size: 0.78rem;
+	color: #9ca3af;
 	display: block;
 	margin-top: 3px;
 	line-height: 1.4;
@@ -331,12 +331,12 @@ const defaultYear = currentYear - 1;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
 	font-weight: 600;
-	font-size: 0.95rem;
+	font-size: 1rem;
 	min-width: 8rem;
 	white-space: nowrap;
-	color: #e5e7eb;
+	color: #f1f5f9;
 	vertical-align: top;
-	padding-top: 14px;
+	padding-top: 15px;
 }
 .sched-d-table .line-val.gain { color: #34d399; }
 .sched-d-table .line-val.loss { color: #f87171; }
