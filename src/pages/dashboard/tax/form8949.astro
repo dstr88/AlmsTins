@@ -135,6 +135,9 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 </Layout>
 
 <style>
+/* Safety net — Tailwind may not generate .hidden if it's not in a template */
+.hidden { display: none !important; }
+
 /* ── Page layout ───────────────────────────────────────────────────────────── */
 #app {
 	width: 100%;

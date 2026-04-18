@@ -122,146 +122,352 @@ const CATEGORY_OPTIONS = [
 ---
 
 <Layout title="Tax Review | Almstins" noindex={true}>
-	<div class="max-w-4xl mx-auto px-4 py-8 space-y-8">
+	<div id="app">
 
 		<!-- Header -->
-		<div class="flex items-center justify-between flex-wrap gap-4">
+		<div class="rq-header">
 			<div>
-				<a href="/dashboard/tax" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
-				<h1 class="text-2xl font-bold text-gray-900">Tax Review Queue</h1>
-				<p class="text-sm text-gray-500 mt-1">
+				<a href="/dashboard/tax" class="page-back">← Tax Center</a>
+				<h1 class="page-title">Tax Review Queue</h1>
+				<p class="page-subtitle">
 					{items.length === 0
 						? 'All items resolved — your Year Summary is complete.'
-						: `${items.length} item${items.length !== 1 ? 's' : ''} need your attention before the summary is final.`}
+						: `${items.length} item${items.length !== 1 ? 's' : ''} need${items.length === 1 ? 's' : ''} your attention before the summary is final.`}
 				</p>
 			</div>
-			<div class="flex gap-3">
-				<a href="/dashboard/tax/report"
-				   class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white
-				          hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 transition-colors">
-					← Year Summary
-				</a>
-				<button id="run-pipeline"
-				        class="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700
-				               text-white text-sm font-medium px-4 py-2 transition-colors">
-					🔄 Re-classify All
-				</button>
+			<div class="header-actions">
+				<a href="/dashboard/tax/report" class="rq-btn rq-btn--ghost">← Year Summary</a>
+				<button id="run-pipeline" class="rq-btn rq-btn--primary">🔄 Re-classify All</button>
 			</div>
 		</div>
 
 		<!-- Empty state -->
 		{items.length === 0 && (
-			<div class="rounded-xl border border-green-200 bg-green-50 p-8 text-center space-y-2">
-				<p class="text-3xl">✅</p>
-				<p class="font-semibold text-green-800">Nothing left to review</p>
-				<p class="text-sm text-green-700">Head to the Year Summary for your complete breakdown.</p>
-				<a href="/dashboard/tax/report"
-				   class="inline-block mt-2 rounded-lg bg-green-600 hover:bg-green-700
-				          text-white text-sm font-medium px-5 py-2">
-					Open Year Summary →
-				</a>
+			<div class="empty-ok">
+				<p class="empty-ok__icon">✅</p>
+				<p class="empty-ok__title">Nothing left to review</p>
+				<p class="empty-ok__text">Head to the Year Summary for your complete breakdown.</p>
+				<a href="/dashboard/tax/report" class="rq-btn rq-btn--green">Open Year Summary →</a>
 			</div>
 		)}
 
 		<!-- Groups -->
 		{[...groups.entries()].map(([reason, groupItems]) => (
-			<section class="space-y-3">
-				<div class="border-b border-gray-200 pb-2">
-					<h2 class="text-base font-semibold text-gray-800">
+			<section class="rq-group">
+				<div class="group-header">
+					<h2 class="group-title">
 						{REASON_LABELS[reason] ?? reason}
-						<span class="ml-2 text-xs font-normal text-gray-400">({groupItems.length})</span>
+						<span class="group-count">({groupItems.length})</span>
 					</h2>
-					<p class="text-sm text-gray-500 mt-0.5">{REASON_DESC[reason]}</p>
+					<p class="group-desc">{REASON_DESC[reason]}</p>
 				</div>
 
-				{groupItems.map((item) => {
-					const { sym, amt, usd, ts, autoCat, needsPrice } = item;
+				<div class="group-items">
+					{groupItems.map((item) => {
+						const { sym, amt, usd, ts, autoCat, needsPrice } = item;
+						const usdFmt = usd ? `$${Number(usd).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}` : '';
 
-					return (
-						<div class="review-item rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4"
-						     data-id={item.id}
-						     data-source-type={item.source_type}
-						     data-source-id={item.source_id}>
+						return (
+							<div class="review-item"
+							     data-id={item.id}
+							     data-source-type={item.source_type}
+							     data-source-id={item.source_id}>
 
-							<!-- Transaction snapshot -->
-							<div class="flex items-start justify-between gap-4">
-								<div class="space-y-0.5">
-									<p class="font-medium text-gray-900">
-										{amt ? `${amt} ` : ''}{sym}
-										{usd ? <span class="text-gray-400 font-normal"> · ${Number(usd).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span> : ''}
-									</p>
-									<p class="text-xs text-gray-500">{ts}</p>
-									{autoCat && (
-										<p class="text-xs text-amber-600">
-											Auto-classified as <strong>{autoCat}</strong> — please confirm
+								<!-- Transaction snapshot -->
+								<div class="item-header">
+									<div>
+										<p class="item-asset">
+											{amt ? `${amt} ` : ''}{sym}
+											{usdFmt && <span class="item-usd"> · {usdFmt}</span>}
 										</p>
-									)}
-								</div>
-								<span class="shrink-0 text-xs rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 font-medium">
-									{reason.replace(/_/g, ' ')}
-								</span>
-							</div>
-
-							<!-- Reason detail -->
-							<p class="text-sm text-gray-600">{item.reason_detail}</p>
-
-							<!-- Resolution form -->
-							<form class="resolve-form space-y-3">
-								<!-- Category selector -->
-								<div class="flex flex-wrap gap-2 items-center">
-									<label class="text-sm font-medium text-gray-700 shrink-0">Classify as:</label>
-									<select class="category-select border border-gray-300 rounded-md px-3 py-1.5 text-sm
-									               focus:outline-none focus:ring-2 focus:ring-blue-500"
-									        value={autoCat}>
-										<option value="">— select —</option>
-										{CATEGORY_OPTIONS.map((opt) => (
-											<option value={opt.value} selected={opt.value === autoCat}>
-												{opt.label}
-											</option>
-										))}
-									</select>
-								</div>
-
-								<!-- Price field (shown for missing_price / airdrop_unpriced) -->
-								{needsPrice && (
-									<div class="price-field flex flex-wrap gap-2 items-center">
-										<label class="text-sm font-medium text-gray-700 shrink-0">
-											USD price per token on {ts}:
-										</label>
-										<input type="number" step="any" min="0" placeholder="e.g. 2450.00"
-										       class="price-input border border-gray-300 rounded-md px-3 py-1.5 text-sm w-40
-										              focus:outline-none focus:ring-2 focus:ring-blue-500" />
+										<p class="item-date">{ts}</p>
+										{autoCat && (
+											<p class="item-auto">Auto-classified as <strong>{autoCat}</strong> — please confirm</p>
+										)}
 									</div>
-								)}
-
-								<!-- Notes -->
-								<div>
-									<label class="text-sm font-medium text-gray-700">Note (optional):</label>
-									<textarea rows="2"
-									          class="notes-input mt-1 w-full border border-gray-300 rounded-md px-3 py-2
-									                 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-									          placeholder="e.g. 'Sent to my Ledger' or 'Aave borrow for ETH purchase'"
-									>{item.notes ?? ''}</textarea>
+									<span class="reason-badge">{reason.replace(/_/g, ' ')}</span>
 								</div>
 
-								<!-- Submit -->
-								<div class="flex items-center gap-3">
-									<button type="submit"
-									        class="save-btn rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50
-									               text-white text-sm font-medium px-4 py-2 transition-colors">
-										Save &amp; Resolve
-									</button>
-									<span class="status-msg text-sm text-gray-500 hidden"></span>
-								</div>
-							</form>
-						</div>
-					);
-				})}
+								<!-- Reason detail -->
+								{item.reason_detail && <p class="item-detail">{item.reason_detail}</p>}
+
+								<!-- Resolution form -->
+								<form class="resolve-form">
+									<div class="field-row">
+										<label class="field-label">Classify as:</label>
+										<select class="category-select" value={autoCat}>
+											<option value="">— select —</option>
+											{CATEGORY_OPTIONS.map((opt) => (
+												<option value={opt.value} selected={opt.value === autoCat}>{opt.label}</option>
+											))}
+										</select>
+									</div>
+
+									{needsPrice && (
+										<div class="field-row price-field">
+											<label class="field-label">USD price per token on {ts}:</label>
+											<input type="number" step="any" min="0" placeholder="e.g. 2450.00"
+											       class="price-input" />
+										</div>
+									)}
+
+									<div>
+										<label class="field-label">Note (optional):</label>
+										<textarea rows="2" class="notes-input"
+										          placeholder="e.g. 'Sent to my Ledger' or 'Aave borrow for ETH purchase'"
+										>{item.notes ?? ''}</textarea>
+									</div>
+
+									<div class="form-actions">
+										<button type="submit" class="save-btn">Save &amp; Resolve</button>
+										<span class="status-msg hidden"></span>
+									</div>
+								</form>
+
+							</div>
+						);
+					})}
+				</div>
 			</section>
 		))}
 
 	</div>
 </Layout>
+
+<style>
+/* ── Safety net ──────────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+/* ── Page container ──────────────────────────────────────────────────────────── */
+#app {
+	width: 100%;
+	max-width: 56rem;
+	padding: 2rem 2.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 2rem;
+}
+@media (max-width: 640px) {
+	#app { padding: 1.25rem 1rem; }
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────────── */
+.rq-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 1rem;
+}
+.page-back {
+	display: inline-block;
+	font-size: .75rem;
+	font-weight: 500;
+	color: #6366f1;
+	text-decoration: none;
+	margin-bottom: .25rem;
+}
+.page-back:hover { color: #818cf8; }
+.page-title {
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: #fff;
+	margin: 0;
+}
+.page-subtitle {
+	font-size: .875rem;
+	color: #9ca3af;
+	margin: .3rem 0 0;
+}
+.header-actions {
+	display: flex;
+	gap: .75rem;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+.rq-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: .4rem;
+	padding: .5rem 1rem;
+	border-radius: 8px;
+	font-size: .875rem;
+	font-weight: 500;
+	text-decoration: none;
+	cursor: pointer;
+	border: none;
+	transition: background .15s, border-color .15s;
+	white-space: nowrap;
+}
+.rq-btn--ghost {
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.1);
+	color: #d1d5db;
+}
+.rq-btn--ghost:hover { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.18); }
+.rq-btn--primary {
+	background: #4f46e5;
+	color: #fff;
+	border: 1px solid transparent;
+}
+.rq-btn--primary:hover { background: #4338ca; }
+.rq-btn--green {
+	background: #16a34a;
+	color: #fff;
+	border: 1px solid transparent;
+	margin-top: .75rem;
+}
+.rq-btn--green:hover { background: #15803d; }
+
+/* ── All-resolved empty state ────────────────────────────────────────────────── */
+.empty-ok {
+	border: 1px solid rgba(34,197,94,.2);
+	background: rgba(34,197,94,.06);
+	border-radius: 14px;
+	padding: 3rem 2rem;
+	text-align: center;
+}
+.empty-ok__icon { font-size: 2.5rem; margin: 0 0 .5rem; }
+.empty-ok__title { font-size: 1.05rem; font-weight: 600; color: #86efac; margin: 0 0 .3rem; }
+.empty-ok__text { font-size: .875rem; color: rgba(255,255,255,.5); margin: 0; }
+
+/* ── Group section ───────────────────────────────────────────────────────────── */
+.rq-group { display: flex; flex-direction: column; gap: .75rem; }
+.group-header {
+	border-bottom: 1px solid rgba(255,255,255,.07);
+	padding-bottom: .75rem;
+}
+.group-title {
+	font-size: 1rem;
+	font-weight: 600;
+	color: #e5e7eb;
+	margin: 0;
+}
+.group-count {
+	margin-left: .4rem;
+	font-size: .75rem;
+	font-weight: 400;
+	color: #6b7280;
+}
+.group-desc {
+	font-size: .8rem;
+	color: #6b7280;
+	margin: .3rem 0 0;
+	line-height: 1.5;
+}
+.group-items { display: flex; flex-direction: column; gap: .75rem; }
+
+/* ── Review card ─────────────────────────────────────────────────────────────── */
+.review-item {
+	background: #161b27;
+	border: 1px solid rgba(255,255,255,.07);
+	border-radius: 12px;
+	padding: 1.25rem 1.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: .9rem;
+	transition: border-color .2s;
+}
+.review-item:hover { border-color: rgba(255,255,255,.13); }
+
+.item-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+.item-asset {
+	font-size: 1rem;
+	font-weight: 600;
+	color: #fff;
+	margin: 0;
+}
+.item-usd { color: #9ca3af; font-weight: 400; }
+.item-date { font-size: .75rem; color: #6b7280; margin: .2rem 0 0; }
+.item-auto { font-size: .75rem; color: #fbbf24; margin: .2rem 0 0; }
+.item-auto strong { color: #fde68a; }
+
+.reason-badge {
+	flex-shrink: 0;
+	font-size: .7rem;
+	font-weight: 500;
+	padding: .22rem .65rem;
+	border-radius: 999px;
+	background: rgba(251,191,36,.1);
+	color: #fbbf24;
+	border: 1px solid rgba(251,191,36,.2);
+	white-space: nowrap;
+	text-transform: capitalize;
+}
+
+.item-detail {
+	font-size: .85rem;
+	color: rgba(255,255,255,.5);
+	line-height: 1.6;
+	margin: 0;
+}
+
+/* ── Resolution form ─────────────────────────────────────────────────────────── */
+.resolve-form {
+	display: flex;
+	flex-direction: column;
+	gap: .75rem;
+	border-top: 1px solid rgba(255,255,255,.06);
+	padding-top: .9rem;
+}
+.field-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .5rem;
+}
+.field-label {
+	font-size: .8rem;
+	font-weight: 500;
+	color: #9ca3af;
+	flex-shrink: 0;
+}
+.category-select,
+.price-input,
+.notes-input {
+	background: rgba(255,255,255,.05);
+	border: 1px solid rgba(255,255,255,.1);
+	border-radius: 6px;
+	color: #e5e7eb;
+	font-size: .875rem;
+	padding: .4rem .75rem;
+	outline: none;
+	transition: border-color .15s, box-shadow .15s;
+	font-family: inherit;
+}
+.category-select:focus,
+.price-input:focus,
+.notes-input:focus {
+	border-color: #6366f1;
+	box-shadow: 0 0 0 2px rgba(99,102,241,.2);
+}
+.category-select option { background: #1a1f2e; color: #e5e7eb; }
+.price-input { width: 10rem; }
+.notes-input { width: 100%; resize: none; margin-top: .25rem; }
+
+.form-actions { display: flex; align-items: center; gap: .75rem; }
+.save-btn {
+	padding: .4rem 1rem;
+	border-radius: 8px;
+	background: #4f46e5;
+	color: #fff;
+	font-size: .85rem;
+	font-weight: 600;
+	border: none;
+	cursor: pointer;
+	transition: background .15s;
+}
+.save-btn:hover { background: #4338ca; }
+.save-btn:disabled { opacity: .45; cursor: not-allowed; }
+.status-msg { font-size: .85rem; color: #9ca3af; }
+</style>
 
 <script>
 // ── Re-classify button ────────────────────────────────────────────────────────
