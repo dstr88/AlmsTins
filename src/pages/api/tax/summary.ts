@@ -46,6 +46,7 @@ const NON_DISPOSAL_CLASSES = new Set([
 
 export const GET: APIRoute = async ({ request, url }) => {
 	const session = await requireTenantSession(request);
+	if (!session) return respond({ ok: false, error: 'Unauthorized' }, 401);
 	const { tenantId } = session;
 
 	const yearParam   = url.searchParams.get('year');

@@ -6,7 +6,9 @@ const yearParam   = Astro.url.searchParams.get('year');
 const year        = yearParam ? Number(yearParam) : defaultYear;
 
 const apiUrl = new URL(`/api/tax/summary?year=${year}&method=fifo`, Astro.request.url);
-const apiRes = await fetch(apiUrl);
+const apiRes = await fetch(apiUrl, {
+	headers: { cookie: Astro.request.headers.get('cookie') ?? '' },
+});
 const data: any = apiRes.ok ? await apiRes.json() : { ok: false };
 
 const byAssetGains: any[]                  = data.byAssetGains  ?? [];
