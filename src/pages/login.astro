@@ -88,29 +88,29 @@ try {
           <div class="feature-card">
             <span class="fc-icon">🔐</span>
             <div>
-              <div class="fc-title">No wallet connection</div>
-              <div class="fc-desc">Read-only via public addresses. We never touch your keys.</div>
+              <div class="fc-title">Read-only, always</div>
+              <div class="fc-desc">Public addresses only. No keys, no risk — ever.</div>
             </div>
           </div>
           <div class="feature-card">
             <span class="fc-icon">📊</span>
             <div>
-              <div class="fc-title">Real net worth</div>
-              <div class="fc-desc">Crypto + DeFi + loans + cash — one live dashboard.</div>
+              <div class="fc-title">True net worth</div>
+              <div class="fc-desc">Crypto, DeFi, loans, and cash in one number.</div>
             </div>
           </div>
           <div class="feature-card">
             <span class="fc-icon">🧾</span>
             <div>
-              <div class="fc-title">Year Summary export</div>
-              <div class="fc-desc">Download realized gains and a full transaction ledger.</div>
+              <div class="fc-title">Tax-ready export</div>
+              <div class="fc-desc">Realized gains + full ledger, ready for your accountant.</div>
             </div>
           </div>
           <div class="feature-card">
             <span class="fc-icon">🛡️</span>
             <div>
-              <div class="fc-title">Encrypted & private</div>
-              <div class="fc-desc">Your data is encrypted at rest and never sold.</div>
+              <div class="fc-title">Private by design</div>
+              <div class="fc-desc">Encrypted at rest. Never sold. Never shared.</div>
             </div>
           </div>
         </div>
@@ -128,9 +128,32 @@ try {
         <div class="dash-preview">
           <img src={DashImg.src} alt="Almstins dashboard preview" class="dash-img" loading="lazy" />
           <div class="dash-preview-fade"></div>
-          <a href="/wallet-checker" class="dash-checker-badge">
-            🔍 Free Wallet Scam Checker — no account needed
-          </a>
+        </div>
+
+        <!-- Scam checker CTA — standalone, not buried in image -->
+        <a href="/wallet-checker" class="scam-checker-cta">
+          <span class="scc-icon">🔍</span>
+          <span class="scc-body">
+            <span class="scc-title">Free Wallet Scam Checker</span>
+            <span class="scc-sub">Paste any address before you send — no account needed</span>
+          </span>
+          <span class="scc-arrow">→</span>
+        </a>
+
+        <!-- Social proof -->
+        <div class="social-proof">
+          <div class="sp-item">
+            <span class="sp-icon">🏫</span>
+            <span>Built by a teacher — privacy-first from day one</span>
+          </div>
+          <div class="sp-item">
+            <span class="sp-icon">🔒</span>
+            <span>Read-only access means we <em>physically cannot</em> move your funds</span>
+          </div>
+          <div class="sp-item">
+            <span class="sp-icon">🗄️</span>
+            <span>Your data lives in your isolated database — not in a shared pool</span>
+          </div>
         </div>
 
       </section>
@@ -141,15 +164,22 @@ try {
 
           <header class="signin-head">
             <h2>Sign in</h2>
-            <p>New here? <a href="/signup" class="inline-link">Create a free account →</a></p>
             {message === "LOCKED_OUT" ? null : message ? (
               <p class="notice">{message}</p>
             ) : null}
             {notice && <p class="notice success">{notice}</p>}
             {session?.user?.id && (
-              <a class="provider-button ghost" href={safeCallbackUrl}>Continue to Dashboard</a>
+              <a class="provider-button cta-primary" href={safeCallbackUrl}>Continue to Dashboard →</a>
             )}
           </header>
+
+          <!-- Primary CTA: create account -->
+          {!session?.user?.id && (
+            <a class="provider-button new-account" href="/signup">✦ Create a free account</a>
+          )}
+
+          <!-- Divider -->
+          <div class="demo-divider">or sign in</div>
 
           <!-- Primary providers -->
           <div class="providers">
@@ -182,12 +212,6 @@ try {
               </button>
             </form>
           </div>
-
-          <!-- Demo CTA -->
-          <div class="demo-divider">or explore first</div>
-          <a class="provider-button demo-try" href="/api/demo/start">
-            ▶ Try the demo — no account needed
-          </a>
 
           <!-- Email toggle -->
           <div class="email-toggle-wrap">
@@ -234,8 +258,8 @@ try {
             </div>
           </div>
 
-          <!-- New account link -->
-          <a class="provider-button new-account" href="/signup">✦ New here? Create a free account</a>
+          <!-- Demo — quiet text link, not a competing button -->
+          <a class="demo-text-link" href="/api/demo/start">▶ Try the demo first — no account needed</a>
 
         </div><!-- /signin-card -->
       </section>
@@ -612,13 +636,23 @@ try {
       background: linear-gradient(135deg, #0f7a55, #0d9466); border: none;
       font-size: 0.9rem; flex-direction: row;
     }
-    .provider-button.demo-try {
-      background: linear-gradient(135deg, #7c3aed, #5865f2); border: none;
-      font-size: 0.92rem; flex-direction: row;
+    .provider-button.cta-primary {
+      background: linear-gradient(135deg, #5767ff, #934dff); border: none;
+      font-size: 0.97rem; flex-direction: row; font-weight: 700;
     }
     .provider-button.ghost {
       background: rgba(255,255,255,0.05); flex-direction: row;
     }
+
+    /* Demo — quiet text link, not a button */
+    .demo-text-link {
+      display: block; text-align: center;
+      font-size: 0.8rem; color: rgba(255,255,255,0.35);
+      text-decoration: none;
+      transition: color 0.15s;
+      padding: 0.25rem 0;
+    }
+    .demo-text-link:hover { color: rgba(255,255,255,0.65); }
 
     /* Demo divider */
     .demo-divider {
@@ -696,34 +730,42 @@ try {
       background: rgba(60,179,113,0.1); border: 1px solid rgba(60,179,113,0.3); color: #b6f3c4;
     }
 
-    /* ── Scam checker badge — overlaid on dashboard preview ─────── */
-    .dash-checker-badge {
-      position: absolute;
-      bottom: 1.1rem;
-      left: 50%;
-      transform: translateX(-50%);
-      white-space: nowrap;
-      font-size: 0.82rem; font-weight: 600;
-      color: #7dd3fc; text-decoration: none;
-      padding: 0.5rem 1.1rem; border-radius: 99px;
-      border: 1px solid rgba(125,211,252,0.3);
-      background: rgba(5, 8, 20, 0.72);
-      backdrop-filter: blur(8px);
-      transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.18s;
-      opacity: 0;
-      animation: badgeFadeIn 0.7s ease 1.2s forwards;
-      z-index: 2;
+    /* ── Scam checker CTA — standalone row ───────────────────────── */
+    .scam-checker-cta {
+      display: flex; align-items: center; gap: 0.85rem;
+      padding: 0.85rem 1rem;
+      border-radius: 12px;
+      border: 1px solid rgba(125, 211, 252, 0.25);
+      background: rgba(125, 211, 252, 0.06);
+      text-decoration: none;
+      transition: background 0.18s, border-color 0.18s, transform 0.18s;
+      flex-shrink: 0;
     }
-    .dash-checker-badge:hover {
-      color: #fff;
-      background: rgba(125,211,252,0.15);
-      border-color: rgba(125,211,252,0.55);
-      transform: translateX(-50%) translateY(-2px);
+    .scam-checker-cta:hover {
+      background: rgba(125, 211, 252, 0.12);
+      border-color: rgba(125, 211, 252, 0.45);
+      transform: translateY(-1px);
     }
-    @keyframes badgeFadeIn {
-      from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .scc-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .scc-body { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; }
+    .scc-title { font-size: 0.88rem; font-weight: 700; color: #7dd3fc; }
+    .scc-sub   { font-size: 0.75rem; color: rgba(255,255,255,0.45); }
+    .scc-arrow { color: rgba(125,211,252,0.5); font-size: 1rem; flex-shrink: 0; }
+
+    /* ── Social proof ─────────────────────────────────────────────── */
+    .social-proof {
+      display: flex; flex-direction: column; gap: 0.55rem;
+      padding: 0.85rem 1rem;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
     }
+    .sp-item {
+      display: flex; align-items: flex-start; gap: 0.6rem;
+      font-size: 0.78rem; color: rgba(255,255,255,0.45); line-height: 1.5;
+    }
+    .sp-icon { font-size: 0.9rem; flex-shrink: 0; margin-top: 0.05rem; }
+    .sp-item em { font-style: normal; color: rgba(255,255,255,0.7); }
 
     /* ── Hesitation modal ──────────────────────────────────────── */
     .hesitation-overlay {
