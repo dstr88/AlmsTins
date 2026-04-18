@@ -25,7 +25,7 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 ---
 
 <Layout title="Form 8949 | Almstins" noindex={true}>
-	<div id="app" class="max-w-6xl mx-auto px-6 sm:px-10 py-8 space-y-6 print:px-0 print:py-0 print:max-w-none">
+	<div id="app">
 
 		<!-- Screen-only header -->
 		<div class="print:hidden flex items-start justify-between flex-wrap gap-4">
@@ -70,42 +70,33 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 			<p>Loading Form 8949…</p>
 		</div>
 		<div id="state-error" class="print:hidden hidden rounded-xl border border-red-200 bg-red-50 p-6 text-red-700 text-sm"></div>
-		<div id="state-empty" class="print:hidden hidden rounded-xl border border-amber-200 bg-amber-50 p-6 space-y-4">
-			<div class="flex items-start gap-3">
-				<span class="text-2xl">⚠️</span>
+		<div id="state-empty" class="print:hidden hidden empty-state">
+			<div class="empty-state__header">
+				<span class="empty-state__icon">⚠️</span>
 				<div>
-					<p class="font-semibold text-amber-900 text-base">No classified disposals found for this year</p>
-					<p class="text-sm text-amber-800 mt-1" id="empty-context">AlmsTins found transactions for this year but none have been matched into taxable disposal lots yet.</p>
+					<p class="empty-state__title">No classified disposals found for this year</p>
+					<p class="empty-state__context" id="empty-context">AlmsTins found transactions for this year but none have been matched into taxable disposal lots yet.</p>
 				</div>
 			</div>
 
-			<div class="border-t border-amber-200 pt-4 space-y-2">
-				<p class="text-xs font-semibold text-amber-900 uppercase tracking-wide">What this usually means</p>
-				<ul class="text-sm text-amber-800 space-y-1 list-disc list-inside">
+			<div class="empty-state__section">
+				<p class="empty-state__label">What this usually means</p>
+				<ul class="empty-state__list">
 					<li id="diag-pipeline"><strong>Pipeline not run</strong> — transactions need to be classified before lots can be matched</li>
 					<li id="diag-missing-buy">A sell transaction exists but the matching buy is missing — check the Review Queue</li>
 					<li id="diag-no-data">No transactions were imported for this year yet</li>
 				</ul>
 			</div>
 
-			<div id="empty-tokens" class="border-t border-amber-200 pt-4 hidden">
-				<p class="text-xs font-semibold text-amber-900 uppercase tracking-wide mb-2">Tokens with unresolved transactions this year</p>
-				<div id="empty-tokens-list" class="flex flex-wrap gap-2"></div>
+			<div id="empty-tokens" class="empty-state__section hidden">
+				<p class="empty-state__label">Tokens with unresolved transactions this year</p>
+				<div id="empty-tokens-list" class="empty-state__chips"></div>
 			</div>
 
-			<div class="border-t border-amber-200 pt-4 flex flex-wrap gap-3">
-				<a href="/dashboard/tax/review"
-				   class="inline-flex items-center gap-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 transition-colors">
-					🔍 Open Review Queue
-				</a>
-				<a href="/dashboard/bookkeeping"
-				   class="inline-flex items-center gap-2 rounded-lg border border-amber-400 hover:bg-amber-100 text-amber-900 text-sm font-semibold px-4 py-2 transition-colors">
-					📥 Import Transactions
-				</a>
-				<a href="/dashboard/tax"
-				   class="inline-flex items-center gap-2 rounded-lg border border-amber-400 hover:bg-amber-100 text-amber-900 text-sm font-semibold px-4 py-2 transition-colors">
-					⚙️ Run Classification Pipeline
-				</a>
+			<div class="empty-state__actions">
+				<a href="/dashboard/tax/review" class="es-btn es-btn--primary">🔍 Open Review Queue</a>
+				<a href="/dashboard/bookkeeping" class="es-btn es-btn--secondary">📥 Import Transactions</a>
+				<a href="/dashboard/tax" class="es-btn es-btn--secondary">⚙️ Run Classification Pipeline</a>
 			</div>
 		</div>
 
@@ -144,6 +135,128 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 </Layout>
 
 <style>
+/* ── Page layout ───────────────────────────────────────────────────────────── */
+#app {
+	width: 100%;
+	max-width: 72rem;
+	padding: 2rem 2.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+@media (max-width: 640px) {
+	#app { padding: 1.5rem 1rem; }
+}
+
+@media print {
+	#app { max-width: none; padding: 0; }
+}
+
+/* ── Empty / diagnostic state ──────────────────────────────────────────────── */
+.empty-state {
+	border: 1px solid rgba(251,191,36,.35);
+	border-left: 4px solid #f59e0b;
+	background: rgba(251,191,36,.07);
+	border-radius: 12px;
+	padding: 1.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
+.empty-state__header {
+	display: flex;
+	align-items: flex-start;
+	gap: .75rem;
+}
+
+.empty-state__icon { font-size: 1.4rem; flex-shrink: 0; margin-top: .1rem; }
+
+.empty-state__title {
+	font-size: 1rem;
+	font-weight: 700;
+	color: #fde68a;
+	margin: 0 0 .35rem;
+}
+
+.empty-state__context {
+	font-size: .875rem;
+	color: rgba(255,255,255,.65);
+	margin: 0;
+	line-height: 1.6;
+}
+
+.empty-state__section {
+	border-top: 1px solid rgba(251,191,36,.2);
+	padding-top: 1rem;
+}
+
+.empty-state__label {
+	font-size: .7rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .08em;
+	color: #fbbf24;
+	margin: 0 0 .6rem;
+}
+
+.empty-state__list {
+	font-size: .875rem;
+	color: rgba(255,255,255,.7);
+	margin: 0;
+	padding-left: 1.4rem;
+	line-height: 2;
+}
+
+.empty-state__list strong { color: #fef3c7; }
+
+.empty-state__chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .5rem;
+}
+
+.empty-state__actions {
+	border-top: 1px solid rgba(251,191,36,.2);
+	padding-top: 1rem;
+	display: flex;
+	flex-wrap: wrap;
+	gap: .6rem;
+}
+
+.es-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: .4rem;
+	padding: .5rem 1.1rem;
+	border-radius: 8px;
+	font-size: .85rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background .15s, border-color .15s;
+	white-space: nowrap;
+}
+
+.es-btn--primary {
+	background: #f59e0b;
+	color: #1c1007;
+	border: none;
+}
+
+.es-btn--primary:hover { background: #fbbf24; }
+
+.es-btn--secondary {
+	background: rgba(251,191,36,.1);
+	color: #fde68a;
+	border: 1px solid rgba(251,191,36,.3);
+}
+
+.es-btn--secondary:hover {
+	background: rgba(251,191,36,.2);
+	border-color: rgba(251,191,36,.5);
+}
+
 /* ── Print styles ──────────────────────────────────────────────────────────── */
 @media print {
 	body { margin: 0; font-family: Arial, sans-serif; font-size: 9pt; }
