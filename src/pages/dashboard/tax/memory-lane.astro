@@ -5,11 +5,24 @@ const defaultYear = new Date().getFullYear() - 1;
 const yearParam   = Astro.url.searchParams.get('year');
 const year        = yearParam ? Number(yearParam) : defaultYear;
 
-const apiUrl = new URL(`/api/tax/summary?year=${year}&method=fifo`, Astro.request.url);
-const apiRes = await fetch(apiUrl, {
-	headers: { cookie: Astro.request.headers.get('cookie') ?? '' },
-});
-const data: any = apiRes.ok ? await apiRes.json() : { ok: false };
+let data: any = { ok: false };
+let fetchError: string | null = null;
+try {
+	const apiUrl = new URL(`/api/tax/summary?year=${year}&method=fifo`, Astro.request.url);
+	const apiRes = await fetch(apiUrl, {
+		headers: { cookie: Astro.request.headers.get('cookie') ?? '' },
+		signal: AbortSignal.timeout(25_000), // 25-second timeout
+	});
+	if (apiRes.ok) {
+		data = await apiRes.json();
+	} else {
+		fetchError = `API returned ${apiRes.status}`;
+		console.error('[memory-lane] API error:', apiRes.status, await apiRes.text().catch(() => ''));
+	}
+} catch (err: any) {
+	fetchError = err?.name === 'TimeoutError' ? 'Request timed out — your data set may be too large.' : String(err?.message ?? err);
+	console.error('[memory-lane] fetch failed:', err);
+}
 
 const byAssetGains: any[]                  = data.byAssetGains  ?? [];
 const lotDetails:   Record<string, any[]>  = data.lotDetails    ?? {};
@@ -110,6 +123,14 @@ function timelineId(asset: string) {
 
 	<!-- ── Back link ─────────────────────────────────────────────────────── -->
 	<a href="/dashboard/vault" class="ml-back">← Dashboard</a>
+
+	{fetchError && (
+		<div class="ml-error">
+			<strong>⚠️ Could not load Memory Lane</strong>
+			<p>{fetchError}</p>
+			<a href={`?year=${year}`}>Try again</a>
+		</div>
+	)}
 
 	<!-- ── Hero ──────────────────────────────────────────────────────────── -->
 	<header class="ml-hero">
@@ -924,6 +945,20 @@ function timelineId(asset: string) {
 .ml-tl-held { font-size: 0.7rem; color: #334155; white-space: nowrap; }
 .lt-badge { color: #818cf8; font-weight: 800; }
 .st-badge { color: #d97706; font-weight: 800; }
+
+/* ── Error banner ─────────────────────────────────────────────────────── */
+.ml-error {
+	background: rgba(239,68,68,0.08);
+	border: 1px solid rgba(239,68,68,0.25);
+	border-radius: 14px;
+	padding: 1.25rem 1.5rem;
+	margin-bottom: 2rem;
+	color: #fca5a5;
+}
+.ml-error strong { display: block; margin-bottom: 0.35rem; color: #f87171; }
+.ml-error p { margin: 0 0 0.75rem; font-size: 0.875rem; color: #fca5a5; }
+.ml-error a { color: #818cf8; font-size: 0.875rem; font-weight: 700; text-decoration: none; }
+.ml-error a:hover { text-decoration: underline; }
 
 /* ── Empty state ──────────────────────────────────────────────────────── */
 .ml-empty {
