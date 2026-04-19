@@ -106,6 +106,12 @@ export const GET: APIRoute = async ({ request, url }) => {
     const yearRaw = params.get('year');
     const year    = yearRaw ? Number(yearRaw) : new Date().getFullYear() - 1;
 
+    // TurboTax export is restricted to the account owner only
+    const TURBOTAX_TENANT = 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
+    if (section === 'turbotax' && tenantId !== TURBOTAX_TENANT) {
+      return new Response('Not found', { status: 404 });
+    }
+
     // 'auto': prefer pipeline data when available (IRS calendar-month accurate)
     const bd = await buildAnnualBreakdown(tenantId, year, 'fifo', undefined, 'auto' as AnnualBreakdownSource);
 
@@ -184,6 +190,60 @@ export const GET: APIRoute = async ({ request, url }) => {
           i.description,
         ]);
         csvContent = buildCsv('Income — Interest, Staking & Rewards', year, headers, rows);
+        break;
+      }
+      case 'turbotax': {
+        // TurboTax-compatible Form 8949 CSV.
+        // Exact column names and plain numeric values TurboTax expects.
+        // No extra header rows, no $ signs, dates as MM/DD/YYYY.
+        filename = `turbotax-form8949-${year}.csv`;
+
+        function ttDate(iso: string): string {
+          try {
+            const d = new Date(iso);
+            const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const dd = String(d.getUTCDate()).padStart(2, '0');
+            const yyyy = d.getUTCFullYear();
+            return `${mm}/${dd}/${yyyy}`;
+          } catch { return iso; }
+        }
+
+        function ttNum(v: number | null): string {
+          if (v == null || !Number.isFinite(v)) return '0.00';
+          return Math.abs(v) === 0 ? '0.00' : v.toFixed(2);
+        }
+
+        const ttHeaders = [
+          'Description',
+          'Date Acquired',
+          'Date Sold',
+          'Proceeds',
+          'Cost Basis',
+          'Gain or Loss',
+        ];
+
+        const ttRows: CsvRow[] = [
+          ...bd.shortTerm.map((i) => [
+            `${i.amount} ${i.asset}`,
+            ttDate(i.buyDate),
+            ttDate(i.sellDate),
+            ttNum(i.proceedsUsd),
+            ttNum(i.costUsd),
+            ttNum(i.gainLossUsd),
+          ]),
+          ...bd.longTerm.map((i) => [
+            `${i.amount} ${i.asset}`,
+            ttDate(i.buyDate),
+            ttDate(i.sellDate),
+            ttNum(i.proceedsUsd),
+            ttNum(i.costUsd),
+            ttNum(i.gainLossUsd),
+          ]),
+        ];
+
+        // TurboTax wants ONLY the header row + data rows — no title rows
+        const lines = [row(...ttHeaders), ...ttRows.map((r) => row(...r))];
+        csvContent = lines.join('\n');
         break;
       }
       default:

@@ -16,6 +16,7 @@ import { hasTaxAccess } from '@/lib/taxAuth';
 if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
+const showTurboTax = _authSess.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
 
 const currentYear = new Date().getFullYear();
 const defaultYear = currentYear - 1;
@@ -49,6 +50,7 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 				</select>
 				<button id="btn-load" class="f8-btn f8-btn--primary">Load</button>
 				<button id="btn-csv"  class="f8-btn f8-btn--ghost hidden">↓ CSV</button>
+				{showTurboTax && <button id="btn-turbotax" class="f8-btn f8-btn--turbotax hidden">↓ TurboTax</button>}
 				<button id="btn-print" class="f8-btn f8-btn--dark hidden">🖨 Print</button>
 			</div>
 		</div>
@@ -206,6 +208,8 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 .f8-btn--ghost:hover { background: rgba(255,255,255,.09); }
 .f8-btn--dark { background: #1f2937; color: #fff; }
 .f8-btn--dark:hover { background: #111827; }
+.f8-btn--turbotax { background: #0077b6; color: #fff; border-color: #0077b6; }
+.f8-btn--turbotax:hover { background: #005f94; }
 
 /* ── Loading state ─────────────────────────────────────────────────────────── */
 .f8-state-loading {
@@ -570,6 +574,7 @@ async function loadForm8949() {
 		renderForm(data);
 		formOut.classList.remove('hidden');
 		document.getElementById('btn-csv')!.classList.remove('hidden');
+		document.getElementById('btn-turbotax')!.classList.remove('hidden');
 		document.getElementById('btn-print')!.classList.remove('hidden');
 
 	} catch (err) {
@@ -892,6 +897,16 @@ document.getElementById('btn-csv')?.addEventListener('click', () => {
 	const a = document.createElement('a');
 	a.href = URL.createObjectURL(blob);
 	a.download = `form8949_${currentData.year}_${currentData.method}.csv`;
+	a.click();
+});
+
+// ── TurboTax CSV export ───────────────────────────────────────────────────────
+document.getElementById('btn-turbotax')?.addEventListener('click', () => {
+	if (!currentData) return;
+	const year = (document.getElementById('year-sel') as HTMLSelectElement).value;
+	const a = document.createElement('a');
+	a.href = `/api/tax/breakdown-csv?section=turbotax&year=${year}`;
+	a.download = `turbotax-form8949-${year}.csv`;
 	a.click();
 });
 
