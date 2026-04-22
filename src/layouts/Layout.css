@@ -159,19 +159,6 @@ nav a.disabled {
 	font-weight: 500 !important;
 }
 
-.nav-link--memory {
-	color: rgba(245, 158, 11, 0.6) !important;
-}
-.nav-link--memory:hover {
-	color: #fbbf24 !important;
-	background: rgba(245, 158, 11, 0.08) !important;
-}
-.nav-link--memory.active {
-	color: #fbbf24 !important;
-	background: rgba(245, 158, 11, 0.12) !important;
-	font-weight: 600 !important;
-}
-
 .nav-link--admin {
 	color: #a78bfa !important;
 	font-size: 0.78rem;

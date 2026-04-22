@@ -208,8 +208,7 @@ const memberSinceDisplay = memberSinceIso
 					<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
 					<a href="/dashboard/portfolio" class={`nav-link ${isActive('/dashboard/portfolio') ? 'active' : ''}`}>Portfolio</a>
 					<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>Addresses</a>
-					<a href="/dashboard/tax" class={`nav-link nav-link--tax ${currentPath.startsWith('/dashboard/tax') && !isActive('/dashboard/tax/memory-lane') ? 'active' : ''}`}>EOY Summary</a>
-					<a href="/dashboard/tax/memory-lane" class={`nav-link nav-link--memory ${isActive('/dashboard/tax/memory-lane') ? 'active' : ''}`}>Memory Lane</a>
+					<a href="/dashboard/tax" class={`nav-link nav-link--tax ${currentPath.startsWith('/dashboard/tax') ? 'active' : ''}`}>EOY Summary</a>
 					<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>Alerts</a>
 					<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>
 					<a href="/dashboard/research" class={`nav-link ${isActive('/dashboard/research') ? 'active' : ''}`}>Research</a>
