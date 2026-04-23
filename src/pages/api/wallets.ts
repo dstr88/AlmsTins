@@ -27,7 +27,26 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const { tenantId, isDemo } = await requireTenantSession(request);
+
+		// ── Demo limit: 3 wallets max ─────────────────────────────────────
+		if (isDemo) {
+			const countResult = await db.execute({
+				sql: `SELECT COUNT(*) as cnt FROM wallets WHERE tenant_id = ?`,
+				args: [tenantId],
+			});
+			const current = Number((countResult.rows[0] as Record<string, unknown>)?.cnt ?? 0);
+			if (current >= 3) {
+				return new Response(
+					JSON.stringify({
+						error: true,
+						code: 'DEMO_LIMIT_REACHED',
+						message: 'Demo is limited to 3 wallets. Sign up free to add more.',
+					}),
+					{ status: 402, headers: { 'Content-Type': 'application/json' } },
+				);
+			}
+		}
 
 		// ── Plan limit check ──────────────────────────────────────────────
 		const limitCheck = await checkWalletLimit(tenantId);

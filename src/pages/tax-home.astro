@@ -15,7 +15,7 @@ export const prerender = false;
 if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
 const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/login', 302);
-const { tenantId } = sess;
+const { tenantId, isDemo = false } = sess;
 
 // ── Admin check (mirrors Layout.astro logic) ─────────────────────────────────
 const ADMIN_TENANT_IDS = new Set(
@@ -532,10 +532,16 @@ const availableYears = bd?.availableYears ?? [priorYear];
     <section class="downloads">
       <h2 class="downloads__title">Downloads</h2>
 
-      <!-- Customer downloads — paywalled for free users -->
+      <!-- Customer downloads — grayed for demo, paywalled for free users -->
       <div class="downloads__group-label">{isAdmin ? 'For your tax preparer' : 'Exports'}</div>
       <div class="downloads__grid">
-        {canDownload ? (
+        {isDemo ? (
+          <a href="/signup" class="dl-btn dl-btn--demo" title="Sign up free to export">
+            <span class="dl-btn__icon">📊</span>
+            <span>FIFO Gain/Loss CSV</span>
+            <span class="dl-btn__plan-badge">Sign up</span>
+          </a>
+        ) : canDownload ? (
           <a href={`/api/tax/breakdown-csv?year=${selectedYear}&section=all`} class="dl-btn" download>
             <span class="dl-btn__icon">📊</span>
             <span>FIFO Gain/Loss CSV</span>
@@ -547,7 +553,13 @@ const availableYears = bd?.availableYears ?? [priorYear];
             <span class="dl-btn__plan-badge">Paid</span>
           </a>
         )}
-        {canDownload ? (
+        {isDemo ? (
+          <a href="/signup" class="dl-btn dl-btn--demo" title="Sign up free to export">
+            <span class="dl-btn__icon">📄</span>
+            <span>Year Summary PDF</span>
+            <span class="dl-btn__plan-badge">Sign up</span>
+          </a>
+        ) : canDownload ? (
           <a href={`/api/year-summary/report?year=${selectedYear}`} target="_blank" class="dl-btn">
             <span class="dl-btn__icon">📄</span>
             <span>Year Summary PDF</span>
@@ -1369,6 +1381,17 @@ const availableYears = bd?.availableYears ?? [priorYear];
     border-color: rgba(251,191,36,.4);
     color: #fde68a;
     opacity: 1;
+  }
+  .dl-btn--demo {
+    opacity: .38;
+    border-color: rgba(255,255,255,.1);
+    filter: grayscale(1);
+  }
+  .dl-btn--demo:hover {
+    opacity: .65;
+    filter: grayscale(0);
+    border-color: rgba(99,102,241,.4);
+    color: #a5b4fc;
   }
   .dl-btn__plan-badge {
     font-size: .62rem;
