@@ -19,6 +19,21 @@ import { hashWithSalt } from '../lib/analytics/hash';
 import { getClientIp } from '../lib/analytics/ip';
 import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } from '../lib/analytics/routes';
 import { isDemoRequest } from '../lib/demo';
+
+/**
+ * Mutation endpoints that demo users are allowed to call.
+ * Wallet add/delete/sync so visitors can explore with their own addresses.
+ * Everything else (exchange imports, billing, tax, etc.) stays blocked.
+ */
+const DEMO_ALLOWED_MUTATION_PATTERNS: RegExp[] = [
+	/^\/api\/wallets$/,                       // POST  — add on-chain or custom wallet
+	/^\/api\/wallets\/[^/]+$/,                // DELETE — remove a wallet by id
+	/^\/api\/wallets\/[^/]+\/sync$/,          // POST  — sync a single wallet
+	/^\/api\/wallets\/value\/sync-all$/,      // POST  — sync all wallet values
+	/^\/api\/lifecycle\/rebuild$/,            // POST  — rebuild FIFO after sync
+	/^\/api\/demo\/cleanup$/,                 // POST  — wipe demo data on page leave
+];
+
 function isEnvProbe(pathname: string) {
 	const p = pathname.toLowerCase();
 	return p.includes('/.env') || p.endsWith('.env') || p.includes('.env.');
@@ -139,21 +154,25 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 		// ── Demo mode ───────────────────────────────────────────────────────────
 		// Visitors with the demo cookie bypass the auth check entirely.
-		// Mutations (POST/PUT/PATCH/DELETE) are blocked so the seed data stays intact.
+		// Wallet add/delete/sync mutations are allowed so visitors can explore
+		// with their own addresses. All other mutations remain blocked.
 		if (isDemoRequest(request)) {
 			const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method.toUpperCase());
 			if (isMutation && pathname.startsWith('/api/')) {
-				return finish(
-					applySecurityHeaders(
-						new Response(
-							JSON.stringify({
-								error: 'This is a read-only demo. Sign up free to make changes.',
-								demo: true,
-							}),
-							{ status: 403, headers: { 'Content-Type': 'application/json' } },
+				const isDemoAllowed = DEMO_ALLOWED_MUTATION_PATTERNS.some((re) => re.test(pathname));
+				if (!isDemoAllowed) {
+					return finish(
+						applySecurityHeaders(
+							new Response(
+								JSON.stringify({
+									error: 'Sign up free to unlock all features.',
+									demo: true,
+								}),
+								{ status: 403, headers: { 'Content-Type': 'application/json' } },
+							),
 						),
-					),
-				);
+					);
+				}
 			}
 			// Let the route handler render with the demo tenant.
 			return finish(applySecurityHeaders(await next()));

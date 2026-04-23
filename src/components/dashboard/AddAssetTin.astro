@@ -14,6 +14,13 @@
 	<div class="add-tin__heading">
 		<span class="add-tin__plus" aria-hidden="true">＋</span>
 		<span class="add-tin__title">Add Asset</span>
+		<button
+			id="demo-clear-btn"
+			class="add-tin__demo-clear"
+			type="button"
+			title="Clear all demo data"
+			style="display:none"
+		>Delete All</button>
 	</div>
 
 	<!-- Tab bar -->
@@ -411,6 +418,29 @@
 		letter-spacing: 0.08em;
 		margin-left: 0.25rem;
 	}
+
+	/* Demo-only "Delete All" pill */
+	.add-tin__demo-clear {
+		margin-left: auto;
+		padding: 0.2rem 0.65rem;
+		border-radius: 999px;
+		border: 1px solid rgba(248, 113, 113, 0.55);
+		background: rgba(248, 113, 113, 0.12);
+		color: #fca5a5;
+		font-size: 0.68rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+		flex-shrink: 0;
+	}
+
+	.add-tin__demo-clear:hover {
+		background: rgba(248, 113, 113, 0.28);
+		border-color: rgba(248, 113, 113, 0.85);
+		color: #fff;
+	}
 </style>
 
 <script is:inline>
@@ -523,6 +553,13 @@
 						if (address && payload.id) existingWallets[address.toLowerCase()] = payload.id;
 						if (addressInput) addressInput.value = '';
 						setMessage('Wallet added \u2014 reloading\u2026');
+						// Analytics — track demo wallet adds
+						if (isDemo && typeof window.gtag === 'function') {
+							window.gtag('event', 'demo_wallet_added', {
+								event_category: 'demo',
+								event_label: chain || 'unknown',
+							});
+						}
 						window.location.reload();
 					});
 				}).catch(function (err) {
@@ -619,6 +656,31 @@
 		document.addEventListener('DOMContentLoaded', initAddTin);
 	} else {
 		initAddTin();
+	}
+
+	// ── Demo mode extras ──────────────────────────────────────────────────────
+	var isDemo = document.cookie.split(';').some(function (c) {
+		return c.trim() === 'almstins-demo=1';
+	});
+
+	if (isDemo) {
+		// Show the red "Delete All" pill
+		var clearBtn = document.getElementById('demo-clear-btn');
+		if (clearBtn) {
+			clearBtn.style.display = '';
+			clearBtn.addEventListener('click', function () {
+				fetch('/api/demo/cleanup', { method: 'POST' })
+					.catch(function () {})
+					.finally(function () {
+						window.location.reload();
+					});
+			});
+		}
+
+		// Wipe demo data when the visitor leaves the vault page
+		window.addEventListener('beforeunload', function () {
+			navigator.sendBeacon('/api/demo/cleanup');
+		});
 	}
 })();
 </script>
