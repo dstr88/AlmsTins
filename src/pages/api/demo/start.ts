@@ -13,7 +13,7 @@ export const GET: APIRoute = async ({ redirect }) => {
 	return new Response(null, {
 		status: 302,
 		headers: {
-			Location: '/dashboard/bookkeeping',
+			Location: '/dashboard/vault',
 			'Set-Cookie': demoCookieSet(),
 		},
 	});
