@@ -1,4 +1,5 @@
 ---
+import './ExchangeAccounts.css';
 import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
 import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
 import { db } from '@/lib/db';
@@ -340,68 +341,4 @@ try {
 	}
 </script>
 
-<style>
-	.exchange-accounts__list {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-md);
-	}
 
-	.exchange-accounts__empty {
-		margin: 0;
-		font-size: var(--font-sm);
-		opacity: 0.7;
-	}
-
-	.exchange-accounts__error {
-		margin: 0;
-		font-size: var(--font-sm);
-		color: #fca5a5;
-		opacity: 0.9;
-	}
-</style>
-
-<style>
-	.exchange-holding__row--staking {
-		display: flex;
-		gap: var(--space-sm);
-		padding-top: var(--space-xs, 0.25rem);
-		border-top: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
-		font-size: var(--font-xs, 0.7rem);
-		opacity: 0.8;
-	}
-
-	.exchange-holding__staking-usd {
-		opacity: 0.7;
-	}
-
-	/* Earned-symbol abbr in the Days field */
-	.exchange-holding__earned {
-		text-decoration: none;
-		cursor: help;
-		border-bottom: 1px dotted rgba(247, 242, 235, 0.3);
-	}
-
-	/* Legend at the bottom of the tin */
-	.exchange-legend {
-		border-top: 1px solid rgba(255, 255, 255, 0.08);
-		padding-top: 0.5rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.2rem;
-	}
-
-	.exchange-legend__line {
-		margin: 0;
-		font-size: 0.63rem;
-		color: rgba(247, 242, 235, 0.4);
-		letter-spacing: 0.02em;
-		line-height: 1.5;
-	}
-
-	.exchange-legend__line abbr {
-		text-decoration: none;
-		cursor: help;
-		border-bottom: 1px dotted rgba(247, 242, 235, 0.2);
-	}
-</style>

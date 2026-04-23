@@ -1,4 +1,5 @@
 ---
+import './CryptoComAccounts.css';
 import { db } from '@/lib/db';
 import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
 import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
@@ -500,45 +501,3 @@ try {
 	});
 </script>
 
-<style>
-	.crypto-accounts__list {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-md);
-	}
-
-	.crypto-accounts__section-label {
-		margin: 0 0 0.1rem;
-		font-size: 0.65rem;
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		color: #92400e;
-		opacity: 0.9;
-	}
-
-	.crypto-accounts__empty {
-		margin: 0;
-		font-size: var(--font-sm);
-		opacity: 0.7;
-	}
-
-	.crypto-accounts__error {
-		margin: 0;
-		font-size: var(--font-sm);
-		color: #fca5a5;
-		opacity: 0.9;
-	}
-
-	.exchange-holding__row--staking {
-		display: flex;
-		gap: var(--space-sm);
-		padding-top: var(--space-xs, 0.25rem);
-		border-top: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
-		font-size: var(--font-xs, 0.7rem);
-		opacity: 0.8;
-	}
-
-	.exchange-holding__staking-usd {
-		opacity: 0.7;
-	}
-</style>
