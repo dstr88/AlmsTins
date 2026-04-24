@@ -3,6 +3,115 @@ import './WalletSummary.css';
 
 console.log('[island.mount]', 'WalletSummary');
 
+// ── Inline basis-entry form ───────────────────────────────────────────────────
+// Shown beneath a token row when the user clicks "+ basis".
+// Both fields are optional: fill one or both, click Save.
+type BasisFormProps = {
+	walletId: string;
+	symbol: string;
+	chain: string;
+	onClose: () => void;
+};
+function BasisForm({ walletId, symbol, chain, onClose }: BasisFormProps) {
+	const [date, setDate]   = useState('');
+	const [price, setPrice] = useState('');
+	const [saving, setSaving] = useState(false);
+	const [msg, setMsg] = useState<string | null>(null);
+
+	const save = async () => {
+		const d = date.trim();
+		const p = parseFloat(price.trim());
+		if (!d && isNaN(p)) { setMsg('Enter a date, a price, or both.'); return; }
+		setSaving(true);
+		setMsg(null);
+		try {
+			const body: Record<string, unknown> = { symbol };
+			if (d)                        body.purchaseDate = d;
+			if (!isNaN(p) && p > 0)       body.pricePerCoin = p;
+			const res = await fetch(`/api/wallets/${walletId}/token-basis`, {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				setMsg((err as any).message ?? 'Save failed.');
+				setSaving(false);
+				return;
+			}
+			window.location.reload();
+		} catch {
+			setMsg('Network error — please try again.');
+			setSaving(false);
+		}
+	};
+
+	const inputStyle: React.CSSProperties = {
+		background: 'rgba(255,255,255,0.07)',
+		border: '1px solid rgba(255,255,255,0.15)',
+		borderRadius: '4px',
+		color: '#e0e0e0',
+		padding: '0.15rem 0.3rem',
+		fontSize: '0.72rem',
+	};
+	const labelStyle: React.CSSProperties = {
+		display: 'flex',
+		alignItems: 'center',
+		gap: '0.3rem',
+		color: 'rgba(224,224,224,0.7)',
+		fontSize: '0.72rem',
+	};
+
+	return (
+		<div style={{
+			display: 'flex',
+			flexWrap: 'wrap',
+			gap: '0.4rem',
+			alignItems: 'center',
+			padding: '0.45rem 0.5rem',
+			marginTop: '0.25rem',
+			background: 'rgba(255,255,255,0.04)',
+			borderRadius: '6px',
+		}}>
+			<label style={labelStyle}>
+				Bought
+				<input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+					max={new Date().toISOString().slice(0, 10)} style={inputStyle} />
+			</label>
+			<label style={labelStyle}>
+				$ per coin
+				<input type="number" min="0" step="any" placeholder="0.00"
+					value={price} onChange={(e) => setPrice(e.target.value)}
+					style={{ ...inputStyle, width: '6rem' }} />
+			</label>
+			<button onClick={save} disabled={saving} style={{
+				background: 'rgba(52,211,153,0.15)',
+				border: '1px solid rgba(52,211,153,0.4)',
+				borderRadius: '4px',
+				color: '#34d399',
+				padding: '0.15rem 0.6rem',
+				fontSize: '0.72rem',
+				cursor: saving ? 'wait' : 'pointer',
+			}}>
+				{saving ? 'Saving…' : 'Save'}
+			</button>
+			<button onClick={onClose} style={{
+				background: 'none',
+				border: '1px solid rgba(255,255,255,0.1)',
+				borderRadius: '4px',
+				color: 'rgba(224,224,224,0.5)',
+				padding: '0.15rem 0.5rem',
+				fontSize: '0.72rem',
+				cursor: 'pointer',
+			}}>
+				Cancel
+			</button>
+			{msg && <span style={{ color: '#fca5a5', fontSize: '0.68rem', width: '100%' }}>{msg}</span>}
+		</div>
+	);
+}
+
 type WalletSummaryState =
 	| { status: 'loading' }
 	| { status: 'error'; message: string }
@@ -128,6 +237,8 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 	const [state, setState] = useState<WalletSummaryState>({ status: 'loading' });
 	const [hideSpam, setHideSpam] = useState(true);
 	const [copied, setCopied] = useState(false);
+	// Manual cost-basis entry — tracks which token row has the form open
+	const [basisEdit, setBasisEdit] = useState<{ symbol: string; chain: string } | null>(null);
 	const initialSummary = summarizePayload(initialData ?? {});
 	const dataFromState = (s: WalletSummaryState) => (s as any).data ?? (s as any).wallet ?? null;
 
@@ -669,7 +780,25 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													>
 														{plLabel}
 													</span>
+													{(plLabel === '?' || daysHeld === null) && (
+														<button
+															onClick={() => setBasisEdit(
+																basisEdit?.symbol === token.tokenSymbol && basisEdit?.chain === token.chain
+																	? null
+																	: { symbol: token.tokenSymbol, chain: token.chain }
+															)}
+															style={{ marginLeft: 'auto', background: 'none', border: 'none',
+																color: 'rgba(251,191,36,0.7)', fontSize: '0.68rem',
+																cursor: 'pointer', padding: '0 0.2rem',
+																textDecoration: 'underline', textUnderlineOffset: '2px' }}
+															title="Enter your purchase date and/or price paid"
+														>+ basis</button>
+													)}
 												</div>
+												{basisEdit?.symbol === token.tokenSymbol && basisEdit?.chain === token.chain && (
+													<BasisForm walletId={walletId} symbol={token.tokenSymbol} chain={token.chain}
+														onClose={() => setBasisEdit(null)} />
+												)}
 											</div>
 										);
 									})}
@@ -844,7 +973,25 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													>
 														{plLabel}
 													</span>
+													{(plLabel === '?' || daysHeld === null) && (
+														<button
+															onClick={() => setBasisEdit(
+																basisEdit?.symbol === token.tokenSymbol && basisEdit?.chain === token.chain
+																	? null
+																	: { symbol: token.tokenSymbol, chain: token.chain }
+															)}
+															style={{ marginLeft: 'auto', background: 'none', border: 'none',
+																color: 'rgba(251,191,36,0.7)', fontSize: '0.68rem',
+																cursor: 'pointer', padding: '0 0.2rem',
+																textDecoration: 'underline', textUnderlineOffset: '2px' }}
+															title="Enter your purchase date and/or price paid"
+														>+ basis</button>
+													)}
 												</div>
+												{basisEdit?.symbol === token.tokenSymbol && basisEdit?.chain === token.chain && (
+													<BasisForm walletId={walletId} symbol={token.tokenSymbol} chain={token.chain}
+														onClose={() => setBasisEdit(null)} />
+												)}
 											</div>
 										);
 									})}

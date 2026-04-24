@@ -28,10 +28,11 @@ import { isDemoRequest } from '../lib/demo';
 const DEMO_ALLOWED_MUTATION_PATTERNS: RegExp[] = [
 	/^\/api\/wallets$/,                       // POST  — add on-chain or custom wallet
 	/^\/api\/wallets\/[^/]+$/,                // DELETE — remove a wallet by id
-	/^\/api\/wallets\/[^/]+\/sync$/,          // POST  — sync a single wallet
-	/^\/api\/wallets\/value\/sync-all$/,      // POST  — sync all wallet values
-	/^\/api\/lifecycle\/rebuild$/,            // POST  — rebuild FIFO after sync
-	/^\/api\/demo\/cleanup$/,                 // POST  — wipe demo data on page leave
+	/^\/api\/wallets\/[^/]+\/sync$/,           // POST  — sync a single wallet
+	/^\/api\/wallets\/value\/sync-all$/,       // POST  — sync all wallet values
+	/^\/api\/wallets\/[^/]+\/token-basis$/,   // POST  — save manual cost basis / purchase date
+	/^\/api\/lifecycle\/rebuild$/,             // POST  — rebuild FIFO after sync
+	/^\/api\/demo\/cleanup$/,                  // POST  — wipe demo data on page leave
 ];
 
 function isEnvProbe(pathname: string) {
