@@ -94,7 +94,7 @@ const summarizePayload = (payload: any): SummaryCounts => {
 
 type SnapshotToken = {
 	symbol: string;
-	daysHeld: number;
+	daysHeld: number | null;
 	amountFormatted: string;
 	usdValue: number;
 	profitLoss?: { percent?: number; absolute?: number } | 'N/A';
@@ -578,19 +578,17 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 										);
 										// Days held priority:
 										// 1. purchaseAt — from imported tx history (most accurate)
-										// 2. capturedAt — when snapshot was taken (updates on sync, lower bound)
-										// 3. walletCreatedAt — when wallet was added to tracking (last resort)
+										// 2. walletCreatedAt — when wallet was added to tracking (last resort)
+										// capturedAt (snapshot time) intentionally excluded — it updates on every
+										// sync so it always equals "today", producing a bogus 0d result.
 										// The 1-year (365d) threshold determines short-term vs long-term gains.
 										const acquiredAt = token.purchaseAt ? Date.parse(token.purchaseAt) : NaN;
-										const capturedMs = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
 										const walletMs = walletCreatedAt ? Date.parse(walletCreatedAt) : NaN;
 										const effectiveMs = Number.isFinite(acquiredAt)
 											? acquiredAt
-											: Number.isFinite(capturedMs)
-												? capturedMs
-												: Number.isFinite(walletMs)
-													? walletMs
-													: NaN;
+											: Number.isFinite(walletMs)
+												? walletMs
+												: NaN;
 										const daysHeld = Number.isFinite(effectiveMs)
 											? Math.max(0, Math.floor((Date.now() - effectiveMs) / (1000 * 60 * 60 * 24)))
 											: null;
@@ -755,19 +753,17 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 										);
 										// Days held priority:
 										// 1. purchaseAt — from imported tx history (most accurate)
-										// 2. capturedAt — when snapshot was taken (updates on sync, lower bound)
-										// 3. walletCreatedAt — when wallet was added to tracking (last resort)
+										// 2. walletCreatedAt — when wallet was added to tracking (last resort)
+										// capturedAt (snapshot time) intentionally excluded — it updates on every
+										// sync so it always equals "today", producing a bogus 0d result.
 										// The 1-year (365d) threshold determines short-term vs long-term gains.
 										const acquiredAt = token.purchaseAt ? Date.parse(token.purchaseAt) : NaN;
-										const capturedMs = token.capturedAt ? Date.parse(token.capturedAt) : NaN;
 										const walletMs = walletCreatedAt ? Date.parse(walletCreatedAt) : NaN;
 										const effectiveMs = Number.isFinite(acquiredAt)
 											? acquiredAt
-											: Number.isFinite(capturedMs)
-												? capturedMs
-												: Number.isFinite(walletMs)
-													? walletMs
-													: NaN;
+											: Number.isFinite(walletMs)
+												? walletMs
+												: NaN;
 										const daysHeld = Number.isFinite(effectiveMs)
 											? Math.max(0, Math.floor((Date.now() - effectiveMs) / (1000 * 60 * 60 * 24)))
 											: null;

@@ -112,7 +112,7 @@ export interface FullWalletData {
 			chain: string;
 			tokens: Array<{
 				symbol: string;
-				daysHeld: number;
+				daysHeld: number | null;
 				amountFormatted: string;
 				usdValue: number;
 				profitLoss?: { percent?: number; absolute?: number } | 'N/A';
@@ -217,9 +217,9 @@ const formatAmount = (value: number) => {
 };
 
 const computeDaysHeld = (from: string | null) => {
-	if (!from) return 0;
+	if (!from) return null;
 	const stamp = Date.parse(from);
-	if (!Number.isFinite(stamp)) return 0;
+	if (!Number.isFinite(stamp)) return null;
 	const diffMs = nowMs() - stamp;
 	return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 };
