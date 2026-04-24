@@ -62,9 +62,119 @@ try {
 } catch (error) {
   console.warn("Failed to load CSRF token server-side", error);
 }
+
+const hasAlert = (message && message !== "LOCKED_OUT") || !!notice;
 ---
 
 <Layout>
+
+  <!-- ── Fixed sign-in pill — top-right ───────────────────────────────── -->
+  <div class="signin-pill-wrap" id="signinPillWrap">
+    <button
+      class="signin-pill"
+      id="signinPill"
+      type="button"
+      aria-expanded={hasAlert ? "true" : "false"}
+      aria-haspopup="true"
+      aria-controls="signinDropdown"
+    >
+      Sign in
+      <svg class="pill-chevron" viewBox="0 0 12 8" fill="none" aria-hidden="true" width="12" height="8">
+        <path d="M1 1.5l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
+    <div class="signin-dropdown" id="signinDropdown" role="menu" hidden={!hasAlert || undefined}>
+
+      {session?.user?.id ? (
+        <a class="dropdown-cta" href={safeCallbackUrl}>Continue to Dashboard →</a>
+      ) : (
+        <>
+          {message && message !== "LOCKED_OUT" && (
+            <p class="dropdown-notice">{message}</p>
+          )}
+          {notice && <p class="dropdown-notice dropdown-notice--success">{notice}</p>}
+
+          <!-- Google -->
+          <form id="login-google" class="provider-form" method="POST" action="/api/auth/signin/google">
+            <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+            <input type="hidden" name="csrfToken" value={csrfToken} />
+            <button class="provider-button google" type="submit" data-provider="google"
+              data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+              <svg class="provider-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="rgba(255,255,255,0.8)" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="rgba(255,255,255,0.6)" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                <path fill="rgba(255,255,255,0.7)" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              <span class="provider-label">Continue with Google</span>
+              <span class="last-used-badge" data-badge="google" hidden>Last used</span>
+            </button>
+          </form>
+
+          <!-- GitHub -->
+          <form id="login-github" class="provider-form" method="POST" action="/api/auth/signin/github">
+            <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+            <input type="hidden" name="csrfToken" value={csrfToken} />
+            <button class="provider-button github" type="submit" data-provider="github"
+              data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+              <svg class="provider-icon" viewBox="0 0 24 24" fill="white" aria-hidden="true">
+                <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+              </svg>
+              <span class="provider-label">Continue with GitHub</span>
+              <span class="last-used-badge" data-badge="github" hidden>Last used</span>
+            </button>
+          </form>
+
+          <div class="dropdown-divider"></div>
+
+          <!-- Email -->
+          <div class="email-toggle-wrap">
+            <button class="email-toggle-btn" id="emailToggle" type="button" aria-expanded="false">
+              Sign in with email <span class="toggle-chevron">›</span>
+            </button>
+            <div class="email-panel" id="emailPanel" hidden>
+              <div class="email-tabs" role="tablist">
+                <button class="email-tab active" id="tabPass" role="tab" aria-selected="true" type="button">Password</button>
+                <button class="email-tab" id="tabMagic" role="tab" aria-selected="false" type="button">Magic link</button>
+              </div>
+              <form id="login-email-password" class="stack email-tab-panel" method="POST" action="/api/auth/callback/credentials">
+                <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+                <input type="hidden" name="csrfToken" value={csrfToken} />
+                <label>
+                  <span>Email address</span>
+                  <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+                </label>
+                <label>
+                  <span>Password</span>
+                  <input type="password" name="password" minlength="10" required autocomplete="current-password" />
+                </label>
+                <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+                  Sign in with email
+                </button>
+              </form>
+              <form id="login-magic-link" class="stack email-tab-panel" method="POST" action="/api/auth/signin/email" hidden>
+                <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+                <input type="hidden" name="csrfToken" value={csrfToken} />
+                <label>
+                  <span>Email address</span>
+                  <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+                </label>
+                <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
+                  Send magic link
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-signup-link" href="/signup">Create a free account</a>
+        </>
+      )}
+    </div>
+  </div>
+
+  <!-- ── Main layout ───────────────────────────────────────────────────── -->
   <main class="auth-page">
     <div class="auth-shell">
 
@@ -81,6 +191,23 @@ try {
         <div class="hero-copy">
           <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
           <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
+        </div>
+
+        <!-- Primary CTA — demo -->
+        <div class="demo-cta-wrap">
+          <a href="/api/demo/start" class="demo-cta-btn">
+            Try with your wallet <span class="demo-cta-arrow">→</span>
+          </a>
+          <p class="demo-cta-sub">No sign-in required</p>
+        </div>
+
+        <!-- Trust bar -->
+        <div class="trust-bar">
+          <span>✓ Free to start</span>
+          <span class="trust-dot">·</span>
+          <span>✓ No credit card</span>
+          <span class="trust-dot">·</span>
+          <span>✓ No wallet connection</span>
         </div>
 
         <!-- Feature cards -->
@@ -115,30 +242,11 @@ try {
           </div>
         </div>
 
-        <!-- Trust bar -->
-        <div class="trust-bar">
-          <span>✓ Free to start</span>
-          <span class="trust-dot">·</span>
-          <span>✓ No credit card</span>
-          <span class="trust-dot">·</span>
-          <span>✓ No wallet connection</span>
-        </div>
-
         <!-- Dashboard preview -->
         <div class="dash-preview">
           <img src={DashImg.src} alt="Almstins dashboard preview" class="dash-img" loading="lazy" />
           <div class="dash-preview-fade"></div>
         </div>
-
-        <!-- Scam checker CTA — standalone, not buried in image -->
-        <a href="/wallet-checker" class="scam-checker-cta">
-          <span class="scc-icon">🔍</span>
-          <span class="scc-body">
-            <span class="scc-title">Free Wallet Scam Checker</span>
-            <span class="scc-sub">Paste any address before you send — no account needed</span>
-          </span>
-          <span class="scc-arrow">→</span>
-        </a>
 
         <!-- Social proof -->
         <div class="social-proof">
@@ -158,112 +266,31 @@ try {
 
       </section>
 
-      <!-- ── RIGHT PANEL ────────────────────────────────────────── -->
+      <!-- ── RIGHT PANEL — Wallet Scam Checker ─────────────────── -->
       <section class="auth-right">
-        <div class="signin-card">
-
-          <header class="signin-head">
-            <h2>Sign in</h2>
-            {message === "LOCKED_OUT" ? null : message ? (
-              <p class="notice">{message}</p>
-            ) : null}
-            {notice && <p class="notice success">{notice}</p>}
-            {session?.user?.id && (
-              <a class="provider-button cta-primary" href={safeCallbackUrl}>Continue to Dashboard →</a>
-            )}
-          </header>
-
-          <!-- Primary CTA: create account -->
-          {!session?.user?.id && (
-            <a class="provider-button new-account" href="/signup">✦ Create a free account</a>
-          )}
-
-          <!-- Divider -->
-          <div class="demo-divider">or sign in</div>
-
-          <!-- Primary providers -->
-          <div class="providers">
-            <form id="login-google" class="provider-form" method="POST" action="/api/auth/signin/google">
-              <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
-              <input type="hidden" name="csrfToken" value={csrfToken} />
-              <button class="provider-button google" type="submit" data-provider="google"
-                data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
-                <svg class="provider-icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="rgba(255,255,255,0.8)" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="rgba(255,255,255,0.6)" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                  <path fill="rgba(255,255,255,0.7)" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                <span class="provider-label">Continue with Google</span>
-                <span class="last-used-badge" data-badge="google" hidden>Last used</span>
-              </button>
-            </form>
-
-            <form id="login-github" class="provider-form" method="POST" action="/api/auth/signin/github">
-              <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
-              <input type="hidden" name="csrfToken" value={csrfToken} />
-              <button class="provider-button github" type="submit" data-provider="github"
-                data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
-                <svg class="provider-icon" viewBox="0 0 24 24" fill="white" aria-hidden="true">
-                  <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-                </svg>
-                <span class="provider-label">Continue with GitHub</span>
-                <span class="last-used-badge" data-badge="github" hidden>Last used</span>
-              </button>
-            </form>
-          </div>
-
-          <!-- Email toggle -->
-          <div class="email-toggle-wrap">
-            <button class="email-toggle-btn" id="emailToggle" type="button" aria-expanded="false">
-              or sign in with email <span class="toggle-chevron">›</span>
-            </button>
-
-            <div class="email-panel" id="emailPanel" hidden>
-              <!-- Tab bar -->
-              <div class="email-tabs" role="tablist">
-                <button class="email-tab active" id="tabPass" role="tab" aria-selected="true" type="button">Password</button>
-                <button class="email-tab" id="tabMagic" role="tab" aria-selected="false" type="button">Magic link</button>
-              </div>
-
-              <!-- Email + Password form -->
-              <form id="login-email-password" class="stack email-tab-panel" method="POST" action="/api/auth/callback/credentials">
-                <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
-                <input type="hidden" name="csrfToken" value={csrfToken} />
-                <label>
-                  <span>Email address</span>
-                  <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
-                </label>
-                <label>
-                  <span>Password</span>
-                  <input type="password" name="password" minlength="10" required autocomplete="current-password" />
-                </label>
-                <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
-                  Sign in with email
-                </button>
-              </form>
-
-              <!-- Magic link form -->
-              <form id="login-magic-link" class="stack email-tab-panel" method="POST" action="/api/auth/signin/email" hidden>
-                <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
-                <input type="hidden" name="csrfToken" value={csrfToken} />
-                <label>
-                  <span>Email address</span>
-                  <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
-                </label>
-                <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
-                  Send magic link
-                </button>
-              </form>
-            </div>
-          </div>
-
-          <!-- Demo — quiet text link, not a competing button -->
-          <a class="demo-text-link" href="/api/demo/start">▶ Try the demo first — no account needed</a>
-
-        </div><!-- /signin-card -->
+        <div class="checker-card">
+          <span class="checker-badge">FREE TOOL · NO SIGNUP</span>
+          <h2 class="checker-heading">Is your wallet safe?</h2>
+          <p class="checker-sub">
+            Paste any wallet address. We'll check it against known scam,
+            phishing, and sanctioned address databases in seconds.
+          </p>
+          <input
+            type="text"
+            class="checker-input"
+            id="checkerInput"
+            placeholder="0x… or paste any wallet address"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button class="checker-btn" id="checkerSubmit" type="button">
+            Check wallet →
+          </button>
+          <p class="checker-footer">Checked 2.4M+ wallets · Updated daily</p>
+        </div>
       </section>
-    </div><!-- /auth-shell -->
+
+    </div>
   </main>
 
   <!-- ── Hesitation modal (shown after 30s of no interaction) ────────── -->
@@ -343,6 +370,54 @@ try {
       });
     })();
 
+    // ── Sign-in pill toggle ───────────────────────────────────────────
+    (() => {
+      const pill     = document.getElementById('signinPill') as HTMLButtonElement | null;
+      const dropdown = document.getElementById('signinDropdown') as HTMLElement | null;
+      const wrap     = document.getElementById('signinPillWrap') as HTMLElement | null;
+
+      if (!pill || !dropdown) return;
+
+      function openDropdown() {
+        dropdown!.hidden = false;
+        pill!.setAttribute('aria-expanded', 'true');
+        pill!.classList.add('is-open');
+        setTimeout(() => {
+          document.addEventListener('click', outsideClick, { once: true });
+        }, 0);
+      }
+
+      function closeDropdown() {
+        dropdown!.hidden = true;
+        pill!.setAttribute('aria-expanded', 'false');
+        pill!.classList.remove('is-open');
+      }
+
+      function outsideClick(e: MouseEvent) {
+        if (wrap && !wrap.contains(e.target as Node)) {
+          closeDropdown();
+        } else if (!dropdown!.hidden) {
+          // Clicked inside — re-register listener
+          setTimeout(() => {
+            document.addEventListener('click', outsideClick, { once: true });
+          }, 0);
+        }
+      }
+
+      pill.addEventListener('click', () => {
+        dropdown.hidden ? openDropdown() : closeDropdown();
+      });
+
+      document.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && !dropdown.hidden) closeDropdown();
+      });
+
+      // Auto-open if there's a notice or error
+      if (pill.getAttribute('aria-expanded') === 'true') {
+        openDropdown();
+      }
+    })();
+
     // ── Email toggle ──────────────────────────────────────────────────
     (() => {
       const toggleBtn  = document.getElementById('emailToggle') as HTMLButtonElement;
@@ -373,6 +448,28 @@ try {
 
       tabPass?.addEventListener('click', () => switchTab(true));
       tabMagic?.addEventListener('click', () => switchTab(false));
+    })();
+
+    // ── Wallet scam checker ───────────────────────────────────────────
+    (() => {
+      const input  = document.getElementById('checkerInput') as HTMLInputElement | null;
+      const btn    = document.getElementById('checkerSubmit');
+
+      function runCheck() {
+        const addr = input?.value.trim();
+        if (addr) {
+          window.location.href = '/wallet-checker?address=' + encodeURIComponent(addr);
+        } else {
+          input?.focus();
+          input?.classList.add('checker-input--shake');
+          setTimeout(() => input?.classList.remove('checker-input--shake'), 500);
+        }
+      }
+
+      btn?.addEventListener('click', runCheck);
+      input?.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter') runCheck();
+      });
     })();
 
     // ── Hesitation modal (30s timer, reset on interaction) ───────────
@@ -415,18 +512,15 @@ try {
         if (e.key === 'Escape') dismiss();
       });
 
-      // Reset on meaningful interactions
       ['click','keydown','scroll','mousemove','touchstart'].forEach(ev => {
         document.addEventListener(ev, resetTimer, { passive: true });
       });
       resetTimer();
 
-      // Char counter
       body?.addEventListener('input', () => {
         if (counter) counter.textContent = String(body.value.length);
       });
 
-      // Form submit
       form?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const subject = (document.getElementById('contact-subject') as HTMLInputElement)?.value.trim();
@@ -531,6 +625,49 @@ try {
       line-height: 1.7; margin: 0;
     }
 
+    /* ── Demo CTA — primary hero button ────────────────────────── */
+    .demo-cta-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .demo-cta-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 1rem 2.5rem;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #0f7a55, #0d9466);
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 700;
+      text-decoration: none;
+      letter-spacing: -0.01em;
+      box-shadow: 0 4px 24px rgba(13,148,102,0.35);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    }
+    .demo-cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(13,148,102,0.5);
+      opacity: 0.95;
+    }
+    .demo-cta-arrow {
+      display: inline-block;
+      transition: transform 0.18s ease;
+    }
+    .demo-cta-btn:hover .demo-cta-arrow {
+      transform: translateX(4px);
+    }
+    .demo-cta-sub {
+      margin: 0;
+      text-align: center;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.38);
+      letter-spacing: 0.01em;
+    }
+
     /* Feature cards */
     .feature-grid {
       display: grid;
@@ -578,101 +715,262 @@ try {
       padding: 2rem; background: rgba(0,0,0,0.3);
       border-left: 1px solid rgba(255,255,255,0.06);
     }
+    @media (max-width: 900px) {
+      .auth-right {
+        border-left: none;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        padding: 2rem 1.5rem;
+      }
+    }
 
-    .signin-card {
+    /* ── Wallet Scam Checker card ───────────────────────────────── */
+    .checker-card {
       background: rgba(10, 15, 26, 0.95);
-      border: 1px solid rgba(255,255,255,0.1);
+      border: 1px solid rgba(125, 211, 252, 0.2);
       border-radius: 20px;
       padding: 2.5rem 2rem;
       width: 100%; max-width: 420px;
-      box-shadow: 0 30px 70px rgba(0,0,0,0.5);
-      display: flex; flex-direction: column; gap: 1.1rem;
+      box-shadow: 0 30px 70px rgba(0,0,0,0.5), 0 0 40px rgba(125,211,252,0.04);
+      display: flex; flex-direction: column; gap: 1.25rem;
+    }
+    .checker-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.7rem;
+      border-radius: 999px;
+      background: rgba(125,211,252,0.12);
+      border: 1px solid rgba(125,211,252,0.3);
+      color: #7dd3fc;
+      width: fit-content;
+    }
+    .checker-heading {
+      font-size: 1.55rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin: 0;
+      color: #f5f8ff;
+    }
+    .checker-sub {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.5);
+      line-height: 1.7;
+      margin: 0;
+    }
+    .checker-input {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 12px;
+      border: 1px solid rgba(125,211,252,0.2);
+      background: rgba(125,211,252,0.04);
+      color: #f5f8ff;
+      padding: 0.9rem 1rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .checker-input::placeholder { color: rgba(255,255,255,0.25); }
+    .checker-input:focus {
+      border-color: rgba(125,211,252,0.5);
+      box-shadow: 0 0 0 3px rgba(125,211,252,0.08);
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    .checker-input--shake { animation: shake 0.4s ease; }
+    .checker-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 1rem;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      box-shadow: 0 4px 20px rgba(2,132,199,0.35);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    }
+    .checker-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(2,132,199,0.5);
+      opacity: 0.95;
+    }
+    .checker-footer {
+      margin: 0;
+      text-align: center;
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.25);
+      letter-spacing: 0.02em;
     }
 
-    .signin-head h2 { margin: 0 0 0.25rem; font-size: 1.25rem; font-weight: 700; }
-    .signin-head p  { margin: 0; color: rgba(255,255,255,0.5); font-size: 0.88rem; }
-    .inline-link { color: #a5b4fc; text-decoration: none; }
-    .inline-link:hover { text-decoration: underline; }
+    /* ── Sign-in pill (fixed top-right) ────────────────────────── */
+    .signin-pill-wrap {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.5rem;
+      z-index: 200;
+    }
+    .signin-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 1.1rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(10,15,26,0.85);
+      backdrop-filter: blur(12px);
+      color: rgba(255,255,255,0.75);
+      font-size: 0.88rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s;
+      white-space: nowrap;
+    }
+    .signin-pill:hover {
+      border-color: rgba(255,255,255,0.35);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .signin-pill.is-open {
+      border-color: rgba(165,180,252,0.4);
+      color: #a5b4fc;
+    }
+    .pill-chevron {
+      flex-shrink: 0;
+      opacity: 0.6;
+      transition: transform 0.2s ease;
+    }
+    .signin-pill.is-open .pill-chevron { transform: rotate(180deg); }
 
-    /* Providers */
+    /* ── Sign-in dropdown ──────────────────────────────────────── */
+    .signin-dropdown {
+      position: absolute;
+      top: calc(100% + 0.6rem);
+      right: 0;
+      width: 320px;
+      background: rgba(10, 15, 26, 0.98);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 1.25rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      animation: dropIn 0.18s ease;
+    }
+    .signin-dropdown[hidden] { display: none; }
+    @keyframes dropIn {
+      from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+      to   { opacity: 1; transform: none; }
+    }
+    @media (max-width: 400px) {
+      .signin-pill-wrap { right: 0.75rem; }
+      .signin-dropdown  { width: calc(100vw - 1.5rem); right: 0; }
+    }
+
+    .dropdown-notice {
+      margin: 0;
+      background: rgba(255,107,107,0.1);
+      border: 1px solid rgba(255,107,107,0.3);
+      color: #ffb5b5;
+      padding: 0.55rem 0.75rem;
+      border-radius: 10px;
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+    .dropdown-notice--success {
+      background: rgba(60,179,113,0.1);
+      border-color: rgba(60,179,113,0.3);
+      color: #b6f3c4;
+    }
+
+    .dropdown-cta {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; padding: 0.85rem 1rem;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #5767ff, #934dff);
+      color: #fff; font-size: 0.95rem; font-weight: 700;
+      text-decoration: none;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .dropdown-cta:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .dropdown-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 0.1rem 0;
+    }
+
+    .dropdown-signup-link {
+      display: block;
+      text-align: center;
+      font-size: 0.83rem;
+      color: rgba(255,255,255,0.4);
+      text-decoration: none;
+      padding: 0.25rem;
+      transition: color 0.15s;
+    }
+    .dropdown-signup-link:hover { color: #a5b4fc; }
+
+    /* Providers (shared between dropdown items) */
     .providers { display: grid; gap: 0.75rem; }
     .provider-form { margin: 0; }
-
     .provider-button {
       display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
       width: 100%; text-decoration: none;
-      border-radius: 12px; padding: 0.9rem 1rem;
+      border-radius: 12px; padding: 0.8rem 1rem;
       border: 1px solid rgba(255,255,255,0.15);
       background: rgba(255,255,255,0.07);
-      color: #fff; font-size: 0.97rem; font-weight: 650;
+      color: #fff; font-size: 0.92rem; font-weight: 650;
       cursor: pointer;
       transition: transform 0.18s ease, opacity 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-      position: relative; flex-direction: column;
+      position: relative; flex-direction: row;
     }
     .provider-button:hover {
       opacity: 0.9; transform: translateY(-1px);
       border-color: rgba(255,255,255,0.28);
     }
-    .provider-icon { width: 18px; height: 18px; flex-shrink: 0; position: absolute; left: 1rem; }
-    .provider-label { display: block; }
-
+    .provider-icon { width: 18px; height: 18px; flex-shrink: 0; }
+    .provider-label { display: block; flex: 1; }
     .provider-button.google {
-      background: linear-gradient(135deg, #3b7ef8, #1d4ed8); border: none; flex-direction: row;
+      background: linear-gradient(135deg, #3b7ef8, #1d4ed8); border: none;
     }
     .provider-button.github {
-      background: linear-gradient(135deg, #1c2333, #2d3748); border: none; flex-direction: row;
+      background: linear-gradient(135deg, #1c2333, #2d3748); border: none;
     }
-
     .last-used-badge {
-      display: block; font-size: 0.65rem; font-weight: 700;
+      display: block; font-size: 0.62rem; font-weight: 700;
       letter-spacing: 0.06em; text-transform: uppercase;
-      padding: 0.12rem 0.45rem; border-radius: 99px;
+      padding: 0.1rem 0.4rem; border-radius: 99px;
       background: rgba(255,255,255,0.2); color: #fff;
-      margin-top: 0.1rem; align-self: center;
     }
     .provider-button.last-used { outline: 2px solid rgba(255,255,255,0.4); outline-offset: 2px; }
 
-    .provider-button.new-account {
-      background: linear-gradient(135deg, #0f7a55, #0d9466); border: none;
-      font-size: 0.9rem; flex-direction: row;
-    }
-    .provider-button.cta-primary {
-      background: linear-gradient(135deg, #5767ff, #934dff); border: none;
-      font-size: 0.97rem; flex-direction: row; font-weight: 700;
-    }
-    .provider-button.ghost {
-      background: rgba(255,255,255,0.05); flex-direction: row;
-    }
-
-    /* Demo — quiet text link, not a button */
-    .demo-text-link {
-      display: block; text-align: center;
-      font-size: 0.8rem; color: rgba(255,255,255,0.35);
-      text-decoration: none;
-      transition: color 0.15s;
-      padding: 0.25rem 0;
-    }
-    .demo-text-link:hover { color: rgba(255,255,255,0.65); }
-
-    /* Demo divider */
-    .demo-divider {
-      display: flex; align-items: center; gap: 0.6rem;
-      color: rgba(255,255,255,0.35); font-size: 0.75rem;
-      text-transform: uppercase; letter-spacing: 0.08em;
-    }
-    .demo-divider::before, .demo-divider::after {
-      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.09);
-    }
-
-    /* ── Email toggle ──────────────────────────────────────────── */
+    /* Email toggle */
     .email-toggle-wrap {
       border: 1px solid rgba(255,255,255,0.09);
       border-radius: 12px; overflow: hidden;
     }
     .email-toggle-btn {
       width: 100%; background: rgba(255,255,255,0.04);
-      border: none; color: rgba(255,255,255,0.5); font-size: 0.85rem;
-      font-family: inherit; padding: 0.75rem 1rem;
+      border: none; color: rgba(255,255,255,0.5); font-size: 0.84rem;
+      font-family: inherit; padding: 0.7rem 1rem;
       cursor: pointer; text-align: left;
       display: flex; align-items: center; justify-content: space-between;
       transition: background 0.15s, color 0.15s;
@@ -682,20 +980,18 @@ try {
     }
     .toggle-chevron { font-size: 1rem; transition: transform 0.2s; }
     .email-toggle-btn.active .toggle-chevron { transform: rotate(90deg); }
-
     .email-panel { padding: 1rem; border-top: 1px solid rgba(255,255,255,0.07); }
 
-    /* Tabs */
     .email-tabs {
-      display: flex; gap: 0; margin-bottom: 1rem;
+      display: flex; margin-bottom: 1rem;
       background: rgba(255,255,255,0.04); border-radius: 8px; padding: 3px;
     }
     .email-tab {
-      flex: 1; padding: 0.45rem 0.5rem;
+      flex: 1; padding: 0.4rem 0.5rem;
       border: none; background: transparent;
-      color: rgba(255,255,255,0.45); font-size: 0.82rem; font-weight: 600;
+      color: rgba(255,255,255,0.45); font-size: 0.8rem; font-weight: 600;
       font-family: inherit; cursor: pointer; border-radius: 6px;
-      transition: background 0.15s, color 0.15s; box-shadow: none;
+      transition: background 0.15s, color 0.15s;
     }
     .email-tab.active {
       background: rgba(255,255,255,0.1); color: #fff;
@@ -703,54 +999,21 @@ try {
     }
     .email-tab:hover:not(.active) { color: rgba(255,255,255,0.7); }
 
-    /* Stack forms */
     .stack { display: grid; gap: 0.85rem; }
-    label { display: grid; gap: 0.4rem; color: rgba(255,255,255,0.8); font-weight: 500; font-size: 0.88rem; }
+    label { display: grid; gap: 0.4rem; color: rgba(255,255,255,0.8); font-weight: 500; font-size: 0.85rem; }
     input[type="email"], input[type="password"] {
       border-radius: 10px; border: 1px solid rgba(255,255,255,0.15);
       background: rgba(255,255,255,0.06); color: #fff;
-      padding: 0.8rem 1rem; font-size: 0.95rem; font-family: inherit;
+      padding: 0.75rem 0.9rem; font-size: 0.9rem; font-family: inherit;
     }
     input:focus { outline: 2px solid rgba(99,102,241,0.7); outline-offset: 1px; }
     .stack button[type="submit"] {
-      border-radius: 10px; padding: 0.8rem 1rem;
+      border-radius: 10px; padding: 0.75rem 1rem;
       border: none; background: linear-gradient(135deg, #5865f2, #7c3aed);
-      color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+      color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer;
       transition: opacity 0.18s, transform 0.18s;
     }
     .stack button[type="submit"]:hover { opacity: 0.88; transform: translateY(-1px); }
-
-    /* Notices */
-    .notice {
-      margin-top: 0.6rem;
-      background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.3);
-      color: #ffb5b5; padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.88rem;
-    }
-    .notice.success {
-      background: rgba(60,179,113,0.1); border: 1px solid rgba(60,179,113,0.3); color: #b6f3c4;
-    }
-
-    /* ── Scam checker CTA — standalone row ───────────────────────── */
-    .scam-checker-cta {
-      display: flex; align-items: center; gap: 0.85rem;
-      padding: 0.85rem 1rem;
-      border-radius: 12px;
-      border: 1px solid rgba(125, 211, 252, 0.25);
-      background: rgba(125, 211, 252, 0.06);
-      text-decoration: none;
-      transition: background 0.18s, border-color 0.18s, transform 0.18s;
-      flex-shrink: 0;
-    }
-    .scam-checker-cta:hover {
-      background: rgba(125, 211, 252, 0.12);
-      border-color: rgba(125, 211, 252, 0.45);
-      transform: translateY(-1px);
-    }
-    .scc-icon { font-size: 1.3rem; flex-shrink: 0; }
-    .scc-body { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; }
-    .scc-title { font-size: 0.88rem; font-weight: 700; color: #7dd3fc; }
-    .scc-sub   { font-size: 0.75rem; color: rgba(255,255,255,0.45); }
-    .scc-arrow { color: rgba(125,211,252,0.5); font-size: 1rem; flex-shrink: 0; }
 
     /* ── Social proof ─────────────────────────────────────────────── */
     .social-proof {
