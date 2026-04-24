@@ -390,6 +390,10 @@ import './AddAssetTin.css';
 	});
 
 	if (isDemo) {
+		// Flag set to true before any intentional reload so the beforeunload
+		// handler does NOT wipe data on page refresh (only on true navigation away).
+		var demoReloading = false;
+
 		// Show the red "Delete All" pill
 		var clearBtn = document.getElementById('demo-clear-btn');
 		if (clearBtn) {
@@ -398,15 +402,23 @@ import './AddAssetTin.css';
 				fetch('/api/demo/cleanup', { method: 'POST' })
 					.catch(function () {})
 					.finally(function () {
+						demoReloading = true;
 						window.location.reload();
 					});
 			});
 		}
 
-		// Wipe demo data when the visitor leaves the vault page
+		// Wipe demo data only when the visitor truly navigates away (not on reload).
 		window.addEventListener('beforeunload', function () {
-			navigator.sendBeacon('/api/demo/cleanup');
+			if (!demoReloading) navigator.sendBeacon('/api/demo/cleanup');
 		});
+
+		// Patch window.location.reload so any reload from wallet-add also sets the flag.
+		var _origReload = window.location.reload.bind(window.location);
+		window.location.reload = function () {
+			demoReloading = true;
+			_origReload();
+		};
 	}
 })();
 </script>
