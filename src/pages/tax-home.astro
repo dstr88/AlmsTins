@@ -785,6 +785,12 @@ const availableYears = bd?.availableYears ?? [priorYear];
 
 
 <script>
+  // ── Demo tracking ─────────────────────────────────────────────────────────
+  const isDemo = document.cookie.split(';').some(c => c.trim() === 'almstins-demo=1');
+  if (isDemo && typeof window.gtag === 'function') {
+    window.gtag('event', 'demo_year_end', { event_category: 'demo' });
+  }
+
   // ── Disclaimer modal — shows once per tax season (resets Feb 1) ────────────
   const now = new Date();
   // Feb 1 onwards = new filing season for the prior year
