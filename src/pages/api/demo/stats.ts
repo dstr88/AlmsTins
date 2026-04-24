@@ -1,0 +1,43 @@
+/**
+ * GET /api/demo/stats
+ *
+ * Returns demo session counts for the admin. Requires an authenticated
+ * session — not accessible to demo or anonymous users.
+ *
+ * Response:
+ *   { total, today, last7days, last30days }
+ */
+
+import type { APIRoute } from 'astro';
+import { db } from '../../../lib/db';
+import { requireTenantSession } from '../../../lib/requireTenantSession';
+
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request }) => {
+	try {
+		const { isDemo } = await requireTenantSession(request);
+		if (isDemo) {
+			return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+		}
+
+		const [total, today, last7, last30] = await Promise.all([
+			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions`, args: [] }),
+			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions WHERE started_at >= strftime('%Y-%m-%dT00:00:00Z', 'now')`, args: [] }),
+			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions WHERE started_at >= strftime('%Y-%m-%dT%H:%M:%SZ', datetime('now', '-7 days'))`, args: [] }),
+			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions WHERE started_at >= strftime('%Y-%m-%dT%H:%M:%SZ', datetime('now', '-30 days'))`, args: [] }),
+		]);
+
+		return new Response(
+			JSON.stringify({
+				total:    Number((total.rows[0]  as Record<string,unknown>).n ?? 0),
+				today:    Number((today.rows[0]  as Record<string,unknown>).n ?? 0),
+				last7days:  Number((last7.rows[0]  as Record<string,unknown>).n ?? 0),
+				last30days: Number((last30.rows[0] as Record<string,unknown>).n ?? 0),
+			}),
+			{ status: 200, headers: { 'Content-Type': 'application/json' } },
+		);
+	} catch {
+		return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+	}
+};

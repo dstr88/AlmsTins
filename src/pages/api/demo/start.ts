@@ -24,7 +24,7 @@ const DEMO_TABLES = [
 	'wallets',
 ];
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
 	// Clear all demo data so every visitor starts fresh
 	for (const table of DEMO_TABLES) {
 		await db
@@ -33,6 +33,16 @@ export const GET: APIRoute = async () => {
 				/* table may not exist in this schema version — ignore */
 			});
 	}
+
+	// Increment demo session counter (best-effort — never blocks the redirect)
+	const ua       = request.headers.get('user-agent') ?? null;
+	const referrer = request.headers.get('referer')    ?? null;
+	await db
+		.execute({
+			sql:  `INSERT INTO demo_sessions (user_agent, referrer) VALUES (?, ?)`,
+			args: [ua, referrer],
+		})
+		.catch(() => { /* table may not exist yet — ignore */ });
 
 	return new Response(null, {
 		status: 302,
