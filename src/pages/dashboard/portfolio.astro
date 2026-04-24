@@ -2,257 +2,381 @@
 /**
  * /dashboard/portfolio
  *
- * Unrealized P&L per asset.
- * Shows what you paid, what it's worth now, % return, and total portfolio gain.
+ * Premium portfolio performance page — Titanium Hut design language.
+ * Single accent: Electric Mint #2dd4a8 (matches brand SalmonTin color).
+ * All colors are expressed via CSS custom properties in portfolio.css —
+ * nothing is hard-coded in this template.
+ *
+ * Data is fetched client-side so prices are always live.
  */
+import './portfolio.css';
 import Layout from '../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
-
-// We fetch data client-side so the page renders instantly and
-// the user sees a live price on every visit.
 ---
 
 <Layout title="Portfolio Performance | Almstins" noindex={true}>
-	<div class="max-w-5xl mx-auto px-4 py-8 space-y-8">
+<div class="portfolio-page">
 
-		<!-- Header -->
-		<div>
-			<h1 class="text-2xl font-bold text-gray-900">Portfolio Performance</h1>
-			<p class="text-sm text-gray-500 mt-1">
-				Unrealized gain/loss per asset based on weighted-average cost basis vs. live prices.
-			</p>
+	<!-- ── Loading ──────────────────────────────────────────────────────── -->
+	<div id="pf-loading" class="pf-loading">
+		<div class="pf-spinner"></div>
+		<span class="pf-loading__label">Loading portfolio…</span>
+	</div>
+
+	<!-- ── Error state ──────────────────────────────────────────────────── -->
+	<div id="pf-error" class="pf-state pf-state--error" hidden>
+		<div class="pf-state__icon">⚠</div>
+		<p class="pf-state__title">Failed to load portfolio data</p>
+		<p class="pf-state__sub">Please refresh and try again.</p>
+	</div>
+
+	<!-- ── Empty state ──────────────────────────────────────────────────── -->
+	<div id="pf-empty" class="pf-state" hidden>
+		<div class="pf-state__icon">📊</div>
+		<p class="pf-state__title">No holdings found</p>
+		<p class="pf-state__sub">Import transactions to see your portfolio performance.</p>
+	</div>
+
+	<!-- ── Main content (hidden until data loads) ───────────────────────── -->
+	<div id="pf-content" hidden>
+
+		<!-- Hero band ──────────────────────────────────────────────────── -->
+		<section class="pf-hero">
+			<div class="pf-hero__inner">
+				<div class="pf-hero__eyebrow">
+					<span class="pf-hero__eyebrow-dot"></span>
+					Portfolio Performance
+				</div>
+
+				<div class="pf-hero__value-block">
+					<span class="pf-hero__value-label">Current Value</span>
+					<div class="pf-hero__value" id="hero-value">—</div>
+				</div>
+
+				<div class="pf-hero__pnl-row">
+					<span class="pf-hero__pnl pf-hero__pnl--neutral" id="hero-pnl">—</span>
+					<span class="pf-hero__sep">·</span>
+					<span class="pf-hero__pct pf-hero__pct--neutral" id="hero-pct">—</span>
+					<span class="pf-hero__sep">·</span>
+					<span class="pf-hero__meta" id="hero-vs" style="margin-bottom:0">vs. <strong id="hero-invested">—</strong> invested</span>
+				</div>
+
+				<p class="pf-hero__meta" id="hero-updated"></p>
+			</div>
+
+			<!-- Allocation bar lives at the very bottom of the hero -->
+			<div class="pf-alloc-bar" id="alloc-bar"></div>
+		</section>
+
+		<!-- Metric cards ───────────────────────────────────────────────── -->
+		<div class="pf-metrics">
+			<div class="pf-metric">
+				<span class="pf-metric__label">Total Invested</span>
+				<span class="pf-metric__value" id="card-cost">—</span>
+			</div>
+			<div class="pf-metric">
+				<span class="pf-metric__label">Current Value</span>
+				<span class="pf-metric__value" id="card-value">—</span>
+			</div>
+			<div class="pf-metric">
+				<span class="pf-metric__label">Unrealized P&amp;L</span>
+				<span class="pf-metric__value" id="card-pnl">—</span>
+			</div>
+			<div class="pf-metric">
+				<span class="pf-metric__label">Total Return</span>
+				<span class="pf-metric__value" id="card-pct">—</span>
+			</div>
 		</div>
 
-		<!-- Loading state -->
-		<div id="loading" class="text-center py-16 text-gray-400 text-sm">
-			<div class="animate-spin inline-block w-6 h-6 border-2 border-gray-300 border-t-indigo-500 rounded-full mb-3"></div>
-			<p>Loading portfolio…</p>
-		</div>
-
-		<!-- Error state -->
-		<div id="error-state" class="hidden rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-			<p class="text-red-700 font-medium">Failed to load portfolio data.</p>
-			<p class="text-sm text-red-500 mt-1">Please refresh and try again.</p>
-		</div>
-
-		<!-- Summary cards -->
-		<div id="summary-cards" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4">
-			<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-				<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Total Invested</p>
-				<p id="card-cost" class="text-xl font-bold text-gray-900 mt-1">—</p>
-			</div>
-			<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-				<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Current Value</p>
-				<p id="card-value" class="text-xl font-bold text-gray-900 mt-1">—</p>
-			</div>
-			<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-				<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Unrealized P&L</p>
-				<p id="card-pnl" class="text-xl font-bold mt-1">—</p>
-			</div>
-			<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
-				<p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Total Return</p>
-				<p id="card-pct" class="text-xl font-bold mt-1">—</p>
-			</div>
-		</div>
-
-		<!-- Asset table -->
-		<div id="asset-table" class="hidden">
-			<div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-				<h2 class="text-base font-semibold text-gray-800">Per-Asset Breakdown</h2>
-				<p id="updated-at" class="text-xs text-gray-400"></p>
+		<!-- Per-asset table ────────────────────────────────────────────── -->
+		<section class="pf-positions">
+			<div class="pf-positions__header">
+				<span class="pf-positions__title">Positions</span>
+				<span class="pf-positions__ts" id="updated-at"></span>
 			</div>
 
-			<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-				<table class="w-full text-sm">
-					<thead class="bg-gray-50 border-b border-gray-200">
+			<div class="pf-table-wrap">
+				<table class="pf-table">
+					<thead>
 						<tr>
-							<th class="text-left px-4 py-3 font-semibold text-gray-600">Asset</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Holdings</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Avg Cost</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Cost Basis</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Price Now</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Market Value</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Unrealized P&L</th>
-							<th class="text-right px-4 py-3 font-semibold text-gray-600">Return</th>
+							<th>Asset</th>
+							<th class="pf-col--holdings">Holdings</th>
+							<th class="pf-col--avg-cost">Avg Cost</th>
+							<th>Cost Basis</th>
+							<th class="pf-col--price-now">Price Now</th>
+							<th>Market Value</th>
+							<th>Unrealized P&amp;L</th>
+							<th>Return</th>
 						</tr>
 					</thead>
-					<tbody id="asset-tbody" class="divide-y divide-gray-100 bg-white">
-					</tbody>
-					<tfoot id="asset-tfoot" class="border-t-2 border-gray-300 bg-gray-50 font-semibold">
-					</tfoot>
+					<tbody id="asset-tbody"></tbody>
+					<tfoot id="asset-tfoot"></tfoot>
 				</table>
 			</div>
 
-			<!-- No price note -->
-			<p id="no-price-note" class="hidden text-xs text-gray-400 mt-2">
+			<p id="no-price-note" class="pf-note" hidden>
 				* Price unavailable — these assets have no current market price in our feed.
 			</p>
-		</div>
+		</section>
+	</div><!-- /pf-content -->
 
-		<!-- Empty state -->
-		<div id="empty-state" class="hidden rounded-xl border border-gray-200 bg-gray-50 p-10 text-center">
-			<p class="text-3xl mb-2">📊</p>
-			<p class="font-semibold text-gray-700">No holdings found</p>
-			<p class="text-sm text-gray-500 mt-1">Import transactions to see your portfolio performance.</p>
-		</div>
-
-	</div>
+</div><!-- /portfolio-page -->
 </Layout>
 
 <script>
-const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// ── Formatters ──────────────────────────────────────────────────────────── //
+const USD = new Intl.NumberFormat('en-US', {
+	style: 'currency', currency: 'USD',
+	minimumFractionDigits: 2, maximumFractionDigits: 2,
+});
 const PCT = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
 const QTY = (n: number) => {
 	if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 4 });
-	if (n >= 1) return n.toLocaleString('en-US', { maximumFractionDigits: 6 });
+	if (n >= 1)    return n.toLocaleString('en-US', { maximumFractionDigits: 6 });
 	return n.toLocaleString('en-US', { maximumFractionDigits: 8 });
 };
 
-function pnlClass(n: number | null) {
-	if (n == null) return 'text-gray-400';
-	return n >= 0 ? 'text-emerald-600' : 'text-red-600';
+function pillClass(n: number | null): string {
+	if (n == null) return 'pf-pill pf-pill--neutral';
+	return n >= 0  ? 'pf-pill pf-pill--gain' : 'pf-pill pf-pill--loss';
 }
-function fmtPnl(n: number | null) {
+
+function fmtPnl(n: number | null): string {
 	if (n == null) return '—';
 	const abs = USD.format(Math.abs(n));
 	return n >= 0 ? `+${abs}` : `(${abs})`;
 }
 
+function heroClass(suffix: 'pnl' | 'pct', n: number | null): string {
+	const base = suffix === 'pnl' ? 'pf-hero__pnl' : 'pf-hero__pct';
+	if (n == null) return `${base} ${base}--neutral`;
+	return n >= 0  ? `${base} ${base}--gain` : `${base} ${base}--loss`;
+}
+
+function metricClass(n: number | null): string {
+	const base = 'pf-metric__value';
+	if (n == null) return base;
+	return n >= 0  ? `${base} pf-metric__value--gain` : `${base} pf-metric__value--loss`;
+}
+
+// Ticker badge: up to 4 chars, clipped sensibly
+function tickerLabel(sym: string): string {
+	return sym.slice(0, 4).toUpperCase();
+}
+
+// ── Allocation bar ──────────────────────────────────────────────────────── //
+// Renders each asset as a proportional segment in the hero bar.
+// Gainers → mint-to-green gradient, losers → red, no-price → dim gray.
+function buildAllocBar(
+	assets: Array<{
+		symbol: string;
+		currentValue: number | null;
+		totalCostBasis: number;
+		unrealizedPnl: number | null;
+	}>,
+) {
+	const bar = document.getElementById('alloc-bar');
+	if (!bar) return;
+
+	// Use current value if available, otherwise cost basis as proxy
+	const total = assets.reduce((s, a) => s + (a.currentValue ?? a.totalCostBasis), 0);
+	if (total <= 0) return;
+
+	// Sort: gainers first, then no-price, then losers
+	const sorted = [...assets].sort((a, b) => {
+		const aP = a.unrealizedPnl ?? 0;
+		const bP = b.unrealizedPnl ?? 0;
+		if (a.currentValue == null && b.currentValue != null) return 1;
+		if (b.currentValue == null && a.currentValue != null) return -1;
+		return bP - aP;
+	});
+
+	bar.innerHTML = '';
+
+	// Mint shades for top gainers, desaturated for flat/unknown, red for losers
+	const gainColors  = ['#2dd4a8', '#28c49a', '#24b58c', '#1fa67e', '#1a9770'];
+	let gainIdx = 0;
+
+	for (const asset of sorted) {
+		const val   = asset.currentValue ?? asset.totalCostBasis;
+		const share = val / total;
+		const pnl   = asset.unrealizedPnl;
+
+		let color: string;
+		if (asset.currentValue == null) {
+			color = 'rgba(255,255,255,.12)';          // no price — dim
+		} else if (pnl != null && pnl < 0) {
+			color = 'rgba(248,113,113,.65)';           // loss — muted red
+		} else {
+			color = gainColors[gainIdx % gainColors.length];
+			gainIdx++;
+		}
+
+		const seg = document.createElement('div');
+		seg.className = 'pf-alloc-bar__seg';
+		seg.style.flexGrow = String(share * 100);
+		seg.style.background = color;
+		seg.title = `${asset.symbol}: ${USD.format(val)}`;
+		bar.appendChild(seg);
+	}
+}
+
+// ── Main load ───────────────────────────────────────────────────────────── //
 async function loadPortfolio() {
-	const loading = document.getElementById('loading')!;
-	const errorState = document.getElementById('error-state')!;
-	const summaryCards = document.getElementById('summary-cards')!;
-	const assetTable = document.getElementById('asset-table')!;
-	const emptyState = document.getElementById('empty-state')!;
+	const elLoading  = document.getElementById('pf-loading')!;
+	const elError    = document.getElementById('pf-error')!;
+	const elEmpty    = document.getElementById('pf-empty')!;
+	const elContent  = document.getElementById('pf-content')!;
 
 	try {
 		const res = await fetch('/api/portfolio/performance');
 		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
 		const data = await res.json() as {
 			ok: boolean;
 			updatedAt: string;
 			summary: {
-				totalCostBasis: number;
-				totalCurrentValue: number;
-				totalUnrealizedPnl: number;
-				pnlPercent: number | null;
+				totalCostBasis:       number;
+				totalCurrentValue:    number;
+				totalUnrealizedPnl:   number;
+				pnlPercent:           number | null;
 			};
 			assets: Array<{
-				symbol: string;
-				quantity: number;
-				weightedAvgCost: number;
-				totalCostBasis: number;
-				currentPrice: number | null;
-				currentValue: number | null;
-				unrealizedPnl: number | null;
-				pnlPercent: number | null;
-				lastAcquiredAt: string | null;
-				priceSource: string;
+				symbol:           string;
+				quantity:         number;
+				weightedAvgCost:  number;
+				totalCostBasis:   number;
+				currentPrice:     number | null;
+				currentValue:     number | null;
+				unrealizedPnl:    number | null;
+				pnlPercent:       number | null;
+				lastAcquiredAt:   string | null;
+				priceSource:      string;
 			}>;
 		};
 
-		loading.classList.add('hidden');
+		elLoading.hidden = true;
 
 		if (!data.ok) throw new Error('API returned ok:false');
 		if (!data.assets || data.assets.length === 0) {
-			emptyState.classList.remove('hidden');
+			elEmpty.hidden = false;
 			return;
 		}
 
-		// Summary cards
+		// ── Hero ─────────────────────────────────────────────────────── //
 		const s = data.summary;
-		(document.getElementById('card-cost')!).textContent  = USD.format(s.totalCostBasis);
-		(document.getElementById('card-value')!).textContent = s.totalCurrentValue > 0 ? USD.format(s.totalCurrentValue) : '—';
+		const hasPrices = s.totalCurrentValue > 0;
+		const pnlVal    = hasPrices ? s.totalUnrealizedPnl : null;
 
-		const pnlEl = document.getElementById('card-pnl')!;
-		pnlEl.textContent  = fmtPnl(s.totalCurrentValue > 0 ? s.totalUnrealizedPnl : null);
-		pnlEl.className = `text-xl font-bold mt-1 ${pnlClass(s.totalCurrentValue > 0 ? s.totalUnrealizedPnl : null)}`;
+		const heroValue = document.getElementById('hero-value')!;
+		heroValue.textContent = hasPrices ? USD.format(s.totalCurrentValue) : '—';
+		if (pnlVal != null && pnlVal >= 0) heroValue.classList.add('pf-hero__value--gain');
 
-		const pctEl = document.getElementById('card-pct')!;
-		pctEl.textContent = s.pnlPercent != null ? PCT(s.pnlPercent) : '—';
-		pctEl.className   = `text-xl font-bold mt-1 ${pnlClass(s.pnlPercent)}`;
+		const heroPnl = document.getElementById('hero-pnl')!;
+		heroPnl.textContent = fmtPnl(pnlVal);
+		heroPnl.className   = heroClass('pnl', pnlVal);
 
-		summaryCards.classList.remove('hidden');
+		const heroPct = document.getElementById('hero-pct')!;
+		heroPct.textContent = s.pnlPercent != null ? PCT(s.pnlPercent) : '—';
+		heroPct.className   = heroClass('pct', s.pnlPercent);
 
-		// Updated timestamp
-		const updatedEl = document.getElementById('updated-at')!;
+		(document.getElementById('hero-invested')!).textContent = USD.format(s.totalCostBasis);
+
 		try {
-			updatedEl.textContent = `Prices as of ${new Date(data.updatedAt).toLocaleTimeString()}`;
+			const ts = new Date(data.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+			(document.getElementById('hero-updated')!).textContent = `Prices as of ${ts}`;
+			(document.getElementById('updated-at')!).textContent   = `Prices as of ${ts}`;
 		} catch {}
 
-		// Asset rows
+		// ── Metric cards ──────────────────────────────────────────────── //
+		const cardCost  = document.getElementById('card-cost')!;
+		const cardValue = document.getElementById('card-value')!;
+		const cardPnl   = document.getElementById('card-pnl')!;
+		const cardPct   = document.getElementById('card-pct')!;
+
+		cardCost.textContent  = USD.format(s.totalCostBasis);
+		cardValue.textContent = hasPrices ? USD.format(s.totalCurrentValue) : '—';
+
+		cardPnl.textContent = fmtPnl(pnlVal);
+		cardPnl.className   = metricClass(pnlVal);
+
+		cardPct.textContent = s.pnlPercent != null ? PCT(s.pnlPercent) : '—';
+		cardPct.className   = metricClass(s.pnlPercent);
+
+		// ── Asset rows ────────────────────────────────────────────────── //
 		const tbody = document.getElementById('asset-tbody')!;
-		let hasNoPricedAssets = false;
+		let   hasNoPricedAssets = false;
 
 		for (const a of data.assets) {
 			const hasPrice = a.currentPrice != null;
 			if (!hasPrice) hasNoPricedAssets = true;
 
 			const tr = document.createElement('tr');
-			tr.className = 'hover:bg-gray-50 transition-colors';
+
 			tr.innerHTML = `
-				<td class="px-4 py-3">
-					<div class="flex items-center gap-2">
-						<span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold shrink-0">
-							${a.symbol.slice(0, 3)}
-						</span>
-						<div>
-							<p class="font-medium text-gray-900">${a.symbol}</p>
-							${a.lastAcquiredAt ? `<p class="text-xs text-gray-400">Last acquired ${a.lastAcquiredAt}</p>` : ''}
+				<td>
+					<div class="pf-ticker">
+						<div class="pf-ticker__badge">${tickerLabel(a.symbol)}</div>
+						<div class="pf-ticker__info">
+							<div class="pf-ticker__name">${a.symbol}</div>
+							${a.lastAcquiredAt
+								? `<div class="pf-ticker__sub">Last acq. ${a.lastAcquiredAt}</div>`
+								: ''}
 						</div>
 					</div>
 				</td>
-				<td class="px-4 py-3 text-right text-gray-700 tabular-nums">${QTY(a.quantity)}</td>
-				<td class="px-4 py-3 text-right text-gray-500 tabular-nums">${a.weightedAvgCost > 0 ? USD.format(a.weightedAvgCost) : '—'}</td>
-				<td class="px-4 py-3 text-right text-gray-700 tabular-nums">${USD.format(a.totalCostBasis)}</td>
-				<td class="px-4 py-3 text-right text-gray-700 tabular-nums">${hasPrice ? USD.format(a.currentPrice!) : '<span class="text-gray-400">—*</span>'}</td>
-				<td class="px-4 py-3 text-right text-gray-700 tabular-nums">${a.currentValue != null ? USD.format(a.currentValue) : '<span class="text-gray-400">—</span>'}</td>
-				<td class="px-4 py-3 text-right tabular-nums font-medium ${pnlClass(a.unrealizedPnl)}">${fmtPnl(a.unrealizedPnl)}</td>
-				<td class="px-4 py-3 text-right tabular-nums font-medium ${pnlClass(a.pnlPercent)}">
-					${a.pnlPercent != null ? PCT(a.pnlPercent) : '<span class="text-gray-400">—</span>'}
-				</td>
+				<td class="pf-col--holdings">${QTY(a.quantity)}</td>
+				<td class="pf-col--avg-cost">${a.weightedAvgCost > 0 ? USD.format(a.weightedAvgCost) : '—'}</td>
+				<td>${USD.format(a.totalCostBasis)}</td>
+				<td class="pf-col--price-now">${hasPrice ? USD.format(a.currentPrice!) : '<span style="color:var(--pf-text-2)">—*</span>'}</td>
+				<td>${a.currentValue != null ? USD.format(a.currentValue) : '<span style="color:var(--pf-text-2)">—</span>'}</td>
+				<td><span class="${pillClass(a.unrealizedPnl)}">${fmtPnl(a.unrealizedPnl)}</span></td>
+				<td><span class="${pillClass(a.pnlPercent)}">${a.pnlPercent != null ? PCT(a.pnlPercent) : '—'}</span></td>
 			`;
 			tbody.appendChild(tr);
 		}
 
-		// Totals footer
-		const tfoot = document.getElementById('asset-tfoot')!;
-		const pricedAssets = data.assets.filter(a => a.currentValue != null);
-		if (pricedAssets.length > 0) {
+		// ── Footer totals ─────────────────────────────────────────────── //
+		const tfoot       = document.getElementById('asset-tfoot')!;
+		const priced      = data.assets.filter(a => a.currentValue != null);
+
+		if (priced.length > 0) {
 			const footTotalCost  = data.assets.reduce((sum, a) => sum + a.totalCostBasis, 0);
-			const footPricedCost = pricedAssets.reduce((sum, a) => sum + a.totalCostBasis, 0);
-			const footCurVal     = pricedAssets.reduce((sum, a) => sum + a.currentValue!, 0);
+			const footPricedCost = priced.reduce((sum, a) => sum + a.totalCostBasis, 0);
+			const footCurVal     = priced.reduce((sum, a) => sum + a.currentValue!, 0);
 			const footPnl        = footCurVal - footPricedCost;
 
 			tfoot.innerHTML = `
 				<tr>
-					<td class="px-4 py-3 font-semibold text-gray-800">Total</td>
-					<td class="px-4 py-3"></td>
-					<td class="px-4 py-3"></td>
-					<td class="px-4 py-3 text-right tabular-nums text-gray-800">${USD.format(footTotalCost)}</td>
-					<td class="px-4 py-3"></td>
-					<td class="px-4 py-3 text-right tabular-nums text-gray-800">${USD.format(footCurVal)}</td>
-					<td class="px-4 py-3 text-right tabular-nums font-bold ${pnlClass(footPnl)}">${fmtPnl(footPnl)}</td>
-					<td class="px-4 py-3 text-right tabular-nums font-bold ${pnlClass(s.pnlPercent)}">
-						${s.pnlPercent != null ? PCT(s.pnlPercent) : '—'}
-					</td>
+					<td>Total</td>
+					<td class="pf-col--holdings"></td>
+					<td class="pf-col--avg-cost"></td>
+					<td>${USD.format(footTotalCost)}</td>
+					<td class="pf-col--price-now"></td>
+					<td>${USD.format(footCurVal)}</td>
+					<td><span class="${pillClass(footPnl)}">${fmtPnl(footPnl)}</span></td>
+					<td><span class="${pillClass(s.pnlPercent)}">${s.pnlPercent != null ? PCT(s.pnlPercent) : '—'}</span></td>
 				</tr>
 			`;
 		}
 
 		if (hasNoPricedAssets) {
-			document.getElementById('no-price-note')!.classList.remove('hidden');
+			(document.getElementById('no-price-note')!).hidden = false;
 		}
 
-		assetTable.classList.remove('hidden');
+		// ── Allocation bar ────────────────────────────────────────────── //
+		buildAllocBar(data.assets);
+
+		// Reveal everything
+		elContent.hidden = false;
 
 	} catch (err) {
 		console.error('[portfolio] load error', err);
-		loading.classList.add('hidden');
-		errorState.classList.remove('hidden');
+		elLoading.hidden = true;
+		elError.hidden   = false;
 	}
 }
 
