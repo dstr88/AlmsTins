@@ -21,6 +21,7 @@ import SmartImport from '@/components/dashboard/SmartImport.astro';
 import { getAllActiveWallets } from '@/lib/wallets';
 import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { isDemoRequest } from '@/lib/demo';
 import { db } from '@/lib/db';
 
 const ENABLE_ALL_TX = false;
@@ -69,12 +70,20 @@ try {
 	// monthly_digests table may not exist yet — migration pending
 }
 
-const walletsWithData = await Promise.all(
-	onchainWallets.map(async (wallet) => ({
-		wallet,
-		fullData: await getWalletWithLatestData(tenantId, wallet.id),
-	})),
-);
+// In demo mode skip the SSR snapshot fetch entirely.
+// This prevents a race condition where the sendBeacon cleanup fires on
+// manual reload but SSR renders stale wallet data before the DELETE lands.
+// The client-side fetch handles everything — if the wallet was wiped by
+// cleanup it returns 404 and the tin disappears cleanly.
+const isDemo = isDemoRequest(Astro.request);
+const walletsWithData = isDemo
+	? onchainWallets.map((wallet) => ({ wallet, fullData: null }))
+	: await Promise.all(
+			onchainWallets.map(async (wallet) => ({
+				wallet,
+				fullData: await getWalletWithLatestData(tenantId, wallet.id),
+			})),
+	  );
 
 const formatWalletLabel = (wallet: { label?: string | null; address: string }) => {
 	const label = wallet.label?.trim();

@@ -339,6 +339,12 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 						status,
 						body: text.slice(0, 200),
 					});
+					// 404 means the wallet was deleted (e.g. demo cleanup ran on reload).
+					// Silently render nothing so the tin disappears without an error flash.
+					if (status === 404) {
+						if (!cancelled) setStateLogged({ status: 'empty', message: '' }, 'refresh.404-gone');
+						return;
+					}
 					throw new Error(`Refresh failed (${status})`);
 				}
 
