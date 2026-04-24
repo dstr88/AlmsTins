@@ -32,6 +32,11 @@ export const PRICE_SYMBOL_ALLOWLIST = new Set([
 	'SAVAX',
 	'WAVAX',
 	'WETHE',
+	// Additional tokens found in user snapshots
+	'LTC',
+	'CRO',
+	'DOT',
+	'PYTH',
 ]);
 
 const SYMBOL_NORMALIZATION_MAP = new Map<string, string>([

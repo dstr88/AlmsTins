@@ -283,6 +283,7 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
       }
 
       let changed = false;
+      let hasTokensNeedingReprice = false;
       const day = row.captured_at ? String(row.captured_at).slice(0, 10) : 'unknown';
 
       for (const token of tokens) {
@@ -318,6 +319,9 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
           continue;
         }
 
+        // Token needs a price lookup — mark the row for update even if there are no
+        // poison zeros to clear (i.e. priceUsd was genuinely null, not a bad zero).
+        hasTokensNeedingReprice = true;
         missingSymbols.add(symbol);
         trackUniqueAssetRequest(summary, `sym:${row.chain}:${symbol}@spot`, uniqueAssetSet);
 
@@ -332,7 +336,7 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
         }
       }
 
-      if (changed) {
+      if (changed || hasTokensNeedingReprice) {
         rowsToUpdate.push({ row, tokens, changed });
       }
     }
