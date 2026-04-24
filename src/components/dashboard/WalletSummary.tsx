@@ -780,7 +780,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													>
 														{plLabel}
 													</span>
-													{(plLabel === '?' || daysHeld === null) && (
+													{basisPrice === null && (
 														<button
 															onClick={() => setBasisEdit(
 																basisEdit?.symbol === token.tokenSymbol && basisEdit?.chain === token.chain
@@ -973,7 +973,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													>
 														{plLabel}
 													</span>
-													{(plLabel === '?' || daysHeld === null) && (
+													{basisPrice === null && (
 														<button
 															onClick={() => setBasisEdit(
 																basisEdit?.symbol === token.tokenSymbol && basisEdit?.chain === token.chain
