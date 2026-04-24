@@ -50,7 +50,7 @@ export const GET: APIRoute = async ({ request }) => {
 		if (!session) return json({ ok: false, error: 'Unauthorized' }, 401);
 		const { tenantId } = session;
 
-		const cacheKey = `t:${tenantId}:portfolio:performance:v3`;
+		const cacheKey = `t:${tenantId}:portfolio:performance:v4`;
 		const cached = await getCache<unknown>(cacheKey, {
 			allowStale: true,
 			staleMaxAgeSeconds: 30 * 60,
@@ -59,12 +59,41 @@ export const GET: APIRoute = async ({ request }) => {
 			return json({ ok: true, ...(cached.value as object), cached: true, stale: cached.isStale });
 		}
 
-		// ── 1. Load asset groups ───────────────────────────────────────────────
+		// ── 1. Load asset groups + net disposal quantities ────────────────────
+		// total_quantity only tracks acquisitions; we subtract outbound non-linked
+		// exchange events (sells, sends to external wallets) to get net holdings.
+		// linked_transfer = 0 excludes wallet-to-wallet moves that appear on
+		// both sides of the ledger (they'd net to zero anyway).
 		const groupsResult = await db.execute({
-			sql: `SELECT asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at
-			      FROM asset_lifecycle_groups
-			      WHERE tenant_id = ? AND total_quantity > 0
-			      ORDER BY asset_symbol`,
+			sql: `SELECT
+			        alg.asset_symbol,
+			        alg.total_quantity                                          AS gross_quantity,
+			        alg.weighted_avg_cost_usd,
+			        alg.latest_acquired_at,
+			        COALESCE(SUM(
+			            CASE
+			                WHEN ale.direction = 'out'
+			                 AND ale.transaction_class = 'other'
+			                 AND (ale.linked_transfer = 0 OR ale.linked_transfer IS NULL)
+			                THEN ale.amount
+			                ELSE 0
+			            END
+			        ), 0) AS disposed_quantity
+			      FROM asset_lifecycle_groups alg
+			      LEFT JOIN asset_lifecycle_events ale
+			             ON ale.group_id = alg.id
+			      WHERE alg.tenant_id = ?
+			      GROUP BY alg.id, alg.asset_symbol, alg.total_quantity,
+			               alg.weighted_avg_cost_usd, alg.latest_acquired_at
+			      HAVING (alg.total_quantity - COALESCE(SUM(
+			            CASE
+			                WHEN ale.direction = 'out'
+			                 AND ale.transaction_class = 'other'
+			                 AND (ale.linked_transfer = 0 OR ale.linked_transfer IS NULL)
+			                THEN ale.amount ELSE 0
+			            END
+			        ), 0)) > 0
+			      ORDER BY alg.asset_symbol`,
 			args: [tenantId],
 		});
 
@@ -74,7 +103,7 @@ export const GET: APIRoute = async ({ request }) => {
 		if (groups.length === 0) {
 			const empty = {
 				updatedAt: new Date().toISOString(),
-				summary: { totalCostBasis: 0, totalCurrentValue: 0, totalUnrealizedPnl: 0, pnlPercent: null },
+				summary: { totalCostBasis: 0, pricedCostBasis: 0, totalCurrentValue: 0, totalUnrealizedPnl: 0, pnlPercent: null },
 				assets: [],
 			};
 			return json({ ok: true, ...empty, cached: false });
@@ -103,7 +132,9 @@ export const GET: APIRoute = async ({ request }) => {
 
 		for (const g of groups) {
 			const symbol          = String(g.asset_symbol ?? '').toUpperCase();
-			const quantity        = Number(g.total_quantity ?? 0);
+			const grossQuantity   = Number(g.gross_quantity ?? 0);
+			const disposedQty     = Number(g.disposed_quantity ?? 0);
+			const quantity        = Math.max(0, grossQuantity - disposedQty);
 			const weightedAvgCost = Number(g.weighted_avg_cost_usd ?? 0);
 			const totalCostBasis  = quantity * weightedAvgCost;
 			const lastAcquiredAt  = g.latest_acquired_at ? String(g.latest_acquired_at).slice(0, 10) : null;
