@@ -362,7 +362,9 @@ export async function getLatestWalletSnapshot(
 				const priceUsd = Number(token.priceUsd ?? 0);
 				const usdValue = Number(token.usdValue ?? token.valueUsd ?? amount * priceUsd);
 				const acquired =
-					token.firstSeen ?? token.acquiredAt ?? token.purchaseAt ?? capturedAt ?? null;
+					token.firstSeen ?? token.acquiredAt ?? token.purchaseAt ?? null;
+				// capturedAt intentionally excluded — it is the snapshot timestamp (≈ "now"),
+				// so falling back to it always produces 0 days held.
 				const daysHeld = computeDaysHeld(acquired);
 
 				let profitLoss: { percent?: number; absolute?: number } | 'N/A' = 'N/A';

@@ -370,6 +370,12 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 	const showSnapshotFallback =
 		snapshotChains.length > 0 && state.status !== 'ready' && state.status !== 'stale';
 	const walletData = (state.status === 'ready' || state.status === 'stale') ? state.wallet : null;
+	// Days since this wallet was added to tracking — used as last-resort fallback when no
+	// acquisition date exists in the token data (e.g. freshly-added watch-only wallets).
+	const walletTrackedDays =
+		walletCreatedAt && Number.isFinite(Date.parse(walletCreatedAt))
+			? Math.max(0, Math.floor((Date.now() - Date.parse(walletCreatedAt)) / (1000 * 60 * 60 * 24)))
+			: null;
 	const shortenedAddress =
 		walletData?.address
 			? `${walletData.address.slice(0, 8).toUpperCase()}...${walletData.address
@@ -461,7 +467,9 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 										</div>
 										<div className="wallet-summary__row-line2">
 											<span className="wallet-summary__cell wallet-summary__cell--days">
-												{token.daysHeld != null ? `${token.daysHeld}d` : '—'}
+												{(token.daysHeld ?? walletTrackedDays) != null
+													? `${token.daysHeld ?? walletTrackedDays}d`
+													: '—'}
 											</span>
 											<span className="wallet-summary__cell wallet-summary__cell--pl">
 												{token.profitLoss === 'N/A' || token.profitLoss?.percent === undefined
