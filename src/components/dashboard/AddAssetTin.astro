@@ -369,6 +369,7 @@ import './AddAssetTin.css';
 								event_label: chain || 'unknown',
 							});
 						}
+						try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
 						window.location.reload();
 					});
 				}).catch(function (err) {
@@ -420,6 +421,7 @@ import './AddAssetTin.css';
 						if (customLabelInput) customLabelInput.value = '';
 						if (customAddressInput) customAddressInput.value = '';
 						setCustomMessage('Saved \u2014 reloading\u2026');
+						try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
 						window.location.reload();
 					});
 				}).catch(function (err) {
@@ -473,10 +475,6 @@ import './AddAssetTin.css';
 	});
 
 	if (isDemo) {
-		// Flag set to true before any intentional reload so the beforeunload
-		// handler does NOT wipe data on page refresh (only on true navigation away).
-		var demoReloading = false;
-
 		// Show the red "Delete All" pill
 		var clearBtn = document.getElementById('demo-clear-btn');
 		if (clearBtn) {
@@ -485,23 +483,26 @@ import './AddAssetTin.css';
 				fetch('/api/demo/cleanup', { method: 'POST' })
 					.catch(function () {})
 					.finally(function () {
-						demoReloading = true;
+						// Delete All intentionally wipes then reloads — skip cleanup beacon
+						try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
 						window.location.reload();
 					});
 			});
 		}
 
-		// Wipe demo data only when the visitor truly navigates away (not on reload).
+		// Wipe demo data when the visitor truly navigates away.
+		// sessionStorage key 'demo-reloading' is set before any intentional reload
+		// (wallet add, custom save, Delete All). If it exists we're just refreshing —
+		// remove it and skip the beacon so the new wallet survives the reload.
 		window.addEventListener('beforeunload', function () {
-			if (!demoReloading) navigator.sendBeacon('/api/demo/cleanup');
+			try {
+				if (sessionStorage.getItem('demo-reloading')) {
+					sessionStorage.removeItem('demo-reloading');
+					return; // intentional reload — keep data
+				}
+			} catch(e) {}
+			navigator.sendBeacon('/api/demo/cleanup');
 		});
-
-		// Patch window.location.reload so any reload from wallet-add also sets the flag.
-		var _origReload = window.location.reload.bind(window.location);
-		window.location.reload = function () {
-			demoReloading = true;
-			_origReload();
-		};
 	}
 })();
 </script>
