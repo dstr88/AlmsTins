@@ -1,6 +1,8 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
+import { isDemoRequest } from '../../../lib/demo';
 
+const isDemo      = isDemoRequest(Astro.request);
 const defaultYear = new Date().getFullYear() - 1;
 const yearParam   = Astro.url.searchParams.get('year');
 const year        = yearParam ? Number(yearParam) : defaultYear;
@@ -124,11 +126,206 @@ function timelineId(asset: string) {
 	<!-- ── Back link ─────────────────────────────────────────────────────── -->
 	<a href="/dashboard/vault" class="ml-back">← Dashboard</a>
 
-	{fetchError && (
+	{fetchError && !isDemo && (
 		<div class="ml-error">
 			<strong>⚠️ Could not load Memory Lane</strong>
 			<p>{fetchError}</p>
 			<a href={`?year=${year}`}>Try again</a>
+		</div>
+	)}
+
+	{/* ── Demo preview ─────────────────────────────────────────────────── */}
+	{isDemo && (
+		<div class="ml-demo-wrap">
+
+			<!-- Explainer banner -->
+			<div class="ml-demo-banner">
+				<div class="ml-demo-banner__icon">🎓</div>
+				<div class="ml-demo-banner__body">
+					<p class="ml-demo-banner__title">Your personal crypto yearbook</p>
+					<p class="ml-demo-banner__text">
+						Memory Lane turns your trading history into a report card — every coin you've ever bought
+						gets a letter grade (A+ to F) based on realized returns, grouped into
+						<strong>Graduated</strong> (fully exited) and <strong>Still Enrolled</strong> (open positions).
+						Expand any coin to see a full buy → sell timeline, holding period, and whether each lot was
+						short-term or long-term. Connect your wallet to unlock your own class of {year}.
+					</p>
+					<a href="/signup" class="ml-demo-banner__cta">Sign up free — see your grades →</a>
+				</div>
+			</div>
+
+			<!-- Wireframe stats bar -->
+			<div class="ml-stats ml-stats--wire">
+				<div class="ml-stat">
+					<span class="ml-wire-block ml-wire-block--num"></span>
+					<span class="ml-stat__label">Graduated</span>
+				</div>
+				<div class="ml-stat">
+					<span class="ml-wire-block ml-wire-block--num ml-wire-block--wide"></span>
+					<span class="ml-stat__label">Realized P&L</span>
+				</div>
+				<div class="ml-stat">
+					<span class="ml-wire-block ml-wire-block--num"></span>
+					<span class="ml-stat__label">Still Enrolled</span>
+				</div>
+			</div>
+
+			<!-- Wireframe graduated section -->
+			<section class="ml-section">
+				<div class="ml-section__header ml-section__header--grad ml-section__header--wire">
+					<span class="ml-section__icon">🎓</span>
+					<div>
+						<h2 class="ml-section__title">Graduated</h2>
+						<p class="ml-section__sub">Fully exited — the journey is complete</p>
+					</div>
+					<span class="ml-wire-block ml-wire-block--pill"></span>
+				</div>
+
+				<div class="ml-type-label">
+					<span>⛓️</span><span>Layer 1s</span>
+				</div>
+				<div class="ml-cards">
+					{/* Win card */}
+					<div class="ml-card ml-card--grad ml-card--win ml-card--wire">
+						<div class="ml-card__inner">
+							<div class="ml-card__top">
+								<div class="ml-logo-wrap">
+									<div class="ml-wire-avatar"></div>
+								</div>
+								<div class="ml-card__nameblock">
+									<span class="ml-wire-block ml-wire-block--ticker"></span>
+									<span class="ml-wire-block ml-wire-block--date"></span>
+								</div>
+								<div class="ml-grade grade-aplus ml-grade--wire">A+</div>
+							</div>
+							<div class="ml-card__pnl">
+								<span class="ml-wire-block ml-wire-block--pnl"></span>
+								<span class="ml-wire-block ml-wire-block--pct"></span>
+							</div>
+							<div class="ml-card__meta">
+								<span class="ml-wire-block ml-wire-block--meta"></span>
+							</div>
+							<div class="ml-wire-btn"></div>
+						</div>
+					</div>
+
+					{/* Loss card */}
+					<div class="ml-card ml-card--grad ml-card--loss ml-card--wire">
+						<div class="ml-card__inner">
+							<div class="ml-card__top">
+								<div class="ml-logo-wrap">
+									<div class="ml-wire-avatar"></div>
+								</div>
+								<div class="ml-card__nameblock">
+									<span class="ml-wire-block ml-wire-block--ticker"></span>
+									<span class="ml-wire-block ml-wire-block--date"></span>
+								</div>
+								<div class="ml-grade grade-d ml-grade--wire">D</div>
+							</div>
+							<div class="ml-card__pnl">
+								<span class="ml-wire-block ml-wire-block--pnl"></span>
+								<span class="ml-wire-block ml-wire-block--pct"></span>
+							</div>
+							<div class="ml-card__meta">
+								<span class="ml-wire-block ml-wire-block--meta"></span>
+							</div>
+							<div class="ml-wire-btn"></div>
+						</div>
+					</div>
+
+					{/* Another win card */}
+					<div class="ml-card ml-card--grad ml-card--win ml-card--wire">
+						<div class="ml-card__inner">
+							<div class="ml-card__top">
+								<div class="ml-logo-wrap">
+									<div class="ml-wire-avatar"></div>
+								</div>
+								<div class="ml-card__nameblock">
+									<span class="ml-wire-block ml-wire-block--ticker"></span>
+									<span class="ml-wire-block ml-wire-block--date"></span>
+								</div>
+								<div class="ml-grade grade-b ml-grade--wire">B</div>
+							</div>
+							<div class="ml-card__pnl">
+								<span class="ml-wire-block ml-wire-block--pnl"></span>
+								<span class="ml-wire-block ml-wire-block--pct"></span>
+							</div>
+							<div class="ml-card__meta">
+								<span class="ml-wire-block ml-wire-block--meta"></span>
+							</div>
+							<div class="ml-wire-btn"></div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Wireframe still-enrolled section -->
+			<section class="ml-section">
+				<div class="ml-section__header ml-section__header--enroll ml-section__header--wire">
+					<span class="ml-section__icon">📚</span>
+					<div>
+						<h2 class="ml-section__title">Still Enrolled</h2>
+						<p class="ml-section__sub">Open positions — grade still being calculated</p>
+					</div>
+					<span class="ml-wire-block ml-wire-block--pill"></span>
+				</div>
+
+				<div class="ml-type-label">
+					<span>⛓️</span><span>Layer 1s</span>
+				</div>
+				<div class="ml-cards">
+					<div class="ml-card ml-card--enroll ml-card--wire">
+						<div class="ml-card__inner">
+							<div class="ml-card__top">
+								<div class="ml-logo-wrap">
+									<div class="ml-wire-avatar"></div>
+								</div>
+								<div class="ml-card__nameblock">
+									<span class="ml-wire-block ml-wire-block--ticker"></span>
+									<span class="ml-wire-block ml-wire-block--date"></span>
+								</div>
+								<div class="ml-grade grade-incomplete ml-grade--wire">IP</div>
+							</div>
+							<div class="ml-card__pnl">
+								<span class="ml-wire-block ml-wire-block--pnl"></span>
+								<span class="ml-wire-block ml-wire-block--label"></span>
+							</div>
+							<div class="ml-card__meta">
+								<span class="ml-wire-block ml-wire-block--meta"></span>
+							</div>
+						</div>
+					</div>
+
+					<div class="ml-card ml-card--enroll ml-card--wire">
+						<div class="ml-card__inner">
+							<div class="ml-card__top">
+								<div class="ml-logo-wrap">
+									<div class="ml-wire-avatar"></div>
+								</div>
+								<div class="ml-card__nameblock">
+									<span class="ml-wire-block ml-wire-block--ticker"></span>
+									<span class="ml-wire-block ml-wire-block--date"></span>
+								</div>
+								<div class="ml-grade grade-incomplete ml-grade--wire">IP</div>
+							</div>
+							<div class="ml-card__pnl">
+								<span class="ml-wire-block ml-wire-block--pnl"></span>
+								<span class="ml-wire-block ml-wire-block--label"></span>
+							</div>
+							<div class="ml-card__meta">
+								<span class="ml-wire-block ml-wire-block--meta"></span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- Bottom CTA -->
+			<div class="ml-demo-footer">
+				<p>Connect your wallet to generate your real {year} report card.</p>
+				<a href="/signup" class="ml-demo-footer__cta">Get started free →</a>
+			</div>
+
 		</div>
 	)}
 
@@ -168,7 +365,7 @@ function timelineId(asset: string) {
 	<!-- ══════════════════════════════════════════════════════════════════════
 	     GRADUATED SECTION
 	══════════════════════════════════════════════════════════════════════ -->
-	{graduated.length > 0 && (
+	{!isDemo && graduated.length > 0 && (
 		<section class="ml-section">
 			<div class="ml-section__header ml-section__header--grad">
 				<span class="ml-section__icon">🎓</span>
@@ -313,7 +510,7 @@ function timelineId(asset: string) {
 	<!-- ══════════════════════════════════════════════════════════════════════
 	     STILL ENROLLED SECTION
 	══════════════════════════════════════════════════════════════════════ -->
-	{enrolled.length > 0 && (
+	{!isDemo && enrolled.length > 0 && (
 		<section class="ml-section">
 			<div class="ml-section__header ml-section__header--enroll">
 				<span class="ml-section__icon">📚</span>
@@ -452,7 +649,7 @@ function timelineId(asset: string) {
 	)}
 
 	<!-- ── Empty state ────────────────────────────────────────────────────── -->
-	{graduated.length === 0 && enrolled.length === 0 && (
+	{!isDemo && graduated.length === 0 && enrolled.length === 0 && (
 		<div class="ml-empty">
 			<div class="ml-empty__icon">📭</div>
 			<p class="ml-empty__title">No activity found for {year}</p>
@@ -975,6 +1172,159 @@ function timelineId(asset: string) {
 	.ml-stats    { gap: 1.5rem; }
 	.ml-stat__num { font-size: 1.75rem; }
 	.ml-pnl-num  { font-size: 1.5rem; }
+}
+
+/* ── Demo wireframe ───────────────────────────────────────────────────── */
+.ml-demo-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+}
+
+/* Explainer banner */
+.ml-demo-banner {
+	display: flex;
+	gap: 1.25rem;
+	align-items: flex-start;
+	background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(251,191,36,0.03));
+	border: 1px solid rgba(245,158,11,0.25);
+	border-radius: 18px;
+	padding: 1.5rem 1.75rem;
+	margin-bottom: 2.5rem;
+}
+.ml-demo-banner__icon {
+	font-size: 2.5rem;
+	flex-shrink: 0;
+	line-height: 1;
+	margin-top: 0.1rem;
+}
+.ml-demo-banner__body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+.ml-demo-banner__title {
+	font-size: 1.05rem;
+	font-weight: 800;
+	color: #fcd34d;
+	margin: 0;
+	letter-spacing: -0.01em;
+}
+.ml-demo-banner__text {
+	font-size: 0.87rem;
+	color: #94a3b8;
+	margin: 0;
+	line-height: 1.65;
+}
+.ml-demo-banner__text strong { color: #e2e8f0; }
+.ml-demo-banner__cta {
+	display: inline-block;
+	margin-top: 0.4rem;
+	font-size: 0.83rem;
+	font-weight: 700;
+	color: #fbbf24;
+	text-decoration: none;
+	letter-spacing: 0.01em;
+	transition: color 0.15s;
+}
+.ml-demo-banner__cta:hover { color: #fcd34d; text-decoration: underline; }
+
+/* Shimmer animation */
+@keyframes ml-shimmer {
+	0%   { background-position: -400px 0; }
+	100% { background-position:  400px 0; }
+}
+.ml-wire-block {
+	display: inline-block;
+	border-radius: 6px;
+	background: linear-gradient(90deg,
+		rgba(255,255,255,0.05) 25%,
+		rgba(255,255,255,0.10) 50%,
+		rgba(255,255,255,0.05) 75%);
+	background-size: 800px 100%;
+	animation: ml-shimmer 1.8s infinite linear;
+}
+.ml-wire-block--num   { width: 52px;  height: 2.25rem; border-radius: 8px; }
+.ml-wire-block--wide  { width: 100px; height: 2.25rem; border-radius: 8px; }
+.ml-wire-block--pill  { width: 68px;  height: 1.2rem;  border-radius: 999px; }
+.ml-wire-block--ticker { width: 56px;  height: 1.5rem; border-radius: 6px; margin-bottom: 2px; }
+.ml-wire-block--date   { width: 80px;  height: 0.75rem; border-radius: 4px; }
+.ml-wire-block--pnl    { width: 110px; height: 1.9rem; border-radius: 8px; }
+.ml-wire-block--pct    { width: 54px;  height: 1rem;   border-radius: 4px; }
+.ml-wire-block--meta   { width: 130px; height: 0.75rem; border-radius: 4px; }
+.ml-wire-block--label  { width: 68px;  height: 0.72rem; border-radius: 4px; }
+
+/* Circular avatar placeholder */
+.ml-wire-avatar {
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	background: linear-gradient(90deg,
+		rgba(255,255,255,0.05) 25%,
+		rgba(255,255,255,0.10) 50%,
+		rgba(255,255,255,0.05) 75%);
+	background-size: 800px 100%;
+	animation: ml-shimmer 1.8s infinite linear;
+	border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Button placeholder */
+.ml-wire-btn {
+	width: 100%;
+	height: 2.4rem;
+	border-radius: 12px;
+	border: 1px solid rgba(255,255,255,0.07);
+	background: rgba(255,255,255,0.02);
+	margin-top: 0.1rem;
+}
+
+/* Wire-mode grade badges — keep color but reduce opacity */
+.ml-grade--wire { opacity: 0.45; }
+
+/* Wire-mode section header count slot */
+.ml-section__header--wire { opacity: 0.85; }
+
+/* Stats bar wire mode */
+.ml-stats--wire { margin-bottom: 3.5rem; }
+
+/* Wire cards — slightly more muted */
+.ml-card--wire {
+	pointer-events: none;
+	user-select: none;
+}
+.ml-card--wire:hover {
+	transform: none;
+	box-shadow: none;
+}
+
+/* Bottom CTA */
+.ml-demo-footer {
+	text-align: center;
+	padding: 3rem 1rem 1rem;
+	border-top: 1px solid rgba(255,255,255,0.05);
+	margin-top: 1rem;
+}
+.ml-demo-footer p {
+	font-size: 0.9rem;
+	color: #475569;
+	margin: 0 0 1rem;
+}
+.ml-demo-footer__cta {
+	display: inline-block;
+	padding: 0.7rem 1.75rem;
+	border-radius: 999px;
+	background: linear-gradient(135deg, #f59e0b, #fbbf24);
+	color: #0f111e;
+	font-size: 0.9rem;
+	font-weight: 800;
+	text-decoration: none;
+	letter-spacing: 0.01em;
+	transition: opacity 0.15s, transform 0.15s;
+}
+.ml-demo-footer__cta:hover { opacity: 0.88; transform: translateY(-1px); }
+
+@media (max-width: 640px) {
+	.ml-demo-banner { flex-direction: column; }
 }
 </style>
 
