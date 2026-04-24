@@ -5,7 +5,7 @@ const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD',
 const fmtFull = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 type UploadStatus = { ok: boolean; message: string } | null;
-type SyncStatus = { ok: boolean; processed: number; failed: number } | null;
+type SyncStatus = { ok: boolean; processed: number; failed: number; failedNames?: string[] } | null;
 
 const fmtPnl = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0, signDisplay: 'always' });
 
@@ -103,12 +103,24 @@ export default function PortfolioTile() {
 			const exchangeData = await exchangeRes.json().catch(() => ({}));
 			const avaxData     = await avaxRes.json().catch(() => ({}));
 			const btcData      = await btcRes.json().catch(() => ({}));
+
+			// Collect per-exchange failure names from snapshot-all results
+			const SOURCE_DISPLAY: Record<string, string> = {
+				coinbase: 'Coinbase', kraken: 'Kraken', gemini: 'Gemini',
+				crypto_com: 'Crypto.com', exodus: 'Exodus', cashapp: 'Cash App',
+				venmo: 'Venmo', robinhood: 'Robinhood',
+			};
+			const failedExchangeNames: string[] = (exchangeData.results ?? [])
+				.filter((r: { ok: boolean; source?: string }) => !r.ok)
+				.map((r: { source?: string }) => SOURCE_DISPLAY[r.source ?? ''] ?? r.source ?? 'Exchange');
+
 			// btc-sync returns 400 when no BTC wallet is configured — that's not a failure
 			const btcOk = btcRes.ok || btcRes.status === 400;
 			const ok = exchangeRes.ok || walletRes.ok || avaxRes.ok || btcRes.ok;
 			const processed = (exchangeData.processed ?? 0) + (walletRes.ok ? 1 : 0) + (avaxRes.ok ? 1 : 0) + (btcRes.ok ? 1 : 0);
-			const failed = (!exchangeRes.ok ? 1 : 0) + (!walletRes.ok ? 1 : 0) + (!avaxRes.ok ? 1 : 0) + (!btcOk ? 1 : 0);
-			setSyncStatus({ ok, processed, failed });
+			const exchangeFailed = (exchangeData.failed ?? (!exchangeRes.ok ? 1 : 0));
+			const failed = exchangeFailed + (!walletRes.ok ? 1 : 0) + (!avaxRes.ok ? 1 : 0) + (!btcOk ? 1 : 0);
+			setSyncStatus({ ok, processed, failed, failedNames: failedExchangeNames.length ? failedExchangeNames : undefined });
 			if (ok) loadSummary(mountedRef);
 
 			// Rebuild asset lifecycles so bookkeeping FIFO reflects the latest imports
@@ -164,7 +176,9 @@ export default function PortfolioTile() {
 						{syncStatus.ok ? '✓' : '✗'}{' '}
 						{syncStatus.ok
 							? `Synced ${syncStatus.processed} account${syncStatus.processed !== 1 ? 's' : ''}`
-							: `${syncStatus.failed} account${syncStatus.failed !== 1 ? 's' : ''} failed`}
+							: syncStatus.failedNames?.length
+								? `Failed: ${syncStatus.failedNames.join(', ')}`
+								: `${syncStatus.failed} account${syncStatus.failed !== 1 ? 's' : ''} failed`}
 					</span>
 				)}
 			</div>
