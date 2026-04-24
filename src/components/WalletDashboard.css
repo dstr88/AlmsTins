@@ -1,3 +1,4 @@
+/* ── Base / body ─────────────────────────────────────────────────────── */
 :global(body) {
 	font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 	background: var(--surface-bg);
@@ -6,6 +7,7 @@
 	min-height: 100vh;
 }
 
+/* ── Page layout ─────────────────────────────────────────────────────── */
 .dashboard {
 	padding: clamp(1.5rem, 4vw, 3rem);
 	max-width: 1200px;
@@ -15,6 +17,7 @@
 	gap: 1.5rem;
 }
 
+/* ── Hero band ───────────────────────────────────────────────────────── */
 .hero {
 	display: flex;
 	justify-content: space-between;
@@ -122,6 +125,7 @@
 	cursor: pointer;
 }
 
+/* ── Dashboard header grid ───────────────────────────────────────────── */
 .dashboard__header {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -175,6 +179,7 @@ h1 {
 	color: var(--text-primary);
 }
 
+/* ── Content grid ────────────────────────────────────────────────────── */
 .grid {
 	display: grid;
 	grid-template-columns: 2fr 1fr;
@@ -187,6 +192,7 @@ h1 {
 	}
 }
 
+/* ── Panel cards ─────────────────────────────────────────────────────── */
 .panel {
 	background: var(--border-subtle);
 	border: 1px solid var(--border-bright);
@@ -215,7 +221,7 @@ h1 {
 	font-size: 0.9rem;
 }
 
-/* Badge uses accent instead of blue */
+/* ── Badge ───────────────────────────────────────────────────────────── */
 .badge {
 	background: var(--accent-soft);
 	border: 1px solid var(--accent-dim);
@@ -226,6 +232,7 @@ h1 {
 	font-size: 0.9rem;
 }
 
+/* ── Table ───────────────────────────────────────────────────────────── */
 table {
 	width: 100%;
 	border-collapse: collapse;
@@ -251,6 +258,7 @@ code {
 	color: var(--accent);
 }
 
+/* ── Wallet address row ──────────────────────────────────────────────── */
 .wallet-address {
 	display: flex;
 	align-items: center;
@@ -303,6 +311,7 @@ code {
 	vertical-align: middle;
 }
 
+/* ── Empty / status states ───────────────────────────────────────────── */
 .empty {
 	margin: 0;
 	padding: 1rem;
@@ -321,6 +330,7 @@ td.empty {
 	gap: 0.35rem;
 }
 
+/* ── Buttons ─────────────────────────────────────────────────────────── */
 button.ghost {
 	background: transparent;
 	border: 1px solid var(--border-bright);
@@ -346,6 +356,7 @@ button.ghost:hover {
 	align-items: center;
 }
 
+/* ── Profile panel ───────────────────────────────────────────────────── */
 .profile-panel .profile-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -372,6 +383,7 @@ button.ghost:hover {
 	color: var(--loss);
 }
 
+/* ── Form ────────────────────────────────────────────────────────────── */
 form {
 	display: flex;
 	flex-direction: column;
@@ -416,7 +428,7 @@ input:focus {
 	font-size: 0.9rem;
 }
 
-/* Primary button — accent instead of blue-purple gradient */
+/* ── Primary button ──────────────────────────────────────────────────── */
 button {
 	background: var(--accent);
 	border: none;

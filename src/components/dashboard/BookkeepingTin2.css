@@ -1,8 +1,9 @@
+/* ── Container ───────────────────────────────────────────────────────── */
 .bookkeeping-tin2 {
 	position: relative;
 	background: var(--surface-card);
 	color: var(--text-primary);
-	border: 2px solid salmon;
+	border: 2px solid var(--border-bright);
 	border-radius: 12px;
 	padding: var(--space-md);
 	display: flex;
@@ -15,6 +16,7 @@
 	margin-top: 2rem;
 }
 
+/* ── Header ──────────────────────────────────────────────────────────── */
 .bookkeeping-tin2 .tin-header {
 	display: flex;
 	align-items: center;
@@ -111,6 +113,7 @@
 	height: 18px;
 }
 
+/* ── Body (expandable) ───────────────────────────────────────────────── */
 .bookkeeping-tin2 .tin-body {
 	display: flex;
 	flex-direction: column;
@@ -155,6 +158,7 @@
 	width: 100%;
 }
 
+/* ── Transaction row ─────────────────────────────────────────────────── */
 .bookkeeping-tin2 .tx-row {
 	box-sizing: border-box;
 	display: grid;
@@ -270,10 +274,11 @@
 	object-fit: contain;
 }
 
+/* ── Row detail (expanded) ───────────────────────────────────────────── */
 .bookkeeping-tin2 .tx-detail {
 	display: none;
 	padding: var(--space-xs) var(--space-sm);
-	border-left: 2px solid salmon;
+	border-left: 2px solid var(--accent-dim);
 	background: rgba(0, 0, 0, 0.15);
 	border-radius: 10px;
 	min-width: 0;
@@ -299,6 +304,7 @@
 	box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 
+/* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
 	.bookkeeping-tin2[data-open='true'] {
 		position: fixed;
@@ -317,6 +323,7 @@
 	}
 }
 
+/* ── Accessibility ───────────────────────────────────────────────────── */
 .sr-only {
 	position: absolute;
 	width: 1px;
