@@ -160,6 +160,17 @@
 	font-weight: 500;
 }
 
+.pf-hero__unpriced-note {
+	font-size: .72rem;
+	color: var(--text-muted);
+	margin-top: -.25rem;
+	margin-bottom: 1.5rem;
+	padding: .3rem .65rem;
+	border: 1px solid var(--border-subtle);
+	border-radius: 6px;
+	display: inline-block;
+}
+
 /* ── Allocation bar ──────────────────────────────────────────────────────── */
 .pf-alloc-bar {
 	display: flex;

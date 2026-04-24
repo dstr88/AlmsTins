@@ -61,7 +61,10 @@ if (!_authSess) return Astro.redirect('/login');
 					<span class="pf-hero__sep">·</span>
 					<span class="pf-hero__pct pf-hero__pct--neutral" id="hero-pct">—</span>
 					<span class="pf-hero__sep">·</span>
-					<span class="pf-hero__meta" id="hero-vs" style="margin-bottom:0">vs. <strong id="hero-invested">—</strong> invested</span>
+					<span class="pf-hero__meta" id="hero-vs" style="margin-bottom:0">vs. <strong id="hero-invested">—</strong> cost basis</span>
+				</div>
+				<div class="pf-hero__unpriced-note" id="hero-unpriced-note" hidden>
+					<span id="hero-unpriced-text"></span>
 				</div>
 
 				<p class="pf-hero__meta" id="hero-updated"></p>
@@ -74,7 +77,7 @@ if (!_authSess) return Astro.redirect('/login');
 		<!-- Metric cards ───────────────────────────────────────────────── -->
 		<div class="pf-metrics">
 			<div class="pf-metric">
-				<span class="pf-metric__label">Total Invested</span>
+				<span class="pf-metric__label">Cost Basis</span>
 				<span class="pf-metric__value" id="card-cost">—</span>
 			</div>
 			<div class="pf-metric">
@@ -239,7 +242,8 @@ async function loadPortfolio() {
 			ok: boolean;
 			updatedAt: string;
 			summary: {
-				totalCostBasis:       number;
+				totalCostBasis:       number;   // cost of ALL assets (including unpriced)
+				pricedCostBasis:      number;   // cost of priced assets only — matches P&L base
 				totalCurrentValue:    number;
 				totalUnrealizedPnl:   number;
 				pnlPercent:           number | null;
@@ -283,7 +287,18 @@ async function loadPortfolio() {
 		heroPct.textContent = s.pnlPercent != null ? PCT(s.pnlPercent) : '—';
 		heroPct.className   = heroClass('pct', s.pnlPercent);
 
-		(document.getElementById('hero-invested')!).textContent = USD.format(s.totalCostBasis);
+		// Use pricedCostBasis so "vs. X cost basis" reconciles with P&L and Current Value.
+		// (totalCostBasis includes unpriced assets that have no matching current value.)
+		(document.getElementById('hero-invested')!).textContent = USD.format(s.pricedCostBasis);
+
+		// If there are unpriced assets, show a note so the user understands the difference.
+		const unpricedCost = s.totalCostBasis - s.pricedCostBasis;
+		if (unpricedCost > 0.005) {
+			const noteEl = document.getElementById('hero-unpriced-note')!;
+			const textEl = document.getElementById('hero-unpriced-text')!;
+			textEl.textContent = `+ ${USD.format(unpricedCost)} in assets with no live price`;
+			noteEl.hidden = false;
+		}
 
 		try {
 			const ts = new Date(data.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -297,7 +312,8 @@ async function loadPortfolio() {
 		const cardPnl   = document.getElementById('card-pnl')!;
 		const cardPct   = document.getElementById('card-pct')!;
 
-		cardCost.textContent  = USD.format(s.totalCostBasis);
+		// Show priced cost basis so Total Invested reconciles with P&L and Current Value.
+		cardCost.textContent  = USD.format(s.pricedCostBasis);
 		cardValue.textContent = hasPrices ? USD.format(s.totalCurrentValue) : '—';
 
 		cardPnl.textContent = fmtPnl(pnlVal);
@@ -344,17 +360,18 @@ async function loadPortfolio() {
 		const priced      = data.assets.filter(a => a.currentValue != null);
 
 		if (priced.length > 0) {
-			const footTotalCost  = data.assets.reduce((sum, a) => sum + a.totalCostBasis, 0);
 			const footPricedCost = priced.reduce((sum, a) => sum + a.totalCostBasis, 0);
 			const footCurVal     = priced.reduce((sum, a) => sum + a.currentValue!, 0);
 			const footPnl        = footCurVal - footPricedCost;
 
+			// Cost Basis total uses priced-only so it reconciles: Cost + P&L = Market Value.
+			// Unpriced assets are excluded here (they have no matching current value to sum against).
 			tfoot.innerHTML = `
 				<tr>
 					<td>Total</td>
 					<td class="pf-col--holdings"></td>
 					<td class="pf-col--avg-cost"></td>
-					<td>${USD.format(footTotalCost)}</td>
+					<td>${USD.format(footPricedCost)}</td>
 					<td class="pf-col--price-now"></td>
 					<td>${USD.format(footCurVal)}</td>
 					<td><span class="${pillClass(footPnl)}">${fmtPnl(footPnl)}</span></td>

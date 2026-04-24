@@ -50,7 +50,7 @@ export const GET: APIRoute = async ({ request }) => {
 		if (!session) return json({ ok: false, error: 'Unauthorized' }, 401);
 		const { tenantId } = session;
 
-		const cacheKey = `t:${tenantId}:portfolio:performance:v2`;
+		const cacheKey = `t:${tenantId}:portfolio:performance:v3`;
 		const cached = await getCache<unknown>(cacheKey, {
 			allowStale: true,
 			staleMaxAgeSeconds: 30 * 60,
@@ -150,6 +150,7 @@ export const GET: APIRoute = async ({ request }) => {
 			updatedAt: new Date().toISOString(),
 			summary: {
 				totalCostBasis,
+				pricedCostBasis,      // cost basis of priced assets only — reconciles with P&L
 				totalCurrentValue,
 				totalUnrealizedPnl,
 				pnlPercent: summaryPnlPercent,
