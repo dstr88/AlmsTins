@@ -177,7 +177,7 @@ export default function PortfolioTile() {
 				? <p className="pt-loading">Loading…</p>
 				: (() => {
 					const pnl = costBasis != null ? assetsTotal - costBasis : null;
-					const pnlColor = pnl == null ? undefined : pnl >= 0 ? '#86efac' : '#fca5a5';
+					const pnlColor = pnl == null ? undefined : pnl >= 0 ? 'var(--gain)' : 'var(--loss)';
 					return (
 						<div className="pt-hero">
 							<span className="pt-hero__label">Market Value</span>
@@ -252,8 +252,8 @@ export default function PortfolioTile() {
 				.pt-upload-btn:disabled,
 				.pt-upload-btn.is-uploading { opacity: 0.5; cursor: default; }
 				.pt-status { font-size: 0.72rem; line-height: 1.3; flex: 1; min-width: 0; }
-				.pt-status--ok  { color: #86efac; }
-				.pt-status--err { color: #fca5a5; }
+				.pt-status--ok  { color: var(--gain); }
+				.pt-status--err { color: var(--loss); }
 				.pt-divider {
 					height: 1px;
 					background: rgba(255,255,255,0.09);

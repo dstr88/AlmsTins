@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { rebuildAssetLifecycles } from '@/lib/lifecycle';
-import { setCache } from '@/lib/tursoCache';
+import { setCache, deleteCachePrefix } from '@/lib/tursoCache';
 
 export const prerender = false;
 
@@ -12,9 +12,13 @@ export const POST: APIRoute = async ({ request }) => {
 
 		await rebuildAssetLifecycles(tenantId);
 
-		// Mark cache fresh so the next background check doesn't immediately re-run
+		// Mark lifecycle cache fresh
 		const cacheKey = `lifecycle:${tenantId}`;
 		await setCache(cacheKey, { refreshedAt: new Date().toISOString() }, 120);
+
+		// Bust portfolio performance cache so the next page load reflects
+		// the freshly rebuilt holdings rather than serving a stale snapshot.
+		await deleteCachePrefix(`t:${tenantId}:portfolio:performance:`);
 
 		return new Response(
 			JSON.stringify({ ok: true, ms: Date.now() - start }),
