@@ -1147,22 +1147,39 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 
 		// Second pass: fill purchaseAt from on-chain transactions table for tokens
 		// that had no import_transactions entry (e.g. Alchemy-snapshotted ERC-20s).
+		//
+		// tx_type values used by scanSync.ts:
+		//   'incoming'  — native coin received  (ETH/POL/AVAX stored as token_symbol='native')
+		//   'token_in'  — ERC-20 token received  (stored with its actual symbol)
+		//
+		// Native coins are stored with token_symbol='native' so we map them back via
+		// a CASE on the chain column before comparing against the symbol list.
 		const missingPurchaseAt = tokens.filter((t) => !t.purchaseAt);
 		if (missingPurchaseAt.length > 0) {
 			try {
 				const syms2 = [...new Set(missingPurchaseAt.map((t) => t.tokenSymbol.toUpperCase()))];
 				const ph2 = syms2.map(() => '?').join(', ');
 				const onchainResult = await db.execute({
-					sql: `SELECT
-					        upper(token_symbol) AS symbol,
-					        MIN(timestamp)      AS earliest
-					      FROM transactions
-					      WHERE tenant_id = ?
-					        AND wallet_id  = ?
-					        AND tx_type IN ('in', 'receive', 'deposit', 'transfer_in')
-					        AND token_symbol IS NOT NULL
-					        AND upper(token_symbol) IN (${ph2})
-					      GROUP BY upper(token_symbol)`,
+					sql: `SELECT symbol, MIN(earliest) AS earliest FROM (
+					        SELECT
+					          CASE
+					            WHEN lower(token_symbol) = 'native' AND lower(chain) = 'ethereum'            THEN 'ETH'
+					            WHEN lower(token_symbol) = 'native' AND lower(chain) IN ('polygon','matic')  THEN 'POL'
+					            WHEN lower(token_symbol) = 'native' AND lower(chain) = 'avalanche'           THEN 'AVAX'
+					            WHEN lower(token_symbol) = 'native' AND lower(chain) = 'bitcoin'             THEN 'BTC'
+					            WHEN lower(token_symbol) = 'native' AND lower(chain) = 'solana'              THEN 'SOL'
+					            WHEN lower(token_symbol) = 'native' AND lower(chain) = 'sui'                 THEN 'SUI'
+					            ELSE upper(token_symbol)
+					          END AS symbol,
+					          timestamp AS earliest
+					        FROM transactions
+					        WHERE tenant_id = ?
+					          AND wallet_id  = ?
+					          AND tx_type IN ('incoming', 'token_in')
+					          AND token_symbol IS NOT NULL
+					      ) sub
+					      WHERE symbol IN (${ph2})
+					      GROUP BY symbol`,
 					args: [tenantId, walletId, ...syms2],
 				});
 				for (const oRow of onchainResult.rows) {
