@@ -16,8 +16,8 @@ export const POST: APIRoute = async ({ request }) => {
 		const cacheKey = `lifecycle:${tenantId}`;
 		await setCache(cacheKey, { refreshedAt: new Date().toISOString() }, 120);
 
-		// Bust portfolio performance cache so the next page load reflects
-		// the freshly rebuilt holdings rather than serving a stale snapshot.
+		// Bust portfolio performance cache (all versions) so the next page load
+		// reflects the freshly rebuilt lifecycle data rather than a stale snapshot.
 		await deleteCachePrefix(`t:${tenantId}:portfolio:performance:`);
 
 		return new Response(
