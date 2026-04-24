@@ -41,3 +41,7 @@ public/almstins-57ed5c37cfa6.json
 tests/e2e/.auth/
 playwright-report/
 test-results/
+
+# Local database and personal tax documents
+*.db
+*.pdf
