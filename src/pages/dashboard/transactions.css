@@ -55,7 +55,7 @@ input {
 	border-radius: 12px;
 	border: 1px solid rgba(255, 255, 255, 0.18);
 	background: rgba(255, 255, 255, 0.05);
-	color: #fff;
+	color: var(--text-primary);
 	padding: 0.6rem 0.8rem;
 }
 
@@ -65,19 +65,19 @@ button {
 	padding: 0.7rem 1.1rem;
 	font-weight: 600;
 	cursor: pointer;
-	background: linear-gradient(135deg, #6288ff, #b35bff);
-	color: #fff;
+	background: var(--accent);
+	color: var(--surface-bg);
 }
 
 button.ghost {
 	background: rgba(255, 255, 255, 0.08);
 	border: 1px solid rgba(255, 255, 255, 0.2);
-	color: #fff;
+	color: var(--text-primary);
 }
 
 button.success {
-	background: rgba(99, 245, 187, 0.2);
-	color: #4ff4b5;
+	background: var(--gain-bg);
+	color: var(--gain);
 }
 
 .status {
@@ -89,13 +89,13 @@ button.success {
 }
 
 .status[data-mode='error'] {
-	color: #ff9b9b;
-	border-color: rgba(255, 107, 107, 0.4);
+	color: var(--loss);
+	border-color: var(--loss-border);
 }
 
 .status[data-mode='success'] {
-	color: #9fffca;
-	border-color: rgba(104, 255, 199, 0.4);
+	color: var(--gain);
+	border-color: var(--gain-border);
 }
 
 .table-shell {
@@ -148,7 +148,7 @@ code {
 .shot-count {
 	font-size: 0.75rem;
 	font-weight: 700;
-	color: #b35bff;
+	color: var(--accent);
 }
 
 /* Modal overlay */
@@ -168,7 +168,7 @@ code {
 }
 
 .shot-modal-box {
-	background: #13131f;
+	background: var(--surface-card);
 	border: 1px solid rgba(255, 255, 255, 0.15);
 	border-radius: 20px;
 	padding: 1.5rem;
@@ -264,8 +264,8 @@ code {
 	min-height: 1.2em;
 }
 
-.shot-status[data-mode='error'] { color: #ff9b9b; }
-.shot-status[data-mode='success'] { color: #9fffca; }
+.shot-status[data-mode='error'] { color: var(--loss); }
+.shot-status[data-mode='success'] { color: var(--gain); }
 
 .shot-actions {
 	display: flex;

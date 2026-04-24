@@ -33,7 +33,7 @@
 .sol-tin__balance-value {
 	font-size: 1.6rem;
 	font-weight: 700;
-	color: #a78bfa;
+	color: var(--accent);
 }
 
 .sol-tin__balance-unit {
@@ -58,13 +58,13 @@
 	font-size: 0.8rem;
 	padding: 0.3rem 0.85rem;
 	border-radius: 999px;
-	border: 1px solid rgba(167, 139, 250, 0.7);
-	background: rgba(167, 139, 250, 0.12);
-	color: #ddd6fe;
+	border: 1px solid var(--accent-dim);
+	background: var(--accent-soft);
+	color: var(--accent);
 	cursor: pointer;
 	transition: background 0.15s ease;
 }
 
 .sol-tin__sync-btn:hover {
-	background: rgba(167, 139, 250, 0.25);
+	background: var(--accent-dim);
 }

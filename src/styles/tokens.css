@@ -1,0 +1,46 @@
+/**
+ * Titanium Hut — Global Design Tokens
+ *
+ * Single source of truth for every color used in the product.
+ * 19 intentional tokens replace 92 ad-hoc values.
+ *
+ * Rules:
+ *  - Never hardcode a color in a component — reference a token here.
+ *  - One accent family only: Electric Mint (#2dd4a8).
+ *  - No purple, no gold, no indigo, no salmon/coral.
+ *  - Semantic red (--loss) for destructive actions / negative P&L only.
+ *  - Semantic green (--gain) for positive P&L / success states only.
+ */
+
+:root {
+	/* ── Surfaces (4) ─────────────────────────────────────────────────────── */
+	--surface-bg:     #0a0f1a;   /* page background                           */
+	--surface-card:   #0d131f;   /* card / panel level 1                      */
+	--surface-card-2: #111826;   /* elevated / nested card level 2            */
+	--surface-hover:  #161d2c;   /* hover state for rows, list items          */
+
+	/* ── Borders (2) ──────────────────────────────────────────────────────── */
+	--border-subtle: rgba(255, 255, 255, 0.06);
+	--border-bright: rgba(255, 255, 255, 0.12);
+
+	/* ── Text (3) ─────────────────────────────────────────────────────────── */
+	--text-primary:   #f5f8ff;               /* headlines, key numbers         */
+	--text-secondary: rgba(245,248,255,0.70); /* body copy, labels              */
+	--text-muted:     rgba(245,248,255,0.38); /* hints, timestamps, placeholders */
+
+	/* ── Accent — ONE family (4) ──────────────────────────────────────────── */
+	--accent:      #2dd4a8;               /* Electric Mint — solid             */
+	--accent-dim:  rgba(45,212,168,0.55); /* dimmer accent text / elements     */
+	--accent-soft: rgba(45,212,168,0.18); /* backgrounds, fills                */
+	--accent-glow: rgba(45,212,168,0.30); /* glow / box-shadow color component */
+
+	/* ── Semantic: gain / positive (3) ────────────────────────────────────── */
+	--gain:        #34d399;
+	--gain-bg:     rgba(52, 211, 153, 0.10);
+	--gain-border: rgba(52, 211, 153, 0.22);
+
+	/* ── Semantic: loss / negative / destructive (3) ──────────────────────── */
+	--loss:        #ef4444;
+	--loss-bg:     rgba(239, 68, 68, 0.10);
+	--loss-border: rgba(239, 68, 68, 0.22);
+}

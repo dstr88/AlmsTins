@@ -9,7 +9,7 @@
 	font-size: 0.65rem;
 	text-transform: uppercase;
 	letter-spacing: 0.1em;
-	color: #92400e;
+	color: var(--surface-card);
 	opacity: 0.9;
 }
 
@@ -22,7 +22,7 @@
 .crypto-accounts__error {
 	margin: 0;
 	font-size: var(--font-sm);
-	color: #fca5a5;
+	color: var(--loss);
 	opacity: 0.9;
 }
 

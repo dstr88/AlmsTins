@@ -1,7 +1,7 @@
 .onchain-wallet {
-	background: darkslategray;
-	color: #f7f2eb;
-	border: 2px solid salmon;
+	background: var(--surface-card);
+	color: var(--text-primary);
+	border: 2px solid var(--accent);
 	border-radius: 12px;
 	padding: var(--space-md);
 	display: flex;
@@ -46,9 +46,9 @@
 	text-transform: uppercase;
 	padding: 0.2rem 0.5rem;
 	border-radius: 999px;
-	border: 1px solid rgba(248, 113, 113, 0.85);
-	background: rgba(248, 113, 113, 0.18);
-	color: #fef2f2;
+	border: 1px solid var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--text-primary);
 	opacity: 0.9;
 }
 
@@ -134,8 +134,8 @@
 	position: absolute;
 	left: 0;
 	top: 120%;
-	background: rgba(12, 18, 36, 0.95);
-	color: #f5f8ff;
+	background: var(--surface-card-2);
+	color: var(--text-primary);
 	border: 1px solid rgba(255, 255, 255, 0.18);
 	border-radius: 0.5rem;
 	padding: 0.35rem 0.5rem;
@@ -237,7 +237,7 @@
 }
 
 .tx-group {
-	border: 2px solid #0b0b0b;
+	border: 2px solid var(--surface-bg);
 	background: rgba(0, 0, 0, 0.18);
 	border-radius: 0.9rem;
 	padding: 0.75rem;
@@ -263,7 +263,7 @@
 	border-radius: 0.6rem;
 	background: rgba(255, 255, 255, 0.06);
 	border: 1px solid rgba(255, 255, 255, 0.14);
-	color: #f7f2eb;
+	color: var(--text-primary);
 	white-space: pre-wrap;
 }
 

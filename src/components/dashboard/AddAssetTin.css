@@ -1,8 +1,8 @@
 .add-tin {
 	position: relative;
-	background: #1a1f2b;
-	color: #e0e0e0;
-	border: 2px dashed #e8a020;
+	background: var(--surface-card);
+	color: var(--text-primary);
+	border: 2px dashed var(--accent);
 	border-radius: 12px;
 	padding: 1.25rem;
 	display: flex;
@@ -25,8 +25,8 @@
 	width: 1.75rem;
 	height: 1.75rem;
 	border-radius: 50%;
-	background: #e8a020;
-	color: #0b0f1a;
+	background: var(--accent);
+	color: var(--surface-bg);
 	font-size: 1rem;
 	font-weight: 900;
 	line-height: 1;
@@ -54,7 +54,7 @@
 	border-radius: 999px;
 	border: 1px solid rgba(255, 255, 255, 0.12);
 	background: transparent;
-	color: rgba(247, 242, 235, 0.6);
+	color: var(--text-secondary);
 	font-size: 0.78rem;
 	text-transform: uppercase;
 	letter-spacing: 0.1em;
@@ -63,15 +63,15 @@
 }
 
 .add-tin__tab.is-active {
-	background: #e8a020;
-	color: #0b0f1a;
-	border-color: #e8a020;
+	background: var(--accent);
+	color: var(--surface-bg);
+	border-color: var(--accent);
 	font-weight: 700;
 }
 
 .add-tin__tab:not(.is-active):hover {
 	background: rgba(255, 255, 255, 0.08);
-	color: #f7f2eb;
+	color: var(--text-primary);
 }
 
 /* Panels */
@@ -117,7 +117,7 @@
 
 .add-tin__select:focus,
 .add-tin__input:focus {
-	border-color: rgba(250, 128, 114, 0.6);
+	border-color: var(--accent-dim);
 }
 
 .add-tin__input::placeholder {
@@ -126,9 +126,9 @@
 
 .add-tin__submit {
 	border-radius: 0.65rem;
-	border: 1px solid rgba(250, 128, 114, 0.5);
-	background: rgba(250, 128, 114, 0.15);
-	color: #ffd5cc;
+	border: 1px solid var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--loss);
 	padding: 0.5rem 0.75rem;
 	font-size: 0.85rem;
 	font-weight: 600;
@@ -138,8 +138,8 @@
 }
 
 .add-tin__submit:hover {
-	background: rgba(250, 128, 114, 0.28);
-	border-color: rgba(250, 128, 114, 0.8);
+	background: rgba(239, 68, 68, 0.28);
+	border-color: var(--loss);
 }
 
 .add-tin__submit:disabled {
@@ -158,7 +158,7 @@
 
 .add-tin__limit-msg {
 	opacity: 1;
-	color: #f59e0b;
+	color: var(--accent);
 	font-weight: 600;
 	text-transform: none;
 	letter-spacing: 0.02em;
@@ -170,11 +170,11 @@
 	margin: 0.25rem 0 0;
 	font-size: 0.72rem;
 	line-height: 1.4;
-	color: rgba(224, 224, 224, 0.55);
+	color: var(--text-muted);
 }
 
 .add-tin__chain-hint--auto {
-	color: #34d399; /* green — confirms a successful auto-detect */
+	color: var(--gain); /* green — confirms a successful auto-detect */
 }
 
 /* Exchange panel */
@@ -202,16 +202,16 @@
 	gap: 0.5rem;
 	padding: 0.4rem 0.5rem;
 	border-radius: 0.5rem;
-	border: 1px solid rgba(217, 119, 6, 0.25);
-	background: rgba(217, 119, 6, 0.06);
+	border: 1px solid var(--accent-soft);
+	background: rgba(45, 212, 168, 0.06);
 	cursor: pointer;
 	transition: background 0.15s, border-color 0.15s;
 }
 
 .add-tin__exchange-item:hover,
 .add-tin__exchange-item:focus-visible {
-	background: rgba(217, 119, 6, 0.18);
-	border-color: rgba(217, 119, 6, 0.6);
+	background: var(--accent-soft);
+	border-color: var(--accent-dim);
 	outline: none;
 }
 
@@ -223,7 +223,7 @@
 }
 
 .add-tin__exchange-dot--amber {
-	background: #d97706;
+	background: var(--accent);
 }
 
 .add-tin__exchange-name {
@@ -248,7 +248,7 @@
 
 .add-tin__required {
 	font-size: 0.65rem;
-	color: salmon;
+	color: var(--accent);
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
 	margin-left: 0.25rem;
@@ -267,9 +267,9 @@
 	margin-left: auto;
 	padding: 0.2rem 0.65rem;
 	border-radius: 999px;
-	border: 1px solid rgba(248, 113, 113, 0.55);
-	background: rgba(248, 113, 113, 0.12);
-	color: #fca5a5;
+	border: 1px solid var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--loss);
 	font-size: 0.68rem;
 	font-weight: 700;
 	text-transform: uppercase;
@@ -280,7 +280,7 @@
 }
 
 .add-tin__demo-clear:hover {
-	background: rgba(248, 113, 113, 0.28);
-	border-color: rgba(248, 113, 113, 0.85);
-	color: #fff;
+	background: rgba(239, 68, 68, 0.28);
+	border-color: var(--loss);
+	color: var(--text-primary);
 }

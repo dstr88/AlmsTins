@@ -1,7 +1,7 @@
 .exchange-tin {
-	background: #1a1f2b;
-	color: #e0e0e0;
-	border: 2px solid #e8a020;
+	background: var(--surface-card);
+	color: var(--text-primary);
+	border: 2px solid var(--accent);
 	border-radius: 12px;
 	padding: 0.5rem 0.75rem;
 	display: flex;
@@ -47,12 +47,12 @@
 	font-size: var(--font-lg);
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
-	color: #e8a020;
+	color: var(--accent);
 }
 
 .exchange-tin__freshness {
 	font-size: 0.68rem;
-	color: #888;
+	color: var(--text-muted);
 	letter-spacing: 0.04em;
 	text-transform: uppercase;
 	opacity: 0.85;
@@ -67,7 +67,7 @@
 	overflow-y: auto;
 	overflow-x: hidden;
 	scrollbar-width: thin;
-	scrollbar-color: rgba(232, 160, 32, 0.35) transparent;
+	scrollbar-color: var(--accent-dim) transparent;
 }
 
 @media (max-width: 719px) {
@@ -83,7 +83,7 @@
 .exchange-tin__toggle {
 	background: none;
 	border: none;
-	color: rgba(232, 160, 32, 0.7);
+	color: var(--accent-dim);
 	font-size: 1rem;
 	line-height: 1;
 	cursor: pointer;
@@ -94,7 +94,7 @@
 }
 
 .exchange-tin__toggle:hover {
-	color: #e8a020;
+	color: var(--accent);
 }
 
 .exchange-tin__toggle[aria-expanded="true"] {

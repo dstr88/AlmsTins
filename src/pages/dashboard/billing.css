@@ -2,7 +2,7 @@
   max-width: 900px;
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
-  color: #e2e8f0;
+  color: var(--text-secondary);
 }
 
 .billing-header { margin-bottom: 2rem; }
@@ -10,6 +10,7 @@
   font-size: 1.75rem;
   font-weight: 700;
   margin: 0 0 1rem;
+  color: var(--text-primary);
 }
 
 .billing-banner {
@@ -19,14 +20,14 @@
   font-weight: 500;
   margin-bottom: 1rem;
 }
-.billing-banner--success { background: #065f46; color: #a7f3d0; }
-.billing-banner--warn    { background: #78350f; color: #fde68a; }
+.billing-banner--success { background: var(--gain-bg);  color: var(--gain); border: 1px solid var(--gain-border); }
+.billing-banner--warn    { background: var(--loss-bg);  color: var(--loss); border: 1px solid var(--loss-border); }
 
 /* Current plan card */
 .billing-current { margin-bottom: 2.5rem; }
 .billing-current__card {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: var(--surface-card);
+  border: 1px solid var(--border-bright);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
@@ -34,22 +35,22 @@
   gap: 2rem;
   flex-wrap: wrap;
 }
-.billing-current__label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.5; }
-.billing-current__plan  { font-size: 1.4rem; font-weight: 700; }
-.billing-current__limits { opacity: 0.7; font-size: 0.875rem; }
-.billing-current__renewal { font-size: 0.8rem; opacity: 0.5; }
+.billing-current__label   { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.billing-current__plan    { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); }
+.billing-current__limits  { color: var(--text-secondary); font-size: 0.875rem; }
+.billing-current__renewal { font-size: 0.8rem; color: var(--text-muted); }
 .billing-portal-btn {
   margin-left: auto;
   background: transparent;
-  border: 1px solid #475569;
-  color: #94a3b8;
+  border: 1px solid var(--border-bright);
+  color: var(--text-secondary);
   padding: 0.5rem 1rem;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.875rem;
   transition: border-color 0.15s, color 0.15s;
 }
-.billing-portal-btn:hover { border-color: #94a3b8; color: #e2e8f0; }
+.billing-portal-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
 
 /* Interval toggle */
 .billing-toggle {
@@ -60,23 +61,23 @@
   margin-bottom: 2rem;
 }
 .billing-toggle__label { font-size: 0.9rem; opacity: 0.8; }
-.billing-toggle__save  { font-style: normal; font-size: 0.75rem; color: #34d399; margin-left: 0.25rem; }
+.billing-toggle__save  { font-style: normal; font-size: 0.75rem; color: var(--gain); margin-left: 0.25rem; }
 .billing-toggle__btn {
   width: 44px;
   height: 24px;
-  background: #334155;
+  background: var(--surface-card-2);
   border: none;
   border-radius: 99px;
   cursor: pointer;
   position: relative;
   transition: background 0.2s;
 }
-.billing-toggle__btn.is-yearly { background: #6366f1; }
+.billing-toggle__btn.is-yearly { background: var(--accent); }
 .billing-toggle__knob {
   position: absolute;
   top: 3px; left: 3px;
   width: 18px; height: 18px;
-  background: #fff;
+  background: var(--text-primary);
   border-radius: 50%;
   transition: transform 0.2s;
 }
@@ -91,8 +92,8 @@
 }
 
 .billing-plan {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: var(--surface-card);
+  border: 1px solid var(--border-bright);
   border-radius: 12px;
   padding: 1.75rem 1.5rem;
   display: flex;
@@ -101,11 +102,11 @@
   position: relative;
 }
 .billing-plan--featured {
-  border-color: #6366f1;
-  background: #1e1f3a;
+  border-color: var(--accent);
+  background: var(--surface-card-2);
 }
 .billing-plan--current {
-  border-color: #34d399;
+  border-color: var(--gain);
 }
 
 .billing-plan__badge-top {
@@ -113,8 +114,8 @@
   top: -12px;
   left: 50%;
   transform: translateX(-50%);
-  background: #6366f1;
-  color: #fff;
+  background: var(--accent);
+  color: var(--surface-bg);
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -129,7 +130,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  opacity: 0.8;
+  color: var(--text-muted);
 }
 .billing-plan__price {
   display: flex;
@@ -140,8 +141,9 @@
   font-size: 2.25rem;
   font-weight: 800;
   line-height: 1;
+  color: var(--text-primary);
 }
-.billing-plan__per { font-size: 0.9rem; opacity: 0.6; }
+.billing-plan__per { font-size: 0.9rem; color: var(--text-muted); }
 
 .billing-plan__features {
   list-style: none;
@@ -154,7 +156,7 @@
 }
 .billing-plan__features li {
   font-size: 0.875rem;
-  opacity: 0.8;
+  color: var(--text-secondary);
   padding-left: 1.25rem;
   position: relative;
 }
@@ -162,7 +164,7 @@
   content: '✓';
   position: absolute;
   left: 0;
-  color: #34d399;
+  color: var(--gain);
   font-weight: 700;
 }
 
@@ -170,36 +172,36 @@
   margin-top: auto;
   padding: 0.65rem 1rem;
   border-radius: 8px;
-  border: 1px solid #475569;
+  border: 1px solid var(--border-bright);
   background: transparent;
-  color: #e2e8f0;
+  color: var(--text-secondary);
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.billing-plan__btn:hover { background: #334155; border-color: #94a3b8; }
+.billing-plan__btn:hover { background: var(--surface-hover); border-color: var(--accent-dim); }
 .billing-plan__btn--featured {
-  background: #6366f1;
-  border-color: #6366f1;
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface-bg);
 }
-.billing-plan__btn--featured:hover { background: #4f46e5; border-color: #4f46e5; }
+.billing-plan__btn--featured:hover { filter: brightness(0.88); }
 .billing-plan__btn:disabled { opacity: 0.5; cursor: wait; }
 
 .billing-plan__badge {
   text-align: center;
   font-size: 0.8rem;
-  color: #34d399;
+  color: var(--gain);
   font-weight: 600;
   padding: 0.5rem;
-  border: 1px solid #34d399;
+  border: 1px solid var(--gain-border);
   border-radius: 8px;
 }
 
 .billing-fine {
   text-align: center;
   font-size: 0.8rem;
-  opacity: 0.45;
+  color: var(--text-muted);
 }
 .billing-fine a { color: inherit; }

@@ -1,6 +1,6 @@
 .imported-files {
-	background: darkslategray;
-	color: #f7f2eb;
+	background: var(--surface-card);
+	color: var(--text-primary);
 	border: 2px solid salmon;
 	border-radius: 12px;
 	padding: var(--space-md);
@@ -160,8 +160,8 @@
 	display: block;
 	height: 1.2rem;
 	width: 1.2rem;
-	fill: #ef4444;
-	stroke: #ef4444;
+	fill: var(--loss);
+	stroke: var(--loss);
 }
 
 .tx-more {
@@ -213,7 +213,7 @@
 	border-radius: 0.6rem;
 	background: rgba(255, 255, 255, 0.06);
 	border: 1px solid rgba(255, 255, 255, 0.14);
-	color: #f7f2eb;
+	color: var(--text-primary);
 	white-space: pre-wrap;
 }
 

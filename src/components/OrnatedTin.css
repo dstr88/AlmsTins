@@ -1,26 +1,21 @@
 /* =========================================================
   Ornate Tin
-  - Outer "aged metal" frame
+  - Outer decorative frame (was "aged copper", now Titanium Mint)
   - Inner inset frame
-  - Corner filigree (SVG data URIs)
+  - Corner filigree (SVG data URIs updated to accent color)
   - Scroll is on .ornate-tin__body
 ========================================================= */
 
 .ornate-tin {
-  /* theme knobs */
-  --tin-bg: darkslategray;
-  --tin-fg: #f7f2eb;
+  /* Local theme knobs — resolved to global tokens */
+  --tin-bg:      var(--surface-card);
+  --tin-fg:      var(--text-primary);
   --tin-body-bg: rgba(0, 0, 0, 0.08);
 
-  /* "salmon copper" */
-  --copper: #fa8072;
-  --copper-dim: rgba(250, 128, 114, 0.55);
-  --copper-faint: rgba(250, 128, 114, 0.22);
-
-  --radius: 16px;
-  --pad-x: 1.1rem;
-  --pad-top: 2.8rem; /* leaves room for label */
-  --pad-bottom: 1.1rem;
+  --radius:      16px;
+  --pad-x:       1.1rem;
+  --pad-top:     2.8rem; /* leaves room for label */
+  --pad-bottom:  1.1rem;
 
   position: relative;
   height: 100%;
@@ -33,13 +28,10 @@
   border-radius: var(--radius);
   padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
   box-sizing: border-box;
-
-  /* important for internal scrolling layouts */
   min-height: 0;
 
-  /* subtle depth */
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 0 0 1px var(--border-subtle) inset,
     0 12px 28px rgba(0, 0, 0, 0.25);
 }
 
@@ -48,8 +40,8 @@
   top: -12px;
   left: 1rem;
 
-  background: linear-gradient(180deg, rgba(250,128,114,0.98), rgba(250,128,114,0.78));
-  color: #0b0f1a;
+  background: linear-gradient(180deg, var(--accent), var(--accent-dim));
+  color: var(--surface-bg);
   font-weight: 800;
   font-size: 0.98rem;
 
@@ -85,15 +77,14 @@
   padding: 0.75rem 0.5rem 1.1rem;
   box-sizing: border-box;
 
-  /* slightly inset surface */
   border-radius: calc(var(--radius) - 10px);
   background:
-    radial-gradient(1200px 400px at 15% 10%, rgba(255,255,255,0.06), transparent 50%),
-    radial-gradient(900px 380px at 85% 85%, rgba(250,128,114,0.06), transparent 55%),
+    radial-gradient(1200px 400px at 15% 10%, var(--border-subtle), transparent 50%),
+    radial-gradient(900px 380px at 85% 85%, var(--accent-soft), transparent 55%),
     var(--tin-body-bg);
 }
 
-/* ===== Outer ornate frame (multi-layer) ===== */
+/* ===== Outer ornate frame — filigree updated to accent (#2DD4A8) ===== */
 .ornate-tin::before {
   content: "";
   position: absolute;
@@ -102,30 +93,24 @@
   pointer-events: none;
   z-index: 0;
 
-  /* IMPORTANT:
-     - no full-surface copper gradient anymore (that caused the brown tint)
-     - instead we draw copper as "frames" using background-clip + inset shadows
-  */
-
   background:
-    /* corner filigree */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%23FA8072' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%23FA8072' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/svg%3E")
+    /* corner filigree — stroke color changed from #FA8072 to #2DD4A8 */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%232DD4A8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%232DD4A8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/svg%3E")
       top 10px left 10px / 92px 92px no-repeat,
 
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(120,0) scale(-1,1)'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%23FA8072' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%23FA8072' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/g%3E%3C/svg%3E")
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(120,0) scale(-1,1)'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%232DD4A8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%232DD4A8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/g%3E%3C/svg%3E")
       top 10px right 10px / 92px 92px no-repeat,
 
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(0,120) scale(1,-1)'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%23FA8072' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%23FA8072' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/g%3E%3C/svg%3E")
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(0,120) scale(1,-1)'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%232DD4A8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%232DD4A8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/g%3E%3C/svg%3E")
       bottom 10px left 10px / 92px 92px no-repeat,
 
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(120,120) scale(-1,-1)'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%23FA8072' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%23FA8072' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/g%3E%3C/svg%3E")
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(120,120) scale(-1,-1)'%3E%3Cpath d='M110 34c-16 1-28-3-40-16C58 5 44 2 24 6c10 2 18 7 22 16 5 10 2 22-6 30 12-5 23-1 30 7 8 9 10 24 6 44 10-18 16-32 34-39 11-4 18-12 20-30z' fill='none' stroke='%232DD4A8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' opacity='0.35'/%3E%3Cpath d='M86 40c-8-1-14-4-20-10-6-6-12-8-22-7 6 2 10 6 11 12 1 7-2 13-8 16 7-2 13 0 17 4 5 5 6 12 5 23 6-10 10-18 20-21 7-2 11-7 12-17z' fill='none' stroke='%232DD4A8' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round' opacity='0.25'/%3E%3C/g%3E%3C/svg%3E")
       bottom 10px right 10px / 92px 92px no-repeat;
 
-  /* copper frame is now done with inset shadows so it never tints the background */
   box-shadow:
-    0 0 0 2px rgba(250, 128, 114, 0.85) inset,
-    0 0 0 8px rgba(250, 128, 114, 0.12) inset,
-    0 0 0 1px rgba(255,255,255,0.06) inset;
+    0 0 0 2px var(--accent-dim) inset,
+    0 0 0 8px var(--accent-soft) inset,
+    0 0 0 1px var(--border-subtle) inset;
 }
 
 /* inner inset frame */
@@ -137,30 +122,29 @@
   pointer-events: none;
   z-index: 2;
 
-  border: 2px solid rgba(250, 128, 114, 0.65);
+  border: 2px solid var(--accent-dim);
 
   box-shadow:
-    0 0 0 1px rgba(0,0,0,0.25) inset,
-    0 0 0 1px rgba(255,255,255,0.05);
+    0 0 0 1px rgba(0, 0, 0, 0.25) inset,
+    0 0 0 1px var(--border-subtle);
 
-  /* tiny corner "hooks" feeling */
   background:
-    radial-gradient(24px 24px at 0% 0%, rgba(250,128,114,0.12), transparent 70%),
-    radial-gradient(24px 24px at 100% 0%, rgba(250,128,114,0.12), transparent 70%),
-    radial-gradient(24px 24px at 0% 100%, rgba(250,128,114,0.12), transparent 70%),
-    radial-gradient(24px 24px at 100% 100%, rgba(250,128,114,0.12), transparent 70%);
+    radial-gradient(24px 24px at 0% 0%, var(--accent-soft), transparent 70%),
+    radial-gradient(24px 24px at 100% 0%, var(--accent-soft), transparent 70%),
+    radial-gradient(24px 24px at 0% 100%, var(--accent-soft), transparent 70%),
+    radial-gradient(24px 24px at 100% 100%, var(--accent-soft), transparent 70%);
 }
 
 /* Scrollbar polishing */
 .ornate-tin__body {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.30) transparent;
+  scrollbar-color: var(--border-bright) transparent;
 }
 
 .ornate-tin__body::-webkit-scrollbar {
   width: 6px;
 }
 .ornate-tin__body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.32);
+  background: var(--border-bright);
   border-radius: 20px;
 }

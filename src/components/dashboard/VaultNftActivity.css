@@ -38,9 +38,9 @@
 }
 
 .vault-activity__action {
-	border: 1px solid rgba(248, 113, 113, 0.5);
-	background: rgba(248, 113, 113, 0.12);
-	color: #fecaca;
+	border: 1px solid var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--loss);
 	font-size: 0.7rem;
 	text-transform: uppercase;
 	letter-spacing: 0.12em;
@@ -55,8 +55,8 @@
 }
 
 .vault-activity__action:not(:disabled):hover {
-	background: rgba(248, 113, 113, 0.2);
-	border-color: rgba(248, 113, 113, 0.8);
+	background: var(--loss-bg);
+	border-color: var(--loss);
 }
 
 .vault-activity__empty {
@@ -86,7 +86,7 @@
 	border: 1px solid rgba(255, 255, 255, 0.1);
 	background: rgba(255, 255, 255, 0.03);
 	cursor: pointer;
-	color: antiquewhite;
+	color: var(--text-secondary);
 	text-align: left;
 	width: 100%;
 	transition: background 0.12s;
@@ -112,7 +112,7 @@
 	padding: 0.1rem 0.45rem;
 	border-radius: 999px;
 	background: rgba(0, 0, 0, 0.2);
-	color: #0b0f1a;
+	color: var(--surface-bg);
 	flex-shrink: 0;
 }
 
@@ -165,7 +165,7 @@
 	gap: 0.5rem;
 	flex: 1;
 	min-width: 0;
-	color: antiquewhite;
+	color: var(--text-secondary);
 	text-decoration: none;
 }
 .vault-nft-row__link:hover { opacity: 0.85; }
@@ -213,23 +213,23 @@
 }
 
 .vault-nft__action--blacklist {
-	border: 1px solid rgba(248, 113, 113, 0.5);
-	background: rgba(248, 113, 113, 0.12);
-	color: #fecaca;
+	border: 1px solid var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--loss);
 }
 .vault-nft__action--blacklist:hover {
-	background: rgba(248, 113, 113, 0.22);
-	border-color: rgba(248, 113, 113, 0.8);
+	background: var(--loss-bg);
+	border-color: var(--loss);
 }
 
 .vault-nft__action--whitelist {
-	border: 1px solid rgba(52, 211, 153, 0.5);
-	background: rgba(52, 211, 153, 0.1);
-	color: #6ee7b7;
+	border: 1px solid var(--gain-border);
+	background: var(--gain-bg);
+	color: var(--gain);
 }
 .vault-nft__action--whitelist:hover {
-	background: rgba(52, 211, 153, 0.2);
-	border-color: rgba(52, 211, 153, 0.8);
+	background: var(--gain-bg);
+	border-color: var(--gain);
 }
 
 /* Status badge */
@@ -244,24 +244,24 @@
 }
 
 .vault-nft__badge[data-status="purchased"] {
-	background: rgba(52, 211, 153, 0.15);
-	color: #6ee7b7;
-	border: 1px solid rgba(52, 211, 153, 0.4);
+	background: var(--gain-bg);
+	color: var(--gain);
+	border: 1px solid var(--gain-border);
 }
 .vault-nft__badge[data-status="whitelisted"] {
-	background: rgba(56, 189, 248, 0.15);
-	color: #7dd3fc;
-	border: 1px solid rgba(56, 189, 248, 0.4);
+	background: var(--accent-soft);
+	color: var(--accent);
+	border: 1px solid var(--accent-dim);
 }
 .vault-nft__badge[data-status="blacklisted"] {
-	background: rgba(248, 113, 113, 0.12);
-	color: #fca5a5;
-	border: 1px solid rgba(248, 113, 113, 0.35);
+	background: var(--loss-bg);
+	color: var(--loss);
+	border: 1px solid var(--loss-border);
 }
 .vault-nft__badge[data-status="airdrop"] {
-	background: rgba(250, 204, 21, 0.1);
-	color: #fde68a;
-	border: 1px solid rgba(250, 204, 21, 0.3);
+	background: var(--accent-soft);
+	color: var(--accent-dim);
+	border: 1px solid var(--accent-dim);
 }
 
 /* Manage panel */
@@ -284,7 +284,7 @@
 	border-radius: 0.5rem;
 	border: 1px solid rgba(255, 255, 255, 0.15);
 	background: rgba(255, 255, 255, 0.06);
-	color: antiquewhite;
+	color: var(--text-secondary);
 	font-size: 0.85rem;
 	outline: none;
 	box-sizing: border-box;
@@ -307,7 +307,7 @@
 	width: 32px;
 	height: 32px;
 	border-radius: 0.4rem;
-	background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(14, 165, 233, 0.15));
+	background: linear-gradient(135deg, var(--loss-bg), var(--accent-soft));
 	border: 1px solid rgba(255, 255, 255, 0.15);
 	display: flex;
 	align-items: center;
@@ -372,35 +372,35 @@
 	align-items: center;
 	padding: 0.5rem 0.6rem;
 	border-radius: 0.75rem;
-	border: 1px solid rgba(250, 235, 215, 0.12);
-	background: rgba(250, 235, 215, 0.04);
-	color: antiquewhite;
+	border: 1px solid var(--border-subtle);
+	background: var(--surface-card);
+	color: var(--text-secondary);
 	text-decoration: none;
 	transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 
-.vault-contract-row:visited { color: antiquewhite; }
+.vault-contract-row:visited { color: var(--text-secondary); }
 
 .vault-contract-row:hover {
-	background: rgba(250, 235, 215, 0.1);
-	border-color: rgba(250, 235, 215, 0.35);
+	background: var(--surface-hover);
+	border-color: var(--border-bright);
 	transform: translateY(-1px);
 }
 
 .vault-contract-row--known {
-	border-color: rgba(56, 189, 248, 0.2);
-	background: rgba(56, 189, 248, 0.04);
+	border-color: var(--accent-dim);
+	background: var(--accent-soft);
 }
 .vault-contract-row--known:hover {
-	border-color: rgba(56, 189, 248, 0.45);
-	background: rgba(56, 189, 248, 0.1);
+	border-color: var(--accent);
+	background: var(--accent-soft);
 }
 
 .vault-contract-row__icon {
 	width: 36px;
 	height: 36px;
 	border-radius: 0.5rem;
-	background: linear-gradient(135deg, rgba(250, 235, 215, 0.12), rgba(56, 189, 248, 0.1));
+	background: linear-gradient(135deg, var(--border-subtle), var(--accent-soft));
 	border: 1px solid rgba(255, 255, 255, 0.1);
 	display: flex;
 	align-items: center;
@@ -442,9 +442,9 @@
 	font-weight: 600;
 	padding: 0.15rem 0.4rem;
 	border-radius: 999px;
-	border: 1px solid rgba(56, 189, 248, 0.4);
-	background: rgba(56, 189, 248, 0.12);
-	color: #7dd3fc;
+	border: 1px solid var(--accent-dim);
+	background: var(--accent-soft);
+	color: var(--accent);
 	white-space: nowrap;
 	flex-shrink: 0;
 }
@@ -458,10 +458,10 @@
 	width: 100%;
 	background: none;
 	border: none;
-	border-top: 1px dashed rgba(250, 128, 114, 0.35);
+	border-top: 1px dashed var(--accent-dim);
 	padding: 0.55rem 0 0.35rem;
 	cursor: pointer;
-	color: salmon;
+	color: var(--accent);
 	font-size: 0.7rem;
 	font-weight: 700;
 	text-transform: uppercase;
@@ -473,9 +473,9 @@
 	content: '';
 	flex: 1;
 	height: 0;
-	border-top: 1px dashed rgba(250, 128, 114, 0.35);
+	border-top: 1px dashed var(--accent-dim);
 }
-.vault-contracts__toggle:hover { color: #ffa07a; }
+.vault-contracts__toggle:hover { color: var(--accent); }
 
 .vault-contracts__title {
 	display: flex;

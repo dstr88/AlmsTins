@@ -26,7 +26,7 @@
 	border-radius: 10px;
 	border: 1px solid rgba(255, 255, 255, 0.2);
 	background: rgba(7, 12, 20, 0.6);
-	color: #f5f8ff;
+	color: var(--text-primary);
 	font-size: 1.2rem;
 	text-align: center;
 	resize: none;
@@ -34,7 +34,7 @@
 }
 
 .loan-input--debt {
-	color: salmon;
+	color: var(--accent);
 	font-weight: 600;
 }
 
@@ -45,7 +45,7 @@
 
 .loan-contract-button {
 	background: rgba(255, 255, 255, 0.08);
-	color: #f5f8ff;
+	color: var(--text-primary);
 	border: 1px solid rgba(255, 255, 255, 0.2);
 	border-radius: 999px;
 	padding: 0.4rem 1rem;
@@ -72,13 +72,13 @@
 	margin: 0;
 	font-size: 1.2rem;
 	font-weight: 600;
-	color: #f5f8ff;
+	color: var(--text-primary);
 }
 
 .loan-add-payment {
-	background: rgba(250, 128, 114, 0.2);
-	color: #f7f2eb;
-	border: 1px solid rgba(250, 128, 114, 0.5);
+	background: var(--accent-soft);
+	color: var(--text-primary);
+	border: 1px solid var(--accent-dim);
 	border-radius: 999px;
 	padding: 0.45rem 1rem;
 	cursor: pointer;
@@ -86,7 +86,7 @@
 }
 
 .loan-add-payment:hover {
-	background: rgba(250, 128, 114, 0.3);
+	background: var(--accent-dim);
 }
 
 .loan-payment-entry {
@@ -101,9 +101,9 @@
 }
 
 .loan-save-payment {
-	background: rgba(250, 128, 114, 0.2);
-	color: #f7f2eb;
-	border: 1px solid rgba(250, 128, 114, 0.5);
+	background: var(--accent-soft);
+	color: var(--text-primary);
+	border: 1px solid var(--accent-dim);
 	border-radius: 999px;
 	padding: 0.4rem 1rem;
 	cursor: pointer;
@@ -111,7 +111,7 @@
 }
 
 .loan-save-payment:hover {
-	background: rgba(250, 128, 114, 0.3);
+	background: var(--accent-dim);
 }
 
 .loan-payment-status {
@@ -124,7 +124,7 @@
 	margin: 0;
 	font-size: 1rem;
 	font-weight: 600;
-	color: #f5f8ff;
+	color: var(--text-primary);
 }
 
 .loan-expiry {
@@ -182,7 +182,7 @@
 	border-radius: 10px;
 	border: 1px solid rgba(255, 255, 255, 0.2);
 	background: rgba(7, 12, 20, 0.6);
-	color: #f5f8ff;
+	color: var(--text-primary);
 	padding: 0.4rem 0.6rem;
 }
 
@@ -279,7 +279,7 @@
 	grid-template-columns: 1fr auto auto auto;
 	gap: 1rem;
 	align-items: center;
-	background: rgba(7, 12, 20, 0.4);
+	background: var(--surface-card);
 	border: 1px solid rgba(255, 255, 255, 0.08);
 	border-radius: 10px;
 	padding: 0.4rem 0.6rem;
@@ -311,12 +311,12 @@
 }
 
 .loan-modal__panel {
-	background: #101826;
+	background: var(--surface-card);
 	border: 1px solid rgba(255, 255, 255, 0.1);
 	border-radius: 16px;
 	padding: 1.5rem;
 	max-width: 420px;
-	color: #f5f8ff;
+	color: var(--text-primary);
 	box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
 	text-align: left;
 }
@@ -331,9 +331,9 @@
 }
 
 .loan-modal__close {
-	background: rgba(250, 128, 114, 0.2);
-	color: #f7f2eb;
-	border: 1px solid rgba(250, 128, 114, 0.5);
+	background: var(--accent-soft);
+	color: var(--text-primary);
+	border: 1px solid var(--accent-dim);
 	border-radius: 999px;
 	padding: 0.4rem 1rem;
 	cursor: pointer;

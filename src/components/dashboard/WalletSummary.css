@@ -41,7 +41,7 @@
 }
 
 .wallet-summary__status--error {
-	color: #fca5a5;
+	color: var(--loss);
 	opacity: 1;
 }
 
@@ -135,11 +135,11 @@
 }
 
 .wallet-summary__cell--pl-positive {
-	color: #86efac;
+	color: var(--gain);
 }
 
 .wallet-summary__cell--pl-negative {
-	color: salmon;
+	color: var(--loss);
 }
 
 .wallet-summary__basis-note {

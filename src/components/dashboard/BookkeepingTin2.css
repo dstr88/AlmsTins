@@ -1,7 +1,7 @@
 .bookkeeping-tin2 {
 	position: relative;
-	background: darkslategray;
-	color: #f7f2eb;
+	background: var(--surface-card);
+	color: var(--text-primary);
 	border: 2px solid salmon;
 	border-radius: 12px;
 	padding: var(--space-md);
@@ -34,7 +34,7 @@
 	display: none;
 	border: 1px solid rgba(255, 255, 255, 0.4);
 	background: rgba(255, 255, 255, 0.1);
-	color: #f7f2eb;
+	color: var(--text-primary);
 	padding: var(--space-xs) var(--space-sm);
 	border-radius: 999px;
 	font-size: var(--font-sm);
@@ -97,7 +97,7 @@
 .bookkeeping-tin2 .download-btn {
 	border: none;
 	background: rgba(255, 255, 255, 0.1);
-	color: #f7f2eb;
+	color: var(--text-primary);
 	border-radius: 8px;
 	display: inline-flex;
 	align-items: center;
@@ -168,7 +168,7 @@
 	margin-left: 0;
 	width: 100%;
 	background: rgba(0, 0, 0, 0.18);
-	color: #f7f2eb;
+	color: var(--text-primary);
 	font-size: var(--font-sm);
 	font-variant-numeric: tabular-nums;
 	cursor: pointer;
@@ -259,7 +259,7 @@
 	border-radius: 0.6rem;
 	background: rgba(255, 255, 255, 0.06);
 	border: 1px solid rgba(255, 255, 255, 0.14);
-	color: #f7f2eb;
+	color: var(--text-primary);
 }
 
 .bookkeeping-tin2 .tx-status-icon {
@@ -285,7 +285,7 @@
 	background: rgba(255, 255, 255, 0.08);
 	border: 1px solid rgba(255, 255, 255, 0.2);
 	border-radius: 8px;
-	color: #f7f2eb;
+	color: var(--text-primary);
 	padding: var(--space-xs);
 	font-size: var(--font-sm);
 	resize: vertical;

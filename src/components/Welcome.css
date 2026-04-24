@@ -7,7 +7,7 @@
 .hero-card {
   width: 100%;
   max-width: 360px;
-  background: #121212;
+  background: var(--surface-card);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
@@ -69,5 +69,5 @@
 .welcome.compact .hero-info h2,
 .welcome.compact .hero-role,
 .welcome.compact .hero-links a {
-  color: #f7f2eb;
+  color: var(--text-primary);
 }

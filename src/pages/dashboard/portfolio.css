@@ -1,49 +1,14 @@
 /**
  * /dashboard/portfolio — Premium dark redesign
  *
- * Design language: Titanium Hut × Linear × Robinhood Gold × Arc
- * Single accent: Electric Mint #2dd4a8 (matches SalmonTin brand color)
- * Palette is expressed as CSS custom properties on .portfolio-page
- * so no colors are hard-coded in markup.
+ * All colors reference global design tokens from src/styles/tokens.css.
+ * No hardcoded colors — only var(--token-name) references.
+ * One portfolio-local var: --pf-mono (no global typography token).
  */
 
-/* ── Design tokens ──────────────────────────────────────────────────────── */
 .portfolio-page {
-	/* Accent */
-	--pf-accent:        #2dd4a8;
-	--pf-accent-dim:    rgba(45, 212, 168, .07);
-	--pf-accent-mid:    rgba(45, 212, 168, .14);
-	--pf-accent-glow:   0 0 28px rgba(45, 212, 168, .18), 0 0 56px rgba(45, 212, 168, .07);
-
-	/* Surfaces */
-	--pf-surface-0:     #07090f;   /* hero / page bg  */
-	--pf-surface-1:     #0b0f18;   /* cards           */
-	--pf-surface-2:     #0f1520;   /* table rows      */
-	--pf-surface-hover: #131c28;   /* row hover       */
-
-	/* Borders */
-	--pf-border:        rgba(255, 255, 255, .055);
-	--pf-border-bright: rgba(255, 255, 255, .11);
-
-	/* Text hierarchy */
-	--pf-text-0: #edf2f8;    /* display / primary  */
-	--pf-text-1: #8898b0;    /* secondary          */
-	--pf-text-2: #3e5169;    /* tertiary / labels  */
-
-	/* Semantic: gain */
-	--pf-gain:        #34d399;
-	--pf-gain-bg:     rgba(52, 211, 153, .10);
-	--pf-gain-border: rgba(52, 211, 153, .22);
-
-	/* Semantic: loss */
-	--pf-loss:        #f87171;
-	--pf-loss-bg:     rgba(248, 113, 113, .10);
-	--pf-loss-border: rgba(248, 113, 113, .22);
-
-	/* Typography */
 	--pf-mono: 'JetBrains Mono', 'Fira Code', monospace;
-
-	background: var(--pf-surface-0);
+	background: var(--surface-bg);
 	min-height: 100vh;
 	padding-bottom: 5rem;
 }
@@ -56,9 +21,9 @@
 	padding: clamp(2.5rem, 5vw, 3.75rem) clamp(1.5rem, 5vw, 3.5rem) 0;
 	background: linear-gradient(
 		160deg,
-		#0c1424 0%,
-		#090d18 45%,
-		#060810 100%
+		var(--surface-card-2) 0%,
+		var(--surface-card)   45%,
+		var(--surface-bg)    100%
 	);
 }
 
@@ -70,9 +35,10 @@
 	background: linear-gradient(
 		108deg,
 		transparent 28%,
-		rgba(45, 212, 168, .028) 50%,
+		var(--accent-soft) 50%,
 		transparent 72%
 	);
+	opacity: 0.18;
 	pointer-events: none;
 }
 
@@ -105,7 +71,7 @@
 	font-weight: 700;
 	letter-spacing: .2em;
 	text-transform: uppercase;
-	color: var(--pf-accent);
+	color: var(--accent);
 	margin-bottom: 1.75rem;
 }
 
@@ -113,8 +79,8 @@
 	width: 6px;
 	height: 6px;
 	border-radius: 50%;
-	background: var(--pf-accent);
-	box-shadow: 0 0 8px var(--pf-accent);
+	background: var(--accent);
+	box-shadow: 0 0 8px var(--accent-glow);
 	flex-shrink: 0;
 }
 
@@ -128,7 +94,7 @@
 	font-weight: 700;
 	letter-spacing: .18em;
 	text-transform: uppercase;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 	margin-bottom: .5rem;
 }
 
@@ -139,11 +105,13 @@
 	line-height: 1;
 	letter-spacing: -.02em;
 	font-variant-numeric: tabular-nums;
-	color: var(--pf-text-0);
+	color: var(--text-primary);
 }
 
 .pf-hero__value--gain {
-	text-shadow: var(--pf-accent-glow);
+	text-shadow:
+		0 0 28px var(--accent-glow),
+		0 0 56px var(--accent-soft);
 }
 
 .pf-hero__pnl-row {
@@ -161,12 +129,12 @@
 	font-variant-numeric: tabular-nums;
 	line-height: 1;
 }
-.pf-hero__pnl--gain    { color: var(--pf-gain); }
-.pf-hero__pnl--loss    { color: var(--pf-loss); }
-.pf-hero__pnl--neutral { color: var(--pf-text-1); }
+.pf-hero__pnl--gain    { color: var(--gain); }
+.pf-hero__pnl--loss    { color: var(--loss); }
+.pf-hero__pnl--neutral { color: var(--text-secondary); }
 
 .pf-hero__sep {
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 	font-size: .8rem;
 	font-weight: 300;
 }
@@ -178,21 +146,21 @@
 	font-variant-numeric: tabular-nums;
 	line-height: 1;
 }
-.pf-hero__pct--gain    { color: var(--pf-gain); }
-.pf-hero__pct--loss    { color: var(--pf-loss); }
-.pf-hero__pct--neutral { color: var(--pf-text-1); }
+.pf-hero__pct--gain    { color: var(--gain); }
+.pf-hero__pct--loss    { color: var(--loss); }
+.pf-hero__pct--neutral { color: var(--text-secondary); }
 
 .pf-hero__meta {
 	font-size: .76rem;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 	margin-bottom: 2rem;
 }
 .pf-hero__meta strong {
-	color: var(--pf-text-1);
+	color: var(--text-secondary);
 	font-weight: 500;
 }
 
-/* ── Allocation bar (bottom of hero) ─────────────────────────────────────── */
+/* ── Allocation bar ──────────────────────────────────────────────────────── */
 .pf-alloc-bar {
 	display: flex;
 	height: 3px;
@@ -213,12 +181,12 @@
 	display: grid;
 	grid-template-columns: repeat(4, 1fr);
 	gap: 0;
-	background: var(--pf-border);
-	border-bottom: 1px solid var(--pf-border);
+	background: var(--border-subtle);
+	border-bottom: 1px solid var(--border-subtle);
 }
 
 .pf-metric {
-	background: var(--pf-surface-1);
+	background: var(--surface-card);
 	padding: 1.4rem clamp(1.5rem, 4vw, 2.5rem);
 	display: flex;
 	flex-direction: column;
@@ -226,14 +194,13 @@
 	position: relative;
 }
 
-/* Accent underline on hover */
 .pf-metric::after {
 	content: '';
 	position: absolute;
 	inset-x: 0;
 	bottom: 0;
 	height: 2px;
-	background: var(--pf-accent);
+	background: var(--accent);
 	transform: scaleX(0);
 	transition: transform .2s ease;
 }
@@ -244,7 +211,7 @@
 	font-weight: 700;
 	letter-spacing: .16em;
 	text-transform: uppercase;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 }
 
 .pf-metric__value {
@@ -252,11 +219,11 @@
 	font-size: clamp(1.05rem, 1.8vw, 1.3rem);
 	font-weight: 600;
 	font-variant-numeric: tabular-nums;
-	color: var(--pf-text-0);
+	color: var(--text-primary);
 	line-height: 1.1;
 }
-.pf-metric__value--gain    { color: var(--pf-gain); }
-.pf-metric__value--loss    { color: var(--pf-loss); }
+.pf-metric__value--gain { color: var(--gain); }
+.pf-metric__value--loss { color: var(--loss); }
 
 
 /* ── Positions section ───────────────────────────────────────────────────── */
@@ -277,12 +244,12 @@
 	font-weight: 700;
 	letter-spacing: .2em;
 	text-transform: uppercase;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 }
 
 .pf-positions__ts {
 	font-size: .7rem;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 }
 
 
@@ -290,10 +257,9 @@
 .pf-table-wrap {
 	overflow-x: auto;
 	border-radius: 12px;
-	border: 1px solid var(--pf-border);
-	background: var(--pf-surface-1);
-	/* Subtle inner glow at top */
-	box-shadow: inset 0 1px 0 var(--pf-border-bright);
+	border: 1px solid var(--border-subtle);
+	background: var(--surface-card);
+	box-shadow: inset 0 1px 0 var(--border-bright);
 }
 
 .pf-table {
@@ -302,7 +268,7 @@
 }
 
 .pf-table thead {
-	border-bottom: 1px solid var(--pf-border);
+	border-bottom: 1px solid var(--border-subtle);
 }
 
 .pf-table thead th {
@@ -312,18 +278,18 @@
 	font-weight: 700;
 	letter-spacing: .14em;
 	text-transform: uppercase;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 	white-space: nowrap;
 	background: rgba(255, 255, 255, .018);
 }
 .pf-table thead th:first-child { text-align: left; }
 
 .pf-table tbody tr {
-	border-bottom: 1px solid var(--pf-border);
+	border-bottom: 1px solid var(--border-subtle);
 	transition: background .1s ease;
 }
 .pf-table tbody tr:last-child { border-bottom: none; }
-.pf-table tbody tr:hover      { background: var(--pf-surface-hover); }
+.pf-table tbody tr:hover      { background: var(--surface-hover); }
 
 .pf-table td {
 	padding: 1rem 1rem;
@@ -331,7 +297,7 @@
 	font-family: var(--pf-mono);
 	font-size: .78rem;
 	font-variant-numeric: tabular-nums;
-	color: var(--pf-text-1);
+	color: var(--text-secondary);
 	white-space: nowrap;
 }
 .pf-table td:first-child {
@@ -351,37 +317,37 @@
 	width: 34px;
 	height: 34px;
 	border-radius: 50%;
-	background: var(--pf-accent-dim);
-	border: 1px solid rgba(45, 212, 168, .18);
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-soft);
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	font-size: .58rem;
 	font-weight: 800;
 	letter-spacing: .04em;
-	color: var(--pf-accent);
+	color: var(--accent);
 	flex-shrink: 0;
 	font-family: inherit;
 	transition: background .15s, box-shadow .15s;
 }
 
 .pf-table tbody tr:hover .pf-ticker__badge {
-	background: var(--pf-accent-mid);
-	box-shadow: 0 0 12px rgba(45, 212, 168, .15);
+	background: var(--accent-dim);
+	box-shadow: 0 0 12px var(--accent-glow);
 }
 
 .pf-ticker__info { min-width: 0; }
 
 .pf-ticker__name {
 	font-weight: 600;
-	color: var(--pf-text-0);
+	color: var(--text-primary);
 	font-size: .85rem;
 }
 
 .pf-ticker__sub {
 	font-family: var(--pf-mono);
 	font-size: .65rem;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 	margin-top: .1rem;
 }
 
@@ -397,14 +363,14 @@
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }
-.pf-pill--gain    { background: var(--pf-gain-bg);    border: 1px solid var(--pf-gain-border);    color: var(--pf-gain); }
-.pf-pill--loss    { background: var(--pf-loss-bg);    border: 1px solid var(--pf-loss-border);    color: var(--pf-loss); }
-.pf-pill--neutral { background: rgba(255,255,255,.04); border: 1px solid var(--pf-border-bright); color: var(--pf-text-2); }
+.pf-pill--gain    { background: var(--gain-bg);    border: 1px solid var(--gain-border);    color: var(--gain); }
+.pf-pill--loss    { background: var(--loss-bg);    border: 1px solid var(--loss-border);    color: var(--loss); }
+.pf-pill--neutral { background: var(--border-subtle); border: 1px solid var(--border-bright); color: var(--text-muted); }
 
 /* Footer totals */
 .pf-table tfoot tr {
 	background: rgba(255, 255, 255, .022);
-	border-top: 1px solid var(--pf-border-bright);
+	border-top: 1px solid var(--border-bright);
 }
 
 .pf-table tfoot td {
@@ -414,7 +380,7 @@
 	font-variant-numeric: tabular-nums;
 	font-size: .78rem;
 	font-weight: 700;
-	color: var(--pf-text-0);
+	color: var(--text-primary);
 	white-space: nowrap;
 }
 .pf-table tfoot td:first-child {
@@ -424,7 +390,7 @@
 	font-weight: 700;
 	letter-spacing: .16em;
 	text-transform: uppercase;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 }
 
 
@@ -441,8 +407,8 @@
 .pf-spinner {
 	width: 28px;
 	height: 28px;
-	border: 2px solid var(--pf-border-bright);
-	border-top-color: var(--pf-accent);
+	border: 2px solid var(--border-bright);
+	border-top-color: var(--accent);
 	border-radius: 50%;
 	animation: pf-spin .7s linear infinite;
 }
@@ -452,7 +418,7 @@
 	font-weight: 600;
 	letter-spacing: .14em;
 	text-transform: uppercase;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 }
 
 @keyframes pf-spin { to { transform: rotate(360deg); } }
@@ -461,22 +427,22 @@
 /* ── Error / empty states ─────────────────────────────────────────────────── */
 .pf-state {
 	border-radius: 12px;
-	border: 1px solid var(--pf-border);
-	background: var(--pf-surface-1);
+	border: 1px solid var(--border-subtle);
+	background: var(--surface-card);
 	padding: 3.5rem 2rem;
 	text-align: center;
 	margin: 2rem clamp(1.5rem, 5vw, 3.5rem);
 }
 
 .pf-state__icon  { font-size: 2.5rem; margin-bottom: .75rem; }
-.pf-state__title { font-size: .95rem; font-weight: 600; color: var(--pf-text-0); margin-bottom: .4rem; }
-.pf-state__sub   { font-size: .8rem; color: var(--pf-text-2); line-height: 1.6; }
-.pf-state--error .pf-state__title { color: var(--pf-loss); }
+.pf-state__title { font-size: .95rem; font-weight: 600; color: var(--text-primary); margin-bottom: .4rem; }
+.pf-state__sub   { font-size: .8rem; color: var(--text-muted); line-height: 1.6; }
+.pf-state--error .pf-state__title { color: var(--loss); }
 
 /* ── No-price note ──────────────────────────────────────────────────────── */
 .pf-note {
 	font-size: .7rem;
-	color: var(--pf-text-2);
+	color: var(--text-muted);
 	margin-top: .8rem;
 }
 
@@ -491,7 +457,6 @@
 	.pf-table td,
 	.pf-table tfoot td { padding-left: .65rem; padding-right: .65rem; }
 
-	/* Hide less-critical columns on small screens */
 	.pf-col--holdings,
 	.pf-col--avg-cost,
 	.pf-col--price-now { display: none; }

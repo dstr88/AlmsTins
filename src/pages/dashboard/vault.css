@@ -30,7 +30,7 @@
 	width: 100%;
 	margin: 0 auto;
 	box-sizing: border-box;
-	background: #0d1117;
+	background: var(--surface-bg);
 	min-height: 100vh;
 }
 
@@ -158,13 +158,13 @@
 	font-weight: 700;
 	white-space: nowrap;
 	flex-shrink: 0;
-	color: #e8a020;
+	color: var(--accent);
 }
 
 .vault-section-divider__line {
 	flex: 1;
 	height: 0;
-	border-top: 1px dashed rgba(232, 160, 32, 0.45);
+	border-top: 1px dashed var(--accent-soft);
 	background: none;
 }
 
@@ -334,14 +334,14 @@
 /* ── Quick-action tiles: dashed orange border ─────────────────────────────── */
 .tile--r1c1 .salmon-tin,
 .tile--r1c2 .salmon-tin {
-	border: 2px dashed #e8a020;
-	background: #1a1f2b;
+	border: 2px dashed var(--accent);
+	background: var(--surface-card-2);
 }
 
 .tile--r1c1 .salmon-tin__label,
 .tile--r1c2 .salmon-tin__label {
-	background: #2dd4a8;
-	color: #0b0f1a;
+	background: var(--accent);
+	color: var(--surface-bg);
 }
 
 /* ── On-chain wallet stack ────────────────────────────────────────────────── */
@@ -359,9 +359,9 @@
 	align-items: center;
 	gap: 0.5rem;
 	padding: 0.35rem 1.25rem;
-	background: rgba(250, 128, 114, 0.8);
+	background: var(--accent);
 	border-radius: 999px;
-	color: #0b0f1a;
+	color: var(--surface-bg);
 	font-weight: 700;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
@@ -383,7 +383,7 @@
 	color: rgba(0, 0, 0, 0.85);
 }
 .wallet-copy-btn.copied {
-	color: #1a7f5a;
+	color: var(--gain);
 }
 
 .wallet-chain-badge {
@@ -392,7 +392,7 @@
 	padding: 0.1rem 0.45rem;
 	border-radius: 999px;
 	background: rgba(0, 0, 0, 0.25);
-	color: #0b0f1a;
+	color: var(--surface-bg);
 	font-size: 0.65rem;
 	font-weight: 800;
 	letter-spacing: 0.08em;
@@ -454,14 +454,14 @@
 .wallet-summary-tin .salmon-tin__label {
 	left: 50%;
 	transform: translateX(-50%);
-	color: #ffffff;
+	color: var(--text-primary);
 	font-size: 20px;
 }
 
 .defi-summary-tin .salmon-tin__label {
 	left: 50%;
 	transform: translateX(-50%);
-	color: #ffffff;
+	color: var(--text-primary);
 	font-size: 20px;
 }
 
@@ -510,7 +510,7 @@
 }
 
 .defi-summary-tin .stat-row.debt .value {
-	color: #fecaca;
+	color: var(--loss);
 }
 
 .defi-summary-tin .spacer {
@@ -603,9 +603,9 @@
 	opacity: 0.9;
 }
 
-.defi-summary-tin .defi-status--error   { color: #fca5a5; opacity: 1; }
-.defi-summary-tin .defi-status--warning { color: #facc15; opacity: 1; }
-.defi-summary-tin .defi-status--refreshing { color: #93c5fd; opacity: 0.9; }
+.defi-summary-tin .defi-status--error   { color: var(--loss); opacity: 1; }
+.defi-summary-tin .defi-status--warning { color: var(--accent); opacity: 1; }
+.defi-summary-tin .defi-status--refreshing { color: var(--accent); opacity: 0.9; }
 
 /* ── Alert pill ───────────────────────────────────────────────────────────── */
 .alert-pill-wrap {
@@ -632,19 +632,19 @@
 
 .alert-pill:hover {
 	background: rgba(255,255,255,0.14);
-	color: #fff;
+	color: var(--text-primary);
 	border-color: rgba(255,255,255,0.45);
 }
 
 .alert-pill--active {
-	background: rgba(250, 204, 21, 0.18);
-	border-color: rgba(250, 204, 21, 0.55);
-	color: #facc15;
+	background: var(--accent-soft);
+	border-color: var(--accent-dim);
+	color: var(--accent);
 }
 
 .alert-pill--active:hover {
-	background: rgba(250, 204, 21, 0.28);
-	border-color: #facc15;
+	background: var(--accent-soft);
+	border-color: var(--accent);
 }
 
 .alert-panel {
@@ -655,8 +655,8 @@
 	width: 230px;
 	padding: var(--space-md);
 	border-radius: var(--radius-lg);
-	background: #1e2330;
-	border: 1px solid rgba(255,255,255,0.12);
+	background: var(--surface-card-2);
+	border: 1px solid var(--border-bright);
 	box-shadow: 0 8px 32px rgba(0,0,0,0.45);
 	display: flex;
 	flex-direction: column;
@@ -666,7 +666,7 @@
 .alert-panel__title {
 	font-size: var(--font-md2);
 	font-weight: 700;
-	color: #fff;
+	color: var(--text-primary);
 	margin: 0;
 }
 
@@ -695,7 +695,7 @@
 	background: rgba(255,255,255,0.07);
 	border: 1px solid rgba(255,255,255,0.15);
 	border-radius: var(--radius-sm);
-	color: #fff;
+	color: var(--text-primary);
 	font-size: var(--font-sm);
 	padding: 0.3em 0.5em;
 	min-width: 0;
@@ -704,7 +704,7 @@
 .alert-panel__select:focus,
 .alert-panel__input:focus {
 	outline: none;
-	border-color: rgba(99,179,237,0.6);
+	border-color: var(--accent-dim);
 }
 
 .alert-panel__actions {
@@ -718,15 +718,15 @@
 	padding: 0.35em 0.75em;
 	border-radius: var(--radius-sm);
 	border: none;
-	background: #0d9466;
-	color: #fff;
+	background: var(--accent);
+	color: var(--surface-bg);
 	font-size: var(--font-sm);
 	font-weight: 600;
 	cursor: pointer;
-	transition: background 0.15s;
+	transition: filter 0.15s;
 }
 
-.alert-panel__save:hover { background: #0f7a55; }
+.alert-panel__save:hover { filter: brightness(0.88); }
 
 .alert-panel__disable {
 	padding: 0.35em 0.75em;
@@ -741,7 +741,7 @@
 
 .alert-panel__disable:hover {
 	background: rgba(255,255,255,0.08);
-	color: #fff;
+	color: var(--text-primary);
 }
 
 /* ── This-year tin ────────────────────────────────────────────────────────── */
@@ -793,7 +793,7 @@
 
 .this-year-tin .quarter-divider {
 	height: 2px;
-	background: salmon;
+	background: var(--accent);
 	margin-bottom: var(--space-sm);
 }
 
@@ -819,7 +819,7 @@
 }
 
 .this-year-tin .this-year-status--error {
-	color: #fca5a5;
+	color: var(--loss);
 	opacity: 1;
 }
 
@@ -827,11 +827,11 @@
 .placeholder-card,
 .placeholder-area {
 	min-height: 120px;
-	border: 1px dashed rgba(255, 255, 255, 0.4);
+	border: 1px dashed var(--border-bright);
 	border-radius: 12px;
 	padding: 1rem;
-	color: #f7f2eb;
-	background: rgba(47, 65, 59, 0.6);
+	color: var(--text-primary);
+	background: var(--surface-card-2);
 }
 
 h2 {
@@ -854,9 +854,9 @@ h2 {
 	align-items: center;
 	padding: 0.25rem 0.85rem;
 	border-radius: 999px;
-	background: rgba(45, 212, 168, 0.15);
-	border: 1px solid rgba(45, 212, 168, 0.45);
-	color: #2dd4a8;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-dim);
+	color: var(--accent);
 	font-size: 0.68rem;
 	font-weight: 700;
 	letter-spacing: 0.1em;
@@ -868,7 +868,7 @@ h2 {
 .vault-section-divider--sui .vault-section-divider__label,
 .vault-section-divider--solana .vault-section-divider__label,
 .vault-section-divider--custom .vault-section-divider__label {
-	color: #e8a020;
+	color: var(--accent);
 }
 
 /* ── Monthly digest pill ──────────────────────────────────────────────────── */
@@ -886,9 +886,9 @@ h2 {
 	margin-top: 0.5rem;
 	padding: 0.3rem 0.85rem;
 	border-radius: 999px;
-	background: rgba(251, 191, 36, 0.12);
-	border: 1px solid rgba(251, 191, 36, 0.45);
-	color: #fbbf24;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-dim);
+	color: var(--accent);
 	font-size: 0.72rem;
 	font-weight: 600;
 	letter-spacing: 0.04em;
@@ -898,6 +898,6 @@ h2 {
 }
 
 .digest-pill:hover {
-	background: rgba(251, 191, 36, 0.22);
-	border-color: rgba(251, 191, 36, 0.7);
+	background: var(--accent-soft);
+	border-color: var(--accent);
 }

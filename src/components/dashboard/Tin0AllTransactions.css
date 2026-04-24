@@ -15,8 +15,8 @@
 }
 
 .tin0-all {
-	background: darkslategray;
-	color: #f7f2eb;
+	background: var(--surface-card);
+	color: var(--text-primary);
 	border: none;
 	border-radius: 12px;
 	padding: 0;
@@ -53,7 +53,7 @@
 	position: sticky;
 	top: 0;
 	z-index: 2;
-	background: darkslategray;
+	background: var(--surface-card);
 	padding: 0 0 0.5rem;
 	flex: 0 0 auto;
 }
@@ -171,10 +171,10 @@
 	margin: 0;
 	padding: 0.75rem 0.9rem;
 	border-radius: 0.75rem;
-	background: rgba(255, 70, 70, 0.15);
+	background: var(--loss-bg);
 	border: 1px solid rgba(255, 120, 120, 0.35);
 	font-size: var(--font-sm);
-	color: #ffd4d4;
+	color: var(--loss);
 }
 
 .tx-card {
@@ -256,8 +256,8 @@
 	display: block;
 	height: 1.2rem;
 	width: 1.2rem;
-	fill: #ef4444;
-	stroke: #ef4444;
+	fill: var(--loss);
+	stroke: var(--loss);
 }
 
 .tx-meta {
@@ -285,7 +285,7 @@
 	border-radius: 0.6rem;
 	background: rgba(255, 255, 255, 0.06);
 	border: 1px solid rgba(255, 255, 255, 0.14);
-	color: #f7f2eb;
+	color: var(--text-primary);
 	white-space: pre-wrap;
 }
 
@@ -331,11 +331,11 @@
 }
 
 :global(.tx-pl.is-profit) {
-	color: #86efac;
+	color: var(--gain);
 }
 
 :global(.tx-pl.is-loss) {
-	color: salmon;
+	color: var(--loss);
 }
 
 :global(.tx-lotline) {
@@ -396,7 +396,7 @@
 	bottom: calc(100% + 0.5rem);
 	transform: translateX(-50%);
 	background: rgba(10, 10, 10, 0.95);
-	color: #f7f2eb;
+	color: var(--text-primary);
 	padding: 0.35rem 0.6rem;
 	border-radius: 0.5rem;
 	white-space: nowrap;

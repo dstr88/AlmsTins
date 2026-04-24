@@ -1,8 +1,8 @@
 .salmon-tin {
 	position: relative;
-	background: #1a3a3a;
-	color: #e0e0e0;
-	border: 2px solid #2dd4a8;
+	background: var(--surface-card);
+	color: var(--text-secondary);
+	border: 2px solid var(--accent);
 	border-radius: 12px;
 	padding: 2.5rem 1.25rem 1.25rem;
 	display: flex;
@@ -16,8 +16,8 @@
 	position: absolute;
 	top: -12px;
 	left: 1rem;
-	background: #2dd4a8;
-	color: #0b0f1a;
+	background: var(--accent);
+	color: var(--surface-bg);
 	font-weight: 700;
 	font-size: 1rem;
 	padding: 0.4rem 0.8rem;

@@ -2,8 +2,8 @@
 	display: flex;
 	flex-direction: column;
 	gap: 0.65rem;
-	background: darkslategray;
-	border: 2px solid #60a5fa;
+	background: var(--surface-card);
+	border: 2px solid var(--accent);
 	border-radius: 12px;
 	padding: 1.25rem;
 	height: 100%;
@@ -13,9 +13,9 @@
 .cwc-label-pill {
 	align-self: center;
 	padding: 0.35rem 1.25rem;
-	border: 2px solid #60a5fa;
+	border: 2px solid var(--accent);
 	border-radius: 999px;
-	color: #bfdbfe;
+	color: var(--accent);
 	font-weight: 600;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
@@ -51,7 +51,7 @@
 	width: 6px;
 	height: 6px;
 	border-radius: 50%;
-	background: #60a5fa;
+	background: var(--accent);
 	flex-shrink: 0;
 }
 
@@ -64,9 +64,9 @@
 
 .cwc-btn {
 	border-radius: 0.65rem;
-	border: 1px solid rgba(96, 165, 250, 0.5);
-	background: rgba(96, 165, 250, 0.12);
-	color: #bfdbfe;
+	border: 1px solid var(--accent-dim);
+	background: var(--accent-soft);
+	color: var(--accent);
 	padding: 0.5rem 0.75rem;
 	font-size: 0.85rem;
 	font-weight: 600;
@@ -77,8 +77,8 @@
 }
 
 .cwc-btn:hover {
-	background: rgba(96, 165, 250, 0.25);
-	border-color: rgba(96, 165, 250, 0.8);
+	background: var(--accent-dim);
+	border-color: var(--accent-dim);
 }
 
 .cwc-tx-count {
@@ -102,7 +102,7 @@
 	max-height: 160px;
 	overflow-y: auto;
 	scrollbar-width: thin;
-	scrollbar-color: rgba(96,165,250,0.25) transparent;
+	scrollbar-color: var(--accent-dim) transparent;
 }
 
 .cwc-tx-row {
@@ -122,8 +122,8 @@
 	border-radius: 50%;
 	flex-shrink: 0;
 }
-.cwc-tx-row--in  .cwc-tx-row__dot { background: #4ade80; }
-.cwc-tx-row--out .cwc-tx-row__dot { background: #f87171; }
+.cwc-tx-row--in  .cwc-tx-row__dot { background: var(--gain); }
+.cwc-tx-row--out .cwc-tx-row__dot { background: var(--loss); }
 
 .cwc-tx-row__kind {
 	font-weight: 700;
@@ -132,8 +132,8 @@
 	font-size: 0.7rem;
 	min-width: 2.5rem;
 }
-.cwc-tx-row--in  .cwc-tx-row__kind { color: #86efac; }
-.cwc-tx-row--out .cwc-tx-row__kind { color: #fca5a5; }
+.cwc-tx-row--in  .cwc-tx-row__kind { color: var(--gain); }
+.cwc-tx-row--out .cwc-tx-row__kind { color: var(--loss); }
 
 .cwc-tx-row__asset  { font-weight: 700; letter-spacing: 0.04em; }
 .cwc-tx-row__amount { font-variant-numeric: tabular-nums; opacity: 0.7; }
@@ -149,25 +149,25 @@
 }
 
 .cwc-btn--delete {
-	border-color: rgba(252, 165, 165, 0.35);
-	background: rgba(252, 165, 165, 0.07);
-	color: #fca5a5;
+	border-color: var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--loss);
 	font-size: 0.78rem;
 	font-weight: 500;
 	letter-spacing: 0.05em;
 }
 
 .cwc-btn--delete:hover {
-	background: rgba(252, 165, 165, 0.18);
-	border-color: rgba(252, 165, 165, 0.6);
+	background: var(--loss-bg);
+	border-color: var(--loss-border);
 }
 
 .cwc-confirm {
 	display: flex;
 	flex-direction: column;
 	gap: 0.4rem;
-	background: rgba(252, 165, 165, 0.05);
-	border: 1px solid rgba(252, 165, 165, 0.2);
+	background: var(--loss-bg);
+	border: 1px solid var(--loss-border);
 	border-radius: 0.6rem;
 	padding: 0.6rem 0.65rem;
 }
@@ -187,9 +187,9 @@
 .cwc-confirm__input {
 	width: 100%;
 	border-radius: 0.4rem;
-	border: 1px solid rgba(252, 165, 165, 0.3);
+	border: 1px solid var(--loss-border);
 	background: rgba(255, 255, 255, 0.05);
-	color: #f7f2eb;
+	color: var(--text-primary);
 	padding: 0.35rem 0.5rem;
 	font-size: 0.82rem;
 	outline: none;
@@ -197,7 +197,7 @@
 }
 
 .cwc-confirm__input:focus {
-	border-color: rgba(252, 165, 165, 0.6);
+	border-color: var(--loss);
 }
 
 .cwc-confirm__btns {
@@ -207,16 +207,16 @@
 
 .cwc-btn--confirm-yes {
 	flex: 1;
-	border-color: rgba(252, 165, 165, 0.4);
-	background: rgba(252, 165, 165, 0.12);
-	color: #fca5a5;
+	border-color: var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--loss);
 	font-size: 0.8rem;
 	font-weight: 700;
 }
 
 .cwc-btn--confirm-yes:not(:disabled):hover {
-	background: rgba(252, 165, 165, 0.28);
-	border-color: rgba(252, 165, 165, 0.8);
+	background: var(--loss-bg);
+	border-color: var(--loss);
 }
 
 .cwc-btn--confirm-yes:disabled {
@@ -226,15 +226,15 @@
 
 .cwc-btn--confirm-no {
 	flex: 1;
-	border-color: rgba(255, 255, 255, 0.12);
+	border-color: var(--border-bright);
 	background: transparent;
-	color: rgba(247, 242, 235, 0.5);
+	color: var(--text-secondary);
 	font-size: 0.8rem;
 }
 
 .cwc-btn--confirm-no:hover {
 	background: rgba(255, 255, 255, 0.07);
-	color: #f7f2eb;
+	color: var(--text-primary);
 }
 
 .cwc-confirm__message {
@@ -244,5 +244,5 @@
 	letter-spacing: 0.07em;
 	opacity: 0.75;
 	min-height: 1em;
-	color: #fca5a5;
+	color: var(--loss);
 }
