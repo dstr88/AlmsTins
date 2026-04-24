@@ -164,6 +164,19 @@
 	letter-spacing: 0.02em;
 }
 
+/* Chain auto-detect hint (below the chain selector) */
+.add-tin__chain-hint {
+	display: none;
+	margin: 0.25rem 0 0;
+	font-size: 0.72rem;
+	line-height: 1.4;
+	color: rgba(224, 224, 224, 0.55);
+}
+
+.add-tin__chain-hint--auto {
+	color: #34d399; /* green — confirms a successful auto-detect */
+}
+
 /* Exchange panel */
 .add-tin__hint {
 	margin: 0;

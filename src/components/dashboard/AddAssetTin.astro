@@ -63,6 +63,7 @@ import './AddAssetTin.css';
 				<option value="solana">Solana (SOL)</option>
 				<option value="sui">Sui (SUI)</option>
 			</select>
+			<p class="add-tin__chain-hint" data-chain-hint aria-live="polite"></p>
 		</label>
 		<label class="add-tin__field">
 			<span class="add-tin__field-label">Address</span>
@@ -228,6 +229,88 @@ import './AddAssetTin.css';
 		if (chainSelect) {
 			chainSelect.addEventListener('change', updatePlaceholder);
 			updatePlaceholder();
+		}
+
+		// ── Chain auto-detection ──────────────────────────────────────────────
+		var hintEl = tin.querySelector('[data-chain-hint]');
+
+		var EVM_CHAINS = { ethereum: true, avalanche: true, polygon: true, arbitrum: true };
+
+		var CHAIN_HINTS = {
+			ethereum: 'Auto-detected: EVM address — covers Ethereum, Polygon, Avalanche & Arbitrum.',
+			bitcoin:  'Auto-detected: Bitcoin address.',
+			litecoin: 'Auto-detected: Litecoin address.',
+			solana:   'Auto-detected: Solana address.',
+			sui:      'Auto-detected: Sui address.',
+		};
+
+		var EVM_HINT = 'EVM addresses (0x…) are tracked across Ethereum, Polygon, Avalanche & Arbitrum automatically.';
+
+		function detectChain(addr) {
+			var v = addr.trim();
+			var lower = v.toLowerCase();
+			// EVM: 0x + exactly 40 hex
+			if (/^0x[a-f0-9]{40}$/.test(lower)) return 'ethereum';
+			// Sui: 0x + 1–64 hex (but not exactly 40)
+			if (/^0x[a-f0-9]{1,64}$/.test(lower)) return 'sui';
+			// Bitcoin native SegWit / Taproot
+			if (/^bc1[a-z0-9]{6,87}$/.test(lower)) return 'bitcoin';
+			// Bitcoin legacy P2PKH / P2SH
+			if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(v)) return 'bitcoin';
+			// Litecoin
+			if (/^ltc1[a-z0-9]{6,87}$/.test(lower)) return 'litecoin';
+			// Solana base58
+			if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v)) return 'solana';
+			return null;
+		}
+
+		function setChainHint(text, isAuto) {
+			if (!hintEl) return;
+			hintEl.textContent = text || '';
+			hintEl.classList.toggle('add-tin__chain-hint--auto', !!isAuto);
+			hintEl.style.display = text ? '' : 'none';
+		}
+
+		function onAddressInput() {
+			var addr = addressInput ? addressInput.value : '';
+			var detected = addr.trim().length > 10 ? detectChain(addr) : null;
+
+			if (detected && chainSelect && chainSelect.value !== detected) {
+				chainSelect.value = detected;
+				updatePlaceholder();
+				setChainHint(CHAIN_HINTS[detected] || ('Auto-detected: ' + detected + '.'), true);
+			} else if (detected && EVM_CHAINS[detected]) {
+				setChainHint(EVM_HINT, false);
+			} else if (!detected && addr.trim().length > 5) {
+				setChainHint('', false);
+			} else if (!addr.trim()) {
+				// show EVM hint when an EVM chain is selected and address is empty
+				if (chainSelect && EVM_CHAINS[chainSelect.value]) {
+					setChainHint(EVM_HINT, false);
+				} else {
+					setChainHint('', false);
+				}
+			}
+		}
+
+		// Show EVM hint immediately if the default chain is EVM
+		if (chainSelect && EVM_CHAINS[chainSelect.value]) setChainHint(EVM_HINT, false);
+
+		chainSelect && chainSelect.addEventListener('change', function () {
+			// Re-run hint logic after manual chain change
+			if (addressInput && addressInput.value.trim()) {
+				onAddressInput();
+			} else {
+				setChainHint(EVM_CHAINS[chainSelect.value] ? EVM_HINT : '', false);
+			}
+		});
+
+		if (addressInput) {
+			addressInput.addEventListener('input', onAddressInput);
+			addressInput.addEventListener('paste', function () {
+				// paste fires before value updates — defer one tick
+				setTimeout(onAddressInput, 0);
+			});
 		}
 
 		function setMessage(text, isUpgrade) {
