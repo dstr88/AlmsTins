@@ -438,8 +438,8 @@ main {
 }
 
 .account-logout:hover {
-	background: rgba(239, 68, 68, 0.18);
-	border-color: rgba(239, 68, 68, 0.40);
+	background: var(--loss-bg);
+	border-color: var(--loss-border);
 }
 
 /* ── Alert email inline editor ───────────────────────────────────────── */

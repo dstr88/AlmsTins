@@ -179,8 +179,8 @@
 }
 .card-header--violet { background: linear-gradient(90deg, var(--accent-soft), var(--accent-dim)); border-bottom: 1px solid var(--accent-dim); }
 .card-header--cyan   { background: linear-gradient(90deg, rgba(6,182,212,.25),  rgba(6,182,212,.08));  border-bottom: 1px solid rgba(6,182,212,.25);  }
-.card-header--emerald{ background: linear-gradient(90deg, var(--gain-bg), rgba(52,211,153,.08)); border-bottom: 1px solid var(--gain-border); }
-.card-header--rose   { background: linear-gradient(90deg, var(--loss-bg), rgba(248,113,113,.08)); border-bottom: 1px solid var(--loss-border); }
+.card-header--emerald{ background: linear-gradient(90deg, var(--gain-bg), transparent); border-bottom: 1px solid var(--gain-border); }
+.card-header--rose   { background: linear-gradient(90deg, var(--loss-bg), transparent); border-bottom: 1px solid var(--loss-border); }
 .card-header--slate  { background: linear-gradient(90deg, rgba(148,163,184,.2), rgba(148,163,184,.05));border-bottom: 1px solid rgba(148,163,184,.2); }
 
 .card-header__icon  { font-size: 1.2rem; }
