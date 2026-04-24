@@ -361,7 +361,6 @@ import './AddAssetTin.css';
 						// Track the new address so a second add attempt is caught immediately
 						if (address && payload.id) existingWallets[address.toLowerCase()] = payload.id;
 						if (addressInput) addressInput.value = '';
-						setMessage('Wallet added \u2014 reloading\u2026');
 						// Analytics — track demo wallet adds
 						if (isDemo && typeof window.gtag === 'function') {
 							window.gtag('event', 'demo_wallet_added', {
@@ -369,8 +368,22 @@ import './AddAssetTin.css';
 								event_label: chain || 'unknown',
 							});
 						}
-						try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
-						window.location.reload();
+						// In demo mode, sync transaction history so "days held" shows real data.
+						// We race the sync against a 5-second guard so the UX never stalls.
+						if (isDemo && payload.id) {
+							setMessage('Syncing wallet history\u2026');
+							var syncReq = fetch('/api/wallets/' + payload.id + '/sync', { method: 'POST' }).catch(function() {});
+							var syncTimeout = new Promise(function(resolve) { setTimeout(resolve, 5000); });
+							Promise.race([syncReq, syncTimeout]).then(function() {
+								setMessage('Wallet added \u2014 reloading\u2026');
+								try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
+								window.location.reload();
+							});
+						} else {
+							setMessage('Wallet added \u2014 reloading\u2026');
+							try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
+							window.location.reload();
+						}
 					});
 				}).catch(function (err) {
 					setMessage(err.message || 'Unable to add wallet.');

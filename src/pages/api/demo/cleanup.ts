@@ -21,6 +21,7 @@ const DEMO_TABLES = [
 	'tax_classifications',
 	'tax_pipeline_runs',
 	'import_transactions',
+	'transactions',
 	'wallet_snapshots',
 	'exchange_accounts',
 	'wallets',
