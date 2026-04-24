@@ -164,11 +164,18 @@ const memberSinceDisplay = memberSinceIso
 
 		<!-- Google Analytics -->
 	<script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
-<script is:inline define:vars={{ GA_ID }}>
+<script is:inline define:vars={{ GA_ID, isDemo }}>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
   gtag('config', GA_ID);
+  // Tag every page view from demo visitors so they can be filtered in GA4
+  if (isDemo) {
+    gtag('event', 'demo_page_view', {
+      event_category: 'demo',
+      event_label: window.location.pathname,
+    });
+  }
 </script>
 	</head>
 	<body>
