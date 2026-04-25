@@ -4,6 +4,7 @@ import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { rebuildAssetLifecycles } from '@/lib/lifecycle';
 import { invalidateWalletCache } from '@/lib/db/puller';
+import { classifyContract } from '@/lib/knownContracts';
 import {
   countProviderCall,
   createPricingRunSummary,
@@ -317,6 +318,22 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
         if (!isValidPositive(amount)) {
           markRejected(summary, 'zero_value');
           continue;
+        }
+
+        // Reject scam tokens: if the token has a contract address that doesn't match
+        // the known-good address for this symbol on this chain, zero it out and skip.
+        // This prevents fake "AAVE", "USDC", etc. airdrop tokens from being priced
+        // at the real token's rate.
+        const tokenAddress = typeof token.tokenAddress === 'string' ? token.tokenAddress.toLowerCase() : null;
+        if (tokenAddress) {
+          const verdict = classifyContract(row.chain, symbol, tokenAddress);
+          if (verdict === 'scam') {
+            setTokenPrice(token, null);
+            setTokenValue(token, null);
+            changed = true;
+            markRejected(summary, 'scam_contract' as any);
+            continue;
+          }
         }
 
         // Token needs a price lookup — mark the row for update even if there are no
