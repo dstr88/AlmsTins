@@ -371,6 +371,12 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
         setResult(data.result);
         setCached(Boolean(data.cached));
         setActiveTab('safety');
+        if (typeof (window as any).gtag === 'function') {
+          (window as any).gtag('event', 'wallet_check_submitted', {
+            event_category: 'interactive_tool',
+            event_label: 'wallet_checker',
+          });
+        }
       }
     } catch (err: any) {
       if (err?.name !== 'AbortError') {

@@ -1570,6 +1570,12 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
           : '✅ No threats detected across all sources. Always double-check the URL in your browser bar before signing any transaction — even safe-looking sites can be typosquatted.';
 
       result.hidden = false;
+      if (typeof (window as any).gtag === 'function') {
+        (window as any).gtag('event', 'dapp_check_submitted', {
+          event_category: 'interactive_tool',
+          event_label: data.verdict ?? 'unknown',
+        });
+      }
     } catch (e) {
       errBox.textContent = `Check failed: ${e instanceof Error ? e.message : 'Unknown error'}. Try again.`;
       errBox.hidden = false;

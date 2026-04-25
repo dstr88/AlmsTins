@@ -361,10 +361,10 @@ import './AddAssetTin.css';
 						// Track the new address so a second add attempt is caught immediately
 						if (address && payload.id) existingWallets[address.toLowerCase()] = payload.id;
 						if (addressInput) addressInput.value = '';
-						// Analytics — track demo wallet adds
-						if (isDemo && typeof window.gtag === 'function') {
-							window.gtag('event', 'demo_wallet_added', {
-								event_category: 'demo',
+						// Analytics — track wallet adds (demo and real)
+						if (typeof window.gtag === 'function') {
+							window.gtag('event', 'wallet_added', {
+								event_category: isDemo ? 'demo' : 'onboarding',
 								event_label: chain || 'unknown',
 							});
 						}
@@ -433,6 +433,12 @@ import './AddAssetTin.css';
 						if (!res.ok) throw new Error(payload.message || payload.error || 'Unable to save wallet.');
 						if (customLabelInput) customLabelInput.value = '';
 						if (customAddressInput) customAddressInput.value = '';
+						if (typeof window.gtag === 'function') {
+							window.gtag('event', 'wallet_added', {
+								event_category: isDemo ? 'demo' : 'onboarding',
+								event_label: 'custom',
+							});
+						}
 						setCustomMessage('Saved \u2014 reloading\u2026');
 						try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
 						window.location.reload();
