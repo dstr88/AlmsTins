@@ -18,6 +18,15 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getCache, setCache } from '@/lib/tursoCache';
+import { getAaveTotalsForWallet } from '@/lib/aave/client';
+
+// Keep WBTC/WETH as-is (they match on-chain snapshot symbols).
+// Only unwrap wrappers that differ between Aave and Alchemy naming.
+const AAVE_SYMBOL_NORMALIZE: Record<string, string> = {
+	WPOL:   'POL',
+	WMATIC: 'POL',
+	WAVAX:  'AVAX',
+};
 
 export const prerender = false;
 
@@ -50,7 +59,7 @@ export const GET: APIRoute = async ({ request }) => {
 		const url       = new URL(request.url);
 		const threshold = Number(url.searchParams.get('threshold') ?? DEFAULT_THRESHOLD_USD);
 
-		const cacheKey = `t:${tenantId}:portfolio:reconciliation:v1`;
+		const cacheKey = `t:${tenantId}:portfolio:reconciliation:v2`;
 		const cached   = await getCache<{ items: ReconciliationItem[]; updatedAt: string }>(cacheKey, {
 			allowStale:        true,
 			staleMaxAgeSeconds: STALE_MAX_AGE_SECONDS,
@@ -149,6 +158,44 @@ export const GET: APIRoute = async ({ request }) => {
 				e.valueUsd += val;
 				snapMap.set(sym, e);
 			}
+		}
+
+		// ── 2b. Merge live Aave supply positions into snapMap ─────────────────
+		// Tokens deposited into Aave (WBTC, WETH, etc.) live in the Aave pool
+		// contract — Alchemy never sees them in payload_json.  We fetch them here
+		// so the snapshot side shows the full picture, and the threshold filter
+		// can work correctly.  Non-fatal: if Aave is unreachable, skip silently.
+		try {
+			const walletsResult = await db.execute({
+				sql: `SELECT DISTINCT address FROM wallets
+				      WHERE tenant_id = ?
+				        AND (wallet_type = 'onchain' OR wallet_type IS NULL)`,
+				args: [tenantId],
+			});
+
+			for (const walletRow of walletsResult.rows) {
+				const address = String(walletRow.address ?? '').trim();
+				if (!address) continue;
+
+				const aaveTotals = await getAaveTotalsForWallet(address);
+
+				for (const chain of aaveTotals.chains) {
+					for (const pos of chain.positions) {
+						if (pos.side !== 'supply') continue;
+						if (!Number.isFinite(pos.amount) || pos.amount <= 0) continue;
+
+						const rawSym = pos.assetSymbol.trim().toUpperCase();
+						const sym = AAVE_SYMBOL_NORMALIZE[rawSym] ?? rawSym;
+
+						const e = snapMap.get(sym) ?? { qty: 0, valueUsd: 0 };
+						e.qty      += pos.amount;
+						e.valueUsd += pos.usdValue;
+						snapMap.set(sym, e);
+					}
+				}
+			}
+		} catch (aaveErr) {
+			console.error('[portfolio/reconciliation] Aave fetch failed (non-fatal)', aaveErr);
 		}
 
 		// ── 3. Build items (all symbols — threshold applied at read time) ──────
