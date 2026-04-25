@@ -44,12 +44,19 @@ export const GET: APIRoute = async ({ request }) => {
 		        AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange', 'own_wallet'))
 		        AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01')
 		        AND NOT (t.direction = 'in' AND t.native_usd IS NOT NULL AND ABS(t.native_usd) < 10)
+		        -- Crypto-to-fiat conversions resolve on-platform; no matching deposit will ever appear
+		        AND NOT (t.direction = 'out' AND t.to_currency IS NOT NULL AND t.to_currency IN (
+		          'USD','EUR','GBP','AUD','CAD','SGD','HKD','JPY','CNY','CHF','NZD'
+		        ))
 		        AND (
 		          (t.direction = 'out' AND t.kind NOT IN (
 		            'crypto_earn_program_created','card_top_up','crypto_to_van_sell_order','Sell','sell',
 		            'crypto_vaulting_purchase','crypto_exchange','crypto_exchange_fee',
 		            'dust_conversion_debited','dust_conversion_credited','trade','Trade',
-		            'conversion','Conversion','exchange','Exchange',
+		            'conversion','Conversion','exchange','Exchange','Convert',
+		            'crypto_viban_exchange','crypto_wallet_swap_debited','dynamic_coin_swap_debited',
+		            'lockup_lock','lockup_swap_debited','finance.lockup.dpos_lock.crypto_wallet',
+		            'card_cashback_reverted',
 		            'trading.limit_order.cash_account.sell_lock',
 		            'trading.limit_order.cash_account.sell_unlock'
 		          ))
@@ -107,6 +114,10 @@ export const GET: APIRoute = async ({ request }) => {
 		        -- Small inbound amounts (< $10 USD) are almost always staking rewards /
 		        -- interest that will never have a matching outbound. Suppress to reduce noise.
 		        AND NOT (t.direction = 'in' AND t.native_usd IS NOT NULL AND ABS(t.native_usd) < 10)
+		        -- Crypto-to-fiat conversions resolve on-platform; no matching deposit will ever appear
+		        AND NOT (t.direction = 'out' AND t.to_currency IS NOT NULL AND t.to_currency IN (
+		          'USD','EUR','GBP','AUD','CAD','SGD','HKD','JPY','CNY','CHF','NZD'
+		        ))
 		        AND (
 		          -- OUT with no known internal destination.
 		          -- Exclude completed trades/sells/swaps — these resolved on-platform
@@ -128,6 +139,14 @@ export const GET: APIRoute = async ({ request }) => {
 		            'Conversion',
 		            'exchange',
 		            'Exchange',
+		            'Convert',
+		            'crypto_viban_exchange',
+		            'crypto_wallet_swap_debited',
+		            'dynamic_coin_swap_debited',
+		            'lockup_lock',
+		            'lockup_swap_debited',
+		            'finance.lockup.dpos_lock.crypto_wallet',
+		            'card_cashback_reverted',
 		            'trading.limit_order.cash_account.sell_lock',
 		            'trading.limit_order.cash_account.sell_unlock'
 		          ))
