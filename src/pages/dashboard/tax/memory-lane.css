@@ -1,0 +1,750 @@
+/* ── Page shell ───────────────────────────────────────────────────────── */
+.memory-lane {
+	max-width: 1040px;
+	margin: 0 auto;
+	padding: 1.5rem 1.25rem 6rem;
+	color: var(--text-primary);
+}
+
+.memory-lane__back {
+	display: inline-block;
+	font-size: 0.78rem;
+	color: var(--text-muted);
+	text-decoration: none;
+	margin-bottom: 1.5rem;
+	transition: color 0.15s;
+}
+.memory-lane__back:hover { color: var(--text-secondary); }
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.memory-lane__hero {
+	text-align: center;
+	padding: 2rem 0 2.5rem;
+}
+.memory-lane__hero-cap {
+	font-size: 4.5rem;
+	display: inline-block;
+	animation: hero-float 3.5s ease-in-out infinite;
+	margin-bottom: 0.4rem;
+}
+@keyframes hero-float {
+	0%, 100% { transform: translateY(0) rotate(-2deg); }
+	50%       { transform: translateY(-12px) rotate(2deg); }
+}
+/* amber — Hall of Fame brand color; no token equivalent */
+.memory-lane__hero-title {
+	font-size: clamp(2.75rem, 7vw, 4.5rem);
+	font-weight: 900;
+	letter-spacing: -0.04em;
+	line-height: 1;
+	margin: 0 0 0.6rem;
+	background: linear-gradient(135deg, #f59e0b 0%, #fcd34d 45%, #f59e0b 100%);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+.memory-lane__hero-sub {
+	font-size: 1rem;
+	color: var(--text-muted);
+	margin: 0 0 0.5rem;
+}
+
+/* ── Season selector ──────────────────────────────────────────────────── */
+.memory-lane__season-label {
+	font-size: 0.65rem;
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.14em;
+	color: var(--text-muted);
+	margin-bottom: 0.5rem;
+}
+.memory-lane__season-chips {
+	display: flex;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.season-chip {
+	padding: 0.35rem 1.1rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-bright);
+	background: var(--surface-card);
+	color: var(--text-muted);
+	font-size: 0.82rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background 0.15s, color 0.15s;
+	display: inline-block;
+}
+.season-chip:hover    { background: var(--surface-hover); color: var(--text-secondary); }
+.season-chip--active  {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: var(--surface-bg);
+	box-shadow: 0 4px 16px -4px var(--accent-glow);
+}
+
+@keyframes season-bounce {
+	0%   { transform: scale(1); }
+	40%  { transform: scale(0.92); }
+	70%  { transform: scale(1.05); }
+	100% { transform: scale(1); }
+}
+.season-chip--bounce { animation: season-bounce 0.2s ease; }
+
+/* ── Player stats panel ───────────────────────────────────────────────── */
+.player-stats {
+	display: flex;
+	justify-content: center;
+	gap: 0;
+	padding: 1.5rem 2rem;
+	background: var(--surface-card-2);
+	border: 1px solid var(--border-subtle);
+	border-radius: 20px;
+	margin-bottom: 3.5rem;
+	position: relative;
+	overflow: hidden;
+}
+.player-stats::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(ellipse 60% 80% at 50% -20%, var(--accent-glow), transparent 70%);
+	pointer-events: none;
+}
+
+.player-stats__item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.3rem;
+	flex: 1;
+	position: relative;
+	padding: 0.25rem 1rem;
+}
+.player-stats__item + .player-stats__item::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 10%;
+	height: 80%;
+	width: 1px;
+	background: var(--border-subtle);
+}
+
+.player-stats__num {
+	font-size: 2.25rem;
+	font-weight: 900;
+	line-height: 1;
+	letter-spacing: -0.02em;
+	color: var(--text-primary);
+	font-variant-numeric: tabular-nums;
+}
+.player-stats__num--gain   { color: var(--gain); text-shadow: 0 0 24px var(--gain-border); }
+.player-stats__num--loss   { color: var(--loss); text-shadow: 0 0 24px var(--loss-border); }
+/* indigo — "IN PLAY" count uses Active Roster color; no token equivalent */
+.player-stats__num--active { color: #818cf8; }
+
+.player-stats__label {
+	font-size: 0.65rem;
+	text-transform: uppercase;
+	letter-spacing: 0.14em;
+	color: var(--text-muted);
+	font-weight: 700;
+}
+
+/* Wire mode */
+.player-stats--wire { margin-bottom: 3.5rem; }
+
+/* ── Section ──────────────────────────────────────────────────────────── */
+.memory-lane__section { margin-bottom: 4.5rem; }
+
+.section-header {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	padding: 1.25rem 1.5rem;
+	border-radius: 18px;
+	margin-bottom: 2rem;
+}
+/* amber — Hall of Fame section identity */
+.section-header--hall-of-fame {
+	background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(251,191,36,0.04));
+	border: 1px solid rgba(245,158,11,0.22);
+}
+/* indigo — Active Roster section identity */
+.section-header--active-roster {
+	background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.04));
+	border: 1px solid rgba(99,102,241,0.22);
+}
+.section-header--wire { opacity: 0.85; }
+
+.section-header__icon     { font-size: 2.25rem; flex-shrink: 0; }
+.section-header__title    { font-size: 1.6rem; font-weight: 900; margin: 0 0 0.15rem; letter-spacing: -0.02em; }
+.section-header__subtitle { font-size: 0.82rem; color: var(--text-muted); margin: 0; }
+.section-header__count {
+	margin-left: auto;
+	font-size: 0.82rem;
+	font-weight: 700;
+	color: var(--text-muted);
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+/* ── Type group ───────────────────────────────────────────────────────── */
+.type-group { margin-bottom: 2.25rem; }
+.type-group__label {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	font-size: 0.68rem;
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.14em;
+	color: var(--text-muted);
+	margin-bottom: 0.9rem;
+	padding-left: 0.1rem;
+}
+
+/* ── Card grid ────────────────────────────────────────────────────────── */
+.card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+	gap: 1.1rem;
+}
+
+/* ── Token card ───────────────────────────────────────────────────────── */
+.token-card {
+	position: relative;
+	background: var(--surface-card);
+	border: 1px solid var(--border-subtle);
+	border-radius: 14px;
+	overflow: hidden;
+	cursor: pointer;
+	animation: card-in 0.45s ease both;
+	transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Holographic sheen */
+.token-card::before {
+	content: '';
+	position: absolute;
+	inset: 0 0 auto 0;
+	height: 1px;
+	background: linear-gradient(90deg, transparent 0%, var(--border-bright) 50%, transparent 100%);
+	pointer-events: none;
+	z-index: 1;
+}
+
+.token-card:hover {
+	transform: translateY(-2px);
+	border-color: var(--border-bright);
+	box-shadow: 0 12px 32px -12px var(--accent-glow);
+}
+
+@keyframes card-in {
+	from { opacity: 0; transform: translateY(24px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Section outcome tints — background only, border comes from rarity */
+.token-card--win  { background: linear-gradient(160deg, var(--gain-bg) 0%, var(--surface-card) 50%); }
+.token-card--loss { background: linear-gradient(160deg, var(--loss-bg) 0%, var(--surface-card) 50%); }
+/* indigo — Active Roster card tint */
+.token-card--active {
+	background: linear-gradient(160deg, rgba(99,102,241,0.07) 0%, var(--surface-card) 50%);
+	border-color: rgba(99,102,241,0.22);
+}
+
+/* Rarity tiers — override border/shadow */
+.token-card[data-rarity="rare"] { border-color: var(--border-bright); }
+.token-card[data-rarity="epic"] {
+	border-color: var(--border-bright);
+	box-shadow: 0 8px 24px -8px var(--accent-glow);
+}
+.token-card[data-rarity="legendary"] {
+	border-color: var(--accent-dim);
+	box-shadow: inset 0 0 0 1px var(--accent-soft), 0 8px 32px -8px var(--accent-glow);
+	animation: card-in 0.45s ease both, legendary-pulse 3s 0.5s ease-in-out infinite;
+}
+
+@keyframes legendary-pulse {
+	0%, 100% { box-shadow: inset 0 0 0 1px var(--accent-soft), 0 8px 32px -8px var(--accent-glow); }
+	50%       { box-shadow: inset 0 0 0 1px var(--accent-dim),  0 12px 40px -8px var(--accent-glow); }
+}
+
+/* Wire mode */
+.token-card--wire {
+	pointer-events: none;
+	user-select: none;
+}
+.token-card--wire:hover {
+	transform: none;
+	box-shadow: none;
+}
+
+.token-card__inner {
+	padding: 1.25rem 1.4rem 1.1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.85rem;
+}
+
+/* ── Card header row ──────────────────────────────────────────────────── */
+.token-card__header {
+	display: flex;
+	align-items: center;
+	gap: 0.9rem;
+}
+
+.token-card__logo-wrap {
+	flex-shrink: 0;
+	width: 48px;
+	height: 48px;
+	position: relative;
+}
+.token-card__coin-logo {
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	object-fit: contain;
+	background: var(--border-subtle);
+	padding: 5px;
+	border: 1px solid var(--border-subtle);
+}
+/* indigo — fallback avatar gradient when coin logo is missing */
+.token-card__coin-fallback {
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.7rem;
+	font-weight: 900;
+	background: linear-gradient(135deg, #5767ff, #934dff);
+	color: var(--text-primary);
+	letter-spacing: -0.02em;
+	border: 1px solid var(--border-bright);
+}
+
+.token-card__identity {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+.token-card__ticker {
+	font-size: 1.5rem;
+	font-weight: 900;
+	color: var(--text-primary);
+	letter-spacing: -0.03em;
+	line-height: 1;
+}
+
+.token-card__rarity-badge {
+	font-size: 0.58rem;
+	font-weight: 900;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	padding: 0.15rem 0.4rem;
+	border-radius: 3px;
+	align-self: flex-start;
+}
+.token-card__rarity-badge--rare {
+	background: var(--border-subtle);
+	color: var(--text-secondary);
+	border: 1px solid var(--border-bright);
+}
+.token-card__rarity-badge--epic {
+	background: var(--accent-soft);
+	color: var(--accent);
+	border: 1px solid var(--accent-dim);
+}
+.token-card__rarity-badge--legendary {
+	background: var(--accent-soft);
+	color: var(--accent);
+	border: 1px solid var(--accent-dim);
+}
+
+/* ── Grade badge ──────────────────────────────────────────────────────── */
+.grade {
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.9rem;
+	font-weight: 900;
+	font-style: italic;
+	flex-shrink: 0;
+	border: 2px solid currentColor;
+	transform: rotate(-8deg);
+	animation: stamp-in 0.5s 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+@keyframes stamp-in {
+	from { opacity: 0; transform: rotate(-15deg) scale(0.5); }
+	to   { opacity: 1; transform: rotate(-8deg)  scale(1); }
+}
+/* grade palette — 5-level scale requires distinct hues; F and unknown map to tokens */
+.grade-aplus   { color: #22c55e; background: rgba(34,197,94,0.12);   box-shadow: 0 0 14px rgba(34,197,94,0.3);   }
+.grade-a       { color: #4ade80; background: rgba(74,222,128,0.1);   box-shadow: 0 0 12px rgba(74,222,128,0.25); }
+.grade-b       { color: #86efac; background: rgba(134,239,172,0.08); }
+.grade-c       { color: #fbbf24; background: rgba(251,191,36,0.1);   } /* amber — grade C maps to Graduated theme color */
+.grade-d       { color: #f97316; background: rgba(249,115,22,0.1);   }
+.grade-f       { color: var(--loss); background: var(--loss-bg);     box-shadow: 0 0 12px var(--loss-border); }
+.grade-unknown { color: var(--text-muted); background: var(--surface-card); }
+/* indigo — in-progress grade for open positions */
+.grade-incomplete {
+	color: #818cf8;
+	background: rgba(129,140,248,0.1);
+	font-style: normal;
+	font-size: 0.6rem;
+	letter-spacing: 0.05em;
+}
+.grade--wire { opacity: 0.45; }
+
+/* ── Status chip ──────────────────────────────────────────────────────── */
+.token-card__status-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	font-size: 0.65rem;
+	font-weight: 900;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	padding: 0.25rem 0.65rem;
+	border-radius: 6px;
+	align-self: flex-start;
+}
+.token-card__status-chip--win    { background: var(--gain-bg);                color: var(--gain); border: 1px solid var(--gain-border); }
+.token-card__status-chip--loss   { background: var(--loss-bg);                color: var(--loss); border: 1px solid var(--loss-border); }
+/* indigo — IN PLAY chip matches Active Roster theme */
+.token-card__status-chip--active {
+	background: rgba(99,102,241,0.12);
+	color: #818cf8;
+	border: 1px solid rgba(99,102,241,0.25);
+}
+
+/* ── P&L ──────────────────────────────────────────────────────────────── */
+.token-card__pnl {
+	display: flex;
+	align-items: baseline;
+	gap: 0.65rem;
+	flex-wrap: wrap;
+}
+.token-card__pnl-num {
+	font-size: 1.9rem;
+	font-weight: 900;
+	letter-spacing: -0.03em;
+	line-height: 1;
+	color: var(--text-muted);
+}
+.token-card__pnl-num--gain { color: var(--gain); text-shadow: 0 0 22px var(--gain-border); }
+.token-card__pnl-num--loss { color: var(--loss); text-shadow: 0 0 22px var(--loss-border); }
+.token-card__pnl-pct       { font-size: 0.95rem; font-weight: 700; }
+.token-card__pnl-pct--gain { color: var(--gain); }
+.token-card__pnl-pct--loss { color: var(--loss); }
+.token-card__pnl-label     { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
+
+/* ── Stats strip (KDA) ────────────────────────────────────────────────── */
+.token-card__stats {
+	display: flex;
+	align-items: flex-start;
+	gap: 1.25rem;
+	flex-wrap: wrap;
+	padding: 0.6rem 0.7rem;
+	background: var(--surface-card-2);
+	border-radius: 8px;
+	font-variant-numeric: tabular-nums;
+}
+.token-card__stats-item {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+	min-width: 0;
+}
+.token-card__stats-key {
+	font-size: 0.58rem;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	color: var(--text-muted);
+	font-weight: 700;
+}
+.token-card__stats-val {
+	font-size: 0.82rem;
+	font-weight: 700;
+	color: var(--text-primary);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 120px;
+}
+/* amber / indigo — ST/LT lot tags */
+.st-tag { color: #fbbf24; }
+.lt-tag { color: #818cf8; }
+
+/* ── Sold note ────────────────────────────────────────────────────────── */
+/* indigo — sold note for enrolled cards with partial exits */
+.token-card__sold-note {
+	font-size: 0.72rem;
+	color: #6366f1;
+	background: rgba(99,102,241,0.08);
+	border: 1px solid rgba(99,102,241,0.15);
+	border-radius: 8px;
+	padding: 0.45rem 0.7rem;
+}
+
+/* ── CTA button (ghost) ───────────────────────────────────────────────── */
+.token-card__cta {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	padding: 0.6rem 1rem;
+	border-radius: 10px;
+	border: 1px solid var(--border-subtle);
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 0.8rem;
+	font-weight: 700;
+	cursor: pointer;
+	width: 100%;
+	font-family: inherit;
+	letter-spacing: 0.02em;
+	transition: all 0.15s;
+}
+/* amber — Hall of Fame CTA hover */
+.token-card__cta:hover {
+	border-color: rgba(245,158,11,0.35);
+	color: #fbbf24;
+	background: rgba(245,158,11,0.05);
+}
+/* indigo — Active Roster CTA hover */
+.token-card__cta--enrolled:hover {
+	border-color: rgba(99,102,241,0.35);
+	color: #818cf8;
+	background: rgba(99,102,241,0.05);
+}
+/* amber — open/expanded state */
+.token-card__cta.open {
+	border-color: rgba(245,158,11,0.3);
+	color: #fbbf24;
+}
+.token-card__cta-chevron {
+	font-size: 1rem;
+	transition: transform 0.2s ease;
+	display: inline-block;
+}
+.token-card__cta.open .token-card__cta-chevron { transform: rotate(180deg); }
+
+/* ── Timeline ─────────────────────────────────────────────────────────── */
+.token-card__timeline {
+	border-top: 1px solid var(--border-subtle);
+	background: var(--surface-bg);
+	padding: 1.25rem 1.4rem 1.5rem;
+}
+/* indigo — enrolled timeline border */
+.token-card__timeline--active { border-top-color: rgba(99,102,241,0.15); }
+
+.timeline__header {
+	font-size: 0.68rem;
+	font-weight: 800;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	color: var(--text-muted);
+	margin-bottom: 1.25rem;
+}
+.timeline__track { display: flex; flex-direction: column; }
+
+.tl-pair { display: flex; flex-direction: column; }
+.tl-pair:not(:last-child) { margin-bottom: 0.25rem; }
+
+.tl-node { display: flex; align-items: flex-start; gap: 0.85rem; }
+.tl-dot {
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	margin-top: 0.35rem;
+}
+/* indigo — BUY dot */
+.tl-dot--buy         { background: #6366f1; box-shadow: 0 0 8px rgba(99,102,241,0.5); }
+.tl-dot--sell.win    { background: var(--gain); box-shadow: 0 0 8px var(--gain-border); }
+.tl-dot--sell.loss   { background: var(--loss); box-shadow: 0 0 8px var(--loss-border); }
+
+.tl-content {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem 0.65rem;
+	padding-bottom: 0.3rem;
+	font-size: 0.8rem;
+}
+.tl-action {
+	font-weight: 800;
+	font-size: 0.65rem;
+	letter-spacing: 0.1em;
+	padding: 0.1rem 0.45rem;
+	border-radius: 4px;
+}
+/* indigo — BUY action badge */
+.tl-action.buy  { background: rgba(99,102,241,0.15); color: #818cf8; }
+.tl-action.sell { background: var(--loss-bg); color: var(--loss); }
+.tl-date  { color: var(--text-muted); }
+.tl-qty   { color: var(--text-primary); font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; }
+.tl-usd   { color: var(--text-muted); }
+.tl-gain  { font-weight: 800; }
+.tl-gain.positive { color: var(--gain); }
+.tl-gain.negative { color: var(--loss); }
+
+.tl-connector { display: flex; align-items: center; gap: 0.85rem; padding: 0.05rem 0; margin-left: 4px; }
+/* indigo-to-loss gradient connector */
+.tl-line {
+	width: 3px;
+	height: 24px;
+	background: linear-gradient(to bottom, rgba(99,102,241,0.5), var(--loss-border));
+	border-radius: 2px;
+	flex-shrink: 0;
+}
+.tl-held { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
+/* indigo / amber — LT/ST badges in timeline */
+.lt-badge { color: #818cf8; font-weight: 800; }
+.st-badge { color: #d97706; font-weight: 800; }
+
+/* ── Error banner ─────────────────────────────────────────────────────── */
+.memory-lane__error {
+	background: var(--loss-bg);
+	border: 1px solid var(--loss-border);
+	border-radius: 14px;
+	padding: 1.25rem 1.5rem;
+	margin-bottom: 2rem;
+	color: var(--loss);
+}
+.memory-lane__error strong { display: block; margin-bottom: 0.35rem; color: var(--loss); }
+.memory-lane__error p { margin: 0 0 0.75rem; font-size: 0.875rem; color: var(--loss); }
+/* indigo — error retry link */
+.memory-lane__error a { color: #818cf8; font-size: 0.875rem; font-weight: 700; text-decoration: none; }
+.memory-lane__error a:hover { text-decoration: underline; }
+
+/* ── Empty state ──────────────────────────────────────────────────────── */
+.memory-lane__empty      { text-align: center; padding: 6rem 2rem; }
+.memory-lane__empty-icon { font-size: 3.5rem; margin-bottom: 1rem; }
+.memory-lane__empty-title { font-size: 1.25rem; font-weight: 700; color: var(--text-muted); margin: 0 0 0.5rem; }
+.memory-lane__empty-sub   { font-size: 0.9rem; color: var(--text-muted); margin: 0; }
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+	.card-grid             { grid-template-columns: 1fr; }
+	.player-stats          { gap: 1rem; padding: 1.25rem 1rem; }
+	.player-stats__num     { font-size: 1.75rem; }
+	.token-card__pnl-num   { font-size: 1.5rem; }
+	.memory-lane__hero-cap { font-size: 3.5rem; }
+}
+
+/* ── Demo wireframe ───────────────────────────────────────────────────── */
+.demo-wrap { display: flex; flex-direction: column; gap: 0; }
+
+/* amber — demo banner matches Hall of Fame theme */
+.demo-banner {
+	display: flex;
+	gap: 1.25rem;
+	align-items: flex-start;
+	background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(251,191,36,0.03));
+	border: 1px solid rgba(245,158,11,0.25);
+	border-radius: 18px;
+	padding: 1.5rem 1.75rem;
+	margin-bottom: 2.5rem;
+}
+.demo-banner__icon { font-size: 2.5rem; flex-shrink: 0; line-height: 1; margin-top: 0.1rem; }
+.demo-banner__body { display: flex; flex-direction: column; gap: 0.5rem; }
+/* amber — demo banner title */
+.demo-banner__title { font-size: 1.05rem; font-weight: 800; color: #fcd34d; margin: 0; letter-spacing: -0.01em; }
+.demo-banner__text  { font-size: 0.87rem; color: var(--text-secondary); margin: 0; line-height: 1.65; }
+.demo-banner__text strong { color: var(--text-primary); }
+.demo-banner__cta {
+	display: inline-block;
+	margin-top: 0.4rem;
+	font-size: 0.83rem;
+	font-weight: 700;
+	color: #fbbf24;
+	text-decoration: none;
+	letter-spacing: 0.01em;
+	transition: color 0.15s;
+}
+.demo-banner__cta:hover { color: #fcd34d; text-decoration: underline; }
+
+/* Shimmer animation — rgba(255,255,255,X) used only as CSS gradient stops;
+   no semantic token equivalent applies to gradient color stops */
+@keyframes ml-shimmer {
+	0%   { background-position: -400px 0; }
+	100% { background-position:  400px 0; }
+}
+.wire-block {
+	display: inline-block;
+	border-radius: 6px;
+	background: linear-gradient(90deg,
+		rgba(255,255,255,0.05) 25%,
+		rgba(255,255,255,0.10) 50%,
+		rgba(255,255,255,0.05) 75%);
+	background-size: 800px 100%;
+	animation: ml-shimmer 1.8s infinite linear;
+}
+.wire-block--num    { width: 52px;  height: 2.25rem; border-radius: 8px; }
+.wire-block--wide   { width: 100px; height: 2.25rem; border-radius: 8px; }
+.wire-block--pill   { width: 68px;  height: 1.2rem;  border-radius: 999px; }
+.wire-block--ticker { width: 56px;  height: 1.5rem;  border-radius: 6px;  margin-bottom: 2px; }
+.wire-block--date   { width: 80px;  height: 0.75rem; border-radius: 4px; }
+.wire-block--pnl    { width: 110px; height: 1.9rem;  border-radius: 8px; }
+.wire-block--pct    { width: 54px;  height: 1rem;    border-radius: 4px; }
+.wire-block--meta   { width: 130px; height: 0.75rem; border-radius: 4px; }
+.wire-block--label  { width: 68px;  height: 0.72rem; border-radius: 4px; }
+
+.wire-avatar {
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	background: linear-gradient(90deg,
+		rgba(255,255,255,0.05) 25%,
+		rgba(255,255,255,0.10) 50%,
+		rgba(255,255,255,0.05) 75%);
+	background-size: 800px 100%;
+	animation: ml-shimmer 1.8s infinite linear;
+	border: 1px solid var(--border-subtle);
+}
+.wire-btn {
+	width: 100%;
+	height: 2.4rem;
+	border-radius: 10px;
+	border: 1px solid var(--border-subtle);
+	background: var(--surface-card);
+	margin-top: 0.1rem;
+}
+
+@media (max-width: 640px) {
+	.demo-banner { flex-direction: column; }
+}
+
+/* amber — demo footer CTA button */
+.demo-footer {
+	text-align: center;
+	padding: 3rem 1rem 1rem;
+	border-top: 1px solid var(--border-subtle);
+	margin-top: 1rem;
+}
+.demo-footer p { font-size: 0.9rem; color: var(--text-muted); margin: 0 0 1rem; }
+.demo-footer__cta {
+	display: inline-block;
+	padding: 0.7rem 1.75rem;
+	border-radius: 999px;
+	background: linear-gradient(135deg, #f59e0b, #fbbf24);
+	color: var(--surface-bg);
+	font-size: 0.9rem;
+	font-weight: 800;
+	text-decoration: none;
+	letter-spacing: 0.01em;
+	transition: opacity 0.15s, transform 0.15s;
+}
+.demo-footer__cta:hover { opacity: 0.88; transform: translateY(-1px); }

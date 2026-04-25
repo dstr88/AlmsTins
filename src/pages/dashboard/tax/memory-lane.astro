@@ -5,6 +5,7 @@ import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { buildAnnualBreakdown } from '../../../lib/annualBreakdown';
 import { db } from '../../../lib/db';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
+import './memory-lane.css';
 
 const isDemo      = isDemoRequest(Astro.request);
 const defaultYear = new Date().getFullYear() - 1;
@@ -99,7 +100,6 @@ try {
 			}
 		}
 		harvestLosses = Array.from(harvestMap.values())
-			// Show ALL open positions — losses first (harvesting candidates), then gains
 			.sort((a, b) => {
 				const aGl = a.unrealizedGainLoss ?? Infinity;
 				const bGl = b.unrealizedGainLoss ?? Infinity;
@@ -113,7 +113,6 @@ try {
 	console.error('[memory-lane] data load failed:', err);
 }
 
-// keep `data.ok` truthy when no fetchError so template error box stays hidden
 const data = { ok: !fetchError };
 
 // ── Coin classification ────────────────────────────────────────────────────────
@@ -142,6 +141,14 @@ function getGrade(gainPct: number | null): { grade: string; cls: string } {
 	return                       { grade: 'F',  cls: 'grade-f'          };
 }
 
+// ── Rarity tier ────────────────────────────────────────────────────────────────
+function getRarity(plAbs: number, isLongTerm: boolean, isGraduatedWin: boolean): string {
+	if (plAbs > 100000 || isGraduatedWin) return 'legendary';
+	if (plAbs > 10000)                    return 'epic';
+	if (isLongTerm || plAbs > 1000)       return 'rare';
+	return 'common';
+}
+
 // ── Per-asset lot stats ────────────────────────────────────────────────────────
 function getLotStats(asset: string) {
 	const lots = lotDetails[asset] ?? [];
@@ -156,10 +163,10 @@ function getLotStats(asset: string) {
 	return { cost, proceeds, lastSell, firstBuy, gainPct, lotCount: lots.length };
 }
 
-// ── Graduated vs Still Enrolled ────────────────────────────────────────────────
-const heldSet     = new Set(harvestLosses.map((h: any) => h.asset));
-const graduated   = byAssetGains.filter((a: any) => !heldSet.has(a.asset));
-const enrolled    = harvestLosses;
+// ── Graduated vs Active Roster ─────────────────────────────────────────────────
+const heldSet      = new Set(harvestLosses.map((h: any) => h.asset));
+const graduated    = byAssetGains.filter((a: any) => !heldSet.has(a.asset));
+const enrolled     = harvestLosses;
 const gainsByAsset = new Map(byAssetGains.map((a: any) => [a.asset, a]));
 
 // ── Group by coin type ─────────────────────────────────────────────────────────
@@ -170,16 +177,16 @@ function groupByType<T>(arr: T[], key: (item: T) => string): Record<CoinType, T[
 	}
 	return out as Record<CoinType, T[]>;
 }
-const gradGroups   = groupByType(graduated,    (a: any) => a.asset);
-const enrollGroups = groupByType(enrolled,     (h: any) => h.asset);
+const gradGroups   = groupByType(graduated, (a: any) => a.asset);
+const enrollGroups = groupByType(enrolled,  (h: any) => h.asset);
 
 const TYPE_ORDER: CoinType[] = ['L1', 'DeFi', 'Wrapped', 'Stable', 'Other'];
 const TYPE_META: Record<CoinType, { label: string; icon: string }> = {
-	L1:      { label: 'Layer 1s',    icon: '⛓️' },
-	DeFi:    { label: 'DeFi Tokens', icon: '⚡' },
-	Wrapped: { label: 'Wrapped',     icon: '🎁' },
+	L1:      { label: 'Heavyweights', icon: '🛡️' },
+	DeFi:    { label: 'Wildcards',    icon: '⚡' },
+	Wrapped: { label: 'Wrapped',      icon: '🎁' },
 	Stable:  { label: 'Stablecoins', icon: '🏛️' },
-	Other:   { label: 'Other',       icon: '🔮' },
+	Other:   { label: 'Wildcards',   icon: '🎲' },
 };
 
 // ── Totals ─────────────────────────────────────────────────────────────────────
@@ -192,7 +199,6 @@ function fmt(n: number) {
 function fmtDate(d: string) {
 	if (!d) return '—';
 	try {
-		// If already a full ISO timestamp, parse directly; otherwise treat as YYYY-MM-DD
 		const iso = d.length > 10 && d.includes('T') ? d : d.slice(0, 10) + 'T12:00:00Z';
 		return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 	}
@@ -210,13 +216,13 @@ function timelineId(asset: string) {
 ---
 
 <Layout title={`Memory Lane ${year} | almsTins`} noindex={true}>
-<div class="ml-page">
+<div class="memory-lane">
 
 	<!-- ── Back link ─────────────────────────────────────────────────────── -->
-	<a href="/dashboard/vault" class="ml-back">← Dashboard</a>
+	<a href="/dashboard/vault" class="memory-lane__back">← Dashboard</a>
 
 	{fetchError && !isDemo && (
-		<div class="ml-error">
+		<div class="memory-lane__error">
 			<strong>⚠️ Could not load Memory Lane</strong>
 			<p>{fetchError}</p>
 			<a href={`?year=${year}`}>Try again</a>
@@ -225,184 +231,174 @@ function timelineId(asset: string) {
 
 	{/* ── Demo preview ─────────────────────────────────────────────────── */}
 	{isDemo && (
-		<div class="ml-demo-wrap">
+		<div class="demo-wrap">
 
 			<!-- Explainer banner -->
-			<div class="ml-demo-banner">
-				<div class="ml-demo-banner__icon">🎓</div>
-				<div class="ml-demo-banner__body">
-					<p class="ml-demo-banner__title">Your personal crypto yearbook</p>
-					<p class="ml-demo-banner__text">
-						Memory Lane turns your trading history into a report card — every coin you've ever bought
-						gets a letter grade (A+ to F) based on realized returns, grouped into
-						<strong>Graduated</strong> (fully exited) and <strong>Still Enrolled</strong> (open positions).
-						Expand any coin to see a full buy → sell timeline, holding period, and whether each lot was
-						short-term or long-term. Connect your wallet to unlock your own class of {year}.
+			<div class="demo-banner">
+				<div class="demo-banner__icon">🃏</div>
+				<div class="demo-banner__body">
+					<p class="demo-banner__title">Your personal crypto card collection</p>
+					<p class="demo-banner__text">
+						Memory Lane turns your trading history into a collectible card game — every coin you've ever
+						bought gets a card with a letter grade (A+ to F) based on realized returns, sorted into
+						<strong>🏆 Hall of Fame</strong> (fully exited) and <strong>⚔️ Active Roster</strong> (open positions).
+						Expand any card to see the full buy → sell timeline, holding period, and whether each lot was
+						short-term or long-term. Connect your wallet to unlock your own collection.
 					</p>
-					<a href="/signup" class="ml-demo-banner__cta">Sign up free — see your grades →</a>
+					<a href="/signup" class="demo-banner__cta">Sign up free — see your collection →</a>
 				</div>
 			</div>
 
 			<!-- Wireframe stats bar -->
-			<div class="ml-stats ml-stats--wire">
-				<div class="ml-stat">
-					<span class="ml-wire-block ml-wire-block--num"></span>
-					<span class="ml-stat__label">Graduated</span>
+			<div class="player-stats player-stats--wire">
+				<div class="player-stats__item">
+					<span class="wire-block wire-block--num"></span>
+					<span class="player-stats__label">Retired</span>
 				</div>
-				<div class="ml-stat">
-					<span class="ml-wire-block ml-wire-block--num ml-wire-block--wide"></span>
-					<span class="ml-stat__label">Realized P&L</span>
+				<div class="player-stats__item">
+					<span class="wire-block wire-block--num wire-block--wide"></span>
+					<span class="player-stats__label">Score</span>
 				</div>
-				<div class="ml-stat">
-					<span class="ml-wire-block ml-wire-block--num"></span>
-					<span class="ml-stat__label">Still Enrolled</span>
+				<div class="player-stats__item">
+					<span class="wire-block wire-block--num"></span>
+					<span class="player-stats__label">In Play</span>
 				</div>
 			</div>
 
-			<!-- Wireframe graduated section -->
-			<section class="ml-section">
-				<div class="ml-section__header ml-section__header--grad ml-section__header--wire">
-					<span class="ml-section__icon">🎓</span>
+			<!-- Wireframe Hall of Fame section -->
+			<section class="memory-lane__section">
+				<div class="section-header section-header--hall-of-fame section-header--wire">
+					<span class="section-header__icon">🏆</span>
 					<div>
-						<h2 class="ml-section__title">Graduated</h2>
-						<p class="ml-section__sub">Fully exited — the journey is complete</p>
+						<h2 class="section-header__title">Hall of Fame</h2>
+						<p class="section-header__subtitle">Cards retired from the roster</p>
 					</div>
-					<span class="ml-wire-block ml-wire-block--pill"></span>
+					<span class="wire-block wire-block--pill"></span>
 				</div>
 
-				<div class="ml-type-label">
-					<span>⛓️</span><span>Layer 1s</span>
-				</div>
-				<div class="ml-cards">
-					{/* Win card */}
-					<div class="ml-card ml-card--grad ml-card--win ml-card--wire">
-						<div class="ml-card__inner">
-							<div class="ml-card__top">
-								<div class="ml-logo-wrap">
-									<div class="ml-wire-avatar"></div>
+				<div class="type-group">
+					<div class="type-group__label"><span>🛡️</span><span>Heavyweights</span></div>
+					<div class="card-grid">
+						{/* Win card */}
+						<div class="token-card token-card--retired token-card--win token-card--wire">
+							<div class="token-card__inner">
+								<div class="token-card__header">
+									<div class="token-card__logo-wrap">
+										<div class="wire-avatar"></div>
+									</div>
+									<div class="token-card__identity">
+										<span class="wire-block wire-block--ticker"></span>
+										<span class="wire-block wire-block--date"></span>
+									</div>
+									<div class="grade grade-aplus grade--wire">A+</div>
 								</div>
-								<div class="ml-card__nameblock">
-									<span class="ml-wire-block ml-wire-block--ticker"></span>
-									<span class="ml-wire-block ml-wire-block--date"></span>
+								<div class="token-card__pnl">
+									<span class="wire-block wire-block--pnl"></span>
+									<span class="wire-block wire-block--pct"></span>
 								</div>
-								<div class="ml-grade grade-aplus ml-grade--wire">A+</div>
+								<div class="wire-block wire-block--meta"></div>
+								<div class="wire-btn"></div>
 							</div>
-							<div class="ml-card__pnl">
-								<span class="ml-wire-block ml-wire-block--pnl"></span>
-								<span class="ml-wire-block ml-wire-block--pct"></span>
-							</div>
-							<div class="ml-card__meta">
-								<span class="ml-wire-block ml-wire-block--meta"></span>
-							</div>
-							<div class="ml-wire-btn"></div>
 						</div>
-					</div>
 
-					{/* Loss card */}
-					<div class="ml-card ml-card--grad ml-card--loss ml-card--wire">
-						<div class="ml-card__inner">
-							<div class="ml-card__top">
-								<div class="ml-logo-wrap">
-									<div class="ml-wire-avatar"></div>
+						{/* Loss card */}
+						<div class="token-card token-card--retired token-card--loss token-card--wire">
+							<div class="token-card__inner">
+								<div class="token-card__header">
+									<div class="token-card__logo-wrap">
+										<div class="wire-avatar"></div>
+									</div>
+									<div class="token-card__identity">
+										<span class="wire-block wire-block--ticker"></span>
+										<span class="wire-block wire-block--date"></span>
+									</div>
+									<div class="grade grade-d grade--wire">D</div>
 								</div>
-								<div class="ml-card__nameblock">
-									<span class="ml-wire-block ml-wire-block--ticker"></span>
-									<span class="ml-wire-block ml-wire-block--date"></span>
+								<div class="token-card__pnl">
+									<span class="wire-block wire-block--pnl"></span>
+									<span class="wire-block wire-block--pct"></span>
 								</div>
-								<div class="ml-grade grade-d ml-grade--wire">D</div>
+								<div class="wire-block wire-block--meta"></div>
+								<div class="wire-btn"></div>
 							</div>
-							<div class="ml-card__pnl">
-								<span class="ml-wire-block ml-wire-block--pnl"></span>
-								<span class="ml-wire-block ml-wire-block--pct"></span>
-							</div>
-							<div class="ml-card__meta">
-								<span class="ml-wire-block ml-wire-block--meta"></span>
-							</div>
-							<div class="ml-wire-btn"></div>
 						</div>
-					</div>
 
-					{/* Another win card */}
-					<div class="ml-card ml-card--grad ml-card--win ml-card--wire">
-						<div class="ml-card__inner">
-							<div class="ml-card__top">
-								<div class="ml-logo-wrap">
-									<div class="ml-wire-avatar"></div>
+						{/* Win card 2 */}
+						<div class="token-card token-card--retired token-card--win token-card--wire">
+							<div class="token-card__inner">
+								<div class="token-card__header">
+									<div class="token-card__logo-wrap">
+										<div class="wire-avatar"></div>
+									</div>
+									<div class="token-card__identity">
+										<span class="wire-block wire-block--ticker"></span>
+										<span class="wire-block wire-block--date"></span>
+									</div>
+									<div class="grade grade-b grade--wire">B</div>
 								</div>
-								<div class="ml-card__nameblock">
-									<span class="ml-wire-block ml-wire-block--ticker"></span>
-									<span class="ml-wire-block ml-wire-block--date"></span>
+								<div class="token-card__pnl">
+									<span class="wire-block wire-block--pnl"></span>
+									<span class="wire-block wire-block--pct"></span>
 								</div>
-								<div class="ml-grade grade-b ml-grade--wire">B</div>
+								<div class="wire-block wire-block--meta"></div>
+								<div class="wire-btn"></div>
 							</div>
-							<div class="ml-card__pnl">
-								<span class="ml-wire-block ml-wire-block--pnl"></span>
-								<span class="ml-wire-block ml-wire-block--pct"></span>
-							</div>
-							<div class="ml-card__meta">
-								<span class="ml-wire-block ml-wire-block--meta"></span>
-							</div>
-							<div class="ml-wire-btn"></div>
 						</div>
 					</div>
 				</div>
 			</section>
 
-			<!-- Wireframe still-enrolled section -->
-			<section class="ml-section">
-				<div class="ml-section__header ml-section__header--enroll ml-section__header--wire">
-					<span class="ml-section__icon">📚</span>
+			<!-- Wireframe Active Roster section -->
+			<section class="memory-lane__section">
+				<div class="section-header section-header--active-roster section-header--wire">
+					<span class="section-header__icon">⚔️</span>
 					<div>
-						<h2 class="ml-section__title">Still Enrolled</h2>
-						<p class="ml-section__sub">Open positions — grade still being calculated</p>
+						<h2 class="section-header__title">Active Roster</h2>
+						<p class="section-header__subtitle">Cards in play — match still live</p>
 					</div>
-					<span class="ml-wire-block ml-wire-block--pill"></span>
+					<span class="wire-block wire-block--pill"></span>
 				</div>
 
-				<div class="ml-type-label">
-					<span>⛓️</span><span>Layer 1s</span>
-				</div>
-				<div class="ml-cards">
-					<div class="ml-card ml-card--enroll ml-card--wire">
-						<div class="ml-card__inner">
-							<div class="ml-card__top">
-								<div class="ml-logo-wrap">
-									<div class="ml-wire-avatar"></div>
+				<div class="type-group">
+					<div class="type-group__label"><span>🛡️</span><span>Heavyweights</span></div>
+					<div class="card-grid">
+						<div class="token-card token-card--active token-card--wire">
+							<div class="token-card__inner">
+								<div class="token-card__header">
+									<div class="token-card__logo-wrap">
+										<div class="wire-avatar"></div>
+									</div>
+									<div class="token-card__identity">
+										<span class="wire-block wire-block--ticker"></span>
+										<span class="wire-block wire-block--date"></span>
+									</div>
+									<div class="grade grade-incomplete grade--wire">IP</div>
 								</div>
-								<div class="ml-card__nameblock">
-									<span class="ml-wire-block ml-wire-block--ticker"></span>
-									<span class="ml-wire-block ml-wire-block--date"></span>
+								<div class="token-card__pnl">
+									<span class="wire-block wire-block--pnl"></span>
+									<span class="wire-block wire-block--label"></span>
 								</div>
-								<div class="ml-grade grade-incomplete ml-grade--wire">IP</div>
-							</div>
-							<div class="ml-card__pnl">
-								<span class="ml-wire-block ml-wire-block--pnl"></span>
-								<span class="ml-wire-block ml-wire-block--label"></span>
-							</div>
-							<div class="ml-card__meta">
-								<span class="ml-wire-block ml-wire-block--meta"></span>
+								<div class="wire-block wire-block--meta"></div>
 							</div>
 						</div>
-					</div>
 
-					<div class="ml-card ml-card--enroll ml-card--wire">
-						<div class="ml-card__inner">
-							<div class="ml-card__top">
-								<div class="ml-logo-wrap">
-									<div class="ml-wire-avatar"></div>
+						<div class="token-card token-card--active token-card--wire">
+							<div class="token-card__inner">
+								<div class="token-card__header">
+									<div class="token-card__logo-wrap">
+										<div class="wire-avatar"></div>
+									</div>
+									<div class="token-card__identity">
+										<span class="wire-block wire-block--ticker"></span>
+										<span class="wire-block wire-block--date"></span>
+									</div>
+									<div class="grade grade-incomplete grade--wire">IP</div>
 								</div>
-								<div class="ml-card__nameblock">
-									<span class="ml-wire-block ml-wire-block--ticker"></span>
-									<span class="ml-wire-block ml-wire-block--date"></span>
+								<div class="token-card__pnl">
+									<span class="wire-block wire-block--pnl"></span>
+									<span class="wire-block wire-block--label"></span>
 								</div>
-								<div class="ml-grade grade-incomplete ml-grade--wire">IP</div>
-							</div>
-							<div class="ml-card__pnl">
-								<span class="ml-wire-block ml-wire-block--pnl"></span>
-								<span class="ml-wire-block ml-wire-block--label"></span>
-							</div>
-							<div class="ml-card__meta">
-								<span class="ml-wire-block ml-wire-block--meta"></span>
+								<div class="wire-block wire-block--meta"></div>
 							</div>
 						</div>
 					</div>
@@ -410,59 +406,60 @@ function timelineId(asset: string) {
 			</section>
 
 			<!-- Bottom CTA -->
-			<div class="ml-demo-footer">
-				<p>Connect your wallet to generate your real {year} report card.</p>
-				<a href="/signup" class="ml-demo-footer__cta">Get started free →</a>
+			<div class="demo-footer">
+				<p>Connect your wallet to generate your real {year} collection.</p>
+				<a href="/signup" class="demo-footer__cta">Get started free →</a>
 			</div>
 
 		</div>
 	)}
 
 	<!-- ── Hero ──────────────────────────────────────────────────────────── -->
-	<header class="ml-hero">
-		<div class="ml-hero__cap">🎓</div>
-		<h1 class="ml-hero__title">Memory Lane</h1>
-		<p class="ml-hero__sub">Class of {year} — every coin you've bought, held, and sold</p>
+	<header class="memory-lane__hero">
+		<div class="memory-lane__hero-cap">🃏</div>
+		<h1 class="memory-lane__hero-title">Memory Lane</h1>
+		<p class="memory-lane__hero-sub">Your collection. Every card you've drafted, traded, and retired.</p>
 
-		<div class="ml-year-pills">
+		<p class="memory-lane__season-label">Select Season</p>
+		<div class="memory-lane__season-chips">
 			{availableYears.map((y) => (
-				<a href={`?year=${y}`} class={`ml-year-pill${y === year ? ' active' : ''}`}>{y}</a>
+				<a href={`?year=${y}`} class={`season-chip${y === year ? ' season-chip--active' : ''}`}>{y}</a>
 			))}
 		</div>
 	</header>
 
-	<!-- ── Stats banner ──────────────────────────────────────────────────── -->
+	<!-- ── Player stats panel ────────────────────────────────────────────── -->
 	{(graduated.length > 0 || enrolled.length > 0) && (
-		<div class="ml-stats">
-			<div class="ml-stat">
-				<span class="ml-stat__num">{graduated.length}</span>
-				<span class="ml-stat__label">Graduated</span>
+		<div class="player-stats">
+			<div class="player-stats__item">
+				<span class="player-stats__num">{graduated.length}</span>
+				<span class="player-stats__label">Retired</span>
 			</div>
-			<div class="ml-stat">
-				<span class={`ml-stat__num ${totalGradGain >= 0 ? 'positive' : 'negative'}`}>
+			<div class="player-stats__item">
+				<span class={`player-stats__num ${totalGradGain >= 0 ? 'player-stats__num--gain' : 'player-stats__num--loss'}`}>
 					{fmt(totalGradGain)}
 				</span>
-				<span class="ml-stat__label">Realized P&L</span>
+				<span class="player-stats__label">Score</span>
 			</div>
-			<div class="ml-stat">
-				<span class="ml-stat__num enrolled-num">{enrolled.length}</span>
-				<span class="ml-stat__label">Still Enrolled</span>
+			<div class="player-stats__item">
+				<span class="player-stats__num player-stats__num--active">{enrolled.length}</span>
+				<span class="player-stats__label">In Play</span>
 			</div>
 		</div>
 	)}
 
 	<!-- ══════════════════════════════════════════════════════════════════════
-	     GRADUATED SECTION
+	     HALL OF FAME — retired cards
 	══════════════════════════════════════════════════════════════════════ -->
 	{!isDemo && graduated.length > 0 && (
-		<section class="ml-section">
-			<div class="ml-section__header ml-section__header--grad">
-				<span class="ml-section__icon">🎓</span>
+		<section class="memory-lane__section">
+			<div class="section-header section-header--hall-of-fame">
+				<span class="section-header__icon">🏆</span>
 				<div>
-					<h2 class="ml-section__title">Graduated</h2>
-					<p class="ml-section__sub">Fully exited — the journey is complete</p>
+					<h2 class="section-header__title">Hall of Fame</h2>
+					<p class="section-header__subtitle">Cards retired from the roster</p>
 				</div>
-				<span class="ml-section__count">{graduated.length} coin{graduated.length !== 1 ? 's' : ''}</span>
+				<span class="section-header__count">{graduated.length} card{graduated.length !== 1 ? 's' : ''}</span>
 			</div>
 
 			{TYPE_ORDER.map((type) => {
@@ -470,95 +467,125 @@ function timelineId(asset: string) {
 				if (!group?.length) return null;
 				const meta = TYPE_META[type];
 				return (
-					<div class="ml-type-group">
-						<div class="ml-type-label">
+					<div class="type-group">
+						<div class="type-group__label">
 							<span>{meta.icon}</span>
 							<span>{meta.label}</span>
 						</div>
-						<div class="ml-cards">
+						<div class="card-grid">
 							{group.map((asset: any) => {
 								const stats  = getLotStats(asset.asset);
 								const grade  = getGrade(stats.gainPct);
 								const lots   = lotDetails[asset.asset] ?? [];
 								const isWin  = asset.netGain >= 0;
+								const rarity = getRarity(Math.abs(asset.netGain), asset.ltLots > 0, isWin);
 								return (
-									<div class={`ml-card ml-card--grad${isWin ? ' ml-card--win' : ' ml-card--loss'}`}
+									<div class={`token-card token-card--retired ${isWin ? 'token-card--win' : 'token-card--loss'}`}
+									     data-rarity={rarity}
 									     data-asset={asset.asset}>
-										<div class="ml-card__inner">
+										<div class="token-card__inner">
 
-											<!-- Coin identity -->
-											<div class="ml-card__top">
-												<div class="ml-logo-wrap">
-													<img class="ml-coin-logo"
+											<!-- Header: logo · ticker · grade -->
+											<div class="token-card__header">
+												<div class="token-card__logo-wrap">
+													<img class="token-card__coin-logo"
 													     src={logoUrl(asset.asset)}
 													     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
 													     alt={asset.asset} />
-													<div class="ml-coin-fallback" style="display:none">{asset.asset.slice(0, 3)}</div>
+													<div class="token-card__coin-fallback" style="display:none">{asset.asset.slice(0, 3)}</div>
 												</div>
-												<div class="ml-card__nameblock">
-													<span class="ml-coin-ticker">{asset.asset}</span>
-													<span class="ml-grad-date">🎓 {fmtDate(stats.lastSell)}</span>
+												<div class="token-card__identity">
+													<span class="token-card__ticker">{asset.asset}</span>
+													{rarity !== 'common' && (
+														<span class={`token-card__rarity-badge token-card__rarity-badge--${rarity}`}>
+															{rarity}
+														</span>
+													)}
 												</div>
-												<div class={`ml-grade ${grade.cls}`} title={`Final grade: ${grade.grade}`}>
+												<div class={`grade ${grade.cls}`} title={`Final grade: ${grade.grade}`}>
 													{grade.grade}
 												</div>
 											</div>
 
+											<!-- Status chip -->
+											<span class={`token-card__status-chip token-card__status-chip--${isWin ? 'win' : 'loss'}`}>
+												🏆 Retired
+											</span>
+
 											<!-- P&L -->
-											<div class="ml-card__pnl">
-												<span class={`ml-pnl-num ${isWin ? 'positive' : 'negative'}`}>
+											<div class="token-card__pnl">
+												<span class={`token-card__pnl-num token-card__pnl-num--${isWin ? 'gain' : 'loss'}`}>
 													{isWin ? '+' : ''}{fmt(asset.netGain)}
 												</span>
 												{stats.gainPct !== null && (
-													<span class={`ml-pnl-pct ${isWin ? 'positive' : 'negative'}`}>
+													<span class={`token-card__pnl-pct token-card__pnl-pct--${isWin ? 'gain' : 'loss'}`}>
 														{isWin ? '+' : ''}{stats.gainPct.toFixed(1)}%
 													</span>
 												)}
 											</div>
 
-											<!-- Meta -->
-											<div class="ml-card__meta">
-												{lots.length > 0 && <span>{lots.length} lot{lots.length !== 1 ? 's' : ''}</span>}
-												{lots.length > 0 && (asset.stLots > 0 || asset.ltLots > 0) && <span>·</span>}
-												{asset.stLots > 0 && <span class="st-tag">{asset.stLots} short-term</span>}
-												{asset.stLots > 0 && asset.ltLots > 0 && <span>·</span>}
-												{asset.ltLots > 0 && <span class="lt-tag">{asset.ltLots} long-term</span>}
+											<!-- KDA stat strip -->
+											<div class="token-card__stats">
+												{lots.length > 0 && (
+													<div class="token-card__stats-item">
+														<span class="token-card__stats-key">Lots</span>
+														<span class="token-card__stats-val">{lots.length}</span>
+													</div>
+												)}
+												{asset.stLots > 0 && (
+													<div class="token-card__stats-item">
+														<span class="token-card__stats-key">Short-Term</span>
+														<span class="token-card__stats-val st-tag">{asset.stLots}</span>
+													</div>
+												)}
+												{asset.ltLots > 0 && (
+													<div class="token-card__stats-item">
+														<span class="token-card__stats-key">Long-Term</span>
+														<span class="token-card__stats-val lt-tag">{asset.ltLots}</span>
+													</div>
+												)}
+												{stats.lastSell && (
+													<div class="token-card__stats-item">
+														<span class="token-card__stats-key">Closed</span>
+														<span class="token-card__stats-val">{fmtDate(stats.lastSell)}</span>
+													</div>
+												)}
 											</div>
 
-											{/* Transcript toggle */}
+											<!-- CTA button -->
 											{lots.length > 0 && (
-												<button class="ml-transcript-btn" data-asset={asset.asset}>
-													View Transcript <span class="ml-chevron">▾</span>
+												<button class="token-card__cta" data-asset={asset.asset}>
+													View Transcript <span class="token-card__cta-chevron">▾</span>
 												</button>
 											)}
 										</div>
 
-										{/* Expanded timeline */}
+										<!-- Expanded timeline -->
 										{lots.length > 0 && (
-											<div class="ml-timeline" id={timelineId(asset.asset)} hidden>
-												<div class="ml-timeline__header">
+											<div class="token-card__timeline" id={timelineId(asset.asset)} hidden>
+												<div class="timeline__header">
 													{asset.asset} · Full Trading History · {lots.length} disposal{lots.length !== 1 ? 's' : ''}
 												</div>
-												<div class="ml-timeline__track">
+												<div class="timeline__track">
 													{lots.map((lot: any) => {
 														const gain = lot.gainLossUsd ?? 0;
 														const isLotWin = gain >= 0;
 														return (
-															<div class="ml-tl-pair">
+															<div class="tl-pair">
 																<!-- BUY node -->
-																<div class="ml-tl-node">
-																	<div class="ml-tl-dot ml-tl-dot--buy"></div>
-																	<div class="ml-tl-content">
-																		<span class="ml-tl-action buy">BUY</span>
-																		<span class="ml-tl-date">{fmtDate(lot.buyDate)}</span>
-																		<span class="ml-tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
-																		<span class="ml-tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
+																<div class="tl-node">
+																	<div class="tl-dot tl-dot--buy"></div>
+																	<div class="tl-content">
+																		<span class="tl-action buy">BUY</span>
+																		<span class="tl-date">{fmtDate(lot.buyDate)}</span>
+																		<span class="tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
+																		<span class="tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
 																	</div>
 																</div>
 																<!-- Connector -->
-																<div class="ml-tl-connector">
-																	<div class="ml-tl-line"></div>
-																	<span class="ml-tl-held">
+																<div class="tl-connector">
+																	<div class="tl-line"></div>
+																	<span class="tl-held">
 																		{lot.daysHeld}d held ·
 																		<span class={lot.term === 'long' ? 'lt-badge' : 'st-badge'}>
 																			{lot.term === 'long' ? 'Long-term' : 'Short-term'}
@@ -566,15 +593,15 @@ function timelineId(asset: string) {
 																	</span>
 																</div>
 																<!-- SELL node -->
-																<div class="ml-tl-node">
-																	<div class={`ml-tl-dot ml-tl-dot--sell ${isLotWin ? 'win' : 'loss'}`}></div>
-																	<div class="ml-tl-content">
-																		<span class="ml-tl-action sell">SELL</span>
-																		<span class="ml-tl-date">{fmtDate(lot.sellDate)}</span>
-																		<span class="ml-tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
-																		<span class="ml-tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
+																<div class="tl-node">
+																	<div class={`tl-dot tl-dot--sell ${isLotWin ? 'win' : 'loss'}`}></div>
+																	<div class="tl-content">
+																		<span class="tl-action sell">SELL</span>
+																		<span class="tl-date">{fmtDate(lot.sellDate)}</span>
+																		<span class="tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
+																		<span class="tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
 																		{lot.gainLossUsd != null && (
-																			<span class={`ml-tl-gain ${isLotWin ? 'positive' : 'negative'}`}>
+																			<span class={`tl-gain ${isLotWin ? 'positive' : 'negative'}`}>
 																				{isLotWin ? '+' : ''}{fmt(lot.gainLossUsd)}
 																			</span>
 																		)}
@@ -597,17 +624,17 @@ function timelineId(asset: string) {
 	)}
 
 	<!-- ══════════════════════════════════════════════════════════════════════
-	     STILL ENROLLED SECTION
+	     ACTIVE ROSTER — cards in play
 	══════════════════════════════════════════════════════════════════════ -->
 	{!isDemo && enrolled.length > 0 && (
-		<section class="ml-section">
-			<div class="ml-section__header ml-section__header--enroll">
-				<span class="ml-section__icon">📚</span>
+		<section class="memory-lane__section">
+			<div class="section-header section-header--active-roster">
+				<span class="section-header__icon">⚔️</span>
 				<div>
-					<h2 class="ml-section__title">Still Enrolled</h2>
-					<p class="ml-section__sub">Open positions — grade still being calculated</p>
+					<h2 class="section-header__title">Active Roster</h2>
+					<p class="section-header__subtitle">Cards in play — match still live</p>
 				</div>
-				<span class="ml-section__count">{enrolled.length} coin{enrolled.length !== 1 ? 's' : ''}</span>
+				<span class="section-header__count">{enrolled.length} card{enrolled.length !== 1 ? 's' : ''}</span>
 			</div>
 
 			{TYPE_ORDER.map((type) => {
@@ -615,107 +642,140 @@ function timelineId(asset: string) {
 				if (!group?.length) return null;
 				const meta = TYPE_META[type];
 				return (
-					<div class="ml-type-group">
-						<div class="ml-type-label">
+					<div class="type-group">
+						<div class="type-group__label">
 							<span>{meta.icon}</span>
 							<span>{meta.label}</span>
 						</div>
-						<div class="ml-cards">
+						<div class="card-grid">
 							{group.map((h: any) => {
 								const soldGains = gainsByAsset.get(h.asset);
 								const lots      = lotDetails[h.asset] ?? [];
 								const isUp      = (h.unrealizedGainLoss ?? 0) >= 0;
+								const rarity    = getRarity(Math.abs(h.unrealizedGainLoss ?? 0), h.longTermQty > 0, false);
 								return (
-									<div class="ml-card ml-card--enroll" data-asset={h.asset}>
-										<div class="ml-card__inner">
+									<div class="token-card token-card--active"
+									     data-rarity={rarity}
+									     data-asset={h.asset}>
+										<div class="token-card__inner">
 
-											<div class="ml-card__top">
-												<div class="ml-logo-wrap">
-													<img class="ml-coin-logo"
+											<!-- Header: logo · ticker · grade -->
+											<div class="token-card__header">
+												<div class="token-card__logo-wrap">
+													<img class="token-card__coin-logo"
 													     src={logoUrl(h.asset)}
 													     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
 													     alt={h.asset} />
-													<div class="ml-coin-fallback" style="display:none">{h.asset.slice(0, 3)}</div>
+													<div class="token-card__coin-fallback" style="display:none">{h.asset.slice(0, 3)}</div>
 												</div>
-												<div class="ml-card__nameblock">
-													<span class="ml-coin-ticker">{h.asset}</span>
-													<span class="ml-enroll-status">📚 In progress</span>
+												<div class="token-card__identity">
+													<span class="token-card__ticker">{h.asset}</span>
+													{rarity !== 'common' && (
+														<span class={`token-card__rarity-badge token-card__rarity-badge--${rarity}`}>
+															{rarity}
+														</span>
+													)}
 												</div>
-												<div class="ml-grade grade-incomplete" title="Grade in progress">IP</div>
+												<div class="grade grade-incomplete" title="Grade in progress">IP</div>
 											</div>
 
-											<div class="ml-card__pnl">
+											<!-- Status chip -->
+											<span class="token-card__status-chip token-card__status-chip--active">
+												⚔️ In Play
+											</span>
+
+											<!-- P&L (unrealized) -->
+											<div class="token-card__pnl">
 												{h.unrealizedGainLoss != null ? (
-													<span class={`ml-pnl-num ${isUp ? 'positive' : 'negative'}`}>
+													<span class={`token-card__pnl-num token-card__pnl-num--${isUp ? 'gain' : 'loss'}`}>
 														{isUp ? '+' : ''}{fmt(h.unrealizedGainLoss)}
 													</span>
 												) : (
-													<span class="ml-pnl-num neutral">Unpriced</span>
+													<span class="token-card__pnl-num">Unpriced</span>
 												)}
-												<span class="ml-pnl-label">unrealized</span>
+												<span class="token-card__pnl-label">unrealized</span>
 											</div>
 
-											<div class="ml-card__meta">
-												<span>{fmtQty(h.totalQty)} held</span>
+											<!-- KDA stat strip -->
+											<div class="token-card__stats">
+												<div class="token-card__stats-item">
+													<span class="token-card__stats-key">Held</span>
+													<span class="token-card__stats-val">{fmtQty(h.totalQty)}</span>
+												</div>
 												{h.currentPrice != null && (
-													<>
-														<span>·</span>
-														<span>${h.currentPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })} / coin</span>
-													</>
+													<div class="token-card__stats-item">
+														<span class="token-card__stats-key">Price</span>
+														<span class="token-card__stats-val">${h.currentPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+													</div>
+												)}
+												{h.shortTermQty > 0 && (
+													<div class="token-card__stats-item">
+														<span class="token-card__stats-key">ST Qty</span>
+														<span class="token-card__stats-val st-tag">{fmtQty(h.shortTermQty)}</span>
+													</div>
+												)}
+												{h.longTermQty > 0 && (
+													<div class="token-card__stats-item">
+														<span class="token-card__stats-key">LT Qty</span>
+														<span class="token-card__stats-val lt-tag">{fmtQty(h.longTermQty)}</span>
+													</div>
 												)}
 											</div>
 
+											<!-- Also sold note -->
 											{soldGains && (
-												<div class="ml-card__sold-note">
+												<div class="token-card__sold-note">
 													Also sold {soldGains.stLots + soldGains.ltLots} lot(s) this year &middot; {fmt(soldGains.netGain)} realized
 												</div>
 											)}
 
+											<!-- CTA button -->
 											{lots.length > 0 && (
-												<button class="ml-transcript-btn ml-transcript-btn--enroll" data-asset={h.asset}>
-													View Sold Lots <span class="ml-chevron">▾</span>
+												<button class="token-card__cta token-card__cta--enrolled" data-asset={h.asset}>
+													View Sold Lots <span class="token-card__cta-chevron">▾</span>
 												</button>
 											)}
 										</div>
 
+										<!-- Expanded timeline -->
 										{lots.length > 0 && (
-											<div class="ml-timeline ml-timeline--enroll" id={timelineId(h.asset)} hidden>
-												<div class="ml-timeline__header">
+											<div class="token-card__timeline token-card__timeline--active" id={timelineId(h.asset)} hidden>
+												<div class="timeline__header">
 													{h.asset} · Sold Lots This Year · {lots.length} disposal{lots.length !== 1 ? 's' : ''}
 												</div>
-												<div class="ml-timeline__track">
+												<div class="timeline__track">
 													{lots.map((lot: any) => {
 														const gain = lot.gainLossUsd ?? 0;
 														const isLotWin = gain >= 0;
 														return (
-															<div class="ml-tl-pair">
-																<div class="ml-tl-node">
-																	<div class="ml-tl-dot ml-tl-dot--buy"></div>
-																	<div class="ml-tl-content">
-																		<span class="ml-tl-action buy">BUY</span>
-																		<span class="ml-tl-date">{fmtDate(lot.buyDate)}</span>
-																		<span class="ml-tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
-																		<span class="ml-tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
+															<div class="tl-pair">
+																<div class="tl-node">
+																	<div class="tl-dot tl-dot--buy"></div>
+																	<div class="tl-content">
+																		<span class="tl-action buy">BUY</span>
+																		<span class="tl-date">{fmtDate(lot.buyDate)}</span>
+																		<span class="tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
+																		<span class="tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
 																	</div>
 																</div>
-																<div class="ml-tl-connector">
-																	<div class="ml-tl-line"></div>
-																	<span class="ml-tl-held">
+																<div class="tl-connector">
+																	<div class="tl-line"></div>
+																	<span class="tl-held">
 																		{lot.daysHeld}d ·
 																		<span class={lot.term === 'long' ? 'lt-badge' : 'st-badge'}>
 																			{lot.term === 'long' ? 'Long-term' : 'Short-term'}
 																		</span>
 																	</span>
 																</div>
-																<div class="ml-tl-node">
-																	<div class={`ml-tl-dot ml-tl-dot--sell ${isLotWin ? 'win' : 'loss'}`}></div>
-																	<div class="ml-tl-content">
-																		<span class="ml-tl-action sell">SELL</span>
-																		<span class="ml-tl-date">{fmtDate(lot.sellDate)}</span>
-																		<span class="ml-tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
-																		<span class="ml-tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
+																<div class="tl-node">
+																	<div class={`tl-dot tl-dot--sell ${isLotWin ? 'win' : 'loss'}`}></div>
+																	<div class="tl-content">
+																		<span class="tl-action sell">SELL</span>
+																		<span class="tl-date">{fmtDate(lot.sellDate)}</span>
+																		<span class="tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
+																		<span class="tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
 																		{lot.gainLossUsd != null && (
-																			<span class={`ml-tl-gain ${isLotWin ? 'positive' : 'negative'}`}>
+																			<span class={`tl-gain ${isLotWin ? 'positive' : 'negative'}`}>
 																				{isLotWin ? '+' : ''}{fmt(lot.gainLossUsd)}
 																			</span>
 																		)}
@@ -739,737 +799,54 @@ function timelineId(asset: string) {
 
 	<!-- ── Empty state ────────────────────────────────────────────────────── -->
 	{!isDemo && graduated.length === 0 && enrolled.length === 0 && (
-		<div class="ml-empty">
-			<div class="ml-empty__icon">📭</div>
-			<p class="ml-empty__title">No activity found for {year}</p>
-			<p class="ml-empty__sub">Select a different year above, or make sure your transactions are synced.</p>
+		<div class="memory-lane__empty">
+			<div class="memory-lane__empty-icon">📭</div>
+			<p class="memory-lane__empty-title">No cards found for {year}</p>
+			<p class="memory-lane__empty-sub">Select a different season above, or make sure your transactions are synced.</p>
 		</div>
 	)}
 
 </div>
 </Layout>
 
-<style>
-/* ── Page shell ───────────────────────────────────────────────────────── */
-.ml-page {
-	max-width: 1040px;
-	margin: 0 auto;
-	padding: 1.5rem 1.25rem 6rem;
-	color: var(--text-primary);
-}
-
-.ml-back {
-	display: inline-block;
-	font-size: 0.78rem;
-	color: var(--text-muted);
-	text-decoration: none;
-	margin-bottom: 1.5rem;
-	transition: color 0.15s;
-}
-.ml-back:hover { color: var(--text-secondary); }
-
-/* ── Hero ─────────────────────────────────────────────────────────────── */
-.ml-hero {
-	text-align: center;
-	padding: 2rem 0 2.5rem;
-}
-.ml-hero__cap {
-	font-size: 4.5rem;
-	display: inline-block;
-	animation: float 3.5s ease-in-out infinite;
-	margin-bottom: 0.4rem;
-}
-@keyframes float {
-	0%, 100% { transform: translateY(0) rotate(-2deg); }
-	50%       { transform: translateY(-12px) rotate(2deg); }
-}
-/* amber — "Graduated" brand color, no token equivalent */
-.ml-hero__title {
-	font-size: clamp(2.75rem, 7vw, 4.5rem);
-	font-weight: 900;
-	letter-spacing: -0.04em;
-	line-height: 1;
-	margin: 0 0 0.6rem;
-	background: linear-gradient(135deg, #f59e0b 0%, #fcd34d 45%, #f59e0b 100%);
-	-webkit-background-clip: text;
-	-webkit-text-fill-color: transparent;
-	background-clip: text;
-}
-.ml-hero__sub {
-	font-size: 1rem;
-	color: var(--text-muted);
-	margin: 0 0 1.75rem;
-}
-
-/* Year pills */
-.ml-year-pills {
-	display: flex;
-	justify-content: center;
-	flex-wrap: wrap;
-	gap: 0.5rem;
-}
-.ml-year-pill {
-	padding: 0.35rem 1.1rem;
-	border-radius: 999px;
-	border: 1px solid var(--border-bright);
-	background: var(--surface-card);
-	color: var(--text-muted);
-	font-size: 0.82rem;
-	font-weight: 600;
-	text-decoration: none;
-	transition: all 0.15s;
-}
-/* amber — active/hover year pill matches Graduated theme */
-.ml-year-pill:hover { border-color: rgba(245,158,11,0.4); color: #fbbf24; }
-.ml-year-pill.active {
-	background: rgba(245,158,11,0.12);
-	border-color: rgba(245,158,11,0.45);
-	color: #fbbf24;
-}
-
-/* ── Stats banner ─────────────────────────────────────────────────────── */
-.ml-stats {
-	display: flex;
-	justify-content: center;
-	gap: 3rem;
-	flex-wrap: wrap;
-	padding: 1.75rem 2rem;
-	background: var(--surface-card);
-	border: 1px solid var(--border-subtle);
-	border-radius: 20px;
-	margin-bottom: 3.5rem;
-}
-.ml-stat {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 0.3rem;
-}
-.ml-stat__num {
-	font-size: 2.25rem;
-	font-weight: 900;
-	line-height: 1;
-	letter-spacing: -0.02em;
-	color: var(--text-primary);
-}
-.ml-stat__num.positive  { color: var(--gain); text-shadow: 0 0 24px var(--gain-border); }
-.ml-stat__num.negative  { color: var(--loss); text-shadow: 0 0 24px var(--loss-border); }
-/* indigo — "Still Enrolled" concept color, no token equivalent */
-.ml-stat__num.enrolled-num { color: #818cf8; }
-.ml-stat__label {
-	font-size: 0.68rem;
-	text-transform: uppercase;
-	letter-spacing: 0.12em;
-	color: var(--text-muted);
-	font-weight: 700;
-}
-
-/* ── Section ──────────────────────────────────────────────────────────── */
-.ml-section { margin-bottom: 4.5rem; }
-
-.ml-section__header {
-	display: flex;
-	align-items: center;
-	gap: 1rem;
-	padding: 1.25rem 1.5rem;
-	border-radius: 18px;
-	margin-bottom: 2rem;
-}
-/* amber — Graduated section identity */
-.ml-section__header--grad {
-	background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(251,191,36,0.04));
-	border: 1px solid rgba(245,158,11,0.22);
-}
-/* indigo — Still Enrolled section identity */
-.ml-section__header--enroll {
-	background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.04));
-	border: 1px solid rgba(99,102,241,0.22);
-}
-.ml-section__icon { font-size: 2.25rem; flex-shrink: 0; }
-.ml-section__title {
-	font-size: 1.6rem;
-	font-weight: 900;
-	margin: 0 0 0.15rem;
-	letter-spacing: -0.02em;
-}
-.ml-section__sub { font-size: 0.82rem; color: var(--text-muted); margin: 0; }
-.ml-section__count {
-	margin-left: auto;
-	font-size: 0.82rem;
-	font-weight: 700;
-	color: var(--text-muted);
-	white-space: nowrap;
-	flex-shrink: 0;
-}
-
-/* ── Type group ───────────────────────────────────────────────────────── */
-.ml-type-group { margin-bottom: 2.25rem; }
-.ml-type-label {
-	display: flex;
-	align-items: center;
-	gap: 0.45rem;
-	font-size: 0.68rem;
-	font-weight: 800;
-	text-transform: uppercase;
-	letter-spacing: 0.14em;
-	color: var(--text-muted);
-	margin-bottom: 0.9rem;
-	padding-left: 0.1rem;
-}
-
-/* ── Cards grid ───────────────────────────────────────────────────────── */
-.ml-cards {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-	gap: 1.1rem;
-}
-
-/* ── Card ─────────────────────────────────────────────────────────────── */
-.ml-card {
-	border-radius: 22px;
-	overflow: hidden;
-	cursor: pointer;
-	animation: cardIn 0.45s ease both;
-	transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.ml-card:hover {
-	transform: translateY(-6px);
-	box-shadow: 0 20px 50px var(--surface-bg);
-}
-@keyframes cardIn {
-	from { opacity: 0; transform: translateY(24px); }
-	to   { opacity: 1; transform: translateY(0); }
-}
-
-/* amber — default graduated card (loss) */
-.ml-card--grad {
-	border: 2px solid rgba(245,158,11,0.25);
-	background: linear-gradient(160deg,
-		rgba(245,158,11,0.07) 0%,
-		var(--surface-card)  55%);
-}
-.ml-card--grad.ml-card--win {
-	border-color: var(--gain-border);
-	background: linear-gradient(160deg,
-		var(--gain-bg) 0%,
-		var(--surface-card) 55%);
-}
-.ml-card--grad.ml-card--loss {
-	border-color: var(--loss-border);
-	background: linear-gradient(160deg,
-		var(--loss-bg) 0%,
-		var(--surface-card) 55%);
-}
-
-/* indigo — Still Enrolled card */
-.ml-card--enroll {
-	border: 2px solid rgba(99,102,241,0.22);
-	background: linear-gradient(160deg,
-		rgba(99,102,241,0.07) 0%,
-		var(--surface-card) 55%);
-}
-
-.ml-card__inner {
-	padding: 1.4rem 1.4rem 1.2rem;
-	display: flex;
-	flex-direction: column;
-	gap: 0.9rem;
-}
-
-/* ── Card top row ─────────────────────────────────────────────────────── */
-.ml-card__top {
-	display: flex;
-	align-items: center;
-	gap: 0.9rem;
-}
-.ml-logo-wrap {
-	flex-shrink: 0;
-	width: 48px;
-	height: 48px;
-	position: relative;
-}
-.ml-coin-logo {
-	width: 48px;
-	height: 48px;
-	border-radius: 50%;
-	object-fit: contain;
-	background: var(--border-subtle);
-	padding: 5px;
-	border: 1px solid var(--border-subtle);
-}
-/* indigo — fallback avatar gradient when coin logo is missing */
-.ml-coin-fallback {
-	width: 48px;
-	height: 48px;
-	border-radius: 50%;
-	align-items: center;
-	justify-content: center;
-	font-size: 0.7rem;
-	font-weight: 900;
-	background: linear-gradient(135deg, #5767ff, #934dff);
-	color: var(--text-primary);
-	letter-spacing: -0.02em;
-	border: 1px solid var(--border-bright);
-}
-.ml-card__nameblock {
-	flex: 1;
-	min-width: 0;
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
-}
-.ml-coin-ticker {
-	font-size: 1.5rem;
-	font-weight: 900;
-	color: var(--text-primary);
-	letter-spacing: -0.03em;
-	line-height: 1;
-}
-/* amber — graduation date label */
-.ml-grad-date    { font-size: 0.72rem; color: #d97706; font-weight: 600; }
-/* indigo — enrollment status label */
-.ml-enroll-status { font-size: 0.72rem; color: #818cf8; font-weight: 600; }
-
-/* ── Grade badge ──────────────────────────────────────────────────────── */
-.ml-grade {
-	width: 46px;
-	height: 46px;
-	border-radius: 50%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 0.95rem;
-	font-weight: 900;
-	font-style: italic;
-	flex-shrink: 0;
-	border: 2.5px solid currentColor;
-	transform: rotate(-8deg);
-	animation: stampIn 0.5s 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
-}
-@keyframes stampIn {
-	from { opacity: 0; transform: rotate(-15deg) scale(0.5); }
-	to   { opacity: 1; transform: rotate(-8deg)  scale(1);   }
-}
-/* grade palette — 5-level scale requires distinct hues; F and unknown map to tokens */
-.grade-aplus   { color: #22c55e; background: rgba(34,197,94,0.12);   box-shadow: 0 0 14px rgba(34,197,94,0.3);   }
-.grade-a       { color: #4ade80; background: rgba(74,222,128,0.1);   box-shadow: 0 0 12px rgba(74,222,128,0.25); }
-.grade-b       { color: #86efac; background: rgba(134,239,172,0.08); }
-.grade-c       { color: #fbbf24; background: rgba(251,191,36,0.1);   }
-.grade-d       { color: #f97316; background: rgba(249,115,22,0.1);   }
-.grade-f       { color: var(--loss); background: var(--loss-bg);   box-shadow: 0 0 12px var(--loss-border); }
-.grade-unknown { color: var(--text-muted); background: var(--surface-card); }
-/* indigo — in-progress grade for open positions */
-.grade-incomplete {
-	color: #818cf8;
-	background: rgba(129,140,248,0.1);
-	font-style: normal;
-	font-size: 0.6rem;
-	letter-spacing: 0.05em;
-}
-
-/* ── P&L ──────────────────────────────────────────────────────────────── */
-.ml-card__pnl {
-	display: flex;
-	align-items: baseline;
-	gap: 0.65rem;
-	flex-wrap: wrap;
-}
-.ml-pnl-num {
-	font-size: 1.9rem;
-	font-weight: 900;
-	letter-spacing: -0.03em;
-	line-height: 1;
-}
-.ml-pnl-num.positive { color: var(--gain); text-shadow: 0 0 22px var(--gain-border); }
-.ml-pnl-num.negative { color: var(--loss); text-shadow: 0 0 22px var(--loss-border); }
-.ml-pnl-num.neutral  { color: var(--text-muted); }
-.ml-pnl-pct {
-	font-size: 0.95rem;
-	font-weight: 700;
-}
-.ml-pnl-pct.positive { color: var(--gain); }
-.ml-pnl-pct.negative { color: var(--loss); }
-.ml-pnl-label { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
-
-/* ── Meta / tags ──────────────────────────────────────────────────────── */
-.ml-card__meta {
-	display: flex;
-	align-items: center;
-	gap: 0.4rem;
-	font-size: 0.75rem;
-	color: var(--text-muted);
-	flex-wrap: wrap;
-}
-/* amber / indigo — ST/LT lot tags match year-pill and enrolled palette */
-.st-tag { color: #fbbf24; font-weight: 700; }
-.lt-tag { color: #818cf8; font-weight: 700; }
-
-/* indigo — sold-note for enrolled cards with partial exits */
-.ml-card__sold-note {
-	font-size: 0.72rem;
-	color: #6366f1;
-	background: rgba(99,102,241,0.08);
-	border: 1px solid rgba(99,102,241,0.15);
-	border-radius: 8px;
-	padding: 0.45rem 0.7rem;
-}
-
-/* ── Transcript button ────────────────────────────────────────────────── */
-.ml-transcript-btn {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.4rem;
-	padding: 0.6rem 1rem;
-	border-radius: 12px;
-	border: 1px solid var(--border-subtle);
-	background: var(--surface-card);
-	color: var(--text-muted);
-	font-size: 0.8rem;
-	font-weight: 700;
-	cursor: pointer;
-	width: 100%;
-	font-family: inherit;
-	letter-spacing: 0.02em;
-	transition: all 0.15s;
-	margin-top: 0.1rem;
-}
-/* amber — graduated transcript hover */
-.ml-transcript-btn:hover {
-	border-color: rgba(245,158,11,0.35);
-	color: #fbbf24;
-	background: rgba(245,158,11,0.05);
-}
-/* indigo — enrolled transcript hover */
-.ml-transcript-btn--enroll:hover {
-	border-color: rgba(99,102,241,0.35);
-	color: #818cf8;
-	background: rgba(99,102,241,0.05);
-}
-/* amber — open state */
-.ml-transcript-btn.open {
-	border-color: rgba(245,158,11,0.3);
-	color: #fbbf24;
-}
-.ml-chevron {
-	font-size: 1rem;
-	transition: transform 0.2s ease;
-	display: inline-block;
-}
-.ml-transcript-btn.open .ml-chevron { transform: rotate(180deg); }
-
-/* ── Timeline ─────────────────────────────────────────────────────────── */
-.ml-timeline {
-	border-top: 1px solid var(--border-subtle);
-	background: var(--surface-bg);
-	padding: 1.25rem 1.4rem 1.5rem;
-}
-/* indigo — enrolled timeline top border */
-.ml-timeline--enroll {
-	border-top-color: rgba(99,102,241,0.15);
-}
-.ml-timeline__header {
-	font-size: 0.68rem;
-	font-weight: 800;
-	text-transform: uppercase;
-	letter-spacing: 0.12em;
-	color: var(--text-muted);
-	margin-bottom: 1.25rem;
-}
-.ml-timeline__track {
-	display: flex;
-	flex-direction: column;
-}
-
-/* Lot pair */
-.ml-tl-pair { display: flex; flex-direction: column; }
-.ml-tl-pair:not(:last-child) { margin-bottom: 0.25rem; }
-
-/* Node row */
-.ml-tl-node {
-	display: flex;
-	align-items: flex-start;
-	gap: 0.85rem;
-}
-.ml-tl-dot {
-	width: 11px;
-	height: 11px;
-	border-radius: 50%;
-	flex-shrink: 0;
-	margin-top: 0.35rem;
-}
-/* indigo — BUY dot; gain/loss tokens for SELL dot */
-.ml-tl-dot--buy           { background: #6366f1; box-shadow: 0 0 8px rgba(99,102,241,0.5); }
-.ml-tl-dot--sell.win      { background: var(--gain); box-shadow: 0 0 8px var(--gain-border); }
-.ml-tl-dot--sell.loss     { background: var(--loss); box-shadow: 0 0 8px var(--loss-border); }
-
-.ml-tl-content {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 0.3rem 0.65rem;
-	padding-bottom: 0.3rem;
-	font-size: 0.8rem;
-}
-.ml-tl-action {
-	font-weight: 800;
-	font-size: 0.65rem;
-	letter-spacing: 0.1em;
-	padding: 0.1rem 0.45rem;
-	border-radius: 4px;
-}
-/* indigo — BUY action badge */
-.ml-tl-action.buy  { background: rgba(99,102,241,0.15); color: #818cf8; }
-.ml-tl-action.sell { background: var(--loss-bg); color: var(--loss); }
-.ml-tl-date  { color: var(--text-muted); }
-.ml-tl-qty   { color: var(--text-primary); font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; }
-.ml-tl-usd   { color: var(--text-muted); }
-.ml-tl-gain  { font-weight: 800; }
-.ml-tl-gain.positive { color: var(--gain); }
-.ml-tl-gain.negative { color: var(--loss); }
-
-/* Connector (the vertical line between buy and sell) */
-.ml-tl-connector {
-	display: flex;
-	align-items: center;
-	gap: 0.85rem;
-	padding: 0.05rem 0;
-	margin-left: 4px;
-}
-/* indigo-to-loss gradient connector */
-.ml-tl-line {
-	width: 3px;
-	height: 24px;
-	background: linear-gradient(to bottom,
-		rgba(99,102,241,0.5),
-		var(--loss-border));
-	border-radius: 2px;
-	flex-shrink: 0;
-}
-.ml-tl-held { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
-/* indigo / amber — LT/ST badges in timeline match section palette */
-.lt-badge { color: #818cf8; font-weight: 800; }
-.st-badge { color: #d97706; font-weight: 800; }
-
-/* ── Error banner ─────────────────────────────────────────────────────── */
-.ml-error {
-	background: var(--loss-bg);
-	border: 1px solid var(--loss-border);
-	border-radius: 14px;
-	padding: 1.25rem 1.5rem;
-	margin-bottom: 2rem;
-	color: var(--loss);
-}
-.ml-error strong { display: block; margin-bottom: 0.35rem; color: var(--loss); }
-.ml-error p { margin: 0 0 0.75rem; font-size: 0.875rem; color: var(--loss); }
-/* indigo — error link matches enrolled palette */
-.ml-error a { color: #818cf8; font-size: 0.875rem; font-weight: 700; text-decoration: none; }
-.ml-error a:hover { text-decoration: underline; }
-
-/* ── Empty state ──────────────────────────────────────────────────────── */
-.ml-empty {
-	text-align: center;
-	padding: 6rem 2rem;
-}
-.ml-empty__icon  { font-size: 3.5rem; margin-bottom: 1rem; }
-.ml-empty__title { font-size: 1.25rem; font-weight: 700; color: var(--text-muted); margin: 0 0 0.5rem; }
-.ml-empty__sub   { font-size: 0.9rem;  color: var(--text-muted); margin: 0; }
-
-/* ── Responsive ───────────────────────────────────────────────────────── */
-@media (max-width: 640px) {
-	.ml-cards    { grid-template-columns: 1fr; }
-	.ml-stats    { gap: 1.5rem; }
-	.ml-stat__num { font-size: 1.75rem; }
-	.ml-pnl-num  { font-size: 1.5rem; }
-}
-
-/* ── Demo wireframe ───────────────────────────────────────────────────── */
-.ml-demo-wrap {
-	display: flex;
-	flex-direction: column;
-	gap: 0;
-}
-
-/* amber — demo banner matches Graduated theme */
-.ml-demo-banner {
-	display: flex;
-	gap: 1.25rem;
-	align-items: flex-start;
-	background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(251,191,36,0.03));
-	border: 1px solid rgba(245,158,11,0.25);
-	border-radius: 18px;
-	padding: 1.5rem 1.75rem;
-	margin-bottom: 2.5rem;
-}
-.ml-demo-banner__icon {
-	font-size: 2.5rem;
-	flex-shrink: 0;
-	line-height: 1;
-	margin-top: 0.1rem;
-}
-.ml-demo-banner__body {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-}
-/* amber — demo banner title and CTA */
-.ml-demo-banner__title {
-	font-size: 1.05rem;
-	font-weight: 800;
-	color: #fcd34d;
-	margin: 0;
-	letter-spacing: -0.01em;
-}
-.ml-demo-banner__text {
-	font-size: 0.87rem;
-	color: var(--text-secondary);
-	margin: 0;
-	line-height: 1.65;
-}
-.ml-demo-banner__text strong { color: var(--text-primary); }
-.ml-demo-banner__cta {
-	display: inline-block;
-	margin-top: 0.4rem;
-	font-size: 0.83rem;
-	font-weight: 700;
-	color: #fbbf24;
-	text-decoration: none;
-	letter-spacing: 0.01em;
-	transition: color 0.15s;
-}
-.ml-demo-banner__cta:hover { color: #fcd34d; text-decoration: underline; }
-
-/* Shimmer animation — decorative skeleton overlay; rgba(255,255,255,X) used
-   only as CSS gradient stops, no semantic token equivalent applies */
-@keyframes ml-shimmer {
-	0%   { background-position: -400px 0; }
-	100% { background-position:  400px 0; }
-}
-.ml-wire-block {
-	display: inline-block;
-	border-radius: 6px;
-	background: linear-gradient(90deg,
-		rgba(255,255,255,0.05) 25%,
-		rgba(255,255,255,0.10) 50%,
-		rgba(255,255,255,0.05) 75%);
-	background-size: 800px 100%;
-	animation: ml-shimmer 1.8s infinite linear;
-}
-.ml-wire-block--num   { width: 52px;  height: 2.25rem; border-radius: 8px; }
-.ml-wire-block--wide  { width: 100px; height: 2.25rem; border-radius: 8px; }
-.ml-wire-block--pill  { width: 68px;  height: 1.2rem;  border-radius: 999px; }
-.ml-wire-block--ticker { width: 56px;  height: 1.5rem; border-radius: 6px; margin-bottom: 2px; }
-.ml-wire-block--date   { width: 80px;  height: 0.75rem; border-radius: 4px; }
-.ml-wire-block--pnl    { width: 110px; height: 1.9rem; border-radius: 8px; }
-.ml-wire-block--pct    { width: 54px;  height: 1rem;   border-radius: 4px; }
-.ml-wire-block--meta   { width: 130px; height: 0.75rem; border-radius: 4px; }
-.ml-wire-block--label  { width: 68px;  height: 0.72rem; border-radius: 4px; }
-
-/* Circular avatar placeholder */
-.ml-wire-avatar {
-	width: 48px;
-	height: 48px;
-	border-radius: 50%;
-	background: linear-gradient(90deg,
-		rgba(255,255,255,0.05) 25%,
-		rgba(255,255,255,0.10) 50%,
-		rgba(255,255,255,0.05) 75%);
-	background-size: 800px 100%;
-	animation: ml-shimmer 1.8s infinite linear;
-	border: 1px solid var(--border-subtle);
-}
-
-/* Button placeholder */
-.ml-wire-btn {
-	width: 100%;
-	height: 2.4rem;
-	border-radius: 12px;
-	border: 1px solid var(--border-subtle);
-	background: var(--surface-card);
-	margin-top: 0.1rem;
-}
-
-/* Wire-mode grade badges — keep color but reduce opacity */
-.ml-grade--wire { opacity: 0.45; }
-
-/* Wire-mode section header count slot */
-.ml-section__header--wire { opacity: 0.85; }
-
-/* Stats bar wire mode */
-.ml-stats--wire { margin-bottom: 3.5rem; }
-
-/* Wire cards — slightly more muted */
-.ml-card--wire {
-	pointer-events: none;
-	user-select: none;
-}
-.ml-card--wire:hover {
-	transform: none;
-	box-shadow: none;
-}
-
-/* amber — demo footer CTA button */
-.ml-demo-footer {
-	text-align: center;
-	padding: 3rem 1rem 1rem;
-	border-top: 1px solid var(--border-subtle);
-	margin-top: 1rem;
-}
-.ml-demo-footer p {
-	font-size: 0.9rem;
-	color: var(--text-muted);
-	margin: 0 0 1rem;
-}
-.ml-demo-footer__cta {
-	display: inline-block;
-	padding: 0.7rem 1.75rem;
-	border-radius: 999px;
-	background: linear-gradient(135deg, #f59e0b, #fbbf24);
-	color: var(--surface-bg);
-	font-size: 0.9rem;
-	font-weight: 800;
-	text-decoration: none;
-	letter-spacing: 0.01em;
-	transition: opacity 0.15s, transform 0.15s;
-}
-.ml-demo-footer__cta:hover { opacity: 0.88; transform: translateY(-1px); }
-
-@media (max-width: 640px) {
-	.ml-demo-banner { flex-direction: column; }
-}
-</style>
-
 <script>
 // ── Staggered card entrance ───────────────────────────────────────────────────
-document.querySelectorAll<HTMLElement>('.ml-card').forEach((card, i) => {
-	card.style.animationDelay = `${i * 0.06}s`;
+document.querySelectorAll<HTMLElement>('.token-card:not(.token-card--wire)').forEach((card, i) => {
+	card.style.animationDelay = `${i * 0.05}s`;
 });
 
-// ── Transcript toggle ─────────────────────────────────────────────────────────
+// ── Timeline toggle ───────────────────────────────────────────────────────────
 function toggleTimeline(asset: string) {
 	const id       = 'tl-' + asset.replace(/[^a-z0-9]/gi, '_');
 	const timeline = document.getElementById(id);
 	if (!timeline) return;
 	const isOpen = !timeline.hidden;
 	timeline.hidden = isOpen;
-	// Update all buttons for this asset
-	document.querySelectorAll<HTMLButtonElement>(`[data-asset="${CSS.escape(asset)}"].ml-transcript-btn`)
+	document.querySelectorAll<HTMLButtonElement>(`[data-asset="${CSS.escape(asset)}"].token-card__cta`)
 		.forEach(btn => btn.classList.toggle('open', !isOpen));
 }
 
-// Button clicks
-document.querySelectorAll<HTMLButtonElement>('.ml-transcript-btn').forEach(btn => {
+// CTA button clicks
+document.querySelectorAll<HTMLButtonElement>('.token-card__cta').forEach(btn => {
 	btn.addEventListener('click', (e) => {
 		e.stopPropagation();
 		toggleTimeline(btn.dataset.asset!);
 	});
 });
 
-// Card click (anywhere on the card) also toggles
-document.querySelectorAll<HTMLElement>('.ml-card').forEach(card => {
+// Card click (anywhere) also toggles
+document.querySelectorAll<HTMLElement>('.token-card').forEach(card => {
 	card.addEventListener('click', () => {
 		const asset = card.dataset.asset;
 		if (asset) toggleTimeline(asset);
+	});
+});
+
+// ── Season chip bounce ────────────────────────────────────────────────────────
+document.querySelectorAll<HTMLAnchorElement>('.season-chip').forEach(chip => {
+	chip.addEventListener('click', () => {
+		chip.classList.add('season-chip--bounce');
+		chip.addEventListener('animationend', () => chip.classList.remove('season-chip--bounce'), { once: true });
 	});
 });
 </script>
