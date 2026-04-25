@@ -94,36 +94,25 @@
 }
 
 .wallet-summary__chain-rows {
-	display: grid;
-	grid-template-columns: repeat(3, 1fr);
-	gap: var(--space-sm);
+	display: flex;
+	flex-direction: column;
 	font-size: var(--font-meta);
-}
-
-@media (max-width: 1199px) {
-	.wallet-summary__chain-rows {
-		grid-template-columns: repeat(2, 1fr);
-	}
-}
-
-@media (max-width: 640px) {
-	.wallet-summary__chain-rows {
-		grid-template-columns: 1fr;
-	}
 }
 
 /* ── Asset rows (two explicit lines per asset) ──────────────────────────────── */
 
 .wallet-summary__asset-row {
 	padding: 0.625rem 0.75rem;
-	border: 1px solid var(--border-subtle);
-	border-radius: 6px;
+	border-bottom: 1px solid var(--border-subtle);
 	transition: background 0.12s ease;
+}
+
+.wallet-summary__asset-row:last-child {
+	border-bottom: none;
 }
 
 .wallet-summary__asset-row:hover {
 	background: var(--surface-hover);
-	border-color: var(--border-bright);
 }
 
 .wallet-summary__asset-row--header {
