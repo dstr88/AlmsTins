@@ -74,6 +74,7 @@ const tenantWallets = walletResult.rows.map(r => ({
 
       <div class="search-actions">
         <button id="btn-run-matching" class="btn-secondary" type="button">⚙ Re-run matching</button>
+        <button id="btn-auto-classify" class="btn-secondary" type="button">🏷 Auto-classify transfers</button>
         <div class="wallet-picker-wrap">
           <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
           <div id="wallet-picker" class="wallet-picker" style="display:none">
@@ -595,6 +596,22 @@ $('btn-run-matching').addEventListener('click', async () => {
     setTimeout(() => { btn.textContent = '⚙ Re-run matching'; btn.disabled = false; }, 3000);
   } catch {
     btn.textContent = '⚙ Re-run matching';
+    btn.disabled = false;
+  }
+});
+
+$('btn-auto-classify').addEventListener('click', async () => {
+  const btn = $('btn-auto-classify');
+  btn.disabled = true;
+  btn.textContent = '🏷 Classifying…';
+  try {
+    const res  = await fetch('/api/research/auto-classify', { method: 'POST' });
+    const data = await res.json();
+    btn.textContent = `✅ ${data.classified} classified`;
+    await loadNeedsAttention();
+    setTimeout(() => { btn.textContent = '🏷 Auto-classify transfers'; btn.disabled = false; }, 3000);
+  } catch {
+    btn.textContent = '🏷 Auto-classify transfers';
     btn.disabled = false;
   }
 });

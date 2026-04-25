@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
+import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 
 // Actual Exodus CSV columns (confirmed from real export):
 // DATE, TYPE, FROMPORTFOLIO, TOPORTFOLIO,
@@ -382,6 +383,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'exodus', 'Exodus');
 	void runTransferMatching(tenantId, resolvedAccountId);
+	void autoClassifyOwnWalletTransfers(tenantId);
 
 	return new Response(
 		JSON.stringify({

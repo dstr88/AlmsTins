@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
+import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 
 type CsvRow = Record<string, string>;
 
@@ -306,6 +307,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'coinbase', 'Coinbase');
 	void runTransferMatching(tenantId, resolvedAccountId);
+	void autoClassifyOwnWalletTransfers(tenantId);
 
 	return new Response(
 		JSON.stringify({

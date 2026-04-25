@@ -15,6 +15,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { runTransferMatching } from '@/lib/transferMatcher';
+import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 
 const ROUTESCAN_BASE = 'https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan/api';
@@ -251,6 +252,7 @@ export const POST: APIRoute = async ({ request }) => {
 	// Run tenant-wide (no accountId filter) so Coinbase OUTs are scanned
 	// against the newly imported Snowtrace INs, not just Snowtrace OUTs.
 	void runTransferMatching(tenantId);
+	void autoClassifyOwnWalletTransfers(tenantId);
 
 	return new Response(JSON.stringify({
 		inserted:  insertedNorm,
