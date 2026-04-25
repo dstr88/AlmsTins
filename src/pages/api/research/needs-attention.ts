@@ -2,6 +2,9 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { logNeedsAttention } from '@/lib/activityLog';
+import { getCache, setCache } from '@/lib/tursoCache';
+
+const CACHE_TTL = 90; // seconds
 
 export const prerender = false;
 
@@ -21,8 +24,22 @@ export const GET: APIRoute = async ({ request }) => {
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
+	const cacheKey = `t:${tenantId}:research:needs-attention:v1`;
+	const cached   = await getCache<object>(cacheKey, { staleAfterSeconds: CACHE_TTL });
+	if (cached.value && !cached.isStale) {
+		return new Response(JSON.stringify(cached.value), {
+			status: 200,
+			headers: { 'Content-Type': 'application/json' },
+		});
+	}
+
+	// ── All 4 queries in parallel ─────────────────────────────────────────────
+	// countResult has no LIMIT so the badge shows the true total even when the
+	// display list is capped at 300.
+	const [countResult, unmatchedResult, suggestedResult, resolvedResult] = await Promise.all([
+
 	// ── 0: True unmatched count (no LIMIT — for accurate badge) ─────────────
-	const countResult = await db.execute({
+	db.execute({
 		sql: `SELECT COUNT(*) AS total
 		      FROM import_transactions t
 		      LEFT JOIN transfer_matches m_out ON m_out.tenant_id  = t.tenant_id
@@ -68,11 +85,10 @@ export const GET: APIRoute = async ({ request }) => {
 		          ))
 		        )`,
 		args: [tenantId],
-	});
-	const trueUnmatchedCount = Number((countResult.rows[0] as any)?.total ?? 0);
+	}),
 
 	// ── 1 + 2: Unmatched transfers (no accepted match on either side) ─────────
-	const unmatchedResult = await db.execute({
+	db.execute({
 		sql: `SELECT
 		        t.id, t.source, t.account_id, t.timestamp_utc,
 		        t.direction, t.asset_symbol, t.amount, t.to_currency, t.to_amount,
@@ -162,10 +178,10 @@ export const GET: APIRoute = async ({ request }) => {
 		      ORDER BY t.asset_symbol ASC, t.timestamp_utc DESC
 		      LIMIT 300`,
 		args: [tenantId],
-	});
+	}),
 
 	// ── 3: Suggested matches awaiting user confirmation ───────────────────────
-	const suggestedResult = await db.execute({
+	db.execute({
 		sql: `SELECT
 		        m.id AS match_id,
 		        m.confidence_score,
@@ -197,10 +213,10 @@ export const GET: APIRoute = async ({ request }) => {
 		      ORDER BY m.confidence_score DESC
 		      LIMIT 100`,
 		args: [tenantId],
-	});
+	}),
 
 	// ── 4: Resolved (confirmed + auto) matches ───────────────────────────────
-	const resolvedResult = await db.execute({
+	db.execute({
 		sql: `SELECT
 		        m.id AS match_id,
 		        m.asset_symbol,
@@ -228,7 +244,10 @@ export const GET: APIRoute = async ({ request }) => {
 		      ORDER BY COALESCE(m.confirmed_at, m.matched_at) DESC
 		      LIMIT 100`,
 		args: [tenantId],
-	});
+	}),
+	]); // end Promise.all — all 4 queries ran concurrently
+
+	const trueUnmatchedCount = Number((countResult.rows[0] as any)?.total ?? 0);
 
 	// Distinct symbols represented in unmatched items (for chip row in UI)
 	const symbols = [...new Set(
@@ -240,17 +259,18 @@ export const GET: APIRoute = async ({ request }) => {
 	const total = trueUnmatchedCount + suggestedResult.rows.length;
 	logNeedsAttention(tenantId, total, trueUnmatchedCount, suggestedResult.rows.length);
 
-	return new Response(
-		JSON.stringify({
-			unmatched:  unmatchedResult.rows,
-			suggested:  suggestedResult.rows,
-			resolved:   resolvedResult.rows,
-			symbols,
-			total,
-		}),
-		{
-			status: 200,
-			headers: { 'Content-Type': 'application/json' },
-		},
-	);
+	const payload = {
+		unmatched: unmatchedResult.rows,
+		suggested: suggestedResult.rows,
+		resolved:  resolvedResult.rows,
+		symbols,
+		total,
+	};
+
+	void setCache(cacheKey, payload, CACHE_TTL);
+
+	return new Response(JSON.stringify(payload), {
+		status: 200,
+		headers: { 'Content-Type': 'application/json' },
+	});
 };
