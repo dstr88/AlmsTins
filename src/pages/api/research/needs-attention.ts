@@ -49,7 +49,9 @@ export const GET: APIRoute = async ({ request }) => {
 		            'crypto_earn_program_created','card_top_up','crypto_to_van_sell_order','Sell','sell',
 		            'crypto_vaulting_purchase','crypto_exchange','crypto_exchange_fee',
 		            'dust_conversion_debited','dust_conversion_credited','trade','Trade',
-		            'conversion','Conversion','exchange','Exchange'
+		            'conversion','Conversion','exchange','Exchange',
+		            'trading.limit_order.cash_account.sell_lock',
+		            'trading.limit_order.cash_account.sell_unlock'
 		          ))
 		          OR
 		          (t.direction = 'in' AND t.kind IN (
@@ -125,7 +127,9 @@ export const GET: APIRoute = async ({ request }) => {
 		            'conversion',
 		            'Conversion',
 		            'exchange',
-		            'Exchange'
+		            'Exchange',
+		            'trading.limit_order.cash_account.sell_lock',
+		            'trading.limit_order.cash_account.sell_unlock'
 		          ))
 		          OR
 		          -- IN with no known origin and unknown kind
