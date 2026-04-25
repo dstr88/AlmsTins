@@ -236,7 +236,10 @@ function renderNeedsAttention(data) {
   if (data.unmatched?.length) {
     html += `<div class="section-label">Unresolved transactions</div>`;
     for (const t of data.unmatched) {
-      const dir    = (t.direction ?? '').toLowerCase();
+      const dir       = (t.direction ?? '').toLowerCase();
+      const isTransfer = dir === 'out' && t.category === 'own_wallet';
+      const dirClass  = isTransfer ? 'transfer' : dir;
+      const dirLabel  = isTransfer ? 'transfer' : dir;
       const absAmt = Math.abs(Number(t.amount));
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
       const hint    = t.address_label
@@ -246,8 +249,8 @@ function renderNeedsAttention(data) {
       const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
       const noteText = t.notes   ? `<span style="font-size:0.72rem;color:rgba(255,255,255,0.45);font-style:italic">${t.notes}</span>` : '';
       const hasAnnotation = !!(t.category || t.notes);
-      html += `<div class="tx-card na-item dir-${dir}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}" data-src="${src}">
-        <div class="tx-badge-col"><span class="tx-dir ${dir}">${dir}</span></div>
+      html += `<div class="tx-card na-item dir-${dirClass}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}" data-src="${src}">
+        <div class="tx-badge-col"><span class="tx-dir ${dirClass}">${dirLabel}</span></div>
         <div class="tx-body">
           <div class="tx-row-1">
             <span class="tx-sym">${t.asset_symbol}</span>
@@ -509,6 +512,9 @@ function renderResults(data) {
   let html = '';
   for (const t of rows) {
     const dir         = (t.direction ?? '').toLowerCase();
+    const isTransfer  = dir === 'out' && t.category === 'own_wallet';
+    const dirClass    = isTransfer ? 'transfer' : dir;
+    const dirLabel    = isTransfer ? 'transfer' : dir;
     const matchStatus = t.match_status_as_out ?? t.match_status_as_in ?? null;
     const matchDir    = t.match_id_as_out ? '→' : '←';
     const matchBadge  = (t.match_id_as_out || t.match_id_as_in)
@@ -532,8 +538,8 @@ function renderResults(data) {
     const catLabel      = t.category ? `<span class="category-badge">${t.category}</span>` : '';
     const noteText      = t.notes    ? `<span style="font-size:0.72rem;color:rgba(255,255,255,0.45);font-style:italic">${t.notes}</span>` : '';
 
-    html += `<div class="tx-card result-card dir-${dir}">
-      <div class="tx-badge-col"><span class="tx-dir ${dir}">${dir}</span></div>
+    html += `<div class="tx-card result-card dir-${dirClass}">
+      <div class="tx-badge-col"><span class="tx-dir ${dirClass}">${dirLabel}</span></div>
       <div class="tx-body">
         <div class="tx-row-1">
           <span class="tx-sym">${t.asset_symbol ?? '?'}</span>${matchBadge}
