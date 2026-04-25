@@ -512,36 +512,6 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 
 	return (
 		<div className="wallet-summary">
-			{shortenedAddress && walletData ? (
-				<div className="wallet-summary__header mb-4 text-center">
-					<h3 className="text-xl font-bold">
-						<span className="mr-2">{(walletData.label || 'Wallet').toUpperCase()}</span>
-						<span
-							className="cursor-pointer underline hover:text-blue-400 transition-colors"
-							onClick={async () => {
-								try {
-									await navigator.clipboard.writeText(walletData.address);
-									setCopied(true);
-									setTimeout(() => setCopied(false), 2000);
-								} catch {
-									const textarea = document.createElement('textarea');
-									textarea.value = walletData.address;
-									document.body.appendChild(textarea);
-									textarea.select();
-									document.execCommand('copy');
-									document.body.removeChild(textarea);
-									setCopied(true);
-									setTimeout(() => setCopied(false), 2000);
-								}
-							}}
-							title="Click to copy full address"
-						>
-							{shortenedAddress}
-						</span>
-					</h3>
-					{copied ? <div className="text-xs mt-1 opacity-80">Copied!</div> : null}
-				</div>
-			) : null}
 			{walletData ? (
 				<label className="flex items-center justify-center mb-4 text-sm">
 					<input
