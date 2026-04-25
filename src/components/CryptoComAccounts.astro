@@ -323,41 +323,33 @@ try {
 											? usdValue! - holding.costBasis
 											: null;
 									const pnlClass = pnl !== null && pnl >= 0 ? 'is-positive' : 'is-negative';
+									const daysHeld = (usdValue === null || usdValue > 1) ? formatDaysSince(holding.lastPurchaseAt) : null;
+									const isLongTerm = daysHeld !== null && daysHeld >= 365;
 									return (
 										<div class="exchange-holding">
-											<div class="exchange-holding__row exchange-holding__row--top">
-												<div class="exchange-holding__field">
-													<span class="exchange-holding__label">Days</span>
-													<span class="exchange-holding__value">
-														{usdValue === null || usdValue > 1 ? (formatDaysSince(holding.lastPurchaseAt) ?? '—') : '—'}
-													</span>
-												</div>
-												<div class="exchange-holding__field">
-													<span class="exchange-holding__label">Ticker</span>
-													<span class="exchange-holding__value exchange-holding__value--truncate">
-														{holding.symbol}
-													</span>
-												</div>
-												<div class="exchange-holding__field exchange-holding__field--numeric">
-													<span class="exchange-holding__label">USD value</span>
-													<span class="exchange-holding__value usd-value">
-														{usdValue === null ? '—' : formatCurrency(usdValue)}
-													</span>
-												</div>
+											{/* Line 1: Ticker · Coins · USD value */}
+											<div class="exchange-holding__row">
+												<span class="exchange-holding__ticker">{holding.symbol}</span>
+												<span class="exchange-holding__qty">
+													{formatNumber(holding.balance, { maximumFractionDigits: 8 })}
+												</span>
+												<span class="exchange-holding__usd usd-value">
+													{usdValue === null ? '—' : formatCurrency(usdValue)}
+												</span>
 											</div>
+											{/* Line 2: Days+LT/ST · P/L */}
 											<div class="exchange-holding__row exchange-holding__row--bottom">
-												<div class="exchange-holding__field exchange-holding__field--numeric">
-													<span class="exchange-holding__label">Coins</span>
-													<span class="exchange-holding__value">
-														{formatNumber(holding.balance, { minimumFractionDigits: 8, maximumFractionDigits: 8 })}
-													</span>
-												</div>
-												<div class="exchange-holding__field exchange-holding__field--numeric">
-													<span class="exchange-holding__label">P/L</span>
-													<span class={`exchange-holding__value ${pnl === null ? '' : pnlClass}`}>
-														{pnl === null ? '—' : formatCurrency(pnl)}
-													</span>
-												</div>
+												<span class="exchange-holding__days">
+													{daysHeld === null ? '—' : `${daysHeld}d`}
+													{daysHeld !== null && (
+														<span class={`exchange-holding__term-badge exchange-holding__term-badge--${isLongTerm ? 'lt' : 'st'}`}>
+															{isLongTerm ? 'LT' : 'ST'}
+														</span>
+													)}
+												</span>
+												<span class={`exchange-holding__pl ${pnl === null ? '' : pnlClass}`}>
+													{pnl === null ? '—' : formatCurrency(pnl)}
+												</span>
 											</div>
 											{holding.stakingYtd > 0 && (
 												<div class="exchange-holding__row exchange-holding__row--staking">

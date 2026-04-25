@@ -155,9 +155,12 @@
 }
 
 :global(.exchange-holding) {
-	padding: 0.6rem 0.5rem;
+	padding: 0.5rem 0.25rem;
 	border-bottom: 1px solid var(--border-subtle);
-	margin-bottom: 0.65rem;
+	margin-bottom: 0.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.18rem;
 }
 
 :global(.exchange-holding:last-child) {
@@ -165,20 +168,80 @@
 	border-bottom: none;
 }
 
+/* Line 1: Ticker · Amount · USD value */
 :global(.exchange-holding__row) {
-	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 0.6rem;
+	display: flex;
 	align-items: baseline;
+	gap: 0.6rem;
 	font-size: var(--font-sm);
 	font-variant-numeric: tabular-nums;
 }
 
+/* Line 2: Days+LT/ST · P/L */
 :global(.exchange-holding__row--bottom) {
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	margin-top: 0.35rem;
+	font-size: 0.78rem;
 }
 
+/* Staking/extra row keeps grid layout */
+:global(.exchange-holding__row--staking) {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.6rem;
+	margin-top: 0.3rem;
+	padding-top: 0.3rem;
+	border-top: 1px solid var(--border-subtle);
+}
+
+:global(.exchange-holding__ticker) {
+	font-weight: 700;
+	flex-shrink: 0;
+	min-width: 3.5rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+:global(.exchange-holding__qty) {
+	flex: 1;
+	color: var(--text-secondary);
+}
+
+:global(.exchange-holding__usd) {
+	margin-left: auto;
+	text-align: right;
+}
+
+:global(.exchange-holding__days) {
+	flex: 1;
+	color: var(--text-muted);
+}
+
+:global(.exchange-holding__pl) {
+	margin-left: auto;
+	text-align: right;
+	color: var(--text-muted);
+}
+
+:global(.exchange-holding__term-badge) {
+	margin-left: 0.35rem;
+	padding: 0.05rem 0.3rem;
+	border-radius: 3px;
+	font-size: 0.7em;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+}
+
+:global(.exchange-holding__term-badge--lt) {
+	background: var(--gain-bg);
+	color: var(--gain);
+}
+
+:global(.exchange-holding__term-badge--st) {
+	background: rgba(251, 191, 36, 0.15);
+	color: #fbbf24;
+}
+
+/* Legacy field/label/value — kept for staking row */
 :global(.exchange-holding__field) {
 	display: flex;
 	flex-direction: column;
@@ -201,7 +264,7 @@
 
 :global(.exchange-holding__value) {
 	display: block;
-	font-size: 0.95rem;
+	font-size: 0.85rem;
 	font-variant-numeric: tabular-nums;
 }
 
@@ -247,13 +310,5 @@
 	.exchange-holdings {
 		max-height: 16rem;
 		overflow-y: auto;
-	}
-
-	:global(.exchange-holding__row) {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-	}
-
-	:global(.exchange-holding__row--bottom) {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
