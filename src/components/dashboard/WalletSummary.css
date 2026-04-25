@@ -10,6 +10,9 @@
 	padding: var(--space-sm) var(--space-md) var(--space-md);
 	text-align: left;
 	color: var(--text-primary);
+	width: 100%;
+	box-sizing: border-box;
+	min-width: 0;
 }
 
 /* ── Total hero row ─────────────────────────────────────────────────────────── */
@@ -98,14 +101,25 @@
 
 /* ── Token rows ─────────────────────────────────────────────────────────────── */
 
-.wallet-summary__row {
-	display: flex;
-	flex-direction: column;
-	gap: 0.18rem;
-	padding: 0.45rem 0.25rem;
+.wallet-summary__row,
+.wallet-summary__row--header {
+	display: grid;
+	grid-template-columns:
+		48px
+		minmax(0, 1fr)
+		minmax(0, 1fr)
+		minmax(0, 1fr)
+		minmax(0, 1.2fr)
+		minmax(0, 1fr);
+	align-items: center;
+	column-gap: var(--space-sm);
+	padding: 14px var(--space-sm);
 	border-bottom: 1px solid var(--border-subtle);
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
 	border-radius: 4px;
-	transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+	transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .wallet-summary__row:last-child {
@@ -115,15 +129,14 @@
 .wallet-summary__row:hover {
 	background: var(--surface-hover);
 	border-color: var(--border-bright);
-	transform: translateY(-1px);
 }
 
 /* Header row */
 .wallet-summary__row--header {
 	background: var(--surface-card-2);
 	border-radius: 6px;
-	border-bottom: 1px solid var(--border-subtle);
-	padding: 0.3rem 0.25rem;
+	border-bottom: 1px solid var(--border-bright);
+	padding: 0.3rem var(--space-sm);
 }
 
 .wallet-summary__row--header .wallet-summary__cell {
@@ -137,51 +150,49 @@
 .wallet-summary__row--header:hover {
 	background: var(--surface-card-2);
 	border-color: var(--border-subtle);
-	transform: none;
-}
-
-/* ── Two-line row layout ─────────────────────────────────────────────────────── */
-
-.wallet-summary__row-line1 {
-	display: flex;
-	align-items: baseline;
-	gap: 0.6rem;
-	font-variant-numeric: tabular-nums;
-}
-
-.wallet-summary__row-line2 {
-	display: flex;
-	align-items: baseline;
-	gap: 0.6rem;
-	font-size: var(--font-sm);
-	font-variant-numeric: tabular-nums;
 }
 
 /* ── Cells ──────────────────────────────────────────────────────────────────── */
 
+.wallet-summary__cell {
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-variant-numeric: tabular-nums;
+}
+
 .wallet-summary__cell--token {
 	font-weight: 700;
-	flex-shrink: 0;
-	min-width: 3.5rem;
-}
-
-.wallet-summary__cell--qty {
-	flex: 1;
-}
-
-.wallet-summary__cell--value {
-	margin-left: auto;
-	text-align: right;
+	color: var(--text-primary);
+	text-align: left;
 }
 
 .wallet-summary__cell--days {
-	flex: 1;
 	color: var(--text-muted);
+	text-align: left;
+}
+
+.wallet-summary__cell--qty {
+	text-align: right;
+	color: var(--text-secondary);
+}
+
+.wallet-summary__cell--price {
+	text-align: right;
+	color: var(--text-secondary);
+}
+
+.wallet-summary__cell--value {
+	text-align: right;
 }
 
 .wallet-summary__cell--pl {
-	margin-left: auto;
 	text-align: right;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.3rem;
 }
 
 .wallet-summary__cell--pl-positive { color: var(--gain); }
@@ -233,7 +244,6 @@
 /* ── + basis button ─────────────────────────────────────────────────────────── */
 
 .wallet-summary__add-basis-btn {
-	margin-left: auto;
 	background: none;
 	border: none;
 	color: var(--accent-dim);
@@ -242,6 +252,7 @@
 	padding: 0 0.2rem;
 	text-decoration: underline;
 	text-underline-offset: 2px;
+	flex-shrink: 0;
 }
 
 .wallet-summary__add-basis-btn:hover {
@@ -251,6 +262,7 @@
 /* ── Basis entry form ───────────────────────────────────────────────────────── */
 
 .wallet-summary__basis-form {
+	grid-column: 1 / -1;
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.4rem;
@@ -334,9 +346,28 @@
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
-@media (max-width: 640px) {
-	.wallet-summary__row-line1,
-	.wallet-summary__row-line2 {
-		flex-wrap: wrap;
+/* ≤ 480px: hide Days and Price — 4-column layout */
+@media (max-width: 480px) {
+	.wallet-summary__row,
+	.wallet-summary__row--header {
+		grid-template-columns:
+			minmax(0, 1fr)
+			minmax(0, 1fr)
+			minmax(0, 1.2fr)
+			minmax(0, 1fr);
 	}
+	.wallet-summary__cell--days,
+	.wallet-summary__cell--price { display: none; }
+}
+
+/* ≤ 380px: also hide Qty — 3-column layout */
+@media (max-width: 380px) {
+	.wallet-summary__row,
+	.wallet-summary__row--header {
+		grid-template-columns:
+			minmax(0, 1fr)
+			minmax(0, 1.2fr)
+			minmax(0, 1fr);
+	}
+	.wallet-summary__cell--qty { display: none; }
 }

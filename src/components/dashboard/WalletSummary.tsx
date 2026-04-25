@@ -499,30 +499,28 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 									<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 									<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
 									<span className="wallet-summary__cell wallet-summary__cell--qty">Amount</span>
+									<span className="wallet-summary__cell wallet-summary__cell--price">Price</span>
 									<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
 									<span className="wallet-summary__cell wallet-summary__cell--pl">P/L</span>
 								</div>
 								{chain.tokens.map((token) => (
 									<div key={`${chain.chain}-${token.symbol}`} className="wallet-summary__row">
-										<div className="wallet-summary__row-line1">
-											<span className="wallet-summary__cell wallet-summary__cell--token">{token.symbol}</span>
-											<span className="wallet-summary__cell wallet-summary__cell--qty">{token.amountFormatted}</span>
-											<span className="wallet-summary__cell wallet-summary__cell--value">
-												{token.usdValue == null ? 'Unpriced' : currencyFormatter.format(Number(token.usdValue))}
-											</span>
-										</div>
-										<div className="wallet-summary__row-line2">
-											<span className="wallet-summary__cell wallet-summary__cell--days">
-												{(token.daysHeld ?? walletTrackedDays) != null
-													? `${token.daysHeld ?? walletTrackedDays}d`
-													: '—'}
-											</span>
-											<span className="wallet-summary__cell wallet-summary__cell--pl">
-												{token.profitLoss === 'N/A' || token.profitLoss?.percent === undefined
-													? '—'
-													: `${token.profitLoss.percent.toFixed(1)}%`}
-											</span>
-										</div>
+										<span className="wallet-summary__cell wallet-summary__cell--days">
+											{(token.daysHeld ?? walletTrackedDays) != null
+												? `${token.daysHeld ?? walletTrackedDays}d`
+												: '—'}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--token">{token.symbol}</span>
+										<span className="wallet-summary__cell wallet-summary__cell--qty">{token.amountFormatted}</span>
+										<span className="wallet-summary__cell wallet-summary__cell--price">—</span>
+										<span className="wallet-summary__cell wallet-summary__cell--value">
+											{token.usdValue == null ? 'Unpriced' : currencyFormatter.format(Number(token.usdValue))}
+										</span>
+										<span className="wallet-summary__cell wallet-summary__cell--pl">
+											{token.profitLoss === 'N/A' || token.profitLoss?.percent === undefined
+												? '—'
+												: `${token.profitLoss.percent.toFixed(1)}%`}
+										</span>
 									</div>
 								))}
 							</div>
@@ -673,36 +671,33 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											: undefined;
 										return (
 											<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
-												{/* Line 1: Symbol · Amount · Value */}
-												<div className="wallet-summary__row-line1">
-													<span className="wallet-summary__cell wallet-summary__cell--token">
-														{token.tokenSymbol}
-													</span>
-													<span className="wallet-summary__cell wallet-summary__cell--qty">
-														{Number(token.amount ?? 0).toLocaleString(undefined, {
-															maximumFractionDigits: 6,
-														})}
-													</span>
-													<span className="wallet-summary__cell wallet-summary__cell--value">
-														{valueNode}
-													</span>
-												</div>
-												{/* Line 2: Days held · P/L */}
-												<div className="wallet-summary__row-line2">
-													<span className="wallet-summary__cell wallet-summary__cell--days">
-														{daysHeld === null ? '—' : `${daysHeld}d`}
-														{daysHeld !== null && (
-															<span className={isLongTerm ? 'wallet-summary__lt-badge' : 'wallet-summary__st-badge'}>
-																{isLongTerm ? 'LT' : 'ST'}
-															</span>
-														)}
-													</span>
-													<span
-														className={`wallet-summary__cell wallet-summary__cell--pl ${plClass}`}
-														title={plTooltip}
-													>
-														{plLabel}
-													</span>
+												<span className="wallet-summary__cell wallet-summary__cell--days">
+													{daysHeld === null ? '—' : `${daysHeld}d`}
+													{daysHeld !== null && (
+														<span className={isLongTerm ? 'wallet-summary__lt-badge' : 'wallet-summary__st-badge'}>
+															{isLongTerm ? 'LT' : 'ST'}
+														</span>
+													)}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--token">
+													{token.tokenSymbol}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--qty">
+													{Number(token.amount ?? 0).toLocaleString(undefined, {
+														maximumFractionDigits: 6,
+													})}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--price">
+													{currentPrice != null ? currencyFormatter.format(currentPrice) : '—'}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--value">
+													{valueNode}
+												</span>
+												<span
+													className={`wallet-summary__cell wallet-summary__cell--pl ${plClass}`}
+													title={plTooltip}
+												>
+													{plLabel}
 													{basisPrice === null && (
 														<button
 															onClick={() => setBasisEdit(
@@ -714,7 +709,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 															title="Enter your purchase date and/or price paid"
 														>+ basis</button>
 													)}
-												</div>
+												</span>
 												{basisEdit?.symbol === token.tokenSymbol && basisEdit?.chain === token.chain && (
 													<BasisForm walletId={walletId} symbol={token.tokenSymbol} chain={token.chain}
 														onClose={() => setBasisEdit(null)} />
@@ -851,36 +846,33 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											: undefined;
 										return (
 											<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
-												{/* Line 1: Symbol · Amount · Value */}
-												<div className="wallet-summary__row-line1">
-													<span className="wallet-summary__cell wallet-summary__cell--token">
-														{token.tokenSymbol}
-													</span>
-													<span className="wallet-summary__cell wallet-summary__cell--qty">
-														{Number(token.amount ?? 0).toLocaleString(undefined, {
-															maximumFractionDigits: 6,
-														})}
-													</span>
-													<span className="wallet-summary__cell wallet-summary__cell--value">
-														{valueNode}
-													</span>
-												</div>
-												{/* Line 2: Days held · P/L */}
-												<div className="wallet-summary__row-line2">
-													<span className="wallet-summary__cell wallet-summary__cell--days">
-														{daysHeld === null ? '—' : `${daysHeld}d`}
-														{daysHeld !== null && (
-															<span className={isLongTerm ? 'wallet-summary__lt-badge' : 'wallet-summary__st-badge'}>
-																{isLongTerm ? 'LT' : 'ST'}
-															</span>
-														)}
-													</span>
-													<span
-														className={`wallet-summary__cell wallet-summary__cell--pl ${plClass}`}
-														title={plTooltip}
-													>
-														{plLabel}
-													</span>
+												<span className="wallet-summary__cell wallet-summary__cell--days">
+													{daysHeld === null ? '—' : `${daysHeld}d`}
+													{daysHeld !== null && (
+														<span className={isLongTerm ? 'wallet-summary__lt-badge' : 'wallet-summary__st-badge'}>
+															{isLongTerm ? 'LT' : 'ST'}
+														</span>
+													)}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--token">
+													{token.tokenSymbol}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--qty">
+													{Number(token.amount ?? 0).toLocaleString(undefined, {
+														maximumFractionDigits: 6,
+													})}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--price">
+													{currentPrice != null ? currencyFormatter.format(currentPrice) : '—'}
+												</span>
+												<span className="wallet-summary__cell wallet-summary__cell--value">
+													{valueNode}
+												</span>
+												<span
+													className={`wallet-summary__cell wallet-summary__cell--pl ${plClass}`}
+													title={plTooltip}
+												>
+													{plLabel}
 													{basisPrice === null && (
 														<button
 															onClick={() => setBasisEdit(
@@ -892,7 +884,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 															title="Enter your purchase date and/or price paid"
 														>+ basis</button>
 													)}
-												</div>
+												</span>
 												{basisEdit?.symbol === token.tokenSymbol && basisEdit?.chain === token.chain && (
 													<BasisForm walletId={walletId} symbol={token.tokenSymbol} chain={token.chain}
 														onClose={() => setBasisEdit(null)} />
