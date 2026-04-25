@@ -870,3 +870,352 @@
   opacity: 0.7;
   font-family: monospace;
 }
+
+/* ── Inline utility classes (replaces repeated inline styles) ────────────── */
+
+/* Transaction note / annotation text */
+.tx-note-text {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Annotation wrapper row */
+.tx-annotation-row {
+  margin-top: 0.3rem;
+}
+
+/* Small status / hint label used inside action forms */
+.form-status {
+  font-size: 0.78rem;
+  opacity: 0.55;
+  margin-left: 0.4rem;
+}
+
+/* Secondary hint label ("Forwarded to…", etc.) */
+.form-hint {
+  font-size: 0.78rem;
+  opacity: 0.55;
+}
+
+/* Forwarded-to hint with bottom spacing */
+.form-hint-mb {
+  font-size: 0.78rem;
+  opacity: 0.55;
+  margin-bottom: 0.35rem;
+}
+
+/* Legacy exchange de-emphasised button (documented exception — slate tone) */
+.nap-btn-legacy-style {
+  border-color: rgba(156,163,175,0.3);
+  background:   rgba(156,163,175,0.06);
+  color:        rgba(156,163,175,0.8);
+}
+
+/* ── Help panel ───────────────────────────────────────────────────────────── */
+.btn-help {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.btn-help:hover { border-color: var(--border-bright); color: var(--text-secondary); }
+
+.help-panel {
+  margin-top: 0.65rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-bright);
+  border-radius: 9px;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.help-panel-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+.help-kind-line {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+.help-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.help-quick-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+.help-quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.help-quick {
+  background: var(--surface-hover);
+  border: 1px solid var(--border-bright);
+  border-radius: 7px;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  padding: 0.3rem 0.65rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.help-quick:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-glow); }
+.help-note-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+.help-note-input {
+  flex: 1;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.65rem;
+  outline: none;
+}
+.help-note-input:focus { border-color: var(--border-bright); }
+
+/* ── Dataset Health Check ────────────────────────────────────────────────── */
+.health-section {
+  padding: clamp(1rem, 3vw, 2.5rem);
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--border-subtle);
+}
+.health-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.health-header h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+.health-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.health-last-run {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+.health-empty {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  padding: 0.75rem 0;
+}
+.health-card {
+  background: var(--surface-card);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  border-left: 3px solid transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.health-card-ok   { border-color: var(--gain);        background: var(--gain-bg);  }
+.health-card-warn { border-color: var(--loss);         background: var(--loss-bg);  }
+.health-card-info { border-color: var(--accent-glow);  background: var(--accent-soft); }
+.health-card-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.health-card-ok   .health-card-title { color: var(--gain);    }
+.health-card-warn .health-card-title { color: var(--loss);    }
+.health-card-info .health-card-title { color: var(--accent);  }
+.health-card-body {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.health-card-detail {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.health-card-footnote {
+  font-size: 0.65rem;
+  opacity: 0.65;
+}
+.health-unresolved-block {
+  grid-column: 1 / -1;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  margin-top: 0.25rem;
+}
+.health-unresolved-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.55rem;
+}
+.health-tx-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+  flex-wrap: wrap;
+}
+.health-tx-row:last-child { border-bottom: none; }
+.health-tx-sym  { font-weight: 600; color: var(--text-primary); min-width: 3rem; }
+.health-tx-amt  { font-variant-numeric: tabular-nums; color: var(--text-secondary); min-width: 5rem; }
+.health-tx-usd  { color: var(--text-muted); font-size: 0.72rem; }
+.health-tx-src  { color: var(--text-muted); font-size: 0.72rem; }
+.health-tx-dt   { color: var(--text-muted); font-size: 0.72rem; margin-left: auto; }
+
+/* ── Intake questionnaire ────────────────────────────────────────────────── */
+.intake-section {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.25rem 1.4rem;
+  margin-top: 1rem;
+}
+.intake-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
+  margin-bottom: 1.1rem;
+}
+.intake-header h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+.intake-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.intake-saved-badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 99px;
+  background: var(--gain-bg);
+  color: var(--gain);
+  border: 1px solid var(--gain-border);
+  font-weight: 600;
+}
+.intake-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+.intake-q {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.intake-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.intake-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.intake-opt {
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.intake-opt:hover { border-color: var(--border-bright); color: var(--text-secondary); }
+.intake-opt.intake-opt-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-glow);
+  color: var(--accent);
+  font-weight: 600;
+}
+.intake-text {
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  padding: 0.4rem 0.75rem;
+  outline: none;
+  max-width: 28rem;
+  transition: border-color 0.12s;
+}
+.intake-text:focus { border-color: var(--border-bright); }
+.intake-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+}
+.intake-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.intake-check input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+.intake-textarea {
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  padding: 0.55rem 0.75rem;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+  max-width: 100%;
+  transition: border-color 0.12s;
+}
+.intake-textarea:focus { border-color: var(--border-bright); }
+.intake-save-row {
+  display: flex;
+  align-items: center;
+  padding-top: 0.25rem;
+}

@@ -146,6 +146,96 @@ const tenantWallets = walletResult.rows.map(r => ({
       </div>
 
     </div>
+
+    <!-- ── Dataset Health Check ──────────────────────────────────────────── -->
+    <div class="health-section" id="health-section">
+      <div class="health-header">
+        <h2>Dataset Health Check</h2>
+        <div class="health-header-right">
+          <span id="health-last-run" class="health-last-run"></span>
+          <button id="btn-run-health" class="btn-secondary" type="button">Run diagnostics</button>
+        </div>
+      </div>
+
+      <div id="health-grid" class="health-grid"></div>
+
+      <div class="intake-section">
+        <div class="intake-header">
+          <h3>Dataset Questionnaire</h3>
+          <p class="intake-subtitle">Your answers help us interpret unresolved transactions.</p>
+          <span id="intake-saved-badge" class="intake-saved-badge" style="display:none">Saved</span>
+        </div>
+        <div class="intake-form" id="intake-form">
+
+          <div class="intake-q">
+            <label class="intake-label">Do you have transaction records from before 2019?</label>
+            <div class="intake-opts" data-key="pre2019_records">
+              <button class="intake-opt" data-value="yes">Yes, complete records</button>
+              <button class="intake-opt" data-value="partial">Some records</button>
+              <button class="intake-opt" data-value="no">No / don't know</button>
+            </div>
+          </div>
+
+          <div class="intake-q">
+            <label class="intake-label">Did you hold non-EVM assets — Bitcoin, Solana, XRP, Litecoin, Cardano, etc.?</label>
+            <div class="intake-opts" data-key="non_evm">
+              <button class="intake-opt" data-value="yes">Yes</button>
+              <button class="intake-opt" data-value="no">No</button>
+            </div>
+            <input class="intake-text" data-key="non_evm_detail" type="text" placeholder="Which ones? (optional)" />
+          </div>
+
+          <div class="intake-q">
+            <label class="intake-label">Were you affected by any failed exchanges (FTX, Celsius, BlockFi, Voyager, etc.)?</label>
+            <div class="intake-opts" data-key="failed_exchanges">
+              <button class="intake-opt" data-value="yes">Yes</button>
+              <button class="intake-opt" data-value="no">No</button>
+            </div>
+            <input class="intake-text" data-key="failed_exchanges_detail" type="text" placeholder="Which ones? What happened to your funds?" />
+          </div>
+
+          <div class="intake-q">
+            <label class="intake-label">Did you make peer-to-peer transfers directly to phone numbers (Crypto.com P2P, etc.)?</label>
+            <div class="intake-opts" data-key="p2p_transfers">
+              <button class="intake-opt" data-value="yes">Yes</button>
+              <button class="intake-opt" data-value="no">No</button>
+            </div>
+          </div>
+
+          <div class="intake-q">
+            <label class="intake-label">Are there exchanges or wallets you can no longer access records from?</label>
+            <div class="intake-opts" data-key="lost_access">
+              <button class="intake-opt" data-value="yes">Yes</button>
+              <button class="intake-opt" data-value="no">No</button>
+            </div>
+            <input class="intake-text" data-key="lost_access_detail" type="text" placeholder="Which ones? Approximate years and amounts if known." />
+          </div>
+
+          <div class="intake-q">
+            <label class="intake-label">Did you receive crypto from any of these sources?</label>
+            <div class="intake-checks">
+              <label class="intake-check"><input type="checkbox" data-key="income_staking" /> Staking rewards</label>
+              <label class="intake-check"><input type="checkbox" data-key="income_mining" /> Mining</label>
+              <label class="intake-check"><input type="checkbox" data-key="income_airdrops" /> Airdrops</label>
+              <label class="intake-check"><input type="checkbox" data-key="income_salary" /> Crypto salary / freelance</label>
+              <label class="intake-check"><input type="checkbox" data-key="income_defi" /> DeFi yields / LP rewards</label>
+            </div>
+          </div>
+
+          <div class="intake-q">
+            <label class="intake-label">Any other context that might help explain unresolved transactions?</label>
+            <textarea class="intake-textarea" data-key="context" rows="3"
+              placeholder="e.g. 'Sent AVAX to my Ledger around March 2022', 'Got 100 LUNA before the crash', etc."></textarea>
+          </div>
+
+          <div class="intake-save-row">
+            <button id="btn-save-intake" class="btn-primary" type="button">Save answers</button>
+            <span id="intake-status" class="form-status"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </section>
 
   {isAdmin && (
@@ -273,7 +363,7 @@ function renderNeedsAttention(data) {
         : dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
       const src     = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
       const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
-      const noteText = t.notes   ? `<span style="font-size:0.72rem;color:rgba(255,255,255,0.45);font-style:italic">${t.notes}</span>` : '';
+      const noteText = t.notes   ? `<span class="tx-note-text">${t.notes}</span>` : '';
       const hasAnnotation = !!(t.category || t.notes);
       html += `<div class="tx-card na-item dir-${dirClass}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}" data-src="${src}">
         <div class="tx-badge-col"><span class="tx-dir ${dirClass}">${dirLabel}</span></div>
@@ -290,7 +380,7 @@ function renderNeedsAttention(data) {
             <span class="tx-hint">${hint}</span>
             <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
           </div>
-          ${hasAnnotation ? `<div style="margin-top:0.3rem">${catLabel}${noteText}</div>` : ''}
+          ${hasAnnotation ? `<div class="tx-annotation-row">${catLabel}${noteText}</div>` : ''}
           <div class="card-actions">
             ${dir === 'out' ? `
             <button class="btn-dispose${hasAnnotation ? ' has-note' : ''}"
@@ -319,8 +409,14 @@ function renderNeedsAttention(data) {
                     onclick="markLegacy(event, '${t.id}')">
               🏚 Legacy exchange
             </button>` : ''}`}
+            <button class="btn-help"
+                    data-tx-id="${t.id}"
+                    onclick="openHelpPanel(event,'${t.id}','${(t.kind??'').replace(/'/g,'')}','${dir}','${t.asset_symbol}','${(t.description??'').replace(/'/g,'').replace(/"/g,'').slice(0,80)}','${(srcName(t.source)??'').replace(/'/g,'')}')">
+              ? Help
+            </button>
           </div>
           <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
+          <div class="help-panel" id="hp-${t.id}" style="display:none"></div>
         </div>
       </div>`;
     }
@@ -562,7 +658,7 @@ function renderResults(data) {
     const srcLine      = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
     const hasAnnotation = !!(t.category || t.notes);
     const catLabel      = t.category ? `<span class="category-badge">${t.category}</span>` : '';
-    const noteText      = t.notes    ? `<span style="font-size:0.72rem;color:rgba(255,255,255,0.45);font-style:italic">${t.notes}</span>` : '';
+    const noteText      = t.notes    ? `<span class="tx-note-text">${t.notes}</span>` : '';
 
     html += `<div class="tx-card result-card dir-${dirClass}">
       <div class="tx-badge-col"><span class="tx-dir ${dirClass}">${dirLabel}</span></div>
@@ -805,7 +901,7 @@ function renderNaActionPanel({ txId, sym, dir, src, cat, note, amt }) {
     ` : `
     <div class="nap-actions">
       <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">📝 Annotate</button>
-      <button class="nap-btn-forward" onclick="markLegacy(event,'${txId}')" style="border-color:rgba(156,163,175,0.3);background:rgba(156,163,175,0.06);color:rgba(156,163,175,0.8)">🏚 Legacy exchange</button>
+      <button class="nap-btn-forward nap-btn-legacy-style" onclick="markLegacy(event,'${txId}')">🏚 Legacy exchange</button>
     </div>
     <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
     `}`;
@@ -829,7 +925,7 @@ function napShowDispose(txId) {
     <div class="nap-form-row">
       <button class="btn-annotate-save" onclick="napSaveDispose('${txId}')">Save</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('nap-form-${txId}').style.display='none'">✕</button>
-      <span id="nap-status-${txId}" style="font-size:0.78rem;opacity:0.55;margin-left:0.4rem"></span>
+      <span id="nap-status-${txId}" class="form-status"></span>
     </div>`;
 }
 
@@ -839,7 +935,7 @@ function napShowForward(txId) {
   if (!form) return;
   form.style.display = 'flex';
   form.innerHTML = `
-    <div style="font-size:0.78rem;opacity:0.55">Forwarded to…</div>
+    <div class="form-hint">Forwarded to…</div>
     ${panel._walletOpts ? `<select id="nap-fwallet-${txId}">
       <option value="">— pick a tracked wallet —</option>
       ${panel._walletOpts}
@@ -849,7 +945,7 @@ function napShowForward(txId) {
     <div class="nap-form-row">
       <button class="btn-annotate-save" onclick="napSaveForward('${txId}')">Save</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('nap-form-${txId}').style.display='none'">✕</button>
-      <span id="nap-status-${txId}" style="font-size:0.78rem;opacity:0.55;margin-left:0.4rem"></span>
+      <span id="nap-status-${txId}" class="form-status"></span>
     </div>`;
 }
 
@@ -939,7 +1035,7 @@ function openForwardForm(e, btn) {
 
   formEl.innerHTML = `
     <div class="af-source-label">From: ${srcTin}</div>
-    <div style="font-size:0.78rem;opacity:0.55;margin-bottom:0.35rem">Forwarded to…</div>
+    <div class="form-hint-mb">Forwarded to…</div>
     ${walletOptions ? `<select id="af-twallet-${txId}">
       <option value="">— pick a tracked wallet —</option>
       ${walletOptions}
@@ -949,7 +1045,7 @@ function openForwardForm(e, btn) {
     <div class="annotate-form-row">
       <button class="btn-annotate-save" onclick="saveTransfer(event,'${txId}')">Save</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
-      <span id="af-tstatus-${txId}" style="font-size:0.78rem;opacity:0.55;margin-left:0.4rem"></span>
+      <span id="af-tstatus-${txId}" class="form-status"></span>
     </div>`;
   formEl.style.display = 'flex';
 }
@@ -1023,6 +1119,365 @@ async function saveResultAnnotation(e, txId) {
   }
 }
 
+// ── Help panel ────────────────────────────────────────────────────────────────
+const KIND_EXPLANATIONS = {
+  'crypto_transfer':     'A direct crypto transfer — sent to another wallet or exchange address.',
+  'Withdrawal':          'A withdrawal from this exchange to an external address.',
+  'withdrawal':          'A withdrawal from this exchange to an external address.',
+  'Exchange Withdrawal': 'A withdrawal processed by the exchange to an external address.',
+  'Pro Withdrawal':      'A withdrawal from the Pro trading account to an external address.',
+  'Deposit':             'Funds arriving at this exchange, sent from an external wallet or another exchange.',
+  'deposit':             'Funds arriving at this exchange, sent from an external wallet or another exchange.',
+  'crypto_deposit':      'A crypto deposit arriving at this exchange from an external source.',
+  'Receive':             'Crypto received — could be from another wallet you own, a purchase, or an income event.',
+  'receive':             'Crypto received — could be from another wallet you own, a purchase, or an income event.',
+};
+
+function openHelpPanel(e, txId, kind, dir, sym, desc, src) {
+  e.stopPropagation();
+  const el = document.getElementById('hp-' + txId);
+  if (!el) return;
+
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+
+  const explanation = KIND_EXPLANATIONS[kind] || (kind
+    ? `Transaction type: "${kind}"`
+    : `No transaction type recorded.`);
+
+  const quickBtns = dir === 'out' ? `
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Sent to my own wallet')">↗ My own wallet</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','sell','')">💱 Sale or trade</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','')">📤 Other</button>
+  ` : `
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Received from my own wallet')">↙ My own wallet</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','Income or purchase')">💰 Income / purchase</button>
+  `;
+
+  el.innerHTML = `
+    <div class="help-panel-title">Help me understand this</div>
+    <div class="help-kind-line">${explanation}</div>
+    ${desc ? `<div class="help-desc">"${desc}"</div>` : ''}
+    <div class="help-quick-label">What does this represent?</div>
+    <div class="help-quick-row">${quickBtns}</div>
+    <div class="help-note-row">
+      <input id="hp-note-${txId}" type="text" class="help-note-input" placeholder="Add any context or explanation…" />
+      <button class="btn-annotate-save" onclick="helpSaveNote(event,'${txId}')">Save note</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('hp-${txId}').style.display='none'">✕</button>
+    </div>`;
+  el.style.display = 'flex';
+}
+
+async function helpQuickSave(e, txId, cat, note) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, ...(note ? { note } : {}) }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    btn.disabled = false;
+    btn.textContent = '⚠ Failed';
+  }
+}
+
+async function helpSaveNote(e, txId) {
+  e.stopPropagation();
+  const noteEl = document.getElementById('hp-note-' + txId);
+  const note   = noteEl?.value.trim() ?? '';
+  if (!note) return;
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await loadNeedsAttention();
+  } catch {
+    btn.disabled = false;
+    btn.textContent = '⚠ Failed';
+  }
+}
+
+// ── Dataset Health Check ──────────────────────────────────────────────────────
+async function loadHealthCheck() {
+  try {
+    const res  = await fetch('/api/research/diagnostics');
+    const data = await res.json();
+    if (data.ok) renderHealthCheck(data);
+  } catch {}
+}
+
+function renderHealthCheck(d) {
+  const grid = $('health-grid');
+  if (!grid) return;
+
+  const fmtV = n => n >= 1000 ? '$' + (n/1000).toFixed(0) + 'k' : '$' + n;
+
+  const cards = [];
+
+  // Import coverage
+  const sources = d.coverage ?? [];
+  if (sources.length) {
+    const years = sources.map(r => {
+      const e = String(r.earliest ?? '').slice(0, 4);
+      const l = String(r.latest   ?? '').slice(0, 4);
+      return `${r.source}: ${e}–${l}`;
+    });
+    cards.push({
+      title:   'Import Coverage',
+      body:    `${sources.length} source${sources.length !== 1 ? 's' : ''}`,
+      detail:  years.slice(0, 4).join('<br>') + (years.length > 4 ? '<br>+more' : ''),
+      status:  'ok',
+    });
+  }
+
+  // Pre-2019 gaps
+  const pre = d.pre2019 ?? {};
+  if (Number(pre.total) > 0) {
+    const noHash = Number(pre.no_hash ?? 0);
+    cards.push({
+      title:  'Pre-2019 Records',
+      body:   `${pre.total} transactions`,
+      detail: `${noHash} without tx hash · ${fmtV(Number(pre.value_usd ?? 0))} exposed`,
+      status: noHash > 0 ? 'warn' : 'ok',
+    });
+  }
+
+  // Non-EVM
+  const nonEvm = (d.nonEvm ?? []).filter(r => Number(r.cnt) > 0);
+  if (nonEvm.length) {
+    const total = nonEvm.reduce((s, r) => s + Number(r.value_usd ?? 0), 0);
+    const top   = nonEvm.slice(0, 3).map(r => `${r.asset_symbol} (${r.cnt})`).join(', ');
+    cards.push({
+      title:  'Non-EVM Unresolved',
+      body:   `${nonEvm.length} asset${nonEvm.length !== 1 ? 's' : ''}`,
+      detail: `${top}${nonEvm.length > 3 ? ', +more' : ''}<br>${fmtV(total)} total`,
+      status: total > 5000 ? 'warn' : 'info',
+    });
+  }
+
+  // P2P
+  if (Number(d.p2p?.cnt) > 0) {
+    cards.push({
+      title:  'P2P Phone Transfers',
+      body:   `${d.p2p.cnt} transactions`,
+      detail: `${fmtV(Number(d.p2p.value_usd ?? 0))} · Need manual categorization`,
+      status: 'info',
+    });
+  }
+
+  // Price gaps
+  const gaps = (d.priceGaps ?? []).filter(r => Number(r.cnt) > 0);
+  if (gaps.length) {
+    const total = gaps.reduce((s, r) => s + Number(r.cnt ?? 0), 0);
+    cards.push({
+      title:  'Missing Prices',
+      body:   `${total} transactions`,
+      detail: gaps.map(r => `${r.source}: ${r.cnt}`).slice(0, 4).join('<br>'),
+      status: 'warn',
+    });
+  }
+
+  // Orphaned INs
+  const orphans = (d.orphanedIns ?? []).filter(r => Number(r.value_usd) >= 500);
+  if (orphans.length) {
+    const total = orphans.reduce((s, r) => s + Number(r.value_usd ?? 0), 0);
+    cards.push({
+      title:  'Unexplained Receipts',
+      body:   `${orphans.length} asset${orphans.length !== 1 ? 's' : ''} · ${fmtV(total)}`,
+      detail: orphans.slice(0, 4).map(r => `${r.asset_symbol} ${fmtV(Number(r.value_usd))}`).join('<br>'),
+      status: 'warn',
+    });
+  }
+
+  // Failed exchanges
+  if (d.failedExchanges?.length) {
+    cards.push({
+      title:  'Failed Exchange Data',
+      body:   d.failedExchanges.map(ex => ex.name).join(', '),
+      detail: 'Records imported from failed platforms — verify loss claims and write-offs',
+      status: 'warn',
+    });
+  }
+
+  // Suspicious implied prices
+  const suspPrices = (d.suspiciousPrices ?? []);
+  if (suspPrices.length) {
+    const sample = suspPrices.slice(0, 3).map(r => {
+      const implied = Number(r.implied_price ?? 0);
+      const max     = Number(r.max_price ?? 0);
+      const ratio   = max > 0 ? Math.round(max / implied) : 0;
+      return `${r.asset_symbol} · ${fmtUsd(r.native_usd)} (${ratio > 0 ? ratio + '× below max' : 'suspect'})`;
+    }).join('<br>');
+    cards.push({
+      title:  'Suspect Price Data',
+      body:   `${suspPrices.length} transaction${suspPrices.length !== 1 ? 's' : ''}`,
+      detail: sample + '<br><span class="health-card-footnote">Cost basis may be understated</span>',
+      status: 'warn',
+    });
+  }
+
+  // Fiat noise
+  if (Number(d.fiatNoise) > 0) {
+    cards.push({
+      title:  'Fiat as Asset',
+      body:   `${d.fiatNoise} transactions`,
+      detail: 'USD/EUR recorded as asset_symbol — likely noise from stablecoins or CSV quirks',
+      status: 'info',
+    });
+  }
+
+  if (!cards.length) {
+    grid.innerHTML = '<div class="health-empty">No issues found — dataset looks clean.</div>';
+    return;
+  }
+
+  grid.innerHTML = cards.map(c => `
+    <div class="health-card health-card-${c.status}">
+      <div class="health-card-title">${c.title}</div>
+      <div class="health-card-body">${c.body}</div>
+      <div class="health-card-detail">${c.detail}</div>
+    </div>
+  `).join('');
+
+  // Top unresolved
+  const top = d.topUnresolved ?? [];
+  if (top.length) {
+    const topHtml = top.map(t => {
+      const dir = (t.direction ?? '').toLowerCase();
+      const amt = dir === 'out' ? `−${fmt(Math.abs(Number(t.amount)))}` : `+${fmt(Number(t.amount))}`;
+      return `<div class="health-tx-row">
+        <span class="tx-dir ${dir}">${dir}</span>
+        <span class="health-tx-sym">${t.asset_symbol}</span>
+        <span class="health-tx-amt">${amt}</span>
+        <span class="health-tx-usd">${t.native_usd ? fmtUsd(t.native_usd) : ''}</span>
+        <span class="health-tx-src">${srcName(t.source)}</span>
+        <span class="health-tx-dt">${fmtDate(t.timestamp_utc)}</span>
+      </div>`;
+    }).join('');
+    grid.insertAdjacentHTML('beforeend', `
+      <div class="health-unresolved-block">
+        <div class="health-unresolved-title">Top unresolved by dollar value</div>
+        ${topHtml}
+      </div>
+    `);
+  }
+}
+
+// ── Intake questionnaire ──────────────────────────────────────────────────────
+async function loadIntake() {
+  try {
+    const res  = await fetch('/api/research/intake');
+    const data = await res.json();
+    applyIntakeAnswers(data.answers ?? {});
+  } catch {}
+}
+
+function applyIntakeAnswers(answers) {
+  // Toggle buttons
+  document.querySelectorAll('.intake-opts').forEach(group => {
+    const key = group.getAttribute('data-key');
+    const val = answers[key];
+    group.querySelectorAll('.intake-opt').forEach(btn => {
+      btn.classList.toggle('intake-opt-active', btn.getAttribute('data-value') === val);
+    });
+  });
+  // Text inputs
+  document.querySelectorAll('input.intake-text[data-key]').forEach(inp => {
+    const val = answers[inp.getAttribute('data-key')];
+    if (val != null) inp.value = String(val);
+  });
+  // Checkboxes
+  document.querySelectorAll('input[type="checkbox"][data-key]').forEach(cb => {
+    cb.checked = !!answers[cb.getAttribute('data-key')];
+  });
+  // Textarea
+  document.querySelectorAll('textarea.intake-textarea[data-key]').forEach(ta => {
+    const val = answers[ta.getAttribute('data-key')];
+    if (val != null) ta.value = String(val);
+  });
+}
+
+function collectIntakeAnswers() {
+  const answers = {};
+  // Toggle buttons — last active wins
+  document.querySelectorAll('.intake-opts').forEach(group => {
+    const key = group.getAttribute('data-key');
+    const active = group.querySelector('.intake-opt-active');
+    if (active) answers[key] = active.getAttribute('data-value');
+  });
+  // Text inputs
+  document.querySelectorAll('input.intake-text[data-key]').forEach(inp => {
+    const val = inp.value.trim();
+    if (val) answers[inp.getAttribute('data-key')] = val;
+  });
+  // Checkboxes
+  document.querySelectorAll('input[type="checkbox"][data-key]').forEach(cb => {
+    if (cb.checked) answers[cb.getAttribute('data-key')] = true;
+  });
+  // Textarea
+  document.querySelectorAll('textarea.intake-textarea[data-key]').forEach(ta => {
+    const val = ta.value.trim();
+    if (val) answers[ta.getAttribute('data-key')] = val;
+  });
+  return answers;
+}
+
+// Wire intake option buttons
+document.querySelectorAll('.intake-opts').forEach(group => {
+  group.querySelectorAll('.intake-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      group.querySelectorAll('.intake-opt').forEach(b => b.classList.remove('intake-opt-active'));
+      btn.classList.add('intake-opt-active');
+    });
+  });
+});
+
+$('btn-save-intake')?.addEventListener('click', async () => {
+  const btn    = $('btn-save-intake');
+  const status = $('intake-status');
+  const badge  = $('intake-saved-badge');
+  btn.disabled = true;
+  if (status) status.textContent = 'Saving…';
+  try {
+    const answers = collectIntakeAnswers();
+    const res = await fetch('/api/research/intake', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(answers),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    if (status) status.textContent = '';
+    if (badge) { badge.style.display = 'inline-block'; setTimeout(() => { badge.style.display = 'none'; }, 2500); }
+  } catch (e) {
+    if (status) status.textContent = '⚠ ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('btn-run-health')?.addEventListener('click', async () => {
+  const btn = $('btn-run-health');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  const grid = $('health-grid');
+  if (grid) grid.innerHTML = '<div class="health-empty">Running diagnostics…</div>';
+  await loadHealthCheck();
+  const now = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const lr = $('health-last-run');
+  if (lr) lr.textContent = `Last run: ${now}`;
+  btn.textContent = 'Run diagnostics';
+  btn.disabled = false;
+});
+
 // Expose to window so inline onclick="" attributes can find them
 window.openAnnotateForm       = openAnnotateForm;
 window.saveAnnotation         = saveAnnotation;
@@ -1037,6 +1492,9 @@ window.napSaveDispose         = napSaveDispose;
 window.napSaveForward         = napSaveForward;
 window.openResultAnnotateForm = openResultAnnotateForm;
 window.saveResultAnnotation   = saveResultAnnotation;
+window.openHelpPanel          = openHelpPanel;
+window.helpQuickSave          = helpQuickSave;
+window.helpSaveNote           = helpSaveNote;
 
 // ── Address lookup ────────────────────────────────────────────────────────────
 const ADDRESS_RE = /^(0x[0-9a-fA-F]{40,}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,}|ltc1[a-z0-9]{25,})$/i;
@@ -1264,6 +1722,8 @@ walletPicker.querySelectorAll('.wallet-picker-item').forEach(item => {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadNeedsAttention();
+loadIntake();
+loadHealthCheck();
 </script>
 
 {isAdmin && (
