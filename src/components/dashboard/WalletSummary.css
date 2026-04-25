@@ -101,19 +101,16 @@
 
 /* ── Token rows ─────────────────────────────────────────────────────────────── */
 
-.wallet-summary__row,
-.wallet-summary__row--header {
+.wallet-summary__row {
 	display: grid;
-	grid-template-columns:
-		48px
-		minmax(0, 1fr)
-		minmax(0, 1fr)
-		minmax(0, 1fr)
-		minmax(0, 1.2fr)
-		minmax(0, 1fr);
+	grid-template-columns: 3rem 1fr 1fr auto;
+	grid-template-areas:
+		"days token token value"
+		"days qty   price pl";
+	column-gap: 0.75rem;
+	row-gap: 0.125rem;
 	align-items: center;
-	column-gap: var(--space-sm);
-	padding: 14px var(--space-sm);
+	padding: 0.625rem 0.75rem;
 	border-bottom: 1px solid var(--border-subtle);
 	min-width: 0;
 	width: 100%;
@@ -133,10 +130,17 @@
 
 /* Header row */
 .wallet-summary__row--header {
+	display: grid;
+	grid-template-columns: 3rem 1fr auto;
+	grid-template-areas: "days token value";
+	column-gap: 0.75rem;
+	padding: 0.3rem 0.75rem;
 	background: var(--surface-card-2);
 	border-radius: 6px;
 	border-bottom: 1px solid var(--border-bright);
-	padding: 0.3rem var(--space-sm);
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .wallet-summary__row--header .wallet-summary__cell {
@@ -145,6 +149,12 @@
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
 	color: var(--text-muted);
+}
+
+.wallet-summary__row--header .wallet-summary__cell--qty,
+.wallet-summary__row--header .wallet-summary__cell--price,
+.wallet-summary__row--header .wallet-summary__cell--pl {
+	display: none;
 }
 
 .wallet-summary__row--header:hover {
@@ -162,37 +172,50 @@
 	font-variant-numeric: tabular-nums;
 }
 
+.wallet-summary__cell--days {
+	grid-area: days;
+	color: var(--text-muted);
+	font-size: 0.75rem;
+	align-self: center;
+	text-align: left;
+}
+
 .wallet-summary__cell--token {
+	grid-area: token;
 	font-weight: 700;
 	color: var(--text-primary);
 	text-align: left;
 }
 
-.wallet-summary__cell--days {
-	color: var(--text-muted);
+.wallet-summary__cell--qty {
+	grid-area: qty;
+	color: var(--text-secondary);
+	font-size: 0.8125rem;
 	text-align: left;
 }
 
-.wallet-summary__cell--qty {
-	text-align: right;
-	color: var(--text-secondary);
-}
-
 .wallet-summary__cell--price {
-	text-align: right;
+	grid-area: price;
 	color: var(--text-secondary);
+	font-size: 0.8125rem;
+	text-align: left;
 }
 
 .wallet-summary__cell--value {
+	grid-area: value;
+	font-weight: 600;
+	color: var(--text-primary);
 	text-align: right;
 }
 
 .wallet-summary__cell--pl {
+	grid-area: pl;
 	text-align: right;
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
-	gap: 0.3rem;
+	gap: 0.5rem;
+	font-size: 0.8125rem;
 }
 
 .wallet-summary__cell--pl-positive { color: var(--gain); }
@@ -346,28 +369,11 @@
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
-/* ≤ 480px: hide Days and Price — 4-column layout */
-@media (max-width: 480px) {
-	.wallet-summary__row,
-	.wallet-summary__row--header {
-		grid-template-columns:
-			minmax(0, 1fr)
-			minmax(0, 1fr)
-			minmax(0, 1.2fr)
-			minmax(0, 1fr);
+/* ≤ 360px: tighten padding and compress days column */
+@media (max-width: 360px) {
+	.wallet-summary__row {
+		grid-template-columns: 2.25rem 1fr 1fr auto;
+		padding: 0.5rem;
+		column-gap: 0.5rem;
 	}
-	.wallet-summary__cell--days,
-	.wallet-summary__cell--price { display: none; }
-}
-
-/* ≤ 380px: also hide Qty — 3-column layout */
-@media (max-width: 380px) {
-	.wallet-summary__row,
-	.wallet-summary__row--header {
-		grid-template-columns:
-			minmax(0, 1fr)
-			minmax(0, 1.2fr)
-			minmax(0, 1fr);
-	}
-	.wallet-summary__cell--qty { display: none; }
 }
