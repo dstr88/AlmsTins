@@ -42,12 +42,20 @@
 	gap: 0.15rem;
 }
 
+/* Outlined mint chip — signals "imported/static data" vs filled = live */
 .exchange-tin__header h3 {
 	margin: 0;
-	font-size: var(--font-lg);
+	display: inline-block;
+	padding: 0.4rem 0.8rem;
+	border-radius: 8px;
+	border: 1px solid var(--accent);
+	background: transparent;
+	color: var(--accent);
+	font-size: 1rem;
+	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
-	color: var(--accent);
+	line-height: 1;
 }
 
 .exchange-tin__freshness {
