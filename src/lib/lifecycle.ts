@@ -170,6 +170,15 @@ export type RebuildLifecycleOpts = {
 };
 
 export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLifecycleOpts) {
+	// Prevent concurrent rebuilds for the same tenant — without this lock, two
+	// simultaneous callers both delete-then-insert, leaving duplicate group rows.
+	const rebuildLock = `lock:lifecycle:rebuild:${tenantId}`;
+	const gotLock = await tryAcquireLock(rebuildLock, 60);
+	if (!gotLock) {
+		console.info('[lifecycle] rebuild skipped — another rebuild is already running', { tenantId });
+		return;
+	}
+
 	const start = Date.now();
 	const queryStart = Date.now();
 	const importsResult = await db.execute({
@@ -648,7 +657,7 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 
 	for (const group of groupRows) {
 		await db.execute({
-			sql: `INSERT INTO asset_lifecycle_groups
+			sql: `INSERT OR REPLACE INTO asset_lifecycle_groups
 				(id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 			args: [
