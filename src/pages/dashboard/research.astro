@@ -75,8 +75,7 @@ const tenantWallets = walletResult.rows.map(r => ({
       </div>
 
       <div class="search-actions">
-        <button id="btn-run-matching" class="btn-secondary" type="button">⚙ Re-run matching</button>
-        <button id="btn-auto-classify" class="btn-secondary" type="button">🏷 Auto-classify transfers</button>
+        <button id="btn-resolve" class="btn-secondary" type="button">⚙ Resolve</button>
         <div class="wallet-picker-wrap">
           <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
           <div id="wallet-picker" class="wallet-picker" style="display:none">
@@ -705,34 +704,25 @@ function maybeAddressLookup() {
 $('btn-search').addEventListener('click', () => { if (!maybeAddressLookup()) runSearch(); });
 $('q').addEventListener('keydown', e => { if (e.key === 'Enter') { if (!maybeAddressLookup()) runSearch(); } });
 
-$('btn-run-matching').addEventListener('click', async () => {
-  const btn = $('btn-run-matching');
+$('btn-resolve').addEventListener('click', async () => {
+  const btn = $('btn-resolve');
   btn.disabled = true;
-  btn.textContent = '⚙ Running…';
   try {
-    const res  = await fetch('/api/research/run-matching', { method: 'POST' });
-    const data = await res.json();
-    btn.textContent = `✅ ${data.matched} matched`;
-    await loadNeedsAttention();
-    setTimeout(() => { btn.textContent = '⚙ Re-run matching'; btn.disabled = false; }, 3000);
-  } catch {
-    btn.textContent = '⚙ Re-run matching';
-    btn.disabled = false;
-  }
-});
+    btn.textContent = '⚙ Matching…';
+    const matchRes  = await fetch('/api/research/run-matching', { method: 'POST' });
+    const matchData = await matchRes.json();
 
-$('btn-auto-classify').addEventListener('click', async () => {
-  const btn = $('btn-auto-classify');
-  btn.disabled = true;
-  btn.textContent = '🏷 Classifying…';
-  try {
-    const res  = await fetch('/api/research/auto-classify', { method: 'POST' });
-    const data = await res.json();
-    btn.textContent = `✅ ${data.classified} classified`;
+    btn.textContent = '⚙ Classifying…';
+    const classRes  = await fetch('/api/research/auto-classify', { method: 'POST' });
+    const classData = await classRes.json();
+
+    const matched    = matchData.matched    ?? 0;
+    const classified = classData.classified ?? 0;
+    btn.textContent = `✅ ${matched} matched · ${classified} classified`;
     await loadNeedsAttention();
-    setTimeout(() => { btn.textContent = '🏷 Auto-classify transfers'; btn.disabled = false; }, 3000);
+    setTimeout(() => { btn.textContent = '⚙ Resolve'; btn.disabled = false; }, 3500);
   } catch {
-    btn.textContent = '🏷 Auto-classify transfers';
+    btn.textContent = '⚙ Resolve';
     btn.disabled = false;
   }
 });
