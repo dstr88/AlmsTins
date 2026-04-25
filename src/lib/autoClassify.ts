@@ -1,9 +1,23 @@
 import { db } from '@/lib/db';
+import { getTxByHash, CHAIN_IDS } from '@/lib/etherscan';
 
 // Matches EVM (0x + 40 hex), Bitcoin bech32 (bc1...), legacy BTC (1... 3...),
 // and Solana base58 addresses embedded anywhere in a string.
 const ADDRESS_RE =
 	/\b(0x[a-fA-F0-9]{40}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|[A-HJ-NP-Za-km-z1-9]{32,44})\b/g;
+
+// Valid EVM transaction hash: 0x followed by 64 hex characters
+const EVM_TX_HASH_RE = /^0x[0-9a-fA-F]{64}$/;
+
+// Map asset symbols to their primary EVM chain for on-chain destination lookup
+const SYMBOL_TO_CHAIN_ID: Record<string, number> = {
+	ETH:   CHAIN_IDS.ethereum,
+	WETH:  CHAIN_IDS.ethereum,
+	MATIC: CHAIN_IDS.polygon,
+	POL:   CHAIN_IDS.polygon,
+	AVAX:  CHAIN_IDS.avalanche,
+	WAVAX: CHAIN_IDS.avalanche,
+};
 
 function extractAddresses(text: string | null): string[] {
 	if (!text) return [];
@@ -81,9 +95,40 @@ export async function autoClassifyOwnWalletTransfers(tenantId: string): Promise<
 		}
 	}
 
+	// 4. Chain lookup pass — for unclassified OUTs that have an EVM tx_hash but no
+	//    address in their description, fetch the on-chain `to` address and match it.
+	//    Capped at 20 lookups per run to respect provider rate limits.
+	const alreadyUpdated = new Set(updates.map(u => u.id));
+	const chainLookupCandidates = (txRows.rows as any[])
+		.filter(row =>
+			!alreadyUpdated.has(row.id) &&
+			row.tx_hash &&
+			EVM_TX_HASH_RE.test(row.tx_hash) &&
+			row.asset_symbol &&
+			SYMBOL_TO_CHAIN_ID[String(row.asset_symbol).toUpperCase()] !== undefined,
+		)
+		.slice(0, 20);
+
+	for (const row of chainLookupCandidates) {
+		const chainId = SYMBOL_TO_CHAIN_ID[String(row.asset_symbol).toUpperCase()];
+		try {
+			const onChainTx = await getTxByHash({ chainId, txHash: row.tx_hash });
+			if (!onChainTx?.to) continue;
+			const label = ownAddresses.get(onChainTx.to);
+			if (label) {
+				updates.push({
+					id: row.id,
+					note: `Auto-classified: on-chain destination ${onChainTx.to} matches your wallet "${label}". Non-taxable self-transfer — cost basis carries over.`,
+				});
+			}
+		} catch {
+			// Non-fatal — skip this transaction
+		}
+	}
+
 	if (updates.length === 0) return 0;
 
-	// 4. Batch update in chunks of 50
+	// 5. Batch update in chunks of 50
 	const CHUNK = 50;
 	for (let i = 0; i < updates.length; i += CHUNK) {
 		const chunk = updates.slice(i, i + CHUNK);

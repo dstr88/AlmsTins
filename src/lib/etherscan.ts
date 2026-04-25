@@ -500,6 +500,41 @@ export async function isContract({
 }
 
 /**
+ * Fetch a single transaction by hash via eth_getTransactionByHash (proxy module).
+ * Returns { from, to } on success, null if not found or on error.
+ * Supports Ethereum (chainId 1), Polygon (137), and Avalanche (43114).
+ */
+export async function getTxByHash({
+  chainId,
+  txHash,
+  requestId,
+}: {
+  chainId: number;
+  txHash: string;
+  requestId?: string;
+}): Promise<{ from: string; to: string | null } | null> {
+  const provider = providerForChain(chainId);
+  const url = buildUrl(chainId, {
+    module: 'proxy',
+    action: 'eth_getTransactionByHash',
+    txhash: txHash,
+  });
+  if (!url) return null;
+
+  try {
+    const payload = await fetchJsonWithRetries(url, { provider, requestId, attempts: 2 });
+    const result = payload?.result;
+    if (!result || typeof result !== 'object') return null;
+    return {
+      from: String(result.from ?? '').toLowerCase(),
+      to: result.to ? String(result.to).toLowerCase() : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Optional: clear internal caches (useful in tests/dev)
  */
 export function _debugClearCaches() {
