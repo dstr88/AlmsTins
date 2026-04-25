@@ -20,6 +20,47 @@ export const GET: APIRoute = async ({ request }) => {
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
+	// ── 0: True unmatched count (no LIMIT — for accurate badge) ─────────────
+	const countResult = await db.execute({
+		sql: `SELECT COUNT(*) AS total
+		      FROM import_transactions t
+		      LEFT JOIN transfer_matches m_out ON m_out.tenant_id  = t.tenant_id
+		                                      AND m_out.out_tx_id  = t.id
+		                                      AND m_out.status    != 'rejected'
+		      LEFT JOIN transfer_matches m_in  ON m_in.tenant_id   = t.tenant_id
+		                                      AND m_in.in_tx_id    = t.id
+		                                      AND m_in.status     != 'rejected'
+		      LEFT JOIN address_labels al_explained ON al_explained.tenant_id = t.tenant_id
+		                                          AND (
+		                                            (t.tx_hash IS NOT NULL AND al_explained.address = t.tx_hash)
+		                                            OR al_explained.address = 'tx_id:' || t.id
+		                                          )
+		                                          AND al_explained.source     = 'user'
+		                                          AND t.timestamp_utc         < '2024-01-01'
+		      WHERE t.tenant_id = ?
+		        AND t.asset_symbol IS NOT NULL
+		        AND m_out.id IS NULL AND m_in.id IS NULL
+		        AND al_explained.id IS NULL
+		        AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange', 'own_wallet'))
+		        AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01')
+		        AND NOT (t.direction = 'in' AND t.native_usd IS NOT NULL AND ABS(t.native_usd) < 10)
+		        AND (
+		          (t.direction = 'out' AND t.kind NOT IN (
+		            'crypto_earn_program_created','card_top_up','crypto_to_van_sell_order','Sell','sell',
+		            'crypto_vaulting_purchase','crypto_exchange','crypto_exchange_fee',
+		            'dust_conversion_debited','dust_conversion_credited','trade','Trade',
+		            'conversion','Conversion','exchange','Exchange'
+		          ))
+		          OR
+		          (t.direction = 'in' AND t.kind IN (
+		            'Deposit','deposit','credit','crypto_deposit','Receive','receive',
+		            'Exchange Withdrawal','Pro Withdrawal'
+		          ))
+		        )`,
+		args: [tenantId],
+	});
+	const trueUnmatchedCount = Number((countResult.rows[0] as any)?.total ?? 0);
+
 	// ── 1 + 2: Unmatched transfers (no accepted match on either side) ─────────
 	const unmatchedResult = await db.execute({
 		sql: `SELECT
@@ -178,7 +219,7 @@ export const GET: APIRoute = async ({ request }) => {
 			suggested:  suggestedResult.rows,
 			resolved:   resolvedResult.rows,
 			symbols,
-			total: unmatchedResult.rows.length + suggestedResult.rows.length,
+			total: trueUnmatchedCount + suggestedResult.rows.length,
 		}),
 		{
 			status: 200,
