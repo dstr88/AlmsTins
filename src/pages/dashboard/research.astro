@@ -515,12 +515,22 @@ function renderResults(data) {
       ? `<span class="match-badge${matchStatus === 'suggested' ? ' suggested' : ''}">${matchDir} matched</span>`
       : '';
     const label       = t.address_label
-      ? `<span style="color:rgba(251,191,36,0.65);font-size:0.72rem"> · ${t.address_label}</span>`
+      ? `<span class="tx-addr-label" title="Address label"> · ${t.address_label}</span>`
       : '';
-    const amtDisplay  = dir === 'out'
-      ? `−${fmt(Math.abs(t.amount))}`
-      : `+${fmt(t.amount)}`;
-    const srcLine     = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+
+    // For Crypto.com fiat→crypto buys, amount = USD fiat side; to_amount = crypto qty.
+    // Use to_amount as the display quantity when to_currency matches asset_symbol.
+    const qty = (t.to_currency && t.to_currency === t.asset_symbol && t.to_amount != null)
+      ? t.to_amount
+      : t.amount;
+    const amtDisplay = dir === 'out'
+      ? `−${fmt(Math.abs(qty ?? 0))}`
+      : `+${fmt(qty ?? 0)}`;
+
+    const srcLine      = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+    const hasAnnotation = !!(t.category || t.notes);
+    const catLabel      = t.category ? `<span class="category-badge">${t.category}</span>` : '';
+    const noteText      = t.notes    ? `<span style="font-size:0.72rem;color:rgba(255,255,255,0.45);font-style:italic">${t.notes}</span>` : '';
 
     html += `<div class="tx-card result-card dir-${dir}">
       <div class="tx-badge-col"><span class="tx-dir ${dir}">${dir}</span></div>
@@ -537,6 +547,17 @@ function renderResults(data) {
           <span class="tx-desc">${t.description ?? ''}</span>
           <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
         </div>
+        ${hasAnnotation ? `<div style="margin-top:0.3rem">${catLabel}${noteText}</div>` : ''}
+        <div class="card-actions">
+          <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
+                  data-tx-id="${t.id}"
+                  data-category="${t.category ?? ''}"
+                  data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
+                  onclick="openResultAnnotateForm(event, this)">
+            ${hasAnnotation ? '✏️ Edit note' : '📝 Add note'}
+          </button>
+        </div>
+        <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
       </div>
     </div>`;
   }
@@ -911,18 +932,63 @@ async function saveTransfer(e, txId) {
   }
 }
 
+// ── Annotate form for result cards (re-runs search after save) ───────────────
+function openResultAnnotateForm(e, btn) {
+  e.stopPropagation();
+  const txId    = btn.getAttribute('data-tx-id');
+  const curCat  = btn.getAttribute('data-category') ?? '';
+  const curNote = btn.getAttribute('data-note') ?? '';
+  const formEl  = document.getElementById('af-' + txId);
+  if (!formEl) return;
+
+  if (formEl.style.display !== 'none') { formEl.style.display = 'none'; return; }
+
+  const options = DISPOSAL_TYPES.map(d =>
+    `<option value="${d.value}"${d.value === curCat ? ' selected' : ''}>${d.label}</option>`
+  ).join('');
+
+  formEl.innerHTML = `
+    <select id="af-cat-${txId}">${options}</select>
+    <div class="annotate-form-row">
+      <input id="af-note-${txId}" type="text" placeholder="Add a note…" value="${curNote}" />
+      <button class="btn-annotate-save" onclick="saveResultAnnotation(event,'${txId}')">Save</button>
+      <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
+    </div>`;
+  formEl.style.display = 'flex';
+}
+
+async function saveResultAnnotation(e, txId) {
+  e.stopPropagation();
+  const cat  = document.getElementById('af-cat-'  + txId)?.value ?? '';
+  const note = document.getElementById('af-note-' + txId)?.value ?? '';
+  const btn  = document.querySelector(`[data-tx-id="${txId}"].btn-annotate`);
+  try {
+    const res = await fetch(`/api/research/annotate/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: cat, note }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    await runSearch();
+  } catch (err) {
+    if (btn) btn.textContent = '⚠ Save failed';
+  }
+}
+
 // Expose to window so inline onclick="" attributes can find them
-window.openAnnotateForm  = openAnnotateForm;
-window.saveAnnotation    = saveAnnotation;
-window.markLegacy        = markLegacy;
-window.markOwnWallet     = markOwnWallet;
-window.openDisposeForm   = openDisposeForm;
-window.openForwardForm   = openForwardForm;
-window.saveTransfer      = saveTransfer;
-window.napShowDispose    = napShowDispose;
-window.napShowForward    = napShowForward;
-window.napSaveDispose    = napSaveDispose;
-window.napSaveForward    = napSaveForward;
+window.openAnnotateForm       = openAnnotateForm;
+window.saveAnnotation         = saveAnnotation;
+window.markLegacy             = markLegacy;
+window.markOwnWallet          = markOwnWallet;
+window.openDisposeForm        = openDisposeForm;
+window.openForwardForm        = openForwardForm;
+window.saveTransfer           = saveTransfer;
+window.napShowDispose         = napShowDispose;
+window.napShowForward         = napShowForward;
+window.napSaveDispose         = napSaveDispose;
+window.napSaveForward         = napSaveForward;
+window.openResultAnnotateForm = openResultAnnotateForm;
+window.saveResultAnnotation   = saveResultAnnotation;
 
 // ── Address lookup ────────────────────────────────────────────────────────────
 const ADDRESS_RE = /^(0x[0-9a-fA-F]{40,}|bc1[a-zA-HJ-NP-Z0-9]{25,}|[13][a-zA-HJ-NP-Z0-9]{25,}|0x[0-9a-fA-F]{60,}|ltc1[a-z0-9]{25,})$/i;

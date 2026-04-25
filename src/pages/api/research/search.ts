@@ -68,7 +68,7 @@ export const GET: APIRoute = async ({ request }) => {
 		sql: `SELECT
 		        t.id, t.source, t.account_id, t.timestamp_utc,
 		        t.direction, t.asset_symbol, t.amount, t.to_currency, t.to_amount,
-		        t.native_usd, t.kind, t.tx_hash, t.description, t.notes,
+		        t.native_usd, t.kind, t.tx_hash, t.description, t.notes, t.category,
 		        -- match info if this tx is part of a confirmed/auto match
 		        m_out.id          AS match_id_as_out,
 		        m_out.status      AS match_status_as_out,
