@@ -99,51 +99,34 @@
 	font-size: var(--font-meta);
 }
 
-/* ── Token rows ─────────────────────────────────────────────────────────────── */
+/* ── Asset rows (two explicit lines per asset) ──────────────────────────────── */
 
-.wallet-summary__row {
-	display: grid;
-	grid-template-columns: 3rem 1fr 1fr auto;
-	grid-template-areas:
-		"days token token value"
-		"days qty   price pl";
-	column-gap: 0.75rem;
-	row-gap: 0.125rem;
-	align-items: center;
+.wallet-summary__asset-row {
 	padding: 0.625rem 0.75rem;
 	border-bottom: 1px solid var(--border-subtle);
-	min-width: 0;
-	width: 100%;
-	box-sizing: border-box;
-	border-radius: 4px;
-	transition: background 0.12s ease, border-color 0.12s ease;
+	transition: background 0.12s ease;
 }
 
-.wallet-summary__row:last-child {
+.wallet-summary__asset-row:last-child {
 	border-bottom: none;
 }
 
-.wallet-summary__row:hover {
+.wallet-summary__asset-row:hover {
 	background: var(--surface-hover);
-	border-color: var(--border-bright);
 }
 
-/* Header row */
-.wallet-summary__row--header {
-	display: grid;
-	grid-template-columns: 3rem 1fr auto;
-	grid-template-areas: "days token value";
-	column-gap: 0.75rem;
-	padding: 0.3rem 0.75rem;
+.wallet-summary__asset-row--header {
 	background: var(--surface-card-2);
 	border-radius: 6px;
 	border-bottom: 1px solid var(--border-bright);
-	min-width: 0;
-	width: 100%;
-	box-sizing: border-box;
+	padding: 0.3rem 0.75rem;
 }
 
-.wallet-summary__row--header .wallet-summary__cell {
+.wallet-summary__asset-row--header:hover {
+	background: var(--surface-card-2);
+}
+
+.wallet-summary__asset-row--header .wallet-summary__cell {
 	font-size: var(--font-sm);
 	font-weight: 600;
 	text-transform: uppercase;
@@ -151,71 +134,79 @@
 	color: var(--text-muted);
 }
 
-.wallet-summary__row--header .wallet-summary__cell--qty,
-.wallet-summary__row--header .wallet-summary__cell--price,
-.wallet-summary__row--header .wallet-summary__cell--pl {
-	display: none;
+/* Both lines share 4 tracks so columns align:
+   [3rem spacer] [1fr col-a] [1fr col-b] [auto col-c]
+   Top:    days | token (span a+b)  | value
+   Bottom: —    | qty               | price | pl        */
+.wallet-summary__asset-line {
+	display: grid;
+	grid-template-columns: 3rem 1fr 1fr auto;
+	column-gap: 0.75rem;
+	align-items: baseline;
 }
 
-.wallet-summary__row--header:hover {
-	background: var(--surface-card-2);
-	border-color: var(--border-subtle);
+.wallet-summary__asset-line--top {
+	margin-bottom: 0.2rem;
+}
+
+/* Token spans both middle columns so it gets the full width */
+.wallet-summary__asset-line--top .wallet-summary__cell--token {
+	grid-column: span 2;
 }
 
 /* ── Cells ──────────────────────────────────────────────────────────────────── */
 
 .wallet-summary__cell {
 	min-width: 0;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
 	font-variant-numeric: tabular-nums;
 }
 
 .wallet-summary__cell--days {
-	grid-area: days;
 	color: var(--text-muted);
 	font-size: 0.75rem;
-	align-self: center;
-	text-align: left;
+	white-space: nowrap;
 }
 
 .wallet-summary__cell--token {
-	grid-area: token;
 	font-weight: 700;
 	color: var(--text-primary);
-	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .wallet-summary__cell--qty {
-	grid-area: qty;
 	color: var(--text-secondary);
 	font-size: 0.8125rem;
-	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .wallet-summary__cell--price {
-	grid-area: price;
 	color: var(--text-secondary);
 	font-size: 0.8125rem;
-	text-align: left;
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .wallet-summary__cell--value {
-	grid-area: value;
 	font-weight: 600;
 	color: var(--text-primary);
 	text-align: right;
+	white-space: nowrap;
 }
 
 .wallet-summary__cell--pl {
-	grid-area: pl;
 	text-align: right;
+	font-size: 0.8125rem;
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
 	gap: 0.5rem;
-	font-size: 0.8125rem;
+	white-space: nowrap;
 }
 
 .wallet-summary__cell--pl-positive { color: var(--gain); }
@@ -285,7 +276,6 @@
 /* ── Basis entry form ───────────────────────────────────────────────────────── */
 
 .wallet-summary__basis-form {
-	grid-column: 1 / -1;
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.4rem;
@@ -369,11 +359,13 @@
 
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
-/* ≤ 360px: tighten padding and compress days column */
+/* ≤ 360px: tighten padding on very small screens */
 @media (max-width: 360px) {
-	.wallet-summary__row {
-		grid-template-columns: 2.25rem 1fr 1fr auto;
+	.wallet-summary__asset-row {
 		padding: 0.5rem;
+	}
+	.wallet-summary__asset-line {
+		grid-template-columns: 2.5rem 1fr 1fr auto;
 		column-gap: 0.5rem;
 	}
 }
