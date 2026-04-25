@@ -12,6 +12,8 @@
 import './portfolio.css';
 import Layout from '../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import ReconciliationTransactions from '@/components/dashboard/ReconciliationTransactions';
+import ReconciliationSnapshot from '@/components/dashboard/ReconciliationSnapshot';
 
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
@@ -125,6 +127,18 @@ if (!_authSess) return Astro.redirect('/login');
 			</p>
 		</section>
 	</div><!-- /pf-content -->
+
+	<!-- ── Reconciliation ───────────────────────────────────────────────── -->
+	<section class="recon-section">
+		<div class="recon-section-divider">
+			<span class="recon-section-divider__label">Reconciliation</span>
+			<span class="recon-section-divider__line"></span>
+		</div>
+		<div class="recon-grid">
+			<ReconciliationTransactions client:only="react" threshold={50} />
+			<ReconciliationSnapshot     client:only="react" threshold={50} />
+		</div>
+	</section>
 
 </div><!-- /portfolio-page -->
 </Layout>
