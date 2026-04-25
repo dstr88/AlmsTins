@@ -23,11 +23,21 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getCache, setCache } from '@/lib/tursoCache';
+import { getAaveTotalsForWallet } from '@/lib/aave/client';
 
 export const prerender = false;
 
 const CACHE_TTL = 5 * 60; // 5 minutes
 const MIN_VALUE_USD = 1;   // hide dust < $1
+
+// Aave symbol normalization — keep WBTC as WBTC (not BTC) so it stays a
+// distinct row from exchange BTC; only unwrap wrapper prefixes for price lookup.
+const AAVE_SYMBOL_NORMALIZE: Record<string, string> = {
+	WPOL:   'POL',
+	WMATIC: 'POL',
+	WAVAX:  'AVAX',
+	// WBTC and WETH stay as-is so they reconcile with on-chain snapshots
+};
 
 interface AssetRow {
 	symbol:          string;
@@ -39,7 +49,8 @@ interface AssetRow {
 	unrealizedPnl:   number | null;
 	pnlPercent:      number | null;
 	lastAcquiredAt:  string | null;
-	priceSource:     'snapshot' | 'none';
+	priceSource:     'snapshot' | 'aave' | 'none';
+	isCollateral:    boolean;   // true when any quantity comes from Aave supply
 }
 
 function json(body: unknown, status = 200) {
@@ -55,7 +66,7 @@ export const GET: APIRoute = async ({ request }) => {
 		if (!session) return json({ ok: false, error: 'Unauthorized' }, 401);
 		const { tenantId } = session;
 
-		const cacheKey = `t:${tenantId}:portfolio:performance:v5`;
+		const cacheKey = `t:${tenantId}:portfolio:performance:v6`;
 		const cached = await getCache<unknown>(cacheKey, {
 			allowStale: true,
 			staleMaxAgeSeconds: 30 * 60,
@@ -120,6 +131,54 @@ export const GET: APIRoute = async ({ request }) => {
 			}
 		}
 
+		// ── 1b. Merge live Aave collateral positions ──────────────────────────
+		// Alchemy only sees tokens sitting in the wallet address itself.
+		// WBTC/WETH/etc. deposited into Aave live in the Aave pool contract and
+		// never appear in payload_json.  We fetch them here directly from the
+		// Aave GraphQL API (same path vault uses) and add them to bySymbol so
+		// the portfolio table shows collateral alongside free holdings.
+		//
+		// Non-fatal: if Aave is unreachable the rest of the portfolio still loads.
+		const aaveCollateralSymbols = new Set<string>();
+		try {
+			const walletsResult = await db.execute({
+				sql: `SELECT DISTINCT address FROM wallets
+				      WHERE tenant_id = ?
+				        AND (wallet_type = 'onchain' OR wallet_type IS NULL)`,
+				args: [tenantId],
+			});
+
+			for (const walletRow of walletsResult.rows) {
+				const address = String(walletRow.address ?? '').trim();
+				if (!address) continue;
+
+				const aaveTotals = await getAaveTotalsForWallet(address);
+
+				for (const chain of aaveTotals.chains) {
+					for (const pos of chain.positions) {
+						if (pos.side !== 'supply') continue;
+						if (!Number.isFinite(pos.amount) || pos.amount <= 0) continue;
+						if (pos.usdValue < MIN_VALUE_USD) continue;
+
+						const rawSym = pos.assetSymbol.trim().toUpperCase();
+						const sym = AAVE_SYMBOL_NORMALIZE[rawSym] ?? rawSym;
+
+						aaveCollateralSymbols.add(sym);
+
+						const existing = bySymbol.get(sym) ?? { qty: 0, valueUsd: 0, priceUsd: null };
+						existing.qty      += pos.amount;
+						existing.valueUsd += pos.usdValue;
+						if (existing.priceUsd == null && pos.amount > 0) {
+							existing.priceUsd = pos.usdValue / pos.amount;
+						}
+						bySymbol.set(sym, existing);
+					}
+				}
+			}
+		} catch (aaveErr) {
+			console.error('[portfolio/performance] Aave fetch failed (non-fatal)', aaveErr);
+		}
+
 		if (bySymbol.size === 0) {
 			const empty = {
 				updatedAt: new Date().toISOString(),
@@ -167,6 +226,8 @@ export const GET: APIRoute = async ({ request }) => {
 				? (unrealizedPnl / totalCostBasis) * 100
 				: null;
 
+			const isCollateral = aaveCollateralSymbols.has(symbol);
+
 			assets.push({
 				symbol,
 				quantity,
@@ -177,7 +238,8 @@ export const GET: APIRoute = async ({ request }) => {
 				unrealizedPnl,
 				pnlPercent,
 				lastAcquiredAt,
-				priceSource: currentPrice != null ? 'snapshot' : 'none',
+				priceSource: isCollateral && snap.priceUsd == null ? 'aave' : currentPrice != null ? 'snapshot' : 'none',
+				isCollateral,
 			});
 		}
 

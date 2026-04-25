@@ -362,6 +362,22 @@
 	margin-top: .1rem;
 }
 
+/* Collateral badge — shown when asset qty is (partly) locked in Aave */
+.pf-collateral-badge {
+	display: inline-block;
+	font-size: 0.52rem;
+	font-weight: 800;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--accent);
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-dim);
+	border-radius: 4px;
+	padding: 0.1rem 0.35rem;
+	margin-top: 0.25rem;
+	line-height: 1.4;
+}
+
 /* P&L pill */
 .pf-pill {
 	display: inline-flex;

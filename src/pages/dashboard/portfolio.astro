@@ -273,6 +273,7 @@ async function loadPortfolio() {
 				pnlPercent:       number | null;
 				lastAcquiredAt:   string | null;
 				priceSource:      string;
+				isCollateral:     boolean;
 			}>;
 		};
 
@@ -354,6 +355,9 @@ async function loadPortfolio() {
 							<div class="pf-ticker__name">${a.symbol}</div>
 							${a.lastAcquiredAt
 								? `<div class="pf-ticker__sub">Last acq. ${a.lastAcquiredAt}</div>`
+								: ''}
+							${a.isCollateral
+								? `<span class="pf-collateral-badge">Aave Collateral</span>`
 								: ''}
 						</div>
 					</div>

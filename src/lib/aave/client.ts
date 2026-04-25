@@ -42,8 +42,9 @@ export type AavePosition = {
 	side: AaveSide;
 	marketName: string;
 	assetSymbol: string;
-	amount: number; // raw token amount
-	apy: number; // decimal, e.g. 0.05 = 5%
+	amount: number;   // raw token amount
+	apy: number;      // decimal, e.g. 0.05 = 5%
+	usdValue: number; // computed by getAaveTotalsForWallet (0 until priced)
 };
 
 export type AaveChainSummary = {
@@ -261,6 +262,7 @@ async function fetchUserPositionsForMarket(
 				assetSymbol: symbol,
 				amount: Number.isFinite(amount) ? amount : 0,
 				apy: Number.isFinite(apy) ? apy : 0,
+				usdValue: 0, // priced in getAaveTotalsForWallet
 			});
 		}
 
@@ -277,6 +279,7 @@ async function fetchUserPositionsForMarket(
 				assetSymbol: symbol,
 				amount: Number.isFinite(amount) ? amount : 0,
 				apy: Number.isFinite(apy) ? apy : 0,
+				usdValue: 0, // priced in getAaveTotalsForWallet
 			});
 		}
 
@@ -454,7 +457,7 @@ export async function getAaveTotalsForWallet(address: string) {
 	const chains = result.chains.map((chain) => {
 		let suppliedUsdTotal = 0;
 		let debtUsdTotal = 0;
-		for (const pos of chain.positions) {
+		const pricedPositions = chain.positions.map((pos) => {
 			const normalized = normalizeSymbol(pos.assetSymbol);
 			const price =
 				STABLES.has(normalized) || normalized.startsWith('USDC') || normalized.startsWith('USDT')
@@ -471,9 +474,11 @@ export async function getAaveTotalsForWallet(address: string) {
 			} else {
 				debtUsdTotal += usdValue;
 			}
-		}
+			return { ...pos, usdValue };
+		});
 		return {
 			...chain,
+			positions: pricedPositions,
 			suppliedUsdTotal,
 			debtUsdTotal,
 			suppliedUsd: suppliedUsdTotal,

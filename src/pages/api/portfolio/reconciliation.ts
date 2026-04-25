@@ -64,21 +64,40 @@ export const GET: APIRoute = async ({ request }) => {
 		// Net = gross acquired − non-linked disposals.
 		// linked_transfer = 1 means the OUT was matched to an on-chain wallet move
 		// and should NOT be counted as a disposal for reconciliation purposes.
+		// Net quantity formula: SUM(all in events) − SUM(all out events).
+		//
+		// This replaces the old formula (total_quantity − unlinked_outs) which
+		// overcounted assets like BTC when transfers passed through multiple
+		// imported accounts.  With every CSV import storing both legs of a
+		// transfer (e.g. Coinbase OUT + Exodus IN), those pairs naturally cancel
+		// in the net, leaving only genuine unbalanced positions.
+		//
+		// Excluded classes:
+		//   liability_increase   — Aave borrows (coins received but not owned)
+		//   liability_repayment  — Aave repayments (coins sent to repay debt)
+		//   liability_liquidation — forced liquidation (not a voluntary disposal)
 		const lifecycleRows = await db.execute({
 			sql: `SELECT
 			        alg.asset_symbol,
-			        alg.total_quantity
-			          - COALESCE(SUM(
-			              CASE WHEN ale.direction = 'out' AND ale.linked_transfer = 0
-			                   THEN ABS(COALESCE(ale.amount, 0))
-			                   ELSE 0 END
-			            ), 0) AS net_qty
+			        COALESCE(SUM(
+			            CASE WHEN ale.transaction_class NOT IN (
+			                        'liability_increase',
+			                        'liability_repayment',
+			                        'liability_liquidation'
+			                     )
+			                 THEN CASE WHEN ale.direction = 'in'
+			                           THEN  ABS(COALESCE(ale.amount, 0))
+			                           WHEN ale.direction = 'out'
+			                           THEN -ABS(COALESCE(ale.amount, 0))
+			                           ELSE 0 END
+			                 ELSE 0 END
+			        ), 0) AS net_qty
 			      FROM asset_lifecycle_groups alg
 			      LEFT JOIN asset_lifecycle_events ale
 			        ON ale.group_id   = alg.id
 			       AND ale.tenant_id  = alg.tenant_id
 			      WHERE alg.tenant_id = ?
-			      GROUP BY alg.id, alg.asset_symbol, alg.total_quantity`,
+			      GROUP BY alg.id, alg.asset_symbol`,
 			args: [tenantId],
 		});
 

@@ -176,7 +176,7 @@
 	padding: 0.75rem 0.9rem;
 	border-radius: 0.75rem;
 	background: var(--loss-bg);
-	border: 1px solid rgba(255, 120, 120, 0.35);
+	border: 1px solid var(--loss-border);
 	font-size: var(--font-sm);
 	color: var(--loss);
 }
