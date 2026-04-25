@@ -187,7 +187,11 @@ function fmt(n: number) {
 }
 function fmtDate(d: string) {
 	if (!d) return '—';
-	try { return new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+	try {
+		// If already a full ISO timestamp, parse directly; otherwise treat as YYYY-MM-DD
+		const iso = d.length > 10 && d.includes('T') ? d : d.slice(0, 10) + 'T12:00:00Z';
+		return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	}
 	catch { return d.slice(0, 10); }
 }
 function fmtQty(n: number) {
