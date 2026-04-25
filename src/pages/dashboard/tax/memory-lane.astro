@@ -755,18 +755,18 @@ function timelineId(asset: string) {
 	max-width: 1040px;
 	margin: 0 auto;
 	padding: 1.5rem 1.25rem 6rem;
-	color: #f1f5f9;
+	color: var(--text-primary);
 }
 
 .ml-back {
 	display: inline-block;
 	font-size: 0.78rem;
-	color: #64748b;
+	color: var(--text-muted);
 	text-decoration: none;
 	margin-bottom: 1.5rem;
 	transition: color 0.15s;
 }
-.ml-back:hover { color: #94a3b8; }
+.ml-back:hover { color: var(--text-secondary); }
 
 /* ── Hero ─────────────────────────────────────────────────────────────── */
 .ml-hero {
@@ -783,6 +783,7 @@ function timelineId(asset: string) {
 	0%, 100% { transform: translateY(0) rotate(-2deg); }
 	50%       { transform: translateY(-12px) rotate(2deg); }
 }
+/* amber — "Graduated" brand color, no token equivalent */
 .ml-hero__title {
 	font-size: clamp(2.75rem, 7vw, 4.5rem);
 	font-weight: 900;
@@ -796,7 +797,7 @@ function timelineId(asset: string) {
 }
 .ml-hero__sub {
 	font-size: 1rem;
-	color: #64748b;
+	color: var(--text-muted);
 	margin: 0 0 1.75rem;
 }
 
@@ -810,14 +811,15 @@ function timelineId(asset: string) {
 .ml-year-pill {
 	padding: 0.35rem 1.1rem;
 	border-radius: 999px;
-	border: 1px solid rgba(255,255,255,0.1);
-	background: rgba(255,255,255,0.03);
-	color: #64748b;
+	border: 1px solid var(--border-bright);
+	background: var(--surface-card);
+	color: var(--text-muted);
 	font-size: 0.82rem;
 	font-weight: 600;
 	text-decoration: none;
 	transition: all 0.15s;
 }
+/* amber — active/hover year pill matches Graduated theme */
 .ml-year-pill:hover { border-color: rgba(245,158,11,0.4); color: #fbbf24; }
 .ml-year-pill.active {
 	background: rgba(245,158,11,0.12);
@@ -832,8 +834,8 @@ function timelineId(asset: string) {
 	gap: 3rem;
 	flex-wrap: wrap;
 	padding: 1.75rem 2rem;
-	background: rgba(255,255,255,0.025);
-	border: 1px solid rgba(255,255,255,0.07);
+	background: var(--surface-card);
+	border: 1px solid var(--border-subtle);
 	border-radius: 20px;
 	margin-bottom: 3.5rem;
 }
@@ -848,16 +850,17 @@ function timelineId(asset: string) {
 	font-weight: 900;
 	line-height: 1;
 	letter-spacing: -0.02em;
-	color: #f1f5f9;
+	color: var(--text-primary);
 }
-.ml-stat__num.positive  { color: #4ade80; text-shadow: 0 0 24px rgba(74,222,128,0.35); }
-.ml-stat__num.negative  { color: #f87171; text-shadow: 0 0 24px rgba(248,113,113,0.35); }
+.ml-stat__num.positive  { color: var(--gain); text-shadow: 0 0 24px var(--gain-border); }
+.ml-stat__num.negative  { color: var(--loss); text-shadow: 0 0 24px var(--loss-border); }
+/* indigo — "Still Enrolled" concept color, no token equivalent */
 .ml-stat__num.enrolled-num { color: #818cf8; }
 .ml-stat__label {
 	font-size: 0.68rem;
 	text-transform: uppercase;
 	letter-spacing: 0.12em;
-	color: #475569;
+	color: var(--text-muted);
 	font-weight: 700;
 }
 
@@ -872,10 +875,12 @@ function timelineId(asset: string) {
 	border-radius: 18px;
 	margin-bottom: 2rem;
 }
+/* amber — Graduated section identity */
 .ml-section__header--grad {
 	background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(251,191,36,0.04));
 	border: 1px solid rgba(245,158,11,0.22);
 }
+/* indigo — Still Enrolled section identity */
 .ml-section__header--enroll {
 	background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.04));
 	border: 1px solid rgba(99,102,241,0.22);
@@ -887,12 +892,12 @@ function timelineId(asset: string) {
 	margin: 0 0 0.15rem;
 	letter-spacing: -0.02em;
 }
-.ml-section__sub { font-size: 0.82rem; color: #475569; margin: 0; }
+.ml-section__sub { font-size: 0.82rem; color: var(--text-muted); margin: 0; }
 .ml-section__count {
 	margin-left: auto;
 	font-size: 0.82rem;
 	font-weight: 700;
-	color: #475569;
+	color: var(--text-muted);
 	white-space: nowrap;
 	flex-shrink: 0;
 }
@@ -907,7 +912,7 @@ function timelineId(asset: string) {
 	font-weight: 800;
 	text-transform: uppercase;
 	letter-spacing: 0.14em;
-	color: #334155;
+	color: var(--text-muted);
 	margin-bottom: 0.9rem;
 	padding-left: 0.1rem;
 }
@@ -929,39 +934,39 @@ function timelineId(asset: string) {
 }
 .ml-card:hover {
 	transform: translateY(-6px);
-	box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+	box-shadow: 0 20px 50px var(--surface-bg);
 }
 @keyframes cardIn {
 	from { opacity: 0; transform: translateY(24px); }
 	to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Graduated — winner */
+/* amber — default graduated card (loss) */
 .ml-card--grad {
 	border: 2px solid rgba(245,158,11,0.25);
 	background: linear-gradient(160deg,
 		rgba(245,158,11,0.07) 0%,
-		rgba(15,17,30,0.97)  55%);
+		var(--surface-card)  55%);
 }
 .ml-card--grad.ml-card--win {
-	border-color: rgba(74,222,128,0.28);
+	border-color: var(--gain-border);
 	background: linear-gradient(160deg,
-		rgba(74,222,128,0.07) 0%,
-		rgba(15,17,30,0.97)  55%);
+		var(--gain-bg) 0%,
+		var(--surface-card) 55%);
 }
 .ml-card--grad.ml-card--loss {
-	border-color: rgba(248,113,113,0.22);
+	border-color: var(--loss-border);
 	background: linear-gradient(160deg,
-		rgba(248,113,113,0.06) 0%,
-		rgba(15,17,30,0.97)   55%);
+		var(--loss-bg) 0%,
+		var(--surface-card) 55%);
 }
 
-/* Still enrolled */
+/* indigo — Still Enrolled card */
 .ml-card--enroll {
 	border: 2px solid rgba(99,102,241,0.22);
 	background: linear-gradient(160deg,
 		rgba(99,102,241,0.07) 0%,
-		rgba(15,17,30,0.97)  55%);
+		var(--surface-card) 55%);
 }
 
 .ml-card__inner {
@@ -988,10 +993,11 @@ function timelineId(asset: string) {
 	height: 48px;
 	border-radius: 50%;
 	object-fit: contain;
-	background: rgba(255,255,255,0.06);
+	background: var(--border-subtle);
 	padding: 5px;
-	border: 1px solid rgba(255,255,255,0.08);
+	border: 1px solid var(--border-subtle);
 }
+/* indigo — fallback avatar gradient when coin logo is missing */
 .ml-coin-fallback {
 	width: 48px;
 	height: 48px;
@@ -1001,9 +1007,9 @@ function timelineId(asset: string) {
 	font-size: 0.7rem;
 	font-weight: 900;
 	background: linear-gradient(135deg, #5767ff, #934dff);
-	color: #fff;
+	color: var(--text-primary);
 	letter-spacing: -0.02em;
-	border: 1px solid rgba(255,255,255,0.1);
+	border: 1px solid var(--border-bright);
 }
 .ml-card__nameblock {
 	flex: 1;
@@ -1015,11 +1021,13 @@ function timelineId(asset: string) {
 .ml-coin-ticker {
 	font-size: 1.5rem;
 	font-weight: 900;
-	color: #f1f5f9;
+	color: var(--text-primary);
 	letter-spacing: -0.03em;
 	line-height: 1;
 }
+/* amber — graduation date label */
 .ml-grad-date    { font-size: 0.72rem; color: #d97706; font-weight: 600; }
+/* indigo — enrollment status label */
 .ml-enroll-status { font-size: 0.72rem; color: #818cf8; font-weight: 600; }
 
 /* ── Grade badge ──────────────────────────────────────────────────────── */
@@ -1042,13 +1050,15 @@ function timelineId(asset: string) {
 	from { opacity: 0; transform: rotate(-15deg) scale(0.5); }
 	to   { opacity: 1; transform: rotate(-8deg)  scale(1);   }
 }
+/* grade palette — 5-level scale requires distinct hues; F and unknown map to tokens */
 .grade-aplus   { color: #22c55e; background: rgba(34,197,94,0.12);   box-shadow: 0 0 14px rgba(34,197,94,0.3);   }
 .grade-a       { color: #4ade80; background: rgba(74,222,128,0.1);   box-shadow: 0 0 12px rgba(74,222,128,0.25); }
 .grade-b       { color: #86efac; background: rgba(134,239,172,0.08); }
 .grade-c       { color: #fbbf24; background: rgba(251,191,36,0.1);   }
 .grade-d       { color: #f97316; background: rgba(249,115,22,0.1);   }
-.grade-f       { color: #ef4444; background: rgba(239,68,68,0.12);   box-shadow: 0 0 12px rgba(239,68,68,0.25); }
-.grade-unknown { color: #475569; background: rgba(71,85,105,0.1);    }
+.grade-f       { color: var(--loss); background: var(--loss-bg);   box-shadow: 0 0 12px var(--loss-border); }
+.grade-unknown { color: var(--text-muted); background: var(--surface-card); }
+/* indigo — in-progress grade for open positions */
 .grade-incomplete {
 	color: #818cf8;
 	background: rgba(129,140,248,0.1);
@@ -1070,16 +1080,16 @@ function timelineId(asset: string) {
 	letter-spacing: -0.03em;
 	line-height: 1;
 }
-.ml-pnl-num.positive { color: #4ade80; text-shadow: 0 0 22px rgba(74,222,128,0.3); }
-.ml-pnl-num.negative { color: #f87171; text-shadow: 0 0 22px rgba(248,113,113,0.3); }
-.ml-pnl-num.neutral  { color: #475569; }
+.ml-pnl-num.positive { color: var(--gain); text-shadow: 0 0 22px var(--gain-border); }
+.ml-pnl-num.negative { color: var(--loss); text-shadow: 0 0 22px var(--loss-border); }
+.ml-pnl-num.neutral  { color: var(--text-muted); }
 .ml-pnl-pct {
 	font-size: 0.95rem;
 	font-weight: 700;
 }
-.ml-pnl-pct.positive { color: #4ade80; }
-.ml-pnl-pct.negative { color: #f87171; }
-.ml-pnl-label { font-size: 0.72rem; color: #475569; font-style: italic; }
+.ml-pnl-pct.positive { color: var(--gain); }
+.ml-pnl-pct.negative { color: var(--loss); }
+.ml-pnl-label { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
 
 /* ── Meta / tags ──────────────────────────────────────────────────────── */
 .ml-card__meta {
@@ -1087,13 +1097,14 @@ function timelineId(asset: string) {
 	align-items: center;
 	gap: 0.4rem;
 	font-size: 0.75rem;
-	color: #334155;
+	color: var(--text-muted);
 	flex-wrap: wrap;
 }
+/* amber / indigo — ST/LT lot tags match year-pill and enrolled palette */
 .st-tag { color: #fbbf24; font-weight: 700; }
 .lt-tag { color: #818cf8; font-weight: 700; }
 
-/* Sold note (enrolled with partial exits) */
+/* indigo — sold-note for enrolled cards with partial exits */
 .ml-card__sold-note {
 	font-size: 0.72rem;
 	color: #6366f1;
@@ -1111,9 +1122,9 @@ function timelineId(asset: string) {
 	gap: 0.4rem;
 	padding: 0.6rem 1rem;
 	border-radius: 12px;
-	border: 1px solid rgba(255,255,255,0.09);
-	background: rgba(255,255,255,0.03);
-	color: #64748b;
+	border: 1px solid var(--border-subtle);
+	background: var(--surface-card);
+	color: var(--text-muted);
 	font-size: 0.8rem;
 	font-weight: 700;
 	cursor: pointer;
@@ -1123,16 +1134,19 @@ function timelineId(asset: string) {
 	transition: all 0.15s;
 	margin-top: 0.1rem;
 }
+/* amber — graduated transcript hover */
 .ml-transcript-btn:hover {
 	border-color: rgba(245,158,11,0.35);
 	color: #fbbf24;
 	background: rgba(245,158,11,0.05);
 }
+/* indigo — enrolled transcript hover */
 .ml-transcript-btn--enroll:hover {
 	border-color: rgba(99,102,241,0.35);
 	color: #818cf8;
 	background: rgba(99,102,241,0.05);
 }
+/* amber — open state */
 .ml-transcript-btn.open {
 	border-color: rgba(245,158,11,0.3);
 	color: #fbbf24;
@@ -1146,10 +1160,11 @@ function timelineId(asset: string) {
 
 /* ── Timeline ─────────────────────────────────────────────────────────── */
 .ml-timeline {
-	border-top: 1px solid rgba(255,255,255,0.06);
-	background: rgba(0,0,0,0.3);
+	border-top: 1px solid var(--border-subtle);
+	background: var(--surface-bg);
 	padding: 1.25rem 1.4rem 1.5rem;
 }
+/* indigo — enrolled timeline top border */
 .ml-timeline--enroll {
 	border-top-color: rgba(99,102,241,0.15);
 }
@@ -1158,7 +1173,7 @@ function timelineId(asset: string) {
 	font-weight: 800;
 	text-transform: uppercase;
 	letter-spacing: 0.12em;
-	color: #334155;
+	color: var(--text-muted);
 	margin-bottom: 1.25rem;
 }
 .ml-timeline__track {
@@ -1183,9 +1198,10 @@ function timelineId(asset: string) {
 	flex-shrink: 0;
 	margin-top: 0.35rem;
 }
+/* indigo — BUY dot; gain/loss tokens for SELL dot */
 .ml-tl-dot--buy           { background: #6366f1; box-shadow: 0 0 8px rgba(99,102,241,0.5); }
-.ml-tl-dot--sell.win      { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.5);  }
-.ml-tl-dot--sell.loss     { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.4);  }
+.ml-tl-dot--sell.win      { background: var(--gain); box-shadow: 0 0 8px var(--gain-border); }
+.ml-tl-dot--sell.loss     { background: var(--loss); box-shadow: 0 0 8px var(--loss-border); }
 
 .ml-tl-content {
 	display: flex;
@@ -1202,14 +1218,15 @@ function timelineId(asset: string) {
 	padding: 0.1rem 0.45rem;
 	border-radius: 4px;
 }
+/* indigo — BUY action badge */
 .ml-tl-action.buy  { background: rgba(99,102,241,0.15); color: #818cf8; }
-.ml-tl-action.sell { background: rgba(239,68,68,0.1);   color: #f87171; }
-.ml-tl-date  { color: #64748b; }
-.ml-tl-qty   { color: #e2e8f0; font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; }
-.ml-tl-usd   { color: #475569; }
+.ml-tl-action.sell { background: var(--loss-bg); color: var(--loss); }
+.ml-tl-date  { color: var(--text-muted); }
+.ml-tl-qty   { color: var(--text-primary); font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; }
+.ml-tl-usd   { color: var(--text-muted); }
 .ml-tl-gain  { font-weight: 800; }
-.ml-tl-gain.positive { color: #4ade80; }
-.ml-tl-gain.negative { color: #f87171; }
+.ml-tl-gain.positive { color: var(--gain); }
+.ml-tl-gain.negative { color: var(--loss); }
 
 /* Connector (the vertical line between buy and sell) */
 .ml-tl-connector {
@@ -1219,30 +1236,33 @@ function timelineId(asset: string) {
 	padding: 0.05rem 0;
 	margin-left: 4px;
 }
+/* indigo-to-loss gradient connector */
 .ml-tl-line {
 	width: 3px;
 	height: 24px;
 	background: linear-gradient(to bottom,
 		rgba(99,102,241,0.5),
-		rgba(239,68,68,0.35));
+		var(--loss-border));
 	border-radius: 2px;
 	flex-shrink: 0;
 }
-.ml-tl-held { font-size: 0.7rem; color: #334155; white-space: nowrap; }
+.ml-tl-held { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
+/* indigo / amber — LT/ST badges in timeline match section palette */
 .lt-badge { color: #818cf8; font-weight: 800; }
 .st-badge { color: #d97706; font-weight: 800; }
 
 /* ── Error banner ─────────────────────────────────────────────────────── */
 .ml-error {
-	background: rgba(239,68,68,0.08);
-	border: 1px solid rgba(239,68,68,0.25);
+	background: var(--loss-bg);
+	border: 1px solid var(--loss-border);
 	border-radius: 14px;
 	padding: 1.25rem 1.5rem;
 	margin-bottom: 2rem;
-	color: #fca5a5;
+	color: var(--loss);
 }
-.ml-error strong { display: block; margin-bottom: 0.35rem; color: #f87171; }
-.ml-error p { margin: 0 0 0.75rem; font-size: 0.875rem; color: #fca5a5; }
+.ml-error strong { display: block; margin-bottom: 0.35rem; color: var(--loss); }
+.ml-error p { margin: 0 0 0.75rem; font-size: 0.875rem; color: var(--loss); }
+/* indigo — error link matches enrolled palette */
 .ml-error a { color: #818cf8; font-size: 0.875rem; font-weight: 700; text-decoration: none; }
 .ml-error a:hover { text-decoration: underline; }
 
@@ -1252,8 +1272,8 @@ function timelineId(asset: string) {
 	padding: 6rem 2rem;
 }
 .ml-empty__icon  { font-size: 3.5rem; margin-bottom: 1rem; }
-.ml-empty__title { font-size: 1.25rem; font-weight: 700; color: #64748b; margin: 0 0 0.5rem; }
-.ml-empty__sub   { font-size: 0.9rem;  color: #334155; margin: 0; }
+.ml-empty__title { font-size: 1.25rem; font-weight: 700; color: var(--text-muted); margin: 0 0 0.5rem; }
+.ml-empty__sub   { font-size: 0.9rem;  color: var(--text-muted); margin: 0; }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
@@ -1270,7 +1290,7 @@ function timelineId(asset: string) {
 	gap: 0;
 }
 
-/* Explainer banner */
+/* amber — demo banner matches Graduated theme */
 .ml-demo-banner {
 	display: flex;
 	gap: 1.25rem;
@@ -1292,6 +1312,7 @@ function timelineId(asset: string) {
 	flex-direction: column;
 	gap: 0.5rem;
 }
+/* amber — demo banner title and CTA */
 .ml-demo-banner__title {
 	font-size: 1.05rem;
 	font-weight: 800;
@@ -1301,11 +1322,11 @@ function timelineId(asset: string) {
 }
 .ml-demo-banner__text {
 	font-size: 0.87rem;
-	color: #94a3b8;
+	color: var(--text-secondary);
 	margin: 0;
 	line-height: 1.65;
 }
-.ml-demo-banner__text strong { color: #e2e8f0; }
+.ml-demo-banner__text strong { color: var(--text-primary); }
 .ml-demo-banner__cta {
 	display: inline-block;
 	margin-top: 0.4rem;
@@ -1318,7 +1339,8 @@ function timelineId(asset: string) {
 }
 .ml-demo-banner__cta:hover { color: #fcd34d; text-decoration: underline; }
 
-/* Shimmer animation */
+/* Shimmer animation — decorative skeleton overlay; rgba(255,255,255,X) used
+   only as CSS gradient stops, no semantic token equivalent applies */
 @keyframes ml-shimmer {
 	0%   { background-position: -400px 0; }
 	100% { background-position:  400px 0; }
@@ -1354,7 +1376,7 @@ function timelineId(asset: string) {
 		rgba(255,255,255,0.05) 75%);
 	background-size: 800px 100%;
 	animation: ml-shimmer 1.8s infinite linear;
-	border: 1px solid rgba(255,255,255,0.08);
+	border: 1px solid var(--border-subtle);
 }
 
 /* Button placeholder */
@@ -1362,8 +1384,8 @@ function timelineId(asset: string) {
 	width: 100%;
 	height: 2.4rem;
 	border-radius: 12px;
-	border: 1px solid rgba(255,255,255,0.07);
-	background: rgba(255,255,255,0.02);
+	border: 1px solid var(--border-subtle);
+	background: var(--surface-card);
 	margin-top: 0.1rem;
 }
 
@@ -1386,16 +1408,16 @@ function timelineId(asset: string) {
 	box-shadow: none;
 }
 
-/* Bottom CTA */
+/* amber — demo footer CTA button */
 .ml-demo-footer {
 	text-align: center;
 	padding: 3rem 1rem 1rem;
-	border-top: 1px solid rgba(255,255,255,0.05);
+	border-top: 1px solid var(--border-subtle);
 	margin-top: 1rem;
 }
 .ml-demo-footer p {
 	font-size: 0.9rem;
-	color: #475569;
+	color: var(--text-muted);
 	margin: 0 0 1rem;
 }
 .ml-demo-footer__cta {
@@ -1403,7 +1425,7 @@ function timelineId(asset: string) {
 	padding: 0.7rem 1.75rem;
 	border-radius: 999px;
 	background: linear-gradient(135deg, #f59e0b, #fbbf24);
-	color: #0f111e;
+	color: var(--surface-bg);
 	font-size: 0.9rem;
 	font-weight: 800;
 	text-decoration: none;
