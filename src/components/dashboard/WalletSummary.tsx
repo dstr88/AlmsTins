@@ -739,11 +739,15 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
 												? 'rgba(251,191,36,0.7)'
 												: 'rgba(255,255,255,0.25)';
-										const plLabel = plPct !== null
-											? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+										// Show dollar gain/loss; percentage moves to tooltip on hover
+										const plLabel = plAbsolute !== null
+											? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}`
 											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
 												? '?'
 												: '—';
+										const plTooltip = plPct !== null
+											? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+											: undefined;
 										return (
 											<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
 												{/* Line 1: Symbol · Amount · Value */}
@@ -782,7 +786,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													<span
 														className="wallet-summary__cell wallet-summary__cell--pl"
 														style={{ color: plColor }}
-														title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
+														title={plTooltip}
 													>
 														{plLabel}
 													</span>
@@ -932,11 +936,15 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
 												? 'rgba(251,191,36,0.7)'
 												: 'rgba(255,255,255,0.25)';
-										const plLabel = plPct !== null
-											? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+										// Show dollar gain/loss; percentage moves to tooltip on hover
+										const plLabel = plAbsolute !== null
+											? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}`
 											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
 												? '?'
 												: '—';
+										const plTooltip = plPct !== null
+											? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
+											: undefined;
 										return (
 											<div key={`${token.chain}-${token.tokenSymbol}`} className="wallet-summary__row">
 												{/* Line 1: Symbol · Amount · Value */}
@@ -975,7 +983,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													<span
 														className="wallet-summary__cell wallet-summary__cell--pl"
 														style={{ color: plColor }}
-														title={plAbsolute !== null ? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}` : undefined}
+														title={plTooltip}
 													>
 														{plLabel}
 													</span>
