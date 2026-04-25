@@ -47,67 +47,26 @@ function BasisForm({ walletId, symbol, chain, onClose }: BasisFormProps) {
 		}
 	};
 
-	const inputStyle: React.CSSProperties = {
-		background: 'rgba(255,255,255,0.07)',
-		border: '1px solid rgba(255,255,255,0.15)',
-		borderRadius: '4px',
-		color: '#e0e0e0',
-		padding: '0.15rem 0.3rem',
-		fontSize: '0.72rem',
-	};
-	const labelStyle: React.CSSProperties = {
-		display: 'flex',
-		alignItems: 'center',
-		gap: '0.3rem',
-		color: 'rgba(224,224,224,0.7)',
-		fontSize: '0.72rem',
-	};
-
 	return (
-		<div style={{
-			display: 'flex',
-			flexWrap: 'wrap',
-			gap: '0.4rem',
-			alignItems: 'center',
-			padding: '0.45rem 0.5rem',
-			marginTop: '0.25rem',
-			background: 'rgba(255,255,255,0.04)',
-			borderRadius: '6px',
-		}}>
-			<label style={labelStyle}>
+		<div className="wallet-summary__basis-form">
+			<label className="wallet-summary__basis-label">
 				Bought
 				<input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-					max={new Date().toISOString().slice(0, 10)} style={inputStyle} />
+					max={new Date().toISOString().slice(0, 10)} className="wallet-summary__basis-input" />
 			</label>
-			<label style={labelStyle}>
+			<label className="wallet-summary__basis-label">
 				$ per coin
 				<input type="number" min="0" step="any" placeholder="0.00"
 					value={price} onChange={(e) => setPrice(e.target.value)}
-					style={{ ...inputStyle, width: '6rem' }} />
+					className="wallet-summary__basis-input wallet-summary__basis-input--num" />
 			</label>
-			<button onClick={save} disabled={saving} style={{
-				background: 'rgba(52,211,153,0.15)',
-				border: '1px solid rgba(52,211,153,0.4)',
-				borderRadius: '4px',
-				color: '#34d399',
-				padding: '0.15rem 0.6rem',
-				fontSize: '0.72rem',
-				cursor: saving ? 'wait' : 'pointer',
-			}}>
+			<button onClick={save} disabled={saving} className="wallet-summary__basis-save">
 				{saving ? 'Saving…' : 'Save'}
 			</button>
-			<button onClick={onClose} style={{
-				background: 'none',
-				border: '1px solid rgba(255,255,255,0.1)',
-				borderRadius: '4px',
-				color: 'rgba(224,224,224,0.5)',
-				padding: '0.15rem 0.5rem',
-				fontSize: '0.72rem',
-				cursor: 'pointer',
-			}}>
+			<button onClick={onClose} className="wallet-summary__basis-cancel">
 				Cancel
 			</button>
-			{msg && <span style={{ color: '#fca5a5', fontSize: '0.68rem', width: '100%' }}>{msg}</span>}
+			{msg && <span className="wallet-summary__basis-error">{msg}</span>}
 		</div>
 	);
 }
@@ -629,11 +588,10 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 						const groups = buildChainGroups(displayedTokens);
 						return groups.map((group) => (
 							<section key={group.chain} className="wallet-summary__chain">
-								<h4 className="text-lg font-semibold text-center mb-3">{group.chain}</h4>
+								<h4 className="wallet-summary__chain-title">{group.chain}</h4>
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{}}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
@@ -659,17 +617,12 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 												resolvedUsd = fallbackPrice * Number(token.amount ?? 0);
 											}
 										}
-										const valueColor = isUnverified
-											? undefined
-											: resolvedUsd !== null && resolvedUsd > 0
-												? '#86efac'
-												: undefined;
 										const valueNode = isUnverified ? (
-											<abbr title="Unverified contract — price cannot be confirmed" style={{ textDecoration: 'none', cursor: 'help' }}>❓</abbr>
+											<abbr title="Unverified contract — price cannot be confirmed" className="wallet-summary__cell--value-unverified">❓</abbr>
 										) : resolvedUsd !== null ? (
-											<span style={{ color: valueColor }}>{currencyFormatter.format(resolvedUsd)}</span>
+											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{currencyFormatter.format(resolvedUsd)}</span>
 										) : (
-											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help', color: 'rgba(255,255,255,0.3)' }}>—</abbr>
+											<abbr title="Price data unavailable for this token" className="wallet-summary__cell--value-unpriced">—</abbr>
 										);
 										// Days held priority:
 										// 1. purchaseAt — from imported tx history (most accurate)
@@ -704,11 +657,11 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 												: null;
 										// Green/red when we have a real P/L; amber '?' when priced but no basis;
 										// muted gray '—' when truly no data.
-										const plColor = plPct !== null
-											? (plPct >= 0 ? '#86efac' : '#fca5a5')
+										const plClass = plPct !== null
+											? (plPct >= 0 ? 'wallet-summary__cell--pl-positive' : 'wallet-summary__cell--pl-negative')
 											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
-												? 'rgba(251,191,36,0.7)'
-												: 'rgba(255,255,255,0.25)';
+												? 'wallet-summary__cell--pl-unknown'
+												: 'wallet-summary__cell--pl-none';
 										// Show dollar gain/loss; percentage moves to tooltip on hover
 										const plLabel = plAbsolute !== null
 											? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}`
@@ -739,23 +692,13 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													<span className="wallet-summary__cell wallet-summary__cell--days">
 														{daysHeld === null ? '—' : `${daysHeld}d`}
 														{daysHeld !== null && (
-															<span style={{
-																marginLeft: '0.35rem',
-																padding: '0.05rem 0.3rem',
-																borderRadius: '3px',
-																fontSize: '0.7em',
-																fontWeight: 700,
-																letterSpacing: '0.05em',
-																background: isLongTerm ? 'rgba(134,239,172,0.15)' : 'rgba(251,191,36,0.15)',
-																color: isLongTerm ? '#86efac' : '#fbbf24',
-															}}>
+															<span className={isLongTerm ? 'wallet-summary__lt-badge' : 'wallet-summary__st-badge'}>
 																{isLongTerm ? 'LT' : 'ST'}
 															</span>
 														)}
 													</span>
 													<span
-														className="wallet-summary__cell wallet-summary__cell--pl"
-														style={{ color: plColor }}
+														className={`wallet-summary__cell wallet-summary__cell--pl ${plClass}`}
 														title={plTooltip}
 													>
 														{plLabel}
@@ -767,10 +710,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 																	? null
 																	: { symbol: token.tokenSymbol, chain: token.chain }
 															)}
-															style={{ marginLeft: 'auto', background: 'none', border: 'none',
-																color: 'rgba(251,191,36,0.7)', fontSize: '0.68rem',
-																cursor: 'pointer', padding: '0 0.2rem',
-																textDecoration: 'underline', textUnderlineOffset: '2px' }}
+															className="wallet-summary__add-basis-btn"
 															title="Enter your purchase date and/or price paid"
 														>+ basis</button>
 													)}
@@ -826,11 +766,10 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 						const groups = buildChainGroups(displayedTokens);
 						return groups.map((group) => (
 							<section key={group.chain} className="wallet-summary__chain">
-								<h4 className="text-lg font-semibold text-center mb-3">{group.chain}</h4>
+								<h4 className="wallet-summary__chain-title">{group.chain}</h4>
 								<div className="wallet-summary__chain-rows">
 									<div
 										className="wallet-summary__row wallet-summary__row--header"
-										style={{}}
 									>
 										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
 										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
@@ -856,17 +795,12 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 												resolvedUsd = fallbackPrice * Number(token.amount ?? 0);
 											}
 										}
-										const valueColor = isUnverified
-											? undefined
-											: resolvedUsd !== null && resolvedUsd > 0
-												? '#86efac'
-												: undefined;
 										const valueNode = isUnverified ? (
-											<abbr title="Unverified contract — price cannot be confirmed" style={{ textDecoration: 'none', cursor: 'help' }}>❓</abbr>
+											<abbr title="Unverified contract — price cannot be confirmed" className="wallet-summary__cell--value-unverified">❓</abbr>
 										) : resolvedUsd !== null ? (
-											<span style={{ color: valueColor }}>{currencyFormatter.format(resolvedUsd)}</span>
+											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{currencyFormatter.format(resolvedUsd)}</span>
 										) : (
-											<abbr title="Price data unavailable for this token" style={{ textDecoration: 'none', cursor: 'help', color: 'rgba(255,255,255,0.3)' }}>—</abbr>
+											<abbr title="Price data unavailable for this token" className="wallet-summary__cell--value-unpriced">—</abbr>
 										);
 										// Days held priority:
 										// 1. purchaseAt — from imported tx history (most accurate)
@@ -901,11 +835,11 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 												: null;
 										// Green/red when we have a real P/L; amber '?' when priced but no basis;
 										// muted gray '—' when truly no data.
-										const plColor = plPct !== null
-											? (plPct >= 0 ? '#86efac' : '#fca5a5')
+										const plClass = plPct !== null
+											? (plPct >= 0 ? 'wallet-summary__cell--pl-positive' : 'wallet-summary__cell--pl-negative')
 											: (currentPrice !== null && Number.isFinite(currentPrice) && currentPrice > 0)
-												? 'rgba(251,191,36,0.7)'
-												: 'rgba(255,255,255,0.25)';
+												? 'wallet-summary__cell--pl-unknown'
+												: 'wallet-summary__cell--pl-none';
 										// Show dollar gain/loss; percentage moves to tooltip on hover
 										const plLabel = plAbsolute !== null
 											? `${plAbsolute >= 0 ? '+' : ''}${currencyFormatter.format(plAbsolute)}`
@@ -936,23 +870,13 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													<span className="wallet-summary__cell wallet-summary__cell--days">
 														{daysHeld === null ? '—' : `${daysHeld}d`}
 														{daysHeld !== null && (
-															<span style={{
-																marginLeft: '0.35rem',
-																padding: '0.05rem 0.3rem',
-																borderRadius: '3px',
-																fontSize: '0.7em',
-																fontWeight: 700,
-																letterSpacing: '0.05em',
-																background: isLongTerm ? 'rgba(134,239,172,0.15)' : 'rgba(251,191,36,0.15)',
-																color: isLongTerm ? '#86efac' : '#fbbf24',
-															}}>
+															<span className={isLongTerm ? 'wallet-summary__lt-badge' : 'wallet-summary__st-badge'}>
 																{isLongTerm ? 'LT' : 'ST'}
 															</span>
 														)}
 													</span>
 													<span
-														className="wallet-summary__cell wallet-summary__cell--pl"
-														style={{ color: plColor }}
+														className={`wallet-summary__cell wallet-summary__cell--pl ${plClass}`}
 														title={plTooltip}
 													>
 														{plLabel}
@@ -964,10 +888,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 																	? null
 																	: { symbol: token.tokenSymbol, chain: token.chain }
 															)}
-															style={{ marginLeft: 'auto', background: 'none', border: 'none',
-																color: 'rgba(251,191,36,0.7)', fontSize: '0.68rem',
-																cursor: 'pointer', padding: '0 0.2rem',
-																textDecoration: 'underline', textUnderlineOffset: '2px' }}
+															className="wallet-summary__add-basis-btn"
 															title="Enter your purchase date and/or price paid"
 														>+ basis</button>
 													)}
