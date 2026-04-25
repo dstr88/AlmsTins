@@ -99,8 +99,12 @@ try {
 			}
 		}
 		harvestLosses = Array.from(harvestMap.values())
-			.filter((r) => r.unrealizedGainLoss !== null && r.unrealizedGainLoss < 0)
-			.sort((a, b) => (a.unrealizedGainLoss ?? 0) - (b.unrealizedGainLoss ?? 0));
+			// Show ALL open positions — losses first (harvesting candidates), then gains
+			.sort((a, b) => {
+				const aGl = a.unrealizedGainLoss ?? Infinity;
+				const bGl = b.unrealizedGainLoss ?? Infinity;
+				return aGl - bGl;
+			});
 	} catch (e) {
 		console.warn('[memory-lane] harvest price fetch failed', e);
 	}
