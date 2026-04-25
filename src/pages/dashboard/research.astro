@@ -4,11 +4,13 @@ import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import AddTransactionModal from '../../components/dashboard/AddTransactionModal.astro';
 import { requireTenantSession } from '../../lib/requireTenantSession';
+import { isAdminSession } from '../../lib/adminGuard';
 import { db } from '../../lib/db';
 
 const session = await requireTenantSession(Astro.request);
 if (!session) return Astro.redirect('/login');
 const { tenantId } = session;
+const isAdmin = await isAdminSession(Astro.request);
 
 // Load all distinct symbols the user has data for (for the chip row)
 const symbolResult = await db.execute({
@@ -145,6 +147,29 @@ const tenantWallets = walletResult.rows.map(r => ({
 
     </div>
   </section>
+
+  {isAdmin && (
+    <>
+      <!-- ── Admin activity log pill ──────────────────────────────────────── -->
+      <button id="log-pill" aria-label="Activity log">Log</button>
+
+      <!-- ── Admin activity log panel ────────────────────────────────────── -->
+      <div id="log-panel" aria-hidden="true">
+        <div class="log-panel-header">
+          <span class="log-panel-title">Activity Log</span>
+          <span class="log-panel-note">Counts only — no private data stored</span>
+          <button id="log-panel-close" aria-label="Close">✕</button>
+        </div>
+        <div class="log-filter-row" id="log-filter-row">
+          <button class="log-chip log-chip-active" data-filter="all" data-group="source">All sources</button>
+          <button class="log-chip log-chip-active" data-filter="all" data-group="chain">All chains</button>
+        </div>
+        <div id="log-entries" class="log-entries">
+          <div class="log-empty">Loading…</div>
+        </div>
+      </div>
+    </>
+  )}
 </Layout>
 
 <!-- ── Suggested match confirmation modal ──────────────────────────────────── -->
@@ -1240,5 +1265,107 @@ walletPicker.querySelectorAll('.wallet-picker-item').forEach(item => {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 loadNeedsAttention();
 </script>
+
+{isAdmin && (
+<script>
+// ── Admin activity log ────────────────────────────────────────────────────────
+(function () {
+  const pill    = document.getElementById('log-pill');
+  const panel   = document.getElementById('log-panel');
+  const closeBtn = document.getElementById('log-panel-close');
+  const entries  = document.getElementById('log-entries');
+  const filterRow = document.getElementById('log-filter-row');
+  if (!pill || !panel) return;
+
+  let loaded = false;
+  let activeSource = 'all';
+  let activeChain  = 'all';
+
+  pill.addEventListener('click', () => {
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    panel.setAttribute('aria-hidden', String(isOpen));
+    if (!isOpen && !loaded) fetchLog();
+  });
+
+  closeBtn?.addEventListener('click', () => {
+    panel.classList.remove('open');
+    panel.setAttribute('aria-hidden', 'true');
+  });
+
+  function fmtTime(iso) {
+    const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function applyFilters() {
+    document.querySelectorAll('#log-entries .log-entry').forEach(el => {
+      const src   = el.dataset.source ?? '';
+      const chain = el.dataset.chain  ?? '';
+      const srcOk   = activeSource === 'all' || src   === activeSource;
+      const chainOk = activeChain  === 'all' || chain === activeChain;
+      el.classList.toggle('hidden', !(srcOk && chainOk));
+    });
+  }
+
+  function buildChips(sources, chains) {
+    filterRow.innerHTML = '';
+    const addChip = (label, val, group) => {
+      const btn = document.createElement('button');
+      btn.className = 'log-chip' + (val === 'all' ? ' log-chip-active' : '');
+      btn.textContent = label;
+      btn.dataset.filter = val;
+      btn.dataset.group  = group;
+      btn.addEventListener('click', () => {
+        filterRow.querySelectorAll(`[data-group="${group}"]`).forEach(b => b.classList.remove('log-chip-active'));
+        btn.classList.add('log-chip-active');
+        if (group === 'source') activeSource = val;
+        else activeChain = val;
+        applyFilters();
+      });
+      filterRow.appendChild(btn);
+    };
+
+    addChip('All sources', 'all', 'source');
+    sources.forEach(s => addChip(s.replace('_', '.'), s, 'source'));
+    addChip('All chains', 'all', 'chain');
+    chains.forEach(c => addChip(c, c, 'chain'));
+  }
+
+  async function fetchLog() {
+    entries.innerHTML = '<div class="log-empty">Loading…</div>';
+    try {
+      const res  = await fetch('/api/admin/activity-log?limit=300');
+      const data = await res.json();
+      if (!data.ok) throw new Error('not ok');
+
+      buildChips(data.sources ?? [], data.chains ?? []);
+
+      if (!data.entries?.length) {
+        entries.innerHTML = '<div class="log-empty">No activity recorded yet.</div>';
+        loaded = true;
+        return;
+      }
+
+      entries.innerHTML = data.entries.map(e => {
+        const badgeClass = `log-badge log-badge-${e.event_type}`;
+        const src   = e.source ?? '';
+        const chain = e.chain  ?? '';
+        return `<div class="log-entry" data-source="${src}" data-chain="${chain}">
+          <span class="log-time">${fmtTime(e.created_at)}</span>
+          <span class="log-summary">${e.summary}</span>
+          <span class="${badgeClass}">${e.event_type.replace('_', ' ')}</span>
+          <span class="log-tenant">${String(e.tenant_id).slice(0, 8)}… ${src ? '· ' + src.replace('_','.') : ''} ${chain ? '· ' + chain : ''}</span>
+        </div>`;
+      }).join('');
+
+      loaded = true;
+    } catch {
+      entries.innerHTML = '<div class="log-empty">Failed to load log.</div>';
+    }
+  }
+})();
+</script>
+)}
 
 <AddTransactionModal />

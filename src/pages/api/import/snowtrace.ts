@@ -23,6 +23,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
+import { logActivity } from '@/lib/activityLog';
 
 type CsvRow = Record<string, string>;
 
@@ -353,6 +354,7 @@ export const POST: APIRoute = async ({ request }) => {
 	// against the newly imported Snowtrace INs.
 	void runTransferMatching(tenantId);
 	void autoClassifyOwnWalletTransfers(tenantId);
+	logActivity(tenantId, 'import', `${insertedNormalized} imported, ${skippedDuplicates} skipped`, { inserted: insertedNormalized, skipped: skippedDuplicates }, { source: 'snowtrace', chain: 'avalanche' });
 
 	return new Response(
 		JSON.stringify({

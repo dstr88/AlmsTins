@@ -3,6 +3,7 @@ import { getAllActiveWallets } from '../../../../lib/wallets';
 import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
+import { logActivity } from '@/lib/activityLog';
 
 export const prerender = false;
 
@@ -23,6 +24,14 @@ export const POST: APIRoute = async ({ params, request }) => {
 		}
 
 		const stats = await syncWalletTransactions(tenantId, wallet);
+		const primaryChain = Array.isArray(stats.chains) ? stats.chains[0] ?? null : null;
+		logActivity(
+			tenantId,
+			'sync',
+			`${stats.totalInserted} new, ${stats.totalSkipped} skipped`,
+			{ walletId, chains: stats.chains, inserted: stats.totalInserted, skipped: stats.totalSkipped },
+			{ source: 'wallet_sync', chain: primaryChain },
+		);
 		return respond(
 			{
 				ok: true,

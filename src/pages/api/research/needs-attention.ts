@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { logNeedsAttention } from '@/lib/activityLog';
 
 export const prerender = false;
 
@@ -236,13 +237,16 @@ export const GET: APIRoute = async ({ request }) => {
 			.filter(Boolean)
 	)].sort();
 
+	const total = trueUnmatchedCount + suggestedResult.rows.length;
+	logNeedsAttention(tenantId, total, trueUnmatchedCount, suggestedResult.rows.length);
+
 	return new Response(
 		JSON.stringify({
 			unmatched:  unmatchedResult.rows,
 			suggested:  suggestedResult.rows,
 			resolved:   resolvedResult.rows,
 			symbols,
-			total: trueUnmatchedCount + suggestedResult.rows.length,
+			total,
 		}),
 		{
 			status: 200,

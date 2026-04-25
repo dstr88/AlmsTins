@@ -22,6 +22,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
+import { logActivity } from '@/lib/activityLog';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 
 const BLOCKSTREAM = 'https://blockstream.info/api';
@@ -344,6 +345,7 @@ export const POST: APIRoute = async ({ request }) => {
 	// Run transfer matching tenant-wide so BTC OUTs/INs can match CEX sends/receives
 	void runTransferMatching(tenantId);
 	void autoClassifyOwnWalletTransfers(tenantId);
+	logActivity(tenantId, 'import', `${totalInserted} imported, ${totalSkipped} skipped`, { inserted: totalInserted, skipped: totalSkipped }, { source: 'btc_sync', chain: 'bitcoin' });
 
 	return new Response(JSON.stringify({
 		inserted:  totalInserted,
