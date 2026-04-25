@@ -114,7 +114,7 @@ const tenantWallets = walletResult.rows.map(r => ({
       <div class="col-left">
         <div class="col-header">
           <h2>Needs Attention <span id="na-count" class="count-badge"></span></h2>
-          <p class="col-scope">All years · Bookkeeping shows current year only</p>
+          <p class="col-scope">All years · Bookkeeping shows current year only <span id="na-synced" class="na-synced-badge" style="display:none"></span></p>
         </div>
         <div id="na-list" class="item-list">
           <div class="loading-msg">Loading…</div>
@@ -317,6 +317,12 @@ async function loadNeedsAttention() {
     const res  = await fetch('/api/research/needs-attention');
     const data = await res.json();
     renderNeedsAttention(data);
+    const badge = $('na-synced');
+    if (badge) {
+      const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      badge.textContent = `· synced ${t}`;
+      badge.style.display = 'inline';
+    }
   } catch (e) {
     list.innerHTML = `<div class="empty-msg">Failed to load: ${e.message}</div>`;
   }

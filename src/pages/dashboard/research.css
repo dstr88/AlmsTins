@@ -871,6 +871,14 @@
   font-family: monospace;
 }
 
+/* ── Needs Attention synced badge ───────────────────────────────────────── */
+.na-synced-badge {
+  font-size: 0.68rem;
+  color: var(--gain);
+  font-weight: 500;
+  opacity: 0.8;
+}
+
 /* ── Inline utility classes (replaces repeated inline styles) ────────────── */
 
 /* Transaction note / annotation text */
