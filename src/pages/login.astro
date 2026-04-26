@@ -193,9 +193,13 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         <div class="hero-copy">
           <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
           <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
+          <p class="checker-text-link">
+            <span>Just want to check a wallet?</span>
+            <a href="/wallet-checker">Use the free wallet checker →</a>
+          </p>
         </div>
 
-        <!-- Primary CTA — demo -->
+        <!-- Secondary CTA — demo -->
         <div class="demo-cta-wrap">
           <a href="/api/demo/start" class="demo-cta-btn">
             Try with your wallet <span class="demo-cta-arrow">→</span>
@@ -266,30 +270,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           </div>
         </div>
 
-      </section>
-
-      <!-- ── RIGHT PANEL — Wallet Scam Checker ─────────────────── -->
-      <section class="auth-right">
-        <div class="checker-card">
-          <span class="checker-badge">FREE TOOL · NO SIGNUP</span>
-          <h2 class="checker-heading">Is that wallet safe?</h2>
-          <p class="checker-sub">
-            Paste any wallet address. We'll check it against known scam,
-            phishing, and sanctioned address databases in seconds.
-          </p>
-          <input
-            type="text"
-            class="checker-input"
-            id="checkerInput"
-            placeholder="0x… or paste any wallet address"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button class="checker-btn" id="checkerSubmit" type="button">
-            Check wallet →
-          </button>
-          <p class="checker-footer">Checked 2.4M+ wallets · Updated daily</p>
-        </div>
       </section>
 
     </div>
@@ -452,28 +432,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       tabMagic?.addEventListener('click', () => switchTab(false));
     })();
 
-    // ── Wallet scam checker ───────────────────────────────────────────
-    (() => {
-      const input  = document.getElementById('checkerInput') as HTMLInputElement | null;
-      const btn    = document.getElementById('checkerSubmit');
-
-      function runCheck() {
-        const addr = input?.value.trim();
-        if (addr) {
-          window.location.href = '/wallet-checker?address=' + encodeURIComponent(addr);
-        } else {
-          input?.focus();
-          input?.classList.add('checker-input--shake');
-          setTimeout(() => input?.classList.remove('checker-input--shake'), 500);
-        }
-      }
-
-      btn?.addEventListener('click', runCheck);
-      input?.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (e.key === 'Enter') runCheck();
-      });
-    })();
-
     // ── Hesitation modal (30s timer, reset on interaction) ───────────
     (() => {
       const overlay = document.getElementById('hesitationOverlay');
@@ -575,13 +533,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     /* ── Shell ─────────────────────────────────────────────────── */
     .auth-shell {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      align-items: stretch;
+      display: flex;
+      justify-content: center;
       min-height: 100vh;
-    }
-    @media (max-width: 900px) {
-      .auth-shell { grid-template-columns: 1fr; }
+      background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
     }
 
     /* ── Left panel ────────────────────────────────────────────── */
@@ -590,7 +545,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       display: flex;
       flex-direction: column;
       gap: 2rem;
-      background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
+      width: 100%;
+      max-width: 760px;
       overflow: hidden;
       position: relative;
     }
@@ -624,10 +580,25 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .hero-sub {
       font-size: 1rem; color: rgba(255,255,255,0.55);
-      line-height: 1.7; margin: 0;
+      line-height: 1.7; margin: 0 0 0.5rem;
     }
+    .checker-text-link {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.875rem;
+      flex-wrap: wrap;
+      margin: 0;
+    }
+    .checker-text-link span { color: var(--text-muted); }
+    .checker-text-link a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .checker-text-link a:hover { opacity: 0.8; text-decoration: underline; }
 
-    /* ── Demo CTA — primary hero button ────────────────────────── */
+    /* ── Demo CTA — secondary outlined button ───────────────────── */
     .demo-cta-wrap {
       display: flex;
       flex-direction: column;
@@ -641,19 +612,19 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       width: 100%;
       padding: 1rem 2.5rem;
       border-radius: 14px;
-      background: linear-gradient(135deg, #0f7a55, #0d9466);
-      color: #fff;
+      background: transparent;
+      border: 1px solid var(--border-bright);
+      color: var(--text-primary);
       font-size: 1.1rem;
-      font-weight: 700;
+      font-weight: 600;
       text-decoration: none;
       letter-spacing: -0.01em;
-      box-shadow: 0 4px 24px rgba(13,148,102,0.35);
-      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+      transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
     }
     .demo-cta-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(13,148,102,0.5);
-      opacity: 0.95;
+      transform: translateY(-1px);
+      background: var(--surface-hover);
+      border-color: var(--border-bright);
     }
     .demo-cta-arrow {
       display: inline-block;
@@ -711,113 +682,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       background: linear-gradient(to bottom, transparent, #0a0f1a);
     }
 
-    /* ── Right panel ───────────────────────────────────────────── */
-    .auth-right {
-      display: flex; align-items: center; justify-content: center;
-      padding: 2rem; background: rgba(0,0,0,0.3);
-      border-left: 1px solid rgba(255,255,255,0.06);
-    }
-    @media (max-width: 900px) {
-      .auth-right {
-        border-left: none;
-        border-top: 1px solid rgba(255,255,255,0.06);
-        padding: 2rem 1.5rem;
-      }
-    }
-
-    /* ── Wallet Scam Checker card ───────────────────────────────── */
-    .checker-card {
-      background: rgba(10, 15, 26, 0.95);
-      border: 1px solid rgba(125, 211, 252, 0.2);
-      border-radius: 20px;
-      padding: 2.5rem 2rem;
-      width: 100%; max-width: 420px;
-      box-shadow: 0 30px 70px rgba(0,0,0,0.5), 0 0 40px rgba(125,211,252,0.04);
-      display: flex; flex-direction: column; gap: 1.25rem;
-    }
-    .checker-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.65rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 0.25rem 0.7rem;
-      border-radius: 999px;
-      background: rgba(125,211,252,0.12);
-      border: 1px solid rgba(125,211,252,0.3);
-      color: #7dd3fc;
-      width: fit-content;
-    }
-    .checker-heading {
-      font-size: 1.55rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      line-height: 1.2;
-      margin: 0;
-      color: #f5f8ff;
-    }
-    .checker-sub {
-      font-size: 0.9rem;
-      color: rgba(255,255,255,0.5);
-      line-height: 1.7;
-      margin: 0;
-    }
-    .checker-input {
-      width: 100%;
-      box-sizing: border-box;
-      border-radius: 12px;
-      border: 1px solid rgba(125,211,252,0.2);
-      background: rgba(125,211,252,0.04);
-      color: #f5f8ff;
-      padding: 0.9rem 1rem;
-      font-size: 0.95rem;
-      font-family: inherit;
-      outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    .checker-input::placeholder { color: rgba(255,255,255,0.25); }
-    .checker-input:focus {
-      border-color: rgba(125,211,252,0.5);
-      box-shadow: 0 0 0 3px rgba(125,211,252,0.08);
-    }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      20%, 60% { transform: translateX(-6px); }
-      40%, 80% { transform: translateX(6px); }
-    }
-    .checker-input--shake { animation: shake 0.4s ease; }
-    .checker-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      padding: 1rem;
-      border-radius: 12px;
-      border: none;
-      background: linear-gradient(135deg, #0284c7, #0369a1);
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      letter-spacing: -0.01em;
-      box-shadow: 0 4px 20px rgba(2,132,199,0.35);
-      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
-    }
-    .checker-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 28px rgba(2,132,199,0.5);
-      opacity: 0.95;
-    }
-    .checker-footer {
-      margin: 0;
-      text-align: center;
-      font-size: 0.75rem;
-      color: rgba(255,255,255,0.25);
-      letter-spacing: 0.02em;
-    }
-
     /* ── Sign-in pill (fixed top-right) ────────────────────────── */
     .signin-pill-wrap {
       position: fixed;
@@ -829,35 +693,27 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      padding: 0.5rem 1.1rem;
+      padding: 0.625rem 1.25rem;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(10,15,26,0.85);
-      backdrop-filter: blur(12px);
-      color: rgba(255,255,255,0.75);
+      border: none;
+      background: var(--accent);
+      color: var(--surface-bg);
       font-size: 0.88rem;
       font-weight: 600;
       font-family: inherit;
       cursor: pointer;
-      transition: border-color 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s;
+      transition: box-shadow 0.15s, transform 0.15s, opacity 0.15s;
       white-space: nowrap;
     }
     .signin-pill:hover {
-      border-color: rgba(255,255,255,0.35);
-      color: #fff;
+      box-shadow: 0 0 0 4px var(--accent-glow);
       transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
     }
     .signin-pill.is-open {
-      border-color: rgba(165,180,252,0.4);
-      color: #a5b4fc;
+      opacity: 0.9;
+      box-shadow: 0 0 0 4px var(--accent-glow);
     }
-    .pill-chevron {
-      flex-shrink: 0;
-      opacity: 0.6;
-      transition: transform 0.2s ease;
-    }
-    .signin-pill.is-open .pill-chevron { transform: rotate(180deg); }
+    .pill-chevron { display: none; }
 
     /* ── Sign-in dropdown ──────────────────────────────────────── */
     .signin-dropdown {
