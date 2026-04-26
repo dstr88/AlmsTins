@@ -21,7 +21,7 @@ const safeCallbackUrl = callbackUrl.startsWith("/") ? callbackUrl : "/dashboard/
 
 const message =
   error === "missing"
-    ? "Sign in to continue."
+    ? ""  // handled by always-visible info box in the dropdown
     : error === "Configuration"
       ? "Sign-in is temporarily unavailable. Please try again in a moment."
       : error === "OAuthAccountNotLinked"
@@ -63,7 +63,7 @@ try {
   console.warn("Failed to load CSRF token server-side", error);
 }
 
-const hasAlert = (message && message !== "LOCKED_OUT") || !!notice;
+const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") || !!notice;
 ---
 
 <Layout>
@@ -90,6 +90,10 @@ const hasAlert = (message && message !== "LOCKED_OUT") || !!notice;
         <a class="dropdown-cta" href={safeCallbackUrl}>Continue to Dashboard →</a>
       ) : (
         <>
+          <div class="dropdown-info">
+            <p class="dropdown-info-primary">No signup needed — just sign in.</p>
+            <p class="dropdown-info-sub">We'll create your account automatically the first time.</p>
+          </div>
           {message && message !== "LOCKED_OUT" && (
             <p class="dropdown-notice">{message}</p>
           )}
@@ -167,8 +171,6 @@ const hasAlert = (message && message !== "LOCKED_OUT") || !!notice;
             </div>
           </div>
 
-          <div class="dropdown-divider"></div>
-          <a class="dropdown-signup-link" href="/signup">Create a free account</a>
         </>
       )}
     </div>
@@ -884,10 +886,33 @@ const hasAlert = (message && message !== "LOCKED_OUT") || !!notice;
       .signin-dropdown  { width: calc(100vw - 1.5rem); right: 0; }
     }
 
+    .dropdown-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0.55rem 0.75rem;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+    }
+    .dropdown-info-primary {
+      margin: 0;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.4;
+    }
+    .dropdown-info-sub {
+      margin: 0;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
     .dropdown-notice {
       margin: 0;
-      background: rgba(255,107,107,0.1);
-      border: 1px solid rgba(255,107,107,0.3);
+      background: var(--loss-bg);
+      border: 1px solid var(--loss-border);
       color: #ffb5b5;
       padding: 0.55rem 0.75rem;
       border-radius: 10px;
@@ -895,8 +920,8 @@ const hasAlert = (message && message !== "LOCKED_OUT") || !!notice;
       line-height: 1.5;
     }
     .dropdown-notice--success {
-      background: rgba(60,179,113,0.1);
-      border-color: rgba(60,179,113,0.3);
+      background: var(--gain-bg);
+      border-color: var(--gain-border);
       color: #b6f3c4;
     }
 
@@ -916,17 +941,6 @@ const hasAlert = (message && message !== "LOCKED_OUT") || !!notice;
       background: rgba(255,255,255,0.08);
       margin: 0.1rem 0;
     }
-
-    .dropdown-signup-link {
-      display: block;
-      text-align: center;
-      font-size: 0.83rem;
-      color: rgba(255,255,255,0.4);
-      text-decoration: none;
-      padding: 0.25rem;
-      transition: color 0.15s;
-    }
-    .dropdown-signup-link:hover { color: #a5b4fc; }
 
     /* Providers (shared between dropdown items) */
     .providers { display: grid; gap: 0.75rem; }
