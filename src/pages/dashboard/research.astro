@@ -158,82 +158,26 @@ const tenantWallets = walletResult.rows.map(r => ({
 
       <div id="health-grid" class="health-grid"></div>
 
-      <div class="intake-section">
-        <div class="intake-header">
-          <h3>Dataset Questionnaire</h3>
-          <p class="intake-subtitle">Your answers help us interpret unresolved transactions.</p>
-          <span id="intake-saved-badge" class="intake-saved-badge" style="display:none">Saved</span>
-        </div>
-        <div class="intake-form" id="intake-form">
-
-          <div class="intake-q">
-            <label class="intake-label">Do you have transaction records from before 2019?</label>
-            <div class="intake-opts" data-key="pre2019_records">
-              <button class="intake-opt" data-value="yes">Yes, complete records</button>
-              <button class="intake-opt" data-value="partial">Some records</button>
-              <button class="intake-opt" data-value="no">No / don't know</button>
-            </div>
-          </div>
-
-          <div class="intake-q">
-            <label class="intake-label">Did you hold non-EVM assets — Bitcoin, Solana, XRP, Litecoin, Cardano, etc.?</label>
-            <div class="intake-opts" data-key="non_evm">
-              <button class="intake-opt" data-value="yes">Yes</button>
-              <button class="intake-opt" data-value="no">No</button>
-            </div>
-            <input class="intake-text" data-key="non_evm_detail" type="text" placeholder="Which ones? (optional)" />
-          </div>
-
-          <div class="intake-q">
-            <label class="intake-label">Were you affected by any failed exchanges (FTX, Celsius, BlockFi, Voyager, etc.)?</label>
-            <div class="intake-opts" data-key="failed_exchanges">
-              <button class="intake-opt" data-value="yes">Yes</button>
-              <button class="intake-opt" data-value="no">No</button>
-            </div>
-            <input class="intake-text" data-key="failed_exchanges_detail" type="text" placeholder="Which ones? What happened to your funds?" />
-          </div>
-
-          <div class="intake-q">
-            <label class="intake-label">Did you make peer-to-peer transfers directly to phone numbers (Crypto.com P2P, etc.)?</label>
-            <div class="intake-opts" data-key="p2p_transfers">
-              <button class="intake-opt" data-value="yes">Yes</button>
-              <button class="intake-opt" data-value="no">No</button>
-            </div>
-          </div>
-
-          <div class="intake-q">
-            <label class="intake-label">Are there exchanges or wallets you can no longer access records from?</label>
-            <div class="intake-opts" data-key="lost_access">
-              <button class="intake-opt" data-value="yes">Yes</button>
-              <button class="intake-opt" data-value="no">No</button>
-            </div>
-            <input class="intake-text" data-key="lost_access_detail" type="text" placeholder="Which ones? Approximate years and amounts if known." />
-          </div>
-
-          <div class="intake-q">
-            <label class="intake-label">Did you receive crypto from any of these sources?</label>
-            <div class="intake-checks">
-              <label class="intake-check"><input type="checkbox" data-key="income_staking" /> Staking rewards</label>
-              <label class="intake-check"><input type="checkbox" data-key="income_mining" /> Mining</label>
-              <label class="intake-check"><input type="checkbox" data-key="income_airdrops" /> Airdrops</label>
-              <label class="intake-check"><input type="checkbox" data-key="income_salary" /> Crypto salary / freelance</label>
-              <label class="intake-check"><input type="checkbox" data-key="income_defi" /> DeFi yields / LP rewards</label>
-            </div>
-          </div>
-
-          <div class="intake-q">
-            <label class="intake-label">Any other context that might help explain unresolved transactions?</label>
-            <textarea class="intake-textarea" data-key="context" rows="3"
-              placeholder="e.g. 'Sent AVAX to my Ledger around March 2022', 'Got 100 LUNA before the crash', etc."></textarea>
-          </div>
-
-          <div class="intake-save-row">
-            <button id="btn-save-intake" class="btn-primary" type="button">Save answers</button>
-            <span id="intake-status" class="form-status"></span>
-          </div>
-        </div>
+      <div class="intake-launch-row">
+        <button id="btn-open-questionnaire" class="btn-questionnaire-launch" type="button">
+          📋 Dataset Questionnaire
+        </button>
+        <span id="intake-completion-badge" class="intake-completion-badge" style="display:none"></span>
       </div>
     </div>
+
+  <!-- ── Dataset Questionnaire Wizard ───────────────────────────────────────── -->
+  <div id="intake-wizard-overlay" class="intake-wizard-overlay" style="display:none" aria-modal="true" role="dialog">
+    <div class="intake-wizard-modal">
+      <button class="intake-wizard-close" id="intake-wizard-close" aria-label="Close">✕</button>
+      <div class="intake-wizard-progress" id="intake-wizard-progress"></div>
+      <div class="intake-wizard-body" id="intake-wizard-body"></div>
+      <div class="intake-wizard-nav">
+        <button class="btn-secondary intake-wizard-back" id="intake-wizard-back" type="button">← Back</button>
+        <button class="btn-primary intake-wizard-next" id="intake-wizard-next" type="button">Next →</button>
+      </div>
+    </div>
+  </div>
 
   </section>
 
@@ -332,7 +276,7 @@ function renderNeedsAttention(data) {
   const list  = $('na-list');
   const count = $('na-count');
   const total = data.total ?? 0;
-  count.textContent = total > 0 ? String(total) : '';
+  count.textContent = total > 0 ? (data.unmatchedCapped ? '300+' : String(total)) : '';
 
   let html = '';
 
@@ -414,6 +358,9 @@ function renderNeedsAttention(data) {
                     onclick="markLegacy(event, '${t.id}')">
               🏚 Legacy exchange
             </button>` : ''}`}
+            <button class="btn-context-pill"
+                    onclick="event.stopPropagation();openWizard()"
+                    title="About my transaction history">📋</button>
             <button class="btn-help"
                     data-tx-id="${t.id}"
                     onclick="openHelpPanel(event,'${t.id}','${(t.kind??'').replace(/'/g,'')}','${dir}','${t.asset_symbol}','${(t.description??'').replace(/'/g,'').replace(/"/g,'').slice(0,80)}','${(srcName(t.source)??'').replace(/'/g,'')}')">
@@ -1369,96 +1316,250 @@ function renderHealthCheck(d) {
 }
 
 // ── Intake questionnaire ──────────────────────────────────────────────────────
+// ── Dataset Questionnaire Wizard ─────────────────────────────────────────────
+
+const WIZARD_STEPS = [
+  {
+    key: 'pre2019_records',
+    question: 'Do you have transaction records from before 2019?',
+    hint: 'Pre-2019 records often lack tx hashes, making transfers harder to match automatically.',
+    type: 'opts',
+    opts: [
+      { value: 'yes',     label: 'Yes — complete records' },
+      { value: 'partial', label: 'Some records'           },
+      { value: 'no',      label: 'No / don\'t know'       },
+    ],
+  },
+  {
+    key: 'non_evm',
+    question: 'Did you hold non-EVM assets?',
+    hint: 'Bitcoin, Solana, XRP, Litecoin, Cardano, and others can\'t be verified via on-chain EVM lookup.',
+    type: 'opts',
+    opts: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no',  label: 'No'  },
+    ],
+    detail: { key: 'non_evm_detail', placeholder: 'Which ones? (optional)' },
+  },
+  {
+    key: 'failed_exchanges',
+    question: 'Were you affected by any failed exchanges?',
+    hint: 'FTX, Celsius, BlockFi, Voyager, Nexo — funds lost here won\'t have a matching withdrawal.',
+    type: 'opts',
+    opts: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no',  label: 'No'  },
+    ],
+    detail: { key: 'failed_exchanges_detail', placeholder: 'Which ones? What happened to your funds?' },
+  },
+  {
+    key: 'p2p_transfers',
+    question: 'Did you make peer-to-peer transfers to phone numbers?',
+    hint: 'Crypto.com P2P and similar transfers don\'t produce a blockchain tx hash — they stay unmatched.',
+    type: 'opts',
+    opts: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no',  label: 'No'  },
+    ],
+  },
+  {
+    key: 'lost_access',
+    question: 'Are there exchanges or wallets you can no longer access?',
+    hint: 'Records you can\'t retrieve will leave gaps — note them so we know the gap is expected.',
+    type: 'opts',
+    opts: [
+      { value: 'yes', label: 'Yes' },
+      { value: 'no',  label: 'No'  },
+    ],
+    detail: { key: 'lost_access_detail', placeholder: 'Which ones? Approximate years and amounts if known.' },
+  },
+  {
+    key: '_income',
+    question: 'Did you receive crypto from any of these sources?',
+    hint: 'Earned income has different tax treatment and often lacks a matching outbound transaction.',
+    type: 'checks',
+    checks: [
+      { key: 'income_staking',  label: 'Staking rewards'          },
+      { key: 'income_mining',   label: 'Mining'                   },
+      { key: 'income_airdrops', label: 'Airdrops'                 },
+      { key: 'income_salary',   label: 'Crypto salary / freelance'},
+      { key: 'income_defi',     label: 'DeFi yields / LP rewards' },
+    ],
+  },
+  {
+    key: 'context',
+    question: 'Any other context?',
+    hint: 'Notes about unusual transactions help reconcile gaps that automated matching can\'t resolve.',
+    type: 'textarea',
+    placeholder: 'e.g. "Sent AVAX to my Ledger around March 2022", "Got 100 LUNA before the crash"',
+  },
+];
+
+let wizardAnswers = {};
+let wizardStep    = 0;
+
 async function loadIntake() {
   try {
     const res  = await fetch('/api/research/intake');
     const data = await res.json();
-    applyIntakeAnswers(data.answers ?? {});
+    wizardAnswers = data.answers ?? {};
+    updateCompletionBadge();
   } catch {}
 }
 
-function applyIntakeAnswers(answers) {
-  // Toggle buttons
-  document.querySelectorAll('.intake-opts').forEach(group => {
-    const key = group.getAttribute('data-key');
-    const val = answers[key];
-    group.querySelectorAll('.intake-opt').forEach(btn => {
-      btn.classList.toggle('intake-opt-active', btn.getAttribute('data-value') === val);
-    });
-  });
-  // Text inputs
-  document.querySelectorAll('input.intake-text[data-key]').forEach(inp => {
-    const val = answers[inp.getAttribute('data-key')];
-    if (val != null) inp.value = String(val);
-  });
-  // Checkboxes
-  document.querySelectorAll('input[type="checkbox"][data-key]').forEach(cb => {
-    cb.checked = !!answers[cb.getAttribute('data-key')];
-  });
-  // Textarea
-  document.querySelectorAll('textarea.intake-textarea[data-key]').forEach(ta => {
-    const val = answers[ta.getAttribute('data-key')];
-    if (val != null) ta.value = String(val);
-  });
+function updateCompletionBadge() {
+  const badge = $('intake-completion-badge');
+  if (!badge) return;
+  const answered = WIZARD_STEPS.filter(s => {
+    if (s.type === 'checks') return s.checks.some(c => wizardAnswers[c.key]);
+    if (s.type === 'textarea') return !!wizardAnswers[s.key]?.trim();
+    return !!wizardAnswers[s.key];
+  }).length;
+  if (answered > 0) {
+    badge.textContent = `${answered}/${WIZARD_STEPS.length} answered`;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
-function collectIntakeAnswers() {
-  const answers = {};
-  // Toggle buttons — last active wins
-  document.querySelectorAll('.intake-opts').forEach(group => {
-    const key = group.getAttribute('data-key');
-    const active = group.querySelector('.intake-opt-active');
-    if (active) answers[key] = active.getAttribute('data-value');
-  });
-  // Text inputs
-  document.querySelectorAll('input.intake-text[data-key]').forEach(inp => {
-    const val = inp.value.trim();
-    if (val) answers[inp.getAttribute('data-key')] = val;
-  });
-  // Checkboxes
-  document.querySelectorAll('input[type="checkbox"][data-key]').forEach(cb => {
-    if (cb.checked) answers[cb.getAttribute('data-key')] = true;
-  });
-  // Textarea
-  document.querySelectorAll('textarea.intake-textarea[data-key]').forEach(ta => {
-    const val = ta.value.trim();
-    if (val) answers[ta.getAttribute('data-key')] = val;
-  });
-  return answers;
+function openWizard() {
+  wizardStep = 0;
+  renderWizardStep();
+  $('intake-wizard-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
 }
 
-// Wire intake option buttons
-document.querySelectorAll('.intake-opts').forEach(group => {
-  group.querySelectorAll('.intake-opt').forEach(btn => {
+function closeWizard() {
+  $('intake-wizard-overlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function renderWizardStep() {
+  const step  = WIZARD_STEPS[wizardStep];
+  const total = WIZARD_STEPS.length;
+  const prog  = $('intake-wizard-progress');
+  const body  = $('intake-wizard-body');
+  const back  = $('intake-wizard-back');
+  const next  = $('intake-wizard-next');
+
+  // Progress dots
+  prog.innerHTML = Array.from({ length: total }, (_, i) =>
+    `<span class="wizard-dot${i === wizardStep ? ' wizard-dot-active' : i < wizardStep ? ' wizard-dot-done' : ''}"></span>`
+  ).join('') + `<span class="wizard-step-label">${wizardStep + 1} / ${total}</span>`;
+
+  // Question body
+  let html = `<p class="wizard-question">${step.question}</p>`;
+  if (step.hint) html += `<p class="wizard-hint">${step.hint}</p>`;
+
+  if (step.type === 'opts') {
+    html += `<div class="wizard-opts">`;
+    for (const opt of step.opts) {
+      const active = wizardAnswers[step.key] === opt.value;
+      html += `<button class="wizard-opt${active ? ' wizard-opt-active' : ''}" data-key="${step.key}" data-value="${opt.value}">${opt.label}</button>`;
+    }
+    html += `</div>`;
+    if (step.detail) {
+      const detailVal = wizardAnswers[step.detail.key] ?? '';
+      html += `<input class="wizard-detail-text" data-key="${step.detail.key}" type="text" placeholder="${step.detail.placeholder}" value="${detailVal.replace(/"/g,'&quot;')}" />`;
+    }
+  } else if (step.type === 'checks') {
+    html += `<div class="wizard-checks">`;
+    for (const c of step.checks) {
+      const checked = !!wizardAnswers[c.key];
+      html += `<label class="wizard-check"><input type="checkbox" data-key="${c.key}"${checked ? ' checked' : ''} /> ${c.label}</label>`;
+    }
+    html += `</div>`;
+  } else if (step.type === 'textarea') {
+    const val = wizardAnswers[step.key] ?? '';
+    html += `<textarea class="wizard-textarea" data-key="${step.key}" rows="4" placeholder="${step.placeholder}">${val}</textarea>`;
+  }
+
+  body.innerHTML = html;
+
+  // Wire opt buttons
+  body.querySelectorAll('.wizard-opt').forEach(btn => {
     btn.addEventListener('click', () => {
-      group.querySelectorAll('.intake-opt').forEach(b => b.classList.remove('intake-opt-active'));
-      btn.classList.add('intake-opt-active');
+      body.querySelectorAll('.wizard-opt').forEach(b => b.classList.remove('wizard-opt-active'));
+      btn.classList.add('wizard-opt-active');
+      wizardAnswers[btn.getAttribute('data-key')] = btn.getAttribute('data-value');
     });
   });
-});
 
-$('btn-save-intake')?.addEventListener('click', async () => {
-  const btn    = $('btn-save-intake');
-  const status = $('intake-status');
-  const badge  = $('intake-saved-badge');
-  btn.disabled = true;
-  if (status) status.textContent = 'Saving…';
+  // Wire checkboxes (live update)
+  body.querySelectorAll('input[type="checkbox"][data-key]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      wizardAnswers[cb.getAttribute('data-key')] = cb.checked || undefined;
+      if (!cb.checked) delete wizardAnswers[cb.getAttribute('data-key')];
+    });
+  });
+
+  // Wire detail input (live update)
+  body.querySelectorAll('.wizard-detail-text').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const v = inp.value.trim();
+      if (v) wizardAnswers[inp.getAttribute('data-key')] = v;
+      else   delete wizardAnswers[inp.getAttribute('data-key')];
+    });
+  });
+
+  // Wire textarea (live update)
+  body.querySelectorAll('.wizard-textarea').forEach(ta => {
+    ta.addEventListener('input', () => {
+      const v = ta.value.trim();
+      if (v) wizardAnswers[ta.getAttribute('data-key')] = v;
+      else   delete wizardAnswers[ta.getAttribute('data-key')];
+    });
+  });
+
+  // Nav buttons
+  back.style.visibility = wizardStep === 0 ? 'hidden' : 'visible';
+  const isLast = wizardStep === total - 1;
+  next.textContent = isLast ? '✓ Save' : 'Next →';
+}
+
+async function saveWizardAnswers() {
+  const next = $('intake-wizard-next');
+  next.disabled = true;
+  next.textContent = 'Saving…';
   try {
-    const answers = collectIntakeAnswers();
     const res = await fetch('/api/research/intake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(answers),
+      body: JSON.stringify(wizardAnswers),
     });
     if (!res.ok) throw new Error(await res.text());
-    if (status) status.textContent = '';
-    if (badge) { badge.style.display = 'inline-block'; setTimeout(() => { badge.style.display = 'none'; }, 2500); }
+    updateCompletionBadge();
+    closeWizard();
   } catch (e) {
-    if (status) status.textContent = '⚠ ' + e.message;
-  } finally {
-    btn.disabled = false;
+    next.textContent = '⚠ ' + e.message;
+    setTimeout(() => {
+      next.textContent = '✓ Save';
+      next.disabled = false;
+    }, 2500);
+  }
+}
+
+$('intake-wizard-next')?.addEventListener('click', () => {
+  if (wizardStep < WIZARD_STEPS.length - 1) {
+    wizardStep++;
+    renderWizardStep();
+  } else {
+    saveWizardAnswers();
   }
 });
+
+$('intake-wizard-back')?.addEventListener('click', () => {
+  if (wizardStep > 0) { wizardStep--; renderWizardStep(); }
+});
+
+$('intake-wizard-close')?.addEventListener('click', closeWizard);
+
+$('intake-wizard-overlay')?.addEventListener('click', e => {
+  if (e.target === $('intake-wizard-overlay')) closeWizard();
+});
+
+$('btn-open-questionnaire')?.addEventListener('click', openWizard);
 
 $('btn-run-health')?.addEventListener('click', async () => {
   const btn = $('btn-run-health');

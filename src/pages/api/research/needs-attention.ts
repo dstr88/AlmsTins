@@ -25,69 +25,18 @@ export const GET: APIRoute = async ({ request }) => {
 	const { tenantId } = session;
 
 	const cacheKey = `t:${tenantId}:research:needs-attention:v1`;
-	const cached   = await getCache<object>(cacheKey, { staleAfterSeconds: CACHE_TTL });
-	if (cached.value && !cached.isStale) {
-		return new Response(JSON.stringify(cached.value), {
+	const cached   = await getCache<object>(cacheKey);
+	if (cached !== null) {
+		return new Response(JSON.stringify(cached), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' },
 		});
 	}
 
-	// ── All 4 queries in parallel ─────────────────────────────────────────────
-	// countResult has no LIMIT so the badge shows the true total even when the
-	// display list is capped at 300.
-	const [countResult, unmatchedResult, suggestedResult, resolvedResult] = await Promise.all([
+	// ── 3 queries in parallel (no unbounded count — use list length as badge) ──
+	const [unmatchedResult, suggestedResult, resolvedResult] = await Promise.all([
 
-	// ── 0: True unmatched count (no LIMIT — for accurate badge) ─────────────
-	db.execute({
-		sql: `SELECT COUNT(*) AS total
-		      FROM import_transactions t
-		      LEFT JOIN transfer_matches m_out ON m_out.tenant_id  = t.tenant_id
-		                                      AND m_out.out_tx_id  = t.id
-		                                      AND m_out.status    != 'rejected'
-		      LEFT JOIN transfer_matches m_in  ON m_in.tenant_id   = t.tenant_id
-		                                      AND m_in.in_tx_id    = t.id
-		                                      AND m_in.status     != 'rejected'
-		      LEFT JOIN address_labels al_explained ON al_explained.tenant_id = t.tenant_id
-		                                          AND (
-		                                            (t.tx_hash IS NOT NULL AND al_explained.address = t.tx_hash)
-		                                            OR al_explained.address = 'tx_id:' || t.id
-		                                          )
-		                                          AND al_explained.source     = 'user'
-		                                          AND t.timestamp_utc         < '2024-01-01'
-		      WHERE t.tenant_id = ?
-		        AND t.asset_symbol IS NOT NULL
-		        AND m_out.id IS NULL AND m_in.id IS NULL
-		        AND al_explained.id IS NULL
-		        AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange', 'own_wallet'))
-		        AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01')
-		        AND NOT (t.direction = 'in' AND t.native_usd IS NOT NULL AND ABS(t.native_usd) < 10)
-		        -- Crypto-to-fiat conversions resolve on-platform; no matching deposit will ever appear
-		        AND NOT (t.direction = 'out' AND t.to_currency IS NOT NULL AND t.to_currency IN (
-		          'USD','EUR','GBP','AUD','CAD','SGD','HKD','JPY','CNY','CHF','NZD'
-		        ))
-		        AND (
-		          (t.direction = 'out' AND t.kind NOT IN (
-		            'crypto_earn_program_created','card_top_up','crypto_to_van_sell_order','Sell','sell',
-		            'crypto_vaulting_purchase','crypto_exchange','crypto_exchange_fee',
-		            'dust_conversion_debited','dust_conversion_credited','trade','Trade',
-		            'conversion','Conversion','exchange','Exchange','Convert',
-		            'crypto_viban_exchange','crypto_wallet_swap_debited','dynamic_coin_swap_debited',
-		            'lockup_lock','lockup_swap_debited','finance.lockup.dpos_lock.crypto_wallet',
-		            'card_cashback_reverted',
-		            'trading.limit_order.cash_account.sell_lock',
-		            'trading.limit_order.cash_account.sell_unlock'
-		          ))
-		          OR
-		          (t.direction = 'in' AND t.kind IN (
-		            'Deposit','deposit','credit','crypto_deposit','Receive','receive',
-		            'Exchange Withdrawal','Pro Withdrawal'
-		          ))
-		        )`,
-		args: [tenantId],
-	}),
-
-	// ── 1 + 2: Unmatched transfers (no accepted match on either side) ─────────
+	// ── 0: Unmatched transfers (no accepted match on either side) ────────────
 	db.execute({
 		sql: `SELECT
 		        t.id, t.source, t.account_id, t.timestamp_utc,
@@ -245,9 +194,7 @@ export const GET: APIRoute = async ({ request }) => {
 		      LIMIT 100`,
 		args: [tenantId],
 	}),
-	]); // end Promise.all — all 4 queries ran concurrently
-
-	const trueUnmatchedCount = Number((countResult.rows[0] as any)?.total ?? 0);
+	]); // end Promise.all
 
 	// Distinct symbols represented in unmatched items (for chip row in UI)
 	const symbols = [...new Set(
@@ -256,8 +203,11 @@ export const GET: APIRoute = async ({ request }) => {
 			.filter(Boolean)
 	)].sort();
 
-	const total = trueUnmatchedCount + suggestedResult.rows.length;
-	logNeedsAttention(tenantId, total, trueUnmatchedCount, suggestedResult.rows.length);
+	// Total derived from list lengths. When unmatched hits the 300 cap, the UI
+	// shows "300+" in the badge rather than a precise (expensive) count.
+	const unmatchedCapped = unmatchedResult.rows.length >= 300;
+	const total = unmatchedResult.rows.length + suggestedResult.rows.length;
+	logNeedsAttention(tenantId, total, unmatchedResult.rows.length, suggestedResult.rows.length);
 
 	const payload = {
 		unmatched: unmatchedResult.rows,
@@ -265,6 +215,7 @@ export const GET: APIRoute = async ({ request }) => {
 		resolved:  resolvedResult.rows,
 		symbols,
 		total,
+		unmatchedCapped,
 	};
 
 	void setCache(cacheKey, payload, CACHE_TTL);
