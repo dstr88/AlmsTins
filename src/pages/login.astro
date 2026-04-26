@@ -532,22 +532,23 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       color: #f5f8ff;
     }
 
-    .auth-page { width: 100%; }
-
-    /* ── Shell ─────────────────────────────────────────────────── */
-    .auth-shell {
-      display: flex;
-      justify-content: center;
+    .auth-page {
+      width: 100%;
       min-height: 100vh;
       background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
     }
 
+    /* ── Shell ─────────────────────────────────────────────────── */
+    .auth-shell {
+      display: block;
+    }
+
     /* ── Left panel ────────────────────────────────────────────── */
     .auth-left {
-      padding: 96px 32px 5rem;    /* 96px top breathing room */
+      padding: 96px 32px 5rem;
       display: flex;
       flex-direction: column;
-      gap: 0;                     /* all spacing via margin-top on children */
+      gap: 0;
       width: 100%;
       max-width: 760px;
       margin: 0 auto;
