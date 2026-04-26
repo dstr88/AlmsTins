@@ -209,13 +209,11 @@
 	.vault-lane:not(.exchange-lane):not(.vault-lane--row3) > .tile {
 		flex: 0 0 calc((100% - (var(--grid-gap, 24px) * 2)) / 3);
 	}
-}
 
-/* Wallet tins: 3 per row only on wide screens */
-@media (min-width: 1200px) {
+	/* Wallet tins stay at 2-per-row — cap their flex-basis to prevent growing to 3 */
 	.vault-lane--row3 > .tile {
-		flex: 0 0 calc((100% - 48px) / 3);
-		max-width: calc((100% - 48px) / 3);
+		flex: 0 0 calc((100% - 24px) / 2);
+		max-width: calc((100% - 24px) / 2);
 	}
 }
 
