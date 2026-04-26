@@ -189,12 +189,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <span class="wordmark-text">Almstins</span>
         </a>
 
-        <!-- Dashboard preview — hero position -->
-        <div class="dash-preview">
-          <img src={DashImg.src} alt="Almstins dashboard preview" class="dash-img" loading="eager" />
-          <div class="dash-preview-fade"></div>
-        </div>
-
         <!-- Headline -->
         <div class="hero-copy">
           <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
@@ -202,69 +196,54 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <p class="hero-reassurance">No signup form. Sign in with Google or email and your account is created instantly.</p>
         </div>
 
-        <!-- Secondary CTA — demo -->
-        <div class="demo-cta-wrap">
-          <a href="/api/demo/start" class="demo-cta-btn">
-            Try with your wallet <span class="demo-cta-arrow">→</span>
-          </a>
-          <p class="demo-cta-sub"><span class="demo-sub-explore">Just exploring? Try the demo.</span> Ready to start? <button class="demo-sub-signin" id="demoSubSignin" type="button">Sign in</button> — <span class="demo-sub-auto">we'll create your account automatically.</span></p>
-        </div>
+        <!-- Two-column hero grid -->
+        <div class="hero-grid">
 
-        <!-- Trust bar -->
-        <div class="trust-bar">
-          <span>✓ Free to start</span>
-          <span class="trust-dot">·</span>
-          <span>✓ No credit card</span>
-          <span class="trust-dot">·</span>
-          <span>✓ No wallet connection</span>
-        </div>
+          <!-- Left: two feature cards -->
+          <div class="hero-grid-left">
+            <div class="feature-card">
+              <span class="fc-icon">🔐</span>
+              <div>
+                <div class="fc-title">Read-only, always</div>
+                <div class="fc-desc">Public addresses only. No keys, no risk — ever.</div>
+              </div>
+            </div>
+            <div class="feature-card">
+              <span class="fc-icon">🧾</span>
+              <div>
+                <div class="fc-title">Year-end export</div>
+                <div class="fc-desc">Realized gains + full ledger, ready for your accountant.</div>
+              </div>
+            </div>
+          </div>
 
-        <!-- Feature cards -->
-        <div class="feature-grid">
-          <div class="feature-card">
-            <span class="fc-icon">🔐</span>
-            <div>
-              <div class="fc-title">Read-only, always</div>
-              <div class="fc-desc">Public addresses only. No keys, no risk — ever.</div>
+          <!-- Right: pic + button (drops to 3rd slot on mobile) -->
+          <div class="hero-grid-right">
+            <div class="dash-preview">
+              <img src={DashImg.src} alt="Almstins dashboard preview" class="dash-img" loading="eager" />
+              <div class="dash-preview-fade"></div>
             </div>
+            <a href="/api/demo/start" class="demo-cta-btn">
+              Try with your wallet <span class="demo-cta-arrow">→</span>
+            </a>
           </div>
-          <div class="feature-card">
-            <span class="fc-icon">📊</span>
-            <div>
-              <div class="fc-title">True net worth</div>
-              <div class="fc-desc">Crypto, DeFi, loans, and cash in one number.</div>
-            </div>
-          </div>
-          <div class="feature-card">
-            <span class="fc-icon">🧾</span>
-            <div>
-              <div class="fc-title">Tax-ready export</div>
-              <div class="fc-desc">Realized gains + full ledger, ready for your accountant.</div>
-            </div>
-          </div>
-          <div class="feature-card">
-            <span class="fc-icon">🛡️</span>
-            <div>
-              <div class="fc-title">Private by design</div>
-              <div class="fc-desc">Encrypted at rest. Never sold. Never shared.</div>
-            </div>
-          </div>
-        </div>
 
-        <!-- Social proof -->
-        <div class="social-proof">
-          <div class="sp-item">
-            <span class="sp-icon">🏫</span>
-            <span>Built by a teacher — privacy-first from day one</span>
+          <!-- Social proof: under left col on desktop, last on mobile -->
+          <div class="social-proof">
+            <div class="sp-item">
+              <span class="sp-icon">🏫</span>
+              <span>Built by a teacher — privacy-first from day one</span>
+            </div>
+            <div class="sp-item">
+              <span class="sp-icon">🔒</span>
+              <span>Read-only access means we <em>physically cannot</em> move your funds</span>
+            </div>
+            <div class="sp-item">
+              <span class="sp-icon">🗄️</span>
+              <span>Your data lives in your isolated database — not in a shared pool</span>
+            </div>
           </div>
-          <div class="sp-item">
-            <span class="sp-icon">🔒</span>
-            <span>Read-only access means we <em>physically cannot</em> move your funds</span>
-          </div>
-          <div class="sp-item">
-            <span class="sp-icon">🗄️</span>
-            <span>Your data lives in your isolated database — not in a shared pool</span>
-          </div>
+
         </div>
 
       </section>
@@ -597,13 +576,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       line-height: 1.6;
       margin: 0;
     }
-    /* ── Demo CTA — secondary outlined button ───────────────────── */
-    .demo-cta-wrap {
-      margin-top: 3rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.25rem;
-    }
     .demo-cta-btn {
       display: inline-flex;
       align-items: center;
@@ -656,16 +628,45 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .demo-sub-signin:hover { opacity: 0.8; }
     .demo-sub-auto { color: var(--text-secondary); }
 
-    /* Feature cards */
-    .feature-grid {
-      margin-top: clamp(2.5rem, 6vw, 4.5rem);
+    /* ── Two-column hero grid ──────────────────────────────────── */
+    .hero-grid {
+      margin-top: clamp(2rem, 5vw, 3.5rem);
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 1.25rem;
+      grid-template-areas:
+        "left  right"
+        "proof right";
+      gap: 1rem 1.5rem;
+      align-items: start;
+    }
+    .hero-grid-left {
+      grid-area: left;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .hero-grid-right {
+      grid-area: right;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .hero-grid .social-proof {
+      grid-area: proof;
+    }
+    .hero-grid .dash-preview {
+      margin-top: 0;
     }
     @media (max-width: 35rem) {
-      .feature-grid { grid-template-columns: 1fr; }
+      .hero-grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "left"
+          "right"
+          "proof";
+      }
     }
+
     .feature-card {
       display: flex; align-items: flex-start; gap: 0.7rem;
       background: rgba(255,255,255,0.03);
@@ -685,9 +686,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .trust-dot { opacity: 0.3; }
 
-    /* Dashboard preview — hero position, right after headline */
+    /* Dashboard preview */
     .dash-preview {
-      margin-top: 2.5rem;
+      margin-top: 0;
       position: relative; border-radius: 0.75rem; overflow: hidden;
       border: 1px solid rgba(255,255,255,0.08);
       box-shadow: 0 1.5rem 3.75rem rgba(0,0,0,0.5);
