@@ -70,11 +70,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
   <!-- ── Fixed sign-in pill — top-right ───────────────────────────────── -->
   <div class="signin-pill-wrap" id="signinPillWrap">
-    <span class="signin-pill-tagline">
-      <span class="tagline-line">New here?</span>
-      <span class="tagline-line tagline-line--main">Sign in to <span class="tagline-arrow">get started</span></span>
-      <span class="tagline-line tagline-line--sub">Account created instantly.</span>
-    </span>
     <button
       class="signin-pill"
       id="signinPill"
@@ -83,7 +78,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       aria-haspopup="true"
       aria-controls="signinDropdown"
     >
-      Sign in to get started
+      Login to get started
       <svg class="pill-chevron" viewBox="0 0 12 8" fill="none" aria-hidden="true" width="12" height="8">
         <path d="M1 1.5l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -199,10 +194,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
           <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
           <p class="hero-reassurance">No signup form. Sign in with Google or email and your account is created instantly.</p>
-          <p class="checker-text-link">
-            <span>Just want to check a wallet?</span>
-            <a href="/wallet-checker">Use the free wallet checker →</a>
-          </p>
         </div>
 
         <!-- Secondary CTA — demo -->
@@ -600,22 +591,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       line-height: 1.6;
       margin: 0 0 0.5rem;
     }
-    .checker-text-link {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: 0.875rem;
-      flex-wrap: wrap;
-      margin: 0;
-    }
-    .checker-text-link span { color: var(--text-muted); }
-    .checker-text-link a {
-      color: var(--accent);
-      text-decoration: none;
-      transition: opacity 0.15s;
-    }
-    .checker-text-link a:hover { opacity: 0.8; text-decoration: underline; }
-
     /* ── Demo CTA — secondary outlined button ───────────────────── */
     .demo-cta-wrap {
       display: flex;
@@ -729,33 +704,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       align-items: center;
       gap: 0.75rem;
       animation: slideInFromRight 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-    .signin-pill-tagline {
-      display: flex;
-      flex-direction: column;
-      gap: 0.05rem;
-      text-align: right;
-      pointer-events: none;
-    }
-    .tagline-line {
-      font-size: 12px;
-      color: var(--text-muted);
-      line-height: 1.5;
-      white-space: nowrap;
-    }
-    .tagline-line--main {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-    .tagline-line--sub {
-      font-size: 11px;
-      color: var(--text-muted);
-      opacity: 0.8;
-    }
-    .tagline-arrow { color: var(--accent); }
-    @media (max-width: 640px) {
-      .signin-pill-tagline { display: none; }
     }
     .signin-pill {
       display: inline-flex;
