@@ -3,6 +3,7 @@ import Layout from "@/layouts/LoginLayout.astro";
 import { getAuthSession } from "../lib/authSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
 import Logo from "../assets/logo.jpeg";
+import PortfolioPreviewCard from "@/components/PortfolioPreviewCard";
 
 const { searchParams } = Astro.url;
 const error = searchParams.get("error");
@@ -177,60 +178,70 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
   <!-- ── Main layout ───────────────────────────────────────────────────── -->
   <main class="landing">
-    <div class="landing__column">
+    <div class="landing__hero">
 
-      <!-- Logo -->
-      <a href="/" class="wordmark" aria-label="Almstins home">
-        <img src={Logo.src} width="44" height="44" alt="Almstins logo" class="wordmark-img" />
-        <span class="wordmark-text">Almstins</span>
-      </a>
+      <!-- Left column — copy + CTA -->
+      <div class="landing__left">
 
-      <!-- Headline + subhead -->
-      <div class="hero-copy">
-        <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
-        <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
+        <!-- Logo -->
+        <a href="/" class="wordmark" aria-label="Almstins home">
+          <img src={Logo.src} width="44" height="44" alt="Almstins logo" class="wordmark-img" />
+          <span class="wordmark-text">Almstins</span>
+        </a>
+
+        <!-- Headline + subhead -->
+        <div class="hero-copy">
+          <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
+          <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
+        </div>
+
+        <!-- Wallet demo input — primary action -->
+        <div class="landing__demo">
+          <span class="landing__demo-label">Try it with any wallet address</span>
+          <form class="landing__demo-form" id="demoForm">
+            <input
+              class="landing__demo-input"
+              type="text"
+              placeholder="0x… or ENS name"
+              aria-label="Wallet address"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="landing__demo-submit" type="submit" aria-label="Go">→</button>
+          </form>
+          <p class="landing__demo-hint">No signup. See a real portfolio in 5 seconds. Sign in later to save it.</p>
+        </div>
+
+        <!-- Three feature cards — stacked vertically -->
+        <div class="feature-stack">
+          <div class="feature-card">
+            <span class="fc-icon">🔐</span>
+            <div>
+              <div class="fc-title">Read-only, always</div>
+              <div class="fc-desc">Public addresses only. No keys, no risk — ever.</div>
+            </div>
+          </div>
+          <div class="feature-card">
+            <span class="fc-icon">🧾</span>
+            <div>
+              <div class="fc-title">Year-end export</div>
+              <div class="fc-desc">Realized gains + full ledger, ready for your accountant.</div>
+            </div>
+          </div>
+          <div class="feature-card">
+            <span class="fc-icon">🏫</span>
+            <div>
+              <div class="fc-title">Built by a teacher</div>
+              <div class="fc-desc">Privacy-first from day one. Never sold. Never shared.</div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
-      <!-- Wallet demo input — primary action -->
-      <div class="landing__demo">
-        <span class="landing__demo-label">Try it with any wallet address</span>
-        <form class="landing__demo-form" id="demoForm">
-          <input
-            class="landing__demo-input"
-            type="text"
-            placeholder="0x… or ENS name"
-            aria-label="Wallet address"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button class="landing__demo-submit" type="submit" aria-label="Go">→</button>
-        </form>
-        <p class="landing__demo-hint">No signup. See a real portfolio in 5 seconds. Sign in later to save it.</p>
-      </div>
-
-      <!-- Three feature cards — stacked vertically -->
-      <div class="feature-stack">
-        <div class="feature-card">
-          <span class="fc-icon">🔐</span>
-          <div>
-            <div class="fc-title">Read-only, always</div>
-            <div class="fc-desc">Public addresses only. No keys, no risk — ever.</div>
-          </div>
-        </div>
-        <div class="feature-card">
-          <span class="fc-icon">🧾</span>
-          <div>
-            <div class="fc-title">Year-end export</div>
-            <div class="fc-desc">Realized gains + full ledger, ready for your accountant.</div>
-          </div>
-        </div>
-        <div class="feature-card">
-          <span class="fc-icon">🏫</span>
-          <div>
-            <div class="fc-title">Built by a teacher</div>
-            <div class="fc-desc">Privacy-first from day one. Never sold. Never shared.</div>
-          </div>
-        </div>
+      <!-- Right column — portfolio preview card -->
+      <div class="landing__right">
+        <PortfolioPreviewCard client:visible />
       </div>
 
     </div>
@@ -481,6 +492,24 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       });
     })();
 
+    // ── Portfolio card tilt (desktop, reduced-motion respected) ─────────
+    (() => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (window.matchMedia('(max-width: 64rem)').matches) return;
+      const card = document.getElementById('portfolioPreviewCard');
+      const right = card?.closest('.landing__right') as HTMLElement | null;
+      if (!card || !right) return;
+      right.addEventListener('mousemove', (e: MouseEvent) => {
+        const rect = right.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width  - 0.5) * 14;
+        const y = ((e.clientY - rect.top)  / rect.height - 0.5) * -10;
+        (card as HTMLElement).style.transform = `perspective(600px) rotateY(${x}deg) rotateX(${y}deg) translateY(var(--float-offset, 0px))`;
+      });
+      right.addEventListener('mouseleave', () => {
+        (card as HTMLElement).style.transform = '';
+      });
+    })();
+
     // ── Wallet demo input ─────────────────────────────────────────────
     (() => {
       const form = document.getElementById('demoForm') as HTMLFormElement | null;
@@ -513,13 +542,34 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
     }
 
-    /* ── Centered column ─────────────────────────────────────── */
-    .landing__column {
-      max-width: 47.5rem;
+    /* ── Two-column hero grid ────────────────────────────────── */
+    .landing__hero {
+      max-width: 80rem;
       margin: 0 auto;
-      padding: clamp(3rem, 8vw, 6rem) 1.5rem 6rem;
+      padding: clamp(4rem, 8vw, 7.5rem) clamp(1.5rem, 4vw, 3rem) 6rem;
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+
+    .landing__left {
       display: flex;
       flex-direction: column;
+    }
+
+    .landing__right {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    @media (max-width: 64rem) {
+      .landing__hero {
+        grid-template-columns: 1fr;
+        gap: 0;
+      }
+      .landing__right { display: none; }
     }
 
     /* ── Wordmark ────────────────────────────────────────────── */
