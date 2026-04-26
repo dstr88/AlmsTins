@@ -549,7 +549,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     /* ── Left panel ────────────────────────────────────────────── */
     .auth-left {
-      padding: 6rem 2rem 5rem;
+      padding: clamp(3rem, 8vw, 6rem) 2rem 5rem;
       display: flex;
       flex-direction: column;
       gap: 0;
@@ -580,7 +580,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
 
     /* Headline — logo→headline: 3rem, h1→sub: 1.5rem, sub→reassurance: 1rem */
-    .hero-copy { margin-top: 3rem; }
+    .hero-copy { margin-top: clamp(1.5rem, 4vw, 3rem); }
     .hero-copy h1 {
       font-size: clamp(1.8rem, 3vw, 2.6rem);
       font-weight: 800; letter-spacing: -0.02em;
@@ -658,7 +658,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     /* Feature cards */
     .feature-grid {
-      margin-top: 4.5rem;
+      margin-top: clamp(2.5rem, 6vw, 4.5rem);
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 1.25rem;
