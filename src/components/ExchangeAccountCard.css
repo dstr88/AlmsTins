@@ -213,8 +213,8 @@
 
 .exchange-account__holdings-header {
 	display: grid;
-	grid-template-columns: 4.5rem 1fr 6rem 7rem 6rem 6rem;
-	column-gap: clamp(0.75rem, 1.5vw, 1.5rem);
+	grid-template-columns: 3rem 1fr 5rem 6rem 5rem 5rem;
+	column-gap: 1.5rem;
 	padding: 0.2rem 0.25rem 0.35rem;
 	border-bottom: 1px solid var(--border-subtle);
 }
@@ -253,8 +253,8 @@
 /* [4.5rem days] [1fr asset] [6rem qty] [7rem price] [6rem usd] [6rem pl] */
 :global(.exchange-holding__row) {
 	display: grid;
-	grid-template-columns: 4.5rem 1fr 6rem 7rem 6rem 6rem;
-	column-gap: clamp(0.75rem, 1.5vw, 1.5rem);
+	grid-template-columns: 3rem 1fr 5rem 6rem 5rem 5rem;
+	column-gap: 1.5rem;
 	padding: 0.35rem 0.25rem;
 	align-items: baseline;
 }
