@@ -76,38 +76,59 @@ export const GET: APIRoute = async ({ request }) => {
 
 	const where = conditions.join(' AND ');
 
-	const result = await db.execute({
-		sql: `SELECT
-		        t.id, t.source, t.account_id, t.timestamp_utc,
-		        t.direction, t.asset_symbol, t.amount, t.to_currency, t.to_amount,
-		        t.native_usd, t.kind, t.tx_hash, t.description, t.notes, t.category,
-		        -- match info if this tx is part of a confirmed/auto match
-		        m_out.id          AS match_id_as_out,
-		        m_out.status      AS match_status_as_out,
-		        m_out.in_tx_id    AS matched_in_tx_id,
-		        m_out.confidence_score AS match_score_out,
-		        m_in.id           AS match_id_as_in,
-		        m_in.status       AS match_status_as_in,
-		        m_in.out_tx_id    AS matched_out_tx_id,
-		        m_in.confidence_score AS match_score_in,
-		        -- exchange account name
-		        ea.name           AS account_name
-		      FROM import_transactions t
-		      LEFT JOIN transfer_matches m_out ON m_out.tenant_id = t.tenant_id
-		                                      AND m_out.out_tx_id = t.id
-		                                      AND m_out.status != 'rejected'
-		      LEFT JOIN transfer_matches m_in  ON m_in.tenant_id  = t.tenant_id
-		                                      AND m_in.in_tx_id   = t.id
-		                                      AND m_in.status != 'rejected'
-		      LEFT JOIN exchange_accounts ea   ON ea.id = t.account_id
-		                                      AND ea.tenant_id = t.tenant_id
-		      WHERE ${where}
-		      ORDER BY t.timestamp_utc DESC
-		      LIMIT 500`,
-		args,
+	// Run main search and matched-ID lookup in parallel — avoids the expensive
+	// double transfer_matches JOIN on the main query.
+	const [result, matchResult] = await Promise.all([
+		db.execute({
+			sql: `SELECT
+			        t.id, t.source, t.account_id, t.timestamp_utc,
+			        t.direction, t.asset_symbol, t.amount, t.to_currency, t.to_amount,
+			        t.native_usd, t.kind, t.tx_hash, t.description, t.notes, t.category,
+			        ea.name AS account_name
+			      FROM import_transactions t
+			      LEFT JOIN exchange_accounts ea ON ea.id = t.account_id
+			                                    AND ea.tenant_id = t.tenant_id
+			      WHERE ${where}
+			      ORDER BY t.timestamp_utc DESC
+			      LIMIT 500`,
+			args,
+		}),
+		db.execute({
+			sql: `SELECT out_tx_id AS tx_id, id AS match_id, status, in_tx_id AS other_tx_id, confidence_score
+			      FROM transfer_matches WHERE tenant_id = ? AND status != 'rejected'
+			      UNION ALL
+			      SELECT in_tx_id AS tx_id, id AS match_id, status, out_tx_id AS other_tx_id, confidence_score
+			      FROM transfer_matches WHERE tenant_id = ? AND status != 'rejected'`,
+			args: [tenantId, tenantId],
+		}),
+	]);
+
+	// Annotate each row with match info using a Map lookup (O(1))
+	const matchMap = new Map<string, { match_id: string; status: string; other_tx_id: string; score: number }>();
+	for (const m of matchResult.rows as any[]) {
+		matchMap.set(String(m.tx_id), {
+			match_id:    String(m.match_id),
+			status:      String(m.status),
+			other_tx_id: String(m.other_tx_id),
+			score:       Number(m.confidence_score),
+		});
+	}
+	const rows = (result.rows as any[]).map(r => {
+		const m = matchMap.get(String(r.id));
+		return m ? {
+			...r,
+			match_id_as_out:   r.direction === 'out' ? m.match_id : null,
+			match_status_as_out: r.direction === 'out' ? m.status : null,
+			matched_in_tx_id:  r.direction === 'out' ? m.other_tx_id : null,
+			match_score_out:   r.direction === 'out' ? m.score : null,
+			match_id_as_in:    r.direction === 'in'  ? m.match_id : null,
+			match_status_as_in:  r.direction === 'in'  ? m.status : null,
+			matched_out_tx_id: r.direction === 'in'  ? m.other_tx_id : null,
+			match_score_in:    r.direction === 'in'  ? m.score : null,
+		} : r;
 	});
 
-	const payload = { rows: result.rows, total: result.rows.length };
+	const payload = { rows, total: rows.length };
 	void setCache(cacheKey, payload, CACHE_TTL);
 
 	return new Response(JSON.stringify(payload), {

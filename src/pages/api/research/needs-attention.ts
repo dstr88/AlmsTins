@@ -33,13 +33,14 @@ export const GET: APIRoute = async ({ request }) => {
 		});
 	}
 
-	// ── 3 queries in parallel (no unbounded count — use list length as badge) ──
-	const [unmatchedResult, suggestedResult, resolvedResult] = await Promise.all([
+	// ── 4 queries in parallel ────────────────────────────────────────────────
+	// Strategy: avoid the expensive double-JOIN on transfer_matches.
+	// Instead, fetch candidates (direction/kind filter only — no join) and all
+	// matched IDs separately, then filter in JS with a Set lookup (O(1)).
+	// The new (tenant_id, direction, kind) index makes query 0 a fast index seek.
+	const [candidatesResult, matchedIdsResult, suggestedResult, resolvedResult] = await Promise.all([
 
-	// ── 0: Unmatched transfers (no accepted match on either side) ─────────────
-	// NOTE: address_labels display join is intentionally omitted — it uses a
-	// computed IN clause that cannot use an index, making it the dominant cost
-	// at scale. The UI shows a generic hint text instead.
+	// ── 0: Candidate transactions — direction/kind filter, no transfer_matches join
 	db.execute({
 		sql: `SELECT
 		        t.id, t.source, t.account_id, t.timestamp_utc,
@@ -48,78 +49,45 @@ export const GET: APIRoute = async ({ request }) => {
 		        t.notes, t.category,
 		        ea.name AS account_name
 		      FROM import_transactions t
-		      LEFT JOIN transfer_matches m_out ON m_out.tenant_id  = t.tenant_id
-		                                      AND m_out.out_tx_id  = t.id
-		                                      AND m_out.status    != 'rejected'
-		      LEFT JOIN transfer_matches m_in  ON m_in.tenant_id   = t.tenant_id
-		                                      AND m_in.in_tx_id    = t.id
-		                                      AND m_in.status     != 'rejected'
-		      LEFT JOIN exchange_accounts ea   ON ea.id = t.account_id
-		                                      AND ea.tenant_id = t.tenant_id
-		      LEFT JOIN address_labels al_explained ON al_explained.tenant_id = t.tenant_id
-		                                          AND (
-		                                            (t.tx_hash IS NOT NULL AND al_explained.address = t.tx_hash)
-		                                            OR al_explained.address = 'tx_id:' || t.id
-		                                          )
-		                                          AND al_explained.source     = 'user'
-		                                          AND t.timestamp_utc         < '2024-01-01'
+		      LEFT JOIN exchange_accounts ea ON ea.id = t.account_id
+		                                    AND ea.tenant_id = t.tenant_id
 		      WHERE t.tenant_id = ?
 		        AND t.asset_symbol IS NOT NULL
-		        AND m_out.id IS NULL
-		        AND m_in.id  IS NULL
-		        AND al_explained.id IS NULL          -- skip pre-2024 transactions explained via address label
-		        AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange', 'own_wallet'))  -- these labels always resolve regardless of date
-		        AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01') -- skip pre-2024 transactions with a user-set category
-		        -- Small inbound amounts (< $10 USD) are almost always staking rewards /
-		        -- interest that will never have a matching outbound. Suppress to reduce noise.
+		        AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange', 'own_wallet'))
+		        AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01')
 		        AND NOT (t.direction = 'in' AND t.native_usd IS NOT NULL AND ABS(t.native_usd) < 10)
-		        -- Crypto-to-fiat conversions resolve on-platform; no matching deposit will ever appear
 		        AND NOT (t.direction = 'out' AND t.to_currency IS NOT NULL AND t.to_currency IN (
 		          'USD','EUR','GBP','AUD','CAD','SGD','HKD','JPY','CNY','CHF','NZD'
 		        ))
 		        AND (
-		          -- OUT with no known internal destination.
-		          -- Exclude completed trades/sells/swaps — these resolved on-platform
-		          -- and will never have a matching deposit elsewhere.
 		          (t.direction = 'out' AND t.kind NOT IN (
-		            'crypto_earn_program_created',
-		            'card_top_up',
-		            'crypto_to_van_sell_order',
-		            'Sell',
-		            'sell',
-		            'crypto_vaulting_purchase',
-		            'crypto_exchange',
-		            'crypto_exchange_fee',
-		            'dust_conversion_debited',
-		            'dust_conversion_credited',
-		            'trade',
-		            'Trade',
-		            'conversion',
-		            'Conversion',
-		            'exchange',
-		            'Exchange',
-		            'Convert',
-		            'crypto_viban_exchange',
-		            'crypto_wallet_swap_debited',
-		            'dynamic_coin_swap_debited',
-		            'lockup_lock',
-		            'lockup_swap_debited',
-		            'finance.lockup.dpos_lock.crypto_wallet',
+		            'crypto_earn_program_created','card_top_up','crypto_to_van_sell_order',
+		            'Sell','sell','crypto_vaulting_purchase','crypto_exchange',
+		            'crypto_exchange_fee','dust_conversion_debited','dust_conversion_credited',
+		            'trade','Trade','conversion','Conversion','exchange','Exchange','Convert',
+		            'crypto_viban_exchange','crypto_wallet_swap_debited','dynamic_coin_swap_debited',
+		            'lockup_lock','lockup_swap_debited','finance.lockup.dpos_lock.crypto_wallet',
 		            'card_cashback_reverted',
 		            'trading.limit_order.cash_account.sell_lock',
 		            'trading.limit_order.cash_account.sell_unlock'
 		          ))
 		          OR
-		          -- IN with no known origin and unknown kind
 		          (t.direction = 'in' AND t.kind IN (
-		            'Deposit', 'deposit', 'credit', 'crypto_deposit',
-		            'Receive', 'receive', 'Exchange Withdrawal',
-		            'Pro Withdrawal'
+		            'Deposit','deposit','credit','crypto_deposit',
+		            'Receive','receive','Exchange Withdrawal','Pro Withdrawal'
 		          ))
 		        )
 		      ORDER BY t.asset_symbol ASC, t.timestamp_utc DESC
-		      LIMIT 300`,
+		      LIMIT 2000`,
 		args: [tenantId],
+	}),
+
+	// ── 1: All matched transaction IDs (non-rejected) — one simple scan ───────
+	db.execute({
+		sql: `SELECT out_tx_id AS tx_id FROM transfer_matches WHERE tenant_id = ? AND status != 'rejected'
+		      UNION ALL
+		      SELECT in_tx_id  AS tx_id FROM transfer_matches WHERE tenant_id = ? AND status != 'rejected'`,
+		args: [tenantId, tenantId],
 	}),
 
 	// ── 3: Suggested matches awaiting user confirmation ───────────────────────
@@ -189,21 +157,25 @@ export const GET: APIRoute = async ({ request }) => {
 	}),
 	]); // end Promise.all
 
+	// Filter candidates: exclude any tx that appears in a non-rejected match
+	const matchedIds = new Set(
+		(matchedIdsResult.rows as any[]).map(r => String(r.tx_id))
+	);
+	const unmatched = (candidatesResult.rows as any[])
+		.filter(r => !matchedIds.has(String(r.id)))
+		.slice(0, 300);
+
 	// Distinct symbols represented in unmatched items (for chip row in UI)
 	const symbols = [...new Set(
-		(unmatchedResult.rows as any[])
-			.map(r => String(r.asset_symbol ?? '').toUpperCase())
-			.filter(Boolean)
+		unmatched.map(r => String(r.asset_symbol ?? '').toUpperCase()).filter(Boolean)
 	)].sort();
 
-	// Total derived from list lengths. When unmatched hits the 300 cap, the UI
-	// shows "300+" in the badge rather than a precise (expensive) count.
-	const unmatchedCapped = unmatchedResult.rows.length >= 300;
-	const total = unmatchedResult.rows.length + suggestedResult.rows.length;
-	logNeedsAttention(tenantId, total, unmatchedResult.rows.length, suggestedResult.rows.length);
+	const unmatchedCapped = unmatched.length >= 300;
+	const total = unmatched.length + suggestedResult.rows.length;
+	logNeedsAttention(tenantId, total, unmatched.length, suggestedResult.rows.length);
 
 	const payload = {
-		unmatched: unmatchedResult.rows,
+		unmatched,
 		suggested: suggestedResult.rows,
 		resolved:  resolvedResult.rows,
 		symbols,
