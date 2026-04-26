@@ -268,7 +268,7 @@ try {
 			'blur',
 			async (event) => {
 				const target = event.target;
-				if (!(target instanceof HTMLInputElement) || !target.classList.contains('exchange-account__name')) {
+				if (!(target instanceof HTMLInputElement) || !target.classList.contains('exchange-account__input')) {
 					return;
 				}
 				const accountId = target.dataset.accountId ?? '';
@@ -290,7 +290,7 @@ try {
 
 		document.addEventListener('submit', async (event) => {
 			const form = event.target;
-			if (!(form instanceof HTMLFormElement) || !form.classList.contains('exchange-account__upload')) {
+			if (!(form instanceof HTMLFormElement) || !form.classList.contains('exchange-account__actions')) {
 				return;
 			}
 			event.preventDefault();

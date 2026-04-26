@@ -12,13 +12,13 @@
 
 /* ── Account header row ─────────────────────────────────────────────────────── */
 
-.exchange-account__row {
+.exchange-account__header {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
 }
 
-.exchange-account__name {
+.exchange-account__input {
 	border-radius: 0.65rem;
 	border: 1px solid var(--border-subtle);
 	background: var(--surface-card-2);
@@ -30,7 +30,7 @@
 	transition: border-color 0.15s;
 }
 
-.exchange-account__name:focus {
+.exchange-account__input:focus {
 	border-color: var(--border-bright);
 }
 
@@ -58,7 +58,7 @@
 
 /* ── Upload form ────────────────────────────────────────────────────────────── */
 
-.exchange-account__upload {
+.exchange-account__actions {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
@@ -175,7 +175,7 @@
 
 /* ── Holdings section ───────────────────────────────────────────────────────── */
 
-.exchange-holdings {
+.exchange-account__holdings {
 	display: flex;
 	flex-direction: column;
 	gap: 0.75rem;
@@ -183,7 +183,7 @@
 
 /* ── Total holdings row ─────────────────────────────────────────────────────── */
 
-.exchange-holdings__summary {
+.exchange-account__totals {
 	display: flex;
 	justify-content: space-between;
 	align-items: baseline;
@@ -191,14 +191,14 @@
 	border-bottom: 1px solid var(--border-subtle);
 }
 
-.exchange-holdings__summary-label {
+.exchange-account__totals-label {
 	text-transform: uppercase;
 	letter-spacing: 0.08em;
 	color: var(--text-muted);
 	font-size: 0.7rem;
 }
 
-.exchange-holdings__summary-value {
+.exchange-account__totals-value {
 	font-weight: 600;
 	color: var(--text-primary);
 	font-variant-numeric: tabular-nums;
@@ -206,25 +206,25 @@
 
 /* ── Holdings card grid ─────────────────────────────────────────────────────── */
 
-.exchange-holdings__list {
+.exchange-account__holdings-grid {
 	display: grid;
 	grid-template-columns: repeat(3, 1fr);
 	gap: var(--space-sm);
 }
 
 @media (max-width: 1199px) {
-	.exchange-holdings__list {
+	.exchange-account__holdings-grid {
 		grid-template-columns: repeat(2, 1fr);
 	}
 }
 
 @media (max-width: 640px) {
-	.exchange-holdings__list {
+	.exchange-account__holdings-grid {
 		grid-template-columns: 1fr;
 	}
 }
 
-.exchange-holdings__empty {
+.exchange-account__holdings-empty {
 	font-size: var(--font-sm);
 	color: var(--text-muted);
 }

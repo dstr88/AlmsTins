@@ -12,9 +12,9 @@ const hasHoldings = Astro.slots.has('holdings');
 ---
 
 <div class="exchange-account" data-account-index={accountIndex}>
-	<div class="exchange-account__row">
+	<div class="exchange-account__header">
 		<input
-			class="exchange-account__name"
+			class="exchange-account__input"
 			type="text"
 			value={name}
 			data-account-id={accountId}
@@ -32,7 +32,7 @@ const hasHoldings = Astro.slots.has('holdings');
 		>✕</button>
 	</div>
 	<form
-		class="exchange-account__upload"
+		class="exchange-account__actions"
 		data-account-id={accountId}
 		data-account-index={accountIndex}
 		data-exchange-source={source}
@@ -63,17 +63,17 @@ const hasHoldings = Astro.slots.has('holdings');
 			<span class="exchange-batches__loading">Loading…</span>
 		</div>
 	</div>
-	<div class="exchange-holdings">
-		<div class="exchange-holdings__summary">
-			<span class="exchange-holdings__summary-label">Total crypto holdings</span>
-			<span class="exchange-holdings__summary-value" data-holdings-total-usd>$0.00</span>
+	<div class="exchange-account__holdings">
+		<div class="exchange-account__totals">
+			<span class="exchange-account__totals-label">Total crypto holdings</span>
+			<span class="exchange-account__totals-value" data-holdings-total-usd>$0.00</span>
 		</div>
 		{hasHoldings ? (
-			<div class="exchange-holdings__list">
+			<div class="exchange-account__holdings-grid">
 				<slot name="holdings" />
 			</div>
 		) : (
-			<div class="exchange-holdings__empty">No holdings yet.</div>
+			<div class="exchange-account__holdings-empty">No holdings yet.</div>
 		)}
 	</div>
 </div>
@@ -205,7 +205,7 @@ const hasHoldings = Astro.slots.has('holdings');
 
 		const observeHoldings = () => {
 			document.querySelectorAll('.exchange-account').forEach((accountEl) => {
-				const holdings = accountEl.querySelector('.exchange-holdings');
+				const holdings = accountEl.querySelector('.exchange-account__holdings');
 				if (!holdings) return;
 				updateTotalForAccount(accountEl);
 				const observer = new MutationObserver(() => updateTotalForAccount(accountEl));
