@@ -6,6 +6,9 @@ import { getCache, setCache } from '@/lib/tursoCache';
 
 const CACHE_TTL = 300; // 5 minutes
 
+// Module-level in-memory cache — instant hits, no Turso round trip
+const memCache = new Map<string, { data: object; expiresAt: number }>();
+
 export const prerender = false;
 
 /**
@@ -24,9 +27,19 @@ export const GET: APIRoute = async ({ request }) => {
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
+	const memKey = `needs-attention:${tenantId}`;
+	const mem = memCache.get(memKey);
+	if (mem && mem.expiresAt > Date.now()) {
+		return new Response(JSON.stringify(mem.data), {
+			status: 200,
+			headers: { 'Content-Type': 'application/json' },
+		});
+	}
+
 	const cacheKey = `t:${tenantId}:research:needs-attention:v1`;
 	const cached   = await getCache<object>(cacheKey);
 	if (cached !== null) {
+		memCache.set(memKey, { data: cached, expiresAt: Date.now() + CACHE_TTL * 1000 });
 		return new Response(JSON.stringify(cached), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' },
@@ -77,7 +90,6 @@ export const GET: APIRoute = async ({ request }) => {
 		            'Receive','receive','Exchange Withdrawal','Pro Withdrawal'
 		          ))
 		        )
-		      ORDER BY t.asset_symbol ASC, t.timestamp_utc DESC
 		      LIMIT 2000`,
 		args: [tenantId],
 	}),
@@ -163,6 +175,11 @@ export const GET: APIRoute = async ({ request }) => {
 	);
 	const unmatched = (candidatesResult.rows as any[])
 		.filter(r => !matchedIds.has(String(r.id)))
+		.sort((a, b) => {
+			const sym = String(a.asset_symbol ?? '').localeCompare(String(b.asset_symbol ?? ''));
+			if (sym !== 0) return sym;
+			return String(b.timestamp_utc ?? '').localeCompare(String(a.timestamp_utc ?? ''));
+		})
 		.slice(0, 300);
 
 	// Distinct symbols represented in unmatched items (for chip row in UI)
@@ -183,6 +200,7 @@ export const GET: APIRoute = async ({ request }) => {
 		unmatchedCapped,
 	};
 
+	memCache.set(memKey, { data: payload, expiresAt: Date.now() + CACHE_TTL * 1000 });
 	void setCache(cacheKey, payload, CACHE_TTL);
 
 	return new Response(JSON.stringify(payload), {
