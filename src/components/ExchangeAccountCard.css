@@ -214,7 +214,7 @@
 .exchange-account__holdings-header {
 	display: grid;
 	grid-template-columns: auto 1fr auto auto auto auto;
-	column-gap: 1.5rem;
+	column-gap: clamp(0.5rem, 2%, 1.5rem);
 	padding: 0.2rem 0.25rem 0.35rem;
 	border-bottom: 1px solid var(--border-subtle);
 }
@@ -254,7 +254,7 @@
 :global(.exchange-holding__row) {
 	display: grid;
 	grid-template-columns: auto 1fr auto auto auto auto;
-	column-gap: 1.5rem;
+	column-gap: clamp(0.5rem, 2%, 1.5rem);
 	padding: 0.35rem 0.25rem;
 	align-items: baseline;
 }
