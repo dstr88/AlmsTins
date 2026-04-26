@@ -70,7 +70,11 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
   <!-- ── Fixed sign-in pill — top-right ───────────────────────────────── -->
   <div class="signin-pill-wrap" id="signinPillWrap">
-    <span class="signin-pill-tagline">New here? Just sign in <span class="tagline-arrow">→</span></span>
+    <span class="signin-pill-tagline">
+      <span class="tagline-line">New here?</span>
+      <span class="tagline-line tagline-line--main">Sign in to <span class="tagline-arrow">get started</span></span>
+      <span class="tagline-line tagline-line--sub">Account created instantly.</span>
+    </span>
     <button
       class="signin-pill"
       id="signinPill"
@@ -79,7 +83,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       aria-haspopup="true"
       aria-controls="signinDropdown"
     >
-      Sign in
+      Sign in to get started
       <svg class="pill-chevron" viewBox="0 0 12 8" fill="none" aria-hidden="true" width="12" height="8">
         <path d="M1 1.5l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -712,21 +716,42 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
 
     /* ── Sign-in pill (fixed top-right) ────────────────────────── */
+    @keyframes slideInFromRight {
+      from { opacity: 0; transform: translateX(40px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
     .signin-pill-wrap {
       position: fixed;
-      top: 1.25rem;
-      right: 1.5rem;
+      top: 1rem;
+      right: 1rem;
       z-index: 200;
       display: flex;
       align-items: center;
-      gap: 0;
+      gap: 0.75rem;
+      animation: slideInFromRight 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
     .signin-pill-tagline {
-      font-size: 13px;
-      color: var(--text-muted);
-      white-space: nowrap;
-      margin-right: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.05rem;
+      text-align: right;
       pointer-events: none;
+    }
+    .tagline-line {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      white-space: nowrap;
+    }
+    .tagline-line--main {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .tagline-line--sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0.8;
     }
     .tagline-arrow { color: var(--accent); }
     @media (max-width: 640px) {
@@ -747,6 +772,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       cursor: pointer;
       transition: box-shadow 0.15s, transform 0.15s, opacity 0.15s;
       white-space: nowrap;
+      max-width: 180px;
+      text-align: center;
     }
     .signin-pill:hover {
       box-shadow: 0 0 0 4px var(--accent-glow);
