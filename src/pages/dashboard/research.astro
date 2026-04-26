@@ -258,8 +258,15 @@ async function loadNeedsAttention() {
   const list = $('na-list');
   list.innerHTML = '<div class="loading-msg">Loading…</div>';
   try {
-    const res  = await fetch('/api/research/needs-attention');
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 30_000);
+    const res  = await fetch('/api/research/needs-attention', { signal: ctrl.signal });
+    clearTimeout(tid);
     const data = await res.json();
+    if (data.error) {
+      list.innerHTML = `<div class="empty-msg">Error: ${data.error}</div>`;
+      return;
+    }
     renderNeedsAttention(data);
     const badge = $('na-synced');
     if (badge) {
