@@ -554,22 +554,22 @@
 	width: 100%;
 	box-sizing: border-box;
 	min-width: 0;
-	font-size: var(--font-md2);
+	font-size: 0.8rem;
 	line-height: var(--lh-md);
 }
 
 .defi-summary-tin .breakdown-header {
 	color: var(--text-muted);
-	font-size: var(--font-sm);
+	font-size: 0.68rem;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
-	padding-bottom: 10px;
+	padding-bottom: 8px;
 	border-bottom: 1px solid var(--border-bright);
 }
 
 .defi-summary-tin .breakdown-row:not(.breakdown-header) {
-	padding: 14px 0;
+	padding: 10px 0;
 	border-bottom: 1px solid var(--border-subtle);
 }
 
