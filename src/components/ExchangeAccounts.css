@@ -21,9 +21,9 @@
 	display: flex;
 	gap: var(--space-sm);
 	padding-top: var(--space-xs, 0.25rem);
-	border-top: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
+	border-top: 1px dashed var(--border-subtle);
 	font-size: var(--font-xs, 0.7rem);
-	opacity: 0.8;
+	color: var(--text-muted);
 }
 
 .exchange-holding__staking-usd {
@@ -39,7 +39,7 @@
 
 /* Legend at the bottom of the tin */
 .exchange-legend {
-	border-top: 1px solid rgba(255, 255, 255, 0.08);
+	border-top: 1px solid var(--border-subtle);
 	padding-top: 0.5rem;
 	display: flex;
 	flex-direction: column;
