@@ -161,6 +161,31 @@
 	color: var(--text-muted);
 }
 
+/* ── Mobile: 2-row layout (3 cols each) ─────────────────────────────────────── */
+
+@media (max-width: 680px) {
+	.exchange-account__holdings-header {
+		display: none;
+	}
+
+	.exchange-holding__row {
+		grid-template-columns: auto 1fr auto;
+		grid-template-rows: auto auto;
+		grid-template-areas:
+			"days ticker usd"
+			"qty  price  pl";
+		column-gap: 1rem;
+		row-gap: 0.15rem;
+	}
+
+	.exchange-holding__days   { grid-area: days; }
+	.exchange-holding__ticker { grid-area: ticker; }
+	.exchange-holding__usd    { grid-area: usd; }
+	.exchange-holding__qty    { grid-area: qty; text-align: left; }
+	.exchange-holding__price  { grid-area: price; text-align: right; }
+	.exchange-holding__pl     { grid-area: pl; }
+}
+
 /* Legend at the bottom of the tin */
 .exchange-legend {
 	border-top: 1px solid var(--border-subtle);
