@@ -1,5 +1,6 @@
 ---
 import './CryptoComAccounts.css';
+import './ExchangeAccounts.css';
 import { db } from '@/lib/db';
 import ExchangeTin from '@/components/dashboard/ExchangeTin.astro';
 import ExchangeAccountCard from '@/components/ExchangeAccountCard.astro';
@@ -327,18 +328,7 @@ try {
 									const isLongTerm = daysHeld !== null && daysHeld >= 365;
 									return (
 										<div class="exchange-holding">
-											{/* Line 1: Ticker · Coins · USD value */}
 											<div class="exchange-holding__row">
-												<span class="exchange-holding__ticker">{holding.symbol}</span>
-												<span class="exchange-holding__qty">
-													{formatNumber(holding.balance, { maximumFractionDigits: 8 })}
-												</span>
-												<span class="exchange-holding__usd usd-value">
-													{usdValue === null ? '—' : formatCurrency(usdValue)}
-												</span>
-											</div>
-											{/* Line 2: Days+LT/ST · P/L */}
-											<div class="exchange-holding__row exchange-holding__row--bottom">
 												<span class="exchange-holding__days">
 													{daysHeld === null ? '—' : `${daysHeld}d`}
 													{daysHeld !== null && (
@@ -347,6 +337,14 @@ try {
 														</span>
 													)}
 												</span>
+												<span class="exchange-holding__ticker">{holding.symbol}</span>
+												<span class="exchange-holding__qty">
+													{formatNumber(holding.balance, { maximumFractionDigits: 6 })}
+												</span>
+												<span class="exchange-holding__price">{price > 0 ? formatCurrency(price) : '—'}</span>
+												<span class="exchange-holding__usd usd-value">
+													{usdValue === null ? '—' : formatCurrency(usdValue)}
+												</span>
 												<span class={`exchange-holding__pl ${pnl === null ? '' : pnlClass}`}>
 													{pnl === null ? '—' : formatCurrency(pnl)}
 												</span>
@@ -354,7 +352,7 @@ try {
 											{holding.stakingYtd > 0 && (
 												<div class="exchange-holding__row exchange-holding__row--staking">
 													<div class="exchange-holding__field exchange-holding__field--numeric">
-														<span class="exchange-holding__label">Earned {CURRENT_YEAR}</span>
+														<span class="exchange-holding__label">⚡ Earned {CURRENT_YEAR}</span>
 														<span class="exchange-holding__value">
 															{formatNumber(holding.stakingYtd, { maximumFractionDigits: 8 })}
 															{holding.stakingYtdUsd !== null && (

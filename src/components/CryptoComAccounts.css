@@ -26,15 +26,3 @@
 	opacity: 0.9;
 }
 
-.exchange-holding__row--staking {
-	display: flex;
-	gap: var(--space-sm);
-	padding-top: var(--space-xs, 0.25rem);
-	border-top: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
-	font-size: var(--font-xs, 0.7rem);
-	opacity: 0.8;
-}
-
-.exchange-holding__staking-usd {
-	opacity: 0.7;
-}
