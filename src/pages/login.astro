@@ -70,6 +70,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
   <!-- ── Fixed sign-in pill — top-right ───────────────────────────────── -->
   <div class="signin-pill-wrap" id="signinPillWrap">
+    <span class="signin-pill-tagline">New here? Just sign in <span class="tagline-arrow">→</span></span>
     <button
       class="signin-pill"
       id="signinPill"
@@ -193,6 +194,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         <div class="hero-copy">
           <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
           <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
+          <p class="hero-reassurance">No signup form. Sign in with Google or email and your account is created instantly.</p>
           <p class="checker-text-link">
             <span>Just want to check a wallet?</span>
             <a href="/wallet-checker">Use the free wallet checker →</a>
@@ -204,7 +206,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <a href="/api/demo/start" class="demo-cta-btn">
             Try with your wallet <span class="demo-cta-arrow">→</span>
           </a>
-          <p class="demo-cta-sub">No sign-in required</p>
+          <p class="demo-cta-sub"><span class="demo-sub-explore">Just exploring? Try the demo.</span> Ready to start? <button class="demo-sub-signin" id="demoSubSignin" type="button">Sign in</button> — <span class="demo-sub-auto">we'll create your account automatically.</span></p>
         </div>
 
         <!-- Trust bar -->
@@ -398,6 +400,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       if (pill.getAttribute('aria-expanded') === 'true') {
         openDropdown();
       }
+
+      // Inline "Sign in" link under demo button opens the dropdown
+      document.getElementById('demoSubSignin')?.addEventListener('click', () => {
+        openDropdown();
+        pill?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
     })();
 
     // ── Email toggle ──────────────────────────────────────────────────
@@ -580,7 +588,13 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .hero-sub {
       font-size: 1rem; color: rgba(255,255,255,0.55);
-      line-height: 1.7; margin: 0 0 0.5rem;
+      line-height: 1.7; margin: 0 0 0.4rem;
+    }
+    .hero-reassurance {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 0 0 0.5rem;
     }
     .checker-text-link {
       display: flex;
@@ -636,10 +650,25 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .demo-cta-sub {
       margin: 0;
       text-align: center;
-      font-size: 1rem;
-      color: rgba(255,255,255,0.38);
-      letter-spacing: 0.01em;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
     }
+    .demo-sub-explore { color: var(--text-muted); }
+    .demo-sub-signin {
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      font-size: inherit;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      transition: opacity 0.15s;
+    }
+    .demo-sub-signin:hover { opacity: 0.8; }
+    .demo-sub-auto { color: var(--text-secondary); }
 
     /* Feature cards */
     .feature-grid {
@@ -688,6 +717,20 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       top: 1.25rem;
       right: 1.5rem;
       z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    .signin-pill-tagline {
+      font-size: 13px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      margin-right: 12px;
+      pointer-events: none;
+    }
+    .tagline-arrow { color: var(--accent); }
+    @media (max-width: 640px) {
+      .signin-pill-tagline { display: none; }
     }
     .signin-pill {
       display: inline-flex;
