@@ -544,17 +544,18 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     /* ── Left panel ────────────────────────────────────────────── */
     .auth-left {
-      padding: 3rem 3rem 3rem 4rem;
+      padding: 96px 32px 5rem;    /* 96px top breathing room */
       display: flex;
       flex-direction: column;
-      gap: 2rem;
+      gap: 0;                     /* all spacing via margin-top on children */
       width: 100%;
       max-width: 760px;
+      margin: 0 auto;
       overflow: hidden;
       position: relative;
     }
     @media (max-width: 900px) {
-      .auth-left { padding: 2rem 1.5rem 1.5rem; }
+      .auth-left { padding: 48px 20px 3rem; }
     }
 
     /* Wordmark */
@@ -575,27 +576,30 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
 
-    /* Headline */
+    /* Headline — logo→headline: 48px, h1→sub: 24px, sub→reassurance: 16px */
+    .hero-copy { margin-top: 48px; }
     .hero-copy h1 {
       font-size: clamp(1.8rem, 3vw, 2.6rem);
       font-weight: 800; letter-spacing: -0.02em;
-      line-height: 1.15; margin: 0 0 0.75rem;
+      line-height: 1.1; margin: 0 0 24px;
     }
     .hero-sub {
       font-size: 1rem; color: rgba(255,255,255,0.55);
-      line-height: 1.7; margin: 0 0 0.4rem;
+      line-height: 1.7; margin: 0 0 16px;
+      max-width: 560px;
     }
     .hero-reassurance {
       font-size: 14px;
       color: var(--text-muted);
       line-height: 1.6;
-      margin: 0 0 0.5rem;
+      margin: 0;
     }
     /* ── Demo CTA — secondary outlined button ───────────────────── */
     .demo-cta-wrap {
+      margin-top: 48px;           /* biggest break: intro copy → CTA */
       display: flex;
       flex-direction: column;
-      gap: 0.55rem;
+      gap: 20px;                  /* button → "Just exploring?" line */
     }
     .demo-cta-btn {
       display: inline-flex;
@@ -649,11 +653,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .demo-sub-signin:hover { opacity: 0.8; }
     .demo-sub-auto { color: var(--text-secondary); }
 
-    /* Feature cards */
+    /* Feature cards — trust row → cards: 72px, card gap: 20px */
     .feature-grid {
+      margin-top: 72px;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
+      gap: 20px;
     }
     @media (max-width: 560px) {
       .feature-grid { grid-template-columns: 1fr; }
@@ -669,15 +674,17 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .fc-title { font-size: 0.85rem; font-weight: 700; color: #f5f8ff; margin-bottom: 0.2rem; }
     .fc-desc  { font-size: 0.75rem; color: rgba(255,255,255,0.45); line-height: 1.5; }
 
-    /* Trust bar */
+    /* Trust bar — "Just exploring?" → trust row: 32px, trust row → cards: 72px */
     .trust-bar {
+      margin-top: 32px;
       display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
       font-size: 0.8rem; color: rgba(255,255,255,0.4);
     }
     .trust-dot { opacity: 0.3; }
 
-    /* Dashboard preview */
+    /* Dashboard preview — feature cards → image: 96px */
     .dash-preview {
+      margin-top: 96px;
       position: relative; border-radius: 12px; overflow: hidden;
       border: 1px solid rgba(255,255,255,0.08);
       box-shadow: 0 24px 60px rgba(0,0,0,0.5);
@@ -697,8 +704,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .signin-pill-wrap {
       position: fixed;
-      top: 1rem;
-      right: 1rem;
+      top: 32px;
+      right: 32px;
       z-index: 200;
       display: flex;
       align-items: center;
