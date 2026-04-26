@@ -18,6 +18,149 @@
 }
 
 
+/* ── Holding row ────────────────────────────────────────────────────────────── */
+
+.exchange-holding {
+	border-bottom: 1px solid var(--border-subtle);
+	transition: background 0.1s;
+}
+
+.exchange-holding:last-child {
+	border-bottom: none;
+}
+
+.exchange-holding:hover {
+	background: var(--surface-hover);
+}
+
+/* [3rem days] [1fr asset] [5rem qty] [6rem price] [5rem usd] [5rem pl] */
+.exchange-holding__row {
+	display: grid;
+	grid-template-columns: 3rem 1fr 5rem 6rem 5rem 5rem;
+	column-gap: 1.5rem;
+	padding: 0.35rem 0.25rem;
+	align-items: baseline;
+}
+
+/* ── Holding cells ──────────────────────────────────────────────────────────── */
+
+.exchange-holding__days {
+	color: var(--text-muted);
+	font-size: 0.75rem;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.exchange-holding__ticker {
+	font-weight: 700;
+	color: var(--text-primary);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.exchange-holding__usd {
+	font-weight: 600;
+	color: var(--text-primary);
+	text-align: right;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.exchange-holding__qty {
+	color: var(--text-secondary);
+	font-size: 0.8125rem;
+	white-space: nowrap;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.exchange-holding__price {
+	color: var(--text-secondary);
+	font-size: 0.8125rem;
+	text-align: right;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.exchange-holding__pl {
+	text-align: right;
+	font-size: 0.8125rem;
+	color: var(--text-muted);
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.exchange-holding .is-positive { color: var(--gain); }
+.exchange-holding .is-negative { color: var(--loss); }
+
+/* ── Holding-period badges ──────────────────────────────────────────────────── */
+
+.exchange-holding__term-badge {
+	margin-left: 0.35rem;
+	padding: 0.05rem 0.3rem;
+	border-radius: 3px;
+	font-size: 0.7em;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+}
+
+.exchange-holding__term-badge--lt {
+	background: var(--gain-bg);
+	color: var(--gain);
+}
+
+.exchange-holding__term-badge--st {
+	background: rgba(251, 191, 36, 0.15);
+	color: #fbbf24;
+}
+
+/* ── Staking row ────────────────────────────────────────────────────────────── */
+
+.exchange-holding__row--staking {
+	display: flex;
+	gap: 1.5rem;
+	padding: 0.3rem 0.25rem 0.4rem;
+	border-top: 1px dashed var(--border-subtle);
+}
+
+.exchange-holding__earned {
+	text-decoration: none;
+	cursor: help;
+	border-bottom: 1px dotted var(--text-muted);
+}
+
+.exchange-holding__field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	min-width: 0;
+}
+
+.exchange-holding__field--numeric {
+	text-align: right;
+	align-items: flex-end;
+}
+
+.exchange-holding__label {
+	display: block;
+	font-size: 0.7rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--text-muted);
+}
+
+.exchange-holding__value {
+	display: block;
+	font-size: 0.85rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-secondary);
+}
+
+.exchange-holding__staking-usd {
+	color: var(--text-muted);
+}
+
 /* Legend at the bottom of the tin */
 .exchange-legend {
 	border-top: 1px solid var(--border-subtle);
