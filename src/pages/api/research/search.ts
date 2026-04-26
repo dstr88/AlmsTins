@@ -1,6 +1,9 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getCache, setCache } from '@/lib/tursoCache';
+
+const CACHE_TTL = 60; // seconds
 
 export const prerender = false;
 
@@ -20,6 +23,15 @@ export const GET: APIRoute = async ({ request }) => {
 	// At least one filter must be present
 	if (!q && !symbol && !from && !to && !note && !direction) {
 		return new Response(JSON.stringify({ rows: [], total: 0 }), {
+			status: 200,
+			headers: { 'Content-Type': 'application/json' },
+		});
+	}
+
+	const cacheKey = `t:${tenantId}:research:search:${[q, symbol, from, to, note, direction].join('|')}`;
+	const cached   = await getCache<object>(cacheKey);
+	if (cached !== null) {
+		return new Response(JSON.stringify(cached), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' },
 		});
@@ -78,8 +90,6 @@ export const GET: APIRoute = async ({ request }) => {
 		        m_in.status       AS match_status_as_in,
 		        m_in.out_tx_id    AS matched_out_tx_id,
 		        m_in.confidence_score AS match_score_in,
-		        -- address label if known
-		        al.label          AS address_label,
 		        -- exchange account name
 		        ea.name           AS account_name
 		      FROM import_transactions t
@@ -89,11 +99,6 @@ export const GET: APIRoute = async ({ request }) => {
 		      LEFT JOIN transfer_matches m_in  ON m_in.tenant_id  = t.tenant_id
 		                                      AND m_in.in_tx_id   = t.id
 		                                      AND m_in.status != 'rejected'
-		      LEFT JOIN address_labels al      ON al.tenant_id = t.tenant_id
-		                                      AND al.address IN (
-		                                        'cex:' || t.source || ':' || COALESCE(t.account_id,''),
-		                                        COALESCE(t.tx_hash, '')
-		                                      )
 		      LEFT JOIN exchange_accounts ea   ON ea.id = t.account_id
 		                                      AND ea.tenant_id = t.tenant_id
 		      WHERE ${where}
@@ -102,7 +107,10 @@ export const GET: APIRoute = async ({ request }) => {
 		args,
 	});
 
-	return new Response(JSON.stringify({ rows: result.rows, total: result.rows.length }), {
+	const payload = { rows: result.rows, total: result.rows.length };
+	void setCache(cacheKey, payload, CACHE_TTL);
+
+	return new Response(JSON.stringify(payload), {
 		status: 200,
 		headers: { 'Content-Type': 'application/json' },
 	});

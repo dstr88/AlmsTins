@@ -307,9 +307,7 @@ function renderNeedsAttention(data) {
       const dirLabel  = isTransfer ? 'transfer' : dir;
       const absAmt = Math.abs(Number(t.amount));
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
-      const hint    = t.address_label
-        ? `Source: ${t.address_label}`
-        : dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
+      const hint    = dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
       const src     = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
       const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
       const noteText = t.notes   ? `<span class="tx-note-text">${t.notes}</span>` : '';
@@ -594,9 +592,7 @@ function renderResults(data) {
     const matchBadge  = (t.match_id_as_out || t.match_id_as_in)
       ? `<span class="match-badge${matchStatus === 'suggested' ? ' suggested' : ''}">${matchDir} matched</span>`
       : '';
-    const label       = t.address_label
-      ? `<span class="tx-addr-label" title="Address label"> · ${t.address_label}</span>`
-      : '';
+    const label = '';
 
     // For Crypto.com fiat→crypto buys, amount = USD fiat side; to_amount = crypto qty.
     // Use to_amount as the display quantity when to_currency matches asset_symbol.

@@ -36,15 +36,17 @@ export const GET: APIRoute = async ({ request }) => {
 	// ── 3 queries in parallel (no unbounded count — use list length as badge) ──
 	const [unmatchedResult, suggestedResult, resolvedResult] = await Promise.all([
 
-	// ── 0: Unmatched transfers (no accepted match on either side) ────────────
+	// ── 0: Unmatched transfers (no accepted match on either side) ─────────────
+	// NOTE: address_labels display join is intentionally omitted — it uses a
+	// computed IN clause that cannot use an index, making it the dominant cost
+	// at scale. The UI shows a generic hint text instead.
 	db.execute({
 		sql: `SELECT
 		        t.id, t.source, t.account_id, t.timestamp_utc,
 		        t.direction, t.asset_symbol, t.amount, t.to_currency, t.to_amount,
 		        t.native_usd, t.kind, t.tx_hash, t.description,
 		        t.notes, t.category,
-		        ea.name AS account_name,
-		        al.label AS address_label
+		        ea.name AS account_name
 		      FROM import_transactions t
 		      LEFT JOIN transfer_matches m_out ON m_out.tenant_id  = t.tenant_id
 		                                      AND m_out.out_tx_id  = t.id
@@ -54,15 +56,6 @@ export const GET: APIRoute = async ({ request }) => {
 		                                      AND m_in.status     != 'rejected'
 		      LEFT JOIN exchange_accounts ea   ON ea.id = t.account_id
 		                                      AND ea.tenant_id = t.tenant_id
-		      LEFT JOIN address_labels al      ON al.tenant_id = t.tenant_id
-		                                      AND al.address IN (
-		                                        'cex:' || t.source || ':' || COALESCE(t.account_id,''),
-		                                        COALESCE(t.tx_hash, '')
-		                                      )
-		      -- A user-supplied label means "I know what this is."
-		      -- Matches by tx_hash (when available) or by tx_id: prefix (fallback for rows
-		      -- where the exchange didn't provide a hash).
-		      -- Only applies to transactions before 2024.
 		      LEFT JOIN address_labels al_explained ON al_explained.tenant_id = t.tenant_id
 		                                          AND (
 		                                            (t.tx_hash IS NOT NULL AND al_explained.address = t.tx_hash)
