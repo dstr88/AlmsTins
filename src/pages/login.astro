@@ -196,6 +196,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <p class="hero-reassurance">No signup form. Sign in with Google or email and your account is created instantly.</p>
         </div>
 
+        <!-- Dashboard preview — hero position -->
+        <div class="dash-preview">
+          <img src={DashImg.src} alt="Almstins dashboard preview" class="dash-img" loading="eager" />
+          <div class="dash-preview-fade"></div>
+        </div>
+
         <!-- Secondary CTA — demo -->
         <div class="demo-cta-wrap">
           <a href="/api/demo/start" class="demo-cta-btn">
@@ -243,12 +249,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
               <div class="fc-desc">Encrypted at rest. Never sold. Never shared.</div>
             </div>
           </div>
-        </div>
-
-        <!-- Dashboard preview -->
-        <div class="dash-preview">
-          <img src={DashImg.src} alt="Almstins dashboard preview" class="dash-img" loading="lazy" />
-          <div class="dash-preview-fade"></div>
         </div>
 
         <!-- Social proof -->
@@ -685,13 +685,13 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .trust-dot { opacity: 0.3; }
 
-    /* Dashboard preview — feature cards → image: 96px */
+    /* Dashboard preview — hero position, right after headline */
     .dash-preview {
-      margin-top: 96px;
+      margin-top: 40px;
       position: relative; border-radius: 12px; overflow: hidden;
       border: 1px solid rgba(255,255,255,0.08);
       box-shadow: 0 24px 60px rgba(0,0,0,0.5);
-      max-height: 260px;
+      max-height: 320px;
       flex-shrink: 0;
     }
     .dash-img { width: 100%; display: block; object-fit: cover; object-position: top; }
