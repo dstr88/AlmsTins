@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getCache, setCache } from '@/lib/tursoCache';
 
-const CACHE_TTL = 60; // seconds
+const CACHE_TTL = 300; // 5 minutes
 
 export const prerender = false;
 

@@ -14,24 +14,20 @@ export async function requireTenantSession(request: Request): Promise<TenantSess
 	}
 
 	try {
-		console.log('[requireTenantSession] cookies:', request.headers.get('cookie'));
 		const session = await getAuthSession(request);
-		console.log('[requireTenantSession] session:', session);
-		const userId = session?.user?.id ? String(session.user.id) : '';
-		console.log('[requireTenantSession] userId:', userId || null);
-		if (!userId) {
-			console.log('[requireTenantSession] return:', null);
-			return null;
+		if (!session?.user?.id) return null;
+
+		// Fast path: the JWT already contains tenantId (set at sign-in).
+		// Trusting the signed JWT avoids 2 sequential DB round trips on every
+		// API request. The JWT is RS256/HS256 signed — cannot be forged.
+		if (session.tenantId) {
+			return { tenantId: session.tenantId };
 		}
 
-		const tenantId = await requireActiveTenantId(userId);
-		console.log('[requireTenantSession] tenantId:', tenantId);
-		const result = { tenantId };
-		console.log('[requireTenantSession] return:', result);
-		return result;
-	} catch (error) {
-		console.log('[requireTenantSession] error:', error instanceof Error ? error.message : String(error));
-		console.log('[requireTenantSession] return:', null);
+		// Slow path: older sessions without tenantId in JWT — resolve from DB.
+		const tenantId = await requireActiveTenantId(session.user.id);
+		return { tenantId };
+	} catch {
 		return null;
 	}
 }

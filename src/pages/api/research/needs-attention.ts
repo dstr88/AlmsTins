@@ -4,7 +4,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { logNeedsAttention } from '@/lib/activityLog';
 import { getCache, setCache } from '@/lib/tursoCache';
 
-const CACHE_TTL = 90; // seconds
+const CACHE_TTL = 300; // 5 minutes
 
 export const prerender = false;
 
@@ -90,7 +90,7 @@ export const GET: APIRoute = async ({ request }) => {
 		args: [tenantId, tenantId],
 	}),
 
-	// ── 3: Suggested matches awaiting user confirmation ───────────────────────
+	// ── 2: Suggested matches awaiting user confirmation ───────────────────────
 	db.execute({
 		sql: `SELECT
 		        m.id AS match_id,
@@ -125,7 +125,7 @@ export const GET: APIRoute = async ({ request }) => {
 		args: [tenantId],
 	}),
 
-	// ── 4: Resolved (confirmed + auto) matches ───────────────────────────────
+	// ── 3: Resolved (confirmed + auto) matches ───────────────────────────────
 	db.execute({
 		sql: `SELECT
 		        m.id AS match_id,
@@ -155,7 +155,7 @@ export const GET: APIRoute = async ({ request }) => {
 		      LIMIT 100`,
 		args: [tenantId],
 	}),
-	]); // end Promise.all
+	]);
 
 	// Filter candidates: exclude any tx that appears in a non-rejected match
 	const matchedIds = new Set(
