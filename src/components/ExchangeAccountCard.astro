@@ -69,7 +69,15 @@ const hasHoldings = Astro.slots.has('holdings');
 			<span class="exchange-account__totals-value" data-holdings-total-usd>$0.00</span>
 		</div>
 		{hasHoldings ? (
-			<div class="exchange-account__holdings-grid">
+			<div class="exchange-account__holdings-list">
+				<div class="exchange-account__holdings-header">
+					<span>Days</span>
+					<span>Asset</span>
+					<span>Qty</span>
+					<span>Price</span>
+					<span>USD</span>
+					<span>P/L</span>
+				</div>
 				<slot name="holdings" />
 			</div>
 		) : (

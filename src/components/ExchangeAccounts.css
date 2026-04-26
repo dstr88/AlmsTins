@@ -17,25 +17,6 @@
 	opacity: 0.9;
 }
 
-.exchange-holding__row--staking {
-	display: flex;
-	gap: var(--space-sm);
-	padding-top: var(--space-xs, 0.25rem);
-	border-top: 1px dashed var(--border-subtle);
-	font-size: var(--font-xs, 0.7rem);
-	color: var(--text-muted);
-}
-
-.exchange-holding__staking-usd {
-	opacity: 0.7;
-}
-
-/* Earned-symbol abbr in the Days field */
-.exchange-holding__earned {
-	text-decoration: none;
-	cursor: help;
-	border-bottom: 1px dotted var(--text-muted);
-}
 
 /* Legend at the bottom of the tin */
 .exchange-legend {

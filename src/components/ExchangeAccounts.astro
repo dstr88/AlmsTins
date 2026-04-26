@@ -135,8 +135,7 @@ try {
 									const isLongTerm = daysHeld !== null && daysHeld >= 365;
 									return (
 										<div class="exchange-holding">
-											{/* Top line: days · ticker · USD value */}
-											<div class="exchange-holding__top">
+											<div class="exchange-holding__row">
 												<span class="exchange-holding__days">
 													{daysHeld === null ? '—' : `${daysHeld}d`}
 													{daysHeld !== null && (
@@ -152,12 +151,9 @@ try {
 														</abbr>
 													) : holding.symbol}
 												</span>
-												<span class="exchange-holding__usd usd-value">{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
-											</div>
-											{/* Bottom line: qty · price · p/l */}
-											<div class="exchange-holding__bottom">
 												<span class="exchange-holding__qty">{formatNumber(totalCoins, { maximumFractionDigits: 6 })}</span>
 												<span class="exchange-holding__price">{price > 0 ? formatCurrency(price) : '—'}</span>
+												<span class="exchange-holding__usd usd-value">{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
 												<span class={`exchange-holding__pl ${pnl === null ? '' : pnlClass}`}>{pnl === null ? '—' : formatCurrency(pnl)}</span>
 											</div>
 											{(holding.staked > 0 || holding.stakingYtd > 0) && (
