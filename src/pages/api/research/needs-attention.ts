@@ -11,49 +11,45 @@ const memCache = new Map<string, { data: object; expiresAt: number }>();
 
 export const prerender = false;
 
-/**
- * Returns unresolved items that need the user's attention:
- *
- *  1. OUT transactions with no matching IN anywhere in the tenant
- *     (possible external send — user should confirm or label destination)
- *
- *  2. IN transactions with no matching OUT and no known source
- *     (coins appeared from an unknown place — needs cost basis or explanation)
- *
- *  3. Suggested matches that scored below auto-threshold — user should confirm
- */
 export const GET: APIRoute = async ({ request }) => {
+	const t0 = Date.now();
 	const session = await requireTenantSession(request);
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
+	// ── In-memory cache: zero-latency hit ────────────────────────────────────
 	const memKey = `needs-attention:${tenantId}`;
 	const mem = memCache.get(memKey);
 	if (mem && mem.expiresAt > Date.now()) {
+		console.log(`[needs-attention] mem-cache hit (${Date.now() - t0}ms)`);
 		return new Response(JSON.stringify(mem.data), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' },
 		});
 	}
 
-	const cacheKey = `t:${tenantId}:research:needs-attention:v1`;
-	const cached   = await getCache<object>(cacheKey);
+	// ── Turso cache: one round trip, avoids DB queries ────────────────────────
+	const cacheKey = `t:${tenantId}:research:needs-attention:v2`;
+	const t1 = Date.now();
+	const cached = await getCache<object>(cacheKey);
+	console.log(`[needs-attention] turso-cache lookup (${Date.now() - t1}ms)`);
 	if (cached !== null) {
 		memCache.set(memKey, { data: cached, expiresAt: Date.now() + CACHE_TTL * 1000 });
+		console.log(`[needs-attention] turso-cache hit total (${Date.now() - t0}ms)`);
 		return new Response(JSON.stringify(cached), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' },
 		});
 	}
 
-	// ── 4 queries in parallel ────────────────────────────────────────────────
-	// Strategy: avoid the expensive double-JOIN on transfer_matches.
-	// Instead, fetch candidates (direction/kind filter only — no join) and all
-	// matched IDs separately, then filter in JS with a Set lookup (O(1)).
-	// The new (tenant_id, direction, kind) index makes query 0 a fast index seek.
-	const [candidatesResult, matchedIdsResult, suggestedResult, resolvedResult] = await Promise.all([
+	// ── 3 queries in parallel ─────────────────────────────────────────────────
+	// Unmatched: NOT EXISTS correlated subqueries use idx_transfer_matches_out_tx
+	// and idx_transfer_matches_in_tx — no large result set transferred, only the
+	// final ≤300 rows come over the wire.
+	const t2 = Date.now();
+	const [unmatchedResult, suggestedResult, resolvedResult] = await Promise.all([
 
-	// ── 0: Candidate transactions — direction/kind filter, no transfer_matches join
+	// ── 0: Unmatched transactions — NOT EXISTS anti-join ─────────────────────
 	db.execute({
 		sql: `SELECT
 		        t.id, t.source, t.account_id, t.timestamp_utc,
@@ -90,19 +86,19 @@ export const GET: APIRoute = async ({ request }) => {
 		            'Receive','receive','Exchange Withdrawal','Pro Withdrawal'
 		          ))
 		        )
-		      LIMIT 2000`,
-		args: [tenantId],
+		        AND NOT EXISTS (
+		          SELECT 1 FROM transfer_matches tm
+		          WHERE tm.tenant_id = ? AND tm.out_tx_id = t.id AND tm.status != 'rejected'
+		        )
+		        AND NOT EXISTS (
+		          SELECT 1 FROM transfer_matches tm2
+		          WHERE tm2.tenant_id = ? AND tm2.in_tx_id = t.id AND tm2.status != 'rejected'
+		        )
+		      LIMIT 300`,
+		args: [tenantId, tenantId, tenantId],
 	}),
 
-	// ── 1: All matched transaction IDs (non-rejected) — one simple scan ───────
-	db.execute({
-		sql: `SELECT out_tx_id AS tx_id FROM transfer_matches WHERE tenant_id = ? AND status != 'rejected'
-		      UNION ALL
-		      SELECT in_tx_id  AS tx_id FROM transfer_matches WHERE tenant_id = ? AND status != 'rejected'`,
-		args: [tenantId, tenantId],
-	}),
-
-	// ── 2: Suggested matches awaiting user confirmation ───────────────────────
+	// ── 1: Suggested matches awaiting user confirmation ───────────────────────
 	db.execute({
 		sql: `SELECT
 		        m.id AS match_id,
@@ -113,13 +109,11 @@ export const GET: APIRoute = async ({ request }) => {
 		        m.in_amount,
 		        m.fee_amount,
 		        m.matched_at,
-		        -- out side
 		        t_out.id            AS out_id,
 		        t_out.source        AS out_source,
 		        t_out.timestamp_utc AS out_ts,
 		        t_out.description   AS out_desc,
 		        ea_out.name         AS out_account_name,
-		        -- in side
 		        t_in.id             AS in_id,
 		        t_in.source         AS in_source,
 		        t_in.timestamp_utc  AS in_ts,
@@ -137,7 +131,7 @@ export const GET: APIRoute = async ({ request }) => {
 		args: [tenantId],
 	}),
 
-	// ── 3: Resolved (confirmed + auto) matches ───────────────────────────────
+	// ── 2: Resolved (confirmed + auto) matches ───────────────────────────────
 	db.execute({
 		sql: `SELECT
 		        m.id AS match_id,
@@ -169,22 +163,17 @@ export const GET: APIRoute = async ({ request }) => {
 	}),
 	]);
 
-	// Filter candidates: exclude any tx that appears in a non-rejected match
-	const matchedIds = new Set(
-		(matchedIdsResult.rows as any[]).map(r => String(r.tx_id))
-	);
-	const unmatched = (candidatesResult.rows as any[])
-		.filter(r => !matchedIds.has(String(r.id)))
-		.sort((a, b) => {
-			const sym = String(a.asset_symbol ?? '').localeCompare(String(b.asset_symbol ?? ''));
-			if (sym !== 0) return sym;
-			return String(b.timestamp_utc ?? '').localeCompare(String(a.timestamp_utc ?? ''));
-		})
-		.slice(0, 300);
+	console.log(`[needs-attention] 3 parallel queries (${Date.now() - t2}ms) unmatched=${unmatchedResult.rows.length} suggested=${suggestedResult.rows.length} resolved=${resolvedResult.rows.length}`);
 
-	// Distinct symbols represented in unmatched items (for chip row in UI)
+	const unmatched = unmatchedResult.rows as any[];
+	const unmatchedSorted = [...unmatched].sort((a, b) => {
+		const sym = String(a.asset_symbol ?? '').localeCompare(String(b.asset_symbol ?? ''));
+		if (sym !== 0) return sym;
+		return String(b.timestamp_utc ?? '').localeCompare(String(a.timestamp_utc ?? ''));
+	});
+
 	const symbols = [...new Set(
-		unmatched.map(r => String(r.asset_symbol ?? '').toUpperCase()).filter(Boolean)
+		unmatchedSorted.map(r => String(r.asset_symbol ?? '').toUpperCase()).filter(Boolean)
 	)].sort();
 
 	const unmatchedCapped = unmatched.length >= 300;
@@ -192,7 +181,7 @@ export const GET: APIRoute = async ({ request }) => {
 	logNeedsAttention(tenantId, total, unmatched.length, suggestedResult.rows.length);
 
 	const payload = {
-		unmatched,
+		unmatched: unmatchedSorted,
 		suggested: suggestedResult.rows,
 		resolved:  resolvedResult.rows,
 		symbols,
@@ -203,6 +192,7 @@ export const GET: APIRoute = async ({ request }) => {
 	memCache.set(memKey, { data: payload, expiresAt: Date.now() + CACHE_TTL * 1000 });
 	void setCache(cacheKey, payload, CACHE_TTL);
 
+	console.log(`[needs-attention] total (${Date.now() - t0}ms)`);
 	return new Response(JSON.stringify(payload), {
 		status: 200,
 		headers: { 'Content-Type': 'application/json' },
