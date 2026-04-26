@@ -85,6 +85,27 @@ function resolveEarnedSymbol(kinds: Set<string>): string {
 }
 
 export function computeHoldings(rows: ImportRow[]): Holding[] {
+	// ── Pre-pass 1: build max implied price per symbol ───────────────────────
+	// Used to detect qty/price confusion (e.g. a BTC row recording $77,000 as
+	// the coin count instead of the USD cost). Any inflow whose implied price is
+	// < 1% of the per-symbol maximum is skipped as a corrupted lot.
+	// Mirrors the threshold used by the Research diagnostics (Query 9).
+	const maxImpliedPrice = new Map<string, number>();
+	for (const row of rows) {
+		const raw = pickSymbol(row);
+		if (!raw || raw.trim().length < 2) continue;
+		const sym = normalizeSymbol(raw);
+		if (sym.length < 2) continue;
+		const dir = row.direction ?? 'in';
+		if (dir === 'out' || dir === 'lost') continue;
+		const qty = parseNum(pickQty(row));
+		const usd = parseNum(row.native_usd);
+		if (qty && qty > 0 && usd && usd > 0) {
+			const implied = Math.abs(usd) / qty;
+			if (implied > (maxImpliedPrice.get(sym) ?? 0)) maxImpliedPrice.set(sym, implied);
+		}
+	}
+
 	const balanceMap       = new Map<string, number>();
 	const stakedMap        = new Map<string, number>();
 	const stakingYtdMap    = new Map<string, number>();
@@ -103,6 +124,8 @@ export function computeHoldings(rows: ImportRow[]): Holding[] {
 		const raw = pickSymbol(row);
 		if (!raw) continue;
 		const sym = normalizeSymbol(raw);
+		// Guard: skip single-character symbols — CSV artifacts, not real assets
+		if (sym.length < 2) continue;
 		if (row.timestamp_utc) lastSeenMap.set(sym, row.timestamp_utc);
 		const qtyRaw = parseNum(pickQty(row));
 		if (qtyRaw === null || qtyRaw === 0) continue;
@@ -122,6 +145,16 @@ export function computeHoldings(rows: ImportRow[]): Holding[] {
 			lastPurchaseMap.set(sym, row.timestamp_utc);
 			purchasedEverMap.set(sym, true);
 		} else if (dir === 'in') {
+			// Guard: skip inflows where implied price-per-coin is < 1% of the
+			// per-symbol maximum — catches qty/price CSV confusion (e.g. BTC
+			// price recorded as coin count, inflating balance by ~77,000x).
+			const usdRaw = parseNum(row.native_usd);
+			const maxPrice = maxImpliedPrice.get(sym);
+			if (maxPrice && usdRaw && usdRaw > 0 && qty > 0) {
+				const implied = Math.abs(usdRaw) / qty;
+				if (implied < maxPrice * 0.01) continue;
+			}
+
 			balanceMap.set(sym, (balanceMap.get(sym) ?? 0) + qty);
 
 			if (kindLower === 'staking income') {
