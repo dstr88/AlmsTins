@@ -3,7 +3,6 @@ import Layout from "@/layouts/LoginLayout.astro";
 import { getAuthSession } from "../lib/authSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
 import Logo from "../assets/logo.jpeg";
-import DashImg from "../assets/AlmsTinspic.png";
 
 const { searchParams } = Astro.url;
 const error = searchParams.get("error");
@@ -177,76 +176,62 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
   </div>
 
   <!-- ── Main layout ───────────────────────────────────────────────────── -->
-  <main class="auth-page">
-    <div class="auth-shell">
+  <main class="landing">
+    <div class="landing__column">
 
-      <!-- ── LEFT PANEL ─────────────────────────────────────────── -->
-      <section class="auth-left">
+      <!-- Logo -->
+      <a href="/" class="wordmark" aria-label="Almstins home">
+        <img src={Logo.src} width="44" height="44" alt="Almstins logo" class="wordmark-img" />
+        <span class="wordmark-text">Almstins</span>
+      </a>
 
-        <!-- Wordmark -->
-        <a href="/" class="wordmark" aria-label="Almstins home">
-          <img src={Logo.src} width="44" height="44" alt="Almstins logo" class="wordmark-img" />
-          <span class="wordmark-text">Almstins</span>
-        </a>
+      <!-- Headline + subhead -->
+      <div class="hero-copy">
+        <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
+        <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
+      </div>
 
-        <!-- Headline -->
-        <div class="hero-copy">
-          <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
-          <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
-          <p class="hero-reassurance">No signup form. Sign in with Google or email and your account is created instantly.</p>
+      <!-- Wallet demo input — primary action -->
+      <div class="landing__demo">
+        <span class="landing__demo-label">Try it with any wallet address</span>
+        <form class="landing__demo-form" id="demoForm">
+          <input
+            class="landing__demo-input"
+            type="text"
+            placeholder="0x… or ENS name"
+            aria-label="Wallet address"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button class="landing__demo-submit" type="submit" aria-label="Go">→</button>
+        </form>
+        <p class="landing__demo-hint">No signup. See a real portfolio in 5 seconds. Sign in later to save it.</p>
+      </div>
+
+      <!-- Three feature cards — stacked vertically -->
+      <div class="feature-stack">
+        <div class="feature-card">
+          <span class="fc-icon">🔐</span>
+          <div>
+            <div class="fc-title">Read-only, always</div>
+            <div class="fc-desc">Public addresses only. No keys, no risk — ever.</div>
+          </div>
         </div>
-
-        <!-- Two-column hero grid -->
-        <div class="hero-grid">
-
-          <!-- Left: two feature cards -->
-          <div class="hero-grid-left">
-            <div class="feature-card">
-              <span class="fc-icon">🔐</span>
-              <div>
-                <div class="fc-title">Read-only, always</div>
-                <div class="fc-desc">Public addresses only. No keys, no risk — ever.</div>
-              </div>
-            </div>
-            <div class="feature-card">
-              <span class="fc-icon">🧾</span>
-              <div>
-                <div class="fc-title">Year-end export</div>
-                <div class="fc-desc">Realized gains + full ledger, ready for your accountant.</div>
-              </div>
-            </div>
+        <div class="feature-card">
+          <span class="fc-icon">🧾</span>
+          <div>
+            <div class="fc-title">Year-end export</div>
+            <div class="fc-desc">Realized gains + full ledger, ready for your accountant.</div>
           </div>
-
-          <!-- Right: pic + button (drops to 3rd slot on mobile) -->
-          <div class="hero-grid-right">
-            <div class="dash-preview">
-              <img src={DashImg.src} alt="Almstins dashboard preview" class="dash-img" loading="eager" />
-              <div class="dash-preview-fade"></div>
-            </div>
-            <a href="/api/demo/start" class="demo-cta-btn">
-              Try with your wallet <span class="demo-cta-arrow">→</span>
-            </a>
-          </div>
-
-          <!-- Social proof: under left col on desktop, last on mobile -->
-          <div class="social-proof">
-            <div class="sp-item">
-              <span class="sp-icon">🏫</span>
-              <span>Built by a teacher — privacy-first from day one</span>
-            </div>
-            <div class="sp-item">
-              <span class="sp-icon">🔒</span>
-              <span>Read-only access means we <em>physically cannot</em> move your funds</span>
-            </div>
-            <div class="sp-item">
-              <span class="sp-icon">🗄️</span>
-              <span>Your data lives in your isolated database — not in a shared pool</span>
-            </div>
-          </div>
-
         </div>
-
-      </section>
+        <div class="feature-card">
+          <span class="fc-icon">🏫</span>
+          <div>
+            <div class="fc-title">Built by a teacher</div>
+            <div class="fc-desc">Privacy-first from day one. Never sold. Never shared.</div>
+          </div>
+        </div>
+      </div>
 
     </div>
   </main>
@@ -375,11 +360,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         openDropdown();
       }
 
-      // Inline "Sign in" link under demo button opens the dropdown
-      document.getElementById('demoSubSignin')?.addEventListener('click', () => {
-        openDropdown();
-        pill?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      });
     })();
 
     // ── Email toggle ──────────────────────────────────────────────────
@@ -500,6 +480,20 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         }
       });
     })();
+
+    // ── Wallet demo input ─────────────────────────────────────────────
+    (() => {
+      const form = document.getElementById('demoForm') as HTMLFormElement | null;
+      if (!form) return;
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
+        const address = input?.value.trim();
+        if (!address) return;
+        // TODO: replace with dedicated demo/preview route once it exists
+        window.location.href = `/wallet-checker?address=${encodeURIComponent(address)}`;
+      });
+    })();
   </script>
 
   <style>
@@ -511,36 +505,24 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       color: #f5f8ff;
     }
 
-    .auth-page {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+    /* ── Page shell ──────────────────────────────────────────── */
+    .landing {
+      position: relative;
       width: 100%;
       min-height: 100vh;
       background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
     }
 
-    /* ── Shell ─────────────────────────────────────────────────── */
-    .auth-shell {
-      width: 100%;
+    /* ── Centered column ─────────────────────────────────────── */
+    .landing__column {
       max-width: 47.5rem;
-    }
-
-    /* ── Left panel ────────────────────────────────────────────── */
-    .auth-left {
-      padding: clamp(3rem, 8vw, 6rem) 2rem 5rem;
+      margin: 0 auto;
+      padding: clamp(3rem, 8vw, 6rem) 1.5rem 6rem;
       display: flex;
       flex-direction: column;
-      gap: 0;
-      width: 100%;
-      overflow: hidden;
-      position: relative;
-    }
-    @media (max-width: 56.25rem) {
-      .auth-left { padding: 3rem 1.25rem 3rem; }
     }
 
-    /* Wordmark */
+    /* ── Wordmark ────────────────────────────────────────────── */
     .wordmark {
       display: inline-flex; align-items: center; gap: 0.75rem;
       text-decoration: none; width: fit-content;
@@ -553,153 +535,91 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .wordmark-text {
       font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em;
-      color: #f5f8ff;
       background: linear-gradient(135deg, #a5b4fc, #818cf8);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
 
-    /* Headline — logo→headline: 3rem, h1→sub: 1.5rem, sub→reassurance: 1rem */
+    /* ── Headline — logo→h1: 3rem, h1→sub: 1.5rem ───────────── */
     .hero-copy { margin-top: clamp(1.5rem, 4vw, 3rem); }
     .hero-copy h1 {
-      font-size: clamp(1.8rem, 3vw, 2.6rem);
-      font-weight: 800; letter-spacing: -0.02em;
-      line-height: 1.1; margin: 0 0 1.5rem;
+      font-size: clamp(3rem, 5.6vw, 4.5rem);
+      font-weight: 600; letter-spacing: -0.02em;
+      line-height: 1.05; margin: 0 0 1.5rem;
     }
     .hero-sub {
-      font-size: 1rem; color: rgba(255,255,255,0.55);
-      line-height: 1.7; margin: 0 0 1rem;
-      max-width: 35rem;
+      font-size: clamp(1.125rem, 1.7vw, 1.375rem);
+      color: var(--text-secondary);
+      line-height: 1.5; margin: 0;
     }
-    .hero-reassurance {
+
+    /* ── Wallet demo input — subhead→demo: 3rem ─────────────── */
+    .landing__demo { margin-top: 3rem; }
+    .landing__demo-label {
+      display: block;
       font-size: 0.875rem;
       color: var(--text-muted);
-      line-height: 1.6;
-      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
     }
-    .demo-cta-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      width: 100%;
-      padding: 1rem 2.5rem;
-      border-radius: 0.875rem;
-      background: transparent;
+    .landing__demo-form {
+      display: flex;
+      gap: 0;
       border: 1px solid var(--border-bright);
-      color: var(--text-primary);
-      font-size: 1.1rem;
-      font-weight: 600;
-      text-decoration: none;
-      letter-spacing: -0.01em;
-      transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
-    }
-    .demo-cta-btn:hover {
-      transform: translateY(-1px);
-      background: var(--surface-hover);
-      border-color: var(--border-bright);
-    }
-    .demo-cta-arrow {
-      display: inline-block;
-      transition: transform 0.18s ease;
-    }
-    .demo-cta-btn:hover .demo-cta-arrow {
-      transform: translateX(0.25rem);
-    }
-    .demo-cta-sub {
-      margin: 0;
-      text-align: center;
-      font-size: 0.85rem;
-      line-height: 1.6;
-      color: var(--text-secondary);
-    }
-    .demo-sub-explore { color: var(--text-muted); }
-    .demo-sub-signin {
-      background: none;
-      border: none;
-      padding: 0;
-      font: inherit;
-      font-size: inherit;
-      color: var(--accent);
-      cursor: pointer;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-      transition: opacity 0.15s;
-    }
-    .demo-sub-signin:hover { opacity: 0.8; }
-    .demo-sub-auto { color: var(--text-secondary); }
-
-    /* ── Two-column hero grid ──────────────────────────────────── */
-    .hero-grid {
-      margin-top: clamp(2rem, 5vw, 3.5rem);
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-areas:
-        "left  right"
-        "proof right";
-      gap: 1rem 1.5rem;
-      align-items: start;
-    }
-    .hero-grid-left {
-      grid-area: left;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-    .hero-grid-right {
-      grid-area: right;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-    .hero-grid .social-proof {
-      grid-area: proof;
-    }
-    .hero-grid .dash-preview {
-      margin-top: 0;
-    }
-    @media (max-width: 35rem) {
-      .hero-grid {
-        grid-template-columns: 1fr;
-        grid-template-areas:
-          "left"
-          "right"
-          "proof";
-      }
-    }
-
-    .feature-card {
-      display: flex; align-items: flex-start; gap: 0.7rem;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.07);
       border-radius: 0.75rem;
-      padding: 0.85rem 1rem;
+      background: var(--surface-card);
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .landing__demo-form:focus-within { border-color: var(--accent); }
+    .landing__demo-input {
+      flex: 1;
+      background: transparent;
+      border: 0;
+      padding: 1.125rem 1.25rem;
+      font-size: 1.125rem;
+      color: var(--text-primary);
+      font-family: inherit;
+      outline: 0;
+    }
+    .landing__demo-input::placeholder { color: var(--text-muted); }
+    .landing__demo-submit {
+      background: var(--accent);
+      color: var(--surface-bg);
+      border: 0;
+      padding: 0 1.5rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: box-shadow 0.15s;
+    }
+    .landing__demo-submit:hover { box-shadow: 0 0 1.5rem var(--accent-glow); }
+    .landing__demo-hint {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 0.75rem;
+      text-align: center;
+    }
+
+    /* ── Feature stack — demo→first card: clamp(3rem,6vw,5rem) ─ */
+    .feature-stack {
+      margin-top: clamp(3rem, 6vw, 5rem);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      padding-bottom: 6rem;
+    }
+    .feature-card {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      background: var(--surface-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 0.75rem;
+      padding: 1rem 1.25rem;
     }
     .fc-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 0.1rem; }
-    .fc-title { font-size: 0.85rem; font-weight: 700; color: #f5f8ff; margin-bottom: 0.2rem; }
-    .fc-desc  { font-size: 0.75rem; color: rgba(255,255,255,0.45); line-height: 1.5; }
-
-    /* Trust bar */
-    .trust-bar {
-      margin-top: 2rem;
-      display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
-      font-size: 0.8rem; color: rgba(255,255,255,0.4);
-    }
-    .trust-dot { opacity: 0.3; }
-
-    /* Dashboard preview */
-    .dash-preview {
-      margin-top: 0;
-      position: relative; border-radius: 0.75rem; overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 1.5rem 3.75rem rgba(0,0,0,0.5);
-      max-height: 20rem;
-      flex-shrink: 0;
-    }
-    .dash-img { width: 100%; display: block; object-fit: cover; object-position: top; }
-    .dash-preview-fade {
-      position: absolute; bottom: 0; left: 0; right: 0; height: 5rem;
-      background: linear-gradient(to bottom, transparent, #0a0f1a);
-    }
+    .fc-title { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; }
+    .fc-desc  { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
 
     /* ── Sign-in pill (fixed top-right) ────────────────────────── */
     @keyframes slideInFromRight {
@@ -915,20 +835,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .stack button[type="submit"]:hover { opacity: 0.88; transform: translateY(-1px); }
 
     /* ── Social proof ─────────────────────────────────────────────── */
-    .social-proof {
-      display: flex; flex-direction: column; gap: 0.55rem;
-      padding: 0.85rem 1rem;
-      border-radius: 0.75rem;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-    .sp-item {
-      display: flex; align-items: flex-start; gap: 0.6rem;
-      font-size: 0.78rem; color: rgba(255,255,255,0.45); line-height: 1.5;
-    }
-    .sp-icon { font-size: 0.9rem; flex-shrink: 0; margin-top: 0.05rem; }
-    .sp-item em { font-style: normal; color: rgba(255,255,255,0.7); }
-
     /* ── Hesitation modal ──────────────────────────────────────── */
     .hesitation-overlay {
       position: fixed; inset: 0;
