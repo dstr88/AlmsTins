@@ -276,7 +276,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 )}
 
 <script is:inline>
-// Catch any unhandled JS error and show it directly in na-list
+// ── Error catcher: shows JS errors inside na-list instead of silent failure ───
 window.__naErr = function(msg) {
   var el = document.getElementById('na-list');
   if (el) el.innerHTML = '<div class="loading-msg" style="color:#ef4444;font-size:0.85em;white-space:pre-wrap">JS Error:\n' + msg + '</div>';
@@ -287,6 +287,84 @@ window.addEventListener('error', function(e) {
 window.addEventListener('unhandledrejection', function(e) {
   window.__naErr('Unhandled: ' + String(e.reason));
 });
+
+// ── Synchronous SSR render — runs before any module script ────────────────────
+// Renders NA data immediately so cold-start never shows "Loading…" even if the
+// main module script fails to load. The module replaces this with interactive
+// HTML (with buttons, event handlers) when it runs.
+(function () {
+  function escH(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  var SRC = { coinbase:'Coinbase', crypto_com:'Crypto.com', gemini:'Gemini',
+    kraken:'Kraken', exodus:'Exodus', venmo:'Venmo', cashapp:'Cash App', robinhood:'Robinhood' };
+  function srcN(s) { return SRC[s] || s || ''; }
+
+  try {
+    var ssrEl = document.getElementById('na-ssr-data');
+    if (!ssrEl) return;
+    var data = JSON.parse(ssrEl.textContent || '');
+    if (!data || typeof data !== 'object') return;
+
+    // Store parsed data for module to consume (avoids re-parsing)
+    window.__naData = data;
+
+    // Update count badge immediately
+    var count = document.getElementById('na-count');
+    if (count) {
+      var total = data.total || 0;
+      count.textContent = total > 0 ? (data.unmatchedCapped ? '300+' : String(total)) : '';
+    }
+
+    // Build list HTML (no interactive buttons — module replaces with full version)
+    var list = document.getElementById('na-list');
+    if (!list) return;
+    var html = '';
+
+    var suggested = data.suggested || [];
+    if (suggested.length) {
+      html += '<div class="section-label">Suggested matches</div>';
+      for (var i = 0; i < suggested.length; i++) {
+        var m = suggested[i];
+        html += '<div class="suggest-item">' +
+          '<div class="suggest-top"><span class="suggest-sym">' + escH(m.asset_symbol || '') + '</span>' +
+          '<span class="suggest-score">confidence ' + escH(String(m.confidence_score || '')) + '</span></div>' +
+          '<div class="suggest-flow">' + escH(srcN(String(m.out_source || ''))) + ' → ' + escH(srcN(String(m.in_source || ''))) + '</div>' +
+          '<div class="suggest-dates">' + escH(String(m.out_ts || '').slice(0,10)) + ' → ' + escH(String(m.in_ts || '').slice(0,10)) + '</div>' +
+          '</div>';
+      }
+    }
+
+    var unmatched = data.unmatched || [];
+    if (unmatched.length) {
+      html += '<div class="section-label">Unresolved transactions</div>';
+      for (var j = 0; j < unmatched.length; j++) {
+        var t = unmatched[j];
+        var dir = String(t.direction || '').toLowerCase();
+        var isXfer = dir === 'out' && t.category === 'own_wallet';
+        var dClass = isXfer ? 'transfer' : dir;
+        var dLabel = isXfer ? 'transfer' : dir;
+        var sym = escH(String(t.asset_symbol || ''));
+        var absAmt = Math.abs(Number(t.amount || 0));
+        var amtDisp = (dir === 'out' ? '−' : '+') + absAmt.toLocaleString(undefined,{maximumFractionDigits:8}) + ' ' + sym;
+        var src = escH(srcN(String(t.source || '')));
+        var usd = t.native_usd ? '<span class="tx-usd">$' + Number(t.native_usd).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) + '</span>' : '';
+        html += '<div class="tx-card na-item dir-' + dClass + '" data-sym="' + escH(String(t.asset_symbol||'')) + '" data-dir="' + dir + '" data-id="' + escH(String(t.id||'')) + '" data-ts="' + escH(String(t.timestamp_utc||'')) + '" data-src="' + src + '" data-amount="' + absAmt + '" data-usd="' + escH(String(t.native_usd||'')) + '">' +
+          '<div class="tx-badge-col"><span class="tx-dir ' + dClass + '">' + dLabel + '</span></div>' +
+          '<div class="tx-body">' +
+          '<div class="tx-row-1"><span class="tx-sym">' + sym + '</span><span class="tx-amt">' + amtDisp + '</span></div>' +
+          '<div class="tx-row-2"><span class="tx-src-badge">' + src + '</span>' + usd + '</div>' +
+          '<div class="tx-row-3"><span class="tx-dt">' + escH(String(t.timestamp_utc||'').slice(0,16).replace('T',' ')) + '</span></div>' +
+          '</div></div>';
+      }
+    }
+
+    if (!html) html = '<div class="empty-msg">✅ Nothing to review.</div>';
+    list.innerHTML = html;
+  } catch(e) {
+    if (window.__naErr) window.__naErr('inline: ' + e.message);
+  }
+})();
 </script>
 
 <script>
@@ -331,10 +409,27 @@ async function loadNeedsAttention(attempt = 1) {
   const MAX_ATTEMPTS = 4;
   const list = $('na-list');
 
-  // On the very first call, use SSR-embedded data so cold-start never stalls.
-  // Data is in a <script type="application/json"> element — always available
-  // in the DOM before any JS runs, regardless of module execution order.
+  // On the very first call, use SSR-embedded data (already rendered inline by
+  // the <script is:inline> block). window.__naData is set synchronously before
+  // any module runs, so it's always available when this function first fires.
   if (attempt === 1) {
+    const inlineData = (window as any).__naData as object | null | undefined;
+    if (inlineData) {
+      (window as any).__naData = null; // consume once
+      try {
+        renderNeedsAttention(inlineData);
+        const badge = $('na-synced');
+        if (badge) {
+          const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+          badge.textContent = `· synced ${t}`;
+          badge.style.display = 'inline';
+        }
+        return;
+      } catch (e) {
+        console.error('[NA] renderNeedsAttention threw on inline data — falling back to fetch:', e);
+      }
+    }
+    // Belt-and-suspenders: also check the DOM element (in case inline script skipped)
     const ssrEl = document.getElementById('na-ssr-data');
     if (ssrEl) {
       let embedded: object | null = null;
@@ -342,7 +437,7 @@ async function loadNeedsAttention(attempt = 1) {
         const parsed = JSON.parse(ssrEl.textContent || '');
         if (parsed && typeof parsed === 'object') embedded = parsed;
       } catch (e) {
-        console.warn('[NA] SSR data parse failed:', e);
+        console.warn('[NA] SSR DOM parse failed:', e);
       }
       if (embedded) {
         ssrEl.remove();
@@ -356,7 +451,7 @@ async function loadNeedsAttention(attempt = 1) {
           }
           return;
         } catch (e) {
-          console.error('[NA] renderNeedsAttention threw on SSR data — falling back to fetch:', e);
+          console.error('[NA] renderNeedsAttention threw on SSR DOM data — falling back to fetch:', e);
         }
       }
     }
@@ -605,7 +700,7 @@ function renderNeedsAttention(data) {
 }
 
 // Toggle resolved list
-$('resolved-toggle').addEventListener('click', () => {
+$('resolved-toggle')?.addEventListener('click', () => {
   resolvedOpen = !resolvedOpen;
   $('resolved-list').style.display  = resolvedOpen ? 'block' : 'none';
   $('resolved-toggle').textContent  = resolvedOpen ? '▴ hide' : '▾ show';
@@ -945,8 +1040,8 @@ function openMatchModal(match) {
   $('match-modal').style.display = 'flex';
 }
 
-$('match-modal-close').addEventListener('click', () => { $('match-modal').style.display = 'none'; });
-$('match-modal').addEventListener('click', e => { if (e.target === $('match-modal')) $('match-modal').style.display = 'none'; });
+$('match-modal-close')?.addEventListener('click', () => { $('match-modal').style.display = 'none'; });
+$('match-modal')?.addEventListener('click', e => { if (e.target === $('match-modal')) $('match-modal').style.display = 'none'; });
 
 async function actOnMatch(action) {
   if (!pendingMatch) return;
@@ -960,8 +1055,8 @@ async function actOnMatch(action) {
     await loadNeedsAttention();
   }
 }
-$('match-confirm').addEventListener('click', () => actOnMatch('confirm'));
-$('match-reject').addEventListener('click',  () => actOnMatch('reject'));
+$('match-confirm')?.addEventListener('click', () => actOnMatch('confirm'));
+$('match-reject')?.addEventListener('click',  () => actOnMatch('reject'));
 
 // ── Annotate inline form ──────────────────────────────────────────────────────
 const DISPOSAL_TYPES = [
@@ -2185,7 +2280,7 @@ async function saveNewWallet(address) {
 const btnAddTx     = $('btn-add-tx');
 const walletPicker = $('wallet-picker');
 
-btnAddTx.addEventListener('click', (e) => {
+btnAddTx?.addEventListener('click', (e) => {
   e.stopPropagation();
   const isOpen = walletPicker.style.display !== 'none';
   walletPicker.style.display = isOpen ? 'none' : 'block';
@@ -2193,13 +2288,13 @@ btnAddTx.addEventListener('click', (e) => {
 
 // Close picker when clicking outside
 document.addEventListener('click', (e) => {
-  if (!walletPicker.contains(e.target) && e.target !== btnAddTx) {
+  if (walletPicker && !walletPicker.contains(e.target) && e.target !== btnAddTx) {
     walletPicker.style.display = 'none';
   }
 });
 
 // Wire wallet-picker items → open AddTransactionModal
-walletPicker.querySelectorAll('.wallet-picker-item').forEach(item => {
+walletPicker?.querySelectorAll('.wallet-picker-item').forEach(item => {
   item.addEventListener('click', () => {
     const walletId    = item.getAttribute('data-wallet-id');
     const walletLabel = item.getAttribute('data-wallet-label');
