@@ -36,7 +36,7 @@ try {
 
 if (cachedValue != null) {
   naData = cachedValue;
-  console.log(`[research SSR] NA cache hit (${Date.now() - ssrT0}ms)`);
+  console.log(`[research SSR] NA cache hit (${Date.now() - ssrT0}ms) total=${(naData as any)?.total ?? '?'}`);
 } else {
   // Step 2: live query — fail fast so Render's 30s HTTP cutoff isn't hit
   try {
@@ -47,11 +47,12 @@ if (cachedValue != null) {
       ),
     ]);
     void setCache(NA_TURSO_KEY, naData, NA_CACHE_TTL);
-    console.log(`[research SSR] NA live query (${Date.now() - ssrT0}ms)`);
+    console.log(`[research SSR] NA live query (${Date.now() - ssrT0}ms) total=${(naData as any)?.total ?? '?'}`);
   } catch (err) {
     console.error('[research SSR] NA prefetch failed, client will fetch:', err);
   }
 }
+console.log(`[research SSR] naData is ${naData == null ? 'NULL — client will fetch' : `present (total=${(naData as any)?.total ?? '?'})`}`);
 
 // Load all distinct symbols the user has data for (for the chip row)
 const symbolResult = await db.execute({
@@ -169,7 +170,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
         </div>
         <div id="triage-panel" class="triage-panel" style="display:none"></div>
         <div id="na-list" class="item-list">
-          <div class="loading-msg">Loading…</div>
+          <div class="loading-msg">Loading… <span style="font-size:0.75em;opacity:0.5">{naData ? `(SSR:${(naData as any).total ?? '?'})` : '(no SSR)'}</span></div>
         </div>
 
         <!-- Resolved tin -->
