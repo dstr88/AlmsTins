@@ -592,9 +592,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     /* ── Headline — logo→h1: 3rem, h1→sub: 1.5rem ───────────── */
     .hero-copy { margin-top: clamp(1.5rem, 4vw, 3rem); }
     .hero-copy h1 {
-      font-size: clamp(3rem, 5.6vw, 4.5rem);
+      font-size: clamp(2.25rem, 4.2vw, 3.375rem);
       font-weight: 600; letter-spacing: -0.02em;
       line-height: 1.05; margin: 0 0 1.5rem;
+      color: var(--text-primary);
     }
     .hero-sub {
       font-size: clamp(1.125rem, 1.7vw, 1.375rem);
@@ -692,25 +693,26 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       gap: 0.4rem;
       padding: 0.625rem 1.25rem;
       border-radius: 999px;
-      border: none;
-      background: var(--accent);
-      color: var(--surface-bg);
+      border: 1px solid var(--border-bright);
+      background: transparent;
+      color: var(--text-secondary);
       font-size: 0.88rem;
       font-weight: 600;
       font-family: inherit;
       cursor: pointer;
-      transition: box-shadow 0.15s, transform 0.15s, opacity 0.15s;
+      transition: background 0.15s, color 0.15s, transform 0.15s;
       white-space: nowrap;
       max-width: 11.25rem;
       text-align: center;
     }
     .signin-pill:hover {
-      box-shadow: 0 0 0 0.25rem var(--accent-glow);
+      background: var(--surface-hover);
+      color: var(--text-primary);
       transform: translateY(-1px);
     }
     .signin-pill.is-open {
-      opacity: 0.9;
-      box-shadow: 0 0 0 0.25rem var(--accent-glow);
+      background: var(--surface-hover);
+      color: var(--text-primary);
     }
     .pill-chevron { display: none; }
 

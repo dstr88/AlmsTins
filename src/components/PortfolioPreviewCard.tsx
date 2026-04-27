@@ -1,20 +1,19 @@
 import "@/styles/portfolio-preview-card.css";
 
 // SVG donut: r=56, cx=cy=70 → C = 2π×56 ≈ 351.858
-// Segments (crypto 42%, stocks 35%, defi 18%, cash 5%)
+// Segments (crypto 42%, stocks 41%, defi 17%)
 const C = 351.858;
 const segments = [
-  { pct: 42, color: "var(--accent)",     label: "Crypto", offset: 0 },
-  { pct: 35, color: "#8b9dc8",           label: "Stocks", offset: -(C * 0.42) },
-  { pct: 18, color: "var(--gain)",       label: "DeFi",   offset: -(C * 0.77) },
-  { pct:  5, color: "var(--text-muted)", label: "Cash",   offset: -(C * 0.95) },
+  { pct: 42, color: "var(--accent)", label: "Crypto", offset: 0 },
+  { pct: 41, color: "#8b9dc8",      label: "Stocks", offset: -(C * 0.42) },
+  { pct: 17, color: "var(--gain)",  label: "DeFi",   offset: -(C * 0.83) },
 ];
 
 const holdings = [
-  { symbol: "ETH",  chain: "Ethereum",  value: "$24,180", change: "+4.2%", up: true  },
-  { symbol: "BTC",  chain: "Bitcoin",   value: "$18,940", change: "+1.8%", up: true  },
-  { symbol: "AVAX", chain: "Avalanche", value: "$8,320",  change: "-0.9%", up: false },
-  { symbol: "USDC", chain: "Polygon",   value: "$6,240",  change: "0.0%",  up: true  },
+  { symbol: "ETH",   chain: "Ethereum",  value: "$24,180", change: "+4.2%", up: true  },
+  { symbol: "AAPL",  chain: "Apple Inc.", value: "$18,940", change: "+1.8%", up: true  },
+  { symbol: "aUSDC", chain: "Aave USDC", value: "$8,320",  change: "+0.1%", up: true  },
+  { symbol: "TSLA",  chain: "Tesla Inc.", value: "$6,240",  change: "-0.9%", up: false },
 ];
 
 export default function PortfolioPreviewCard() {
@@ -55,8 +54,8 @@ export default function PortfolioPreviewCard() {
           })}
           {/* Centre hole */}
           <circle cx="70" cy="70" r="47" fill="var(--surface-card)" />
-          <text x="70" y="66" textAnchor="middle" fill="var(--text-primary)" fontSize="11" fontWeight="700" fontFamily="inherit">4 assets</text>
-          <text x="70" y="80" textAnchor="middle" fill="var(--text-muted)" fontSize="9" fontFamily="inherit">diversified</text>
+          <text x="70" y="65" textAnchor="middle" fill="var(--text-primary)" fontSize="11" fontWeight="700" fontFamily="inherit">$57,680</text>
+          <text x="70" y="79" textAnchor="middle" fill="var(--gain)" fontSize="8.5" fontFamily="inherit">+4.1% today</text>
         </svg>
 
         <div className="ppc__legend">
@@ -92,6 +91,8 @@ export default function PortfolioPreviewCard() {
         <span className="ppc__footer-label">Last synced</span>
         <span className="ppc__footer-sync">2 min ago</span>
       </div>
+
+      <p className="ppc__footnote">Demo data. Connect your wallet, exchange, or brokerage to see yours.</p>
     </div>
   );
 }
