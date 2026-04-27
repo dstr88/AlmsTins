@@ -204,8 +204,9 @@ async function persistMatch(
 	// Auto-build address labels from high-confidence matches:
 	// label the in-side source with the out-side source name.
 	if (best.score >= THRESHOLD_AUTO_MEDIUM) {
-		const outLabel = outTx.source;   // e.g. 'crypto_com'
-		const inLabel  = inTx_label(best.inTx);
+		const outLabel   = outTx.source;   // e.g. 'crypto_com'
+		const inLabel    = inTx_label(best.inTx);
+		const inCategory = inTx_category(best.inTx.source);
 
 		// Label the in account address so it shows up everywhere
 		const inAddress = best.inTx.account_id
@@ -214,9 +215,9 @@ async function persistMatch(
 
 		if (inAddress) {
 			await db.execute({
-				sql: `INSERT OR IGNORE INTO address_labels (id, tenant_id, address, label, source)
-				      VALUES (?, ?, ?, ?, 'auto')`,
-				args: [randomUUID(), tenantId, inAddress, inLabel],
+				sql: `INSERT OR IGNORE INTO address_labels (id, tenant_id, address, label, source, category)
+				      VALUES (?, ?, ?, ?, 'auto', ?)`,
+				args: [randomUUID(), tenantId, inAddress, inLabel, inCategory],
 			}).catch(() => { /* non-fatal: label may already exist */ });
 		}
 
@@ -226,14 +227,23 @@ async function persistMatch(
 			if (addrMatch) {
 				const rawAddr = addrMatch[1];
 				await db.execute({
-					sql: `INSERT OR IGNORE INTO address_labels (id, tenant_id, address, label, source)
-					      VALUES (?, ?, ?, ?, 'auto')`,
-					args: [randomUUID(), tenantId, rawAddr, inLabel],
+					sql: `INSERT OR IGNORE INTO address_labels (id, tenant_id, address, label, source, category)
+					      VALUES (?, ?, ?, ?, 'auto', ?)`,
+					args: [randomUUID(), tenantId, rawAddr, inLabel, inCategory],
 				}).catch(() => { /* non-fatal */ });
 			}
 		}
 	}
 }
+
+// Sources that are centralized exchange platforms — their addresses must not be
+// auto-classified as own-wallet transfers (sending to Coinbase could be a deposit
+// to your own account OR a disposal to another user; only both-sides-confirmed
+// transfer matches can resolve that ambiguity).
+const EXCHANGE_SOURCES = new Set([
+	'coinbase', 'crypto_com', 'gemini', 'kraken',
+	'venmo', 'cashapp', 'robinhood', 'binance',
+]);
 
 function inTx_label(inTx: TxRow): string {
 	const map: Record<string, string> = {
@@ -247,6 +257,10 @@ function inTx_label(inTx: TxRow): string {
 		robinhood:  'Robinhood',
 	};
 	return map[inTx.source] ?? inTx.source;
+}
+
+function inTx_category(source: string): string {
+	return EXCHANGE_SOURCES.has(source) ? 'exchange' : 'own_wallet';
 }
 
 // ─── Main matching function ───────────────────────────────────────────────────

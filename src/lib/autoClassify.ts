@@ -35,30 +35,42 @@ function extractAddresses(text: string | null): string[] {
  * Returns the number of transactions newly classified.
  */
 export async function autoClassifyOwnWalletTransfers(tenantId: string): Promise<number> {
-	// 1. Collect all known own-wallet addresses for this tenant
+	// 1. Collect all known addresses for this tenant, split by type:
+	//    - ownAddresses: personal wallets → safe to auto-resolve as own_wallet
+	//    - exchangeAddresses: CEX platform addresses → must NOT auto-resolve;
+	//      sending to Coinbase could be a deposit to your account OR a disposal
+	//      to another user — only a confirmed transfer match can tell the difference.
 	const [walletRows, labelRows] = await Promise.all([
 		db.execute({
 			sql: `SELECT address, label FROM wallets WHERE tenant_id = ?`,
 			args: [tenantId],
 		}),
 		db.execute({
-			sql: `SELECT address, label FROM address_labels
-			      WHERE tenant_id = ? AND category = 'own_wallet'`,
+			sql: `SELECT address, label, category FROM address_labels
+			      WHERE tenant_id = ? AND category IN ('own_wallet', 'exchange')`,
 			args: [tenantId],
 		}),
 	]);
 
-	// Build a map: normalised_address → label for fast lookup
-	const ownAddresses = new Map<string, string>();
+	// Build maps: normalised_address → label
+	const ownAddresses      = new Map<string, string>(); // personal wallets
+	const exchangeAddresses = new Map<string, string>(); // CEX platform addresses
+
 	for (const row of walletRows.rows) {
 		const addr = String((row as any).address ?? '');
 		const label = String((row as any).label ?? addr.slice(0, 8));
 		if (addr) ownAddresses.set(addr.toLowerCase(), label);
 	}
 	for (const row of labelRows.rows) {
-		const addr = String((row as any).address ?? '');
-		const label = String((row as any).label ?? addr.slice(0, 8));
-		if (addr) ownAddresses.set(addr.toLowerCase(), label);
+		const addr     = String((row as any).address ?? '');
+		const label    = String((row as any).label ?? addr.slice(0, 8));
+		const category = String((row as any).category ?? '');
+		if (!addr) continue;
+		if (category === 'exchange') {
+			exchangeAddresses.set(addr.toLowerCase(), label);
+		} else {
+			ownAddresses.set(addr.toLowerCase(), label);
+		}
 	}
 
 	if (ownAddresses.size === 0) return 0;
@@ -84,7 +96,14 @@ export async function autoClassifyOwnWalletTransfers(tenantId: string): Promise<
 		];
 
 		for (const addr of candidates) {
-			const label = ownAddresses.get(addr.toLowerCase());
+			const normalized = addr.toLowerCase();
+
+			// Exchange address — cannot auto-resolve. Sending to Coinbase/Gemini/etc.
+			// could be a deposit to your own account OR a taxable disposal to another user.
+			// Leave in Needs Attention; a confirmed transfer match will resolve it.
+			if (exchangeAddresses.has(normalized)) break;
+
+			const label = ownAddresses.get(normalized);
 			if (label) {
 				updates.push({
 					id: row.id,
@@ -114,7 +133,9 @@ export async function autoClassifyOwnWalletTransfers(tenantId: string): Promise<
 		try {
 			const onChainTx = await getTxByHash({ chainId, txHash: row.tx_hash });
 			if (!onChainTx?.to) continue;
-			const label = ownAddresses.get(onChainTx.to);
+			const to = onChainTx.to.toLowerCase();
+			if (exchangeAddresses.has(to)) continue; // exchange address — leave for human review
+			const label = ownAddresses.get(to);
 			if (label) {
 				updates.push({
 					id: row.id,
