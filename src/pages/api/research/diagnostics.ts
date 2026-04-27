@@ -1,6 +1,10 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import {
+	getCoingeckoIdBySymbol,
+	getUsdUnitPriceAtTimestampCoinGecko,
+} from '@/lib/coingeckoHistorical';
 
 export const prerender = false;
 
@@ -74,6 +78,8 @@ export const GET: APIRoute = async ({ request }) => {
 		orphanedInsResult,
 		fiatAssetResult,
 		suspiciousPriceResult,
+		snapshotPayloadResult,
+		lifecycleNetResult,
 	] = await Promise.all([
 		// 1. Import coverage — which sources, date ranges
 		db.execute({
@@ -193,11 +199,140 @@ export const GET: APIRoute = async ({ request }) => {
 				tenantId, ...[...FIAT_SYMBOLS],
 			],
 		}),
+
+		// 10. Latest wallet snapshot payloads — for missing-basis detection
+		db.execute({
+			sql: `WITH latest AS (
+			        SELECT wallet_id, chain, MAX(captured_at) AS captured_at
+			        FROM wallet_snapshots WHERE tenant_id = ?
+			        GROUP BY wallet_id, chain
+			      )
+			      SELECT ws.payload_json
+			      FROM wallet_snapshots ws
+			      JOIN latest l
+			        ON l.wallet_id   = ws.wallet_id
+			       AND l.chain       = ws.chain
+			       AND l.captured_at = ws.captured_at
+			      JOIN wallets w ON w.id = ws.wallet_id
+			      WHERE ws.tenant_id = ? AND w.tenant_id = ?`,
+			args: [tenantId, tenantId, tenantId],
+		}),
+
+		// 11. Lifecycle net quantity per symbol
+		db.execute({
+			sql: `SELECT alg.asset_symbol,
+			             COALESCE(SUM(
+			               CASE WHEN ale.transaction_class NOT IN (
+			                         'liability_increase','liability_repayment','liability_liquidation'
+			                    )
+			               THEN CASE WHEN ale.direction = 'in'  THEN  ABS(COALESCE(ale.amount, 0))
+			                         WHEN ale.direction = 'out' THEN -ABS(COALESCE(ale.amount, 0))
+			                         ELSE 0 END
+			               ELSE 0 END
+			             ), 0) AS net_qty
+			      FROM asset_lifecycle_groups alg
+			      LEFT JOIN asset_lifecycle_events ale
+			        ON ale.group_id  = alg.id
+			       AND ale.tenant_id = alg.tenant_id
+			      WHERE alg.tenant_id = ?
+			      GROUP BY alg.id, alg.asset_symbol`,
+			args: [tenantId],
+		}),
 	]);
 
 	// Check for failed exchange sources
 	const sources = new Set((coverageResult.rows as any[]).map(r => String(r.source ?? '').toLowerCase()));
 	const failedFound = FAILED_EXCHANGES.filter(ex => sources.has(ex.key));
+
+	// ── Missing cost-basis detection ───────────────────────────────────────────
+	// Build snapshot value map from latest wallet payloads
+	const snapValueMap = new Map<string, { qty: number; valueUsd: number }>();
+	for (const row of snapshotPayloadResult.rows) {
+		if (!row.payload_json) continue;
+		let tokens: Array<{ symbol?: string; amount?: number | string; valueUsd?: number | null }>;
+		try {
+			tokens = JSON.parse(String(row.payload_json));
+			if (!Array.isArray(tokens)) continue;
+		} catch { continue; }
+		for (const t of tokens) {
+			const sym = String(t.symbol ?? '').toUpperCase();
+			if (!sym || FIAT_SYMBOLS.has(sym)) continue;
+			const qty = Math.abs(Number(t.amount ?? 0));
+			const usd = Math.abs(Number(t.valueUsd ?? 0));
+			const prev = snapValueMap.get(sym) ?? { qty: 0, valueUsd: 0 };
+			snapValueMap.set(sym, { qty: prev.qty + qty, valueUsd: prev.valueUsd + usd });
+		}
+	}
+
+	// Build lifecycle net-qty map
+	const lifecycleQtyMap = new Map<string, number>();
+	for (const row of lifecycleNetResult.rows) {
+		const sym = String((row as any).asset_symbol ?? '').toUpperCase();
+		if (!sym) continue;
+		const qty = Number((row as any).net_qty ?? 0);
+		lifecycleQtyMap.set(sym, (lifecycleQtyMap.get(sym) ?? 0) + qty);
+	}
+
+	// Find symbols with wallet balance > $50 but no/zero lifecycle record
+	const MISSING_BASIS_THRESHOLD = 50;
+	const gapSymbols: Array<{ symbol: string; snapQty: number; snapValueUsd: number }> = [];
+	for (const [sym, snap] of snapValueMap) {
+		if (snap.valueUsd < MISSING_BASIS_THRESHOLD) continue;
+		const netQty = lifecycleQtyMap.get(sym) ?? null;
+		if (netQty !== null && netQty > 0.0001) continue; // lifecycle exists and has meaningful qty
+		gapSymbols.push({ symbol: sym, snapQty: snap.qty, snapValueUsd: snap.valueUsd });
+	}
+	gapSymbols.sort((a, b) => b.snapValueUsd - a.snapValueUsd);
+
+	// For gap symbols (cap 5), look up earliest import transaction and fetch a
+	// CoinGecko historical price as an estimated cost basis per coin.
+	const ESTIMATE_CAP = 5;
+	type MissingBasisItem = {
+		symbol:          string;
+		snapQty:         number;
+		snapValueUsd:    number;
+		earliestDate:    string | null;
+		estimatedPrice:  number | null;
+		estimatedTotal:  number | null;
+	};
+	const missingBasis: MissingBasisItem[] = [];
+
+	await Promise.all(
+		gapSymbols.slice(0, ESTIMATE_CAP).map(async gap => {
+			let earliestDate: string | null = null;
+			let estimatedPrice: number | null = null;
+			let estimatedTotal: number | null = null;
+			try {
+				const earliest = await db.execute({
+					sql: `SELECT MIN(timestamp_utc) AS ts
+					      FROM import_transactions
+					      WHERE tenant_id = ? AND asset_symbol = ? AND direction = 'in'`,
+					args: [tenantId, gap.symbol],
+				});
+				earliestDate = String((earliest.rows[0] as any)?.ts ?? '') || null;
+				if (earliestDate) {
+					const coinId = await getCoingeckoIdBySymbol(gap.symbol);
+					if (coinId) {
+						const priceResult = await getUsdUnitPriceAtTimestampCoinGecko({
+							coinId,
+							timestampUtcIso: earliestDate,
+						});
+						if (priceResult?.unitPriceUsd != null) {
+							estimatedPrice = priceResult.unitPriceUsd;
+							estimatedTotal = estimatedPrice * gap.snapQty;
+						}
+					}
+				}
+			} catch { /* non-fatal */ }
+			missingBasis.push({ ...gap, earliestDate, estimatedPrice, estimatedTotal });
+		}),
+	);
+
+	// Push remaining gap symbols (beyond ESTIMATE_CAP) without estimates
+	for (const gap of gapSymbols.slice(ESTIMATE_CAP)) {
+		missingBasis.push({ ...gap, earliestDate: null, estimatedPrice: null, estimatedTotal: null });
+	}
+	missingBasis.sort((a, b) => b.snapValueUsd - a.snapValueUsd);
 
 	return new Response(
 		JSON.stringify({
@@ -212,6 +347,7 @@ export const GET: APIRoute = async ({ request }) => {
 			fiatNoise:        Number((fiatAssetResult.rows[0] as any)?.cnt ?? 0),
 			failedExchanges:  failedFound,
 			suspiciousPrices: suspiciousPriceResult.rows,
+			missingBasis,
 		}),
 		{ status: 200, headers: { 'Content-Type': 'application/json' } },
 	);

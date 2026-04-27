@@ -1573,6 +1573,33 @@ function renderHealthCheck(d) {
     });
   }
 
+  // Missing cost basis
+  const missingBasis = (d.missingBasis ?? []).filter(r => r.snapValueUsd >= 50);
+  if (missingBasis.length) {
+    const totalExposed = missingBasis.reduce((s, r) => s + Number(r.snapValueUsd ?? 0), 0);
+    const rows = missingBasis.slice(0, 6).map(r => {
+      const val   = fmtUsd(r.snapValueUsd);
+      const qty   = Number(r.snapQty ?? 0);
+      let line = `<strong>${r.symbol}</strong> · ${val} current balance`;
+      if (r.estimatedPrice != null) {
+        const estTotal = fmtUsd(r.estimatedTotal ?? r.estimatedPrice * qty);
+        const estPer   = fmtUsd(r.estimatedPrice);
+        const dateStr  = r.earliestDate ? r.earliestDate.slice(0, 10) : '';
+        line += `<br><span class="health-card-footnote">Est. cost basis ~${estTotal} @ ${estPer}/coin on ${dateStr} — estimate only</span>`;
+      } else if (r.earliestDate) {
+        line += `<br><span class="health-card-footnote">First seen ${r.earliestDate.slice(0, 10)} · no price available</span>`;
+      }
+      return line;
+    });
+    if (missingBasis.length > 6) rows.push(`<span class="health-card-footnote">…and ${missingBasis.length - 6} more</span>`);
+    cards.push({
+      title:  'Missing Cost Basis',
+      body:   `${missingBasis.length} asset${missingBasis.length !== 1 ? 's' : ''} · ${fmtUsd(totalExposed)} in wallet`,
+      detail: rows.join('<br>') + '<br><span class="health-card-footnote">Import missing exchange CSVs to establish cost basis</span>',
+      status: 'warn',
+    });
+  }
+
   // Fiat noise
   if (Number(d.fiatNoise) > 0) {
     cards.push({
