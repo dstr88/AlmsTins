@@ -73,6 +73,12 @@ const tenantWallets = walletResult.rows.map(r => ({
   address: String((r as any).address ?? ''),
   label:   String((r as any).label   ?? ''),
 }));
+
+// Prevent Render's edge / CDN layer from caching this authenticated page.
+// Without this, the HTML response can be served stale from cache — the
+// client never gets a fresh page and the na-ssr-data element is never
+// updated, causing NA to show "Loading…" indefinitely.
+Astro.response.headers.set('Cache-Control', 'no-store');
 ---
 
 <Layout title="Research | Almstins" noindex={true}>
@@ -313,10 +319,16 @@ async function loadNeedsAttention(attempt = 1) {
   if (attempt === 1) {
     const ssrEl = document.getElementById('na-ssr-data');
     if (ssrEl) {
+      let embedded: object | null = null;
       try {
-        const embedded = JSON.parse(ssrEl.textContent || '');
-        if (embedded && typeof embedded === 'object') {
-          ssrEl.remove(); // consume once
+        const parsed = JSON.parse(ssrEl.textContent || '');
+        if (parsed && typeof parsed === 'object') embedded = parsed;
+      } catch (e) {
+        console.warn('[NA] SSR data parse failed:', e);
+      }
+      if (embedded) {
+        ssrEl.remove();
+        try {
           renderNeedsAttention(embedded);
           const badge = $('na-synced');
           if (badge) {
@@ -325,8 +337,10 @@ async function loadNeedsAttention(attempt = 1) {
             badge.style.display = 'inline';
           }
           return;
+        } catch (e) {
+          console.error('[NA] renderNeedsAttention threw on SSR data — falling back to fetch:', e);
         }
-      } catch { /* malformed — fall through to fetch */ }
+      }
     }
   }
 
