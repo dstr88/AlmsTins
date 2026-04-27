@@ -271,7 +271,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 </div>
 
 {naData && (
-  <script id="na-ssr-data" type="application/json" set:html={JSON.stringify(naData)} />
+  <div id="na-ssr-data" style="display:none" set:text={JSON.stringify(naData)}></div>
 )}
 
 <script>
