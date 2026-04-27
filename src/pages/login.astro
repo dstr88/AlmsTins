@@ -629,7 +629,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       overflow: hidden;
       transition: border-color 0.15s;
     }
-    .landing__demo-form:focus-within { border-color: var(--accent); }
+    .landing__demo-form:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
     .landing__demo-input {
       flex: 1;
       background: transparent;

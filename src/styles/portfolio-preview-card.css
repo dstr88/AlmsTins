@@ -2,7 +2,7 @@
 
 .ppc {
   background: var(--surface-card);
-  border: 1px solid var(--border-bright);
+  border: 1px solid var(--border-subtle);
   border-radius: 1.25rem;
   padding: 1.5rem;
   width: 100%;
