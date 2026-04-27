@@ -254,17 +254,23 @@ const srcName = s => ({
 })[s] ?? s;
 
 // ── Load Needs Attention ──────────────────────────────────────────────────────
-async function loadNeedsAttention() {
+async function loadNeedsAttention(attempt = 1) {
+  const MAX_ATTEMPTS = 4;
   const list = $('na-list');
   list.innerHTML = '<div class="loading-msg">Loading…</div>';
   try {
     const ctrl = new AbortController();
-    const tid  = setTimeout(() => ctrl.abort(), 30_000);
+    const tid  = setTimeout(() => ctrl.abort(), 28_000);
     const res  = await fetch('/api/research/needs-attention', { signal: ctrl.signal });
     clearTimeout(tid);
     const data = await res.json();
     if (data.error) {
-      list.innerHTML = `<div class="empty-msg">Error: ${data.error}</div>`;
+      if (attempt < MAX_ATTEMPTS) {
+        list.innerHTML = `<div class="loading-msg">Retrying…</div>`;
+        setTimeout(() => loadNeedsAttention(attempt + 1), 5_000);
+      } else {
+        list.innerHTML = `<div class="empty-msg">Still working on it — check back in a moment.</div>`;
+      }
       return;
     }
     renderNeedsAttention(data);
@@ -274,8 +280,13 @@ async function loadNeedsAttention() {
       badge.textContent = `· synced ${t}`;
       badge.style.display = 'inline';
     }
-  } catch (e) {
-    list.innerHTML = `<div class="empty-msg">Failed to load: ${e.message}</div>`;
+  } catch {
+    if (attempt < MAX_ATTEMPTS) {
+      list.innerHTML = `<div class="loading-msg">Retrying…</div>`;
+      setTimeout(() => loadNeedsAttention(attempt + 1), 5_000);
+    } else {
+      list.innerHTML = `<div class="empty-msg">Still working on it — check back in a moment.</div>`;
+    }
   }
 }
 
@@ -283,7 +294,22 @@ function renderNeedsAttention(data) {
   const list  = $('na-list');
   const count = $('na-count');
   const total = data.total ?? 0;
-  count.textContent = total > 0 ? (data.unmatchedCapped ? '300+' : String(total)) : '';
+  const countLabel = total > 0 ? (data.unmatchedCapped ? '300+' : String(total)) : '';
+  count.textContent = countLabel;
+
+  // Persist count for nav badge (other pages read from localStorage)
+  try {
+    localStorage.setItem('alms_na_count', String(total));
+    const navBadge = document.getElementById('na-nav-badge');
+    if (navBadge) {
+      if (total > 0) {
+        navBadge.textContent = total > 99 ? '99+' : String(total);
+        navBadge.hidden = false;
+      } else {
+        navBadge.hidden = true;
+      }
+    }
+  } catch { /* localStorage unavailable */ }
 
   let html = '';
 
