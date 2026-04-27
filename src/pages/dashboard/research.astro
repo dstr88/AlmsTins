@@ -6,11 +6,33 @@ import AddTransactionModal from '../../components/dashboard/AddTransactionModal.
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { isAdminSession } from '../../lib/adminGuard';
 import { db } from '../../lib/db';
+import { runNeedsAttentionQueries } from '../../lib/getNeedsAttention';
+import { getCache, setCache } from '../../lib/tursoCache';
 
 const session = await requireTenantSession(Astro.request);
 if (!session) return Astro.redirect('/login');
 const { tenantId } = session;
 const isAdmin = await isAdminSession(Astro.request);
+
+// Pre-fetch NA data server-side so the page is never blank on cold start.
+// Render's cold-start takes 30-60s; the client's AbortController fires at 28s,
+// causing an infinite "Loading…" loop. By embedding the data in the HTML we
+// guarantee the first render is instant regardless of service-wake timing.
+const NA_TURSO_KEY = `t:${tenantId}:research:needs-attention:v2`;
+const NA_CACHE_TTL = 900;
+const NA_STALE_MAX = 3600;
+let naData: object | null = null;
+try {
+  const cached = await getCache<object>(NA_TURSO_KEY, { allowStale: true, staleMaxAgeSeconds: NA_STALE_MAX });
+  if (cached?.value != null) {
+    naData = cached.value;
+  } else {
+    naData = await runNeedsAttentionQueries(tenantId);
+    void setCache(NA_TURSO_KEY, naData, NA_CACHE_TTL);
+  }
+} catch {
+  // non-fatal — client will fetch normally if SSR data unavailable
+}
 
 // Load all distinct symbols the user has data for (for the chip row)
 const symbolResult = await db.execute({
@@ -223,6 +245,7 @@ const tenantWallets = walletResult.rows.map(r => ({
   </div>
 </div>
 
+{naData && <script define:vars={{ naData }}>window.__naData = naData;</script>}
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -262,6 +285,22 @@ const srcName = s => ({
 async function loadNeedsAttention(attempt = 1) {
   const MAX_ATTEMPTS = 4;
   const list = $('na-list');
+
+  // On the very first call, use SSR-embedded data so cold-start never stalls.
+  // Subsequent calls (after user actions) always re-fetch for fresh data.
+  if (attempt === 1 && window.__naData) {
+    const embedded = window.__naData;
+    window.__naData = null; // consume once
+    renderNeedsAttention(embedded);
+    const badge = $('na-synced');
+    if (badge) {
+      const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      badge.textContent = `· synced ${t}`;
+      badge.style.display = 'inline';
+    }
+    return;
+  }
+
   list.innerHTML = '<div class="loading-msg">Loading…</div>';
   try {
     const ctrl = new AbortController();
