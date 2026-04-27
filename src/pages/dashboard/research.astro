@@ -264,7 +264,9 @@ const tenantWallets = walletResult.rows.map(r => ({
   </div>
 </div>
 
-{naData && <script define:vars={{ naData }}>window.__naData = naData;</script>}
+{naData && (
+  <script id="na-ssr-data" type="application/json" set:html={JSON.stringify(naData)} />
+)}
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -306,18 +308,26 @@ async function loadNeedsAttention(attempt = 1) {
   const list = $('na-list');
 
   // On the very first call, use SSR-embedded data so cold-start never stalls.
-  // Subsequent calls (after user actions) always re-fetch for fresh data.
-  if (attempt === 1 && window.__naData) {
-    const embedded = window.__naData;
-    window.__naData = null; // consume once
-    renderNeedsAttention(embedded);
-    const badge = $('na-synced');
-    if (badge) {
-      const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-      badge.textContent = `· synced ${t}`;
-      badge.style.display = 'inline';
+  // Data is in a <script type="application/json"> element — always available
+  // in the DOM before any JS runs, regardless of module execution order.
+  if (attempt === 1) {
+    const ssrEl = document.getElementById('na-ssr-data');
+    if (ssrEl) {
+      try {
+        const embedded = JSON.parse(ssrEl.textContent || '');
+        if (embedded && typeof embedded === 'object') {
+          ssrEl.remove(); // consume once
+          renderNeedsAttention(embedded);
+          const badge = $('na-synced');
+          if (badge) {
+            const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            badge.textContent = `· synced ${t}`;
+            badge.style.display = 'inline';
+          }
+          return;
+        }
+      } catch { /* malformed — fall through to fetch */ }
     }
-    return;
   }
 
   list.innerHTML = '<div class="loading-msg">Loading…</div>';
