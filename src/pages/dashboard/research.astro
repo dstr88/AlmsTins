@@ -275,6 +275,20 @@ Astro.response.headers.set('Cache-Control', 'no-store');
   <div id="na-ssr-data" style="display:none" set:text={JSON.stringify(naData)}></div>
 )}
 
+<script is:inline>
+// Catch any unhandled JS error and show it directly in na-list
+window.__naErr = function(msg) {
+  var el = document.getElementById('na-list');
+  if (el) el.innerHTML = '<div class="loading-msg" style="color:#ef4444;font-size:0.85em;white-space:pre-wrap">JS Error:\n' + msg + '</div>';
+};
+window.addEventListener('error', function(e) {
+  window.__naErr(e.message + '\n' + e.filename.split('/').pop() + ':' + e.lineno);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  window.__naErr('Unhandled: ' + String(e.reason));
+});
+</script>
+
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
 let activeChip    = '';
@@ -2194,7 +2208,7 @@ walletPicker.querySelectorAll('.wallet-picker-item').forEach(item => {
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-loadNeedsAttention();
+loadNeedsAttention().catch(e => window.__naErr && window.__naErr('boot: ' + e.message + '\n' + (e.stack ?? '')));
 loadIntake();
 loadHealthCheck();
 </script>
