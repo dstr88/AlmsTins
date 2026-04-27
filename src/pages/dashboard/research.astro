@@ -1177,7 +1177,11 @@ function attachReceipt(e, txId) {
       const res  = await fetch('/api/research/attachment', { method: 'POST', body: fd });
       const data = await res.json();
       if (data.ok) {
-        renderAttPanel(panel, data.id, data.filename, data.validation, null);
+        if (data.paywalled && panel) {
+          panel.innerHTML = `<span class="att-badge">📎 ${data.filename}</span><a class="att-upgrade-hint" href="/dashboard/billing">⭐ Upgrade to verify receipts automatically</a>`;
+        } else {
+          renderAttPanel(panel, data.id, data.filename, data.validation, null);
+        }
       } else {
         if (panel) panel.innerHTML = `<span class="att-error">${data.error ?? 'Upload failed'}</span>`;
       }

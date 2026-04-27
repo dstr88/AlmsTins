@@ -963,6 +963,14 @@
   background: var(--loss-bg);
   border-color: var(--loss-border);
 }
+.att-upgrade-hint {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--accent-dim);
+  text-decoration: none;
+}
+.att-upgrade-hint:hover { color: var(--accent); text-decoration: underline; }
 .att-uploading {
   font-size: 0.72rem;
   color: var(--text-muted);

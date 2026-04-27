@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getActivePlan } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -175,9 +176,14 @@ export const POST: APIRoute = async ({ request }) => {
 	const id      = crypto.randomUUID();
 	const created = new Date().toISOString();
 
-	// Run Claude vision validation (non-fatal if it fails)
+	// ── Paywall: validation is a paid feature ─────────────────────────────────
+	const plan      = await getActivePlan(tenantId);
+	const isPaid    = plan.id !== 'free';
+	const paywalled = !isPaid;
+
+	// Run Claude vision validation (paid plans only; non-fatal if it fails)
 	let validation: ValidationResult | null = null;
-	if (txAsset && process.env.ANTHROPIC_API_KEY) {
+	if (isPaid && txAsset && process.env.ANTHROPIC_API_KEY) {
 		try {
 			validation = await validateReceipt(base64, file.type, txAsset, txCryptoAmount, txNativeUsd, txTimestampUtc);
 		} catch (err) {
@@ -195,7 +201,7 @@ export const POST: APIRoute = async ({ request }) => {
 	});
 
 	return new Response(JSON.stringify({
-		ok: true, id, filename: file.name, createdAt: created, validation,
+		ok: true, id, filename: file.name, createdAt: created, validation, paywalled,
 	}), { status: 201, headers: { 'Content-Type': 'application/json' } });
 };
 
