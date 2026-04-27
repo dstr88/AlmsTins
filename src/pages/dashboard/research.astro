@@ -115,7 +115,12 @@ const tenantWallets = walletResult.rows.map(r => ({
         <div class="col-header">
           <h2>Needs Attention <span id="na-count" class="count-badge"></span></h2>
           <p class="col-scope">All years · Bookkeeping shows current year only <span id="na-synced" class="na-synced-badge" style="display:none"></span></p>
+          <div class="na-ai-actions">
+            <button id="btn-ai-triage" class="btn-ai-triage" type="button">🤖 AI Triage</button>
+            <button id="btn-backfill" class="btn-backfill" type="button">💲 Fill Missing Prices</button>
+          </div>
         </div>
+        <div id="triage-panel" class="triage-panel" style="display:none"></div>
         <div id="na-list" class="item-list">
           <div class="loading-msg">Loading…</div>
         </div>
@@ -291,6 +296,7 @@ async function loadNeedsAttention(attempt = 1) {
 }
 
 function renderNeedsAttention(data) {
+  naDataCache = data; // cache for AI triage
   const list  = $('na-list');
   const count = $('na-count');
   const total = data.total ?? 0;
@@ -717,6 +723,105 @@ $('btn-resolve').addEventListener('click', async () => {
     btn.textContent = '⚙ Resolve';
     btn.disabled = false;
   }
+});
+
+// ── AI Triage ─────────────────────────────────────────────────────────────────
+const TRIAGE_LABELS = {
+  annotated:          { icon: '✅', label: 'Already annotated',      cls: 'triage-ok'   },
+  obvious_purchase:   { icon: '🛒', label: 'Obvious purchase',        cls: 'triage-info' },
+  obvious_income:     { icon: '💰', label: 'Obvious income',          cls: 'triage-info' },
+  obvious_own_wallet: { icon: '↔️', label: 'Obvious own-wallet',      cls: 'triage-info' },
+  obvious_sale:       { icon: '📤', label: 'Obvious sale/disposal',   cls: 'triage-info' },
+  needs_review:       { icon: '🔍', label: 'Needs manual review',     cls: 'triage-warn' },
+};
+
+let naDataCache = null; // set by renderNeedsAttention
+
+$('btn-ai-triage').addEventListener('click', async () => {
+  const btn   = $('btn-ai-triage');
+  const panel = $('triage-panel');
+  if (!naDataCache?.unmatched?.length) {
+    panel.style.display = 'block';
+    panel.innerHTML = '<p class="triage-msg">Load Needs Attention first.</p>';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '🤖 Triaging…';
+  panel.style.display = 'block';
+  panel.innerHTML = '<p class="triage-msg">Analysing ' + naDataCache.unmatched.length + ' transactions…</p>';
+  try {
+    const res  = await fetch('/api/research/ai-triage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transactions: naDataCache.unmatched }),
+    });
+    const data = await res.json();
+    if (res.status === 403) {
+      panel.innerHTML = `<p class="triage-msg">⭐ <a href="/dashboard/billing" style="color:var(--accent)">Upgrade to a paid plan</a> to use AI Triage.</p>`;
+      return;
+    }
+    if (!data.ok) throw new Error(data.error ?? 'Triage failed');
+
+    const groups = data.groups;
+    let html = '<div class="triage-results">';
+    for (const [key, meta] of Object.entries(TRIAGE_LABELS)) {
+      const rows = groups[key] ?? [];
+      if (!rows.length) continue;
+      html += `<div class="triage-group ${meta.cls}">
+        <div class="triage-group-header">
+          <span>${meta.icon} ${meta.label}</span>
+          <span class="triage-count">${rows.length}</span>
+        </div>
+        <div class="triage-group-body">`;
+      for (const r of rows) {
+        const tx = naDataCache.unmatched.find(t => t.id === r.id);
+        const sym  = tx?.asset_symbol ?? '?';
+        const amt  = tx ? Math.abs(Number(tx.amount)).toFixed(4) : '';
+        const date = tx?.timestamp_utc?.slice(0, 10) ?? '';
+        html += `<div class="triage-row">
+          <span class="triage-tx">${sym} ${amt} · ${date}</span>
+          <span class="triage-reason">${r.reason}</span>
+        </div>`;
+      }
+      html += `</div></div>`;
+    }
+    html += `<p class="triage-note">Triage is advisory — review before acting on AI suggestions.</p></div>`;
+    panel.innerHTML = html;
+    // Wire group headers to expand/collapse
+    panel.querySelectorAll('.triage-group-header').forEach(hdr => {
+      hdr.addEventListener('click', () => hdr.closest('.triage-group').classList.toggle('open'));
+    });
+  } catch (err) {
+    panel.innerHTML = `<p class="triage-msg triage-err">Triage failed: ${err.message}</p>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🤖 AI Triage';
+  }
+});
+
+// ── Backfill missing prices ───────────────────────────────────────────────────
+$('btn-backfill').addEventListener('click', async () => {
+  const btn = $('btn-backfill');
+  btn.disabled = true;
+  btn.textContent = '💲 Fetching prices…';
+  try {
+    const res  = await fetch('/api/research/backfill-prices', { method: 'POST' });
+    const data = await res.json();
+    if (res.status === 403) {
+      btn.textContent = '⭐ Paid feature';
+      setTimeout(() => { btn.textContent = '💲 Fill Missing Prices'; btn.disabled = false; }, 3000);
+      return;
+    }
+    if (data.ok) {
+      btn.textContent = `✅ ${data.priced} priced · ${data.skipped} skipped`;
+      if (data.priced > 0) await loadNeedsAttention();
+    } else {
+      btn.textContent = '❌ Backfill failed';
+    }
+  } catch {
+    btn.textContent = '❌ Backfill failed';
+  }
+  setTimeout(() => { btn.textContent = '💲 Fill Missing Prices'; btn.disabled = false; }, 4000);
 });
 
 // ── Suggested match modal ─────────────────────────────────────────────────────
