@@ -190,9 +190,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         </a>
 
         <!-- Headline + subhead -->
-        <div class="hero-copy">
-          <h1>Your Financial Reality,<br/>Finally in One Place.</h1>
-          <p class="hero-sub">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
+        <div class="hero__copy">
+          <h1 class="hero__headline">Your Financial Reality,<br/>Finally in One Place.</h1>
+          <p class="hero__subheadline">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
         </div>
 
         <!-- Wallet demo input — primary action -->
@@ -544,13 +544,14 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     /* ── Two-column hero grid ────────────────────────────────── */
     .landing__hero {
-      max-width: 80rem;
+      max-width: 75rem;
       margin: 0 auto;
-      padding: clamp(4rem, 8vw, 7.5rem) clamp(1.5rem, 4vw, 3rem) 6rem;
+      padding-block: clamp(3rem, 8vw, 6rem);
+      padding-inline: clamp(1.5rem, 4vw, 3rem);
       display: grid;
-      grid-template-columns: 1.4fr 1fr;
-      gap: 4rem;
-      align-items: center;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(2rem, 4vw, 4rem);
+      align-items: start;
     }
 
     .landing__left {
@@ -561,7 +562,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .landing__right {
       display: flex;
       justify-content: flex-end;
-      align-items: center;
+      align-items: start;
     }
 
     @media (max-width: 64rem) {
@@ -589,22 +590,28 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
 
-    /* ── Headline — logo→h1: 3rem, h1→sub: 1.5rem ───────────── */
-    .hero-copy { margin-top: clamp(1.5rem, 4vw, 3rem); }
-    .hero-copy h1 {
-      font-size: clamp(2.25rem, 4.2vw, 3.375rem);
-      font-weight: 600; letter-spacing: -0.02em;
-      line-height: 1.05; margin: 0 0 1.5rem;
+    /* ── Headline ────────────────────────────────────────────── */
+    .hero__copy { margin-top: clamp(1.5rem, 4vw, 3rem); }
+    .hero__headline {
+      font-size: clamp(2rem, 4vw + 1rem, 3.25rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
       color: var(--text-primary);
+      margin: 0 0 1.5rem;
+      max-width: 22ch;
     }
-    .hero-sub {
-      font-size: clamp(1.125rem, 1.7vw, 1.375rem);
+    .hero__subheadline {
+      font-size: clamp(1rem, 0.5vw + 0.875rem, 1.125rem);
+      line-height: 1.5;
       color: var(--text-secondary);
-      line-height: 1.5; margin: 0;
+      max-width: 38ch;
+      text-wrap: balance;
+      margin: 0 0 2rem;
     }
 
-    /* ── Wallet demo input — subhead→demo: 3rem ─────────────── */
-    .landing__demo { margin-top: 3rem; }
+    /* ── Wallet demo input ───────────────────────────────────── */
+    .landing__demo { margin-top: 0; }
     .landing__demo-label {
       display: block;
       font-size: 0.875rem;
