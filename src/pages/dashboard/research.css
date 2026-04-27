@@ -948,6 +948,21 @@
   border-radius: 6px;
   padding: 0.15rem 0.5rem;
 }
+.att-badge--ok {
+  color: var(--gain);
+  background: var(--gain-bg);
+  border-color: var(--gain-border);
+}
+.att-badge--warn {
+  color: #f59e0b;
+  background: rgba(245,158,11,0.1);
+  border-color: rgba(245,158,11,0.3);
+}
+.att-badge--err {
+  color: var(--loss);
+  background: var(--loss-bg);
+  border-color: var(--loss-border);
+}
 .att-uploading {
   font-size: 0.72rem;
   color: var(--text-muted);
@@ -957,6 +972,80 @@
   font-size: 0.72rem;
   color: var(--loss);
 }
+.att-rejected {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.att-mismatch-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.att-mismatch-list li { margin-bottom: 0.1rem; }
+.btn-att-override {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--loss-border);
+  border-radius: 6px;
+  color: var(--loss);
+  font-size: 0.7rem;
+  padding: 0.18rem 0.5rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.btn-att-override:hover { background: var(--loss-bg); }
+.att-override-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+.att-override-confirm {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+.att-override-note {
+  background: var(--surface-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  padding: 0.35rem 0.5rem;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+.att-override-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.btn-att-confirm-override {
+  background: rgba(245,158,11,0.15);
+  border: 1px solid rgba(245,158,11,0.4);
+  border-radius: 6px;
+  color: #f59e0b;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+.btn-att-confirm-override:hover { background: rgba(245,158,11,0.25); }
+.btn-att-confirm-override:disabled { opacity: 0.5; cursor: default; }
+.btn-att-cancel-override {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+.btn-att-cancel-override:hover { color: var(--text-secondary); border-color: var(--border-bright); }
 
 .btn-help {
   background: transparent;
