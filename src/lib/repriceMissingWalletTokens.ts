@@ -309,21 +309,9 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
         const price = coerceNumber(token.priceUsd);
         const value = getTokenValue(token);
 
-        if (!shouldReprice(price, value, amount)) {
-          markAttempted(summary);
-          markSkipped(summary, 'already_priced');
-          continue;
-        }
-
-        if (!isValidPositive(amount)) {
-          markRejected(summary, 'zero_value');
-          continue;
-        }
-
-        // Reject scam tokens: if the token has a contract address that doesn't match
-        // the known-good address for this symbol on this chain, zero it out and skip.
-        // This prevents fake "AAVE", "USDC", etc. airdrop tokens from being priced
-        // at the real token's rate.
+        // Reject scam tokens before the already-priced guard so that fake tokens
+        // with a stale price (e.g. fake AAVE airdropped at real AAVE rates) get
+        // zeroed out on every sync, not only when they're missing a price.
         const tokenAddress = typeof token.tokenAddress === 'string' ? token.tokenAddress.toLowerCase() : null;
         if (tokenAddress) {
           const verdict = classifyContract(row.chain, symbol, tokenAddress);
@@ -334,6 +322,17 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
             markRejected(summary, 'scam_contract' as any);
             continue;
           }
+        }
+
+        if (!shouldReprice(price, value, amount)) {
+          markAttempted(summary);
+          markSkipped(summary, 'already_priced');
+          continue;
+        }
+
+        if (!isValidPositive(amount)) {
+          markRejected(summary, 'zero_value');
+          continue;
         }
 
         // Token needs a price lookup — mark the row for update even if there are no
