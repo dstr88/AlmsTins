@@ -83,7 +83,7 @@ providers.push(
 	}),
 );
 
-const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
+const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
 const authConfig = {
 	basePath: '/api/auth',
