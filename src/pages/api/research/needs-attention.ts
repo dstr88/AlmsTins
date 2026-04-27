@@ -6,7 +6,7 @@ import { getCache, setCache } from '@/lib/tursoCache';
 
 const CACHE_TTL      = 900;    // 15 min fresh window
 const STALE_MAX_AGE  = 3600;   // serve stale up to 1 h while background-refreshing
-const QUERY_TIMEOUT_MS = 20_000; // 20 s — leaves buffer before Render's 30 s HTTP cutoff
+const BG_TIMEOUT_MS  = 25_000; // background refresh timeout — Render's HTTP cutoff doesn't apply here
 
 // Module-level in-memory cache — instant hits, no Turso round trip
 const memCache = new Map<string, { data: object; expiresAt: number }>();
@@ -24,9 +24,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 	]);
 }
 
-async function runQueries(tenantId: string): Promise<object> {
-	const [unmatchedResult, suggestedResult, resolvedResult] = await withTimeout(
-		Promise.all([
+async function runQueries(tenantId: string, timeoutMs?: number): Promise<object> {
+	const queryAll = Promise.all([
 
 		// ── 0: Unmatched transactions — NOT EXISTS anti-join ──────────────────
 		db.execute({
@@ -140,9 +139,10 @@ async function runQueries(tenantId: string): Promise<object> {
 			      LIMIT 100`,
 			args: [tenantId],
 		}),
-	]),
-	QUERY_TIMEOUT_MS, 'db queries',
-	);
+	]);
+	const [unmatchedResult, suggestedResult, resolvedResult] = timeoutMs
+		? await withTimeout(queryAll, timeoutMs, 'db queries')
+		: await queryAll;
 
 	const unmatched = unmatchedResult.rows as any[];
 	const unmatchedSorted = [...unmatched].sort((a, b) => {
@@ -172,7 +172,7 @@ async function backgroundRefresh(tenantId: string, memKey: string): Promise<void
 	if (refreshing.has(tenantId)) return;
 	refreshing.add(tenantId);
 	try {
-		const payload = await runQueries(tenantId);
+		const payload = await runQueries(tenantId, BG_TIMEOUT_MS);
 		memCache.set(memKey, { data: payload, expiresAt: Date.now() + CACHE_TTL * 1000 });
 		void setCache(TURSO_KEY(tenantId), payload, CACHE_TTL);
 		console.log(`[needs-attention] background refresh complete for ${tenantId}`);
