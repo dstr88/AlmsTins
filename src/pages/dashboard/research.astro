@@ -762,8 +762,14 @@ $('btn-ai-triage').addEventListener('click', async () => {
     }
     if (!data.ok) throw new Error(data.error ?? 'Triage failed');
 
+    // Reload NA list if anything was auto-resolved
+    if (data.autoResolved > 0) await loadNeedsAttention();
+
     const groups = data.groups;
-    let html = '<div class="triage-results">';
+    const autoMsg = data.autoResolved > 0
+      ? `<p class="triage-auto-note">✅ ${data.autoResolved} item${data.autoResolved !== 1 ? 's' : ''} auto-resolved and removed from Needs Attention. Price backfills stay for your review.</p>`
+      : '';
+    let html = `<div class="triage-results">${autoMsg}`;
     for (const [key, meta] of Object.entries(TRIAGE_LABELS)) {
       const rows = groups[key] ?? [];
       if (!rows.length) continue;

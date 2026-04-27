@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import Anthropic from '@anthropic-ai/sdk';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getActivePlan } from '@/lib/subscriptions';
+import { db } from '@/lib/db';
 
 export const prerender = false;
 
@@ -27,6 +28,13 @@ export type TriageClass =
 	| 'obvious_own_wallet'
 	| 'obvious_sale'
 	| 'needs_review';
+
+// These classifications get auto-applied; obvious_sale and needs_review stay for human review
+const AUTO_APPLY: Partial<Record<TriageClass, { category: string; notePrefix: string }>> = {
+	obvious_own_wallet: { category: 'own_wallet', notePrefix: 'AI triage: likely own-wallet transfer' },
+	obvious_purchase:   { category: 'purchase',   notePrefix: 'AI triage: likely purchase/acquisition' },
+	obvious_income:     { category: 'income',      notePrefix: 'AI triage: likely income event' },
+};
 
 interface TriageRow {
 	idx:            number;
@@ -150,7 +158,27 @@ export const POST: APIRoute = async ({ request }) => {
 		groups[key].push(r);
 	}
 
-	return new Response(JSON.stringify({ ok: true, total: results.length, groups }), {
+	// Auto-apply categories for definite classifications
+	let autoResolved = 0;
+	for (const [cls, action] of Object.entries(AUTO_APPLY) as [TriageClass, { category: string; notePrefix: string }][]) {
+		for (const r of groups[cls] ?? []) {
+			if (!r.id) continue;
+			try {
+				const note = `${action.notePrefix}. ${r.reason}`;
+				await db.execute({
+					sql: `UPDATE import_transactions
+					      SET category = ?, notes = COALESCE(NULLIF(notes, ''), ?)
+					      WHERE id = ? AND tenant_id = ? AND (category IS NULL OR category = '')`,
+					args: [action.category, note, r.id, tenantId],
+				});
+				autoResolved++;
+			} catch (err) {
+				console.warn('[ai-triage] auto-apply failed for', r.id, err);
+			}
+		}
+	}
+
+	return new Response(JSON.stringify({ ok: true, total: results.length, autoResolved, groups }), {
 		status: 200,
 		headers: { 'Content-Type': 'application/json' },
 	});

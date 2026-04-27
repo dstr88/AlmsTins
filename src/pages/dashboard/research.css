@@ -260,6 +260,7 @@
   font-style: italic;
 }
 .triage-msg  { padding: 0.6rem 0.9rem; font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+.triage-auto-note { padding: 0.55rem 0.9rem; font-size: 0.8rem; color: var(--gain); background: var(--gain-bg); border-left: 3px solid var(--gain); margin: 0.5rem 0 0; border-radius: 0 4px 4px 0; }
 .triage-err  { color: var(--loss); }
 .results-label {
   font-size: 0.75rem;
