@@ -7,6 +7,7 @@ import { getCache, setCache } from '@/lib/tursoCache';
 const CACHE_TTL      = 900;    // 15 min fresh window
 const STALE_MAX_AGE  = 3600;   // serve stale up to 1 h while background-refreshing
 const BG_TIMEOUT_MS  = 25_000; // background refresh timeout — Render's HTTP cutoff doesn't apply here
+const SYNC_TIMEOUT_MS = 27_000; // cold-path timeout — must respond before Render's 30s HTTP cutoff
 
 // Module-level in-memory cache — instant hits, no Turso round trip
 const memCache = new Map<string, { data: object; expiresAt: number }>();
@@ -235,7 +236,7 @@ export const GET: APIRoute = async ({ request }) => {
 	// ── No cache at all: run queries synchronously ────────────────────────────
 	const t2 = Date.now();
 	try {
-		const payload = await runQueries(tenantId);
+		const payload = await runQueries(tenantId, SYNC_TIMEOUT_MS);
 		console.log(`[needs-attention] live queries (${Date.now() - t2}ms)`);
 		memCache.set(memKey, { data: payload, expiresAt: Date.now() + CACHE_TTL * 1000 });
 		void setCache(TURSO_KEY(tenantId), payload, CACHE_TTL);
