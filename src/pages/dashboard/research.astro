@@ -389,6 +389,10 @@ function renderNeedsAttention(data) {
                     onclick="markLegacy(event, '${t.id}')">
               🏚 Legacy exchange
             </button>` : ''}`}
+            <button class="btn-attach"
+                    onclick="attachReceipt(event,'${t.id}')">
+              📎 Attach
+            </button>
             <button class="btn-context-pill"
                     onclick="event.stopPropagation();openWizard()"
                     title="About my transaction history">📋</button>
@@ -398,6 +402,7 @@ function renderNeedsAttention(data) {
               ? Help
             </button>
           </div>
+          <div class="att-panel" id="atp-${t.id}"></div>
           <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
           <div class="help-panel" id="hp-${t.id}" style="display:none"></div>
         </div>
@@ -665,7 +670,12 @@ function renderResults(data) {
                   onclick="openResultAnnotateForm(event, this)">
             ${hasAnnotation ? '✏️ Edit note' : '📝 Add note'}
           </button>
+          <button class="btn-attach"
+                  onclick="attachReceipt(event,'${t.id}')">
+            📎 Attach
+          </button>
         </div>
+        <div class="att-panel" id="atp-${t.id}"></div>
         <div class="annotate-form" id="af-${t.id}" style="display:none"></div>
       </div>
     </div>`;
@@ -1104,6 +1114,37 @@ const KIND_EXPLANATIONS = {
   'Receive':             'Crypto received — could be from another wallet you own, a purchase, or an income event.',
   'receive':             'Crypto received — could be from another wallet you own, a purchase, or an income event.',
 };
+
+// ── Receipt attachment ────────────────────────────────────────────────────────
+function attachReceipt(e, txId) {
+  e.stopPropagation();
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,application/pdf';
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const panel = document.getElementById('atp-' + txId);
+    if (panel) panel.innerHTML = '<span class="att-uploading">Uploading…</span>';
+    const fd = new FormData();
+    fd.append('txId', txId);
+    fd.append('file', file);
+    try {
+      const res  = await fetch('/api/research/attachment', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (panel) {
+        if (data.ok) {
+          panel.innerHTML = `<span class="att-badge">📎 ${data.filename}</span>`;
+        } else {
+          panel.innerHTML = `<span class="att-error">${data.error ?? 'Upload failed'}</span>`;
+        }
+      }
+    } catch {
+      if (panel) panel.innerHTML = '<span class="att-error">Upload failed — try again</span>';
+    }
+  };
+  input.click();
+}
 
 function openHelpPanel(e, txId, kind, dir, sym, desc, src) {
   e.stopPropagation();

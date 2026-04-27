@@ -921,6 +921,43 @@
 }
 
 /* ── Help panel ───────────────────────────────────────────────────────────── */
+.btn-attach {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.btn-attach:hover { border-color: var(--accent-soft); color: var(--accent-dim); }
+
+.att-panel {
+  margin-top: 0.35rem;
+  min-height: 0;
+}
+.att-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--accent-dim);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-glow);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+}
+.att-uploading {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.att-error {
+  font-size: 0.72rem;
+  color: var(--loss);
+}
+
 .btn-help {
   background: transparent;
   border: 1px solid var(--border-subtle);
