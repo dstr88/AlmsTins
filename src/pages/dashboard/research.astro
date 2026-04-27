@@ -290,6 +290,9 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 
 <script>
+// ── Debug boot markers (remove after NA issue resolved) ───────────────────────
+try { document.getElementById('na-list').dataset.dbg = 'module-start'; } catch {}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let activeChip    = '';
 let pendingMatch  = null;
@@ -2208,6 +2211,7 @@ walletPicker.querySelectorAll('.wallet-picker-item').forEach(item => {
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
+try { document.getElementById('na-list').dataset.dbg = 'boot-reached'; } catch {}
 loadNeedsAttention().catch(e => window.__naErr && window.__naErr('boot: ' + e.message + '\n' + (e.stack ?? '')));
 loadIntake();
 loadHealthCheck();
