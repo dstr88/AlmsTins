@@ -22,25 +22,35 @@ const NA_TURSO_KEY = `t:${tenantId}:research:needs-attention:v2`;
 const NA_CACHE_TTL = 900;
 const NA_STALE_MAX = 3600;
 let naData: object | null = null;
+const ssrT0 = Date.now();
+
+// Step 1: try cache with a short timeout — treat any failure as a miss
+let cachedValue: object | null = null;
 try {
-  const ssrT0 = Date.now();
-  const cached = await Promise.race([
+  const cacheResult = await Promise.race([
     getCache<object>(NA_TURSO_KEY, { allowStale: true, staleMaxAgeSeconds: NA_STALE_MAX }),
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('SSR cache lookup timed out')), 4_000)),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 4_000)),
   ]);
-  if (cached?.value != null) {
-    naData = cached.value;
-    console.log(`[research SSR] NA cache hit (${Date.now() - ssrT0}ms)`);
-  } else {
+  if (cacheResult?.value != null) cachedValue = cacheResult.value;
+} catch { /* cache unavailable — fall through to live query */ }
+
+if (cachedValue != null) {
+  naData = cachedValue;
+  console.log(`[research SSR] NA cache hit (${Date.now() - ssrT0}ms)`);
+} else {
+  // Step 2: live query — fail fast so Render's 30s HTTP cutoff isn't hit
+  try {
     naData = await Promise.race([
       runNeedsAttentionQueries(tenantId),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('SSR NA query timed out')), 20_000)),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('SSR NA query timed out')), 20_000)
+      ),
     ]);
     void setCache(NA_TURSO_KEY, naData, NA_CACHE_TTL);
     console.log(`[research SSR] NA live query (${Date.now() - ssrT0}ms)`);
+  } catch (err) {
+    console.error('[research SSR] NA prefetch failed, client will fetch:', err);
   }
-} catch (err) {
-  console.error('[research SSR] NA prefetch failed, client will fetch:', err);
 }
 
 // Load all distinct symbols the user has data for (for the chip row)
