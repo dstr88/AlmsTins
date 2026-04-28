@@ -339,7 +339,7 @@ try {
 												</span>
 												<span class="exchange-holding__ticker">{holding.symbol}</span>
 												<span class="exchange-holding__qty">
-													{formatNumber(holding.balance, { maximumFractionDigits: 6 })}
+													{formatNumber(holding.balance, { maximumFractionDigits: 4 })} ea
 												</span>
 												<span class="exchange-holding__price">{price > 0 ? formatCurrency(price) : '—'}</span>
 												<span class="exchange-holding__usd usd-value">

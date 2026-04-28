@@ -151,7 +151,7 @@ try {
 														</abbr>
 													) : holding.symbol}
 												</span>
-												<span class="exchange-holding__qty">{formatNumber(totalCoins, { maximumFractionDigits: 6 })}</span>
+												<span class="exchange-holding__qty">{formatNumber(totalCoins, { maximumFractionDigits: 4 })} ea</span>
 												<span class="exchange-holding__price">{price > 0 ? formatCurrency(price) : '—'}</span>
 												<span class="exchange-holding__usd usd-value">{usdValue === null ? '—' : formatCurrency(usdValue)}</span>
 												<span class={`exchange-holding__pl ${pnl === null ? '' : pnlClass}`}>{pnl === null ? '—' : formatCurrency(pnl)}</span>
