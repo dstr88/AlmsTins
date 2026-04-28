@@ -137,7 +137,7 @@ try {
 										<div class="exchange-holding">
 											<div class="exchange-holding__row">
 												<span class="exchange-holding__days">
-													{daysHeld === null ? '—' : `${daysHeld}d`}
+													{daysHeld === null ? '—' : daysHeld > 999 ? '999+' : `${daysHeld}d`}
 													{daysHeld !== null && (
 														<span class={`exchange-holding__term-badge exchange-holding__term-badge--${isLongTerm ? 'lt' : 'st'}`}>
 															{isLongTerm ? 'LT' : 'ST'}

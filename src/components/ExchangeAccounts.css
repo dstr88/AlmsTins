@@ -36,7 +36,7 @@
 /* [3rem days] [1fr asset] [5rem qty] [6rem price] [5rem usd] [5rem pl] */
 .exchange-holding__row {
 	display: grid;
-	grid-template-columns: 3rem 1fr 5rem 6rem 5rem 5rem;
+	grid-template-columns: 4rem 1fr 5rem 6rem 5rem 5rem;
 	column-gap: 1.5rem;
 	padding: 0.35rem 0.25rem;
 	align-items: baseline;
