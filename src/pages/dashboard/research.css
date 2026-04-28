@@ -114,6 +114,25 @@
   gap: 0.6rem;
   padding-top: 0.2rem;
 }
+.resolve-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.82rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+.resolve-status--ok {
+  color: var(--gain);
+  background: var(--gain-bg);
+  border: 1px solid var(--gain-border);
+}
+.resolve-status--error {
+  color: var(--loss);
+  background: var(--loss-bg);
+  border: 1px solid var(--loss-border);
+}
+
 .btn-primary {
   background: var(--accent);
   color: var(--surface-bg);

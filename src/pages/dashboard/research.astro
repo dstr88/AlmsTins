@@ -125,6 +125,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       <div class="search-actions">
         <button id="btn-resolve" class="btn-secondary" type="button">⚙ Resolve</button>
         <button id="btn-ignore-dust" class="btn-secondary" type="button">🧹 Ignore dust</button>
+        <span id="resolve-status" class="resolve-status" style="display:none"></span>
         <div class="wallet-picker-wrap">
           <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
           <div id="wallet-picker" class="wallet-picker" style="display:none">
@@ -913,8 +914,15 @@ $('btn-search').addEventListener('click', () => { if (!maybeAddressLookup()) run
 $('q').addEventListener('keydown', e => { if (e.key === 'Enter') { if (!maybeAddressLookup()) runSearch(); } });
 
 $('btn-resolve').addEventListener('click', async () => {
-  const btn = $('btn-resolve');
+  const btn    = $('btn-resolve');
+  const status = $('resolve-status');
+  const setStatus = (msg, isError = false) => {
+    status.textContent = msg;
+    status.className = `resolve-status${isError ? ' resolve-status--error' : ' resolve-status--ok'}`;
+    status.style.display = 'inline';
+  };
   btn.disabled = true;
+  status.style.display = 'none';
   try {
     btn.textContent = '⚙ Matching…';
     const matchRes  = await fetch('/api/research/run-matching', { method: 'POST' });
@@ -928,29 +936,43 @@ $('btn-resolve').addEventListener('click', async () => {
 
     const matched    = matchData.matched    ?? 0;
     const classified = classData.classified ?? 0;
-    btn.textContent = `✅ ${matched} matched · ${classified} classified`;
-    await loadNeedsAttention();
-    setTimeout(() => { btn.textContent = '⚙ Resolve'; btn.disabled = false; }, 3500);
-  } catch (err) {
-    btn.textContent = `⚠ ${err.message ?? 'Failed — try again'}`;
+    const msg = (matched === 0 && classified === 0)
+      ? '✓ Nothing new to resolve'
+      : `✓ ${matched} matched · ${classified} classified`;
+    setStatus(msg);
+    btn.textContent = '⚙ Resolve';
     btn.disabled = false;
-    setTimeout(() => { btn.textContent = '⚙ Resolve'; }, 4000);
+    await loadNeedsAttention();
+  } catch (err) {
+    setStatus(`⚠ ${err.message ?? 'Failed — try again'}`, true);
+    btn.textContent = '⚙ Resolve';
+    btn.disabled = false;
   }
 });
 
 // ── Ignore dust ───────────────────────────────────────────────────────────────
 $('btn-ignore-dust').addEventListener('click', async () => {
-  const btn = $('btn-ignore-dust');
+  const btn    = $('btn-ignore-dust');
+  const status = $('resolve-status');
+  const setStatus = (msg, isError = false) => {
+    status.textContent = msg;
+    status.className = `resolve-status${isError ? ' resolve-status--error' : ' resolve-status--ok'}`;
+    status.style.display = 'inline';
+  };
   btn.disabled = true;
   btn.textContent = '🧹 Dismissing…';
+  status.style.display = 'none';
   try {
     const res  = await fetch('/api/research/ignore-dust', { method: 'POST' });
+    if (!res.ok) throw new Error(`Failed (${res.status})`);
     const data = await res.json();
     const dismissed = data.dismissed ?? 0;
-    btn.textContent = dismissed > 0 ? `✅ ${dismissed} dismissed` : '✅ Nothing to dismiss';
+    setStatus(dismissed > 0 ? `✓ ${dismissed} dust transactions dismissed` : '✓ No dust to dismiss');
+    btn.textContent = '🧹 Ignore dust';
+    btn.disabled = false;
     if (dismissed > 0) await loadNeedsAttention();
-    setTimeout(() => { btn.textContent = '🧹 Ignore dust'; btn.disabled = false; }, 3500);
-  } catch {
+  } catch (err) {
+    setStatus(`⚠ ${err.message ?? 'Failed — try again'}`, true);
     btn.textContent = '🧹 Ignore dust';
     btn.disabled = false;
   }
