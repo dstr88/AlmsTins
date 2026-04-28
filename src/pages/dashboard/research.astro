@@ -489,6 +489,21 @@ async function loadNeedsAttention(attempt = 1) {
   }
 }
 
+const PHONE_RE = /(?:To|From)\s+\+\d{7,}/i;
+const NON_EVM_ASSETS = new Set(['BTC','XBT','LTC','SOL','XRP','DOT','ADA','ATOM','ALGO']);
+
+function naReasonTag(t, dir) {
+  const desc = t.description ?? '';
+  const sym  = (t.asset_symbol ?? '').toUpperCase();
+  if (!t.native_usd)                      return { label: 'needs price',   cls: 'price' };
+  if (PHONE_RE.test(desc))                return { label: 'P2P',           cls: 'p2p' };
+  if (t.kind === 'crypto_earn_deposit' ||
+      t.kind === 'crypto_earn_withdraw')  return { label: 'Earn',          cls: 'earn' };
+  if (NON_EVM_ASSETS.has(sym))            return { label: 'non-EVM',       cls: 'nonevm' };
+  if (dir === 'out')                      return { label: 'unmatched send', cls: 'send' };
+  return                                         { label: 'unmatched recv', cls: 'recv' };
+}
+
 function renderNeedsAttention(data) {
   naDataCache = data; // cache for AI triage
   const list  = $('na-list');
@@ -545,8 +560,12 @@ function renderNeedsAttention(data) {
       const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
       const noteText = t.notes   ? `<span class="tx-note-text">${t.notes}</span>` : '';
       const hasAnnotation = !!(t.category || t.notes);
+      const reasonTag = naReasonTag(t, dir);
       html += `<div class="tx-card na-item dir-${dirClass}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}" data-src="${src}" data-amount="${Math.abs(Number(t.amount))}" data-usd="${t.native_usd ?? ''}">
-        <div class="tx-badge-col"><span class="tx-dir ${dirClass}">${dirLabel}</span></div>
+        <div class="tx-badge-col">
+          <span class="tx-dir ${dirClass}">${dirLabel}</span>
+          <span class="na-reason na-reason--${reasonTag.cls}">${reasonTag.label}</span>
+        </div>
         <div class="tx-body">
           <div class="tx-row-1">
             <span class="tx-sym">${t.asset_symbol}</span>
