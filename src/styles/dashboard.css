@@ -12,6 +12,7 @@
 .dash-page {
 	background: var(--surface-bg);
 	min-height: 100vh;
+	width: 100%;
 }
 
 /* ── Content column ─────────────────────────────────────────────────────────── */
