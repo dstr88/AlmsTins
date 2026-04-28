@@ -26,8 +26,8 @@ if (userId) {
 ---
 
 <Layout title="Price Alerts | Almstins" noindex={true}>
-	<div class="alerts-page">
-		<div class="alerts-page__content">
+	<div class="dash-page">
+		<div class="dash-content alerts-body">
 
 			<!-- Header -->
 			<div>
@@ -40,13 +40,13 @@ if (userId) {
 
 			<!-- No alert email warning -->
 			{!alertEmail && (
-				<div class="alerts__notice">
-					<span class="alerts__notice-icon">⚠️</span>
-					<div class="alerts__notice-body">
-						<p class="alerts__notice-title">Alert email not set</p>
-						<p class="alerts__notice-text">
+				<div class="dash-notice dash-notice--warn">
+					<span class="dash-notice__icon">⚠️</span>
+					<div class="dash-notice__body">
+						<p class="dash-notice__title">Alert email not set</p>
+						<p class="dash-notice__text">
 							You won't receive notifications until you add an alert email in your
-							<a href="/dashboard/account" class="alerts__notice-link">Account settings</a>.
+							<a href="/dashboard/account" class="dash-notice__link">Account settings</a>.
 						</p>
 					</div>
 				</div>
