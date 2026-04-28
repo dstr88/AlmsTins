@@ -935,11 +935,14 @@ $('btn-resolve').addEventListener('click', async () => {
     const classData = await classRes.json();
 
     const matched    = matchData.matched    ?? 0;
+    const skipped    = matchData.skipped    ?? 0;
     const classified = classData.classified ?? 0;
-    const msg = (matched === 0 && classified === 0)
-      ? '✓ Nothing new to resolve'
-      : `✓ ${matched} matched · ${classified} classified`;
-    setStatus(msg);
+    const parts = [];
+    if (matched > 0)    parts.push(`${matched} matched`);
+    if (classified > 0) parts.push(`${classified} classified`);
+    const summary = parts.length ? `✓ ${parts.join(' · ')}` : '✓ Nothing new';
+    const detail  = skipped > 0 ? ` · ${skipped} scanned, no pairs found` : '';
+    setStatus(summary + detail);
     btn.textContent = '⚙ Resolve';
     btn.disabled = false;
     await loadNeedsAttention();
