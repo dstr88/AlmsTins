@@ -9,6 +9,12 @@ const ADDRESS_RE =
 // Valid EVM transaction hash: 0x followed by 64 hex characters
 const EVM_TX_HASH_RE = /^0x[0-9a-fA-F]{64}$/;
 
+// Valid Bitcoin transaction hash: 64 hex characters with no 0x prefix
+const BTC_TX_HASH_RE = /^[0-9a-fA-F]{64}$/;
+
+const BTC_SYMBOLS = new Set(['BTC', 'XBT']);
+const LTC_SYMBOLS = new Set(['LTC']);
+
 // Map asset symbols to their primary EVM chain for on-chain destination lookup
 const SYMBOL_TO_CHAIN_ID: Record<string, number> = {
 	ETH:   CHAIN_IDS.ethereum,
@@ -147,9 +153,53 @@ export async function autoClassifyOwnWalletTransfers(tenantId: string): Promise<
 		}
 	}
 
+	// 5. Bitcoin chain lookup pass — for unclassified OUTs with a BTC/LTC tx_hash,
+	//    fetch the on-chain outputs from Blockstream and match destination addresses.
+	//    Capped at 20 lookups per run.
+	const btcCandidates = (txRows.rows as any[])
+		.filter(row => {
+			if (alreadyUpdated.has(row.id)) return false;
+			if (!row.tx_hash) return false;
+			const sym = String(row.asset_symbol ?? '').toUpperCase();
+			return (BTC_SYMBOLS.has(sym) || LTC_SYMBOLS.has(sym)) && BTC_TX_HASH_RE.test(row.tx_hash);
+		})
+		.slice(0, 20);
+
+	for (const row of btcCandidates) {
+		const sym = String(row.asset_symbol ?? '').toUpperCase();
+		const baseUrl = LTC_SYMBOLS.has(sym)
+			? 'https://litecoinspace.org/api'
+			: 'https://blockstream.info/api';
+		try {
+			const res = await fetch(`${baseUrl}/tx/${row.tx_hash}`, {
+				signal: AbortSignal.timeout(8000),
+			});
+			if (!res.ok) continue;
+			const tx = await res.json() as { vout?: { scriptpubkey_address?: string }[] };
+			const outputAddresses = (tx.vout ?? [])
+				.map(o => o.scriptpubkey_address)
+				.filter((a): a is string => !!a);
+
+			for (const addr of outputAddresses) {
+				if (exchangeAddresses.has(addr.toLowerCase())) break; // CEX deposit — leave for review
+				const label = ownAddresses.get(addr.toLowerCase());
+				if (label) {
+					updates.push({
+						id: row.id,
+						note: `Auto-classified: on-chain output ${addr} matches your wallet "${label}". Non-taxable self-transfer — cost basis carries over.`,
+					});
+					alreadyUpdated.add(row.id);
+					break;
+				}
+			}
+		} catch {
+			// Non-fatal — skip this transaction
+		}
+	}
+
 	if (updates.length === 0) return 0;
 
-	// 5. Batch update in chunks of 50
+	// 6. Batch update in chunks of 50
 	const CHUNK = 50;
 	for (let i = 0; i < updates.length; i += CHUNK) {
 		const chunk = updates.slice(i, i + CHUNK);
