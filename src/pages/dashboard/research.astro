@@ -918,10 +918,12 @@ $('btn-resolve').addEventListener('click', async () => {
   try {
     btn.textContent = '⚙ Matching…';
     const matchRes  = await fetch('/api/research/run-matching', { method: 'POST' });
+    if (!matchRes.ok) throw new Error(`Matching failed (${matchRes.status})`);
     const matchData = await matchRes.json();
 
     btn.textContent = '⚙ Classifying…';
     const classRes  = await fetch('/api/research/auto-classify', { method: 'POST' });
+    if (!classRes.ok) throw new Error(`Classify failed (${classRes.status})`);
     const classData = await classRes.json();
 
     const matched    = matchData.matched    ?? 0;
@@ -929,9 +931,10 @@ $('btn-resolve').addEventListener('click', async () => {
     btn.textContent = `✅ ${matched} matched · ${classified} classified`;
     await loadNeedsAttention();
     setTimeout(() => { btn.textContent = '⚙ Resolve'; btn.disabled = false; }, 3500);
-  } catch {
-    btn.textContent = '⚙ Resolve';
+  } catch (err) {
+    btn.textContent = `⚠ ${err.message ?? 'Failed — try again'}`;
     btn.disabled = false;
+    setTimeout(() => { btn.textContent = '⚙ Resolve'; }, 4000);
   }
 });
 
