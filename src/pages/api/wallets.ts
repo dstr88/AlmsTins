@@ -97,6 +97,21 @@ export const POST: APIRoute = async ({ request }) => {
 		if (!address) {
 			return responseWithError('A valid wallet address is required (0x… for EVM/Sui, bc1q… / bc1p… / 1… / 3… for Bitcoin, ltc1q… for Litecoin, base58 for Solana).', 400);
 		}
+
+		// Pre-check for duplicate before INSERT to give a clear, actionable message.
+		const dupCheck = await db.execute({
+			sql: `SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
+			args: [tenantId, address],
+		});
+		if (dupCheck.rows?.length) {
+			return new Response(JSON.stringify({
+				error: true,
+				code: 'DUPLICATE_ADDRESS',
+				message: 'That address is already being tracked.',
+				existingWalletId: String(dupCheck.rows[0].id ?? ''),
+			}), { status: 409, headers: { 'Content-Type': 'application/json' } });
+		}
+
 		const label =
 			typeof body.label === 'string' && body.label.trim().length ? body.label.trim() : deriveDefaultLabel(address);
 		const chains = normalizeChains(body.chains ?? ['ethereum', 'polygon', 'avalanche']);
