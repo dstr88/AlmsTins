@@ -325,17 +325,6 @@ import './AddAssetTin.css';
 				var chain   = chainSelect  ? chainSelect.value.trim()  : '';
 				if (!address) { setMessage('Enter a wallet address first.'); return; }
 				submitBtn.disabled = true;
-				var existingId = existingWallets[address.toLowerCase()];
-				if (existingId) {
-					setMessage('Duplicate found — removing old entry\u2026');
-					fetch('/api/wallets/' + existingId, { method: 'DELETE' })
-						.catch(function () {})
-						.finally(function () {
-							delete existingWallets[address.toLowerCase()];
-							submitBtn.click();
-						});
-					return;
-				}
 				setMessage('Saving\u2026');
 				var SINGLE_CHAIN = { bitcoin: true, litecoin: true, solana: true, sui: true };
 				var chains = SINGLE_CHAIN[chain] ? [chain]
