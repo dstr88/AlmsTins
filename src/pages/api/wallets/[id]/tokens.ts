@@ -5,6 +5,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
+import { classifyContract } from '@/lib/knownContracts';
 
 const ETHEREUM_CHAIN_ID = 1;
 const POLYGON_CHAIN_ID = 137;
@@ -79,6 +80,8 @@ async function buildAlchemySnapshot(
 		metadataByContract.set(entry.contract, entry.metadata);
 	}
 
+	const chainName = chainId === ETHEREUM_CHAIN_ID ? 'ethereum' : 'polygon';
+
 	const tokens = nonZeroBalances
 		.map((entry) => {
 			const contract = String(entry.contractAddress ?? '').toLowerCase();
@@ -95,13 +98,11 @@ async function buildAlchemySnapshot(
 			if (balance <= 0n) return null;
 			const amount = toDecimal(balance, decimals);
 			if (!Number.isFinite(amount) || amount <= 0) return null;
-			return {
-				symbol: String(metadata?.symbol ?? '').trim().toUpperCase(),
-				amount,
-				priceUsd: null,
-				valueUsd: null,
-				tokenAddress: contract,
-			};
+			const symbol = String(metadata?.symbol ?? '').trim().toUpperCase();
+			// Drop tokens whose contract address doesn't match the known-good address for
+			// their symbol on this chain (catches fake AAVE, fake USDC airdrops, etc.)
+			if (classifyContract(chainName, symbol, contract) === 'scam') return null;
+			return { symbol, amount, priceUsd: null, valueUsd: null, tokenAddress: contract };
 		})
 		.filter((token): token is { symbol: string; amount: number; priceUsd: null; valueUsd: null; tokenAddress: string } =>
 			Boolean(token),
@@ -509,7 +510,10 @@ export const GET: APIRoute = async ({ params, request }) => {
 				const isSolana    = walletChains.includes('solana');
 				const isSui       = walletChains.includes('sui');
 				const isRootstock = walletChains.includes('rootstock');
-				const isEvm       = !isSolana && !isSui && !isRootstock;
+				const isBitcoin   = walletChains.includes('bitcoin') || walletChains.includes('litecoin')
+				                    || /^bc1/i.test(walletAddress) || /^[13][a-zA-Z0-9]{25,34}$/.test(walletAddress)
+				                    || /^ltc1/i.test(walletAddress);
+				const isEvm       = !isSolana && !isSui && !isRootstock && !isBitcoin;
 
 				if (isEvm) {
 					// Alchemy supports eth-mainnet and polygon-mainnet only.

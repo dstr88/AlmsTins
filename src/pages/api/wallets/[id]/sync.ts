@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getAllActiveWallets } from '../../../../lib/wallets';
 import { syncWalletTransactions } from '@/lib/sync/syncTransactions';
+import { syncBtcWallet, isBitcoinWallet } from '@/lib/sync/syncBtcAddress';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { logActivity } from '@/lib/activityLog';
@@ -23,8 +24,11 @@ export const POST: APIRoute = async ({ params, request }) => {
 			return respond({ error: true, message: 'Wallet not found.' }, 404);
 		}
 
-		const stats = await syncWalletTransactions(tenantId, wallet);
-		const primaryChain = Array.isArray(stats.chains) ? stats.chains[0] ?? null : null;
+		const isBtc = isBitcoinWallet(wallet.chains, wallet.address);
+		const stats = isBtc
+			? await syncBtcWallet(tenantId, walletId, wallet.address)
+			: await syncWalletTransactions(tenantId, wallet);
+		const primaryChain = Array.isArray(stats.chains) ? (stats.chains[0]?.chain ?? undefined) : undefined;
 		logActivity(
 			tenantId,
 			'sync',
