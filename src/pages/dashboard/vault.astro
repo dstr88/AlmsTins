@@ -115,6 +115,18 @@ const getChainBadge = (chains: string[]): string => {
 			<NetWorthHero title="Vault" subtitle="TradFi + DeFi vault overview" />
 		</div>
 
+		{isDemo && (
+			<div class="demo-banner">
+				<span class="demo-banner__text">
+					🔍 Demo mode — exploring {onchainWallets.length} of 3 wallets.
+					{onchainWallets.length < 3
+						? ` Add up to ${3 - onchainWallets.length} more below.`
+						: ' Wallet limit reached.'}
+				</span>
+				<a href="/" class="demo-banner__cta">Sign up free →</a>
+			</div>
+		)}
+
 		<section class="bk-grid">
 			<SalmonTin label="Watchlist" class="tile tile--r1c1">
 				<PriceWatchlist client:only="react" />
@@ -132,7 +144,12 @@ const getChainBadge = (chains: string[]): string => {
 			<div class="tile tile--r1c3">
 				{ENABLE_ALL_TX
 					? <Tin0AllTransactions client:visible />
-					: <AddAssetTin />
+					: (!isDemo || onchainWallets.length < 3) ? <AddAssetTin /> : (
+						<div class="demo-wallet-limit">
+							<span>Wallet limit reached</span>
+							<a href="/">Sign up for unlimited wallets →</a>
+						</div>
+					)
 				}
 			</div>
 			<div class="vault-section-divider vault-section-divider--exchange">
