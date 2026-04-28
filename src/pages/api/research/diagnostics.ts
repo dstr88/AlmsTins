@@ -39,7 +39,7 @@ const NEEDS_ATTENTION_BASE = `
 	WHERE t.tenant_id = ?
 	  AND t.asset_symbol IS NOT NULL
 	  AND m_out.id IS NULL AND m_in.id IS NULL
-	  AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange','own_wallet'))
+	  AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange','own_wallet','purchase','income','dust'))
 	  AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01')
 	  AND NOT (t.direction = 'in' AND t.native_usd IS NOT NULL AND ABS(t.native_usd) < 10)
 	  AND NOT (t.direction = 'out' AND t.to_currency IS NOT NULL AND t.to_currency IN (

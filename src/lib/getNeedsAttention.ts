@@ -26,7 +26,7 @@ export async function runNeedsAttentionQueries(tenantId: string): Promise<NeedsA
 			                                    AND ea.tenant_id = t.tenant_id
 			      WHERE t.tenant_id = ?
 			        AND t.asset_symbol IS NOT NULL
-			        AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange', 'own_wallet', 'purchase', 'income'))
+			        AND (t.category IS NULL OR t.category NOT IN ('legacy_exchange', 'own_wallet', 'purchase', 'income', 'dust'))
 			        AND NOT (t.category IS NOT NULL AND t.category != '' AND t.timestamp_utc < '2024-01-01')
 			        AND NOT (t.direction = 'in' AND t.native_usd IS NOT NULL AND ABS(t.native_usd) < 10)
 			        AND NOT (t.direction = 'out' AND t.to_currency IS NOT NULL AND t.to_currency IN (

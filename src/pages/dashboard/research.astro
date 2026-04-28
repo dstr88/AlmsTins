@@ -124,6 +124,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 
       <div class="search-actions">
         <button id="btn-resolve" class="btn-secondary" type="button">⚙ Resolve</button>
+        <button id="btn-ignore-dust" class="btn-secondary" type="button">🧹 Ignore dust</button>
         <div class="wallet-picker-wrap">
           <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
           <div id="wallet-picker" class="wallet-picker" style="display:none">
@@ -930,6 +931,24 @@ $('btn-resolve').addEventListener('click', async () => {
     setTimeout(() => { btn.textContent = '⚙ Resolve'; btn.disabled = false; }, 3500);
   } catch {
     btn.textContent = '⚙ Resolve';
+    btn.disabled = false;
+  }
+});
+
+// ── Ignore dust ───────────────────────────────────────────────────────────────
+$('btn-ignore-dust').addEventListener('click', async () => {
+  const btn = $('btn-ignore-dust');
+  btn.disabled = true;
+  btn.textContent = '🧹 Dismissing…';
+  try {
+    const res  = await fetch('/api/research/ignore-dust', { method: 'POST' });
+    const data = await res.json();
+    const dismissed = data.dismissed ?? 0;
+    btn.textContent = dismissed > 0 ? `✅ ${dismissed} dismissed` : '✅ Nothing to dismiss';
+    if (dismissed > 0) await loadNeedsAttention();
+    setTimeout(() => { btn.textContent = '🧹 Ignore dust'; btn.disabled = false; }, 3500);
+  } catch {
+    btn.textContent = '🧹 Ignore dust';
     btn.disabled = false;
   }
 });
