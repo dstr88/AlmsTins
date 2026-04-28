@@ -30,8 +30,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		const mod = await import('./middleware/app');
 		appMiddleware = mod.onRequest;
 	} catch (err) {
-		console.error('[middleware] failed to load app middleware — falling back to next()', err);
-		return next();
+		console.error('[middleware] failed to load app middleware — redirecting to /login', err);
+		const loginUrl = new URL('/login', context.request.url);
+		return Response.redirect(loginUrl.toString(), 302);
 	}
 
 	return appMiddleware(context, next);
