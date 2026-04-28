@@ -844,7 +844,7 @@ function renderResults(data) {
     const catLabel      = t.category ? `<span class="category-badge">${t.category}</span>` : '';
     const noteText      = t.notes    ? `<span class="tx-note-text">${t.notes}</span>` : '';
 
-    html += `<div class="tx-card result-card dir-${dirClass}" data-id="${t.id}" data-sym="${t.asset_symbol}" data-ts="${t.timestamp_utc}" data-amount="${Math.abs(Number(t.amount))}" data-usd="${t.native_usd ?? ''}">
+    html += `<div class="tx-card result-card dir-${dirClass}" data-id="${t.id}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-ts="${t.timestamp_utc}" data-amount="${Math.abs(Number(t.amount))}" data-usd="${t.native_usd ?? ''}">
       <div class="tx-badge-col"><span class="tx-dir ${dirClass}">${dirLabel}</span></div>
       <div class="tx-body">
         <div class="tx-row-1">
@@ -879,6 +879,23 @@ function renderResults(data) {
     </div>`;
   }
   list.innerHTML = html;
+
+  // Wire result card clicks → chain exploration (search opposite direction)
+  list.querySelectorAll('.result-card').forEach(el => {
+    el.addEventListener('click', () => {
+      const sym = el.getAttribute('data-sym');
+      const dir = el.getAttribute('data-dir') ?? el.querySelector('.tx-dir')?.textContent?.trim() ?? '';
+      const ts  = el.getAttribute('data-ts');
+      if (!sym) return;
+      list.querySelectorAll('.result-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      const opposite = dir === 'out' ? 'in' : 'out';
+      naContext = { sym, dir, opposite };
+      setActiveChip(sym);
+      $('filter-symbol').value = sym;
+      runSearchNa(sym, opposite, ts);
+    });
+  });
 }
 
 // ── Button wiring ─────────────────────────────────────────────────────────────
