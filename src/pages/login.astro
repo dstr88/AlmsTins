@@ -514,13 +514,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     (() => {
       const form = document.getElementById('demoForm') as HTMLFormElement | null;
       if (!form) return;
-      form.addEventListener('submit', (e) => {
+      form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
-        const address = input?.value.trim();
-        if (!address) return;
-        // TODO: replace with dedicated demo/preview route once it exists
-        window.location.href = `/wallet-checker?address=${encodeURIComponent(address)}`;
+        const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        if (btn) btn.disabled = true;
+        await fetch('/api/demo/start', { method: 'POST' }).catch(() => {});
+        window.location.href = '/dashboard/vault';
       });
     })();
   </script>
