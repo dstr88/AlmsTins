@@ -114,6 +114,10 @@
   gap: 0.6rem;
   padding-top: 0.2rem;
 }
+.resolve-status-bar {
+  padding: 0.35rem 0;
+  text-align: right;
+}
 .resolve-status {
   display: inline-flex;
   align-items: center;
@@ -131,6 +135,22 @@
   color: var(--loss);
   background: var(--loss-bg);
   border: 1px solid var(--loss-border);
+}
+.p2p-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  flex-wrap: wrap;
+  margin-top: 0.3rem;
+}
+.p2p-panel__label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  flex: 1 1 100%;
 }
 
 .btn-primary {

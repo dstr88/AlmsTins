@@ -125,7 +125,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       <div class="search-actions">
         <button id="btn-resolve" class="btn-secondary" type="button">⚙ Resolve</button>
         <button id="btn-ignore-dust" class="btn-secondary" type="button">🧹 Ignore dust</button>
-        <span id="resolve-status" class="resolve-status" style="display:none"></span>
+        <button id="btn-classify-p2p" class="btn-secondary" type="button">📱 P2P</button>
         <div class="wallet-picker-wrap">
           <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
           <div id="wallet-picker" class="wallet-picker" style="display:none">
@@ -149,6 +149,15 @@ Astro.response.headers.set('Cache-Control', 'no-store');
           </div>
         </div>
         <button id="btn-search" class="btn-primary" type="button">Search</button>
+      </div>
+      <div id="resolve-status-bar" class="resolve-status-bar" style="display:none">
+        <span id="resolve-status" class="resolve-status"></span>
+      </div>
+      <div id="p2p-panel" class="p2p-panel" style="display:none">
+        <span class="p2p-panel__label">These phone-number transfers could be yours or someone else's:</span>
+        <button id="btn-p2p-own" class="btn-secondary" type="button">↔ My own account</button>
+        <button id="btn-p2p-disposal" class="btn-secondary" type="button">📤 Third-party disposal</button>
+        <button id="btn-p2p-cancel" class="btn-secondary" type="button">✕</button>
       </div>
     </div>
 
@@ -934,14 +943,15 @@ $('q').addEventListener('keydown', e => { if (e.key === 'Enter') { if (!maybeAdd
 
 $('btn-resolve').addEventListener('click', async () => {
   const btn    = $('btn-resolve');
+  const bar    = $('resolve-status-bar');
   const status = $('resolve-status');
   const setStatus = (msg, isError = false) => {
     status.textContent = msg;
     status.className = `resolve-status${isError ? ' resolve-status--error' : ' resolve-status--ok'}`;
-    status.style.display = 'inline';
+    bar.style.display = 'block';
   };
   btn.disabled = true;
-  status.style.display = 'none';
+  bar.style.display = 'none';
   try {
     btn.textContent = '⚙ Matching…';
     const matchRes  = await fetch('/api/research/run-matching', { method: 'POST' });
@@ -959,8 +969,8 @@ $('btn-resolve').addEventListener('click', async () => {
     const parts = [];
     if (matched > 0)    parts.push(`${matched} matched`);
     if (classified > 0) parts.push(`${classified} classified`);
-    const summary = parts.length ? `✓ ${parts.join(' · ')}` : '✓ Nothing new';
-    const detail  = skipped > 0 ? ` · ${skipped} scanned, no pairs found` : '';
+    const summary = parts.length ? `✓ ${parts.join(' · ')}` : '✓ Nothing new to resolve';
+    const detail  = skipped > 0 ? ` (${skipped} scanned)` : '';
     setStatus(summary + detail);
     btn.textContent = '⚙ Resolve';
     btn.disabled = false;
@@ -975,15 +985,16 @@ $('btn-resolve').addEventListener('click', async () => {
 // ── Ignore dust ───────────────────────────────────────────────────────────────
 $('btn-ignore-dust').addEventListener('click', async () => {
   const btn    = $('btn-ignore-dust');
+  const bar    = $('resolve-status-bar');
   const status = $('resolve-status');
   const setStatus = (msg, isError = false) => {
     status.textContent = msg;
     status.className = `resolve-status${isError ? ' resolve-status--error' : ' resolve-status--ok'}`;
-    status.style.display = 'inline';
+    bar.style.display = 'block';
   };
   btn.disabled = true;
   btn.textContent = '🧹 Dismissing…';
-  status.style.display = 'none';
+  bar.style.display = 'none';
   try {
     const res  = await fetch('/api/research/ignore-dust', { method: 'POST' });
     if (!res.ok) throw new Error(`Failed (${res.status})`);
@@ -999,6 +1010,43 @@ $('btn-ignore-dust').addEventListener('click', async () => {
     btn.disabled = false;
   }
 });
+
+// ── P2P classifier ────────────────────────────────────────────────────────────
+$('btn-classify-p2p').addEventListener('click', () => {
+  $('p2p-panel').style.display = $('p2p-panel').style.display === 'none' ? 'flex' : 'none';
+});
+$('btn-p2p-cancel').addEventListener('click', () => {
+  $('p2p-panel').style.display = 'none';
+});
+
+async function runP2PClassify(disposition) {
+  const bar    = $('resolve-status-bar');
+  const status = $('resolve-status');
+  const setStatus = (msg, isError = false) => {
+    status.textContent = msg;
+    status.className = `resolve-status${isError ? ' resolve-status--error' : ' resolve-status--ok'}`;
+    bar.style.display = 'block';
+  };
+  $('p2p-panel').style.display = 'none';
+  bar.style.display = 'none';
+  try {
+    const res  = await fetch('/api/research/classify-p2p', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disposition }),
+    });
+    if (!res.ok) throw new Error(`Failed (${res.status})`);
+    const data = await res.json();
+    const classified = data.classified ?? 0;
+    setStatus(classified > 0 ? `✓ ${classified} P2P transfers classified` : '✓ No P2P transfers found');
+    if (classified > 0) await loadNeedsAttention();
+  } catch (err) {
+    setStatus(`⚠ ${err.message ?? 'Failed — try again'}`, true);
+  }
+}
+
+$('btn-p2p-own').addEventListener('click',      () => runP2PClassify('own_wallet'));
+$('btn-p2p-disposal').addEventListener('click', () => runP2PClassify('disposal'));
 
 // ── AI Triage ─────────────────────────────────────────────────────────────────
 const TRIAGE_LABELS = {
