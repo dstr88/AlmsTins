@@ -209,7 +209,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             />
             <button class="landing__demo-submit" type="submit" aria-label="Go">→</button>
           </form>
-          <p class="landing__demo-hint">No signup. See a real portfolio in 5 seconds. Sign in later to save it.</p>
+          <p class="landing__demo-hint" id="demoHint">No signup. See a real portfolio in 5 seconds. Sign in later to save it.</p>
         </div>
 
         <!-- Three feature cards — stacked vertically -->
@@ -512,13 +512,45 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     // ── Wallet demo input ─────────────────────────────────────────────
     (() => {
-      const form = document.getElementById('demoForm') as HTMLFormElement | null;
+      const EVM_RE     = /^0x[a-fA-F0-9]{40}$/;
+      const BTC_BECH_RE = /^bc1[a-zA-HJ-NP-Z0-9]{25,}$/;
+      const BTC_LEGACY_RE = /^[13][a-zA-HJ-NP-Z0-9]{25,34}$/;
+      const LTC_BECH_RE = /^ltc1[a-zA-HJ-NP-Z0-9]{25,}$/;
+      const LTC_LEGACY_RE = /^[LM][a-zA-HJ-NP-Z0-9]{25,34}$/;
+      const SOL_RE     = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+      function isKnownAddress(addr: string): boolean {
+        return EVM_RE.test(addr) || BTC_BECH_RE.test(addr) || BTC_LEGACY_RE.test(addr)
+          || LTC_BECH_RE.test(addr) || LTC_LEGACY_RE.test(addr) || SOL_RE.test(addr);
+      }
+
+      const form  = document.getElementById('demoForm') as HTMLFormElement | null;
+      const hint  = document.getElementById('demoHint') as HTMLElement | null;
       if (!form) return;
+
+      const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
+
+      // Clear warning on new input
+      input?.addEventListener('input', () => {
+        if (hint) {
+          hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
+          hint.style.color = '';
+        }
+      });
+
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         const btn     = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-        const input   = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
         const address = input?.value.trim() ?? '';
+
+        if (address && !isKnownAddress(address)) {
+          if (hint) {
+            hint.textContent = '⚠ Wallet not recognized — try an Ethereum (0x…), Bitcoin, or Solana address.';
+            hint.style.color = 'var(--loss)';
+          }
+          return;
+        }
+
         if (btn) btn.disabled = true;
         const dest = address
           ? `/api/demo/start?address=${encodeURIComponent(address)}`
