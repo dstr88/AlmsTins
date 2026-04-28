@@ -684,16 +684,17 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													<span className="wallet-summary__cell wallet-summary__cell--token">
 														{token.tokenSymbol}
 													</span>
+													<span className="wallet-summary__cell wallet-summary__cell--qty wallet-summary__cell--qty-top">
+														{Number(token.amount ?? 0).toLocaleString(undefined, {
+															maximumFractionDigits: 4,
+														})} ea
+													</span>
 													<span className="wallet-summary__cell wallet-summary__cell--value">
 														{valueNode}
 													</span>
 												</div>
 												<div className="wallet-summary__asset-line wallet-summary__asset-line--bottom">
-													<span className="wallet-summary__cell wallet-summary__cell--qty">
-														{Number(token.amount ?? 0).toLocaleString(undefined, {
-															maximumFractionDigits: 6,
-														})}
-													</span>
+													<span />
 													<span className="wallet-summary__cell wallet-summary__cell--price">
 														{currentPrice != null ? currencyFormatter.format(currentPrice) : '—'}
 													</span>
@@ -861,16 +862,17 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													<span className="wallet-summary__cell wallet-summary__cell--token">
 														{token.tokenSymbol}
 													</span>
+													<span className="wallet-summary__cell wallet-summary__cell--qty wallet-summary__cell--qty-top">
+														{Number(token.amount ?? 0).toLocaleString(undefined, {
+															maximumFractionDigits: 4,
+														})} ea
+													</span>
 													<span className="wallet-summary__cell wallet-summary__cell--value">
 														{valueNode}
 													</span>
 												</div>
 												<div className="wallet-summary__asset-line wallet-summary__asset-line--bottom">
-													<span className="wallet-summary__cell wallet-summary__cell--qty">
-														{Number(token.amount ?? 0).toLocaleString(undefined, {
-															maximumFractionDigits: 6,
-														})}
-													</span>
+													<span />
 													<span className="wallet-summary__cell wallet-summary__cell--price">
 														{currentPrice != null ? currencyFormatter.format(currentPrice) : '—'}
 													</span>

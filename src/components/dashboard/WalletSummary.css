@@ -149,9 +149,23 @@
 	margin-bottom: 0.2rem;
 }
 
-/* Token spans both middle columns so it gets the full width */
-.wallet-summary__asset-line--top .wallet-summary__cell--token {
-	grid-column: span 2;
+/* Top line: days | token | qty | value  (4 distinct columns) */
+
+/* Qty on top row — right-aligned, no clipping, clearly shows coin count */
+.wallet-summary__cell--qty-top {
+	text-align: right;
+	white-space: nowrap;
+	color: var(--text-secondary);
+	font-size: 0.8125rem;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Bottom line: explicit placement so price+pl sit correctly without qty */
+.wallet-summary__asset-line--bottom .wallet-summary__cell--price {
+	grid-column: 2;
+}
+.wallet-summary__asset-line--bottom .wallet-summary__cell--pl {
+	grid-column: 4;
 }
 
 /* ── Cells ──────────────────────────────────────────────────────────────────── */
