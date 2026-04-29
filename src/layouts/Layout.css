@@ -151,20 +151,6 @@ nav a.disabled {
 	cursor: not-allowed;
 }
 
-/* ── Nav link variants ───────────────────────────────────────────────── */
-.nav-link--tax {
-	color: var(--text-muted) !important;
-}
-.nav-link--tax:hover {
-	color: var(--text-secondary) !important;
-	background: var(--border-subtle) !important;
-}
-.nav-link--tax.active {
-	color: var(--text-secondary) !important;
-	background: var(--surface-card) !important;
-	font-weight: 500 !important;
-}
-
 /* Needs Attention count badge on Research nav link */
 .nav-link--research {
 	position: relative;

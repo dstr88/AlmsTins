@@ -7,14 +7,8 @@
  * Passphrase is checked against the TAX_SECRET environment variable.
  */
 
-import { hasTaxAccess } from '@/lib/taxAuth';
-
-// Already authenticated → straight to dashboard
-if (hasTaxAccess(Astro.request)) {
-	return Astro.redirect('/tax-home', 302);
-}
-
-const error = Astro.url.searchParams.has('error');
+// Password gate removed — redirect directly to summary
+return Astro.redirect('/tax-home', 302);
 ---
 
 <!doctype html>

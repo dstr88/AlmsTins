@@ -21,28 +21,10 @@ export function expectedTaxToken(): string | null {
 	return crypto.createHmac('sha256', secret).update('tax-access-v1').digest('hex');
 }
 
-/** Returns true if the request carries a valid tax_session cookie */
-export function hasTaxAccess(request: Request): boolean {
-	const secret = getSecret();
-	if (!secret) return false;                    // env var not set → deny all
-
-	const cookieHeader = request.headers.get('cookie') ?? '';
-	const match = cookieHeader.match(
-		new RegExp(`(?:^|;)\\s*${TAX_COOKIE}=([^;]+)`)
-	);
-	if (!match) return false;
-
-	const provided = match[1];
-	const expected = expectedTaxToken();
-	if (!expected) return false;
-
-	// Constant-time compare — both are 64-char hex strings
-	if (provided.length !== expected.length) return false;
-	try {
-		return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
-	} catch {
-		return false;
-	}
+/** Returns true — password gate removed, summary pages are open to all users */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function hasTaxAccess(_request: Request): boolean {
+	return true;
 }
 
 /** Set-Cookie header value to grant access (30 days) */
