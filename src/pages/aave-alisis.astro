@@ -1,8 +1,19 @@
 ---
-import LoginLayout from '../layouts/LoginLayout.astro';
+import Layout from '../layouts/Layout.astro';
+import { requireAdminSession } from '@/lib/adminGuard';
+
+try {
+	await requireAdminSession(Astro.request);
+} catch (resp) {
+	if (resp instanceof Response) {
+		if (resp.status === 401) return Astro.redirect('/login', 303);
+		return Astro.redirect('/dashboard/vault', 303);
+	}
+	return Astro.redirect('/dashboard/vault', 303);
+}
 ---
 
-<LoginLayout
+<Layout
   title="AaveAlisis · Aave V4 Liquidity Dashboard"
   description="Live Aave V4 liquidity data — TVL by chain/spoke, top tokens, and adoption metrics."
   noindex={true}
@@ -255,7 +266,7 @@ import LoginLayout from '../layouts/LoginLayout.astro';
       Dev activity: <a href="https://github.com" target="_blank" rel="noreferrer">GitHub public API</a>
     </p>
   </div>
-</LoginLayout>
+</Layout>
 
 <script>
   import Chart from 'chart.js/auto';
