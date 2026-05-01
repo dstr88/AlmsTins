@@ -85,6 +85,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     </button>
 
     <div class="signin-dropdown" id="signinDropdown" role="menu" hidden={!hasAlert || undefined}>
+      <button class="dropdown-close" id="signinDropdownClose" aria-label="Close sign-in panel">✕</button>
 
       {session?.user?.id ? (
         <a class="dropdown-cta" href={safeCallbackUrl}>Continue to Dashboard →</a>
@@ -191,13 +192,13 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
         <!-- Headline + subhead -->
         <div class="hero__copy">
-          <h1 class="hero__headline">Your Financial Reality,<br/>Finally in One Place.</h1>
-          <p class="hero__subheadline">Crypto, DeFi, and traditional investments — unified, private, and always up to date.</p>
+          <h1 class="hero__headline">Finally Understand<br/>What Happened<br/>in Your Wallet.</h1>
+          <p class="hero__subheadline">Missing transactions, unexplained gaps, tax surprises — trace every move in your crypto history so you know exactly what happened and why.</p>
         </div>
 
         <!-- Wallet demo input — primary action -->
         <div class="landing__demo">
-          <span class="landing__demo-label">Try it with any wallet address</span>
+          <span class="landing__demo-label">Enter any wallet — see its full history free</span>
           <form class="landing__demo-form" id="demoForm">
             <input
               class="landing__demo-input"
@@ -209,7 +210,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             />
             <button class="landing__demo-submit" type="submit" aria-label="Go">→</button>
           </form>
-          <p class="landing__demo-hint" id="demoHint">No signup. See a real portfolio in 5 seconds. Sign in later to save it.</p>
+          <p class="landing__demo-hint" id="demoHint">See transactions, flagged gaps, and what the IRS will ask about. No signup needed.</p>
         </div>
 
         <!-- Three feature cards — stacked vertically -->
@@ -222,10 +223,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             </div>
           </div>
           <div class="feature-card">
-            <span class="fc-icon">🧾</span>
+            <span class="fc-icon">🔍</span>
             <div>
-              <div class="fc-title">Year-end export</div>
-              <div class="fc-desc">Realized gains + full ledger, ready for your accountant.</div>
+              <div class="fc-title">Know your tax exposure</div>
+              <div class="fc-desc">Every gain, flagged gap, and missing cost basis — surfaced before April hits.</div>
             </div>
           </div>
           <div class="feature-card">
@@ -336,6 +337,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         dropdown!.hidden = false;
         pill!.setAttribute('aria-expanded', 'true');
         pill!.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
         setTimeout(() => {
           document.addEventListener('click', outsideClick, { once: true });
         }, 0);
@@ -345,6 +347,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         dropdown!.hidden = true;
         pill!.setAttribute('aria-expanded', 'false');
         pill!.classList.remove('is-open');
+        document.body.style.overflow = '';
       }
 
       function outsideClick(e: MouseEvent) {
@@ -361,6 +364,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       pill.addEventListener('click', () => {
         dropdown.hidden ? openDropdown() : closeDropdown();
       });
+
+      document.getElementById('signinDropdownClose')?.addEventListener('click', closeDropdown);
 
       document.addEventListener('keydown', (e: KeyboardEvent) => {
         if (e.key === 'Escape' && !dropdown.hidden) closeDropdown();
@@ -762,6 +767,24 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .pill-chevron { display: none; }
 
     /* ── Sign-in dropdown ──────────────────────────────────────── */
+    .dropdown-close {
+      position: absolute;
+      top: 0.6rem;
+      right: 0.6rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+      padding: 0.25rem 0.4rem;
+      border-radius: 0.25rem;
+      line-height: 1;
+      transition: color 0.15s, background 0.15s;
+    }
+    .dropdown-close:hover {
+      color: var(--text-primary);
+      background: var(--surface-hover);
+    }
     .signin-dropdown {
       position: absolute;
       top: calc(100% + 0.6rem);

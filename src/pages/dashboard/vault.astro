@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import SalmonTin from '@/components/dashboard/SalmonTin.astro';
 import AddAssetTin from '@/components/dashboard/AddAssetTin.astro';
-import PriceWatchlist from '@/components/dashboard/PriceWatchlist';
+import VaultNotepad from '@/components/dashboard/VaultNotepad';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
 import SolanaDefiSummary from '@/components/dashboard/SolanaDefiSummary';
@@ -128,8 +128,8 @@ const getChainBadge = (chains: string[]): string => {
 		)}
 
 		<section class="bk-grid">
-			<SalmonTin label="Watchlist" class="tile tile--r1c1">
-				<PriceWatchlist client:only="react" />
+			<SalmonTin label="Notepad" class="tile tile--r1c1">
+				<VaultNotepad client:only="react" />
 			</SalmonTin>
 			<div class="tile tile--r1c2 portfolio-digest-wrapper">
 				<SalmonTin label="Portfolio">
