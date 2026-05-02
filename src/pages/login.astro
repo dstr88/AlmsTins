@@ -198,7 +198,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
         <!-- Wallet demo input — primary action -->
         <div class="landing__demo">
-          <span class="landing__demo-label">Enter any wallet — see its full history free</span>
+          <span class="landing__demo-label">DEMO — Enter any wallet — see its full history free</span>
           <form class="landing__demo-form" id="demoForm">
             <input
               class="landing__demo-input"
@@ -211,6 +211,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             <button class="landing__demo-submit" type="submit" aria-label="Go">→</button>
           </form>
           <p class="landing__demo-hint" id="demoHint">See transactions, flagged gaps, and what the IRS will ask about. No signup needed.</p>
+          <p class="landing__demo-signup">Login creates an account for free.</p>
         </div>
 
         <!-- Three feature cards — stacked vertically -->
@@ -700,6 +701,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       font-size: 0.875rem;
       color: var(--text-muted);
       margin-top: 0.75rem;
+      text-align: center;
+    }
+    .landing__demo-signup {
+      font-size: 0.8rem;
+      color: var(--accent-dim);
+      margin-top: 0.4rem;
       text-align: center;
     }
 
