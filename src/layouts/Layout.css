@@ -206,7 +206,8 @@ main {
 	max-width: none;
 }
 
-:global(html, body) {
+:global(html),
+:global(body) {
 	overflow-x: hidden;
 }
 
