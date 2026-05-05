@@ -485,7 +485,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             if (counter) counter.textContent = '0';
             if (status) {
               status.textContent = '✓ Enviado — ¡gracias!';
-              (status as HTMLElement).style.color = '#4ade80';
+              status.className = 'contact-status contact-status--ok';
               status.hidden = false;
             }
             setTimeout(dismiss, 2500);
@@ -493,7 +493,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         } catch (err: unknown) {
           if (status) {
             status.textContent = err instanceof Error ? err.message : 'Algo salió mal';
-            (status as HTMLElement).style.color = '#f87171';
+            status.className = 'contact-status contact-status--err';
             status.hidden = false;
           }
         } finally {
@@ -552,7 +552,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             input.focus();
             if (hint) {
               hint.textContent = 'Sin registro. Ve un portafolio real en 5 segundos. Inicia sesión después para guardarlo.';
-              hint.style.color = '';
+              hint.classList.remove('demo-hint--error');
             }
           }
           let toast = btn.querySelector<HTMLSpanElement>('.chip-toast');
@@ -583,7 +583,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         if (address && !isKnownAddress(address)) {
           if (hint) {
             hint.textContent = '⚠ Dirección no reconocida — prueba una dirección Ethereum (0x…), Bitcoin o Solana.';
-            hint.style.color = 'var(--loss)';
+            hint.classList.add('demo-hint--error');
           }
           return;
         }
@@ -695,12 +695,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .landing__demo-samples-label { font-size: 0.78rem; color: var(--text-muted); }
     .landing__demo-sample {
+      position: relative;
       font-size: 0.78rem; padding: 0.2rem 0.6rem; border-radius: 999px;
       border: 1px solid var(--border-bright); background: var(--surface-card-2);
       color: var(--accent); cursor: pointer; transition: background 0.15s, border-color 0.15s;
     }
     .landing__demo-sample:hover { background: var(--accent-soft); border-color: var(--accent); }
-    .landing__demo-sample { position: relative; }
     .chip-toast {
       position: absolute;
       bottom: calc(100% + 6px);
@@ -932,6 +932,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .contact-submit:hover:not(:disabled) { background: rgba(99,102,241,0.22); }
     .contact-submit:disabled { opacity: 0.5; cursor: not-allowed; }
     .contact-status { font-size: 0.82rem; margin: 0.65rem 0 0; }
+    .contact-status--ok  { color: var(--gain); }
+    .contact-status--err { color: var(--loss); }
+    .demo-hint--error { color: var(--loss); }
 
     .session-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.65);
