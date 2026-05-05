@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { classifyContract } from '@/lib/knownContracts';
+import { DEMO_TENANT_ID } from '@/lib/demo';
 
 const ETHEREUM_CHAIN_ID = 1;
 const POLYGON_CHAIN_ID = 137;
@@ -505,7 +506,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 		let walletChains: string[] = [];
 		try { walletChains = JSON.parse(String(walletRow?.chains ?? '[]')); } catch { /* ignore */ }
 
-		if (refreshMissing) {
+		if (refreshMissing && tenantId !== DEMO_TENANT_ID) {
 			const refreshStart = Date.now();
 			console.log('[tokens.refreshMissing] START', { requestId, walletId, tenantId });
 			if (walletAddress) {
