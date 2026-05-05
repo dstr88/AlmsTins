@@ -533,7 +533,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       const LTC_LEGACY_RE = /^[LM][a-zA-HJ-NP-Z0-9]{25,34}$/;
       const SOL_RE     = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-      const DEMO_WALLET_ADDRS = new Set(['1', '2', '3']);
+      const DEMO_WALLET_ADDRS = new Set(['1', '2', '3', '1 — ETH wallet', '2 — SOL wallet', '3 — DeFi wallet']);
       function isKnownAddress(addr: string): boolean {
         if (DEMO_WALLET_ADDRS.has(addr)) return true;
         return EVM_RE.test(addr) || BTC_BECH_RE.test(addr) || BTC_LEGACY_RE.test(addr)
@@ -551,7 +551,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         btn.addEventListener('click', () => {
           const addr = btn.dataset.demoAddr ?? '';
           if (input) {
-            input.value = addr;
+            input.value = btn.textContent?.trim() ?? addr;
             input.focus();
             if (hint) {
               hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
