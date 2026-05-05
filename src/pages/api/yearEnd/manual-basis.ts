@@ -34,6 +34,7 @@ export const prerender = false;
 
 export const GET: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
 	try {
@@ -68,6 +69,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
 	let body: unknown;
@@ -136,6 +138,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 export const DELETE: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
 	let body: unknown;

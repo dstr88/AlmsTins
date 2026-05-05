@@ -55,7 +55,9 @@ const round8 = (n: number) => Math.round(n * 1e8) / 1e8;
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const url       = new URL(request.url);
 		const threshold = Number(url.searchParams.get('threshold') ?? DEFAULT_THRESHOLD_USD);
 

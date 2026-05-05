@@ -24,7 +24,9 @@ function toDecimal(raw: string, decimals: number): number {
 export const GET: APIRoute = async ({ params, request }) => {
 	const walletId = params.id ?? '';
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		if (!walletId) return respond({ error: true, message: 'Wallet id required.' }, 400);
 
 		await requireWalletOwnedByTenant(walletId, tenantId);

@@ -5,7 +5,9 @@ import { db } from '../../../lib/db';
 const MAX_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB
 
 export const GET: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const url = new URL(request.url);
 	const txHash = url.searchParams.get('txHash');
 	const chain = url.searchParams.get('chain');
@@ -34,7 +36,9 @@ export const GET: APIRoute = async ({ request }) => {
 };
 
 export const POST: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const formData = await request.formData();
 	const txHash = formData.get('txHash');
 	const chain = formData.get('chain');
@@ -80,7 +84,9 @@ export const POST: APIRoute = async ({ request }) => {
 };
 
 export const DELETE: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const url = new URL(request.url);
 	const id = url.searchParams.get('id');
 

@@ -16,7 +16,9 @@ export const prerender = false;
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const { isDemo } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { isDemo } = session;
 		if (isDemo) {
 			return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
 		}

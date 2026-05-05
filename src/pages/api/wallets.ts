@@ -9,7 +9,9 @@ export const prerender = false;
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const result = await db.execute({
 			sql: 'SELECT id, address, label, chains, is_default, wallet_type, created_at FROM wallets WHERE tenant_id = ? ORDER BY created_at DESC',
 			args: [tenantId],
@@ -27,7 +29,9 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId, isDemo } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId, isDemo } = session;
 
 		// ── Demo limit: 3 wallets max ─────────────────────────────────────
 		if (isDemo) {

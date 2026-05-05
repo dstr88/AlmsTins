@@ -17,7 +17,9 @@ function json(body: unknown, status = 200) {
 }
 
 export const GET: APIRoute = async ({ params, request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const id = params.id ?? '';
 
 	const result = await db.execute({
@@ -48,7 +50,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 };
 
 export const DELETE: APIRoute = async ({ params, request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const id = params.id ?? '';
 
 	const check = await db.execute({

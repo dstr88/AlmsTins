@@ -26,7 +26,9 @@ const toTransactionRows = (rows: unknown): TransactionRow[] => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const wallets = await getAllActiveWallets(tenantId);
 		const addressSet = wallets.map((wallet) => wallet.address.toLowerCase());
 

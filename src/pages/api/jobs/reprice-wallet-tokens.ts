@@ -7,7 +7,9 @@ export const prerender = false;
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const url = new URL(request.url);
 		const walletId = url.searchParams.get('walletId') ?? undefined;
 		const symbolsParam = url.searchParams.get('symbols');

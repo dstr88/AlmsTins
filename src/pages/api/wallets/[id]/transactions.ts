@@ -17,7 +17,9 @@ function chainId(chain: Chain): number {
 // Look up a tx by hash and return pre-fill data. Returns 200 with data or 404.
 export const GET: APIRoute = async ({ request, url, params }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const walletId = params.id!;
 		await requireWalletOwnedByTenant(walletId, tenantId);
 
@@ -93,7 +95,9 @@ export const GET: APIRoute = async ({ request, url, params }) => {
 // Save a custom transaction (hash-based or manual).
 export const POST: APIRoute = async ({ request, params }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const walletId = params.id!;
 		await requireWalletOwnedByTenant(walletId, tenantId);
 

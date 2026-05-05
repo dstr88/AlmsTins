@@ -20,7 +20,9 @@ export const prerender = false;
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const result = await db.execute({
 			sql: `SELECT ${USER_FIELDS.join(', ')} FROM users WHERE tenant_id = ? ORDER BY created_at DESC`,
 			args: [tenantId],
@@ -38,7 +40,9 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const body = await request.json();
 		const email = validateEmail(body.email);
 		if (!email) {

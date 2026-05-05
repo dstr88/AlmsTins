@@ -6,6 +6,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 export const GET: APIRoute = async ({ request }) => {
 	try {
 		const tenant = await requireTenantSession(request);
+		if (!tenant) return new Response('Unauthorized', { status: 401 });
 		const session = await getAuthSession(request);
 		const userId = session?.user?.id ? String(session.user.id) : '';
 		if (!tenant || !userId) {

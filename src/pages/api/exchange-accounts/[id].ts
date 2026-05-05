@@ -12,7 +12,9 @@ export const prerender = false;
 
 export const DELETE: APIRoute = async ({ params, request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const accountId = params.id;
 
 		if (!accountId) {

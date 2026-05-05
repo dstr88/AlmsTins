@@ -99,7 +99,9 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 		});
 	}
 
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	try {
 		await requireWalletOwnedByTenant(walletId, tenantId);
 	} catch (err) {

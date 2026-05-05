@@ -292,7 +292,9 @@ async function syncWalletDefi(tenantId: string, wallet: { id: string; address: s
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const body = (await request.json().catch(() => null)) as { mode?: 'fast' | 'standard' | 'full' } | null;
 		const mode = body?.mode ?? null;
 		if (!mode || !['fast', 'standard', 'full'].includes(mode)) {

@@ -11,7 +11,9 @@ export const prerender = false;
 // Run the sweep
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const stats = await runDuplicateSweep(tenantId);
 		return respond({ ok: true, stats }, 200);
 	} catch (error) {
@@ -24,7 +26,9 @@ export const POST: APIRoute = async ({ request }) => {
 // Override a specific row
 export const PATCH: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const body = await request.json() as {
 			sourceType: 'import' | 'onchain';
 			sourceId: string;

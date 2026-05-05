@@ -7,7 +7,9 @@ export const prerender = false;
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 
 		const subResult = await db.execute({
 			sql: `SELECT stripe_customer_id FROM subscriptions WHERE tenant_id = ? LIMIT 1`,

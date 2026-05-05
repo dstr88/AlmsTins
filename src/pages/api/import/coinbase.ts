@@ -151,7 +151,9 @@ const buildGroupId = (source: string, assetSymbol: string | null, timestampUtc: 
 };
 
 export const POST: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const formData = await request.formData();
 	const file = formData.get('file');
 	const accountIdRaw = formData.get('accountId');

@@ -16,6 +16,7 @@ function randomId(): string {
 export const POST: APIRoute = async ({ request }) => {
   try {
     const session = await requireTenantSession(request);
+    if (!session) return new Response('Unauthorized', { status: 401 });
     const { tenantId } = session ?? {};
     if (!tenantId) return new Response('Unauthorized', { status: 401 });
 

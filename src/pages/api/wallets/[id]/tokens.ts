@@ -468,7 +468,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 	const walletId = params.id ?? '';
 	const startedAt = Date.now();
 	const url = new URL(request.url);
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const requestId = request.headers.get('x-request-id') ?? undefined;
 
 	console.log('[tokens API] START', { walletId });

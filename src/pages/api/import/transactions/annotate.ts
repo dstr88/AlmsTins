@@ -4,7 +4,9 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getImportTransactionColumns, resolveImportNoteColumn } from '@/lib/importTransactionsSchema';
 
 export const POST: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	let payload: { id?: string; note?: string; category?: string; group_id?: string } = {};
 	try {
 		payload = await request.json();

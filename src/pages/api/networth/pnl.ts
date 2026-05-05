@@ -7,7 +7,9 @@ const CACHE_TTL_SECONDS = 5 * 60; // 5 minutes — cost basis changes less often
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 
 		const cacheKey = `t:${tenantId}:networth:pnl:v1`;
 		const cached = await getCache<{ heldCostBasisUsd: number }>(cacheKey, {

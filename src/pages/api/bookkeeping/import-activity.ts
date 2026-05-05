@@ -13,6 +13,7 @@ import { db } from '../../../lib/db';
 export const GET: APIRoute = async ({ request, url }) => {
   try {
     const session = await requireTenantSession(request);
+    if (!session) return new Response('Unauthorized', { status: 401 });
     const { tenantId } = session ?? {};
     if (!tenantId) return new Response('Unauthorized', { status: 401 });
 

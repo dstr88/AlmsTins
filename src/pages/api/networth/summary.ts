@@ -36,7 +36,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
 	const LOCAL_BYPASS = import.meta.env.PUBLIC_LOCAL_DEV_NO_AUTH === 'true';
 
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		if (!DEV && !LOCAL_BYPASS) {
 			const authHeader = request.headers.get('authorization');
 			const expected = import.meta.env.NETWORTH_API_TOKEN;

@@ -4,7 +4,9 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const loanId = url.searchParams.get('loanId')?.trim() ?? '';
 		if (!loanId) {
 			return new Response(JSON.stringify({ ok: false, error: 'Missing loanId.' }), {
@@ -45,7 +47,9 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const body = await request.json();
 		const loanId = String(body?.loanId || '').trim();
 		const paymentDate = String(body?.paymentDate || '').trim();
@@ -90,7 +94,9 @@ export const POST: APIRoute = async ({ request }) => {
 
 export const DELETE: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const body = await request.json();
 		const id = String(body?.id || '').trim();
 		if (!id) {

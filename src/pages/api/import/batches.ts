@@ -3,7 +3,9 @@ import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { db } from '../../../lib/db';
 
 export const GET: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const url = new URL(request.url);
 	const accountId = url.searchParams.get('accountId');
 	const source = url.searchParams.get('source');
@@ -38,7 +40,9 @@ export const GET: APIRoute = async ({ request }) => {
 };
 
 export const DELETE: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const url = new URL(request.url);
 	const batchId = url.searchParams.get('batchId');
 	const source = url.searchParams.get('source');

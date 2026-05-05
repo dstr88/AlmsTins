@@ -12,7 +12,9 @@ export const POST: APIRoute = async ({ params, request }) => {
 		});
 	}
 
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	try {
 		await requireWalletOwnedByTenant(walletId, tenantId);
 	} catch (err) {

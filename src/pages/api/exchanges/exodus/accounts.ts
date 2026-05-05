@@ -4,7 +4,9 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const POST: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 
 	const countResult = await db.execute({
 		sql: `SELECT COUNT(*) AS count FROM exchange_accounts

@@ -3,7 +3,9 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const POST: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const body = await request.json().catch(() => ({}));
 	const accountId = typeof body.accountId === 'string' ? body.accountId.trim() : '';
 	const name = typeof body.name === 'string' ? body.name.trim() : '';

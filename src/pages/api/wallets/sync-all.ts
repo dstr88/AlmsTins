@@ -6,7 +6,9 @@ export const prerender = false;
 
 export const POST: APIRoute = async (Astro) => {
 	try {
-		const { tenantId } = await requireTenantSession(Astro.request);
+		const session = await requireTenantSession(Astro.request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const result = await syncAllWallets(tenantId);
 		return new Response(JSON.stringify(result), {
 			status: 200,

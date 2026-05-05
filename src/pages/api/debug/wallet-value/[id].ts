@@ -20,7 +20,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 	}
 
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		await requireWalletOwnedByTenant(walletId, tenantId);
 		const result = await db.execute({
 			sql: 'SELECT id, address, label, chains FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',

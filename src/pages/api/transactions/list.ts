@@ -6,7 +6,9 @@ import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 export const prerender = false;
 
 export const GET: APIRoute = async ({ request, url }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const walletId = url.searchParams.get('walletId');
 	const chain = url.searchParams.get('chain');
 	const limit = Number(url.searchParams.get('limit') ?? 50);

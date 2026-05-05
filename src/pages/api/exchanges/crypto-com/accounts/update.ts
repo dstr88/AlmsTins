@@ -8,7 +8,9 @@ type Payload = {
 };
 
 export const POST: APIRoute = async ({ request }) => {
-	const { tenantId } = await requireTenantSession(request);
+	const session = await requireTenantSession(request);
+	if (!session) return new Response('Unauthorized', { status: 401 });
+	const { tenantId } = session;
 	const payload = (await request.json().catch(() => ({}))) as Payload;
 	const accountId = payload.accountId?.trim() ?? '';
 	const name = payload.name?.trim() ?? '';

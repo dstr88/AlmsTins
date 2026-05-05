@@ -4,7 +4,9 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const GET: APIRoute = async ({ request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const summary = await getNetWorthSummary(tenantId);
 
 		return new Response(

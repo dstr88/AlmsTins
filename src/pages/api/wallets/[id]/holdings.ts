@@ -7,6 +7,7 @@ import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTokentxPaged, getNativeBalanceWei } from '@/lib/etherscan';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
+import { DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '@/lib/demo';
 
 const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
 const POLYGON_CHAIN_ID = 137;
@@ -598,7 +599,9 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 
 	try {
 
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const walletId = params.id ?? '';
 
 		if (!walletId) {
@@ -609,6 +612,45 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 			});
 		}
 		await requireWalletOwnedByTenant(walletId, tenantId);
+
+		// Demo accounts: return mock tokens directly — no API keys, no Alchemy, no chain calls
+		if (tenantId === DEMO_TENANT_ID) {
+			const walletRow = await db.execute({
+				sql: 'SELECT address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+				args: [walletId, tenantId],
+			});
+			const demoAddress = String(walletRow.rows[0]?.address ?? '');
+			if (isDemoWalletAddress(demoAddress)) {
+				const config = DEMO_WALLET_CONFIGS[demoAddress]!;
+				const CHAIN_ID_MAP: Record<string, number> = {
+					ethereum: ETHEREUM_CHAIN_ID,
+					polygon: POLYGON_CHAIN_ID,
+					avalanche: AVALANCHE_CHAIN_ID,
+				};
+				const primaryChainId = CHAIN_ID_MAP[config.chain] ?? ETHEREUM_CHAIN_ID;
+				const tokens = chainId === primaryChainId
+					? config.tokens.map((t) => ({
+						symbol: t.symbol,
+						name: t.symbol,
+						contractAddress: t.tokenAddress ?? 'native',
+						decimals: 18,
+						balance: t.amount,
+						priceUsd: t.priceUsd,
+						valueUsd: t.valueUsd,
+						basisType: 'unknown' as const,
+						firstSeenAt: null,
+					}))
+					: [];
+				const totalUsd = tokens.reduce((s, t) => s + t.valueUsd, 0);
+				const payload = { tokens, totalUsd, asOf: new Date().toISOString(), cached: false, stale: false };
+				logPerf(200, { cached: false, stale: false, count: tokens.length });
+				return new Response(JSON.stringify(payload), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+				});
+			}
+		}
+
 		if (![POLYGON_CHAIN_ID, ETHEREUM_CHAIN_ID, AVALANCHE_CHAIN_ID].includes(chainId)) {
 			logPerf(400);
 			return new Response(

@@ -12,7 +12,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 	}
 
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		await requireWalletOwnedByTenant(params.id, tenantId);
 		const result = await db.execute({
 			sql: 'SELECT id, address, label, chains, is_default, created_at FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
@@ -38,7 +40,9 @@ export const PATCH: APIRoute = async ({ params, request }) => {
 	}
 
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		await requireWalletOwnedByTenant(params.id, tenantId);
 		const body = await request.json();
 
@@ -128,7 +132,9 @@ export const DELETE: APIRoute = async ({ params, request }) => {
 	}
 
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		await requireWalletOwnedByTenant(params.id, tenantId);
 
 		// Cascade-delete linked transactions before removing the wallet record

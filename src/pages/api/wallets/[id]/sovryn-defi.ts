@@ -142,7 +142,9 @@ async function detectContractInteractions(address: string): Promise<string[]> {
 
 export const GET: APIRoute = async ({ params, request }) => {
 	try {
-		const { tenantId } = await requireTenantSession(request);
+		const session = await requireTenantSession(request);
+		if (!session) return new Response('Unauthorized', { status: 401 });
+		const { tenantId } = session;
 		const walletId = params.id ?? '';
 		if (!walletId) return respond({ error: true, message: 'Wallet id required.' }, 400);
 
