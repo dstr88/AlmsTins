@@ -232,11 +232,22 @@ const { lang = 'en' } = Astro.props;
 		{
 			selector: '#addTinDemoSamples',
 			title: 'Billeteras de muestra',
-			body: 'Haz clic en "2 — SOL" o "3 — DeFi" para continuar el tour, o pega tu propia dirección para explorar tu portafolio real (el tour terminará).',
-			nextLabel: 'Agrega una billetera ↑',
+			body: 'Agrega → billetera 2 (SOL) y → billetera 3 (DeFi) para continuar el tour. O pega tu propia dirección — el tour terminará y explorarás tu portafolio real.',
+			nextLabel: 'Agrega las billeteras ↑',
 			onShow: function () {
 				var samples = document.getElementById('addTinDemoSamples');
 				if (samples) samples.style.display = '';
+				var walletCount = document.querySelectorAll('.vault-wallet-pill').length;
+				if (walletCount >= 3) {
+					setTimeout(function () { current = RESUME_AFTER_ADD; showStep(current); }, 0);
+					return;
+				}
+				if (walletCount === 2) {
+					setTimeout(function () {
+						if (bodyEl) bodyEl.textContent = 'Bien. Ahora agrega la otra billetera de muestra para continuar el tour.';
+						if (nextBtn) (nextBtn as HTMLButtonElement).textContent = 'Agrega la última billetera ↑';
+					}, 0);
+				}
 				var chipUsed = false;
 				samples?.querySelectorAll<HTMLElement>('[data-fill-addr="2"],[data-fill-addr="3"]').forEach(function (btn) {
 					btn.addEventListener('click', function () { chipUsed = true; }, { capture: true, once: true });
@@ -244,7 +255,7 @@ const { lang = 'en' } = Astro.props;
 				var submitBtn = document.querySelector('[data-add-submit]');
 				submitBtn?.addEventListener('click', function () {
 					try {
-						if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(RESUME_AFTER_ADD));
+						if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(SAMPLE_WALLETS_IDX));
 						else          sessionStorage.setItem('demo-tour-end', '1');
 					} catch(e) {}
 				}, { once: true });
@@ -325,11 +336,22 @@ const { lang = 'en' } = Astro.props;
 		{
 			selector: '#addTinDemoSamples',
 			title: 'Sample Wallets',
-			body: 'Click "2 — SOL" or "3 — DeFi" to continue the tour, or paste your own address to explore your real portfolio (the tour will end).',
-			nextLabel: 'Add a wallet ↑',
+			body: 'Add → wallet 2 (SOL) and → wallet 3 (DeFi) to continue the tour. Or paste your own address — the tour ends and you\'ll explore your real portfolio.',
+			nextLabel: 'Add both wallets ↑',
 			onShow: function () {
 				var samples = document.getElementById('addTinDemoSamples');
 				if (samples) samples.style.display = '';
+				var walletCount = document.querySelectorAll('.vault-wallet-pill').length;
+				if (walletCount >= 3) {
+					setTimeout(function () { current = RESUME_AFTER_ADD; showStep(current); }, 0);
+					return;
+				}
+				if (walletCount === 2) {
+					setTimeout(function () {
+						if (bodyEl) bodyEl.textContent = 'Nice. Now add the other sample wallet to continue the tour.';
+						if (nextBtn) (nextBtn as HTMLButtonElement).textContent = 'Add the last wallet ↑';
+					}, 0);
+				}
 				var chipUsed = false;
 				samples?.querySelectorAll<HTMLElement>('[data-fill-addr="2"],[data-fill-addr="3"]').forEach(function (btn) {
 					btn.addEventListener('click', function () { chipUsed = true; }, { capture: true, once: true });
@@ -337,7 +359,7 @@ const { lang = 'en' } = Astro.props;
 				var submitBtn = document.querySelector('[data-add-submit]');
 				submitBtn?.addEventListener('click', function () {
 					try {
-						if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(RESUME_AFTER_ADD));
+						if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(SAMPLE_WALLETS_IDX));
 						else          sessionStorage.setItem('demo-tour-end', '1');
 					} catch(e) {}
 				}, { once: true });
