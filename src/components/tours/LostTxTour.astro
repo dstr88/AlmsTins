@@ -1,0 +1,72 @@
+---
+import TourEngine from '../TourEngine.astro';
+---
+
+<TourEngine
+	tourId="losttx"
+	trigger="button"
+	btnLabel="🔍"
+	btnTitle="How to find lost transactions"
+/>
+
+<script is:inline>
+(function () {
+	if (!window.TourEngine) return;
+
+	var stepsEn = [
+		{
+			selector: '.col-header',
+			title: 'Start: Needs Attention',
+			body: 'Lost transactions show up here as unmatched transfers — an OUT with no matching IN, or vice versa. Sort by value to find the highest-impact gaps first.',
+		},
+		{
+			selector: '.search-card',
+			title: 'Search by Address or Hash',
+			body: 'Paste a wallet address or transaction hash into search to find every transaction associated with it. This is how you trace a transfer from one exchange to a self-custody wallet.',
+		},
+		{
+			selector: '.col-right',
+			title: 'Annotate What You Find',
+			body: 'Once you identify a transaction, use the action buttons to classify it. "Own Wallet" marks it as a self-transfer. "Help" opens a panel explaining what the transaction type means and lets you add notes.',
+		},
+		{
+			selector: '.health-section',
+			title: 'Check Dataset Health',
+			body: 'The "Missing Cost Basis" card shows tokens you hold today with no acquisition history — these are gaps where an exchange CSV is probably missing. The card names the likely exchange to import from.',
+			onShow: function () {
+				var el = document.querySelector('.health-section');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 100), behavior: 'smooth' });
+			},
+		},
+	];
+
+	var stepsEs = [
+		{
+			selector: '.col-header',
+			title: 'Inicio: Necesita atención',
+			body: 'Las transacciones perdidas aparecen aquí como transferencias sin coincidencia — una salida sin entrada correspondiente, o viceversa. Ordena por valor para encontrar primero las brechas de mayor impacto.',
+		},
+		{
+			selector: '.search-card',
+			title: 'Buscar por dirección o hash',
+			body: 'Pega una dirección de billetera o hash de transacción en la búsqueda para encontrar cada transacción asociada a ella. Así rastrearás una transferencia de un exchange a una billetera propia.',
+		},
+		{
+			selector: '.col-right',
+			title: 'Anota lo que encuentres',
+			body: 'Una vez identificada una transacción, usa los botones de acción para clasificarla. "Billetera propia" la marca como auto-transferencia. "Ayuda" abre un panel que explica el tipo de transacción y te permite añadir notas.',
+		},
+		{
+			selector: '.health-section',
+			title: 'Revisar salud del dataset',
+			body: 'La tarjeta "Base de costo faltante" muestra tokens que tienes hoy sin historial de adquisición — son brechas donde probablemente falta un CSV de exchange. La tarjeta indica qué exchange importar.',
+			onShow: function () {
+				var el = document.querySelector('.health-section');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 100), behavior: 'smooth' });
+			},
+		},
+	];
+
+	window.TourEngine.register('losttx', { en: stepsEn, es: stepsEs }, null, {});
+})();
+</script>

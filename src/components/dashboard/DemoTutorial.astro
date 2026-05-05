@@ -1,323 +1,82 @@
 ---
+import TourEngine from '../TourEngine.astro';
+
 interface Props { lang?: 'en' | 'es'; }
 const { lang = 'en' } = Astro.props;
+
+const barCopy = lang === 'es'
+	? '¿Primera vez aquí? Descubre todo lo que puedes hacer.'
+	: 'First time here? See everything you can do.';
+const barCta = lang === 'es' ? 'Tomar el tour →' : 'Take the tour →';
 ---
 
-<!-- Take-the-tour bar — sits below the demo-banner, above the grid -->
-<div id="demo-tour-bar" class="demo-tour-bar" data-lang={lang}>
-	<span class="demo-tour-bar__icon">✦</span>
-	<span class="demo-tour-bar__copy">
-		{lang === 'es'
-			? '¿Primera vez aquí? Descubre todo lo que puedes hacer.'
-			: 'First time here? See everything you can do.'}
-	</span>
-	<button id="demo-tour-start" class="demo-tour-bar__cta">
-		{lang === 'es' ? 'Tomar el tour →' : 'Take the tour →'}
-	</button>
-</div>
+<TourEngine
+	tourId="demo"
+	lang={lang}
+	trigger="bar"
+	barIcon="✦"
+	barCopy={barCopy}
+	barCta={barCta}
+/>
 
-<!-- Semi-transparent backdrop -->
-<div id="demo-tour-overlay" class="demo-tour-overlay" style="display:none" aria-hidden="true"></div>
-
-<!-- Floating tooltip card (fixed bottom-center) -->
-<div id="demo-tour-tip" class="demo-tour-tip" style="display:none" role="dialog" aria-modal="true" aria-labelledby="demo-tour-title">
-	<div class="demo-tour-tip__head">
-		<span class="demo-tour-tip__counter" id="demo-tour-counter"></span>
-		<button class="demo-tour-tip__skip" id="demo-tour-skip" aria-label="Close tour">✕</button>
-	</div>
-	<h3 class="demo-tour-tip__title" id="demo-tour-title"></h3>
-	<p  class="demo-tour-tip__body"  id="demo-tour-body"></p>
-	<div class="demo-tour-tip__foot">
-		<div class="demo-tour-tip__dots" id="demo-tour-dots" aria-hidden="true"></div>
-		<div class="demo-tour-tip__btns">
-			<button class="demo-tour-tip__btn demo-tour-tip__btn--back" id="demo-tour-back"></button>
-			<button class="demo-tour-tip__btn demo-tour-tip__btn--next" id="demo-tour-next"></button>
-		</div>
-	</div>
-</div>
-
-<style>
-/* ── Tour launch bar ───────────────────────────────────────────────────────── */
-@keyframes tourBarFadeIn {
-	from { opacity: 0; transform: translateY(-6px); }
-	to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes tourCtaPulse {
-	0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
-	50%       { box-shadow: 0 0 0 8px transparent; }
-}
-.demo-tour-bar {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.75rem;
-	flex-wrap: wrap;
-	background: var(--accent-soft);
-	border: 1px solid var(--accent-glow);
-	border-radius: 10px;
-	padding: 0.8rem 1.5rem;
-	margin-bottom: 1.25rem;
-	text-align: center;
-	opacity: 0;
-	animation: tourBarFadeIn 0.6s ease 0.8s forwards;
-}
-.demo-tour-bar__icon {
-	color: var(--accent);
-	font-size: 1rem;
-	flex-shrink: 0;
-}
-.demo-tour-bar__copy {
-	color: var(--text-secondary);
-	font-size: 0.875rem;
-}
-.demo-tour-bar__cta {
-	background: var(--accent);
-	color: var(--surface-bg);
-	border: none;
-	border-radius: 6px;
-	padding: 0.45rem 1.3rem;
-	font-size: 0.9rem;
-	font-weight: 700;
-	cursor: pointer;
-	white-space: nowrap;
-	transition: opacity 0.15s;
-	animation: tourCtaPulse 2s ease-in-out 1.6s infinite;
-}
-.demo-tour-bar__cta:hover {
-	opacity: 0.88;
-	animation: none;
-}
-
-/* ── Backdrop ──────────────────────────────────────────────────────────────── */
-.demo-tour-overlay {
-	position: fixed;
-	inset: 0;
-	background: rgba(0,0,0,0.52);
-	z-index: 1000;
-	pointer-events: none;
-}
-
-/* ── Highlighted element ring ──────────────────────────────────────────────── */
-:global(.demo-tour-highlight) {
-	outline: 2px solid var(--accent) !important;
-	outline-offset: 5px;
-	border-radius: 10px;
-	box-shadow: 0 0 0 8px var(--accent-glow), 0 0 30px var(--accent-glow) !important;
-	position: relative;
-	z-index: 1001;
-}
-
-/* ── Tooltip card ──────────────────────────────────────────────────────────── */
-.demo-tour-tip {
-	position: fixed;
-	bottom: 1.75rem;
-	left: 50%;
-	transform: translateX(-50%);
-	width: min(440px, calc(100vw - 2rem));
-	background: var(--surface-card-2);
-	border: 1px solid var(--border-bright);
-	border-radius: 14px;
-	padding: 1.25rem 1.25rem 1rem;
-	z-index: 1002;
-	box-shadow: 0 12px 40px rgba(0,0,0,0.55);
-}
-.demo-tour-tip__head {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	margin-bottom: 0.6rem;
-}
-.demo-tour-tip__counter {
-	font-size: 0.68rem;
-	color: var(--text-muted);
-	text-transform: uppercase;
-	letter-spacing: 0.07em;
-}
-.demo-tour-tip__skip {
-	background: none;
-	border: none;
-	color: var(--text-muted);
-	cursor: pointer;
-	padding: 0;
-	font-size: 1rem;
-	line-height: 1;
-	transition: color 0.15s;
-}
-.demo-tour-tip__skip:hover { color: var(--text-secondary); }
-.demo-tour-tip__title {
-	margin: 0 0 0.45rem;
-	font-size: 1.05rem;
-	font-weight: 700;
-	color: var(--text-primary);
-}
-.demo-tour-tip__body {
-	margin: 0 0 1.1rem;
-	font-size: 0.875rem;
-	color: var(--text-secondary);
-	line-height: 1.55;
-}
-.demo-tour-tip__foot {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-}
-.demo-tour-tip__dots {
-	display: flex;
-	gap: 5px;
-	align-items: center;
-}
-.demo-tour-tip__btns {
-	display: flex;
-	gap: 0.5rem;
-}
-.demo-tour-tip__btn {
-	border: none;
-	border-radius: 6px;
-	padding: 0.4rem 1rem;
-	font-size: 0.875rem;
-	font-weight: 600;
-	cursor: pointer;
-	transition: opacity 0.15s;
-}
-.demo-tour-tip__btn--back {
-	background: transparent;
-	border: 1px solid var(--border-bright);
-	color: var(--text-secondary);
-}
-.demo-tour-tip__btn--back:hover { background: var(--surface-hover); }
-.demo-tour-tip__btn--next {
-	background: var(--accent);
-	color: var(--surface-bg);
-}
-.demo-tour-tip__btn--next:hover { opacity: 0.88; }
-</style>
-
-<script>
+<script is:inline>
 (function () {
-	var bar      = document.getElementById('demo-tour-bar');
-	if (!bar) return;
-	var lang     = (bar as HTMLElement).dataset.lang === 'es' ? 'es' : 'en';
-	var startBtn = document.getElementById('demo-tour-start');
-	var overlay  = document.getElementById('demo-tour-overlay');
-	var tip      = document.getElementById('demo-tour-tip');
-	var titleEl  = document.getElementById('demo-tour-title');
-	var bodyEl   = document.getElementById('demo-tour-body');
-	var counterEl= document.getElementById('demo-tour-counter');
-	var dotsEl   = document.getElementById('demo-tour-dots');
-	var backBtn  = document.getElementById('demo-tour-back');
-	var nextBtn  = document.getElementById('demo-tour-next');
-	var skipBtn  = document.getElementById('demo-tour-skip');
+	if (!window.TourEngine) return;
 
-	// Index of the "Sample Wallets" step (between Add a Wallet and Smart Import)
+	/* Step index constants — must match array positions in both langs */
 	var SAMPLE_WALLETS_IDX = 3;
-	// Index to resume at after a demo wallet is added
 	var RESUME_AFTER_ADD   = 4;
 
-	var STEPS: Array<{ selector: string; title: string; body: string; nextLabel?: string; onShow?: () => void }> = lang === 'es' ? [
-		{
-			selector: '.tile--r1c1',
-			title: 'Bloc de notas',
-			body: 'Anota cosas rápidas aquí: "envié 0.05 ETH a mi hermana" o "staking en Lido". Solo tú lo ves — completamente privado.',
-		},
-		{
-			selector: '.tile--r1c2',
-			title: 'Portfolio y Sync',
-			body: 'Tu valor total y ganancias o pérdidas en todas tus billeteras e intercambios. Usa el botón Sync para actualizar tus saldos.',
-		},
-		{
-			selector: '.tile--r1c3',
-			title: 'Agregar billetera',
-			body: 'Ya estás rastreando la billetera 1. → Agrega la billetera 2 para ver SOL y → la 3 para ver DeFi — y sigue el tour. O pega la clave pública de tu propia billetera para ver más.',
-		},
-		{
-			selector: '#addTinDemoSamples',
-			title: 'Billeteras de muestra',
-			body: 'Agrega → billetera 2 (SOL) y → billetera 3 (DeFi) para continuar el tour. O pega tu propia dirección — el tour terminará y explorarás tu portafolio real.',
-			nextLabel: 'Agrega las billeteras ↑',
-			onShow: function () {
-				var samples = document.getElementById('addTinDemoSamples');
-				if (samples) samples.style.display = '';
-				var walletCount = document.querySelectorAll('.vault-wallet-pill').length;
-				if (walletCount >= 3) {
-					setTimeout(function () { current = RESUME_AFTER_ADD; showStep(current); }, 0);
-					return;
-				}
-				if (walletCount === 2) {
-					setTimeout(function () {
-						if (bodyEl) bodyEl.textContent = 'Bien. Ahora agrega la otra billetera de muestra para continuar el tour.';
-						if (nextBtn) (nextBtn as HTMLButtonElement).textContent = 'Agrega la última billetera ↑';
-					}, 0);
-				}
-				var chipUsed = false;
-				samples?.querySelectorAll<HTMLElement>('[data-fill-addr="2"],[data-fill-addr="3"]').forEach(function (btn) {
-					btn.addEventListener('click', function () { chipUsed = true; }, { capture: true, once: true });
-				});
-				var submitBtn = document.querySelector('[data-add-submit]');
-				submitBtn?.addEventListener('click', function () {
-					try {
-						if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(SAMPLE_WALLETS_IDX));
-						else          sessionStorage.setItem('demo-tour-end', '1');
-					} catch(e) {}
-				}, { once: true });
-			},
-		},
-		{
-			selector: '.smart-import-bar',
-			title: 'Importación inteligente',
-			body: 'Arrastra un CSV de cualquier exchange — Coinbase, Kraken, Gemini, Exodus y más. Si el formato no se reconoce, verás un mensaje de error claro para que puedas intentar con el archivo correcto.',
-		},
-		{
-			selector: '.exchange-lane',
-			title: 'Exchanges centralizados',
-			body: 'Coinbase, Kraken, Gemini, Robinhood y más — importa tu historial completo de transacciones con el CSV de cada plataforma.',
-		},
-		{
-			selector: '.wallet-tin--wallet',
-			title: 'Tins de billetera',
-			body: 'Ya está expandido — mira dentro: cada fila muestra el símbolo del token, precio actual, días en cartera y ganancias no realizadas. Así de claro es tu portafolio on-chain.',
-			onShow: function () {
-				var tin = document.querySelector<HTMLElement>('.wallet-tin--wallet');
-				if (tin && tin.classList.contains('is-collapsed')) {
-					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
-					lbl?.click();
-				}
-			},
-		},
-		{
-			selector: '.wallet-tin--defi',
-			title: 'Salud del préstamo DeFi',
-			body: 'Fíjate en el número de "Salud" visible en la franja DeFi — sin abrir el tin. Un valor por encima de 1 significa que tu colateral está seguro; por debajo de 1 el protocolo puede liquidarte.',
-		},
-		{
-			selector: '.wallet-tin--defi',
-			title: 'Tu préstamo en Aave',
-			body: 'Dentro ves el colateral depositado, la deuda total y la posición neta por cadena. Monitorea tu exposición de un vistazo para no quedar desprevenido ante una caída de precios.',
-			onShow: function () {
-				var tin = document.querySelector<HTMLElement>('.wallet-tin--defi');
-				if (tin && tin.classList.contains('is-collapsed')) {
-					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
-					lbl?.click();
-				}
-			},
-		},
-		{
-			selector: '.wallet-tin--future',
-			title: 'NFTs — próximamente',
-			body: 'Aquí aparecerá tu colección de NFTs. Estamos trabajando en ello — regístrate para ser de los primeros en acceder cuando esté listo.',
-		},
-		{
-			selector: '.tile--r1c2',
-			title: 'Lleva tus transacciones',
-			body: 'La página de contabilidad registra cada transacción de todas tus billeteras e intercambios en un solo lugar. Inicia sesión para empezar — la misma página crea tu cuenta si aún no tienes una.',
-			onShow: function () {
-				var tile = document.querySelector<HTMLElement>('.tile--r1c2');
-				if (tile) {
-					var rect = tile.getBoundingClientRect();
-					window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - 140), behavior: 'smooth' });
-				}
-			},
-		},
-	] : [
+	/* Shared onShow for sample-wallets gating step — reads live lang from TourEngine */
+	function sampleWalletsOnShow() {
+		var samples     = document.getElementById('addTinDemoSamples');
+		var bodyEl      = document.getElementById('te-body-demo');
+		var nextBtn     = document.getElementById('te-next-demo');
+		var walletCount = document.querySelectorAll('.vault-wallet-pill').length;
+
+		if (samples) samples.style.display = '';
+
+		/* Detect current lang from TourEngine entry */
+		var t    = window.TourEngine._active ? null : null; // just for lint
+		var tipEl = document.querySelector('.te-tip[data-te-id="demo"]');
+		/* Read lang from cookie (TourEngine persists it there on toggle) */
+		var lang = 'en';
+		try {
+			var m = document.cookie.match(/almstins-demo-lang=([a-z]{2})/);
+			if (m) lang = m[1];
+		} catch(e) {}
+
+		if (walletCount >= 3) {
+			setTimeout(function () { window.TourEngine._step('demo', RESUME_AFTER_ADD); }, 0);
+			return;
+		}
+		if (walletCount === 2) {
+			setTimeout(function () {
+				var msg = lang === 'es'
+					? 'Bien. Ahora agrega la otra billetera de muestra para continuar el tour.'
+					: 'Nice. Now add the other sample wallet to continue the tour.';
+				var lbl = lang === 'es' ? 'Agrega la última billetera ↑' : 'Add the last wallet ↑';
+				if (bodyEl)  bodyEl.textContent  = msg;
+				if (nextBtn) nextBtn.textContent = lbl;
+			}, 0);
+		}
+
+		var chipUsed = false;
+		if (samples) {
+			samples.querySelectorAll('[data-fill-addr="2"],[data-fill-addr="3"]').forEach(function (btn) {
+				btn.addEventListener('click', function () { chipUsed = true; }, { capture: true, once: true });
+			});
+		}
+		var submitBtn = document.querySelector('[data-add-submit]');
+		if (submitBtn) submitBtn.addEventListener('click', function () {
+			try {
+				if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(SAMPLE_WALLETS_IDX));
+				else          sessionStorage.setItem('demo-tour-end', '1');
+			} catch(e) {}
+		}, { once: true });
+	}
+
+	var stepsEn = [
 		{
 			selector: '.tile--r1c1',
 			title: 'Notepad',
@@ -338,32 +97,7 @@ const { lang = 'en' } = Astro.props;
 			title: 'Sample Wallets',
 			body: 'Add → wallet 2 (SOL) and → wallet 3 (DeFi) to continue the tour. Or paste your own address — the tour ends and you\'ll explore your real portfolio.',
 			nextLabel: 'Add both wallets ↑',
-			onShow: function () {
-				var samples = document.getElementById('addTinDemoSamples');
-				if (samples) samples.style.display = '';
-				var walletCount = document.querySelectorAll('.vault-wallet-pill').length;
-				if (walletCount >= 3) {
-					setTimeout(function () { current = RESUME_AFTER_ADD; showStep(current); }, 0);
-					return;
-				}
-				if (walletCount === 2) {
-					setTimeout(function () {
-						if (bodyEl) bodyEl.textContent = 'Nice. Now add the other sample wallet to continue the tour.';
-						if (nextBtn) (nextBtn as HTMLButtonElement).textContent = 'Add the last wallet ↑';
-					}, 0);
-				}
-				var chipUsed = false;
-				samples?.querySelectorAll<HTMLElement>('[data-fill-addr="2"],[data-fill-addr="3"]').forEach(function (btn) {
-					btn.addEventListener('click', function () { chipUsed = true; }, { capture: true, once: true });
-				});
-				var submitBtn = document.querySelector('[data-add-submit]');
-				submitBtn?.addEventListener('click', function () {
-					try {
-						if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(SAMPLE_WALLETS_IDX));
-						else          sessionStorage.setItem('demo-tour-end', '1');
-					} catch(e) {}
-				}, { once: true });
-			},
+			onShow: sampleWalletsOnShow,
 		},
 		{
 			selector: '.smart-import-bar',
@@ -380,10 +114,10 @@ const { lang = 'en' } = Astro.props;
 			title: 'Wallet Tins',
 			body: 'It\'s now open — look inside: each row shows the token symbol, current price, days held, and unrealized gain or loss. That\'s your full on-chain picture at a glance.',
 			onShow: function () {
-				var tin = document.querySelector<HTMLElement>('.wallet-tin--wallet');
+				var tin = document.querySelector('.wallet-tin--wallet');
 				if (tin && tin.classList.contains('is-collapsed')) {
-					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
-					lbl?.click();
+					var lbl = tin.querySelector('.salmon-tin__label');
+					if (lbl) lbl.click();
 				}
 			},
 		},
@@ -397,139 +131,126 @@ const { lang = 'en' } = Astro.props;
 			title: 'Your Aave Loan',
 			body: 'Inside you can see your deposited collateral, total debt, and net position across chains. Track your DeFi exposure at a glance so you\'re never caught off guard by a price drop.',
 			onShow: function () {
-				var tin = document.querySelector<HTMLElement>('.wallet-tin--defi');
+				var tin = document.querySelector('.wallet-tin--defi');
 				if (tin && tin.classList.contains('is-collapsed')) {
-					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
-					lbl?.click();
+					var lbl = tin.querySelector('.salmon-tin__label');
+					if (lbl) lbl.click();
 				}
 			},
 		},
 		{
 			selector: '.wallet-tin--future',
 			title: 'NFTs — coming soon',
-			body: 'Your NFT collection will live here. We\'re building it now — sign up to be among the first to access it when it\'s ready.',
+			body: 'Your NFT collection will live here. We\'re building it now — log in to be among the first to access it when it\'s ready.',
 		},
 		{
 			selector: '.tile--r1c2',
 			title: 'Track your transactions',
 			body: 'The bookkeeping page pulls in every transaction from all your wallets and exchanges in one place. Log in to get started — the same page creates your account if you don\'t have one yet.',
 			onShow: function () {
-				var tile = document.querySelector<HTMLElement>('.tile--r1c2');
-				if (tile) {
-					var rect = tile.getBoundingClientRect();
-					window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - 140), behavior: 'smooth' });
-				}
+				var tile = document.querySelector('.tile--r1c2');
+				if (tile) window.scrollTo({ top: Math.max(0, window.scrollY + tile.getBoundingClientRect().top - 140), behavior: 'smooth' });
 			},
 		},
 	];
 
-	var L = lang === 'es'
-		? { step: 'Paso', of: 'de', back: '← Atrás', next: 'Siguiente →', finish: 'Iniciar sesión →' }
-		: { step: 'Step', of: 'of',  back: '← Back',  next: 'Next →',      finish: 'Log in →' };
+	var stepsEs = [
+		{
+			selector: '.tile--r1c1',
+			title: 'Bloc de notas',
+			body: 'Anota cosas rápidas aquí: "envié 0.05 ETH a mi hermana" o "staking en Lido". Solo tú lo ves — completamente privado.',
+		},
+		{
+			selector: '.tile--r1c2',
+			title: 'Portfolio y Sync',
+			body: 'Tu valor total y ganancias o pérdidas en todas tus billeteras e intercambios. Usa el botón Sync para actualizar tus saldos.',
+		},
+		{
+			selector: '.tile--r1c3',
+			title: 'Agregar billetera',
+			body: 'Ya estás rastreando la billetera 1. → Agrega la billetera 2 para ver SOL y → la 3 para ver DeFi — y sigue el tour. O pega la clave pública de tu propia billetera para ver más.',
+		},
+		{
+			selector: '#addTinDemoSamples',
+			title: 'Billeteras de muestra',
+			body: 'Agrega → billetera 2 (SOL) y → billetera 3 (DeFi) para continuar el tour. O pega tu propia dirección — el tour terminará y explorarás tu portafolio real.',
+			nextLabel: 'Agrega las billeteras ↑',
+			onShow: sampleWalletsOnShow,
+		},
+		{
+			selector: '.smart-import-bar',
+			title: 'Importación inteligente',
+			body: 'Arrastra un CSV de cualquier exchange — Coinbase, Kraken, Gemini, Exodus y más. Si el formato no se reconoce, verás un mensaje de error claro para que puedas intentar con el archivo correcto.',
+		},
+		{
+			selector: '.exchange-lane',
+			title: 'Exchanges centralizados',
+			body: 'Coinbase, Kraken, Gemini, Robinhood y más — importa tu historial completo de transacciones con el CSV de cada plataforma.',
+		},
+		{
+			selector: '.wallet-tin--wallet',
+			title: 'Tins de billetera',
+			body: 'Ya está expandido — mira dentro: cada fila muestra el símbolo del token, precio actual, días en cartera y ganancias no realizadas. Así de claro es tu portafolio on-chain.',
+			onShow: function () {
+				var tin = document.querySelector('.wallet-tin--wallet');
+				if (tin && tin.classList.contains('is-collapsed')) {
+					var lbl = tin.querySelector('.salmon-tin__label');
+					if (lbl) lbl.click();
+				}
+			},
+		},
+		{
+			selector: '.wallet-tin--defi',
+			title: 'Salud del préstamo DeFi',
+			body: 'Fíjate en el número de "Salud" visible en la franja DeFi — sin abrir el tin. Un valor por encima de 1 significa que tu colateral está seguro; por debajo de 1 el protocolo puede liquidarte.',
+		},
+		{
+			selector: '.wallet-tin--defi',
+			title: 'Tu préstamo en Aave',
+			body: 'Dentro ves el colateral depositado, la deuda total y la posición neta por cadena. Monitorea tu exposición de un vistazo para no quedar desprevenido ante una caída de precios.',
+			onShow: function () {
+				var tin = document.querySelector('.wallet-tin--defi');
+				if (tin && tin.classList.contains('is-collapsed')) {
+					var lbl = tin.querySelector('.salmon-tin__label');
+					if (lbl) lbl.click();
+				}
+			},
+		},
+		{
+			selector: '.wallet-tin--future',
+			title: 'NFTs — próximamente',
+			body: 'Aquí aparecerá tu colección de NFTs. Estamos trabajando en ello — inicia sesión para ser de los primeros en acceder cuando esté listo.',
+		},
+		{
+			selector: '.tile--r1c2',
+			title: 'Lleva tus transacciones',
+			body: 'La página de contabilidad registra cada transacción de todas tus billeteras e intercambios en un solo lugar. Inicia sesión para empezar — la misma página crea tu cuenta si aún no tienes una.',
+			onShow: function () {
+				var tile = document.querySelector('.tile--r1c2');
+				if (tile) window.scrollTo({ top: Math.max(0, window.scrollY + tile.getBoundingClientRect().top - 140), behavior: 'smooth' });
+			},
+		},
+	];
 
-	var current     = 0;
-	var highlighted: Element | null = null;
+	var labelsEn = { step: 'Step', of: 'of', back: '← Back', next: 'Next →', finish: 'Log in →' };
+	var labelsEs = { step: 'Paso', of: 'de', back: '← Atrás', next: 'Siguiente →', finish: 'Iniciar sesión →' };
 
-	function clearHighlight() {
-		if (highlighted) {
-			highlighted.classList.remove('demo-tour-highlight');
-			highlighted = null;
-		}
-	}
+	window.TourEngine.register('demo', { en: stepsEn, es: stepsEs }, { en: labelsEn, es: labelsEs }, {
+		onFinish: function () { window.location.href = '/'; },
+	});
 
-	function showStep(idx: number) {
-		clearHighlight();
-		var step   = STEPS[idx];
-		if (step.onShow) step.onShow();
-		var target = document.querySelector(step.selector);
-		if (target) {
-			target.classList.add('demo-tour-highlight');
-			highlighted = target;
-			var rect       = target.getBoundingClientRect();
-			var scrollTop  = window.scrollY + rect.top - 140;
-			window.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-		}
-
-		titleEl!.textContent   = step.title;
-		bodyEl!.textContent    = step.body;
-		counterEl!.textContent = L.step + ' ' + (idx + 1) + ' ' + L.of + ' ' + STEPS.length;
-
-		// Progress dots
-		dotsEl!.innerHTML = '';
-		for (var i = 0; i < STEPS.length; i++) {
-			var dot        = document.createElement('span');
-			var isActive   = i === idx;
-			dot.style.cssText = [
-				'display:inline-block',
-				'height:6px',
-				'border-radius:' + (isActive ? '3px' : '50%'),
-				'width:' + (isActive ? '18px' : '6px'),
-				'background:' + (isActive ? 'var(--accent)' : 'var(--border-bright)'),
-				'transition:all 0.2s',
-			].join(';');
-			dotsEl!.appendChild(dot);
-		}
-
-		(backBtn as HTMLButtonElement).textContent = L.back;
-		(backBtn as HTMLElement).style.display     = idx === 0 ? 'none' : '';
-
-		var isLast   = idx === STEPS.length - 1;
-		var blocked  = !!step.nextLabel;
-		(nextBtn as HTMLButtonElement).textContent = step.nextLabel ?? (isLast ? L.finish : L.next);
-		(nextBtn as HTMLButtonElement).disabled    = blocked;
-		(nextBtn as HTMLElement).style.opacity     = blocked ? '0.45' : '';
-		(nextBtn as HTMLElement).style.cursor      = blocked ? 'default' : '';
-	}
-
-	function startTour() {
-		current = 0;
-		overlay!.style.display = '';
-		tip!.style.display     = '';
-		bar.style.display      = 'none';
-		showStep(current);
-	}
-
-	function endTour() {
-		clearHighlight();
-		overlay!.style.display = 'none';
-		tip!.style.display     = 'none';
-		bar.style.display      = '';
-	}
-
-	// Resume tour after a demo wallet add (chip 2 or 3), or end it if own wallet was added
+	/* Resume after wallet-add page reload */
 	try {
-		var resumeIdx  = sessionStorage.getItem('demo-tour-resume');
-		var tourEnded  = sessionStorage.getItem('demo-tour-end');
+		var resumeIdx = sessionStorage.getItem('demo-tour-resume');
+		var tourEnded = sessionStorage.getItem('demo-tour-end');
 		sessionStorage.removeItem('demo-tour-resume');
 		sessionStorage.removeItem('demo-tour-end');
 		if (!tourEnded && resumeIdx !== null) {
 			var resumeStep = parseInt(resumeIdx, 10);
-			if (!isNaN(resumeStep) && resumeStep < STEPS.length) {
-				current = resumeStep;
-				overlay!.style.display = '';
-				tip!.style.display     = '';
-				bar.style.display      = 'none';
-				showStep(current);
+			if (!isNaN(resumeStep) && resumeStep < stepsEn.length) {
+				window.TourEngine.start('demo', resumeStep);
 			}
 		}
 	} catch(e) {}
-
-	startBtn?.addEventListener('click', startTour);
-	skipBtn?.addEventListener('click', endTour);
-	overlay?.addEventListener('click', endTour);
-
-	backBtn?.addEventListener('click', function () {
-		if (current > 0) { current--; showStep(current); }
-	});
-
-	nextBtn?.addEventListener('click', function () {
-		if (current < STEPS.length - 1) {
-			current++;
-			showStep(current);
-		} else {
-			endTour();
-			window.location.href = '/';
-		}
-	});
 })();
 </script>

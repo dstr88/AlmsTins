@@ -10,6 +10,7 @@ import Layout from '../../../layouts/Layout.astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { hasTaxAccess } from '@/lib/taxAuth';
+import YearEndTour from '../../../components/tours/YearEndTour.astro';
 
 if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
 const { tenantId } = await requireTenantSession(Astro.request);
@@ -163,6 +164,7 @@ const CATEGORY_OPTIONS = [
 				</p>
 			</div>
 			<div class="header-actions">
+				<YearEndTour />
 				<select id="year-sel" class="rq-select" aria-label="Tax year">
 					{availableYears.length === 0
 						? <option value={activeYear}>{activeYear}</option>

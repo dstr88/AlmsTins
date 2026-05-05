@@ -1,0 +1,62 @@
+---
+import TourEngine from '../TourEngine.astro';
+---
+
+<TourEngine
+	tourId="yearend"
+	trigger="button"
+	btnLabel="?"
+	btnTitle="Tour the year-end review"
+/>
+
+<script is:inline>
+(function () {
+	if (!window.TourEngine) return;
+
+	var stepsEn = [
+		{
+			selector: '.rq-header',
+			title: 'Year-End Review',
+			body: 'Select the tax year you\'re reviewing. Each year is processed independently — you can run the classifier on prior years without affecting the current one.',
+		},
+		{
+			selector: '.header-actions',
+			title: 'Re-classify All',
+			body: '"Re-classify All" re-runs the tax pipeline on every transaction for the selected year. Use this after importing missing CSVs or correcting annotations so the classification reflects your latest data.',
+		},
+		{
+			selector: '.rq-group',
+			title: 'Transaction Groups',
+			body: 'Transactions are grouped by classification type — sales, income, transfers, and more. Each group shows the total count and USD value. Expand any group to review individual transactions before generating your tax report.',
+			onShow: function () {
+				var el = document.querySelector('.rq-group');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 120), behavior: 'smooth' });
+			},
+		},
+	];
+
+	var stepsEs = [
+		{
+			selector: '.rq-header',
+			title: 'Revisión de fin de año',
+			body: 'Selecciona el año fiscal que estás revisando. Cada año se procesa de forma independiente — puedes ejecutar el clasificador en años anteriores sin afectar el actual.',
+		},
+		{
+			selector: '.header-actions',
+			title: 'Reclasificar todo',
+			body: '"Reclasificar todo" vuelve a ejecutar el proceso fiscal en cada transacción del año seleccionado. Úsalo después de importar CSVs faltantes o corregir anotaciones para que la clasificación refleje tus datos más recientes.',
+		},
+		{
+			selector: '.rq-group',
+			title: 'Grupos de transacciones',
+			body: 'Las transacciones se agrupan por tipo de clasificación — ventas, ingresos, transferencias y más. Cada grupo muestra el conteo total y el valor en USD. Expande cualquier grupo para revisar las transacciones individuales antes de generar tu informe fiscal.',
+			onShow: function () {
+				var el = document.querySelector('.rq-group');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 120), behavior: 'smooth' });
+			},
+		},
+	];
+
+	window.TourEngine.register('yearend', { en: stepsEn, es: stepsEs }, null, {});
+})();
+</script>

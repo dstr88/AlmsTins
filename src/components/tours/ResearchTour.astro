@@ -1,0 +1,82 @@
+---
+import TourEngine from '../TourEngine.astro';
+---
+
+<TourEngine
+	tourId="research"
+	trigger="button"
+	btnLabel="?"
+	btnTitle="Tour the bookkeeping page"
+/>
+
+<script is:inline>
+(function () {
+	if (!window.TourEngine) return;
+
+	var stepsEn = [
+		{
+			selector: '.col-header',
+			title: 'Needs Attention',
+			body: 'This queue surfaces every transaction that needs a decision — unmatched transfers, missing prices, and anything the system can\'t classify automatically. Work through it to keep your books clean.',
+		},
+		{
+			selector: '.na-ai-actions',
+			title: 'AI Triage & Price Fill',
+			body: 'AI Triage sends your unresolved transactions to Claude for batch classification — obvious buys, income, and self-transfers are auto-applied. Fill Missing Prices backfills historical USD values so cost basis calculations stay accurate.',
+		},
+		{
+			selector: '.search-card',
+			title: 'Transaction Search',
+			body: 'Search your entire transaction history by symbol, amount, date, or source. Filter by direction (in/out) or classification status. Every CSV import and on-chain sync flows through here.',
+		},
+		{
+			selector: '.col-right',
+			title: 'Search Results',
+			body: 'Results show the full detail for each transaction — symbol, amount, USD value, source, and current category. Use the action buttons to annotate, categorize, attach receipts, or get AI help on any transaction.',
+		},
+		{
+			selector: '.health-section',
+			title: 'Dataset Health',
+			body: 'Eleven automatic diagnostics check your data for common problems: missing cost basis, suspicious prices, P2P transfers, failed exchange losses, and more. Run diagnostics any time to see the current state of your dataset.',
+			onShow: function () {
+				var el = document.querySelector('.health-section');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 100), behavior: 'smooth' });
+			},
+		},
+	];
+
+	var stepsEs = [
+		{
+			selector: '.col-header',
+			title: 'Necesita atención',
+			body: 'Esta cola muestra cada transacción que necesita una decisión — transferencias sin coincidencia, precios faltantes, y todo lo que el sistema no puede clasificar automáticamente. Resuélvelas para mantener tus registros limpios.',
+		},
+		{
+			selector: '.na-ai-actions',
+			title: 'IA Triage y llenado de precios',
+			body: 'IA Triage envía tus transacciones sin resolver a Claude para clasificación en lote — compras obvias, ingresos y auto-transferencias se aplican automáticamente. Llenar precios faltantes rellena valores USD históricos para que el costo base sea preciso.',
+		},
+		{
+			selector: '.search-card',
+			title: 'Búsqueda de transacciones',
+			body: 'Busca en todo tu historial de transacciones por símbolo, monto, fecha o fuente. Filtra por dirección (entrada/salida) o estado de clasificación. Todas las importaciones CSV y sincronizaciones on-chain pasan por aquí.',
+		},
+		{
+			selector: '.col-right',
+			title: 'Resultados de búsqueda',
+			body: 'Los resultados muestran el detalle completo de cada transacción — símbolo, monto, valor en USD, fuente y categoría actual. Usa los botones de acción para anotar, categorizar, adjuntar recibos o pedir ayuda de IA en cualquier transacción.',
+		},
+		{
+			selector: '.health-section',
+			title: 'Salud del conjunto de datos',
+			body: 'Once diagnósticos automáticos revisan tus datos en busca de problemas comunes: base de costo faltante, precios sospechosos, transferencias P2P, pérdidas en exchanges cerrados y más. Ejecuta los diagnósticos en cualquier momento para ver el estado actual.',
+			onShow: function () {
+				var el = document.querySelector('.health-section');
+				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 100), behavior: 'smooth' });
+			},
+		},
+	];
+
+	window.TourEngine.register('research', { en: stepsEn, es: stepsEs }, null, {});
+})();
+</script>

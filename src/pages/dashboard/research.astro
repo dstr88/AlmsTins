@@ -3,6 +3,8 @@ import './research.css';
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import AddTransactionModal from '../../components/dashboard/AddTransactionModal.astro';
+import ResearchTour from '../../components/tours/ResearchTour.astro';
+import LostTxTour from '../../components/tours/LostTxTour.astro';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { isAdminSession } from '../../lib/adminGuard';
 import { db } from '../../lib/db';
@@ -172,7 +174,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       <!-- Left: Needs Attention -->
       <div class="col-left">
         <div class="col-header">
-          <h2>Needs Attention <span id="na-count" class="count-badge"></span></h2>
+          <h2>Needs Attention <span id="na-count" class="count-badge"></span> <ResearchTour /> <LostTxTour /></h2>
           <p class="col-scope">All years · Bookkeeping shows current year only <span id="na-synced" class="na-synced-badge" style="display:none"></span></p>
           <div class="na-ai-actions">
             <button id="btn-ai-triage" class="btn-ai-triage" type="button">🤖 AI Triage</button>
