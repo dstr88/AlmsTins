@@ -511,6 +511,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
       const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
 
+      const callout = document.querySelector<HTMLElement>('.demo-callout');
+
       // Sample wallet chips — fill the input field and show "Pasted!" toast
       document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -523,6 +525,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
               hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
               hint.classList.remove('demo-hint--error');
             }
+          }
+          if (callout) {
+            callout.textContent = '👉 Now click → to see the portfolio';
+            callout.classList.add('demo-callout--submit');
           }
           // Show "Pasted!" toast anchored to the clicked chip
           let toast = btn.querySelector<HTMLSpanElement>('.chip-toast');
@@ -777,6 +783,11 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       border-left: 7px solid transparent;
       border-right: 7px solid transparent;
       border-bottom: 7px solid var(--text-primary);
+      transition: left 0.3s ease;
+    }
+    .demo-callout--submit::before {
+      left: auto;
+      right: 3rem;
     }
 
     /* ── Feature stack — demo→first card: clamp(3rem,6vw,5rem) ─ */

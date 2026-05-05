@@ -507,6 +507,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
       const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
 
+      const callout = document.querySelector<HTMLElement>('.demo-callout');
+
       document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const addr  = btn.dataset.demoAddr  ?? '';
@@ -518,6 +520,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
               hint.textContent = 'Sin registro. Ve un portafolio real en 5 segundos. Inicia sesión después para guardarlo.';
               hint.classList.remove('demo-hint--error');
             }
+          }
+          if (callout) {
+            callout.textContent = '👉 Ahora haz clic en → para ver el portafolio';
+            callout.classList.add('demo-callout--submit');
           }
           let toast = btn.querySelector<HTMLSpanElement>('.chip-toast');
           if (!toast) {
@@ -707,6 +713,11 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       border-left: 7px solid transparent;
       border-right: 7px solid transparent;
       border-bottom: 7px solid var(--text-primary);
+      transition: left 0.3s ease;
+    }
+    .demo-callout--submit::before {
+      left: auto;
+      right: 3rem;
     }
 
     .feature-stack {
