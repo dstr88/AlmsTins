@@ -4,6 +4,7 @@ import { normalizeChains, sanitizeAddress, transformWalletRow } from '../../lib/
 import { deriveDefaultLabel } from '../../lib/wallets';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { checkWalletLimit } from '../../lib/subscriptions';
+import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '../../lib/demo';
 
 export const prerender = false;
 
@@ -94,6 +95,51 @@ export const POST: APIRoute = async ({ request }) => {
 				status: 201,
 				headers: { 'Content-Type': 'application/json' },
 			});
+		}
+
+		// Demo shortcut: keys "1", "2", "3" seed pre-configured mock wallets without
+		// going through address validation (which would correctly reject bare numbers).
+		if (tenantId === DEMO_TENANT_ID) {
+			const rawKey = String(body.address ?? '').trim();
+			const demoKey = isDemoWalletAddress(rawKey) ? rawKey : (rawKey.match(/^([123])/)?.[1] ?? null);
+			const demoConfig = demoKey ? DEMO_WALLET_CONFIGS[demoKey] : null;
+			if (demoConfig) {
+				const demoAddress = demoKey; // store as "1"/"2"/"3"
+				const dupCheck = await db.execute({
+					sql: `SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
+					args: [tenantId, demoAddress],
+				});
+				if (dupCheck.rows?.length) {
+					return new Response(JSON.stringify({
+						error: true,
+						code: 'DUPLICATE_ADDRESS',
+						message: 'That demo wallet is already tracked.',
+						existingWalletId: String(dupCheck.rows[0].id ?? ''),
+					}), { status: 409, headers: { 'Content-Type': 'application/json' } });
+				}
+				const inserted = await db.execute({
+					sql: `INSERT INTO wallets (tenant_id, address, label, chains, is_default, wallet_type)
+					      VALUES (?, ?, ?, ?, 0, 'onchain')
+					      RETURNING id, address, label, chains, is_default, created_at, wallet_type`,
+					args: [tenantId, demoAddress, demoConfig.label, JSON.stringify(demoConfig.chains)],
+				});
+				const walletId = String(inserted.rows[0]?.id ?? '');
+				if (walletId) {
+					const totals = demoConfig.tokens.reduce((s, t) => s + t.valueUsd, 0);
+					await db.execute({
+						sql: `INSERT INTO wallet_snapshots
+						      (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd,
+						       collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
+						      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+						args: [tenantId, walletId, demoConfig.chain, totals, JSON.stringify(demoConfig.tokens)],
+					}).catch(() => {});
+				}
+				const wallet = transformWalletRow(inserted.rows[0]);
+				return new Response(JSON.stringify(wallet), {
+					status: 201,
+					headers: { 'Content-Type': 'application/json' },
+				});
+			}
 		}
 
 		// Standard on-chain wallet (EVM, Sui, or Bitcoin — address validation handles all)
