@@ -208,7 +208,7 @@ const { lang = 'en' } = Astro.props;
 	var nextBtn  = document.getElementById('demo-tour-next');
 	var skipBtn  = document.getElementById('demo-tour-skip');
 
-	var STEPS: Array<{ selector: string; title: string; body: string }> = lang === 'es' ? [
+	var STEPS: Array<{ selector: string; title: string; body: string; onShow?: () => void }> = lang === 'es' ? [
 		{
 			selector: '.tile--r1c1',
 			title: 'Bloc de notas',
@@ -237,7 +237,14 @@ const { lang = 'en' } = Astro.props;
 		{
 			selector: '.wallet-tin--wallet',
 			title: 'Tins de billetera',
-			body: 'Cada tin muestra tu saldo on-chain en vivo, token por token. Expándelo para ver precios actuales, días en cartera y ganancias no realizadas.',
+			body: 'Ya está expandido — mira dentro: cada fila muestra el símbolo del token, precio actual, días en cartera y ganancias no realizadas. Así de claro es tu portafolio on-chain.',
+			onShow: function () {
+				var tin = document.querySelector<HTMLElement>('.wallet-tin--wallet');
+				if (tin && tin.classList.contains('is-collapsed')) {
+					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
+					lbl?.click();
+				}
+			},
 		},
 	] : [
 		{
@@ -268,7 +275,14 @@ const { lang = 'en' } = Astro.props;
 		{
 			selector: '.wallet-tin--wallet',
 			title: 'Wallet Tins',
-			body: 'Each tin shows your live on-chain holdings, token by token. Expand it to see current prices, days held, and unrealized gains.',
+			body: 'It\'s now open — look inside: each row shows the token symbol, current price, days held, and unrealized gain or loss. That\'s your full on-chain picture at a glance.',
+			onShow: function () {
+				var tin = document.querySelector<HTMLElement>('.wallet-tin--wallet');
+				if (tin && tin.classList.contains('is-collapsed')) {
+					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
+					lbl?.click();
+				}
+			},
 		},
 	];
 
@@ -289,6 +303,7 @@ const { lang = 'en' } = Astro.props;
 	function showStep(idx: number) {
 		clearHighlight();
 		var step   = STEPS[idx];
+		if (step.onShow) step.onShow();
 		var target = document.querySelector(step.selector);
 		if (target) {
 			target.classList.add('demo-tour-highlight');
