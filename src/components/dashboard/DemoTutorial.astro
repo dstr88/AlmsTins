@@ -297,7 +297,7 @@ const { lang = 'en' } = Astro.props;
 		{
 			selector: '.tile--r1c2',
 			title: 'Lleva tus transacciones',
-			body: 'La página de contabilidad registra cada transacción de todas tus billeteras e intercambios en un solo lugar. Regístrate gratis para empezar — o inicia sesión si ya tienes cuenta.',
+			body: 'La página de contabilidad registra cada transacción de todas tus billeteras e intercambios en un solo lugar. Inicia sesión para empezar — la misma página crea tu cuenta si aún no tienes una.',
 			onShow: function () {
 				var tile = document.querySelector<HTMLElement>('.tile--r1c2');
 				if (tile) {
@@ -390,7 +390,7 @@ const { lang = 'en' } = Astro.props;
 		{
 			selector: '.tile--r1c2',
 			title: 'Track your transactions',
-			body: 'The bookkeeping page pulls in every transaction from all your wallets and exchanges in one place. Sign up free to get started — or log in if you already have an account.',
+			body: 'The bookkeeping page pulls in every transaction from all your wallets and exchanges in one place. Log in to get started — the same page creates your account if you don\'t have one yet.',
 			onShow: function () {
 				var tile = document.querySelector<HTMLElement>('.tile--r1c2');
 				if (tile) {
@@ -402,8 +402,8 @@ const { lang = 'en' } = Astro.props;
 	];
 
 	var L = lang === 'es'
-		? { step: 'Paso', of: 'de', back: '← Atrás', next: 'Siguiente →', finish: 'Regístrate gratis →' }
-		: { step: 'Step', of: 'of',  back: '← Back',  next: 'Next →',      finish: 'Sign up free →' };
+		? { step: 'Paso', of: 'de', back: '← Atrás', next: 'Siguiente →', finish: 'Iniciar sesión →' }
+		: { step: 'Step', of: 'of',  back: '← Back',  next: 'Next →',      finish: 'Log in →' };
 
 	var current     = 0;
 	var highlighted: Element | null = null;
