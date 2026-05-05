@@ -257,23 +257,19 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     </div>
   </main>
 
-  <!-- ── Hesitation modal (shown after 30s of no interaction) ────────── -->
+  <!-- ── Demo invite modal (shown after 30s of no interaction) ──────── -->
   <div class="hesitation-overlay hidden" id="hesitationOverlay" role="dialog" aria-modal="true" aria-labelledby="hesitationTitle">
     <div class="hesitation-modal">
       <button class="hesitation-close" id="hesitationClose" aria-label="Close">✕</button>
-      <h3 id="hesitationTitle">Got a question before you sign up?</h3>
-      <p>We read everything — great questions end up in the FAQ.</p>
-      <form id="contact-form" autocomplete="off" novalidate>
-        <input id="contact-subject" type="text" name="subject" maxlength="120"
-          placeholder="Subject" class="contact-input" required />
-        <div class="contact-body-wrap">
-          <textarea id="contact-body" name="body" maxlength="500" rows="4"
-            placeholder="Your question or thought…" class="contact-input contact-textarea" required></textarea>
-          <div class="contact-char"><span id="contact-char-count">0</span> / 500</div>
-        </div>
-        <button type="submit" class="contact-submit">Submit anonymously</button>
-        <p id="contact-status" class="contact-status" hidden></p>
-      </form>
+      <div class="demo-invite-icon">👋</div>
+      <h3 id="hesitationTitle">See it live — no signup needed</h3>
+      <p>Pick a sample wallet and explore a real portfolio dashboard instantly.</p>
+      <div class="demo-invite-chips">
+        <button class="demo-invite-chip" type="button" data-invite-addr="1">🔷 ETH wallet</button>
+        <button class="demo-invite-chip" type="button" data-invite-addr="2">🟣 SOL wallet</button>
+        <button class="demo-invite-chip" type="button" data-invite-addr="3">⚡ DeFi wallet</button>
+      </div>
+      <p class="demo-invite-note">Or type any address in the field above ↑</p>
     </div>
   </div>
 
@@ -419,14 +415,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       tabMagic?.addEventListener('click', () => switchTab(false));
     })();
 
-    // ── Hesitation modal (30s timer, reset on interaction) ───────────
+    // ── Demo invite modal (30s timer, reset on interaction) ─────────
     (() => {
-      const overlay = document.getElementById('hesitationOverlay');
+      const overlay  = document.getElementById('hesitationOverlay');
       const closeBtn = document.getElementById('hesitationClose');
-      const form     = document.getElementById('contact-form') as HTMLFormElement | null;
-      const body     = document.getElementById('contact-body') as HTMLTextAreaElement | null;
-      const counter  = document.getElementById('contact-char-count');
-      const status   = document.getElementById('contact-status');
 
       if (!overlay) return;
 
@@ -464,45 +456,18 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       });
       resetTimer();
 
-      body?.addEventListener('input', () => {
-        if (counter) counter.textContent = String(body.value.length);
-      });
-
-      form?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const subject = (document.getElementById('contact-subject') as HTMLInputElement)?.value.trim();
-        const bodyVal = body?.value.trim();
-        if (!subject || !bodyVal) return;
-        const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
-        try {
-          const res = await fetch('/api/contact', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subject, body: bodyVal }),
-          });
-          const data = await res.json();
-          if (data.ok) {
-            form.reset();
-            if (counter) counter.textContent = '0';
-            if (status) {
-              status.textContent = '✓ Submitted — thanks!';
-              status.className = 'contact-status contact-status--ok';
-              status.hidden = false;
-            }
-            setTimeout(dismiss, 2500);
-          } else { throw new Error(data.error ?? 'Submit failed'); }
-        } catch (err: unknown) {
-          if (status) {
-            status.textContent = err instanceof Error ? err.message : 'Something went wrong';
-            status.className = 'contact-status contact-status--err';
-            status.hidden = false;
+      // Clicking a chip submits the demo form with that address
+      overlay.querySelectorAll<HTMLButtonElement>('[data-invite-addr]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const addr = btn.dataset.inviteAddr ?? '';
+          const demoInput = document.querySelector('.landing__demo-input') as HTMLInputElement | null;
+          const demoForm  = document.getElementById('demoForm') as HTMLFormElement | null;
+          if (demoInput && demoForm) {
+            demoInput.value = addr;
+            dismiss();
+            demoForm.requestSubmit();
           }
-        } finally {
-          btn.disabled = false;
-          btn.textContent = 'Submit anonymously';
-        }
+        });
       });
     })();
 
@@ -1075,7 +1040,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .stack button[type="submit"]:hover { opacity: 0.88; transform: translateY(-1px); }
 
     /* ── Social proof ─────────────────────────────────────────────── */
-    /* ── Hesitation modal ──────────────────────────────────────── */
+    /* ── Demo invite modal ─────────────────────────────────────── */
     .hesitation-overlay {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
@@ -1085,45 +1050,32 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .hesitation-overlay.hidden { display: none !important; }
     .hesitation-modal {
       position: relative;
-      background: #0f1624; border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 1rem; padding: 2rem; width: 100%; max-width: 30rem;
+      background: var(--surface-card-2); border: 1px solid var(--border-bright);
+      border-radius: 1rem; padding: 2rem; width: 100%; max-width: 26rem;
       box-shadow: 0 2rem 5rem rgba(0,0,0,0.6);
-      animation: modalIn 0.22s ease;
+      animation: modalIn 0.22s ease; text-align: center;
     }
     @keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(0.625rem); } to { opacity:1; transform:none; } }
     .hesitation-close {
       position: absolute; top: 0.85rem; right: 0.85rem;
-      background: none; border: none; color: rgba(255,255,255,0.35);
+      background: none; border: none; color: var(--text-muted);
       font-size: 1rem; cursor: pointer; padding: 0.25rem; line-height: 1;
       border-radius: 0.25rem; transition: color 0.15s;
     }
-    .hesitation-close:hover { color: #fff; }
-    .hesitation-modal h3 { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.4rem; }
-    .hesitation-modal p  { font-size: 0.85rem; color: rgba(255,255,255,0.45); margin: 0 0 1.25rem; }
-
-    .contact-input {
-      width: 100%; box-sizing: border-box;
-      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 0.5rem; color: rgba(255,255,255,0.9);
-      font-size: 0.88rem; padding: 0.55rem 0.8rem;
-      font-family: inherit; outline: none;
-      transition: border-color 0.15s; display: block; margin-bottom: 0.7rem;
+    .hesitation-close:hover { color: var(--text-primary); }
+    .demo-invite-icon { font-size: 2rem; margin-bottom: 0.6rem; }
+    .hesitation-modal h3 { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.5rem; color: var(--text-primary); }
+    .hesitation-modal > p { font-size: 0.875rem; color: var(--text-secondary); margin: 0 0 1.4rem; }
+    .demo-invite-chips { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.1rem; }
+    .demo-invite-chip {
+      width: 100%; padding: 0.65rem 1rem; border-radius: 0.6rem;
+      background: var(--accent-soft); border: 1px solid var(--accent-glow);
+      color: var(--accent); font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; transition: background 0.15s, border-color 0.15s;
+      font-family: inherit; text-align: left;
     }
-    .contact-input:focus { border-color: rgba(99,102,241,0.5); }
-    .contact-body-wrap { position: relative; margin-bottom: 0.7rem; }
-    .contact-body-wrap .contact-input { margin-bottom: 0; resize: vertical; min-height: 5.625rem; line-height: 1.5; }
-    .contact-char { text-align: right; font-size: 0.7rem; opacity: 0.3; margin-top: 0.2rem; }
-    .contact-submit {
-      padding: 0.5rem 1.25rem; border-radius: 0.5rem;
-      border: 1px solid rgba(99,102,241,0.4); background: rgba(99,102,241,0.12);
-      color: rgba(165,180,252,0.9); font-size: 0.85rem; font-weight: 700;
-      cursor: pointer; transition: background 0.15s; font-family: inherit;
-    }
-    .contact-submit:hover:not(:disabled) { background: rgba(99,102,241,0.22); }
-    .contact-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-    .contact-status { font-size: 0.82rem; margin: 0.65rem 0 0; }
-    .contact-status--ok  { color: var(--gain); }
-    .contact-status--err { color: var(--loss); }
+    .demo-invite-chip:hover { background: var(--accent-glow); border-color: var(--accent); }
+    .demo-invite-note { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
     .demo-hint--error { color: var(--loss); }
 
     /* ── Session popup ─────────────────────────────────────────── */
