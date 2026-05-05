@@ -80,6 +80,12 @@ import './AddAssetTin.css';
 		<button class="add-tin__submit" type="button" data-add-submit>
 			Add Wallet
 		</button>
+		<div class="add-tin__demo-samples" id="addTinDemoSamples" style="display:none">
+			<span class="add-tin__demo-samples-label">Sample addresses:</span>
+			<button class="add-tin__demo-sample" type="button" data-fill-addr="1">1 — ETH</button>
+			<button class="add-tin__demo-sample" type="button" data-fill-addr="2">2 — SOL</button>
+			<button class="add-tin__demo-sample" type="button" data-fill-addr="3">3 — DeFi</button>
+		</div>
 		<p class="add-tin__message" data-add-message aria-live="polite"></p>
 	</div>
 
@@ -483,6 +489,25 @@ import './AddAssetTin.css';
 	});
 
 	if (isDemo) {
+		// Show sample address chips
+		var samplesEl = document.getElementById('addTinDemoSamples');
+		if (samplesEl) {
+			samplesEl.style.display = '';
+			samplesEl.querySelectorAll('[data-fill-addr]').forEach(function (btn) {
+				btn.addEventListener('click', function () {
+					var addr = btn.dataset.fillAddr || '';
+					var addrInput = document.querySelector('[data-add-address]');
+					if (addrInput) {
+						addrInput.value = addr;
+						// trigger auto-chain-detect
+						addrInput.dispatchEvent(new Event('input'));
+					}
+					var submitBtn = document.querySelector('[data-add-submit]');
+					if (submitBtn) submitBtn.click();
+				});
+			});
+		}
+
 		// Show the red "Delete All" pill
 		var clearBtn = document.getElementById('demo-clear-btn');
 		if (clearBtn) {

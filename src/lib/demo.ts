@@ -27,3 +27,54 @@ export function demoCookieSet(): string {
 export function demoCookieClear(): string {
 	return `${DEMO_COOKIE_NAME}=; Path=/; SameSite=Lax; Max-Age=0`;
 }
+
+// ── Demo wallet addresses ─────────────────────────────────────────────────────
+
+type TokenEntry = {
+	symbol: string;
+	amount: number;
+	priceUsd: number;
+	valueUsd: number;
+	tokenAddress: null;
+};
+
+export interface DemoWalletConfig {
+	label:  string;
+	chain:  string;
+	chains: string[];
+	tokens: TokenEntry[];
+}
+
+export const DEMO_WALLET_CONFIGS: Record<string, DemoWalletConfig> = {
+	'1': {
+		label:  'Ethereum Wallet',
+		chain:  'ethereum',
+		chains: ['ethereum', 'polygon', 'avalanche'],
+		tokens: [
+			{ symbol: 'ETH',  amount: 0.02, priceUsd: 3100, valueUsd: 62, tokenAddress: null },
+			{ symbol: 'USDC', amount: 20,   priceUsd: 1,    valueUsd: 20, tokenAddress: null },
+		],
+	},
+	'2': {
+		label:  'Solana Wallet',
+		chain:  'solana',
+		chains: ['solana'],
+		tokens: [
+			{ symbol: 'SOL',  amount: 0.4,    priceUsd: 145,     valueUsd: 58, tokenAddress: null },
+			{ symbol: 'BONK', amount: 500000, priceUsd: 0.00003, valueUsd: 15, tokenAddress: null },
+		],
+	},
+	'3': {
+		label:  'DeFi Wallet',
+		chain:  'avalanche',
+		chains: ['ethereum', 'polygon', 'avalanche'],
+		tokens: [
+			{ symbol: 'WETH', amount: 0.015, priceUsd: 3100, valueUsd: 46.50, tokenAddress: null },
+			{ symbol: 'AVAX', amount: 1.5,   priceUsd: 25,   valueUsd: 37.50, tokenAddress: null },
+		],
+	},
+};
+
+export function isDemoWalletAddress(address: string): boolean {
+	return Object.prototype.hasOwnProperty.call(DEMO_WALLET_CONFIGS, address);
+}

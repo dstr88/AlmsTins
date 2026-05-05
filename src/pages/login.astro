@@ -211,6 +211,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             <button class="landing__demo-submit" type="submit" aria-label="Go">→</button>
           </form>
           <p class="landing__demo-hint" id="demoHint">See transactions, flagged gaps, and what the IRS will ask about. No signup needed.</p>
+          <div class="landing__demo-samples">
+            <span class="landing__demo-samples-label">Or try a sample:</span>
+            <button class="landing__demo-sample" type="button" data-demo-addr="1">1 — ETH wallet</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="2">2 — SOL wallet</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="3">3 — DeFi wallet</button>
+          </div>
           <p class="landing__demo-signup">Login creates an account for free.</p>
         </div>
 
@@ -525,7 +531,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       const LTC_LEGACY_RE = /^[LM][a-zA-HJ-NP-Z0-9]{25,34}$/;
       const SOL_RE     = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
+      const DEMO_WALLET_ADDRS = new Set(['1', '2', '3']);
       function isKnownAddress(addr: string): boolean {
+        if (DEMO_WALLET_ADDRS.has(addr)) return true;
         return EVM_RE.test(addr) || BTC_BECH_RE.test(addr) || BTC_LEGACY_RE.test(addr)
           || LTC_BECH_RE.test(addr) || LTC_LEGACY_RE.test(addr) || SOL_RE.test(addr);
       }
@@ -535,6 +543,14 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       if (!form) return;
 
       const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
+
+      // Sample wallet chips — click to fill + submit
+      document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const addr = btn.dataset.demoAddr ?? '';
+          window.location.href = `/api/demo/start?address=${encodeURIComponent(addr)}`;
+        });
+      });
 
       // Clear warning on new input
       input?.addEventListener('input', () => {
@@ -702,6 +718,32 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       color: var(--text-muted);
       margin-top: 0.75rem;
       text-align: center;
+    }
+    .landing__demo-samples {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.65rem;
+      justify-content: center;
+    }
+    .landing__demo-samples-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+    .landing__demo-sample {
+      font-size: 0.78rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-bright);
+      background: var(--surface-card-2);
+      color: var(--accent);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .landing__demo-sample:hover {
+      background: var(--accent-soft);
+      border-color: var(--accent);
     }
     .landing__demo-signup {
       font-size: 0.8rem;

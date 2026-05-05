@@ -8,7 +8,7 @@
  */
 
 import type { APIRoute } from 'astro';
-import { demoCookieSet, DEMO_TENANT_ID } from '../../../lib/demo';
+import { demoCookieSet, DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '../../../lib/demo';
 import { db } from '../../../lib/db';
 
 /** Tables to clear on each new demo session (order avoids FK issues). */
@@ -48,13 +48,41 @@ export const GET: APIRoute = async ({ request }) => {
 
 	// Seed the wallet the visitor pasted on the landing page
 	if (address) {
-		const chains = detectChains(address);
+		// Known demo addresses use pre-defined chains; real addresses use detection
+		const config  = isDemoWalletAddress(address) ? DEMO_WALLET_CONFIGS[address] : null;
+		const chains  = config ? config.chains : detectChains(address);
+
 		await db
 			.execute({
-				sql:  `INSERT INTO wallets (tenant_id, address, chains) VALUES (?, ?, ?)`,
-				args: [DEMO_TENANT_ID, address.toLowerCase(), JSON.stringify(chains)],
+				sql:  `INSERT INTO wallets (tenant_id, address, label, chains) VALUES (?, ?, ?, ?)`,
+				args: [DEMO_TENANT_ID, address.toLowerCase(), config?.label ?? address, JSON.stringify(chains)],
 			})
 			.catch(() => { /* ignore duplicate or schema issues */ });
+
+		// Pre-seed mock snapshot so the tin renders immediately on vault load
+		if (config) {
+			const walletRow = await db
+				.execute({
+					sql:  `SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
+					args: [DEMO_TENANT_ID, address.toLowerCase()],
+				})
+				.catch(() => null);
+
+			const walletId = walletRow?.rows?.[0]?.id;
+			if (walletId) {
+				const totals = config.tokens.reduce((s, t) => s + t.valueUsd, 0);
+				await db
+					.execute({
+						sql:  `INSERT INTO wallet_snapshots
+						         (tenant_id, wallet_id, chain, totals_usd,
+						          collateral_usd, debt_usd, collateral_apy_pct,
+						          borrow_apy_pct, net_rate_pct, payload_json, captured_at)
+						       VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+						args: [DEMO_TENANT_ID, walletId, config.chain, totals, JSON.stringify(config.tokens)],
+					})
+					.catch(() => {});
+			}
+		}
 	}
 
 	// Increment demo session counter (best-effort — never blocks the redirect)
