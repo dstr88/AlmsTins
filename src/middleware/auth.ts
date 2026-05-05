@@ -20,6 +20,7 @@ export function isPublicPath(pathname: string): boolean {
 	return (
 		pathname === '/login' ||
 		pathname.startsWith('/login/') ||
+		pathname === '/es' ||
 		pathname === '/signup' ||
 		pathname.startsWith('/signup/') ||
 		pathname === '/wallet' ||
