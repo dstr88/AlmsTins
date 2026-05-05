@@ -546,18 +546,30 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
       const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
 
-      // Sample wallet chips — fill the input field only, let user click the arrow
+      // Sample wallet chips — fill the input field and show "Pasted!" toast
       document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const addr = btn.dataset.demoAddr ?? '';
+          const label = btn.textContent?.trim() ?? addr;
           if (input) {
-            input.value = btn.textContent?.trim() ?? addr;
+            input.value = label;
             input.focus();
             if (hint) {
               hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
               hint.style.color = '';
             }
           }
+          // Show "Pasted!" toast anchored to the clicked chip
+          let toast = btn.querySelector<HTMLSpanElement>('.chip-toast');
+          if (!toast) {
+            toast = document.createElement('span');
+            toast.className = 'chip-toast';
+            toast.textContent = 'Pasted!';
+            btn.appendChild(toast);
+          }
+          toast.classList.remove('chip-toast--show');
+          void toast.offsetWidth; // force reflow so animation restarts
+          toast.classList.add('chip-toast--show');
         });
       });
 
@@ -753,6 +765,33 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .landing__demo-sample:hover {
       background: var(--accent-soft);
       border-color: var(--accent);
+    }
+    .landing__demo-sample { position: relative; }
+    .chip-toast {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      background: var(--accent);
+      color: var(--surface-bg);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .chip-toast--show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      animation: chip-toast-fade 1.4s forwards;
+    }
+    @keyframes chip-toast-fade {
+      0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
+      70%  { opacity: 1; }
+      100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
     }
     .landing__demo-signup {
       font-size: 0.8rem;
