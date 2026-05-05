@@ -4,6 +4,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getCache, setCache } from '@/lib/tursoCache';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { normalizeNetWorthSummary } from '@/lib/networth/summaryContract';
+import { DEMO_TENANT_ID } from '@/lib/demo';
 
 export const prerender = false;
 
@@ -46,6 +47,33 @@ export const GET: APIRoute = async ({ request, locals }) => {
 				logPerf(401);
 				return new Response('Unauthorized', { status: 401 });
 			}
+		}
+
+		// Demo sessions reset on every visit — skip all caching so stale $0 data
+		// from a previous demo visit never bleeds into the next one.
+		if (tenantId === DEMO_TENANT_ID) {
+			const summary = await getLatestNetWorthSummary(tenantId);
+			const normalized = normalizeNetWorthSummary({ summary });
+			const capturedAtByChain = await getLatestSnapshotCapturedAtByChain(tenantId);
+			const preCaptured = normalized.byChain.map((row) => ({
+				...row,
+				capturedAt: row.capturedAt ?? capturedAtByChain.get(row.chain) ?? null,
+			}));
+			const overallCapturedAt =
+				preCaptured.map((r) => r.capturedAt).filter(Boolean).sort().at(-1) ?? new Date().toISOString();
+			const summaryPayload = {
+				totalUsd: normalized.totalUsd,
+				totalAssetsUsd: normalized.totalAssetsUsd,
+				totalFreeAssetsUsd: normalized.totalFreeAssetsUsd,
+				totalDebtUsd: normalized.totalDebtUsd,
+				byChain: preCaptured.map((r) => ({ ...r, capturedAt: r.capturedAt ?? overallCapturedAt })),
+				tins: normalized.tins,
+				capturedAt: overallCapturedAt,
+			};
+			return new Response(JSON.stringify({ ok: true, summary: summaryPayload, cached: false }), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' },
+			});
 		}
 
 		const cacheKey = `t:${tenantId}:networth:summary:v3`;
