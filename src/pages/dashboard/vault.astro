@@ -116,7 +116,7 @@ const getChainBadge = (chains: string[]): string => {
 };
 ---
 
-<Layout title="Vault | Almstins" noindex={true}>
+<Layout title={isDemo ? 'Demo Vault | Almstins' : 'Vault | Almstins'} noindex={true}>
 	<section class="vault-page">
 		<div class="hero-bleed">
 			<NetWorthHero title="Vault" subtitle="TradFi + DeFi vault overview" />
