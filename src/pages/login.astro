@@ -219,7 +219,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             <button class="landing__demo-sample" type="button" data-demo-addr="2" data-demo-label="2 — SOL wallet">2 — SOL wallet</button>
             <button class="landing__demo-sample" type="button" data-demo-addr="3" data-demo-label="3 — DeFi wallet">3 — DeFi wallet</button>
           </div>
-          <p class="landing__demo-signup">Login creates an account for free.</p>
+          <div class="demo-callout">👆 Click a wallet to explore instantly</div>
         </div>
 
         <!-- Three feature cards — stacked vertically -->
@@ -758,11 +758,25 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       70%  { opacity: 1; }
       100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
     }
-    .landing__demo-signup {
-      font-size: 0.8rem;
-      color: var(--accent-dim);
-      margin-top: 0.4rem;
+    .demo-callout {
+      position: relative;
+      background: var(--text-primary);
+      color: var(--surface-bg);
+      border-radius: 8px;
+      padding: 0.55rem 1rem;
+      margin-top: 0.75rem;
+      font-size: 0.82rem;
+      font-weight: 600;
       text-align: center;
+    }
+    .demo-callout::before {
+      content: '';
+      position: absolute;
+      top: -7px;
+      left: 1.75rem;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 7px solid var(--text-primary);
     }
 
     /* ── Feature stack — demo→first card: clamp(3rem,6vw,5rem) ─ */
