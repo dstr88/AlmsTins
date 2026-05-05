@@ -546,7 +546,14 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const addr = btn.dataset.demoAddr ?? '';
-          window.location.href = `/api/demo/start?address=${encodeURIComponent(addr)}`;
+          if (input) {
+            input.value = addr;
+            input.focus();
+            if (hint) {
+              hint.textContent = 'Sin registro. Ve un portafolio real en 5 segundos. Inicia sesión después para guardarlo.';
+              hint.style.color = '';
+            }
+          }
         });
       });
 

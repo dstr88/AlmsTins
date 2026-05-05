@@ -546,11 +546,18 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
       const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
 
-      // Sample wallet chips — click to fill + submit
+      // Sample wallet chips — fill the input field only, let user click the arrow
       document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const addr = btn.dataset.demoAddr ?? '';
-          window.location.href = `/api/demo/start?address=${encodeURIComponent(addr)}`;
+          if (input) {
+            input.value = addr;
+            input.focus();
+            if (hint) {
+              hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
+              hint.style.color = '';
+            }
+          }
         });
       });
 
