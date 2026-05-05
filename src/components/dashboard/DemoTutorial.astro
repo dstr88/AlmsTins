@@ -38,16 +38,28 @@ const { lang = 'en' } = Astro.props;
 
 <style>
 /* ── Tour launch bar ───────────────────────────────────────────────────────── */
+@keyframes tourBarFadeIn {
+	from { opacity: 0; transform: translateY(-6px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes tourCtaPulse {
+	0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+	50%       { box-shadow: 0 0 0 8px transparent; }
+}
 .demo-tour-bar {
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	gap: 0.75rem;
 	flex-wrap: wrap;
 	background: var(--accent-soft);
 	border: 1px solid var(--accent-glow);
 	border-radius: 10px;
-	padding: 0.7rem 1.25rem;
+	padding: 0.8rem 1.5rem;
 	margin-bottom: 1.25rem;
+	text-align: center;
+	opacity: 0;
+	animation: tourBarFadeIn 0.6s ease 0.8s forwards;
 }
 .demo-tour-bar__icon {
 	color: var(--accent);
@@ -55,7 +67,6 @@ const { lang = 'en' } = Astro.props;
 	flex-shrink: 0;
 }
 .demo-tour-bar__copy {
-	flex: 1;
 	color: var(--text-secondary);
 	font-size: 0.875rem;
 }
@@ -64,14 +75,18 @@ const { lang = 'en' } = Astro.props;
 	color: var(--surface-bg);
 	border: none;
 	border-radius: 6px;
-	padding: 0.4rem 1.1rem;
-	font-size: 0.875rem;
-	font-weight: 600;
+	padding: 0.45rem 1.3rem;
+	font-size: 0.9rem;
+	font-weight: 700;
 	cursor: pointer;
 	white-space: nowrap;
 	transition: opacity 0.15s;
+	animation: tourCtaPulse 2s ease-in-out 1.6s infinite;
 }
-.demo-tour-bar__cta:hover { opacity: 0.88; }
+.demo-tour-bar__cta:hover {
+	opacity: 0.88;
+	animation: none;
+}
 
 /* ── Backdrop ──────────────────────────────────────────────────────────────── */
 .demo-tour-overlay {
