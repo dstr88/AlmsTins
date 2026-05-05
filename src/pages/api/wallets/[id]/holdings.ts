@@ -619,7 +619,12 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 				sql: 'SELECT address FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 				args: [walletId, tenantId],
 			});
-			const demoAddress = String(walletRow.rows[0]?.address ?? '');
+			let demoAddress = String(walletRow.rows[0]?.address ?? '');
+			// Normalize stale label addresses ("1 — billetera eth" → "1")
+			if (!isDemoWalletAddress(demoAddress)) {
+				const m = demoAddress.match(/^([123])/);
+				if (m) demoAddress = m[1];
+			}
 			if (isDemoWalletAddress(demoAddress)) {
 				const config = DEMO_WALLET_CONFIGS[demoAddress]!;
 				const CHAIN_ID_MAP: Record<string, number> = {
