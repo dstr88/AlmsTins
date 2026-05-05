@@ -710,17 +710,21 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .demo-callout::before {
       content: '';
       position: absolute;
-      top: -34px;
+      top: -12px;
       left: 14rem;
       border-left: 7px solid transparent;
       border-right: 7px solid transparent;
-      border-bottom: 34px solid var(--text-primary);
+      border-bottom: 12px solid var(--text-primary);
       transition: left 0.3s ease;
       z-index: 3;
     }
     .demo-callout--submit::before {
       left: auto;
       right: 0.5rem;
+      top: -80px;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-bottom: 80px solid var(--text-primary);
     }
 
     .feature-stack {
