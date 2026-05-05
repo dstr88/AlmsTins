@@ -488,7 +488,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             if (counter) counter.textContent = '0';
             if (status) {
               status.textContent = '✓ Submitted — thanks!';
-              (status as HTMLElement).style.color = '#4ade80';
+              status.className = 'contact-status contact-status--ok';
               status.hidden = false;
             }
             setTimeout(dismiss, 2500);
@@ -496,7 +496,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         } catch (err: unknown) {
           if (status) {
             status.textContent = err instanceof Error ? err.message : 'Something went wrong';
-            (status as HTMLElement).style.color = '#f87171';
+            status.className = 'contact-status contact-status--err';
             status.hidden = false;
           }
         } finally {
@@ -556,7 +556,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             input.focus();
             if (hint) {
               hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
-              hint.style.color = '';
+              hint.classList.remove('demo-hint--error');
             }
           }
           // Show "Pasted!" toast anchored to the clicked chip
@@ -577,7 +577,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       input?.addEventListener('input', () => {
         if (hint) {
           hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
-          hint.style.color = '';
+          hint.classList.remove('demo-hint--error');
         }
       });
 
@@ -589,7 +589,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         if (address && !isKnownAddress(address)) {
           if (hint) {
             hint.textContent = '⚠ Wallet not recognized — try an Ethereum (0x…), Bitcoin, or Solana address.';
-            hint.style.color = 'var(--loss)';
+            hint.classList.add('demo-hint--error');
           }
           return;
         }
@@ -753,6 +753,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       color: var(--text-muted);
     }
     .landing__demo-sample {
+      position: relative;
       font-size: 0.78rem;
       padding: 0.2rem 0.6rem;
       border-radius: 999px;
@@ -766,7 +767,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       background: var(--accent-soft);
       border-color: var(--accent);
     }
-    .landing__demo-sample { position: relative; }
     .chip-toast {
       position: absolute;
       bottom: calc(100% + 6px);
@@ -1122,6 +1122,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .contact-submit:hover:not(:disabled) { background: rgba(99,102,241,0.22); }
     .contact-submit:disabled { opacity: 0.5; cursor: not-allowed; }
     .contact-status { font-size: 0.82rem; margin: 0.65rem 0 0; }
+    .contact-status--ok  { color: var(--gain); }
+    .contact-status--err { color: var(--loss); }
+    .demo-hint--error { color: var(--loss); }
 
     /* ── Session popup ─────────────────────────────────────────── */
     .session-overlay {
