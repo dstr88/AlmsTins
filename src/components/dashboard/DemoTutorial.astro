@@ -208,7 +208,12 @@ const { lang = 'en' } = Astro.props;
 	var nextBtn  = document.getElementById('demo-tour-next');
 	var skipBtn  = document.getElementById('demo-tour-skip');
 
-	var STEPS: Array<{ selector: string; title: string; body: string; onShow?: () => void }> = lang === 'es' ? [
+	// Index of the "Sample Wallets" step (between Add a Wallet and Smart Import)
+	var SAMPLE_WALLETS_IDX = 3;
+	// Index to resume at after a demo wallet is added
+	var RESUME_AFTER_ADD   = 4;
+
+	var STEPS: Array<{ selector: string; title: string; body: string; nextLabel?: string; onShow?: () => void }> = lang === 'es' ? [
 		{
 			selector: '.tile--r1c1',
 			title: 'Bloc de notas',
@@ -227,10 +232,22 @@ const { lang = 'en' } = Astro.props;
 		{
 			selector: '#addTinDemoSamples',
 			title: 'Billeteras de muestra',
-			body: 'Haz clic en "2 — SOL" o "3 — DeFi" y pulsa → para añadirla. Cada una trae saldos reales precargados para que veas cómo se ve un portafolio completo.',
+			body: 'Haz clic en "2 — SOL" o "3 — DeFi" para continuar el tour, o pega tu propia dirección para explorar tu portafolio real (el tour terminará).',
+			nextLabel: 'Agrega una billetera ↑',
 			onShow: function () {
 				var samples = document.getElementById('addTinDemoSamples');
 				if (samples) samples.style.display = '';
+				var chipUsed = false;
+				samples?.querySelectorAll<HTMLElement>('[data-fill-addr="2"],[data-fill-addr="3"]').forEach(function (btn) {
+					btn.addEventListener('click', function () { chipUsed = true; }, { capture: true, once: true });
+				});
+				var submitBtn = document.querySelector('[data-add-submit]');
+				submitBtn?.addEventListener('click', function () {
+					try {
+						if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(RESUME_AFTER_ADD));
+						else          sessionStorage.setItem('demo-tour-end', '1');
+					} catch(e) {}
+				}, { once: true });
 			},
 		},
 		{
@@ -274,10 +291,22 @@ const { lang = 'en' } = Astro.props;
 		{
 			selector: '#addTinDemoSamples',
 			title: 'Sample Wallets',
-			body: 'Click "2 — SOL" or "3 — DeFi" and hit → to add it. Each one comes pre-loaded with real balances so you can see what a full portfolio looks like.',
+			body: 'Click "2 — SOL" or "3 — DeFi" to continue the tour, or paste your own address to explore your real portfolio (the tour will end).',
+			nextLabel: 'Add a wallet ↑',
 			onShow: function () {
 				var samples = document.getElementById('addTinDemoSamples');
 				if (samples) samples.style.display = '';
+				var chipUsed = false;
+				samples?.querySelectorAll<HTMLElement>('[data-fill-addr="2"],[data-fill-addr="3"]').forEach(function (btn) {
+					btn.addEventListener('click', function () { chipUsed = true; }, { capture: true, once: true });
+				});
+				var submitBtn = document.querySelector('[data-add-submit]');
+				submitBtn?.addEventListener('click', function () {
+					try {
+						if (chipUsed) sessionStorage.setItem('demo-tour-resume', String(RESUME_AFTER_ADD));
+						else          sessionStorage.setItem('demo-tour-end', '1');
+					} catch(e) {}
+				}, { once: true });
 			},
 		},
 		{
@@ -354,8 +383,12 @@ const { lang = 'en' } = Astro.props;
 		(backBtn as HTMLButtonElement).textContent = L.back;
 		(backBtn as HTMLElement).style.display     = idx === 0 ? 'none' : '';
 
-		var isLast = idx === STEPS.length - 1;
-		(nextBtn as HTMLButtonElement).textContent = isLast ? L.finish : L.next;
+		var isLast   = idx === STEPS.length - 1;
+		var blocked  = !!step.nextLabel;
+		(nextBtn as HTMLButtonElement).textContent = step.nextLabel ?? (isLast ? L.finish : L.next);
+		(nextBtn as HTMLButtonElement).disabled    = blocked;
+		(nextBtn as HTMLElement).style.opacity     = blocked ? '0.45' : '';
+		(nextBtn as HTMLElement).style.cursor      = blocked ? 'default' : '';
 	}
 
 	function startTour() {
@@ -372,6 +405,24 @@ const { lang = 'en' } = Astro.props;
 		tip!.style.display     = 'none';
 		bar.style.display      = '';
 	}
+
+	// Resume tour after a demo wallet add (chip 2 or 3), or end it if own wallet was added
+	try {
+		var resumeIdx  = sessionStorage.getItem('demo-tour-resume');
+		var tourEnded  = sessionStorage.getItem('demo-tour-end');
+		sessionStorage.removeItem('demo-tour-resume');
+		sessionStorage.removeItem('demo-tour-end');
+		if (!tourEnded && resumeIdx !== null) {
+			var resumeStep = parseInt(resumeIdx, 10);
+			if (!isNaN(resumeStep) && resumeStep < STEPS.length) {
+				current = resumeStep;
+				overlay!.style.display = '';
+				tip!.style.display     = '';
+				bar.style.display      = 'none';
+				showStep(current);
+			}
+		}
+	} catch(e) {}
 
 	startBtn?.addEventListener('click', startTour);
 	skipBtn?.addEventListener('click', endTour);
