@@ -215,9 +215,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <p class="landing__demo-hint" id="demoHint">Ve transacciones, brechas marcadas y lo que el fisco te preguntará. Sin registro.</p>
           <div class="landing__demo-samples">
             <span class="landing__demo-samples-label">O prueba una muestra:</span>
-            <button class="landing__demo-sample" type="button" data-demo-addr="1">1 — Billetera ETH</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="2">2 — Billetera SOL</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="3">3 — Billetera DeFi</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="1" data-demo-label="1 — Billetera ETH">1 — Billetera ETH</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="2" data-demo-label="2 — Billetera SOL">2 — Billetera SOL</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="3" data-demo-label="3 — Billetera DeFi">3 — Billetera DeFi</button>
           </div>
           <p class="landing__demo-signup">Iniciar sesión crea una cuenta gratis.</p>
         </div>
@@ -530,7 +530,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       const LTC_LEGACY_RE = /^[LM][a-zA-HJ-NP-Z0-9]{25,34}$/;
       const SOL_RE        = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-      const DEMO_WALLET_ADDRS = new Set(['1', '2', '3']);
+      const DEMO_WALLET_ADDRS = new Set(['1', '2', '3', '1 — Billetera ETH', '2 — Billetera SOL', '3 — Billetera DeFi']);
       function isKnownAddress(addr: string): boolean {
         if (DEMO_WALLET_ADDRS.has(addr)) return true;
         return EVM_RE.test(addr) || BTC_BECH_RE.test(addr) || BTC_LEGACY_RE.test(addr)
@@ -545,15 +545,26 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
       document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          const addr = btn.dataset.demoAddr ?? '';
+          const addr  = btn.dataset.demoAddr  ?? '';
+          const label = btn.dataset.demoLabel ?? addr;
           if (input) {
-            input.value = addr;
+            input.value = label;
             input.focus();
             if (hint) {
               hint.textContent = 'Sin registro. Ve un portafolio real en 5 segundos. Inicia sesión después para guardarlo.';
               hint.style.color = '';
             }
           }
+          let toast = btn.querySelector<HTMLSpanElement>('.chip-toast');
+          if (!toast) {
+            toast = document.createElement('span');
+            toast.className = 'chip-toast';
+            toast.textContent = '¡Pegado!';
+            btn.appendChild(toast);
+          }
+          toast.classList.remove('chip-toast--show');
+          void toast.offsetWidth;
+          toast.classList.add('chip-toast--show');
         });
       });
 
@@ -689,6 +700,30 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       color: var(--accent); cursor: pointer; transition: background 0.15s, border-color 0.15s;
     }
     .landing__demo-sample:hover { background: var(--accent-soft); border-color: var(--accent); }
+    .landing__demo-sample { position: relative; }
+    .chip-toast {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      background: var(--accent);
+      color: var(--surface-bg);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+    }
+    .chip-toast--show {
+      animation: chip-toast-fade 1.4s forwards;
+    }
+    @keyframes chip-toast-fade {
+      0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
+      70%  { opacity: 1; }
+      100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+    }
     .landing__demo-signup {
       font-size: 0.8rem; color: var(--accent-dim); margin-top: 0.4rem; text-align: center;
     }

@@ -215,9 +215,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <p class="landing__demo-hint" id="demoHint">See transactions, flagged gaps, and what the IRS will ask about. No signup needed.</p>
           <div class="landing__demo-samples">
             <span class="landing__demo-samples-label">Or try a sample:</span>
-            <button class="landing__demo-sample" type="button" data-demo-addr="1">1 — ETH wallet</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="2">2 — SOL wallet</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="3">3 — DeFi wallet</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="1" data-demo-label="1 — ETH wallet">1 — ETH wallet</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="2" data-demo-label="2 — SOL wallet">2 — SOL wallet</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="3" data-demo-label="3 — DeFi wallet">3 — DeFi wallet</button>
           </div>
           <p class="landing__demo-signup">Login creates an account for free.</p>
         </div>
@@ -550,7 +550,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const addr = btn.dataset.demoAddr ?? '';
-          const label = btn.textContent?.trim() ?? addr;
+          const label = btn.dataset.demoLabel ?? addr;
           if (input) {
             input.value = label;
             input.focus();
