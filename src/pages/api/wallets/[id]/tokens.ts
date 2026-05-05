@@ -6,7 +6,7 @@ import { db } from '@/lib/db';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { classifyContract } from '@/lib/knownContracts';
-import { DEMO_TENANT_ID } from '@/lib/demo';
+import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '@/lib/demo';
 
 const ETHEREUM_CHAIN_ID = 1;
 const POLYGON_CHAIN_ID = 137;
@@ -491,7 +491,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 	try {
 		await requireWalletOwnedByTenant(walletId, tenantId);
 		const walletResult = await db.execute({
-			sql: 'SELECT id, address, chains FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
+			sql: 'SELECT id, address, chains, label FROM wallets WHERE id = ? AND tenant_id = ? LIMIT 1',
 			args: [walletId, tenantId],
 		});
 		if (!walletResult.rows?.length) {
@@ -501,10 +501,48 @@ export const GET: APIRoute = async ({ params, request }) => {
 			});
 		}
 		const refreshMissing = url.searchParams.get('refreshMissing') === '1';
-		const walletRow = walletResult.rows?.[0] as { address?: string | null; chains?: string | null } | undefined;
+		const walletRow = walletResult.rows?.[0] as { address?: string | null; chains?: string | null; label?: string | null } | undefined;
 		const walletAddress = String(walletRow?.address ?? '').trim();
+		const walletLabel = String(walletRow?.label ?? '').trim() || null;
 		let walletChains: string[] = [];
 		try { walletChains = JSON.parse(String(walletRow?.chains ?? '[]')); } catch { /* ignore */ }
+
+		// Demo shortcut: return mock tokens directly for pre-configured demo wallets.
+		// This avoids all Alchemy/DB snapshot logic that would fail or be meaningless.
+		if (tenantId === DEMO_TENANT_ID) {
+			const demoKey = isDemoWalletAddress(walletAddress) ? walletAddress : (walletAddress.match(/^([123])/)?.[1] ?? null);
+			const demoConfig = demoKey ? DEMO_WALLET_CONFIGS[demoKey] : null;
+			if (demoConfig) {
+				const demoTokens = demoConfig.tokens.map((t) => ({
+					tokenSymbol: t.symbol,
+					chain: demoConfig.chain,
+					amount: t.amount,
+					priceUsd: t.priceUsd,
+					usdValue: t.valueUsd,
+					capturedAt: new Date().toISOString(),
+					unpricedReason: null,
+					purchaseAt: null,
+					purchasePriceUsd: null,
+				}));
+				const payload = {
+					ok: true,
+					walletId,
+					address: walletAddress,
+					label: walletLabel ?? demoConfig.label,
+					snapshots: [{
+						id: `demo-${walletId}`,
+						chain: demoConfig.chain,
+						capturedAt: new Date().toISOString(),
+						tokenCount: demoConfig.tokens.length,
+					}],
+					tokens: demoTokens,
+				};
+				return new Response(JSON.stringify(payload), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' },
+				});
+			}
+		}
 
 		if (refreshMissing && tenantId !== DEMO_TENANT_ID) {
 			const refreshStart = Date.now();
