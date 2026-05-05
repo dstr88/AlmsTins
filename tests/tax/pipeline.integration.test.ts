@@ -45,8 +45,8 @@ vi.mock('../../src/lib/tursoCache', () => ({
   setCache: () => Promise.resolve(),
 }));
 
-import { runTaxPipeline } from '../../src/lib/tax/classify';
-import { runDuplicateSweep } from '../../src/lib/tax/deduplication';
+import { runTaxPipeline } from '../../src/lib/yearEnd/classify';
+import { runDuplicateSweep } from '../../src/lib/yearEnd/deduplication';
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 // Minimal DDL matching the production migrations.  Any column rename in a

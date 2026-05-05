@@ -53,7 +53,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const mem = memCache.get(memKey);
 	if (mem && mem.expiresAt > Date.now()) {
 		console.log(`[needs-attention] mem-cache hit (${Date.now() - t0}ms)`);
-		return new Response(JSON.stringify(mem.data), {
+		return new Response(JSON.stringify({ ...mem.data, cached: true }), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' },
 		});
@@ -78,7 +78,7 @@ export const GET: APIRoute = async ({ request }) => {
 			} else {
 				console.log(`[needs-attention] turso-cache hit (${Date.now() - t0}ms)`);
 			}
-			return new Response(JSON.stringify(cacheRead.value), {
+			return new Response(JSON.stringify({ ...cacheRead.value, cached: true }), {
 				status: 200,
 				headers: { 'Content-Type': 'application/json' },
 			});

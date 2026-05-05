@@ -1,6 +1,6 @@
 ---
 /**
- * /dashboard/tax/review
+ * /dashboard/yearEnd/review
  *
  * Shows every item the pipeline couldn't confidently classify.
  * The user picks a category, optionally adds a note, and resolves it.
@@ -154,7 +154,7 @@ const CATEGORY_OPTIONS = [
 		<!-- Header -->
 		<div class="rq-header">
 			<div>
-				<a href="/dashboard/tax" class="page-back">← Tax Center</a>
+				<a href="/dashboard/yearEnd" class="page-back">← Tax Center</a>
 				<h1 class="page-title">Tax Review Queue — {activeYear}</h1>
 				<p class="page-subtitle">
 					{items.length === 0
@@ -171,7 +171,7 @@ const CATEGORY_OPTIONS = [
 						))
 					}
 				</select>
-				<a href={`/dashboard/tax/report?year=${activeYear}`} class="rq-btn rq-btn--ghost">← Year Summary</a>
+				<a href={`/dashboard/yearEnd/report?year=${activeYear}`} class="rq-btn rq-btn--ghost">← Year Summary</a>
 				<button id="run-pipeline" class="rq-btn rq-btn--primary">🔄 Re-classify All</button>
 			</div>
 		</div>
@@ -182,7 +182,7 @@ const CATEGORY_OPTIONS = [
 				<p class="empty-ok__icon">✅</p>
 				<p class="empty-ok__title">Nothing left to review</p>
 				<p class="empty-ok__text">Head to the Year Summary for your complete breakdown.</p>
-				<a href="/dashboard/tax/report" class="rq-btn rq-btn--green">Open Year Summary →</a>
+				<a href="/dashboard/yearEnd/report" class="rq-btn rq-btn--green">Open Year Summary →</a>
 			</div>
 		)}
 
@@ -534,7 +534,7 @@ document.getElementById('run-pipeline')?.addEventListener('click', async (e) => 
 	btn.textContent = '⏳ Running…';
 	try {
 		const year = new URL(window.location.href).searchParams.get('year') ?? String(new Date().getFullYear() - 1);
-	const res = await fetch('/api/tax/classify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year }) });
+	const res = await fetch('/api/yearEnd/classify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year }) });
 		const data = await res.json();
 		if (data.ok) {
 			btn.textContent = '✅ Done — reloading…';
@@ -576,7 +576,7 @@ document.querySelectorAll<HTMLDivElement>('.review-item').forEach((card) => {
 		if (statusMsg) { statusMsg.textContent = 'Saving…'; statusMsg.classList.remove('hidden'); }
 
 		try {
-			const res = await fetch('/api/tax/review/resolve', {
+			const res = await fetch('/api/yearEnd/review/resolve', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ reviewItemId, sourceType, sourceId, category, notes, pricePerToken }),

@@ -9,6 +9,9 @@ import { db } from '@/lib/db';
 import { computeHoldings, type ImportRow } from '@/lib/exchangeHoldings';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
+import { fetchStockPrices } from '@/lib/stockPriceProvider';
+
+const STOCK_SOURCES = new Set(['robinhood']);
 
 const CEX_CHAIN = 'exchange';
 
@@ -129,7 +132,9 @@ export async function snapshotCexAccount(
 		if (active.length) {
 			const symbols = active.map((h) => normalizeSymbol(h.symbol));
 			try {
-				priceMap = await fetchPricesForSymbols(symbols);
+				priceMap = STOCK_SOURCES.has(source)
+					? await fetchStockPrices(symbols)
+					: await fetchPricesForSymbols(symbols);
 			} catch (err) {
 				console.warn('[cexSnapshot] price fetch failed, proceeding with null prices', {
 					source,

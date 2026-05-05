@@ -110,7 +110,7 @@ const fGain = (v: number | null) => {
   };
 };
 const csvBase = (section: string) =>
-  `/api/tax/breakdown-csv?year=${selectedYear}&section=${section}`;
+  `/api/yearEnd/breakdown-csv?year=${selectedYear}&section=${section}`;
 
 const kindLabel = (kind: string) =>
   kind
@@ -199,7 +199,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       <div class="readiness-bar__body">
         <span class="readiness-bar__score" id="readiness-score">—</span>
         <span class="readiness-bar__label" id="readiness-label">Calculating tax readiness…</span>
-        <a href="/dashboard/tax" class="readiness-bar__link">Tax Readiness →</a>
+        <a href="/dashboard/yearEnd" class="readiness-bar__link">Tax Readiness →</a>
       </div>
     </div>
 
@@ -1181,7 +1181,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       }
 
       try {
-        const res  = await fetch(`/api/tax/completeness?year=${year}`);
+        const res  = await fetch(`/api/yearEnd/completeness?year=${year}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!data.ok) return;

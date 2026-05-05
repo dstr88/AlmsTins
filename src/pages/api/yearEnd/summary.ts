@@ -1,5 +1,5 @@
 /**
- * GET /api/tax/summary?year=YYYY
+ * GET /api/yearEnd/summary?year=YYYY
  *
  * Returns a Schedule D–style tax summary for the authenticated tenant.
  *
@@ -22,10 +22,16 @@
 import type { APIRoute } from 'astro';
 import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
+import { getCache, setCache } from '../../../lib/tursoCache';
 import { buildAnnualBreakdown, type CostBasisMethod, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
 
 export const prerender = false;
+
+const CACHE_TTL     = 10 * 60;  // 10 min fresh
+const STALE_MAX_AGE = 60 * 60;  // serve stale up to 1 h
+
+const memCache = new Map<string, { data: object; expiresAt: number }>();
 
 // Transaction classes that are taxable disposals (capital events)
 // 'liability_liquidation' = forced sell → capital event
@@ -60,6 +66,21 @@ export const GET: APIRoute = async ({ request, url }) => {
 	if (Number.isNaN(year) || year < 2009 || year > 2100) {
 		return respond({ ok: false, error: 'Invalid year parameter.' }, 400);
 	}
+
+	const memKey   = `tax-summary:${tenantId}:${year}:${method}`;
+	const tursoKey = `t:${tenantId}:tax:summary:${year}:${method}:v1`;
+
+	const mem = memCache.get(memKey);
+	if (mem && mem.expiresAt > Date.now()) {
+		return respond({ ...mem.data, cached: true });
+	}
+	try {
+		const cached = await getCache<object>(tursoKey, { allowStale: true, staleMaxAgeSeconds: STALE_MAX_AGE });
+		if (cached.value) {
+			memCache.set(memKey, { data: cached.value, expiresAt: Date.now() + CACHE_TTL * 1000 });
+			return respond({ ...cached.value, cached: true, stale: cached.isStale });
+		}
+	} catch { /* fall through to live queries */ }
 
 	const from = `${year}-01-01T00:00:00.000Z`;
 	const to   = `${year}-12-31T23:59:59.999Z`;
@@ -921,7 +942,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			}
 		}
 
-		return respond({
+		const payload = {
 			ok: true,
 			year,
 			method,
@@ -943,7 +964,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 			pipelineStale,
 			washSaleShadow,
 			defiEvents,
-		});
+		};
+
+		memCache.set(memKey, { data: payload, expiresAt: Date.now() + CACHE_TTL * 1000 });
+		void setCache(tursoKey, payload, CACHE_TTL);
+
+		return respond({ ...payload, cached: false });
 	} catch (error) {
 		console.error('[tax/summary] failed:', error);
 		return respond({ ok: false, error: 'Unable to build tax summary.' }, 500);

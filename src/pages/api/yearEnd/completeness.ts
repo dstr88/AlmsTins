@@ -1,5 +1,5 @@
 /**
- * GET /api/tax/completeness?year=YYYY
+ * GET /api/yearEnd/completeness?year=YYYY
  *
  * Computes a 0-100 "Data Completeness Score" for the authenticated tenant's
  * tax data for the given year.  Each pillar has a max score; partial credit
@@ -196,7 +196,7 @@ export const GET: APIRoute = async ({ request }) => {
 				? 'All transactions classified — no items pending review'
 				: `${reviewCount} unresolved item${reviewCount !== 1 ? 's' : ''} need your attention`,
 			issues: reviewIssues,
-			link: '/dashboard/tax/review',
+			link: '/dashboard/yearEnd/review',
 		};
 
 		// ── Pillar 2: Wallet Sync Freshness ───────────────────────────────────
@@ -249,7 +249,7 @@ export const GET: APIRoute = async ({ request }) => {
 					? `All ${importTotal.toLocaleString()} transactions have USD values`
 					: `${importUnpriced.toLocaleString()} of ${importTotal.toLocaleString()} transactions missing USD price`,
 			issues: importUnpriced > 0 ? [`${importUnpriced} transactions without a USD value — gain/loss cannot be calculated`] : [],
-			link: '/dashboard/tax/review',
+			link: '/dashboard/yearEnd/review',
 		};
 
 		// ── Pillar 4: Transaction Data ─────────────────────────────────────────
@@ -293,7 +293,7 @@ export const GET: APIRoute = async ({ request }) => {
 				? 'No missing or unmatched cost basis detected'
 				: `${basisCount} transaction${basisCount !== 1 ? 's' : ''} with missing or unmatched cost basis`,
 			issues: basisIssues,
-			link: '/dashboard/tax/review',
+			link: '/dashboard/yearEnd/review',
 		};
 
 		// ── Pillar 6: Classification Pipeline ────────────────────────────────
@@ -355,7 +355,7 @@ export const GET: APIRoute = async ({ request }) => {
 			issueCount: pipelineIssues.length,
 			detail: pipelineDetail,
 			issues: pipelineIssues,
-			link: '/dashboard/tax/gains',
+			link: '/dashboard/yearEnd/gains',
 		};
 
 		// ── Aggregate ─────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 /**
- * POST /api/tax/1099/upload
+ * POST /api/yearEnd/1099/upload
  *
  * Accepts a multipart form with a 1099-DA or 1099-B CSV or PDF file.
  * Parses the file into structured rows, stores them in tax_1099_uploads,

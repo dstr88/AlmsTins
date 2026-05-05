@@ -9,6 +9,10 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { db } from '../../../lib/db';
+import { getCache, setCache } from '../../../lib/tursoCache';
+
+const CACHE_TTL = 5 * 60;
+const memCache = new Map<string, { data: unknown; expiresAt: number }>();
 
 type DbRow = Record<string, unknown>;
 
@@ -32,6 +36,28 @@ export const GET: APIRoute = async ({ request, url }) => {
 
     const groupId = new URL(url).searchParams.get('groupId');
     if (!groupId) return new Response('Missing groupId', { status: 400 });
+
+    const memKey   = `tx-history:${tenantId}:${groupId}`;
+    const tursoKey = `t:${tenantId}:tx-history:${groupId}:v1`;
+
+    const mem = memCache.get(memKey);
+    if (mem && mem.expiresAt > Date.now()) {
+      return new Response(JSON.stringify(mem.data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    try {
+      const cached = await getCache<object[]>(tursoKey);
+      if (cached) {
+        memCache.set(memKey, { data: cached, expiresAt: Date.now() + CACHE_TTL * 1000 });
+        return new Response(JSON.stringify(cached), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    } catch { /* fall through to live query */ }
 
     const result = await db.execute({
       sql: `SELECT
@@ -101,12 +127,12 @@ export const GET: APIRoute = async ({ request, url }) => {
       to_label: toStrOrNull(r.to_label),
     }));
 
+    memCache.set(memKey, { data: events, expiresAt: Date.now() + CACHE_TTL * 1000 });
+    void setCache(tursoKey, events, CACHE_TTL);
+
     return new Response(JSON.stringify(events), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store',
-      },
+      headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
     console.error('[transaction-history]', err);

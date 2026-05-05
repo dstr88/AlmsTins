@@ -18,14 +18,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { classifyDeFiPass3b } from '../../src/lib/tax/pass3b';
+import { classifyDeFiPass3b } from '../../src/lib/yearEnd/pass3b';
 import {
 	DEFI_LP_KEYWORDS,
 	WRAPPED_TOKEN_MAP,
 	REBASE_TOKEN_SYMBOLS,
 	DEFI_FUNDING_KEYWORDS,
-} from '../../src/lib/tax/constants';
-import type { RawImportTx } from '../../src/lib/tax/types';
+} from '../../src/lib/yearEnd/constants';
+import type { RawImportTx } from '../../src/lib/yearEnd/types';
 
 // ── Fixture helper ────────────────────────────────────────────────────────────
 

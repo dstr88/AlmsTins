@@ -199,7 +199,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
             </>
           )}
           {unclassCount > 0 && (
-            <a href="/dashboard/tax/review" class="review-warning">
+            <a href="/dashboard/yearEnd/review" class="review-warning">
               ⚠️ <strong>{unclassCount} transaction{unclassCount !== 1 ? 's' : ''} need review</strong>
               — these may affect your totals. →
             </a>
@@ -323,14 +323,14 @@ const availableYears = bd?.availableYears ?? [priorYear];
                 <span class="check-label">
                   {unclassCount === 0 ? 'All transactions classified' : `${unclassCount} transactions unclassified`}
                 </span>
-                {unclassCount > 0 && <a href="/dashboard/tax/review" class="doc-upload-btn" title="Review" style="font-size:.8rem;opacity:.7">→</a>}
+                {unclassCount > 0 && <a href="/dashboard/yearEnd/review" class="doc-upload-btn" title="Review" style="font-size:.8rem;opacity:.7">→</a>}
               </li>
               <li class="check-item">
                 <span class={`sync-dot ${missingBasisCount === 0 ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
                 <span class="check-label">
                   {missingBasisCount === 0 ? 'Cost basis complete' : `${missingBasisCount} lots missing cost basis`}
                 </span>
-                {missingBasisCount > 0 && <a href="/dashboard/tax/lots" class="doc-upload-btn" title="Fix" style="font-size:.8rem;opacity:.7">→</a>}
+                {missingBasisCount > 0 && <a href="/dashboard/yearEnd/lots" class="doc-upload-btn" title="Fix" style="font-size:.8rem;opacity:.7">→</a>}
               </li>
             </ul>
 
@@ -342,7 +342,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
               <a href="/dashboard/portfolio" class="dl-btn" style="font-size:.82rem">
                 <span class="dl-btn__icon">📊</span>View portfolio
               </a>
-              <a href="/dashboard/tax/memory-lane" class="dl-btn" style="font-size:.82rem">
+              <a href="/dashboard/yearEnd/memory-lane" class="dl-btn" style="font-size:.82rem">
                 <span class="dl-btn__icon">🎓</span>Year in review
               </a>
             </div>
@@ -522,7 +522,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
             <div class="basis-warning">
               <p class="basis-warning__count">{missingBasisCount}</p>
               <p class="basis-warning__label">lots with missing cost basis</p>
-              <a href="/dashboard/tax/lots" class="basis-warning__link">Resolve in Lot Manager →</a>
+              <a href="/dashboard/yearEnd/lots" class="basis-warning__link">Resolve in Lot Manager →</a>
             </div>
           )}
         </div>
@@ -543,7 +543,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
             <span class="dl-btn__plan-badge">Sign up</span>
           </a>
         ) : canDownload ? (
-          <a href={`/api/tax/breakdown-csv?year=${selectedYear}&section=all`} class="dl-btn" download>
+          <a href={`/api/yearEnd/breakdown-csv?year=${selectedYear}&section=all`} class="dl-btn" download>
             <span class="dl-btn__icon">📊</span>
             <span>FIFO Gain/Loss CSV</span>
           </a>
@@ -581,15 +581,15 @@ const availableYears = bd?.availableYears ?? [priorYear];
             Advanced tax forms
           </div>
           <div class="downloads__grid">
-            <a href={`/dashboard/tax/form8949?year=${selectedYear}`} class="dl-btn">
+            <a href={`/dashboard/yearEnd/form8949?year=${selectedYear}`} class="dl-btn">
               <span class="dl-btn__icon">📝</span>
               <span>Form 8949</span>
             </a>
-            <a href={`/dashboard/tax/schedule-d?year=${selectedYear}`} class="dl-btn">
+            <a href={`/dashboard/yearEnd/schedule-d?year=${selectedYear}`} class="dl-btn">
               <span class="dl-btn__icon">🗂</span>
               <span>Schedule D</span>
             </a>
-            <a href={`/dashboard/tax/1099?year=${selectedYear}`} class="dl-btn">
+            <a href={`/dashboard/yearEnd/1099?year=${selectedYear}`} class="dl-btn">
               <span class="dl-btn__icon">🧾</span>
               <span>1099 Reconciliation</span>
             </a>
@@ -824,7 +824,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
 
   function renderDocChip(doc: { id: string; filename: string }, container: HTMLElement, cb: HTMLInputElement) {
     const chip = document.createElement('a');
-    chip.href = `/api/tax/documents/${doc.id}`;
+    chip.href = `/api/yearEnd/documents/${doc.id}`;
     chip.target = '_blank';
     chip.rel = 'noopener';
     chip.className = 'doc-chip';
@@ -842,7 +842,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
       e.preventDefault();
       e.stopPropagation();
       if (!confirm(`Remove "${doc.filename}"?`)) return;
-      const res = await fetch(`/api/tax/documents/${doc.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/yearEnd/documents/${doc.id}`, { method: 'DELETE' });
       if (res.ok) {
         chip.remove();
         // Uncheck the checkbox if no more docs for this type
@@ -859,7 +859,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
   // Load existing documents and render chips
   async function loadDocs() {
     try {
-      const res = await fetch(`/api/tax/documents?year=${taxYear}`);
+      const res = await fetch(`/api/yearEnd/documents?year=${taxYear}`);
       if (!res.ok) return;
       const { docs } = await res.json();
       for (const doc of docs) {
@@ -894,7 +894,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
       fd.append('docType', docType);
       fd.append('taxYear', taxYear);
       try {
-        const res = await fetch('/api/tax/documents', { method: 'POST', body: fd });
+        const res = await fetch('/api/yearEnd/documents', { method: 'POST', body: fd });
         const json = await res.json();
         if (json.ok) {
           renderDocChip(json.doc, container, cb);
@@ -939,7 +939,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
     fd.append('formType', '1099-da');
     fd.append('taxYear', String(new URLSearchParams(location.search).get('year') ?? new Date().getFullYear() - 1));
     try {
-      const r = await fetch('/api/tax/1099/upload', { method: 'POST', body: fd });
+      const r = await fetch('/api/yearEnd/1099/upload', { method: 'POST', body: fd });
       const j = await r.json();
       if (j.ok) {
         statusEl.className = 'upload-status ok';

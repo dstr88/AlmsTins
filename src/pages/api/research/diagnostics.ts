@@ -1,12 +1,19 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getCache, setCache } from '@/lib/tursoCache';
 import {
 	getCoingeckoIdBySymbol,
 	getUsdUnitPriceAtTimestampCoinGecko,
 } from '@/lib/coingeckoHistorical';
 
 export const prerender = false;
+
+const CACHE_TTL     = 600;   // 10 min fresh
+const STALE_MAX_AGE = 1800;  // serve stale up to 30 min
+
+const memCache = new Map<string, { data: object; expiresAt: number }>();
+const TURSO_KEY = (tenantId: string) => `t:${tenantId}:research:diagnostics:v1`;
 
 const NON_EVM_ASSETS = new Set([
 	'BTC','BCH','BSV','LTC','DOGE','ZEC','DASH','XMR',
@@ -67,6 +74,32 @@ export const GET: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
+
+	const memKey = `diagnostics:${tenantId}`;
+
+	// In-memory cache — zero-latency hit
+	const mem = memCache.get(memKey);
+	if (mem && mem.expiresAt > Date.now()) {
+		return new Response(JSON.stringify({ ...mem.data, cached: true }), {
+			status: 200,
+			headers: { 'Content-Type': 'application/json' },
+		});
+	}
+
+	// Turso cache — stale-while-revalidate
+	try {
+		const turso = await getCache<object & { updatedAt?: string }>(TURSO_KEY(tenantId), {
+			allowStale: true,
+			staleMaxAgeSeconds: STALE_MAX_AGE,
+		});
+		if (turso) {
+			memCache.set(memKey, { data: turso, expiresAt: Date.now() + CACHE_TTL * 1000 });
+			return new Response(JSON.stringify({ ...turso, cached: true }), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' },
+			});
+		}
+	} catch { /* cache miss — fall through to live queries */ }
 
 	const [
 		coverageResult,
@@ -334,21 +367,28 @@ export const GET: APIRoute = async ({ request }) => {
 	}
 	missingBasis.sort((a, b) => b.snapValueUsd - a.snapValueUsd);
 
-	return new Response(
-		JSON.stringify({
-			ok: true,
-			coverage:      coverageResult.rows,
-			pre2019:       pre2019Result.rows[0] ?? { total: 0, no_hash: 0, value_usd: 0 },
-			nonEvm:        nonEvmResult.rows,
-			p2p:           p2pResult.rows[0]  ?? { cnt: 0, value_usd: 0 },
-			priceGaps:     priceGapResult.rows,
-			topUnresolved: topUnresolvedResult.rows,
-			orphanedIns:   orphanedInsResult.rows,
-			fiatNoise:        Number((fiatAssetResult.rows[0] as any)?.cnt ?? 0),
-			failedExchanges:  failedFound,
-			suspiciousPrices: suspiciousPriceResult.rows,
-			missingBasis,
-		}),
-		{ status: 200, headers: { 'Content-Type': 'application/json' } },
-	);
+	const payload = {
+		ok: true,
+		coverage:         coverageResult.rows,
+		pre2019:          pre2019Result.rows[0] ?? { total: 0, no_hash: 0, value_usd: 0 },
+		nonEvm:           nonEvmResult.rows,
+		p2p:              p2pResult.rows[0]  ?? { cnt: 0, value_usd: 0 },
+		priceGaps:        priceGapResult.rows,
+		topUnresolved:    topUnresolvedResult.rows,
+		orphanedIns:      orphanedInsResult.rows,
+		fiatNoise:        Number((fiatAssetResult.rows[0] as any)?.cnt ?? 0),
+		failedExchanges:  failedFound,
+		suspiciousPrices: suspiciousPriceResult.rows,
+		missingBasis,
+		updatedAt:        new Date().toISOString(),
+		cached:           false,
+	};
+
+	memCache.set(memKey, { data: payload, expiresAt: Date.now() + CACHE_TTL * 1000 });
+	void setCache(TURSO_KEY(tenantId), payload, CACHE_TTL);
+
+	return new Response(JSON.stringify(payload), {
+		status: 200,
+		headers: { 'Content-Type': 'application/json' },
+	});
 };

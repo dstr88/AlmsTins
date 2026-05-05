@@ -1,6 +1,6 @@
 ---
 /**
- * /dashboard/tax/lots
+ * /dashboard/yearEnd/lots
  *
  * Lot Manager — lets users pin a specific lot to each disposal.
  * When the Spec ID method is active, the engine uses these pins instead of FIFO.
@@ -96,10 +96,10 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 
 	<!-- Header -->
 	<div class="lm-header">
-		<a href={`/dashboard/tax/gains?method=spec_id&year=${year}`} class="lm-back">← Back to Gains Summary</a>
+		<a href={`/dashboard/yearEnd/gains?method=spec_id&year=${year}`} class="lm-back">← Back to Gains Summary</a>
 		<div class="lm-header__row">
 			<h1 class="lm-title">Lot Manager</h1>
-			<a href={`/dashboard/tax/gains?method=spec_id&year=${year}`} class="lm-results-btn">View Results →</a>
+			<a href={`/dashboard/yearEnd/gains?method=spec_id&year=${year}`} class="lm-results-btn">View Results →</a>
 		</div>
 		<p class="lm-subtitle">
 			Choose which lot you sold for each disposal. Pins are used when <strong>Specific ID</strong> is your cost basis method.
@@ -467,7 +467,7 @@ const year = new URLSearchParams(window.location.search).get('year') ?? String(n
 
 async function loadPins() {
 	try {
-		const res  = await fetch(`/api/tax/lot-pins?year=${year}`);
+		const res  = await fetch(`/api/yearEnd/lot-pins?year=${year}`);
 		const data = await res.json() as { ok: boolean; pins: Array<{ disposalSourceId: string; lotAcquiredAt: string; lotAmountHint: number }> };
 		if (!data.ok) return;
 		for (const pin of data.pins) {
@@ -512,7 +512,7 @@ document.querySelectorAll<HTMLSelectElement>('.lot-pin-select').forEach((sel) =>
 		if (status) { status.textContent = 'Saving…'; status.classList.remove('hidden'); }
 
 		try {
-			const res  = await fetch('/api/tax/lot-pins', {
+			const res  = await fetch('/api/yearEnd/lot-pins', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({

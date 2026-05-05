@@ -288,7 +288,7 @@ const years = Array.from({ length: 8 }, (_, i) => currentYear - 1 - i);
 			</button>
 
 			<!-- Form 8949 Print -->
-			<a class="dl-btn" href="/dashboard/tax/form8949" target="_blank">
+			<a class="dl-btn" href="/dashboard/yearEnd/form8949" target="_blank">
 				<span class="dl-icon">🖨</span>
 				<div>
 					<div class="dl-label">Form 8949 Print</div>
@@ -297,7 +297,7 @@ const years = Array.from({ length: 8 }, (_, i) => currentYear - 1 - i);
 			</a>
 
 			<!-- Schedule D Print -->
-			<a class="dl-btn" href="/dashboard/tax/schedule-d" target="_blank">
+			<a class="dl-btn" href="/dashboard/yearEnd/schedule-d" target="_blank">
 				<span class="dl-icon">🗂</span>
 				<div>
 					<div class="dl-label">Schedule D</div>
@@ -468,7 +468,7 @@ async function loadCompleteness() {
 	const pillarsEl = document.getElementById('comp-pillars');
 
 	try {
-		const res  = await fetch(`/api/tax/completeness?year=${currentYear}`);
+		const res  = await fetch(`/api/yearEnd/completeness?year=${currentYear}`);
 		const data = await res.json();
 		if (!data.ok) return;
 
@@ -537,7 +537,7 @@ async function loadGains() {
 	tbody.innerHTML = '';
 
 	try {
-		const res  = await fetch(`/api/tax/summary?year=${currentYear}&method=${currentMethod}`);
+		const res  = await fetch(`/api/yearEnd/summary?year=${currentYear}&method=${currentMethod}`);
 		const data = await res.json();
 		if (!data.ok) { loading.innerHTML = '<span style="color:#dc2626;">Failed to load.</span>'; return; }
 
@@ -596,7 +596,7 @@ async function getF8949() {
 	const dlStatus = document.getElementById('dl-status');
 	dlStatus.textContent = '⏳ Preparing data…';
 	dlStatus.style.display = 'block';
-	const res  = await fetch(`/api/tax/form8949?year=${currentYear}&method=${currentMethod}`);
+	const res  = await fetch(`/api/yearEnd/form8949?year=${currentYear}&method=${currentMethod}`);
 	const data = await res.json();
 	if (data.ok) {
 		f8949Data = data;
@@ -704,7 +704,7 @@ document.getElementById('upload-form').addEventListener('submit', async e => {
 
 	const fd = new FormData(e.currentTarget);
 	try {
-		const res  = await fetch('/api/tax/1099/upload', { method:'POST', body:fd });
+		const res  = await fetch('/api/yearEnd/1099/upload', { method:'POST', body:fd });
 		const data = await res.json();
 		if (!data.ok) { status.textContent = `❌ ${data.error ?? 'Failed'}`; btn.disabled = false; return; }
 

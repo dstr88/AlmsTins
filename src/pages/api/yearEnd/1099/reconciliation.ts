@@ -1,5 +1,5 @@
 /**
- * GET /api/tax/1099/reconciliation?uploadId=xxx
+ * GET /api/yearEnd/1099/reconciliation?uploadId=xxx
  *
  * Returns the reconciliation rows for a specific upload.
  */

@@ -11,6 +11,8 @@ const SUMMARY_TTL_SECONDS = 90;
 const SUMMARY_STALE_MAX_SECONDS = 30 * 60;
 const REFRESH_LOCK_SECONDS = 20;
 
+const memCache = new Map<string, { data: object; expiresAt: number }>();
+
 export const GET: APIRoute = async ({ request, locals }) => {
 	const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
 	const requestId = (locals as Record<string, any>)?.requestId;
@@ -46,6 +48,17 @@ export const GET: APIRoute = async ({ request, locals }) => {
 
 		const cacheKey = `t:${tenantId}:networth:summary:v3`;
 		const lockKey = `lock:${cacheKey}`;
+		const memKey  = `networth:${tenantId}`;
+
+		// L1 — in-memory, zero-latency
+		const mem = memCache.get(memKey);
+		if (mem && mem.expiresAt > Date.now()) {
+			logPerf(200, { cached: true });
+			return new Response(JSON.stringify({ ...mem.data, cached: true }), {
+				status: 200,
+				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=0, must-revalidate' },
+			});
+		}
 
 		const cached = await getCache<{ ok: true; summary: any }>(cacheKey, {
 			allowStale: true,
@@ -102,6 +115,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 				})();
 			}
 
+			memCache.set(memKey, { data: { ok: true, summary: cached.value.summary }, expiresAt: Date.now() + SUMMARY_TTL_SECONDS * 1000 });
 			logPerf(200, { cached: true, stale: cached.isStale });
 			return new Response(
 				JSON.stringify({ ok: true, summary: cached.value.summary, cached: true, stale: cached.isStale }),
@@ -148,6 +162,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
 			capturedAt: overallCapturedAt,
 		};
 		await setCache(cacheKey, { ok: true, summary: summaryPayload }, SUMMARY_TTL_SECONDS);
+		memCache.set(memKey, { data: { ok: true, summary: summaryPayload }, expiresAt: Date.now() + SUMMARY_TTL_SECONDS * 1000 });
 
 		logPerf(200, { cached: false, stale: false });
 		return new Response(JSON.stringify({ ok: true, summary: summaryPayload, cached: false, stale: false }), {

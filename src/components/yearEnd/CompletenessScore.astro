@@ -2,7 +2,7 @@
 /**
  * <CompletenessScore year={2024} />
  *
- * Fetches /api/tax/completeness client-side and renders:
+ * Fetches /api/yearEnd/completeness client-side and renders:
  *   • SVG ring gauge (0–100 score)
  *   • Grade letter + label
  *   • Expandable per-pillar checklist with Fix links
@@ -32,7 +32,7 @@ const uid = `cs-${Math.random().toString(36).slice(2, 8)}`;   // unique per inst
 			<span id={`${uid}-grade-sm`} class="font-bold mr-1"></span>
 			<span id={`${uid}-label-sm`} class="text-gray-600 truncate"></span>
 		</div>
-		<a href="/dashboard/tax#completeness" class="text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap">Details →</a>
+		<a href="/dashboard/yearEnd#completeness" class="text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap">Details →</a>
 	</div>
 ) : (
 	<!-- ── Full card ──────────────────────────────────────────────────────── -->
@@ -113,7 +113,7 @@ function gradeColor(grade) {
 
 async function loadCompleteness() {
 	try {
-		const res  = await fetch(`/api/tax/completeness?year=${year}`);
+		const res  = await fetch(`/api/yearEnd/completeness?year=${year}`);
 		if (!res.ok) return;
 		const data = await res.json();
 		if (!data.ok) return;

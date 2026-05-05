@@ -8,13 +8,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { matchTransfers, detectLoans } from '../../src/lib/tax/pass2';
+import { matchTransfers, detectLoans } from '../../src/lib/yearEnd/pass2';
 import {
 	TRANSFER_AMOUNT_TOLERANCE,
 	TRANSFER_MATCH_WINDOW_MINUTES,
 	LENDING_PROTOCOL_ADDRESSES,
-} from '../../src/lib/tax/constants';
-import type { RawImportTx, RawOnchainTx } from '../../src/lib/tax/types';
+} from '../../src/lib/yearEnd/constants';
+import type { RawImportTx, RawOnchainTx } from '../../src/lib/yearEnd/types';
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 ---
 /**
- * /dashboard/tax/report
+ * /dashboard/yearEnd/report
  *
  * The comprehensive tax report:
  *   • Capital Gains (short-term + long-term, per disposal)
@@ -181,7 +181,7 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 		<!-- Header -->
 		<div class="flex items-start justify-between flex-wrap gap-4">
 			<div>
-				<a href="/dashboard/tax" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
+				<a href="/dashboard/yearEnd" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
 				<h1 class="text-2xl font-bold text-gray-900">Year Summary — {taxYear}</h1>
 				<p class="text-sm text-gray-500 mt-1">
 					Realized gains and losses for {taxYear}. For filing purposes, consult a qualified accountant.
@@ -199,7 +199,7 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 						</select>
 					</form>
 				)}
-				<a href="/dashboard/tax/review"
+				<a href="/dashboard/yearEnd/review"
 				   class={`inline-flex items-center gap-1.5 rounded-lg text-sm font-medium px-4 py-2 transition-colors
 				            ${reviewCount > 0
 				              ? 'bg-amber-500 hover:bg-amber-600 text-white'
@@ -520,7 +520,7 @@ document.getElementById('run-classify')?.addEventListener('click', async (e) => 
 	const btn = e.currentTarget as HTMLButtonElement;
 	btn.disabled = true;
 	btn.textContent = '⏳ Running…';
-	const res = await fetch('/api/tax/classify', { method: 'POST' });
+	const res = await fetch('/api/yearEnd/classify', { method: 'POST' });
 	const data = await res.json();
 	btn.textContent = data.ok ? '✅ Done — reloading…' : '❌ Failed';
 	if (data.ok) setTimeout(() => window.location.reload(), 1000);

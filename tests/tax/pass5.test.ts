@@ -16,8 +16,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildReviewQueue } from '../../src/lib/tax/pass5';
-import type { RawImportTx, RawOnchainTx, ClassificationResult } from '../../src/lib/tax/types';
+import { buildReviewQueue } from '../../src/lib/yearEnd/pass5';
+import type { RawImportTx, RawOnchainTx, ClassificationResult } from '../../src/lib/yearEnd/types';
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 

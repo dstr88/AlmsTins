@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { classifyImportTxPass1, classifyOnchainTxPass1 } from '../../src/lib/tax/pass1';
+import { classifyImportTxPass1, classifyOnchainTxPass1 } from '../../src/lib/yearEnd/pass1';
 import {
 	COINBASE_BUY_KINDS, COINBASE_SELL_KINDS, COINBASE_SWAP_KINDS,
 	COINBASE_INCOME_KINDS, COINBASE_AIRDROP_KINDS,
@@ -15,8 +15,8 @@ import {
 	CRYPTOCOM_BUY_KINDS, CRYPTOCOM_SELL_KINDS, CRYPTOCOM_SWAP_KINDS,
 	CRYPTOCOM_INCOME_KINDS, CRYPTOCOM_TRANSFER_IN_KINDS, CRYPTOCOM_TRANSFER_OUT_KINDS,
 	BURN_ADDRESSES,
-} from '../../src/lib/tax/constants';
-import type { RawImportTx, RawOnchainTx } from '../../src/lib/tax/types';
+} from '../../src/lib/yearEnd/constants';
+import type { RawImportTx, RawOnchainTx } from '../../src/lib/yearEnd/types';
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 

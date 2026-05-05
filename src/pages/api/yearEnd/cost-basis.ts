@@ -1,5 +1,5 @@
 /**
- * GET /api/tax/cost-basis
+ * GET /api/yearEnd/cost-basis
  *
  * Returns a per-asset cost basis summary for the authenticated tenant,
  * computed from CSV-imported exchange transactions (import_transactions table).

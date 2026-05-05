@@ -1,6 +1,6 @@
 ---
 /**
- * /dashboard/tax/1099
+ * /dashboard/yearEnd/1099
  *
  * Upload a 1099-DA or 1099-B CSV from an exchange and reconcile it
  * against Almstins' computed gains.
@@ -419,7 +419,7 @@ document.getElementById('upload-form')?.addEventListener('submit', async (e) => 
   const fd = new FormData(e.currentTarget as HTMLFormElement);
 
   try {
-    const res = await fetch('/api/tax/1099/upload', { method: 'POST', body: fd });
+    const res = await fetch('/api/yearEnd/1099/upload', { method: 'POST', body: fd });
     const data = await res.json() as {
       ok: boolean; error?: string; uploadId?: string; rowCount?: number;
       reconciliation?: Array<{
@@ -514,7 +514,7 @@ async function loadHistory() {
   const listEl    = document.getElementById('history-list')!;
 
   try {
-    const res  = await fetch('/api/tax/1099/list');
+    const res  = await fetch('/api/yearEnd/1099/list');
     const data = await res.json() as {
       ok: boolean;
       uploads: Array<{ id: string; formType: string; exchangeName: string | null; taxYear: number; filename: string; rowCount: number | null; createdAt: string }>;
@@ -538,7 +538,7 @@ async function loadHistory() {
             · Uploaded ${new Date(u.createdAt).toLocaleDateString()}
           </p>
         </div>
-        <a href="/dashboard/tax/1099?uploadId=${u.id}"
+        <a href="/dashboard/yearEnd/1099?uploadId=${u.id}"
            style="font-size:.85rem;font-weight:600;color:#a5b4fc;text-decoration:none;white-space:nowrap;flex-shrink:0">
           View →
         </a>
@@ -560,7 +560,7 @@ async function loadHistory() {
   const uploadId = params.get('uploadId');
   if (uploadId) {
     try {
-      const res  = await fetch(`/api/tax/1099/reconciliation?uploadId=${uploadId}`);
+      const res  = await fetch(`/api/yearEnd/1099/reconciliation?uploadId=${uploadId}`);
       const data = await res.json();
       if (data.ok) renderReconciliation(data.reconciliation ?? []);
     } catch {}

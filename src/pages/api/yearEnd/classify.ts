@@ -1,9 +1,9 @@
-// POST /api/tax/classify
+// POST /api/yearEnd/classify
 // Runs the full tax classification pipeline for the logged-in tenant.
 
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { runTaxPipeline } from '@/lib/tax/classify';
+import { runTaxPipeline } from '@/lib/yearEnd/classify';
 
 export const prerender = false;
 

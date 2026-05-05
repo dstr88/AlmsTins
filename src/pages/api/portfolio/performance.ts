@@ -28,6 +28,8 @@ import { getAaveTotalsForWallet } from '@/lib/aave/client';
 export const prerender = false;
 
 const CACHE_TTL = 5 * 60; // 5 minutes
+
+const memCache = new Map<string, { data: object; expiresAt: number }>();
 const MIN_VALUE_USD = 1;   // hide dust < $1
 
 // Aave symbol normalization — keep WBTC as WBTC (not BTC) so it stays a
@@ -67,11 +69,20 @@ export const GET: APIRoute = async ({ request }) => {
 		const { tenantId } = session;
 
 		const cacheKey = `t:${tenantId}:portfolio:performance:v6`;
+		const memKey   = `portfolio:${tenantId}`;
+
+		// L1 — in-memory, zero-latency
+		const mem = memCache.get(memKey);
+		if (mem && mem.expiresAt > Date.now()) {
+			return json({ ...mem.data, cached: true });
+		}
+
 		const cached = await getCache<unknown>(cacheKey, {
 			allowStale: true,
 			staleMaxAgeSeconds: 30 * 60,
 		});
 		if (cached.value) {
+			memCache.set(memKey, { data: cached.value as object, expiresAt: Date.now() + CACHE_TTL * 1000 });
 			return json({ ok: true, ...(cached.value as object), cached: true, stale: cached.isStale });
 		}
 
@@ -274,6 +285,7 @@ export const GET: APIRoute = async ({ request }) => {
 		};
 
 		await setCache(cacheKey, payload, CACHE_TTL);
+		memCache.set(memKey, { data: payload, expiresAt: Date.now() + CACHE_TTL * 1000 });
 
 		return json({ ok: true, ...payload, cached: false, stale: false });
 	} catch (err) {

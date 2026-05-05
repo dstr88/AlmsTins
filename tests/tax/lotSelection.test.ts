@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { selectLotIndex, type SelectableLot } from '../../src/lib/tax/lotSelection';
+import { selectLotIndex, type SelectableLot } from '../../src/lib/yearEnd/lotSelection';
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 

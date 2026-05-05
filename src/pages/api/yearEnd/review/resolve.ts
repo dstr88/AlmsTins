@@ -1,4 +1,4 @@
-// POST /api/tax/review/resolve
+// POST /api/yearEnd/review/resolve
 // Saves a user's manual classification decision for a review item.
 // The item is marked resolved and a manual tax_classification is upserted.
 

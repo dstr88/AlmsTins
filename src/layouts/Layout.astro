@@ -217,8 +217,8 @@ const memberSinceDisplay = memberSinceIso
 					<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
 					<a href="/dashboard/portfolio" class={`nav-link ${isActive('/dashboard/portfolio') ? 'active' : ''}`}>Portfolio</a>
 					<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>Addresses</a>
-					<a href="/tax-home" class={`nav-link ${currentPath.startsWith('/dashboard/tax') && !currentPath.includes('memory-lane') || currentPath === '/tax-home' ? 'active' : ''}`}>Summary</a>
-					<a href="/dashboard/tax/memory-lane" class={`nav-link ${currentPath.includes('memory-lane') ? 'active' : ''}`}>Memory Lane</a>
+					<a href="/tax-home" class={`nav-link ${currentPath.startsWith('/dashboard/yearEnd') && !currentPath.includes('memory-lane') || currentPath === '/tax-home' ? 'active' : ''}`}>Summary</a>
+					<a href="/dashboard/yearEnd/memory-lane" class={`nav-link ${currentPath.includes('memory-lane') ? 'active' : ''}`}>Memory Lane</a>
 					<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>Alerts</a>
 					<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>
 					<a href="/dashboard/research" class={`nav-link nav-link--research ${isActive('/dashboard/research') ? 'active' : ''}`}>

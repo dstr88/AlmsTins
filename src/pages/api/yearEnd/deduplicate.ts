@@ -1,10 +1,10 @@
-// POST /api/tax/deduplicate
+// POST /api/yearEnd/deduplicate
 // Runs the duplicate sweep for the logged-in tenant and returns stats.
 // Safe to call multiple times — auto-flags are cleared and recomputed each run.
 
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { runDuplicateSweep, setDuplicateOverride } from '@/lib/tax/deduplication';
+import { runDuplicateSweep, setDuplicateOverride } from '@/lib/yearEnd/deduplication';
 
 export const prerender = false;
 

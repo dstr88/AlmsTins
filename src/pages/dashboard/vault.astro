@@ -136,7 +136,7 @@ const getChainBadge = (chains: string[]): string => {
 					<PortfolioTile client:only="react" />
 				</SalmonTin>
 				{digestCount > 0 && (
-					<a href="/dashboard/tax/review" class="digest-pill">
+					<a href="/dashboard/yearEnd/review" class="digest-pill">
 						⚠ {digestCount} flagged · {digestMonth}
 					</a>
 				)}
@@ -166,6 +166,7 @@ const getChainBadge = (chains: string[]): string => {
 				<ExchangeAccounts source="coinbase" title="Coinbase" />
 				<ExchangeAccounts source="kraken" title="Kraken" />
 				<ExchangeAccounts source="gemini" title="Gemini" />
+				<ExchangeAccounts source="robinhood" title="Robinhood" />
 				<ExchangeAccounts source="venmo" title="Venmo" />
 				<ExchangeAccounts source="cashapp" title="Cash App" />
 				<ExchangeAccounts source="exodus" title="Exodus" />

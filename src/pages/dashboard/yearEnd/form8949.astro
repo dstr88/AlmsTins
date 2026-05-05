@@ -1,6 +1,6 @@
 ---
 /**
- * /dashboard/tax/form8949
+ * /dashboard/yearEnd/form8949
  *
  * Printable IRS Form 8949 — Sales and Other Dispositions of Capital Assets.
  * Data is fetched client-side so the page can render immediately and the
@@ -31,7 +31,7 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 		<!-- Screen-only header -->
 		<div class="f8-header">
 			<div class="f8-header__left">
-				<a href="/dashboard/tax" class="f8-back">← Tax Center</a>
+				<a href="/dashboard/yearEnd" class="f8-back">← Tax Center</a>
 				<h1 class="f8-title">Form 8949</h1>
 				<p class="f8-subtitle">Sales and Other Dispositions of Capital Assets — attach to Schedule D.</p>
 			</div>
@@ -85,9 +85,9 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 			</div>
 
 			<div class="empty-state__actions" id="empty-actions">
-				<a href="/dashboard/tax/review" class="es-btn es-btn--primary" id="btn-review-queue">🔍 Open Review Queue</a>
+				<a href="/dashboard/yearEnd/review" class="es-btn es-btn--primary" id="btn-review-queue">🔍 Open Review Queue</a>
 				<a href="/dashboard/bookkeeping" class="es-btn es-btn--secondary">📥 Import Transactions</a>
-				<a href="/dashboard/tax" class="es-btn es-btn--secondary" id="btn-pipeline">⚙️ Run Classification Pipeline</a>
+				<a href="/dashboard/yearEnd" class="es-btn es-btn--secondary" id="btn-pipeline">⚙️ Run Classification Pipeline</a>
 			</div>
 		</div>
 
@@ -113,7 +113,7 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 			<!-- BO warning -->
 			<div id="bo-warning" class="f8-bo-warning hidden">
 				<strong>⚠ Some rows are marked BO</strong> (basis not reported). These are transactions where
-				no cost basis was recorded. Review your <a href="/dashboard/tax/review" class="f8-link">Review Queue</a>
+				no cost basis was recorded. Review your <a href="/dashboard/yearEnd/review" class="f8-link">Review Queue</a>
 				to resolve missing basis before filing.
 			</div>
 
@@ -548,7 +548,7 @@ async function loadForm8949() {
 	history.replaceState(null, '', url);
 
 	try {
-		const res = await fetch(`/api/tax/form8949?year=${yearSel}&method=${methodSel}`);
+		const res = await fetch(`/api/yearEnd/form8949?year=${yearSel}&method=${methodSel}`);
 		if (!res.ok) throw new Error(`HTTP ${res.status}`);
 		const data = await res.json() as { ok: boolean; error?: string; year: number; method: string; boxes: Record<string, Form8949Box>; totals: { proceeds: number; basis: number; gainLoss: number } };
 
@@ -758,7 +758,7 @@ async function populateDiagnostics(year: string, method: string, _totals: { proc
 	const actionsEl     = document.querySelector('.empty-state__actions')!;
 
 	try {
-		const res = await fetch(`/api/tax/summary?year=${year}&method=${method}`);
+		const res = await fetch(`/api/yearEnd/summary?year=${year}&method=${method}`);
 		if (!res.ok) return;
 		const summary = await res.json() as {
 			ok: boolean;
@@ -905,7 +905,7 @@ document.getElementById('btn-turbotax')?.addEventListener('click', () => {
 	if (!currentData) return;
 	const year = (document.getElementById('year-sel') as HTMLSelectElement).value;
 	const a = document.createElement('a');
-	a.href = `/api/tax/breakdown-csv?section=turbotax&year=${year}`;
+	a.href = `/api/yearEnd/breakdown-csv?section=turbotax&year=${year}`;
 	a.download = `turbotax-form8949-${year}.csv`;
 	a.click();
 });
@@ -922,7 +922,7 @@ document.getElementById('method-sel')?.addEventListener('change', loadForm8949);
 function syncReviewLink() {
 	const year = (document.getElementById('year-sel') as HTMLSelectElement)?.value;
 	const link = document.getElementById('btn-review-queue') as HTMLAnchorElement | null;
-	if (link && year) link.href = `/dashboard/tax/review?year=${year}`;
+	if (link && year) link.href = `/dashboard/yearEnd/review?year=${year}`;
 }
 document.getElementById('year-sel')?.addEventListener('change', syncReviewLink);
 syncReviewLink();

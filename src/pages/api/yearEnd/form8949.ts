@@ -1,5 +1,5 @@
 /**
- * GET /api/tax/form8949?year=YYYY&method=fifo
+ * GET /api/yearEnd/form8949?year=YYYY&method=fifo
  *
  * Returns structured Form 8949 data grouped by box.
  *

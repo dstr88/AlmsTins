@@ -113,7 +113,7 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 											<span className="recon-delta">{fmtDelta(item.delta)}</span>
 										</div>
 										<a
-											href={`/dashboard/tax/memory-lane?year=${currentYear}&symbol=${item.symbol}`}
+											href={`/dashboard/yearEnd/memory-lane?year=${currentYear}&symbol=${item.symbol}`}
 											className="recon-ml-link"
 											title={`Investigate ${item.symbol} in Memory Lane`}
 										>

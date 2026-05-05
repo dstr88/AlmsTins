@@ -1,6 +1,6 @@
 ---
 /**
- * /dashboard/tax/schedule-d
+ * /dashboard/yearEnd/schedule-d
  *
  * Schedule D Summary — Capital Gains and Losses.
  * Summarises Form 8949 box totals into the Schedule D line-by-line format.
@@ -41,7 +41,7 @@ const defaultYear = currentYear - 1;
 		<!-- Header -->
 		<div class="sd-header">
 			<div>
-				<a href="/dashboard/tax" class="sd-back">← Tax Center</a>
+				<a href="/dashboard/yearEnd" class="sd-back">← Tax Center</a>
 				<h1 class="sd-title">Schedule D Summary</h1>
 				<p class="sd-subtitle">Capital Gains and Losses — IRS Schedule D line-by-line.</p>
 			</div>
@@ -111,7 +111,7 @@ const defaultYear = currentYear - 1;
 			<div class="sd-next-steps">
 				<p class="sd-next-steps__title">Next steps for your CPA</p>
 				<ul class="sd-next-steps__list">
-					<li>Attach Form 8949 (both parts) to this Schedule D — download from the <a href="/dashboard/tax/form8949">Form 8949 page</a></li>
+					<li>Attach Form 8949 (both parts) to this Schedule D — download from the <a href="/dashboard/yearEnd/form8949">Form 8949 page</a></li>
 					<li>Enter the Schedule D totals on Form 1040, Line 7 (capital gain/loss)</li>
 					<li>If Line 16 is a loss, also complete the Capital Loss Carryover Worksheet</li>
 					<li>Ordinary crypto income (staking, interest) goes on Schedule 1, Line 8z — not Schedule D</li>
@@ -431,8 +431,8 @@ async function loadScheduleD() {
 	try {
 		// Fetch Form 8949 data (box totals) and tax summary (carryforward)
 		const [f8949Res, summaryRes] = await Promise.all([
-			fetch(`/api/tax/form8949?year=${yearSel}&method=${methodSel}`),
-			fetch(`/api/tax/summary?year=${yearSel}&method=${methodSel}`),
+			fetch(`/api/yearEnd/form8949?year=${yearSel}&method=${methodSel}`),
+			fetch(`/api/yearEnd/summary?year=${yearSel}&method=${methodSel}`),
 		]);
 
 		const [f8949, summary] = await Promise.all([f8949Res.json(), summaryRes.json()]) as [

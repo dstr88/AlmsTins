@@ -1,5 +1,5 @@
 /**
- * /api/tax/manual-basis
+ * /api/yearEnd/manual-basis
  *
  * GET    →  list all saved entries for the authenticated tenant
  * POST   →  upsert a manual cost basis entry (idempotent)

@@ -1,6 +1,6 @@
 /**
- * GET    /api/tax/documents/:id   — download the file
- * DELETE /api/tax/documents/:id   — delete the document
+ * GET    /api/yearEnd/documents/:id   — download the file
+ * DELETE /api/yearEnd/documents/:id   — delete the document
  */
 
 import type { APIRoute } from 'astro';

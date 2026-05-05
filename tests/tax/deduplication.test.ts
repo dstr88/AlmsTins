@@ -28,7 +28,7 @@ vi.mock('../../src/lib/db', () => ({
   db: { execute: mockExecute, batch: mockBatch },
 }));
 
-import { runDuplicateSweep, setDuplicateOverride } from '../../src/lib/tax/deduplication';
+import { runDuplicateSweep, setDuplicateOverride } from '../../src/lib/yearEnd/deduplication';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -10,8 +10,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { runFifo } from '../../src/lib/tax/pass4';
-import type { RawImportTx, RawOnchainTx, ClassificationResult } from '../../src/lib/tax/types';
+import { runFifo } from '../../src/lib/yearEnd/pass4';
+import type { RawImportTx, RawOnchainTx, ClassificationResult } from '../../src/lib/yearEnd/types';
 
 // ── Minimal fixture builders ──────────────────────────────────────────────────
 

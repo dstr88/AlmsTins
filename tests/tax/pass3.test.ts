@@ -7,9 +7,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { classifyIncomePass3, classifyFeesPass3 } from '../../src/lib/tax/pass3';
-import { INCOME_KEYWORDS, LOAN_INTEREST_KEYWORDS } from '../../src/lib/tax/constants';
-import type { RawImportTx, RawOnchainTx } from '../../src/lib/tax/types';
+import { classifyIncomePass3, classifyFeesPass3 } from '../../src/lib/yearEnd/pass3';
+import { INCOME_KEYWORDS, LOAN_INTEREST_KEYWORDS } from '../../src/lib/yearEnd/constants';
+import type { RawImportTx, RawOnchainTx } from '../../src/lib/yearEnd/types';
 
 // ── Fixture helpers ───────────────────────────────────────────────────────────
 

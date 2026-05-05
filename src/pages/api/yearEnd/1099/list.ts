@@ -1,5 +1,5 @@
 /**
- * GET /api/tax/1099/list?year=2024
+ * GET /api/yearEnd/1099/list?year=2024
  *
  * Returns all 1099 uploads for the current tenant (summary only, no raw CSV).
  */

@@ -21,7 +21,7 @@
  */
 
 import { db } from './db';
-import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './tax/lotSelection';
+import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './yearEnd/lotSelection';
 
 // ─── kinds that are taxable ordinary income (not capital events) ──────────────
 const INCOME_KINDS = new Set([

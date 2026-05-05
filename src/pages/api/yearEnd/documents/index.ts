@@ -1,6 +1,6 @@
 /**
- * GET  /api/tax/documents?year=2025   — list documents for tenant + year
- * POST /api/tax/documents             — upload a tax document (PDF or image)
+ * GET  /api/yearEnd/documents?year=2025   — list documents for tenant + year
+ * POST /api/yearEnd/documents             — upload a tax document (PDF or image)
  */
 
 import type { APIRoute } from 'astro';

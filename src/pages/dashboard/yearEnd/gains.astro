@@ -1,6 +1,6 @@
 ---
 /**
- * /dashboard/tax — Schedule D tax summary
+ * /dashboard/yearEnd — Schedule D tax summary
  *
  * Shows a high-level breakdown of:
  *   • Ordinary income   (Aave interest, rebasing rewards — Form 1040 Schedule 1)
@@ -15,7 +15,7 @@
 
 import Layout from '../../../layouts/Layout.astro';
 import { hasTaxAccess } from '@/lib/taxAuth';
-import CompletenessScore from '@/components/tax/CompletenessScore.astro';
+import CompletenessScore from '@/components/yearEnd/CompletenessScore.astro';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type AssetIncome = { symbol: string; amount: number; count: number };
@@ -168,7 +168,7 @@ const method =
 	methodParam === 'lifo'    ? 'lifo'    :
 	methodParam === 'spec_id' ? 'spec_id' : 'fifo';
 
-const apiUrl = new URL(`/api/tax/summary?year=${year}&method=${method}`, Astro.request.url);
+const apiUrl = new URL(`/api/yearEnd/summary?year=${year}&method=${method}`, Astro.request.url);
 const apiRes = await fetch(apiUrl);
 const data: TaxPayload = apiRes.ok ? await apiRes.json() : { ok: false };
 
@@ -199,7 +199,7 @@ const fmtGain = (n: number) => {
 		<!-- Header + year picker -->
 		<div class="flex items-center justify-between flex-wrap gap-4">
 			<div>
-				<a href="/dashboard/tax" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
+				<a href="/dashboard/yearEnd" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
 				<h1 class="text-2xl font-bold">Gains Summary</h1>
 				<p class="text-sm text-gray-500 mt-1">
 					Realized gains overview for <strong>{year}</strong>.
@@ -229,7 +229,7 @@ const fmtGain = (n: number) => {
 						title="Last In, First Out — preferred in down markets"
 					>LIFO</a>
 					<a
-						href={`/dashboard/tax/lots?year=${year}&method=${method}`}
+						href={`/dashboard/yearEnd/lots?year=${year}&method=${method}`}
 						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'spec_id' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
 						title="Specific Identification — manually choose which lot to sell"
 					>Spec ID</a>
@@ -1276,7 +1276,7 @@ const fmtGain = (n: number) => {
 									These transactions have no clear IRS guidance — review each one with your tax advisor.
 								</p>
 							</div>
-							<a href={`/dashboard/tax/review?year=${year}`}
+							<a href={`/dashboard/yearEnd/review?year=${year}`}
 							   class="text-xs text-violet-600 hover:text-violet-800 font-medium underline">
 								Review queue →
 							</a>
@@ -1310,7 +1310,7 @@ const fmtGain = (n: number) => {
 						</table>
 						<div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500">
 							DeFi events are flagged automatically by the classification pipeline.
-							Open the <a href={`/dashboard/tax/review?year=${year}`} class="underline">review queue</a> to
+							Open the <a href={`/dashboard/yearEnd/review?year=${year}`} class="underline">review queue</a> to
 							confirm or override each transaction.
 						</div>
 					</div>
@@ -1642,10 +1642,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Pipeline re-run button handler ────────────────────────────────────────────
 // All three buttons (.pipeline-run-btn) share this handler.
-// POST /api/tax/classify → wait → show result → reload page.
+// POST /api/yearEnd/classify → wait → show result → reload page.
 
 (function () {
-  const ENDPOINT = '/api/tax/classify';
+  const ENDPOINT = '/api/yearEnd/classify';
 
   function setAllBtns(disabled: boolean, label: string) {
     document.querySelectorAll<HTMLButtonElement>('.pipeline-run-btn').forEach((btn) => {

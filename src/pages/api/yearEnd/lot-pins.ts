@@ -1,5 +1,5 @@
 /**
- * /api/tax/lot-pins
+ * /api/yearEnd/lot-pins
  *
  * GET    ?year=2024            — list all pins for a tax year
  * POST                         — upsert a pin (disposal_source_id → lot)
