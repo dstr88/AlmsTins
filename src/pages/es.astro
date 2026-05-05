@@ -21,26 +21,26 @@ const safeCallbackUrl = callbackUrl.startsWith("/") ? callbackUrl : "/dashboard/
 
 const message =
   error === "missing"
-    ? ""  // handled by always-visible info box in the dropdown
+    ? ""
     : error === "Configuration"
-      ? "Sign-in is temporarily unavailable. Please try again in a moment."
+      ? "El inicio de sesión no está disponible temporalmente. Por favor intenta de nuevo."
       : error === "OAuthAccountNotLinked"
         ? "LOCKED_OUT"
         : error
-          ? "Sign-in failed. Please try again."
+          ? "Error al iniciar sesión. Por favor intenta de nuevo."
           : "";
 
 const signup = searchParams.get("signup");
 const verified = searchParams.get("verified");
 const notice =
   signup === "success"
-    ? "Account created. Check your inbox to verify your email."
+    ? "Cuenta creada. Revisa tu bandeja de entrada para verificar tu email."
     : verified === "success"
-      ? "Email verified. You can sign in now."
+      ? "Email verificado. Ya puedes iniciar sesión."
       : verified === "expired"
-        ? "Verification link expired. Please sign in to request a new one."
+        ? "El enlace de verificación expiró. Inicia sesión para solicitar uno nuevo."
         : verified === "failed"
-          ? "Verification failed. Please try again."
+          ? "La verificación falló. Por favor intenta de nuevo."
           : "";
 
 const session = await getAuthSession(Astro.request);
@@ -68,9 +68,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
 <Layout>
 
-  <!-- ── Fixed sign-in pill — top-right ───────────────────────────────── -->
-  <a href="/es" class="lang-toggle" aria-label="Ver en español">ES</a>
+  <a href="/" class="lang-toggle" aria-label="Switch to English">EN</a>
 
+  <!-- ── Fixed sign-in pill — top-right ───────────────────────────────── -->
   <div class="signin-pill-wrap" id="signinPillWrap">
     <button
       class="signin-pill"
@@ -80,22 +80,22 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       aria-haspopup="true"
       aria-controls="signinDropdown"
     >
-      Login
+      Iniciar sesión
       <svg class="pill-chevron" viewBox="0 0 12 8" fill="none" aria-hidden="true" width="12" height="8">
         <path d="M1 1.5l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
 
     <div class="signin-dropdown" id="signinDropdown" role="menu" hidden={!hasAlert || undefined}>
-      <button class="dropdown-close" id="signinDropdownClose" aria-label="Close sign-in panel">✕</button>
+      <button class="dropdown-close" id="signinDropdownClose" aria-label="Cerrar panel">✕</button>
 
       {session?.user?.id ? (
-        <a class="dropdown-cta" href={safeCallbackUrl}>Continue to Dashboard →</a>
+        <a class="dropdown-cta" href={safeCallbackUrl}>Ir al panel →</a>
       ) : (
         <>
           <div class="dropdown-info">
-            <p class="dropdown-info-primary">No signup needed — just sign in.</p>
-            <p class="dropdown-info-sub">We'll create your account automatically the first time.</p>
+            <p class="dropdown-info-primary">Sin registro — solo inicia sesión.</p>
+            <p class="dropdown-info-sub">Creamos tu cuenta automáticamente la primera vez.</p>
           </div>
           {message && message !== "LOCKED_OUT" && (
             <p class="dropdown-notice">{message}</p>
@@ -114,8 +114,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
                 <path fill="rgba(255,255,255,0.6)" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
                 <path fill="rgba(255,255,255,0.7)" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
-              <span class="provider-label">Continue with Google</span>
-              <span class="last-used-badge" data-badge="google" hidden>Last used</span>
+              <span class="provider-label">Continuar con Google</span>
+              <span class="last-used-badge" data-badge="google" hidden>Último usado</span>
             </button>
           </form>
 
@@ -128,8 +128,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
               <svg class="provider-icon" viewBox="0 0 24 24" fill="white" aria-hidden="true">
                 <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
               </svg>
-              <span class="provider-label">Continue with GitHub</span>
-              <span class="last-used-badge" data-badge="github" hidden>Last used</span>
+              <span class="provider-label">Continuar con GitHub</span>
+              <span class="last-used-badge" data-badge="github" hidden>Último usado</span>
             </button>
           </form>
 
@@ -138,37 +138,37 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <!-- Email -->
           <div class="email-toggle-wrap">
             <button class="email-toggle-btn" id="emailToggle" type="button" aria-expanded="false">
-              Sign in with email <span class="toggle-chevron">›</span>
+              Iniciar sesión con email <span class="toggle-chevron">›</span>
             </button>
             <div class="email-panel" id="emailPanel" hidden>
               <div class="email-tabs" role="tablist">
-                <button class="email-tab active" id="tabPass" role="tab" aria-selected="true" type="button">Password</button>
-                <button class="email-tab" id="tabMagic" role="tab" aria-selected="false" type="button">Magic link</button>
+                <button class="email-tab active" id="tabPass" role="tab" aria-selected="true" type="button">Contraseña</button>
+                <button class="email-tab" id="tabMagic" role="tab" aria-selected="false" type="button">Enlace mágico</button>
               </div>
               <form id="login-email-password" class="stack email-tab-panel" method="POST" action="/api/auth/callback/credentials">
                 <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
                 <input type="hidden" name="csrfToken" value={csrfToken} />
                 <label>
-                  <span>Email address</span>
-                  <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+                  <span>Correo electrónico</span>
+                  <input type="email" name="email" placeholder="tu@ejemplo.com" required autocomplete="email" />
                 </label>
                 <label>
-                  <span>Password</span>
+                  <span>Contraseña</span>
                   <input type="password" name="password" minlength="10" required autocomplete="current-password" />
                 </label>
                 <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
-                  Sign in with email
+                  Iniciar sesión con email
                 </button>
               </form>
               <form id="login-magic-link" class="stack email-tab-panel" method="POST" action="/api/auth/signin/email" hidden>
                 <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
                 <input type="hidden" name="csrfToken" value={csrfToken} />
                 <label>
-                  <span>Email address</span>
-                  <input type="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+                  <span>Correo electrónico</span>
+                  <input type="email" name="email" placeholder="tu@ejemplo.com" required autocomplete="email" />
                 </label>
                 <button type="submit" data-needs-csrf={!csrfToken || undefined} disabled={!csrfToken || undefined}>
-                  Send magic link
+                  Enviar enlace mágico
                 </button>
               </form>
             </div>
@@ -187,62 +187,62 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       <div class="landing__left">
 
         <!-- Logo -->
-        <a href="/" class="wordmark" aria-label="Almstins home">
+        <a href="/" class="wordmark" aria-label="Almstins inicio">
           <img src={Logo.src} width="44" height="44" alt="Almstins logo" class="wordmark-img" />
           <span class="wordmark-text">Almstins</span>
         </a>
 
         <!-- Headline + subhead -->
         <div class="hero__copy">
-          <h1 class="hero__headline">Finally Understand<br/>What Happened<br/>in Your Wallet.</h1>
-          <p class="hero__subheadline">Missing transactions, unexplained gaps, tax surprises — trace every move in your crypto history so you know exactly what happened and why.</p>
+          <h1 class="hero__headline">Por fin entiende<br/>qué pasó en<br/>tu billetera.</h1>
+          <p class="hero__subheadline">Transacciones perdidas, brechas inexplicables, sorpresas fiscales — rastrea cada movimiento en tu historial crypto para saber exactamente qué pasó y por qué.</p>
         </div>
 
-        <!-- Wallet demo input — primary action -->
+        <!-- Wallet demo input -->
         <div class="landing__demo">
-          <span class="landing__demo-label">DEMO — Enter any wallet — see its full history free</span>
+          <span class="landing__demo-label">DEMO — Ingresa cualquier billetera — ve su historial gratis</span>
           <form class="landing__demo-form" id="demoForm">
             <input
               class="landing__demo-input"
               type="text"
-              placeholder="0x… or ENS name"
-              aria-label="Wallet address"
+              placeholder="0x… o dirección"
+              aria-label="Dirección de billetera"
               autocomplete="off"
               spellcheck="false"
             />
-            <button class="landing__demo-submit" type="submit" aria-label="Go">→</button>
+            <button class="landing__demo-submit" type="submit" aria-label="Ir">→</button>
           </form>
-          <p class="landing__demo-hint" id="demoHint">See transactions, flagged gaps, and what the IRS will ask about. No signup needed.</p>
+          <p class="landing__demo-hint" id="demoHint">Ve transacciones, brechas marcadas y lo que el fisco te preguntará. Sin registro.</p>
           <div class="landing__demo-samples">
-            <span class="landing__demo-samples-label">Or try a sample:</span>
-            <button class="landing__demo-sample" type="button" data-demo-addr="1">1 — ETH wallet</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="2">2 — SOL wallet</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="3">3 — DeFi wallet</button>
+            <span class="landing__demo-samples-label">O prueba una muestra:</span>
+            <button class="landing__demo-sample" type="button" data-demo-addr="1">1 — Billetera ETH</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="2">2 — Billetera SOL</button>
+            <button class="landing__demo-sample" type="button" data-demo-addr="3">3 — Billetera DeFi</button>
           </div>
-          <p class="landing__demo-signup">Login creates an account for free.</p>
+          <p class="landing__demo-signup">Iniciar sesión crea una cuenta gratis.</p>
         </div>
 
-        <!-- Three feature cards — stacked vertically -->
+        <!-- Feature cards -->
         <div class="feature-stack">
           <div class="feature-card">
             <span class="fc-icon">🔐</span>
             <div>
-              <div class="fc-title">Read-only, always</div>
-              <div class="fc-desc">Public addresses only. No keys, no risk — ever.</div>
+              <div class="fc-title">Solo lectura, siempre</div>
+              <div class="fc-desc">Solo direcciones públicas. Sin claves, sin riesgo — nunca.</div>
             </div>
           </div>
           <div class="feature-card">
             <span class="fc-icon">🔍</span>
             <div>
-              <div class="fc-title">Know your tax exposure</div>
-              <div class="fc-desc">Every gain, flagged gap, and missing cost basis — surfaced before April hits.</div>
+              <div class="fc-title">Conoce tu exposición fiscal</div>
+              <div class="fc-desc">Cada ganancia, brecha marcada y base de costo faltante — antes de que llegue el fisco.</div>
             </div>
           </div>
           <div class="feature-card">
             <span class="fc-icon">🏫</span>
             <div>
-              <div class="fc-title">Built by a teacher</div>
-              <div class="fc-desc">Privacy-first from day one. Never sold. Never shared.</div>
+              <div class="fc-title">Hecho por un educador</div>
+              <div class="fc-desc">Privacidad desde el primer día. Nunca vendido. Nunca compartido.</div>
             </div>
           </div>
         </div>
@@ -257,21 +257,21 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     </div>
   </main>
 
-  <!-- ── Hesitation modal (shown after 30s of no interaction) ────────── -->
+  <!-- ── Hesitation modal ────────── -->
   <div class="hesitation-overlay hidden" id="hesitationOverlay" role="dialog" aria-modal="true" aria-labelledby="hesitationTitle">
     <div class="hesitation-modal">
-      <button class="hesitation-close" id="hesitationClose" aria-label="Close">✕</button>
-      <h3 id="hesitationTitle">Got a question before you sign up?</h3>
-      <p>We read everything — great questions end up in the FAQ.</p>
+      <button class="hesitation-close" id="hesitationClose" aria-label="Cerrar">✕</button>
+      <h3 id="hesitationTitle">¿Tienes una pregunta antes de registrarte?</h3>
+      <p>Leemos todo — las mejores preguntas terminan en el FAQ.</p>
       <form id="contact-form" autocomplete="off" novalidate>
         <input id="contact-subject" type="text" name="subject" maxlength="120"
-          placeholder="Subject" class="contact-input" required />
+          placeholder="Asunto" class="contact-input" required />
         <div class="contact-body-wrap">
           <textarea id="contact-body" name="body" maxlength="500" rows="4"
-            placeholder="Your question or thought…" class="contact-input contact-textarea" required></textarea>
+            placeholder="Tu pregunta o comentario…" class="contact-input contact-textarea" required></textarea>
           <div class="contact-char"><span id="contact-char-count">0</span> / 500</div>
         </div>
-        <button type="submit" class="contact-submit">Submit anonymously</button>
+        <button type="submit" class="contact-submit">Enviar anónimamente</button>
         <p id="contact-status" class="contact-status" hidden></p>
       </form>
     </div>
@@ -281,11 +281,11 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     <div class="session-overlay" id="session-overlay">
       <div class="session-popup" role="alertdialog" aria-modal="true" aria-labelledby="session-title">
         <div class="session-popup__icon">🔐</div>
-        <h2 id="session-title">You're already signed in</h2>
-        <p>It looks like you have an active session on another browser or device. Sign out first, then try again.</p>
+        <h2 id="session-title">Ya tienes una sesión activa</h2>
+        <p>Parece que tienes una sesión activa en otro navegador o dispositivo. Cierra sesión primero y vuelve a intentarlo.</p>
         <div class="session-popup__actions">
-          <a class="session-popup__btn session-popup__btn--primary" href="/api/auth/signout">Sign out &amp; try again</a>
-          <button class="session-popup__btn session-popup__btn--ghost" id="session-dismiss">Dismiss</button>
+          <a class="session-popup__btn session-popup__btn--primary" href="/api/auth/signout">Cerrar sesión e intentar de nuevo</a>
+          <button class="session-popup__btn session-popup__btn--ghost" id="session-dismiss">Descartar</button>
         </div>
       </div>
     </div>
@@ -363,7 +363,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         if (wrap && !wrap.contains(e.target as Node)) {
           closeDropdown();
         } else if (!dropdown!.hidden) {
-          // Clicked inside — re-register listener
           setTimeout(() => {
             document.addEventListener('click', outsideClick, { once: true });
           }, 0);
@@ -380,11 +379,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         if (e.key === 'Escape' && !dropdown.hidden) closeDropdown();
       });
 
-      // Auto-open if there's a notice or error
       if (pill.getAttribute('aria-expanded') === 'true') {
         openDropdown();
       }
-
     })();
 
     // ── Email toggle ──────────────────────────────────────────────────
@@ -419,7 +416,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       tabMagic?.addEventListener('click', () => switchTab(false));
     })();
 
-    // ── Hesitation modal (30s timer, reset on interaction) ───────────
+    // ── Hesitation modal ─────────────────────────────────────────────
     (() => {
       const overlay = document.getElementById('hesitationOverlay');
       const closeBtn = document.getElementById('hesitationClose');
@@ -475,7 +472,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         if (!subject || !bodyVal) return;
         const btn = form.querySelector('button[type="submit"]') as HTMLButtonElement;
         btn.disabled = true;
-        btn.textContent = 'Sending…';
+        btn.textContent = 'Enviando…';
         try {
           const res = await fetch('/api/contact', {
             method: 'POST',
@@ -487,26 +484,26 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             form.reset();
             if (counter) counter.textContent = '0';
             if (status) {
-              status.textContent = '✓ Submitted — thanks!';
+              status.textContent = '✓ Enviado — ¡gracias!';
               (status as HTMLElement).style.color = '#4ade80';
               status.hidden = false;
             }
             setTimeout(dismiss, 2500);
-          } else { throw new Error(data.error ?? 'Submit failed'); }
+          } else { throw new Error(data.error ?? 'Error al enviar'); }
         } catch (err: unknown) {
           if (status) {
-            status.textContent = err instanceof Error ? err.message : 'Something went wrong';
+            status.textContent = err instanceof Error ? err.message : 'Algo salió mal';
             (status as HTMLElement).style.color = '#f87171';
             status.hidden = false;
           }
         } finally {
           btn.disabled = false;
-          btn.textContent = 'Submit anonymously';
+          btn.textContent = 'Enviar anónimamente';
         }
       });
     })();
 
-    // ── Portfolio card tilt (desktop, reduced-motion respected) ─────────
+    // ── Portfolio card tilt ──────────────────────────────────────────
     (() => {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       if (window.matchMedia('(max-width: 64rem)').matches) return;
@@ -526,12 +523,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     // ── Wallet demo input ─────────────────────────────────────────────
     (() => {
-      const EVM_RE     = /^0x[a-fA-F0-9]{40}$/;
-      const BTC_BECH_RE = /^bc1[a-zA-HJ-NP-Z0-9]{25,}$/;
+      const EVM_RE        = /^0x[a-fA-F0-9]{40}$/;
+      const BTC_BECH_RE   = /^bc1[a-zA-HJ-NP-Z0-9]{25,}$/;
       const BTC_LEGACY_RE = /^[13][a-zA-HJ-NP-Z0-9]{25,34}$/;
-      const LTC_BECH_RE = /^ltc1[a-zA-HJ-NP-Z0-9]{25,}$/;
+      const LTC_BECH_RE   = /^ltc1[a-zA-HJ-NP-Z0-9]{25,}$/;
       const LTC_LEGACY_RE = /^[LM][a-zA-HJ-NP-Z0-9]{25,34}$/;
-      const SOL_RE     = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+      const SOL_RE        = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
       const DEMO_WALLET_ADDRS = new Set(['1', '2', '3']);
       function isKnownAddress(addr: string): boolean {
@@ -546,7 +543,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
       const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
 
-      // Sample wallet chips — click to fill + submit
       document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const addr = btn.dataset.demoAddr ?? '';
@@ -554,10 +550,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         });
       });
 
-      // Clear warning on new input
       input?.addEventListener('input', () => {
         if (hint) {
-          hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
+          hint.textContent = 'Sin registro. Ve un portafolio real en 5 segundos. Inicia sesión después para guardarlo.';
           hint.style.color = '';
         }
       });
@@ -569,7 +564,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
         if (address && !isKnownAddress(address)) {
           if (hint) {
-            hint.textContent = '⚠ Wallet not recognized — try an Ethereum (0x…), Bitcoin, or Solana address.';
+            hint.textContent = '⚠ Dirección no reconocida — prueba una dirección Ethereum (0x…), Bitcoin o Solana.';
             hint.style.color = 'var(--loss)';
           }
           return;
@@ -593,7 +588,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       color: #f5f8ff;
     }
 
-    /* ── Page shell ──────────────────────────────────────────── */
     .landing {
       position: relative;
       width: 100%;
@@ -601,7 +595,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
     }
 
-    /* ── Two-column hero grid ────────────────────────────────── */
     .landing__hero {
       max-width: 75rem;
       margin: 0 auto;
@@ -613,26 +606,14 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       align-items: start;
     }
 
-    .landing__left {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .landing__right {
-      display: flex;
-      justify-content: flex-end;
-      align-items: start;
-    }
+    .landing__left  { display: flex; flex-direction: column; }
+    .landing__right { display: flex; justify-content: flex-end; align-items: start; }
 
     @media (max-width: 64rem) {
-      .landing__hero {
-        grid-template-columns: 1fr;
-        gap: 0;
-      }
+      .landing__hero { grid-template-columns: 1fr; gap: 0; }
       .landing__right { display: none; }
     }
 
-    /* ── Wordmark ────────────────────────────────────────────── */
     .wordmark {
       display: inline-flex; align-items: center; gap: 0.75rem;
       text-decoration: none; width: fit-content;
@@ -649,125 +630,70 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
 
-    /* ── Headline ────────────────────────────────────────────── */
     .hero__copy { margin-top: clamp(1.5rem, 4vw, 3rem); }
     .hero__headline {
       font-size: clamp(2rem, 4vw + 1rem, 3.25rem);
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      line-height: 1.05;
-      color: var(--text-primary);
-      margin: 0 0 1.5rem;
-      max-width: 22ch;
+      font-weight: 600; letter-spacing: -0.02em; line-height: 1.05;
+      color: var(--text-primary); margin: 0 0 1.5rem; max-width: 22ch;
     }
     .hero__subheadline {
       font-size: clamp(1rem, 0.5vw + 0.875rem, 1.125rem);
-      line-height: 1.5;
-      color: var(--text-secondary);
-      max-width: 38ch;
-      text-wrap: balance;
-      margin: 0 0 2rem;
+      line-height: 1.5; color: var(--text-secondary);
+      max-width: 38ch; text-wrap: balance; margin: 0 0 2rem;
     }
 
-    /* ── Wallet demo input ───────────────────────────────────── */
     .landing__demo { margin-top: 0; }
     .landing__demo-label {
-      display: block;
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 0.75rem;
+      display: block; font-size: 0.875rem; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem;
     }
     .landing__demo-form {
-      display: flex;
-      gap: 0;
-      border: 1px solid var(--border-bright);
-      border-radius: 0.75rem;
-      background: var(--surface-card);
-      overflow: hidden;
-      transition: border-color 0.15s;
+      display: flex; gap: 0;
+      border: 1px solid var(--border-bright); border-radius: 0.75rem;
+      background: var(--surface-card); overflow: hidden; transition: border-color 0.15s;
     }
     .landing__demo-form:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-glow);
+      border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow);
     }
     .landing__demo-input {
-      flex: 1;
-      background: transparent;
-      border: 0;
-      padding: 1.125rem 1.25rem;
-      font-size: 1.125rem;
-      color: var(--text-primary);
-      font-family: inherit;
-      outline: 0;
+      flex: 1; background: transparent; border: 0;
+      padding: 1.125rem 1.25rem; font-size: 1.125rem;
+      color: var(--text-primary); font-family: inherit; outline: 0;
     }
     .landing__demo-input::placeholder { color: var(--text-muted); }
     .landing__demo-submit {
-      background: var(--accent);
-      color: var(--surface-bg);
-      border: 0;
-      padding: 0 1.5rem;
-      font-size: 1.25rem;
-      font-weight: 600;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: box-shadow 0.15s;
+      background: var(--accent); color: var(--surface-bg); border: 0;
+      padding: 0 1.5rem; font-size: 1.25rem; font-weight: 600;
+      cursor: pointer; flex-shrink: 0; transition: box-shadow 0.15s;
     }
     .landing__demo-submit:hover { box-shadow: 0 0 1.5rem var(--accent-glow); }
     .landing__demo-hint {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      margin-top: 0.75rem;
-      text-align: center;
+      font-size: 0.875rem; color: var(--text-muted);
+      margin-top: 0.75rem; text-align: center;
     }
     .landing__demo-samples {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      margin-top: 0.65rem;
-      justify-content: center;
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: 0.4rem; margin-top: 0.65rem; justify-content: center;
     }
-    .landing__demo-samples-label {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-    }
+    .landing__demo-samples-label { font-size: 0.78rem; color: var(--text-muted); }
     .landing__demo-sample {
-      font-size: 0.78rem;
-      padding: 0.2rem 0.6rem;
-      border-radius: 999px;
-      border: 1px solid var(--border-bright);
-      background: var(--surface-card-2);
-      color: var(--accent);
-      cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
+      font-size: 0.78rem; padding: 0.2rem 0.6rem; border-radius: 999px;
+      border: 1px solid var(--border-bright); background: var(--surface-card-2);
+      color: var(--accent); cursor: pointer; transition: background 0.15s, border-color 0.15s;
     }
-    .landing__demo-sample:hover {
-      background: var(--accent-soft);
-      border-color: var(--accent);
-    }
+    .landing__demo-sample:hover { background: var(--accent-soft); border-color: var(--accent); }
     .landing__demo-signup {
-      font-size: 0.8rem;
-      color: var(--accent-dim);
-      margin-top: 0.4rem;
-      text-align: center;
+      font-size: 0.8rem; color: var(--accent-dim); margin-top: 0.4rem; text-align: center;
     }
 
-    /* ── Feature stack — demo→first card: clamp(3rem,6vw,5rem) ─ */
     .feature-stack {
-      margin-top: clamp(3rem, 6vw, 5rem);
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-      padding-bottom: 6rem;
+      margin-top: clamp(3rem, 6vw, 5rem); display: flex;
+      flex-direction: column; gap: 1.5rem; padding-bottom: 6rem;
     }
     .feature-card {
       display: flex; align-items: flex-start; gap: 0.75rem;
-      background: var(--surface-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: 0.75rem;
-      padding: 1rem 1.25rem;
+      background: var(--surface-card); border: 1px solid var(--border-subtle);
+      border-radius: 0.75rem; padding: 1rem 1.25rem;
     }
     .fc-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 0.1rem; }
     .fc-title { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; }
@@ -775,104 +701,52 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     /* ── Language toggle ─────────────────────────────────────────── */
     .lang-toggle {
-      position: fixed;
-      top: 2rem;
-      left: 2rem;
-      z-index: 200;
-      padding: 0.4rem 0.85rem;
-      border-radius: 999px;
-      border: 1px solid var(--border-bright);
-      background: transparent;
-      color: var(--text-muted);
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-decoration: none;
+      position: fixed; top: 2rem; left: 2rem; z-index: 200;
+      padding: 0.4rem 0.85rem; border-radius: 999px;
+      border: 1px solid var(--border-bright); background: transparent;
+      color: var(--text-muted); font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.06em; text-decoration: none;
       transition: background 0.15s, color 0.15s;
       animation: slideInFromRight 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
-    .lang-toggle:hover {
-      background: var(--surface-hover);
-      color: var(--text-primary);
-    }
+    .lang-toggle:hover { background: var(--surface-hover); color: var(--text-primary); }
 
-    /* ── Sign-in pill (fixed top-right) ────────────────────────── */
+    /* ── Sign-in pill ────────────────────────────────────────────── */
     @keyframes slideInFromRight {
       from { opacity: 0; transform: translateX(2.5rem); }
       to   { opacity: 1; transform: translateX(0); }
     }
     .signin-pill-wrap {
-      position: fixed;
-      top: 2rem;
-      right: 2rem;
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
+      position: fixed; top: 2rem; right: 2rem; z-index: 200;
+      display: flex; align-items: center; gap: 0.75rem;
       animation: slideInFromRight 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
     .signin-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.625rem 1.25rem;
-      border-radius: 999px;
-      border: 1px solid var(--border-bright);
-      background: transparent;
-      color: var(--text-secondary);
-      font-size: 0.88rem;
-      font-weight: 600;
-      font-family: inherit;
-      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.625rem 1.25rem; border-radius: 999px;
+      border: 1px solid var(--border-bright); background: transparent;
+      color: var(--text-secondary); font-size: 0.88rem; font-weight: 600;
+      font-family: inherit; cursor: pointer;
       transition: background 0.15s, color 0.15s, transform 0.15s;
-      white-space: nowrap;
-      max-width: 11.25rem;
-      text-align: center;
+      white-space: nowrap; max-width: 11.25rem; text-align: center;
     }
-    .signin-pill:hover {
-      background: var(--surface-hover);
-      color: var(--text-primary);
-      transform: translateY(-1px);
-    }
-    .signin-pill.is-open {
-      background: var(--surface-hover);
-      color: var(--text-primary);
-    }
+    .signin-pill:hover { background: var(--surface-hover); color: var(--text-primary); transform: translateY(-1px); }
+    .signin-pill.is-open { background: var(--surface-hover); color: var(--text-primary); }
     .pill-chevron { display: none; }
 
-    /* ── Sign-in dropdown ──────────────────────────────────────── */
     .dropdown-close {
-      position: absolute;
-      top: 0.6rem;
-      right: 0.6rem;
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      cursor: pointer;
-      padding: 0.25rem 0.4rem;
-      border-radius: 0.25rem;
-      line-height: 1;
-      transition: color 0.15s, background 0.15s;
+      position: absolute; top: 0.6rem; right: 0.6rem;
+      background: none; border: none; color: var(--text-muted);
+      font-size: 0.8rem; cursor: pointer; padding: 0.25rem 0.4rem;
+      border-radius: 0.25rem; line-height: 1; transition: color 0.15s, background 0.15s;
     }
-    .dropdown-close:hover {
-      color: var(--text-primary);
-      background: var(--surface-hover);
-    }
+    .dropdown-close:hover { color: var(--text-primary); background: var(--surface-hover); }
     .signin-dropdown {
-      position: absolute;
-      top: calc(100% + 0.6rem);
-      right: 0;
-      width: 20rem;
-      background: rgba(10, 15, 26, 0.98);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 1rem;
-      padding: 1.25rem;
+      position: absolute; top: calc(100% + 0.6rem); right: 0; width: 20rem;
+      background: rgba(10, 15, 26, 0.98); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 1rem; padding: 1.25rem;
       box-shadow: 0 1.25rem 3.75rem rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
-      backdrop-filter: blur(1rem);
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
+      backdrop-filter: blur(1rem); display: flex; flex-direction: column; gap: 0.75rem;
       animation: dropIn 0.18s ease;
     }
     .signin-dropdown[hidden] { display: none; }
@@ -886,87 +760,46 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
 
     .dropdown-info {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      padding: 0.55rem 0.75rem;
-      background: var(--surface-card-2);
-      border: 1px solid var(--border-subtle);
-      border-radius: 0.625rem;
+      display: flex; flex-direction: column; gap: 0.25rem;
+      padding: 0.55rem 0.75rem; background: var(--surface-card-2);
+      border: 1px solid var(--border-subtle); border-radius: 0.625rem;
     }
-    .dropdown-info-primary {
-      margin: 0;
-      font-size: 0.84rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      line-height: 1.4;
-    }
-    .dropdown-info-sub {
-      margin: 0;
-      font-size: 0.76rem;
-      color: var(--text-muted);
-      line-height: 1.5;
-    }
+    .dropdown-info-primary { margin: 0; font-size: 0.84rem; font-weight: 700; color: var(--text-primary); line-height: 1.4; }
+    .dropdown-info-sub     { margin: 0; font-size: 0.76rem; color: var(--text-muted); line-height: 1.5; }
 
     .dropdown-notice {
-      margin: 0;
-      background: var(--loss-bg);
-      border: 1px solid var(--loss-border);
-      color: #ffb5b5;
-      padding: 0.55rem 0.75rem;
-      border-radius: 0.625rem;
-      font-size: 0.84rem;
-      line-height: 1.5;
+      margin: 0; background: var(--loss-bg); border: 1px solid var(--loss-border);
+      color: #ffb5b5; padding: 0.55rem 0.75rem; border-radius: 0.625rem;
+      font-size: 0.84rem; line-height: 1.5;
     }
-    .dropdown-notice--success {
-      background: var(--gain-bg);
-      border-color: var(--gain-border);
-      color: #b6f3c4;
-    }
+    .dropdown-notice--success { background: var(--gain-bg); border-color: var(--gain-border); color: #b6f3c4; }
 
     .dropdown-cta {
       display: flex; align-items: center; justify-content: center;
-      width: 100%; padding: 0.85rem 1rem;
-      border-radius: 0.75rem;
+      width: 100%; padding: 0.85rem 1rem; border-radius: 0.75rem;
       background: linear-gradient(135deg, #5767ff, #934dff);
       color: #fff; font-size: 0.95rem; font-weight: 700;
-      text-decoration: none;
-      transition: opacity 0.15s, transform 0.15s;
+      text-decoration: none; transition: opacity 0.15s, transform 0.15s;
     }
     .dropdown-cta:hover { opacity: 0.9; transform: translateY(-1px); }
 
-    .dropdown-divider {
-      height: 0.0625rem;
-      background: rgba(255,255,255,0.08);
-      margin: 0.1rem 0;
-    }
+    .dropdown-divider { height: 0.0625rem; background: rgba(255,255,255,0.08); margin: 0.1rem 0; }
 
-    /* Providers (shared between dropdown items) */
     .providers { display: grid; gap: 0.75rem; }
     .provider-form { margin: 0; }
     .provider-button {
       display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
-      width: 100%; text-decoration: none;
-      border-radius: 0.75rem; padding: 0.8rem 1rem;
-      border: 1px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.07);
-      color: #fff; font-size: 0.92rem; font-weight: 650;
-      cursor: pointer;
+      width: 100%; text-decoration: none; border-radius: 0.75rem; padding: 0.8rem 1rem;
+      border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.07);
+      color: #fff; font-size: 0.92rem; font-weight: 650; cursor: pointer;
       transition: transform 0.18s ease, opacity 0.18s ease, border-color 0.18s ease, background 0.18s ease;
       position: relative; flex-direction: row;
     }
-    .provider-button:hover {
-      opacity: 0.9; transform: translateY(-1px);
-      border-color: rgba(255,255,255,0.28);
-    }
-    .provider-icon { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+    .provider-button:hover { opacity: 0.9; transform: translateY(-1px); border-color: rgba(255,255,255,0.28); }
+    .provider-icon  { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
     .provider-label { display: block; flex: 1; }
-    .provider-button.google {
-      background: linear-gradient(135deg, #3b7ef8, #1d4ed8); border: none;
-    }
-    .provider-button.github {
-      background: linear-gradient(135deg, #1c2333, #2d3748); border: none;
-    }
+    .provider-button.google { background: linear-gradient(135deg, #3b7ef8, #1d4ed8); border: none; }
+    .provider-button.github { background: linear-gradient(135deg, #1c2333, #2d3748); border: none; }
     .last-used-badge {
       display: block; font-size: 0.62rem; font-weight: 700;
       letter-spacing: 0.06em; text-transform: uppercase;
@@ -975,22 +808,15 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .provider-button.last-used { outline: 0.125rem solid rgba(255,255,255,0.4); outline-offset: 0.125rem; }
 
-    /* Email toggle */
-    .email-toggle-wrap {
-      border: 1px solid rgba(255,255,255,0.09);
-      border-radius: 0.75rem; overflow: hidden;
-    }
+    .email-toggle-wrap { border: 1px solid rgba(255,255,255,0.09); border-radius: 0.75rem; overflow: hidden; }
     .email-toggle-btn {
-      width: 100%; background: rgba(255,255,255,0.04);
-      border: none; color: rgba(255,255,255,0.5); font-size: 0.84rem;
-      font-family: inherit; padding: 0.7rem 1rem;
-      cursor: pointer; text-align: left;
+      width: 100%; background: rgba(255,255,255,0.04); border: none;
+      color: rgba(255,255,255,0.5); font-size: 0.84rem; font-family: inherit;
+      padding: 0.7rem 1rem; cursor: pointer; text-align: left;
       display: flex; align-items: center; justify-content: space-between;
       transition: background 0.15s, color 0.15s;
     }
-    .email-toggle-btn:hover, .email-toggle-btn.active {
-      background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85);
-    }
+    .email-toggle-btn:hover, .email-toggle-btn.active { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
     .toggle-chevron { font-size: 1rem; transition: transform 0.2s; }
     .email-toggle-btn.active .toggle-chevron { transform: rotate(90deg); }
     .email-panel { padding: 1rem; border-top: 1px solid rgba(255,255,255,0.07); }
@@ -1000,16 +826,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       background: rgba(255,255,255,0.04); border-radius: 0.5rem; padding: 0.1875rem;
     }
     .email-tab {
-      flex: 1; padding: 0.4rem 0.5rem;
-      border: none; background: transparent;
+      flex: 1; padding: 0.4rem 0.5rem; border: none; background: transparent;
       color: rgba(255,255,255,0.45); font-size: 0.8rem; font-weight: 600;
       font-family: inherit; cursor: pointer; border-radius: 0.375rem;
       transition: background 0.15s, color 0.15s;
     }
-    .email-tab.active {
-      background: rgba(255,255,255,0.1); color: #fff;
-      box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.2);
-    }
+    .email-tab.active { background: rgba(255,255,255,0.1); color: #fff; box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.2); }
     .email-tab:hover:not(.active) { color: rgba(255,255,255,0.7); }
 
     .stack { display: grid; gap: 0.85rem; }
@@ -1021,28 +843,22 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     input:focus { outline: 0.125rem solid rgba(99,102,241,0.7); outline-offset: 0.0625rem; }
     .stack button[type="submit"] {
-      border-radius: 0.625rem; padding: 0.75rem 1rem;
-      border: none; background: linear-gradient(135deg, #5865f2, #7c3aed);
+      border-radius: 0.625rem; padding: 0.75rem 1rem; border: none;
+      background: linear-gradient(135deg, #5865f2, #7c3aed);
       color: #fff; font-size: 0.92rem; font-weight: 700; cursor: pointer;
       transition: opacity 0.18s, transform 0.18s;
     }
     .stack button[type="submit"]:hover { opacity: 0.88; transform: translateY(-1px); }
 
-    /* ── Social proof ─────────────────────────────────────────────── */
-    /* ── Hesitation modal ──────────────────────────────────────── */
     .hesitation-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 500; padding: 1rem;
+      position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center; z-index: 500; padding: 1rem;
     }
     .hesitation-overlay.hidden { display: none !important; }
     .hesitation-modal {
-      position: relative;
-      background: #0f1624; border: 1px solid rgba(255,255,255,0.12);
+      position: relative; background: #0f1624; border: 1px solid rgba(255,255,255,0.12);
       border-radius: 1rem; padding: 2rem; width: 100%; max-width: 30rem;
-      box-shadow: 0 2rem 5rem rgba(0,0,0,0.6);
-      animation: modalIn 0.22s ease;
+      box-shadow: 0 2rem 5rem rgba(0,0,0,0.6); animation: modalIn 0.22s ease;
     }
     @keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(0.625rem); } to { opacity:1; transform:none; } }
     .hesitation-close {
@@ -1056,12 +872,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .hesitation-modal p  { font-size: 0.85rem; color: rgba(255,255,255,0.45); margin: 0 0 1.25rem; }
 
     .contact-input {
-      width: 100%; box-sizing: border-box;
-      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 0.5rem; color: rgba(255,255,255,0.9);
-      font-size: 0.88rem; padding: 0.55rem 0.8rem;
-      font-family: inherit; outline: none;
-      transition: border-color 0.15s; display: block; margin-bottom: 0.7rem;
+      width: 100%; box-sizing: border-box; background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 0.5rem;
+      color: rgba(255,255,255,0.9); font-size: 0.88rem; padding: 0.55rem 0.8rem;
+      font-family: inherit; outline: none; transition: border-color 0.15s; display: block; margin-bottom: 0.7rem;
     }
     .contact-input:focus { border-color: rgba(99,102,241,0.5); }
     .contact-body-wrap { position: relative; margin-bottom: 0.7rem; }
@@ -1077,7 +891,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .contact-submit:disabled { opacity: 0.5; cursor: not-allowed; }
     .contact-status { font-size: 0.82rem; margin: 0.65rem 0 0; }
 
-    /* ── Session popup ─────────────────────────────────────────── */
     .session-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.65);
       backdrop-filter: blur(4px); display: flex;
@@ -1087,8 +900,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       background: #0f1624; border: 1px solid rgba(255,255,255,0.12);
       border-radius: 1.25rem; padding: 2.5rem 2rem;
       max-width: 26.25rem; width: 100%; text-align: center;
-      box-shadow: 0 2rem 5rem rgba(0,0,0,0.6);
-      animation: modalIn 0.25s ease;
+      box-shadow: 0 2rem 5rem rgba(0,0,0,0.6); animation: modalIn 0.25s ease;
     }
     .session-popup__icon { font-size: 2.5rem; margin-bottom: 1rem; }
     .session-popup h2 { font-size: 1.35rem; margin: 0 0 0.75rem; }
