@@ -289,6 +289,23 @@ const { lang = 'en' } = Astro.props;
 				}
 			},
 		},
+		{
+			selector: '.wallet-tin--future',
+			title: 'NFTs — próximamente',
+			body: 'Aquí aparecerá tu colección de NFTs. Estamos trabajando en ello — regístrate para ser de los primeros en acceder cuando esté listo.',
+		},
+		{
+			selector: '.tile--r1c2',
+			title: 'Lleva tus transacciones',
+			body: 'La página de contabilidad registra cada transacción de todas tus billeteras e intercambios en un solo lugar. Regístrate gratis para empezar — o inicia sesión si ya tienes cuenta.',
+			onShow: function () {
+				var tile = document.querySelector<HTMLElement>('.tile--r1c2');
+				if (tile) {
+					var rect = tile.getBoundingClientRect();
+					window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - 140), behavior: 'smooth' });
+				}
+			},
+		},
 	] : [
 		{
 			selector: '.tile--r1c1',
@@ -362,6 +379,23 @@ const { lang = 'en' } = Astro.props;
 				if (tin && tin.classList.contains('is-collapsed')) {
 					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
 					lbl?.click();
+				}
+			},
+		},
+		{
+			selector: '.wallet-tin--future',
+			title: 'NFTs — coming soon',
+			body: 'Your NFT collection will live here. We\'re building it now — sign up to be among the first to access it when it\'s ready.',
+		},
+		{
+			selector: '.tile--r1c2',
+			title: 'Track your transactions',
+			body: 'The bookkeeping page pulls in every transaction from all your wallets and exchanges in one place. Sign up free to get started — or log in if you already have an account.',
+			onShow: function () {
+				var tile = document.querySelector<HTMLElement>('.tile--r1c2');
+				if (tile) {
+					var rect = tile.getBoundingClientRect();
+					window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - 140), behavior: 'smooth' });
 				}
 			},
 		},
