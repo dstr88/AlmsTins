@@ -99,11 +99,12 @@ export const GET: APIRoute = async ({ request }) => {
 		})
 		.catch(() => { /* table may not exist yet — ignore */ });
 
-	return new Response(null, {
-		status: 302,
-		headers: {
-			Location: '/dashboard/vault',
-			'Set-Cookie': demoCookieSet(),
-		},
-	});
+	const lang = (request.headers.get('referer') ?? '').includes('/es') ? 'es' : 'en';
+	const langCookie = `almstins-demo-lang=${lang}; Path=/; SameSite=Lax; Max-Age=3600`;
+
+	const headers = new Headers();
+	headers.append('Location', '/dashboard/vault');
+	headers.append('Set-Cookie', demoCookieSet());
+	headers.append('Set-Cookie', langCookie);
+	return new Response(null, { status: 302, headers });
 };

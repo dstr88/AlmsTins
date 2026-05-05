@@ -1,0 +1,346 @@
+---
+interface Props { lang?: 'en' | 'es'; }
+const { lang = 'en' } = Astro.props;
+---
+
+<!-- Take-the-tour bar — sits below the demo-banner, above the grid -->
+<div id="demo-tour-bar" class="demo-tour-bar" data-lang={lang}>
+	<span class="demo-tour-bar__icon">✦</span>
+	<span class="demo-tour-bar__copy">
+		{lang === 'es'
+			? '¿Primera vez aquí? Descubre todo lo que puedes hacer.'
+			: 'First time here? See everything you can do.'}
+	</span>
+	<button id="demo-tour-start" class="demo-tour-bar__cta">
+		{lang === 'es' ? 'Tomar el tour →' : 'Take the tour →'}
+	</button>
+</div>
+
+<!-- Semi-transparent backdrop -->
+<div id="demo-tour-overlay" class="demo-tour-overlay" style="display:none" aria-hidden="true"></div>
+
+<!-- Floating tooltip card (fixed bottom-center) -->
+<div id="demo-tour-tip" class="demo-tour-tip" style="display:none" role="dialog" aria-modal="true" aria-labelledby="demo-tour-title">
+	<div class="demo-tour-tip__head">
+		<span class="demo-tour-tip__counter" id="demo-tour-counter"></span>
+		<button class="demo-tour-tip__skip" id="demo-tour-skip" aria-label="Close tour">✕</button>
+	</div>
+	<h3 class="demo-tour-tip__title" id="demo-tour-title"></h3>
+	<p  class="demo-tour-tip__body"  id="demo-tour-body"></p>
+	<div class="demo-tour-tip__foot">
+		<div class="demo-tour-tip__dots" id="demo-tour-dots" aria-hidden="true"></div>
+		<div class="demo-tour-tip__btns">
+			<button class="demo-tour-tip__btn demo-tour-tip__btn--back" id="demo-tour-back"></button>
+			<button class="demo-tour-tip__btn demo-tour-tip__btn--next" id="demo-tour-next"></button>
+		</div>
+	</div>
+</div>
+
+<style>
+/* ── Tour launch bar ───────────────────────────────────────────────────────── */
+.demo-tour-bar {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-glow);
+	border-radius: 10px;
+	padding: 0.7rem 1.25rem;
+	margin-bottom: 1.25rem;
+}
+.demo-tour-bar__icon {
+	color: var(--accent);
+	font-size: 1rem;
+	flex-shrink: 0;
+}
+.demo-tour-bar__copy {
+	flex: 1;
+	color: var(--text-secondary);
+	font-size: 0.875rem;
+}
+.demo-tour-bar__cta {
+	background: var(--accent);
+	color: var(--surface-bg);
+	border: none;
+	border-radius: 6px;
+	padding: 0.4rem 1.1rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: opacity 0.15s;
+}
+.demo-tour-bar__cta:hover { opacity: 0.88; }
+
+/* ── Backdrop ──────────────────────────────────────────────────────────────── */
+.demo-tour-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0,0,0,0.52);
+	z-index: 1000;
+	pointer-events: none;
+}
+
+/* ── Highlighted element ring ──────────────────────────────────────────────── */
+:global(.demo-tour-highlight) {
+	outline: 2px solid var(--accent) !important;
+	outline-offset: 5px;
+	border-radius: 10px;
+	box-shadow: 0 0 0 8px var(--accent-glow), 0 0 30px var(--accent-glow) !important;
+	position: relative;
+	z-index: 1001;
+}
+
+/* ── Tooltip card ──────────────────────────────────────────────────────────── */
+.demo-tour-tip {
+	position: fixed;
+	bottom: 1.75rem;
+	left: 50%;
+	transform: translateX(-50%);
+	width: min(440px, calc(100vw - 2rem));
+	background: var(--surface-card-2);
+	border: 1px solid var(--border-bright);
+	border-radius: 14px;
+	padding: 1.25rem 1.25rem 1rem;
+	z-index: 1002;
+	box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+}
+.demo-tour-tip__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.6rem;
+}
+.demo-tour-tip__counter {
+	font-size: 0.68rem;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+}
+.demo-tour-tip__skip {
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0;
+	font-size: 1rem;
+	line-height: 1;
+	transition: color 0.15s;
+}
+.demo-tour-tip__skip:hover { color: var(--text-secondary); }
+.demo-tour-tip__title {
+	margin: 0 0 0.45rem;
+	font-size: 1.05rem;
+	font-weight: 700;
+	color: var(--text-primary);
+}
+.demo-tour-tip__body {
+	margin: 0 0 1.1rem;
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+	line-height: 1.55;
+}
+.demo-tour-tip__foot {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.demo-tour-tip__dots {
+	display: flex;
+	gap: 5px;
+	align-items: center;
+}
+.demo-tour-tip__btns {
+	display: flex;
+	gap: 0.5rem;
+}
+.demo-tour-tip__btn {
+	border: none;
+	border-radius: 6px;
+	padding: 0.4rem 1rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: opacity 0.15s;
+}
+.demo-tour-tip__btn--back {
+	background: transparent;
+	border: 1px solid var(--border-bright);
+	color: var(--text-secondary);
+}
+.demo-tour-tip__btn--back:hover { background: var(--surface-hover); }
+.demo-tour-tip__btn--next {
+	background: var(--accent);
+	color: var(--surface-bg);
+}
+.demo-tour-tip__btn--next:hover { opacity: 0.88; }
+</style>
+
+<script>
+(function () {
+	var bar      = document.getElementById('demo-tour-bar');
+	if (!bar) return;
+	var lang     = (bar as HTMLElement).dataset.lang === 'es' ? 'es' : 'en';
+	var startBtn = document.getElementById('demo-tour-start');
+	var overlay  = document.getElementById('demo-tour-overlay');
+	var tip      = document.getElementById('demo-tour-tip');
+	var titleEl  = document.getElementById('demo-tour-title');
+	var bodyEl   = document.getElementById('demo-tour-body');
+	var counterEl= document.getElementById('demo-tour-counter');
+	var dotsEl   = document.getElementById('demo-tour-dots');
+	var backBtn  = document.getElementById('demo-tour-back');
+	var nextBtn  = document.getElementById('demo-tour-next');
+	var skipBtn  = document.getElementById('demo-tour-skip');
+
+	var STEPS: Array<{ selector: string; title: string; body: string }> = lang === 'es' ? [
+		{
+			selector: '.tile--r1c1',
+			title: 'Bloc de notas',
+			body: 'Anota cosas rápidas aquí: "envié 0.05 ETH a mi hermana" o "staking en Lido". Solo tú lo ves — completamente privado.',
+		},
+		{
+			selector: '.tile--r1c2',
+			title: 'Portfolio y Sync',
+			body: 'Tu valor total y ganancias o pérdidas en todas tus billeteras e intercambios. Usa el botón Sync para actualizar tus saldos.',
+		},
+		{
+			selector: '.tile--r1c3',
+			title: 'Agregar billetera',
+			body: 'Pega cualquier dirección on-chain — Ethereum, Solana, Bitcoin, Avalanche y más. Detectamos la red automáticamente a partir del formato de la dirección.',
+		},
+		{
+			selector: '.smart-import-bar',
+			title: 'Importación inteligente',
+			body: 'Arrastra un CSV de cualquier exchange. La detección automática identifica el origen y lo enruta al importador correcto sin configuración manual.',
+		},
+		{
+			selector: '.exchange-lane',
+			title: 'Exchanges centralizados',
+			body: 'Coinbase, Kraken, Gemini, Robinhood y más — importa tu historial completo de transacciones con el CSV de cada plataforma.',
+		},
+		{
+			selector: '.wallet-tin--wallet',
+			title: 'Tins de billetera',
+			body: 'Cada tin muestra tu saldo on-chain en vivo, token por token. Expándelo para ver precios actuales, días en cartera y ganancias no realizadas.',
+		},
+	] : [
+		{
+			selector: '.tile--r1c1',
+			title: 'Notepad',
+			body: 'Keep quick notes here — like "sent sis 0.05 ETH" or "staked on Lido." Private to you, visible only on your vault.',
+		},
+		{
+			selector: '.tile--r1c2',
+			title: 'Portfolio & Sync',
+			body: 'Your total value and P&L across every wallet and exchange. Hit the Sync button to pull fresh balances from the chain.',
+		},
+		{
+			selector: '.tile--r1c3',
+			title: 'Add a Wallet',
+			body: 'Paste any on-chain address — Ethereum, Solana, Bitcoin, Avalanche, and more. We detect the network automatically from the address format.',
+		},
+		{
+			selector: '.smart-import-bar',
+			title: 'Smart Import',
+			body: 'Drop in a CSV from any exchange. Auto-detect figures out which exchange it came from and routes it to the right importer — no manual setup.',
+		},
+		{
+			selector: '.exchange-lane',
+			title: 'Centralized Exchanges',
+			body: 'Coinbase, Kraken, Gemini, Robinhood, and more — import your full transaction history via CSV export from each platform.',
+		},
+		{
+			selector: '.wallet-tin--wallet',
+			title: 'Wallet Tins',
+			body: 'Each tin shows your live on-chain holdings, token by token. Expand it to see current prices, days held, and unrealized gains.',
+		},
+	];
+
+	var L = lang === 'es'
+		? { step: 'Paso', of: 'de', back: '← Atrás', next: 'Siguiente →', finish: 'Regístrate gratis →' }
+		: { step: 'Step', of: 'of',  back: '← Back',  next: 'Next →',      finish: 'Sign up free →' };
+
+	var current     = 0;
+	var highlighted: Element | null = null;
+
+	function clearHighlight() {
+		if (highlighted) {
+			highlighted.classList.remove('demo-tour-highlight');
+			highlighted = null;
+		}
+	}
+
+	function showStep(idx: number) {
+		clearHighlight();
+		var step   = STEPS[idx];
+		var target = document.querySelector(step.selector);
+		if (target) {
+			target.classList.add('demo-tour-highlight');
+			highlighted = target;
+			var rect       = target.getBoundingClientRect();
+			var scrollTop  = window.scrollY + rect.top - 140;
+			window.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+		}
+
+		titleEl!.textContent   = step.title;
+		bodyEl!.textContent    = step.body;
+		counterEl!.textContent = L.step + ' ' + (idx + 1) + ' ' + L.of + ' ' + STEPS.length;
+
+		// Progress dots
+		dotsEl!.innerHTML = '';
+		for (var i = 0; i < STEPS.length; i++) {
+			var dot        = document.createElement('span');
+			var isActive   = i === idx;
+			dot.style.cssText = [
+				'display:inline-block',
+				'height:6px',
+				'border-radius:' + (isActive ? '3px' : '50%'),
+				'width:' + (isActive ? '18px' : '6px'),
+				'background:' + (isActive ? 'var(--accent)' : 'var(--border-bright)'),
+				'transition:all 0.2s',
+			].join(';');
+			dotsEl!.appendChild(dot);
+		}
+
+		(backBtn as HTMLButtonElement).textContent = L.back;
+		(backBtn as HTMLElement).style.display     = idx === 0 ? 'none' : '';
+
+		var isLast = idx === STEPS.length - 1;
+		(nextBtn as HTMLButtonElement).textContent = isLast ? L.finish : L.next;
+	}
+
+	function startTour() {
+		current = 0;
+		overlay!.style.display = '';
+		tip!.style.display     = '';
+		bar.style.display      = 'none';
+		showStep(current);
+	}
+
+	function endTour() {
+		clearHighlight();
+		overlay!.style.display = 'none';
+		tip!.style.display     = 'none';
+		bar.style.display      = '';
+	}
+
+	startBtn?.addEventListener('click', startTour);
+	skipBtn?.addEventListener('click', endTour);
+	overlay?.addEventListener('click', endTour);
+
+	backBtn?.addEventListener('click', function () {
+		if (current > 0) { current--; showStep(current); }
+	});
+
+	nextBtn?.addEventListener('click', function () {
+		if (current < STEPS.length - 1) {
+			current++;
+			showStep(current);
+		} else {
+			endTour();
+			window.location.href = '/';
+		}
+	});
+})();
+</script>

@@ -22,6 +22,7 @@ import { getAllActiveWallets } from '@/lib/wallets';
 import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { isDemoRequest } from '@/lib/demo';
+import DemoTutorial from '@/components/dashboard/DemoTutorial.astro';
 import { db } from '@/lib/db';
 
 const ENABLE_ALL_TX = false;
@@ -76,6 +77,12 @@ try {
 // The client-side fetch handles everything — if the wallet was wiped by
 // cleanup it returns 404 and the tin disappears cleanly.
 const isDemo = isDemoRequest(Astro.request);
+const demoLang = (() => {
+	if (!isDemo) return 'en';
+	const cookie = Astro.request.headers.get('cookie') ?? '';
+	const m = cookie.split(';').map(c => c.trim()).find(c => c.startsWith('almstins-demo-lang='));
+	return m?.split('=')[1] === 'es' ? 'es' : 'en';
+})() as 'en' | 'es';
 const walletsWithData = isDemo
 	? onchainWallets.map((wallet) => ({ wallet, fullData: null }))
 	: await Promise.all(
@@ -126,6 +133,8 @@ const getChainBadge = (chains: string[]): string => {
 				<a href="/" class="demo-banner__cta">Sign up free →</a>
 			</div>
 		)}
+
+		{isDemo && <DemoTutorial lang={demoLang} />}
 
 		<section class="bk-grid">
 			<SalmonTin label="Notepad" class="tile tile--r1c1">
