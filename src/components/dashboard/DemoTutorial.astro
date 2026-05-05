@@ -272,6 +272,23 @@ const { lang = 'en' } = Astro.props;
 				}
 			},
 		},
+		{
+			selector: '.wallet-tin--defi',
+			title: 'Salud del préstamo DeFi',
+			body: 'Fíjate en el número de "Salud" visible en la franja DeFi — sin abrir el tin. Un valor por encima de 1 significa que tu colateral está seguro; por debajo de 1 el protocolo puede liquidarte.',
+		},
+		{
+			selector: '.wallet-tin--defi',
+			title: 'Tu préstamo en Aave',
+			body: 'Dentro ves el colateral depositado, la deuda total y la posición neta por cadena. Monitorea tu exposición de un vistazo para no quedar desprevenido ante una caída de precios.',
+			onShow: function () {
+				var tin = document.querySelector<HTMLElement>('.wallet-tin--defi');
+				if (tin && tin.classList.contains('is-collapsed')) {
+					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
+					lbl?.click();
+				}
+			},
+		},
 	] : [
 		{
 			selector: '.tile--r1c1',
@@ -325,6 +342,23 @@ const { lang = 'en' } = Astro.props;
 			body: 'It\'s now open — look inside: each row shows the token symbol, current price, days held, and unrealized gain or loss. That\'s your full on-chain picture at a glance.',
 			onShow: function () {
 				var tin = document.querySelector<HTMLElement>('.wallet-tin--wallet');
+				if (tin && tin.classList.contains('is-collapsed')) {
+					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
+					lbl?.click();
+				}
+			},
+		},
+		{
+			selector: '.wallet-tin--defi',
+			title: 'DeFi Loan Health',
+			body: 'Notice the "Health" score visible on the DeFi strip — before opening it. A number above 1 means your collateral is safe; below 1 and the protocol can liquidate your position.',
+		},
+		{
+			selector: '.wallet-tin--defi',
+			title: 'Your Aave Loan',
+			body: 'Inside you can see your deposited collateral, total debt, and net position across chains. Track your DeFi exposure at a glance so you\'re never caught off guard by a price drop.',
+			onShow: function () {
+				var tin = document.querySelector<HTMLElement>('.wallet-tin--defi');
 				if (tin && tin.classList.contains('is-collapsed')) {
 					var lbl = tin.querySelector<HTMLElement>('.salmon-tin__label');
 					lbl?.click();
