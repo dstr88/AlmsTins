@@ -37,7 +37,11 @@ function detectChains(address: string): string[] {
 
 export const GET: APIRoute = async ({ request }) => {
 	const url     = new URL(request.url);
-	const address = url.searchParams.get('address')?.trim() ?? '';
+	const rawAddress = url.searchParams.get('address')?.trim() ?? '';
+	// Normalize chip labels ("1 — ETH wallet", "2 — Billetera SOL", etc.) → bare key ("1", "2", "3")
+	const address = /^([123])\s*[—\-]/.test(rawAddress)
+		? (rawAddress.match(/^([123])/)?.[1] ?? rawAddress)
+		: rawAddress;
 
 	// Clear all demo data so every visitor starts fresh
 	for (const table of DEMO_TABLES) {
