@@ -225,6 +225,15 @@ const { lang = 'en' } = Astro.props;
 			body: 'Ya estás rastreando la billetera 1. Agrega la billetera 2 para ver SOL, o la 3 para ver DeFi — y sigue el tour. O pega la clave pública de tu propia billetera para ver más.',
 		},
 		{
+			selector: '#addTinDemoSamples',
+			title: 'Billeteras de muestra',
+			body: 'Haz clic en "2 — SOL" o "3 — DeFi" y pulsa → para añadirla. Cada una trae saldos reales precargados para que veas cómo se ve un portafolio completo.',
+			onShow: function () {
+				var samples = document.getElementById('addTinDemoSamples');
+				if (samples) samples.style.display = '';
+			},
+		},
+		{
 			selector: '.smart-import-bar',
 			title: 'Importación inteligente',
 			body: 'Arrastra un CSV de cualquier exchange — Coinbase, Kraken, Gemini, Exodus y más. Si el formato no se reconoce, verás un mensaje de error claro para que puedas intentar con el archivo correcto.',
@@ -261,6 +270,15 @@ const { lang = 'en' } = Astro.props;
 			selector: '.tile--r1c3',
 			title: 'Add a Wallet',
 			body: 'You\'re already tracking wallet 1. Add wallet 2 to see SOL, or wallet 3 to see DeFi — then follow the tour. Or paste your own public wallet address to see more.',
+		},
+		{
+			selector: '#addTinDemoSamples',
+			title: 'Sample Wallets',
+			body: 'Click "2 — SOL" or "3 — DeFi" and hit → to add it. Each one comes pre-loaded with real balances so you can see what a full portfolio looks like.',
+			onShow: function () {
+				var samples = document.getElementById('addTinDemoSamples');
+				if (samples) samples.style.display = '';
+			},
 		},
 		{
 			selector: '.smart-import-bar',
