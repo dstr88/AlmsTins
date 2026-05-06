@@ -104,12 +104,22 @@ body {
 	text-underline-offset: 0.15em;
 }
 
+/* ── Hamburger toggle — hidden on desktop ────────────────────────────── */
+.nav-toggle {
+	display: none;
+}
+
 /* ── Navigation ──────────────────────────────────────────────────────── */
 nav {
 	display: flex;
 	gap: 1rem;
 	align-items: center;
 	font-size: 0.9rem;
+}
+
+/* Demo links in mobile nav — hidden on desktop */
+.nav-demo-links {
+	display: none;
 }
 
 .nav-form {
@@ -535,18 +545,87 @@ main {
 
 @media (max-width: 720px) {
 	.chrome__header {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 0.75rem;
-	}
-
-	nav {
+		flex-direction: row;
 		flex-wrap: wrap;
+		align-items: center;
+		gap: 0;
+		padding: 0.75rem clamp(1rem, 4vw, 1.5rem);
 	}
 
+	.chrome__header > div:first-child {
+		flex: 1;
+	}
+
+	/* Show hamburger on mobile */
+	.nav-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: none;
+		border: 1px solid var(--border-bright);
+		color: var(--text-secondary);
+		border-radius: 8px;
+		width: 2.25rem;
+		height: 2.25rem;
+		font-size: 1.1rem;
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s;
+		flex-shrink: 0;
+	}
+	.nav-toggle:hover {
+		background: var(--surface-hover);
+		color: var(--text-primary);
+	}
+
+	/* Nav hidden by default — full width so it wraps to its own row when open */
+	nav {
+		display: none;
+		width: 100%;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 0.6rem 0 0.25rem;
+		border-top: 1px solid var(--border-subtle);
+		margin-top: 0.6rem;
+	}
+	.chrome__header.nav-open nav {
+		display: flex;
+	}
+
+	/* Full-width nav links */
+	nav a,
+	.nav-button {
+		width: 100%;
+		border-radius: 8px;
+		padding: 0.7rem 0.9rem;
+		font-size: 0.95rem;
+		box-sizing: border-box;
+	}
+
+	/* Account menu full width */
+	.account-menu {
+		width: 100%;
+	}
+	.account-trigger {
+		width: 100%;
+		box-sizing: border-box;
+		border-radius: 8px;
+	}
 	.account-dropdown {
 		right: auto;
 		left: 0;
+		width: 100%;
+	}
+
+	/* Demo links visible in mobile nav */
+	.nav-demo-links {
+		display: contents;
+	}
+	.nav-demo-signup {
+		color: var(--accent) !important;
+		font-weight: 600;
+	}
+	.nav-demo-exit {
+		color: var(--text-muted) !important;
 	}
 }
 

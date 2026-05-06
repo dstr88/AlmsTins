@@ -75,7 +75,7 @@
 	border: 1px solid var(--accent-dim);
 }
 
-@media (max-width: 600px) {
-	.demo-banner__text { font-size: 0.78rem; }
-	.demo-btn { font-size: 0.76rem; padding: 0.32rem 0.7rem; }
+@media (max-width: 720px) {
+	/* Banner hidden on mobile — Sign up / Exit demo move into the hamburger menu */
+	.demo-banner { display: none; }
 }

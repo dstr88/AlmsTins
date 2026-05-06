@@ -195,7 +195,7 @@ const memberSinceDisplay = memberSinceIso
 			</div>
 		)}
 		<div class="chrome">
-			<header class="chrome__header">
+			<header class="chrome__header" id="chrome-header">
 				<div>
 					<p class="brand">Titanium Hut</p>
 					{isAdmin
@@ -212,7 +212,8 @@ const memberSinceDisplay = memberSinceIso
 					}</a>
 				}
 				</div>
-				<nav>
+				<button id="nav-toggle" class="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">☰</button>
+				<nav id="nav-drawer">
 					<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>Bookkeeping</a>
 					<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
 					<a href="/dashboard/portfolio" class={`nav-link ${isActive('/dashboard/portfolio') ? 'active' : ''}`}>Portfolio</a>
@@ -335,6 +336,12 @@ const memberSinceDisplay = memberSinceIso
 							</form>
 						</div>
 					</details>
+					{isDemo && (
+						<div class="nav-demo-links">
+							<a href="/" class="nav-link nav-demo-signup">Log in / Sign up free →</a>
+							<a href="/api/demo/end" class="nav-link nav-demo-exit">Exit demo</a>
+						</div>
+					)}
 				</nav>
 			</header>
 			<main>
@@ -382,6 +389,36 @@ const memberSinceDisplay = memberSinceIso
 {user && (
 
 <script>
+// ── Mobile nav hamburger toggle ──────────────────────────────────────────
+(function () {
+	var toggle = document.getElementById('nav-toggle');
+	var header = document.getElementById('chrome-header');
+	if (!toggle || !header) return;
+
+	function close() {
+		header.classList.remove('nav-open');
+		toggle.textContent = '☰';
+		toggle.setAttribute('aria-expanded', 'false');
+	}
+
+	toggle.addEventListener('click', function (e) {
+		e.stopPropagation();
+		var open = header.classList.toggle('nav-open');
+		toggle.textContent = open ? '✕' : '☰';
+		toggle.setAttribute('aria-expanded', String(open));
+	});
+
+	// Close when clicking outside
+	document.addEventListener('click', function (e) {
+		if (!header.contains(e.target)) close();
+	});
+
+	// Close on nav link click (navigating away)
+	document.getElementById('nav-drawer')?.querySelectorAll('a').forEach(function (a) {
+		a.addEventListener('click', close);
+	});
+})();
+
 // ── Needs Attention nav badge (reads last-known count from localStorage) ──
 (function () {
 	try {
