@@ -17,6 +17,7 @@ export const GET: APIRoute = async ({ request }) => {
 			return new Response(JSON.stringify({ error: 'Demo only' }), { status: 403 });
 		}
 
+		const DEMO_ETH_ADDR = '0xe1000000000000000000000000000000000000e1';
 		const [
 			walletSchema,
 			snapshotSchema,
@@ -27,6 +28,7 @@ export const GET: APIRoute = async ({ request }) => {
 			defi,
 			exchanges,
 			notes,
+			aaveCache,
 		] = await Promise.all([
 			db.execute(`PRAGMA table_info(wallets)`),
 			db.execute(`PRAGMA table_info(wallet_snapshots)`),
@@ -37,6 +39,7 @@ export const GET: APIRoute = async ({ request }) => {
 			db.execute({ sql: `SELECT wallet_id, last_defi_sync_at FROM wallet_defi_sync WHERE tenant_id = ? LIMIT 10`, args: [DEMO_TENANT_ID] }),
 			db.execute({ sql: `SELECT id, source, name FROM exchange_accounts WHERE tenant_id = ? LIMIT 10`, args: [DEMO_TENANT_ID] }),
 			db.execute({ sql: `SELECT id, body, created_at FROM vault_notes WHERE tenant_id = ? LIMIT 10`, args: [DEMO_TENANT_ID] }),
+			db.execute({ sql: `SELECT cache_key, expires_at, updated_at, substr(value_json, 1, 200) as value_preview FROM cache WHERE cache_key = ? LIMIT 1`, args: [`aave:health:${DEMO_ETH_ADDR}`] }),
 		]);
 
 		return new Response(
@@ -50,6 +53,7 @@ export const GET: APIRoute = async ({ request }) => {
 				defi: defi.rows,
 				exchanges: exchanges.rows,
 				notes: notes.rows,
+				aaveCache: aaveCache.rows,
 			}, null, 2),
 			{ status: 200, headers: { 'Content-Type': 'application/json' } },
 		);

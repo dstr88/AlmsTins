@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import type { APIRoute } from 'astro';
 import { demoCookieSet, DEMO_TENANT_ID } from '../../../lib/demo';
 import { db } from '../../../lib/db';
+import { setCache } from '../../../lib/tursoCache';
 
 const exec = async (sql: string, args: (string | number | null)[] = []) => {
 	try {
@@ -196,12 +197,13 @@ export const GET: APIRoute = async ({ request }) => {
 		[DEMO_TENANT_ID, W_ETH, ethDefiHealth, ethDefiPositions],
 	);
 
-	// Seed the Aave health cache directly so AaveHealthSummary reads demo data
-	// without hitting the live Aave GraphQL API (which has no positions for a fake address).
-	// Cache format must match what /api/aave/health returns.
-	const aaveCachePayload = JSON.stringify({
+	// Seed the Aave health cache so AaveHealthSummary shows demo DeFi data
+	// without hitting the live Aave GraphQL API (fake address has no live positions).
+	// Format matches exactly what /api/aave/health returns.
+	const aaveCacheKey = `aave:health:${ADDR_ETH.toLowerCase()}`;
+	await setCache(aaveCacheKey, {
 		ok: true,
-		address: ADDR_ETH,
+		address: ADDR_ETH.toLowerCase(),
 		asOf: new Date().toISOString(),
 		chains: {
 			ethereum: {
@@ -224,18 +226,8 @@ export const GET: APIRoute = async ({ request }) => {
 				],
 			},
 		},
-	});
-	const aaveCacheKey = `aave:health:${ADDR_ETH.toLowerCase()}`;
-	const aaveCacheTtl = Date.now() + 30 * 60 * 1000; // 30 min
-	await exec(
-		`INSERT INTO cache (cache_key, value_json, expires_at, updated_at)
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(cache_key) DO UPDATE SET
-		   value_json = excluded.value_json,
-		   expires_at = excluded.expires_at,
-		   updated_at = excluded.updated_at`,
-		[aaveCacheKey, aaveCachePayload, aaveCacheTtl, Date.now()],
-	);
+	}, 30 * 60); // 30 min TTL
+	console.log('[demo-seed] Aave health cache seeded for', aaveCacheKey);
 
 	// ── 7. Exchange accounts — explicit UUIDs required (id TEXT PRIMARY KEY, no default) ──
 	const ACCT_CB  = randomUUID();
