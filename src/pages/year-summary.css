@@ -1,7 +1,7 @@
 /* ── Base ────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 
-.tax-home {
+.year-summary {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 1.5rem 5rem;
@@ -752,7 +752,7 @@
   .tax-row--2 { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
-  .tax-home { padding: 0 1rem 3rem; }
+  .year-summary { padding: 0 1rem 3rem; }
   .tax-hero__inner { padding: 1.5rem 1.25rem 0; }
   .year-bar { padding: .75rem 1.25rem; }
 }

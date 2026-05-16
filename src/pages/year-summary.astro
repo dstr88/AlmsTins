@@ -1,8 +1,8 @@
 ---
-import './tax-home.css';
+import './year-summary.css';
 /**
- * /tax-home
- * Tax Preparation Hub — gated by TAX_SECRET passphrase cookie.
+ * /year-summary
+ * Annual Summary Hub — gated by TAX_SECRET passphrase cookie.
  */
 import Layout from '../layouts/Layout.astro';
 import { hasTaxAccess } from '@/lib/taxAuth';
@@ -175,7 +175,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
     </div>
   )}
 
-  <div class="tax-home">
+  <div class="year-summary">
 
     <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
     <header class="tax-hero">
@@ -211,12 +211,31 @@ const availableYears = bd?.availableYears ?? [priorYear];
           <span class="year-bar__label">{isAdmin ? 'Tax Year' : 'Year'}</span>
           <div class="year-bar__pills">
             {availableYears.map(y => (
-              <a href={`/tax-home?year=${y}`} class={`year-pill${y === selectedYear ? ' year-pill--active' : ''}`}>{y}</a>
+              <a href={`/year-summary?year=${y}`} class={`year-pill${y === selectedYear ? ' year-pill--active' : ''}`}>{y}</a>
             ))}
           </div>
         </div>
       </div>
     </header>
+
+    <!-- ── Premium sticky note ──────────────────────────────────────────── -->
+    <div style="
+      background: rgba(45,212,168,0.08);
+      border: 1px solid rgba(45,212,168,0.22);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 0.9rem 1.3rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    ">
+      <span style="font-size:1.1rem;">📌</span>
+      <p style="margin:0; font-size:0.85rem; color:var(--text-secondary); line-height:1.5;">
+        <strong style="color:var(--accent);">Available on the Premium plan.</strong>
+        Upgrade to unlock PDF export, full multi-year history, and downloadable tax schedules.
+      </p>
+    </div>
 
     <!-- ── Row 1 ──────────────────────────────────────────────────────────── -->
     <div class="tax-row tax-row--1">

@@ -44,7 +44,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	return new Response(null, {
 		status: 303,
 		headers: {
-			Location:    '/tax-home',
+			Location:    '/year-summary',
 			'Set-Cookie': grantCookie(expected),
 		},
 	});
