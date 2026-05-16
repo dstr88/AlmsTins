@@ -66,7 +66,11 @@ try {
 const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") || !!notice;
 ---
 
-<Layout>
+<Layout
+  title="Almstins — Por fin entiende qué pasó en tu billetera"
+  description="Rastrea cada transacción en tu historial crypto. Transacciones perdidas, brechas inexplicables y sorpresas fiscales — todo en un solo lugar. Sin registro para explorar."
+  noindex={false}
+>
 
   <a href="/" class="lang-toggle" aria-label="Switch to English">EN</a>
 
@@ -198,9 +202,18 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <p class="hero__subheadline">Transacciones perdidas, brechas inexplicables, sorpresas fiscales — rastrea cada movimiento en tu historial crypto para saber exactamente qué pasó y por qué.</p>
         </div>
 
-        <!-- Wallet demo input -->
-        <div class="landing__demo">
-          <span class="landing__demo-label">DEMO — Ingresa cualquier billetera — ve su historial gratis</span>
+        <!-- Primary CTA: demo -->
+        <a class="landing__demo-cta" href="/api/demo/start">
+          Prueba el Demo — Sin Registro →
+        </a>
+        <p class="landing__demo-cta-sub">Explora un portafolio real con posiciones DeFi, brechas fiscales e historial de billetera.</p>
+
+        <!-- Secondary: wallet input -->
+        <div class="landing__wallet-secondary">
+          <div class="landing__wallet-label-row">
+            <span class="landing__wallet-label">O ingresa tu propia dirección de billetera</span>
+            <a href="/changelog" class="landing__changelog-link">¿Qué hay de nuevo? →</a>
+          </div>
           <form class="landing__demo-form" id="demoForm">
             <input
               class="landing__demo-input"
@@ -213,13 +226,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             <button class="landing__demo-submit" type="submit" aria-label="Ir">→</button>
           </form>
           <p class="landing__demo-hint" id="demoHint">Ve transacciones, brechas marcadas y lo que el fisco te preguntará. Sin registro.</p>
-          <div class="landing__demo-samples">
-            <span class="landing__demo-samples-label">O prueba una muestra:</span>
-            <button class="landing__demo-sample" type="button" data-demo-addr="1" data-demo-label="1 — Billetera ETH">1 — Billetera ETH</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="2" data-demo-label="2 — Billetera SOL">2 — Billetera SOL</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="3" data-demo-label="3 — Billetera DeFi">3 — Billetera DeFi</button>
-          </div>
-          <div class="demo-callout">👆 Haz clic en una billetera para explorar al instante</div>
         </div>
 
         <!-- Feature cards -->
@@ -263,13 +269,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       <button class="hesitation-close" id="hesitationClose" aria-label="Cerrar">✕</button>
       <div class="demo-invite-icon">👋</div>
       <h3 id="hesitationTitle">Míralo en acción — sin registro</h3>
-      <p>Elige una billetera de ejemplo y explora un panel de portafolio real al instante.</p>
-      <div class="demo-invite-chips">
-        <button class="demo-invite-chip" type="button" data-invite-addr="1">🔷 Billetera ETH</button>
-        <button class="demo-invite-chip" type="button" data-invite-addr="2">🟣 Billetera SOL</button>
-        <button class="demo-invite-chip" type="button" data-invite-addr="3">⚡ Billetera DeFi</button>
-      </div>
-      <p class="demo-invite-note">O escribe cualquier dirección en el campo de arriba ↑</p>
+      <p>Explora un portafolio real con posiciones DeFi, brechas fiscales e historial de billetera.</p>
+      <a class="demo-invite-cta" href="/api/demo/start">Lanzar Demo</a>
     </div>
   </div>
 
@@ -453,18 +454,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       });
       resetTimer();
 
-      overlay.querySelectorAll<HTMLButtonElement>('[data-invite-addr]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const addr = btn.dataset.inviteAddr ?? '';
-          const demoInput = document.querySelector('.landing__demo-input') as HTMLInputElement | null;
-          const demoForm  = document.getElementById('demoForm') as HTMLFormElement | null;
-          if (demoInput && demoForm) {
-            demoInput.value = addr;
-            dismiss();
-            demoForm.requestSubmit();
-          }
-        });
-      });
     })();
 
     // ── Portfolio card tilt ──────────────────────────────────────────
@@ -494,9 +483,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       const LTC_LEGACY_RE = /^[LM][a-zA-HJ-NP-Z0-9]{25,34}$/;
       const SOL_RE        = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-      const DEMO_WALLET_ADDRS = new Set(['1', '2', '3', '1 — Billetera ETH', '2 — Billetera SOL', '3 — Billetera DeFi']);
       function isKnownAddress(addr: string): boolean {
-        if (DEMO_WALLET_ADDRS.has(addr)) return true;
         return EVM_RE.test(addr) || BTC_BECH_RE.test(addr) || BTC_LEGACY_RE.test(addr)
           || LTC_BECH_RE.test(addr) || LTC_LEGACY_RE.test(addr) || SOL_RE.test(addr);
       }
@@ -506,44 +493,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       if (!form) return;
 
       const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
-
-      const callout = document.querySelector<HTMLElement>('.demo-callout');
-
-      document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const addr  = btn.dataset.demoAddr  ?? '';
-          const label = btn.dataset.demoLabel ?? addr;
-          if (input) {
-            input.value = label;
-            input.focus();
-            if (hint) {
-              hint.textContent = 'Sin registro. Ve un portafolio real en 5 segundos. Inicia sesión después para guardarlo.';
-              hint.classList.remove('demo-hint--error');
-            }
-          }
-          if (callout) {
-            callout.textContent = '👉 Ahora haz clic en → para ver el portafolio';
-            callout.classList.add('demo-callout--submit');
-          }
-          let toast = btn.querySelector<HTMLSpanElement>('.chip-toast');
-          if (!toast) {
-            toast = document.createElement('span');
-            toast.className = 'chip-toast';
-            toast.textContent = '¡Pegado!';
-            btn.appendChild(toast);
-          }
-          toast.classList.remove('chip-toast--show');
-          void toast.offsetWidth;
-          toast.classList.add('chip-toast--show');
-        });
-      });
-
-      input?.addEventListener('input', () => {
-        if (hint) {
-          hint.textContent = 'Sin registro. Ve un portafolio real en 5 segundos. Inicia sesión después para guardarlo.';
-          hint.style.color = '';
-        }
-      });
 
       form.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -559,10 +508,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         }
 
         if (btn) btn.disabled = true;
-        const dest = address
+        window.location.href = address
           ? `/api/demo/start?address=${encodeURIComponent(address)}`
           : '/api/demo/start';
-        window.location.href = dest;
       });
     })();
   </script>
@@ -595,7 +543,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
 
     .landing__left  { display: flex; flex-direction: column; }
-    .landing__right { display: flex; justify-content: flex-end; align-items: start; }
+    .landing__right { display: flex; justify-content: flex-end; align-items: start; position: sticky; top: 2rem; }
 
     @media (max-width: 64rem) {
       .landing__hero { grid-template-columns: 1fr; gap: 0; }
@@ -630,11 +578,56 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       max-width: 38ch; text-wrap: balance; margin: 0 0 2rem;
     }
 
-    .landing__demo { margin-top: 0; }
-    .landing__demo-label {
-      display: block; font-size: 0.875rem; color: var(--text-muted);
-      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.75rem;
+    /* ── Primary demo CTA ────────────────────────────────────────────── */
+    .landing__demo-cta {
+      display: block;
+      margin-top: clamp(1.5rem, 3vw, 2rem);
+      padding: 1rem 1.75rem;
+      background: var(--accent);
+      color: #05060c;
+      font-size: 1.05rem;
+      font-weight: 800;
+      text-decoration: none;
+      border-radius: 0.75rem;
+      text-align: center;
+      letter-spacing: 0.01em;
+      transition: box-shadow 0.15s, transform 0.1s;
     }
+    .landing__demo-cta:hover {
+      box-shadow: 0 0 2rem var(--accent-glow);
+      transform: translateY(-1px);
+    }
+    .landing__demo-cta-sub {
+      margin-top: 0.6rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    /* ── Secondary wallet input ──────────────────────────────────────── */
+    .landing__wallet-secondary {
+      margin-top: clamp(1.5rem, 3vw, 2rem);
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .landing__wallet-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
+    .landing__wallet-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .landing__changelog-link {
+      font-size: 0.78rem;
+      color: rgba(45,212,168,0.7);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .landing__changelog-link:hover { color: var(--accent); }
     .landing__demo-form {
       display: flex; gap: 0;
       border: 1px solid var(--border-bright); border-radius: 0.75rem;
@@ -659,74 +652,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       font-size: 0.875rem; color: var(--text-muted);
       margin-top: 0.75rem; text-align: center;
     }
-    .landing__demo-samples {
-      display: flex; align-items: center; flex-wrap: wrap;
-      gap: 0.4rem; margin-top: 0.65rem; justify-content: center;
-    }
-    .landing__demo-samples-label { font-size: 0.78rem; color: var(--text-muted); }
-    .landing__demo-sample {
-      position: relative;
-      font-size: 0.78rem; padding: 0.2rem 0.6rem; border-radius: 999px;
-      border: 1px solid var(--border-bright); background: var(--surface-card-2);
-      color: var(--accent); cursor: pointer; transition: background 0.15s, border-color 0.15s;
-    }
-    .landing__demo-sample:hover { background: var(--accent-soft); border-color: var(--accent); }
-    .chip-toast {
-      position: absolute;
-      bottom: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%) translateY(4px);
-      background: var(--accent);
-      color: var(--surface-bg);
-      font-size: 0.7rem;
-      font-weight: 600;
-      padding: 0.2rem 0.5rem;
-      border-radius: 6px;
-      white-space: nowrap;
-      pointer-events: none;
-      opacity: 0;
-    }
-    .chip-toast--show {
-      animation: chip-toast-fade 1.4s forwards;
-    }
-    @keyframes chip-toast-fade {
-      0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
-      70%  { opacity: 1; }
-      100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
-    }
-    .demo-callout {
-      position: relative;
-      background: var(--text-primary);
-      color: var(--surface-bg);
-      border-radius: 8px;
-      padding: 0.55rem 1rem;
-      margin-top: 0.75rem;
-      font-size: 0.82rem;
-      font-weight: 600;
-      text-align: center;
-      overflow: visible;
-      z-index: 2;
-    }
-    .demo-callout::before {
-      content: '';
-      position: absolute;
-      top: -0.75rem;
-      left: clamp(6rem, 35%, 14rem);
-      border-left: 0.44rem solid transparent;
-      border-right: 0.44rem solid transparent;
-      border-bottom: 0.75rem solid var(--text-primary);
-      transition: left 0.3s ease;
-      z-index: 3;
-    }
-    .demo-callout--submit::before {
-      left: auto;
-      right: 0.5rem;
-      top: -5rem;
-      border-left: 0.31rem solid transparent;
-      border-right: 0.31rem solid transparent;
-      border-bottom: 5rem solid var(--text-primary);
-    }
-
     .feature-stack {
       margin-top: clamp(3rem, 6vw, 5rem); display: flex;
       flex-direction: column; gap: 1.5rem; padding-bottom: 6rem;
@@ -912,16 +837,13 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .demo-invite-icon { font-size: 2rem; margin-bottom: 0.6rem; }
     .hesitation-modal h3 { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.5rem; color: var(--text-primary); }
     .hesitation-modal > p { font-size: 0.875rem; color: var(--text-secondary); margin: 0 0 1.4rem; }
-    .demo-invite-chips { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.1rem; }
-    .demo-invite-chip {
-      width: 100%; padding: 0.65rem 1rem; border-radius: 0.6rem;
-      background: var(--accent-soft); border: 1px solid var(--accent-glow);
-      color: var(--accent); font-size: 0.9rem; font-weight: 600;
-      cursor: pointer; transition: background 0.15s, border-color 0.15s;
-      font-family: inherit; text-align: left;
+    .demo-invite-cta {
+      display: block; width: 100%; padding: 0.85rem 1rem; border-radius: 0.75rem;
+      background: var(--accent); color: #05060c;
+      font-size: 0.95rem; font-weight: 800; text-align: center;
+      text-decoration: none; transition: box-shadow 0.15s, transform 0.1s;
     }
-    .demo-invite-chip:hover { background: var(--accent-glow); border-color: var(--accent); }
-    .demo-invite-note { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+    .demo-invite-cta:hover { box-shadow: 0 0 1.5rem var(--accent-glow); transform: translateY(-1px); }
     .demo-hint--error { color: var(--loss); }
 
     .session-overlay {
