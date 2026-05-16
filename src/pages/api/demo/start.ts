@@ -12,14 +12,17 @@ import { demoCookieSet, DEMO_TENANT_ID } from '../../../lib/demo';
 import { db } from '../../../lib/db';
 import { setCache } from '../../../lib/tursoCache';
 
-const exec = async (sql: string, args: (string | number | null)[] = []) => {
-	try {
-		return await db.execute({ sql, args });
-	} catch (e: unknown) {
-		console.error('[demo-seed] SQL error:', String(e), '\nSQL:', sql.slice(0, 120));
-		return null;
-	}
-};
+const makeExec = (errors: string[]) =>
+	async (sql: string, args: (string | number | null)[] = []) => {
+		try {
+			return await db.execute({ sql, args });
+		} catch (e: unknown) {
+			const msg = `SQL error: ${String(e)} | SQL: ${sql.slice(0, 120)}`;
+			console.error('[demo-seed]', msg);
+			errors.push(msg);
+			return null;
+		}
+	};
 
 /** Tables to clear on each new demo session (order avoids FK issues). */
 const DEMO_TABLES = [
@@ -51,14 +54,17 @@ const BATCH_CB  = 'demo-batch-coinbase-0000000000000000000';
 const BATCH_CRY = 'demo-batch-crypto-000000000000000000000';
 
 export const GET: APIRoute = async ({ request }) => {
+	const errors: string[] = [];
+	const exec = makeExec(errors);
 
 	// ── 0. Clear ──────────────────────────────────────────────────────────────
 	for (const table of DEMO_TABLES) {
 		await exec(`DELETE FROM ${table} WHERE tenant_id = ?`, [DEMO_TENANT_ID]);
 	}
-	// Clear any stale Aave health cache for the demo ETH address so the
-	// background refresh can't overwrite our freshly seeded data.
+	// Clear stale caches that could mask freshly seeded data.
 	await exec(`DELETE FROM cache WHERE cache_key = ?`, [`aave:health:${ADDR_ETH.toLowerCase()}`]);
+	await exec(`DELETE FROM cache WHERE cache_key = ?`, [`t:${DEMO_TENANT_ID}:networth:summary:v3`]);
+	await exec(`DELETE FROM cache WHERE cache_key = ?`, [`t:${DEMO_TENANT_ID}:networth:summary:v2`]);
 
 	// ── 1. Seed notepad ───────────────────────────────────────────────────────
 	await exec(`CREATE TABLE IF NOT EXISTS vault_notes (
@@ -333,6 +339,25 @@ export const GET: APIRoute = async ({ request }) => {
 	const ua       = request.headers.get('user-agent') ?? null;
 	const referrer = request.headers.get('referer')    ?? null;
 	await exec(`INSERT INTO demo_sessions (user_agent, referrer) VALUES (?, ?)`, [ua, referrer]);
+
+	const url = new URL(request.url);
+	if (url.searchParams.get('debug') === '1') {
+		const walletRows = await db.execute({
+			sql: `SELECT id, address, label, wallet_type FROM wallets WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 20`,
+			args: [DEMO_TENANT_ID],
+		}).catch(() => ({ rows: [] }));
+		const snapshotRows = await db.execute({
+			sql: `SELECT wallet_id, chain, totals_usd FROM wallet_snapshots WHERE tenant_id = ? LIMIT 20`,
+			args: [DEMO_TENANT_ID],
+		}).catch(() => ({ rows: [] }));
+		return new Response(JSON.stringify({
+			errors,
+			wallets: walletRows.rows,
+			snapshots: snapshotRows.rows,
+			walletCount: walletRows.rows.length,
+			snapshotCount: snapshotRows.rows.length,
+		}, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
+	}
 
 	const lang = (request.headers.get('referer') ?? '').includes('/es') ? 'es' : 'en';
 	const langCookie = `almstins-demo-lang=${lang}; Path=/; SameSite=Lax; Max-Age=3600`;
