@@ -39,6 +39,35 @@ if (userId) {
 				</p>
 			</div>
 
+			<!-- Sticky note -->
+			<div style="
+				background: rgba(45,212,168,0.08);
+				border: 1px solid rgba(45,212,168,0.22);
+				border-left: 4px solid var(--accent);
+				border-radius: 0 8px 8px 0;
+				padding: 1rem 1.4rem;
+				display: flex;
+				gap: 0.75rem;
+				align-items: flex-start;
+				margin-bottom: 0.5rem;
+			">
+				<span style="font-size:1.1rem; line-height:1.4;">📌</span>
+				<div style="display:flex; flex-direction:column; gap:0.4rem;">
+					<p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--accent);">Stay one step ahead of your portfolio.</p>
+					<p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
+						Set a <strong style="color:var(--text-primary);">price alert</strong> and get an email the moment any asset crosses a threshold you choose —
+						useful for timing entries, exits, and tax-loss harvesting decisions.
+					</p>
+					<p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
+						<strong style="color:var(--text-primary);">DeFi health alerts</strong> notify you when your collateral ratio approaches the liquidation zone,
+						giving you time to add collateral or reduce debt before the protocol acts for you.
+					</p>
+					<p style="margin:0; font-size:0.78rem; color:var(--text-muted);">
+						Tip: set a health factor alert at 1.3 if you're borrowing on Aave — it gives you a buffer before the 1.0 liquidation floor.
+					</p>
+				</div>
+			</div>
+
 			<!-- No alert email warning -->
 			{!alertEmail && (
 				<div class="dash-notice dash-notice--warn">

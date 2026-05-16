@@ -91,6 +91,37 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       <NetWorthHero title="Research" subtitle="Explore & resolve your transactions" />
     </div>
 
+    <!-- ── Sticky note ──────────────────────────────────────────────────────── -->
+    <div style="
+      background: rgba(45,212,168,0.08);
+      border: 1px solid rgba(45,212,168,0.22);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.4rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      margin: 0 0 1.5rem;
+    ">
+      <span style="font-size:1.1rem; line-height:1.4;">📌</span>
+      <div style="display:flex; flex-direction:column; gap:0.4rem;">
+        <p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--accent);">This is where the mysteries live.</p>
+        <p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
+          Research is your detective desk for the unresolved chapters of your crypto journey —
+          tokens that showed up with no purchase history, assets missing a price basis,
+          and disposals with no clear origin. If it raised a flag in Bookkeeping, the trail starts here.
+        </p>
+        <ul style="margin:0.2rem 0 0; padding-left:1.2rem; font-size:0.83rem; color:var(--text-secondary); line-height:1.7;">
+          <li><strong style="color:var(--text-primary);">No purchase history</strong> — tokens that appeared in your wallet without a tracked buy.</li>
+          <li><strong style="color:var(--text-primary);">Missing cost basis</strong> — assets you hold but can't price because the acquisition wasn't recorded.</li>
+          <li><strong style="color:var(--text-primary);">Unclear disposals</strong> — outbound transfers with no matching sale record or counterparty label.</li>
+        </ul>
+        <p style="margin:0.3rem 0 0; font-size:0.78rem; color:var(--text-muted);">
+          Search by hash, symbol, or keyword to dig into any transaction. Label what you find and it flows back through your whole history.
+        </p>
+      </div>
+    </div>
+
     <!-- ── Search card ─────────────────────────────────────────────────────── -->
     <div class="search-card">
       <div class="search-tier-1">
