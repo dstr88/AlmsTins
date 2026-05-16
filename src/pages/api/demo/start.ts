@@ -89,6 +89,42 @@ export const GET: APIRoute = async ({ request }) => {
 		}
 	}
 
+	// Seed demo exchange accounts + transactions so tins aren't empty
+	const ACCT_CB  = 'demo-acct-coinbase-000000000000000000';
+	const ACCT_CRY = 'demo-acct-crypto-com-00000000000000000';
+	const BATCH_CB  = 'demo-batch-coinbase-0000000000000000000';
+	const BATCH_CRY = 'demo-batch-crypto-000000000000000000000';
+
+	await db.execute({
+		sql:  `INSERT OR IGNORE INTO exchange_accounts (id, tenant_id, source, name, created_at) VALUES (?, ?, 'coinbase', 'Coinbase', '2021-06-01T10:00:00.000Z')`,
+		args: [ACCT_CB, DEMO_TENANT_ID],
+	}).catch(() => {});
+	await db.execute({
+		sql:  `INSERT OR IGNORE INTO exchange_accounts (id, tenant_id, source, name, created_at) VALUES (?, ?, 'crypto_com', 'Crypto.com', '2021-06-01T10:00:00.000Z')`,
+		args: [ACCT_CRY, DEMO_TENANT_ID],
+	}).catch(() => {});
+
+	const demoTxs: [string, string, string, string, string, string, string, number, number, string, string, string][] = [
+		['demo-itx-cb-btc-buy',   ACCT_CB,  BATCH_CB,  '2021-06-15T14:22:00.000Z', 'Buy BTC',       'BTC',  'in',  0.042,   1_197.00, 'trade',                     'BTC',  'demo-rh-cb-btc-buy'],
+		['demo-itx-cb-eth-buy',   ACCT_CB,  BATCH_CB,  '2021-10-05T11:00:00.000Z', 'Buy ETH',       'ETH',  'in',  0.580,     957.00, 'trade',                     'ETH',  'demo-rh-cb-eth-buy'],
+		['demo-itx-cb-eth-sell',  ACCT_CB,  BATCH_CB,  '2024-08-15T16:45:00.000Z', 'Sell ETH',      'ETH',  'out', 0.220,     624.00, 'trade',                     'ETH',  'demo-rh-cb-eth-sell'],
+		['demo-itx-cb-btc-sell',  ACCT_CB,  BATCH_CB,  '2024-01-20T09:15:00.000Z', 'Sell BTC',      'BTC',  'out', 0.018,     783.00, 'trade',                     'BTC',  'demo-rh-cb-btc-sell'],
+		['demo-itx-cry-usdc-i1',  ACCT_CRY, BATCH_CRY, '2024-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  24.12,      24.12, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i1'],
+		['demo-itx-cry-usdc-i2',  ACCT_CRY, BATCH_CRY, '2024-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  37.84,      37.84, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i2'],
+		['demo-itx-cry-usdc-i3',  ACCT_CRY, BATCH_CRY, '2024-08-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  62.82,      62.82, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i3'],
+	];
+
+	for (const [id, accountId, batchId, ts, desc, currency, direction, amount, nativeUsd, kind, symbol, rowHash] of demoTxs) {
+		const source = accountId === ACCT_CB ? 'coinbase' : 'crypto_com';
+		await db.execute({
+			sql:  `INSERT OR IGNORE INTO import_transactions
+			         (id, source, import_batch_id, account_id, tenant_id, timestamp_utc,
+			          description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at)
+			       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			args: [id, source, batchId, accountId, DEMO_TENANT_ID, ts, desc, currency, amount, nativeUsd, direction, kind, symbol, rowHash, ts],
+		}).catch(() => {});
+	}
+
 	// Increment demo session counter (best-effort — never blocks the redirect)
 	const ua       = request.headers.get('user-agent') ?? null;
 	const referrer = request.headers.get('referer')    ?? null;
