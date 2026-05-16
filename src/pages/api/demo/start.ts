@@ -51,6 +51,9 @@ const GRP_ETH  = 'DEMO-GRP-ETH-000000000000000000000001';
 const GRP_SOL  = 'DEMO-GRP-SOL-000000000000000000000001';
 const GRP_MATIC = 'DEMO-GRP-MAT-000000000000000000000001';
 const GRP_CRO  = 'DEMO-GRP-CRO-000000000000000000000001';
+const GRP_LUNA = 'DEMO-GRP-LUN-000000000000000000000001';
+const GRP_SHIB = 'DEMO-GRP-SHI-000000000000000000000001';
+const GRP_DOGE = 'DEMO-GRP-DOG-000000000000000000000001';
 
 const BATCH_CB          = 'demo-batch-coinbase-0000000000000000000';
 const BATCH_CRY         = 'demo-batch-crypto-000000000000000000000';
@@ -152,9 +155,13 @@ export const GET: APIRoute = async ({ request }) => {
 		[GRP_ETH,   'ETH',  0.025,    3_200, '2021-10-05T00:00:00.000Z'],
 		[GRP_SOL,   'SOL',  0.52,       165, '2024-06-01T00:00:00.000Z'],
 		// MATIC: bought via ETH wallet (Polygon chain) — 300 remaining after selling 200
-		[GRP_MATIC, 'POL',  300,        0.80, '2021-09-01T00:00:00.000Z'],
+		[GRP_MATIC, 'POL',  300,        0.80,    '2021-09-01T00:00:00.000Z'],
 		// CRO: only an outbound transfer (sent to family member) — no tracked buy → Needs Attention
-		[GRP_CRO,   'CRO',  30,         0.09, '2026-05-15T09:00:00.000Z'],
+		[GRP_CRO,   'CRO',  30,         0.09,    '2026-05-15T09:00:00.000Z'],
+		// Tuition coins — fully exited, Grade F, Hall of Fame 🎓
+		[GRP_LUNA,  'LUNA', 0,          0.035,   '2022-01-01T00:00:00.000Z'],
+		[GRP_SHIB,  'SHIB', 0,          0.00008, '2021-10-29T00:00:00.000Z'],
+		[GRP_DOGE,  'DOGE', 0,          0.68,    '2021-05-07T00:00:00.000Z'],
 	];
 	for (const [id, symbol, qty, avgCost, acqAt] of groups) {
 		await exec(
@@ -183,7 +190,17 @@ export const GET: APIRoute = async ({ request }) => {
 		// SOL: sell 0.10 @ $130 = $13.00 (ST loss — cost $16.50, held 111 days)
 		['demo-evt-sol-sell',  GRP_SOL,   '2024-09-20T15:00:00.000Z', 'out', 'wallet', 0.10,    13.00],
 		// CRO: sent 30 to family member — no tracked purchase → shows in Needs Attention (matches vault note)
-		['demo-evt-cro-send',  GRP_CRO,   '2026-05-15T09:00:00.000Z', 'out', 'wallet', 30,       2.70],
+		['demo-evt-cro-send',  GRP_CRO,   '2026-05-15T09:00:00.000Z', 'out', 'wallet', 30,        2.70],
+		// ── Tuition coins — bought high, exited low, fully graduated 🎓 ──────
+		// LUNA: bought before the collapse, sold day of the depeg
+		['demo-evt-luna-buy',  GRP_LUNA,  '2022-01-01T10:00:00.000Z', 'in',  'wallet', 5000,    175.00],
+		['demo-evt-luna-sell', GRP_LUNA,  '2022-05-13T12:00:00.000Z', 'out', 'wallet', 5000,      0.05],
+		// SHIB: bought near all-time-high, sold 8 months later
+		['demo-evt-shib-buy',  GRP_SHIB,  '2021-10-29T09:00:00.000Z', 'in',  'wallet', 10000000, 800.00],
+		['demo-evt-shib-sell', GRP_SHIB,  '2022-06-30T15:00:00.000Z', 'out', 'wallet', 10000000, 110.00],
+		// DOGE: bought during the Elon pump, sold 10 months later
+		['demo-evt-doge-buy',  GRP_DOGE,  '2021-05-07T08:00:00.000Z', 'in',  'wallet', 2000,   1360.00],
+		['demo-evt-doge-sell', GRP_DOGE,  '2022-03-01T14:00:00.000Z', 'out', 'wallet', 2000,    160.00],
 	];
 	for (const [id, groupId, ts, direction, sourceType, amount, nativeUsd] of events) {
 		await exec(

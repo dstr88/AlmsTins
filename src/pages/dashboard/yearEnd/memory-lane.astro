@@ -229,190 +229,29 @@ function timelineId(asset: string) {
 		</div>
 	)}
 
-	{/* ── Demo preview ─────────────────────────────────────────────────── */}
+	{/* ── Demo sticky note ────────────────────────────────────────────── */}
 	{isDemo && (
-		<div class="demo-wrap">
-
-			<!-- Explainer banner -->
-			<div class="demo-banner">
-				<div class="demo-banner__icon">🃏</div>
-				<div class="demo-banner__body">
-					<p class="demo-banner__title">Your personal crypto card collection</p>
-					<p class="demo-banner__text">
-						Memory Lane turns your trading history into a collectible card game — every coin you've ever
-						bought gets a card with a letter grade (A+ to F) based on realized returns, sorted into
-						<strong>🏆 Hall of Fame</strong> (fully exited) and <strong>⚔️ Active Roster</strong> (open positions).
-						Expand any card to see the full buy → sell timeline, holding period, and whether each lot was
-						short-term or long-term. Connect your wallet to unlock your own collection.
-					</p>
-					<a href="/signup" class="demo-banner__cta">Sign up free — see your collection →</a>
-				</div>
-			</div>
-
-			<!-- Wireframe stats bar -->
-			<div class="player-stats player-stats--wire">
-				<div class="player-stats__item">
-					<span class="wire-block wire-block--num"></span>
-					<span class="player-stats__label">Retired</span>
-				</div>
-				<div class="player-stats__item">
-					<span class="wire-block wire-block--num wire-block--wide"></span>
-					<span class="player-stats__label">Score</span>
-				</div>
-				<div class="player-stats__item">
-					<span class="wire-block wire-block--num"></span>
-					<span class="player-stats__label">In Play</span>
-				</div>
-			</div>
-
-			<!-- Wireframe Hall of Fame section -->
-			<section class="memory-lane__section">
-				<div class="section-header section-header--hall-of-fame section-header--wire">
-					<span class="section-header__icon">🏆</span>
-					<div>
-						<h2 class="section-header__title">Hall of Fame</h2>
-						<p class="section-header__subtitle">Cards retired from the roster</p>
-					</div>
-					<span class="wire-block wire-block--pill"></span>
-				</div>
-
-				<div class="type-group">
-					<div class="type-group__label"><span>🛡️</span><span>Heavyweights</span></div>
-					<div class="card-grid">
-						{/* Win card */}
-						<div class="token-card token-card--retired token-card--win token-card--wire">
-							<div class="token-card__inner">
-								<div class="token-card__header">
-									<div class="token-card__logo-wrap">
-										<div class="wire-avatar"></div>
-									</div>
-									<div class="token-card__identity">
-										<span class="wire-block wire-block--ticker"></span>
-										<span class="wire-block wire-block--date"></span>
-									</div>
-									<div class="grade grade-aplus grade--wire">A+</div>
-								</div>
-								<div class="token-card__pnl">
-									<span class="wire-block wire-block--pnl"></span>
-									<span class="wire-block wire-block--pct"></span>
-								</div>
-								<div class="wire-block wire-block--meta"></div>
-								<div class="wire-btn"></div>
-							</div>
-						</div>
-
-						{/* Loss card */}
-						<div class="token-card token-card--retired token-card--loss token-card--wire">
-							<div class="token-card__inner">
-								<div class="token-card__header">
-									<div class="token-card__logo-wrap">
-										<div class="wire-avatar"></div>
-									</div>
-									<div class="token-card__identity">
-										<span class="wire-block wire-block--ticker"></span>
-										<span class="wire-block wire-block--date"></span>
-									</div>
-									<div class="grade grade-d grade--wire">D</div>
-								</div>
-								<div class="token-card__pnl">
-									<span class="wire-block wire-block--pnl"></span>
-									<span class="wire-block wire-block--pct"></span>
-								</div>
-								<div class="wire-block wire-block--meta"></div>
-								<div class="wire-btn"></div>
-							</div>
-						</div>
-
-						{/* Win card 2 */}
-						<div class="token-card token-card--retired token-card--win token-card--wire">
-							<div class="token-card__inner">
-								<div class="token-card__header">
-									<div class="token-card__logo-wrap">
-										<div class="wire-avatar"></div>
-									</div>
-									<div class="token-card__identity">
-										<span class="wire-block wire-block--ticker"></span>
-										<span class="wire-block wire-block--date"></span>
-									</div>
-									<div class="grade grade-b grade--wire">B</div>
-								</div>
-								<div class="token-card__pnl">
-									<span class="wire-block wire-block--pnl"></span>
-									<span class="wire-block wire-block--pct"></span>
-								</div>
-								<div class="wire-block wire-block--meta"></div>
-								<div class="wire-btn"></div>
-							</div>
-						</div>
-					</div>
-				</div>
-			</section>
-
-			<!-- Wireframe Active Roster section -->
-			<section class="memory-lane__section">
-				<div class="section-header section-header--active-roster section-header--wire">
-					<span class="section-header__icon">⚔️</span>
-					<div>
-						<h2 class="section-header__title">Active Roster</h2>
-						<p class="section-header__subtitle">Cards in play — match still live</p>
-					</div>
-					<span class="wire-block wire-block--pill"></span>
-				</div>
-
-				<div class="type-group">
-					<div class="type-group__label"><span>🛡️</span><span>Heavyweights</span></div>
-					<div class="card-grid">
-						<div class="token-card token-card--active token-card--wire">
-							<div class="token-card__inner">
-								<div class="token-card__header">
-									<div class="token-card__logo-wrap">
-										<div class="wire-avatar"></div>
-									</div>
-									<div class="token-card__identity">
-										<span class="wire-block wire-block--ticker"></span>
-										<span class="wire-block wire-block--date"></span>
-									</div>
-									<div class="grade grade-incomplete grade--wire">IP</div>
-								</div>
-								<div class="token-card__pnl">
-									<span class="wire-block wire-block--pnl"></span>
-									<span class="wire-block wire-block--label"></span>
-								</div>
-								<div class="wire-block wire-block--meta"></div>
-							</div>
-						</div>
-
-						<div class="token-card token-card--active token-card--wire">
-							<div class="token-card__inner">
-								<div class="token-card__header">
-									<div class="token-card__logo-wrap">
-										<div class="wire-avatar"></div>
-									</div>
-									<div class="token-card__identity">
-										<span class="wire-block wire-block--ticker"></span>
-										<span class="wire-block wire-block--date"></span>
-									</div>
-									<div class="grade grade-incomplete grade--wire">IP</div>
-								</div>
-								<div class="token-card__pnl">
-									<span class="wire-block wire-block--pnl"></span>
-									<span class="wire-block wire-block--label"></span>
-								</div>
-								<div class="wire-block wire-block--meta"></div>
-							</div>
-						</div>
-					</div>
-				</div>
-			</section>
-
-			<!-- Bottom CTA -->
-			<div class="demo-footer">
-				<p>Connect your wallet to generate your real {year} collection.</p>
-				<a href="/signup" class="demo-footer__cta">Get started free →</a>
-			</div>
-
+		<div style="
+			background: rgba(45,212,168,0.08);
+			border: 1px solid rgba(45,212,168,0.22);
+			border-left: 4px solid var(--accent);
+			border-radius: 0 8px 8px 0;
+			padding: 1rem 1.4rem;
+			margin-bottom: 1.5rem;
+			display: flex;
+			gap: 0.75rem;
+			align-items: flex-start;
+		">
+			<span style="font-size:1.15rem; line-height:1.4;">📌</span>
+			<p style="margin:0; font-size:0.85rem; color:var(--text-secondary); line-height:1.6;">
+				<strong style="color:var(--accent);">A walk down memory lane.</strong>
+				Lest you forget those coins you paid for your education with — the meme coins bought at the top,
+				the launches that didn't launch, the pumps you held all the way back down.
+				Every card below is real history. Grade F never looked so educational.
+			</p>
 		</div>
 	)}
+
 
 	<!-- ── Hero ──────────────────────────────────────────────────────────── -->
 	<header class="memory-lane__hero">
@@ -451,7 +290,7 @@ function timelineId(asset: string) {
 	<!-- ══════════════════════════════════════════════════════════════════════
 	     HALL OF FAME — retired cards
 	══════════════════════════════════════════════════════════════════════ -->
-	{!isDemo && graduated.length > 0 && (
+	{graduated.length > 0 && (
 		<section class="memory-lane__section">
 			<div class="section-header section-header--hall-of-fame">
 				<span class="section-header__icon">🏆</span>
@@ -626,7 +465,7 @@ function timelineId(asset: string) {
 	<!-- ══════════════════════════════════════════════════════════════════════
 	     ACTIVE ROSTER — cards in play
 	══════════════════════════════════════════════════════════════════════ -->
-	{!isDemo && enrolled.length > 0 && (
+	{enrolled.length > 0 && (
 		<section class="memory-lane__section">
 			<div class="section-header section-header--active-roster">
 				<span class="section-header__icon">⚔️</span>
@@ -798,7 +637,7 @@ function timelineId(asset: string) {
 	)}
 
 	<!-- ── Empty state ────────────────────────────────────────────────────── -->
-	{!isDemo && graduated.length === 0 && enrolled.length === 0 && (
+	{graduated.length === 0 && enrolled.length === 0 && (
 		<div class="memory-lane__empty">
 			<div class="memory-lane__empty-icon">📭</div>
 			<p class="memory-lane__empty-title">No cards found for {year}</p>
