@@ -198,14 +198,15 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <p class="hero__subheadline">Missing transactions, unexplained gaps, tax surprises — trace every move in your crypto history so you know exactly what happened and why.</p>
         </div>
 
-        <!-- Portfolio preview card -->
-        <div class="landing__card-wrap">
-          <PortfolioPreviewCard client:visible />
-        </div>
+        <!-- Primary CTA: demo -->
+        <a class="landing__demo-cta" href="/api/demo/start">
+          Try the Demo — No Signup Needed →
+        </a>
+        <p class="landing__demo-cta-sub">Explore a real portfolio with DeFi positions, tax gaps, and wallet history.</p>
 
-        <!-- Wallet input + demo -->
-        <div class="landing__demo">
-          <span class="landing__demo-label">Enter any wallet — see its full history free</span>
+        <!-- Secondary: wallet input -->
+        <div class="landing__wallet-secondary">
+          <span class="landing__wallet-label">Or enter your own wallet address</span>
           <form class="landing__demo-form" id="demoForm">
             <input
               class="landing__demo-input"
@@ -218,10 +219,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             <button class="landing__demo-submit" type="submit" aria-label="Go">→</button>
           </form>
           <p class="landing__demo-hint" id="demoHint">See transactions, flagged gaps, and what the IRS will ask about. No signup needed.</p>
-          <div class="landing__demo-samples">
-            <span class="landing__nudge-text">No wallet handy?</span>
-            <a class="landing__try-demo" href="/api/demo/start">Try the demo instead →</a>
-          </div>
         </div>
 
         <!-- Three feature cards — stacked vertically -->
@@ -249,6 +246,11 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           </div>
         </div>
 
+      </div>
+
+      <!-- Right column — portfolio preview card -->
+      <div class="landing__right">
+        <PortfolioPreviewCard client:visible />
       </div>
 
     </div>
@@ -483,15 +485,15 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       if (window.matchMedia('(max-width: 64rem)').matches) return;
       const card = document.getElementById('portfolioPreviewCard');
-      const wrap = card?.closest('.landing__card-wrap') as HTMLElement | null;
-      if (!card || !wrap) return;
-      wrap.addEventListener('mousemove', (e: MouseEvent) => {
-        const rect = wrap.getBoundingClientRect();
+      const right = card?.closest('.landing__right') as HTMLElement | null;
+      if (!card || !right) return;
+      right.addEventListener('mousemove', (e: MouseEvent) => {
+        const rect = right.getBoundingClientRect();
         const x = ((e.clientX - rect.left) / rect.width  - 0.5) * 14;
         const y = ((e.clientY - rect.top)  / rect.height - 0.5) * -10;
         (card as HTMLElement).style.transform = `perspective(600px) rotateY(${x}deg) rotateX(${y}deg) translateY(var(--float-offset, 0px))`;
       });
-      wrap.addEventListener('mouseleave', () => {
+      right.addEventListener('mouseleave', () => {
         (card as HTMLElement).style.transform = '';
       });
     })();
@@ -515,12 +517,16 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
     }
 
-    /* ── Single-column hero ──────────────────────────────────── */
+    /* ── Two-column hero grid ────────────────────────────────── */
     .landing__hero {
-      max-width: 48rem;
+      max-width: 75rem;
       margin: 0 auto;
       padding-block: clamp(3rem, 8vw, 6rem);
       padding-inline: clamp(1.5rem, 4vw, 3rem);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(2rem, 4vw, 4rem);
+      align-items: start;
     }
 
     .landing__left {
@@ -528,9 +534,17 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       flex-direction: column;
     }
 
-    /* ── Preview card between headline and input ─────────────── */
-    .landing__card-wrap {
-      margin-block: clamp(1.5rem, 3vw, 2.5rem);
+    .landing__right {
+      display: flex;
+      justify-content: flex-end;
+      align-items: start;
+      position: sticky;
+      top: 2rem;
+    }
+
+    @media (max-width: 64rem) {
+      .landing__hero { grid-template-columns: 1fr; gap: 0; }
+      .landing__right { display: none; }
     }
 
     /* ── Wordmark ────────────────────────────────────────────── */
@@ -568,6 +582,47 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       max-width: 38ch;
       text-wrap: balance;
       margin: 0 0 2rem;
+    }
+
+    /* ── Primary demo CTA ────────────────────────────────────── */
+    .landing__demo-cta {
+      display: block;
+      margin-top: clamp(1.5rem, 3vw, 2rem);
+      padding: 1rem 1.75rem;
+      background: var(--accent);
+      color: #05060c;
+      font-size: 1.05rem;
+      font-weight: 800;
+      text-decoration: none;
+      border-radius: 0.75rem;
+      text-align: center;
+      letter-spacing: 0.01em;
+      transition: box-shadow 0.15s, transform 0.1s;
+    }
+    .landing__demo-cta:hover {
+      box-shadow: 0 0 2rem var(--accent-glow);
+      transform: translateY(-1px);
+    }
+    .landing__demo-cta-sub {
+      margin-top: 0.6rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* ── Secondary wallet input ──────────────────────────────── */
+    .landing__wallet-secondary {
+      margin-top: clamp(1.5rem, 3vw, 2rem);
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .landing__wallet-label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.6rem;
     }
 
     /* ── Wallet demo input ───────────────────────────────────── */
@@ -621,34 +676,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       color: var(--text-muted);
       margin-top: 0.75rem;
       text-align: center;
-    }
-    .landing__demo-samples {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      margin-top: 0.75rem;
-    }
-    .landing__nudge-text {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-    }
-    .landing__try-demo {
-      display: inline-block;
-      font-size: 0.9rem;
-      font-weight: 700;
-      color: var(--accent);
-      text-decoration: none;
-      padding: 0.55rem 1.25rem;
-      border-radius: 999px;
-      border: 1.5px solid var(--accent);
-      background: rgba(45,212,168,0.08);
-      transition: background 0.15s, box-shadow 0.15s;
-      letter-spacing: 0.01em;
-    }
-    .landing__try-demo:hover {
-      background: var(--accent-soft);
-      box-shadow: 0 0 1rem var(--accent-glow);
     }
     .demo-hint--error { color: var(--loss); }
 
