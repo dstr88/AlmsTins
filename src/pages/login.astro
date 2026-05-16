@@ -198,9 +198,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <p class="hero__subheadline">Missing transactions, unexplained gaps, tax surprises — trace every move in your crypto history so you know exactly what happened and why.</p>
         </div>
 
-        <!-- Wallet demo input — primary action -->
+        <!-- Wallet input + demo -->
         <div class="landing__demo">
-          <span class="landing__demo-label">DEMO — Enter any wallet — see its full history free</span>
+          <span class="landing__demo-label">Enter any wallet — see its full history free</span>
           <form class="landing__demo-form" id="demoForm">
             <input
               class="landing__demo-input"
@@ -214,12 +214,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           </form>
           <p class="landing__demo-hint" id="demoHint">See transactions, flagged gaps, and what the IRS will ask about. No signup needed.</p>
           <div class="landing__demo-samples">
-            <span class="landing__demo-samples-label">Or try a sample:</span>
-            <button class="landing__demo-sample" type="button" data-demo-addr="1" data-demo-label="1 — ETH wallet">1 — ETH wallet</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="2" data-demo-label="2 — SOL wallet">2 — SOL wallet</button>
-            <button class="landing__demo-sample" type="button" data-demo-addr="3" data-demo-label="3 — DeFi wallet">3 — DeFi wallet</button>
+            <a class="landing__try-demo" href="/api/demo/start">Try the demo →</a>
           </div>
-          <div class="demo-callout">👆 Click a wallet to explore instantly</div>
         </div>
 
         <!-- Three feature cards — stacked vertically -->
@@ -263,13 +259,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       <button class="hesitation-close" id="hesitationClose" aria-label="Close">✕</button>
       <div class="demo-invite-icon">👋</div>
       <h3 id="hesitationTitle">See it live — no signup needed</h3>
-      <p>Pick a sample wallet and explore a real portfolio dashboard instantly.</p>
-      <div class="demo-invite-chips">
-        <button class="demo-invite-chip" type="button" data-invite-addr="1">🔷 ETH wallet</button>
-        <button class="demo-invite-chip" type="button" data-invite-addr="2">🟣 SOL wallet</button>
-        <button class="demo-invite-chip" type="button" data-invite-addr="3">⚡ DeFi wallet</button>
-      </div>
-      <p class="demo-invite-note">Or type any address in the field above ↑</p>
+      <p>Explore a real portfolio with DeFi positions, tax gaps, and wallet history.</p>
+      <a class="demo-invite-cta" href="/api/demo/start">Launch Demo</a>
     </div>
   </div>
 
@@ -455,19 +446,34 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         document.addEventListener(ev, resetTimer, { passive: true });
       });
       resetTimer();
+    })();
 
-      // Clicking a chip submits the demo form with that address
-      overlay.querySelectorAll<HTMLButtonElement>('[data-invite-addr]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const addr = btn.dataset.inviteAddr ?? '';
-          const demoInput = document.querySelector('.landing__demo-input') as HTMLInputElement | null;
-          const demoForm  = document.getElementById('demoForm') as HTMLFormElement | null;
-          if (demoInput && demoForm) {
-            demoInput.value = addr;
-            dismiss();
-            demoForm.requestSubmit();
-          }
-        });
+    // ── Wallet demo form ──────────────────────────────────────────────────
+    (() => {
+      const EVM_RE        = /^0x[a-fA-F0-9]{40}$/;
+      const BTC_BECH_RE   = /^bc1[a-zA-HJ-NP-Z0-9]{25,}$/;
+      const BTC_LEGACY_RE = /^[13][a-zA-HJ-NP-Z0-9]{25,34}$/;
+      const SOL_RE        = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+      function isKnownAddress(addr: string): boolean {
+        return EVM_RE.test(addr) || BTC_BECH_RE.test(addr) || BTC_LEGACY_RE.test(addr) || SOL_RE.test(addr);
+      }
+      const form  = document.getElementById('demoForm') as HTMLFormElement | null;
+      const hint  = document.getElementById('demoHint') as HTMLElement | null;
+      if (!form) return;
+      const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
+      input?.addEventListener('input', () => {
+        if (hint) { hint.textContent = 'See transactions, flagged gaps, and what the IRS will ask about. No signup needed.'; hint.classList.remove('demo-hint--error'); }
+      });
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const btn     = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+        const address = input?.value.trim() ?? '';
+        if (address && !isKnownAddress(address)) {
+          if (hint) { hint.textContent = '⚠ Wallet not recognized — try an Ethereum (0x…), Bitcoin, or Solana address.'; hint.classList.add('demo-hint--error'); }
+          return;
+        }
+        if (btn) btn.disabled = true;
+        window.location.href = address ? `/api/demo/start?address=${encodeURIComponent(address)}` : '/api/demo/start';
       });
     })();
 
@@ -489,89 +495,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       });
     })();
 
-    // ── Wallet demo input ─────────────────────────────────────────────
-    (() => {
-      const EVM_RE     = /^0x[a-fA-F0-9]{40}$/;
-      const BTC_BECH_RE = /^bc1[a-zA-HJ-NP-Z0-9]{25,}$/;
-      const BTC_LEGACY_RE = /^[13][a-zA-HJ-NP-Z0-9]{25,34}$/;
-      const LTC_BECH_RE = /^ltc1[a-zA-HJ-NP-Z0-9]{25,}$/;
-      const LTC_LEGACY_RE = /^[LM][a-zA-HJ-NP-Z0-9]{25,34}$/;
-      const SOL_RE     = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-
-      const DEMO_WALLET_ADDRS = new Set(['1', '2', '3', '1 — ETH wallet', '2 — SOL wallet', '3 — DeFi wallet']);
-      function isKnownAddress(addr: string): boolean {
-        if (DEMO_WALLET_ADDRS.has(addr)) return true;
-        return EVM_RE.test(addr) || BTC_BECH_RE.test(addr) || BTC_LEGACY_RE.test(addr)
-          || LTC_BECH_RE.test(addr) || LTC_LEGACY_RE.test(addr) || SOL_RE.test(addr);
-      }
-
-      const form  = document.getElementById('demoForm') as HTMLFormElement | null;
-      const hint  = document.getElementById('demoHint') as HTMLElement | null;
-      if (!form) return;
-
-      const input = form.querySelector('.landing__demo-input') as HTMLInputElement | null;
-
-      const callout = document.querySelector<HTMLElement>('.demo-callout');
-
-      // Sample wallet chips — fill the input field and show "Pasted!" toast
-      document.querySelectorAll<HTMLButtonElement>('[data-demo-addr]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const addr = btn.dataset.demoAddr ?? '';
-          const label = btn.dataset.demoLabel ?? addr;
-          if (input) {
-            input.value = label;
-            input.focus();
-            if (hint) {
-              hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
-              hint.classList.remove('demo-hint--error');
-            }
-          }
-          if (callout) {
-            callout.textContent = '👉 Now click → to see the portfolio';
-            callout.classList.add('demo-callout--submit');
-          }
-          // Show "Pasted!" toast anchored to the clicked chip
-          let toast = btn.querySelector<HTMLSpanElement>('.chip-toast');
-          if (!toast) {
-            toast = document.createElement('span');
-            toast.className = 'chip-toast';
-            toast.textContent = 'Pasted!';
-            btn.appendChild(toast);
-          }
-          toast.classList.remove('chip-toast--show');
-          void toast.offsetWidth; // force reflow so animation restarts
-          toast.classList.add('chip-toast--show');
-        });
-      });
-
-      // Clear warning on new input
-      input?.addEventListener('input', () => {
-        if (hint) {
-          hint.textContent = 'No signup. See a real portfolio in 5 seconds. Sign in later to save it.';
-          hint.classList.remove('demo-hint--error');
-        }
-      });
-
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const btn     = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
-        const address = input?.value.trim() ?? '';
-
-        if (address && !isKnownAddress(address)) {
-          if (hint) {
-            hint.textContent = '⚠ Wallet not recognized — try an Ethereum (0x…), Bitcoin, or Solana address.';
-            hint.classList.add('demo-hint--error');
-          }
-          return;
-        }
-
-        if (btn) btn.disabled = true;
-        const dest = address
-          ? `/api/demo/start?address=${encodeURIComponent(address)}`
-          : '/api/demo/start';
-        window.location.href = dest;
-      });
-    })();
   </script>
 
   <style>
@@ -713,89 +636,25 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .landing__demo-samples {
       display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      margin-top: 0.65rem;
       justify-content: center;
+      margin-top: 0.75rem;
     }
-    .landing__demo-samples-label {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-    }
-    .landing__demo-sample {
-      position: relative;
-      font-size: 0.78rem;
-      padding: 0.2rem 0.6rem;
+    .landing__try-demo {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      padding: 0.35rem 0.85rem;
       border-radius: 999px;
       border: 1px solid var(--border-bright);
       background: var(--surface-card-2);
-      color: var(--accent);
-      cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
     }
-    .landing__demo-sample:hover {
+    .landing__try-demo:hover {
       background: var(--accent-soft);
       border-color: var(--accent);
     }
-    .chip-toast {
-      position: absolute;
-      bottom: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%) translateY(4px);
-      background: var(--accent);
-      color: var(--surface-bg);
-      font-size: 0.7rem;
-      font-weight: 600;
-      padding: 0.2rem 0.5rem;
-      border-radius: 6px;
-      white-space: nowrap;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.15s, transform 0.15s;
-    }
-    .chip-toast--show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-      animation: chip-toast-fade 1.4s forwards;
-    }
-    @keyframes chip-toast-fade {
-      0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
-      70%  { opacity: 1; }
-      100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
-    }
-    .demo-callout {
-      position: relative;
-      background: var(--text-primary);
-      color: var(--surface-bg);
-      border-radius: 8px;
-      padding: 0.55rem 1rem;
-      margin-top: 0.75rem;
-      font-size: 0.82rem;
-      font-weight: 600;
-      text-align: center;
-      overflow: visible;
-      z-index: 2;
-    }
-    .demo-callout::before {
-      content: '';
-      position: absolute;
-      top: -0.75rem;
-      left: clamp(6rem, 35%, 14rem);
-      border-left: 0.44rem solid transparent;
-      border-right: 0.44rem solid transparent;
-      border-bottom: 0.75rem solid var(--text-primary);
-      transition: left 0.3s ease;
-      z-index: 3;
-    }
-    .demo-callout--submit::before {
-      left: auto;
-      right: 0.5rem;
-      top: -5rem;
-      border-left: 0.31rem solid transparent;
-      border-right: 0.31rem solid transparent;
-      border-bottom: 5rem solid var(--text-primary);
-    }
+    .demo-hint--error { color: var(--loss); }
 
     /* ── Feature stack — demo→first card: clamp(3rem,6vw,5rem) ─ */
     .feature-stack {
@@ -1098,17 +957,14 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .demo-invite-icon { font-size: 2rem; margin-bottom: 0.6rem; }
     .hesitation-modal h3 { font-size: 1.15rem; font-weight: 700; margin: 0 0 0.5rem; color: var(--text-primary); }
     .hesitation-modal > p { font-size: 0.875rem; color: var(--text-secondary); margin: 0 0 1.4rem; }
-    .demo-invite-chips { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.1rem; }
-    .demo-invite-chip {
-      width: 100%; padding: 0.65rem 1rem; border-radius: 0.6rem;
-      background: var(--accent-soft); border: 1px solid var(--accent-glow);
-      color: var(--accent); font-size: 0.9rem; font-weight: 600;
-      cursor: pointer; transition: background 0.15s, border-color 0.15s;
-      font-family: inherit; text-align: left;
+    .demo-invite-cta {
+      display: block; width: 100%; padding: 0.75rem 1rem;
+      border-radius: 0.6rem; text-align: center; text-decoration: none;
+      background: var(--accent); color: var(--surface-bg);
+      font-size: 0.95rem; font-weight: 700;
+      transition: opacity 0.15s, transform 0.15s;
     }
-    .demo-invite-chip:hover { background: var(--accent-glow); border-color: var(--accent); }
-    .demo-invite-note { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
-    .demo-hint--error { color: var(--loss); }
+    .demo-invite-cta:hover { opacity: 0.9; transform: translateY(-1px); }
 
     /* ── Session popup ─────────────────────────────────────────── */
     .session-overlay {
