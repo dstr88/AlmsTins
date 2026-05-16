@@ -179,7 +179,7 @@ export const GET: APIRoute = async ({ request }) => {
 	// Seed wallet_defi_sync for the sync history record
 	const ethDefiHealth = JSON.stringify({
 		ok: true, address: ADDR_ETH,
-		chains: { ethereum: { healthFactor: 2.58, totalCollateralBase: 62.50, totalDebtBase: 20.00, availableBorrowsBase: 18.75 } },
+		chains: { ethereum: { healthFactor: 1.15, totalCollateralBase: 62.50, totalDebtBase: 54.35, availableBorrowsBase: 0 } },
 	});
 	const ethDefiPositions = JSON.stringify({
 		ok: true, address: ADDR_ETH,
@@ -212,9 +212,9 @@ export const GET: APIRoute = async ({ request }) => {
 			ethereum: {
 				chainId: 1,
 				market: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2',
-				healthFactor: 2.58,
+				healthFactor: 1.15,
 				totalCollateralBase: 62.50,
-				totalDebtBase: 20.00,
+				totalDebtBase: 54.35,
 				userSupplies: [
 					{
 						currency: { symbol: 'WETH' },

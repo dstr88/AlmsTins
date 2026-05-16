@@ -461,6 +461,15 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true }: { 
 		return formatHealthFactor(first?.healthFactor ?? null);
 	}, [state]);
 
+	const healthColor = useMemo(() => {
+		if (state.status !== 'ready') return undefined;
+		const first = state.healthByChain.find((entry) => entry.healthFactor !== null && entry.healthFactor !== undefined);
+		const hf = first?.healthFactor != null ? Number(first.healthFactor) : null;
+		if (hf === null || !Number.isFinite(hf)) return undefined;
+		if (hf < 1.5) return 'var(--loss)';
+		return undefined;
+	}, [state]);
+
 	const healthRows = useMemo(() => {
 		if (state.status !== 'ready') return [];
 		return state.healthByChain
@@ -514,7 +523,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true }: { 
 		<div className="defi-stats">
 			<div className="stat-row health">
 				<span className="label">{healthLabel}</span>
-				<span className="value">{healthText}</span>
+				<span className="value" style={healthColor ? { color: healthColor } : undefined}>{healthText}</span>
 				{showAlertPill && <AlertPill walletId={walletId} />}
 			</div>
 
