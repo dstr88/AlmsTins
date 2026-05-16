@@ -198,6 +198,11 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <p class="hero__subheadline">Missing transactions, unexplained gaps, tax surprises — trace every move in your crypto history so you know exactly what happened and why.</p>
         </div>
 
+        <!-- Portfolio preview card -->
+        <div class="landing__card-wrap">
+          <PortfolioPreviewCard client:visible />
+        </div>
+
         <!-- Wallet input + demo -->
         <div class="landing__demo">
           <span class="landing__demo-label">Enter any wallet — see its full history free</span>
@@ -214,7 +219,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           </form>
           <p class="landing__demo-hint" id="demoHint">See transactions, flagged gaps, and what the IRS will ask about. No signup needed.</p>
           <div class="landing__demo-samples">
-            <a class="landing__try-demo" href="/api/demo/start">Try the demo →</a>
+            <span class="landing__nudge-text">No wallet handy?</span>
+            <a class="landing__try-demo" href="/api/demo/start">Try the demo instead →</a>
           </div>
         </div>
 
@@ -243,11 +249,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           </div>
         </div>
 
-      </div>
-
-      <!-- Right column — portfolio preview card -->
-      <div class="landing__right">
-        <PortfolioPreviewCard client:visible />
       </div>
 
     </div>
@@ -482,15 +483,15 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       if (window.matchMedia('(max-width: 64rem)').matches) return;
       const card = document.getElementById('portfolioPreviewCard');
-      const right = card?.closest('.landing__right') as HTMLElement | null;
-      if (!card || !right) return;
-      right.addEventListener('mousemove', (e: MouseEvent) => {
-        const rect = right.getBoundingClientRect();
+      const wrap = card?.closest('.landing__card-wrap') as HTMLElement | null;
+      if (!card || !wrap) return;
+      wrap.addEventListener('mousemove', (e: MouseEvent) => {
+        const rect = wrap.getBoundingClientRect();
         const x = ((e.clientX - rect.left) / rect.width  - 0.5) * 14;
         const y = ((e.clientY - rect.top)  / rect.height - 0.5) * -10;
         (card as HTMLElement).style.transform = `perspective(600px) rotateY(${x}deg) rotateX(${y}deg) translateY(var(--float-offset, 0px))`;
       });
-      right.addEventListener('mouseleave', () => {
+      wrap.addEventListener('mouseleave', () => {
         (card as HTMLElement).style.transform = '';
       });
     })();
@@ -514,16 +515,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
     }
 
-    /* ── Two-column hero grid ────────────────────────────────── */
+    /* ── Single-column hero ──────────────────────────────────── */
     .landing__hero {
-      max-width: 75rem;
+      max-width: 48rem;
       margin: 0 auto;
       padding-block: clamp(3rem, 8vw, 6rem);
       padding-inline: clamp(1.5rem, 4vw, 3rem);
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: clamp(2rem, 4vw, 4rem);
-      align-items: start;
     }
 
     .landing__left {
@@ -531,18 +528,9 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       flex-direction: column;
     }
 
-    .landing__right {
-      display: flex;
-      justify-content: flex-end;
-      align-items: start;
-    }
-
-    @media (max-width: 64rem) {
-      .landing__hero {
-        grid-template-columns: 1fr;
-        gap: 0;
-      }
-      .landing__right { display: none; }
+    /* ── Preview card between headline and input ─────────────── */
+    .landing__card-wrap {
+      margin-block: clamp(1.5rem, 3vw, 2.5rem);
     }
 
     /* ── Wordmark ────────────────────────────────────────────── */
@@ -636,23 +624,31 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .landing__demo-samples {
       display: flex;
+      align-items: center;
       justify-content: center;
+      gap: 0.5rem;
       margin-top: 0.75rem;
     }
+    .landing__nudge-text {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
     .landing__try-demo {
+      display: inline-block;
       font-size: 0.9rem;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--accent);
       text-decoration: none;
-      padding: 0.35rem 0.85rem;
+      padding: 0.55rem 1.25rem;
       border-radius: 999px;
-      border: 1px solid var(--border-bright);
-      background: var(--surface-card-2);
-      transition: background 0.15s, border-color 0.15s;
+      border: 1.5px solid var(--accent);
+      background: rgba(45,212,168,0.08);
+      transition: background 0.15s, box-shadow 0.15s;
+      letter-spacing: 0.01em;
     }
     .landing__try-demo:hover {
       background: var(--accent-soft);
-      border-color: var(--accent);
+      box-shadow: 0 0 1rem var(--accent-glow);
     }
     .demo-hint--error { color: var(--loss); }
 
