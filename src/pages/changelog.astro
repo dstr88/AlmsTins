@@ -1,0 +1,151 @@
+---
+import Logo from '../assets/logo.jpeg';
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Changelog | Almstins</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="page">
+
+    <header class="page-header">
+      <a href="/login" class="wordmark" aria-label="Almstins home">
+        <img src={Logo.src} width="36" height="36" alt="Almstins logo" class="wordmark-img" />
+        <span class="wordmark-text">Almstins</span>
+      </a>
+      <a href="/login" class="back-link">← Back</a>
+    </header>
+
+    <main class="content">
+      <h1 class="page-title">Changelog</h1>
+      <p class="page-sub">What's new, what changed, and why.</p>
+
+      <div class="entries">
+
+        <article class="entry">
+          <time class="entry-date">May 16, 2026</time>
+          <div class="entry-body">
+            <p>Yesterday I had a chance to watch a friend use my demo for the first time. He was on his computer, while I looked over his shoulder. Seeing it through fresh eyes was clarifying.</p>
+            <p>So this morning I went to work. Instead of walking you, my visitors, through a how-to, I stripped it back. The goal is simple: I want to show you what's waiting when you sign up.</p>
+            <p>I seeded the demo with realistic numbers across exchanges and wallets, labeled the key sections so nothing feels mysterious, and refreshed the front page. The wallet lookup is still there — paste any address and see what's inside, no account needed — but I moved it out of the spotlight. The more important thing is that you can see the value before logging in and watching your own numbers fill the tins.</p>
+            <p>More updates coming as the project grows. I would welcome any feedback through the portal on the login page, or email me directly at <a href="mailto:hello@almstins.com">hello@almstins.com</a>.</p>
+          </div>
+        </article>
+
+      </div>
+    </main>
+
+  </div>
+</body>
+</html>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
+    min-height: 100vh;
+    color: #f5f8ff;
+    color-scheme: dark;
+  }
+
+  .page {
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 6vw, 4rem) clamp(1.25rem, 4vw, 2rem) 6rem;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: clamp(2.5rem, 5vw, 4rem);
+  }
+
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+  }
+  .wordmark-img {
+    border-radius: 0.5rem;
+    border: 1px solid rgba(255,255,255,0.14);
+  }
+  .wordmark-text {
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #a5b4fc, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .back-link {
+    font-size: 0.85rem;
+    color: rgba(165,180,252,0.7);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: #a5b4fc; }
+
+  .page-title {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #f5f8ff;
+    margin-bottom: 0.4rem;
+  }
+  .page-sub {
+    font-size: 0.95rem;
+    color: rgba(245,248,255,0.45);
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  .entries {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  .entry {
+    border-left: 2px solid rgba(45,212,168,0.35);
+    padding-left: 1.5rem;
+  }
+
+  .entry-date {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(45,212,168,0.8);
+    margin-bottom: 1rem;
+  }
+
+  .entry-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .entry-body p {
+    font-size: 0.975rem;
+    line-height: 1.7;
+    color: rgba(245,248,255,0.8);
+  }
+  .entry-body a {
+    color: rgba(45,212,168,0.9);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .entry-body a:hover { color: rgb(45,212,168); }
+</style>

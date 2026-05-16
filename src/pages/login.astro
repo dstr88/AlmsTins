@@ -206,7 +206,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
         <!-- Secondary: wallet input -->
         <div class="landing__wallet-secondary">
-          <span class="landing__wallet-label">Or enter your own wallet address</span>
+          <div class="landing__wallet-label-row">
+            <span class="landing__wallet-label">Or enter your own wallet address</span>
+            <a href="/changelog" class="landing__changelog-link">What's new →</a>
+          </div>
           <form class="landing__demo-form" id="demoForm">
             <input
               class="landing__demo-input"
@@ -616,14 +619,25 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       padding-top: 1.25rem;
       border-top: 1px solid var(--border-subtle);
     }
+    .landing__wallet-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
     .landing__wallet-label {
-      display: block;
       font-size: 0.78rem;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      margin-bottom: 0.6rem;
     }
+    .landing__changelog-link {
+      font-size: 0.78rem;
+      color: rgba(45,212,168,0.7);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .landing__changelog-link:hover { color: var(--accent); }
 
     /* ── Wallet demo input ───────────────────────────────────── */
     .landing__demo { margin-top: 0; }
