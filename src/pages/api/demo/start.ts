@@ -11,7 +11,16 @@ import { demoCookieSet, DEMO_TENANT_ID } from '../../../lib/demo';
 import { db } from '../../../lib/db';
 
 const exec = (sql: string, args: (string | number | null)[] = []) =>
-	db.execute({ sql, args }).catch(() => {});
+	db.execute({ sql, args }).catch((e: unknown) => {
+		console.error('[demo-seed] SQL error:', e, '\nSQL:', sql.slice(0, 120));
+		return null;
+	});
+
+const query = (sql: string, args: (string | number | null)[] = []) =>
+	db.execute({ sql, args }).catch((e: unknown) => {
+		console.error('[demo-seed] Query error:', e, '\nSQL:', sql.slice(0, 120));
+		return null;
+	});
 
 /** Tables to clear on each new demo session (order avoids FK issues). */
 const DEMO_TABLES = [
@@ -31,20 +40,9 @@ const DEMO_TABLES = [
 	'wallets',
 ];
 
-// ── Fixed IDs ─────────────────────────────────────────────────────────────────
-const W_BTC  = 'DEMO-WALLET-BTC-000000000000000000001';
-const W_ETH  = 'DEMO-WALLET-ETH-000000000000000000001';
-const W_SOL  = 'DEMO-WALLET-SOL-000000000000000000001';
-const ADDR_BTC  = 'bc1qbtcdemo0wallet000000000000000000000000';
-const ADDR_ETH  = '0xe1000000000000000000000000000000000000e1';
-const ADDR_SOL  = 'DemoSoLWaLLet1111111111111111111111111111';
-const ACCT_CB   = 'demo-acct-coinbase-000000000000000000';
-const ACCT_CRY  = 'demo-acct-crypto-com-00000000000000000';
-const BATCH_CB  = 'demo-batch-coinbase-0000000000000000000';
-const BATCH_CRY = 'demo-batch-crypto-000000000000000000000';
-const GRP_BTC   = 'DEMO-GRP-BTC-000000000000000000000001';
-const GRP_ETH   = 'DEMO-GRP-ETH-000000000000000000000001';
-const GRP_SOL   = 'DEMO-GRP-SOL-000000000000000000000001';
+const ADDR_BTC = 'bc1qbtcdemo0wallet000000000000000000000000';
+const ADDR_ETH = '0xe1000000000000000000000000000000000000e1';
+const ADDR_SOL = 'demolsolwallet1111111111111111111111111111';
 
 export const GET: APIRoute = async ({ request }) => {
 
@@ -66,22 +64,39 @@ export const GET: APIRoute = async ({ request }) => {
 		['demo-note-0001', DEMO_TENANT_ID, 'sent 30 cro tokens to sis yesterday', '2026-05-15T18:42:00.000Z'],
 	);
 
-	// ── 2. Three self-custody wallets ─────────────────────────────────────────
+	// ── 2. Three self-custody wallets (safe minimal columns) ──────────────────
 	await exec(
-		`INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type, created_at)
-		 VALUES (?, ?, ?, ?, ?, 0, 'onchain', ?)`,
-		[W_BTC, DEMO_TENANT_ID, ADDR_BTC, 'Bitcoin Cold Storage', JSON.stringify(['bitcoin']),     '2021-06-01T00:00:00.000Z'],
+		`INSERT INTO wallets (tenant_id, address, label, chains) VALUES (?, ?, ?, ?)`,
+		[DEMO_TENANT_ID, ADDR_BTC, 'Bitcoin Cold Storage', JSON.stringify(['bitcoin'])],
 	);
 	await exec(
-		`INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type, created_at)
-		 VALUES (?, ?, ?, ?, ?, 0, 'onchain', ?)`,
-		[W_ETH, DEMO_TENANT_ID, ADDR_ETH, 'Ethereum Main',        JSON.stringify(['ethereum', 'polygon', 'avalanche']), '2021-10-01T00:00:00.000Z'],
+		`INSERT INTO wallets (tenant_id, address, label, chains) VALUES (?, ?, ?, ?)`,
+		[DEMO_TENANT_ID, ADDR_ETH, 'Ethereum Main', JSON.stringify(['ethereum', 'polygon', 'avalanche'])],
 	);
 	await exec(
-		`INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type, created_at)
-		 VALUES (?, ?, ?, ?, ?, 0, 'onchain', ?)`,
-		[W_SOL, DEMO_TENANT_ID, ADDR_SOL, 'Solana Wallet',         JSON.stringify(['solana']),       '2024-06-01T00:00:00.000Z'],
+		`INSERT INTO wallets (tenant_id, address, label, chains) VALUES (?, ?, ?, ?)`,
+		[DEMO_TENANT_ID, ADDR_SOL, 'Solana Wallet', JSON.stringify(['solana'])],
 	);
+
+	// Read back the auto-generated wallet IDs
+	const btcRow = await query(
+		`SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
+		[DEMO_TENANT_ID, ADDR_BTC],
+	);
+	const ethRow = await query(
+		`SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
+		[DEMO_TENANT_ID, ADDR_ETH],
+	);
+	const solRow = await query(
+		`SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
+		[DEMO_TENANT_ID, ADDR_SOL],
+	);
+
+	const W_BTC = btcRow?.rows?.[0]?.id as string | undefined;
+	const W_ETH = ethRow?.rows?.[0]?.id as string | undefined;
+	const W_SOL = solRow?.rows?.[0]?.id as string | undefined;
+
+	console.log('[demo-seed] wallet IDs:', { W_BTC, W_ETH, W_SOL });
 
 	// ── 3. Wallet snapshots (token holdings) ──────────────────────────────────
 	const btcTokens = [
@@ -96,32 +111,47 @@ export const GET: APIRoute = async ({ request }) => {
 		{ symbol: 'USDC', amount: 5,    priceUsd: 1,   valueUsd: 5.00,  tokenAddress: null },
 	];
 
-	const snapArgs = [
-		[W_BTC, 'bitcoin',  59.50,  btcTokens],
-		[W_ETH, 'ethereum', 77.50,  ethTokens],
-		[W_SOL, 'solana',   80.40,  solTokens],
-	] as const;
-
-	for (const [wid, chain, total, tokens] of snapArgs) {
+	if (W_BTC) {
 		await exec(
 			`INSERT INTO wallet_snapshots
 			   (tenant_id, wallet_id, chain, totals_usd,
 			    collateral_usd, debt_usd, collateral_apy_pct,
 			    borrow_apy_pct, net_rate_pct, payload_json, captured_at)
 			 VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
-			[DEMO_TENANT_ID, wid, chain, total, JSON.stringify(tokens)],
+			[DEMO_TENANT_ID, W_BTC, 'bitcoin', 59.50, JSON.stringify(btcTokens)],
+		);
+	}
+	if (W_ETH) {
+		await exec(
+			`INSERT INTO wallet_snapshots
+			   (tenant_id, wallet_id, chain, totals_usd,
+			    collateral_usd, debt_usd, collateral_apy_pct,
+			    borrow_apy_pct, net_rate_pct, payload_json, captured_at)
+			 VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+			[DEMO_TENANT_ID, W_ETH, 'ethereum', 77.50, JSON.stringify(ethTokens)],
+		);
+	}
+	if (W_SOL) {
+		await exec(
+			`INSERT INTO wallet_snapshots
+			   (tenant_id, wallet_id, chain, totals_usd,
+			    collateral_usd, debt_usd, collateral_apy_pct,
+			    borrow_apy_pct, net_rate_pct, payload_json, captured_at)
+			 VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+			[DEMO_TENANT_ID, W_SOL, 'solana', 80.40, JSON.stringify(solTokens)],
 		);
 	}
 
 	// ── 4. Asset lifecycle groups ─────────────────────────────────────────────
-	// BTC: bought 2021-06-15 → long-term, still holding
-	// ETH: bought 2021-10-05, partial sell 2023-08-10 → long-term gain/loss
-	// SOL: bought 2024-06-01, partial sell 2024-09-20 → short-term loss
-	const groups = [
-		[GRP_BTC, 'BTC',  0.00085, 28_500, '2021-06-15T00:00:00.000Z'],
-		[GRP_ETH, 'ETH',  0.025,    3_200, '2021-10-05T00:00:00.000Z'],
-		[GRP_SOL, 'SOL',  0.52,       165, '2024-06-01T00:00:00.000Z'],
-	] as const;
+	const GRP_BTC = 'DEMO-GRP-BTC-000000000000000000000001';
+	const GRP_ETH = 'DEMO-GRP-ETH-000000000000000000000001';
+	const GRP_SOL = 'DEMO-GRP-SOL-000000000000000000000001';
+
+	const groups: [string, string, number, number, string][] = [
+		[GRP_BTC, 'BTC', 0.00085, 28_500, '2021-06-15T00:00:00.000Z'],
+		[GRP_ETH, 'ETH', 0.025,    3_200, '2021-10-05T00:00:00.000Z'],
+		[GRP_SOL, 'SOL', 0.52,       165, '2024-06-01T00:00:00.000Z'],
+	];
 
 	for (const [id, symbol, qty, avgCost, acqAt] of groups) {
 		await exec(
@@ -159,61 +189,97 @@ export const GET: APIRoute = async ({ request }) => {
 	}
 
 	// ── 6. ETH wallet DeFi position (Aave V3 Ethereum) ───────────────────────
-	const ethDefiHealth = JSON.stringify({
-		ok: true, address: ADDR_ETH,
-		chains: { ethereum: { healthFactor: 2.58, totalCollateralBase: 62.50, totalDebtBase: 20.00, availableBorrowsBase: 18.75 } },
-	});
-	const ethDefiPositions = JSON.stringify({
-		ok: true, address: ADDR_ETH,
-		chains: { ethereum: {
-			chainId: 1,
-			market: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2',
-			positions: [
-				{ side: 'supply', marketName: 'Aave V3 Ethereum', assetSymbol: 'WETH', amount: 0.025, apy: 0.024 },
-				{ side: 'borrow', marketName: 'Aave V3 Ethereum', assetSymbol: 'USDC', amount: 20.00, apy: 0.067 },
-			],
-		}},
-	});
-	await exec(
-		`INSERT OR REPLACE INTO wallet_defi_sync
-		   (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total,
-		    interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
-		 VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
-		[DEMO_TENANT_ID, W_ETH, ethDefiHealth, ethDefiPositions],
-	);
+	if (W_ETH) {
+		const ethDefiHealth = JSON.stringify({
+			ok: true, address: ADDR_ETH,
+			chains: { ethereum: { healthFactor: 2.58, totalCollateralBase: 62.50, totalDebtBase: 20.00, availableBorrowsBase: 18.75 } },
+		});
+		const ethDefiPositions = JSON.stringify({
+			ok: true, address: ADDR_ETH,
+			chains: { ethereum: {
+				chainId: 1,
+				market: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2',
+				positions: [
+					{ side: 'supply', marketName: 'Aave V3 Ethereum', assetSymbol: 'WETH', amount: 0.025, apy: 0.024 },
+					{ side: 'borrow', marketName: 'Aave V3 Ethereum', assetSymbol: 'USDC', amount: 20.00, apy: 0.067 },
+				],
+			}},
+		});
+		await exec(
+			`INSERT OR REPLACE INTO wallet_defi_sync
+			   (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total,
+			    interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
+			 VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
+			[DEMO_TENANT_ID, W_ETH, ethDefiHealth, ethDefiPositions],
+		);
+	}
 
 	// ── 7. Exchange accounts + transactions ───────────────────────────────────
+	// Use minimal columns — no explicit id, let the DB generate it
 	await exec(
-		`INSERT OR IGNORE INTO exchange_accounts (id, tenant_id, source, name, created_at)
-		 VALUES (?, ?, 'coinbase', 'Coinbase', '2021-06-01T10:00:00.000Z')`,
-		[ACCT_CB, DEMO_TENANT_ID],
+		`INSERT OR IGNORE INTO exchange_accounts (tenant_id, source, name, created_at)
+		 VALUES (?, 'coinbase', 'Coinbase', '2021-06-01T10:00:00.000Z')`,
+		[DEMO_TENANT_ID],
 	);
 	await exec(
-		`INSERT OR IGNORE INTO exchange_accounts (id, tenant_id, source, name, created_at)
-		 VALUES (?, ?, 'crypto_com', 'Crypto.com', '2021-06-01T10:00:00.000Z')`,
-		[ACCT_CRY, DEMO_TENANT_ID],
+		`INSERT OR IGNORE INTO exchange_accounts (tenant_id, source, name, created_at)
+		 VALUES (?, 'crypto_com', 'Crypto.com', '2021-06-01T10:00:00.000Z')`,
+		[DEMO_TENANT_ID],
 	);
 
-	const exchangeTxs: [string, string, string, string, string, string, string, number, number, string, string, string][] = [
-		['demo-itx-cb-btc-buy',  ACCT_CB,  BATCH_CB,  '2021-06-15T14:22:00.000Z', 'Buy BTC',       'BTC',  'in',  0.042, 1_197.00, 'trade',                     'BTC',  'demo-rh-cb-btc-buy'],
-		['demo-itx-cb-eth-buy',  ACCT_CB,  BATCH_CB,  '2021-10-05T11:00:00.000Z', 'Buy ETH',       'ETH',  'in',  0.580,   957.00, 'trade',                     'ETH',  'demo-rh-cb-eth-buy'],
-		['demo-itx-cb-eth-sell', ACCT_CB,  BATCH_CB,  '2024-08-15T16:45:00.000Z', 'Sell ETH',      'ETH',  'out', 0.220,   624.00, 'trade',                     'ETH',  'demo-rh-cb-eth-sell'],
-		['demo-itx-cb-btc-sell', ACCT_CB,  BATCH_CB,  '2024-01-20T09:15:00.000Z', 'Sell BTC',      'BTC',  'out', 0.018,   783.00, 'trade',                     'BTC',  'demo-rh-cb-btc-sell'],
-		['demo-itx-cry-usdc-i1', ACCT_CRY, BATCH_CRY, '2024-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  24.12,    24.12, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i1'],
-		['demo-itx-cry-usdc-i2', ACCT_CRY, BATCH_CRY, '2024-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  37.84,    37.84, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i2'],
-		['demo-itx-cry-usdc-i3', ACCT_CRY, BATCH_CRY, '2024-08-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  62.82,    62.82, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i3'],
-	];
+	// Read back exchange account IDs
+	const cbRow = await query(
+		`SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = 'coinbase' LIMIT 1`,
+		[DEMO_TENANT_ID],
+	);
+	const cryRow = await query(
+		`SELECT id FROM exchange_accounts WHERE tenant_id = ? AND source = 'crypto_com' LIMIT 1`,
+		[DEMO_TENANT_ID],
+	);
 
-	for (const [id, accountId, batchId, ts, desc, currency, direction, amount, nativeUsd, kind, symbol, rowHash] of exchangeTxs) {
-		const source = accountId === ACCT_CB ? 'coinbase' : 'crypto_com';
-		await exec(
-			`INSERT OR IGNORE INTO import_transactions
-			   (id, source, import_batch_id, account_id, tenant_id, timestamp_utc,
-			    description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			[id, source, batchId, accountId, DEMO_TENANT_ID, ts, desc, currency,
-			 amount, nativeUsd, direction, kind, symbol, rowHash, ts],
-		);
+	const ACCT_CB  = cbRow?.rows?.[0]?.id  as string | undefined;
+	const ACCT_CRY = cryRow?.rows?.[0]?.id as string | undefined;
+
+	console.log('[demo-seed] exchange IDs:', { ACCT_CB, ACCT_CRY });
+
+	const BATCH_CB  = 'demo-batch-coinbase-0000000000000000000';
+	const BATCH_CRY = 'demo-batch-crypto-000000000000000000000';
+
+	if (ACCT_CB) {
+		const cbTxs: [string, string, string, string, string, number, number, string, string, string][] = [
+			['demo-itx-cb-btc-buy',  '2021-06-15T14:22:00.000Z', 'Buy BTC',  'BTC', 'in',  0.042, 1_197.00, 'trade', 'BTC', 'demo-rh-cb-btc-buy'],
+			['demo-itx-cb-eth-buy',  '2021-10-05T11:00:00.000Z', 'Buy ETH',  'ETH', 'in',  0.580,   957.00, 'trade', 'ETH', 'demo-rh-cb-eth-buy'],
+			['demo-itx-cb-eth-sell', '2024-08-15T16:45:00.000Z', 'Sell ETH', 'ETH', 'out', 0.220,   624.00, 'trade', 'ETH', 'demo-rh-cb-eth-sell'],
+			['demo-itx-cb-btc-sell', '2024-01-20T09:15:00.000Z', 'Sell BTC', 'BTC', 'out', 0.018,   783.00, 'trade', 'BTC', 'demo-rh-cb-btc-sell'],
+		];
+		for (const [id, ts, desc, currency, direction, amount, nativeUsd, kind, symbol, rowHash] of cbTxs) {
+			await exec(
+				`INSERT OR IGNORE INTO import_transactions
+				   (id, source, import_batch_id, account_id, tenant_id, timestamp_utc,
+				    description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at)
+				 VALUES (?, 'coinbase', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[id, BATCH_CB, ACCT_CB, DEMO_TENANT_ID, ts, desc, currency,
+				 amount, nativeUsd, direction, kind, symbol, rowHash, ts],
+			);
+		}
+	}
+
+	if (ACCT_CRY) {
+		const cryTxs: [string, string, string, string, string, number, number, string, string, string][] = [
+			['demo-itx-cry-usdc-i1', '2024-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in', 24.12, 24.12, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i1'],
+			['demo-itx-cry-usdc-i2', '2024-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in', 37.84, 37.84, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i2'],
+			['demo-itx-cry-usdc-i3', '2024-08-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in', 62.82, 62.82, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i3'],
+		];
+		for (const [id, ts, desc, currency, direction, amount, nativeUsd, kind, symbol, rowHash] of cryTxs) {
+			await exec(
+				`INSERT OR IGNORE INTO import_transactions
+				   (id, source, import_batch_id, account_id, tenant_id, timestamp_utc,
+				    description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at)
+				 VALUES (?, 'crypto_com', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[id, BATCH_CRY, ACCT_CRY, DEMO_TENANT_ID, ts, desc, currency,
+				 amount, nativeUsd, direction, kind, symbol, rowHash, ts],
+			);
+		}
 	}
 
 	// ── 8. Analytics ──────────────────────────────────────────────────────────
