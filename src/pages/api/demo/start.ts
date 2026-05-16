@@ -2,17 +2,23 @@
  * GET /api/demo/start
  *
  * Wipes any existing demo data, sets the demo session cookie, and redirects
- * the visitor to the vault. Accepts an optional ?address= query param — if
- * provided the wallet is seeded immediately so it appears on the vault page.
- * No auth required — this endpoint is in isPublicPath().
+ * the visitor to the vault. Seeds 3 self-custody wallets (BTC, ETH, SOL)
+ * plus Coinbase and Crypto.com exchange accounts every time.
  */
 
 import type { APIRoute } from 'astro';
-import { demoCookieSet, DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '../../../lib/demo';
+import { demoCookieSet, DEMO_TENANT_ID } from '../../../lib/demo';
 import { db } from '../../../lib/db';
+
+const exec = (sql: string, args: (string | number | null)[] = []) =>
+	db.execute({ sql, args }).catch(() => {});
 
 /** Tables to clear on each new demo session (order avoids FK issues). */
 const DEMO_TABLES = [
+	'vault_notes',
+	'wallet_defi_sync',
+	'asset_lifecycle_events',
+	'asset_lifecycle_groups',
 	'tax_wash_sales',
 	'tax_disposals',
 	'tax_lots',
@@ -25,115 +31,195 @@ const DEMO_TABLES = [
 	'wallets',
 ];
 
-function detectChains(address: string): string[] {
-	if (/^0x[a-fA-F0-9]{40}$/.test(address))               return ['ethereum', 'polygon', 'avalanche'];
-	if (/^bc1[a-zA-HJ-NP-Z0-9]{25,}$/.test(address))       return ['bitcoin'];
-	if (/^[13][a-zA-HJ-NP-Z0-9]{25,34}$/.test(address))    return ['bitcoin'];
-	if (/^ltc1[a-zA-HJ-NP-Z0-9]{25,}$/.test(address))      return ['litecoin'];
-	if (/^[LM][a-zA-HJ-NP-Z0-9]{25,34}$/.test(address))    return ['litecoin'];
-	if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address))     return ['solana'];
-	return ['ethereum', 'polygon', 'avalanche']; // default to EVM
-}
+// ── Fixed IDs ─────────────────────────────────────────────────────────────────
+const W_BTC  = 'DEMO-WALLET-BTC-000000000000000000001';
+const W_ETH  = 'DEMO-WALLET-ETH-000000000000000000001';
+const W_SOL  = 'DEMO-WALLET-SOL-000000000000000000001';
+const ADDR_BTC  = 'bc1qbtcdemo0wallet000000000000000000000000';
+const ADDR_ETH  = '0xe1000000000000000000000000000000000000e1';
+const ADDR_SOL  = 'DemoSoLWaLLet1111111111111111111111111111';
+const ACCT_CB   = 'demo-acct-coinbase-000000000000000000';
+const ACCT_CRY  = 'demo-acct-crypto-com-00000000000000000';
+const BATCH_CB  = 'demo-batch-coinbase-0000000000000000000';
+const BATCH_CRY = 'demo-batch-crypto-000000000000000000000';
+const GRP_BTC   = 'DEMO-GRP-BTC-000000000000000000000001';
+const GRP_ETH   = 'DEMO-GRP-ETH-000000000000000000000001';
+const GRP_SOL   = 'DEMO-GRP-SOL-000000000000000000000001';
 
 export const GET: APIRoute = async ({ request }) => {
-	const url     = new URL(request.url);
-	const rawAddress = url.searchParams.get('address')?.trim() ?? '';
-	// Normalize chip labels ("1 — ETH wallet", "2 — Billetera SOL", etc.) → bare key ("1", "2", "3")
-	const address = /^([123])\s*[—\-]/.test(rawAddress)
-		? (rawAddress.match(/^([123])/)?.[1] ?? rawAddress)
-		: rawAddress;
 
-	// Clear all demo data so every visitor starts fresh
+	// ── 0. Clear ──────────────────────────────────────────────────────────────
 	for (const table of DEMO_TABLES) {
-		await db
-			.execute({ sql: `DELETE FROM ${table} WHERE tenant_id = ?`, args: [DEMO_TENANT_ID] })
-			.catch(() => { /* table may not exist in this schema version — ignore */ });
+		await exec(`DELETE FROM ${table} WHERE tenant_id = ?`, [DEMO_TENANT_ID]);
 	}
 
-	// Seed the wallet the visitor pasted on the landing page
-	if (address) {
-		// Known demo addresses use pre-defined chains; real addresses use detection
-		const config  = isDemoWalletAddress(address) ? DEMO_WALLET_CONFIGS[address] : null;
-		const chains  = config ? config.chains : detectChains(address);
+	// ── 1. Seed notepad ───────────────────────────────────────────────────────
+	await exec(`CREATE TABLE IF NOT EXISTS vault_notes (
+		id TEXT NOT NULL PRIMARY KEY,
+		tenant_id TEXT NOT NULL,
+		body TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now')),
+		resolved_at TEXT
+	)`);
+	await exec(
+		`INSERT OR IGNORE INTO vault_notes (id, tenant_id, body, created_at) VALUES (?, ?, ?, ?)`,
+		['demo-note-0001', DEMO_TENANT_ID, 'sent 30 cro tokens to sis yesterday', '2026-05-15T18:42:00.000Z'],
+	);
 
-		await db
-			.execute({
-				sql:  `INSERT INTO wallets (tenant_id, address, label, chains) VALUES (?, ?, ?, ?)`,
-				args: [DEMO_TENANT_ID, address.toLowerCase(), config?.label ?? address, JSON.stringify(chains)],
-			})
-			.catch(() => { /* ignore duplicate or schema issues */ });
+	// ── 2. Three self-custody wallets ─────────────────────────────────────────
+	await exec(
+		`INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type, created_at)
+		 VALUES (?, ?, ?, ?, ?, 0, 'onchain', ?)`,
+		[W_BTC, DEMO_TENANT_ID, ADDR_BTC, 'Bitcoin Cold Storage', JSON.stringify(['bitcoin']),     '2021-06-01T00:00:00.000Z'],
+	);
+	await exec(
+		`INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type, created_at)
+		 VALUES (?, ?, ?, ?, ?, 0, 'onchain', ?)`,
+		[W_ETH, DEMO_TENANT_ID, ADDR_ETH, 'Ethereum Main',        JSON.stringify(['ethereum', 'polygon', 'avalanche']), '2021-10-01T00:00:00.000Z'],
+	);
+	await exec(
+		`INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type, created_at)
+		 VALUES (?, ?, ?, ?, ?, 0, 'onchain', ?)`,
+		[W_SOL, DEMO_TENANT_ID, ADDR_SOL, 'Solana Wallet',         JSON.stringify(['solana']),       '2024-06-01T00:00:00.000Z'],
+	);
 
-		// Pre-seed mock snapshot so the tin renders immediately on vault load
-		if (config) {
-			const walletRow = await db
-				.execute({
-					sql:  `SELECT id FROM wallets WHERE tenant_id = ? AND address = ? LIMIT 1`,
-					args: [DEMO_TENANT_ID, address.toLowerCase()],
-				})
-				.catch(() => null);
-
-			const walletId = walletRow?.rows?.[0]?.id;
-			if (walletId) {
-				const totals = config.tokens.reduce((s, t) => s + t.valueUsd, 0);
-				await db
-					.execute({
-						sql:  `INSERT INTO wallet_snapshots
-						         (tenant_id, wallet_id, chain, totals_usd,
-						          collateral_usd, debt_usd, collateral_apy_pct,
-						          borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-						       VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
-						args: [DEMO_TENANT_ID, walletId, config.chain, totals, JSON.stringify(config.tokens)],
-					})
-					.catch(() => {});
-			}
-		}
-	}
-
-	// Seed demo exchange accounts + transactions so tins aren't empty
-	const ACCT_CB  = 'demo-acct-coinbase-000000000000000000';
-	const ACCT_CRY = 'demo-acct-crypto-com-00000000000000000';
-	const BATCH_CB  = 'demo-batch-coinbase-0000000000000000000';
-	const BATCH_CRY = 'demo-batch-crypto-000000000000000000000';
-
-	await db.execute({
-		sql:  `INSERT OR IGNORE INTO exchange_accounts (id, tenant_id, source, name, created_at) VALUES (?, ?, 'coinbase', 'Coinbase', '2021-06-01T10:00:00.000Z')`,
-		args: [ACCT_CB, DEMO_TENANT_ID],
-	}).catch(() => {});
-	await db.execute({
-		sql:  `INSERT OR IGNORE INTO exchange_accounts (id, tenant_id, source, name, created_at) VALUES (?, ?, 'crypto_com', 'Crypto.com', '2021-06-01T10:00:00.000Z')`,
-		args: [ACCT_CRY, DEMO_TENANT_ID],
-	}).catch(() => {});
-
-	const demoTxs: [string, string, string, string, string, string, string, number, number, string, string, string][] = [
-		['demo-itx-cb-btc-buy',   ACCT_CB,  BATCH_CB,  '2021-06-15T14:22:00.000Z', 'Buy BTC',       'BTC',  'in',  0.042,   1_197.00, 'trade',                     'BTC',  'demo-rh-cb-btc-buy'],
-		['demo-itx-cb-eth-buy',   ACCT_CB,  BATCH_CB,  '2021-10-05T11:00:00.000Z', 'Buy ETH',       'ETH',  'in',  0.580,     957.00, 'trade',                     'ETH',  'demo-rh-cb-eth-buy'],
-		['demo-itx-cb-eth-sell',  ACCT_CB,  BATCH_CB,  '2024-08-15T16:45:00.000Z', 'Sell ETH',      'ETH',  'out', 0.220,     624.00, 'trade',                     'ETH',  'demo-rh-cb-eth-sell'],
-		['demo-itx-cb-btc-sell',  ACCT_CB,  BATCH_CB,  '2024-01-20T09:15:00.000Z', 'Sell BTC',      'BTC',  'out', 0.018,     783.00, 'trade',                     'BTC',  'demo-rh-cb-btc-sell'],
-		['demo-itx-cry-usdc-i1',  ACCT_CRY, BATCH_CRY, '2024-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  24.12,      24.12, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i1'],
-		['demo-itx-cry-usdc-i2',  ACCT_CRY, BATCH_CRY, '2024-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  37.84,      37.84, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i2'],
-		['demo-itx-cry-usdc-i3',  ACCT_CRY, BATCH_CRY, '2024-08-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  62.82,      62.82, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i3'],
+	// ── 3. Wallet snapshots (token holdings) ──────────────────────────────────
+	const btcTokens = [
+		{ symbol: 'BTC', amount: 0.00085, priceUsd: 70_000, valueUsd: 59.50, tokenAddress: null },
+	];
+	const ethTokens = [
+		{ symbol: 'ETH',  amount: 0.025, priceUsd: 2_500, valueUsd: 62.50, tokenAddress: null },
+		{ symbol: 'USDC', amount: 15,    priceUsd: 1,     valueUsd: 15.00, tokenAddress: null },
+	];
+	const solTokens = [
+		{ symbol: 'SOL',  amount: 0.52, priceUsd: 145, valueUsd: 75.40, tokenAddress: null },
+		{ symbol: 'USDC', amount: 5,    priceUsd: 1,   valueUsd: 5.00,  tokenAddress: null },
 	];
 
-	for (const [id, accountId, batchId, ts, desc, currency, direction, amount, nativeUsd, kind, symbol, rowHash] of demoTxs) {
-		const source = accountId === ACCT_CB ? 'coinbase' : 'crypto_com';
-		await db.execute({
-			sql:  `INSERT OR IGNORE INTO import_transactions
-			         (id, source, import_batch_id, account_id, tenant_id, timestamp_utc,
-			          description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at)
-			       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			args: [id, source, batchId, accountId, DEMO_TENANT_ID, ts, desc, currency, amount, nativeUsd, direction, kind, symbol, rowHash, ts],
-		}).catch(() => {});
+	const snapArgs = [
+		[W_BTC, 'bitcoin',  59.50,  btcTokens],
+		[W_ETH, 'ethereum', 77.50,  ethTokens],
+		[W_SOL, 'solana',   80.40,  solTokens],
+	] as const;
+
+	for (const [wid, chain, total, tokens] of snapArgs) {
+		await exec(
+			`INSERT INTO wallet_snapshots
+			   (tenant_id, wallet_id, chain, totals_usd,
+			    collateral_usd, debt_usd, collateral_apy_pct,
+			    borrow_apy_pct, net_rate_pct, payload_json, captured_at)
+			 VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+			[DEMO_TENANT_ID, wid, chain, total, JSON.stringify(tokens)],
+		);
 	}
 
-	// Increment demo session counter (best-effort — never blocks the redirect)
+	// ── 4. Asset lifecycle groups ─────────────────────────────────────────────
+	// BTC: bought 2021-06-15 → long-term, still holding
+	// ETH: bought 2021-10-05, partial sell 2023-08-10 → long-term gain/loss
+	// SOL: bought 2024-06-01, partial sell 2024-09-20 → short-term loss
+	const groups = [
+		[GRP_BTC, 'BTC',  0.00085, 28_500, '2021-06-15T00:00:00.000Z'],
+		[GRP_ETH, 'ETH',  0.025,    3_200, '2021-10-05T00:00:00.000Z'],
+		[GRP_SOL, 'SOL',  0.52,       165, '2024-06-01T00:00:00.000Z'],
+	] as const;
+
+	for (const [id, symbol, qty, avgCost, acqAt] of groups) {
+		await exec(
+			`INSERT OR IGNORE INTO asset_lifecycle_groups
+			   (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd,
+			    latest_acquired_at, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			[id, DEMO_TENANT_ID, symbol, qty, avgCost, acqAt, acqAt, acqAt],
+		);
+	}
+
+	// ── 5. Asset lifecycle events ─────────────────────────────────────────────
+	const events: [string, string, string, string, string, number, number][] = [
+		// BTC: buy 0.00085 @ $28,500 = $24.23  (long-term, no sell)
+		['demo-evt-btc-buy',  GRP_BTC, '2021-06-15T14:22:00.000Z', 'in',  'wallet', 0.00085, 24.23],
+		// ETH: buy 0.030 @ $3,200 = $96.00
+		['demo-evt-eth-buy',  GRP_ETH, '2021-10-05T11:00:00.000Z', 'in',  'wallet', 0.030,   96.00],
+		// ETH: sell 0.005 @ $1,800 = $9.00 (LT loss, cost basis $16)
+		['demo-evt-eth-sell', GRP_ETH, '2023-08-10T09:30:00.000Z', 'out', 'wallet', 0.005,    9.00],
+		// SOL: buy 0.62 @ $165 = $102.30
+		['demo-evt-sol-buy',  GRP_SOL, '2024-06-01T12:00:00.000Z', 'in',  'wallet', 0.62,   102.30],
+		// SOL: sell 0.10 @ $130 = $13.00 (ST loss, cost basis $16.50)
+		['demo-evt-sol-sell', GRP_SOL, '2024-09-20T15:00:00.000Z', 'out', 'wallet', 0.10,    13.00],
+	];
+
+	for (const [id, groupId, ts, direction, sourceType, amount, nativeUsd] of events) {
+		await exec(
+			`INSERT OR IGNORE INTO asset_lifecycle_events
+			   (id, tenant_id, group_id, source_type, source_id, timestamp_utc,
+			    direction, amount, native_usd, transaction_class, linked_transfer, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+			[id, DEMO_TENANT_ID, groupId, sourceType, id + '-tx', ts,
+			 direction, amount, nativeUsd, direction === 'in' ? 'trade' : 'trade', ts],
+		);
+	}
+
+	// ── 6. ETH wallet DeFi position (Aave V3 Ethereum) ───────────────────────
+	const ethDefiHealth = JSON.stringify({
+		ok: true, address: ADDR_ETH,
+		chains: { ethereum: { healthFactor: 2.58, totalCollateralBase: 62.50, totalDebtBase: 20.00, availableBorrowsBase: 18.75 } },
+	});
+	const ethDefiPositions = JSON.stringify({
+		ok: true, address: ADDR_ETH,
+		chains: { ethereum: {
+			chainId: 1,
+			market: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2',
+			positions: [
+				{ side: 'supply', marketName: 'Aave V3 Ethereum', assetSymbol: 'WETH', amount: 0.025, apy: 0.024 },
+				{ side: 'borrow', marketName: 'Aave V3 Ethereum', assetSymbol: 'USDC', amount: 20.00, apy: 0.067 },
+			],
+		}},
+	});
+	await exec(
+		`INSERT OR REPLACE INTO wallet_defi_sync
+		   (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total,
+		    interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
+		 VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
+		[DEMO_TENANT_ID, W_ETH, ethDefiHealth, ethDefiPositions],
+	);
+
+	// ── 7. Exchange accounts + transactions ───────────────────────────────────
+	await exec(
+		`INSERT OR IGNORE INTO exchange_accounts (id, tenant_id, source, name, created_at)
+		 VALUES (?, ?, 'coinbase', 'Coinbase', '2021-06-01T10:00:00.000Z')`,
+		[ACCT_CB, DEMO_TENANT_ID],
+	);
+	await exec(
+		`INSERT OR IGNORE INTO exchange_accounts (id, tenant_id, source, name, created_at)
+		 VALUES (?, ?, 'crypto_com', 'Crypto.com', '2021-06-01T10:00:00.000Z')`,
+		[ACCT_CRY, DEMO_TENANT_ID],
+	);
+
+	const exchangeTxs: [string, string, string, string, string, string, string, number, number, string, string, string][] = [
+		['demo-itx-cb-btc-buy',  ACCT_CB,  BATCH_CB,  '2021-06-15T14:22:00.000Z', 'Buy BTC',       'BTC',  'in',  0.042, 1_197.00, 'trade',                     'BTC',  'demo-rh-cb-btc-buy'],
+		['demo-itx-cb-eth-buy',  ACCT_CB,  BATCH_CB,  '2021-10-05T11:00:00.000Z', 'Buy ETH',       'ETH',  'in',  0.580,   957.00, 'trade',                     'ETH',  'demo-rh-cb-eth-buy'],
+		['demo-itx-cb-eth-sell', ACCT_CB,  BATCH_CB,  '2024-08-15T16:45:00.000Z', 'Sell ETH',      'ETH',  'out', 0.220,   624.00, 'trade',                     'ETH',  'demo-rh-cb-eth-sell'],
+		['demo-itx-cb-btc-sell', ACCT_CB,  BATCH_CB,  '2024-01-20T09:15:00.000Z', 'Sell BTC',      'BTC',  'out', 0.018,   783.00, 'trade',                     'BTC',  'demo-rh-cb-btc-sell'],
+		['demo-itx-cry-usdc-i1', ACCT_CRY, BATCH_CRY, '2024-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  24.12,    24.12, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i1'],
+		['demo-itx-cry-usdc-i2', ACCT_CRY, BATCH_CRY, '2024-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  37.84,    37.84, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i2'],
+		['demo-itx-cry-usdc-i3', ACCT_CRY, BATCH_CRY, '2024-08-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in',  62.82,    62.82, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i3'],
+	];
+
+	for (const [id, accountId, batchId, ts, desc, currency, direction, amount, nativeUsd, kind, symbol, rowHash] of exchangeTxs) {
+		const source = accountId === ACCT_CB ? 'coinbase' : 'crypto_com';
+		await exec(
+			`INSERT OR IGNORE INTO import_transactions
+			   (id, source, import_batch_id, account_id, tenant_id, timestamp_utc,
+			    description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			[id, source, batchId, accountId, DEMO_TENANT_ID, ts, desc, currency,
+			 amount, nativeUsd, direction, kind, symbol, rowHash, ts],
+		);
+	}
+
+	// ── 8. Analytics ──────────────────────────────────────────────────────────
 	const ua       = request.headers.get('user-agent') ?? null;
 	const referrer = request.headers.get('referer')    ?? null;
-	await db
-		.execute({
-			sql:  `INSERT INTO demo_sessions (user_agent, referrer) VALUES (?, ?)`,
-			args: [ua, referrer],
-		})
-		.catch(() => { /* table may not exist yet — ignore */ });
+	await exec(`INSERT INTO demo_sessions (user_agent, referrer) VALUES (?, ?)`, [ua, referrer]);
 
 	const lang = (request.headers.get('referer') ?? '').includes('/es') ? 'es' : 'en';
 	const langCookie = `almstins-demo-lang=${lang}; Path=/; SameSite=Lax; Max-Age=3600`;

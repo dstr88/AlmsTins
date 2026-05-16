@@ -185,7 +185,7 @@ export function VaultNotepad() {
 			{state.status === 'ready' && (
 				<div className="vn-list">
 					{open.length === 0 && resolved.length === 0 && (
-						<p className="vn-empty">Track anything that needs attention — a missing transaction, a cost basis question, a reminder to import a CSV. Your notes stay private and visible only to you.</p>
+						<p className="vn-empty">Jot down anything worth remembering — a transfer to flag, a cost basis question, a reminder to import a CSV.</p>
 					)}
 
 					{open.map((note) => (

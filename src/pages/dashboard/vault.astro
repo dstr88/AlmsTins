@@ -173,13 +173,19 @@ const getChainBadge = (chains: string[]): string => {
 			<div class="vault-lane vault-lane--row2 exchange-lane">
 				<CryptoComAccounts />
 				<ExchangeAccounts source="coinbase" title="Coinbase" />
-				<ExchangeAccounts source="kraken" title="Kraken" />
-				<ExchangeAccounts source="gemini" title="Gemini" />
-				<ExchangeAccounts source="robinhood" title="Robinhood" />
-				<ExchangeAccounts source="venmo" title="Venmo" />
-				<ExchangeAccounts source="cashapp" title="Cash App" />
-				<ExchangeAccounts source="exodus" title="Exodus" />
 			</div>
+
+			<details class="other-exchanges">
+				<summary class="other-exchanges__toggle">+ More exchanges available</summary>
+				<div class="vault-lane vault-lane--row2 exchange-lane other-exchanges__lane">
+					<ExchangeAccounts source="kraken" title="Kraken" />
+					<ExchangeAccounts source="gemini" title="Gemini" />
+					<ExchangeAccounts source="robinhood" title="Robinhood" />
+					<ExchangeAccounts source="venmo" title="Venmo" />
+					<ExchangeAccounts source="cashapp" title="Cash App" />
+					<ExchangeAccounts source="exodus" title="Exodus" />
+				</div>
+			</details>
 
 			<div class="vault-section-divider vault-section-divider--onchain">
 				<span class="vault-section-divider__label">On-Chain Wallets</span>
