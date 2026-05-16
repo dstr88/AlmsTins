@@ -38,6 +38,12 @@ console.log('[vault] auth ms', Date.now() - pageStart);
 const walletsStart = Date.now();
 const wallets = await getAllActiveWallets(tenantId);
 console.log('[vault] wallets ms', Date.now() - walletsStart, 'count', wallets.length);
+
+// Demo session with no wallets means the seed hasn't run yet (or data was cleared).
+// Redirect to start to reseed automatically so visitors never see an empty vault.
+if (tenant.isDemo && wallets.length === 0) {
+	return Astro.redirect('/api/demo/start', 302);
+}
 const walletsSorted = [...wallets].sort((a, b) => {
 	const aTime = Date.parse(a.createdAt || '') || 0;
 	const bTime = Date.parse(b.createdAt || '') || 0;

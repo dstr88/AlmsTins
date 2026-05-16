@@ -18,9 +18,9 @@ export function isDemoRequest(request: Request): boolean {
 	);
 }
 
-/** Set-Cookie header value that starts a demo session (1 hour). */
+/** Set-Cookie header value that starts a demo session (7 days). */
 export function demoCookieSet(): string {
-	return `${DEMO_COOKIE_NAME}=${DEMO_COOKIE_VALUE}; Path=/; SameSite=Lax; Max-Age=3600`;
+	return `${DEMO_COOKIE_NAME}=${DEMO_COOKIE_VALUE}; Path=/; SameSite=Lax; Max-Age=604800`;
 }
 
 /** Set-Cookie header value that clears the demo session. */
