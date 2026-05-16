@@ -227,6 +227,7 @@ const getChainBadge = (chains: string[]): string => {
 									</div>
 									<WalletSummary client:only="react" walletId={wallet.id} initialData={fullData} walletCreatedAt={wallet.createdAt ?? null} />
 								</SalmonTin>
+								{!wallet.chains.every(c => c === 'bitcoin') && (
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label" data-defi-summary-label>
@@ -243,6 +244,7 @@ const getChainBadge = (chains: string[]): string => {
 										: <AaveHealthSummary  client:only="react" walletId={wallet.id} />
 									}
 								</SalmonTin>
+								)}
 								<SalmonTin label="NFTs" class="wallet-tin--future is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label">NFTs</span>

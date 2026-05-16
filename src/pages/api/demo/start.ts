@@ -172,6 +172,7 @@ export const GET: APIRoute = async ({ request }) => {
 	}
 
 	// ── 6. ETH wallet DeFi position (Aave V3 Ethereum) ───────────────────────
+	// Seed wallet_defi_sync for the sync history record
 	const ethDefiHealth = JSON.stringify({
 		ok: true, address: ADDR_ETH,
 		chains: { ethereum: { healthFactor: 2.58, totalCollateralBase: 62.50, totalDebtBase: 20.00, availableBorrowsBase: 18.75 } },
@@ -193,6 +194,47 @@ export const GET: APIRoute = async ({ request }) => {
 		    interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
 		 VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
 		[DEMO_TENANT_ID, W_ETH, ethDefiHealth, ethDefiPositions],
+	);
+
+	// Seed the Aave health cache directly so AaveHealthSummary reads demo data
+	// without hitting the live Aave GraphQL API (which has no positions for a fake address).
+	// Cache format must match what /api/aave/health returns.
+	const aaveCachePayload = JSON.stringify({
+		ok: true,
+		address: ADDR_ETH,
+		asOf: new Date().toISOString(),
+		chains: {
+			ethereum: {
+				chainId: 1,
+				market: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2',
+				healthFactor: 2.58,
+				totalCollateralBase: 62.50,
+				totalDebtBase: 20.00,
+				userSupplies: [
+					{
+						currency: { symbol: 'WETH' },
+						balance: { amount: { value: '0.025' } },
+					},
+				],
+				userBorrows: [
+					{
+						currency: { symbol: 'USDC' },
+						debt: { amount: { value: '20.0' } },
+					},
+				],
+			},
+		},
+	});
+	const aaveCacheKey = `aave:health:${ADDR_ETH.toLowerCase()}`;
+	const aaveCacheTtl = Date.now() + 30 * 60 * 1000; // 30 min
+	await exec(
+		`INSERT INTO cache (cache_key, value_json, expires_at, updated_at)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT(cache_key) DO UPDATE SET
+		   value_json = excluded.value_json,
+		   expires_at = excluded.expires_at,
+		   updated_at = excluded.updated_at`,
+		[aaveCacheKey, aaveCachePayload, aaveCacheTtl, Date.now()],
 	);
 
 	// ── 7. Exchange accounts — explicit UUIDs required (id TEXT PRIMARY KEY, no default) ──
