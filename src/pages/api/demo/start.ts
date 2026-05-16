@@ -260,12 +260,46 @@ export const GET: APIRoute = async ({ request }) => {
 
 	console.log('[demo-seed] exchange IDs:', { ACCT_CB, ACCT_CRY });
 
-	// Coinbase transactions
+	// ── CEX wallets + snapshots (so portfolio total includes exchange balances) ──
+	// Coinbase: net ~$215 USDC after buys
+	const W_CB  = randomUUID();
+	const W_CRY = randomUUID();
+
+	await exec(
+		`INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
+		 VALUES (?, ?, ?, ?, '[]', 0, 'exchange')`,
+		[W_CB, DEMO_TENANT_ID, `cex:coinbase:${ACCT_CB}`, 'Coinbase'],
+	);
+	await exec(
+		`INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
+		 VALUES (?, ?, ?, ?, '[]', 0, 'exchange')`,
+		[W_CRY, DEMO_TENANT_ID, `cex:crypto_com:${ACCT_CRY}`, 'Crypto.com'],
+	);
+
+	const cbTokens  = [{ symbol: 'USDC', amount: 215, priceUsd: 1, valueUsd: 215, tokenAddress: null }];
+	const cryTokens = [{ symbol: 'USDC', amount: 124.78, priceUsd: 1, valueUsd: 124.78, tokenAddress: null }];
+
+	await exec(
+		`INSERT INTO wallet_snapshots
+		   (tenant_id, wallet_id, chain, totals_usd,
+		    collateral_usd, debt_usd, collateral_apy_pct,
+		    borrow_apy_pct, net_rate_pct, payload_json, captured_at)
+		 VALUES (?, ?, 'exchange', ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+		[DEMO_TENANT_ID, W_CB,  215,    JSON.stringify(cbTokens)],
+	);
+	await exec(
+		`INSERT INTO wallet_snapshots
+		   (tenant_id, wallet_id, chain, totals_usd,
+		    collateral_usd, debt_usd, collateral_apy_pct,
+		    borrow_apy_pct, net_rate_pct, payload_json, captured_at)
+		 VALUES (?, ?, 'exchange', ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+		[DEMO_TENANT_ID, W_CRY, 124.78, JSON.stringify(cryTokens)],
+	);
+
+	// Coinbase transactions — net $215 USDC
 	const cbTxs: [string, string, string, string, string, number, number, string, string, string][] = [
-		['demo-itx-cb-btc-buy',  '2021-06-15T14:22:00.000Z', 'Buy BTC',  'BTC', 'in',  0.042, 1_197.00, 'trade', 'BTC', 'demo-rh-cb-btc-buy'],
-		['demo-itx-cb-eth-buy',  '2021-10-05T11:00:00.000Z', 'Buy ETH',  'ETH', 'in',  0.580,   957.00, 'trade', 'ETH', 'demo-rh-cb-eth-buy'],
-		['demo-itx-cb-eth-sell', '2024-08-15T16:45:00.000Z', 'Sell ETH', 'ETH', 'out', 0.220,   624.00, 'trade', 'ETH', 'demo-rh-cb-eth-sell'],
-		['demo-itx-cb-btc-sell', '2024-01-20T09:15:00.000Z', 'Sell BTC', 'BTC', 'out', 0.018,   783.00, 'trade', 'BTC', 'demo-rh-cb-btc-sell'],
+		['demo-itx-cb-usdc-1', '2022-03-10T09:00:00.000Z', 'Buy USDC', 'USDC', 'in', 150, 150, 'trade', 'USDC', 'demo-rh-cb-usdc-1'],
+		['demo-itx-cb-usdc-2', '2023-07-22T14:30:00.000Z', 'Buy USDC', 'USDC', 'in',  65,  65, 'trade', 'USDC', 'demo-rh-cb-usdc-2'],
 	];
 	for (const [id, ts, desc, currency, direction, amount, nativeUsd, kind, symbol, rowHash] of cbTxs) {
 		await exec(
@@ -278,7 +312,7 @@ export const GET: APIRoute = async ({ request }) => {
 		);
 	}
 
-	// Crypto.com transactions (interest income)
+	// Crypto.com transactions (interest income) — net $124.78 USDC
 	const cryTxs: [string, string, string, string, string, number, number, string, string, string][] = [
 		['demo-itx-cry-usdc-i1', '2024-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in', 24.12, 24.12, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i1'],
 		['demo-itx-cry-usdc-i2', '2024-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 'in', 37.84, 37.84, 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i2'],
