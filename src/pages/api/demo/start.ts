@@ -56,6 +56,9 @@ export const GET: APIRoute = async ({ request }) => {
 	for (const table of DEMO_TABLES) {
 		await exec(`DELETE FROM ${table} WHERE tenant_id = ?`, [DEMO_TENANT_ID]);
 	}
+	// Clear any stale Aave health cache for the demo ETH address so the
+	// background refresh can't overwrite our freshly seeded data.
+	await exec(`DELETE FROM cache WHERE cache_key = ?`, [`aave:health:${ADDR_ETH.toLowerCase()}`]);
 
 	// ── 1. Seed notepad ───────────────────────────────────────────────────────
 	await exec(`CREATE TABLE IF NOT EXISTS vault_notes (
@@ -226,8 +229,19 @@ export const GET: APIRoute = async ({ request }) => {
 				],
 			},
 		},
-	}, 30 * 60); // 30 min TTL
+	}, 24 * 60 * 60); // 24h TTL — prevents background refresh from overwriting demo data
 	console.log('[demo-seed] Aave health cache seeded for', aaveCacheKey);
+
+	// Seed Solana DeFi cache so SolanaDefiSummary shows demo protocol data
+	await setCache(`solana-defi:${W_SOL}`, {
+		protocols: ['Kamino Finance', 'Native Staking'],
+		recentPrograms: [
+			{ programId: 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD', name: 'Kamino Finance' },
+			{ programId: 'pytS9TFNez6VM5kMon3apkp9zsEFXDfNnGFZ2aSbKbE', name: 'Pyth Staking' },
+			{ programId: 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4', name: 'Jupiter' },
+		],
+	}, 24 * 60 * 60);
+	console.log('[demo-seed] Solana DeFi cache seeded for wallet', W_SOL);
 
 	// ── 7. Exchange accounts — explicit UUIDs required (id TEXT PRIMARY KEY, no default) ──
 	const ACCT_CB  = randomUUID();

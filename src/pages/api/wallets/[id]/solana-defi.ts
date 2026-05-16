@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { getAllActiveWallets } from '@/lib/wallets';
+import { getCache } from '@/lib/tursoCache';
 
 export const prerender = false;
 
@@ -129,6 +130,14 @@ export const GET: APIRoute = async ({ params, request }) => {
 		}
 
 		const address = wallet.address;
+
+		// Check for seeded/cached data before hitting the live Solana RPC
+		const cached = await getCache<{ protocols: string[]; recentPrograms: { programId: string; name: string | null }[] }>(
+			`solana-defi:${walletId}`,
+		);
+		if (cached) {
+			return respond({ ok: true, address, protocols: cached.protocols, recentPrograms: cached.recentPrograms }, 200);
+		}
 
 		const [detectedNames, recentPrograms] = await Promise.all([
 			Promise.all(DEFI_PROTOCOLS.map((proto) => detectProtocol(address, proto))).then(
