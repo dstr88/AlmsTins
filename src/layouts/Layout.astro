@@ -223,7 +223,7 @@ const memberSinceDisplay = memberSinceIso
 					<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>Alerts</a>
 					<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>
 					<a href="/dashboard/research" class={`nav-link nav-link--research ${isActive('/dashboard/research') ? 'active' : ''}`}>
-						Research<span id="na-nav-badge" class="na-nav-badge" hidden></span>
+						Research
 					</a>
 				{isAdmin && (
 					<>
@@ -419,20 +419,6 @@ const memberSinceDisplay = memberSinceIso
 	});
 })();
 
-// ── Needs Attention nav badge (reads last-known count from localStorage) ──
-(function () {
-	try {
-		const raw = localStorage.getItem('alms_na_count');
-		const count = raw !== null ? parseInt(raw, 10) : 0;
-		if (count > 0) {
-			const badge = document.getElementById('na-nav-badge');
-			if (badge) {
-				badge.textContent = count > 99 ? '99+' : String(count);
-				badge.hidden = false;
-			}
-		}
-	} catch { /* localStorage unavailable */ }
-})();
 
 (function () {
 	const pill    = document.getElementById('help-pill');
