@@ -1,27 +1,16 @@
 ---
-import Logo from '../assets/logo.jpeg';
+import Layout from '@/layouts/LoginLayout.astro';
 ---
 
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Changelog | Almstins</title>
-  <meta name="robots" content="noindex" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-</head>
-<body>
+<Layout
+  title="Changelog | Almstins"
+  description="What's new, what changed, and why — updates from the Almstins team."
+  noindex={true}
+>
   <div class="page">
 
     <header class="page-header">
-      <a href="/login" class="wordmark" aria-label="Almstins home">
-        <img src={Logo.src} width="36" height="36" alt="Almstins logo" class="wordmark-img" />
-        <span class="wordmark-text">Almstins</span>
-      </a>
-      <a href="/login" class="back-link">← Back</a>
+      <a href="/login" class="back-link">← Back to Almstins</a>
     </header>
 
     <main class="content">
@@ -44,20 +33,9 @@ import Logo from '../assets/logo.jpeg';
     </main>
 
   </div>
-</body>
-</html>
+</Layout>
 
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: "Inter", system-ui, -apple-system, sans-serif;
-    background: linear-gradient(160deg, #0d1525 0%, #0a0f1a 60%, #060b14 100%);
-    min-height: 100vh;
-    color: #f5f8ff;
-    color-scheme: dark;
-  }
-
   .page {
     max-width: 42rem;
     margin: 0 auto;
@@ -65,29 +43,7 @@ import Logo from '../assets/logo.jpeg';
   }
 
   .page-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: clamp(2.5rem, 5vw, 4rem);
-  }
-
-  .wordmark {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    text-decoration: none;
-  }
-  .wordmark-img {
-    border-radius: 0.5rem;
-    border: 1px solid rgba(255,255,255,0.14);
-  }
-  .wordmark-text {
-    font-size: 1.2rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    background: linear-gradient(135deg, #a5b4fc, #818cf8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    margin-bottom: clamp(2rem, 5vw, 3.5rem);
   }
 
   .back-link {
