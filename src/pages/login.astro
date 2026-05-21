@@ -628,6 +628,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       align-items: center;
       justify-content: space-between;
       margin-bottom: 0.6rem;
+      padding-top: 0.5rem;
     }
     .landing__wallet-label {
       font-size: 0.78rem;
@@ -636,12 +637,21 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       letter-spacing: 0.08em;
     }
     .landing__changelog-link {
-      font-size: 0.78rem;
-      color: rgba(45,212,168,0.7);
+      font-size: 0.72rem;
+      color: rgba(45,212,168,0.8);
       text-decoration: none;
-      transition: color 0.15s;
+      border: 1px solid rgba(45,212,168,0.35);
+      border-radius: 999px;
+      padding: 0.25rem 0.65rem;
+      letter-spacing: 0.04em;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      white-space: nowrap;
     }
-    .landing__changelog-link:hover { color: var(--accent); }
+    .landing__changelog-link:hover {
+      color: var(--accent);
+      border-color: rgba(45,212,168,0.7);
+      background: rgba(45,212,168,0.07);
+    }
 
     /* ── Wallet demo input ───────────────────────────────────── */
     .landing__demo { margin-top: 0; }
