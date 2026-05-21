@@ -1,6 +1,6 @@
 ---
-import LoginLayout from '../layouts/LoginLayout.astro';
-import WalletChecker from '../components/WalletChecker';
+import LoginLayout from '../../layouts/LoginLayout.astro';
+import WalletChecker from '../../components/WalletChecker';
 
 // If ?address= is in the URL, pre-fill the checker (enables shareable result links)
 const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
