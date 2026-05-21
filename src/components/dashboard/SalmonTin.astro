@@ -1,6 +1,19 @@
 ---
 import './SalmonTin.css';
 
+// Chain colors — silver for ETH, gold for BTC, each chain's established brand color
+const CHAIN_COLORS: Record<string, string> = {
+  BTC:  '#F7931A',  // gold
+  RBTC: '#F7931A',  // gold (Rootstock = BTC)
+  ETH:  '#9E9EA0',  // silver
+  SOL:  '#9945FF',  // Solana violet
+  AVAX: '#E84142',  // Avalanche red
+  POL:  '#8247E5',  // Polygon indigo
+  LTC:  '#B8BCC8',  // light steel (lighter silver than ETH)
+  SUI:  '#6FBCF0',  // Sui blue
+  ARB:  '#28A0F0',  // Arbitrum blue
+};
+
 interface Props {
 	label: string;
 	class?: string;
@@ -8,10 +21,15 @@ interface Props {
 
 const { label, class: className = '' } = Astro.props;
 const hasSummary = Astro.slots.has('summary');
+const flagColor = CHAIN_COLORS[label.toUpperCase()] ?? '#6B7280';
 ---
 
 <div class={`salmon-tin ${className}`}>
 	<span class="salmon-tin__label">{label}</span>
+	<!-- Diver-down corner fold — chain color + self-custody icon -->
+	<div class="tin-flag" style={`--flag-color: ${flagColor}`} aria-hidden="true">
+		<span class="tin-flag__icon">⛓</span>
+	</div>
 	{hasSummary && (
 		<div class="salmon-tin__summary">
 			<slot name="summary" />

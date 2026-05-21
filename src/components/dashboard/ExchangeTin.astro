@@ -22,6 +22,10 @@ const importedLabel = fmtDate(lastImported);
 ---
 
 <section class={`exchange-tin ${className}`} data-tin-key={title}>
+	<!-- Diver-down corner fold — bank icon signals imported/exchange data -->
+	<div class="tin-flag tin-flag--exchange" aria-hidden="true">
+		<span class="tin-flag__icon">🏛</span>
+	</div>
 	<header class="exchange-tin__header">
 		<div class="exchange-tin__title-group">
 			<h3>{title}</h3>
