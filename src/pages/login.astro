@@ -212,7 +212,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         <div class="landing__wallet-secondary">
           <div class="landing__wallet-label-row">
             <span class="landing__wallet-label">Or enter your own wallet address</span>
-            <a href="/changelog" class="landing__changelog-link">What's new →</a>
           </div>
           <form class="landing__demo-form" id="demoForm">
             <input
@@ -257,7 +256,10 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
       <!-- Right column — portfolio preview card -->
       <div class="landing__right">
-        <PortfolioPreviewCard client:visible />
+        <div class="landing__right-inner">
+          <PortfolioPreviewCard client:visible />
+          <a href="/changelog" class="landing__changelog-link">What's new →</a>
+        </div>
       </div>
 
     </div>
@@ -549,6 +551,13 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       top: 2rem;
     }
 
+    .landing__right-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1rem;
+    }
+
     @media (max-width: 64rem) {
       .landing__hero { grid-template-columns: 1fr; gap: 0; }
       .landing__right { display: none; }
@@ -626,7 +635,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .landing__wallet-label-row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
       margin-bottom: 0.6rem;
       padding-top: 0.5rem;
     }
@@ -638,19 +646,20 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     }
     .landing__changelog-link {
       font-size: 0.72rem;
-      color: rgba(45,212,168,0.8);
+      color: rgba(45,212,168,0.9);
       text-decoration: none;
-      border: 1px solid rgba(45,212,168,0.35);
+      border: 1px solid rgba(45,212,168,0.65);
       border-radius: 999px;
-      padding: 0.25rem 0.65rem;
+      padding: 0.28rem 0.75rem;
       letter-spacing: 0.04em;
+      background: rgba(45,212,168,0.08);
       transition: color 0.15s, border-color 0.15s, background 0.15s;
       white-space: nowrap;
     }
     .landing__changelog-link:hover {
       color: var(--accent);
-      border-color: rgba(45,212,168,0.7);
-      background: rgba(45,212,168,0.07);
+      border-color: rgba(45,212,168,0.9);
+      background: rgba(45,212,168,0.14);
     }
 
     /* ── Wallet demo input ───────────────────────────────────── */
