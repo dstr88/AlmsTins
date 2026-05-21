@@ -51,6 +51,7 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       <span class="topnav__tagline">Crypto portfolio tracker &amp; bookkeeping tool</span>
     </a>
     <div class="topnav__actions">
+      <a class="topnav__lang" href="/wallet-checker/es" aria-label="Ver en español">🇪🇸 En Español</a>
       <a class="topnav__login" href="/login">Log in</a>
       <a class="topnav__signup" href="/login">Sign up free</a>
     </div>
@@ -611,6 +612,20 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     display: flex;
     align-items: center;
     gap: 0.6rem;
+  }
+
+  .topnav__lang {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    text-decoration: none;
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
+    transition: color 0.15s ease;
+    margin-right: 0.25rem;
+  }
+  .topnav__lang:hover {
+    color: #f5f8ff;
   }
 
   .topnav__login {
