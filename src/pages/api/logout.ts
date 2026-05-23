@@ -23,7 +23,9 @@ export const POST: APIRoute = async ({ cookies, redirect }) => {
 	return redirect('/?bye=1', 303);
 };
 
-export const GET: APIRoute = async ({ cookies, redirect }) => {
+export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 	clearAuthCookies(cookies);
-	return redirect('/?bye=1', 303);
+	const next = new URL(request.url).searchParams.get('next');
+	const destination = next && next.startsWith('/') ? next : '/?bye=1';
+	return redirect(destination, 303);
 };

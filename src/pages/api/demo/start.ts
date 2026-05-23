@@ -62,10 +62,11 @@ const BATCH_SOL_STAKING = 'demo-batch-sol-staking-00000000000000000';
 const BATCH_CRY_2025    = 'demo-batch-cry-2025-0000000000000000000';
 
 export const GET: APIRoute = async ({ request }) => {
-	// If the user is already authenticated, skip demo mode entirely.
+	// If the user is already authenticated, log them out first so demo mode
+	// starts with a clean session — useful when showing the app to someone else.
 	const session = await getAuthSession(request).catch(() => null);
 	if (session?.user?.id) {
-		return new Response(null, { status: 302, headers: { Location: '/dashboard/vault' } });
+		return new Response(null, { status: 302, headers: { Location: '/api/logout?next=/api/demo/start' } });
 	}
 
 	const errors: string[] = [];
