@@ -53,6 +53,76 @@
 	color: var(--loss);
 }
 
+/* ── Error panel (failed to load) ───────────────────────────────────────────── */
+
+.wallet-summary__error-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 0.45rem;
+	padding: var(--space-md);
+	border: 1px solid var(--loss-border);
+	border-radius: 0.7rem;
+	background: var(--loss-bg);
+}
+
+.wallet-summary__error-message {
+	font-size: var(--font-md2);
+	font-weight: 600;
+	color: var(--loss);
+}
+
+.wallet-summary__error-detail {
+	font-size: var(--font-sm);
+	color: var(--text-secondary);
+	line-height: 1.4;
+}
+
+.wallet-summary__error-ref {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin-top: 0.2rem;
+}
+
+.wallet-summary__error-ref-label {
+	font-size: var(--font-sm);
+	font-weight: 600;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.wallet-summary__error-ref-code {
+	font-size: var(--font-sm);
+	font-family: monospace;
+	color: var(--text-primary);
+	background: var(--surface-card-2);
+	border: 1px solid var(--border-bright);
+	border-radius: 0.3rem;
+	padding: 0.1rem 0.45rem;
+	letter-spacing: 0.06em;
+	user-select: all;
+}
+
+.wallet-summary__retry-btn {
+	align-self: flex-start;
+	margin-top: 0.2rem;
+	padding: 0.3rem 0.8rem;
+	font-size: var(--font-sm);
+	font-weight: 500;
+	border: 1px solid var(--border-bright);
+	border-radius: 0.4rem;
+	background: transparent;
+	color: var(--text-secondary);
+	cursor: pointer;
+	transition: background 0.15s, color 0.15s;
+}
+
+.wallet-summary__retry-btn:hover {
+	background: var(--surface-hover);
+	color: var(--text-primary);
+}
+
 /* ── Chain section ──────────────────────────────────────────────────────────── */
 
 .wallet-summary__chain {

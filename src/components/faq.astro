@@ -93,6 +93,9 @@
       <button class="faq-question" type="button" data-modal="faq-reconciliation-delta">
         Why does my monthly reconciliation show a delta even when nothing went wrong?
       </button>
+      <button class="faq-question" type="button" data-modal="faq-wallet-error">
+        A wallet tin is showing an error and a ref code — what does that mean?
+      </button>
     </div>
 
     <div class="modal-overlay welcome-modal" id="faq-project">
@@ -1063,6 +1066,37 @@
         </p>
       </div>
     </div>
+    <div class="modal-overlay welcome-modal" id="faq-wallet-error">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
+
+        <h1>A wallet tin is showing an error and a ref code — what does that mean?</h1>
+
+        <p>
+          The app couldn't retrieve balance data for this wallet — usually a temporary network or service issue. We can't confirm your current balance until the connection is restored. Use Try again, or check a block explorer directly for real-time confirmation.
+        </p>
+
+        <p>
+          <strong>What the ref code is:</strong><br />
+          The short code you see (for example <code style="font-size: 0.85em; background: rgba(255,255,255,0.08); padding: 0.1rem 0.4rem; border-radius: 4px;">FA5B-1K2M9</code>) is a unique incident ID generated the moment the error occurred. It encodes which wallet failed and when, so that if you contact support, we can find the exact failure in the logs without needing to ask you a dozen questions.
+        </p>
+
+        <p>
+          <strong>What to do first — try again:</strong><br />
+          Click the <strong>Try again</strong> button directly in the tin. Most errors are transient (the upstream API was briefly unreachable) and resolve on the next attempt. If the balance loads successfully, you're done.
+        </p>
+
+        <p>
+          <strong>If the error keeps coming back:</strong><br />
+          An alert has already been sent automatically — you don't need to report it manually. If you want to follow up, email <a href="mailto:hello@almstins.com">hello@almstins.com</a> and include the ref code. That code is the fastest way to trace exactly what failed.
+        </p>
+
+        <p style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; padding: 0.9rem 1rem; margin-top: 1rem;">
+          <strong>Note:</strong> The ref code is click-to-select — tap or click it once to highlight the whole code, then copy it before reaching out.
+        </p>
+      </div>
+    </div>
+
     <div class="modal-overlay welcome-modal" id="faq-reconciliation-delta">
       <div class="modal-content">
         <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>

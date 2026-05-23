@@ -20,6 +20,14 @@ import Layout from '@/layouts/LoginLayout.astro';
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">May 23, 2026</time>
+          <div class="entry-body">
+            <p>Bitcoin wallets now sync automatically every week. Previously, your BTC balance and transaction history would only update when you manually triggered a sync from the vault. Now a scheduled job runs every Monday in the early hours, fetches the latest transactions from Blockstream, and updates your balance snapshot — so your cold storage tin stays current without any action on your part.</p>
+            <p>The same automatic weekly sync was also added for EVM wallet transactions (Ethereum, Polygon, Avalanche) and Aave DeFi positions. All three run on a staggered schedule so they don't overlap. If you haven't opened the app in a week, your numbers will still reflect what happened on-chain.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">May 21, 2026</time>
           <div class="entry-body">
             <p>Each tin on the vault dashboard now has a small corner flag that tells you what you're looking at at a glance. Wallet tins get a chain-colored triangle — gold for Bitcoin, silver for Ethereum, violet for Solana, and so on — with a chain-link icon. Exchange tins (Coinbase, Kraken, Gemini, etc.) get a muted fold with a bank icon instead. The colors match each chain's established identity, so once you learn them you don't have to read the label.</p>

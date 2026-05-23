@@ -47,6 +47,30 @@ services:
       - key: APP_URL
         sync: false
 
+  # ── Bitcoin balance & transaction sync cron ───────────────────────────────
+  # Fires every Monday at 04:00 UTC (1 hour after sync-aave).
+  # Re-syncs BTC transactions and balance snapshots for every Bitcoin wallet
+  # across all tenants via Blockstream. Skips wallets synced within 6 days.
+  #
+  # Required env vars (set in Render dashboard):
+  #   CRON_SECRET        — same value as on your web service
+  #   APP_URL            — e.g. https://almstins.com
+  - type: cron
+    name: sync-btc
+    runtime: image
+    image:
+      url: docker.io/curlimages/curl:latest
+    schedule: "0 4 * * 1"
+    startCommand: >-
+      curl -sf --max-time 1800
+      -H "x-cron-secret: $CRON_SECRET"
+      "$APP_URL/api/cron/sync-btc"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
+
   # ── Monthly digest cron ────────────────────────────────────────────────────
   # Fires at 06:00 UTC on the 1st of every month.
   # Queries the prior month's flagged transactions and writes a monthly_digests

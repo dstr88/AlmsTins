@@ -73,7 +73,7 @@ function BasisForm({ walletId, symbol, chain, onClose }: BasisFormProps) {
 
 type WalletSummaryState =
 	| { status: 'loading' }
-	| { status: 'error'; message: string }
+	| { status: 'error'; message: string; refCode: string }
 	| { status: 'empty'; message: string; hint?: string }
 	| {
 			status: 'stale';
@@ -125,6 +125,24 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 const DUST_THRESHOLD_USD = 1;
 const WALLET_DEBUG =
 	String(import.meta.env.WALLET_DEBUG ?? import.meta.env.HOLDINGS_DEBUG ?? '').trim() === '1';
+
+function makeRefCode(walletId: string): string {
+	const suffix = walletId.slice(-4).toUpperCase().replace(/[^A-Z0-9]/g, 'X').padEnd(4, 'X');
+	const stamp = Date.now().toString(36).slice(-5).toUpperCase();
+	return `${suffix}-${stamp}`;
+}
+
+function reportWalletError(walletId: string, refCode: string, message: string) {
+	try {
+		fetch('/api/vault/report-error', {
+			method: 'POST',
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ walletId, refCode, message }),
+			keepalive: true,
+		}).catch(() => {});
+	} catch { /* ignore */ }
+}
 
 type SummaryCounts = {
 	byChainLength: number;
@@ -196,6 +214,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 	const [state, setState] = useState<WalletSummaryState>({ status: 'loading' });
 	const [hideSpam, setHideSpam] = useState(true);
 	const [copied, setCopied] = useState(false);
+	const [retryKey, setRetryKey] = useState(0);
 	// Manual cost-basis entry — tracks which token row has the form open
 	const [basisEdit, setBasisEdit] = useState<{ symbol: string; chain: string } | null>(null);
 	const initialSummary = summarizePayload(initialData ?? {});
@@ -421,17 +440,19 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 					);
 				}
 			} catch (err) {
+				const message = err instanceof Error ? err.message : 'Unable to load wallet summary.';
+				const refCode = makeRefCode(walletId);
 				console.log('[WalletSummary.refresh] exception', {
-					message: err instanceof Error ? err.message : String(err),
+					message,
+					refCode,
 					stack: err instanceof Error ? err.stack : undefined,
 				});
+				reportWalletError(walletId, refCode, message);
 				if (!cancelled) {
-					const message =
-						err instanceof Error ? err.message : 'Unable to load wallet summary.';
 					if (state.status === 'ready' || state.status === 'stale') {
 						setStateLogged({ ...(state as any), status: 'stale', message }, 'refresh.exception');
 					} else {
-						setStateLogged({ status: 'error', message }, 'refresh.exception');
+						setStateLogged({ status: 'error', message, refCode }, 'refresh.exception');
 					}
 				}
 			}
@@ -440,7 +461,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 		return () => {
 			cancelled = true;
 		};
-	}, [walletId]);
+	}, [walletId, retryKey]);
 
 	const snapshotChains = initialData?.snapshot?.byChain ?? [];
 	const showSnapshotFallback =
@@ -540,7 +561,20 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 				</div>
 			) : null}
 			{state.status === 'error' ? (
-				<div className="wallet-summary__status wallet-summary__status--error">{state.message}</div>
+				<div className="wallet-summary__error-panel">
+					<div className="wallet-summary__error-message">Could not load wallet data</div>
+					<div className="wallet-summary__error-detail">{state.message}</div>
+					<div className="wallet-summary__error-ref">
+						<span className="wallet-summary__error-ref-label">Ref</span>
+						<code className="wallet-summary__error-ref-code">{state.refCode}</code>
+					</div>
+					<button
+						className="wallet-summary__retry-btn"
+						onClick={() => setRetryKey((k) => k + 1)}
+					>
+						Try again
+					</button>
+				</div>
 			) : null}
 			{state.status === 'empty' ? (
 				<div className="wallet-summary__status">
