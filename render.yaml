@@ -1,4 +1,52 @@
 services:
+  # ── Wallet transaction sync cron ───────────────────────────────────────────
+  # Fires every Monday at 02:00 UTC.
+  # Re-syncs on-chain transactions for every active onchain wallet across all
+  # tenants. Skips wallets synced within the last 6 days.
+  #
+  # Required env vars (set in Render dashboard):
+  #   CRON_SECRET        — same value as on your web service
+  #   APP_URL            — e.g. https://almstins.com
+  - type: cron
+    name: sync-wallets
+    runtime: image
+    image:
+      url: docker.io/curlimages/curl:latest
+    schedule: "0 2 * * 1"
+    startCommand: >-
+      curl -sf --max-time 1800
+      -H "x-cron-secret: $CRON_SECRET"
+      "$APP_URL/api/cron/sync-wallets"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
+
+  # ── Aave/DeFi position sync cron ──────────────────────────────────────────
+  # Fires every Monday at 03:00 UTC (1 hour after sync-wallets).
+  # Refreshes Aave health factors and positions for every EVM onchain wallet
+  # across all tenants. Skips wallets synced within the last 6 days.
+  #
+  # Required env vars (set in Render dashboard):
+  #   CRON_SECRET        — same value as on your web service
+  #   APP_URL            — e.g. https://almstins.com
+  - type: cron
+    name: sync-aave
+    runtime: image
+    image:
+      url: docker.io/curlimages/curl:latest
+    schedule: "0 3 * * 1"
+    startCommand: >-
+      curl -sf --max-time 1800
+      -H "x-cron-secret: $CRON_SECRET"
+      "$APP_URL/api/cron/sync-aave"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
+
   # ── Monthly digest cron ────────────────────────────────────────────────────
   # Fires at 06:00 UTC on the 1st of every month.
   # Queries the prior month's flagged transactions and writes a monthly_digests
