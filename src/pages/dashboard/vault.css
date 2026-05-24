@@ -984,6 +984,30 @@ h2 {
 }
 .demo-banner__cta:hover { background: var(--accent-glow); }
 
+.demo-signup-prompt {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 2rem 1.5rem;
+	margin: 1.5rem 1.5rem 0;
+	background: var(--accent-soft);
+	border: 1px solid var(--accent-glow);
+	border-radius: 10px;
+	text-align: center;
+}
+.demo-signup-prompt__text {
+	font-size: 1.1rem;
+	font-weight: 700;
+	color: var(--text-primary);
+	margin: 0;
+}
+.demo-signup-prompt__sub {
+	font-size: 0.88rem;
+	color: var(--text-secondary);
+	margin: 0 0 0.5rem;
+}
+
 .demo-wallet-limit {
 	display: flex;
 	flex-direction: column;

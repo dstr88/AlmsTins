@@ -20,6 +20,13 @@ import Layout from '@/layouts/LoginLayout.astro';
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">May 24, 2026</time>
+          <div class="entry-body">
+            <p>Added a second sign-up prompt at the bottom of the demo vault page. The existing "Sign up free" button lives at the top of the page, but someone who scrolls through the full demo — all three wallets, exchanges, and on-chain data — ends up at the footer with no obvious next step. That's the moment of highest intent and it was being wasted. The new prompt reads "Ready to track your own portfolio? Sign up free — no credit card required. Your vault, your data." It sits just above the footer FAQ section, where the demo naturally ends.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">May 23, 2026</time>
           <div class="entry-body">
             <p>When a wallet tin fails to load its balance data — a network timeout, an API outage, or a bad response from the data provider — the tin now shows exactly what happened instead of going blank or silently displaying zero. You get a short message explaining the connection failed, a ref code (a short ID like <code>FA5B-1K2M9</code>) you can copy and send to support, and a Try again button that re-fetches without reloading the page. Behind the scenes, an alert fires automatically so the issue is already being looked into before you think to report it. The ref code is click-to-select for easy copying.</p>
