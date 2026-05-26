@@ -20,6 +20,16 @@ import Layout from '@/layouts/LoginLayout.astro';
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">May 26, 2026</time>
+          <div class="entry-body">
+            <p>The wallet checker now works correctly for users who are not logged in. A routing oversight meant that the API backing the wallet address checker was only reachable by authenticated users or active sessions — anyone arriving at the page without an account would see a "Sign up free to unlock all features" message instead of results. That's fixed. The wallet checker has always been designed to require no account, and it now behaves that way for everyone.</p>
+            <p>The dApp and website checker no longer times out on a cold start. Previously, the checker had to download three large security databases — MetaMask's phishing blocklist (198,000+ domains), ScamSniffer's database (345,000+ domains), and the OpenPhish feed — before it could return any results. On Render's free tier, where the service sleeps after inactivity, this caused the first check after a period of quiet to time out completely. The databases now load in the background the moment the service wakes up. If you check a URL before they finish loading, GoPlus and URLScan results return immediately and the remaining sources show "warming up — try again in a moment." A second check seconds later returns the full picture from all seven sources.</p>
+            <p>The two action cards at the top of the wallet checker page have been relabeled. "Malicious site connection" is now "Paste your URL here" and "Investing in a known scam" is now "Paste a wallet address" — making it immediately clear what each card does without having to read the input placeholder first.</p>
+            <p>Added FAQPage structured data (JSON-LD) to the wallet checker page. The twelve FAQ entries — covering honeypot scams, wallet drainers, Tornado Cash, what red and yellow verdicts mean, and what to do when a check returns a flag — are now marked up in a format Google can surface as rich results directly in search. This makes the answers findable for people searching those questions before they have a problem, not just after.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">May 24, 2026</time>
           <div class="entry-body">
             <p>Added a second sign-up prompt at the bottom of the demo vault page. The existing "Sign up free" button lives at the top of the page, but someone who scrolls through the full demo — all three wallets, exchanges, and on-chain data — ends up at the footer with no obvious next step. That's the moment of highest intent and it was being wasted. The new prompt reads "Ready to track your own portfolio? Sign up free — no credit card required. Your vault, your data." It sits just above the footer FAQ section, where the demo naturally ends.</p>
