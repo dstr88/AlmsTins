@@ -1618,13 +1618,6 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   const loading = document.getElementById('dapp-loading')     as HTMLElement;
   const errBox  = document.getElementById('dapp-error')       as HTMLElement;
 
-  function setLoading(on: boolean) {
-    btn.disabled   = on;
-    loading.hidden = !on;
-    result.hidden  = true;
-    errBox.hidden  = true;
-  }
-
   function verdictDot(v: string): string {
     if (v === 'flagged')   return 'dot-red';
     if (v === 'clean' || v === 'whitelisted') return 'dot-green';
@@ -1648,25 +1641,33 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     const raw = input.value.trim();
     if (!raw) { input.focus(); return; }
 
-    setLoading(true);
+    // Reset state
+    btn.disabled   = true;
+    loading.hidden = false;
+    result.hidden  = true;
+    errBox.hidden  = true;
 
-    // Show a "warming up" hint after 8 seconds so the user knows what's happening
-    const warmupHint = setTimeout(() => {
-      const loadingEl = document.getElementById('dapp-loading');
-      if (loadingEl && !loadingEl.hidden) {
-        loadingEl.innerHTML = '<span class="spinner"></span> Server is warming up after a period of inactivity — almost there…';
+    // Show a "warming up" hint after 8 s — pure JS timer, always fires
+    const warmupTimer = setTimeout(() => {
+      if (!loading.hidden) {
+        loading.innerHTML = '<span class="spinner"></span> Server is warming up — almost there…';
       }
     }, 8_000);
 
-    // Abort and auto-retry once after 30 seconds
-    const ctrl = new AbortController();
-    const hardTimeout = setTimeout(() => ctrl.abort(), 30_000);
+    // Timeout via Promise.race — guaranteed to fire even if the TCP connection
+    // is held open by Render's load balancer during a cold start
+    let timedOut = false;
+    const qs = new URLSearchParams({ url: raw });
 
     try {
-      const qs  = new URLSearchParams({ url: raw });
-      const res = await fetch(`/api/dapp-check?${qs}`, { signal: ctrl.signal });
-      const data = await res.json();
+      const res = await Promise.race([
+        fetch(`/api/dapp-check?${qs}`),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => { timedOut = true; reject(new Error('timeout')); }, 30_000),
+        ),
+      ]);
 
+      const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.message ?? `HTTP ${res.status}`);
 
       // Verdict banner
@@ -1708,26 +1709,23 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
           event_label: data.verdict ?? 'unknown',
         });
       }
+
     } catch (e: any) {
-      if (e?.name === 'AbortError') {
-        // Timed out — server likely still warming up, auto-retry once
-        clearTimeout(warmupHint);
-        clearTimeout(hardTimeout);
-        setLoading(false);
-        errBox.textContent = 'The server took too long to respond — it may still be warming up. Retrying…';
+      if (timedOut || e?.message === 'timeout') {
+        // Server still warming up — show message and auto-retry in 5 s
+        errBox.textContent = 'The server is warming up after a period of inactivity — retrying in a moment…';
         errBox.hidden = false;
-        setTimeout(() => {
-          errBox.hidden = true;
-          runCheck();
-        }, 3_000);
-        return;
+        setTimeout(() => runCheck(), 5_000);
+        return;  // leave loading spinner hidden; runCheck() will re-show it
       }
       errBox.textContent = `Check failed: ${e instanceof Error ? e.message : 'Unknown error'}. Try again.`;
       errBox.hidden = false;
+
     } finally {
-      clearTimeout(warmupHint);
-      clearTimeout(hardTimeout);
-      setLoading(false);
+      clearTimeout(warmupTimer);
+      // Only touch spinner + button here — never touch errBox in finally
+      loading.hidden = true;
+      btn.disabled   = false;
     }
   }
 
