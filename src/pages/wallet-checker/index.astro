@@ -44,6 +44,110 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     ]
   })} />
 
+  <!-- JSON-LD: FAQPage schema for rich results -->
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is the dApp / Website checker?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "It's a free tool that takes any URL or domain and queries up to 7 independent security databases simultaneously — including MetaMask's own phishing blocklist, ScamSniffer, GoPlus, URLScan.io, and OpenPhish. It returns a red, yellow, or green result based on what those databases report. We do not make our own determination — we surface what the security community has already flagged."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does a red result mean for a website?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "It means one or more of the security databases we query has reported that domain. It does not mean we are calling it a scam — that determination comes from the third-party database. You should treat a red result as a serious warning, do your own additional research, and not connect your wallet until you are certain the site is legitimate."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does a yellow result mean?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yellow means the site is not in any blocklist, but it also has little or no security scan history — so there's not enough data to give a clean bill of health. New sites, obscure domains, or recently registered addresses often show yellow. Proceed with caution and verify the site through official channels before connecting."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I trust a site just because it shows green?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. A green result means the site hasn't been reported to any of the databases we check — not that it's definitively safe. Brand-new phishing sites get a few hours before they're added to blocklists. Always double-check the exact URL in your browser bar, look for the official social media accounts, and never connect a wallet from a link sent in a DM or email."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do wallet drainer sites work?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A wallet drainer is a website that mimics a legitimate dApp — a fake NFT mint, a fake token claim, or a fake airdrop. When you connect your MetaMask and sign a transaction, you're actually signing a permission that lets the attacker transfer every token out of your wallet in one move. The entire balance can be gone in seconds. The site often disappears within hours."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What is a honeypot scam?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A honeypot is a token you can buy but never sell. The scammer promotes it, you buy in, the price appears to rise — but when you try to sell, the contract blocks you. The scammer then drains the liquidity and disappears with your ETH."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does \"too good to be true\" actually look like in crypto?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Guaranteed daily returns of 1–10%, \"just stake your tokens in our wallet,\" airdrop claims that require sending tokens first, or someone in DMs offering to double your crypto. If the return sounds impossible in traditional finance, it's a scam in crypto."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Why would a wallet use Tornado Cash?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Tornado Cash is a mixer that breaks the on-chain link between wallet addresses. While some users value privacy, it's heavily used by scammers and hackers to hide the origin of stolen funds before cashing out."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Should I trust a wallet just because it has a large balance?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Scammers often seed wallets with worthless tokens or inflated \"paper\" balances to create the appearance of legitimacy. Always check if those tokens can actually be sold and what they're truly worth."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is a new wallet always suspicious?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Not always — but in the context of someone pitching an investment, a wallet created in the last 30 days is a major red flag. Legitimate protocols and businesses have established on-chain history."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What should I do if this tool flags a wallet address?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Do not send funds. Screenshot the results. If someone is pressuring you to send crypto to a flagged address, that pressure itself is part of the scam. Report the address on chainabuse.com and walk away."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What should I do if the dApp checker flags a website?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Do not connect your wallet. Close the tab. Find the official project through a trusted source — their verified Twitter/X account or a well-known aggregator like DeFiLlama or CoinGecko. Report the site to MetaMask's phishing database at github.com/MetaMask/eth-phishing-detect."
+        }
+      }
+    ]
+  })} />
+
   <!-- Top nav bar -->
   <nav class="topnav" aria-label="Almstins site navigation">
     <a class="topnav__brand" href="/" aria-label="Almstins home">
