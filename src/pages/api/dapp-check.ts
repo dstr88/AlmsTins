@@ -17,7 +17,8 @@ import type { APIRoute } from 'astro';
  *   7. VirusTotal                    — VIRUSTOTAL_API_KEY
  */
 
-const TIMEOUT_MS      = 12_000;
+const TIMEOUT_MS      = 12_000;  // per-request API calls (GoPlus, URLScan, etc.)
+const LIST_TIMEOUT_MS = 45_000;  // one-time list downloads — needs to survive cold start + GitHub fetch
 const LIST_TTL_MS     = 4 * 60 * 60 * 1000; // 4 hours
 
 // ── Static list cache ─────────────────────────────────────────────────────────
@@ -41,15 +42,15 @@ async function refreshLists(): Promise<void> {
   const [mm, ss, op] = await Promise.allSettled([
     fetchWithTimeout(
       'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/master/src/config.json',
-      TIMEOUT_MS,
+      LIST_TIMEOUT_MS,
     ).then((r) => r.json()),
     fetchWithTimeout(
       'https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/domains.json',
-      TIMEOUT_MS,
+      LIST_TIMEOUT_MS,
     ).then((r) => r.json()),
     fetchWithTimeout(
       'https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt',
-      TIMEOUT_MS,
+      LIST_TIMEOUT_MS,
     ).then((r) => r.text()),
   ]);
 
