@@ -357,6 +357,8 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
         <span class="spinner"></span> Checking security databases…
       </div>
 
+      <div id="dapp-status" class="dapp-status" hidden></div>
+
       <div id="dapp-error" class="dapp-error" hidden></div>
     </div>
 
@@ -1391,6 +1393,16 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     font-size: 0.9rem;
   }
 
+  .dapp-status {
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    background: rgba(165,180,252,0.07);
+    border: 1px solid rgba(165,180,252,0.22);
+    color: rgba(165,180,252,0.8);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
   /* ── Verdict banner ── */
   .verdict-banner {
     display: flex;
@@ -1612,11 +1624,12 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   });
 
   // ── dApp checker ──────────────────────────────────────────────────────────────
-  const input   = document.getElementById('dapp-url-input')   as HTMLInputElement;
-  const btn     = document.getElementById('dapp-check-btn')   as HTMLButtonElement;
-  const result  = document.getElementById('dapp-result')      as HTMLElement;
-  const loading = document.getElementById('dapp-loading')     as HTMLElement;
-  const errBox  = document.getElementById('dapp-error')       as HTMLElement;
+  const input    = document.getElementById('dapp-url-input')   as HTMLInputElement;
+  const btn      = document.getElementById('dapp-check-btn')   as HTMLButtonElement;
+  const result   = document.getElementById('dapp-result')      as HTMLElement;
+  const loading  = document.getElementById('dapp-loading')     as HTMLElement;
+  const statusEl = document.getElementById('dapp-status')      as HTMLElement;
+  const errBox   = document.getElementById('dapp-error')       as HTMLElement;
 
   function verdictDot(v: string): string {
     if (v === 'flagged')   return 'dot-red';
@@ -1642,16 +1655,18 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     if (!raw) { input.focus(); return; }
 
     // Reset state
-    btn.disabled   = true;
-    loading.hidden = false;
-    result.hidden  = true;
-    errBox.hidden  = true;
+    btn.disabled    = true;
+    loading.hidden  = false;
+    result.hidden   = true;
+    errBox.hidden   = true;
+    statusEl.hidden = true;
+    statusEl.textContent = '';
 
-    // Show a "warming up" hint after 8 s — pure JS timer, always fires
+    // After 8 s, show a warmup hint in a completely separate element — no
+    // dependency on the spinner's visibility state
     const warmupTimer = setTimeout(() => {
-      if (!loading.hidden) {
-        loading.innerHTML = '<span class="spinner"></span> Server is warming up — almost there…';
-      }
+      statusEl.textContent = 'The server is waking up after a period of inactivity. Hang tight — results are on their way…';
+      statusEl.hidden = false;
     }, 8_000);
 
     // Timeout via Promise.race — guaranteed to fire even if the TCP connection
@@ -1723,9 +1738,10 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 
     } finally {
       clearTimeout(warmupTimer);
-      // Only touch spinner + button here — never touch errBox in finally
-      loading.hidden = true;
-      btn.disabled   = false;
+      // Only touch spinner, status, and button here — never touch errBox in finally
+      loading.hidden  = true;
+      statusEl.hidden = true;
+      btn.disabled    = false;
     }
   }
 
