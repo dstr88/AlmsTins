@@ -36,37 +36,58 @@ const lists: ListCache = {
   loadedAt:    0,
 };
 
-async function refreshLists(): Promise<void> {
+// Track whether a background load is already in flight so we don't double-fetch
+let listsLoading = false;
+
+async function loadListsInBackground(): Promise<void> {
+  if (listsLoading) return;
   if (Date.now() - lists.loadedAt < LIST_TTL_MS) return;
+  listsLoading = true;
 
-  const [mm, ss, op] = await Promise.allSettled([
-    fetchWithTimeout(
-      'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/master/src/config.json',
-      LIST_TIMEOUT_MS,
-    ).then((r) => r.json()),
-    fetchWithTimeout(
-      'https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/domains.json',
-      LIST_TIMEOUT_MS,
-    ).then((r) => r.json()),
-    fetchWithTimeout(
-      'https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt',
-      LIST_TIMEOUT_MS,
-    ).then((r) => r.text()),
-  ]);
+  try {
+    const [mm, ss, op] = await Promise.allSettled([
+      fetchWithTimeout(
+        'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/master/src/config.json',
+        LIST_TIMEOUT_MS,
+      ).then((r) => r.json()),
+      fetchWithTimeout(
+        'https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/domains.json',
+        LIST_TIMEOUT_MS,
+      ).then((r) => r.json()),
+      fetchWithTimeout(
+        'https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt',
+        LIST_TIMEOUT_MS,
+      ).then((r) => r.text()),
+    ]);
 
-  if (mm.status === 'fulfilled' && mm.value?.blacklist) {
-    lists.metamask = {
-      blacklist: new Set((mm.value.blacklist as string[]).map((d) => d.toLowerCase())),
-      whitelist: new Set((mm.value.whitelist as string[]).map((d) => d.toLowerCase())),
-    };
+    if (mm.status === 'fulfilled' && mm.value?.blacklist) {
+      lists.metamask = {
+        blacklist: new Set((mm.value.blacklist as string[]).map((d) => d.toLowerCase())),
+        whitelist: new Set((mm.value.whitelist as string[]).map((d) => d.toLowerCase())),
+      };
+    }
+    if (ss.status === 'fulfilled' && Array.isArray(ss.value)) {
+      lists.scamsniffer = new Set((ss.value as string[]).map((d) => d.toLowerCase()));
+    }
+    if (op.status === 'fulfilled' && typeof op.value === 'string') {
+      lists.openphish = op.value.trim().split('\n').filter(Boolean);
+    }
+    lists.loadedAt = Date.now();
+  } finally {
+    listsLoading = false;
   }
-  if (ss.status === 'fulfilled' && Array.isArray(ss.value)) {
-    lists.scamsniffer = new Set((ss.value as string[]).map((d) => d.toLowerCase()));
+}
+
+// Kick off list loading immediately at module init so lists are ready
+// (or nearly ready) by the time the first user request arrives.
+loadListsInBackground();
+
+function refreshLists(): void {
+  // Non-blocking — fires and forgets. Checks that use these lists
+  // return "warming up" results if lists are not yet loaded.
+  if (Date.now() - lists.loadedAt >= LIST_TTL_MS) {
+    void loadListsInBackground();
   }
-  if (op.status === 'fulfilled' && typeof op.value === 'string') {
-    lists.openphish = op.value.trim().split('\n').filter(Boolean);
-  }
-  lists.loadedAt = Date.now();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -101,7 +122,7 @@ type SourceResult = {
 
 function checkMetaMask(domain: string): SourceResult {
   const src = 'MetaMask Blocklist';
-  if (!lists.metamask) return { name: src, verdict: 'error', detail: 'List unavailable', icon: '🦊' };
+  if (!lists.metamask) return { name: src, verdict: 'unscanned', detail: 'List is warming up — try again in a moment', icon: '🦊' };
   if (lists.metamask.whitelist.has(domain))
     return { name: src, verdict: 'whitelisted', detail: 'On MetaMask verified-safe list', icon: '🦊' };
   if (lists.metamask.blacklist.has(domain))
@@ -111,7 +132,7 @@ function checkMetaMask(domain: string): SourceResult {
 
 function checkScamSniffer(domain: string): SourceResult {
   const src = 'ScamSniffer';
-  if (!lists.scamsniffer) return { name: src, verdict: 'error', detail: 'List unavailable', icon: '🕵️' };
+  if (!lists.scamsniffer) return { name: src, verdict: 'unscanned', detail: 'List is warming up — try again in a moment', icon: '🕵️' };
   if (lists.scamsniffer.has(domain))
     return { name: src, verdict: 'flagged', detail: 'In ScamSniffer crypto phishing blocklist (345K+ domains)', icon: '🕵️' };
   return { name: src, verdict: 'clean', detail: 'Not in ScamSniffer phishing list', icon: '🕵️' };
@@ -119,7 +140,7 @@ function checkScamSniffer(domain: string): SourceResult {
 
 function checkOpenPhish(rawUrl: string): SourceResult {
   const src = 'OpenPhish';
-  if (!lists.openphish) return { name: src, verdict: 'error', detail: 'Feed unavailable', icon: '🎣' };
+  if (!lists.openphish) return { name: src, verdict: 'unscanned', detail: 'List is warming up — try again in a moment', icon: '🎣' };
   const match = lists.openphish.some((entry) => rawUrl.toLowerCase().includes(entry.toLowerCase().replace(/^https?:\/\//, '')));
   if (match)
     return { name: src, verdict: 'flagged', detail: 'Matches active phishing URL in OpenPhish feed', icon: '🎣' };
@@ -254,8 +275,9 @@ export const GET: APIRoute = async ({ url }) => {
   const fullUrl = rawInput.startsWith('http') ? rawInput : `https://${rawInput}`;
   const domain  = extractDomain(fullUrl);
 
-  // Refresh cached lists (no-op if fresh)
-  await refreshLists();
+  // Trigger background list refresh (non-blocking — lists may still be loading
+  // on first cold-start request; static checkers return "warming up" if so)
+  refreshLists();
 
   // Env-var-gated sources
   const gsb  = (process.env as any).GOOGLE_SAFE_BROWSING_KEY ?? import.meta.env.GOOGLE_SAFE_BROWSING_KEY ?? '';
