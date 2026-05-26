@@ -1649,9 +1649,22 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     if (!raw) { input.focus(); return; }
 
     setLoading(true);
+
+    // Show a "warming up" hint after 8 seconds so the user knows what's happening
+    const warmupHint = setTimeout(() => {
+      const loadingEl = document.getElementById('dapp-loading');
+      if (loadingEl && !loadingEl.hidden) {
+        loadingEl.innerHTML = '<span class="spinner"></span> Server is warming up after a period of inactivity — almost there…';
+      }
+    }, 8_000);
+
+    // Abort and auto-retry once after 30 seconds
+    const ctrl = new AbortController();
+    const hardTimeout = setTimeout(() => ctrl.abort(), 30_000);
+
     try {
       const qs  = new URLSearchParams({ url: raw });
-      const res = await fetch(`/api/dapp-check?${qs}`);
+      const res = await fetch(`/api/dapp-check?${qs}`, { signal: ctrl.signal });
       const data = await res.json();
 
       if (!res.ok || data.error) throw new Error(data.message ?? `HTTP ${res.status}`);
@@ -1695,10 +1708,25 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
           event_label: data.verdict ?? 'unknown',
         });
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        // Timed out — server likely still warming up, auto-retry once
+        clearTimeout(warmupHint);
+        clearTimeout(hardTimeout);
+        setLoading(false);
+        errBox.textContent = 'The server took too long to respond — it may still be warming up. Retrying…';
+        errBox.hidden = false;
+        setTimeout(() => {
+          errBox.hidden = true;
+          runCheck();
+        }, 3_000);
+        return;
+      }
       errBox.textContent = `Check failed: ${e instanceof Error ? e.message : 'Unknown error'}. Try again.`;
       errBox.hidden = false;
     } finally {
+      clearTimeout(warmupHint);
+      clearTimeout(hardTimeout);
       setLoading(false);
     }
   }
