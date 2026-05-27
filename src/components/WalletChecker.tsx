@@ -119,17 +119,22 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
             </div>
           </div>
         )}
-        <FlagRow label="Blacklisted address"          active={f.blacklisted} />
-        <FlagRow label="Phishing activity"            active={f.phishing} />
-        <FlagRow label="Sanctioned (OFAC/etc)"        active={f.sanctioned} />
-        <FlagRow label="Stealing / drainer"           active={f.stealingAttack} />
-        <FlagRow label="Honeypot-related"             active={f.honeypotRelated} />
-        <FlagRow label="Cybercrime involvement"       active={f.cybercrime} />
-        <FlagRow label="Dark web transactions"        active={f.darkwebTransactions} />
-        <FlagRow label="Money laundering"             active={f.moneyLaundering} />
-        <FlagRow label="Financial crime"              active={f.financialCrime} />
-        <FlagRow label="Blackmail / extortion"        active={f.blackmail} />
-        <FlagRow label="Mixer / Tornado Cash use"     active={f.mixer} />
+        {[
+          { label: 'Blacklisted address',      active: f.blacklisted },
+          { label: 'Phishing activity',        active: f.phishing },
+          { label: 'Sanctioned (OFAC/etc)',    active: f.sanctioned },
+          { label: 'Stealing / drainer',       active: f.stealingAttack },
+          { label: 'Honeypot-related',         active: f.honeypotRelated },
+          { label: 'Cybercrime involvement',   active: f.cybercrime },
+          { label: 'Dark web transactions',    active: f.darkwebTransactions },
+          { label: 'Money laundering',         active: f.moneyLaundering },
+          { label: 'Financial crime',          active: f.financialCrime },
+          { label: 'Blackmail / extortion',    active: f.blackmail },
+          { label: 'Mixer / Tornado Cash use', active: f.mixer },
+        ].sort((a, b) => Number(b.active) - Number(a.active))
+          .map(({ label, active }) => (
+            <FlagRow key={label} label={label} active={active} />
+          ))}
 
         {/* Chainabuse community reports */}
         {result.chainabuseReports !== null && (

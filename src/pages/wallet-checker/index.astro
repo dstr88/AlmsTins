@@ -1715,9 +1715,13 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
                                     'LOOKS SAFE — No threats detected';
       document.getElementById('verdict-url')!.textContent = data.domain;
 
-      // Source list
+      // Source list — flagged sources float to the top, clean/skipped sink to the bottom
+      const VERDICT_RANK: Record<string, number> = { flagged: 0, error: 1, unscanned: 1, clean: 2, whitelisted: 2, skipped: 3 };
+      const sortedSources = ([...data.sources] as any[]).sort(
+        (a, b) => (VERDICT_RANK[a.verdict] ?? 2) - (VERDICT_RANK[b.verdict] ?? 2),
+      );
       const list = document.getElementById('source-list')!;
-      list.innerHTML = (data.sources as any[]).map((s) => `
+      list.innerHTML = sortedSources.map((s) => `
         <li class="source-item ${sourceClass(s.verdict)}">
           <span class="source-badge">${s.icon}</span>
           <div>
