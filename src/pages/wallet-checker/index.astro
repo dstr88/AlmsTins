@@ -1695,7 +1695,7 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
         data.verdict === 'red' ? '🚨' : data.verdict === 'yellow' ? '⚠️' : '✅';
       document.getElementById('verdict-label')!.textContent =
         data.verdict === 'red'    ? 'DANGER — Do not connect your wallet' :
-        data.verdict === 'yellow' ? 'CAUTION — Proceed carefully' :
+        data.verdict === 'yellow' ? 'CAUTION — Cannot confirm this site is safe' :
                                     'LOOKS SAFE — No threats detected';
       document.getElementById('verdict-url')!.textContent = data.domain;
 

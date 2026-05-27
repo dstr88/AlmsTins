@@ -1559,7 +1559,7 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
         data.verdict === 'red' ? '🚨' : data.verdict === 'yellow' ? '⚠️' : '✅';
       document.getElementById('verdict-label')!.textContent =
         data.verdict === 'red'    ? 'PELIGRO — No conectes tu billetera' :
-        data.verdict === 'yellow' ? 'PRECAUCIÓN — Procede con cuidado' :
+        data.verdict === 'yellow' ? 'PRECAUCIÓN — No se puede confirmar que este sitio sea seguro' :
                                     'PARECE SEGURO — No se detectaron amenazas';
       document.getElementById('verdict-url')!.textContent = data.domain;
 
