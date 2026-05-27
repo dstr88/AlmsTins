@@ -101,11 +101,11 @@ function extractDomain(raw: string): string {
   }
 }
 
-async function fetchWithTimeout(url: string, ms: number): Promise<Response> {
+async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Promise<Response> {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);
   try {
-    return await fetch(url, { signal: ctrl.signal });
+    return await fetch(url, { ...init, signal: ctrl.signal });
   } finally {
     clearTimeout(id);
   }
@@ -195,14 +195,9 @@ async function checkURLScan(domain: string): Promise<SourceResult> {
 async function checkGoogleSafeBrowsing(rawUrl: string, key: string): Promise<SourceResult> {
   const src = 'Google Safe Browsing';
   try {
-    const res = await fetchWithTimeout(
+    const postRes = await fetchWithTimeout(
       `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${key}`,
       TIMEOUT_MS,
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    // We need to POST — handle separately
-    const postRes = await fetch(
-      `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${key}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -215,9 +210,9 @@ async function checkGoogleSafeBrowsing(rawUrl: string, key: string): Promise<Sou
             threatEntries:    [{ url: rawUrl }],
           },
         }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
       },
     );
+    if (!postRes.ok) throw new Error(`HTTP ${postRes.status}`);
     const json = await postRes.json();
     const matches: unknown[] = json?.matches ?? [];
     if (matches.length)
