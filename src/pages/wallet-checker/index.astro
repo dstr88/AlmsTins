@@ -144,6 +144,22 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
           "@type": "Answer",
           "text": "Do not connect your wallet. Close the tab. Find the official project through a trusted source — their verified Twitter/X account or a well-known aggregator like DeFiLlama or CoinGecko. Report the site to MetaMask's phishing database at github.com/MetaMask/eth-phishing-detect."
         }
+      },
+      {
+        "@type": "Question",
+        "name": "Why does a site I know is a scam show yellow instead of red?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "This checker catches sites that have already been reported to one of the seven databases it queries. Investment scams — fake trading platforms, pig butchering schemes, fraudulent yield platforms — often never appear in phishing databases because they steal through deposits rather than wallet connections. MetaMask and ScamSniffer are built to catch wallet-draining phishing sites, not every type of crypto fraud. A yellow result means we cannot confirm the site is safe, not that it is safe. If you know a site is fraudulent, report it to MetaMask at github.com/MetaMask/eth-phishing-detect and to ScamSniffer so future users are protected."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What should I do if I have already been scammed?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Stop sending money immediately — scammers will often ask for more to 'unlock' your funds or cover taxes and fees. That money is gone too. Steps to take: (1) Do not reconnect your wallet to any site the scammer directs you to. (2) Revoke any token approvals the site was granted — use revoke.cash to see and cancel open permissions. (3) Report the fraud to the FBI's Internet Crime Complaint Center at ic3.gov and, if crypto was involved, to the FTC at reportfraud.ftc.gov. (4) Report the wallet address and website to the databases this tool uses so others are warned. (5) Contact your bank or payment provider immediately if you used a card or bank transfer anywhere in the process. Recovery of funds is rare, but reporting is how the databases that protect others get built."
+        }
       }
     ]
   })} />
