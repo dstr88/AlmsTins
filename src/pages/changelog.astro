@@ -20,6 +20,16 @@ import Layout from '@/layouts/LoginLayout.astro';
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">May 28, 2026</time>
+          <div class="entry-body">
+            <p>Google Safe Browsing and VirusTotal are now active sources in the dApp and website checker, bringing the total to seven. Both were previously wired up but inactive due to missing API keys. Google Safe Browsing catches malware, phishing, and unwanted software across the broader web — not just crypto-specific threats. VirusTotal aggregates results from dozens of independent security engines and returns a count of how many flagged a given URL. A site that slips past the crypto-specific databases may still be caught here.</p>
+            <p>The loading spinner on the dApp checker is now properly hidden between checks. A CSS specificity conflict — <code>display: flex</code> on the loading element overriding the browser's built-in <code>[hidden]</code> rule — meant the spinner was permanently visible on screen regardless of whether a check was running. All the state management was working correctly; it just had no visual effect. That's fixed.</p>
+            <p>The yellow verdict label has been updated from "Proceed carefully" to "Cannot confirm this site is safe." The original wording implied permission to go ahead with a caveat. Yellow means there is not enough data to clear the site — not that it is probably fine.</p>
+            <p>Two new FAQ entries have been added to the wallet checker, eligible to appear as Google rich results. The first explains why a known investment scam or fake trading platform may show yellow instead of red — phishing databases are built to catch wallet-draining sites, not deposit-based fraud — and how to report one. The second covers what to do if you have already been scammed: stop sending immediately, revoke any open token approvals at revoke.cash, report to the FBI's IC3 and the FTC, and contact your bank if traditional payment methods were involved.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">May 26, 2026</time>
           <div class="entry-body">
             <p>The wallet checker now works correctly for users who are not logged in. A routing oversight meant that the API backing the wallet address checker was only reachable by authenticated users or active sessions — anyone arriving at the page without an account would see a "Sign up free to unlock all features" message instead of results. That's fixed. The wallet checker has always been designed to require no account, and it now behaves that way for everyone.</p>
