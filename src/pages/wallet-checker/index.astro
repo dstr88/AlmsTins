@@ -1362,6 +1362,9 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   .dapp-input-row button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
   /* ── Loading ── */
+  /* Ensure [hidden] attribute wins over display:flex on loading elements */
+  [hidden] { display: none !important; }
+
   .dapp-loading {
     display: flex;
     align-items: center;
