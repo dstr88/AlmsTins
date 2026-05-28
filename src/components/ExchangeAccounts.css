@@ -33,11 +33,11 @@
 	background: var(--surface-hover);
 }
 
-/* [3rem days] [1fr asset] [5rem qty] [6rem price] [5rem usd] [5rem pl] */
+/* [3.5rem days] [1fr asset] [5.5rem qty] [5.5rem price] [5rem usd] [4.5rem pl] */
 .exchange-holding__row {
 	display: grid;
-	grid-template-columns: 4rem 1fr 7rem 6rem 5rem 5rem;
-	column-gap: 1.5rem;
+	grid-template-columns: 3.5rem 1fr 5.5rem 5.5rem 5rem 4.5rem;
+	column-gap: 0.75rem;
 	padding: 0.35rem 0.25rem;
 	align-items: baseline;
 }
