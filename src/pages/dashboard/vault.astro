@@ -281,15 +281,15 @@ const getChainBadge = (chains: string[]): string => {
 			</section>
 		)}
 
-	</section>
+		{isDemo && (
+			<div class="demo-signup-prompt">
+				<p class="demo-signup-prompt__text">Ready to track your own portfolio?</p>
+				<p class="demo-signup-prompt__sub">Sign up free — no credit card required. Your vault, your data.</p>
+				<a href="/" class="demo-banner__cta">Sign up free →</a>
+			</div>
+		)}
 
-	{isDemo && (
-		<div class="demo-signup-prompt">
-			<p class="demo-signup-prompt__text">Ready to track your own portfolio?</p>
-			<p class="demo-signup-prompt__sub">Sign up free — no credit card required. Your vault, your data.</p>
-			<a href="/" class="demo-banner__cta">Sign up free →</a>
-		</div>
-	)}
+	</section>
 
 	<AddTransactionModal />
 
