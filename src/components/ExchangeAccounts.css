@@ -185,9 +185,9 @@
 	.exchange-holding__price  { grid-area: price; text-align: left; }
 	.exchange-holding__pl     { grid-area: pl; }
 
-	/* Mobile: show PRICE label above the value and "/ ea" unit suffix */
+	/* Mobile: show MKT label above the value so it reads "current market price" not "purchase price" */
 	.exchange-holding__price::before {
-		content: 'PRICE';
+		content: 'MKT';
 		display: block;
 		font-size: 0.65rem;
 		text-transform: uppercase;
