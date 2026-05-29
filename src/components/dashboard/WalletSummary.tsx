@@ -553,11 +553,24 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 				</div>
 			) : null}
 			{state.status === 'loading' ? (
-				<div className="wallet-summary__status">
-					Loading summary…{' '}
-					<span className="wallet-summary__status-hint">
-						last sync: {formatLastSync(initialData?.sync?.lastSyncedAt)}
-					</span>
+				<div className="wallet-summary__skeleton-chain">
+					<div className="wallet-summary__skeleton-bar wallet-summary__skeleton-title" />
+					{[0, 1, 2].map((i) => (
+						<div key={i} className="wallet-summary__skeleton-row">
+							<div className="wallet-summary__skeleton-line">
+								<div className="wallet-summary__skeleton-bar wallet-summary__skeleton-cell" style={{ width: '2rem' }} />
+								<div className="wallet-summary__skeleton-bar wallet-summary__skeleton-cell" style={{ width: '65%' }} />
+								<div className="wallet-summary__skeleton-bar wallet-summary__skeleton-cell" style={{ width: '45%' }} />
+								<div className="wallet-summary__skeleton-bar wallet-summary__skeleton-cell" style={{ width: '3.5rem' }} />
+							</div>
+							<div className="wallet-summary__skeleton-line">
+								<div />
+								<div className="wallet-summary__skeleton-bar wallet-summary__skeleton-cell wallet-summary__skeleton-cell--sm" style={{ width: '55%' }} />
+								<div className="wallet-summary__skeleton-bar wallet-summary__skeleton-cell wallet-summary__skeleton-cell--sm" style={{ width: '35%' }} />
+								<div className="wallet-summary__skeleton-bar wallet-summary__skeleton-cell wallet-summary__skeleton-cell--sm" style={{ width: '2.5rem' }} />
+							</div>
+						</div>
+					))}
 				</div>
 			) : null}
 			{state.status === 'error' ? (

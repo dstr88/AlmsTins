@@ -441,6 +441,69 @@
 	line-height: var(--lh-md);
 }
 
+/* ── Skeleton loading ────────────────────────────────────────────────────────── */
+
+@keyframes wallet-skeleton-shimmer {
+	0%   { background-position: 200% 0; }
+	100% { background-position: -200% 0; }
+}
+
+.wallet-summary__skeleton-bar {
+	border-radius: 4px;
+	background: linear-gradient(
+		90deg,
+		rgba(255,255,255,0.05) 25%,
+		rgba(255,255,255,0.10) 50%,
+		rgba(255,255,255,0.05) 75%
+	);
+	background-size: 200% 100%;
+	animation: wallet-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.wallet-summary__skeleton-chain {
+	border: 1px solid var(--border-bright);
+	border-radius: 0.8rem;
+	padding: var(--space-sm) var(--space-md);
+	background: var(--surface-card-2);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+}
+
+.wallet-summary__skeleton-title {
+	height: 1rem;
+	width: 5rem;
+	margin: 0 auto;
+}
+
+.wallet-summary__skeleton-row {
+	padding: 0.625rem 0.75rem;
+	border-bottom: 1px solid var(--border-subtle);
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.wallet-summary__skeleton-row:last-child {
+	border-bottom: none;
+}
+
+.wallet-summary__skeleton-line {
+	display: grid;
+	grid-template-columns: 3rem 1fr 1fr auto;
+	column-gap: 0.75rem;
+	align-items: center;
+}
+
+.wallet-summary__skeleton-cell {
+	height: 0.72rem;
+	border-radius: 3px;
+}
+
+.wallet-summary__skeleton-cell--sm {
+	height: 0.6rem;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────────── */
 
 /* ≤ 360px: tighten padding on very small screens */
