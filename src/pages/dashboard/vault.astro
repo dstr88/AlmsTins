@@ -142,6 +142,14 @@ const getChainBadge = (chains: string[]): string => {
 
 		{isDemo && <DemoTutorial lang={demoLang} />}
 
+		{tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1' && (
+			<a href="/dashboard/dirty-tins" class="dt-promo-tile">
+				<span class="dt-promo-tile__label">NEW</span>
+				<span class="dt-promo-tile__text">DirtyTins — Debt, budget &amp; business P&amp;L</span>
+				<span class="dt-promo-tile__arrow">→</span>
+			</a>
+		)}
+
 		<section class="bk-grid">
 			<SalmonTin label="Notepad" class="tile tile--r1c1">
 				<VaultNotepad client:only="react" />

@@ -153,11 +153,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			return finish(Response.redirect(`https://${canonicalHost}/login`, 303));
 		}
 
+		// ── Auth session check (must happen before demo mode) ───────────────────
+		// A signed-in user must never be routed into demo mode — their real
+		// session takes priority over any lingering demo cookie.
+		const session = await getAuthSession(request);
+		const userId = session?.user?.id ? String(session.user.id) : '';
+
 		// ── Demo mode ───────────────────────────────────────────────────────────
 		// Visitors with the demo cookie bypass the auth check entirely.
 		// Wallet add/delete/sync mutations are allowed so visitors can explore
 		// with their own addresses. All other mutations remain blocked.
-		if (isDemoRequest(request)) {
+		// Skipped entirely when a real auth session exists.
+		if (!userId && isDemoRequest(request)) {
 			const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method.toUpperCase());
 			if (isMutation && pathname.startsWith('/api/')) {
 				const isDemoAllowed = DEMO_ALLOWED_MUTATION_PATTERNS.some((re) => re.test(pathname));
@@ -179,9 +186,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			return finish(applySecurityHeaders(await next()));
 		}
 		// ── End demo mode ────────────────────────────────────────────────────────
-
-		const session = await getAuthSession(request);
-		const userId = session?.user?.id ? String(session.user.id) : '';
 		if (!userId) {
 			if (pathname.startsWith('/api/')) {
 				return finish(
