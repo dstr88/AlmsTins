@@ -462,6 +462,93 @@ if (!session) return Astro.redirect('/login');
     .dt-tin__num-value.loss { color: var(--loss); }
     .dt-tin__num-value.gain { color: var(--gain); }
 
+    /* Budget tin — full width in the grid */
+    .dt-tin--budget {
+      grid-column: 1 / -1;
+    }
+
+    /* Checkbook register */
+    .dt-register {
+      width: 100%;
+      overflow-x: auto;
+    }
+    .dt-register table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.83rem;
+    }
+    .dt-register thead tr {
+      border-bottom: 2px solid var(--border-bright);
+    }
+    .dt-register th {
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .dt-register th.col-amt { text-align: right; }
+    .dt-register th.col-bal { text-align: right; }
+
+    /* Existing saved rows */
+    .dt-reg-saved {
+      border-bottom: 1px solid var(--border-subtle);
+      transition: background 0.1s;
+    }
+    .dt-reg-saved:hover { background: var(--surface-hover); }
+    .dt-reg-saved td {
+      padding: 0.45rem 0.75rem;
+      color: var(--text-secondary);
+      vertical-align: middle;
+    }
+    .dt-reg-saved td.col-date  { color: var(--text-muted); font-size: 0.78rem; white-space: nowrap; }
+    .dt-reg-saved td.col-desc  { color: var(--text-primary); }
+    .dt-reg-saved td.col-pay   { text-align: right; color: var(--loss); font-weight: 600; }
+    .dt-reg-saved td.col-dep   { text-align: right; color: var(--gain); font-weight: 600; }
+    .dt-reg-saved td.col-bal   { text-align: right; color: var(--text-primary); font-weight: 700; white-space: nowrap; }
+    .dt-reg-saved td.col-del   { text-align: center; width: 28px; }
+    .dt-reg-del {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: 0.7rem; padding: 2px 4px;
+      border-radius: 3px;
+    }
+    .dt-reg-del:hover { color: var(--loss); background: var(--loss-bg); }
+
+    /* Blank input rows */
+    .dt-reg-blank {
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .dt-reg-blank:last-child { border-bottom: none; }
+    .dt-reg-blank td { padding: 0.3rem 0.4rem; vertical-align: middle; }
+    .dt-reg-input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid transparent;
+      color: var(--text-primary);
+      font-size: 0.83rem;
+      padding: 0.25rem 0.35rem;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .dt-reg-input:focus {
+      background: var(--surface-card-2);
+      border-bottom-color: var(--accent);
+      border-radius: 4px 4px 0 0;
+    }
+    .dt-reg-input::placeholder { color: var(--text-muted); }
+    .dt-reg-input.col-amt-input { text-align: right; }
+    .dt-reg-blank td.col-bal { text-align: right; color: var(--text-muted); font-size: 0.78rem; padding-right: 0.75rem; }
+    .dt-reg-blank td.col-del { width: 28px; }
+
+    /* Saved indicator flash */
+    @keyframes rowSaved { 0%{background:var(--gain-bg)} 100%{background:transparent} }
+    .dt-reg-saved.just-saved { animation: rowSaved 1.2s ease forwards; }
+
     /* Accordion / entry list */
     .dt-tin__accordion {
       border-top: 1px solid var(--border-subtle);
@@ -719,10 +806,18 @@ if (!session) return Astro.redirect('/login');
         });
       });
 
-      // Bind delete entry buttons
+      // Bind delete entry buttons (debt/business tins)
       $$('.dt-tin__entry-del').forEach(btn => {
         btn.addEventListener('click', () => deleteEntry(btn.dataset.entryId));
       });
+
+      // Bind register row delete buttons (budget tins)
+      $$('.dt-reg-del').forEach(btn => {
+        btn.addEventListener('click', () => deleteEntry(btn.dataset.entryId));
+      });
+
+      // Bind register blank row auto-save
+      $$('.dt-reg-blank').forEach(row => bindRegisterRow(row));
     }
 
     function buildTinHTML(tin) {
@@ -850,6 +945,11 @@ if (!session) return Astro.redirect('/login');
 
       const addEntryKind = tin.type === 'debt' ? 'payment' : 'income';
 
+      // Budget tins get the full-width checkbook register layout
+      if (tin.type === 'budget') {
+        return buildBudgetRegister(tin, badgeClass, badgeLabel);
+      }
+
       return `
         <div class="dt-tin" data-tin-id="${tin.id}" data-tin-type="${tin.type}">
           <div class="dt-tin__header">
@@ -873,6 +973,83 @@ if (!session) return Astro.redirect('/login');
           </div>
           <div class="dt-tin__footer">
             <button class="dt-add-entry-btn" onclick="openAddEntry('${tin.id}', '${tin.type}')">＋ Add entry</button>
+          </div>
+        </div>`;
+    }
+
+    function buildBudgetRegister(tin, badgeClass, badgeLabel) {
+      const entries = (tin.entries ?? []).slice().sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+      const BLANK_ROWS = 10;
+
+      // Compute running balance
+      let running = 0;
+      const savedRows = entries.map(e => {
+        if (e.kind === 'income')  running += e.amount;
+        if (e.kind === 'expense') running -= e.amount;
+        const pay = e.kind === 'expense' ? fmt(e.amount) : '';
+        const dep = e.kind === 'income'  ? fmt(e.amount) : '';
+        const balClass = running >= 0 ? 'gain' : 'loss';
+        return `<tr class="dt-reg-saved" data-entry-id="${e.id}">
+          <td class="col-date">${e.entryDate}</td>
+          <td class="col-desc">${escHtml(e.description ?? '')}</td>
+          <td class="col-pay">${pay}</td>
+          <td class="col-dep">${dep}</td>
+          <td class="col-bal ${balClass}">${fmt(running)}</td>
+          <td class="col-del"><button class="dt-reg-del" data-entry-id="${e.id}" title="Delete">✕</button></td>
+        </tr>`;
+      }).join('');
+
+      const today = new Date().toISOString().slice(0, 10);
+      const blankRows = Array.from({ length: BLANK_ROWS }, (_, i) => `
+        <tr class="dt-reg-blank" data-row="${i}" data-tin-id="${tin.id}">
+          <td><input class="dt-reg-input dt-reg-date-i" type="date" value="${today}" /></td>
+          <td><input class="dt-reg-input dt-reg-desc-i" type="text" placeholder="Description" maxlength="120" /></td>
+          <td><input class="dt-reg-input dt-reg-input col-amt-input dt-reg-pay-i" type="number" step="0.01" min="0" placeholder="—" /></td>
+          <td><input class="dt-reg-input dt-reg-input col-amt-input dt-reg-dep-i" type="number" step="0.01" min="0" placeholder="—" /></td>
+          <td class="col-bal">—</td>
+          <td class="col-del"></td>
+        </tr>`).join('');
+
+      const balClass = running >= 0 ? 'gain' : 'loss';
+      const thisMonth = new Date().toISOString().slice(0, 7);
+      const income  = entries.filter(e => e.kind === 'income'  && e.entryDate.startsWith(thisMonth)).reduce((s, e) => s + e.amount, 0);
+      const expense = entries.filter(e => e.kind === 'expense' && e.entryDate.startsWith(thisMonth)).reduce((s, e) => s + e.amount, 0);
+      const net = income - expense;
+
+      return `
+        <div class="dt-tin dt-tin--budget" data-tin-id="${tin.id}" data-tin-type="budget">
+          <div class="dt-tin__header">
+            <span class="dt-tin__name">${escHtml(tin.name)}</span>
+            <span class="dt-tin__badge ${badgeClass}">${badgeLabel}</span>
+            <span style="font-size:0.75rem;color:var(--text-muted);margin-left:0.5rem">
+              Income <span style="color:var(--gain);font-weight:600">${fmt(income)}</span>
+              &nbsp;·&nbsp;
+              Expenses <span style="color:var(--loss);font-weight:600">${fmt(expense)}</span>
+              &nbsp;·&nbsp;
+              Net <span style="color:var(--${net>=0?'gain':'loss'});font-weight:600">${fmt(net)}</span>
+            </span>
+            <div class="dt-tin__actions" style="margin-left:auto">
+              <button class="dt-tin__icon-btn" title="Edit" onclick="openEditTin('${tin.id}')">✏️</button>
+              <button class="dt-tin__icon-btn dt-tin__icon-btn--delete" title="Delete" onclick="deleteTin('${tin.id}')">🗑</button>
+            </div>
+          </div>
+          <div class="dt-register">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:110px">Date</th>
+                  <th>Description</th>
+                  <th class="col-amt" style="width:110px">Payment (−)</th>
+                  <th class="col-amt" style="width:110px">Deposit (+)</th>
+                  <th class="col-bal" style="width:110px">Balance</th>
+                  <th style="width:28px"></th>
+                </tr>
+              </thead>
+              <tbody id="reg-body-${tin.id}">
+                ${savedRows}
+                ${blankRows}
+              </tbody>
+            </table>
           </div>
         </div>`;
     }
@@ -1009,6 +1186,74 @@ if (!session) return Astro.redirect('/login');
         body: JSON.stringify({ entryId }),
       });
       await loadTins();
+    }
+
+    // ── Register row auto-save ────────────────────────────────────────────────
+    function bindRegisterRow(row) {
+      const tinId   = row.dataset.tinId;
+      const dateI   = row.querySelector('.dt-reg-date-i');
+      const descI   = row.querySelector('.dt-reg-desc-i');
+      const payI    = row.querySelector('.dt-reg-pay-i');
+      const depI    = row.querySelector('.dt-reg-dep-i');
+      const balCell = row.querySelector('.col-bal');
+
+      // Live balance preview as user types
+      function previewBalance() {
+        const pay = parseFloat(payI.value) || 0;
+        const dep = parseFloat(depI.value) || 0;
+        if (!pay && !dep) { balCell.textContent = '—'; return; }
+        // Find running balance of last saved row
+        const tbody = row.closest('tbody');
+        const saved = [...tbody.querySelectorAll('.dt-reg-saved')];
+        const lastBal = saved.length
+          ? parseFloat(saved[saved.length-1].querySelector('.col-bal').dataset.raw ?? 0)
+          : 0;
+        const preview = lastBal + dep - pay;
+        balCell.textContent = fmt(preview);
+        balCell.style.color = preview >= 0 ? 'var(--gain)' : 'var(--loss)';
+      }
+      payI.addEventListener('input', previewBalance);
+      depI.addEventListener('input', previewBalance);
+
+      // Mutually exclusive: filling payment clears deposit and vice versa
+      payI.addEventListener('input', () => { if (payI.value) depI.value = ''; });
+      depI.addEventListener('input', () => { if (depI.value) payI.value = ''; });
+
+      async function trySave() {
+        const date = dateI.value;
+        const desc = descI.value.trim();
+        const pay  = parseFloat(payI.value);
+        const dep  = parseFloat(depI.value);
+        if (!date || !desc) return;
+        if (!pay && !dep) return;
+
+        const kind   = dep > 0 ? 'income' : 'expense';
+        const amount = dep > 0 ? dep : pay;
+
+        // Disable row while saving
+        [dateI, descI, payI, depI].forEach(el => el.disabled = true);
+
+        await fetch('/api/petro-tins/entries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tinId, kind, amount, entryDate: date, description: desc }),
+        });
+
+        await loadTins();  // re-render — the blank rows repopulate with fresh data
+      }
+
+      // Save on Enter in any field
+      [dateI, descI, payI, depI].forEach(el => {
+        el.addEventListener('keydown', e => { if (e.key === 'Enter') trySave(); });
+      });
+      // Save on blur out of the row
+      [payI, depI].forEach(el => {
+        el.addEventListener('blur', () => {
+          setTimeout(() => {
+            if (!row.contains(document.activeElement)) trySave();
+          }, 120);
+        });
+      });
     }
 
     // ── Monthly bills check-in ─────────────────────────────────────────────────
