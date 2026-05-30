@@ -83,12 +83,15 @@ export const authAdapter = (): Adapter => ({
 			}
 		}
 		const id = user.id ?? crypto.randomUUID();
+		// Do not store the name or profile image supplied by OAuth providers —
+		// Google and GitHub send the user's real name and avatar, which we don't
+		// need and don't want sitting in the database.
 		await db.execute({
 			sql: `INSERT INTO auth_users (id, name, email, email_verified, image)
         VALUES (?, ?, ?, ?, ?)`,
-			args: [id, user.name ?? null, email, user.emailVerified?.toISOString() ?? null, user.image ?? null],
+			args: [id, null, email, user.emailVerified?.toISOString() ?? null, null],
 		});
-		return { ...user, id, email };
+		return { ...user, id, email, name: null, image: null };
 	},
 	async getUser(id) {
 		const result = await db.execute({ sql: 'SELECT * FROM auth_users WHERE id = ? LIMIT 1', args: [id] });
@@ -117,15 +120,14 @@ export const authAdapter = (): Adapter => ({
 	async updateUser(user) {
 		// Auth types require a string email; keep empty string if provider didn't supply one.
 		const email = user.email ?? '';
+		// Never overwrite name/image with OAuth profile data — we don't store it.
 		await db.execute({
 			sql: `UPDATE auth_users
-        SET name = ?, email = ?, email_verified = ?, image = ?
+        SET email = ?, email_verified = ?
         WHERE id = ?`,
 			args: [
-				user.name ?? null,
 				email,
 				user.emailVerified?.toISOString() ?? null,
-				user.image ?? null,
 				user.id,
 			],
 		});
