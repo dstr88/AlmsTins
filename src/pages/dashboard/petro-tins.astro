@@ -4,7 +4,7 @@ import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const session = await requireTenantSession(Astro.request);
-if (!session) return Astro.redirect('/login');
+if (!session || session.isDemo) return Astro.redirect('/login');
 ---
 
 <Layout title="PetroTins | Almstins" noindex={true}>
