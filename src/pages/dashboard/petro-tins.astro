@@ -55,10 +55,18 @@ if (!session || session.isDemo) return Astro.redirect('/login');
         <button class="dt-add-btn" data-add-type="business">＋ Business Tin</button>
       </div>
 
+      <!-- Sample data banner (shown when sample tins exist) -->
+      <div class="dt-sample-banner" id="dt-sample-banner" style="display:none">
+        <span class="dt-sample-banner__icon">🧪</span>
+        <span class="dt-sample-banner__text">You're looking at <strong>sample data</strong> — edit any tin or add your own to get started with your real numbers.</span>
+        <button class="dt-sample-banner__dismiss" id="dt-sample-dismiss">✕</button>
+      </div>
+
       <!-- Tins grid -->
       <div class="dt-grid" id="dt-grid">
-        <div class="dt-empty" id="dt-empty">
+        <div class="dt-empty" id="dt-empty" style="display:none">
           <p>No tins yet. Add a Debt Tin to start tracking what you owe.</p>
+          <button class="dt-load-sample-btn" id="dt-load-sample">Load sample data →</button>
         </div>
       </div>
 
@@ -348,13 +356,65 @@ if (!session || session.isDemo) return Astro.redirect('/login');
       .dt-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
 
+    /* Sample data banner */
+    .dt-sample-banner {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-glow);
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      font-size: 0.83rem;
+      color: var(--text-secondary);
+    }
+    .dt-sample-banner__icon { font-size: 1rem; flex-shrink: 0; }
+    .dt-sample-banner__text { flex: 1; }
+    .dt-sample-banner__text strong { color: var(--accent); }
+    .dt-sample-banner__dismiss {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 0.9rem; padding: 2px 6px; border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .dt-sample-banner__dismiss:hover { color: var(--text-primary); background: var(--accent-glow); }
+
+    /* Sample badge on tin header */
+    .dt-tin__sample-badge {
+      font-size: 0.58rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: var(--accent-soft);
+      color: var(--accent-dim);
+      border: 1px solid var(--accent-glow);
+      flex-shrink: 0;
+    }
+
     .dt-empty {
       grid-column: 1 / -1;
       text-align: center;
       color: var(--text-muted);
       padding: 3rem 1rem;
       font-size: 0.95rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
     }
+    .dt-load-sample-btn {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      color: var(--accent);
+      border-radius: 8px;
+      padding: 0.6rem 1.4rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .dt-load-sample-btn:hover { background: var(--surface-hover); }
 
     /* Tin card */
     .dt-tin {
@@ -786,11 +846,16 @@ if (!session || session.isDemo) return Astro.redirect('/login');
       // Remove existing tin cards (keep the empty message element)
       $$('.dt-tin', grid).forEach(el => el.remove());
 
+      const sampleBanner = document.getElementById('dt-sample-banner');
+      const hasSample = _tins.some(t => t.notes === '__sample__');
+
       if (!_tins.length) {
-        if (emptyMsg) emptyMsg.style.display = '';
+        if (emptyMsg) emptyMsg.style.display = 'flex';
+        if (sampleBanner) sampleBanner.style.display = 'none';
         return;
       }
       if (emptyMsg) emptyMsg.style.display = 'none';
+      if (sampleBanner) sampleBanner.style.display = hasSample ? 'flex' : 'none';
 
       for (const tin of _tins) {
         grid.insertAdjacentHTML('beforeend', buildTinHTML(tin));
@@ -823,6 +888,7 @@ if (!session || session.isDemo) return Astro.redirect('/login');
     function buildTinHTML(tin) {
       const badgeClass = `dt-tin__badge--${tin.type}`;
       const badgeLabel = tin.type === 'debt' ? 'Debt' : tin.type === 'budget' ? 'Budget' : 'Business';
+      const sampleBadge = tin.notes === '__sample__' ? '<span class="dt-tin__sample-badge">sample</span>' : '';
 
       let progressHTML = '';
       if (tin.type === 'debt' && tin.creditLimit) {
@@ -947,7 +1013,7 @@ if (!session || session.isDemo) return Astro.redirect('/login');
 
       // Budget tins get the full-width checkbook register layout
       if (tin.type === 'budget') {
-        return buildBudgetRegister(tin, badgeClass, badgeLabel);
+        return buildBudgetRegister(tin, badgeClass, badgeLabel, sampleBadge);
       }
 
       return `
@@ -955,6 +1021,7 @@ if (!session || session.isDemo) return Astro.redirect('/login');
           <div class="dt-tin__header">
             <span class="dt-tin__name">${escHtml(tin.name)}</span>
             <span class="dt-tin__badge ${badgeClass}">${badgeLabel}</span>
+            ${sampleBadge}
             <div class="dt-tin__actions">
               <button class="dt-tin__icon-btn" title="Edit" onclick="openEditTin('${tin.id}')">✏️</button>
               <button class="dt-tin__icon-btn dt-tin__icon-btn--delete" title="Delete" onclick="deleteTin('${tin.id}')">🗑</button>
@@ -977,7 +1044,7 @@ if (!session || session.isDemo) return Astro.redirect('/login');
         </div>`;
     }
 
-    function buildBudgetRegister(tin, badgeClass, badgeLabel) {
+    function buildBudgetRegister(tin, badgeClass, badgeLabel, sampleBadge) {
       const entries = (tin.entries ?? []).slice().sort((a, b) => a.entryDate.localeCompare(b.entryDate));
       const BLANK_ROWS = 10;
 
@@ -1021,6 +1088,7 @@ if (!session || session.isDemo) return Astro.redirect('/login');
           <div class="dt-tin__header">
             <span class="dt-tin__name">${escHtml(tin.name)}</span>
             <span class="dt-tin__badge ${badgeClass}">${badgeLabel}</span>
+            ${sampleBadge}
             <span style="font-size:0.75rem;color:var(--text-muted);margin-left:0.5rem">
               Income <span style="color:var(--gain);font-weight:600">${fmt(income)}</span>
               &nbsp;·&nbsp;
@@ -1397,6 +1465,25 @@ if (!session || session.isDemo) return Astro.redirect('/login');
       document.getElementById(modalId)?.addEventListener('click', e => {
         if (e.target.id === modalId) e.target.style.display = 'none';
       });
+    });
+
+    // ── Load sample data ───────────────────────────────────────────────────────
+    document.getElementById('dt-load-sample')?.addEventListener('click', async () => {
+      const btn = document.getElementById('dt-load-sample');
+      if (btn) btn.textContent = 'Loading…';
+      const res = await fetch('/api/petro-tins/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (res.ok) {
+        await loadTins();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? 'Could not load sample data.');
+        if (btn) btn.textContent = 'Load sample data →';
+      }
+    });
+
+    document.getElementById('dt-sample-dismiss')?.addEventListener('click', () => {
+      const banner = document.getElementById('dt-sample-banner');
+      if (banner) banner.style.display = 'none';
     });
 
     // ── Boot ───────────────────────────────────────────────────────────────────
