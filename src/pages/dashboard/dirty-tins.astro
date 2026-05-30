@@ -13,39 +13,56 @@ if (!session) return Astro.redirect('/login');
       <NetWorthHero title="DirtyTins" subtitle="Debt, budget & business — the real numbers" />
     </div>
 
-    <!-- Summary bar -->
-    <div class="dt-summary-bar">
-      <div class="dt-summary-item">
-        <span class="dt-summary-label">Total Debt</span>
-        <span class="dt-summary-value loss" id="dt-total-debt">—</span>
-      </div>
-      <div class="dt-summary-item">
-        <span class="dt-summary-label">Monthly Interest</span>
-        <span class="dt-summary-value loss" id="dt-monthly-interest">—</span>
-      </div>
-      <div class="dt-summary-item">
-        <span class="dt-summary-label">Est. Annual Interest</span>
-        <span class="dt-summary-value loss" id="dt-annual-interest">—</span>
-      </div>
-      <div class="dt-summary-item">
-        <span class="dt-summary-label">Net Cash Flow</span>
-        <span class="dt-summary-value" id="dt-net-cashflow">—</span>
-      </div>
-    </div>
+    <!-- Content wrapper adds breathing room without breaking full-width hero -->
+    <div class="dt-content">
 
-    <!-- Add Tin buttons -->
-    <div class="dt-add-row">
-      <button class="dt-add-btn" data-add-type="debt">＋ Debt Tin</button>
-      <button class="dt-add-btn" data-add-type="budget">＋ Budget</button>
-      <button class="dt-add-btn" data-add-type="business">＋ Business Tin</button>
-    </div>
-
-    <!-- Tins grid -->
-    <div class="dt-grid" id="dt-grid">
-      <div class="dt-empty" id="dt-empty">
-        <p>No tins yet. Add a Debt Tin to start tracking what you owe.</p>
+      <!-- Summary bar -->
+      <div class="dt-summary-bar">
+        <div class="dt-summary-item">
+          <span class="dt-summary-label">Total Debt</span>
+          <span class="dt-summary-value loss" id="dt-total-debt">—</span>
+        </div>
+        <div class="dt-summary-item">
+          <span class="dt-summary-label">Monthly Interest</span>
+          <span class="dt-summary-value loss" id="dt-monthly-interest">—</span>
+        </div>
+        <div class="dt-summary-item">
+          <span class="dt-summary-label">Est. Annual Interest</span>
+          <span class="dt-summary-value loss" id="dt-annual-interest">—</span>
+        </div>
+        <div class="dt-summary-item">
+          <span class="dt-summary-label">Net Cash Flow</span>
+          <span class="dt-summary-value" id="dt-net-cashflow">—</span>
+        </div>
       </div>
-    </div>
+
+      <!-- Monthly bills check-in panel -->
+      <div class="dt-monthly-panel" id="dt-monthly-panel" style="display:none">
+        <button class="dt-monthly-header" id="dt-monthly-toggle" aria-expanded="false">
+          <span>📋 Monthly Bills Check-In</span>
+          <span class="dt-monthly-meta" id="dt-monthly-meta"></span>
+          <span class="dt-monthly-chevron" id="dt-monthly-chevron">▸</span>
+        </button>
+        <div class="dt-monthly-body" id="dt-monthly-body" style="display:none">
+          <!-- rows rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Add Tin buttons -->
+      <div class="dt-add-row">
+        <button class="dt-add-btn" data-add-type="debt">＋ Debt Tin</button>
+        <button class="dt-add-btn" data-add-type="budget">＋ Budget</button>
+        <button class="dt-add-btn" data-add-type="business">＋ Business Tin</button>
+      </div>
+
+      <!-- Tins grid -->
+      <div class="dt-grid" id="dt-grid">
+        <div class="dt-empty" id="dt-empty">
+          <p>No tins yet. Add a Debt Tin to start tracking what you owe.</p>
+        </div>
+      </div>
+
+    </div><!-- /dt-content -->
   </section>
 
   <!-- Add / Edit Tin Modal -->
@@ -142,9 +159,123 @@ if (!session) return Astro.redirect('/login');
     .dt-page {
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
-      padding: 1rem 0 3rem;
+      gap: 0;
+      padding: 0 0 3rem;
       width: 100%;
+    }
+
+    /* Padded content area — keeps hero-bleed full width but gives everything else room */
+    .dt-content {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      padding: 1.5rem 1.5rem 0;
+    }
+    @media (min-width: 900px) {
+      .dt-content { padding: 2rem 2.5rem 0; }
+    }
+
+    /* Monthly check-in panel */
+    .dt-monthly-panel {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .dt-monthly-header {
+      width: 100%;
+      background: none;
+      border: none;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+    }
+    .dt-monthly-header:hover { background: var(--surface-hover); }
+    .dt-monthly-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      flex: 1;
+    }
+    .dt-monthly-chevron { color: var(--text-muted); font-size: 0.8rem; transition: transform 0.2s; }
+    .dt-monthly-chevron.open { transform: rotate(90deg); }
+    .dt-monthly-body {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .dt-monthly-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .dt-monthly-row:last-child { border-bottom: none; }
+    .dt-monthly-row.logged { opacity: 0.5; pointer-events: none; }
+    .dt-monthly-check {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+    }
+    .dt-monthly-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+    .dt-monthly-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dt-monthly-tin-name {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .dt-monthly-amount-input {
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 6px;
+      padding: 0.3rem 0.6rem;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      width: 100px;
+      text-align: right;
+      box-sizing: border-box;
+    }
+    .dt-monthly-amount-input:focus { outline: 2px solid var(--accent-glow); border-color: var(--accent); }
+    .dt-monthly-log-btn {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-glow);
+      color: var(--accent);
+      border-radius: 6px;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .dt-monthly-log-btn:hover { background: var(--accent-glow); }
+    .dt-monthly-logged-badge {
+      font-size: 0.75rem;
+      color: var(--gain);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .dt-monthly-empty {
+      padding: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
     }
 
     /* Summary bar */
@@ -508,6 +639,7 @@ if (!session) return Astro.redirect('/login');
         _tins = data.tins ?? [];
       } catch { _tins = []; }
       renderAll();
+      buildMonthlyCheckin();
     }
 
     // ── Summaries ──────────────────────────────────────────────────────────────
@@ -872,6 +1004,137 @@ if (!session) return Astro.redirect('/login');
         body: JSON.stringify({ entryId }),
       });
       await loadTins();
+    }
+
+    // ── Monthly bills check-in ─────────────────────────────────────────────────
+    function buildMonthlyCheckin() {
+      const panel  = document.getElementById('dt-monthly-panel');
+      const body   = document.getElementById('dt-monthly-body');
+      const meta   = document.getElementById('dt-monthly-meta');
+      const toggle = document.getElementById('dt-monthly-toggle');
+      const chev   = document.getElementById('dt-monthly-chevron');
+      if (!panel || !body) return;
+
+      const now       = new Date();
+      const today     = now.getDate();
+      const thisMonth = now.toISOString().slice(0, 7);           // YYYY-MM
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+
+      // Collect last month's expense entries across all budget tins
+      // Also collect last month's payment entries across all debt tins
+      const rows = [];
+      for (const tin of _tins) {
+        const isDebt   = tin.type === 'debt';
+        const isBudget = tin.type === 'budget';
+        if (!isDebt && !isBudget) continue;
+
+        const targetKind = isDebt ? 'payment' : 'expense';
+        const lastEntries = (tin.entries ?? []).filter(e =>
+          e.entryDate.startsWith(lastMonth) && e.kind === targetKind
+        );
+
+        // Deduplicate by description within this tin
+        const seen = new Map();
+        for (const e of lastEntries) {
+          const key = (e.description ?? '').toLowerCase().trim() || `__unnamed_${e.id}`;
+          if (!seen.has(key) || e.amount > seen.get(key).amount) seen.set(key, e);
+        }
+
+        for (const e of seen.values()) {
+          rows.push({ tinId: tin.id, tinName: tin.name, kind: targetKind, description: e.description ?? '', lastAmount: e.amount });
+        }
+      }
+
+      if (!rows.length) { panel.style.display = 'none'; return; }
+
+      panel.style.display = '';
+      if (meta) meta.textContent = `${rows.length} recurring item${rows.length === 1 ? '' : 's'} from last month`;
+
+      // Auto-open on the 1st of the month
+      const autoOpen = (today === 1);
+      if (autoOpen) {
+        toggle.setAttribute('aria-expanded', 'true');
+        body.style.display = 'flex';
+        chev.classList.add('open');
+      }
+
+      toggle.addEventListener('click', () => {
+        const expanded = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!expanded));
+        body.style.display = expanded ? 'none' : 'flex';
+        chev.classList.toggle('open', !expanded);
+      });
+
+      // Check if any of these have already been logged this month
+      const loggedThisMonth = new Set();
+      for (const tin of _tins) {
+        for (const e of (tin.entries ?? [])) {
+          if (e.entryDate.startsWith(thisMonth)) {
+            loggedThisMonth.add(`${tin.id}::${(e.description ?? '').toLowerCase().trim()}`);
+          }
+        }
+      }
+
+      body.innerHTML = rows.length ? rows.map((row, idx) => {
+        const alreadyLogged = loggedThisMonth.has(`${row.tinId}::${row.description.toLowerCase().trim()}`);
+        return `
+          <div class="dt-monthly-row${alreadyLogged ? ' logged' : ''}" id="dt-mrow-${idx}" data-idx="${idx}" data-tin-id="${row.tinId}" data-kind="${row.kind}" data-last="${row.lastAmount}" data-desc="${escHtml(row.description)}">
+            <label class="dt-monthly-check" title="Check to use last month&#39;s amount">
+              <input type="checkbox" class="dt-mrow-chk" data-idx="${idx}" ${alreadyLogged ? '' : 'checked'} />
+              <span class="dt-monthly-desc">${escHtml(row.description || '(no description)')}</span>
+            </label>
+            <span class="dt-monthly-tin-name">${escHtml(row.tinName)}</span>
+            <input type="number" class="dt-monthly-amount-input dt-mrow-amt" data-idx="${idx}"
+              value="${row.lastAmount.toFixed(2)}" step="0.01" min="0.01"
+              ${alreadyLogged ? 'disabled' : ''} />
+            ${alreadyLogged
+              ? '<span class="dt-monthly-logged-badge">✓ Logged</span>'
+              : `<button class="dt-monthly-log-btn dt-mrow-btn" data-idx="${idx}">✓ Log</button>`}
+          </div>`;
+      }).join('') : '<div class="dt-monthly-empty">No recurring bills from last month.</div>';
+
+      // Wire up interactions
+      body.querySelectorAll('.dt-mrow-btn').forEach(btn => {
+        btn.addEventListener('click', () => logMonthlyRow(parseInt(btn.dataset.idx), rows));
+      });
+      // Enter key on amount field triggers log
+      body.querySelectorAll('.dt-mrow-amt').forEach(input => {
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') logMonthlyRow(parseInt(input.dataset.idx), rows);
+        });
+      });
+    }
+
+    async function logMonthlyRow(idx, rows) {
+      const row      = rows[idx];
+      const rowEl    = document.getElementById(`dt-mrow-${idx}`);
+      const amtInput = rowEl?.querySelector('.dt-mrow-amt');
+      const amount   = parseFloat(amtInput?.value ?? row.lastAmount);
+      if (!amount || amount <= 0) { amtInput?.focus(); return; }
+
+      const today = new Date().toISOString().slice(0, 10);
+      await fetch('/api/dirty-tins/entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tinId: row.tinId, kind: row.kind, amount, entryDate: today, description: row.description || null }),
+      });
+
+      // Mark row as logged without full reload
+      if (rowEl) {
+        rowEl.classList.add('logged');
+        const btn = rowEl.querySelector('.dt-mrow-btn');
+        if (btn) btn.outerHTML = '<span class="dt-monthly-logged-badge">✓ Logged</span>';
+        if (amtInput) amtInput.disabled = true;
+      }
+
+      // Refresh tin data silently
+      try {
+        const res = await fetch('/api/dirty-tins');
+        const data = await res.json();
+        _tins = data.tins ?? [];
+        renderSummary();
+        renderAll();
+      } catch {}
     }
 
     // ── Add tin buttons ────────────────────────────────────────────────────────
