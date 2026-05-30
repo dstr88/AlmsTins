@@ -47,24 +47,23 @@ const DEMO_TABLES = [
 	'wallets',
 ];
 
-const ADDR_BTC = 'bc1qbtcdemo0wallet000000000000000000000000';
+const ADDR_BTC  = 'bc1qbtcdemo0wallet000000000000000000000000';
 const ADDR_ETH  = '0xe1000000000000000000000000000000000000e1';
 const ADDR_POL  = '0xde000000000000000000000000000000000000de';
-const ADDR_SOL  = 'demolsolwallet1111111111111111111111111111';
+const ADDR_AVAX = '0xab000000000000000000000000000000000000ab';
 
 const GRP_BTC  = 'DEMO-GRP-BTC-000000000000000000000001';
 const GRP_ETH  = 'DEMO-GRP-ETH-000000000000000000000001';
-const GRP_SOL  = 'DEMO-GRP-SOL-000000000000000000000001';
+const GRP_AVAX = 'DEMO-GRP-AVX-000000000000000000000001';
 const GRP_MATIC = 'DEMO-GRP-MAT-000000000000000000000001';
 const GRP_CRO  = 'DEMO-GRP-CRO-000000000000000000000001';
 const GRP_LUNA = 'DEMO-GRP-LUN-000000000000000000000001';
 const GRP_SHIB = 'DEMO-GRP-SHI-000000000000000000000001';
 const GRP_DOGE = 'DEMO-GRP-DOG-000000000000000000000001';
 
-const BATCH_CB          = 'demo-batch-coinbase-0000000000000000000';
-const BATCH_CRY         = 'demo-batch-crypto-000000000000000000000';
-const BATCH_SOL_STAKING = 'demo-batch-sol-staking-00000000000000000';
-const BATCH_CRY_2025    = 'demo-batch-cry-2025-0000000000000000000';
+const BATCH_CB       = 'demo-batch-coinbase-0000000000000000000';
+const BATCH_CRY      = 'demo-batch-crypto-000000000000000000000';
+const BATCH_CRY_2025 = 'demo-batch-cry-2025-0000000000000000000';
 
 export const GET: APIRoute = async ({ request }) => {
 	// If the user is already authenticated, log them out first so demo mode
@@ -78,7 +77,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const W_BTC   = randomUUID();
 	const W_ETH   = randomUUID();
 	const W_POL   = randomUUID();
-	const W_SOL   = randomUUID();
+	const W_AVAX  = randomUUID();
 	const ACCT_CB  = randomUUID();
 	const ACCT_CRY = randomUUID();
 	const W_CB    = randomUUID();
@@ -91,6 +90,7 @@ export const GET: APIRoute = async ({ request }) => {
 			args: [DEMO_TENANT_ID],
 		})),
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`aave:health:${ADDR_ETH.toLowerCase()}`] },
+		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`aave:health:${ADDR_AVAX.toLowerCase()}`] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`t:${DEMO_TENANT_ID}:networth:summary:v3`] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`t:${DEMO_TENANT_ID}:networth:summary:v2`] },
 	]);
@@ -112,11 +112,32 @@ export const GET: APIRoute = async ({ request }) => {
 		{ symbol: 'WETH', amount: 0.008,  priceUsd: 2_500,  valueUsd: 20.00, tokenAddress: null },
 		{ symbol: 'USDC', amount: 20,     priceUsd: 1,      valueUsd: 20.00, tokenAddress: null },
 	];
-	// SOL: 0.35 SOL + 3 USDC = $50.75 + $3 = $53.75
-	const solTokens = [
-		{ symbol: 'SOL',  amount: 0.35, priceUsd: 145, valueUsd: 50.75, tokenAddress: null },
-		{ symbol: 'USDC', amount: 3,    priceUsd: 1,   valueUsd:  3.00, tokenAddress: null },
+	// AVAX wallet: AVAX + USDC.e + WAVAX = $42 + $8 + $14 = $64
+	// Aave V3 Avalanche: 50 USDC.e collateral, 45 USDC.e borrowed → health factor 1.05
+	const avaxTokens = [
+		{ symbol: 'AVAX',   amount: 1.5,  priceUsd: 28, valueUsd: 42.00, tokenAddress: null },
+		{ symbol: 'USDC',   amount: 8,    priceUsd: 1,  valueUsd:  8.00, tokenAddress: null },
+		{ symbol: 'WAVAX',  amount: 0.5,  priceUsd: 28, valueUsd: 14.00, tokenAddress: null },
 	];
+
+	// Aave V3 Avalanche — USDC.e collateral only, very close to liquidation
+	// HF = (50 × 0.90) / 45 = 1.00 → using 1.05 with slight buffer
+	const avaxAaveCachePayload = {
+		ok: true,
+		address: ADDR_AVAX.toLowerCase(),
+		asOf: new Date().toISOString(),
+		chains: {
+			avalanche: {
+				chainId: 43114,
+				market: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
+				healthFactor: 1.05,
+				totalCollateralBase: 50.00,
+				totalDebtBase: 45.00,
+				userSupplies: [{ currency: { symbol: 'USDC' }, balance: { amount: { value: '50' } } }],
+				userBorrows:  [{ currency: { symbol: 'USDC' }, debt:    { amount: { value: '45' } } }],
+			},
+		},
+	};
 	const cbTokens  = [{ symbol: 'USDC', amount: 85, priceUsd: 1, valueUsd: 85, tokenAddress: null }];
 	const cryTokens = [{ symbol: 'USDC', amount: 72, priceUsd: 1, valueUsd: 72, tokenAddress: null }];
 
@@ -165,7 +186,7 @@ export const GET: APIRoute = async ({ request }) => {
 			{
 				sql: `INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
 				      VALUES (?, ?, ?, ?, ?, 0, 'onchain')`,
-				args: [W_SOL, DEMO_TENANT_ID, ADDR_SOL, 'Solana Wallet', JSON.stringify(['solana'])],
+				args: [W_AVAX, DEMO_TENANT_ID, ADDR_AVAX, 'Avalanche DeFi', JSON.stringify(['avalanche'])],
 			},
 		]),
 
@@ -173,7 +194,7 @@ export const GET: APIRoute = async ({ request }) => {
 		batch('lifecycle-groups', [
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_BTC,  DEMO_TENANT_ID, 'BTC',  0.0015,     28_500, '2021-06-15T00:00:00.000Z', '2021-06-15T00:00:00.000Z', '2021-06-15T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_ETH,  DEMO_TENANT_ID, 'ETH',  0.018,       3_200, '2021-10-05T00:00:00.000Z', '2021-10-05T00:00:00.000Z', '2021-10-05T00:00:00.000Z'] },
-			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_SOL,  DEMO_TENANT_ID, 'SOL',  0.35,          165, '2024-06-01T00:00:00.000Z', '2024-06-01T00:00:00.000Z', '2024-06-01T00:00:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_AVAX, DEMO_TENANT_ID, 'AVAX', 1.5,            18, '2024-03-10T00:00:00.000Z', '2024-03-10T00:00:00.000Z', '2024-03-10T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_MATIC,DEMO_TENANT_ID, 'POL',  300,          0.80, '2021-09-01T00:00:00.000Z', '2021-09-01T00:00:00.000Z', '2021-09-01T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_CRO,  DEMO_TENANT_ID, 'CRO',  30,           0.09, '2026-05-15T09:00:00.000Z', '2026-05-15T09:00:00.000Z', '2026-05-15T09:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_LUNA, DEMO_TENANT_ID, 'LUNA', 0,           0.035, '2022-01-01T00:00:00.000Z', '2022-01-01T00:00:00.000Z', '2022-01-01T00:00:00.000Z'] },
@@ -214,17 +235,11 @@ export const GET: APIRoute = async ({ request }) => {
 
 		// cache seeds (no DB dependency)
 		setCache(`aave:health:${ADDR_ETH.toLowerCase()}`, aaveCachePayload, 24 * 60 * 60),
-		setCache(`solana-defi:${W_SOL}`, {
-			protocols: ['Kamino Finance', 'Native Staking'],
-			recentPrograms: [
-				{ programId: 'KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD', name: 'Kamino Finance' },
-				{ programId: 'pytS9TFNez6VM5kMon3apkp9zsEFXDfNnGFZ2aSbKbE', name: 'Pyth Staking' },
-				{ programId: 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4', name: 'Jupiter' },
-			],
-		}, 24 * 60 * 60),
+		// Avalanche Aave position — health factor 1.05, near liquidation
+		setCache(`aave:health:${ADDR_AVAX.toLowerCase()}`, avaxAaveCachePayload, 24 * 60 * 60),
 	]);
 
-	console.log('[demo-seed] phase 1 done — wallets:', { W_BTC, W_ETH, W_POL, W_SOL }, 'accounts:', { ACCT_CB, ACCT_CRY });
+	console.log('[demo-seed] phase 1 done — wallets:', { W_BTC, W_ETH, W_POL, W_AVAX }, 'accounts:', { ACCT_CB, ACCT_CRY });
 
 	// ── Phase 2: Things that depend on wallets/groups/accounts — all concurrent ─
 	const ethDefiHealth = JSON.stringify({
@@ -266,7 +281,7 @@ export const GET: APIRoute = async ({ request }) => {
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
 				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
-				args: [DEMO_TENANT_ID, W_SOL, 'solana',   53.75, JSON.stringify(solTokens)],
+				args: [DEMO_TENANT_ID, W_AVAX, 'avalanche', 64.00, JSON.stringify(avaxTokens)],
 			},
 		]),
 
@@ -277,8 +292,8 @@ export const GET: APIRoute = async ({ request }) => {
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-matic-buy',  GRP_MATIC, '2021-09-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-matic-buy-tx',  500,       400.00, '2021-09-01T10:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-eth-sell',   GRP_ETH,   '2023-08-10T09:30:00.000Z', 'out', 'wallet', 'demo-evt-eth-sell-tx',   0.005,       9.00, '2023-08-10T09:30:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-matic-sell', GRP_MATIC, '2023-04-15T14:00:00.000Z', 'out', 'wallet', 'demo-evt-matic-sell-tx', 200,       300.00, '2023-04-15T14:00:00.000Z'] },
-			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-sol-buy',    GRP_SOL,   '2024-06-01T12:00:00.000Z', 'in',  'wallet', 'demo-evt-sol-buy-tx',    0.62,      102.30, '2024-06-01T12:00:00.000Z'] },
-			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-sol-sell',   GRP_SOL,   '2024-09-20T15:00:00.000Z', 'out', 'wallet', 'demo-evt-sol-sell-tx',   0.10,       13.00, '2024-09-20T15:00:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-avax-buy',   GRP_AVAX,  '2024-03-10T12:00:00.000Z', 'in',  'wallet', 'demo-evt-avax-buy-tx',   2.0,        36.00, '2024-03-10T12:00:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-avax-sell',  GRP_AVAX,  '2024-11-05T15:00:00.000Z', 'out', 'wallet', 'demo-evt-avax-sell-tx',  0.5,        12.00, '2024-11-05T15:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-cro-send',   GRP_CRO,   '2026-05-15T09:00:00.000Z', 'out', 'wallet', 'demo-evt-cro-send-tx',   30,          2.70, '2026-05-15T09:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-luna-buy',   GRP_LUNA,  '2022-01-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-luna-buy-tx',   5000,      175.00, '2022-01-01T10:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-luna-sell',  GRP_LUNA,  '2022-05-13T12:00:00.000Z', 'out', 'wallet', 'demo-evt-luna-sell-tx',  5000,        0.05, '2022-05-13T12:00:00.000Z'] },
@@ -288,13 +303,30 @@ export const GET: APIRoute = async ({ request }) => {
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-doge-sell',  GRP_DOGE,  '2022-03-01T14:00:00.000Z', 'out', 'wallet', 'demo-evt-doge-sell-tx',  2000,      160.00, '2022-03-01T14:00:00.000Z'] },
 		]),
 
-		// DeFi sync (needs W_ETH)
+		// DeFi sync (needs W_ETH and W_AVAX)
 		batch('defi-sync', [
 			{
 				sql: `INSERT OR REPLACE INTO wallet_defi_sync
 				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
 				      VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
 				args: [DEMO_TENANT_ID, W_ETH, ethDefiHealth, ethDefiPositions],
+			},
+			{
+				sql: `INSERT OR REPLACE INTO wallet_defi_sync
+				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
+				      VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
+				args: [
+					DEMO_TENANT_ID, W_AVAX,
+					JSON.stringify({ ok: true, address: ADDR_AVAX, chains: { avalanche: { healthFactor: 1.05, totalCollateralBase: 50.00, totalDebtBase: 45.00, availableBorrowsBase: 0 } } }),
+					JSON.stringify({ ok: true, address: ADDR_AVAX, chains: { avalanche: {
+						chainId: 43114,
+						market: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
+						positions: [
+							{ side: 'supply', marketName: 'Aave V3 Avalanche', assetSymbol: 'USDC', amount: 50, apy: 0.052 },
+							{ side: 'borrow', marketName: 'Aave V3 Avalanche', assetSymbol: 'USDC', amount: 45, apy: 0.071 },
+						],
+					}}}),
+				],
 			},
 		]),
 
@@ -340,11 +372,9 @@ export const GET: APIRoute = async ({ request }) => {
 			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, args: ['demo-itx-cry-usdc-i1', BATCH_CRY, ACCT_CRY, DEMO_TENANT_ID, '2024-02-01T00:00:00.000Z', 'Earn Interest', 'USDC', 24.12, 24.12, 'in', 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i1', '2024-02-01T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, args: ['demo-itx-cry-usdc-i2', BATCH_CRY, ACCT_CRY, DEMO_TENANT_ID, '2024-05-01T00:00:00.000Z', 'Earn Interest', 'USDC', 37.84, 37.84, 'in', 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i2', '2024-05-01T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, args: ['demo-itx-cry-usdc-i3', BATCH_CRY, ACCT_CRY, DEMO_TENANT_ID, '2024-08-01T00:00:00.000Z', 'Earn Interest', 'USDC', 62.82, 62.82, 'in', 'crypto_earn_interest_paid', 'USDC', 'demo-rh-cry-usdc-i3', '2024-08-01T00:00:00.000Z'] },
-			// SOL staking income
-			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'wallet', ?, NULL, ?, ?, 'Staking Reward', 'SOL', ?, ?, 'in', 'Staking Income', 'SOL', ?, ?)`, args: ['demo-itx-sol-stk-1', BATCH_SOL_STAKING, DEMO_TENANT_ID, '2024-04-15T00:00:00.000Z', 0.032,  6.50, 'demo-rh-sol-stk-1', '2024-04-15T00:00:00.000Z'] },
-			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'wallet', ?, NULL, ?, ?, 'Staking Reward', 'SOL', ?, ?, 'in', 'Staking Income', 'SOL', ?, ?)`, args: ['demo-itx-sol-stk-2', BATCH_SOL_STAKING, DEMO_TENANT_ID, '2024-08-01T00:00:00.000Z', 0.028,  5.40, 'demo-rh-sol-stk-2', '2024-08-01T00:00:00.000Z'] },
-			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'wallet', ?, NULL, ?, ?, 'Staking Reward', 'SOL', ?, ?, 'in', 'Staking Income', 'SOL', ?, ?)`, args: ['demo-itx-sol-stk-3', BATCH_SOL_STAKING, DEMO_TENANT_ID, '2024-11-15T00:00:00.000Z', 0.035,  7.20, 'demo-rh-sol-stk-3', '2024-11-15T00:00:00.000Z'] },
-			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'wallet', ?, NULL, ?, ?, 'Staking Reward', 'SOL', ?, ?, 'in', 'Staking Income', 'SOL', ?, ?)`, args: ['demo-itx-sol-stk-4', BATCH_SOL_STAKING, DEMO_TENANT_ID, '2025-03-01T00:00:00.000Z', 0.029,  6.10, 'demo-rh-sol-stk-4', '2025-03-01T00:00:00.000Z'] },
+			// AVAX staking income
+			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'wallet', ?, NULL, ?, ?, 'Staking Reward', 'AVAX', ?, ?, 'in', 'Staking Income', 'AVAX', ?, ?)`, args: ['demo-itx-avax-stk-1', 'demo-batch-avax-staking-000000000000000', DEMO_TENANT_ID, '2024-05-01T00:00:00.000Z', 0.12, 2.16, 'demo-rh-avax-stk-1', '2024-05-01T00:00:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'wallet', ?, NULL, ?, ?, 'Staking Reward', 'AVAX', ?, ?, 'in', 'Staking Income', 'AVAX', ?, ?)`, args: ['demo-itx-avax-stk-2', 'demo-batch-avax-staking-000000000000000', DEMO_TENANT_ID, '2024-08-01T00:00:00.000Z', 0.10, 1.80, 'demo-rh-avax-stk-2', '2024-08-01T00:00:00.000Z'] },
 			// Crypto.com 2025 continuation
 			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, 'Earn Interest', 'USDC', ?, ?, 'in', 'crypto_earn_interest_paid', 'USDC', ?, ?)`, args: ['demo-itx-cry-2025-1', BATCH_CRY_2025, ACCT_CRY, DEMO_TENANT_ID, '2025-02-01T00:00:00.000Z', 41.56, 41.56, 'demo-rh-cry-2025-1', '2025-02-01T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, 'Earn Interest', 'USDC', ?, ?, 'in', 'crypto_earn_interest_paid', 'USDC', ?, ?)`, args: ['demo-itx-cry-2025-2', BATCH_CRY_2025, ACCT_CRY, DEMO_TENANT_ID, '2025-05-01T00:00:00.000Z', 38.92, 38.92, 'demo-rh-cry-2025-2', '2025-05-01T00:00:00.000Z'] },
