@@ -167,7 +167,7 @@ const getChainBadge = (chains: string[]): string => {
 			<div class="tile tile--r1c3">
 				{ENABLE_ALL_TX
 					? <Tin0AllTransactions client:visible />
-					: (!isDemo || onchainWallets.length < 3) ? <AddAssetTin /> : (
+					: (!isDemo || onchainWallets.length < 5) ? <AddAssetTin /> : (
 						<div class="demo-wallet-limit">
 							<span>Wallet limit reached</span>
 							<a href="/">Sign up for unlimited wallets →</a>
