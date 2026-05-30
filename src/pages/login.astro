@@ -237,8 +237,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <div class="feature-card">
             <span class="fc-icon">🔐</span>
             <div>
-              <div class="fc-title">Read-only, always</div>
-              <div class="fc-desc">Public addresses only. No keys, no risk — ever.</div>
+              <div class="fc-title">Your keys never touch our server. Ever.</div>
+              <div class="fc-desc">Almstins reads balances by address — no wallet connection, no signing permissions, no private keys. A breach of our servers can't move a single coin. <a href="/login#faq-private-account" class="fc-anon-link" onclick="event.preventDefault();document.getElementById('faq-private-account')?.click()">Learn how to stay anonymous on our platform →</a></div>
             </div>
           </div>
           <div class="feature-card">
@@ -739,6 +739,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .fc-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 0.1rem; }
     .fc-title { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; }
     .fc-desc  { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
+    .fc-anon-link { color: var(--accent); text-decoration: none; white-space: nowrap; }
+    .fc-anon-link:hover { text-decoration: underline; }
 
     /* ── Language toggle ─────────────────────────────────────────── */
     .lang-toggle {
