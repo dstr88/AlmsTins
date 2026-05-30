@@ -9,7 +9,6 @@ import { isDemoRequest } from '@/lib/demo';
 import { getActivePlan } from '@/lib/subscriptions';
 import kingSolomon from '@/assets/KingSolomon.png';
 
-const isDemo = isDemoRequest(Astro.request);
 import minerva from '@/assets/Minerva.png';
 const GA_ID = import.meta.env.PUBLIC_GA_ID;
 
@@ -18,6 +17,9 @@ const isActive = (path: string) => currentPath === path;
 
 const session = await getAuthSession(Astro.request).catch(() => null);
 const user = session?.user ?? null;
+
+// Real auth session always wins — never show the demo banner to a signed-in user
+const isDemo = !user?.id && isDemoRequest(Astro.request);
 const tenantId = session?.tenantId ?? null;
 
 // Avatar: use OAuth profile image if available, otherwise pick a random default
