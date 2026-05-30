@@ -1,6 +1,6 @@
 /**
- * POST   /api/dirty-tins/entries   — add an entry to a tin
- * DELETE /api/dirty-tins/entries   — delete an entry by id
+ * POST   /api/petro-tins/entries   — add an entry to a tin
+ * DELETE /api/petro-tins/entries   — delete an entry by id
  */
 
 import type { APIRoute } from 'astro';
@@ -38,7 +38,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   // Verify tin belongs to this tenant
   const tinCheck = await db.execute({
-    sql: `SELECT id, type, balance FROM dirty_tins WHERE id = ? AND tenant_id = ?`,
+    sql: `SELECT id, type, balance FROM petro_tins WHERE id = ? AND tenant_id = ?`,
     args: [tinId, tenantId],
   });
   if (!tinCheck.rows.length) return json({ ok: false, error: 'Tin not found' }, 404);
@@ -47,7 +47,7 @@ export const POST: APIRoute = async ({ request }) => {
   const id = randomUUID();
 
   await db.execute({
-    sql: `INSERT INTO dirty_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description, splits_json)
+    sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description, splits_json)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [id, tinId, tenantId, entryDate, kind, amount,
            body.description ?? null,
@@ -61,7 +61,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (kind === 'payment')  newBalance = Math.max(0, currentBalance - amount);
     if (kind === 'charge')   newBalance = currentBalance + amount;
     await db.execute({
-      sql: `UPDATE dirty_tins SET balance = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
+      sql: `UPDATE petro_tins SET balance = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
       args: [newBalance, tinId, tenantId],
     });
   }
@@ -81,7 +81,7 @@ export const DELETE: APIRoute = async ({ request }) => {
   if (!entryId) return json({ ok: false, error: 'entryId required' }, 400);
 
   await db.execute({
-    sql: `DELETE FROM dirty_tin_entries WHERE id = ? AND tenant_id = ?`,
+    sql: `DELETE FROM petro_tin_entries WHERE id = ? AND tenant_id = ?`,
     args: [entryId, tenantId],
   });
 

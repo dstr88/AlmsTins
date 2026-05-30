@@ -1055,7 +1055,7 @@ h2 {
 .other-exchanges[open] .other-exchanges__toggle { color: var(--text-primary); }
 .other-exchanges__lane { margin-top: 1rem; }
 
-/* ── DirtyTins promo tile (owner-only) ───────────────────────────────────── */
+/* ── PetroTins promo tile (owner-only) ───────────────────────────────────── */
 .dt-promo-tile {
 	display: flex;
 	align-items: center;

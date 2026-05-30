@@ -1,6 +1,6 @@
 /**
- * PATCH  /api/dirty-tins/:id   — update tin fields
- * DELETE /api/dirty-tins/:id   — delete tin + its entries
+ * PATCH  /api/petro-tins/:id   — update tin fields
+ * DELETE /api/petro-tins/:id   — delete tin + its entries
  */
 
 import type { APIRoute } from 'astro';
@@ -43,7 +43,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   args.push(tenantId, id);
 
   await db.execute({
-    sql: `UPDATE dirty_tins SET ${fields.join(', ')} WHERE tenant_id = ? AND id = ?`,
+    sql: `UPDATE petro_tins SET ${fields.join(', ')} WHERE tenant_id = ? AND id = ?`,
     args,
   });
 
@@ -58,11 +58,11 @@ export const DELETE: APIRoute = async ({ request, params }) => {
 
   // Delete entries first, then the tin
   await db.execute({
-    sql: `DELETE FROM dirty_tin_entries WHERE tin_id = ? AND tenant_id = ?`,
+    sql: `DELETE FROM petro_tin_entries WHERE tin_id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
   await db.execute({
-    sql: `DELETE FROM dirty_tins WHERE id = ? AND tenant_id = ?`,
+    sql: `DELETE FROM petro_tins WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
 

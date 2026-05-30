@@ -7,10 +7,10 @@ const session = await requireTenantSession(Astro.request);
 if (!session) return Astro.redirect('/login');
 ---
 
-<Layout title="DirtyTins | Almstins" noindex={true}>
+<Layout title="PetroTins | Almstins" noindex={true}>
   <section class="dt-page">
     <div class="hero-bleed">
-      <NetWorthHero title="DirtyTins" subtitle="Debt, budget & business — the real numbers" />
+      <NetWorthHero title="PetroTins" subtitle="Debt, budget & business — the real numbers" />
     </div>
 
     <!-- Content wrapper adds breathing room without breaking full-width hero -->
@@ -634,7 +634,7 @@ if (!session) return Astro.redirect('/login');
     // ── Load tins from API ─────────────────────────────────────────────────────
     async function loadTins() {
       try {
-        const res = await fetch('/api/dirty-tins');
+        const res = await fetch('/api/petro-tins');
         const data = await res.json();
         _tins = data.tins ?? [];
       } catch { _tins = []; }
@@ -934,9 +934,9 @@ if (!session) return Astro.redirect('/login');
       };
 
       if (id) {
-        await fetch(`/api/dirty-tins/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        await fetch(`/api/petro-tins/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
       } else {
-        await fetch('/api/dirty-tins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        await fetch('/api/petro-tins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
       }
 
       document.getElementById('dt-modal').style.display = 'none';
@@ -951,7 +951,7 @@ if (!session) return Astro.redirect('/login');
       const tin = _tins.find(t => t.id === tinId);
       if (!tin) return;
       if (!confirm(`Delete "${tin.name}"? This cannot be undone.`)) return;
-      await fetch(`/api/dirty-tins/${tinId}`, { method: 'DELETE' });
+      await fetch(`/api/petro-tins/${tinId}`, { method: 'DELETE' });
       await loadTins();
     }
     window.deleteTin = deleteTin;
@@ -986,7 +986,7 @@ if (!session) return Astro.redirect('/login');
       const entryDate = document.getElementById('dt-entry-date').value;
       const description = document.getElementById('dt-entry-desc').value.trim() || null;
 
-      await fetch('/api/dirty-tins/entries', {
+      await fetch('/api/petro-tins/entries', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ tinId, kind, amount, entryDate, description }),
@@ -998,7 +998,7 @@ if (!session) return Astro.redirect('/login');
 
     // ── Delete entry ───────────────────────────────────────────────────────────
     async function deleteEntry(entryId) {
-      await fetch('/api/dirty-tins/entries', {
+      await fetch('/api/petro-tins/entries', {
         method: 'DELETE',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ entryId }),
@@ -1113,7 +1113,7 @@ if (!session) return Astro.redirect('/login');
       if (!amount || amount <= 0) { amtInput?.focus(); return; }
 
       const today = new Date().toISOString().slice(0, 10);
-      await fetch('/api/dirty-tins/entries', {
+      await fetch('/api/petro-tins/entries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tinId: row.tinId, kind: row.kind, amount, entryDate: today, description: row.description || null }),
@@ -1129,7 +1129,7 @@ if (!session) return Astro.redirect('/login');
 
       // Refresh tin data silently
       try {
-        const res = await fetch('/api/dirty-tins');
+        const res = await fetch('/api/petro-tins');
         const data = await res.json();
         _tins = data.tins ?? [];
         renderSummary();

@@ -1,6 +1,6 @@
 /**
- * GET  /api/dirty-tins        — list all tins + recent entries for tenant
- * POST /api/dirty-tins        — create a new tin
+ * GET  /api/petro-tins        — list all tins + recent entries for tenant
+ * POST /api/petro-tins        — create a new tin
  */
 
 import type { APIRoute } from 'astro';
@@ -11,7 +11,7 @@ import { randomUUID } from 'crypto';
 export const prerender = false;
 
 const ENSURE_SQL = `
-  CREATE TABLE IF NOT EXISTS dirty_tins (
+  CREATE TABLE IF NOT EXISTS petro_tins (
     id           TEXT NOT NULL PRIMARY KEY,
     tenant_id    TEXT NOT NULL,
     type         TEXT NOT NULL,
@@ -29,7 +29,7 @@ const ENSURE_SQL = `
 `;
 
 const ENSURE_ENTRIES_SQL = `
-  CREATE TABLE IF NOT EXISTS dirty_tin_entries (
+  CREATE TABLE IF NOT EXISTS petro_tin_entries (
     id          TEXT NOT NULL PRIMARY KEY,
     tin_id      TEXT NOT NULL,
     tenant_id   TEXT NOT NULL,
@@ -66,7 +66,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   const tinsRes = await db.execute({
     sql: `SELECT id, type, name, balance, credit_limit, apr, min_payment, goal_revenue, notes, sort_order, created_at, updated_at
-          FROM dirty_tins
+          FROM petro_tins
           WHERE tenant_id = ?
           ORDER BY sort_order ASC, created_at ASC`,
     args: [tenantId],
@@ -90,7 +90,7 @@ export const GET: APIRoute = async ({ request }) => {
   // Load all entries for this tenant, grouped by tin
   const entriesRes = await db.execute({
     sql: `SELECT id, tin_id, entry_date, kind, amount, description, splits_json, created_at
-          FROM dirty_tin_entries
+          FROM petro_tin_entries
           WHERE tenant_id = ?
           ORDER BY entry_date DESC, created_at DESC`,
     args: [tenantId],
@@ -134,7 +134,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const id = randomUUID();
   await db.execute({
-    sql: `INSERT INTO dirty_tins (id, tenant_id, type, name, balance, credit_limit, apr, min_payment, goal_revenue, notes, sort_order)
+    sql: `INSERT INTO petro_tins (id, tenant_id, type, name, balance, credit_limit, apr, min_payment, goal_revenue, notes, sort_order)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id, tenantId, type, name,
