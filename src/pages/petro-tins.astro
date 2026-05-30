@@ -1,0 +1,446 @@
+---
+import { getAuthSession } from '../lib/authSession';
+import { getPostLoginRedirect } from '../lib/postLoginRedirect';
+
+const { searchParams } = Astro.url;
+const error        = searchParams.get('error');
+const callbackParam = searchParams.get('callbackUrl');
+const nextPath     = typeof callbackParam === 'string' ? callbackParam : null;
+const callbackUrl  = '/dashboard/petro-tins';  // always land here after login
+const safeCallback = callbackUrl;
+
+const message =
+  error === 'Configuration' ? 'Sign-in is temporarily unavailable. Please try again.' :
+  error === 'OAuthAccountNotLinked' ? 'LOCKED_OUT' :
+  error ? 'Sign-in failed. Please try again.' : '';
+
+const session = await getAuthSession(Astro.request);
+if (session?.user?.id) return Astro.redirect('/dashboard/petro-tins', 302);
+
+let csrfToken = '';
+try {
+  const authBase = process.env.AUTH_URL
+    ? (/^https?:\/\//i.test(process.env.AUTH_URL)
+        ? process.env.AUTH_URL.replace(/\/$/, '')
+        : `https://${process.env.AUTH_URL}`)
+    : Astro.url.origin;
+  const csrfRes = await fetch(`${authBase}/api/auth/csrf`, {
+    headers: { cookie: Astro.request.headers.get('cookie') ?? '' },
+  });
+  if (csrfRes.ok) csrfToken = (await csrfRes.json())?.csrfToken ?? '';
+} catch {}
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PetroTins — Debt, Budget & Business P&L</title>
+  <meta name="description" content="Track every credit card, log your budget like a checkbook, and see your small business P&L — all in one place. No bank connection required." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/webp" href="/favicon.webp" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #09090f;
+      --card:      #0f1117;
+      --card-2:    #141720;
+      --border:    rgba(255,255,255,0.10);
+      --border-hi: rgba(255,255,255,0.18);
+      --text:      #f0f4ff;
+      --muted:     rgba(240,244,255,0.50);
+      --sub:       rgba(240,244,255,0.70);
+      /* Petro accent — amber/fuel */
+      --pt:        #f59e0b;
+      --pt-dim:    rgba(245,158,11,0.55);
+      --pt-soft:   rgba(245,158,11,0.12);
+      --pt-glow:   rgba(245,158,11,0.28);
+      --gain:      #34d399;
+      --loss:      #ef4444;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    /* ── Page layout ── */
+    .pt-page {
+      width: 100%;
+      max-width: 960px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+    @media (min-width: 720px) {
+      .pt-page { grid-template-columns: 1fr 380px; gap: 4rem; align-items: center; }
+    }
+
+    /* ── Wordmark ── */
+    .pt-wordmark {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 2rem;
+    }
+    .pt-wordmark__icon {
+      width: 36px; height: 36px;
+      background: var(--pt-soft);
+      border: 1px solid var(--pt-glow);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+    }
+    .pt-wordmark__text {
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--pt);
+    }
+    .pt-wordmark__sub {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-left: 0.25rem;
+      align-self: flex-end;
+      padding-bottom: 3px;
+    }
+
+    /* ── Hero copy ── */
+    .pt-hero__headline {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+    .pt-hero__headline em {
+      font-style: normal;
+      color: var(--pt);
+    }
+    .pt-hero__sub {
+      font-size: 1rem;
+      color: var(--sub);
+      line-height: 1.6;
+      max-width: 480px;
+      margin-bottom: 2rem;
+    }
+
+    /* ── Feature list ── */
+    .pt-features {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .pt-feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.875rem;
+    }
+    .pt-feature__icon {
+      width: 34px; height: 34px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .pt-feature__title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+    .pt-feature__desc {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* ── Coming-soon ribbon ── */
+    .pt-coming-soon {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--pt-soft);
+      border: 1px solid var(--pt-glow);
+      border-radius: 999px;
+      padding: 0.3rem 0.85rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--pt);
+      margin-bottom: 1.5rem;
+    }
+    .pt-coming-soon::before { content: '⚗️'; font-size: 0.85rem; }
+
+    /* ── Sign-in card ── */
+    .pt-signin {
+      background: var(--card);
+      border: 1px solid var(--border-hi);
+      border-radius: 16px;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .pt-signin__title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+    }
+    .pt-signin__sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 0.5rem;
+    }
+    .pt-signin__note {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+      padding-top: 0.25rem;
+      line-height: 1.5;
+    }
+    .pt-signin__note a { color: var(--pt); text-decoration: none; }
+    .pt-signin__note a:hover { text-decoration: underline; }
+
+    /* Provider buttons */
+    .provider-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.7rem 1rem;
+      border-radius: 9px;
+      border: 1px solid var(--border-hi);
+      background: var(--card-2);
+      color: var(--text);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      text-align: left;
+    }
+    .provider-btn:hover { background: #1a1f2e; border-color: var(--pt-glow); }
+    .provider-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .provider-btn svg { flex-shrink: 0; }
+    .provider-form { width: 100%; }
+
+    /* Divider */
+    .pt-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+    .pt-divider::before, .pt-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Email form */
+    .pt-email-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .pt-input {
+      width: 100%;
+      background: var(--card-2);
+      border: 1px solid var(--border-hi);
+      border-radius: 8px;
+      padding: 0.6rem 0.875rem;
+      color: var(--text);
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .pt-input:focus { border-color: var(--pt); }
+    .pt-input::placeholder { color: var(--muted); }
+    .pt-submit {
+      width: 100%;
+      background: var(--pt);
+      color: #09090f;
+      border: none;
+      border-radius: 8px;
+      padding: 0.7rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .pt-submit:hover { opacity: 0.88; }
+
+    .pt-error {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 8px;
+      padding: 0.6rem 0.875rem;
+      font-size: 0.8rem;
+      color: #fca5a5;
+    }
+
+    /* Footer */
+    .pt-footer {
+      margin-top: 3rem;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .pt-footer a { color: var(--muted); text-decoration: none; }
+    .pt-footer a:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="pt-page">
+
+    <!-- ── Left: hero ─────────────────────────────────────────── -->
+    <div class="pt-left">
+      <div class="pt-wordmark">
+        <div class="pt-wordmark__icon">⛽</div>
+        <span class="pt-wordmark__text">PetroTins</span>
+        <span class="pt-wordmark__sub">by Almstins</span>
+      </div>
+
+      <div class="pt-coming-soon">Early access</div>
+
+      <h1 class="pt-hero__headline">
+        The <em>real numbers</em><br/>behind your money.
+      </h1>
+      <p class="pt-hero__sub">
+        Debt tins, a checkbook budget register, and small-business P&L —
+        all in one place. No bank connection. No API keys. Pure math.
+      </p>
+
+      <div class="pt-features">
+        <div class="pt-feature">
+          <div class="pt-feature__icon">💳</div>
+          <div>
+            <div class="pt-feature__title">Debt Tins</div>
+            <div class="pt-feature__desc">Track every credit card — balance, APR, daily interest cost, and utilization bar. Watch the number go down.</div>
+          </div>
+        </div>
+        <div class="pt-feature">
+          <div class="pt-feature__icon">📒</div>
+          <div>
+            <div class="pt-feature__title">Budget Register</div>
+            <div class="pt-feature__desc">A checkbook-style register for your income and expenses. Running balance updates as you type.</div>
+          </div>
+        </div>
+        <div class="pt-feature">
+          <div class="pt-feature__icon">📈</div>
+          <div>
+            <div class="pt-feature__title">Business P&L</div>
+            <div class="pt-feature__desc">Revenue minus expenses, month by month. Simple enough to actually use.</div>
+          </div>
+        </div>
+        <div class="pt-feature">
+          <div class="pt-feature__icon">🔐</div>
+          <div>
+            <div class="pt-feature__title">No bank connection. Ever.</div>
+            <div class="pt-feature__desc">You enter the numbers. We do the math. Nothing connects to your bank.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Right: sign-in card ────────────────────────────────── -->
+    <div class="pt-signin">
+      <div>
+        <div class="pt-signin__title">Sign in to PetroTins</div>
+        <div class="pt-signin__sub">Your account works across PetroTins and Almstins — one login, both tools.</div>
+      </div>
+
+      {message && message !== 'LOCKED_OUT' && (
+        <div class="pt-error">{message}</div>
+      )}
+
+      <!-- Google -->
+      <form class="provider-form" method="POST" action="/api/auth/signin/google">
+        <input type="hidden" name="callbackUrl" value={safeCallback} />
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <button class="provider-btn" type="submit" disabled={!csrfToken || undefined}>
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="rgba(255,255,255,0.8)" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="rgba(255,255,255,0.6)" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+            <path fill="rgba(255,255,255,0.7)" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continue with Google
+        </button>
+      </form>
+
+      <!-- GitHub -->
+      <form class="provider-form" method="POST" action="/api/auth/signin/github">
+        <input type="hidden" name="callbackUrl" value={safeCallback} />
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <button class="provider-btn" type="submit" disabled={!csrfToken || undefined}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white" aria-hidden="true">
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          Continue with GitHub
+        </button>
+      </form>
+
+      <div class="pt-divider">or</div>
+
+      <!-- Email / password -->
+      <form class="pt-email-form" method="POST" action="/api/auth/callback/credentials">
+        <input type="hidden" name="callbackUrl" value={safeCallback} />
+        <input type="hidden" name="csrfToken" value={csrfToken} />
+        <input class="pt-input" type="email" name="email" placeholder="Email address" required autocomplete="email" />
+        <input class="pt-input" type="password" name="password" placeholder="Password" required autocomplete="current-password" />
+        <button class="pt-submit" type="submit">Sign in →</button>
+      </form>
+
+      <p class="pt-signin__note">
+        No account yet? Just sign in — we'll create one automatically.<br/>
+        <a href="/login">Looking for Almstins? →</a>
+      </p>
+    </div>
+
+  </div>
+
+  <footer class="pt-footer">
+    <a href="/login">Almstins</a> · <a href="/privacy" target="_blank">Privacy</a> · No bank connection required
+  </footer>
+
+  <script is:inline>
+    // Re-fetch CSRF if buttons are still disabled after load
+    document.addEventListener('DOMContentLoaded', () => {
+      const disabled = document.querySelectorAll('[data-needs-csrf]');
+      if (!disabled.length) return;
+      fetch('/api/auth/csrf').then(r => r.json()).then(d => {
+        if (!d?.csrfToken) return;
+        document.querySelectorAll('input[name="csrfToken"]').forEach(el => el.value = d.csrfToken);
+        document.querySelectorAll('button[disabled]').forEach(el => el.removeAttribute('disabled'));
+      }).catch(() => {});
+    });
+  </script>
+</body>
+</html>
