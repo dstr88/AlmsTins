@@ -8,14 +8,17 @@ export type TenantSession = {
 };
 
 export async function requireTenantSession(request: Request): Promise<TenantSession | null> {
-	// Demo mode: bypass auth entirely and return the pre-seeded demo tenant.
-	if (isDemoRequest(request)) {
-		return { tenantId: DEMO_TENANT_ID, isDemo: true };
-	}
-
 	try {
 		const session = await getAuthSession(request);
-		if (!session?.user?.id) return null;
+
+		// Real auth session always wins over a demo cookie.
+		// Check demo mode only when no authenticated user exists.
+		if (!session?.user?.id) {
+			if (isDemoRequest(request)) {
+				return { tenantId: DEMO_TENANT_ID, isDemo: true };
+			}
+			return null;
+		}
 
 		// Fast path: the JWT already contains tenantId (set at sign-in).
 		// Trusting the signed JWT avoids 2 sequential DB round trips on every
