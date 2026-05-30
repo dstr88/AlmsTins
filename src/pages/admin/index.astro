@@ -144,6 +144,13 @@ const [
 	`),
 ]);
 
+// ── PetroTins visit stats ─────────────────────────────────────────────────────
+const [petroVisitCount, petroAvgDuration, petroRecentVisits] = await Promise.all([
+	safeScalar(`SELECT COUNT(*) FROM petro_visits`).catch(() => 0),
+	safeScalar(`SELECT ROUND(AVG(duration_s)) FROM petro_visits`).catch(() => 0),
+	safeQ(`SELECT visited_at, duration_s FROM petro_visits ORDER BY visited_at DESC LIMIT 10`).catch(() => []),
+]);
+
 const fmt = (iso: string | null) => {
 	if (!iso) return '—';
 	try { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso)); }
@@ -745,6 +752,47 @@ const fmtDate = (iso: string | null) => {
 				</div>
 			)}
 		</div>
+	</div>
+
+	<!-- ── PetroTins visits ──────────────────────────────────────────────── -->
+	<div class="section">
+		<div class="section-title">PetroTins — visitor sessions</div>
+		<div class="stat-grid" style="margin-bottom:1rem">
+			<div class="stat-card">
+				<div class="stat-label">Total visits</div>
+				<div class="stat-value">{Number(petroVisitCount).toLocaleString()}</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-label">Avg time on page</div>
+				<div class="stat-value">
+					{petroAvgDuration
+						? `${Math.floor(Number(petroAvgDuration) / 60)}m ${Number(petroAvgDuration) % 60}s`
+						: '—'}
+				</div>
+			</div>
+		</div>
+		{(petroRecentVisits as any[]).length > 0 && (
+			<div class="table-wrap">
+				<table class="data-table">
+					<thead>
+						<tr><th>Visited at</th><th style="text-align:right">Time on page</th></tr>
+					</thead>
+					<tbody>
+						{(petroRecentVisits as any[]).map(row => (
+							<tr>
+								<td style="font-size:0.78rem">{fmt(String(row.visited_at))}</td>
+								<td style="text-align:right; font-variant-numeric:tabular-nums">
+									{Math.floor(Number(row.duration_s) / 60)}m {Number(row.duration_s) % 60}s
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		)}
+		{(petroRecentVisits as any[]).length === 0 && (
+			<p style="font-size:0.82rem; color:var(--text-muted)">No visits recorded yet.</p>
+		)}
 	</div>
 
 	<p class="refresh-note">Data is live — refresh the page for updated stats.</p>

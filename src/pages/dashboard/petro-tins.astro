@@ -5,6 +5,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const session = await requireTenantSession(Astro.request);
 if (!session || session.isDemo) return Astro.redirect('/login');
+const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
 ---
 
 <Layout title="PetroTins | Almstins" noindex={true}>
@@ -71,6 +72,13 @@ if (!session || session.isDemo) return Astro.redirect('/login');
       </div>
 
     </div><!-- /dt-content -->
+
+    {isOwner && (
+      <div class="dt-owner-timer" id="dt-owner-timer">
+        <span class="dt-owner-timer__label">👁 on page</span>
+        <span class="dt-owner-timer__time" id="dt-page-timer">0:00</span>
+      </div>
+    )}
   </section>
 
   <!-- Add / Edit Tin Modal -->
@@ -371,6 +379,24 @@ if (!session || session.isDemo) return Astro.redirect('/login');
     .dt-sample-banner__icon { font-size: 1rem; flex-shrink: 0; }
     .dt-sample-banner__text { flex: 1; }
     .dt-sample-banner__text strong { color: var(--accent); }
+    /* Owner-only session timer — fixed bottom-right, invisible to visitors */
+    .dt-owner-timer {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      z-index: 500;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+    .dt-owner-timer__label { color: var(--text-muted); }
+    .dt-owner-timer__time  { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
     .dt-sample-banner__dismiss {
       background: none; border: none; color: var(--text-muted);
       cursor: pointer; font-size: 0.9rem; padding: 2px 6px; border-radius: 4px;
@@ -774,6 +800,9 @@ if (!session || session.isDemo) return Astro.redirect('/login');
     .dt-btn-ghost:hover { background: var(--surface-hover); }
   </style>
 
+  <script is:inline define:vars={{ isOwner }}>
+    window.__petroOwner = isOwner;
+  </script>
   <script is:inline>
     // ── Utilities ──────────────────────────────────────────────────────────────
     const $ = (sel, ctx = document) => ctx.querySelector(sel);
@@ -1485,6 +1514,31 @@ if (!session || session.isDemo) return Astro.redirect('/login');
       const banner = document.getElementById('dt-sample-banner');
       if (banner) banner.style.display = 'none';
     });
+
+    // ── Page timer ─────────────────────────────────────────────────────────────
+    (function() {
+      const start = Date.now();
+      const el = document.getElementById('dt-page-timer');
+      if (!el) return;
+      setInterval(() => {
+        const s = Math.floor((Date.now() - start) / 1000);
+        const m = Math.floor(s / 60);
+        const ss = String(s % 60).padStart(2, '0');
+        el.textContent = `${m}:${ss}`;
+      }, 1000);
+    })();
+
+    // ── Visit logger (non-owner only) ─────────────────────────────────────────
+    (function() {
+      const start = Date.now();
+      if (window.__petroOwner) return;
+      function logVisit() {
+        const duration = Math.round((Date.now() - start) / 1000);
+        navigator.sendBeacon('/api/petro-tins/visit', JSON.stringify({ duration }));
+      }
+      window.addEventListener('pagehide', logVisit);
+      window.addEventListener('beforeunload', logVisit);
+    })();
 
     // ── Boot ───────────────────────────────────────────────────────────────────
     loadTins();
