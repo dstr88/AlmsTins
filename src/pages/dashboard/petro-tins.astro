@@ -439,7 +439,7 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
     .dt-summary-side__divider { border-top: 1px solid var(--border-subtle); margin: 0.6rem 0; }
 
     /* Debt zone */
-    .dt-zone-debt { margin-bottom: 2rem; }
+    .dt-zone-debt { margin-bottom: 2rem; margin-left: 3rem; }
     .dt-zone-income { }
     .dt-zone-label {
       font-size: 0.68rem;
@@ -557,6 +557,13 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       box-shadow: 0 2px 12px rgba(0,0,0,0.25);
     }
 
+    /* Debt tins — vault SalmonTin style */
+    [data-tin-type="debt"].dt-tin {
+      border: 2px solid var(--loss);
+      overflow: visible;
+      margin-top: 1rem; /* room for the floating label */
+    }
+
     /* Header: name + badge on left, actions pinned right — all one row */
     .dt-tin__header {
       display: flex;
@@ -565,6 +572,14 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       padding: 0.875rem 1rem 0.75rem;
       border-bottom: 1px solid var(--border-subtle);
     }
+
+    /* Debt tin header: floating label tag above card */
+    [data-tin-type="debt"] .dt-tin__header {
+      position: relative;
+      border-bottom: none;
+      padding-top: 0.5rem;
+    }
+
     .dt-tin__name {
       font-size: 0.95rem;
       font-weight: 700;
@@ -576,15 +591,27 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       white-space: nowrap;
     }
     .dt-tin__badge {
-      font-size: 0.6rem;
+      font-size: 0.65rem;
       text-transform: uppercase;
       letter-spacing: 0.07em;
-      padding: 2px 7px;
-      border-radius: 4px;
+      padding: 3px 9px;
+      border-radius: 6px;
       font-weight: 700;
       flex-shrink: 0;
     }
-    .dt-tin__badge--debt     { background: var(--loss-bg);    color: var(--loss);   border: 1px solid var(--loss-border); }
+    /* Debt badge floats above the card like SalmonTin label */
+    [data-tin-type="debt"] .dt-tin__badge {
+      position: absolute;
+      top: -13px;
+      left: 1rem;
+      background: var(--loss);
+      color: var(--surface-bg);
+      border: none;
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
     .dt-tin__badge--budget   { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-glow); }
     .dt-tin__badge--business { background: var(--gain-bg);    color: var(--gain);   border: 1px solid var(--gain-border); }
 
