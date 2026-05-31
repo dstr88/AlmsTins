@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { PetroTin } from './types';
 import DebtTin from './DebtTin';
 import BudgetTin from './BudgetTin';
+import SlushTin from './SlushTin';
 import './PetroTinsGrid.css';
 
 function fmt(n: number) {
@@ -138,13 +139,11 @@ export default function PetroTinsGrid() {
         </div>
       )}
 
-      {/* Slush tin — shown below everything if it exists */}
+      {/* Slush tin — simple balance card, not a register */}
       {slushTins.map(tin => (
         <div key={tin.id} className="pt-grid__zone pt-grid__zone--slush">
-          <div className="pt-grid__zone-label">🪣 Slush Fund</div>
-          <BudgetTin
+          <SlushTin
             tin={tin}
-            onEdit={handleEdit}
             onDelete={handleDelete}
             onRefresh={load}
           />
