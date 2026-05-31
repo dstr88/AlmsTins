@@ -1,0 +1,318 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getPetroSubscription } from '@/lib/petroSubscription';
+
+const session = await requireTenantSession(Astro.request);
+if (!session || session.isDemo) return Astro.redirect('/petro-tins');
+
+const tier = await getPetroSubscription(session.tenantId);
+---
+
+<Layout title="Upgrade — PetroTins" noindex={true}>
+  <style>
+    .up-page {
+      max-width: 680px;
+      margin: 3rem auto;
+      padding: 0 1.5rem 4rem;
+    }
+    .up-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      text-decoration: none;
+      margin-bottom: 2rem;
+    }
+    .up-back:hover { color: var(--text-primary); }
+
+    .up-hero {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .up-hero__icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .up-hero__title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+    .up-hero__sub { color: var(--text-secondary); font-size: 0.95rem; }
+
+    /* Plan cards */
+    .up-plans {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 2.5rem;
+    }
+    @media (max-width: 540px) { .up-plans { grid-template-columns: 1fr; } }
+
+    .up-plan {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 14px;
+      padding: 1.5rem;
+    }
+    .up-plan--paid {
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 1px rgba(245,158,11,0.2), 0 4px 24px rgba(0,0,0,0.3);
+    }
+    .up-plan__badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 8px;
+      border-radius: 99px;
+      margin-bottom: 0.75rem;
+      display: inline-block;
+    }
+    .up-plan--free  .up-plan__badge { background: var(--surface-card-2); color: var(--text-muted); }
+    .up-plan--paid  .up-plan__badge { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .up-plan__price {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      line-height: 1;
+      margin-bottom: 0.25rem;
+    }
+    .up-plan__price span { font-size: 0.9rem; font-weight: 400; color: var(--text-muted); }
+    .up-plan__desc { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem; }
+    .up-plan__features { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+    .up-plan__features li { font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 0.5rem; }
+    .up-plan__features li::before { content: '✓'; color: var(--gain); font-weight: 700; flex-shrink: 0; }
+    .up-plan--free .up-plan__features li.no::before { content: '✗'; color: var(--text-muted); }
+
+    /* Current plan banner */
+    .up-current {
+      background: var(--gain-bg);
+      border: 1px solid var(--gain-border);
+      border-radius: 10px;
+      padding: 0.9rem 1.25rem;
+      font-size: 0.88rem;
+      color: var(--gain);
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    /* Promo box */
+    .up-promo {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 14px;
+      padding: 1.75rem;
+    }
+    .up-promo__title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.4rem;
+    }
+    .up-promo__sub { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem; }
+
+    .up-promo__row {
+      display: flex;
+      gap: 0.75rem;
+    }
+    .up-promo__input {
+      flex: 1;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.65rem 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .up-promo__input:focus { border-color: #f59e0b; }
+    .up-promo__input::placeholder { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-muted); }
+
+    .up-promo__btn {
+      background: #f59e0b;
+      color: #09090f;
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      white-space: nowrap;
+    }
+    .up-promo__btn:hover { opacity: 0.88; }
+    .up-promo__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .up-promo__msg {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      border-radius: 8px;
+      padding: 0.6rem 0.875rem;
+      display: none;
+    }
+    .up-promo__msg.success { background: var(--gain-bg); color: var(--gain); border: 1px solid var(--gain-border); display: block; }
+    .up-promo__msg.error   { background: var(--loss-bg); color: var(--loss); border: 1px solid var(--loss-border); display: block; }
+
+    .up-or {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin: 1.5rem 0 1rem;
+    }
+    .up-pay-link {
+      display: block;
+      text-align: center;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 10px;
+      padding: 1rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      text-decoration: none;
+      transition: background 0.12s;
+    }
+    .up-pay-link:hover { background: var(--surface-hover); color: var(--text-primary); }
+    .up-pay-link strong { color: var(--text-primary); display: block; font-size: 0.95rem; margin-bottom: 0.2rem; }
+  </style>
+
+  <div class="up-page">
+    <a href="/dashboard/petro-tins" class="up-back">← Back to PetroTins</a>
+
+    <div class="up-hero">
+      <div class="up-hero__icon">⛽</div>
+      <h1 class="up-hero__title">PetroTins Plans</h1>
+      <p class="up-hero__sub">No bank connection. No data selling. Just your numbers.</p>
+    </div>
+
+    {tier === 'paid' && (
+      <div class="up-current">
+        ✓ You're on the paid plan — all features unlocked.
+      </div>
+    )}
+
+    <div class="up-plans">
+      <!-- Free -->
+      <div class="up-plan up-plan--free">
+        <span class="up-plan__badge">Free</span>
+        <div class="up-plan__price">$0</div>
+        <div class="up-plan__desc">Get started, no card needed.</div>
+        <ul class="up-plan__features">
+          <li>1 debt tin</li>
+          <li>1 budget tin</li>
+          <li>Checkbook register</li>
+          <li>APR &amp; interest math</li>
+          <li class="no">Unlimited tins</li>
+          <li class="no">Household expense splitting</li>
+          <li class="no">Monthly email check-ins</li>
+          <li class="no">PDF / CSV export</li>
+          <li class="no">Business tins</li>
+        </ul>
+      </div>
+
+      <!-- Paid -->
+      <div class="up-plan up-plan--paid">
+        <span class="up-plan__badge">⛽ Full Access</span>
+        <div class="up-plan__price">$100 <span>/ year</span></div>
+        <div class="up-plan__desc">Everything. Cancel anytime.</div>
+        <ul class="up-plan__features">
+          <li>Unlimited tins</li>
+          <li>Checkbook register</li>
+          <li>APR &amp; interest math</li>
+          <li>Household expense splitting</li>
+          <li>Monthly email check-ins</li>
+          <li>PDF / CSV export</li>
+          <li>Business tins</li>
+          <li>Payoff projections</li>
+          <li>Priority support</li>
+        </ul>
+      </div>
+    </div>
+
+    {tier === 'free' && (
+      <div class="up-promo">
+        <div class="up-promo__title">Have a promo code?</div>
+        <div class="up-promo__sub">Enter it below to unlock your plan instantly.</div>
+        <div class="up-promo__row">
+          <input
+            class="up-promo__input"
+            id="promo-input"
+            type="text"
+            placeholder="Enter code"
+            maxlength="20"
+            autocomplete="off"
+          />
+          <button class="up-promo__btn" id="promo-btn">Apply</button>
+        </div>
+        <div class="up-promo__msg" id="promo-msg"></div>
+
+        <div class="up-or">— or —</div>
+
+        <a href="mailto:donnie@titaniumhut.com?subject=PetroTins%20subscription&body=I'd%20like%20to%20subscribe%20to%20PetroTins%20for%20%24100%2Fyr." class="up-pay-link">
+          <strong>Pay $100 / year</strong>
+          Contact us to pay — we'll activate your account within 24 hours.
+        </a>
+
+        <a href="mailto:donnie@titaniumhut.com?subject=PetroTins%20PETRO50%20code&body=I%20have%20the%20PETRO50%20code%20and%20would%20like%20to%20pay%20%2450." class="up-pay-link" style="margin-top:0.75rem">
+          <strong>Use code PETRO50 — pay $50</strong>
+          Contact us with your code — we'll activate at half price.
+        </a>
+      </div>
+    )}
+  </div>
+
+  <script>
+    const input = document.getElementById('promo-input') as HTMLInputElement;
+    const btn   = document.getElementById('promo-btn') as HTMLButtonElement;
+    const msg   = document.getElementById('promo-msg') as HTMLDivElement;
+
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        const code = input?.value.trim().toUpperCase();
+        if (!code) return;
+        btn.disabled = true;
+        btn.textContent = 'Applying…';
+        msg.className = 'up-promo__msg';
+        msg.textContent = '';
+
+        try {
+          const res = await fetch('/api/petro-tins/subscription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+          });
+          const data = await res.json();
+
+          if (data.requiresPayment) {
+            msg.className = 'up-promo__msg success';
+            msg.textContent = '✓ Code valid! This code gives you 50% off. Use the contact link below to pay $50 and activate.';
+          } else if (data.ok) {
+            msg.className = 'up-promo__msg success';
+            const label = data.discount === 'free_life' ? 'free for life 🎉' : 'free for one year 🎉';
+            msg.textContent = `✓ Code accepted — you're ${label} Reloading…`;
+            setTimeout(() => location.reload(), 1800);
+          } else {
+            msg.className = 'up-promo__msg error';
+            msg.textContent = data.error ?? 'Something went wrong.';
+            btn.disabled = false;
+            btn.textContent = 'Apply';
+          }
+        } catch {
+          msg.className = 'up-promo__msg error';
+          msg.textContent = 'Network error — please try again.';
+          btn.disabled = false;
+          btn.textContent = 'Apply';
+        }
+      });
+
+      input?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') btn.click();
+      });
+    }
+  </script>
+</Layout>
