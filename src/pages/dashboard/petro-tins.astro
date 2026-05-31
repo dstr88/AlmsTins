@@ -3,11 +3,13 @@ import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import PetroTinsGrid from '../../components/petro-tins/PetroTinsGrid';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getPetroSubscription } from '@/lib/petroSubscription';
 
 const session = await requireTenantSession(Astro.request);
 if (!session) return Astro.redirect('/petro-tins');
 // Demo users can view but not write (API endpoints block isDemo mutations)
 const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
+const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.tenantId);
 ---
 
 <Layout title="PetroTins | Almstins" noindex={true}>
@@ -56,6 +58,14 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
         <button class="dt-add-btn" data-add-type="debt">＋ Debt Tin</button>
         <button class="dt-add-btn" data-add-type="budget">＋ Budget</button>
         <button class="dt-add-btn" data-add-type="business">＋ Business Tin</button>
+        {petroTier === 'free' && (
+          <a href="/dashboard/petro-tins/upgrade" class="dt-upgrade-link">
+            ⛽ Free Plan — <strong>Upgrade $100/yr</strong>
+          </a>
+        )}
+        {petroTier === 'paid' && (
+          <span class="dt-plan-badge">⛽ Full Access</span>
+        )}
       </div>
 
       <!-- Sample data banner (shown when sample tins exist) -->
@@ -346,6 +356,34 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       background: var(--surface-hover);
       color: var(--accent);
       border-color: var(--accent-glow);
+    }
+    .dt-upgrade-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(245,158,11,0.10);
+      border: 1px solid rgba(245,158,11,0.30);
+      color: #f59e0b;
+      border-radius: 8px;
+      padding: 0.5rem 1.1rem;
+      font-size: 0.875rem;
+      text-decoration: none;
+      transition: background 0.15s;
+      margin-left: auto;
+    }
+    .dt-upgrade-link:hover { background: rgba(245,158,11,0.20); }
+    .dt-upgrade-link strong { color: #f59e0b; }
+    .dt-plan-badge {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(245,158,11,0.10);
+      border: 1px solid rgba(245,158,11,0.20);
+      color: #f59e0b;
+      border-radius: 8px;
+      padding: 0.5rem 1.1rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-left: auto;
     }
 
     /* Zone layout */
@@ -1371,7 +1409,15 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       if (id) {
         await fetch(`/api/petro-tins/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
       } else {
-        await fetch('/api/petro-tins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const res = await fetch('/api/petro-tins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (res.status === 403) {
+          const data = await res.json().catch(() => ({}));
+          if (data.error === 'upgrade_required') {
+            document.getElementById('dt-modal').style.display = 'none';
+            window.location.href = '/dashboard/petro-tins/upgrade';
+            return;
+          }
+        }
       }
 
       document.getElementById('dt-modal').style.display = 'none';

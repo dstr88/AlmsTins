@@ -6,7 +6,10 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getPetroSubscription } from '@/lib/petroSubscription';
 import { randomUUID } from 'crypto';
+
+const FREE_LIMITS: Record<string, number> = { debt: 1, budget: 1, business: 0 };
 
 export const prerender = false;
 
@@ -131,6 +134,23 @@ export const POST: APIRoute = async ({ request }) => {
   }
   const name = String(body.name ?? '').trim().slice(0, 100);
   if (!name) return json({ ok: false, error: 'Name required' }, 400);
+
+  // Free-tier limits
+  const tier = await getPetroSubscription(tenantId);
+  if (tier === 'free') {
+    const limit = FREE_LIMITS[type] ?? 0;
+    if (limit === 0) {
+      return json({ ok: false, error: 'upgrade_required', upgradeUrl: '/dashboard/petro-tins/upgrade' }, 403);
+    }
+    const countRes = await db.execute({
+      sql: `SELECT COUNT(*) as cnt FROM petro_tins WHERE tenant_id = ? AND type = ?`,
+      args: [tenantId, type],
+    });
+    const count = Number((countRes.rows[0] as any)?.cnt ?? 0);
+    if (count >= limit) {
+      return json({ ok: false, error: 'upgrade_required', upgradeUrl: '/dashboard/petro-tins/upgrade' }, 403);
+    }
+  }
 
   const id = randomUUID();
   await db.execute({
