@@ -175,6 +175,42 @@ try {
       line-height: 1.5;
     }
 
+    /* ── Privacy block ── */
+    .pt-privacy {
+      margin-top: 1.75rem;
+      background: rgba(245,158,11,0.06);
+      border: 1px solid rgba(245,158,11,0.18);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+    }
+    .pt-privacy__title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--pt);
+      margin-bottom: 0.6rem;
+      letter-spacing: 0.01em;
+    }
+    .pt-privacy__list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .pt-privacy__list li {
+      font-size: 0.78rem;
+      color: var(--sub);
+      padding-left: 1.1rem;
+      position: relative;
+      line-height: 1.45;
+    }
+    .pt-privacy__list li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: var(--pt);
+      font-weight: 700;
+    }
+
     /* ── Coming-soon ribbon ── */
     .pt-coming-soon {
       display: inline-flex;
@@ -395,6 +431,16 @@ try {
             <div class="pt-feature__desc">You enter the numbers. We do the math. Nothing connects to your bank.</div>
           </div>
         </div>
+      </div>
+
+      <div class="pt-privacy">
+        <div class="pt-privacy__title">Your data is yours. Full stop.</div>
+        <ul class="pt-privacy__list">
+          <li>No bank login. No Plaid. No OAuth to your accounts.</li>
+          <li>Your numbers are never sold, shared, or used for ads.</li>
+          <li>You type the numbers in. We store them. That's the whole deal.</li>
+          <li>Delete your account anytime — everything goes with it.</li>
+        </ul>
       </div>
     </div>
 
