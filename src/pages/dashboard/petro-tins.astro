@@ -559,12 +559,14 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
 
     /* Debt tins — vault SalmonTin style */
     [data-tin-type="debt"].dt-tin {
+      position: relative;
       border: 2px solid var(--loss);
       overflow: visible;
-      margin-top: 1rem; /* room for the floating label */
+      margin-top: 1.2rem; /* room for the floating label */
+      padding-top: 0.5rem;
     }
 
-    /* Header: name + badge on left, actions pinned right — all one row */
+    /* Header */
     .dt-tin__header {
       display: flex;
       align-items: center;
@@ -572,12 +574,9 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       padding: 0.875rem 1rem 0.75rem;
       border-bottom: 1px solid var(--border-subtle);
     }
-
-    /* Debt tin header: floating label tag above card */
     [data-tin-type="debt"] .dt-tin__header {
-      position: relative;
-      border-bottom: none;
-      padding-top: 0.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-top: 0.75rem;
     }
 
     .dt-tin__name {
@@ -599,18 +598,20 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       font-weight: 700;
       flex-shrink: 0;
     }
-    /* Debt badge floats above the card like SalmonTin label */
+    /* Debt badge: floating pill above the card, anchored to .dt-tin */
     [data-tin-type="debt"] .dt-tin__badge {
       position: absolute;
-      top: -13px;
+      top: -14px;
       left: 1rem;
       background: var(--loss);
       color: var(--surface-bg);
       border: none;
-      border-radius: 6px;
-      padding: 3px 10px;
+      border-radius: 99px;
+      padding: 3px 12px;
       font-size: 0.65rem;
       font-weight: 700;
+      letter-spacing: 0.08em;
+      z-index: 2;
     }
     .dt-tin__badge--budget   { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-glow); }
     .dt-tin__badge--business { background: var(--gain-bg);    color: var(--gain);   border: 1px solid var(--gain-border); }
