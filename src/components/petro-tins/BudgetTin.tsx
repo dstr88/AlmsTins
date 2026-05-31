@@ -5,6 +5,10 @@ import './BudgetTin.css';
 const BLANK_ROWS = 5;
 const today = () => new Date().toISOString().slice(0, 10);
 const thisMonth = () => new Date().toISOString().slice(0, 7);
+const nextMonth = () => {
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + 1);
+  return d.toISOString().slice(0, 7);
+};
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -25,7 +29,8 @@ interface Props {
 
 export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
   const isSample   = tin.notes === '__sample__';
-  const curMonth   = thisMonth();
+  const curMonth  = thisMonth();
+  const nxtMonth  = nextMonth();
 
   const allPaidKey = `petro_allpaid_${tin.id}_${curMonth}`;
 
@@ -40,10 +45,12 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
   );
 
   // ── Partition entries ──────────────────────────────────────────────────────
-  const { carriedOver, curIncome, curBills } = useMemo(() => {
+  const { carriedOver, curIncome, curBills, nxtIncome, nxtBills } = useMemo(() => {
     const carriedOver: PetroTinEntry[] = [];
     const curIncome:   PetroTinEntry[] = [];
     const curBills:    PetroTinEntry[] = [];
+    const nxtIncome:   PetroTinEntry[] = [];
+    const nxtBills:    PetroTinEntry[] = [];
 
     for (const e of tin.entries ?? []) {
       const em = e.entryDate.slice(0, 7);
@@ -52,12 +59,14 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
       } else if (em === curMonth) {
         if (e.kind === 'income') curIncome.push(e);
         else                     curBills.push(e);
+      } else if (em === nxtMonth) {
+        if (e.kind === 'income') nxtIncome.push(e);
+        else                     nxtBills.push(e);
       }
     }
-    // Sort carried over by month desc then description
     carriedOver.sort((a, b) => b.entryDate.localeCompare(a.entryDate));
-    return { carriedOver, curIncome, curBills };
-  }, [tin.entries, curMonth]);
+    return { carriedOver, curIncome, curBills, nxtIncome, nxtBills };
+  }, [tin.entries, curMonth, nxtMonth]);
 
   // ── Summary numbers ────────────────────────────────────────────────────────
   const totalIncome   = curIncome.reduce((s, e) => s + e.amount, 0);
@@ -278,6 +287,17 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
               ? <tr className="pt-reg-empty"><td colSpan={6}>No bills yet — add them below.</td></tr>
               : curBills.map(e => renderRow(e))
             }
+
+            {/* ── Next month (visible when seeded early) ── */}
+            {(nxtBills.length > 0 || nxtIncome.length > 0) && (
+              <>
+                <tr className="pt-reg-section-header pt-reg-section-header--next">
+                  <td colSpan={6}>🗓 {monthLabel(nxtMonth)} — paying ahead</td>
+                </tr>
+                {nxtIncome.map(e => renderRow(e, showDefaults))}
+                {nxtBills.map(e => renderRow(e))}
+              </>
+            )}
 
             {/* ── Blank input rows ── */}
             <tr className="pt-reg-section-header">

@@ -111,6 +111,7 @@
 }
 .pt-reg-section-header--income td { color: var(--gain); }
 .pt-reg-section-header--bills  td { color: var(--loss); }
+.pt-reg-section-header--next   td { color: var(--accent); border-top: 2px solid var(--accent-glow); }
 
 .pt-reg-defaults-toggle {
   float: right;
