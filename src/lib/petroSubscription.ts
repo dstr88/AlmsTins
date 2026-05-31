@@ -59,7 +59,8 @@ export async function ensureTables() {
     sql: `INSERT OR IGNORE INTO petro_promo_codes (code, discount, max_uses) VALUES
       ('PETROYEAR', 'free_year',  10),
       ('PETRO50',   'half_off',   NULL),
-      ('FOUNDER',   'free_life',  5)`,
+      ('FOUNDER',   'free_life',  5),
+      ('TIN202606', 'free_year',  10)`,
     args: [],
   });
   // Enforce max_uses cap on PETROYEAR in case it was seeded earlier with NULL
