@@ -615,23 +615,23 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
     .dt-reg-blank td { padding: 0.3rem 0.4rem; vertical-align: middle; }
     .dt-reg-input {
       width: 100%;
-      background: transparent;
-      border: none;
-      border-bottom: 1px solid transparent;
+      background: var(--surface-bg);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
       color: var(--text-primary);
       font-size: 0.83rem;
-      padding: 0.25rem 0.35rem;
+      padding: 0.3rem 0.5rem;
       box-sizing: border-box;
       outline: none;
-      transition: border-color 0.15s, background 0.15s;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      color-scheme: dark;
     }
     .dt-reg-input:focus {
-      background: var(--surface-card-2);
-      border-bottom-color: var(--accent);
-      border-radius: 4px 4px 0 0;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
     }
-    .dt-reg-input::placeholder { color: var(--text-muted); }
-    .dt-reg-input.col-amt-input { text-align: right; }
+    .dt-reg-input::placeholder { color: var(--text-muted); opacity: 1; }
+    .dt-reg-input.col-amt-input { text-align: right; font-variant-numeric: tabular-nums; }
     .dt-reg-blank td.col-bal { text-align: right; color: var(--text-muted); font-size: 0.78rem; padding-right: 0.75rem; }
     .dt-reg-blank td.col-del { width: 28px; }
 
