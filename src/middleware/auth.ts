@@ -37,6 +37,8 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/demo/end' ||
 		// AaveAlisis — public liquidity dashboard (admin-linked but no auth wall)
 		pathname === '/aave-alisis' ||
+		// PetroTins standalone login page — must be reachable without a session
+		pathname === '/petro-tins' ||
 		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
 		pathname === '/api/wallet-check' ||
 		pathname === '/api/dapp-check' ||

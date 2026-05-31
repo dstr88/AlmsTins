@@ -197,6 +197,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 					),
 				);
 			}
+			// PetroTins dashboard → PetroTins login page
+			if (pathname.startsWith('/dashboard/petro-tins')) {
+				return finish(Response.redirect(`https://${canonicalHost}/petro-tins`, 303));
+			}
 			return finish(Response.redirect(`https://${canonicalHost}/login?error=missing`, 303));
 		}
 
