@@ -20,12 +20,12 @@ const clearAuthCookies = (cookies: AstroCookies) => {
 
 export const POST: APIRoute = async ({ cookies, redirect }) => {
 	clearAuthCookies(cookies);
-	return redirect('/petro-tins', 303);
+	return redirect('/login', 303);
 };
 
 export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 	clearAuthCookies(cookies);
 	const next = new URL(request.url).searchParams.get('next');
-	const destination = next && next.startsWith('/') ? next : '/petro-tins';
+	const destination = next && next.startsWith('/') ? next : '/login';
 	return redirect(destination, 303);
 };
