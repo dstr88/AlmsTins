@@ -27,10 +27,14 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
   const isSample   = tin.notes === '__sample__';
   const curMonth   = thisMonth();
 
+  const allPaidKey = `petro_allpaid_${tin.id}_${curMonth}`;
+
   const [saving,        setSaving]        = useState<Record<number, boolean>>({});
   const [showDefaults,  setShowDefaults]  = useState(false);
   const [showSurplus,   setShowSurplus]   = useState(false);
-  const [allPaidBanner, setAllPaidBanner] = useState(false);
+  const [allPaidBanner, setAllPaidBanner] = useState(() => {
+    try { return localStorage.getItem(allPaidKey) === '1'; } catch { return false; }
+  });
   const [rows, setRows] = useState<BlankRow[]>(() =>
     Array.from({ length: BLANK_ROWS }, () => ({ date: today(), desc: '', payment: '', deposit: '' }))
   );
@@ -63,6 +67,12 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
 
   const allCurrentPaid = curBills.length > 0 && curBills.every(e => e.checked);
 
+  // Persist the banner if all bills are paid (catches page reloads where
+  // the last-check path didn't fire, e.g. user paid on another device)
+  if (allCurrentPaid && !allPaidBanner) {
+    try { if (localStorage.getItem(allPaidKey) !== '1') localStorage.setItem(allPaidKey, '1'); } catch { /* ignore */ }
+  }
+
   // ── Actions ────────────────────────────────────────────────────────────────
   const toggleChecked = useCallback(async (entryId: string, current: boolean) => {
     await fetch('/api/petro-tins/entries', {
@@ -75,6 +85,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
     const updated = curBills.map(e => e.id === entryId ? { ...e, checked: !current } : e);
     if (updated.length > 0 && updated.every(e => e.checked)) {
       setAllPaidBanner(true);
+      try { localStorage.setItem(allPaidKey, '1'); } catch { /* ignore */ }
       // Seed next month immediately so it's ready to go
       await fetch('/api/petro-tins/rollover', {
         method: 'POST',
@@ -216,7 +227,6 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
           {tin.surplusMode === 'slush' && surplus > 0 && (
             <span> {fmt(surplus)} swept to your Slush Fund.</span>
           )}
-          <button className="pt-allpaid-dismiss" onClick={() => setAllPaidBanner(false)}>✕</button>
         </div>
       )}
 
