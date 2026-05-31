@@ -90,6 +90,15 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
     onRefresh();
   };
 
+  const toggleChecked = async (entryId: string, current: boolean) => {
+    await fetch('/api/petro-tins/entries', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entryId, checked: !current }),
+    });
+    onRefresh();
+  };
+
   return (
     <div className="pt-budget-tin" data-tin-id={tin.id}>
       {isSample && <span className="pt-budget-tin__sample">sample</span>}
@@ -111,6 +120,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
         <table>
           <thead>
             <tr>
+              <th style={{ width: 28 }} title="Paid?">✓</th>
               <th style={{ width: 110 }}>Date</th>
               <th>Description</th>
               <th className="col-amt" style={{ width: 120 }}>Payment (−)</th>
@@ -122,7 +132,16 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
           <tbody>
             {/* Saved entries */}
             {savedRows.map(e => (
-              <tr key={e.id} className="pt-reg-saved">
+              <tr key={e.id} className={`pt-reg-saved${e.checked ? ' pt-reg-checked' : ''}`}>
+                <td className="col-chk">
+                  <input
+                    type="checkbox"
+                    className="pt-reg-checkbox"
+                    checked={e.checked ?? false}
+                    onChange={() => toggleChecked(e.id, e.checked ?? false)}
+                    title="Mark as paid"
+                  />
+                </td>
                 <td className="col-date">{e.entryDate}</td>
                 <td className="col-desc">{e.description}</td>
                 <td className="col-pay">{e.kind === 'expense' ? fmt(e.amount) : ''}</td>
@@ -139,6 +158,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
               const preview = previewBalance(row);
               return (
                 <tr key={i} className="pt-reg-blank">
+                  <td className="col-chk"></td>
                   <td>
                     <input
                       className="pt-reg-input"

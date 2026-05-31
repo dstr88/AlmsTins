@@ -111,6 +111,21 @@ td.col-bal  { text-align: right; font-weight: 700; white-space: nowrap; }
 td.col-bal.gain { color: var(--gain); }
 td.col-bal.loss { color: var(--loss); }
 td.col-del  { text-align: center; width: 28px; }
+td.col-chk  { text-align: center; width: 28px; padding: 0 0.25rem !important; }
+
+/* Checkbox */
+.pt-reg-checkbox {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--gain);
+  flex-shrink: 0;
+}
+
+/* Checked row — muted strikethrough */
+.pt-reg-checked td { opacity: 0.45; }
+.pt-reg-checked td.col-desc { text-decoration: line-through; }
+.pt-reg-checked td.col-chk  { opacity: 1; } /* keep checkbox visible */
 
 .pt-reg-del {
   background: none;

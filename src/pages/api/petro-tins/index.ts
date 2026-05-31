@@ -50,6 +50,8 @@ async function ensureTables() {
   if (tablesEnsured) return;
   await db.execute({ sql: ENSURE_SQL, args: [] });
   await db.execute({ sql: ENSURE_ENTRIES_SQL, args: [] });
+  // Add checked column if it doesn't exist yet (safe to run repeatedly)
+  await db.execute({ sql: `ALTER TABLE petro_tin_entries ADD COLUMN checked INTEGER NOT NULL DEFAULT 0`, args: [] }).catch(() => {});
   tablesEnsured = true;
 }
 
@@ -92,7 +94,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   // Load all entries for this tenant, grouped by tin
   const entriesRes = await db.execute({
-    sql: `SELECT id, tin_id, entry_date, kind, amount, description, splits_json, created_at
+    sql: `SELECT id, tin_id, entry_date, kind, amount, description, splits_json, checked, created_at
           FROM petro_tin_entries
           WHERE tenant_id = ?
           ORDER BY entry_date DESC, created_at DESC`,
@@ -110,6 +112,7 @@ export const GET: APIRoute = async ({ request }) => {
       amount:      Number(r.amount),
       description: r.description ? String(r.description) : null,
       splitsJson:  r.splits_json ? String(r.splits_json) : null,
+      checked:     Number(r.checked ?? 0) === 1,
       createdAt:   String(r.created_at),
     });
   }

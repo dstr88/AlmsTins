@@ -5,6 +5,7 @@ export interface PetroTinEntry {
   kind: 'payment' | 'charge' | 'income' | 'expense';
   amount: number;
   description: string;
+  checked: boolean;
 }
 
 export interface PetroTin {

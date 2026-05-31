@@ -1,5 +1,6 @@
 /**
  * POST   /api/petro-tins/entries   — add an entry to a tin
+ * PATCH  /api/petro-tins/entries   — toggle checked state on an entry
  * DELETE /api/petro-tins/entries   — delete an entry by id
  */
 
@@ -67,6 +68,26 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   return json({ ok: true, id });
+};
+
+export const PATCH: APIRoute = async ({ request }) => {
+  const session = await requireTenantSession(request);
+  if (!session) return json({ ok: false }, 401);
+  const { tenantId } = session;
+
+  let body: any = {};
+  try { body = await request.json(); } catch { /* ignore */ }
+
+  const entryId = String(body.entryId ?? '').trim();
+  const checked  = body.checked ? 1 : 0;
+  if (!entryId) return json({ ok: false, error: 'entryId required' }, 400);
+
+  await db.execute({
+    sql: `UPDATE petro_tin_entries SET checked = ? WHERE id = ? AND tenant_id = ?`,
+    args: [checked, entryId, tenantId],
+  });
+
+  return json({ ok: true });
 };
 
 export const DELETE: APIRoute = async ({ request }) => {
