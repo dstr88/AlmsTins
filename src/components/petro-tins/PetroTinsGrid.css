@@ -11,7 +11,7 @@
   align-items: start;
 }
 @media (min-width: 900px) {
-  .pt-grid__top { grid-template-columns: 1fr auto; }
+  .pt-grid__top { grid-template-columns: 1fr 1fr; }
 }
 
 /* Summary panel */
@@ -99,12 +99,12 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 .pt-budget-card__name {
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 .pt-budget-card__meta {
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   color: var(--text-secondary);
 }
 .pt-budget-card__meta .gain { color: var(--gain); }
@@ -115,12 +115,12 @@
   grid-template-columns: auto 1fr auto;
   gap: 0.75rem;
   align-items: center;
-  padding: 0.4rem 1.25rem;
+  padding: 0.5rem 1.25rem;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
 }
 .pt-budget-card__row:last-child { border-bottom: none; }
-.pt-budget-card__date { color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; }
+.pt-budget-card__date { color: var(--text-muted); font-size: 0.8rem; white-space: nowrap; }
 .pt-budget-card__desc { color: var(--text-primary); }
 .pt-budget-card__amount { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 .pt-budget-card__amount.income  { color: var(--gain); }
