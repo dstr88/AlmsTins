@@ -75,7 +75,13 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
     const updated = curBills.map(e => e.id === entryId ? { ...e, checked: !current } : e);
     if (updated.length > 0 && updated.every(e => e.checked)) {
       setAllPaidBanner(true);
-      // Trigger surplus sweep if mode = slush
+      // Seed next month immediately so it's ready to go
+      await fetch('/api/petro-tins/rollover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tinId: tin.id }),
+      });
+      // Sweep surplus to slush if enabled
       if (tin.surplusMode === 'slush' && surplus > 0) {
         await fetch('/api/petro-tins/sweep', {
           method: 'POST',
