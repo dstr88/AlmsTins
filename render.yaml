@@ -94,3 +94,26 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+
+  # ── PetroTins bill reminder cron ───────────────────────────────────────────
+  # Runs on the 25th of every month at 09:00 UTC.
+  # Emails any tenant whose budget register has unchecked entries for the month.
+  #
+  # Required env vars (set in Render dashboard — not inherited from web service):
+  #   CRON_SECRET        — same value as on your web service
+  #   APP_URL            — e.g. https://almstins.com
+  - type: cron
+    name: petro-tins-reminder
+    runtime: image
+    image:
+      url: docker.io/curlimages/curl:latest
+    schedule: "0 9 25 * *"
+    startCommand: >-
+      curl -sf
+      -H "x-cron-secret: $CRON_SECRET"
+      "$APP_URL/api/cron/petro-tins-reminder"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
