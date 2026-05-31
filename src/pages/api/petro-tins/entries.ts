@@ -74,10 +74,15 @@ export const DELETE: APIRoute = async ({ request }) => {
   if (!session) return json({ ok: false }, 401);
   const { tenantId } = session;
 
-  let body: any = {};
-  try { body = await request.json(); } catch { /* ignore */ }
-
-  const entryId = String(body.entryId ?? '').trim();
+  // Accept id from query params (BudgetTin sends ?id=...&tinId=...)
+  // or fall back to JSON body for other callers
+  const url = new URL(request.url);
+  let entryId = url.searchParams.get('id') ?? '';
+  if (!entryId) {
+    let body: any = {};
+    try { body = await request.json(); } catch { /* ignore */ }
+    entryId = String(body.entryId ?? '').trim();
+  }
   if (!entryId) return json({ ok: false, error: 'entryId required' }, 400);
 
   await db.execute({
