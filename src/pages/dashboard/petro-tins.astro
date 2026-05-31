@@ -5,7 +5,8 @@ import PetroTinsGrid from '../../components/petro-tins/PetroTinsGrid';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const session = await requireTenantSession(Astro.request);
-if (!session || session.isDemo) return Astro.redirect('/login');
+if (!session) return Astro.redirect('/petro-tins');
+// Demo users can view but not write (API endpoints block isDemo mutations)
 const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
 ---
 

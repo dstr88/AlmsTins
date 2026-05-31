@@ -408,11 +408,60 @@ export const GET: APIRoute = async ({ request }) => {
 		}, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
 	}
 
+	// ── Seed PetroTins sample data for demo tenant ──────────────────────────
+	const { randomUUID } = await import('node:crypto');
+	const SAMPLE = '__sample__';
+	const thisMonth = (d: number) => {
+		const now = new Date();
+		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+	};
+	await db.batch([
+		{ sql: `CREATE TABLE IF NOT EXISTS petro_tins (id TEXT NOT NULL PRIMARY KEY, tenant_id TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'debt', name TEXT NOT NULL, balance REAL, credit_limit REAL, apr REAL, min_payment REAL, goal_revenue REAL, notes TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`, args: [] },
+		{ sql: `DELETE FROM petro_tins WHERE tenant_id = ?`, args: [DEMO_TENANT_ID] },
+	]).catch(() => {});
+	const budgetId = randomUUID();
+	const bizId = randomUUID();
+	const cards = [
+		{ name: 'Chase Freedom',           balance: 247.83, limit: 3000, apr: 0.2499, min: 25 },
+		{ name: 'Capital One Quicksilver', balance: 183.41, limit: 2500, apr: 0.2999, min: 25 },
+		{ name: 'Citi Double Cash',        balance: 298.17, limit: 5000, apr: 0.2199, min: 25 },
+		{ name: 'Discover it',             balance: 156.55, limit: 2000, apr: 0.2724, min: 25 },
+		{ name: 'Amex Blue Cash',          balance: 289.22, limit: 6000, apr: 0.1999, min: 25 },
+	];
+	const tinStmts = [
+		...cards.map((c, i) => ({
+			sql: `INSERT INTO petro_tins (id, tenant_id, type, name, balance, credit_limit, apr, min_payment, notes, sort_order) VALUES (?, ?, 'debt', ?, ?, ?, ?, ?, ?, ?)`,
+			args: [randomUUID(), DEMO_TENANT_ID, c.name, c.balance, c.limit, c.apr, c.min, SAMPLE, i],
+		})),
+		{ sql: `INSERT INTO petro_tins (id, tenant_id, type, name, notes, sort_order) VALUES (?, ?, 'budget', 'Home Budget', ?, 10)`, args: [budgetId, DEMO_TENANT_ID, SAMPLE] },
+		{ sql: `INSERT INTO petro_tins (id, tenant_id, type, name, goal_revenue, notes, sort_order) VALUES (?, ?, 'business', 'Side Business', 1500, ?, 20)`, args: [bizId, DEMO_TENANT_ID, SAMPLE] },
+	];
+	await db.batch(tinStmts).catch(() => {});
+	// Entries
+	await db.batch([
+		{ sql: `CREATE TABLE IF NOT EXISTS petro_tin_entries (id TEXT NOT NULL PRIMARY KEY, tin_id TEXT NOT NULL, tenant_id TEXT NOT NULL, entry_date TEXT NOT NULL, kind TEXT NOT NULL, amount REAL NOT NULL, description TEXT, splits_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`, args: [] },
+		{ sql: `DELETE FROM petro_tin_entries WHERE tenant_id = ?`, args: [DEMO_TENANT_ID] },
+	]).catch(() => {});
+	const entryStmts = [
+		{ sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description) VALUES (?, ?, ?, ?, 'income', 5000, 'Paycheck')`,         args: [randomUUID(), budgetId, DEMO_TENANT_ID, thisMonth(1)] },
+		{ sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description) VALUES (?, ?, ?, ?, 'income', 1500, 'Business income')`,   args: [randomUUID(), budgetId, DEMO_TENANT_ID, thisMonth(3)] },
+		{ sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description) VALUES (?, ?, ?, ?, 'expense', 1000, 'Rent')`,             args: [randomUUID(), budgetId, DEMO_TENANT_ID, thisMonth(2)] },
+		{ sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description) VALUES (?, ?, ?, ?, 'expense', 1500, 'Crypto placeholder')`, args: [randomUUID(), budgetId, DEMO_TENANT_ID, thisMonth(5)] },
+		{ sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description) VALUES (?, ?, ?, ?, 'income', 1500, 'Monthly revenue')`,   args: [randomUUID(), bizId, DEMO_TENANT_ID, thisMonth(3)] },
+		{ sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description) VALUES (?, ?, ?, ?, 'expense', 120, 'Software subscriptions')`, args: [randomUUID(), bizId, DEMO_TENANT_ID, thisMonth(4)] },
+		{ sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description) VALUES (?, ?, ?, ?, 'expense', 45, 'Domain & hosting')`,   args: [randomUUID(), bizId, DEMO_TENANT_ID, thisMonth(4)] },
+	];
+	await db.batch(entryStmts).catch(() => {});
+
 	const lang = (request.headers.get('referer') ?? '').includes('/es') ? 'es' : 'en';
 	const langCookie = `almstins-demo-lang=${lang}; Path=/; SameSite=Lax; Max-Age=3600`;
 
+	// Respect ?next= param for PetroTins demo link; whitelist internal paths only
+	const nextParam = url.searchParams.get('next') ?? '';
+	const destination = nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/dashboard/vault';
+
 	const headers = new Headers();
-	headers.append('Location', '/dashboard/vault');
+	headers.append('Location', destination);
 	headers.append('Set-Cookie', demoCookieSet());
 	headers.append('Set-Cookie', langCookie);
 	return new Response(null, { status: 302, headers });
