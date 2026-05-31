@@ -63,12 +63,57 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
         <button class="dt-sample-banner__dismiss" id="dt-sample-dismiss">✕</button>
       </div>
 
-      <!-- Tins grid -->
-      <div class="dt-grid" id="dt-grid">
-        <div class="dt-empty" id="dt-empty" style="display:none">
-          <p>No tins yet. Add a Debt Tin to start tracking what you owe.</p>
-          <button class="dt-load-sample-btn" id="dt-load-sample">Load sample data →</button>
+      <!-- Layout: budget + summary side by side -->
+      <div class="dt-zone-top" id="dt-zone-top">
+        <div id="dt-budget-slot"><!-- budget tin --></div>
+        <div class="dt-summary-side" id="dt-summary-side">
+          <div class="dt-summary-side__title">Cash Flow Summary</div>
+          <div class="dt-summary-side__row">
+            <span class="dt-summary-side__label">Total Income</span>
+            <span class="dt-summary-side__val gain" id="dss-income">—</span>
+          </div>
+          <div class="dt-summary-side__row">
+            <span class="dt-summary-side__label">Total Expenses</span>
+            <span class="dt-summary-side__val loss" id="dss-expense">—</span>
+          </div>
+          <div class="dt-summary-side__divider"></div>
+          <div class="dt-summary-side__row dt-summary-side__row--net">
+            <span class="dt-summary-side__label">Net Cash Flow</span>
+            <span class="dt-summary-side__val" id="dss-net">—</span>
+          </div>
+          <div class="dt-summary-side__divider"></div>
+          <div class="dt-summary-side__row">
+            <span class="dt-summary-side__label">Total Debt</span>
+            <span class="dt-summary-side__val loss" id="dss-debt">—</span>
+          </div>
+          <div class="dt-summary-side__row">
+            <span class="dt-summary-side__label">Monthly Interest</span>
+            <span class="dt-summary-side__val loss" id="dss-interest">—</span>
+          </div>
+          <div class="dt-summary-side__row">
+            <span class="dt-summary-side__label">Est. Annual Interest</span>
+            <span class="dt-summary-side__val loss" id="dss-annual">—</span>
+          </div>
         </div>
+      </div>
+
+      <!-- Debt tins zone -->
+      <div class="dt-zone-debt" id="dt-zone-debt" style="display:none">
+        <div class="dt-zone-label">DEBT</div>
+        <div class="dt-debt-grid" id="dt-debt-grid"></div>
+      </div>
+
+      <!-- Divider + Income/Business zone -->
+      <div class="dt-zone-income" id="dt-zone-income" style="display:none">
+        <div class="dt-zone-divider"></div>
+        <div class="dt-zone-label">INCOME &amp; BUSINESS</div>
+        <div class="dt-income-grid" id="dt-income-grid"></div>
+      </div>
+
+      <!-- Empty state -->
+      <div class="dt-empty" id="dt-empty" style="display:none">
+        <p>No tins yet. Add a Debt Tin to start tracking what you owe.</p>
+        <button class="dt-load-sample-btn" id="dt-load-sample">Load sample data →</button>
       </div>
 
     </div><!-- /dt-content -->
@@ -351,17 +396,76 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       border-color: var(--accent-glow);
     }
 
-    /* Grid */
-    .dt-grid {
+    /* Zone layout */
+    .dt-zone-top {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    @media (min-width: 900px) {
+      .dt-zone-top { grid-template-columns: 1fr auto; align-items: start; }
+    }
+
+    /* Summary side panel */
+    .dt-summary-side {
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      min-width: 220px;
+    }
+    .dt-summary-side__title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .dt-summary-side__row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1.5rem;
+      padding: 0.35rem 0;
+    }
+    .dt-summary-side__row--net .dt-summary-side__label { color: var(--text-primary); font-weight: 600; }
+    .dt-summary-side__row--net .dt-summary-side__val   { font-size: 1.1rem; font-weight: 700; }
+    .dt-summary-side__label { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }
+    .dt-summary-side__val   { font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+    .dt-summary-side__val.gain { color: var(--gain); }
+    .dt-summary-side__val.loss { color: var(--loss); }
+    .dt-summary-side__divider { border-top: 1px solid var(--border-subtle); margin: 0.6rem 0; }
+
+    /* Debt zone */
+    .dt-zone-debt { margin-bottom: 2rem; }
+    .dt-zone-income { }
+    .dt-zone-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .dt-zone-divider {
+      border-top: 2px solid var(--border-bright);
+      margin-bottom: 1.5rem;
+    }
+    .dt-debt-grid,
+    .dt-income-grid {
       display: grid;
       grid-template-columns: 1fr;
       gap: 1.5rem;
     }
     @media (min-width: 720px) {
-      .dt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .dt-debt-grid,
+      .dt-income-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (min-width: 1080px) {
-      .dt-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .dt-debt-grid,
+      .dt-income-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
 
     /* Sample data banner */
@@ -548,9 +652,8 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
     .dt-tin__num-value.loss { color: var(--loss); }
     .dt-tin__num-value.gain { color: var(--gain); }
 
-    /* Budget tin — full width in the grid */
+    /* Budget tin */
     .dt-tin--budget {
-      grid-column: 1 / -1;
       background: var(--surface-card-2);
       border: 1px solid var(--border-bright);
       border-radius: 12px;
@@ -860,6 +963,7 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
 
     function renderSummary() {
       const { totalDebt, monthlyInterest, annualInterest, netCashflow } = computeSummary();
+      // Top stats bar
       const debtEl = document.getElementById('dt-total-debt');
       const miEl   = document.getElementById('dt-monthly-interest');
       const aiEl   = document.getElementById('dt-annual-interest');
@@ -872,31 +976,94 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
         cfEl.classList.toggle('gain', netCashflow >= 0);
         cfEl.classList.toggle('loss', netCashflow < 0);
       }
+      // Side summary panel
+      const { totalIncome, totalExpense } = (() => {
+        const now = new Date();
+        const thisMonth = now.toISOString().slice(0, 7);
+        let inc = 0, exp = 0;
+        for (const tin of _tins) {
+          if (tin.type === 'budget' || tin.type === 'business') {
+            for (const e of (tin.entries ?? [])) {
+              if (!e.entryDate.startsWith(thisMonth)) continue;
+              if (e.kind === 'income')  inc += e.amount;
+              if (e.kind === 'expense') exp += e.amount;
+            }
+          }
+        }
+        return { totalIncome: inc, totalExpense: exp };
+      })();
+      const netEl  = document.getElementById('dss-net');
+      const incEl  = document.getElementById('dss-income');
+      const expEl  = document.getElementById('dss-expense');
+      const sdEl   = document.getElementById('dss-debt');
+      const siEl   = document.getElementById('dss-interest');
+      const saEl   = document.getElementById('dss-annual');
+      if (incEl)  incEl.textContent  = fmt(totalIncome);
+      if (expEl)  expEl.textContent  = fmt(totalExpense);
+      if (netEl) {
+        netEl.textContent = fmt(Math.abs(netCashflow));
+        netEl.className = 'dt-summary-side__val ' + (netCashflow >= 0 ? 'gain' : 'loss');
+      }
+      if (sdEl) sdEl.textContent  = fmt(totalDebt);
+      if (siEl) siEl.textContent  = fmt(monthlyInterest);
+      if (saEl) saEl.textContent  = fmt(annualInterest);
     }
 
     // ── Render all tins ────────────────────────────────────────────────────────
     function renderAll() {
       renderSummary();
-      const grid = document.getElementById('dt-grid');
-      const emptyMsg = document.getElementById('dt-empty');
-      if (!grid) return;
-
-      // Remove existing tin cards (keep the empty message element)
-      $$('.dt-tin', grid).forEach(el => el.remove());
-
+      const emptyMsg    = document.getElementById('dt-empty');
+      const budgetSlot  = document.getElementById('dt-budget-slot');
+      const debtGrid    = document.getElementById('dt-debt-grid');
+      const incomeGrid  = document.getElementById('dt-income-grid');
+      const zoneTop     = document.getElementById('dt-zone-top');
+      const zoneDebt    = document.getElementById('dt-zone-debt');
+      const zoneIncome  = document.getElementById('dt-zone-income');
       const sampleBanner = document.getElementById('dt-sample-banner');
       const hasSample = _tins.some(t => t.notes === '__sample__');
 
+      // Clear zones
+      if (budgetSlot) budgetSlot.innerHTML = '';
+      if (debtGrid)   debtGrid.innerHTML   = '';
+      if (incomeGrid) incomeGrid.innerHTML  = '';
+
       if (!_tins.length) {
         if (emptyMsg) emptyMsg.style.display = 'flex';
+        if (zoneDebt)   zoneDebt.style.display   = 'none';
+        if (zoneIncome) zoneIncome.style.display  = 'none';
         if (sampleBanner) sampleBanner.style.display = 'none';
         return;
       }
       if (emptyMsg) emptyMsg.style.display = 'none';
       if (sampleBanner) sampleBanner.style.display = hasSample ? 'flex' : 'none';
 
-      for (const tin of _tins) {
-        grid.insertAdjacentHTML('beforeend', buildTinHTML(tin));
+      const debtTins     = _tins.filter(t => t.type === 'debt');
+      const budgetTins   = _tins.filter(t => t.type === 'budget');
+      const businessTins = _tins.filter(t => t.type === 'business');
+
+      // Row 1 col 2: budget tin(s)
+      for (const tin of budgetTins) {
+        budgetSlot?.insertAdjacentHTML('beforeend', buildTinHTML(tin));
+      }
+
+      // Row 2: debt tins
+      if (debtTins.length && zoneDebt) {
+        zoneDebt.style.display = 'block';
+        for (const tin of debtTins) {
+          debtGrid?.insertAdjacentHTML('beforeend', buildTinHTML(tin));
+        }
+      } else if (zoneDebt) {
+        zoneDebt.style.display = 'none';
+      }
+
+      // Below divider: business/income tins
+      if (businessTins.length && zoneIncome) {
+        zoneIncome.style.display = 'block';
+        for (const tin of businessTins) {
+          incomeGrid?.insertAdjacentHTML('beforeend', buildTinHTML(tin));
+        }
+      } else if (zoneIncome) {
+        zoneIncome.style.display = 'none';
       }
 
       // Bind accordion toggles
