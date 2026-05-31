@@ -81,3 +81,48 @@
   padding: 2rem 0;
   text-align: center;
 }
+
+/* Budget card */
+.pt-budget-card {
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-bright);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+.pt-budget-card__header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.25rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pt-budget-card__name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.pt-budget-card__meta {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+.pt-budget-card__meta .gain { color: var(--gain); }
+.pt-budget-card__meta .loss { color: var(--loss); }
+.pt-budget-card__entries { padding: 0.25rem 0; }
+.pt-budget-card__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.4rem 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.85rem;
+}
+.pt-budget-card__row:last-child { border-bottom: none; }
+.pt-budget-card__date { color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; }
+.pt-budget-card__desc { color: var(--text-primary); }
+.pt-budget-card__amount { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.pt-budget-card__amount.income  { color: var(--gain); }
+.pt-budget-card__amount.expense { color: var(--loss); }
+.pt-budget-card__empty { color: var(--text-muted); font-size: 0.82rem; padding: 1rem 1.25rem; }
