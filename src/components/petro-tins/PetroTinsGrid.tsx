@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { PetroTin } from './types';
 import DebtTin from './DebtTin';
+import BudgetTin from './BudgetTin';
 import './PetroTinsGrid.css';
 
 function fmt(n: number) {
@@ -60,35 +61,15 @@ export default function PetroTinsGrid() {
         <div className="pt-grid__budget-slot">
           {budgetTins.length === 0
             ? <p className="pt-grid__empty-hint">No budget tin yet.</p>
-            : budgetTins.map(tin => {
-              const monthEntries = (tin.entries ?? []).filter(e => e.entryDate.startsWith(thisMonth));
-              const income  = monthEntries.filter(e => e.kind === 'income').reduce((s, e) => s + e.amount, 0);
-              const expense = monthEntries.filter(e => e.kind === 'expense').reduce((s, e) => s + e.amount, 0);
-              return (
-                <div key={tin.id} className="pt-budget-card">
-                  <div className="pt-budget-card__header">
-                    <span className="pt-budget-card__name">{tin.name}</span>
-                    <span className="pt-budget-card__meta">
-                      Income <strong className="gain">{fmt(income)}</strong>
-                      {' · '}Expenses <strong className="loss">{fmt(expense)}</strong>
-                      {' · '}Net <strong className={net >= 0 ? 'gain' : 'loss'}>{fmt(income - expense)}</strong>
-                    </span>
-                  </div>
-                  <div className="pt-budget-card__entries">
-                    {monthEntries.length === 0
-                      ? <p className="pt-budget-card__empty">No entries this month.</p>
-                      : monthEntries.map(e => (
-                        <div key={e.id} className="pt-budget-card__row">
-                          <span className="pt-budget-card__date">{e.entryDate}</span>
-                          <span className="pt-budget-card__desc">{e.description}</span>
-                          <span className={`pt-budget-card__amount ${e.kind}`}>{fmt(e.amount)}</span>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              );
-            })
+            : budgetTins.map(tin => (
+              <BudgetTin
+                key={tin.id}
+                tin={tin}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onRefresh={load}
+              />
+            ))
           }
         </div>
         <div className="pt-grid__summary">
