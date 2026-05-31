@@ -1,0 +1,83 @@
+/* ── PetroTinsGrid layout ────────────────────────────────────────────────── */
+
+.pt-grid { display: flex; flex-direction: column; gap: 2rem; }
+.pt-grid__loading { color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0; }
+
+/* Row 1: budget + summary */
+.pt-grid__top {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .pt-grid__top { grid-template-columns: 1fr auto; }
+}
+
+/* Summary panel */
+.pt-grid__summary {
+  background: var(--surface-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  min-width: 220px;
+}
+.pt-summary__title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+.pt-summary__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1.5rem;
+  padding: 0.35rem 0;
+}
+.pt-summary__row--net .pt-summary__label { color: var(--text-primary); font-weight: 600; }
+.pt-summary__row--net .pt-summary__val   { font-size: 1.1rem; font-weight: 700; }
+.pt-summary__label { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }
+.pt-summary__val   { font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.pt-summary__val.gain { color: var(--gain); }
+.pt-summary__val.loss { color: var(--loss); }
+.pt-summary__divider { border-top: 1px solid var(--border-subtle); margin: 0.6rem 0; }
+
+/* Debt zone */
+.pt-grid__zone--debt { margin-left: 3rem; }
+.pt-grid__zone-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+.pt-grid__zone-divider {
+  border-top: 2px solid var(--border-bright);
+  margin-bottom: 1.5rem;
+}
+
+.pt-grid__debt-grid,
+.pt-grid__income-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 720px) {
+  .pt-grid__debt-grid,
+  .pt-grid__income-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1080px) {
+  .pt-grid__debt-grid,
+  .pt-grid__income-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.pt-grid__empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 2rem 0;
+  text-align: center;
+}

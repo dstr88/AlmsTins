@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
+import PetroTinsGrid from '../../components/petro-tins/PetroTinsGrid';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 const session = await requireTenantSession(Astro.request);
@@ -63,58 +64,8 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
         <button class="dt-sample-banner__dismiss" id="dt-sample-dismiss">✕</button>
       </div>
 
-      <!-- Layout: budget + summary side by side -->
-      <div class="dt-zone-top" id="dt-zone-top">
-        <div id="dt-budget-slot"><!-- budget tin --></div>
-        <div class="dt-summary-side" id="dt-summary-side">
-          <div class="dt-summary-side__title">Cash Flow Summary</div>
-          <div class="dt-summary-side__row">
-            <span class="dt-summary-side__label">Total Income</span>
-            <span class="dt-summary-side__val gain" id="dss-income">—</span>
-          </div>
-          <div class="dt-summary-side__row">
-            <span class="dt-summary-side__label">Total Expenses</span>
-            <span class="dt-summary-side__val loss" id="dss-expense">—</span>
-          </div>
-          <div class="dt-summary-side__divider"></div>
-          <div class="dt-summary-side__row dt-summary-side__row--net">
-            <span class="dt-summary-side__label">Net Cash Flow</span>
-            <span class="dt-summary-side__val" id="dss-net">—</span>
-          </div>
-          <div class="dt-summary-side__divider"></div>
-          <div class="dt-summary-side__row">
-            <span class="dt-summary-side__label">Total Debt</span>
-            <span class="dt-summary-side__val loss" id="dss-debt">—</span>
-          </div>
-          <div class="dt-summary-side__row">
-            <span class="dt-summary-side__label">Monthly Interest</span>
-            <span class="dt-summary-side__val loss" id="dss-interest">—</span>
-          </div>
-          <div class="dt-summary-side__row">
-            <span class="dt-summary-side__label">Est. Annual Interest</span>
-            <span class="dt-summary-side__val loss" id="dss-annual">—</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Debt tins zone -->
-      <div class="dt-zone-debt" id="dt-zone-debt" style="display:none">
-        <div class="dt-zone-label">DEBT</div>
-        <div class="dt-debt-grid" id="dt-debt-grid"></div>
-      </div>
-
-      <!-- Divider + Income/Business zone -->
-      <div class="dt-zone-income" id="dt-zone-income" style="display:none">
-        <div class="dt-zone-divider"></div>
-        <div class="dt-zone-label">INCOME &amp; BUSINESS</div>
-        <div class="dt-income-grid" id="dt-income-grid"></div>
-      </div>
-
-      <!-- Empty state -->
-      <div class="dt-empty" id="dt-empty" style="display:none">
-        <p>No tins yet. Add a Debt Tin to start tracking what you owe.</p>
-        <button class="dt-load-sample-btn" id="dt-load-sample">Load sample data →</button>
-      </div>
+      <!-- Tins grid — React component handles layout, fetching, and rendering -->
+      <PetroTinsGrid client:load />
 
     </div><!-- /dt-content -->
 
@@ -558,11 +509,11 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
     }
 
     /* Debt tins — vault SalmonTin style */
-    [data-tin-type="debt"].dt-tin {
+    .dt-tin--debt {
       position: relative;
-      border: 2px solid var(--loss);
-      overflow: visible;
-      margin-top: 1.2rem; /* room for the floating label */
+      border: 2px solid var(--loss) !important;
+      overflow: visible !important;
+      margin-top: 1.2rem;
       padding-top: 0.5rem;
     }
 
@@ -574,7 +525,7 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       padding: 0.875rem 1rem 0.75rem;
       border-bottom: 1px solid var(--border-subtle);
     }
-    [data-tin-type="debt"] .dt-tin__header {
+    .dt-tin--debt .dt-tin__header {
       border-bottom: 1px solid var(--border-subtle);
       padding-top: 0.75rem;
     }
@@ -599,7 +550,7 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       flex-shrink: 0;
     }
     /* Debt badge: floating pill above the card, anchored to .dt-tin */
-    [data-tin-type="debt"] .dt-tin__badge {
+    .dt-tin--debt .dt-tin__badge {
       position: absolute;
       top: -14px;
       left: 1rem;
@@ -1250,7 +1201,7 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
       }
 
       return `
-        <div class="dt-tin" data-tin-id="${tin.id}" data-tin-type="${tin.type}">
+        <div class="dt-tin dt-tin--${tin.type}" data-tin-id="${tin.id}" data-tin-type="${tin.type}">
           <div class="dt-tin__header">
             <span class="dt-tin__name">${escHtml(tin.name)}</span>
             <span class="dt-tin__badge ${badgeClass}">${badgeLabel}</span>
