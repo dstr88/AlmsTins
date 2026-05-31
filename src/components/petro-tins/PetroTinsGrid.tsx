@@ -35,8 +35,9 @@ export default function PetroTinsGrid() {
   if (loading) return <p className="pt-grid__loading">Loading…</p>;
 
   const debtTins     = tins.filter(t => t.type === 'debt');
-  const budgetTins   = tins.filter(t => t.type === 'budget');
+  const budgetTins   = tins.filter(t => t.type === 'budget' && !t.isSlush);
   const businessTins = tins.filter(t => t.type === 'business');
+  const slushTins    = tins.filter(t => t.isSlush);
 
   // Summary numbers
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -136,6 +137,19 @@ export default function PetroTinsGrid() {
           </div>
         </div>
       )}
+
+      {/* Slush tin — shown below everything if it exists */}
+      {slushTins.map(tin => (
+        <div key={tin.id} className="pt-grid__zone pt-grid__zone--slush">
+          <div className="pt-grid__zone-label">🪣 Slush Fund</div>
+          <BudgetTin
+            tin={tin}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onRefresh={load}
+          />
+        </div>
+      ))}
 
       {tins.length === 0 && (
         <div className="pt-grid__empty">

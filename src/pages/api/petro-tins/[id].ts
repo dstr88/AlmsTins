@@ -36,6 +36,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   if (body.goalRevenue !== undefined) { fields.push('goal_revenue = ?'); args.push(body.goalRevenue); }
   if (body.notes !== undefined)       { fields.push('notes = ?');        args.push(body.notes); }
   if (body.sortOrder !== undefined)   { fields.push('sort_order = ?');   args.push(body.sortOrder); }
+  if (body.surplusMode !== undefined) { fields.push('surplus_mode = ?'); args.push(body.surplusMode); }
 
   if (fields.length === 0) return json({ ok: false, error: 'Nothing to update' }, 400);
 

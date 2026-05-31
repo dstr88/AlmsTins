@@ -33,7 +33,7 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const amount = Number(body.amount);
-  if (isNaN(amount) || amount <= 0) return json({ ok: false, error: 'Invalid amount' }, 400);
+  if (isNaN(amount) || amount < 0) return json({ ok: false, error: 'Invalid amount' }, 400);
 
   const entryDate = String(body.entryDate ?? new Date().toISOString().slice(0, 10));
 
@@ -47,12 +47,18 @@ export const POST: APIRoute = async ({ request }) => {
   const tin = tinCheck.rows[0] as any;
   const id = randomUUID();
 
+  // Bills (expense/payment) always recur; income is one-time unless explicitly marked
+  const isDefault = kind === 'income'
+    ? (body.isDefault ? 1 : 0)
+    : 1;
+
   await db.execute({
-    sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description, splits_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description, splits_json, is_default)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [id, tinId, tenantId, entryDate, kind, amount,
            body.description ?? null,
-           body.splitsJson ?? null],
+           body.splitsJson ?? null,
+           isDefault],
   });
 
   // Auto-update debt tin balance on payment/charge
@@ -79,13 +85,23 @@ export const PATCH: APIRoute = async ({ request }) => {
   try { body = await request.json(); } catch { /* ignore */ }
 
   const entryId = String(body.entryId ?? '').trim();
-  const checked  = body.checked ? 1 : 0;
   if (!entryId) return json({ ok: false, error: 'entryId required' }, 400);
 
-  await db.execute({
-    sql: `UPDATE petro_tin_entries SET checked = ? WHERE id = ? AND tenant_id = ?`,
-    args: [checked, entryId, tenantId],
-  });
+  // Toggle checked state
+  if (body.checked !== undefined) {
+    await db.execute({
+      sql: `UPDATE petro_tin_entries SET checked = ? WHERE id = ? AND tenant_id = ?`,
+      args: [body.checked ? 1 : 0, entryId, tenantId],
+    });
+  }
+
+  // Toggle isDefault on income entries
+  if (body.isDefault !== undefined) {
+    await db.execute({
+      sql: `UPDATE petro_tin_entries SET is_default = ? WHERE id = ? AND tenant_id = ? AND kind = 'income'`,
+      args: [body.isDefault ? 1 : 0, entryId, tenantId],
+    });
+  }
 
   return json({ ok: true });
 };

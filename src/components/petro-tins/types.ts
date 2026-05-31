@@ -6,6 +6,7 @@ export interface PetroTinEntry {
   amount: number;
   description: string;
   checked: boolean;
+  isDefault: boolean;   // true = auto-copies next month; bills always true, income toggleable
 }
 
 export interface PetroTin {
@@ -20,5 +21,7 @@ export interface PetroTin {
   goalRevenue?: number;
   notes?: string;
   sortOrder: number;
+  surplusMode: 'none' | 'slush';
+  isSlush: boolean;
   entries: PetroTinEntry[];
 }

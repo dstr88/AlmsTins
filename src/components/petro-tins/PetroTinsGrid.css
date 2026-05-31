@@ -126,3 +126,14 @@
 .pt-budget-card__amount.income  { color: var(--gain); }
 .pt-budget-card__amount.expense { color: var(--loss); }
 .pt-budget-card__empty { color: var(--text-muted); font-size: 0.82rem; padding: 1rem 1.25rem; }
+
+/* Slush fund zone */
+.pt-grid__zone--slush {
+  margin-top: 1.5rem;
+  border-top: 2px dashed var(--border-bright);
+  padding-top: 1.5rem;
+}
+.pt-grid__zone--slush .pt-grid__zone-label {
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+}

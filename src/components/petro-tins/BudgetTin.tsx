@@ -1,20 +1,20 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { PetroTin, PetroTinEntry } from './types';
 import './BudgetTin.css';
 
-const BLANK_ROWS = 10;
+const BLANK_ROWS = 5;
 const today = () => new Date().toISOString().slice(0, 10);
+const thisMonth = () => new Date().toISOString().slice(0, 7);
 
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
-
-interface BlankRow {
-  date: string;
-  desc: string;
-  payment: string;
-  deposit: string;
+function monthLabel(ym: string) {
+  const [y, m] = ym.split('-');
+  return new Date(Number(y), Number(m) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
 }
+
+interface BlankRow { date: string; desc: string; payment: string; deposit: string; }
 
 interface Props {
   tin: PetroTin;
@@ -24,45 +24,91 @@ interface Props {
 }
 
 export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
-  const isSample = tin.notes === '__sample__';
-  const thisMonth = new Date().toISOString().slice(0, 7);
+  const isSample   = tin.notes === '__sample__';
+  const curMonth   = thisMonth();
 
-  const entries = [...(tin.entries ?? [])].sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+  const [saving,        setSaving]        = useState<Record<number, boolean>>({});
+  const [showDefaults,  setShowDefaults]  = useState(false);
+  const [showSurplus,   setShowSurplus]   = useState(false);
+  const [allPaidBanner, setAllPaidBanner] = useState(false);
+  const [rows, setRows] = useState<BlankRow[]>(() =>
+    Array.from({ length: BLANK_ROWS }, () => ({ date: today(), desc: '', payment: '', deposit: '' }))
+  );
 
-  // Running balance from saved entries
-  let running = 0;
-  const savedRows = entries.map(e => {
-    if (e.kind === 'income')  running += e.amount;
-    if (e.kind === 'expense') running -= e.amount;
-    return { ...e, balance: running };
-  });
+  // ── Partition entries ──────────────────────────────────────────────────────
+  const { carriedOver, curIncome, curBills } = useMemo(() => {
+    const carriedOver: PetroTinEntry[] = [];
+    const curIncome:   PetroTinEntry[] = [];
+    const curBills:    PetroTinEntry[] = [];
 
-  const income  = entries.filter(e => e.kind === 'income'  && e.entryDate.startsWith(thisMonth)).reduce((s, e) => s + e.amount, 0);
-  const expense = entries.filter(e => e.kind === 'expense' && e.entryDate.startsWith(thisMonth)).reduce((s, e) => s + e.amount, 0);
-  const net = income - expense;
+    for (const e of tin.entries ?? []) {
+      const em = e.entryDate.slice(0, 7);
+      if (em < curMonth && !e.checked) {
+        carriedOver.push(e);
+      } else if (em === curMonth) {
+        if (e.kind === 'income') curIncome.push(e);
+        else                     curBills.push(e);
+      }
+    }
+    // Sort carried over by month desc then description
+    carriedOver.sort((a, b) => b.entryDate.localeCompare(a.entryDate));
+    return { carriedOver, curIncome, curBills };
+  }, [tin.entries, curMonth]);
 
-  // Blank input rows state
-  const emptyRow = (): BlankRow => ({ date: today(), desc: '', payment: '', deposit: '' });
-  const [rows, setRows] = useState<BlankRow[]>(() => Array.from({ length: BLANK_ROWS }, emptyRow));
-  const [saving, setSaving] = useState<Record<number, boolean>>({});
+  // ── Summary numbers ────────────────────────────────────────────────────────
+  const totalIncome   = curIncome.reduce((s, e) => s + e.amount, 0);
+  const totalExpenses = curBills.reduce((s, e) => s + e.amount, 0);
+  const surplus       = totalIncome - totalExpenses;
+  const carriedTotal  = carriedOver.reduce((s, e) => e.kind === 'expense' ? s + e.amount : s, 0);
+
+  const allCurrentPaid = curBills.length > 0 && curBills.every(e => e.checked);
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+  const toggleChecked = useCallback(async (entryId: string, current: boolean) => {
+    await fetch('/api/petro-tins/entries', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entryId, checked: !current }),
+    });
+
+    // After toggling, check if all bills are now paid
+    const updated = curBills.map(e => e.id === entryId ? { ...e, checked: !current } : e);
+    if (updated.length > 0 && updated.every(e => e.checked)) {
+      setAllPaidBanner(true);
+      // Trigger surplus sweep if mode = slush
+      if (tin.surplusMode === 'slush' && surplus > 0) {
+        await fetch('/api/petro-tins/sweep', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tinId: tin.id }),
+        });
+      }
+    }
+    onRefresh();
+  }, [curBills, tin.id, tin.surplusMode, surplus, onRefresh]);
+
+  const toggleDefault = useCallback(async (entryId: string, current: boolean) => {
+    await fetch('/api/petro-tins/entries', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entryId, isDefault: !current }),
+    });
+    onRefresh();
+  }, [onRefresh]);
+
+  const deleteEntry = useCallback(async (entryId: string) => {
+    await fetch(`/api/petro-tins/entries?id=${entryId}&tinId=${tin.id}`, { method: 'DELETE' });
+    onRefresh();
+  }, [tin.id, onRefresh]);
 
   const updateRow = (i: number, field: keyof BlankRow, value: string) => {
     setRows(prev => {
       const next = [...prev];
       next[i] = { ...next[i], [field]: value };
-      // Mutual exclusion on payment/deposit
       if (field === 'payment' && value) next[i].deposit = '';
-      if (field === 'deposit' && value) next[i].payment = '';
+      if (field === 'deposit' && value)  next[i].payment = '';
       return next;
     });
-  };
-
-  const previewBalance = (row: BlankRow) => {
-    const dep = parseFloat(row.deposit);
-    const pay = parseFloat(row.payment);
-    if (dep > 0) return running + dep;
-    if (pay > 0) return running - pay;
-    return null;
   };
 
   const trySave = useCallback(async (i: number) => {
@@ -70,10 +116,12 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
     const dep = parseFloat(row.deposit);
     const pay = parseFloat(row.payment);
     if (!row.date || !row.desc.trim()) return;
-    if (!dep && !pay) return;
-
-    const kind   = dep > 0 ? 'income' : 'expense';
-    const amount = dep > 0 ? dep : pay;
+    const depValid = !isNaN(dep) && dep >= 0;
+    const payValid = !isNaN(pay) && pay >= 0;
+    if (!depValid && !payValid) return;
+    const isDeposit = depValid && dep >= 0 && !(payValid && pay > 0);
+    const kind      = isDeposit ? 'income' : 'expense';
+    const amount    = isDeposit ? (dep || 0) : (pay || 0);
 
     setSaving(prev => ({ ...prev, [i]: true }));
     await fetch('/api/petro-tins/entries', {
@@ -82,146 +130,240 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
       body: JSON.stringify({ tinId: tin.id, kind, amount, entryDate: row.date, description: row.desc.trim() }),
     });
     setSaving(prev => ({ ...prev, [i]: false }));
+    setRows(prev => {
+      const next = [...prev];
+      next[i] = { date: today(), desc: '', payment: '', deposit: '' };
+      return next;
+    });
     onRefresh();
   }, [rows, tin.id, onRefresh]);
 
-  const deleteEntry = async (entryId: string) => {
-    await fetch(`/api/petro-tins/entries?id=${entryId}&tinId=${tin.id}`, { method: 'DELETE' });
-    onRefresh();
-  };
-
-  const toggleChecked = async (entryId: string, current: boolean) => {
-    await fetch('/api/petro-tins/entries', {
+  const saveSurplusMode = useCallback(async (mode: 'none' | 'slush') => {
+    await fetch(`/api/petro-tins/${tin.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entryId, checked: !current }),
+      body: JSON.stringify({ surplusMode: mode }),
     });
+    setShowSurplus(false);
     onRefresh();
-  };
+  }, [tin.id, onRefresh]);
+
+  // ── Render helpers ─────────────────────────────────────────────────────────
+  const renderRow = (e: PetroTinEntry, showDefault = false) => (
+    <tr key={e.id} className={`pt-reg-saved${e.checked ? ' pt-reg-checked' : ''}`}>
+      <td className="col-chk">
+        <input
+          type="checkbox"
+          className="pt-reg-checkbox"
+          checked={e.checked}
+          onChange={() => toggleChecked(e.id, e.checked)}
+          title="Mark as paid"
+        />
+      </td>
+      <td className="col-date">{e.entryDate.slice(0, 7) !== curMonth
+        ? <span className="pt-carried-month">{e.entryDate.slice(0, 7)}</span>
+        : e.entryDate}
+      </td>
+      <td className="col-desc">{e.description}</td>
+      <td className="col-pay">{e.kind === 'expense' ? fmt(e.amount) : ''}</td>
+      <td className="col-dep">{e.kind === 'income'  ? fmt(e.amount) : ''}</td>
+      <td className="col-del">
+        {showDefault && (
+          <button
+            className={`pt-reg-default-btn${e.isDefault ? ' active' : ''}`}
+            title={e.isDefault ? 'Repeats monthly — click to make one-time' : 'One-time — click to repeat monthly'}
+            onClick={() => toggleDefault(e.id, e.isDefault)}
+          >↻</button>
+        )}
+        <button className="pt-reg-del" onClick={() => deleteEntry(e.id)} title="Delete">✕</button>
+      </td>
+    </tr>
+  );
 
   return (
     <div className="pt-budget-tin" data-tin-id={tin.id}>
       {isSample && <span className="pt-budget-tin__sample">sample</span>}
 
+      {/* Header */}
       <div className="pt-budget-tin__header">
         <span className="pt-budget-tin__name">{tin.name}</span>
-        <span className="pt-budget-tin__meta">
-          Income <strong className="gain">{fmt(income)}</strong>
-          {' · '}Expenses <strong className="loss">{fmt(expense)}</strong>
-          {' · '}Net <strong className={net >= 0 ? 'gain' : 'loss'}>{fmt(net)}</strong>
-        </span>
         <div className="pt-budget-tin__actions">
           <button className="pt-budget-tin__icon-btn" title="Edit" onClick={() => onEdit(tin.id)}>✏️</button>
           <button className="pt-budget-tin__icon-btn pt-budget-tin__icon-btn--del" title="Delete" onClick={() => onDelete(tin.id)}>🗑</button>
         </div>
       </div>
 
+      {/* Summary row */}
+      <div className="pt-budget-tin__meta">
+        <span>Income <strong className="gain">{fmt(totalIncome)}</strong></span>
+        <span>Bills <strong className="loss">{fmt(totalExpenses)}</strong></span>
+        <span>Net <strong className={surplus >= 0 ? 'gain' : 'loss'}>{fmt(surplus)}</strong></span>
+        {carriedTotal > 0 && (
+          <span className="pt-carried-badge">⚠ {fmt(carriedTotal)} carried over</span>
+        )}
+      </div>
+
+      {/* All-paid banner */}
+      {allPaidBanner && (
+        <div className="pt-allpaid-banner">
+          🎉 All bills paid for {monthLabel(curMonth)}!
+          {tin.surplusMode === 'slush' && surplus > 0 && (
+            <span> {fmt(surplus)} swept to your Slush Fund.</span>
+          )}
+          <button className="pt-allpaid-dismiss" onClick={() => setAllPaidBanner(false)}>✕</button>
+        </div>
+      )}
+
       <div className="pt-budget-tin__register">
         <table>
           <thead>
             <tr>
-              <th style={{ width: 28 }} title="Paid?">✓</th>
-              <th style={{ width: 110 }}>Date</th>
+              <th className="col-chk" title="Paid?">✓</th>
+              <th style={{ width: 100 }}>Date</th>
               <th>Description</th>
-              <th className="col-amt" style={{ width: 120 }}>Payment (−)</th>
-              <th className="col-amt" style={{ width: 120 }}>Deposit (+)</th>
-              <th className="col-bal" style={{ width: 120 }}>Balance</th>
-              <th style={{ width: 28 }}></th>
+              <th className="col-amt" style={{ width: 110 }}>Expense (−)</th>
+              <th className="col-amt" style={{ width: 110 }}>Income (+)</th>
+              <th style={{ width: 52 }}></th>
             </tr>
           </thead>
           <tbody>
-            {/* Saved entries */}
-            {savedRows.map(e => (
-              <tr key={e.id} className={`pt-reg-saved${e.checked ? ' pt-reg-checked' : ''}`}>
-                <td className="col-chk">
-                  <input
-                    type="checkbox"
-                    className="pt-reg-checkbox"
-                    checked={e.checked ?? false}
-                    onChange={() => toggleChecked(e.id, e.checked ?? false)}
-                    title="Mark as paid"
-                  />
-                </td>
-                <td className="col-date">{e.entryDate}</td>
-                <td className="col-desc">{e.description}</td>
-                <td className="col-pay">{e.kind === 'expense' ? fmt(e.amount) : ''}</td>
-                <td className="col-dep">{e.kind === 'income'  ? fmt(e.amount) : ''}</td>
-                <td className={`col-bal ${e.balance >= 0 ? 'gain' : 'loss'}`}>{fmt(e.balance)}</td>
-                <td className="col-del">
-                  <button className="pt-reg-del" onClick={() => deleteEntry(e.id)} title="Delete">✕</button>
-                </td>
-              </tr>
-            ))}
 
-            {/* Blank input rows */}
+            {/* ── Carried over ── */}
+            {carriedOver.length > 0 && (
+              <>
+                <tr className="pt-reg-section-header">
+                  <td colSpan={6}>⚠ Carried over — unpaid from prior months</td>
+                </tr>
+                {carriedOver.map(e => renderRow(e))}
+              </>
+            )}
+
+            {/* ── This month income ── */}
+            <tr className="pt-reg-section-header pt-reg-section-header--income">
+              <td colSpan={6}>
+                {monthLabel(curMonth)} — Income
+                <button
+                  className="pt-reg-defaults-toggle"
+                  onClick={() => setShowDefaults(v => !v)}
+                  title="Set which income repeats monthly"
+                >⚙ Defaults</button>
+              </td>
+            </tr>
+            {curIncome.length === 0
+              ? <tr className="pt-reg-empty"><td colSpan={6}>No income entered yet this month.</td></tr>
+              : curIncome.map(e => renderRow(e, showDefaults))
+            }
+
+            {/* ── This month bills ── */}
+            <tr className="pt-reg-section-header pt-reg-section-header--bills">
+              <td colSpan={6}>{monthLabel(curMonth)} — Bills</td>
+            </tr>
+            {curBills.length === 0
+              ? <tr className="pt-reg-empty"><td colSpan={6}>No bills yet — add them below.</td></tr>
+              : curBills.map(e => renderRow(e))
+            }
+
+            {/* ── Blank input rows ── */}
+            <tr className="pt-reg-section-header">
+              <td colSpan={6}>Add entry</td>
+            </tr>
             {rows.map((row, i) => {
-              const preview = previewBalance(row);
+              const dep = parseFloat(row.deposit);
+              const pay = parseFloat(row.payment);
               return (
                 <tr key={i} className="pt-reg-blank">
                   <td className="col-chk"></td>
                   <td>
-                    <input
-                      className="pt-reg-input"
-                      type="date"
-                      value={row.date}
+                    <input className="pt-reg-input" type="date" value={row.date}
                       onChange={e => updateRow(i, 'date', e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && trySave(i)}
-                      disabled={saving[i]}
-                    />
+                      disabled={saving[i]} />
                   </td>
                   <td>
-                    <input
-                      className="pt-reg-input"
-                      type="text"
-                      placeholder="Description"
-                      maxLength={120}
+                    <input className="pt-reg-input" type="text" placeholder="Description" maxLength={120}
                       value={row.desc}
                       onChange={e => updateRow(i, 'desc', e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && trySave(i)}
-                      disabled={saving[i]}
-                    />
+                      disabled={saving[i]} />
                   </td>
                   <td>
-                    <input
-                      className="pt-reg-input col-amt"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="—"
+                    <input className="pt-reg-input col-amt" type="number" step="0.01" min="0" placeholder="—"
                       value={row.payment}
                       onChange={e => updateRow(i, 'payment', e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && trySave(i)}
                       onBlur={() => setTimeout(() => trySave(i), 120)}
-                      disabled={saving[i]}
-                    />
+                      disabled={saving[i]} />
                   </td>
                   <td>
-                    <input
-                      className="pt-reg-input col-amt"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="—"
+                    <input className="pt-reg-input col-amt" type="number" step="0.01" min="0" placeholder="—"
                       value={row.deposit}
                       onChange={e => updateRow(i, 'deposit', e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && trySave(i)}
                       onBlur={() => setTimeout(() => trySave(i), 120)}
-                      disabled={saving[i]}
-                    />
+                      disabled={saving[i]} />
                   </td>
-                  <td className="col-bal">
-                    {preview !== null
-                      ? <span className={preview >= 0 ? 'gain' : 'loss'}>{fmt(preview)}</span>
-                      : <span className="muted">—</span>
-                    }
-                  </td>
-                  <td className="col-del"></td>
+                  <td></td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {/* Defaults panel */}
+      {showDefaults && (
+        <div className="pt-defaults-panel">
+          <div className="pt-defaults-panel__title">Regular income — repeats monthly</div>
+          <div className="pt-defaults-panel__sub">Toggle ↻ on any income entry above to make it repeat next month automatically.</div>
+          {curIncome.length === 0
+            ? <p className="pt-defaults-panel__empty">No income entries this month yet.</p>
+            : curIncome.map(e => (
+              <div key={e.id} className="pt-defaults-panel__row">
+                <span className="pt-defaults-panel__desc">{e.description || '(no description)'}</span>
+                <span className="pt-defaults-panel__amt gain">{fmt(e.amount)}</span>
+                <button
+                  className={`pt-defaults-panel__btn${e.isDefault ? ' active' : ''}`}
+                  onClick={() => toggleDefault(e.id, e.isDefault)}
+                >
+                  {e.isDefault ? '↻ Repeats' : '↻ One-time'}
+                </button>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
+      {/* Bottom toolbar */}
+      <div className="pt-budget-tin__toolbar">
+        <button className="pt-toolbar-btn" onClick={() => setShowSurplus(v => !v)}>
+          ⚙ Month-end surplus: <strong>{tin.surplusMode === 'slush' ? 'Slush fund' : 'Clear'}</strong>
+        </button>
+      </div>
+
+      {/* Surplus mode picker */}
+      {showSurplus && (
+        <div className="pt-surplus-panel">
+          <div className="pt-surplus-panel__title">What happens to leftover money at month end?</div>
+          <div className="pt-surplus-panel__options">
+            <button
+              className={`pt-surplus-opt${tin.surplusMode === 'none' ? ' active' : ''}`}
+              onClick={() => saveSurplusMode('none')}
+            >
+              <span className="pt-surplus-opt__icon">🧹</span>
+              <span className="pt-surplus-opt__label">Clear</span>
+              <span className="pt-surplus-opt__desc">Month closes clean. Surplus disappears.</span>
+            </button>
+            <button
+              className={`pt-surplus-opt${tin.surplusMode === 'slush' ? ' active' : ''}`}
+              onClick={() => saveSurplusMode('slush')}
+            >
+              <span className="pt-surplus-opt__icon">🪣</span>
+              <span className="pt-surplus-opt__label">Slush fund</span>
+              <span className="pt-surplus-opt__desc">Surplus sweeps into a separate tin and builds up over time.</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
