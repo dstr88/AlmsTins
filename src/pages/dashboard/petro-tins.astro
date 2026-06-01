@@ -12,7 +12,7 @@ const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
 const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.tenantId);
 ---
 
-<Layout title="PetroTins | Almstins" noindex={true}>
+<Layout title="PetroTins | Almstins" noindex={true} logoutRedirect="/petro-tins">
   <section class="dt-page">
     <div class="hero-bleed">
       <NetWorthHero title="PetroTins" subtitle="Debt, budget & business — the real numbers" />
@@ -133,6 +133,24 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
         <div class="dt-modal-actions">
           <button type="submit" class="dt-btn-primary" id="dt-modal-submit">Save</button>
           <button type="button" class="dt-btn-ghost" id="dt-modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Splits Modal -->
+  <div class="dt-modal-overlay" id="dt-splits-modal" style="display:none" aria-modal="true" role="dialog">
+    <div class="dt-modal">
+      <h2>Create Splits Tin</h2>
+      <p class="dt-splits-modal-desc">A splits tin tracks shared expenses between roommates, travel partners, or anyone splitting costs.</p>
+      <form id="dt-splits-form">
+        <label class="dt-label">
+          Name <span class="dt-optional">e.g. "Apartment 4B", "Bahamas Trip"</span>
+          <input class="dt-input dt-input--bright" id="dt-splits-name" type="text" placeholder="Name this splits tin" maxlength="100" required autocomplete="off" />
+        </label>
+        <div class="dt-modal-actions">
+          <button type="submit" class="dt-btn-primary">Create</button>
+          <button type="button" class="dt-btn-ghost" id="dt-splits-cancel">Cancel</button>
         </div>
       </form>
     </div>
@@ -929,6 +947,22 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
       cursor: pointer;
     }
     .dt-btn-ghost:hover { background: var(--surface-hover); }
+
+    /* Splits modal extras */
+    .dt-splits-modal-desc {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin: -0.5rem 0 0;
+      line-height: 1.5;
+    }
+    .dt-input--bright {
+      background: var(--surface-hover);
+      border-color: var(--text-secondary);
+      color: var(--text-primary);
+      font-size: 0.95rem;
+    }
+    .dt-input--bright::placeholder { color: var(--text-muted); }
+    .dt-input--bright:focus { border-color: var(--text-primary); outline: 2px solid var(--accent-glow); }
   </style>
 
   <script is:inline define:vars={{ isOwner }}>
@@ -1352,15 +1386,13 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
 
     // ── Modal: Add / Edit Tin ─────────────────────────────────────────────────
     function openAddTin(type) {
-      // Splits tins use a dedicated lightweight prompt — no full modal needed
+      // Splits tins use a dedicated modal
       if (type === 'splits') {
-        const name = prompt('Name your splits tin (e.g. "Apartment 4B", "Bahamas Trip"):');
-        if (!name?.trim()) return;
-        fetch('/api/petro-tins/splits', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create_splits', name: name.trim() }),
-        }).then(() => location.reload());
+        const modal = document.getElementById('dt-splits-modal');
+        const input = document.getElementById('dt-splits-name');
+        input.value = '';
+        modal.style.display = 'flex';
+        setTimeout(() => input.focus(), 50);
         return;
       }
 
@@ -1400,6 +1432,40 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
 
     document.getElementById('dt-modal-cancel')?.addEventListener('click', () => {
       document.getElementById('dt-modal').style.display = 'none';
+    });
+
+    // ── Splits modal ───────────────────────────────────────────────────────────
+    document.getElementById('dt-splits-cancel')?.addEventListener('click', () => {
+      document.getElementById('dt-splits-modal').style.display = 'none';
+    });
+
+    document.getElementById('dt-splits-form')?.addEventListener('submit', async e => {
+      e.preventDefault();
+      const name = document.getElementById('dt-splits-name').value.trim();
+      if (!name) return;
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = 'Creating…';
+      try {
+        const res = await fetch('/api/petro-tins/splits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create_splits', name }),
+        });
+        if (res.ok) {
+          document.getElementById('dt-splits-modal').style.display = 'none';
+          location.reload();
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert('Could not create splits tin: ' + (data.error ?? `server error ${res.status}`));
+          btn.disabled = false;
+          btn.textContent = 'Create';
+        }
+      } catch (err) {
+        alert('Could not reach the server. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Create';
+      }
     });
 
     document.getElementById('dt-modal-form')?.addEventListener('submit', async e => {
@@ -1705,7 +1771,7 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
     });
 
     // ── Close modals on overlay click ──────────────────────────────────────────
-    ['dt-modal', 'dt-entry-modal'].forEach(modalId => {
+    ['dt-modal', 'dt-entry-modal', 'dt-splits-modal'].forEach(modalId => {
       document.getElementById(modalId)?.addEventListener('click', e => {
         if (e.target.id === modalId) e.target.style.display = 'none';
       });

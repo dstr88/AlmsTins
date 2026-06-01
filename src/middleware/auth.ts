@@ -39,6 +39,10 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/aave-alisis' ||
 		// PetroTins standalone login page — must be reachable without a session
 		pathname === '/petro-tins' ||
+		// PetroTins demo — clears session cookie then starts demo, no auth needed
+		pathname === '/petro-tins/demo' ||
+		// PetroTins docs — public documentation page
+		pathname === '/petro-tins/docs' ||
 		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
 		pathname === '/api/wallet-check' ||
 		pathname === '/api/dapp-check' ||

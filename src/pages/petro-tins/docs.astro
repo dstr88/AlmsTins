@@ -1,0 +1,518 @@
+---
+// Public docs page — no auth required
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PetroTins Docs — How it works</title>
+  <meta name="description" content="How to use PetroTins — debt tins, budget register, splits, and more." />
+  <link rel="icon" type="image/webp" href="/favicon.webp" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #09090f;
+      --card:      #0f1117;
+      --card-2:    #141720;
+      --border:    rgba(255,255,255,0.08);
+      --border-hi: rgba(255,255,255,0.14);
+      --text:      #f0f4ff;
+      --muted:     rgba(240,244,255,0.45);
+      --sub:       rgba(240,244,255,0.70);
+      --pt:        #f59e0b;
+      --pt-soft:   rgba(245,158,11,0.12);
+      --pt-glow:   rgba(245,158,11,0.28);
+      --gain:      #34d399;
+      --loss:      #ef4444;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem 4rem;
+    }
+
+    /* ── Layout ── */
+    .docs-wrap {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    .docs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 3rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .docs-wordmark {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+    }
+    .docs-wordmark__icon {
+      width: 32px; height: 32px;
+      background: var(--pt-soft);
+      border: 1px solid var(--pt-glow);
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+    .docs-wordmark__text {
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--pt);
+    }
+    .docs-wordmark__sub {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-left: 0.2rem;
+      align-self: flex-end;
+      padding-bottom: 2px;
+    }
+    .docs-nav-links {
+      display: flex;
+      gap: 1.25rem;
+      font-size: 0.82rem;
+    }
+    .docs-nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .docs-nav-links a:hover { color: var(--pt); }
+
+    /* ── Page title ── */
+    .docs-title {
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.5rem;
+    }
+    .docs-intro {
+      font-size: 0.95rem;
+      color: var(--sub);
+      line-height: 1.65;
+      margin-bottom: 3rem;
+    }
+
+    /* ── TOC ── */
+    .docs-toc {
+      background: var(--card);
+      border: 1px solid var(--border-hi);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 3rem;
+    }
+    .docs-toc__title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .docs-toc__list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .docs-toc__list a {
+      font-size: 0.85rem;
+      color: var(--sub);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .docs-toc__list a:hover { color: var(--pt); }
+    .docs-toc__list li::before {
+      content: '→ ';
+      color: var(--muted);
+    }
+
+    /* ── Sections ── */
+    .docs-section {
+      margin-bottom: 3rem;
+      scroll-margin-top: 2rem;
+    }
+    .docs-section__label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--pt);
+      margin-bottom: 0.4rem;
+    }
+    .docs-section__title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.75rem;
+    }
+    .docs-section__body {
+      font-size: 0.9rem;
+      color: var(--sub);
+      line-height: 1.7;
+    }
+    .docs-section__body p { margin-bottom: 0.85rem; }
+    .docs-section__body p:last-child { margin-bottom: 0; }
+    .docs-section__body strong { color: var(--text); font-weight: 600; }
+
+    /* ── Steps ── */
+    .docs-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .docs-step {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+    .docs-step__num {
+      width: 26px; height: 26px;
+      flex-shrink: 0;
+      background: var(--pt-soft);
+      border: 1px solid var(--pt-glow);
+      border-radius: 50%;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--pt);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .docs-step__text {
+      font-size: 0.875rem;
+      color: var(--sub);
+      line-height: 1.55;
+      padding-top: 3px;
+    }
+    .docs-step__text strong { color: var(--text); }
+
+    /* ── Callout boxes ── */
+    .docs-callout {
+      background: var(--card);
+      border: 1px solid var(--border-hi);
+      border-left: 3px solid var(--pt);
+      border-radius: 8px;
+      padding: 0.9rem 1.1rem;
+      font-size: 0.84rem;
+      color: var(--sub);
+      line-height: 1.6;
+      margin-top: 1rem;
+    }
+    .docs-callout strong { color: var(--pt); }
+    .docs-callout--gain {
+      border-left-color: var(--gain);
+    }
+    .docs-callout--gain strong { color: var(--gain); }
+
+    /* ── FAQ items ── */
+    .docs-faq {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      margin-top: 0.5rem;
+    }
+    .docs-faq__q {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.3rem;
+    }
+    .docs-faq__a {
+      font-size: 0.84rem;
+      color: var(--sub);
+      line-height: 1.6;
+    }
+
+    /* ── Divider ── */
+    .docs-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2.5rem 0;
+    }
+
+    /* ── CTA ── */
+    .docs-cta {
+      text-align: center;
+      padding: 2.5rem 1.5rem;
+      background: var(--card);
+      border: 1px solid var(--border-hi);
+      border-radius: 16px;
+    }
+    .docs-cta__title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+    }
+    .docs-cta__sub {
+      font-size: 0.875rem;
+      color: var(--sub);
+      margin-bottom: 1.5rem;
+    }
+    .docs-cta__btn {
+      display: inline-block;
+      background: var(--pt);
+      color: #09090f;
+      border-radius: 9px;
+      padding: 0.7rem 1.75rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .docs-cta__btn:hover { opacity: 0.88; }
+    .docs-cta__demo {
+      display: block;
+      margin-top: 0.75rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-decoration: none;
+    }
+    .docs-cta__demo:hover { color: var(--pt); }
+  </style>
+</head>
+<body>
+  <div class="docs-wrap">
+
+    <!-- Header -->
+    <div class="docs-header">
+      <a href="/petro-tins" class="docs-wordmark">
+        <div class="docs-wordmark__icon">⛽</div>
+        <span class="docs-wordmark__text">PetroTins</span>
+        <span class="docs-wordmark__sub">Docs</span>
+      </a>
+      <nav class="docs-nav-links">
+        <a href="/petro-tins">Home</a>
+        <a href="/petro-tins/demo">Try demo</a>
+        <a href="/dashboard/petro-tins">Sign in</a>
+      </nav>
+    </div>
+
+    <!-- Title -->
+    <h1 class="docs-title">How PetroTins works</h1>
+    <p class="docs-intro">
+      PetroTins is a manual-entry personal finance tool. No bank connection. No Plaid. No OAuth to your accounts.
+      You type the numbers in — PetroTins does the math. Here's everything you need to know.
+    </p>
+
+    <!-- TOC -->
+    <div class="docs-toc">
+      <div class="docs-toc__title">Contents</div>
+      <ul class="docs-toc__list">
+        <li><a href="#debt-tins">Debt Tins — tracking what you owe</a></li>
+        <li><a href="#budget-tin">Budget Register — your checkbook</a></li>
+        <li><a href="#splits-tin">Splits Tin — shared expenses</a></li>
+        <li><a href="#slush-tin">Slush Fund — pooled money</a></li>
+        <li><a href="#summary">Cash Flow Summary</a></li>
+        <li><a href="#pricing">Free plan vs. paid</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+    </div>
+
+    <!-- ── Debt Tins ── -->
+    <section class="docs-section" id="debt-tins">
+      <div class="docs-section__label">Feature</div>
+      <h2 class="docs-section__title">💳 Debt Tins</h2>
+      <div class="docs-section__body">
+        <p>A Debt Tin represents one credit card, loan, or line of credit. Add one for each debt you're tracking.</p>
+        <p>Each tin shows your <strong>current balance</strong>, <strong>credit limit</strong>, <strong>APR</strong>, and a <strong>utilization bar</strong> that fills as you use more of your limit. Below that: the exact dollar amount of interest you're paying every month at your current balance, so you can see what carrying debt actually costs.</p>
+      </div>
+      <div class="docs-steps">
+        <div class="docs-step">
+          <div class="docs-step__num">1</div>
+          <div class="docs-step__text">Click <strong>+ Add Tin</strong> → choose <strong>Debt</strong>. Enter the card name, current balance, credit limit, and APR (as a percentage, e.g. <code>21.99</code>).</div>
+        </div>
+        <div class="docs-step">
+          <div class="docs-step__num">2</div>
+          <div class="docs-step__text">Each month, open the tin and log a <strong>Payment</strong> entry — your balance drops automatically. Log a <strong>Charge</strong> if you add to the balance.</div>
+        </div>
+        <div class="docs-step">
+          <div class="docs-step__num">3</div>
+          <div class="docs-step__text">Watch the utilization bar shrink and the monthly interest number fall. That's the whole point.</div>
+        </div>
+      </div>
+      <div class="docs-callout">
+        <strong>APR math:</strong> Monthly interest = balance × (APR ÷ 12). If your balance is $5,000 at 21.99% APR, you're paying roughly $91.63/month just in interest — before any principal reduction.
+      </div>
+    </section>
+
+    <hr class="docs-divider" />
+
+    <!-- ── Budget Register ── -->
+    <section class="docs-section" id="budget-tin">
+      <div class="docs-section__label">Feature</div>
+      <h2 class="docs-section__title">📒 Budget Register</h2>
+      <div class="docs-section__body">
+        <p>The Budget Register works like a physical checkbook. Every income deposit and every expense gets a row. The running balance updates as you go.</p>
+        <p>Ten blank rows are always ready for new entries. Type a date, description, and amount — tab to the next field. Hit <strong>Enter</strong> or click away and the row saves automatically. Saved rows show a ✕ to delete them.</p>
+        <p>Income rows are green. Expense rows are red. The running balance at the bottom tells you exactly where you stand.</p>
+      </div>
+      <div class="docs-steps">
+        <div class="docs-step">
+          <div class="docs-step__num">1</div>
+          <div class="docs-step__text">Click <strong>+ Add Tin</strong> → choose <strong>Budget</strong>. Give it a name like "Home Budget" or "October."</div>
+        </div>
+        <div class="docs-step">
+          <div class="docs-step__num">2</div>
+          <div class="docs-step__text">Use the blank rows to log income (paycheck, freelance, refunds) and expenses (rent, groceries, bills). The kind (Income / Expense) is set by a toggle on each row.</div>
+        </div>
+        <div class="docs-step">
+          <div class="docs-step__num">3</div>
+          <div class="docs-step__text">The <strong>Cash Flow Summary</strong> panel (top right of your dashboard) aggregates this month's income and expenses across all your tins automatically.</div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="docs-divider" />
+
+    <!-- ── Splits Tin ── -->
+    <section class="docs-section" id="splits-tin">
+      <div class="docs-section__label">Feature</div>
+      <h2 class="docs-section__title">🤝 Splits Tin</h2>
+      <div class="docs-section__body">
+        <p>A Splits Tin tracks shared expenses between two or more people — roommates splitting bills, a couple tracking who paid what, a household managing shared costs.</p>
+        <p>Each tin has a list of <strong>people</strong> (columns) and a list of <strong>bills</strong> (rows). For each cell, you assign who owes what — either a percentage of the bill or a flat dollar amount. PetroTins calculates each person's total owed, tracks partial payments, and shows a running balance.</p>
+        <p>When someone pays in full, their column turns green. When all columns are green, the tin collapses to a single "All paid ✓" line to keep the dashboard clean.</p>
+      </div>
+      <div class="docs-steps">
+        <div class="docs-step">
+          <div class="docs-step__num">1</div>
+          <div class="docs-step__text">Click <strong>+ Splits</strong> and give it a name (e.g. "May Bills" or "Apartment 3B").</div>
+        </div>
+        <div class="docs-step">
+          <div class="docs-step__num">2</div>
+          <div class="docs-step__text">Add each person. Mark <strong>That's me</strong> on your own name so payments flow the right direction in your budget register.</div>
+        </div>
+        <div class="docs-step">
+          <div class="docs-step__num">3</div>
+          <div class="docs-step__text">Add bills with their total amount. Then click each cell to assign the split — enter a percent (e.g. <code>50%</code>) or a flat dollar amount.</div>
+        </div>
+        <div class="docs-step">
+          <div class="docs-step__num">4</div>
+          <div class="docs-step__text">When someone pays, click <strong>Pay</strong> in their column, enter the amount and date. Partial payments are tracked with a full history. If they overpay, the excess carries forward.</div>
+        </div>
+      </div>
+      <div class="docs-callout--gain docs-callout">
+        <strong>Auto-post to budget:</strong> If a person has "That's me" marked and they pay a bill, it can automatically post an expense entry to your linked Budget Register — so your cash flow summary stays accurate without double entry.
+      </div>
+    </section>
+
+    <hr class="docs-divider" />
+
+    <!-- ── Slush Fund ── -->
+    <section class="docs-section" id="slush-tin">
+      <div class="docs-section__label">Feature</div>
+      <h2 class="docs-section__title">💰 Slush Fund</h2>
+      <div class="docs-section__body">
+        <p>A Slush Fund is a simple balance card for tracking a shared pool of money — an emergency fund, a vacation fund, a household kitty, anything that multiple people contribute to.</p>
+        <p>It shows a current balance and lets you log contributions and withdrawals. No APR math, no register — just a running total of what's in the pot.</p>
+      </div>
+      <div class="docs-callout">
+        <strong>When to use it:</strong> If you and a partner both contribute $200/month to a shared account for irregular expenses, a Slush Fund tin lets you track the balance without a bank connection.
+      </div>
+    </section>
+
+    <hr class="docs-divider" />
+
+    <!-- ── Summary ── -->
+    <section class="docs-section" id="summary">
+      <div class="docs-section__label">Feature</div>
+      <h2 class="docs-section__title">📊 Cash Flow Summary</h2>
+      <div class="docs-section__body">
+        <p>The summary panel in the top-right of your dashboard aggregates numbers from <strong>all your tins for the current month</strong>:</p>
+        <p>
+          <strong>Total Income</strong> — all income entries logged this month across every budget tin.<br/>
+          <strong>Total Expenses</strong> — all expense entries logged this month.<br/>
+          <strong>Net Cash Flow</strong> — income minus expenses. Green if positive, red if not.<br/>
+          <strong>Total Debt</strong> — the sum of all balances across your debt tins right now.<br/>
+          <strong>Monthly Interest</strong> — what you're paying in interest across all cards this month at current balances.<br/>
+          <strong>Est. Annual Interest</strong> — monthly interest × 12, so you can see the year-over-year cost of carrying your current debt load.
+        </p>
+        <p>Nothing to configure — it updates automatically as you log entries.</p>
+      </div>
+    </section>
+
+    <hr class="docs-divider" />
+
+    <!-- ── Pricing ── -->
+    <section class="docs-section" id="pricing">
+      <div class="docs-section__label">Plans</div>
+      <h2 class="docs-section__title">Free plan vs. paid</h2>
+      <div class="docs-section__body">
+        <p>The <strong>free plan</strong> gives you one Debt Tin and one Budget Register — enough to track your biggest card and your main budget.</p>
+        <p>The <strong>paid plan ($100/year)</strong> unlocks unlimited tins of every type, Splits Tins, and Slush Funds. One price, everything included.</p>
+        <p>To upgrade, go to your dashboard and click the <strong>⛽ Free Plan — Upgrade</strong> link in the toolbar. Promo codes are accepted on the upgrade page.</p>
+      </div>
+      <div class="docs-callout">
+        <strong>Promo codes:</strong> If you have a code, enter it on the upgrade page. Some codes activate immediately with no payment required. Others will show a contact email for payment instructions.
+      </div>
+    </section>
+
+    <hr class="docs-divider" />
+
+    <!-- ── FAQ ── -->
+    <section class="docs-section" id="faq">
+      <div class="docs-section__label">FAQ</div>
+      <h2 class="docs-section__title">Common questions</h2>
+      <div class="docs-faq">
+        <div>
+          <div class="docs-faq__q">Does PetroTins connect to my bank?</div>
+          <div class="docs-faq__a">No. Never. You enter numbers manually. Nothing connects to your bank, brokerage, or any financial account. That's a design decision, not a limitation.</div>
+        </div>
+        <div>
+          <div class="docs-faq__q">Where is my data stored?</div>
+          <div class="docs-faq__a">In a secure database tied to your account. It's never sold, shared, or used for advertising. You can delete your account at any time from the dropdown menu in the top-right corner — everything goes with it, permanently.</div>
+        </div>
+        <div>
+          <div class="docs-faq__q">Does the balance update automatically when I log a payment?</div>
+          <div class="docs-faq__a">Yes — for Debt Tins. When you log a Payment entry, the balance drops by that amount. When you log a Charge, it goes up. The utilization bar and interest calculations update immediately.</div>
+        </div>
+        <div>
+          <div class="docs-faq__q">Can I use PetroTins and Almstins with the same account?</div>
+          <div class="docs-faq__a">Yes. One login works for both. PetroTins is for personal finance (debt, budget, bills). Almstins is for crypto portfolio tracking and bookkeeping. Same account, separate dashboards.</div>
+        </div>
+        <div>
+          <div class="docs-faq__q">Is there a mobile app?</div>
+          <div class="docs-faq__a">Not yet. PetroTins is a web app that works in your mobile browser. A dedicated mobile app is on the roadmap.</div>
+        </div>
+        <div>
+          <div class="docs-faq__q">What happens if I delete a tin?</div>
+          <div class="docs-faq__a">All entries in that tin are deleted permanently. The dashboard totals update immediately. This cannot be undone.</div>
+        </div>
+        <div>
+          <div class="docs-faq__q">Can multiple people share one account?</div>
+          <div class="docs-faq__a">Not yet — accounts are individual. Use the Splits Tin to track shared expenses between people who each have their own account, or use one person's account as the shared tracker.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <div class="docs-cta">
+      <div class="docs-cta__title">Ready to see it?</div>
+      <div class="docs-cta__sub">The demo has sample credit cards, a budget register, and a splits tin — all pre-loaded.</div>
+      <a href="/petro-tins/demo" class="docs-cta__btn">⛽ Try the demo</a>
+      <a href="/petro-tins" class="docs-cta__demo">Or sign in to your account →</a>
+    </div>
+
+  </div>
+</body>
+</html>

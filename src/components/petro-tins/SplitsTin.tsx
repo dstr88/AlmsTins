@@ -187,6 +187,13 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
         <button className="pt-splits-tin__del" onClick={() => onDelete(tin.id)} title="Delete">✕</button>
       </div>
 
+      {/* Empty state */}
+      {tin.people.length === 0 && (
+        <div style={{ padding: '1rem 1.25rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          Add people below, then add shared bills to split between them.
+        </div>
+      )}
+
       {/* Grid: rows = bills, columns = people */}
       {tin.people.length > 0 && tin.bills.length > 0 && (
         <div className="pt-splits-grid" style={{ '--col-count': tin.people.length + 1 } as any}>

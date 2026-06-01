@@ -130,10 +130,14 @@
 /* Splits zone */
 .pt-grid__zone--splits {
   margin-top: 1.5rem;
-  border-top: 2px dashed var(--border-bright);
-  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-bright);
+  padding-top: 1.75rem;
 }
 .pt-grid__zone--splits .pt-grid__zone-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--accent);
   margin-bottom: 0.75rem;
 }

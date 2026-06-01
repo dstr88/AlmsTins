@@ -370,6 +370,59 @@ try {
     }
     .pt-demo-btn:hover { background: rgba(245,158,11,0.2); border-color: var(--pt); }
 
+    /* ── Changelog ── */
+    .pt-changelog {
+      margin-top: 2rem;
+    }
+    .pt-changelog__title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .pt-changelog__list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .pt-changelog__item {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+    .pt-changelog__date {
+      font-size: 0.7rem;
+      color: var(--muted);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      min-width: 60px;
+    }
+    .pt-changelog__desc {
+      color: var(--sub);
+    }
+    .pt-changelog__desc strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .pt-changelog__new {
+      display: inline-block;
+      background: var(--pt-soft);
+      border: 1px solid var(--pt-glow);
+      color: var(--pt);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      vertical-align: middle;
+      margin-left: 0.35rem;
+    }
+
     /* Footer */
     .pt-footer {
       margin-top: 3rem;
@@ -442,6 +495,35 @@ try {
           <li>Delete your account anytime — everything goes with it.</li>
         </ul>
       </div>
+
+      <div class="pt-changelog">
+        <div class="pt-changelog__title">Changelog</div>
+        <div class="pt-changelog__list">
+          <div class="pt-changelog__item">
+            <span class="pt-changelog__date">Jun 2026</span>
+            <span class="pt-changelog__desc"><strong>Splits Tin</strong> — shared expense calculator with per-person assignments, partial payments, and carried balances <span class="pt-changelog__new">New</span></span>
+          </div>
+          <div class="pt-changelog__item">
+            <span class="pt-changelog__date">May 2026</span>
+            <span class="pt-changelog__desc"><strong>Slush Fund</strong> — simple balance card for tracking a shared pool of money</span>
+          </div>
+          <div class="pt-changelog__item">
+            <span class="pt-changelog__date">May 2026</span>
+            <span class="pt-changelog__desc"><strong>Budget Register</strong> — checkbook-style income and expense log with running balance</span>
+          </div>
+          <div class="pt-changelog__item">
+            <span class="pt-changelog__date">May 2026</span>
+            <span class="pt-changelog__desc"><strong>Debt Tins</strong> — track credit cards with APR math, utilization bar, and payment history</span>
+          </div>
+          <div class="pt-changelog__item">
+            <span class="pt-changelog__date">May 2026</span>
+            <span class="pt-changelog__desc"><strong>Cash Flow Summary</strong> — monthly income, expenses, and net in one panel</span>
+          </div>
+        </div>
+        <p style="margin-top:0.75rem; font-size:0.72rem; color:var(--muted);">
+          <a href="/petro-tins/docs" style="color:var(--pt); text-decoration:none;">Read the docs →</a>
+        </p>
+      </div>
     </div>
 
     <!-- ── Right: sign-in card ────────────────────────────────── -->
@@ -500,7 +582,7 @@ try {
 
       <div class="pt-demo-divider"><span>or</span></div>
 
-      <a href="/api/demo/start?next=/dashboard/petro-tins" class="pt-demo-btn">
+      <a href="/petro-tins/demo" class="pt-demo-btn">
         ⛽ Try the demo
       </a>
     </div>

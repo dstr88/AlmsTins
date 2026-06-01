@@ -86,6 +86,8 @@ export interface Props {
   canonical?: string;
   image?: string;
   noindex?: boolean;
+  /** Override where the Log out button redirects. Defaults to /login. */
+  logoutRedirect?: string;
 }
 
 const {
@@ -94,6 +96,7 @@ const {
   canonical = Astro.url.href,
   image = 'https://almstins.com/og-default.png',
   noindex = false,
+  logoutRedirect,
 } = Astro.props;
 
 // ── Promo expiry banner ───────────────────────────────────────────────────────
@@ -341,7 +344,7 @@ const memberSinceDisplay = memberSinceIso
 							<hr class="account-divider" />
 
 							<!-- Logout -->
-							<form id="logout" method="post" action="/api/logout">
+							<form id="logout" method={logoutRedirect ? 'get' : 'post'} action={logoutRedirect ? `/api/logout?next=${encodeURIComponent(logoutRedirect)}` : '/api/logout'}>
 								<button class="account-logout" type="submit">Log out</button>
 							</form>
 						</div>
