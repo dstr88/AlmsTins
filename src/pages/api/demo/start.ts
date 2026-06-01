@@ -409,7 +409,6 @@ export const GET: APIRoute = async ({ request }) => {
 	}
 
 	// ── Seed PetroTins sample data for demo tenant ──────────────────────────
-	const { randomUUID } = await import('node:crypto');
 	const SAMPLE = '__sample__';
 	const thisMonth = (d: number) => {
 		const now = new Date();
