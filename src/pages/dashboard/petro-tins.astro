@@ -58,6 +58,7 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
         <button class="dt-add-btn" data-add-type="debt">＋ Debt Tin</button>
         <button class="dt-add-btn" data-add-type="budget">＋ Budget</button>
         <button class="dt-add-btn" data-add-type="business">＋ Business Tin</button>
+        <button class="dt-add-btn" data-add-type="splits">＋ Splits</button>
         {petroTier === 'free' && (
           <a href="/dashboard/petro-tins/upgrade" class="dt-upgrade-link">
             ⛽ Free Plan — <strong>Upgrade $100/yr</strong>
@@ -1351,6 +1352,18 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
 
     // ── Modal: Add / Edit Tin ─────────────────────────────────────────────────
     function openAddTin(type) {
+      // Splits tins use a dedicated lightweight prompt — no full modal needed
+      if (type === 'splits') {
+        const name = prompt('Name your splits tin (e.g. "Apartment 4B", "Bahamas Trip"):');
+        if (!name?.trim()) return;
+        fetch('/api/petro-tins/splits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create_splits', name: name.trim() }),
+        }).then(() => location.reload());
+        return;
+      }
+
       const modal = document.getElementById('dt-modal');
       document.getElementById('dt-modal-id').value = '';
       document.getElementById('dt-modal-type').value = type;

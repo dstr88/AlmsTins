@@ -468,6 +468,29 @@ main {
 	border-color: var(--loss-border);
 }
 
+/* Delete account */
+.account-delete-wrap {
+	padding: 0.5rem 0;
+}
+.account-delete {
+	width: 100%;
+	padding: 0.5rem 0.9rem;
+	background: transparent;
+	border: 1px solid var(--border-subtle);
+	color: var(--text-muted);
+	border-radius: 8px;
+	font: inherit;
+	font-size: 0.8rem;
+	cursor: pointer;
+	text-align: center;
+	transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.account-delete:hover {
+	background: var(--loss-bg);
+	border-color: var(--loss-border);
+	color: var(--loss);
+}
+
 /* ── Alert email inline editor ───────────────────────────────────────── */
 .account-meta-unset {
 	color: var(--text-muted);

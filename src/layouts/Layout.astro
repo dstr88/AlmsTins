@@ -333,6 +333,13 @@ const memberSinceDisplay = memberSinceIso
 
 							<hr class="account-divider" />
 
+							<!-- Delete account -->
+							<div class="account-delete-wrap">
+								<button id="delete-account-btn" class="account-delete" type="button">Delete my account</button>
+							</div>
+
+							<hr class="account-divider" />
+
 							<!-- Logout -->
 							<form id="logout" method="post" action="/api/logout">
 								<button class="account-logout" type="submit">Log out</button>
@@ -674,4 +681,25 @@ const memberSinceDisplay = memberSinceIso
 			}
 		});
 	})();
+</script>
+
+<script>
+	// Delete account
+	document.getElementById('delete-account-btn')?.addEventListener('click', async () => {
+		const confirmed = confirm('Are you sure? This will permanently delete everything you have stored. This cannot be undone.');
+		if (!confirmed) return;
+		const confirmed2 = confirm('Last chance — all your tins, entries, and subscription data will be permanently and irreversibly deleted. Continue?');
+		if (!confirmed2) return;
+		try {
+			const res = await fetch('/api/account/delete', { method: 'POST' });
+			if (res.ok) {
+				window.location.href = '/login';
+			} else {
+				const d = await res.json().catch(() => ({}));
+				alert(d.error ?? 'Could not delete account. Please try again.');
+			}
+		} catch {
+			alert('Could not delete account. Please try again.');
+		}
+	});
 </script>

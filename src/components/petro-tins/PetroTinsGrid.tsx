@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { PetroTin } from './types';
+import type { PetroTin, SplitsTin } from './types';
 import DebtTin from './DebtTin';
 import BudgetTin from './BudgetTin';
 import SlushTin from './SlushTin';
+import SplitsTinComponent from './SplitsTin';
 import './PetroTinsGrid.css';
 
 function fmt(n: number) {
@@ -11,14 +12,23 @@ function fmt(n: number) {
 
 export default function PetroTinsGrid() {
   const [tins, setTins] = useState<PetroTin[]>([]);
+  const [splitsTins, setSplitsTins] = useState<SplitsTin[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/petro-tins');
-      if (!res.ok) return;
-      const data = await res.json();
-      setTins(data.tins ?? []);
+      const [res, splitsRes] = await Promise.all([
+        fetch('/api/petro-tins'),
+        fetch('/api/petro-tins/splits'),
+      ]);
+      if (res.ok) {
+        const data = await res.json();
+        setTins(data.tins ?? []);
+      }
+      if (splitsRes.ok) {
+        const data = await splitsRes.json();
+        setSplitsTins(data.splits ?? []);
+      }
     } finally {
       setLoading(false);
     }
@@ -149,6 +159,28 @@ export default function PetroTinsGrid() {
           />
         </div>
       ))}
+
+      {/* Splits tins — shared expense calculator */}
+      {splitsTins.length > 0 && (
+        <div className="pt-grid__zone pt-grid__zone--splits">
+          <div className="pt-grid__zone-label">Shared Expenses</div>
+          <div className="pt-grid__splits-grid">
+            {splitsTins.map(tin => (
+              <SplitsTinComponent
+                key={tin.id}
+                tin={tin}
+                budgetTinOptions={tins.filter(t => t.type === 'budget' && !t.isSlush).map(t => ({ id: t.id, name: t.name }))}
+                onRefresh={load}
+                onDelete={async (id) => {
+                  if (!confirm('Delete this splits tin and all its data?')) return;
+                  await fetch('/api/petro-tins/splits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete_splits', splitsId: id }) });
+                  load();
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {tins.length === 0 && (
         <div className="pt-grid__empty">

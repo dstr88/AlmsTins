@@ -9,6 +9,58 @@ export interface PetroTinEntry {
   isDefault: boolean;   // true = auto-copies next month; bills always true, income toggleable
 }
 
+// ── Splits Tin ────────────────────────────────────────────────────────────────
+
+export interface SplitsPerson {
+  id: string;
+  splitsId: string;
+  name: string;
+  isOwner: boolean;   // true = the bookkeeper; their payments post as expenses
+  sortOrder: number;
+}
+
+export interface SplitsBill {
+  id: string;
+  splitsId: string;
+  name: string;
+  amount: number;
+  isDefault: boolean; // recurs each month
+  sortOrder: number;
+  assignments: SplitsAssignment[];
+}
+
+export interface SplitsAssignment {
+  id: string;
+  billId: string;
+  personId: string;
+  type: 'flat' | 'pct';
+  value: number;       // dollars if flat, 0-100 if pct
+}
+
+export interface SplitsPayment {
+  id: string;
+  personId: string;
+  billId: string;
+  month: string;       // YYYY-MM
+  amount: number;
+  paidDate: string;    // YYYY-MM-DD
+  budgetEntryId: string | null;
+}
+
+export interface SplitsTin {
+  id: string;
+  tenantId: string;
+  name: string;
+  interestRate: number;    // monthly % on carried balance, 0 = none
+  budgetTinId: string | null; // which budget tin receives income posts
+  people: SplitsPerson[];
+  bills: SplitsBill[];
+  payments: SplitsPayment[];  // current + prior month
+  carriedBalances: Record<string, number>; // personId → amount they still owe from prior months
+}
+
+// ── Core Tin ──────────────────────────────────────────────────────────────────
+
 export interface PetroTin {
   id: string;
   tenantId: string;
