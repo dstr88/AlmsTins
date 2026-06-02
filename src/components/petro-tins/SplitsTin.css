@@ -376,3 +376,70 @@
   border-color: var(--accent-glow);
   color: var(--accent);
 }
+
+/* ── "And" row ─────────────────────────────────────────────────────────────── */
+
+.pt-splits-cell--and-label {
+  background: var(--surface-bg);
+  border-bottom: none;
+  min-height: 0;
+  padding: 0.3rem 0.75rem;
+}
+
+.pt-splits-cell--and {
+  background: var(--surface-bg);
+  border-bottom: none;
+  padding: 0.3rem 0.5rem;
+  min-height: 0;
+}
+
+.pt-splits-cell--data.blank {
+  background: var(--surface-bg);
+  opacity: 0.3;
+}
+
+.pt-splits-and-btn {
+  background: none;
+  border: 1px dashed var(--border-bright);
+  color: var(--text-muted);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.pt-splits-and-btn:hover {
+  border-color: var(--accent-glow);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pt-splits-and-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.pt-splits-and-input {
+  background: var(--surface-card);
+  border: 1px solid var(--border-bright);
+  color: var(--text-primary);
+  border-radius: 5px;
+  padding: 3px 6px;
+  font-size: 0.78rem;
+  outline: none;
+  width: 100%;
+}
+.pt-splits-and-input:focus { border-color: var(--accent); }
+.pt-splits-and-input--amt { font-size: 0.72rem; }
+
+.pt-splits-and-actions {
+  display: flex;
+  gap: 0.3rem;
+}
+.pt-splits-and-actions .pt-splits-add-save {
+  padding: 3px 10px;
+  font-size: 0.75rem;
+}

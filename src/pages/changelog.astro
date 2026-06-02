@@ -20,6 +20,14 @@ import Layout from '@/layouts/LoginLayout.astro';
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">June 2, 2026</time>
+          <div class="entry-body">
+            <p>PetroTins splits now support bill references in formulas. In any amount field — whether you're adding a shared bill or a personal one — you can type <code>=[Rent]</code> and it will substitute the current amount of the bill named Rent. From there you can do math on it: <code>=[Rent]*0.5</code> gives half the rent, <code>=[Rent]+[Utilities]</code> sums two bills together. The result previews in real time as you type so you can confirm the number before saving.</p>
+            <p>Each person's column in the splits grid now has a small "+ and" button at the bottom. Clicking it opens a quick inline form — bill name and amount — that creates a bill assigned only to that person. Other people's cells for that bill stay blank rather than prompting you to set a value. This makes it straightforward to give each person their own list of bills without those bills cluttering everyone else's view.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">May 28, 2026</time>
           <div class="entry-body">
             <p>Google Safe Browsing and VirusTotal are now active sources in the dApp and website checker, bringing the total to seven. Both were previously wired up but inactive due to missing API keys. Google Safe Browsing catches malware, phishing, and unwanted software across the broader web — not just crypto-specific threats. VirusTotal aggregates results from dozens of independent security engines and returns a count of how many flagged a given URL. A site that slips past the crypto-specific databases may still be caught here.</p>
