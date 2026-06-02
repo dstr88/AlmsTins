@@ -282,6 +282,11 @@
   white-space: nowrap;
 }
 .pt-splits-add-save:disabled { opacity: 0.4; cursor: not-allowed; }
+.pt-splits-add-save--another {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-glow);
+}
 
 .pt-splits-add-cancel {
   background: none; border: 1px solid var(--border-subtle);

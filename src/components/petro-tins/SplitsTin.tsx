@@ -205,6 +205,34 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     onRefresh();
   }
 
+  async function saveBillFormAndAnother() {
+    if (!billForm || !billForm.name.trim()) return;
+    let total = evalFormula(billForm.total, tin.bills, budgetEntries);
+    if (isNaN(total) && !billForm.total.trim()) {
+      total = tin.people.reduce((sum, p) => {
+        const v = evalFormula(billForm.perPerson[p.id] ?? '', tin.bills, budgetEntries);
+        return sum + (isNaN(v) ? 0 : v);
+      }, 0);
+    }
+    if (isNaN(total) || total <= 0) return;
+    setSaving(true);
+    const res = await api({ action: 'add_bill', splitsId: tin.id, name: billForm.name.trim(), amount: total });
+    if (res.id) {
+      const assigns = tin.people
+        .filter(p => billForm.perPerson[p.id]?.trim())
+        .map(p => {
+          const val = evalFormula(billForm.perPerson[p.id], tin.bills, budgetEntries);
+          return isNaN(val) ? null : api({ action: 'set_assignment', billId: res.id, personId: p.id, type: 'flat', value: val });
+        })
+        .filter(Boolean);
+      await Promise.all(assigns);
+    }
+    // Reopen form with blank fields, same people
+    setBillForm({ name: '', total: '', perPerson: Object.fromEntries(tin.people.map(p => [p.id, ''])) });
+    setSaving(false);
+    onRefresh();
+  }
+
   async function saveAndForm() {
     if (!andForm || !andForm.name.trim()) return;
     const amt = evalFormula(andForm.amount, tin.bills, budgetEntries);
@@ -588,6 +616,10 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                 <div className="pt-splits-add-form" style={{ marginTop: '0.5rem' }}>
                   <button className="pt-splits-add-save" onClick={saveBillForm} disabled={saving || !canSave}>
                     {saving ? 'Saving…' : `Add Bill${derivedTotal > 0 && !billForm.total.trim() ? ` (${fmt(derivedTotal)})` : ''}`}
+                  </button>
+                  <button className="pt-splits-add-save pt-splits-add-save--another" onClick={saveBillFormAndAnother} disabled={saving || !canSave}
+                    title="Save this bill and immediately add another">
+                    + another
                   </button>
                   <button className="pt-splits-add-cancel" onClick={() => setBillForm(null)}>Cancel</button>
                 </div>
