@@ -201,6 +201,24 @@ td.col-del  { text-align: right; width: 52px; white-space: nowrap; }
 .pt-reg-blank:last-child { border-bottom: none; }
 .pt-reg-blank td { padding: 0.3rem 0.4rem; vertical-align: middle; }
 
+.pt-reg-add-row td { padding: 0.4rem 0.4rem; }
+.pt-reg-add-row-btn {
+  background: none;
+  border: 1px dashed var(--border-bright);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 0.3rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.pt-reg-add-row-btn:hover {
+  border-color: var(--accent-glow);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 /* Inputs */
 .pt-reg-input {
   width: 100%;

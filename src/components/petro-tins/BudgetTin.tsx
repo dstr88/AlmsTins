@@ -359,6 +359,16 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                 </tr>
               );
             })}
+            <tr className="pt-reg-add-row">
+              <td colSpan={6}>
+                <button
+                  className="pt-reg-add-row-btn"
+                  onClick={() => setRows(prev => [...prev, { date: today(), desc: '', payment: '', deposit: '' }])}
+                >
+                  + Add row
+                </button>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
