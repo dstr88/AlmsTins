@@ -377,6 +377,16 @@
   color: var(--accent);
 }
 
+.pt-splits-input--warn {
+  border-color: var(--loss) !important;
+}
+
+.pt-splits-ref-warn {
+  font-size: 0.72rem;
+  color: var(--loss);
+  font-style: italic;
+}
+
 /* ── "And" row ─────────────────────────────────────────────────────────────── */
 
 .pt-splits-cell--and-label {

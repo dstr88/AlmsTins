@@ -166,8 +166,17 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
 
   async function saveBillForm() {
     if (!billForm || !billForm.name.trim()) return;
-    const total = evalFormula(billForm.total, tin.bills);
+
+    // Total is optional — if blank, auto-sum from per-person amounts
+    let total = evalFormula(billForm.total, tin.bills);
+    if (isNaN(total) && !billForm.total.trim()) {
+      total = tin.people.reduce((sum, p) => {
+        const v = evalFormula(billForm.perPerson[p.id] ?? '', tin.bills);
+        return sum + (isNaN(v) ? 0 : v);
+      }, 0);
+    }
     if (isNaN(total) || total <= 0) return;
+
     setSaving(true);
     const res = await api({ action: 'add_bill', splitsId: tin.id, name: billForm.name.trim(), amount: total });
     if (res.id) {
@@ -491,34 +500,54 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
             {/* Per-person rows */}
             {tin.people.length > 0 && (
               <div className="pt-splits-bill-form__people">
-                {tin.people.map((person, i) => (
-                  <div key={person.id} className="pt-splits-bill-form__person-row">
-                    <span className="pt-splits-bill-form__person-name">{person.name}{person.isOwner ? ' 👑' : ''}</span>
-                    <input className="pt-splits-add-input pt-splits-add-input--amt"
-                      placeholder="$ or =[Rent]*0.5"
-                      value={billForm.perPerson[person.id] ?? ''}
-                      onChange={e => setBillForm(f => f ? { ...f, perPerson: { ...f.perPerson, [person.id]: e.target.value } } : f)} />
-                    {i === 0 && tin.people.length > 1 && (
-                      <button className="pt-splits-copy-btn"
-                        onClick={() => copyToAll(person.id)}
-                        title="Copy this amount to everyone">
-                        Copy to all ↓
-                      </button>
-                    )}
-                    {billForm.perPerson[person.id]?.trim().startsWith('=') && !isNaN(evalFormula(billForm.perPerson[person.id], tin.bills)) && (
-                      <span className="pt-splits-formula-result">{fmt(evalFormula(billForm.perPerson[person.id], tin.bills))}</span>
-                    )}
-                  </div>
-                ))}
+                {tin.people.map((person, i) => {
+                  const raw = billForm.perPerson[person.id] ?? '';
+                  const resolved = evalFormula(raw, tin.bills);
+                  const hasRef = /\[([^\]]+)\]/.test(raw);
+                  const unresolved = hasRef && isNaN(resolved);
+                  return (
+                    <div key={person.id} className="pt-splits-bill-form__person-row">
+                      <span className="pt-splits-bill-form__person-name">{person.name}{person.isOwner ? ' 👑' : ''}</span>
+                      <input className={`pt-splits-add-input pt-splits-add-input--amt${unresolved ? ' pt-splits-input--warn' : ''}`}
+                        placeholder="$ or =[Rent]*0.5"
+                        value={raw}
+                        onChange={e => setBillForm(f => f ? { ...f, perPerson: { ...f.perPerson, [person.id]: e.target.value } } : f)} />
+                      {i === 0 && tin.people.length > 1 && (
+                        <button className="pt-splits-copy-btn"
+                          onClick={() => copyToAll(person.id)}
+                          title="Copy this amount to everyone">
+                          Copy to all ↓
+                        </button>
+                      )}
+                      {!isNaN(resolved) && raw.trim().startsWith('=') && (
+                        <span className="pt-splits-formula-result">{fmt(resolved)}</span>
+                      )}
+                      {unresolved && (
+                        <span className="pt-splits-ref-warn">bill not found — enter a $ amount or add that bill first</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
-            <div className="pt-splits-add-form" style={{ marginTop: '0.5rem' }}>
-              <button className="pt-splits-add-save" onClick={saveBillForm} disabled={saving || !billForm.name.trim() || isNaN(evalFormula(billForm.total, tin.bills))}>
-                {saving ? 'Saving…' : 'Add Bill'}
-              </button>
-              <button className="pt-splits-add-cancel" onClick={() => setBillForm(null)}>Cancel</button>
-            </div>
+            {(() => {
+              const totalVal = evalFormula(billForm.total, tin.bills);
+              const personSum = tin.people.reduce((s, p) => {
+                const v = evalFormula(billForm.perPerson[p.id] ?? '', tin.bills);
+                return s + (isNaN(v) ? 0 : v);
+              }, 0);
+              const canSave = billForm.name.trim() && ((!isNaN(totalVal) && totalVal > 0) || personSum > 0);
+              const derivedTotal = !isNaN(totalVal) ? totalVal : personSum;
+              return (
+                <div className="pt-splits-add-form" style={{ marginTop: '0.5rem' }}>
+                  <button className="pt-splits-add-save" onClick={saveBillForm} disabled={saving || !canSave}>
+                    {saving ? 'Saving…' : `Add Bill${derivedTotal > 0 && !billForm.total.trim() ? ` (${fmt(derivedTotal)})` : ''}`}
+                  </button>
+                  <button className="pt-splits-add-cancel" onClick={() => setBillForm(null)}>Cancel</button>
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <button className="pt-splits-add-btn" onClick={openBillForm}>+ Add bill</button>
