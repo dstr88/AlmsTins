@@ -2,6 +2,15 @@ import { useState, useMemo } from 'react';
 import type { SplitsTin, SplitsPerson, SplitsBill, SplitsPayment } from './types';
 import './SplitsTin.css';
 
+/** Evaluate a formula like =1200+150 or plain "1350". Returns NaN on invalid. */
+function evalFormula(input: string): number {
+  const s = input.trim().startsWith('=') ? input.trim().slice(1) : input.trim();
+  if (!s) return NaN;
+  if (!/^[\d\s+\-*/().]+$/.test(s)) return NaN;
+  try { return Function('"use strict"; return (' + s + ')')(); }
+  catch { return NaN; }
+}
+
 function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
@@ -26,9 +35,12 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
   const [newPersonName, setNewPersonName] = useState('');
   const [newPersonOwner, setNewPersonOwner] = useState(false);
 
-  const [addingBill, setAddingBill]       = useState(false);
-  const [newBillName, setNewBillName]     = useState('');
-  const [newBillAmt, setNewBillAmt]       = useState('');
+  // Bill form — inline grid with per-person amounts
+  const [billForm, setBillForm] = useState<{
+    name: string;
+    total: string;
+    perPerson: Record<string, string>;
+  } | null>(null);
 
   const [payMode, setPayMode]             = useState<{ personId: string; billId: string } | null>(null);
   const [payAmt, setPayAmt]               = useState('');
@@ -119,13 +131,49 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
     onRefresh();
   }
 
-  async function addBill() {
-    const amt = parseFloat(newBillAmt);
-    if (!newBillName.trim() || isNaN(amt)) return;
+  function openBillForm() {
+    setBillForm({
+      name: '',
+      total: '',
+      perPerson: Object.fromEntries(tin.people.map(p => [p.id, ''])),
+    });
+  }
+
+  function splitEvenly() {
+    if (!billForm) return;
+    const total = evalFormula(billForm.total);
+    if (isNaN(total) || tin.people.length === 0) return;
+    const share = (total / tin.people.length).toFixed(2);
+    setBillForm(f => f ? { ...f, perPerson: Object.fromEntries(tin.people.map(p => [p.id, share])) } : f);
+  }
+
+  function copyToAll(fromId: string) {
+    if (!billForm) return;
+    const val = billForm.perPerson[fromId];
+    setBillForm(f => f ? { ...f, perPerson: Object.fromEntries(tin.people.map(p => [p.id, val])) } : f);
+  }
+
+  async function saveBillForm() {
+    if (!billForm || !billForm.name.trim()) return;
+    const total = evalFormula(billForm.total);
+    if (isNaN(total) || total <= 0) return;
     setSaving(true);
-    await api({ action: 'add_bill', splitsId: tin.id, name: newBillName.trim(), amount: amt });
-    setNewBillName(''); setNewBillAmt(''); setAddingBill(false);
-    setSaving(false); onRefresh();
+    // Create the bill
+    const res = await api({ action: 'add_bill', splitsId: tin.id, name: billForm.name.trim(), amount: total });
+    if (res.id) {
+      // Set per-person assignments
+      const assigns = tin.people
+        .filter(p => billForm.perPerson[p.id]?.trim())
+        .map(p => {
+          const val = evalFormula(billForm.perPerson[p.id]);
+          return isNaN(val) ? null : api({ action: 'set_assignment', billId: res.id, personId: p.id, type: 'flat', value: val });
+        })
+        .filter(Boolean);
+      await Promise.all(assigns);
+    }
+    setBillForm(null);
+    setSaving(false);
+    onRefresh();
   }
 
   async function deleteBill(billId: string) {
@@ -136,8 +184,12 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
 
   async function saveAssignment() {
     if (!editAssign) return;
+    const val = editAssign.type === 'pct'
+      ? parseFloat(editAssign.value) || 0
+      : evalFormula(editAssign.value);
+    if (isNaN(val)) return;
     setSaving(true);
-    await api({ action: 'set_assignment', billId: editAssign.billId, personId: editAssign.personId, type: editAssign.type, value: parseFloat(editAssign.value) || 0 });
+    await api({ action: 'set_assignment', billId: editAssign.billId, personId: editAssign.personId, type: editAssign.type, value: val });
     setEditAssign(null);
     setSaving(false); onRefresh();
   }
@@ -334,21 +386,67 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
         )}
       </div>
 
-      {/* Add bill */}
+      {/* Add bill — grid form */}
       <div className="pt-splits-add-row">
-        {addingBill ? (
-          <div className="pt-splits-add-form">
-            <input className="pt-splits-add-input" placeholder="Bill name" value={newBillName}
-              onChange={e => setNewBillName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addBill(); if (e.key === 'Escape') setAddingBill(false); }} />
-            <input className="pt-splits-add-input pt-splits-add-input--amt" placeholder="Total $" value={newBillAmt}
-              type="number" onChange={e => setNewBillAmt(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addBill(); if (e.key === 'Escape') setAddingBill(false); }} />
-            <button className="pt-splits-add-save" onClick={addBill} disabled={saving}>Add</button>
-            <button className="pt-splits-add-cancel" onClick={() => setAddingBill(false)}>✕</button>
+        {billForm ? (
+          <div className="pt-splits-bill-form">
+            {/* Bill name */}
+            <input className="pt-splits-add-input pt-splits-bill-form__name"
+              placeholder="Bill name (e.g. Rent)" value={billForm.name}
+              onChange={e => setBillForm(f => f ? { ...f, name: e.target.value } : f)}
+              onKeyDown={e => e.key === 'Escape' && setBillForm(null)}
+              autoFocus />
+
+            {/* Total row */}
+            <div className="pt-splits-bill-form__total-row">
+              <input className="pt-splits-add-input pt-splits-bill-form__total-input"
+                placeholder="Total $ or =1200+150"
+                value={billForm.total}
+                onChange={e => setBillForm(f => f ? { ...f, total: e.target.value } : f)} />
+              {!isNaN(evalFormula(billForm.total)) && billForm.total.trim().startsWith('=') && (
+                <span className="pt-splits-formula-result">= {fmt(evalFormula(billForm.total))}</span>
+              )}
+              <button className="pt-splits-evenly-btn" onClick={splitEvenly}
+                disabled={isNaN(evalFormula(billForm.total)) || tin.people.length === 0}
+                title="Divide total evenly among all people">
+                Split evenly
+              </button>
+            </div>
+
+            {/* Per-person rows */}
+            {tin.people.length > 0 && (
+              <div className="pt-splits-bill-form__people">
+                {tin.people.map((person, i) => (
+                  <div key={person.id} className="pt-splits-bill-form__person-row">
+                    <span className="pt-splits-bill-form__person-name">{person.name}{person.isOwner ? ' 👑' : ''}</span>
+                    <input className="pt-splits-add-input pt-splits-add-input--amt"
+                      placeholder="$ or =formula"
+                      value={billForm.perPerson[person.id] ?? ''}
+                      onChange={e => setBillForm(f => f ? { ...f, perPerson: { ...f.perPerson, [person.id]: e.target.value } } : f)} />
+                    {i === 0 && tin.people.length > 1 && (
+                      <button className="pt-splits-copy-btn"
+                        onClick={() => copyToAll(person.id)}
+                        title="Copy this amount to everyone">
+                        Copy to all ↓
+                      </button>
+                    )}
+                    {billForm.perPerson[person.id]?.trim().startsWith('=') && !isNaN(evalFormula(billForm.perPerson[person.id])) && (
+                      <span className="pt-splits-formula-result">{fmt(evalFormula(billForm.perPerson[person.id]))}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="pt-splits-add-form" style={{ marginTop: '0.5rem' }}>
+              <button className="pt-splits-add-save" onClick={saveBillForm} disabled={saving || !billForm.name.trim() || isNaN(evalFormula(billForm.total))}>
+                {saving ? 'Saving…' : 'Add Bill'}
+              </button>
+              <button className="pt-splits-add-cancel" onClick={() => setBillForm(null)}>Cancel</button>
+            </div>
           </div>
         ) : (
-          <button className="pt-splits-add-btn" onClick={() => setAddingBill(true)}>+ Add bill</button>
+          <button className="pt-splits-add-btn" onClick={openBillForm}>+ Add bill</button>
         )}
       </div>
     </div>

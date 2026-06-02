@@ -288,3 +288,91 @@
   color: var(--text-muted); border-radius: 7px;
   padding: 0.4rem 0.7rem; font-size: 0.82rem; cursor: pointer;
 }
+
+/* ── Bill grid form ────────────────────────────────────────────────────────── */
+
+.pt-splits-bill-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pt-splits-bill-form__name {
+  width: 100%;
+}
+
+.pt-splits-bill-form__total-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pt-splits-bill-form__total-input {
+  max-width: 200px;
+  flex: 0 0 200px;
+}
+
+.pt-splits-formula-result {
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pt-splits-evenly-btn {
+  background: var(--surface-hover);
+  border: 1px solid var(--border-bright);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.pt-splits-evenly-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pt-splits-evenly-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.pt-splits-bill-form__people {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-card);
+}
+
+.pt-splits-bill-form__person-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pt-splits-bill-form__person-name {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  min-width: 90px;
+  flex: 0 0 90px;
+}
+
+.pt-splits-copy-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s, color 0.12s;
+}
+.pt-splits-copy-btn:hover {
+  border-color: var(--accent-glow);
+  color: var(--accent);
+}
