@@ -239,10 +239,22 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
         <button className="pt-splits-tin__del" onClick={() => onDelete(tin.id)} title="Delete">✕</button>
       </div>
 
-      {/* Empty state */}
+      {/* Empty state / people list when no bills yet */}
       {tin.people.length === 0 && (
         <div style={{ padding: '1rem 1.25rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
           Add people below, then add shared bills to split between them.
+        </div>
+      )}
+      {tin.people.length > 0 && tin.bills.length === 0 && (
+        <div style={{ padding: '0.75rem 1.25rem' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>People</div>
+          {tin.people.map(person => (
+            <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0' }}>
+              <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)', flex: 1 }}>{person.name}{person.isOwner ? ' 👑' : ''}</span>
+              <button className="pt-splits-remove-person" style={{ opacity: 0.7, fontSize: '0.78rem' }} onClick={() => deletePerson(person.id)} title="Remove">✕ Remove</button>
+            </div>
+          ))}
+          <div style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>Add a bill below to start splitting.</div>
         </div>
       )}
 

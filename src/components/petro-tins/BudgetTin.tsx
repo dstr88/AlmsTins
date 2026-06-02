@@ -3,6 +3,15 @@ import type { PetroTin, PetroTinEntry } from './types';
 import './BudgetTin.css';
 
 const BLANK_ROWS = 5;
+
+/** Evaluate a formula like =1200+150 or a plain number. Returns NaN on invalid. */
+function evalFormula(input: string): number {
+  const s = input.trim().startsWith('=') ? input.trim().slice(1) : input.trim();
+  if (!s) return NaN;
+  if (!/^[\d\s+\-*/().]+$/.test(s)) return NaN;
+  try { return Function('"use strict"; return (' + s + ')')(); }
+  catch { return NaN; }
+}
 const today = () => new Date().toISOString().slice(0, 10);
 const thisMonth = () => new Date().toISOString().slice(0, 7);
 const nextMonth = () => {
@@ -139,8 +148,8 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
 
   const trySave = useCallback(async (i: number) => {
     const row = rows[i];
-    const dep = parseFloat(row.deposit);
-    const pay = parseFloat(row.payment);
+    const dep = evalFormula(row.deposit);
+    const pay = evalFormula(row.payment);
     if (!row.date || !row.desc.trim()) return;
     const depValid = !isNaN(dep) && dep >= 0;
     const payValid = !isNaN(pay) && pay >= 0;
@@ -304,8 +313,6 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
               <td colSpan={6}>Add entry</td>
             </tr>
             {rows.map((row, i) => {
-              const dep = parseFloat(row.deposit);
-              const pay = parseFloat(row.payment);
               return (
                 <tr key={i} className="pt-reg-blank">
                   <td className="col-chk"></td>
@@ -322,21 +329,31 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                       onKeyDown={e => e.key === 'Enter' && trySave(i)}
                       disabled={saving[i]} />
                   </td>
-                  <td>
-                    <input className="pt-reg-input col-amt" type="number" step="0.01" min="0" placeholder="—"
+                  <td style={{ position: 'relative' }}>
+                    <input className="pt-reg-input col-amt" type="text" placeholder="— or =500+50"
                       value={row.payment}
                       onChange={e => updateRow(i, 'payment', e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && trySave(i)}
                       onBlur={() => setTimeout(() => trySave(i), 120)}
                       disabled={saving[i]} />
+                    {row.payment.trim().startsWith('=') && !isNaN(evalFormula(row.payment)) && (
+                      <span style={{ position: 'absolute', bottom: '-1.1rem', left: 0, fontSize: '0.7rem', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                        = {fmt(evalFormula(row.payment))}
+                      </span>
+                    )}
                   </td>
-                  <td>
-                    <input className="pt-reg-input col-amt" type="number" step="0.01" min="0" placeholder="—"
+                  <td style={{ position: 'relative' }}>
+                    <input className="pt-reg-input col-amt" type="text" placeholder="— or =500+50"
                       value={row.deposit}
                       onChange={e => updateRow(i, 'deposit', e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && trySave(i)}
                       onBlur={() => setTimeout(() => trySave(i), 120)}
                       disabled={saving[i]} />
+                    {row.deposit.trim().startsWith('=') && !isNaN(evalFormula(row.deposit)) && (
+                      <span style={{ position: 'absolute', bottom: '-1.1rem', left: 0, fontSize: '0.7rem', color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                        = {fmt(evalFormula(row.deposit))}
+                      </span>
+                    )}
                   </td>
                   <td></td>
                 </tr>
