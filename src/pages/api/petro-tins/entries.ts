@@ -103,6 +103,19 @@ export const PATCH: APIRoute = async ({ request }) => {
     });
   }
 
+  // Update amount and/or description
+  if (body.amount !== undefined || body.description !== undefined) {
+    const fields: string[] = [];
+    const args: any[] = [];
+    if (body.amount !== undefined) { fields.push('amount = ?'); args.push(Number(body.amount)); }
+    if (body.description !== undefined) { fields.push('description = ?'); args.push(String(body.description)); }
+    args.push(entryId, tenantId);
+    await db.execute({
+      sql: `UPDATE petro_tin_entries SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`,
+      args,
+    });
+  }
+
   return json({ ok: true });
 };
 

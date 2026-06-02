@@ -46,6 +46,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
   const [saving,        setSaving]        = useState<Record<number, boolean>>({});
   const [showDefaults,  setShowDefaults]  = useState(false);
   const [showSurplus,   setShowSurplus]   = useState(false);
+  const [editingEntry,  setEditingEntry]  = useState<{ id: string; amount: string; desc: string } | null>(null);
   const [allPaidBanner, setAllPaidBanner] = useState(() => {
     try { return localStorage.getItem(allPaidKey) === '1'; } catch { return false; }
   });
@@ -136,6 +137,19 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
     onRefresh();
   }, [tin.id, onRefresh]);
 
+  const saveEditEntry = useCallback(async () => {
+    if (!editingEntry) return;
+    const amount = evalFormula(editingEntry.amount);
+    if (isNaN(amount) || amount < 0) return;
+    await fetch('/api/petro-tins/entries', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entryId: editingEntry.id, amount, description: editingEntry.desc }),
+    });
+    setEditingEntry(null);
+    onRefresh();
+  }, [editingEntry, onRefresh]);
+
   const updateRow = (i: number, field: keyof BlankRow, value: string) => {
     setRows(prev => {
       const next = [...prev];
@@ -184,36 +198,75 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
   }, [tin.id, onRefresh]);
 
   // ── Render helpers ─────────────────────────────────────────────────────────
-  const renderRow = (e: PetroTinEntry, showDefault = false) => (
-    <tr key={e.id} className={`pt-reg-saved${e.checked ? ' pt-reg-checked' : ''}`}>
-      <td className="col-chk">
-        <input
-          type="checkbox"
-          className="pt-reg-checkbox"
-          checked={e.checked}
-          onChange={() => toggleChecked(e.id, e.checked)}
-          title="Mark as paid"
-        />
-      </td>
-      <td className="col-date">{e.entryDate.slice(0, 7) !== curMonth
-        ? <span className="pt-carried-month">{e.entryDate.slice(0, 7)}</span>
-        : e.entryDate}
-      </td>
-      <td className="col-desc">{e.description}</td>
-      <td className="col-pay">{e.kind === 'expense' ? fmt(e.amount) : ''}</td>
-      <td className="col-dep">{e.kind === 'income'  ? fmt(e.amount) : ''}</td>
-      <td className="col-del">
-        {showDefault && (
-          <button
-            className={`pt-reg-default-btn${e.isDefault ? ' active' : ''}`}
-            title={e.isDefault ? 'Repeats monthly — click to make one-time' : 'One-time — click to repeat monthly'}
-            onClick={() => toggleDefault(e.id, e.isDefault)}
-          >↻</button>
-        )}
-        <button className="pt-reg-del" onClick={() => deleteEntry(e.id)} title="Delete">✕</button>
-      </td>
-    </tr>
-  );
+  const renderRow = (e: PetroTinEntry, showDefault = false) => {
+    const isEditing = editingEntry?.id === e.id;
+    return (
+      <tr key={e.id} className={`pt-reg-saved${e.checked ? ' pt-reg-checked' : ''}`}>
+        <td className="col-chk">
+          <input
+            type="checkbox"
+            className="pt-reg-checkbox"
+            checked={e.checked}
+            onChange={() => toggleChecked(e.id, e.checked)}
+            title="Mark as paid"
+          />
+        </td>
+        <td className="col-date">{e.entryDate.slice(0, 7) !== curMonth
+          ? <span className="pt-carried-month">{e.entryDate.slice(0, 7)}</span>
+          : e.entryDate}
+        </td>
+        <td className="col-desc">
+          {isEditing
+            ? <input className="pt-reg-input pt-reg-edit-input" value={editingEntry!.desc}
+                onChange={ev => setEditingEntry(ed => ed ? { ...ed, desc: ev.target.value } : ed)}
+                onKeyDown={ev => { if (ev.key === 'Enter') saveEditEntry(); if (ev.key === 'Escape') setEditingEntry(null); }} />
+            : <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '' })}>{e.description}</span>
+          }
+        </td>
+        <td className="col-pay">
+          {isEditing && e.kind === 'expense'
+            ? <input className="pt-reg-input pt-reg-edit-input col-amt" value={editingEntry!.amount}
+                onChange={ev => setEditingEntry(ed => ed ? { ...ed, amount: ev.target.value } : ed)}
+                onKeyDown={ev => { if (ev.key === 'Enter') saveEditEntry(); if (ev.key === 'Escape') setEditingEntry(null); }}
+                onBlur={saveEditEntry} autoFocus />
+            : e.kind === 'expense'
+              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '' })}>{fmt(e.amount)}</span>
+              : ''
+          }
+        </td>
+        <td className="col-dep">
+          {isEditing && e.kind === 'income'
+            ? <input className="pt-reg-input pt-reg-edit-input col-amt" value={editingEntry!.amount}
+                onChange={ev => setEditingEntry(ed => ed ? { ...ed, amount: ev.target.value } : ed)}
+                onKeyDown={ev => { if (ev.key === 'Enter') saveEditEntry(); if (ev.key === 'Escape') setEditingEntry(null); }}
+                onBlur={saveEditEntry} autoFocus />
+            : e.kind === 'income'
+              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '' })}>{fmt(e.amount)}</span>
+              : ''
+          }
+        </td>
+        <td className="col-del">
+          {isEditing ? (
+            <>
+              <button className="pt-reg-edit-save" onClick={saveEditEntry} title="Save">✓</button>
+              <button className="pt-reg-del" onClick={() => setEditingEntry(null)} title="Cancel">✕</button>
+            </>
+          ) : (
+            <>
+              {showDefault && (
+                <button
+                  className={`pt-reg-default-btn${e.isDefault ? ' active' : ''}`}
+                  title={e.isDefault ? 'Repeats monthly — click to make one-time' : 'One-time — click to repeat monthly'}
+                  onClick={() => toggleDefault(e.id, e.isDefault)}
+                >↻</button>
+              )}
+              <button className="pt-reg-del" onClick={() => deleteEntry(e.id)} title="Delete">✕</button>
+            </>
+          )}
+        </td>
+      </tr>
+    );
+  };
 
   return (
     <div className="pt-budget-tin" data-tin-id={tin.id}>

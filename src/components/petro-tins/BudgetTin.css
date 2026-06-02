@@ -187,6 +187,26 @@ td.col-del  { text-align: right; width: 52px; white-space: nowrap; }
 .pt-reg-default-btn.active { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
 .pt-reg-default-btn:hover  { color: var(--accent); border-color: var(--accent-glow); }
 
+.pt-reg-editable {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--border-bright);
+  transition: color 0.12s, border-color 0.12s;
+}
+.pt-reg-editable:hover { color: var(--accent); border-color: var(--accent-glow); }
+
+.pt-reg-edit-input {
+  padding: 1px 4px !important;
+  font-size: 0.8rem !important;
+  min-width: 60px;
+}
+
+.pt-reg-edit-save {
+  background: var(--accent); color: var(--surface-bg);
+  border: none; border-radius: 4px;
+  padding: 1px 6px; font-size: 0.72rem;
+  font-weight: 700; cursor: pointer; margin-right: 2px;
+}
+
 .pt-reg-del {
   background: none; border: none;
   color: var(--text-muted); cursor: pointer;
