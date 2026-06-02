@@ -127,6 +127,7 @@ export default function PetroTinsGrid() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onAddEntry={handleAddEntry}
+                onRefresh={load}
               />
             ))}
           </div>

@@ -39,9 +39,9 @@ export const POST: APIRoute = async ({ request }) => {
   const tinId = String(body.tinId ?? '').trim();
   if (!tinId) return json({ ok: false, error: 'tinId required' }, 400);
 
-  // Verify tin belongs to this tenant
+  // Verify tin belongs to this tenant (budget or debt)
   const tinCheck = await db.execute({
-    sql: `SELECT id FROM petro_tins WHERE id = ? AND tenant_id = ? AND type = 'budget' AND is_slush = 0`,
+    sql: `SELECT id FROM petro_tins WHERE id = ? AND tenant_id = ? AND type IN ('budget', 'debt')`,
     args: [tinId, tenantId],
   });
   if (!tinCheck.rows.length) return json({ ok: false, error: 'Tin not found' }, 404);

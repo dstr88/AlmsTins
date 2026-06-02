@@ -184,6 +184,183 @@ details[open] .pt-debt-tin__summary::after { content: '▴'; }
 .pt-debt-tin__entry-amount.charge  { color: var(--loss); }
 .pt-debt-tin__no-entries { font-size: 0.8rem; color: var(--text-muted); padding: 0.25rem 0; }
 
+/* ── Recurring charges register ─────────────────────────────────────────────── */
+
+.pt-debt-register {
+  border-top: 1px solid var(--border-subtle);
+  padding: 0.65rem 1rem 0.75rem;
+}
+
+.pt-debt-register__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.pt-debt-register__title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.pt-debt-register__allchecked {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--gain);
+}
+
+.pt-debt-register__empty {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: 0.4rem;
+}
+
+.pt-debt-register__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.85rem;
+}
+.pt-debt-register__row:last-of-type { border-bottom: none; }
+.pt-debt-register__row.checked .pt-debt-register__desc,
+.pt-debt-register__row.checked .pt-debt-register__amt {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.pt-debt-register__chk { cursor: pointer; flex-shrink: 0; }
+
+.pt-debt-register__desc {
+  flex: 1;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.pt-debt-register__amt {
+  font-weight: 600;
+  min-width: 60px;
+  text-align: right;
+}
+
+.pt-debt-register__editable {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--border-bright);
+  transition: color 0.12s;
+}
+.pt-debt-register__editable:hover { color: var(--accent); border-color: var(--accent-glow); }
+
+.pt-debt-register__edit-input {
+  flex: 1;
+  background: var(--surface-card-2);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 0.82rem;
+  outline: none;
+}
+.pt-debt-register__edit-amt { flex: 0 0 80px; max-width: 80px; }
+
+.pt-debt-register__save-btn {
+  background: var(--accent);
+  color: var(--surface-bg);
+  border: none;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.pt-debt-register__save-btn--full { padding: 3px 12px; font-size: 0.8rem; }
+
+.pt-debt-register__del-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.65rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  opacity: 0.45;
+  flex-shrink: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+.pt-debt-register__del-btn:hover { opacity: 1; color: var(--loss); }
+
+.pt-debt-register__add-btn {
+  background: none;
+  border: 1px dashed var(--border-bright);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 3px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 0.4rem;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.pt-debt-register__add-btn:hover {
+  border-color: var(--accent-glow);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pt-debt-register__add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+}
+
+.pt-debt-register__add-input {
+  background: var(--surface-card);
+  border: 1px solid var(--border-bright);
+  color: var(--text-primary);
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-size: 0.82rem;
+  outline: none;
+  width: 100%;
+}
+.pt-debt-register__add-input:focus { border-color: var(--accent); }
+.pt-debt-register__add-amt { max-width: 140px; }
+
+.pt-debt-register__recurring-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 0.25rem;
+}
+
+.pt-debt-register__add-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.pt-debt-register__cancel-btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
 /* Footer */
 .pt-debt-tin__footer {
   padding: 0.65rem 1rem;
