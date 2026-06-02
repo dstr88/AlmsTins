@@ -71,6 +71,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   const [editAssign, setEditAssign]       = useState<{ billId: string; personId: string; type: 'flat' | 'pct'; value: string } | null>(null);
   const [andForm, setAndForm]             = useState<{ personId: string; name: string; amount: string } | null>(null);
   const [focusedPersonId, setFocusedPersonId] = useState<string | null>(null);
+  const [personPanelId, setPersonPanelId]     = useState<string | null>(null);
 
   const curMonth = thisMonth();
 
@@ -327,7 +328,11 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           <div className="pt-splits-cell pt-splits-cell--label" />
           {tin.people.map(person => (
             <div key={person.id} className="pt-splits-cell pt-splits-cell--name">
-              <span>{person.name}{person.isOwner ? ' 👑' : ''}</span>
+              <button className="pt-splits-person-name-btn"
+                onClick={() => setPersonPanelId(id => id === person.id ? null : person.id)}
+                title="View responsibilities">
+                {person.name}{person.isOwner ? ' 👑' : ''}
+              </button>
               <button className="pt-splits-remove-person" onClick={() => deletePerson(person.id)} title="Remove">✕</button>
             </div>
           ))}
@@ -491,6 +496,54 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           ))}
         </div>
       )}
+
+      {/* Person responsibility panel */}
+      {personPanelId && (() => {
+        const person = tin.people.find(p => p.id === personPanelId);
+        if (!person) return null;
+        const bills = tin.bills.filter(b => {
+          const assign = b.assignments.find(a => a.personId === person.id);
+          return assign != null;
+        });
+        const totals = personTotals.find(t => t.personId === person.id);
+        return (
+          <div className="pt-person-panel">
+            <div className="pt-person-panel__header">
+              <span className="pt-person-panel__name">{person.name}{person.isOwner ? ' 👑' : ''}</span>
+              <span className="pt-person-panel__sub">Responsibilities this month</span>
+              <button className="pt-person-panel__close" onClick={() => setPersonPanelId(null)}>✕</button>
+            </div>
+            <div className="pt-person-panel__list">
+              {bills.length === 0 ? (
+                <div className="pt-person-panel__empty">No bills assigned yet.</div>
+              ) : bills.map(bill => {
+                const owed = owedMap[person.id]?.[bill.id] ?? 0;
+                const paid = paidMap[person.id]?.[bill.id] ?? 0;
+                const done = owed > 0 && paid >= owed;
+                return (
+                  <div key={bill.id} className={`pt-person-panel__row${done ? ' done' : ''}`}>
+                    <span className="pt-person-panel__bill-name">{bill.name}</span>
+                    <span className="pt-person-panel__bill-amt">{fmt(owed)}</span>
+                    <span className={`pt-person-panel__status ${done ? 'paid' : 'unpaid'}`}>
+                      {done ? '✓ paid' : `-${fmt(owed - paid)} remaining`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {totals && (
+              <div className="pt-person-panel__footer">
+                <span>Total owed</span>
+                <span className={totals.balance <= 0 ? 'gain' : 'loss'}>{fmt(totals.owed)}</span>
+                <span>Paid</span>
+                <span className="gain">{fmt(totals.paid)}</span>
+                <span>Remaining</span>
+                <span className={totals.balance <= 0 ? 'gain' : 'loss'}>{totals.balance <= 0 ? '✓ All paid' : fmt(totals.balance)}</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Add person */}
       <div className="pt-splits-add-row">
