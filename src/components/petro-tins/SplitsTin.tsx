@@ -70,6 +70,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   const [expandedHistory, setExpandedHistory] = useState<Set<string>>(new Set());
   const [editAssign, setEditAssign]       = useState<{ billId: string; personId: string; type: 'flat' | 'pct'; value: string } | null>(null);
   const [andForm, setAndForm]             = useState<{ personId: string; name: string; amount: string } | null>(null);
+  const [focusedPersonId, setFocusedPersonId] = useState<string | null>(null);
 
   const curMonth = thisMonth();
 
@@ -441,6 +442,20 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                   {andForm.amount.trim().startsWith('=') && !isNaN(evalFormula(andForm.amount, tin.bills, budgetEntries)) && (
                     <span className="pt-splits-formula-result">{fmt(evalFormula(andForm.amount, tin.bills, budgetEntries))}</span>
                   )}
+                  {budgetEntries.length > 0 && (
+                    <div className="pt-splits-ref-chips pt-splits-ref-chips--compact">
+                      {budgetEntries.map((e, i) => (
+                        <button key={i} className="pt-splits-ref-chip"
+                          onMouseDown={ev => {
+                            ev.preventDefault();
+                            setAndForm(f => f ? { ...f, amount: `=[${e.description}]` } : f);
+                          }}
+                          title={fmt(e.amount)}>
+                          {e.description}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="pt-splits-and-actions">
                     <button className="pt-splits-add-save" onClick={saveAndForm}
                       disabled={saving || !andForm.name.trim() || isNaN(evalFormula(andForm.amount, tin.bills, budgetEntries))}>
@@ -521,6 +536,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                       <input className={`pt-splits-add-input pt-splits-add-input--amt${unresolved ? ' pt-splits-input--warn' : ''}`}
                         placeholder="$ or =[Rent]*0.5"
                         value={raw}
+                        onFocus={() => setFocusedPersonId(person.id)}
                         onChange={e => setBillForm(f => f ? { ...f, perPerson: { ...f.perPerson, [person.id]: e.target.value } } : f)} />
                       {i === 0 && tin.people.length > 1 && (
                         <button className="pt-splits-copy-btn"
@@ -538,6 +554,25 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Budget entry reference chips */}
+            {budgetEntries.length > 0 && (
+              <div className="pt-splits-ref-chips">
+                <span className="pt-splits-ref-chips__label">From budget:</span>
+                {budgetEntries.map((e, i) => (
+                  <button key={i} className="pt-splits-ref-chip"
+                    onMouseDown={ev => {
+                      ev.preventDefault(); // keep focus on the amount input
+                      const targetId = focusedPersonId ?? tin.people[0]?.id;
+                      if (!targetId) return;
+                      setBillForm(f => f ? { ...f, perPerson: { ...f.perPerson, [targetId]: `=[${e.description}]` } } : f);
+                    }}
+                    title={`Insert =[${e.description}] → ${fmt(e.amount)}`}>
+                    {e.description} <span className="pt-splits-ref-chip__amt">{fmt(e.amount)}</span>
+                  </button>
+                ))}
               </div>
             )}
 
