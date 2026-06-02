@@ -312,7 +312,10 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>People</div>
           {tin.people.map(person => (
             <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0' }}>
-              <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)', flex: 1 }}>{person.name}{person.isOwner ? ' 👑' : ''}</span>
+              <button className="pt-splits-person-name-btn"
+                onClick={() => setPersonPanelId(id => id === person.id ? null : person.id)}>
+                {person.name}{person.isOwner ? ' 👑' : ''}
+              </button>
               <button className="pt-splits-remove-person" style={{ opacity: 0.7, fontSize: '0.78rem' }} onClick={() => deletePerson(person.id)} title="Remove">✕ Remove</button>
             </div>
           ))}
