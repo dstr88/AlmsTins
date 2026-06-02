@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { PetroTin, SplitsTin } from './types';
 import DebtTin from './DebtTin';
+import CreditCardChargesGrid from './CreditCardChargesGrid';
 import BudgetTin from './BudgetTin';
 import SlushTin from './SlushTin';
 import SplitsTinComponent from './SplitsTin';
@@ -119,6 +120,7 @@ export default function PetroTinsGrid() {
       {debtTins.length > 0 && (
         <div className="pt-grid__zone pt-grid__zone--debt">
           <div className="pt-grid__zone-label">Debt</div>
+          <CreditCardChargesGrid debtTins={debtTins} />
           <div className="pt-grid__debt-grid">
             {debtTins.map(tin => (
               <DebtTin
