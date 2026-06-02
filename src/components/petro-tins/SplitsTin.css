@@ -536,6 +536,29 @@
   color: var(--accent);
 }
 
+.pt-splits-nobudget-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+.pt-splits-nobudget-label input { cursor: pointer; }
+
+.pt-splits-nobudget-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
 .pt-splits-input--warn {
   border-color: var(--loss) !important;
 }

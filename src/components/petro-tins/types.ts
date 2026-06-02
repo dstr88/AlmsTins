@@ -25,6 +25,7 @@ export interface SplitsBill {
   name: string;
   amount: number;
   isDefault: boolean; // recurs each month
+  noBudget: boolean;  // true = payment won't auto-post to budget register
   sortOrder: number;
   assignments: SplitsAssignment[];
 }

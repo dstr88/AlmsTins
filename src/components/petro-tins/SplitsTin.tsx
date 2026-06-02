@@ -60,6 +60,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     name: string;
     total: string;
     perPerson: Record<string, string[]>;
+    noBudget: boolean;
   } | null>(null);
 
   const [payMode, setPayMode]             = useState<{ personId: string; billId: string } | null>(null);
@@ -69,7 +70,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
 
   const [expandedHistory, setExpandedHistory] = useState<Set<string>>(new Set());
   const [editAssign, setEditAssign]       = useState<{ billId: string; personId: string; type: 'flat' | 'pct'; value: string } | null>(null);
-  const [andForm, setAndForm]             = useState<{ personId: string; name: string; amount: string } | null>(null);
+  const [andForm, setAndForm]             = useState<{ personId: string; name: string; amount: string; noBudget: boolean } | null>(null);
   const [focusedPersonId, setFocusedPersonId] = useState<string | null>(null);
   const [personPanelId, setPersonPanelId]     = useState<string | null>(null);
 
@@ -158,7 +159,8 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     setBillForm({
       name: '',
       total: '',
-      perPerson: Object.fromEntries(tin.people.map(p => [p.id, ['']]))
+      perPerson: Object.fromEntries(tin.people.map(p => [p.id, ['']])),
+      noBudget: false,
     });
   }
 
@@ -200,7 +202,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     if (isNaN(total) || total <= 0) return;
 
     setSaving(true);
-    const res = await api({ action: 'add_bill', splitsId: tin.id, name: billForm.name.trim(), amount: total });
+    const res = await api({ action: 'add_bill', splitsId: tin.id, name: billForm.name.trim(), amount: total, noBudget: billForm.noBudget });
     if (res.id) {
       const assigns = tin.people
         .filter(p => {
@@ -212,7 +214,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     }
 
     if (andAnother) {
-      setBillForm({ name: '', total: '', perPerson: Object.fromEntries(tin.people.map(p => [p.id, ['']])) });
+      setBillForm({ name: '', total: '', perPerson: Object.fromEntries(tin.people.map(p => [p.id, ['']])), noBudget: false });
     } else {
       setBillForm(null);
     }
@@ -229,7 +231,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     if (isNaN(amt) || amt <= 0) return;
     setSaving(true);
     // isDefault=false marks this as a person-specific bill (other people's cells stay blank)
-    const res = await api({ action: 'add_bill', splitsId: tin.id, name: andForm.name.trim(), amount: amt, isDefault: false });
+    const res = await api({ action: 'add_bill', splitsId: tin.id, name: andForm.name.trim(), amount: amt, isDefault: false, noBudget: andForm.noBudget });
     if (res.id) {
       await api({ action: 'set_assignment', billId: res.id, personId: andForm.personId, type: 'flat', value: amt });
     }
@@ -358,6 +360,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
             <React.Fragment key={bill.id}>
               <div className="pt-splits-cell pt-splits-cell--bill-label">
                 <span>{bill.name}</span>
+                {bill.noBudget && <span className="pt-splits-nobudget-badge" title="Other charge — not tracked in budget">other</span>}
                 <span className="pt-splits-bill-total">{fmt(bill.amount)}</span>
                 <button className="pt-splits-remove-bill" onClick={() => deleteBill(bill.id)} title="Remove">✕</button>
               </div>
@@ -481,6 +484,11 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                       ))}
                     </div>
                   )}
+                  <label className="pt-splits-nobudget-label">
+                    <input type="checkbox" checked={andForm.noBudget}
+                      onChange={e => setAndForm(f => f ? { ...f, noBudget: e.target.checked } : f)} />
+                    &nbsp;Other charge — don't post to budget
+                  </label>
                   <div className="pt-splits-and-actions">
                     <button className="pt-splits-add-save" onClick={saveAndForm}
                       disabled={saving || !andForm.name.trim() || isNaN(evalFormula(andForm.amount, tin.bills, budgetEntries))}>
@@ -491,7 +499,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                 </div>
               ) : (
                 <button className="pt-splits-and-btn"
-                  onClick={() => setAndForm({ personId: person.id, name: '', amount: '' })}>
+                  onClick={() => setAndForm({ personId: person.id, name: '', amount: '', noBudget: false })}>
                   + and
                 </button>
               )}
@@ -661,6 +669,13 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                 })}
               </div>
             )}
+
+            {/* No-budget toggle */}
+            <label className="pt-splits-nobudget-label">
+              <input type="checkbox" checked={billForm.noBudget}
+                onChange={e => setBillForm(f => f ? { ...f, noBudget: e.target.checked } : f)} />
+              &nbsp;Other charge — don't post to budget when paid
+            </label>
 
             {/* Budget entry reference chips */}
             {budgetEntries.length > 0 && (
