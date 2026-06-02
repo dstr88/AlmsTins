@@ -170,6 +170,7 @@ export default function PetroTinsGrid() {
                 key={tin.id}
                 tin={tin}
                 budgetTinOptions={tins.filter(t => t.type === 'budget' && !t.isSlush).map(t => ({ id: t.id, name: t.name }))}
+                budgetEntries={tins.filter(t => t.type === 'budget' && !t.isSlush).flatMap(t => t.entries ?? [])}
                 onRefresh={load}
                 onDelete={async (id) => {
                   if (!confirm('Delete this splits tin and all its data?')) return;

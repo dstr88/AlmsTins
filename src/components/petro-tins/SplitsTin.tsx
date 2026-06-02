@@ -1,18 +1,27 @@
 import React, { useState, useMemo } from 'react';
-import type { SplitsTin, SplitsPerson, SplitsBill, SplitsPayment } from './types';
+import type { SplitsTin, SplitsPerson, SplitsBill, SplitsPayment, PetroTinEntry } from './types';
 import './SplitsTin.css';
 
-/** Evaluate a formula like =1200+150, plain "1350", or =[Rent]*0.5. Returns NaN on invalid. */
-function evalFormula(input: string, bills?: Array<{ name: string; amount: number }>): number {
+/** Evaluate a formula like =1200+150, plain "1350", or =[Rent]*0.5.
+ *  [Name] resolves against splits bills first, then budget entries by description. */
+function evalFormula(
+  input: string,
+  bills?: Array<{ name: string; amount: number }>,
+  budgetEntries?: Array<{ description: string; amount: number; kind: string }>,
+): number {
   let s = input.trim().startsWith('=') ? input.trim().slice(1) : input.trim();
   if (!s) return NaN;
-  // Resolve [Bill Name] references
-  if (bills) {
+  if (bills || budgetEntries) {
     let allResolved = true;
     s = s.replace(/\[([^\]]+)\]/g, (_, name) => {
-      const bill = bills.find(b => b.name.toLowerCase() === name.trim().toLowerCase());
-      if (bill == null) { allResolved = false; return '0'; }
-      return String(bill.amount);
+      const key = name.trim().toLowerCase();
+      const bill = bills?.find(b => b.name.toLowerCase() === key);
+      if (bill != null) return String(bill.amount);
+      // Fall back to budget entries — match by description, use expense amount
+      const entry = budgetEntries?.find(e => e.description.toLowerCase() === key);
+      if (entry != null) return String(entry.amount);
+      allResolved = false;
+      return '0';
     });
     if (!allResolved) return NaN;
   }
@@ -36,11 +45,12 @@ function thisMonth() {
 interface Props {
   tin: SplitsTin;
   budgetTinOptions: { id: string; name: string }[];
+  budgetEntries: PetroTinEntry[];
   onRefresh: () => void;
   onDelete: (id: string) => void;
 }
 
-export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }: Props) {
+export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefresh, onDelete }: Props) {
   const [addingPerson, setAddingPerson]   = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
   const [newPersonOwner, setNewPersonOwner] = useState(false);
@@ -152,7 +162,7 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
 
   function splitEvenly() {
     if (!billForm) return;
-    const total = evalFormula(billForm.total, tin.bills);
+    const total = evalFormula(billForm.total, tin.bills, budgetEntries);
     if (isNaN(total) || tin.people.length === 0) return;
     const share = (total / tin.people.length).toFixed(2);
     setBillForm(f => f ? { ...f, perPerson: Object.fromEntries(tin.people.map(p => [p.id, share])) } : f);
@@ -168,10 +178,10 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
     if (!billForm || !billForm.name.trim()) return;
 
     // Total is optional — if blank, auto-sum from per-person amounts
-    let total = evalFormula(billForm.total, tin.bills);
+    let total = evalFormula(billForm.total, tin.bills, budgetEntries);
     if (isNaN(total) && !billForm.total.trim()) {
       total = tin.people.reduce((sum, p) => {
-        const v = evalFormula(billForm.perPerson[p.id] ?? '', tin.bills);
+        const v = evalFormula(billForm.perPerson[p.id] ?? '', tin.bills, budgetEntries);
         return sum + (isNaN(v) ? 0 : v);
       }, 0);
     }
@@ -183,7 +193,7 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
       const assigns = tin.people
         .filter(p => billForm.perPerson[p.id]?.trim())
         .map(p => {
-          const val = evalFormula(billForm.perPerson[p.id], tin.bills);
+          const val = evalFormula(billForm.perPerson[p.id], tin.bills, budgetEntries);
           return isNaN(val) ? null : api({ action: 'set_assignment', billId: res.id, personId: p.id, type: 'flat', value: val });
         })
         .filter(Boolean);
@@ -196,7 +206,7 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
 
   async function saveAndForm() {
     if (!andForm || !andForm.name.trim()) return;
-    const amt = evalFormula(andForm.amount, tin.bills);
+    const amt = evalFormula(andForm.amount, tin.bills, budgetEntries);
     if (isNaN(amt) || amt <= 0) return;
     setSaving(true);
     // isDefault=false marks this as a person-specific bill (other people's cells stay blank)
@@ -428,12 +438,12 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
                     value={andForm.amount}
                     onChange={e => setAndForm(f => f ? { ...f, amount: e.target.value } : f)}
                     onKeyDown={e => { if (e.key === 'Enter') saveAndForm(); if (e.key === 'Escape') setAndForm(null); }} />
-                  {andForm.amount.trim().startsWith('=') && !isNaN(evalFormula(andForm.amount, tin.bills)) && (
-                    <span className="pt-splits-formula-result">{fmt(evalFormula(andForm.amount, tin.bills))}</span>
+                  {andForm.amount.trim().startsWith('=') && !isNaN(evalFormula(andForm.amount, tin.bills, budgetEntries)) && (
+                    <span className="pt-splits-formula-result">{fmt(evalFormula(andForm.amount, tin.bills, budgetEntries))}</span>
                   )}
                   <div className="pt-splits-and-actions">
                     <button className="pt-splits-add-save" onClick={saveAndForm}
-                      disabled={saving || !andForm.name.trim() || isNaN(evalFormula(andForm.amount, tin.bills))}>
+                      disabled={saving || !andForm.name.trim() || isNaN(evalFormula(andForm.amount, tin.bills, budgetEntries))}>
                       Add
                     </button>
                     <button className="pt-splits-add-cancel" onClick={() => setAndForm(null)}>✕</button>
@@ -487,11 +497,11 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
                 placeholder="Total $ or =1200+150"
                 value={billForm.total}
                 onChange={e => setBillForm(f => f ? { ...f, total: e.target.value } : f)} />
-              {!isNaN(evalFormula(billForm.total, tin.bills)) && billForm.total.trim().startsWith('=') && (
-                <span className="pt-splits-formula-result">= {fmt(evalFormula(billForm.total, tin.bills))}</span>
+              {!isNaN(evalFormula(billForm.total, tin.bills, budgetEntries)) && billForm.total.trim().startsWith('=') && (
+                <span className="pt-splits-formula-result">= {fmt(evalFormula(billForm.total, tin.bills, budgetEntries))}</span>
               )}
               <button className="pt-splits-evenly-btn" onClick={splitEvenly}
-                disabled={isNaN(evalFormula(billForm.total, tin.bills)) || tin.people.length === 0}
+                disabled={isNaN(evalFormula(billForm.total, tin.bills, budgetEntries)) || tin.people.length === 0}
                 title="Divide total evenly among all people">
                 Split evenly
               </button>
@@ -502,7 +512,7 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
               <div className="pt-splits-bill-form__people">
                 {tin.people.map((person, i) => {
                   const raw = billForm.perPerson[person.id] ?? '';
-                  const resolved = evalFormula(raw, tin.bills);
+                  const resolved = evalFormula(raw, tin.bills, budgetEntries);
                   const hasRef = /\[([^\]]+)\]/.test(raw);
                   const unresolved = hasRef && isNaN(resolved);
                   return (
@@ -532,9 +542,9 @@ export default function SplitsTin({ tin, budgetTinOptions, onRefresh, onDelete }
             )}
 
             {(() => {
-              const totalVal = evalFormula(billForm.total, tin.bills);
+              const totalVal = evalFormula(billForm.total, tin.bills, budgetEntries);
               const personSum = tin.people.reduce((s, p) => {
-                const v = evalFormula(billForm.perPerson[p.id] ?? '', tin.bills);
+                const v = evalFormula(billForm.perPerson[p.id] ?? '', tin.bills, budgetEntries);
                 return s + (isNaN(v) ? 0 : v);
               }, 0);
               const canSave = billForm.name.trim() && ((!isNaN(totalVal) && totalVal > 0) || personSum > 0);
