@@ -358,6 +358,53 @@
   gap: 0.5rem;
 }
 
+.pt-splits-bill-form__person-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pt-splits-bill-form__person-block:last-child { border-bottom: none; }
+
+.pt-splits-bill-form__person-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pt-splits-bill-form__line-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-left: 0.25rem;
+}
+
+.pt-splits-line-total {
+  margin-left: auto;
+}
+
+.pt-splits-line-del {
+  background: none; border: none; cursor: pointer;
+  font-size: 0.65rem; color: var(--text-muted);
+  padding: 1px 3px; border-radius: 3px; opacity: 0.45;
+  transition: opacity 0.12s, color 0.12s;
+}
+.pt-splits-line-del:hover { opacity: 1; color: var(--loss); }
+
+.pt-splits-add-line-btn {
+  background: none;
+  border: none;
+  color: var(--accent-dim);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 1px 0 1px 0.25rem;
+  text-align: left;
+  transition: color 0.12s;
+}
+.pt-splits-add-line-btn:hover { color: var(--accent); }
+
 .pt-splits-bill-form__person-name {
   font-size: 0.85rem;
   color: var(--text-primary);
