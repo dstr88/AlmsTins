@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { PetroTin, SplitsTin } from './types';
 import DebtTin from './DebtTin';
 import CreditCardChargesGrid from './CreditCardChargesGrid';
@@ -16,6 +16,8 @@ export default function PetroTinsGrid() {
   const [tins, setTins] = useState<PetroTin[]>([]);
   const [splitsTins, setSplitsTins] = useState<SplitsTin[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const scrolledToHash = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -35,6 +37,16 @@ export default function PetroTinsGrid() {
       setLoading(false);
     }
   }, []);
+
+  // Scroll to #splits after data loads if hash is present
+  useEffect(() => {
+    if (!loading && !scrolledToHash.current && window.location.hash === '#splits') {
+      scrolledToHash.current = true;
+      setTimeout(() => {
+        document.getElementById('splits')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [loading]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -166,7 +178,7 @@ export default function PetroTinsGrid() {
 
       {/* Splits tins — shared expense calculator */}
       {splitsTins.length > 0 && (
-        <div className="pt-grid__zone pt-grid__zone--splits">
+        <div id="splits" className="pt-grid__zone pt-grid__zone--splits">
           <div className="pt-grid__zone-label">Shared Expenses</div>
           <SharedCCGrid debtTins={debtTins} />
           <div className="pt-grid__splits-grid">
