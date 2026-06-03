@@ -352,28 +352,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                   checked={isPaid} readOnly
                   onClick={() => tin.bills.length > 0 && setPersonPanelId(id => id === person.id ? null : person.id)} />
                 <button className="pt-splits-person-name-btn"
-                  onClick={() => {
-                    setFocusedPersonId(person.id);
-                    setBillNameError(false);
-                    // Pre-populate with existing bills for this person
-                    const personBills = tin.bills.filter(b =>
-                      b.assignments.some(a => a.personId === person.id)
-                    );
-                    if (personBills.length > 0) {
-                      // Use the first bill to populate the form — show all per-person assignments
-                      const bill = personBills[0];
-                      const perPerson: Record<string, string[]> = Object.fromEntries(
-                        tin.people.map(p => {
-                          const assign = bill.assignments.find(a => a.personId === p.id);
-                          return [p.id, assign ? [String(assign.value)] : ['']];
-                        })
-                      );
-                      setBillForm({ name: bill.name, total: '', perPerson, noBudget: bill.noBudget, editingBillId: bill.id });
-                    } else {
-                      setBillForm({ name: '', total: '', perPerson: Object.fromEntries(tin.people.map(p => [p.id, ['']])), noBudget: false });
-                    }
-                    setTimeout(() => billFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
-                  }}>
+                  onClick={() => setPersonPanelId(id => id === person.id ? null : person.id)}>
                   {person.name}{person.isOwner ? ' 👑' : ''}
                 </button>
                 {tin.bills.length > 0 && (
@@ -626,7 +605,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                 const isPayingThis = payMode?.personId === person.id && payMode?.billId === bill.id;
                 return (
                   <div key={bill.id} className={`pt-person-panel__row${done ? ' done' : ''}`}>
-                    <div className="pt-person-panel__bill-left">
+                    <div className="pt-person-panel__bill-left" style={{ flexWrap: 'wrap', gap: '0.3rem' }}>
                       {editBill?.billId === bill.id ? (
                         <div className="pt-splits-bill-edit">
                           <input className="pt-splits-bill-edit__name" value={editBill.name}
@@ -650,6 +629,24 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                       )}
                     </div>
                     <div className="pt-person-panel__bill-right">
+                      {!done && !isPayingThis && (
+                        <button className="pt-splits-bill-edit-btn"
+                          title="Edit amounts"
+                          onClick={() => {
+                            const perPerson: Record<string, string[]> = Object.fromEntries(
+                              tin.people.map(p => {
+                                const assign = bill.assignments.find(a => a.personId === p.id);
+                                return [p.id, assign ? [String(assign.value)] : ['']];
+                              })
+                            );
+                            setBillNameError(false);
+                            setFocusedPersonId(person.id);
+                            setBillForm({ name: bill.name, total: '', perPerson, noBudget: bill.noBudget, editingBillId: bill.id });
+                            setTimeout(() => billFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+                          }}>
+                          ✏️
+                        </button>
+                      )}
                       {done ? (
                         <span className="pt-person-panel__status paid">✓ paid</span>
                       ) : isPayingThis ? (

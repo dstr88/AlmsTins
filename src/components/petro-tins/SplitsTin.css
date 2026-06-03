@@ -109,6 +109,13 @@
   gap: 0.4rem;
   flex-wrap: wrap;
 }
+.pt-splits-bill-edit-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 0.8rem; padding: 1px 4px; border-radius: 4px;
+  opacity: 0.5; transition: opacity 0.12s;
+}
+.pt-splits-bill-edit-btn:hover { opacity: 1; }
+
 .pt-splits-bill-name-btn {
   background: none; border: none; cursor: pointer;
   font-size: 0.82rem; color: var(--text-primary);
