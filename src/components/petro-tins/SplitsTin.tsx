@@ -67,6 +67,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   const [payAmt, setPayAmt]               = useState('');
   const [payDate, setPayDate]             = useState(today());
   const [saving, setSaving]               = useState(false);
+  const [billNameError, setBillNameError] = useState(false);
 
   const [expandedHistory, setExpandedHistory] = useState<Set<string>>(new Set());
   const [editAssign, setEditAssign]       = useState<{ billId: string; personId: string; type: 'flat' | 'pct'; value: string } | null>(null);
@@ -156,6 +157,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   }
 
   function openBillForm() {
+    setBillNameError(false);
     setBillForm({
       name: '',
       total: '',
@@ -189,7 +191,11 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   }
 
   async function doSaveBillForm(andAnother: boolean) {
-    if (!billForm || !billForm.name.trim()) return;
+    if (!billForm) return;
+    if (!billForm.name.trim()) {
+      setBillNameError(true);
+      return;
+    }
 
     // Total optional — auto-sum from per-person line items
     let total = evalFormula(billForm.total, tin.bills, budgetEntries);
@@ -593,9 +599,10 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
         {billForm ? (
           <div className="pt-splits-bill-form">
             {/* Bill name */}
-            <input className="pt-splits-add-input pt-splits-bill-form__name"
-              placeholder="Bill name (e.g. Rent)" value={billForm.name}
-              onChange={e => setBillForm(f => f ? { ...f, name: e.target.value } : f)}
+            <input className={`pt-splits-add-input pt-splits-bill-form__name${billNameError ? ' pt-splits-input--warn' : ''}`}
+              placeholder={billNameError ? '⚠ Bill name is required' : 'Bill name (e.g. Rent)'}
+              value={billForm.name}
+              onChange={e => { setBillNameError(false); setBillForm(f => f ? { ...f, name: e.target.value } : f); }}
               onKeyDown={e => e.key === 'Escape' && setBillForm(null)}
               autoFocus />
 
