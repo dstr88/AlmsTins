@@ -140,6 +140,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			);
 		}
 
+		// TradfiTins secondary domain — enforce HTTPS and root redirect, then fall through to normal auth
+		const TRADFI_HOSTS = new Set(['tradifitins.com', 'www.tradifitins.com']);
+		if (TRADFI_HOSTS.has(requestHost)) {
+			if (!isDev && request.headers.get('x-forwarded-proto') === 'http') {
+				return finish(new Response(null, { status: 301, headers: { Location: `https://tradifitins.com${url.pathname}${url.search}` } }));
+			}
+			if (pathname === '/' || pathname === '') {
+				return finish(Response.redirect('https://tradifitins.com/petro-tins', 303));
+			}
+			// Fall through to normal auth middleware — login redirects will use almstins.com
+		}
+
 		if (!isDev && request.headers.get('x-forwarded-proto') === 'http') {
 			return finish(
 				new Response(null, {
