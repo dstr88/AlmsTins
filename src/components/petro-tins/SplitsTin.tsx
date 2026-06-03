@@ -61,6 +61,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     total: string;
     perPerson: Record<string, string[]>;
     noBudget: boolean;
+    editingBillId?: string; // set when editing an existing bill
   } | null>(null);
 
   const [payMode, setPayMode]             = useState<{ personId: string; billId: string } | null>(null);
@@ -210,14 +211,24 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     if (isNaN(total) || total <= 0) return;
 
     setSaving(true);
-    const res = await api({ action: 'add_bill', splitsId: tin.id, name: billForm.name.trim(), amount: total, noBudget: billForm.noBudget });
-    if (res.id) {
+    let billId: string | null = billForm.editingBillId ?? null;
+
+    if (billId) {
+      // Update existing bill
+      await api({ action: 'update_bill', billId, name: billForm.name.trim(), amount: total });
+    } else {
+      // Create new bill
+      const res = await api({ action: 'add_bill', splitsId: tin.id, name: billForm.name.trim(), amount: total, noBudget: billForm.noBudget });
+      billId = res.id ?? null;
+    }
+
+    if (billId) {
       const assigns = tin.people
         .filter(p => {
           const v = personLineTotal(p.id);
           return !isNaN(v) && v > 0;
         })
-        .map(p => api({ action: 'set_assignment', billId: res.id, personId: p.id, type: 'flat', value: personLineTotal(p.id) }));
+        .map(p => api({ action: 'set_assignment', billId: billId!, personId: p.id, type: 'flat', value: personLineTotal(p.id) }));
       await Promise.all(assigns);
     }
 
@@ -343,8 +354,22 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                 <button className="pt-splits-person-name-btn"
                   onClick={() => {
                     setFocusedPersonId(person.id);
-                    if (!billForm) {
-                      setBillNameError(false);
+                    setBillNameError(false);
+                    // Pre-populate with existing bills for this person
+                    const personBills = tin.bills.filter(b =>
+                      b.assignments.some(a => a.personId === person.id)
+                    );
+                    if (personBills.length > 0) {
+                      // Use the first bill to populate the form — show all per-person assignments
+                      const bill = personBills[0];
+                      const perPerson: Record<string, string[]> = Object.fromEntries(
+                        tin.people.map(p => {
+                          const assign = bill.assignments.find(a => a.personId === p.id);
+                          return [p.id, assign ? [String(assign.value)] : ['']];
+                        })
+                      );
+                      setBillForm({ name: bill.name, total: '', perPerson, noBudget: bill.noBudget, editingBillId: bill.id });
+                    } else {
                       setBillForm({ name: '', total: '', perPerson: Object.fromEntries(tin.people.map(p => [p.id, ['']])), noBudget: false });
                     }
                     setTimeout(() => billFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
@@ -852,7 +877,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
               return (
                 <div className="pt-splits-add-form" style={{ marginTop: '0.5rem' }}>
                   <button className="pt-splits-add-save" onClick={saveBillForm} disabled={saving || !canSave}>
-                    {saving ? 'Saving…' : `Save Bill${derivedTotal > 0 && !billForm.total.trim() ? ` (${fmt(derivedTotal)})` : ''}`}
+                    {saving ? 'Saving…' : billForm.editingBillId ? `Update Bill${derivedTotal > 0 && !billForm.total.trim() ? ` (${fmt(derivedTotal)})` : ''}` : `Save Bill${derivedTotal > 0 && !billForm.total.trim() ? ` (${fmt(derivedTotal)})` : ''}`}
                   </button>
                   <button className="pt-splits-add-save pt-splits-add-save--another" onClick={saveBillFormAndAnother} disabled={saving || !canSave}
                     title="Save this bill and immediately add another">
