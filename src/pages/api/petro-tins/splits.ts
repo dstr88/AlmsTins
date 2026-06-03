@@ -98,6 +98,8 @@ async function ensureTables() {
 
   // Add no_budget column to existing tables (safe on re-run)
   await db.execute({ sql: `ALTER TABLE petro_splits_bills ADD COLUMN no_budget INTEGER NOT NULL DEFAULT 0`, args: [] }).catch(() => {});
+  // Store line-item breakdown for audit trail
+  await db.execute({ sql: `ALTER TABLE petro_splits_assignments ADD COLUMN breakdown TEXT`, args: [] }).catch(() => {});
 
   ensured = true;
 }
@@ -126,7 +128,7 @@ export const GET: APIRoute = async ({ request }) => {
     const [peopleRes, billsRes, assignRes, payRes, carriedRes] = await Promise.all([
       db.execute({ sql: `SELECT id, name, is_owner, sort_order FROM petro_splits_people WHERE splits_id = ? ORDER BY sort_order ASC, created_at ASC`, args: [splitsId] }),
       db.execute({ sql: `SELECT id, name, amount, is_default, no_budget, sort_order FROM petro_splits_bills WHERE splits_id = ? ORDER BY sort_order ASC, created_at ASC`, args: [splitsId] }),
-      db.execute({ sql: `SELECT id, bill_id, person_id, type, value FROM petro_splits_assignments WHERE tenant_id = ?`, args: [tenantId] }),
+      db.execute({ sql: `SELECT id, bill_id, person_id, type, value, breakdown FROM petro_splits_assignments WHERE tenant_id = ?`, args: [tenantId] }),
       db.execute({ sql: `SELECT id, person_id, bill_id, month, amount, paid_date, budget_entry_id FROM petro_splits_payments WHERE splits_id = ? AND month >= ? ORDER BY paid_date ASC`, args: [splitsId, lastMonth] }),
       db.execute({ sql: `SELECT person_id, balance FROM petro_splits_carried WHERE splits_id = ? AND month = ?`, args: [splitsId, lastMonth] }),
     ]);
@@ -135,7 +137,7 @@ export const GET: APIRoute = async ({ request }) => {
     for (const a of assignRes.rows as any[]) {
       const bid = String(a.bill_id);
       if (!assignmentsByBill[bid]) assignmentsByBill[bid] = [];
-      assignmentsByBill[bid].push({ id: String(a.id), billId: bid, personId: String(a.person_id), type: String(a.type), value: Number(a.value) });
+      assignmentsByBill[bid].push({ id: String(a.id), billId: bid, personId: String(a.person_id), type: String(a.type), value: Number(a.value), breakdown: a.breakdown ? String(a.breakdown) : null });
     }
 
     const bills = (billsRes.rows as any[]).map(b => ({
@@ -288,13 +290,13 @@ export const POST: APIRoute = async ({ request }) => {
 
   // ── Set assignment ─────────────────────────────────────────────────────────
   if (action === 'set_assignment') {
-    const { billId, personId, type, value } = body;
+    const { billId, personId, type, value, breakdown } = body;
     const id = randomUUID();
     await db.execute({
-      sql: `INSERT INTO petro_splits_assignments (id, bill_id, person_id, tenant_id, type, value)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(bill_id, person_id) DO UPDATE SET type = excluded.type, value = excluded.value`,
-      args: [id, billId, personId, tenantId, type ?? 'flat', Number(value ?? 0)],
+      sql: `INSERT INTO petro_splits_assignments (id, bill_id, person_id, tenant_id, type, value, breakdown)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(bill_id, person_id) DO UPDATE SET type = excluded.type, value = excluded.value, breakdown = excluded.breakdown`,
+      args: [id, billId, personId, tenantId, type ?? 'flat', Number(value ?? 0), breakdown ?? null],
     });
     return json({ ok: true });
   }

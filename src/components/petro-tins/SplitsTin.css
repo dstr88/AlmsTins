@@ -304,6 +304,20 @@
   margin-top: 0.25rem;
 }
 
+.pt-panel-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 0.2rem;
+  width: 100%;
+}
+.pt-panel-breakdown__line {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--border-subtle);
+}
+
 .pt-person-panel__bill-left {
   display: flex;
   align-items: center;

@@ -31,12 +31,18 @@ export interface SplitsBill {
   assignments: SplitsAssignment[];
 }
 
+export interface SplitsAssignmentLine {
+  label: string;  // formula or description
+  value: number;  // resolved dollar amount
+}
+
 export interface SplitsAssignment {
   id: string;
   billId: string;
   personId: string;
   type: 'flat' | 'pct';
   value: number;       // dollars if flat, 0-100 if pct
+  breakdown: string | null; // JSON array of {label, value} lines
 }
 
 export interface SplitsPayment {

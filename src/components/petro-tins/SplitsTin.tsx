@@ -228,7 +228,14 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           const v = personLineTotal(p.id);
           return !isNaN(v) && v > 0;
         })
-        .map(p => api({ action: 'set_assignment', billId: billId!, personId: p.id, type: 'flat', value: personLineTotal(p.id) }));
+        .map(p => {
+          const lines = (billForm.perPerson[p.id] ?? ['']).filter(l => l.trim());
+          const breakdown = JSON.stringify(lines.map(l => ({
+            label: l,
+            value: evalFormula(l, tin.bills, budgetEntries),
+          })).filter(item => !isNaN(item.value)));
+          return api({ action: 'set_assignment', billId: billId!, personId: p.id, type: 'flat', value: personLineTotal(p.id), breakdown });
+        });
       await Promise.all(assigns);
     }
 
@@ -625,6 +632,23 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                             {bill.name}
                           </button>
                           <span className="pt-person-panel__bill-amt">{fmt(owed)}</span>
+                          {(() => {
+                            const assign = bill.assignments.find(a => a.personId === person.id);
+                            if (!assign?.breakdown) return null;
+                            try {
+                              const lines: { label: string; value: number }[] = JSON.parse(assign.breakdown);
+                              if (lines.length <= 1) return null;
+                              return (
+                                <div className="pt-panel-breakdown">
+                                  {lines.map((l, i) => (
+                                    <span key={i} className="pt-panel-breakdown__line">
+                                      {l.label} = {fmt(l.value)}
+                                    </span>
+                                  ))}
+                                </div>
+                              );
+                            } catch { return null; }
+                          })()}
                         </>
                       )}
                     </div>
@@ -797,7 +821,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                                 next[li] = e.target.value;
                                 return { ...f, perPerson: { ...f.perPerson, [person.id]: next } };
                               })} />
-                            {!isNaN(resolved) && line.trim().startsWith('=') && (
+                            {!isNaN(resolved) && line.trim() && (
                               <span className="pt-splits-formula-result">{fmt(resolved)}</span>
                             )}
                             {unresolved && (
