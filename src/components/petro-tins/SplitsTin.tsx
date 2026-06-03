@@ -300,6 +300,18 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
       {/* Header */}
       <div className="pt-splits-tin__header">
         <span className="pt-splits-tin__name">{tin.name}</span>
+        {tin.bills.length > 0 && personTotals.map(t => {
+          const person = tin.people.find(p => p.id === t.personId);
+          if (!person) return null;
+          return (
+            <button key={t.personId}
+              className={`pt-splits-person-chip ${t.balance <= 0 ? 'paid' : 'owed'}`}
+              onClick={() => setPersonPanelId(id => id === t.personId ? null : t.personId)}
+              title={`${person.name}: ${t.balance <= 0 ? 'All paid' : fmt(t.balance) + ' remaining'}`}>
+              {person.name}: {t.balance <= 0 ? '✓' : fmt(t.balance)}
+            </button>
+          );
+        })}
         <button className="pt-splits-tin__del" onClick={() => onDelete(tin.id)} title="Delete">✕</button>
       </div>
 
@@ -716,7 +728,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
               return (
                 <div className="pt-splits-add-form" style={{ marginTop: '0.5rem' }}>
                   <button className="pt-splits-add-save" onClick={saveBillForm} disabled={saving || !canSave}>
-                    {saving ? 'Saving…' : `Add Bill${derivedTotal > 0 && !billForm.total.trim() ? ` (${fmt(derivedTotal)})` : ''}`}
+                    {saving ? 'Saving…' : `Save Bill${derivedTotal > 0 && !billForm.total.trim() ? ` (${fmt(derivedTotal)})` : ''}`}
                   </button>
                   <button className="pt-splits-add-save pt-splits-add-save--another" onClick={saveBillFormAndAnother} disabled={saving || !canSave}
                     title="Save this bill and immediately add another">
