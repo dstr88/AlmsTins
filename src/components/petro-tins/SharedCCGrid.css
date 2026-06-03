@@ -1,0 +1,181 @@
+.scc-grid {
+  margin-bottom: 1.25rem;
+}
+
+.scc-grid__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.scc-grid__title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.scc-grid__add-btn {
+  background: none;
+  border: 1px solid var(--border-bright);
+  color: var(--text-muted);
+  border-radius: 5px;
+  padding: 2px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.scc-grid__add-btn:hover {
+  border-color: var(--accent-glow);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.scc-add-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 0.65rem 0.75rem;
+  background: var(--surface-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.scc-add-select {
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-bright);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  outline: none;
+  min-width: 130px;
+}
+.scc-add-select:focus { border-color: var(--accent); }
+
+.scc-add-input {
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-bright);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  outline: none;
+  flex: 1;
+  min-width: 100px;
+}
+.scc-add-input:focus { border-color: var(--accent); }
+.scc-add-input--amt { flex: 0 0 90px; max-width: 90px; }
+
+.scc-add-save {
+  background: var(--accent);
+  color: var(--surface-bg);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.scc-add-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.scc-empty {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.scc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.scc-table thead tr { background: var(--surface-card-2); }
+
+.scc-table th {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.scc-table td {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+  color: var(--text-secondary);
+}
+.scc-table tbody tr:last-child td { border-bottom: none; }
+
+.scc-table tfoot td {
+  background: var(--surface-card-2);
+  border-top: 1px solid var(--border-bright);
+  padding: 0.45rem 0.75rem;
+}
+
+.scc-row--over { background: var(--loss-bg); }
+.scc-row--near { background: rgba(245,158,11,0.06); }
+
+.scc-col-card  { font-weight: 600; color: var(--text-primary); min-width: 100px; }
+.scc-col-amt   { text-align: right; min-width: 80px; }
+.scc-col-status { text-align: center; min-width: 100px; }
+
+.scc-amount { font-weight: 600; color: var(--loss); }
+
+.scc-warning {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.scc-warning--over {
+  color: var(--loss);
+  background: var(--loss-bg);
+  border: 1px solid var(--loss-border);
+}
+.scc-warning--near {
+  color: #f59e0b;
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.28);
+}
+.scc-ok { color: var(--gain); font-size: 0.8rem; font-weight: 700; }
+
+.scc-foot-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.scc-foot-total {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--loss);
+  text-align: right;
+}
+
+.scc-del-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 0.65rem; color: var(--text-muted);
+  padding: 2px 4px; border-radius: 3px; opacity: 0.4;
+  transition: opacity 0.12s, color 0.12s;
+}
+.scc-del-btn:hover { opacity: 1; color: var(--loss); }

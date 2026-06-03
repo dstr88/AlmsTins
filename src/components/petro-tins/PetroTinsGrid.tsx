@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { PetroTin, SplitsTin } from './types';
 import DebtTin from './DebtTin';
 import CreditCardChargesGrid from './CreditCardChargesGrid';
+import SharedCCGrid from './SharedCCGrid';
 import BudgetTin from './BudgetTin';
 import SlushTin from './SlushTin';
 import SplitsTinComponent from './SplitsTin';
@@ -167,6 +168,7 @@ export default function PetroTinsGrid() {
       {splitsTins.length > 0 && (
         <div className="pt-grid__zone pt-grid__zone--splits">
           <div className="pt-grid__zone-label">Shared Expenses</div>
+          <SharedCCGrid debtTins={debtTins} />
           <div className="pt-grid__splits-grid">
             {splitsTins.map(tin => (
               <SplitsTinComponent
