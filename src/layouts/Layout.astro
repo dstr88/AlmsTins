@@ -99,6 +99,10 @@ const {
   logoutRedirect,
 } = Astro.props;
 
+const isTradfiDomain = ['tradifitins.com', 'www.tradifitins.com'].includes(
+  Astro.request.headers.get('x-forwarded-host') ?? Astro.url.hostname
+);
+
 // ── Promo expiry banner ───────────────────────────────────────────────────────
 const PROMO_EXPIRY_SENTINEL = '9999-12-31T23:59:59Z';
 let promoDaysLeft: number | null = null;
@@ -219,19 +223,31 @@ const memberSinceDisplay = memberSinceIso
 				</div>
 				<button id="nav-toggle" class="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">☰</button>
 				<nav id="nav-drawer">
-					<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>Bookkeeping</a>
-					<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
-					<a href="/dashboard/portfolio" class={`nav-link ${isActive('/dashboard/portfolio') ? 'active' : ''}`}>Portfolio</a>
-					<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>Addresses</a>
-					<a href="/year-summary" class={`nav-link ${currentPath.startsWith('/dashboard/yearEnd') && !currentPath.includes('memory-lane') || currentPath === '/year-summary' ? 'active' : ''}`}>Summary</a>
-					<a href="/dashboard/yearEnd/memory-lane" class={`nav-link ${currentPath.includes('memory-lane') ? 'active' : ''}`}>Memory Lane</a>
-					<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>Alerts</a>
-					<a href="/dashboard/petro-tins" class={`nav-link ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>PetroTins</a>
-					<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>
-					<a href="/dashboard/research" class={`nav-link nav-link--research ${isActive('/dashboard/research') ? 'active' : ''}`}>
-						Research
-					</a>
-				{isAdmin && (
+				{isTradfiDomain ? (
+					<!-- TradfiTins-only nav -->
+					<>
+						<a href="/dashboard/petro-tins" class={`nav-link ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>Dashboard</a>
+						<a href="/petro-tins/docs" class={`nav-link ${isActive('/petro-tins/docs') ? 'active' : ''}`}>Docs</a>
+						<a href="/dashboard/petro-tins/upgrade" class={`nav-link ${isActive('/dashboard/petro-tins/upgrade') ? 'active' : ''}`}>Upgrade</a>
+					</>
+				) : (
+					<!-- Full Almstins nav -->
+					<>
+						<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>Bookkeeping</a>
+						<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
+						<a href="/dashboard/portfolio" class={`nav-link ${isActive('/dashboard/portfolio') ? 'active' : ''}`}>Portfolio</a>
+						<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>Addresses</a>
+						<a href="/year-summary" class={`nav-link ${currentPath.startsWith('/dashboard/yearEnd') && !currentPath.includes('memory-lane') || currentPath === '/year-summary' ? 'active' : ''}`}>Summary</a>
+						<a href="/dashboard/yearEnd/memory-lane" class={`nav-link ${currentPath.includes('memory-lane') ? 'active' : ''}`}>Memory Lane</a>
+						<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>Alerts</a>
+						<a href="/dashboard/petro-tins" class={`nav-link ${isActive('/dashboard/petro-tins') ? 'active' : ''}`}>PetroTins</a>
+						<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>
+						<a href="/dashboard/research" class={`nav-link nav-link--research ${isActive('/dashboard/research') ? 'active' : ''}`}>
+							Research
+						</a>
+					</>
+				)}
+				{!isTradfiDomain && isAdmin && (
 					<>
 						<a href="/admin" class={`nav-link nav-link--admin ${isActive('/admin') ? 'active' : ''}`}>Admin</a>
 						<a href="/admin/support" class={`nav-link nav-link--admin ${isActive('/admin/support') ? 'active' : ''}`}>
