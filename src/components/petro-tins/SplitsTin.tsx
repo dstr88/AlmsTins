@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import type { SplitsTin, SplitsPerson, SplitsBill, SplitsPayment, PetroTinEntry } from './types';
 import './SplitsTin.css';
 
@@ -75,6 +75,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   const [andForm, setAndForm]             = useState<{ personId: string; name: string; amount: string; noBudget: boolean } | null>(null);
   const [focusedPersonId, setFocusedPersonId] = useState<string | null>(null);
   const [personPanelId, setPersonPanelId]     = useState<string | null>(null);
+  const billFormRef = useRef<HTMLDivElement>(null);
 
   const curMonth = thisMonth();
 
@@ -340,7 +341,14 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                   checked={isPaid} readOnly
                   onClick={() => tin.bills.length > 0 && setPersonPanelId(id => id === person.id ? null : person.id)} />
                 <button className="pt-splits-person-name-btn"
-                  onClick={() => setPersonPanelId(id => id === person.id ? null : person.id)}>
+                  onClick={() => {
+                    setFocusedPersonId(person.id);
+                    if (!billForm) {
+                      setBillNameError(false);
+                      setBillForm({ name: '', total: '', perPerson: Object.fromEntries(tin.people.map(p => [p.id, ['']])), noBudget: false });
+                    }
+                    setTimeout(() => billFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+                  }}>
                   {person.name}{person.isOwner ? ' 👑' : ''}
                 </button>
                 {tin.bills.length > 0 && (
@@ -704,7 +712,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
       </div>
 
       {/* Add bill — grid form */}
-      <div className="pt-splits-add-row">
+      <div className="pt-splits-add-row" ref={billFormRef}>
         {billForm ? (
           <div className="pt-splits-bill-form">
             {/* Bill name */}
@@ -738,7 +746,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                   const lines = billForm.perPerson[person.id] ?? [''];
                   const lineTotal = personLineTotal(person.id);
                   return (
-                    <div key={person.id} className="pt-splits-bill-form__person-block">
+                    <div key={person.id} className={`pt-splits-bill-form__person-block${focusedPersonId === person.id ? ' pt-splits-bill-form__person-block--focused' : ''}`}>
                       <div className="pt-splits-bill-form__person-header">
                         <span className="pt-splits-bill-form__person-name">{person.name}{person.isOwner ? ' 👑' : ''}</span>
                         {!isNaN(lineTotal) && lines.length > 1 && (

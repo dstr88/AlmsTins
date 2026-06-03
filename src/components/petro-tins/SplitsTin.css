@@ -570,6 +570,12 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 .pt-splits-bill-form__person-block:last-child { border-bottom: none; }
+.pt-splits-bill-form__person-block--focused {
+  background: var(--accent-soft);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  margin: -0.4rem -0.5rem;
+}
 
 .pt-splits-bill-form__person-header {
   display: flex;
