@@ -109,6 +109,29 @@
   gap: 0.4rem;
   flex-wrap: wrap;
 }
+.pt-splits-bill-name-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 0.82rem; color: var(--text-primary);
+  padding: 0; text-align: left; flex: 1;
+  border-bottom: 1px dashed var(--border-bright);
+  transition: color 0.12s;
+}
+.pt-splits-bill-name-btn:hover { color: var(--accent); border-color: var(--accent-glow); }
+
+.pt-splits-bill-edit {
+  display: flex; gap: 0.3rem; align-items: center; width: 100%;
+}
+.pt-splits-bill-edit__name {
+  flex: 1; background: var(--surface-card); border: 1px solid var(--accent);
+  color: var(--text-primary); border-radius: 4px; padding: 2px 5px;
+  font-size: 0.8rem; outline: none;
+}
+.pt-splits-bill-edit__amt {
+  width: 70px; background: var(--surface-card); border: 1px solid var(--accent);
+  color: var(--text-primary); border-radius: 4px; padding: 2px 5px;
+  font-size: 0.8rem; outline: none;
+}
+
 .pt-splits-bill-total {
   font-weight: 600;
   color: var(--text-muted);

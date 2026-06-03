@@ -71,6 +71,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
 
   const [expandedHistory, setExpandedHistory] = useState<Set<string>>(new Set());
   const [editAssign, setEditAssign]       = useState<{ billId: string; personId: string; type: 'flat' | 'pct'; value: string } | null>(null);
+  const [editBill, setEditBill]           = useState<{ billId: string; name: string; amount: string } | null>(null);
   const [andForm, setAndForm]             = useState<{ personId: string; name: string; amount: string; noBudget: boolean } | null>(null);
   const [focusedPersonId, setFocusedPersonId] = useState<string | null>(null);
   const [personPanelId, setPersonPanelId]     = useState<string | null>(null);
@@ -231,6 +232,17 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   const saveBillForm        = () => doSaveBillForm(false);
   const saveBillFormAndAnother = () => doSaveBillForm(true);
 
+  async function saveBillEdit() {
+    if (!editBill || !editBill.name.trim()) return;
+    const amount = evalFormula(editBill.amount, tin.bills, budgetEntries);
+    if (isNaN(amount) || amount <= 0) return;
+    setSaving(true);
+    await api({ action: 'update_bill', billId: editBill.billId, name: editBill.name.trim(), amount });
+    setEditBill(null);
+    setSaving(false);
+    onRefresh();
+  }
+
   async function saveAndForm() {
     if (!andForm || !andForm.name.trim()) return;
     const amt = evalFormula(andForm.amount, tin.bills, budgetEntries);
@@ -377,10 +389,31 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           {tin.bills.map(bill => (
             <React.Fragment key={bill.id}>
               <div className="pt-splits-cell pt-splits-cell--bill-label">
-                <span>{bill.name}</span>
-                {bill.noBudget && <span className="pt-splits-nobudget-badge" title="Other charge — not tracked in budget">other</span>}
-                <span className="pt-splits-bill-total">{fmt(bill.amount)}</span>
-                <button className="pt-splits-remove-bill" onClick={() => deleteBill(bill.id)} title="Remove">✕</button>
+                {editBill?.billId === bill.id ? (
+                  <div className="pt-splits-bill-edit">
+                    <input className="pt-splits-bill-edit__name" value={editBill.name}
+                      onChange={e => setEditBill(eb => eb ? { ...eb, name: e.target.value } : eb)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveBillEdit(); if (e.key === 'Escape') setEditBill(null); }}
+                      autoFocus />
+                    <input className="pt-splits-bill-edit__amt" value={editBill.amount}
+                      placeholder="Amount"
+                      onChange={e => setEditBill(eb => eb ? { ...eb, amount: e.target.value } : eb)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveBillEdit(); if (e.key === 'Escape') setEditBill(null); }}
+                      onBlur={saveBillEdit} />
+                    <button className="pt-splits-assign-save" onClick={saveBillEdit} disabled={saving}>✓</button>
+                  </div>
+                ) : (
+                  <>
+                    <button className="pt-splits-bill-name-btn"
+                      onClick={() => setEditBill({ billId: bill.id, name: bill.name, amount: String(bill.amount) })}
+                      title="Click to edit">
+                      {bill.name}
+                    </button>
+                    {bill.noBudget && <span className="pt-splits-nobudget-badge" title="Other charge — not tracked in budget">other</span>}
+                    <span className="pt-splits-bill-total">{fmt(bill.amount)}</span>
+                    <button className="pt-splits-remove-bill" onClick={() => deleteBill(bill.id)} title="Remove">✕</button>
+                  </>
+                )}
               </div>
 
               {tin.people.map(person => {
