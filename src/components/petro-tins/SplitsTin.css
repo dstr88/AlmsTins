@@ -253,6 +253,64 @@
 }
 .pt-splits-history-del:hover { opacity: 1; color: var(--loss); }
 
+/* ── Person summary list ───────────────────────────────────────────────────── */
+
+.pt-splits-summary {
+  padding: 0.5rem 1.25rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pt-splits-person-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pt-splits-person-row:last-of-type { border-bottom: none; }
+
+.pt-splits-person-chk {
+  flex-shrink: 0;
+  cursor: pointer;
+  width: 16px; height: 16px;
+}
+
+.pt-splits-person-bal {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-left: auto;
+}
+.pt-splits-person-bal.paid { color: var(--gain); }
+.pt-splits-person-bal.owed { color: var(--loss); }
+
+.pt-splits-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0 0.1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 0.25rem;
+}
+
+.pt-person-panel__bill-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.pt-person-panel__bill-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
 /* ── Person name button ────────────────────────────────────────────────────── */
 
 /* Person summary chips in tin header */

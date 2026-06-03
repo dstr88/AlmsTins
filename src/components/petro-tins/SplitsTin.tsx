@@ -318,45 +318,53 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
       {/* Header */}
       <div className="pt-splits-tin__header">
         <span className="pt-splits-tin__name">{tin.name}</span>
-        {tin.bills.length > 0 && personTotals.map(t => {
-          const person = tin.people.find(p => p.id === t.personId);
-          if (!person) return null;
-          return (
-            <button key={t.personId}
-              className={`pt-splits-person-chip ${t.balance <= 0 ? 'paid' : 'owed'}`}
-              onClick={() => setPersonPanelId(id => id === t.personId ? null : t.personId)}
-              title={`${person.name}: ${t.balance <= 0 ? 'All paid' : fmt(t.balance) + ' remaining'}`}>
-              {person.name}: {t.balance <= 0 ? '✓' : fmt(t.balance)}
-            </button>
-          );
-        })}
         <button className="pt-splits-tin__del" onClick={() => onDelete(tin.id)} title="Delete">✕</button>
       </div>
 
-      {/* Empty state / people list when no bills yet */}
+      {/* People list — always shown */}
       {tin.people.length === 0 && (
         <div style={{ padding: '1rem 1.25rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
           Add people below, then add shared bills to split between them.
         </div>
       )}
-      {tin.people.length > 0 && tin.bills.length === 0 && (
-        <div style={{ padding: '0.75rem 1.25rem' }}>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>People</div>
-          {tin.people.map(person => (
-            <div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0' }}>
-              <button className="pt-splits-person-name-btn"
-                onClick={() => setPersonPanelId(id => id === person.id ? null : person.id)}>
-                {person.name}{person.isOwner ? ' 👑' : ''}
-              </button>
-              <button className="pt-splits-remove-person" style={{ opacity: 0.7, fontSize: '0.78rem' }} onClick={() => deletePerson(person.id)} title="Remove">✕ Remove</button>
+
+      {/* Person summary list */}
+      {tin.people.length > 0 && (
+        <div className="pt-splits-summary">
+          {tin.people.map(person => {
+            const totals = personTotals.find(t => t.personId === person.id);
+            const isPaid = tin.bills.length > 0 && (totals?.balance ?? 0) <= 0;
+            return (
+              <div key={person.id} className="pt-splits-person-row">
+                <input type="checkbox" className="pt-splits-person-chk"
+                  checked={isPaid} readOnly
+                  onClick={() => tin.bills.length > 0 && setPersonPanelId(id => id === person.id ? null : person.id)} />
+                <button className="pt-splits-person-name-btn"
+                  onClick={() => setPersonPanelId(id => id === person.id ? null : person.id)}>
+                  {person.name}{person.isOwner ? ' 👑' : ''}
+                </button>
+                {tin.bills.length > 0 && (
+                  <span className={`pt-splits-person-bal ${isPaid ? 'paid' : 'owed'}`}>
+                    {isPaid ? '✓ Paid' : fmt(totals?.balance ?? 0)}
+                  </span>
+                )}
+                <button className="pt-splits-remove-person" onClick={() => deletePerson(person.id)} title="Remove">✕</button>
+              </div>
+            );
+          })}
+          {tin.bills.length > 0 && (
+            <div className="pt-splits-total-row">
+              <span>Total</span>
+              <span className="loss">{fmt(personTotals.reduce((s, t) => s + Math.max(0, t.balance), 0))}</span>
             </div>
-          ))}
-          <div style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>Add a bill below to start splitting.</div>
+          )}
+          {tin.bills.length === 0 && (
+            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', padding: '0.25rem 0' }}>Add a bill below to start splitting.</div>
+          )}
         </div>
       )}
 
-      {/* Grid: rows = bills, columns = people */}
-      {tin.people.length > 0 && tin.bills.length > 0 && (
+      {tin.people.length > 0 && tin.bills.length > 0 && false && (
         <div className="pt-splits-grid" style={{ '--col-count': tin.people.length + 1 } as any}>
 
           {/* Row 1: Names */}
@@ -582,17 +590,85 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                 const owed = owedMap[person.id]?.[bill.id] ?? 0;
                 const paid = paidMap[person.id]?.[bill.id] ?? 0;
                 const done = owed > 0 && paid >= owed;
+                const isPayingThis = payMode?.personId === person.id && payMode?.billId === bill.id;
                 return (
                   <div key={bill.id} className={`pt-person-panel__row${done ? ' done' : ''}`}>
-                    <span className="pt-person-panel__bill-name">{bill.name}</span>
-                    <span className="pt-person-panel__bill-amt">{fmt(owed)}</span>
-                    <span className={`pt-person-panel__status ${done ? 'paid' : 'unpaid'}`}>
-                      {done ? '✓ paid' : `-${fmt(owed - paid)} remaining`}
-                    </span>
+                    <div className="pt-person-panel__bill-left">
+                      {editBill?.billId === bill.id ? (
+                        <div className="pt-splits-bill-edit">
+                          <input className="pt-splits-bill-edit__name" value={editBill.name}
+                            onChange={e => setEditBill(eb => eb ? { ...eb, name: e.target.value } : eb)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveBillEdit(); if (e.key === 'Escape') setEditBill(null); }}
+                            autoFocus />
+                          <input className="pt-splits-bill-edit__amt" value={editBill.amount}
+                            onChange={e => setEditBill(eb => eb ? { ...eb, amount: e.target.value } : eb)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveBillEdit(); if (e.key === 'Escape') setEditBill(null); }}
+                            onBlur={saveBillEdit} />
+                          <button className="pt-splits-assign-save" onClick={saveBillEdit}>✓</button>
+                        </div>
+                      ) : (
+                        <>
+                          <button className="pt-splits-bill-name-btn"
+                            onClick={() => setEditBill({ billId: bill.id, name: bill.name, amount: String(bill.amount) })}>
+                            {bill.name}
+                          </button>
+                          <span className="pt-person-panel__bill-amt">{fmt(owed)}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="pt-person-panel__bill-right">
+                      {done ? (
+                        <span className="pt-person-panel__status paid">✓ paid</span>
+                      ) : isPayingThis ? (
+                        <div className="pt-splits-pay-form">
+                          <input className="pt-splits-pay-input" type="number" placeholder={fmt(owed - paid)} value={payAmt}
+                            onChange={e => setPayAmt(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') recordPayment(); if (e.key === 'Escape') setPayMode(null); }}
+                            autoFocus />
+                          <input className="pt-splits-pay-date" type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
+                          <div className="pt-splits-pay-actions">
+                            <button className="pt-splits-pay-save" onClick={recordPayment} disabled={saving}>Save</button>
+                            <button className="pt-splits-pay-cancel" onClick={() => setPayMode(null)}>✕</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="pt-person-panel__status unpaid">-{fmt(owed - paid)}</span>
+                          <button className="pt-splits-pay-btn" onClick={() => { setPayMode({ personId: person.id, billId: bill.id }); setPayAmt(String(owed - paid)); }}>+ Pay</button>
+                          <button className="pt-splits-remove-bill" onClick={() => deleteBill(bill.id)} title="Remove">✕</button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
+            {/* + and button inside panel */}
+            {andForm?.personId === person.id ? (
+              <div className="pt-splits-and-form" style={{ margin: '0.5rem 0' }}>
+                <input className="pt-splits-and-input" placeholder="Bill name"
+                  value={andForm.name}
+                  onChange={e => setAndForm(f => f ? { ...f, name: e.target.value } : f)}
+                  onKeyDown={e => e.key === 'Escape' && setAndForm(null)} autoFocus />
+                <input className="pt-splits-and-input pt-splits-and-input--amt"
+                  placeholder="$ or =formula"
+                  value={andForm.amount}
+                  onChange={e => setAndForm(f => f ? { ...f, amount: e.target.value } : f)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveAndForm(); if (e.key === 'Escape') setAndForm(null); }} />
+                <div className="pt-splits-and-actions">
+                  <button className="pt-splits-add-save" onClick={saveAndForm}
+                    disabled={saving || !andForm.name.trim() || isNaN(evalFormula(andForm.amount, tin.bills, budgetEntries))}>
+                    Add
+                  </button>
+                  <button className="pt-splits-add-cancel" onClick={() => setAndForm(null)}>✕</button>
+                </div>
+              </div>
+            ) : (
+              <button className="pt-splits-and-btn" style={{ margin: '0.4rem 0 0' }}
+                onClick={() => setAndForm({ personId: person.id, name: '', amount: '', noBudget: false })}>
+                + add bill for {person.name}
+              </button>
+            )}
             {totals && (
               <div className="pt-person-panel__footer">
                 <span>Total owed</span>
