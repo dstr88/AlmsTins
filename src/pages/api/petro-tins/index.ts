@@ -53,6 +53,7 @@ async function ensureTables() {
   // Safe migrations — .catch(() => {}) means they no-op if column already exists
   await db.execute({ sql: `ALTER TABLE petro_tin_entries ADD COLUMN checked    INTEGER NOT NULL DEFAULT 0`, args: [] }).catch(() => {});
   await db.execute({ sql: `ALTER TABLE petro_tin_entries ADD COLUMN is_default INTEGER NOT NULL DEFAULT 1`, args: [] }).catch(() => {});
+  await db.execute({ sql: `ALTER TABLE petro_tin_entries ADD COLUMN url         TEXT`, args: [] }).catch(() => {});
   await db.execute({ sql: `ALTER TABLE petro_tins        ADD COLUMN surplus_mode TEXT NOT NULL DEFAULT 'none'`, args: [] }).catch(() => {});
   await db.execute({ sql: `ALTER TABLE petro_tins        ADD COLUMN is_slush    INTEGER NOT NULL DEFAULT 0`, args: [] }).catch(() => {});
   // Income entries added before this migration default is_default=1; fix them to 0
@@ -160,7 +161,7 @@ export const GET: APIRoute = async ({ request }) => {
 
   // Load all entries for this tenant, grouped by tin
   const entriesRes = await db.execute({
-    sql: `SELECT id, tin_id, entry_date, kind, amount, description, splits_json, checked, is_default, created_at
+    sql: `SELECT id, tin_id, entry_date, kind, amount, description, splits_json, checked, is_default, url, created_at
           FROM petro_tin_entries
           WHERE tenant_id = ?
           ORDER BY entry_date ASC, created_at ASC`,
@@ -180,6 +181,7 @@ export const GET: APIRoute = async ({ request }) => {
       splitsJson:  r.splits_json ? String(r.splits_json) : null,
       checked:     Number(r.checked ?? 0) === 1,
       isDefault:   Number(r.is_default ?? 1) === 1,
+      url:         r.url ? String(r.url) : null,
       createdAt:   String(r.created_at),
     });
   }

@@ -187,6 +187,15 @@ td.col-del  { text-align: right; width: 52px; white-space: nowrap; }
 .pt-reg-default-btn.active { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
 .pt-reg-default-btn:hover  { color: var(--accent); border-color: var(--accent-glow); }
 
+.pt-reg-pay-link {
+  font-size: 0.78rem;
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.12s;
+  flex-shrink: 0;
+}
+.pt-reg-pay-link:hover { opacity: 1; }
+
 .pt-reg-editable {
   cursor: pointer;
   border-bottom: 1px dashed var(--border-bright);

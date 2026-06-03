@@ -7,6 +7,7 @@ export interface PetroTinEntry {
   description: string;
   checked: boolean;
   isDefault: boolean;   // true = auto-copies next month; bills always true, income toggleable
+  url: string | null;   // optional payment link
 }
 
 // ── Splits Tin ────────────────────────────────────────────────────────────────

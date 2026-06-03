@@ -46,7 +46,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
   const [saving,        setSaving]        = useState<Record<number, boolean>>({});
   const [showDefaults,  setShowDefaults]  = useState(false);
   const [showSurplus,   setShowSurplus]   = useState(false);
-  const [editingEntry,  setEditingEntry]  = useState<{ id: string; amount: string; desc: string } | null>(null);
+  const [editingEntry,  setEditingEntry]  = useState<{ id: string; amount: string; desc: string; url: string } | null>(null);
   const [allPaidBanner, setAllPaidBanner] = useState(() => {
     try { return localStorage.getItem(allPaidKey) === '1'; } catch { return false; }
   });
@@ -144,7 +144,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
     await fetch('/api/petro-tins/entries', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entryId: editingEntry.id, amount, description: editingEntry.desc }),
+      body: JSON.stringify({ entryId: editingEntry.id, amount, description: editingEntry.desc, url: editingEntry.url || null }),
     });
     setEditingEntry(null);
     onRefresh();
@@ -216,12 +216,25 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
           : e.entryDate}
         </td>
         <td className="col-desc">
-          {isEditing
-            ? <input className="pt-reg-input pt-reg-edit-input" value={editingEntry!.desc}
+          {isEditing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+              <input className="pt-reg-input pt-reg-edit-input" value={editingEntry!.desc}
+                placeholder="Description"
                 onChange={ev => setEditingEntry(ed => ed ? { ...ed, desc: ev.target.value } : ed)}
                 onKeyDown={ev => { if (ev.key === 'Enter') saveEditEntry(); if (ev.key === 'Escape') setEditingEntry(null); }} />
-            : <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '' })}>{e.description}</span>
-          }
+              <input className="pt-reg-input pt-reg-edit-input" value={editingEntry!.url}
+                placeholder="Payment URL (optional)"
+                onChange={ev => setEditingEntry(ed => ed ? { ...ed, url: ev.target.value } : ed)}
+                onKeyDown={ev => { if (ev.key === 'Enter') saveEditEntry(); if (ev.key === 'Escape') setEditingEntry(null); }} />
+            </div>
+          ) : (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '', url: e.url ?? '' })}>{e.description}</span>
+              {e.url && (
+                <a href={e.url} target="_blank" rel="noopener noreferrer" className="pt-reg-pay-link" title="Pay online">🔗</a>
+              )}
+            </span>
+          )}
         </td>
         <td className="col-pay">
           {isEditing && e.kind === 'expense'
@@ -230,7 +243,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                 onKeyDown={ev => { if (ev.key === 'Enter') saveEditEntry(); if (ev.key === 'Escape') setEditingEntry(null); }}
                 onBlur={saveEditEntry} autoFocus />
             : e.kind === 'expense'
-              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '' })}>{fmt(e.amount)}</span>
+              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '', url: e.url ?? '' })}>{fmt(e.amount)}</span>
               : ''
           }
         </td>
@@ -241,7 +254,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                 onKeyDown={ev => { if (ev.key === 'Enter') saveEditEntry(); if (ev.key === 'Escape') setEditingEntry(null); }}
                 onBlur={saveEditEntry} autoFocus />
             : e.kind === 'income'
-              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '' })}>{fmt(e.amount)}</span>
+              ? <span className="pt-reg-editable" onClick={() => setEditingEntry({ id: e.id, amount: String(e.amount), desc: e.description ?? '', url: e.url ?? '' })}>{fmt(e.amount)}</span>
               : ''
           }
         </td>

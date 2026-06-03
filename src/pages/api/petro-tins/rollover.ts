@@ -60,7 +60,7 @@ export const POST: APIRoute = async ({ request }) => {
   // Copy is_default=1 entries from the current month
   const curMonth = new Date().toISOString().slice(0, 7);
   const templates = await db.execute({
-    sql: `SELECT kind, amount, description FROM petro_tin_entries
+    sql: `SELECT kind, amount, description, url FROM petro_tin_entries
           WHERE tin_id = ? AND tenant_id = ? AND is_default = 1 AND entry_date LIKE ?`,
     args: [tinId, tenantId, `${curMonth}%`],
   });
@@ -68,9 +68,9 @@ export const POST: APIRoute = async ({ request }) => {
   let seeded = 0;
   for (const r of templates.rows as any[]) {
     await db.execute({
-      sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description, checked, is_default)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1)`,
-      args: [randomUUID(), tinId, tenantId, `${nextMonth}-01`, String(r.kind), Number(r.amount), r.description ?? null],
+      sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description, checked, is_default, url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, ?)`,
+      args: [randomUUID(), tinId, tenantId, `${nextMonth}-01`, String(r.kind), Number(r.amount), r.description ?? null, r.url ?? null],
     });
     seeded++;
   }

@@ -53,12 +53,13 @@ export const POST: APIRoute = async ({ request }) => {
     : 1;
 
   await db.execute({
-    sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description, splits_json, is_default)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description, splits_json, is_default, url)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [id, tinId, tenantId, entryDate, kind, amount,
            body.description ?? null,
            body.splitsJson ?? null,
-           isDefault],
+           isDefault,
+           body.url ?? null],
   });
 
   // Auto-update debt tin balance on payment/charge
@@ -103,12 +104,13 @@ export const PATCH: APIRoute = async ({ request }) => {
     });
   }
 
-  // Update amount and/or description
-  if (body.amount !== undefined || body.description !== undefined) {
+  // Update amount, description, and/or url
+  if (body.amount !== undefined || body.description !== undefined || body.url !== undefined) {
     const fields: string[] = [];
     const args: any[] = [];
     if (body.amount !== undefined) { fields.push('amount = ?'); args.push(Number(body.amount)); }
     if (body.description !== undefined) { fields.push('description = ?'); args.push(String(body.description)); }
+    if (body.url !== undefined) { fields.push('url = ?'); args.push(body.url || null); }
     args.push(entryId, tenantId);
     await db.execute({
       sql: `UPDATE petro_tin_entries SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`,
