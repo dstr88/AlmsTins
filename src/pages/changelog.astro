@@ -20,6 +20,20 @@ import Layout from '@/layouts/LoginLayout.astro';
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">June 3, 2026</time>
+          <div class="entry-body">
+            <p>TradfiTins now has its own domain at <strong>tradifitins.com</strong>. Visiting the root redirects to the TradfiTins dashboard. When accessed from tradifitins.com, the navigation shows only TradfiTins links — Dashboard, Docs, and Upgrade — keeping the Almstins portfolio tools out of view for users who are here only for personal finance.</p>
+            <p>The Shared Expenses section now has a dedicated URL anchor. Linking to <code>tradifitins.com/dashboard/petro-tins#splits</code> scrolls directly to the Shared Expenses section after the page loads, even though the data loads asynchronously.</p>
+            <p>Each register entry in the Budget tin now has an optional payment URL field. Click any description or amount to enter edit mode, and a second input appears for the payment website. Save a URL once and a <code>🔗</code> link appears next to the bill name — click it to open the payment site directly. The URL carries over automatically when the bill rolls over to the next month.</p>
+            <p>The splits tin layout has been redesigned around people rather than a bill grid. The top of each tin shows each person's name with a checkbox and their total balance — green with ✓ when fully paid, red with the amount remaining. A total line sits below. The add-bill form stays at the bottom. Clicking a person's name opens their responsibility panel, which now includes + Pay buttons per bill, inline bill editing, and a breakdown of how multi-line charges were calculated.</p>
+            <p>Each bill assignment now stores a line-item breakdown — the individual formula and resolved value for every line. This is preserved permanently so that months later you can open the responsibility panel and see exactly what made up a charge: <code>=[Rent]*.25 = $350.00</code>, <code>=[Electric]*.5 = $186.59</code>, and so on.</p>
+            <p>A new Shared Credit Card Expenses grid sits above the splits tins in the Shared Expenses section. Add bills that are paid on a credit card rather than out of the budget — choose the card, enter a description and amount, and the grid flags any charge that would push the card over its credit limit or past 90% utilization.</p>
+            <p>Credit card tins now have a recurring charges register. Add charges like Netflix, Spotify, or a storage unit as recurring items. Check them off each month as they post to the card. Amounts and descriptions are editable inline. When all are checked, next month's list seeds automatically. One-time charges and payments remain in a collapsible section below.</p>
+            <p>The FOUNDER promo code grants lifetime free access to TradfiTins with no payment required and no expiry date.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">June 2, 2026</time>
           <div class="entry-body">
             <p>Budget register entries are now editable inline. Click any saved amount or description and it switches to an input field. Type the new value and press Enter or click away to save — Escape cancels. This makes it straightforward to update a recurring bill like an electric charge that changes month to month without deleting and re-entering the row.</p>
