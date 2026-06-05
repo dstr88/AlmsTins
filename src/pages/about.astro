@@ -1,0 +1,259 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="About Almstins — Built by a Teacher Who Felt the Problem">
+  <style>
+    .about-hero {
+      background: var(--surface-bg);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 4rem 2rem;
+    }
+
+    .hero-inner {
+      max-width: 48rem;
+      margin: 0 auto;
+      display: flex;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    .hero-photo {
+      flex-shrink: 0;
+    }
+
+    .hero-photo img {
+      width: 200px;
+      height: 200px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+
+    .hero-copy h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      line-height: 1.2;
+    }
+
+    .hero-copy p {
+      color: var(--text-secondary);
+      font-size: 1.125rem;
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+    }
+
+    .about-content {
+      max-width: 48rem;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+    }
+
+    .section {
+      margin-bottom: 3rem;
+    }
+
+    .section h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .section p {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+
+    .section ul {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .section li {
+      margin-bottom: 0.75rem;
+    }
+
+    .mission-callout {
+      background: var(--accent-soft);
+      border-left: 4px solid var(--accent);
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      border-radius: 4px;
+    }
+
+    .mission-callout p {
+      color: var(--text-primary);
+      margin: 0;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 600px) {
+      .hero-inner {
+        flex-direction: column;
+        gap: 2rem;
+      }
+
+      .hero-photo img {
+        width: 150px;
+        height: 150px;
+      }
+
+      .hero-copy h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+
+  <div class="about-hero">
+    <div class="hero-inner">
+      <div class="hero-photo">
+        <img
+          src="/DonnieSelfie.jpeg"
+          alt="Donnie Starkey"
+          width={200}
+          height={200}
+          loading="lazy"
+        />
+      </div>
+      <div class="hero-copy">
+        <h1>Hi. I'm Donnie.</h1>
+        <p>I'm a teacher and builder.</p>
+        <p>I built Almstins because I felt the problem personally.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="about-content">
+    <div class="section">
+      <h2>The Problem I Hit</h2>
+      <p>
+        About four years ago, I got into crypto. I bought Bitcoin and Ethereum, moved some to different
+        chains, tried DeFi, sent funds across exchanges. I thought I was keeping track.
+      </p>
+      <p>
+        Then tax season arrived. I had no idea what I actually owned, what it cost me, or where it was.
+        I had fragments across five different places — a spreadsheet, an exchange CSV, some scribbled notes,
+        and a lot of confusion. To reconstruct the history, I had to spend weeks digging through transaction
+        hashes and receipt emails.
+      </p>
+      <p>
+        That's when I realized the bigger problem: there was no tool that let me see my full picture
+        without handing over my wallet, without being terrified that something would break or get hacked.
+        And there was no way to verify that an address was safe before I sent money to it.
+      </p>
+    </div>
+
+    <div class="mission-callout">
+      <p>
+        <strong>I'm a teacher.</strong> I know that the best tool is the one that explains itself and
+        earns trust by being clear, not clever. I know that people don't need jargon; they need clarity.
+        And I know that when something matters, you have to build it right or not at all.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Why I Built Almstins This Way</h2>
+      <p>
+        <strong>No wallet connection, ever.</strong> The moment you hand your wallet to an app, you've
+        created a new risk. Almstins reads your blockchain data the same way you can on Etherscan—publicly.
+        Your keys stay safe because they never leave your wallet.
+      </p>
+      <p>
+        <strong>Bookkeeping as infrastructure.</strong> Accountability requires documentation. Almstins
+        isn't a trading tool or a price tracker. It's a record. Every asset, every transaction, every cost
+        basis. Because you can't manage what you can't measure, and you can't prove your position without
+        a history.
+      </p>
+      <p>
+        <strong>Safety before the click.</strong> I built the wallet checker to answer one question:
+        "Is this address safe before I send?" Scams, sanctions, honeypots, phishing—they all happen after
+        the click. The checker lets you verify first.
+      </p>
+      <p>
+        <strong>Clear over clever.</strong> The docs are plain English. The error messages tell you what
+        went wrong and what to do. The safety verdicts don't hide behind a risk score; they tell you what
+        we actually know and don't know.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>What I Believe</h2>
+      <p>
+        Crypto is infrastructure that lets individuals move, store, and manage their own money without
+        asking permission. But infrastructure only works if people can trust it. Trust doesn't come from
+        marketing; it comes from:
+      </p>
+      <ul>
+        <li><strong>Honest design decisions.</strong> Building constraints into the architecture (no wallet
+        connection) instead of hiding behind promises.</li>
+        <li><strong>Transparency.</strong> Saying what we store, what we don't, what could go wrong, and
+        how we protect it.</li>
+        <li><strong>Completeness.</strong> Solving the full problem—not just the exciting part, but the
+        boring bookkeeping part that actually matters.</li>
+        <li><strong>Clarity.</strong> Writing for people, not algorithms. Explaining in English, not jargon.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Why This Matters Right Now</h2>
+      <p>
+        Crypto's moving from speculation into infrastructure. Stablecoins for remittances, Bitcoin as
+        reserve assets, DeFi as the backbone of cross-border payments. The users arriving aren't degens—
+        they're people who need the infrastructure to actually work.
+      </p>
+      <p>
+        They need tools that don't break, don't betray, and don't ask them to trust blindly. They need
+        documentation so they can prove what they own. They need safety so they don't send funds to the
+        wrong place.
+      </p>
+      <p>
+        That's what Almstins is. Not a bet on price, not a playground. Infrastructure.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>What I'm Building Toward</h2>
+      <p>
+        Almstins today is a portfolio tracker + safety checker + bookkeeping tool. The roadmap is longer:
+      </p>
+      <ul>
+        <li>A MetaMask Snap that checks addresses before you sign, so safety reaches into your wallet itself.</li>
+        <li>Deeper integration with tax professionals and advisories so Almstins isn't just a tool you use—
+        it's a layer your accountant and your advisor both understand.</li>
+        <li>Ecosystem tooling that lets other builders plug safety and accountability into their products.</li>
+      </ul>
+      <p>
+        The north star: make it obvious that the best crypto product is the one that doesn't ask you to trust
+        it blindly. Make documentation and verification as easy as the transaction itself.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>A Note on Beta</h2>
+      <p>
+        Almstins is in beta. That's not an apology; it's a description. We're still learning what advisories
+        need, what emerging-market users need, what the next layer of security looks like. We're building in
+        public and iterating based on real feedback.
+      </p>
+      <p>
+        Being in beta doesn't mean the code is unstable or that your data is at risk. It means we're still
+        deciding what comes next based on what you tell us actually matters.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>How to Reach Me</h2>
+      <p>
+        If you have feedback, questions, or just want to talk about where this is heading, I read every
+        message. Email me at <strong>hello@almstins.com</strong> or find me on LinkedIn.
+      </p>
+    </div>
+  </div>
+</Layout>
