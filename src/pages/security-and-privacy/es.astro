@@ -1,0 +1,411 @@
+---
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout lang="es" title="Seguridad y Privacidad — Almstins">
+  <style>
+    .lang-toggle {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.25rem;
+      z-index: 50;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-bright);
+      background: var(--surface-card);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .lang-toggle:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+    .security-hero {
+      background: var(--surface-bg);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 4rem 2rem;
+    }
+    .hero-inner {
+      max-width: 48rem;
+      margin: 0 auto;
+    }
+    .hero-inner h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      line-height: 1.2;
+    }
+    .hero-inner p {
+      color: var(--text-secondary);
+      font-size: 1.125rem;
+      line-height: 1.6;
+    }
+
+    .security-content {
+      max-width: 48rem;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+    }
+
+    .section {
+      margin-bottom: 4rem;
+    }
+
+    .section h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .section p {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+
+    .section ul {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .section li {
+      margin-bottom: 0.75rem;
+    }
+
+    .callout {
+      background: var(--accent-soft);
+      border-left: 4px solid var(--accent);
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      border-radius: 4px;
+    }
+
+    .callout p {
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .callout strong {
+      color: var(--accent);
+    }
+
+    .faq {
+      margin-top: 3rem;
+    }
+
+    .faq-item {
+      margin-bottom: 2rem;
+    }
+
+    .faq-q {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .faq-a {
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .footer-note {
+      background: var(--surface-card);
+      border: 1px solid var(--border-subtle);
+      padding: 1.5rem;
+      margin-top: 3rem;
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+  </style>
+
+  <a href="/security-and-privacy" class="lang-toggle" aria-label="View in English">🇺🇸 In English</a>
+
+  <div class="security-hero">
+    <div class="hero-inner">
+      <h1>Seguridad y Privacidad</h1>
+      <p>
+        Cómo Almstins protege tus datos y por qué su arquitectura —no solo las promesas— lo hace seguro.
+      </p>
+    </div>
+  </div>
+
+  <div class="security-content">
+    <div class="section">
+      <h2>La Promesa Central</h2>
+      <p>
+        Almstins nunca se conecta a tu billetera, nunca solicita tus llaves privadas y nunca toca tu
+        autoridad de firma. Lee tus tenencias desde la blockchain pública por dirección —de la misma forma
+        en que cualquiera en internet puede consultar qué hay en una billetera. La diferencia es que Almstins
+        organiza esos datos en un solo lugar, registra su historial y te ayuda a verificar direcciones antes
+        de que envíes fondos.
+      </p>
+      <p>
+        <strong>Esto no es una promesa que hacemos. Es una limitación arquitectónica que integramos.</strong>
+        Puedes verificarlo tú mismo: Almstins no tiene ningún mecanismo de conexión de billetera en el código,
+        ninguna interfaz de firma y ninguna forma de solicitar permisos a tu billetera.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Qué Datos Guardamos</h2>
+      <p>
+        Cuando usas Almstins, guardamos:
+      </p>
+      <ul>
+        <li><strong>Tu dirección de correo electrónico</strong> — solo para iniciar sesión. Puedes usar un correo dedicado, iniciar sesión con Google o usar GitHub (con tu correo configurado como privado en los ajustes de GitHub).</li>
+        <li><strong>Las direcciones de billetera que agregues</strong> — las direcciones de blockchain que posees (p. ej., 0x1234...). Son datos públicos; cualquiera ya puede ver qué hay en estas direcciones en la blockchain.</li>
+        <li><strong>Historial de transacciones</strong> — importado de los CSV que subes (de exchanges como Coinbase, Kraken, Gemini, etc.) o leído directamente de la blockchain. Guardamos la fecha, el monto, el precio y tus notas sobre cada transacción.</li>
+        <li><strong>Registros de base de costo</strong> — el precio que pagaste por cada activo, calculado a partir de tu historial de transacciones.</li>
+        <li><strong>Configuraciones y preferencias</strong> — etiquetas que creas, alertas que configuras y otros ajustes.</li>
+      </ul>
+      <p>
+        <strong>No</strong> guardamos:
+      </p>
+      <ul>
+        <li>Tus llaves privadas, frases semilla o palabras de recuperación (no tenemos forma de acceder a ellas).</li>
+        <li>Tu información de pago — Stripe gestiona toda la facturación, y nunca vemos los datos de tu tarjeta.</li>
+        <li>Tu nombre real (a menos que lo proporciones voluntariamente en las notas).</li>
+        <li>Tu dirección IP ni tu comportamiento de navegación más allá de los registros estándar del servidor.</li>
+      </ul>
+    </div>
+
+    <div class="callout">
+      <p>
+        <strong>La Pregunta de Lucía:</strong> «Si sufren una brecha, ¿alguien tendrá un mapa de quién posee qué?»
+      </p>
+      <p>
+        Sí; ante una brecha, un atacante sabría: qué direcciones de blockchain posees, cuánto hay en ellas y tu
+        historial de transacciones (fechas, montos, activos). Son datos financieros sensibles. Pero no son lo mismo
+        que tus llaves privadas: no pueden mover tus fondos, no pueden operar en tu nombre, no pueden firmar nada.
+      </p>
+      <p>
+        Para minimizar este riesgo, ciframos todos los datos sensibles en reposo (ver más abajo), y recomendamos
+        agregar un correo electrónico dedicado para Almstins (no tu correo principal) para que tu identidad no quede
+        automáticamente ligada a los datos de tus tenencias.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Cifrado y Seguridad de Datos</h2>
+      <p>
+        <strong>Cifrado en reposo:</strong> Los datos sensibles (direcciones de billetera, historial de transacciones,
+        base de costo) se cifran en nuestra base de datos con cifrado AES-256, un estándar de la industria. Si alguien
+        obtiene acceso a la base de datos, obtiene texto cifrado, no datos de tenencias en texto plano.
+      </p>
+      <p>
+        <strong>Cifrado en tránsito:</strong> Toda la comunicación entre tu navegador y Almstins usa HTTPS/TLS 1.3.
+        Tus datos viajan cifrados por la red.
+      </p>
+      <p>
+        <strong>Infraestructura segura:</strong> Almstins está alojado en Render con certificados SSL automáticos,
+        protección contra DDoS y actualizaciones de seguridad regulares. No administramos nuestros propios servidores.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Facturación y Pagos</h2>
+      <p>
+        Almstins usa Stripe para gestionar toda la facturación. Nunca vemos, guardamos ni procesamos los datos de tu
+        tarjeta. Stripe es un proveedor de servicios PCI-DSS Nivel 1, el nivel de certificación más alto en seguridad
+        de pagos.
+      </p>
+      <p>
+        Lo que guardamos: si tu cuenta tiene una suscripción de pago, tu nivel de suscripción y cuándo se renueva.
+        Stripe guarda el resto (datos de la tarjeta, dirección de facturación, etc.).
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Opciones de Autenticación</h2>
+      <p>
+        Tienes tres formas de iniciar sesión en Almstins:
+      </p>
+      <ul>
+        <li>
+          <strong>Correo electrónico</strong> — Puedes crear un correo dedicado para Almstins (recomendado).
+          Solo ese correo se guarda en nuestra base de datos. Tú controlas la contraseña.
+        </li>
+        <li>
+          <strong>Inicio de sesión con Google</strong> — Google gestiona la autenticación. Solo recibimos tu
+          dirección de correo de Google, y nunca guardamos tu contraseña de Google.
+        </li>
+        <li>
+          <strong>Inicio de sesión con GitHub</strong> — Si configuras tu correo de GitHub como privado en los
+          ajustes de GitHub, GitHub nos envía solo un ID numérico, no tu correo ni tu nombre real. Toma 30 segundos
+          configurarlo y agrega una capa extra de privacidad.
+        </li>
+      </ul>
+      <p>
+        En todos los casos, tus credenciales de inicio de sesión nunca se comparten con terceros, y nunca las usamos
+        para acceder a ningún servicio externo en tu nombre (como tu cuenta de exchange o la blockchain).
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Eliminación y Exportación de Datos</h2>
+      <p>
+        <strong>Exporta tus datos:</strong> Puedes solicitar una exportación completa de tus datos de Almstins
+        (transacciones, direcciones, notas, configuraciones) en formato JSON. Escribe a hello@almstins.com para
+        solicitarla.
+      </p>
+      <p>
+        <strong>Elimina tu cuenta:</strong> Puedes eliminar tu cuenta y todos los datos asociados en cualquier momento.
+        Una vez eliminados, no tenemos forma de recuperarlos. La eliminación surte efecto de inmediato. Escribe a
+        hello@almstins.com o elimínala directamente desde la configuración de tu cuenta.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Servicios de Terceros</h2>
+      <p>
+        Almstins usa un pequeño conjunto de servicios externos:
+      </p>
+      <ul>
+        <li>
+          <strong>Stripe</strong> (pagos) — PCI-DSS Nivel 1. Gestiona toda la facturación y el procesamiento de
+          tarjetas. Nunca vemos los datos de tu tarjeta.
+        </li>
+        <li>
+          <strong>CoinGecko</strong> (precios históricos) — API pública. Solicitamos precios históricos de
+          criptomonedas; CoinGecko no sabe qué activos posees, solo que pedimos un precio en una fecha determinada.
+        </li>
+        <li>
+          <strong>Etherscan / Snowtrace / Blockstream</strong> (datos de blockchain) — Exploradores públicos.
+          Consultamos detalles de transacciones usando tus direcciones de billetera. Estos servicios no saben que
+          eres Almstins; ven una solicitud de API por datos públicos.
+        </li>
+        <li>
+          <strong>Google / GitHub</strong> (autenticación) — Solo si inicias sesión con estos proveedores. Ellos
+          saben que iniciaste sesión en Almstins; nosotros solo conocemos tu correo o ID a través de ellos.
+        </li>
+      </ul>
+      <p>
+        Ninguno de estos servicios puede acceder a tus llaves privadas, mover tus fondos ni ver nada más allá de
+        las solicitudes específicas que hacemos.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Cumplimiento Normativo</h2>
+      <p>
+        Almstins es una herramienta de contabilidad y verificación, no un servicio financiero, custodio ni asesor de
+        inversiones. Como tal, no está regulado como un banco ni como un transmisor de dinero en la mayoría de las
+        jurisdicciones. Sin embargo, nos tomamos el cumplimiento en serio:
+      </p>
+      <ul>
+        <li>Cumplimos con los requisitos del RGPD (privacidad europea) y la CCPA (privacidad de California).</li>
+        <li>No prestamos servicio a sabiendas a usuarios en países con sanciones integrales (p. ej., Cuba, Irán, Corea del Norte, Siria).</li>
+        <li>No procesamos transacciones ni custodiamos fondos; solo registramos y organizamos los datos que proporcionas.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Preguntas Frecuentes</h2>
+
+      <div class="faq">
+        <div class="faq-item">
+          <div class="faq-q">
+            ¿Puede Almstins mover mis fondos u operar en mi nombre?
+          </div>
+          <div class="faq-a">
+            No. Almstins no tiene llaves privadas, ni autoridad de firma, ni conexión con tus billeteras o exchanges.
+            Solo puede leer y organizar datos que ya son públicos en la blockchain o que importas desde un CSV.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">
+            ¿Qué pasa si hackean a Almstins?
+          </div>
+          <div class="faq-a">
+            Un atacante obtendría acceso a: tus direcciones de billetera, tu historial de transacciones y tus registros
+            de base de costo (todos cifrados, pero descifrables con una clave de base de datos robada). <strong>No</strong>
+            obtendría acceso a tus llaves privadas, los datos de tu tarjeta ni los datos de Stripe. Tus fondos están
+            seguros porque están en la blockchain, no en Almstins. Para minimizar el riesgo: usa un correo dedicado para
+            Almstins y considera el inicio de sesión con GitHub (modo de correo privado) para mayor privacidad.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">
+            ¿Por qué Almstins necesita mis direcciones de billetera?
+          </div>
+          <div class="faq-a">
+            Para registrar lo que posees. Almstins lee la blockchain pública por dirección (cualquiera puede hacerlo)
+            para obtener tus tenencias actuales y tus transacciones históricas. Las direcciones en sí son públicas; tu
+            identidad no lo es, a menos que las vincules manualmente o el análisis de la blockchain demuestre lo contrario.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">
+            ¿Almstins me rastrea por internet?
+          </div>
+          <div class="faq-a">
+            No. No usamos píxeles de rastreo, cookies de seguimiento ni plataformas de analítica de terceros. Registramos
+            métricas estándar del servidor (dirección IP, hora de la solicitud, código de respuesta) por seguridad y
+            depuración, pero no vendemos ni compartimos estos datos.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">
+            ¿Puedo usar Almstins si me preocupa la privacidad?
+          </div>
+          <div class="faq-a">
+            Sí. El enfoque más cuidadoso con la privacidad: usa una dirección de correo dedicada (no ligada a tu nombre
+            real), inicia sesión con GitHub con un correo privado y usa una dirección de blockchain dedicada que no esté
+            ligada a tu identidad. Así, solo tú conoces la conexión entre tu identidad y tus tenencias.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">
+            ¿Almstins es de código abierto?
+          </div>
+          <div class="faq-a">
+            Todavía no, pero lo estamos considerando. La lógica central (verificación de direcciones, análisis de
+            transacciones, cálculo de base de costo) podría ser auditada por la comunidad si se publica. Por ahora, puedes
+            verificar la afirmación de «sin conexión de billetera» leyendo el código del lado del cliente en las
+            herramientas de desarrollador de tu navegador.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">
+            ¿A quién debo contactar por preocupaciones de seguridad?
+          </div>
+          <div class="faq-a">
+            Escribe a security@almstins.com con cualquier preocupación de seguridad, reporte de vulnerabilidad o pregunta
+            sobre el manejo de datos. Por favor, no divulgues vulnerabilidades públicamente; danos tiempo para corregirlas.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      <p>
+        <strong>Última actualización:</strong> 5 de junio de 2026. Esta página es la fuente de verdad sobre las prácticas
+        de seguridad y privacidad de Almstins. Las prácticas pueden cambiar; actualizaremos esta página y notificaremos a
+        los usuarios afectados ante cambios importantes.
+      </p>
+      <p>
+        <strong>No es asesoría financiera ni legal.</strong> Esta página describe prácticas técnicas y operativas. Para
+        preguntas sobre si Almstins es adecuado para tu situación específica, consulta a un asesor financiero, un
+        profesional de impuestos o un abogado.
+      </p>
+    </div>
+  </div>
+</Layout>

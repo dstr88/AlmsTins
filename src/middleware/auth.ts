@@ -23,7 +23,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/es' ||
 		// Trust & discovery pages — must be reachable without a session
 		pathname === '/about' ||
+		pathname === '/about/es' ||
 		pathname === '/security-and-privacy' ||
+		pathname === '/security-and-privacy/es' ||
 		pathname === '/signup' ||
 		pathname.startsWith('/signup/') ||
 		pathname === '/wallet' ||

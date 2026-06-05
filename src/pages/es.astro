@@ -3,6 +3,7 @@ import Layout from "@/layouts/LoginLayout.astro";
 import { getAuthSession } from "../lib/authSession";
 import { getPostLoginRedirect } from "../lib/postLoginRedirect";
 import Logo from "../assets/logo.jpeg";
+import DonnieSelfie from "../assets/DonnieSelfie.jpeg";
 import PortfolioPreviewCard from "@/components/PortfolioPreviewCard";
 
 const { searchParams } = Astro.url;
@@ -67,6 +68,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 ---
 
 <Layout
+  lang="es"
   title="Almstins — Por fin entiende qué pasó en tu billetera"
   description="Rastrea cada transacción en tu historial crypto. Transacciones perdidas, brechas inexplicables y sorpresas fiscales — todo en un solo lugar. Sin registro para explorar."
   noindex={false}
@@ -196,6 +198,22 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
           <span class="wordmark-text">Almstins</span>
         </a>
 
+        <!-- Founder byline — debajo del wordmark -->
+        <a href="/about/es" class="founder-byline">
+          <img
+            src={DonnieSelfie.src}
+            alt="Donnie Starkey"
+            class="founder-byline__photo"
+            width={48}
+            height={48}
+            loading="eager"
+          />
+          <div class="founder-byline__text">
+            <span class="founder-byline__name">Donnie Starkey · Fundador</span>
+            <span class="founder-byline__role">Educador → desarrollador. Viví este problema en carne propia. Lee mi historia →</span>
+          </div>
+        </a>
+
         <!-- Headline + subhead -->
         <div class="hero__copy">
           <h1 class="hero__headline">Por fin entiende<br/>qué pasó en<br/>tu billetera.</h1>
@@ -261,6 +279,42 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       </div>
 
     </div>
+
+    <!-- ── Historia del fundador + tarjetas de confianza ── -->
+    <section class="founder-section">
+      <div class="founder-section__photo">
+        <img
+          src={DonnieSelfie.src}
+          alt="Donnie Starkey"
+          width={140}
+          height={140}
+          loading="lazy"
+        />
+      </div>
+      <div class="founder-section__story">
+        <h2>Soy un educador que vivió el problema y construyó la solución.</h2>
+        <p>Almstins te ayuda a saber qué posees, si es seguro enviar y cuánto le debes al fisco. Solo lectura. Sin conexión de billetera. Siempre verificable contra la cadena.</p>
+      </div>
+
+      <div class="trust-cards">
+        <a href="/about/es" class="trust-card">
+          <div class="trust-icon">👤</div>
+          <div class="trust-title">Quién lo Construyó</div>
+          <div class="trust-sub">La historia completa</div>
+        </a>
+        <a href="/security-and-privacy/es" class="trust-card">
+          <div class="trust-icon">🔒</div>
+          <div class="trust-title">Tus Datos Están Seguros</div>
+          <div class="trust-sub">Exactamente cómo los protegemos</div>
+        </a>
+        <a href="/wallet-checker/es" class="trust-card">
+          <div class="trust-icon">🔍</div>
+          <div class="trust-title">Verifica Cualquier Dirección</div>
+          <div class="trust-sub">Antes de enviar nada</div>
+        </a>
+      </div>
+    </section>
+
   </main>
 
   <!-- ── Demo invite modal ────────── -->
@@ -872,6 +926,120 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .session-popup__btn--ghost {
       background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.6);
       border: 1px solid rgba(255,255,255,0.12);
+    }
+
+    /* ── Founder byline (top of left column) ──────────────────── */
+    .founder-byline {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      padding: 0.75rem 1rem;
+      background: var(--surface-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 0.75rem;
+      width: fit-content;
+      text-decoration: none;
+      transition: border-color 0.18s, transform 0.18s;
+    }
+    .founder-byline:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .founder-byline__photo {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .founder-byline__text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .founder-byline__name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .founder-byline__role {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* ── Founder story + trust cards (full-width section) ──────── */
+    .founder-section {
+      max-width: 75rem;
+      margin: 0 auto;
+      padding: 0 clamp(1.5rem, 4vw, 3rem) clamp(4rem, 8vw, 6rem);
+      text-align: center;
+    }
+    .founder-section__photo {
+      margin-bottom: 2rem;
+    }
+    .founder-section__photo img {
+      width: 140px;
+      height: 140px;
+      border-radius: 12px;
+      object-fit: cover;
+      box-shadow: 0 8px 24px var(--accent-glow);
+    }
+    .founder-section__story h2 {
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0 0 1rem;
+      line-height: 1.3;
+    }
+    .founder-section__story p {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      max-width: 580px;
+      margin: 0 auto 3rem;
+    }
+    .trust-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .trust-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 1.5rem 1.25rem;
+      background: var(--surface-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.3s ease;
+    }
+    .trust-card:hover {
+      background: var(--accent-soft);
+      border-color: var(--accent-glow);
+      transform: translateY(-4px);
+    }
+    .trust-icon { font-size: 2rem; line-height: 1; }
+    .trust-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      text-align: center;
+    }
+    .trust-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    @media (max-width: 640px) {
+      .trust-cards { grid-template-columns: 1fr; gap: 1rem; }
     }
   </style>
 </Layout>

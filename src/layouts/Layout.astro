@@ -88,6 +88,8 @@ export interface Props {
   noindex?: boolean;
   /** Override where the Log out button redirects. Defaults to /login. */
   logoutRedirect?: string;
+  /** HTML lang attribute — set to "es" for Spanish pages. Defaults to "en". */
+  lang?: string;
 }
 
 const {
@@ -97,6 +99,7 @@ const {
   image = 'https://almstins.com/og-default.png',
   noindex = false,
   logoutRedirect,
+  lang = 'en',
 } = Astro.props;
 
 const isTradfiDomain = ['tradifitins.com', 'www.tradifitins.com'].includes(
@@ -138,7 +141,7 @@ const memberSinceDisplay = memberSinceIso
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />

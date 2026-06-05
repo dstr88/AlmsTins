@@ -4,6 +4,26 @@ import Layout from "../layouts/Layout.astro";
 
 <Layout title="Security & Privacy — Almstins">
   <style>
+    .lang-toggle {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.25rem;
+      z-index: 50;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-bright);
+      background: var(--surface-card);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .lang-toggle:hover { background: var(--surface-hover); color: var(--text-primary); }
+
     .security-hero {
       background: var(--surface-bg);
       border-bottom: 1px solid var(--border-subtle);
@@ -109,6 +129,8 @@ import Layout from "../layouts/Layout.astro";
       line-height: 1.6;
     }
   </style>
+
+  <a href="/security-and-privacy/es" class="lang-toggle" aria-label="Ver en español">🇪🇸 En Español</a>
 
   <div class="security-hero">
     <div class="hero-inner">

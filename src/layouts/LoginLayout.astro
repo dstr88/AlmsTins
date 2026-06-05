@@ -6,17 +6,20 @@ export interface Props {
   title?: string;
   description?: string;
   noindex?: boolean;
+  /** HTML lang attribute — set to "es" for Spanish pages. Defaults to "en". */
+  lang?: string;
 }
 
 const {
   title = 'Sign In | Almstins',
   description = 'Sign in to your Almstins account to track your crypto portfolio, DeFi positions, and year-end summaries.',
   noindex = true,
+  lang = 'en',
 } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />

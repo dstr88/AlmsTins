@@ -1,9 +1,30 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import DonnieSelfie from "../assets/DonnieSelfie.jpeg";
 ---
 
 <Layout title="About Almstins — Built by a Teacher Who Felt the Problem">
   <style>
+    .lang-toggle {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.25rem;
+      z-index: 50;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-bright);
+      background: var(--surface-card);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .lang-toggle:hover { background: var(--surface-hover); color: var(--text-primary); }
+
     .about-hero {
       background: var(--surface-bg);
       border-bottom: 1px solid var(--border-subtle);
@@ -111,11 +132,13 @@ import Layout from "../layouts/Layout.astro";
     }
   </style>
 
+  <a href="/about/es" class="lang-toggle" aria-label="Ver en español">🇪🇸 En Español</a>
+
   <div class="about-hero">
     <div class="hero-inner">
       <div class="hero-photo">
         <img
-          src="/DonnieSelfie.jpeg"
+          src={DonnieSelfie.src}
           alt="Donnie Starkey"
           width={200}
           height={200}
@@ -134,19 +157,22 @@ import Layout from "../layouts/Layout.astro";
     <div class="section">
       <h2>The Problem I Hit</h2>
       <p>
-        About four years ago, I got into crypto. I bought Bitcoin and Ethereum, moved some to different
-        chains, tried DeFi, sent funds across exchanges. I thought I was keeping track.
+        I bought some Bitcoin and Ethereum about four years ago. I heard the message
+        "not your keys, not your coins," so I put it in a private-custody wallet. I also knew
+        I needed to diversify my holdings, so I put other coins in other wallets. I figured that
+        if one got hacked, I couldn't lose all my eggs!
       </p>
       <p>
         Then tax season arrived. I had no idea what I actually owned, what it cost me, or where it was.
-        I had fragments across five different places — a spreadsheet, an exchange CSV, some scribbled notes,
+        I had fragments across different places — a spreadsheet, an exchange CSV, some scribbled notes,
         and a lot of confusion. To reconstruct the history, I had to spend weeks digging through transaction
-        hashes and receipt emails.
+        hashes and receipt emails. I used tax software, and felt it wasn't looking at the full picture and
+        couldn't give me good data.
       </p>
       <p>
         That's when I realized the bigger problem: there was no tool that let me see my full picture
-        without handing over my wallet, without being terrified that something would break or get hacked.
-        And there was no way to verify that an address was safe before I sent money to it.
+        even if I connected my wallets. I knew that wallet connections are opportunities to get hacked,
+        so I avoid them! There was no way to verify that an address was safe before I sent money to it.
       </p>
     </div>
 
