@@ -9,6 +9,7 @@
  * Print button opens browser print dialog. CSS @media print hides all chrome.
  */
 import Layout from '../../../layouts/Layout.astro';
+import TaxNotice from '@/components/TaxNotice.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 import { hasTaxAccess } from '@/lib/taxAuth';
@@ -32,8 +33,8 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 		<div class="f8-header">
 			<div class="f8-header__left">
 				<a href="/dashboard/yearEnd" class="f8-back">← Tax Center</a>
-				<h1 class="f8-title">Form 8949</h1>
-				<p class="f8-subtitle">Sales and Other Dispositions of Capital Assets — attach to Schedule D.</p>
+				<h1 class="f8-title">Capital Gains Summary</h1>
+				<p class="f8-subtitle">A US-style gain/loss summary, formatted to mirror IRS Form 8949 for your reference.</p>
 			</div>
 			<div class="f8-controls">
 				<!-- Year + method selectors -->
@@ -54,6 +55,8 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 				<button id="btn-print" class="f8-btn f8-btn--dark hidden">🖨 Print</button>
 			</div>
 		</div>
+
+		<TaxNotice />
 
 		<!-- Loading/error/empty states -->
 		<div id="state-loading" class="f8-state-loading">
@@ -114,7 +117,7 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 			<div id="bo-warning" class="f8-bo-warning hidden">
 				<strong>⚠ Some rows are marked BO</strong> (basis not reported). These are transactions where
 				no cost basis was recorded. Review your <a href="/dashboard/yearEnd/review" class="f8-link">Review Queue</a>
-				to resolve missing basis before filing.
+				to resolve missing basis before you rely on these figures.
 			</div>
 
 			<!-- Form pages container — one page per part -->
@@ -651,10 +654,10 @@ function renderForm(data: NonNullable<typeof currentData>) {
 		header.innerHTML = `
 			<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1.5rem;">
 				<div>
-					<p style="font-size:0.7rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:#9ca3af; margin:0 0 4px;">Schedule D / Form 8949 Attachment</p>
-					<p style="font-size:1.25rem; font-weight:800; color:#111827; margin:0 0 2px;">Form 8949</p>
-					<p style="font-size:0.8rem; color:#374151; margin:0 0 2px;">Sales and Other Dispositions of Capital Assets</p>
-					<p style="font-size:0.75rem; color:#6b7280; margin:0;">Attach to Schedule D &mdash; Department of the Treasury / Internal Revenue Service</p>
+					<p style="font-size:0.7rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:#9ca3af; margin:0 0 4px;">Informational summary &mdash; not for filing</p>
+					<p style="font-size:1.25rem; font-weight:800; color:#111827; margin:0 0 2px;">Capital Gains Summary</p>
+					<p style="font-size:0.8rem; color:#374151; margin:0 0 2px;">Realized gains and losses, formatted to mirror IRS Form 8949 for reference</p>
+					<p style="font-size:0.75rem; color:#6b7280; margin:0;">Not a tax filing or tax advice &mdash; confirm with your tax professional</p>
 				</div>
 				<div style="text-align:right; font-size:0.8rem; color:#374151; white-space:nowrap;">
 					<p style="margin:0 0 3px;"><strong>Tax Year:</strong> ${data.year}</p>
@@ -797,7 +800,7 @@ async function populateDiagnostics(year: string, method: string, _totals: { proc
 			ctxEl.textContent = `AlmsTins found transactions for ${year} but the classification pipeline hasn't run yet. Run the pipeline from the Tax Center to match buys and sells into taxable lots.`;
 		} else if (affectedAssets.length > 0) {
 			const named = affectedAssets.slice(0, 4).join(', ') + (affectedAssets.length > 4 ? ` +${affectedAssets.length - 4} more` : '');
-			ctxEl.textContent = `${affectedAssets.length} coin${affectedAssets.length === 1 ? '' : 's'} (${named}) ${affectedAssets.length === 1 ? 'has' : 'have'} ${totalMissing} unresolved transaction${totalMissing === 1 ? '' : 's'}. These must be fixed before Form 8949 can be generated.`;
+			ctxEl.textContent = `${affectedAssets.length} coin${affectedAssets.length === 1 ? '' : 's'} (${named}) ${affectedAssets.length === 1 ? 'has' : 'have'} ${totalMissing} unresolved transaction${totalMissing === 1 ? '' : 's'}. These must be fixed before this summary is complete.`;
 		} else {
 			ctxEl.textContent = `The pipeline ran but found no taxable disposals for ${year}. If you didn't sell any crypto this year that's expected — otherwise check your imports.`;
 		}

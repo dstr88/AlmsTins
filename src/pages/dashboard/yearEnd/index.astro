@@ -60,7 +60,7 @@ return Astro.redirect('/tax-login', 302);
 				<div class="tax-card__icon" style="background:#eff6ff;color:#2563eb">📋</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">Year Summary Report <span class="tax-badge">{priorYear}</span></p>
-					<p class="tax-card__desc">Full disposal history with capital gains, ordinary income, loan events, and interest paid. Download as HTML or Form 8949–ready CSV.</p>
+					<p class="tax-card__desc">Full disposal history with capital gains, ordinary income, loan events, and interest paid. Download as HTML or Form 8949–style CSV.</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -75,15 +75,15 @@ return Astro.redirect('/tax-login', 302);
 			</a>
 		</section>
 
-		<!-- IRS Forms -->
+		<!-- US-style summaries (informational) -->
 		<section class="hub-section">
-			<h2 class="section-label">IRS Forms</h2>
+			<h2 class="section-label">US Summaries <span class="section-note">(informational — not filing documents)</span></h2>
 
 			<a href="/dashboard/yearEnd/form8949" class="tax-card">
 				<div class="tax-card__icon" style="background:#f8fafc;color:#475569">📝</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">Form 8949</p>
-					<p class="tax-card__desc">Sales and Other Dispositions of Capital Assets. Per-lot disposition table in IRS format, sorted by Box C (short-term) and Box F (long-term). Print-ready + CSV download.</p>
+					<p class="tax-card__title">Capital Gains Summary</p>
+					<p class="tax-card__desc">Per-lot realized gains and losses, formatted to mirror IRS Form 8949 for reference, sorted by short-term and long-term. Print or CSV. Informational — not a filing document.</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -91,8 +91,8 @@ return Astro.redirect('/tax-login', 302);
 			<a href="/dashboard/yearEnd/schedule-d" class="tax-card">
 				<div class="tax-card__icon" style="background:#f8fafc;color:#334155">🗂</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">Schedule D Summary</p>
-					<p class="tax-card__desc">Capital Gains and Losses — line-by-line Schedule D totals (Lines 1a, 1b, 2, 7, 8a, 8b, 9, 15, 16, 21). Flows directly from Form 8949 box totals. Print-ready.</p>
+					<p class="tax-card__title">Capital Gains &amp; Losses Summary</p>
+					<p class="tax-card__desc">Totals laid out in the US Schedule D line-by-line format for reference. Flows from the same realized-gains math. Informational — not a filing document.</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -115,7 +115,7 @@ return Astro.redirect('/tax-login', 302);
 				<div class="tax-card__icon" style="background:#faf5ff;color:#9333ea">🧾</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">1099 Reconciliation</p>
-					<p class="tax-card__desc">Upload a 1099-DA or 1099-B CSV from your exchange and compare it against Almstins' computed gains. Quickly spot discrepancies before you file.</p>
+					<p class="tax-card__desc">Upload a 1099-DA or 1099-B CSV from your exchange and compare it against Almstins' computed gains. Quickly spot discrepancies early.</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -201,6 +201,12 @@ return Astro.redirect('/tax-login', 302);
 		letter-spacing: 0.1em;
 		color: #64748b;
 		margin: 0 0 0.25rem;
+	}
+	.section-note {
+		font-weight: 500;
+		text-transform: none;
+		letter-spacing: 0;
+		opacity: 0.75;
 	}
 
 	/* Cards */

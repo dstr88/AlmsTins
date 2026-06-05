@@ -23,6 +23,7 @@
  *     Line 21 → Total capital loss carryover (from prior years, capped at $3,000 deduction)
  */
 import Layout from '../../../layouts/Layout.astro';
+import TaxNotice from '@/components/TaxNotice.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { hasTaxAccess } from '@/lib/taxAuth';
 
@@ -42,8 +43,8 @@ const defaultYear = currentYear - 1;
 		<div class="sd-header">
 			<div>
 				<a href="/dashboard/yearEnd" class="sd-back">← Tax Center</a>
-				<h1 class="sd-title">Schedule D Summary</h1>
-				<p class="sd-subtitle">Capital Gains and Losses — IRS Schedule D line-by-line.</p>
+				<h1 class="sd-title">Capital Gains &amp; Losses Summary</h1>
+				<p class="sd-subtitle">Totals laid out in the US Schedule D line-by-line format, for your reference.</p>
 			</div>
 			<div class="sd-controls">
 				<select id="year-sel" class="sd-select">
@@ -61,6 +62,8 @@ const defaultYear = currentYear - 1;
 			</div>
 		</div>
 
+		<TaxNotice />
+
 		<div id="state-loading" class="sd-loading">
 			<div class="sd-spinner"></div>
 			<p>Loading Schedule D…</p>
@@ -72,8 +75,8 @@ const defaultYear = currentYear - 1;
 
 			<!-- Print header (screen-hidden) -->
 			<div class="sd-print-header">
-				<p style="font-size:0.7rem; color:#6b7280; margin:0 0 2px; text-transform:uppercase; letter-spacing:.06em;">Schedule D Summary (Form 1040) — Prepared by Almstins</p>
-				<p style="font-size:1.1rem; font-weight:800; margin:0 0 2px;">Schedule D — Capital Gains and Losses</p>
+				<p style="font-size:0.7rem; color:#6b7280; margin:0 0 2px; text-transform:uppercase; letter-spacing:.06em;">Informational summary — not for filing</p>
+				<p style="font-size:1.1rem; font-weight:800; margin:0 0 2px;">Capital Gains &amp; Losses — US Schedule D format</p>
 				<p id="print-year-method" style="font-size:0.8rem; color:#374151; margin:0;"></p>
 			</div>
 
@@ -538,7 +541,7 @@ async function loadScheduleD() {
 
 		// Print header
 		(document.getElementById('print-year-method') as HTMLElement).textContent =
-			`Tax Year: ${yearSel} · Cost Basis Method: ${methodSel.toUpperCase()} · Prepared by Almstins`;
+			`Tax Year: ${yearSel} · Cost Basis Method: ${methodSel.toUpperCase()} · Prepared by Almstins · Informational, not for filing`;
 
 		document.getElementById('btn-print')!.classList.remove('hidden');
 		output.classList.remove('hidden');
