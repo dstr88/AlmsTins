@@ -252,24 +252,17 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         <!-- Three feature cards — stacked vertically -->
         <div class="feature-stack">
           <div class="feature-card">
-            <span class="fc-icon">🔐</span>
+            <span class="fc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5 20 3"/><path d="M16 7l3 3"/></svg></span>
             <div>
               <div class="fc-title">Your keys never touch our server. Ever.</div>
               <div class="fc-desc">Almstins reads balances by address — no wallet connection, no signing permissions, no private keys. A breach of our servers can't move a single coin. <a href="/login#faq-private-account" class="fc-anon-link" onclick="event.preventDefault();document.getElementById('faq-private-account')?.click()">Learn how to stay anonymous on our platform →</a></div>
             </div>
           </div>
           <div class="feature-card">
-            <span class="fc-icon">🔍</span>
+            <span class="fc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h4"/></svg></span>
             <div>
               <div class="fc-title">Know your tax exposure</div>
               <div class="fc-desc">Every gain, flagged gap, and missing cost basis — surfaced before April hits.</div>
-            </div>
-          </div>
-          <div class="feature-card">
-            <span class="fc-icon">🏫</span>
-            <div>
-              <div class="fc-title">Built by a teacher</div>
-              <div class="fc-desc">Privacy-first from day one. Never sold. Never shared.</div>
             </div>
           </div>
         </div>
@@ -286,35 +279,26 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     </div>
 
-    <!-- ── Founder story + trust cards — full-width below hero grid ── -->
+    <!-- ── Trust hub — verify it yourself ── -->
     <section class="founder-section">
-      <div class="founder-section__photo">
-        <img
-          src={DonnieSelfie.src}
-          alt="Donnie Starkey"
-          width={140}
-          height={140}
-          loading="lazy"
-        />
-      </div>
       <div class="founder-section__story">
-        <h2>I'm a teacher who felt the problem and built the solution.</h2>
-        <p>Almstins helps you know what you own, whether it's safe to send, and what you owe the IRS. Read-only. No wallet connection. Always verifiable against the chain.</p>
+        <h2>Don't just take my word for it.</h2>
+        <p>Read-only by design. No wallet connection, ever. Every balance verifiable against the chain — and here's exactly how.</p>
       </div>
 
       <div class="trust-cards">
         <a href="/about" class="trust-card">
-          <div class="trust-icon">👤</div>
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3.1-5.5 7-5.5s7 2 7 5.5"/></svg></div>
           <div class="trust-title">Who Built This</div>
           <div class="trust-sub">The full story</div>
         </a>
         <a href="/security-and-privacy" class="trust-card">
-          <div class="trust-icon">🔒</div>
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10" width="15" height="10.5" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
           <div class="trust-title">Your Data Is Safe</div>
           <div class="trust-sub">Exactly how we protect it</div>
         </a>
         <a href="/wallet-checker" class="trust-card">
-          <div class="trust-icon">🔍</div>
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.8-3.8"/></svg></div>
           <div class="trust-title">Verify Any Address</div>
           <div class="trust-sub">Before you send anything</div>
         </a>
@@ -789,7 +773,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       border-radius: 0.75rem;
       padding: 1rem 1.25rem;
     }
-    .fc-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .fc-icon { flex-shrink: 0; margin-top: 0.1rem; color: var(--accent); display: inline-flex; }
+    .fc-icon svg { width: 1.4rem; height: 1.4rem; }
     .fc-title { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; }
     .fc-desc  { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
     .fc-anon-link { color: var(--accent); text-decoration: none; white-space: nowrap; }
@@ -1164,16 +1149,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       padding: 0 clamp(1.5rem, 4vw, 3rem) clamp(4rem, 8vw, 6rem);
       text-align: center;
     }
-    .founder-section__photo {
-      margin-bottom: 2rem;
-    }
-    .founder-section__photo img {
-      width: 140px;
-      height: 140px;
-      border-radius: 12px;
-      object-fit: cover;
-      box-shadow: 0 8px 24px var(--accent-glow);
-    }
     .founder-section__story h2 {
       font-size: clamp(1.6rem, 4vw, 2.2rem);
       font-weight: 700;
@@ -1214,7 +1189,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       border-color: var(--accent-glow);
       transform: translateY(-4px);
     }
-    .trust-icon { font-size: 2rem; line-height: 1; }
+    .trust-icon { line-height: 1; color: var(--accent); display: inline-flex; }
+    .trust-icon svg { width: 1.85rem; height: 1.85rem; }
     .trust-title {
       font-size: 0.95rem;
       font-weight: 600;

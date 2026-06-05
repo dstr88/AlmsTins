@@ -249,24 +249,17 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         <!-- Feature cards -->
         <div class="feature-stack">
           <div class="feature-card">
-            <span class="fc-icon">🔐</span>
+            <span class="fc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.5 12.5 20 3"/><path d="M16 7l3 3"/></svg></span>
             <div>
               <div class="fc-title">Solo lectura, siempre</div>
               <div class="fc-desc">Solo direcciones públicas. Sin claves, sin riesgo — nunca.</div>
             </div>
           </div>
           <div class="feature-card">
-            <span class="fc-icon">🔍</span>
+            <span class="fc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h4"/></svg></span>
             <div>
               <div class="fc-title">Conoce tu exposición fiscal</div>
               <div class="fc-desc">Cada ganancia, brecha marcada y base de costo faltante — antes de que llegue el fisco.</div>
-            </div>
-          </div>
-          <div class="feature-card">
-            <span class="fc-icon">🏫</span>
-            <div>
-              <div class="fc-title">Hecho por un educador</div>
-              <div class="fc-desc">Privacidad desde el primer día. Nunca vendido. Nunca compartido.</div>
             </div>
           </div>
         </div>
@@ -280,35 +273,26 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
 
     </div>
 
-    <!-- ── Historia del fundador + tarjetas de confianza ── -->
+    <!-- ── Centro de confianza — compruébalo tú mismo ── -->
     <section class="founder-section">
-      <div class="founder-section__photo">
-        <img
-          src={DonnieSelfie.src}
-          alt="Donnie Starkey"
-          width={140}
-          height={140}
-          loading="lazy"
-        />
-      </div>
       <div class="founder-section__story">
-        <h2>Soy un educador que vivió el problema y construyó la solución.</h2>
-        <p>Almstins te ayuda a saber qué posees, si es seguro enviar y cuánto le debes al fisco. Solo lectura. Sin conexión de billetera. Siempre verificable contra la cadena.</p>
+        <h2>No solo confíes en mi palabra.</h2>
+        <p>Solo lectura por diseño. Sin conexión de billetera, nunca. Cada saldo verificable contra la cadena — y aquí te explicamos exactamente cómo.</p>
       </div>
 
       <div class="trust-cards">
         <a href="/about/es" class="trust-card">
-          <div class="trust-icon">👤</div>
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3.1-5.5 7-5.5s7 2 7 5.5"/></svg></div>
           <div class="trust-title">Quién lo Construyó</div>
           <div class="trust-sub">La historia completa</div>
         </a>
         <a href="/security-and-privacy/es" class="trust-card">
-          <div class="trust-icon">🔒</div>
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10" width="15" height="10.5" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
           <div class="trust-title">Tus Datos Están Seguros</div>
           <div class="trust-sub">Exactamente cómo los protegemos</div>
         </a>
         <a href="/wallet-checker/es" class="trust-card">
-          <div class="trust-icon">🔍</div>
+          <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.8-3.8"/></svg></div>
           <div class="trust-title">Verifica Cualquier Dirección</div>
           <div class="trust-sub">Antes de enviar nada</div>
         </a>
@@ -715,7 +699,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       background: var(--surface-card); border: 1px solid var(--border-subtle);
       border-radius: 0.75rem; padding: 1rem 1.25rem;
     }
-    .fc-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 0.1rem; }
+    .fc-icon { flex-shrink: 0; margin-top: 0.1rem; color: var(--accent); display: inline-flex; }
+    .fc-icon svg { width: 1.4rem; height: 1.4rem; }
     .fc-title { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; }
     .fc-desc  { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
 
@@ -976,16 +961,6 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       padding: 0 clamp(1.5rem, 4vw, 3rem) clamp(4rem, 8vw, 6rem);
       text-align: center;
     }
-    .founder-section__photo {
-      margin-bottom: 2rem;
-    }
-    .founder-section__photo img {
-      width: 140px;
-      height: 140px;
-      border-radius: 12px;
-      object-fit: cover;
-      box-shadow: 0 8px 24px var(--accent-glow);
-    }
     .founder-section__story h2 {
       font-size: clamp(1.6rem, 4vw, 2.2rem);
       font-weight: 700;
@@ -1026,7 +1001,8 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       border-color: var(--accent-glow);
       transform: translateY(-4px);
     }
-    .trust-icon { font-size: 2rem; line-height: 1; }
+    .trust-icon { line-height: 1; color: var(--accent); display: inline-flex; }
+    .trust-icon svg { width: 1.85rem; height: 1.85rem; }
     .trust-title {
       font-size: 0.95rem;
       font-weight: 600;
