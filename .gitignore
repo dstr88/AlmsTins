@@ -45,3 +45,7 @@ test-results/
 # Local database and personal tax documents
 *.db
 *.pdf
+
+# Private marketing notes & strategy — keep OUT of version control
+marketing.claude.md
+MARKETING-READINESS-PLAN.md
