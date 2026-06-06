@@ -63,9 +63,6 @@
       <button class="faq-question" type="button" data-modal="faq-account-identity">
         How is my account tied to my email address?
       </button>
-      <button class="faq-question" type="button" data-modal="faq-private-account">
-        How can I keep my Almstins account private?
-      </button>
       <button class="faq-question" type="button" data-modal="faq-research-page">
         What is the Research page?
       </button>
@@ -702,29 +699,6 @@
 
         <p>
           <strong>What this means in practice:</strong> you can sign in from a new browser, a new device, or a new OAuth provider and your wallets, transactions, and tax history are all waiting for you — because your email address is what ties everything together.
-        </p>
-      </div>
-    </div>
-
-    <div class="modal-overlay welcome-modal" id="faq-private-account">
-      <div class="modal-content">
-        <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
-
-        <h1>How can I keep my Almstins account private?</h1>
-
-        <p>
-          If you sign in with GitHub, you can set your GitHub email address to <strong>private</strong> in your GitHub account settings. When you do, GitHub does not share your real email with third-party apps — your address stays hidden from Almstins entirely.
-        </p>
-
-        <p>
-          In that mode, the account-linking system relies on Layer 2: your numeric GitHub account ID. As long as you always sign in through GitHub on this device, that ID is enough to find your account reliably.
-        </p>
-
-        <p style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 10px; padding: 1rem 1.1rem; margin-top: 1.25rem;">
-          <strong>⚠️ Important warning — please read before enabling this.</strong><br /><br />
-          Because your account has no email on file, the <em>only</em> way back in is through that exact GitHub sign-in. If you ever lose access to your GitHub account — forgotten password, account suspended, GitHub outage, or a future policy change — there is no recovery path. We cannot look up your account by email, we cannot send a reset link, and we have no other way to verify your identity.<br /><br />
-          <strong>Your data could be permanently inaccessible.</strong> Years of transaction history, cost-basis records, and tax data would be unreachable — not because it was deleted, but because there is no key left to open the door.<br /><br />
-          If you value long-term access to your financial history, we strongly recommend signing in with an email-backed method (Google or email/password) so a recovery path always exists.
         </p>
       </div>
     </div>

@@ -164,7 +164,7 @@ import Layout from "../../layouts/Layout.astro";
         Cuando usas Almstins, guardamos:
       </p>
       <ul>
-        <li><strong>Tu dirección de correo electrónico</strong> — solo para iniciar sesión. Puedes usar un correo dedicado, iniciar sesión con Google o usar GitHub (con tu correo configurado como privado en los ajustes de GitHub).</li>
+        <li><strong>Tu dirección de correo electrónico</strong> — solo para iniciar sesión. ¿Quieres máxima privacidad? Usa una dirección de correo dedicada que no esté ligada a tu nombre real — solo esa dirección vive en nuestra base de datos. También puedes iniciar sesión con Google o GitHub.</li>
         <li><strong>Las direcciones de billetera que agregues</strong> — las direcciones de blockchain que posees (p. ej., 0x1234...). Son datos públicos; cualquiera ya puede ver qué hay en estas direcciones en la blockchain.</li>
         <li><strong>Historial de transacciones</strong> — importado de los CSV que subes (de exchanges como Coinbase, Kraken, Gemini, etc.) o leído directamente de la blockchain. Guardamos la fecha, el monto, el precio y tus notas sobre cada transacción.</li>
         <li><strong>Registros de base de costo</strong> — el precio que pagaste por cada activo, calculado a partir de tu historial de transacciones.</li>
@@ -234,17 +234,18 @@ import Layout from "../../layouts/Layout.astro";
       </p>
       <ul>
         <li>
-          <strong>Correo electrónico</strong> — Puedes crear un correo dedicado para Almstins (recomendado).
-          Solo ese correo se guarda en nuestra base de datos. Tú controlas la contraseña.
+          <strong>Correo electrónico (la opción más privada)</strong> — Crea una dirección de correo dedicada solo
+          para Almstins — una que no esté ligada a tu nombre real. Solo esa dirección se guarda en nuestra base de
+          datos, y tú controlas la contraseña. Es la forma más sencilla de mantener tu identidad separada de tus
+          tenencias — sin configuración técnica.
         </li>
         <li>
           <strong>Inicio de sesión con Google</strong> — Google gestiona la autenticación. Solo recibimos tu
           dirección de correo de Google, y nunca guardamos tu contraseña de Google.
         </li>
         <li>
-          <strong>Inicio de sesión con GitHub</strong> — Si configuras tu correo de GitHub como privado en los
-          ajustes de GitHub, GitHub nos envía solo un ID numérico, no tu correo ni tu nombre real. Toma 30 segundos
-          configurarlo y agrega una capa extra de privacidad.
+          <strong>Inicio de sesión con GitHub</strong> — Inicia sesión con una cuenta de GitHub existente. Solo
+          recibimos tu identificador de cuenta de GitHub y nunca guardamos una contraseña.
         </li>
       </ul>
       <p>
@@ -333,8 +334,9 @@ import Layout from "../../layouts/Layout.astro";
             Un atacante obtendría acceso a: tus direcciones de billetera, tu historial de transacciones y tus registros
             de base de costo (todos cifrados, pero descifrables con una clave de base de datos robada). <strong>No</strong>
             obtendría acceso a tus llaves privadas, los datos de tu tarjeta ni los datos de Stripe. Tus fondos están
-            seguros porque están en la blockchain, no en Almstins. Para minimizar el riesgo: usa un correo dedicado para
-            Almstins y considera el inicio de sesión con GitHub (modo de correo privado) para mayor privacidad.
+            seguros porque están en la blockchain, no en Almstins. Para minimizar el riesgo, usa una dirección de correo
+            dedicada para Almstins que no esté ligada a tu nombre real — así, ni siquiera los datos cifrados de tus
+            tenencias quedan vinculados a tu identidad.
           </div>
         </div>
 
@@ -365,9 +367,9 @@ import Layout from "../../layouts/Layout.astro";
             ¿Puedo usar Almstins si me preocupa la privacidad?
           </div>
           <div class="faq-a">
-            Sí. El enfoque más cuidadoso con la privacidad: usa una dirección de correo dedicada (no ligada a tu nombre
-            real), inicia sesión con GitHub con un correo privado y usa una dirección de blockchain dedicada que no esté
-            ligada a tu identidad. Así, solo tú conoces la conexión entre tu identidad y tus tenencias.
+            Sí. El enfoque más cuidadoso con la privacidad: usa una dirección de correo dedicada que no esté ligada a tu
+            nombre real y (para máxima separación) rastrea una dirección de blockchain dedicada que no esté vinculada
+            públicamente a tu identidad. Así, solo tú conoces la conexión entre tu identidad y tus tenencias.
           </div>
         </div>
 

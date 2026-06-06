@@ -164,7 +164,7 @@ import Layout from "../layouts/Layout.astro";
         When you use Almstins, we store:
       </p>
       <ul>
-        <li><strong>Your email address</strong> — only for account login. You can use a dedicated email address, sign in via Google, or use GitHub (with your email set to private in GitHub settings).</li>
+        <li><strong>Your email address</strong> — only for account login. Want maximum privacy? Use a dedicated email address that isn't tied to your real name — only that address lives in our database. You can also sign in with Google or GitHub.</li>
         <li><strong>Wallet addresses you add</strong> — the blockchain addresses you own (e.g., 0x1234...). These are public data; anyone can already see what's in these addresses on the blockchain.</li>
         <li><strong>Transaction history</strong> — imported from CSVs you upload (from exchanges like Coinbase, Kraken, Gemini, etc.) or read directly from the blockchain. We store the date, amount, price, and your notes about each transaction.</li>
         <li><strong>Cost basis records</strong> — the price you paid for each asset, calculated from your transaction history.</li>
@@ -234,17 +234,17 @@ import Layout from "../layouts/Layout.astro";
       </p>
       <ul>
         <li>
-          <strong>Email address</strong> — You can create a dedicated email for Almstins (recommended).
-          Only that email is stored in our database. You control the password.
+          <strong>Email address (most private)</strong> — Create a dedicated email address just for Almstins —
+          one that isn't tied to your real name. Only that address is stored in our database, and you control the
+          password. This is the simplest way to keep your identity separate from your holdings — no technical setup.
         </li>
         <li>
           <strong>Google Sign-In</strong> — Google handles authentication. We receive only your email address
           from Google, and we never store your Google password.
         </li>
         <li>
-          <strong>GitHub Sign-In</strong> — If you set your GitHub email to private in your GitHub settings,
-          GitHub sends us only a numeric ID, not your email or real name. Takes 30 seconds to configure and
-          adds an extra layer of privacy.
+          <strong>GitHub Sign-In</strong> — Sign in with an existing GitHub account. We receive only your
+          GitHub account identifier and never store a password.
         </li>
       </ul>
       <p>
@@ -332,8 +332,8 @@ import Layout from "../layouts/Layout.astro";
             An attacker would gain access to: your wallet addresses, transaction history, and cost basis records
             (all encrypted, but decryptable with a stolen database key). They would <strong>not</strong> gain access
             to your private keys, card details, or Stripe data. Your funds are safe because they're on the blockchain,
-            not in Almstins. To minimize risk: use a dedicated email for Almstins, and consider GitHub sign-in
-            (private email mode) for additional privacy.
+            not in Almstins. To minimize risk, use a dedicated email address for Almstins that isn't tied to your
+            real name — so even the encrypted holdings data isn't linked to your identity.
           </div>
         </div>
 
@@ -364,9 +364,9 @@ import Layout from "../layouts/Layout.astro";
             Can I use Almstins if I'm worried about privacy?
           </div>
           <div class="faq-a">
-            Yes. The most privacy-conscious approach: use a dedicated email address (not tied to your real name),
-            sign in via GitHub with a private email, and use a dedicated blockchain address that's not tied to your
-            identity. This way, only you know the connection between your identity and your holdings.
+            Yes. The most privacy-conscious approach: use a dedicated email address that isn't tied to your real
+            name, and (for maximum separation) track a dedicated blockchain address that isn't publicly linked to
+            your identity. That way, only you know the connection between your identity and your holdings.
           </div>
         </div>
 
