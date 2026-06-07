@@ -8,6 +8,7 @@ import { requireTenantSession } from '../../lib/requireTenantSession';
 import { buildAnnualBreakdown } from '../../lib/annualBreakdown';
 import { getActivePlan } from '../../lib/subscriptions';
 import { db } from '../../lib/db';
+import { getJurisdictionProfile } from '../../lib/jurisdictionProfile';
 
 const { tenantId } = await requireTenantSession(Astro.request);
 
@@ -21,7 +22,8 @@ const defaultYear = currentYear - 1;
 const yearParam   = Astro.url.searchParams.get('year');
 const selectedYear = yearParam ? Number(yearParam) : defaultYear;
 
-const bd = await buildAnnualBreakdown(tenantId, selectedYear);
+const bd      = await buildAnnualBreakdown(tenantId, selectedYear);
+const profile = await getJurisdictionProfile(tenantId);
 
 // ── Counterparty labels for Needs Attention items ────────────────────────────
 // For each mystery transaction, look up the to_address in address_labels and
@@ -169,6 +171,10 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
         ))}
       </div>
       <div class="year-bar__actions">
+        <div class="jur-toggle" aria-label="View as">
+          <button class={`jur-btn${profile.jurisdiction === 'us' ? ' jur-btn--active' : ''}`} data-jur="us">US</button>
+          <button class={`jur-btn${profile.jurisdiction === 'intl' ? ' jur-btn--active' : ''}`} data-jur="intl">Intl</button>
+        </div>
         {canDownloadPdf ? (
           <a
             href={`/api/year-summary/report?year=${selectedYear}`}
@@ -261,9 +267,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
         </OrnateTin>
       </div>
 
-      <!-- 💼 2. Still in Wallet -->
+      <!-- 2. Still in Wallet -->
       <div class="grid-cell">
-        <OrnateTin label="💼 Still in Wallet" class="tin-section tin-section--hold">
+        <OrnateTin label="Still in Wallet" class="tin-section tin-section--hold">
           <div class="tin-toolbar">
             <span class="tin-toolbar__count">{walletHoldings.length} positions</span>
             <a href={csvBase('stillHolding')} download class="tin-csv-btn">↓ CSV</a>
@@ -285,7 +291,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                   <span class="tin-row__date">Since {fDate(pos.acquiredDate)}</span>
                   <span class="tin-row__usd">{fUsd(pos.costUsd)}</span>
                   <span class={`tin-row__term ${pos.daysHeld >= 365 ? 'term-long' : 'term-short'}`}>
-                    {pos.daysHeld >= 365 ? 'Long' : 'Short'} · {pos.daysHeld}d
+                    {profile.splitByTerm
+                      ? `${pos.daysHeld >= 365 ? 'Long' : 'Short'} · ${pos.daysHeld}d`
+                      : `${pos.daysHeld}d`}
                   </span>
                   <label class="tin-row__confirm">
                     <input type="checkbox" class="confirm-check" data-asset={pos.asset} data-date={pos.acquiredDate} />
@@ -328,10 +336,10 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
         </OrnateTin>
       </div>
 
-      <!-- 🔷 DeFi Positions — full width, only shown when present -->
+      <!-- DeFi Positions — full width, only shown when present -->
       {defiHoldings.length > 0 && (
         <div class="grid-cell grid-cell--full">
-          <OrnateTin label="🔷 DeFi Positions" class="tin-section tin-section--defi">
+          <OrnateTin label="DeFi Positions" class="tin-section tin-section--defi">
             <div class="tin-toolbar">
               <span class="tin-toolbar__count">{defiHoldings.length} positions</span>
               <span class="tin-toolbar__note">Aave collateral &amp; protocol balances — unrealized, no tax until withdrawn &amp; sold</span>
@@ -352,7 +360,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                   <span class="tin-row__date">Since {fDate(pos.acquiredDate)}</span>
                   <span class="tin-row__usd">{fUsd(pos.costUsd)}</span>
                   <span class={`tin-row__term ${pos.daysHeld >= 365 ? 'term-long' : 'term-short'}`}>
-                    {pos.daysHeld >= 365 ? 'Long' : 'Short'} · {pos.daysHeld}d
+                    {profile.splitByTerm
+                      ? `${pos.daysHeld >= 365 ? 'Long' : 'Short'} · ${pos.daysHeld}d`
+                      : `${pos.daysHeld}d`}
                   </span>
                 </div>
               ))}
@@ -361,91 +371,145 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
         </div>
       )}
 
-      <!-- 🟠 3. Short-Term Gains / Losses -->
-      <div class="grid-cell">
-        <OrnateTin label="🟠 Short-Term G/L" class="tin-section tin-section--short">
-          <div class="tin-toolbar">
-            <span class="tin-toolbar__count">{bd.shortTerm.length} lots</span>
-            <a href={csvBase('shortTerm')} download class="tin-csv-btn">↓ CSV</a>
-          </div>
-          {(() => {
-            const g = fGain(bd.totals.shortTermGain);
-            return (
-              <div class={`tin-total ${g.cls}`}>
-                Net short-term: <strong>{g.text}</strong>
-                <span class="tin-total__note">taxed as ordinary income</span>
+      <!-- 3 & 4. Realized G/L — split into two tins (US) or one combined tin (Intl) -->
+      {profile.splitByTerm ? (
+        <>
+          <!-- Short-Term G/L -->
+          <div class="grid-cell">
+            <OrnateTin label={profile.shortTermLabel} class="tin-section tin-section--short">
+              <div class="tin-toolbar">
+                <span class="tin-toolbar__count">{bd.shortTerm.length} lots</span>
+                <a href={csvBase('shortTerm')} download class="tin-csv-btn">↓ CSV</a>
               </div>
-            );
-          })()}
-          {bd.shortTerm.length === 0 ? (
-            <p class="tin-empty">No short-term disposals in {selectedYear}</p>
-          ) : (
-            <div class="tin-rows">
-              {bd.shortTerm.map((lot) => {
-                const g = fGain(lot.gainLossUsd);
+              {(() => {
+                const g = fGain(bd.totals.shortTermGain);
                 return (
-                  <div class="tin-row">
-                    <span class="tin-row__asset">{lot.asset}</span>
-                    <span class="tin-row__qty">{fQty(lot.amount)}</span>
-                    <div class="tin-row__dates">
-                      <span>{fDate(lot.buyDate)}</span>
-                      <span class="tin-row__arrow">→</span>
-                      <span>{fDate(lot.sellDate)}</span>
-                      <span class="tin-row__days">{lot.daysHeld}d</span>
-                    </div>
-                    <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
-                    <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
-                    <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                  <div class={`tin-total ${g.cls}`}>
+                    Net short-term: <strong>{g.text}</strong>
+                    {profile.showUsTaxNotes && (
+                      <span class="tin-total__note">taxed as ordinary income</span>
+                    )}
                   </div>
                 );
-              })}
-            </div>
-          )}
-        </OrnateTin>
-      </div>
+              })()}
+              {bd.shortTerm.length === 0 ? (
+                <p class="tin-empty">No short-term disposals in {selectedYear}</p>
+              ) : (
+                <div class="tin-rows">
+                  {bd.shortTerm.map((lot) => {
+                    const g = fGain(lot.gainLossUsd);
+                    return (
+                      <div class="tin-row">
+                        <span class="tin-row__asset">{lot.asset}</span>
+                        <span class="tin-row__qty">{fQty(lot.amount)}</span>
+                        <div class="tin-row__dates">
+                          <span>{fDate(lot.buyDate)}</span>
+                          <span class="tin-row__arrow">→</span>
+                          <span>{fDate(lot.sellDate)}</span>
+                          <span class="tin-row__days">{lot.daysHeld}d</span>
+                        </div>
+                        <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
+                        <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
+                        <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </OrnateTin>
+          </div>
 
-      <!-- 🟢 4. Long-Term Gains / Losses -->
-      <div class="grid-cell">
-        <OrnateTin label="🟢 Long-Term G/L" class="tin-section tin-section--long">
-          <div class="tin-toolbar">
-            <span class="tin-toolbar__count">{bd.longTerm.length} lots</span>
-            <a href={csvBase('longTerm')} download class="tin-csv-btn">↓ CSV</a>
-          </div>
-          {(() => {
-            const g = fGain(bd.totals.longTermGain);
-            return (
-              <div class={`tin-total ${g.cls}`}>
-                Net long-term: <strong>{g.text}</strong>
-                <span class="tin-total__note">preferential rate</span>
+          <!-- Long-Term G/L -->
+          <div class="grid-cell">
+            <OrnateTin label={profile.longTermLabel} class="tin-section tin-section--long">
+              <div class="tin-toolbar">
+                <span class="tin-toolbar__count">{bd.longTerm.length} lots</span>
+                <a href={csvBase('longTerm')} download class="tin-csv-btn">↓ CSV</a>
               </div>
-            );
-          })()}
-          {bd.longTerm.length === 0 ? (
-            <p class="tin-empty">No long-term disposals in {selectedYear}</p>
-          ) : (
-            <div class="tin-rows">
-              {bd.longTerm.map((lot) => {
-                const g = fGain(lot.gainLossUsd);
+              {(() => {
+                const g = fGain(bd.totals.longTermGain);
                 return (
-                  <div class="tin-row">
-                    <span class="tin-row__asset">{lot.asset}</span>
-                    <span class="tin-row__qty">{fQty(lot.amount)}</span>
-                    <div class="tin-row__dates">
-                      <span>{fDate(lot.buyDate)}</span>
-                      <span class="tin-row__arrow">→</span>
-                      <span>{fDate(lot.sellDate)}</span>
-                      <span class="tin-row__days">{lot.daysHeld}d</span>
-                    </div>
-                    <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
-                    <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
-                    <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                  <div class={`tin-total ${g.cls}`}>
+                    Net long-term: <strong>{g.text}</strong>
+                    {profile.showUsTaxNotes && (
+                      <span class="tin-total__note">preferential rate</span>
+                    )}
                   </div>
                 );
-              })}
+              })()}
+              {bd.longTerm.length === 0 ? (
+                <p class="tin-empty">No long-term disposals in {selectedYear}</p>
+              ) : (
+                <div class="tin-rows">
+                  {bd.longTerm.map((lot) => {
+                    const g = fGain(lot.gainLossUsd);
+                    return (
+                      <div class="tin-row">
+                        <span class="tin-row__asset">{lot.asset}</span>
+                        <span class="tin-row__qty">{fQty(lot.amount)}</span>
+                        <div class="tin-row__dates">
+                          <span>{fDate(lot.buyDate)}</span>
+                          <span class="tin-row__arrow">→</span>
+                          <span>{fDate(lot.sellDate)}</span>
+                          <span class="tin-row__days">{lot.daysHeld}d</span>
+                        </div>
+                        <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
+                        <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
+                        <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </OrnateTin>
+          </div>
+        </>
+      ) : (
+        /* International: single date-ordered Realized G/L tin */
+        <div class="grid-cell grid-cell--full">
+          <OrnateTin label="Realized G/L" class="tin-section tin-section--short">
+            <div class="tin-toolbar">
+              <span class="tin-toolbar__count">{bd.shortTerm.length + bd.longTerm.length} lots</span>
+              <a href={csvBase('shortTerm')} download class="tin-csv-btn">↓ CSV</a>
             </div>
-          )}
-        </OrnateTin>
-      </div>
+            {(() => {
+              const total = bd.totals.shortTermGain + bd.totals.longTermGain;
+              const g = fGain(total);
+              return (
+                <div class={`tin-total ${g.cls}`}>
+                  Net realized: <strong>{g.text}</strong>
+                </div>
+              );
+            })()}
+            {(bd.shortTerm.length + bd.longTerm.length) === 0 ? (
+              <p class="tin-empty">No disposals in {selectedYear}</p>
+            ) : (
+              <div class="tin-rows">
+                {[...bd.shortTerm, ...bd.longTerm]
+                  .sort((a, b) => a.sellDate.localeCompare(b.sellDate))
+                  .map((lot) => {
+                    const g = fGain(lot.gainLossUsd);
+                    return (
+                      <div class="tin-row">
+                        <span class="tin-row__asset">{lot.asset}</span>
+                        <span class="tin-row__qty">{fQty(lot.amount)}</span>
+                        <div class="tin-row__dates">
+                          <span>{fDate(lot.buyDate)}</span>
+                          <span class="tin-row__arrow">→</span>
+                          <span>{fDate(lot.sellDate)}</span>
+                          <span class="tin-row__days">{lot.daysHeld}d</span>
+                        </div>
+                        <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
+                        <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
+                        <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </OrnateTin>
+        </div>
+      )}
 
       <!-- 5. Income & Fees — full width -->
       <div class="grid-cell grid-cell--full">
@@ -644,6 +708,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       margin-left: auto;
       display: flex;
       align-items: center;
+      gap: 0.6rem;
     }
     .year-summary-btn {
       display: inline-flex;
@@ -682,6 +747,30 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       color: var(--accent);
       font-weight: 700;
       letter-spacing: 0.03em;
+    }
+    .jur-toggle {
+      display: flex;
+      border-radius: 20px;
+      border: 1px solid var(--border-subtle);
+      overflow: hidden;
+    }
+    .jur-btn {
+      padding: 0.3rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+    }
+    .jur-btn:hover {
+      background: var(--surface-card-2);
+      color: var(--text-secondary);
+    }
+    .jur-btn--active {
+      background: var(--accent-soft);
+      color: var(--accent);
     }
 
     /* ── 2×2 + full-width grid ─────────────────────────────── */
@@ -1235,6 +1324,28 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       };
 
       window.dispatchEvent(new CustomEvent('open-transaction-drawer', { detail }));
+    });
+  </script>
+
+  <script>
+    // ── Jurisdiction toggle ────────────────────────────────────────────────────
+    // Fires a POST to /api/settings/jurisdiction and reloads so the SSR
+    // profile is re-read.  Simple and predictable — no client-side state.
+    document.querySelectorAll<HTMLButtonElement>('.jur-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const jur = btn.dataset.jur;
+        if (!jur) return;
+        try {
+          const res = await fetch('/api/settings/jurisdiction', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ jurisdiction: jur }),
+          });
+          if (res.ok) window.location.reload();
+        } catch {
+          // silent — the button stays in its current visual state
+        }
+      });
     });
   </script>
 </Layout>
