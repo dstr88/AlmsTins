@@ -36,7 +36,7 @@ import TourEngine from '../TourEngine.astro';
 		{
 			selector: '.recon-section',
 			title: 'Reconciliation Audit',
-			body: 'An independent check: does your transaction history agree with what your wallets actually hold? Discrepancies (shown in amber) mean something\'s missing from your import history — click Memory Lane to investigate.',
+			body: 'An independent check: does your transaction history agree with what your wallets actually hold? Discrepancies (shown in amber) mean something\'s missing from your import history — click History to investigate.',
 			onShow: function () {
 				var el = document.querySelector('.recon-section');
 				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 100), behavior: 'smooth' });
@@ -67,7 +67,7 @@ import TourEngine from '../TourEngine.astro';
 		{
 			selector: '.recon-section',
 			title: 'Auditoría de conciliación',
-			body: 'Una verificación independiente: ¿tu historial de transacciones coincide con lo que tus billeteras realmente tienen? Las discrepancias (en ámbar) significan que falta algo en tu historial de importaciones — haz clic en Memory Lane para investigar.',
+			body: 'Una verificación independiente: ¿tu historial de transacciones coincide con lo que tus billeteras realmente tienen? Las discrepancias (en ámbar) significan que falta algo en tu historial de importaciones — haz clic en History para investigar.',
 			onShow: function () {
 				var el = document.querySelector('.recon-section');
 				if (el) window.scrollTo({ top: Math.max(0, window.scrollY + el.getBoundingClientRect().top - 100), behavior: 'smooth' });

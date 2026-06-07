@@ -115,9 +115,9 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 										<a
 											href={`/dashboard/yearEnd/memory-lane?year=${currentYear}&symbol=${item.symbol}`}
 											className="recon-ml-link"
-											title={`Investigate ${item.symbol} in Memory Lane`}
+											title={`Investigate ${item.symbol} in History`}
 										>
-											Memory Lane →
+											History →
 										</a>
 									</div>
 								)}

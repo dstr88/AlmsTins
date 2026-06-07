@@ -215,7 +215,7 @@ function timelineId(asset: string) {
 }
 ---
 
-<Layout title={`Memory Lane ${year} | almsTins`} noindex={true}>
+<Layout title={`History ${year} | almsTins`} noindex={true}>
 <div class="memory-lane">
 
 	<!-- ── Back link ─────────────────────────────────────────────────────── -->
@@ -223,7 +223,7 @@ function timelineId(asset: string) {
 
 	{fetchError && !isDemo && (
 		<div class="memory-lane__error">
-			<strong>⚠️ Could not load Memory Lane</strong>
+			<strong>⚠️ Could not load History</strong>
 			<p>{fetchError}</p>
 			<a href={`?year=${year}`}>Try again</a>
 		</div>
@@ -256,8 +256,8 @@ function timelineId(asset: string) {
 	<!-- ── Hero ──────────────────────────────────────────────────────────── -->
 	<header class="memory-lane__hero">
 		<div class="memory-lane__hero-cap">🃏</div>
-		<h1 class="memory-lane__hero-title">Memory Lane</h1>
-		<p class="memory-lane__hero-sub">Your collection. Every card you've drafted, traded, and retired.</p>
+		<h1 class="memory-lane__hero-title">History</h1>
+		<p class="memory-lane__hero-sub">Every asset you've held — and the full transaction history behind each one.</p>
 
 		<p class="memory-lane__season-label">Select Season</p>
 		<div class="memory-lane__season-chips">
