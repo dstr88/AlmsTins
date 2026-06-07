@@ -131,7 +131,7 @@ const getChainBadge = (chains: string[]): string => {
 		{isDemo && (
 			<div class="demo-banner">
 				<span class="demo-banner__text">
-					🔍 Demo mode — exploring {onchainWallets.length} of 3 wallets.
+					Demo mode — exploring {onchainWallets.length} of 3 wallets.
 					{onchainWallets.length < 3
 						? ` Add up to ${3 - onchainWallets.length} more below.`
 						: ' Wallet limit reached.'}
@@ -160,7 +160,7 @@ const getChainBadge = (chains: string[]): string => {
 				</SalmonTin>
 				{digestCount > 0 && (
 					<a href="/dashboard/yearEnd/review" class="digest-pill">
-						⚠ {digestCount} flagged · {digestMonth}
+						{digestCount} flagged · {digestMonth}
 					</a>
 				)}
 			</div>

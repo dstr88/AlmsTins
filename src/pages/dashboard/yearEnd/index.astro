@@ -23,16 +23,16 @@ return Astro.redirect('/tax-login', 302);
 			<p class="doc-tile__label">TurboTax Documents</p>
 			<div class="doc-grid">
 				<a href="/dashboard/yearEnd/gains" class="doc-tile">
-					<span class="doc-pill">📊 Gains Summary</span>
+					<span class="doc-pill">Gains Summary</span>
 				</a>
 				<a href={`/dashboard/yearEnd/report?year=${priorYear}`} class="doc-tile">
-					<span class="doc-pill">📋 Year Summary</span>
+					<span class="doc-pill">Year Summary</span>
 				</a>
 				<a href="/dashboard/yearEnd/form8949" class="doc-tile">
-					<span class="doc-pill">📝 Form 8949</span>
+					<span class="doc-pill">Form 8949</span>
 				</a>
 				<a href="/dashboard/yearEnd/schedule-d" class="doc-tile">
-					<span class="doc-pill">🗂 Schedule D</span>
+					<span class="doc-pill">Schedule D</span>
 				</a>
 			</div>
 		</div>
@@ -48,7 +48,7 @@ return Astro.redirect('/tax-login', 302);
 			<h2 class="section-label">Analysis &amp; Planning</h2>
 
 			<a href="/dashboard/yearEnd/gains" class="tax-card">
-				<div class="tax-card__icon" style="background:#eef2ff;color:#4f46e5">📊</div>
+				<div class="tax-card__icon">G/L</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">Gains Summary</p>
 					<p class="tax-card__desc">Short-term vs long-term gains, per-asset breakdown, tax-loss harvesting opportunities, missing cost basis alerts, estimated liability, loss carryforward, and year-over-year chart.</p>
@@ -57,7 +57,7 @@ return Astro.redirect('/tax-login', 302);
 			</a>
 
 			<a href={`/dashboard/yearEnd/report?year=${priorYear}`} class="tax-card">
-				<div class="tax-card__icon" style="background:#eff6ff;color:#2563eb">📋</div>
+				<div class="tax-card__icon">Rpt</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">Year Summary Report <span class="tax-badge">{priorYear}</span></p>
 					<p class="tax-card__desc">Full disposal history with capital gains, ordinary income, loan events, and interest paid. Download as HTML or Form 8949–style CSV.</p>
@@ -66,7 +66,7 @@ return Astro.redirect('/tax-login', 302);
 			</a>
 
 			<a href="/dashboard/yearEnd/review" class="tax-card">
-				<div class="tax-card__icon" style="background:#fffbeb;color:#d97706">⚠️</div>
+				<div class="tax-card__icon">!</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">Review Queue</p>
 					<p class="tax-card__desc">Transactions the classifier couldn't categorize automatically. Resolve them here before they affect your report totals.</p>
@@ -80,7 +80,7 @@ return Astro.redirect('/tax-login', 302);
 			<h2 class="section-label">US Summaries <span class="section-note">(informational — not filing documents)</span></h2>
 
 			<a href="/dashboard/yearEnd/form8949" class="tax-card">
-				<div class="tax-card__icon" style="background:#f8fafc;color:#475569">📝</div>
+				<div class="tax-card__icon">8949</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">Capital Gains Summary</p>
 					<p class="tax-card__desc">Per-lot realized gains and losses, formatted to mirror IRS Form 8949 for reference, sorted by short-term and long-term. Print or CSV. Informational — not a filing document.</p>
@@ -89,7 +89,7 @@ return Astro.redirect('/tax-login', 302);
 			</a>
 
 			<a href="/dashboard/yearEnd/schedule-d" class="tax-card">
-				<div class="tax-card__icon" style="background:#f8fafc;color:#334155">🗂</div>
+				<div class="tax-card__icon">Sch D</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">Capital Gains &amp; Losses Summary</p>
 					<p class="tax-card__desc">Totals laid out in the US Schedule D line-by-line format for reference. Flows from the same realized-gains math. Informational — not a filing document.</p>
@@ -98,7 +98,7 @@ return Astro.redirect('/tax-login', 302);
 			</a>
 
 			<a href="/dashboard/yearEnd/lots" class="tax-card">
-				<div class="tax-card__icon" style="background:#f5f3ff;color:#7c3aed">🎯</div>
+				<div class="tax-card__icon">Lots</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">Lot Manager — Specific ID</p>
 					<p class="tax-card__desc">Manually pin each disposal to a specific cost-basis lot. When Spec ID method is active, these pins override FIFO/HIFO/LIFO — the lowest-tax outcome in any scenario.</p>
@@ -112,7 +112,7 @@ return Astro.redirect('/tax-login', 302);
 			<h2 class="section-label">Reconciliation</h2>
 
 			<a href="/dashboard/yearEnd/1099" class="tax-card">
-				<div class="tax-card__icon" style="background:#faf5ff;color:#9333ea">🧾</div>
+				<div class="tax-card__icon">1099</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">1099 Reconciliation</p>
 					<p class="tax-card__desc">Upload a 1099-DA or 1099-B CSV from your exchange and compare it against Almstins' computed gains. Quickly spot discrepancies early.</p>
@@ -126,7 +126,7 @@ return Astro.redirect('/tax-login', 302);
 			<h2 class="section-label">Export</h2>
 
 			<a href={`/api/year-summary/report?year=${priorYear}`} target="_blank" class="tax-card">
-				<div class="tax-card__icon" style="background:#fff1f2;color:#e11d48">📄</div>
+				<div class="tax-card__icon">PDF</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">Year Summary PDF <span class="tax-badge">{priorYear}</span></p>
 					<p class="tax-card__desc">Landscape PDF with cover page, summary totals, short-term disposals, long-term disposals, income events, and open lots. Premium plan required.</p>
@@ -135,7 +135,7 @@ return Astro.redirect('/tax-login', 302);
 			</a>
 
 			<a href="/dashboard/transactions" class="tax-card">
-				<div class="tax-card__icon" style="background:#f0fdf4;color:#16a34a">📥</div>
+				<div class="tax-card__icon">CSV</div>
 				<div class="tax-card__body">
 					<p class="tax-card__title">FIFO CSV Export</p>
 					<p class="tax-card__desc">Download the line-by-line gain/loss CSV from the transactions page. Includes short-term vs long-term classification per lot — the format your CPA or tax software needs.</p>
@@ -178,12 +178,12 @@ return Astro.redirect('/tax-login', 302);
 	.hub-title {
 		font-size: 1.75rem;
 		font-weight: 700;
-		color: #f1f5f9;
+		color: var(--text-primary);
 		margin: 0 0 0.4rem;
 	}
 	.hub-sub {
 		font-size: 0.9rem;
-		color: #94a3b8;
+		color: var(--text-secondary);
 		margin: 0;
 		line-height: 1.6;
 	}
@@ -199,7 +199,7 @@ return Astro.redirect('/tax-login', 302);
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
-		color: #64748b;
+		color: var(--text-muted);
 		margin: 0 0 0.25rem;
 	}
 	.section-note {
@@ -216,15 +216,15 @@ return Astro.redirect('/tax-login', 302);
 		gap: 1rem;
 		padding: 1rem 1.25rem;
 		border-radius: 12px;
-		border: 1px solid rgba(255,255,255,0.08);
-		background: rgba(255,255,255,0.04);
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card);
 		text-decoration: none;
 		transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 	}
 	.tax-card:hover {
-		border-color: rgba(99,102,241,0.5);
-		background: rgba(99,102,241,0.06);
-		box-shadow: 0 2px 12px rgba(99,102,241,0.1);
+		border-color: var(--accent-dim);
+		background: var(--accent-soft);
+		box-shadow: 0 2px 12px var(--accent-soft);
 	}
 	.tax-card__icon {
 		flex-shrink: 0;
@@ -234,7 +234,11 @@ return Astro.redirect('/tax-login', 302);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 1.15rem;
+		font-size: 0.68rem;
+		font-weight: 800;
+		letter-spacing: 0.04em;
+		background: var(--accent-soft);
+		color: var(--accent);
 	}
 	.tax-card__body {
 		flex: 1;
@@ -243,7 +247,7 @@ return Astro.redirect('/tax-login', 302);
 	.tax-card__title {
 		font-size: 0.95rem;
 		font-weight: 600;
-		color: #e2e8f0;
+		color: var(--text-primary);
 		margin: 0 0 0.25rem;
 		display: flex;
 		align-items: center;
@@ -251,19 +255,19 @@ return Astro.redirect('/tax-login', 302);
 	}
 	.tax-card__desc {
 		font-size: 0.82rem;
-		color: #64748b;
+		color: var(--text-muted);
 		line-height: 1.55;
 		margin: 0;
 	}
 	.tax-card__arrow {
 		font-size: 1rem;
-		color: #475569;
+		color: var(--text-muted);
 		flex-shrink: 0;
 		margin-top: 0.1rem;
 		transition: color 0.15s, transform 0.15s;
 	}
 	.tax-card:hover .tax-card__arrow {
-		color: #818cf8;
+		color: var(--accent);
 		transform: translateX(3px);
 	}
 
@@ -271,8 +275,8 @@ return Astro.redirect('/tax-login', 302);
 	.tax-badge {
 		font-size: 0.68rem;
 		font-weight: 600;
-		background: rgba(124,58,237,0.15);
-		color: #a78bfa;
+		background: var(--accent-soft);
+		color: var(--accent-dim);
 		border-radius: 999px;
 		padding: 0.1rem 0.5rem;
 		vertical-align: middle;
@@ -289,26 +293,26 @@ return Astro.redirect('/tax-login', 302);
 		align-items: center;
 		padding: 0.4rem 1rem;
 		border-radius: 8px;
-		border: 1px solid rgba(255,255,255,0.1);
-		background: rgba(255,255,255,0.04);
-		color: #cbd5e1;
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card);
+		color: var(--text-secondary);
 		font-size: 0.85rem;
 		font-weight: 500;
 		text-decoration: none;
-		transition: border-color 0.15s, background 0.15s;
+		transition: border-color 0.15s, background 0.15s, color 0.15s;
 	}
 	.year-pill:hover {
-		border-color: rgba(99,102,241,0.5);
-		background: rgba(99,102,241,0.08);
-		color: #a5b4fc;
+		border-color: var(--accent-dim);
+		background: var(--accent-soft);
+		color: var(--accent-dim);
 	}
 	.year-note {
 		font-size: 0.78rem;
-		color: #475569;
+		color: var(--text-muted);
 		margin: 0;
 	}
 
-	/* TurboTax doc tiles */
+	/* Quick-access doc tiles */
 	.doc-section {
 		display: flex;
 		flex-direction: column;
@@ -319,7 +323,7 @@ return Astro.redirect('/tax-login', 302);
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
-		color: #64748b;
+		color: var(--text-muted);
 		margin: 0;
 	}
 	.doc-grid {
@@ -331,16 +335,16 @@ return Astro.redirect('/tax-login', 302);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		border: 1px solid rgba(255,255,255,0.08);
-		background: rgba(255,255,255,0.03);
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card);
 		border-radius: 12px;
 		padding: 0.85rem 1rem;
 		text-decoration: none;
 		transition: border-color 0.15s, background 0.15s;
 	}
 	.doc-tile:hover {
-		border-color: rgba(99,102,241,0.5);
-		background: rgba(99,102,241,0.08);
+		border-color: var(--accent-dim);
+		background: var(--accent-soft);
 	}
 	.doc-pill {
 		display: inline-flex;
@@ -348,34 +352,34 @@ return Astro.redirect('/tax-login', 302);
 		gap: 0.35rem;
 		padding: 0.3rem 0.85rem;
 		border-radius: 999px;
-		border: 1px solid rgba(255,255,255,0.1);
-		background: rgba(255,255,255,0.05);
-		color: #cbd5e1;
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card-2);
+		color: var(--text-secondary);
 		font-size: 0.82rem;
 		font-weight: 500;
 		transition: border-color 0.15s, background 0.15s, color 0.15s;
 	}
 	.doc-tile:hover .doc-pill {
-		border-color: rgba(99,102,241,0.4);
-		background: rgba(99,102,241,0.12);
-		color: #a5b4fc;
+		border-color: var(--accent-dim);
+		background: var(--accent-soft);
+		color: var(--accent-dim);
 	}
 
 	/* Disclaimer */
 	.disclaimer {
-		border: 1px solid rgba(255,255,255,0.07);
-		background: rgba(255,255,255,0.02);
+		border: 1px solid var(--border-subtle);
+		background: var(--surface-card);
 		border-radius: 12px;
 		padding: 1rem 1.25rem;
 	}
 	.disclaimer p {
 		font-size: 0.78rem;
-		color: #475569;
+		color: var(--text-muted);
 		line-height: 1.65;
 		margin: 0;
 	}
 	.disclaimer strong {
-		color: #64748b;
+		color: var(--text-secondary);
 	}
 
 	@media (max-width: 600px) {

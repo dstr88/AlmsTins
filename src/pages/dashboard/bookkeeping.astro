@@ -184,7 +184,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
             class="year-summary-btn year-summary-btn--locked"
             title="Upgrade to Premium to download Year Summary PDF"
           >
-            🔒 Year Summary PDF
+            Year Summary PDF
             <span class="year-summary-badge">Premium</span>
           </a>
         )}
@@ -208,7 +208,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
 
       <!-- 🔴 1. Needs Attention -->
       <div class="grid-cell">
-        <OrnateTin label="⚠ Needs Attention" class="tin-section tin-section--alert">
+        <OrnateTin label="Needs Attention" class="tin-section tin-section--alert">
           <div class="tin-toolbar">
             <span class="tin-toolbar__count">{bd.needsAttention.length} items</span>
             <a href={csvBase('needsAttention')} download class="tin-csv-btn">↓ CSV</a>
@@ -243,7 +243,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                   >
                     {(() => { const icon = sourceIcon(item.sourceType); return icon ? <img src={icon.url} alt={icon.alt} class="tin-row__source-icon" title={icon.alt} /> : null; })()}
                     <span class="tin-row__asset">{item.asset}</span>
-                    {scamLikely && <span class="asset-badge asset-badge--scam">⚠ SCAM?</span>}
+                    {scamLikely && <span class="asset-badge asset-badge--scam">SCAM?</span>}
                     {scamPossible && <span class="asset-badge asset-badge--verify">VERIFY</span>}
                     <span class="tin-row__qty">{fQty(item.amount)}</span>
                     <span class="tin-row__date">{fDate(item.sellDate)}</span>
@@ -447,9 +447,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
         </OrnateTin>
       </div>
 
-      <!-- 💰 5. Income & Fees — full width -->
+      <!-- 5. Income & Fees — full width -->
       <div class="grid-cell grid-cell--full">
-        <OrnateTin label="💰 Income — Interest, Staking & Rewards" class="tin-section tin-section--income">
+        <OrnateTin label="Income — Interest, Staking & Rewards" class="tin-section tin-section--income">
           <div class="tin-toolbar">
             <span class="tin-toolbar__count">{bd.income.length} items</span>
             <a href={csvBase('income')} download class="tin-csv-btn">↓ CSV</a>
@@ -521,19 +521,19 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
     /* ── Tax Readiness Bar ──────────────────────────────────── */
     .readiness-bar {
       border-radius: 0.75rem;
-      background: #1a1d27;
-      border: 1px solid #2d3148;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
       overflow: hidden;
     }
     .readiness-bar__track {
       height: 4px;
-      background: #2d3148;
+      background: var(--border-bright);
       width: 100%;
     }
     .readiness-bar__fill {
       height: 4px;
       width: 0%;
-      background: #6b7280;
+      background: var(--accent);
       transition: width 0.9s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s ease;
       border-radius: 0 2px 2px 0;
     }
@@ -546,13 +546,13 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
     .readiness-bar__score {
       font-size: 0.8rem;
       font-weight: 700;
-      color: #9ca3af;
+      color: var(--text-secondary);
       min-width: 2.5rem;
       letter-spacing: 0.02em;
     }
     .readiness-bar__label {
       font-size: 0.8rem;
-      color: #6b7280;
+      color: var(--text-muted);
       flex: 1;
       white-space: nowrap;
       overflow: hidden;
@@ -561,12 +561,12 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
     .readiness-bar__link {
       font-size: 0.75rem;
       font-weight: 600;
-      color: #6366f1;
+      color: var(--accent);
       text-decoration: none;
       white-space: nowrap;
       flex-shrink: 0;
     }
-    .readiness-bar__link:hover { color: #818cf8; }
+    .readiness-bar__link:hover { color: var(--accent); opacity: 0.8; }
 
     /* ── Page shell ─────────────────────────────────────────── */
     .bookkeeping-page {
@@ -627,17 +627,17 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       display: inline-block;
       padding: 0.35rem 0.9rem;
       border-radius: 20px;
-      border: 1px solid rgba(250,128,114,0.4);
-      color: rgba(250,128,114,0.85);
+      border: 1px solid var(--accent-dim);
+      color: var(--accent);
       font-size: 0.9rem;
       font-weight: 600;
       text-decoration: none;
       transition: background 0.15s, color 0.15s;
     }
-    .year-pill:hover { background: rgba(250,128,114,0.1); }
+    .year-pill:hover { background: var(--accent-soft); }
     .year-pill--active {
-      background: rgba(250,128,114,0.9);
-      color: #0b0f1a;
+      background: var(--accent);
+      color: var(--surface-bg);
       border-color: transparent;
     }
     .year-bar__actions {
@@ -651,9 +651,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       gap: 0.4rem;
       padding: 0.35rem 1rem;
       border-radius: 20px;
-      border: 1px solid rgba(250,128,114,0.6);
-      color: rgba(250,128,114,0.9);
-      background: rgba(250,128,114,0.06);
+      border: 1px solid var(--accent-dim);
+      color: var(--accent);
+      background: var(--accent-soft);
       font-size: 0.85rem;
       font-weight: 600;
       text-decoration: none;
@@ -661,8 +661,8 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       white-space: nowrap;
     }
     .year-summary-btn:hover {
-      background: rgba(250,128,114,0.15);
-      border-color: rgba(250,128,114,0.9);
+      background: var(--accent-soft);
+      border-color: var(--accent);
     }
     .year-summary-btn--locked {
       opacity: 0.55;
@@ -670,16 +670,16 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       border-style: dashed;
     }
     .year-summary-btn--locked:hover {
-      background: rgba(250,128,114,0.06);
-      border-color: rgba(250,128,114,0.4);
+      background: var(--accent-soft);
+      border-color: var(--accent-dim);
       opacity: 0.7;
     }
     .year-summary-badge {
       font-size: 0.65rem;
       padding: 0.1rem 0.4rem;
       border-radius: 8px;
-      background: rgba(250,128,114,0.2);
-      color: rgba(250,128,114,0.9);
+      background: var(--accent-soft);
+      color: var(--accent);
       font-weight: 700;
       letter-spacing: 0.03em;
     }
@@ -791,19 +791,19 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       border-color: rgba(6,182,212,0.55) !important;
     }
 
-    /* Income: purple */
+    /* Income: accent (Electric Mint) */
     :global(.tin-section--income .ornate-tin__label) {
-      background: linear-gradient(180deg, #a855f7cc, #a855f790) !important;
-      color: #fff !important;
+      background: linear-gradient(180deg, rgba(45,212,168,0.85), rgba(45,212,168,0.6)) !important;
+      color: var(--surface-bg) !important;
     }
     :global(.tin-section--income::before) {
       box-shadow:
-        0 0 0 2px rgba(168,85,247,0.8) inset,
-        0 0 0 8px rgba(168,85,247,0.08) inset,
+        0 0 0 2px rgba(45,212,168,0.8) inset,
+        0 0 0 8px rgba(45,212,168,0.08) inset,
         0 0 0 1px rgba(255,255,255,0.06) inset !important;
     }
     :global(.tin-section--income::after) {
-      border-color: rgba(168,85,247,0.55) !important;
+      border-color: rgba(45,212,168,0.55) !important;
     }
 
     /* ── Toolbar (count + CSV button) ──────────────────────── */
@@ -904,8 +904,8 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
     .tin-row--alert { border-left: 3px solid rgba(239,68,68,0.6); cursor: pointer; }
     .tin-row--alert:hover { background: rgba(239,68,68,0.08); }
     .tin-row__cta { margin-left: auto; font-size: 0.75rem; opacity: 0.45; font-weight: 600; letter-spacing: 0.04em; }
-    .tin-row--alert:hover .tin-row__cta { opacity: 0.8; color: #fca5a5; }
-    .tin-row--income { border-left: 3px solid rgba(168,85,247,0.45); }
+    .tin-row--alert:hover .tin-row__cta { opacity: 0.8; color: var(--loss); }
+    .tin-row--income { border-left: 3px solid var(--accent-dim); }
 
     .tin-row__source-icon { width: 18px; height: 18px; border-radius: 4px; object-fit: contain; flex-shrink: 0; opacity: 0.85; margin-right: 0.1rem; vertical-align: middle; position: relative; top: -1px; }
     .tin-row__asset  { font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; min-width: 3rem; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -917,7 +917,7 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
     .tin-row__usd    { font-variant-numeric: tabular-nums; }
     .tin-row__gain   { font-weight: 700; font-size: 0.9rem; margin-left: auto; }
     .tin-row__note   { font-size: 0.75rem; opacity: 0.45; font-style: italic; }
-    .tin-row__note--labeled { opacity: 1; font-style: normal; color: #a78bfa; font-weight: 600; }
+    .tin-row__note--labeled { opacity: 1; font-style: normal; color: var(--accent-dim); font-weight: 600; }
     .tin-row__kind   { font-size: 0.75rem; opacity: 0.55; }
     .tin-row__term   { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
 
@@ -1002,9 +1002,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
     }
 
     /* ── Colour tokens ──────────────────────────────────────── */
-    .gain-pos { color: #4ade80; }
-    .gain-neg { color: #f87171; }
-    .term-long  { background: rgba(34,197,94,0.12);  color: #4ade80; }
+    .gain-pos { color: var(--gain); }
+    .gain-neg { color: var(--loss); }
+    .term-long  { background: var(--gain-bg); color: var(--gain); }
     .term-short { background: rgba(245,158,11,0.12); color: #fbbf24; }
 
     /* ── Empty state ────────────────────────────────────────── */
