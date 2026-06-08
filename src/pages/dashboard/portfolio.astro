@@ -31,14 +31,14 @@ if (!_authSess) return Astro.redirect('/login');
 
 	<!-- ── Error state ──────────────────────────────────────────────────── -->
 	<div id="pf-error" class="pf-state pf-state--error" hidden>
-		<div class="pf-state__icon">⚠</div>
+		<div class="pf-state__icon"></div>
 		<p class="pf-state__title">Failed to load portfolio data</p>
 		<p class="pf-state__sub">Please refresh and try again.</p>
 	</div>
 
 	<!-- ── Empty state ──────────────────────────────────────────────────── -->
 	<div id="pf-empty" class="pf-state" hidden>
-		<div class="pf-state__icon">📊</div>
+		<div class="pf-state__icon"></div>
 		<p class="pf-state__title">No holdings found</p>
 		<p class="pf-state__sub">Import transactions to see your portfolio performance.</p>
 	</div>

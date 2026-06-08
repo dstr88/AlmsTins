@@ -51,7 +51,7 @@ if (userId) {
 				align-items: flex-start;
 				margin-bottom: 0.5rem;
 			">
-				<span style="font-size:1.1rem; line-height:1.4;">📌</span>
+				<span style="font-size:1.1rem; line-height:1.4;"></span>
 				<div style="display:flex; flex-direction:column; gap:0.4rem;">
 					<p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--accent);">Stay one step ahead of your portfolio.</p>
 					<p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
@@ -71,7 +71,7 @@ if (userId) {
 			<!-- No alert email warning -->
 			{!alertEmail && (
 				<div class="dash-notice dash-notice--warn">
-					<span class="dash-notice__icon">⚠️</span>
+					<span class="dash-notice__icon"></span>
 					<div class="dash-notice__body">
 						<p class="dash-notice__title">Alert email not set</p>
 						<p class="dash-notice__text">
@@ -131,7 +131,7 @@ if (userId) {
 				<div id="alerts-loading" class="alerts__loading">Loading…</div>
 
 				<div id="alerts-empty" class="alerts__empty" hidden>
-					<span class="alerts__empty-icon">🔔</span>
+					<span class="alerts__empty-icon"></span>
 					<p class="alerts__empty-title">No alerts yet</p>
 					<p class="alerts__empty-text">Add one above to get started.</p>
 				</div>
@@ -270,7 +270,7 @@ document.getElementById('add-alert-form')?.addEventListener('submit', async (e) 
 		const data = await res.json() as { ok: boolean; id?: string; error?: string };
 
 		if (data.ok) {
-			statusEl.textContent = '✅ Alert added!';
+			statusEl.textContent = '✓ Alert added!';
 			symbolEl.value   = '';
 			thresholdEl.value = '';
 			setTimeout(() => {
@@ -279,11 +279,11 @@ document.getElementById('add-alert-form')?.addEventListener('submit', async (e) 
 				loadAlerts();
 			}, 800);
 		} else {
-			statusEl.textContent = `❌ ${data.error ?? 'Failed'}`;
+			statusEl.textContent = `${data.error ?? 'Failed'}`;
 			addBtn.disabled = false;
 		}
 	} catch {
-		statusEl.textContent = '❌ Network error';
+		statusEl.textContent = 'Network error';
 		addBtn.disabled = false;
 	}
 });

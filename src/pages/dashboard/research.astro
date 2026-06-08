@@ -103,7 +103,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       align-items: flex-start;
       margin: 0 0 1.5rem;
     ">
-      <span style="font-size:1.1rem; line-height:1.4;">📌</span>
+      <span style="font-size:1.1rem; line-height:1.4;"></span>
       <div style="display:flex; flex-direction:column; gap:0.4rem;">
         <p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--accent);">This is where the mysteries live.</p>
         <p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
@@ -125,7 +125,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
     <!-- ── Search card ─────────────────────────────────────────────────────── -->
     <div class="search-card">
       <div class="search-tier-1">
-        <span class="search-icon">🔍</span>
+        <span class="search-icon"></span>
         <input
           id="q"
           type="text"
@@ -156,9 +156,9 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       </div>
 
       <div class="search-actions">
-        <button id="btn-resolve" class="btn-secondary" type="button">⚙ Resolve</button>
-        <button id="btn-ignore-dust" class="btn-secondary" type="button">🧹 Ignore dust</button>
-        <button id="btn-classify-p2p" class="btn-secondary" type="button">📱 P2P</button>
+        <button id="btn-resolve" class="btn-secondary" type="button">Resolve</button>
+        <button id="btn-ignore-dust" class="btn-secondary" type="button">Ignore dust</button>
+        <button id="btn-classify-p2p" class="btn-secondary" type="button">P2P</button>
         <div class="wallet-picker-wrap">
           <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
           <div id="wallet-picker" class="wallet-picker" style="display:none">
@@ -188,8 +188,8 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       </div>
       <div id="p2p-panel" class="p2p-panel" style="display:none">
         <span class="p2p-panel__label">These phone-number transfers could be yours or someone else's:</span>
-        <button id="btn-p2p-own" class="btn-secondary" type="button">↔ My own account</button>
-        <button id="btn-p2p-disposal" class="btn-secondary" type="button">📤 Third-party disposal</button>
+        <button id="btn-p2p-own" class="btn-secondary" type="button">My own account</button>
+        <button id="btn-p2p-disposal" class="btn-secondary" type="button">Third-party disposal</button>
         <button id="btn-p2p-cancel" class="btn-secondary" type="button">✕</button>
       </div>
     </div>
@@ -208,8 +208,8 @@ Astro.response.headers.set('Cache-Control', 'no-store');
           <h2>Needs Attention <span id="na-count" class="count-badge"></span> <ResearchTour /> <LostTxTour /></h2>
           <p class="col-scope">All years · Bookkeeping shows current year only <span id="na-synced" class="na-synced-badge" style="display:none"></span></p>
           <div class="na-ai-actions">
-            <button id="btn-ai-triage" class="btn-ai-triage" type="button">🤖 AI Triage</button>
-            <button id="btn-backfill" class="btn-backfill" type="button">💲 Fill Missing Prices</button>
+            <button id="btn-ai-triage" class="btn-ai-triage" type="button">AI Triage</button>
+            <button id="btn-backfill" class="btn-backfill" type="button">Fill Missing Prices</button>
           </div>
         </div>
         <div id="triage-panel" class="triage-panel" style="display:none"></div>
@@ -257,7 +257,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 
       <div class="intake-launch-row">
         <button id="btn-open-questionnaire" class="btn-questionnaire-launch" type="button">
-          📋 Dataset Questionnaire
+          Dataset Questionnaire
         </button>
         <span id="intake-completion-badge" class="intake-completion-badge" style="display:none"></span>
       </div>
@@ -323,7 +323,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 // ── Error catcher: shows JS errors inside na-list instead of silent failure ───
 window.__naErr = function(msg) {
   var el = document.getElementById('na-list');
-  if (el) el.innerHTML = '<div class="loading-msg" style="color:#ef4444;font-size:0.85em;white-space:pre-wrap">JS Error:\n' + msg + '</div>';
+  if (el) el.innerHTML = '<div class="loading-msg" style="color:var(--loss);font-size:0.85em;white-space:pre-wrap">JS Error:\n' + msg + '</div>';
 };
 window.addEventListener('error', function(e) {
   window.__naErr(e.message + '\n' + e.filename.split('/').pop() + ':' + e.lineno);
@@ -403,7 +403,7 @@ window.addEventListener('unhandledrejection', function(e) {
       }
     }
 
-    if (!html) html = '<div class="empty-msg">✅ Nothing to review.</div>';
+    if (!html) html = '<div class="empty-msg">✓ Nothing to review.</div>';
     list.innerHTML = html;
   } catch(e) {
     if (window.__naErr) window.__naErr('inline: ' + e.message);
@@ -629,7 +629,7 @@ function renderNeedsAttention(data) {
                     data-category="${t.category ?? ''}"
                     data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
                     onclick="openDisposeForm(event, this)">
-              ${hasAnnotation ? '✏️ Edit disposal' : '📤 Dispose'}
+              ${hasAnnotation ? 'Edit disposal' : 'Dispose'}
             </button>
             ${t.category !== 'own_wallet' ? `
             <button class="btn-transfer"
@@ -643,20 +643,20 @@ function renderNeedsAttention(data) {
                     data-category="${t.category ?? ''}"
                     data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
                     onclick="openAnnotateForm(event, this)">
-              ${hasAnnotation ? '✏️ Edit note' : '📝 Add note'}
+              ${hasAnnotation ? 'Edit note' : 'Add note'}
             </button>
             ${t.category !== 'legacy_exchange' ? `
             <button class="btn-legacy"
                     onclick="markLegacy(event, '${t.id}')">
-              🏚 Legacy exchange
+              Legacy exchange
             </button>` : ''}`}
             <button class="btn-attach"
                     onclick="attachReceipt(event,'${t.id}')">
-              📎 Attach
+              Attach
             </button>
             <button class="btn-context-pill"
                     onclick="event.stopPropagation();openWizard()"
-                    title="About my transaction history">📋</button>
+                    title="About my transaction history"></button>
             <button class="btn-help"
                     data-tx-id="${t.id}"
                     onclick="openHelpPanel(event,'${t.id}','${(t.kind??'').replace(/'/g,'')}','${dir}','${t.asset_symbol}','${(t.description??'').replace(/'/g,'').replace(/"/g,'').slice(0,80)}','${(srcName(t.source)??'').replace(/'/g,'')}')">
@@ -673,16 +673,9 @@ function renderNeedsAttention(data) {
 
   if (!html) {
     const emptyMessages = [
-      { icon: '✅', text: "You're all caught up." },
-      { icon: '🎉', text: "Nothing to see here." },
-      { icon: '😎', text: "Clean slate." },
-      { icon: '🏖️', text: "Go touch grass — everything's matched." },
-      { icon: '🔍', text: "Nothing left to investigate." },
-      { icon: '💎', text: "Diamond hands, clean books." },
-      { icon: '🤙', text: "All good. No loose ends." },
-      { icon: '📭', text: "This list is empty." },
-      { icon: '🚀', text: "Houston, we have no problems." },
-      { icon: '🧘', text: "Zen mode. Every transfer accounted for." },
+      { icon: '✓', text: "You're all caught up — nothing to review." },
+      { icon: '✓', text: "Everything's matched. Nothing left to review." },
+      { icon: '✓', text: "Clean slate — no transactions need attention." },
     ];
     const pick = emptyMessages[Math.floor(Math.random() * emptyMessages.length)];
     html = `<div class="empty-msg">${pick.icon} ${pick.text}</div>`;
@@ -929,11 +922,11 @@ function renderResults(data) {
                   data-category="${t.category ?? ''}"
                   data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
                   onclick="openResultAnnotateForm(event, this)">
-            ${hasAnnotation ? '✏️ Edit note' : '📝 Add note'}
+            ${hasAnnotation ? 'Edit note' : 'Add note'}
           </button>
           <button class="btn-attach"
                   onclick="attachReceipt(event,'${t.id}')">
-            📎 Attach
+            Attach
           </button>
         </div>
         <div class="att-panel" id="atp-${t.id}"></div>
@@ -986,12 +979,12 @@ $('btn-resolve').addEventListener('click', async () => {
   btn.disabled = true;
   bar.style.display = 'none';
   try {
-    btn.textContent = '⚙ Matching…';
+    btn.textContent = 'Matching…';
     const matchRes  = await fetch('/api/research/run-matching', { method: 'POST' });
     if (!matchRes.ok) throw new Error(`Matching failed (${matchRes.status})`);
     const matchData = await matchRes.json();
 
-    btn.textContent = '⚙ Classifying…';
+    btn.textContent = 'Classifying…';
     const classRes  = await fetch('/api/research/auto-classify', { method: 'POST' });
     if (!classRes.ok) throw new Error(`Classify failed (${classRes.status})`);
     const classData = await classRes.json();
@@ -1005,12 +998,12 @@ $('btn-resolve').addEventListener('click', async () => {
     const summary = parts.length ? `✓ ${parts.join(' · ')}` : '✓ Nothing new to resolve';
     const detail  = skipped > 0 ? ` (${skipped} scanned)` : '';
     setStatus(summary + detail);
-    btn.textContent = '⚙ Resolve';
+    btn.textContent = 'Resolve';
     btn.disabled = false;
     await loadNeedsAttention();
   } catch (err) {
-    setStatus(`⚠ ${err.message ?? 'Failed — try again'}`, true);
-    btn.textContent = '⚙ Resolve';
+    setStatus(`${err.message ?? 'Failed — try again'}`, true);
+    btn.textContent = 'Resolve';
     btn.disabled = false;
   }
 });
@@ -1026,7 +1019,7 @@ $('btn-ignore-dust').addEventListener('click', async () => {
     bar.style.display = 'block';
   };
   btn.disabled = true;
-  btn.textContent = '🧹 Dismissing…';
+  btn.textContent = 'Dismissing…';
   bar.style.display = 'none';
   try {
     const res  = await fetch('/api/research/ignore-dust', { method: 'POST' });
@@ -1034,12 +1027,12 @@ $('btn-ignore-dust').addEventListener('click', async () => {
     const data = await res.json();
     const dismissed = data.dismissed ?? 0;
     setStatus(dismissed > 0 ? `✓ ${dismissed} dust transactions dismissed` : '✓ No dust to dismiss');
-    btn.textContent = '🧹 Ignore dust';
+    btn.textContent = 'Ignore dust';
     btn.disabled = false;
     if (dismissed > 0) await loadNeedsAttention();
   } catch (err) {
-    setStatus(`⚠ ${err.message ?? 'Failed — try again'}`, true);
-    btn.textContent = '🧹 Ignore dust';
+    setStatus(`${err.message ?? 'Failed — try again'}`, true);
+    btn.textContent = 'Ignore dust';
     btn.disabled = false;
   }
 });
@@ -1074,7 +1067,7 @@ async function runP2PClassify(disposition) {
     setStatus(classified > 0 ? `✓ ${classified} P2P transfers classified` : '✓ No P2P transfers found');
     if (classified > 0) await loadNeedsAttention();
   } catch (err) {
-    setStatus(`⚠ ${err.message ?? 'Failed — try again'}`, true);
+    setStatus(`${err.message ?? 'Failed — try again'}`, true);
   }
 }
 
@@ -1083,12 +1076,12 @@ $('btn-p2p-disposal').addEventListener('click', () => runP2PClassify('disposal')
 
 // ── AI Triage ─────────────────────────────────────────────────────────────────
 const TRIAGE_LABELS = {
-  annotated:          { icon: '✅', label: 'Already annotated',      cls: 'triage-ok'   },
-  obvious_purchase:   { icon: '🛒', label: 'Obvious purchase',        cls: 'triage-info' },
-  obvious_income:     { icon: '💰', label: 'Obvious income',          cls: 'triage-info' },
-  obvious_own_wallet: { icon: '↔️', label: 'Obvious own-wallet',      cls: 'triage-info' },
-  obvious_sale:       { icon: '📤', label: 'Obvious sale/disposal',   cls: 'triage-info' },
-  needs_review:       { icon: '🔍', label: 'Needs manual review',     cls: 'triage-warn' },
+  annotated:          { label: 'Already annotated',      cls: 'triage-ok'   },
+  obvious_purchase:   { label: 'Obvious purchase',        cls: 'triage-info' },
+  obvious_income:     { label: 'Obvious income',          cls: 'triage-info' },
+  obvious_own_wallet: { label: 'Obvious own-wallet',      cls: 'triage-info' },
+  obvious_sale:       { label: 'Obvious sale/disposal',   cls: 'triage-info' },
+  needs_review:       { label: 'Needs manual review',     cls: 'triage-warn' },
 };
 
 let naDataCache = null; // set by renderNeedsAttention
@@ -1102,7 +1095,7 @@ $('btn-ai-triage').addEventListener('click', async () => {
     return;
   }
   btn.disabled = true;
-  btn.textContent = '🤖 Triaging…';
+  btn.textContent = 'Triaging…';
   panel.style.display = 'block';
   panel.innerHTML = '<p class="triage-msg">Analysing ' + naDataCache.unmatched.length + ' transactions…</p>';
   try {
@@ -1113,7 +1106,7 @@ $('btn-ai-triage').addEventListener('click', async () => {
     });
     const data = await res.json();
     if (res.status === 403) {
-      panel.innerHTML = `<p class="triage-msg">⭐ <a href="/dashboard/billing" style="color:var(--accent)">Upgrade to a paid plan</a> to use AI Triage.</p>`;
+      panel.innerHTML = `<p class="triage-msg"><a href="/dashboard/billing" style="color:var(--accent)">Upgrade to a paid plan</a> to use AI Triage.</p>`;
       return;
     }
     if (!data.ok) throw new Error(data.error ?? 'Triage failed');
@@ -1123,7 +1116,7 @@ $('btn-ai-triage').addEventListener('click', async () => {
 
     const groups = data.groups;
     const autoMsg = data.autoResolved > 0
-      ? `<p class="triage-auto-note">✅ ${data.autoResolved} item${data.autoResolved !== 1 ? 's' : ''} auto-resolved and removed from Needs Attention. Price backfills stay for your review.</p>`
+      ? `<p class="triage-auto-note">✓ ${data.autoResolved} item${data.autoResolved !== 1 ? 's' : ''} auto-resolved and removed from Needs Attention. Price backfills stay for your review.</p>`
       : '';
     let html = `<div class="triage-results">${autoMsg}`;
     for (const [key, meta] of Object.entries(TRIAGE_LABELS)) {
@@ -1131,7 +1124,7 @@ $('btn-ai-triage').addEventListener('click', async () => {
       if (!rows.length) continue;
       html += `<div class="triage-group ${meta.cls}">
         <div class="triage-group-header">
-          <span>${meta.icon} ${meta.label}</span>
+          <span>${meta.label}</span>
           <span class="triage-count">${rows.length}</span>
         </div>
         <div class="triage-group-body">`;
@@ -1157,7 +1150,7 @@ $('btn-ai-triage').addEventListener('click', async () => {
     panel.innerHTML = `<p class="triage-msg triage-err">Triage failed: ${err.message}</p>`;
   } finally {
     btn.disabled = false;
-    btn.textContent = '🤖 AI Triage';
+    btn.textContent = 'AI Triage';
   }
 });
 
@@ -1165,25 +1158,25 @@ $('btn-ai-triage').addEventListener('click', async () => {
 $('btn-backfill').addEventListener('click', async () => {
   const btn = $('btn-backfill');
   btn.disabled = true;
-  btn.textContent = '💲 Fetching prices…';
+  btn.textContent = 'Fetching prices…';
   try {
     const res  = await fetch('/api/research/backfill-prices', { method: 'POST' });
     const data = await res.json();
     if (res.status === 403) {
-      btn.textContent = '⭐ Paid feature';
-      setTimeout(() => { btn.textContent = '💲 Fill Missing Prices'; btn.disabled = false; }, 3000);
+      btn.textContent = 'Paid feature';
+      setTimeout(() => { btn.textContent = 'Fill Missing Prices'; btn.disabled = false; }, 3000);
       return;
     }
     if (data.ok) {
-      btn.textContent = `✅ ${data.priced} priced · ${data.skipped} skipped`;
+      btn.textContent = `✓ ${data.priced} priced · ${data.skipped} skipped`;
       if (data.priced > 0) await loadNeedsAttention();
     } else {
-      btn.textContent = '❌ Backfill failed';
+      btn.textContent = 'Backfill failed';
     }
   } catch {
-    btn.textContent = '❌ Backfill failed';
+    btn.textContent = 'Backfill failed';
   }
-  setTimeout(() => { btn.textContent = '💲 Fill Missing Prices'; btn.disabled = false; }, 4000);
+  setTimeout(() => { btn.textContent = 'Fill Missing Prices'; btn.disabled = false; }, 4000);
 });
 
 // ── Suggested match modal ─────────────────────────────────────────────────────
@@ -1276,7 +1269,7 @@ async function saveAnnotation(e, txId) {
     // Reload NA list — transaction may now auto-resolve off the list
     await loadNeedsAttention();
   } catch (err) {
-    if (btn) btn.textContent = '⚠ Save failed';
+    if (btn) btn.textContent = 'Save failed';
   }
 }
 
@@ -1295,7 +1288,7 @@ async function markLegacy(e, txId) {
     await loadNeedsAttention();
   } catch {
     btn.disabled = false;
-    btn.textContent = '🏚 Legacy exchange';
+    btn.textContent = 'Legacy exchange';
   }
 }
 
@@ -1314,7 +1307,7 @@ async function markOwnWallet(e, txId) {
     await loadNeedsAttention();
   } catch {
     btn.disabled = false;
-    btn.textContent = '🏠 Own wallet';
+    btn.textContent = 'Own wallet';
   }
 }
 
@@ -1343,14 +1336,14 @@ function renderNaActionPanel({ txId, sym, dir, src, cat, note, amt }) {
     <div class="nap-tx">${dir === 'out' ? '↑' : '↓'} ${amt} &nbsp;·&nbsp; ${sym}</div>
     ${dir === 'out' ? `
     <div class="nap-actions">
-      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">📤 Dispose</button>
+      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">Dispose</button>
       <button class="nap-btn-forward" onclick="napShowForward('${txId}')">↗ Forward</button>
     </div>
     <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
     ` : `
     <div class="nap-actions">
-      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">📝 Annotate</button>
-      <button class="nap-btn-forward nap-btn-legacy-style" onclick="markLegacy(event,'${txId}')">🏚 Legacy exchange</button>
+      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">Annotate</button>
+      <button class="nap-btn-forward nap-btn-legacy-style" onclick="markLegacy(event,'${txId}')">Legacy exchange</button>
     </div>
     <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
     `}`;
@@ -1412,7 +1405,7 @@ async function napSaveDispose(txId) {
     $('na-action-panel').style.display = 'none';
     await loadNeedsAttention();
   } catch (e) {
-    if (status) status.textContent = '⚠ ' + e.message;
+    if (status) status.textContent = '' + e.message;
   }
 }
 
@@ -1434,7 +1427,7 @@ async function napSaveForward(txId) {
     $('na-action-panel').style.display = 'none';
     await loadNeedsAttention();
   } catch (e) {
-    if (status) status.textContent = '⚠ ' + e.message;
+    if (status) status.textContent = '' + e.message;
   }
 }
 
@@ -1521,7 +1514,7 @@ async function saveTransfer(e, txId) {
     if (!res.ok) throw new Error(await res.text());
     await loadNeedsAttention();
   } catch {
-    if (statusEl) statusEl.textContent = '⚠ Save failed';
+    if (statusEl) statusEl.textContent = 'Save failed';
   }
 }
 
@@ -1564,7 +1557,7 @@ async function saveResultAnnotation(e, txId) {
     if (!res.ok) throw new Error(await res.text());
     await runSearch();
   } catch (err) {
-    if (btn) btn.textContent = '⚠ Save failed';
+    if (btn) btn.textContent = 'Save failed';
   }
 }
 
@@ -1585,25 +1578,25 @@ const KIND_EXPLANATIONS = {
 // ── Receipt attachment & validation ──────────────────────────────────────────
 function renderAttPanel(panel, attId, filename, validation, overrideNote) {
   if (!panel) return;
-  const fname = `📎 ${filename}`;
+  const fname = `${filename}`;
   if (!validation || validation.status === 'skipped') {
     panel.innerHTML = `<span class="att-badge">${fname}</span>`;
     return;
   }
   if (validation.status === 'matched') {
-    panel.innerHTML = `<span class="att-badge att-badge--ok">✅ Receipt verified · ${fname}</span>`;
+    panel.innerHTML = `<span class="att-badge att-badge--ok">✓ Receipt verified · ${fname}</span>`;
     return;
   }
   if (validation.status === 'overridden') {
     const noteText = overrideNote ? ` · <em>${overrideNote}</em>` : '';
-    panel.innerHTML = `<span class="att-badge att-badge--warn">⚠️ Override accepted · ${fname}${noteText}</span>`;
+    panel.innerHTML = `<span class="att-badge att-badge--warn">Override accepted · ${fname}${noteText}</span>`;
     return;
   }
   // rejected
   const missList = (validation.mismatches ?? []).map(m => `<li>${m}</li>`).join('');
   panel.innerHTML = `
     <div class="att-rejected">
-      <span class="att-badge att-badge--err">❌ Receipt mismatch · ${fname}</span>
+      <span class="att-badge att-badge--err">Receipt mismatch · ${fname}</span>
       ${missList ? `<ul class="att-mismatch-list">${missList}</ul>` : ''}
       <button class="btn-att-override" onclick="startOverride(event,'${attId}',this)">Override rejection</button>
       <div class="att-override-form" id="ovf-${attId}" style="display:none">
@@ -1645,7 +1638,7 @@ function attachReceipt(e, txId) {
       const data = await res.json();
       if (data.ok) {
         if (data.paywalled && panel) {
-          panel.innerHTML = `<span class="att-badge">📎 ${data.filename}</span><a class="att-upgrade-hint" href="/dashboard/billing">⭐ Upgrade to verify receipts automatically</a>`;
+          panel.innerHTML = `<span class="att-badge">${data.filename}</span><a class="att-upgrade-hint" href="/dashboard/billing">Upgrade to verify receipts automatically</a>`;
         } else {
           renderAttPanel(panel, data.id, data.filename, data.validation, null);
         }
@@ -1690,7 +1683,7 @@ async function confirmOverride(e, attId) {
     const data = await res.json();
     if (data.ok) {
       const panel = btn.closest('.att-panel');
-      if (panel) renderAttPanel(panel, attId, panel.querySelector('.att-badge--err')?.textContent?.split('📎 ')[1] ?? '', { status: 'overridden' }, note);
+      if (panel) renderAttPanel(panel, attId, panel.querySelector('.att-badge--err')?.textContent?.split('· ').pop() ?? '', { status: 'overridden' }, note);
     }
   } catch {
     btn.disabled = false;
@@ -1711,11 +1704,11 @@ function openHelpPanel(e, txId, kind, dir, sym, desc, src) {
 
   const quickBtns = dir === 'out' ? `
     <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Sent to my own wallet')">↗ My own wallet</button>
-    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','sell','')">💱 Sale or trade</button>
-    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','')">📤 Other</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','sell','')">Sale or trade</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','')">Other</button>
   ` : `
     <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Received from my own wallet')">↙ My own wallet</button>
-    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','Income or purchase')">💰 Income / purchase</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','Income or purchase')">Income / purchase</button>
   `;
 
   el.innerHTML = `
@@ -1746,7 +1739,7 @@ async function helpQuickSave(e, txId, cat, note) {
     await loadNeedsAttention();
   } catch {
     btn.disabled = false;
-    btn.textContent = '⚠ Failed';
+    btn.textContent = 'Failed';
   }
 }
 
@@ -1767,7 +1760,7 @@ async function helpSaveNote(e, txId) {
     await loadNeedsAttention();
   } catch {
     btn.disabled = false;
-    btn.textContent = '⚠ Failed';
+    btn.textContent = 'Failed';
   }
 }
 
@@ -2181,7 +2174,7 @@ async function saveWizardAnswers() {
     updateCompletionBadge();
     closeWizard();
   } catch (e) {
-    next.textContent = '⚠ ' + e.message;
+    next.textContent = '' + e.message;
     setTimeout(() => {
       next.textContent = '✓ Save';
       next.disabled = false;
@@ -2307,7 +2300,7 @@ function renderAddressPanel(data) {
       ⧉ <span class="addr-copy-text">${resolvedLabel}</span>
     </button>`;
     if (labelSource === 'community') {
-      html += `<span class="addr-community-badge">🌐 community label</span>`;
+      html += `<span class="addr-community-badge">community label</span>`;
     }
   }
   html += `</div>`;
@@ -2316,16 +2309,16 @@ function renderAddressPanel(data) {
   html += `<div class="addr-info-grid">`;
   if (data.ownWallet) {
     const lbl = data.ownWallet.label || data.ownWallet.address.slice(0,8) + '…';
-    html += `<span class="addr-info-chip own">🏠 Your wallet: ${lbl}</span>`;
+    html += `<span class="addr-info-chip own">Your wallet: ${lbl}</span>`;
   }
   if (data.knownExchange) {
-    html += `<span class="addr-info-chip exchange">🏦 ${data.knownExchange}</span>`;
+    html += `<span class="addr-info-chip exchange">${data.knownExchange}</span>`;
   }
   if (data.addressLabel && !data.ownWallet) {
-    html += `<span class="addr-info-chip label">🏷 ${data.addressLabel}</span>`;
+    html += `<span class="addr-info-chip label">${data.addressLabel}</span>`;
   }
   if (data.globalLabel && !data.addressLabel && !data.ownWallet && !data.knownExchange) {
-    html += `<span class="addr-info-chip label">🌐 ${data.globalLabel}</span>`;
+    html += `<span class="addr-info-chip label">${data.globalLabel}</span>`;
   }
   if (!data.ownWallet && !data.knownExchange && !data.addressLabel && !data.globalLabel) {
     html += `<span class="addr-info-chip unknown">Unknown address</span>`;
