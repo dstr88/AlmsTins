@@ -12,7 +12,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { hasTaxAccess } from '@/lib/taxAuth';
 import YearEndTour from '../../../components/tours/YearEndTour.astro';
 
-if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const { tenantId } = await requireTenantSession(Astro.request);
 
 const currentYear = new Date().getFullYear();

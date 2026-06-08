@@ -13,7 +13,7 @@ import { db } from '@/lib/db';
 
 export const prerender = false;
 
-if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/login', 302);
 const { tenantId, isDemo = false } = sess;

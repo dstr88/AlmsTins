@@ -10,7 +10,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { hasTaxAccess } from '@/lib/taxAuth';
 
-if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/login');
 const { tenantId } = sess;

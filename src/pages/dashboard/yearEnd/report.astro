@@ -15,7 +15,7 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { hasTaxAccess } from '@/lib/taxAuth';
 
-if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const { tenantId } = await requireTenantSession(Astro.request);
 
 const yearParam = Astro.url.searchParams.get('year');

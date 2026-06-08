@@ -14,7 +14,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 
 import { hasTaxAccess } from '@/lib/taxAuth';
 
-if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
 const showTurboTax = _authSess.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';

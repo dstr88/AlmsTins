@@ -28,7 +28,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { hasTaxAccess } from '@/lib/taxAuth';
 
 
-if (!hasTaxAccess(Astro.request)) return Astro.redirect('/tax-login', 302);
+if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
 

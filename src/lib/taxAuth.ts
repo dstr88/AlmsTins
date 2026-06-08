@@ -7,8 +7,19 @@
  */
 
 import crypto from 'node:crypto';
+import { requireTenantSession } from './requireTenantSession';
 
 export const TAX_COOKIE = 'tax_session';
+
+/**
+ * Tenants allowed into the tax section (yearEnd/* + /year-summary).
+ * Restricted to the owner while those pages are not yet demo-ready /
+ * de-gamified — keeps them out of the public demo and out of the
+ * professional-impression path.
+ */
+const ALLOWED_TAX_TENANTS = new Set<string>([
+	'fc236bc3-f032-4064-aea4-1e5e1fa503b1',
+]);
 
 function getSecret(): string | null {
 	return (process.env.TAX_SECRET ?? (import.meta.env as Record<string, string>).TAX_SECRET) || null;
@@ -21,10 +32,17 @@ export function expectedTaxToken(): string | null {
 	return crypto.createHmac('sha256', secret).update('tax-access-v1').digest('hex');
 }
 
-/** Returns true — password gate removed, summary pages are open to all users */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function hasTaxAccess(_request: Request): boolean {
-	return true;
+/**
+ * Tax-section access — granted only to allow-listed tenants (owner).
+ * Async: resolves the tenant from the request session.
+ */
+export async function hasTaxAccess(request: Request): Promise<boolean> {
+	try {
+		const session = await requireTenantSession(request);
+		return !!session && ALLOWED_TAX_TENANTS.has(session.tenantId);
+	} catch {
+		return false;
+	}
 }
 
 /** Set-Cookie header value to grant access (30 days) */
