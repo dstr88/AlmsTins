@@ -97,7 +97,7 @@ function CopyButton({ text }: { text: string }) {
       title="Copy to clipboard"
       style={{
         background: 'none', border: 'none', cursor: 'pointer',
-        padding: '0 0.15rem', color: copied ? '#4ade80' : 'rgba(255,255,255,0.35)',
+        padding: '0 0.15rem', color: copied ? 'var(--gain)' : 'var(--text-muted)',
         fontSize: '0.85rem', lineHeight: 1, transition: 'color 0.15s',
       }}
     >
@@ -409,8 +409,8 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
           right: 0,
           bottom: 0,
           width: 'min(480px, 100vw)',
-          background: '#0b0f1a',
-          borderLeft: '1px solid rgba(255,255,255,0.1)',
+          background: 'var(--surface-bg)',
+          borderLeft: '1px solid var(--border-bright)',
           boxShadow: '-8px 0 32px rgba(0,0,0,0.6)',
           zIndex: 9999,
           display: 'flex',
@@ -427,10 +427,10 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             alignItems: 'flex-start',
             justifyContent: 'space-between',
             padding: '1.25rem 1.25rem 1rem',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            borderBottom: '1px solid var(--border-bright)',
             position: 'sticky',
             top: 0,
-            background: '#0b0f1a',
+            background: 'var(--surface-bg)',
             zIndex: 1,
           }}
         >
@@ -448,7 +448,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                   fontWeight: 800,
                   fontSize: '1.25rem',
                   letterSpacing: '0.04em',
-                  color: '#fff',
+                  color: 'var(--text-primary)',
                 }}
               >
                 {item.asset}
@@ -459,9 +459,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                   fontWeight: 700,
                   padding: '0.15rem 0.5rem',
                   borderRadius: '4px',
-                  background: 'rgba(239,68,68,0.15)',
-                  color: '#f87171',
-                  border: '1px solid rgba(239,68,68,0.3)',
+                  background: 'var(--loss-bg)',
+                  color: 'var(--loss)',
+                  border: '1px solid var(--loss-border)',
                   letterSpacing: '0.06em',
                   textTransform: 'uppercase',
                 }}
@@ -498,7 +498,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 <>
                   <span style={{ opacity: 0.4 }}>·</span>
                   <span
-                    style={{ color: '#fbbf24' }}
+                    style={{ color: 'var(--accent)' }}
                     title="The USD value recorded at the time of this transaction."
                   >
                     {fUsd(item.proceedsUsd)} proceeds
@@ -513,10 +513,10 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             onClick={onClose}
             aria-label="Close drawer"
             style={{
-              background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'var(--border-bright)',
+              border: '1px solid var(--border-bright)',
               borderRadius: '8px',
-              color: 'rgba(255,255,255,0.7)',
+              color: 'var(--text-secondary)',
               cursor: 'pointer',
               fontSize: '1.1rem',
               lineHeight: 1,
@@ -526,10 +526,10 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
               transition: 'background 0.12s',
             }}
             onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.13)')
+              ((e.currentTarget as HTMLButtonElement).style.background = 'var(--border-bright)')
             }
             onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)')
+              ((e.currentTarget as HTMLButtonElement).style.background = 'var(--border-bright)')
             }
           >
             ✕
@@ -565,21 +565,21 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
               <div style={{
                 padding: '0.9rem 1rem',
                 borderRadius: '10px',
-                background: 'rgba(96,165,250,0.06)',
-                border: '1px solid rgba(96,165,250,0.2)',
+                background: 'var(--accent-soft)',
+                border: '1px solid var(--accent-soft)',
                 fontSize: '0.83rem',
                 lineHeight: 1.6,
               }}>
-                <div style={{ fontWeight: 700, color: '#93c5fd', fontSize: '0.88rem', marginBottom: '0.35rem' }}>
-                  ❓ Why is this flagged?
+                <div style={{ fontWeight: 700, color: 'var(--accent)', fontSize: '0.88rem', marginBottom: '0.35rem' }}>
+                  Why is this flagged?
                 </div>
-                <p style={{ margin: '0 0 0.4rem', color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+                <p style={{ margin: '0 0 0.4rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
                   {headline}
                 </p>
-                <p style={{ margin: '0 0 0.45rem', color: 'rgba(255,255,255,0.55)' }}>
+                <p style={{ margin: '0 0 0.45rem', color: 'var(--text-muted)' }}>
                   {body}
                 </p>
-                <p style={{ margin: 0, color: 'rgba(96,165,250,0.75)', fontSize: '0.78rem' }}>
+                <p style={{ margin: 0, color: 'var(--accent)', fontSize: '0.78rem' }}>
                   → {action}
                 </p>
               </div>
@@ -615,9 +615,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             }
 
             function eventIcon(evt: HistoryEvent) {
-              if (evt.direction === 'in')  return '📥';
-              if (evt.direction === 'out') return '📤';
-              return '🔄';
+              if (evt.direction === 'in')  return '';
+              if (evt.direction === 'out') return '';
+              return '';
             }
 
             function eventTitle(evt: HistoryEvent) {
@@ -643,19 +643,19 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             }
 
             const dotColor = (evt: HistoryEvent) =>
-              evt.direction === 'in' ? '#4ade80' : evt.direction === 'out' ? '#f87171' : '#60a5fa';
+              evt.direction === 'in' ? 'var(--gain)' : evt.direction === 'out' ? 'var(--loss)' : 'var(--accent)';
 
             return (
               <section style={{
                 padding: '0.85rem 1rem',
                 borderRadius: '10px',
-                background: 'rgba(251,191,36,0.04)',
-                border: '1px solid rgba(251,191,36,0.18)',
+                background: 'var(--accent-soft)',
+                border: '1px solid var(--accent-soft)',
                 display: 'flex', flexDirection: 'column', gap: '0',
                 fontSize: '0.83rem',
               }}>
-                <div style={{ fontWeight: 700, fontSize: '0.74rem', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.9rem' }}>
-                  🗺️ Coin Journey
+                <div style={{ fontWeight: 700, fontSize: '0.74rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.9rem' }}>
+                  Coin Journey
                 </div>
 
                 {/* Timeline */}
@@ -680,7 +680,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                             flexShrink: 0, marginTop: '0.15rem',
                           }} />
                           {!isLast && (
-                            <div style={{ width: '2px', flex: 1, background: 'rgba(255,255,255,0.08)', minHeight: '1.5rem' }} />
+                            <div style={{ width: '2px', flex: 1, background: 'var(--border-bright)', minHeight: '1.5rem' }} />
                           )}
                         </div>
 
@@ -688,27 +688,27 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                         <div style={{ paddingBottom: isLast ? 0 : '1rem', flex: 1, minWidth: 0 }}>
                           {/* Date + title */}
                           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
-                            <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.38)', flexShrink: 0 }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', flexShrink: 0 }}>
                               {fDateTime(evt.timestamp_utc)}
                             </span>
-                            <span style={{ fontWeight: 700, color: '#f0f4ff', fontSize: '0.83rem' }}>
+                            <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.83rem' }}>
                               {eventIcon(evt)} {eventTitle(evt)}
                             </span>
                           </div>
 
                           {/* Amount */}
                           {evt.amount != null && (
-                            <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.55)', marginBottom: '0.2rem' }}>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>
                               {fQty(evt.amount)} {item.asset}
                               {evt.native_usd != null && (
-                                <span style={{ color: 'rgba(255,255,255,0.3)', marginLeft: '0.4rem' }}>· {fUsd(evt.native_usd)}</span>
+                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>· {fUsd(evt.native_usd)}</span>
                               )}
                             </div>
                           )}
 
                           {/* Wallet holding the coin */}
                           {walletName && (
-                            <div style={{ fontSize: '0.75rem', color: '#fbbf24', opacity: 0.85 }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--accent)', opacity: 0.85 }}>
                               Wallet: <span style={{ fontWeight: 700 }}>{walletName}</span>
                               {evt.wallet_address && (
                                 <span style={{ fontFamily: 'monospace', fontSize: '0.68rem', opacity: 0.45, marginLeft: '0.35rem' }}>
@@ -722,17 +722,17 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                           {destAddr && evt.direction === 'out' && (
                             <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                               {destInBook ? (
-                                <span style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 600 }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--gain)', fontWeight: 600 }}>
                                   ✓ {destLabel}
-                                  <span style={{ color: 'rgba(74,222,128,0.45)', fontWeight: 400, marginLeft: '0.3rem' }}>in address book</span>
+                                  <span style={{ color: 'var(--gain-border)', fontWeight: 400, marginLeft: '0.3rem' }}>in address book</span>
                                 </span>
                               ) : (
-                                <span style={{ fontSize: '0.73rem', color: '#f87171', fontWeight: 600 }}>✗ Not in your address book</span>
+                                <span style={{ fontSize: '0.73rem', color: 'var(--loss)', fontWeight: 600 }}>✗ Not in your address book</span>
                               )}
                               <a
                                 href={addrUrl(chain, destAddr)}
                                 target="_blank" rel="noopener noreferrer"
-                                style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'rgba(96,165,250,0.7)', textDecoration: 'none', wordBreak: 'break-all' }}
+                                style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'var(--accent)', textDecoration: 'none', wordBreak: 'break-all' }}
                               >
                                 {destAddr} ↗
                               </a>
@@ -746,10 +746,10 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                                     onChange={e => setTrailLabelText(e.target.value)}
                                     style={{
                                       flex: 1, minWidth: '130px',
-                                      background: 'rgba(255,255,255,0.06)',
-                                      border: '1px solid rgba(255,255,255,0.15)',
+                                      background: 'var(--border-subtle)',
+                                      border: '1px solid var(--border-bright)',
                                       borderRadius: '6px', padding: '0.35rem 0.6rem',
-                                      color: '#fff', fontSize: '0.8rem', fontFamily: 'inherit',
+                                      color: 'var(--text-primary)', fontSize: '0.8rem', fontFamily: 'inherit',
                                       outline: 'none',
                                     }}
                                   />
@@ -771,9 +771,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                                     }}
                                     style={{
                                       padding: '0.35rem 0.75rem', borderRadius: '6px',
-                                      border: '1px solid rgba(99,102,241,0.4)',
-                                      background: 'rgba(99,102,241,0.15)',
-                                      color: '#a5b4fc', fontSize: '0.78rem', fontWeight: 600,
+                                      border: '1px solid var(--accent-dim)',
+                                      background: 'var(--accent-soft)',
+                                      color: 'var(--accent)', fontSize: '0.78rem', fontWeight: 600,
                                       cursor: trailLabelText.trim() ? 'pointer' : 'not-allowed',
                                       opacity: trailLabelText.trim() ? 1 : 0.4,
                                       fontFamily: 'inherit', whiteSpace: 'nowrap',
@@ -791,7 +791,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                             <a
                               href={addrUrl(chain, evt.from_address)}
                               target="_blank" rel="noopener noreferrer"
-                              style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'rgba(96,165,250,0.7)', textDecoration: 'none', wordBreak: 'break-all' }}
+                              style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: 'var(--accent)', textDecoration: 'none', wordBreak: 'break-all' }}
                             >
                               {evt.from_address} ↗
                             </a>
@@ -809,13 +809,13 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
           <section style={{
             padding: '0.85rem 1rem',
             borderRadius: '10px',
-            background: 'rgba(99,102,241,0.05)',
-            border: '1px solid rgba(99,102,241,0.2)',
+            background: 'var(--accent-soft)',
+            border: '1px solid var(--accent-soft)',
           }}>
-            <div style={{ fontWeight: 700, fontSize: '0.74rem', color: '#a5b4fc', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem' }}>
-              🔍 Trace at Destination
+            <div style={{ fontWeight: 700, fontSize: '0.74rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem' }}>
+              Trace at Destination
             </div>
-            <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', margin: '0 0 0.65rem', lineHeight: 1.5 }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 0.65rem', lineHeight: 1.5 }}>
               Know where this {item.asset} landed? Enter the platform name to see its full history there.
             </p>
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -827,10 +827,10 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 onKeyDown={(e) => { if (e.key === 'Enter') void handleTrace(traceInput); }}
                 style={{
                   flex: 1, minWidth: '140px',
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  background: 'var(--border-subtle)',
+                  border: '1px solid var(--border-bright)',
                   borderRadius: '6px', padding: '0.38rem 0.65rem',
-                  color: '#fff', fontSize: '0.82rem', fontFamily: 'inherit', outline: 'none',
+                  color: 'var(--text-primary)', fontSize: '0.82rem', fontFamily: 'inherit', outline: 'none',
                 }}
               />
               <button
@@ -838,9 +838,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 onClick={() => void handleTrace(traceInput)}
                 style={{
                   padding: '0.38rem 0.85rem', borderRadius: '6px',
-                  border: '1px solid rgba(99,102,241,0.4)',
-                  background: traceInput.trim() ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.05)',
-                  color: traceInput.trim() ? '#a5b4fc' : 'rgba(165,180,252,0.3)',
+                  border: '1px solid var(--accent-dim)',
+                  background: traceInput.trim() ? 'var(--accent-soft)' : 'var(--accent-soft)',
+                  color: traceInput.trim() ? 'var(--accent)' : 'var(--text-muted)',
                   fontWeight: 700, fontSize: '0.8rem', cursor: traceInput.trim() ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit', whiteSpace: 'nowrap',
                 }}
@@ -850,11 +850,11 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             </div>
 
             {traceError && (
-              <p style={{ fontSize: '0.8rem', color: '#f87171', margin: '0.5rem 0 0' }}>{traceError}</p>
+              <p style={{ fontSize: '0.8rem', color: 'var(--loss)', margin: '0.5rem 0 0' }}>{traceError}</p>
             )}
 
             {!traceLoading && traceSource && traceEvents.length === 0 && !traceError && (
-              <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)', margin: '0.6rem 0 0', fontStyle: 'italic' }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.6rem 0 0', fontStyle: 'italic' }}>
                 No {item.asset} transactions found at {traceSource}.
               </p>
             )}
@@ -869,11 +869,11 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 return kind ?? 'Event';
               }
               const dotColor = (dir: string | null) =>
-                dir === 'in' ? '#4ade80' : dir === 'out' ? '#f87171' : '#60a5fa';
+                dir === 'in' ? 'var(--gain)' : dir === 'out' ? 'var(--loss)' : 'var(--accent)';
 
               return (
                 <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  <div style={{ fontSize: '0.72rem', color: 'rgba(165,180,252,0.6)', marginBottom: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--accent)', marginBottom: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     {item.asset} at {traceSource} — {traceEvents.length} event{traceEvents.length !== 1 ? 's' : ''}
                   </div>
                   {traceEvents.map((evt, idx) => {
@@ -887,28 +887,28 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                             boxShadow: `0 0 5px ${dotColor(evt.direction)}66`,
                             flexShrink: 0, marginTop: '0.2rem',
                           }} />
-                          {!isLast && <div style={{ width: '2px', flex: 1, background: 'rgba(255,255,255,0.08)', minHeight: '1.2rem' }} />}
+                          {!isLast && <div style={{ width: '2px', flex: 1, background: 'var(--border-bright)', minHeight: '1.2rem' }} />}
                         </div>
                         <div style={{ paddingBottom: isLast ? 0 : '0.75rem', flex: 1 }}>
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline', flexWrap: 'wrap', marginBottom: '0.15rem' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)', flexShrink: 0 }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0 }}>
                               {fDateTime(evt.timestamp_utc)}
                             </span>
-                            <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#f0f4ff' }}>
-                              {evt.direction === 'in' ? '📥' : evt.direction === 'out' ? '📤' : '🔄'}{' '}
+                            <span style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-primary)' }}>
+                              {evt.direction === 'in' ? '' : evt.direction === 'out' ? '' : ''}{' '}
                               {kindLabel(evt.kind, evt.direction)}
                             </span>
                           </div>
                           {evt.amount != null && (
-                            <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                               {fQty(Math.abs(evt.amount))} {item.asset}
                               {evt.native_usd != null && (
-                                <span style={{ color: 'rgba(255,255,255,0.28)', marginLeft: '0.4rem' }}>· {fUsd(evt.native_usd)}</span>
+                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>· {fUsd(evt.native_usd)}</span>
                               )}
                             </div>
                           )}
                           {evt.description && evt.description !== 'Transfer In' && evt.description !== 'Transfer Out' && (
-                            <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>{evt.description}</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>{evt.description}</div>
                           )}
                         </div>
                       </div>
@@ -926,7 +926,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             {/* Source badge */}
             {item.sourceType && (
               <div style={{ fontSize: '0.78rem', opacity: 0.5, marginBottom: '0.85rem' }}>
-                From: <span style={{ fontWeight: 600, opacity: 1, color: 'rgba(255,255,255,0.75)' }}>{item.sourceType}</span>
+                From: <span style={{ fontWeight: 600, opacity: 1, color: 'var(--text-secondary)' }}>{item.sourceType}</span>
               </div>
             )}
 
@@ -939,16 +939,16 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                   style={{
                     padding: '0.45rem 1rem',
                     borderRadius: '8px',
-                    border: '1px solid rgba(248,113,113,0.35)',
-                    background: 'rgba(248,113,113,0.1)',
-                    color: '#fca5a5',
+                    border: '1px solid var(--loss-border)',
+                    background: 'var(--loss-bg)',
+                    color: 'var(--loss)',
                     fontWeight: 700,
                     fontSize: '0.85rem',
                     cursor: 'pointer',
                     transition: 'background 0.12s',
                   }}
                 >
-                  📤 Dispose
+                  Dispose
                 </button>
                 <button
                   type="button"
@@ -956,9 +956,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                   style={{
                     padding: '0.45rem 1rem',
                     borderRadius: '8px',
-                    border: '1px solid rgba(96,165,250,0.35)',
-                    background: 'rgba(96,165,250,0.1)',
-                    color: '#93c5fd',
+                    border: '1px solid var(--accent-dim)',
+                    background: 'var(--accent-soft)',
+                    color: 'var(--accent)',
                     fontWeight: 700,
                     fontSize: '0.85rem',
                     cursor: 'pointer',
@@ -999,8 +999,8 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                     style={{ ...inputStyle, resize: 'vertical', minHeight: '56px', fontFamily: 'inherit', lineHeight: 1.5 }}
                   />
                 </FormField>
-                {actionError && <p style={{ fontSize: '0.82rem', color: '#f87171', margin: 0 }}>{actionError}</p>}
-                {actionStatus === 'success' && <p style={{ fontSize: '0.82rem', color: '#4ade80', margin: 0 }}>✓ Saved — refreshing…</p>}
+                {actionError && <p style={{ fontSize: '0.82rem', color: 'var(--loss)', margin: 0 }}>{actionError}</p>}
+                {actionStatus === 'success' && <p style={{ fontSize: '0.82rem', color: 'var(--gain)', margin: 0 }}>✓ Saved — refreshing…</p>}
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button
                     type="button"
@@ -1009,9 +1009,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                     style={{
                       padding: '0.45rem 1rem',
                       borderRadius: '8px',
-                      border: '1px solid rgba(248,113,113,0.4)',
-                      background: actionStatus === 'saving' ? 'rgba(248,113,113,0.06)' : 'rgba(248,113,113,0.15)',
-                      color: actionStatus === 'saving' ? 'rgba(248,113,113,0.4)' : '#fca5a5',
+                      border: '1px solid var(--text-muted)',
+                      background: actionStatus === 'saving' ? 'var(--loss-bg)' : 'var(--loss-bg)',
+                      color: actionStatus === 'saving' ? 'var(--text-muted)' : 'var(--loss)',
                       fontWeight: 700,
                       fontSize: '0.85rem',
                       cursor: actionStatus === 'saving' ? 'not-allowed' : 'pointer',
@@ -1025,9 +1025,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                     style={{
                       padding: '0.45rem 0.75rem',
                       borderRadius: '8px',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      border: '1px solid var(--border-bright)',
                       background: 'transparent',
-                      color: 'rgba(255,255,255,0.35)',
+                      color: 'var(--text-muted)',
                       fontSize: '0.85rem',
                       cursor: 'pointer',
                     }}
@@ -1062,8 +1062,8 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                     style={{ ...inputStyle, resize: 'vertical', minHeight: '56px', fontFamily: 'inherit', lineHeight: 1.5 }}
                   />
                 </FormField>
-                {actionError && <p style={{ fontSize: '0.82rem', color: '#f87171', margin: 0 }}>{actionError}</p>}
-                {actionStatus === 'success' && <p style={{ fontSize: '0.82rem', color: '#4ade80', margin: 0 }}>✓ Saved — refreshing…</p>}
+                {actionError && <p style={{ fontSize: '0.82rem', color: 'var(--loss)', margin: 0 }}>{actionError}</p>}
+                {actionStatus === 'success' && <p style={{ fontSize: '0.82rem', color: 'var(--gain)', margin: 0 }}>✓ Saved — refreshing…</p>}
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button
                     type="button"
@@ -1072,9 +1072,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                     style={{
                       padding: '0.45rem 1rem',
                       borderRadius: '8px',
-                      border: '1px solid rgba(96,165,250,0.4)',
-                      background: (actionStatus === 'saving' || !forwardDest.trim()) ? 'rgba(96,165,250,0.06)' : 'rgba(96,165,250,0.15)',
-                      color: (actionStatus === 'saving' || !forwardDest.trim()) ? 'rgba(96,165,250,0.4)' : '#93c5fd',
+                      border: '1px solid var(--text-muted)',
+                      background: (actionStatus === 'saving' || !forwardDest.trim()) ? 'var(--accent-soft)' : 'var(--accent-soft)',
+                      color: (actionStatus === 'saving' || !forwardDest.trim()) ? 'var(--text-muted)' : 'var(--accent)',
                       fontWeight: 700,
                       fontSize: '0.85rem',
                       cursor: (actionStatus === 'saving' || !forwardDest.trim()) ? 'not-allowed' : 'pointer',
@@ -1088,9 +1088,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                     style={{
                       padding: '0.45rem 0.75rem',
                       borderRadius: '8px',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      border: '1px solid var(--border-bright)',
                       background: 'transparent',
-                      color: 'rgba(255,255,255,0.35)',
+                      color: 'var(--text-muted)',
                       fontSize: '0.85rem',
                       cursor: 'pointer',
                     }}
@@ -1114,15 +1114,15 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 style={{
                   padding: '0.85rem 1rem',
                   borderRadius: '10px',
-                  border: `1px solid ${isRound ? 'rgba(251,191,36,0.4)' : 'rgba(251,191,36,0.2)'}`,
-                  background: `${isRound ? 'rgba(251,191,36,0.1)' : 'rgba(251,191,36,0.05)'}`,
+                  border: '1px solid var(--loss-border)',
+                  background: 'var(--loss-bg)',
                   fontSize: '0.82rem',
                   lineHeight: 1.55,
-                  color: isRound ? '#fbbf24' : 'rgba(251,191,36,0.75)',
+                  color: 'var(--loss)',
                 }}
               >
                 <div style={{ fontWeight: 700, marginBottom: '0.35rem' }}>
-                  {isRound ? '⚠ Possible Scam / Airdrop' : '⚠ Unrecognised Transfer'}
+                  {isRound ? 'Possible Scam / Airdrop' : 'Unrecognised Transfer'}
                 </div>
                 <p style={{ margin: '0 0 0.75rem' }}>
                   {isRound
@@ -1148,14 +1148,14 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                       rel="noopener noreferrer"
                       style={checkLinkStyle}
                     >
-                      🔍 Polygonscan ↗
+                      Polygonscan ↗
                     </a>
                   )}
                   <a href={dexscreenerUrl} target="_blank" rel="noopener noreferrer" style={checkLinkStyle}>
-                    📊 DexScreener ↗
+                    DexScreener ↗
                   </a>
                   <a href={coinGeckoUrl} target="_blank" rel="noopener noreferrer" style={checkLinkStyle}>
-                    🦎 CoinGecko ↗
+                    CoinGecko ↗
                   </a>
                 </div>
               </div>
@@ -1173,7 +1173,7 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
             )}
 
             {historyError && (
-              <p style={{ fontSize: '0.85rem', color: '#f87171' }}>{historyError}</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--loss)' }}>{historyError}</p>
             )}
 
             {!historyLoading && !historyError && history.length === 0 && (
@@ -1217,16 +1217,14 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
               {isStablecoin(item.asset) && (
                 <QuickButton
                   label={`Stablecoin · $1.00`}
-                  emoji="💵"
-                  color="rgba(74,222,128"
+                  tone="gain"
                   onClick={() => handleQuickFill('1', 'Stablecoin — cost basis $1.00/token')}
                   active={pricePerToken === '1'}
                 />
               )}
               <QuickButton
                 label="Worthless Airdrop · $0"
-                emoji="🗑"
-                color="rgba(148,163,184"
+                tone="muted"
                 onClick={() => handleQuickFill('0', 'Scam / worthless airdrop — zero taxable value')}
                 active={pricePerToken === '0' && notes.includes('airdrop')}
               />
@@ -1237,9 +1235,9 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
               <div
                 style={{
                   fontSize: '0.77rem',
-                  color: 'rgba(251,191,36,0.8)',
-                  background: 'rgba(251,191,36,0.07)',
-                  border: '1px solid rgba(251,191,36,0.2)',
+                  color: 'var(--accent)',
+                  background: 'var(--accent-soft)',
+                  border: '1px solid var(--accent-soft)',
                   borderRadius: '7px',
                   padding: '0.55rem 0.75rem',
                   marginBottom: '0.85rem',
@@ -1291,11 +1289,11 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
               </FormField>
 
               {saveError && (
-                <p style={{ fontSize: '0.82rem', color: '#f87171', margin: 0 }}>{saveError}</p>
+                <p style={{ fontSize: '0.82rem', color: 'var(--loss)', margin: 0 }}>{saveError}</p>
               )}
 
               {saveStatus === 'success' && (
-                <p style={{ fontSize: '0.82rem', color: '#4ade80', margin: 0 }}>
+                <p style={{ fontSize: '0.82rem', color: 'var(--gain)', margin: 0 }}>
                   ✓ Saved — refreshing…
                 </p>
               )}
@@ -1306,12 +1304,12 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
                 style={{
                   padding: '0.55rem 1.25rem',
                   borderRadius: '8px',
-                  border: '1px solid rgba(250,128,114,0.4)',
+                  border: '1px solid var(--accent-dim)',
                   background:
                     saveStatus === 'saving'
-                      ? 'rgba(250,128,114,0.08)'
-                      : 'rgba(250,128,114,0.15)',
-                  color: saveStatus === 'saving' ? 'rgba(250,128,114,0.4)' : 'rgba(250,128,114,0.9)',
+                      ? 'var(--accent-soft)'
+                      : 'var(--accent-soft)',
+                  color: saveStatus === 'saving' ? 'var(--accent-dim)' : 'var(--accent)',
                   fontWeight: 700,
                   fontSize: '0.9rem',
                   cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer',
@@ -1333,17 +1331,18 @@ export default function TransactionDrawer({ item, onClose }: TransactionDrawerPr
 
 function QuickButton({
   label,
-  emoji,
-  color,
+  tone,
   onClick,
   active,
 }: {
   label: string;
-  emoji: string;
-  color: string;
+  tone: 'gain' | 'muted';
   onClick: () => void;
   active: boolean;
 }) {
+  const palette = tone === 'gain'
+    ? { border: active ? 'var(--gain)' : 'var(--gain-border)', bg: 'var(--gain-bg)', text: 'var(--gain)' }
+    : { border: active ? 'var(--text-muted)' : 'var(--border-bright)', bg: 'var(--surface-card-2)', text: active ? 'var(--text-secondary)' : 'var(--text-muted)' };
   return (
     <button
       type="button"
@@ -1354,9 +1353,9 @@ function QuickButton({
         gap: '0.35rem',
         padding: '0.35rem 0.75rem',
         borderRadius: '999px',
-        border: `1px solid ${color},${active ? '0.5)' : '0.25)'}`,
-        background: `${color},${active ? '0.15)' : '0.07)'})`,
-        color: `${color},${active ? '1)' : '0.7)'})`,
+        border: `1px solid ${palette.border}`,
+        background: palette.bg,
+        color: palette.text,
         fontSize: '0.78rem',
         fontWeight: 600,
         cursor: 'pointer',
@@ -1364,7 +1363,6 @@ function QuickButton({
         whiteSpace: 'nowrap',
       }}
     >
-      <span>{emoji}</span>
       {label}
     </button>
   );
@@ -1381,7 +1379,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
         opacity: 0.45,
         marginBottom: '0.75rem',
         marginTop: 0,
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        borderBottom: '1px solid var(--border-bright)',
         paddingBottom: '0.4rem',
       }}
     >
@@ -1484,19 +1482,19 @@ function AccumulationRow({ group }: { group: AccumulationGroup }) {
       gap: '0.25rem',
       padding: '0.6rem 0.75rem',
       borderRadius: '7px',
-      background: 'rgba(74,222,128,0.05)',
-      borderLeft: '3px solid rgba(74,222,128,0.3)',
+      background: 'var(--gain-bg)',
+      borderLeft: '3px solid var(--gain-border)',
       fontSize: '0.83rem',
     }}>
       {/* Line 1: badge + date range */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
         <span style={{
-          fontWeight: 700, fontSize: '0.72rem', color: '#4ade80',
+          fontWeight: 700, fontSize: '0.72rem', color: 'var(--gain)',
           letterSpacing: '0.06em', minWidth: '2.5rem',
         }}>
           IN
         </span>
-        <span style={{ color: '#4ade80', fontWeight: 600 }}>
+        <span style={{ color: 'var(--gain)', fontWeight: 600 }}>
           {group.count > 1 ? 'Accumulated' : 'Purchased'}
         </span>
         <span style={{ opacity: 0.55, fontSize: '0.78rem' }}>{dateRange}</span>
@@ -1545,11 +1543,11 @@ function AddrRow({
     <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.73rem', flexWrap: 'wrap' }}>
       <span style={{ opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem', flexShrink: 0 }}>{label}</span>
       {addressLabel && (
-        <span style={{ color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>{addressLabel}</span>
+        <span style={{ color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>{addressLabel}</span>
       )}
       <a href={url} target="_blank" rel="noopener noreferrer"
         style={{
-          color: addressLabel ? 'rgba(167,139,250,0.5)' : 'rgba(96,165,250,0.8)',
+          color: addressLabel ? 'var(--accent-dim)' : 'var(--accent)',
           textDecoration: 'none',
           fontFamily: 'monospace',
           fontSize: addressLabel ? '0.66rem' : '0.73rem',
@@ -1563,7 +1561,7 @@ function AddrRow({
 
 function HistoryRow({ evt }: { evt: HistoryEvent }) {
   const isIn = evt.direction === 'in';
-  const dirColor = isIn ? '#4ade80' : '#f87171';
+  const dirColor = isIn ? 'var(--gain)' : 'var(--loss)';
   const dirLabel = isIn ? 'IN' : 'OUT';
 
   // Determine which side is "my wallet" vs "counterparty"
@@ -1583,7 +1581,7 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
         gap: '0.35rem',
         padding: '0.6rem 0.75rem',
         borderRadius: '7px',
-        background: 'rgba(255,255,255,0.04)',
+        background: 'var(--border-subtle)',
         borderLeft: `3px solid ${dirColor}40`,
         fontSize: '0.83rem',
       }}
@@ -1616,10 +1614,10 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
                 {isIn ? 'to wallet' : 'from wallet'}
               </span>
               {walletName && (
-                <span style={{ color: '#fbbf24', fontWeight: 600, marginRight: '0.2rem' }}>{walletName}</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 600, marginRight: '0.2rem' }}>{walletName}</span>
               )}
               <a href={`https://etherscan.io/address/${myWalletAddr}`} target="_blank" rel="noopener noreferrer"
-                style={{ color: 'rgba(96,165,250,0.8)', textDecoration: 'none', fontFamily: 'monospace' }}>
+                style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace' }}>
                 {truncateHash(myWalletAddr)} ↗
               </a>
               <CopyButton text={myWalletAddr} />
@@ -1647,7 +1645,7 @@ function HistoryRow({ evt }: { evt: HistoryEvent }) {
           <span style={{ opacity: 0.35, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>tx</span>
           {explorerUrl(evt.tx_hash) ? (
             <a href={explorerUrl(evt.tx_hash)} target="_blank" rel="noopener noreferrer"
-              style={{ color: 'rgba(96,165,250,0.8)', textDecoration: 'none', fontFamily: 'monospace' }}>
+              style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace' }}>
               {truncateHash(evt.tx_hash)} ↗
             </a>
           ) : (
@@ -1668,9 +1666,9 @@ const checkLinkStyle: React.CSSProperties = {
   gap: '0.25rem',
   padding: '0.3rem 0.65rem',
   borderRadius: '6px',
-  border: '1px solid rgba(251,191,36,0.3)',
-  background: 'rgba(251,191,36,0.08)',
-  color: '#fbbf24',
+  border: '1px solid var(--accent-dim)',
+  background: 'var(--accent-soft)',
+  color: 'var(--accent)',
   fontSize: '0.77rem',
   fontWeight: 600,
   textDecoration: 'none',
@@ -1678,10 +1676,10 @@ const checkLinkStyle: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.12)',
+  background: 'var(--border-subtle)',
+  border: '1px solid var(--border-bright)',
   borderRadius: '7px',
-  color: 'rgba(255,255,255,0.9)',
+  color: 'var(--text-secondary)',
   fontSize: '0.9rem',
   padding: '0.45rem 0.7rem',
   outline: 'none',
