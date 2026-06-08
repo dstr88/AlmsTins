@@ -7,6 +7,7 @@ import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
 import { isDemoRequest } from '@/lib/demo';
 import { getActivePlan } from '@/lib/subscriptions';
+import { tenantHasTaxAccess } from '@/lib/taxAuth';
 import kingSolomon from '@/assets/KingSolomon.png';
 
 import minerva from '@/assets/Minerva.png';
@@ -21,6 +22,10 @@ const user = session?.user ?? null;
 // Real auth session always wins — never show the demo banner to a signed-in user
 const isDemo = !user?.id && isDemoRequest(Astro.request);
 const tenantId = session?.tenantId ?? null;
+
+// Tax section (Summary + yearEnd/*) is owner-gated — hide its nav entry from
+// everyone else so the demo has no dead-end links into /tax-login.
+const canTax = tenantHasTaxAccess(tenantId);
 
 // Avatar: use OAuth profile image if available, otherwise pick a random default
 const defaultAvatars = [kingSolomon, minerva];
@@ -240,7 +245,9 @@ const memberSinceDisplay = memberSinceIso
 						<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
 						<a href="/dashboard/portfolio" class={`nav-link ${isActive('/dashboard/portfolio') ? 'active' : ''}`}>Portfolio</a>
 						<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>Addresses</a>
-						<a href="/year-summary" class={`nav-link ${currentPath.startsWith('/dashboard/yearEnd') && !currentPath.includes('memory-lane') || currentPath === '/year-summary' ? 'active' : ''}`}>Summary</a>
+						{canTax && (
+							<a href="/year-summary" class={`nav-link ${currentPath.startsWith('/dashboard/yearEnd') && !currentPath.includes('memory-lane') || currentPath === '/year-summary' ? 'active' : ''}`}>Summary</a>
+						)}
 						<a href="/dashboard/yearEnd/memory-lane" class={`nav-link ${currentPath.includes('memory-lane') ? 'active' : ''}`}>History</a>
 						<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>Alerts</a>
 						<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>

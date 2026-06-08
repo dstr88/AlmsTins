@@ -9,8 +9,10 @@ import { buildAnnualBreakdown } from '../../lib/annualBreakdown';
 import { getActivePlan } from '../../lib/subscriptions';
 import { db } from '../../lib/db';
 import { getJurisdictionProfile } from '../../lib/jurisdictionProfile';
+import { tenantHasTaxAccess } from '../../lib/taxAuth';
 
 const { tenantId } = await requireTenantSession(Astro.request);
+const canTax = tenantHasTaxAccess(tenantId);
 
 // Plan check for Year Summary PDF
 const activePlan = await getActivePlan(tenantId);
@@ -205,7 +207,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       <div class="readiness-bar__body">
         <span class="readiness-bar__score" id="readiness-score">—</span>
         <span class="readiness-bar__label" id="readiness-label">Calculating tax readiness…</span>
-        <a href="/dashboard/yearEnd" class="readiness-bar__link">Tax Readiness →</a>
+        {canTax && (
+          <a href="/dashboard/yearEnd" class="readiness-bar__link">Tax Readiness →</a>
+        )}
       </div>
     </div>
 

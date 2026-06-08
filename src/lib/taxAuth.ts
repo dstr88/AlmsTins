@@ -32,6 +32,11 @@ export function expectedTaxToken(): string | null {
 	return crypto.createHmac('sha256', secret).update('tax-access-v1').digest('hex');
 }
 
+/** Sync check by tenant id — for nav gating where the tenant is already known. */
+export function tenantHasTaxAccess(tenantId: string | null | undefined): boolean {
+	return !!tenantId && ALLOWED_TAX_TENANTS.has(tenantId);
+}
+
 /**
  * Tax-section access — granted only to allow-listed tenants (owner).
  * Async: resolves the tenant from the request session.
