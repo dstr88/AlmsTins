@@ -93,9 +93,9 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 					<div className="breakdown">
 						{lendingPositions.map((pos) => (
 							<div className="stat-row" key={pos.pool} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-								<span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f97316', flexShrink: 0, display: 'inline-block' }} />
+								<span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, display: 'inline-block' }} />
 								<span className="label">{pos.tokenSymbol}</span>
-								<span className="value" style={{ marginLeft: 'auto', fontSize: '0.78em', color: '#94a3b8' }}>
+								<span className="value" style={{ marginLeft: 'auto', fontSize: '0.78em', color: 'var(--text-secondary)' }}>
 									{parseFloat(pos.netBalance).toLocaleString('en-US', { maximumFractionDigits: 6 })} {pos.tokenSymbol}
 								</span>
 							</div>
@@ -118,9 +118,9 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 					<div className="breakdown">
 						{ammPositions.map((pos) => (
 							<div className="stat-row" key={pos.pair} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-								<span style={{ width: 8, height: 8, borderRadius: '50%', background: '#a78bfa', flexShrink: 0, display: 'inline-block' }} />
+								<span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, display: 'inline-block' }} />
 								<span className="label">{pos.pair}</span>
-								<span className="value" style={{ marginLeft: 'auto', fontSize: '0.78em', color: '#94a3b8' }}>
+								<span className="value" style={{ marginLeft: 'auto', fontSize: '0.78em', color: 'var(--text-secondary)' }}>
 									{parseFloat(pos.balance).toLocaleString('en-US', { maximumFractionDigits: 4 })} LP
 								</span>
 							</div>
@@ -143,7 +143,7 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 					<div className="breakdown">
 						{detectedContracts.map((name) => (
 							<div className="stat-row" key={name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-								<span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2dd4bf', flexShrink: 0, display: 'inline-block' }} />
+								<span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, display: 'inline-block' }} />
 								<span className="label">{name}</span>
 							</div>
 						))}

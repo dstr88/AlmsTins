@@ -111,7 +111,7 @@ try {
 	</button>
 
 	{tinError ? (
-		<p class="exchange-accounts__error">⚠ Temporarily unavailable — try refreshing</p>
+		<p class="exchange-accounts__error">Temporarily unavailable — try refreshing</p>
 	) : accountsWithHoldings.length ? (
 		<div class="exchange-accounts__list">
 			{accountsWithHoldings.map((account, index) => {
@@ -160,7 +160,7 @@ try {
 												<div class="exchange-holding__row exchange-holding__row--staking">
 													{holding.staked > 0 && (
 														<div class="exchange-holding__field exchange-holding__field--numeric">
-															<span class="exchange-holding__label" title="Coins currently locked in the staking protocol. Cannot be sold or transferred until unstaked.">🔒 Staked</span>
+															<span class="exchange-holding__label" title="Coins currently locked in the staking protocol. Cannot be sold or transferred until unstaked.">Staked</span>
 															<span class="exchange-holding__value">
 																{formatNumber(holding.staked, { maximumFractionDigits: 8 })}
 															</span>
@@ -205,7 +205,7 @@ try {
 			<abbr title={EARNED_SYMBOL_TITLES['∞']}>∞</abbr> no purchase on record
 		</p>
 		<p class="exchange-legend__line">
-			<abbr title="Coins currently locked in the staking protocol. Cannot be sold or transferred until unstaked.">🔒 Staked</abbr> = coins locked in staking
+			<abbr title="Coins currently locked in the staking protocol. Cannot be sold or transferred until unstaked.">Staked</abbr> = coins locked in staking
 			&nbsp;·&nbsp;
 			<abbr title="Staking rewards earned so far this year. Taxed as ordinary income in the year received.">⚡ Earned</abbr> = rewards received this year
 		</p>
@@ -316,8 +316,8 @@ try {
 				}
 				if (status instanceof HTMLElement) {
 					const msg = payload.insertedNormalized === 0
-						? `⚠️ No new rows — ${payload.skippedDuplicates} duplicates skipped (already imported).`
-						: `✅ Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+						? `No new rows — ${payload.skippedDuplicates} duplicates skipped (already imported).`
+						: `✓ Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
 					status.textContent = msg;
 				}
 				setTimeout(() => window.location.reload(), 3000);

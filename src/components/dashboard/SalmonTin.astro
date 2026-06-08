@@ -1,7 +1,10 @@
 ---
 import './SalmonTin.css';
 
-// Chain colors — silver for ETH, gold for BTC, each chain's established brand color
+// Chain brand colors for the corner-flag — established per-chain identity hues.
+// Documented design-token exception (brand/series colors, like AaveRateChart):
+// chains must stay visually distinguishable, so these intentionally sit outside
+// the token palette.
 const CHAIN_COLORS: Record<string, string> = {
   BTC:  '#F7931A',  // gold
   RBTC: '#F7931A',  // gold (Rootstock = BTC)
@@ -21,15 +24,13 @@ interface Props {
 
 const { label, class: className = '' } = Astro.props;
 const hasSummary = Astro.slots.has('summary');
-const flagColor = CHAIN_COLORS[label.toUpperCase()] ?? '#6B7280';
+const flagColor = CHAIN_COLORS[label.toUpperCase()] ?? 'var(--text-muted)';
 ---
 
 <div class={`salmon-tin ${className}`}>
 	<span class="salmon-tin__label">{label}</span>
-	<!-- Diver-down corner fold — chain color + self-custody icon -->
-	<div class="tin-flag" style={`--flag-color: ${flagColor}`} aria-hidden="true">
-		<span class="tin-flag__icon">⛓</span>
-	</div>
+	<!-- Corner fold — chain-color indicator -->
+	<div class="tin-flag" style={`--flag-color: ${flagColor}`} aria-hidden="true"></div>
 	{hasSummary && (
 		<div class="salmon-tin__summary">
 			<slot name="summary" />

@@ -52,12 +52,12 @@ function truncateAddress(addr: string): string {
 
 // ── Vibrant card accent palette ────────────────────────────────────────────────
 const PALETTE = [
-	{ accent: '#ff6b6b', glow: 'rgba(255,107,107,0.15)', soft: 'rgba(255,107,107,0.08)' }, // coral salmon
-	{ accent: '#00e5a0', glow: 'rgba(0,229,160,0.15)',   soft: 'rgba(0,229,160,0.08)'   }, // vibrant green
-	{ accent: '#ff8c00', glow: 'rgba(255,140,0,0.15)',   soft: 'rgba(255,140,0,0.08)'   }, // fluorescent orange
-	{ accent: '#a78bfa', glow: 'rgba(167,139,250,0.15)', soft: 'rgba(167,139,250,0.08)' }, // violet
-	{ accent: '#22d3ee', glow: 'rgba(34,211,238,0.15)',  soft: 'rgba(34,211,238,0.08)'  }, // cyan
-	{ accent: '#fb923c', glow: 'rgba(251,146,60,0.15)',  soft: 'rgba(251,146,60,0.08)'  }, // warm orange
+	{ accent: 'var(--accent)', glow: 'var(--accent-glow)', soft: 'var(--accent-soft)' }, // coral salmon
+	{ accent: 'var(--accent)', glow: 'var(--accent-glow)',   soft: 'var(--accent-soft)'   }, // vibrant green
+	{ accent: 'var(--accent)', glow: 'var(--accent-glow)',   soft: 'var(--accent-soft)'   }, // fluorescent orange
+	{ accent: 'var(--accent)', glow: 'var(--accent-glow)', soft: 'var(--accent-soft)' }, // violet
+	{ accent: 'var(--accent)', glow: 'var(--accent-glow)',  soft: 'var(--accent-soft)'  }, // cyan
+	{ accent: 'var(--accent)', glow: 'var(--accent-glow)',  soft: 'var(--accent-soft)'  }, // warm orange
 ];
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -66,9 +66,9 @@ const inputStyle: React.CSSProperties = {
 	minWidth: '200px',
 	padding: '0.45rem 0.75rem',
 	borderRadius: '8px',
-	border: '1px solid rgba(255,255,255,0.12)',
-	background: 'rgba(255,255,255,0.05)',
-	color: 'rgba(255,255,255,0.9)',
+	border: '1px solid var(--border-bright)',
+	background: 'var(--border-subtle)',
+	color: 'var(--text-secondary)',
 	fontSize: '0.875rem',
 	outline: 'none',
 	transition: 'border-color 0.15s',
@@ -92,7 +92,7 @@ function CopyButton({ text }: { text: string }) {
 				border: 'none',
 				cursor: 'pointer',
 				padding: '0 0.2rem',
-				color: copied ? '#4ade80' : 'rgba(255,255,255,0.3)',
+				color: copied ? 'var(--gain)' : 'var(--text-muted)',
 				fontSize: '0.8rem',
 				lineHeight: 1,
 				transition: 'color 0.15s',
@@ -209,7 +209,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 					<p style={{ margin: '0 0 0.15rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.45 }}>
 						Vault
 					</p>
-					<h1 style={{ margin: 0, fontSize: '1.55rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#fff' }}>
+					<h1 style={{ margin: 0, fontSize: '1.55rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
 						My Wallets
 					</h1>
 					<p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', opacity: 0.4, lineHeight: 1.5 }}>
@@ -221,9 +221,9 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 						fontSize: '0.82rem',
 						padding: '0.3rem 0.75rem',
 						borderRadius: '999px',
-						background: status.includes('deleted') || status.includes('Saved') ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.05)',
-						color: status.includes('deleted') || status.includes('Saved') ? '#4ade80' : 'rgba(255,255,255,0.6)',
-						border: '1px solid rgba(255,255,255,0.08)',
+						background: status.includes('deleted') || status.includes('Saved') ? 'var(--gain-bg)' : 'var(--border-subtle)',
+						color: status.includes('deleted') || status.includes('Saved') ? 'var(--gain)' : 'var(--text-muted)',
+						border: '1px solid var(--border-bright)',
 					}}>
 						{status}
 					</span>
@@ -235,9 +235,9 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 				<div style={{
 					padding: '2.5rem 1.5rem',
 					borderRadius: '16px',
-					border: '1px dashed rgba(255,255,255,0.1)',
+					border: '1px dashed var(--border-bright)',
 					textAlign: 'center',
-					color: 'rgba(255,255,255,0.35)',
+					color: 'var(--text-muted)',
 					fontSize: '0.9rem',
 				}}>
 					No wallets yet — add your first one below.
@@ -256,7 +256,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 									position: 'relative',
 									borderRadius: '14px',
 									border: `1px solid ${color.accent}33`,
-									background: `linear-gradient(135deg, ${color.soft}, rgba(10,14,28,0.95))`,
+									background: `linear-gradient(135deg, ${color.soft}, var(--surface-bg))`,
 									boxShadow: `0 0 0 1px ${color.accent}11, 0 4px 24px ${color.glow}`,
 									padding: '1.25rem 1.25rem 1rem',
 									display: 'flex',
@@ -321,7 +321,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 									<div style={{
 										fontSize: '1.05rem',
 										fontWeight: 700,
-										color: '#fff',
+										color: 'var(--text-primary)',
 										letterSpacing: '-0.01em',
 										lineHeight: 1.2,
 									}}>
@@ -337,12 +337,12 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 									background: 'rgba(0,0,0,0.25)',
 									borderRadius: '7px',
 									padding: '0.35rem 0.6rem',
-									border: '1px solid rgba(255,255,255,0.06)',
+									border: '1px solid var(--border-subtle)',
 								}}>
 									<span style={{
 										fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 										fontSize: '0.75rem',
-										color: 'rgba(255,255,255,0.55)',
+										color: 'var(--text-muted)',
 										flex: 1,
 										overflow: 'hidden',
 										textOverflow: 'ellipsis',
@@ -367,13 +367,13 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 											<ActionBtn
 												label="Delete"
 												onClick={() => handleDelete(wallet)}
-												color="#f87171"
+												color="var(--loss)"
 											/>
 										</>
 									) : (
 										<>
 											<ActionBtn label="Edit" onClick={() => handleEditClick(wallet)} color={color.accent} />
-											<ActionBtn label="Delete" onClick={() => handleDelete(wallet)} color="#f87171" />
+											<ActionBtn label="Delete" onClick={() => handleDelete(wallet)} color="var(--loss)" />
 										</>
 									)}
 								</div>
@@ -385,8 +385,8 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 
 			{/* ── Add wallet form ──────────────────────────────────────────── */}
 			<div style={{
-				background: 'rgba(255,255,255,0.025)',
-				border: '1px solid rgba(255,255,255,0.08)',
+				background: 'var(--border-subtle)',
+				border: '1px solid var(--border-bright)',
 				borderRadius: '14px',
 				padding: '1.25rem 1.35rem',
 			}}>
@@ -432,9 +432,9 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 						style={{
 							padding: '0.45rem 1.2rem',
 							borderRadius: '8px',
-							border: '1px solid rgba(99,102,241,0.5)',
-							background: adding ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.18)',
-							color: adding ? 'rgba(165,180,252,0.4)' : '#a5b4fc',
+							border: '1px solid var(--accent-dim)',
+							background: adding ? 'var(--accent-soft)' : 'var(--accent-soft)',
+							color: adding ? 'var(--accent-dim)' : 'var(--accent)',
 							fontWeight: 700,
 							fontSize: '0.875rem',
 							cursor: adding ? 'not-allowed' : 'pointer',
@@ -449,7 +449,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 					<p style={{
 						margin: '0.6rem 0 0',
 						fontSize: '0.8rem',
-						color: addStatus.startsWith('✓') ? '#4ade80' : addStatus.startsWith('Error') ? '#f87171' : 'rgba(255,255,255,0.5)',
+						color: addStatus.startsWith('✓') ? 'var(--gain)' : addStatus.startsWith('Error') ? 'var(--loss)' : 'var(--text-muted)',
 					}}>
 						{addStatus}
 					</p>
@@ -463,7 +463,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 function ActionBtn({
 	label,
 	onClick,
-	color = 'rgba(255,255,255,0.5)',
+	color = 'var(--text-muted)',
 	filled = false,
 }: {
 	label: string;
