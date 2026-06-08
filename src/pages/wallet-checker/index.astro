@@ -361,12 +361,28 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
         <!-- Per-source breakdown -->
         <ul class="source-list" id="source-list"></ul>
 
+        <!-- VirusTotal pending notice (shown only after a fresh VT submission) -->
+        <div id="vt-pending" class="vt-pending" hidden>
+          <span class="vt-pending__icon">🦠</span>
+          <div class="vt-pending__body">
+            <p class="vt-pending__msg">VirusTotal scan in progress — re-checking automatically in <strong id="vt-countdown">90</strong>s</p>
+          </div>
+          <button id="vt-recheck-btn" class="vt-recheck-btn" disabled>Re-check now</button>
+        </div>
+
         <!-- Safety tip -->
         <div class="safety-tip" id="safety-tip"></div>
       </div>
 
-      <div id="dapp-loading" class="dapp-loading" hidden>
-        <span class="spinner"></span> Checking security databases…
+      <!-- Progressive check queue — items appear as checks resolve, fade out when clean -->
+      <div id="check-queue" class="check-queue" hidden>
+        <div class="check-item" id="ci-metamask"    data-state="pending"><span class="ci-icon"></span><span class="ci-label">Phishing databases</span><span class="ci-status">Checking…</span></div>
+        <div class="check-item" id="ci-scamsniffer" data-state="pending"><span class="ci-icon"></span><span class="ci-label">Scam domain lists</span><span class="ci-status">Checking…</span></div>
+        <div class="check-item" id="ci-openphish"   data-state="pending"><span class="ci-icon"></span><span class="ci-label">Active phishing feed</span><span class="ci-status">Checking…</span></div>
+        <div class="check-item" id="ci-goplus"      data-state="pending"><span class="ci-icon"></span><span class="ci-label">Live threat intelligence</span><span class="ci-status">Checking…</span></div>
+        <div class="check-item" id="ci-urlscan"     data-state="pending"><span class="ci-icon"></span><span class="ci-label">URL security history</span><span class="ci-status">Checking…</span></div>
+        <div class="check-item" id="ci-gsb"         data-state="pending"><span class="ci-icon"></span><span class="ci-label">Google Safe Browsing</span><span class="ci-status">Checking…</span></div>
+        <div class="check-item" id="ci-virustotal"  data-state="pending"><span class="ci-icon"></span><span class="ci-label">Malware scan</span><span class="ci-status">Checking…</span></div>
       </div>
 
       <div id="dapp-status" class="dapp-status" hidden></div>
@@ -1367,18 +1383,8 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   .dapp-input-row button:hover { filter: brightness(1.12); transform: translateY(-1px); }
   .dapp-input-row button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-  /* ── Loading ── */
-  /* Ensure [hidden] attribute wins over display:flex on loading elements */
+  /* Ensure [hidden] attribute wins over any display property */
   [hidden] { display: none !important; }
-
-  .dapp-loading {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1rem;
-    font-size: 0.9rem;
-    color: rgba(255,255,255,0.5);
-  }
 
   .spinner {
     display: inline-block;
@@ -1503,6 +1509,47 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   .dot-yellow { background: #ffc107; box-shadow: 0 0 8px rgba(255,193,7,0.4); }
   .dot-gray   { background: rgba(255,255,255,0.2); }
 
+  /* ── VirusTotal pending notice ── */
+  .vt-pending {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    background: rgba(165,180,252,0.07);
+    border: 1px solid rgba(165,180,252,0.22);
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .vt-pending__icon { font-size: 1.1rem; flex-shrink: 0; }
+
+  .vt-pending__body { flex: 1; min-width: 0; }
+
+  .vt-pending__msg {
+    margin: 0;
+    font-size: 0.85rem;
+    color: rgba(165,180,252,0.85);
+    line-height: 1.5;
+  }
+
+  .vt-recheck-btn {
+    flex-shrink: 0;
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid rgba(165,180,252,0.35);
+    background: rgba(165,180,252,0.12);
+    color: #a5b4fc;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+  }
+
+  .vt-recheck-btn:hover:not(:disabled) { background: rgba(165,180,252,0.22); }
+  .vt-recheck-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
   /* ── Safety tip ── */
   .safety-tip {
     padding: 0.9rem 1.1rem;
@@ -1513,6 +1560,90 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     background: rgba(255,255,255,0.03);
     border: 1px solid rgba(255,255,255,0.07);
   }
+
+  /* ── Progressive check queue ── */
+  .check-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+  }
+
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    font-size: 0.875rem;
+    transition: background 0.3s ease, border-color 0.3s ease;
+    overflow: hidden;
+    max-height: 60px;
+  }
+
+  .ci-icon   { font-size: 1rem; flex-shrink: 0; width: 1.25rem; text-align: center; line-height: 1; }
+  .ci-label  { flex: 1; color: rgba(255,255,255,0.75); }
+  .ci-status { font-size: 0.8rem; color: rgba(255,255,255,0.35); white-space: nowrap; }
+
+  /* Pending — mini spinner via pseudo-element */
+  .check-item[data-state="pending"] .ci-icon {
+    position: relative;
+  }
+  .check-item[data-state="pending"] .ci-icon::before {
+    content: '';
+    display: inline-block;
+    width: 11px; height: 11px;
+    border: 2px solid rgba(165,180,252,0.25);
+    border-top-color: #a5b4fc;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+
+  /* Clean */
+  .check-item[data-state="clean"] {
+    background: rgba(52,211,153,0.08);
+    border-color: rgba(52,211,153,0.2);
+  }
+  .check-item[data-state="clean"] .ci-status { color: #34d399; }
+
+  /* Flagged */
+  .check-item[data-state="flagged"] {
+    background: rgba(255,59,59,0.08);
+    border-color: rgba(255,59,59,0.3);
+  }
+  .check-item[data-state="flagged"] .ci-status { color: #ff6b6b; font-weight: 600; }
+
+  /* VirusTotal pending */
+  .check-item[data-state="vt-pending"] {
+    background: rgba(245,158,11,0.07);
+    border-color: rgba(245,158,11,0.25);
+  }
+  .check-item[data-state="vt-pending"] .ci-status { color: #f59e0b; }
+
+  /* Unscanned / no data */
+  .check-item[data-state="unscanned"] {
+    background: rgba(255,193,7,0.04);
+    border-color: rgba(255,193,7,0.18);
+  }
+  .check-item[data-state="unscanned"] .ci-status { color: rgba(255,193,7,0.65); }
+
+  /* Brief green flash when a clean result arrives */
+  @keyframes ci-flash {
+    0%   { background: rgba(52,211,153,0.38); border-color: rgba(52,211,153,0.55); }
+    100% { background: rgba(52,211,153,0.08); border-color: rgba(52,211,153,0.20); }
+  }
+  .ci-flash { animation: ci-flash 0.65s ease-out forwards; }
+
+  /* Fade + collapse after the flash (triggered by .ci-done class) */
+  @keyframes ci-fade {
+    0%   { opacity: 1; max-height: 60px; padding-top: 0.6rem; padding-bottom: 0.6rem; }
+    50%  { opacity: 0; max-height: 60px; }
+    100% { opacity: 0; max-height: 0;    padding-top: 0;      padding-bottom: 0; margin-bottom: -0.35rem; }
+  }
+  .ci-done { animation: ci-fade 0.55s ease-out 0.85s forwards; pointer-events: none; }
 
   /* ── Responsive ── */
   @media (max-width: 600px) {
@@ -1636,9 +1767,45 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   const input    = document.getElementById('dapp-url-input')   as HTMLInputElement;
   const btn      = document.getElementById('dapp-check-btn')   as HTMLButtonElement;
   const result   = document.getElementById('dapp-result')      as HTMLElement;
-  const loading  = document.getElementById('dapp-loading')     as HTMLElement;
   const statusEl = document.getElementById('dapp-status')      as HTMLElement;
   const errBox   = document.getElementById('dapp-error')       as HTMLElement;
+
+  // ── VirusTotal pending countdown ──────────────────────────────────────────────
+  let vtTimer: number | null = null;
+
+  function clearVtCountdown() {
+    if (vtTimer !== null) { clearInterval(vtTimer); vtTimer = null; }
+    (document.getElementById('vt-pending') as HTMLElement).hidden = true;
+  }
+
+  function startVtCountdown(seconds: number) {
+    clearVtCountdown();
+    const vtPendingEl  = document.getElementById('vt-pending')     as HTMLElement;
+    const countdownEl  = document.getElementById('vt-countdown')   as HTMLElement;
+    const recheckBtn   = document.getElementById('vt-recheck-btn') as HTMLButtonElement;
+
+    vtPendingEl.hidden      = false;
+    recheckBtn.disabled     = true;
+    countdownEl.textContent = String(seconds);
+
+    // Let user re-check early after 15s
+    setTimeout(() => { recheckBtn.disabled = false; }, 15_000);
+
+    let remaining = seconds;
+    vtTimer = window.setInterval(() => {
+      remaining--;
+      countdownEl.textContent = String(remaining);
+      if (remaining <= 0) {
+        clearVtCountdown();
+        runCheck();
+      }
+    }, 1_000);
+  }
+
+  document.getElementById('vt-recheck-btn')?.addEventListener('click', () => {
+    clearVtCountdown();
+    runCheck();
+  });
 
   function verdictDot(v: string): string {
     if (v === 'flagged')   return 'dot-red';
@@ -1653,109 +1820,202 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     return 'clean';
   }
 
-  function verdictEmoji(v: string): string {
-    if (v === 'flagged') return '🚫';
-    if (v === 'clean' || v === 'whitelisted') return '✅';
-    return '⚠️';
+  // ── Progressive check queue ───────────────────────────────────────────────────
+
+  const SOURCE_TO_ID: Record<string, string> = {
+    'MetaMask Blocklist':    'ci-metamask',
+    'ScamSniffer':           'ci-scamsniffer',
+    'OpenPhish':             'ci-openphish',
+    'GoPlus Security':       'ci-goplus',
+    'URLScan.io':            'ci-urlscan',
+    'Google Safe Browsing':  'ci-gsb',
+    'VirusTotal':            'ci-virustotal',
+  };
+
+  function resolveCheckItem(s: { name: string; verdict: string; detail: string }): void {
+    const elemId = SOURCE_TO_ID[s.name];
+    if (!elemId) return;
+    const elem = document.getElementById(elemId);
+    if (!elem) return;
+    const iconEl   = elem.querySelector('.ci-icon')   as HTMLElement;
+    const statusEl = elem.querySelector('.ci-status') as HTMLElement;
+
+    const { verdict, name } = s;
+
+    if (verdict === 'flagged') {
+      iconEl.textContent   = '🚨';
+      statusEl.textContent = 'Reported';
+      elem.dataset.state   = 'flagged';
+      return;
+    }
+
+    if (verdict === 'unscanned' && name === 'VirusTotal') {
+      iconEl.textContent   = '⏳';
+      statusEl.textContent = 'Pending…';
+      elem.dataset.state   = 'vt-pending';
+      return;
+    }
+
+    if (verdict === 'whitelisted') {
+      iconEl.textContent   = '✅';
+      statusEl.textContent = 'None found ✓';
+      elem.dataset.state   = 'clean';
+    } else if (verdict === 'clean') {
+      iconEl.textContent   = '✅';
+      statusEl.textContent = 'None found ✓';
+      elem.dataset.state   = 'clean';
+    } else if (verdict === 'unscanned') {
+      iconEl.textContent   = '⚠️';
+      statusEl.textContent = 'No data';
+      elem.dataset.state   = 'unscanned';
+    } else {
+      // error or skipped — silently collapse
+      elem.style.display = 'none';
+      return;
+    }
+
+    // Flash green, then fade-and-collapse
+    elem.classList.add('ci-flash');
+    elem.classList.add('ci-done');
+  }
+
+  function resetQueue(): void {
+    Object.values(SOURCE_TO_ID).forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = '';
+      el.dataset.state = 'pending';
+      el.className     = 'check-item';
+      (el.querySelector('.ci-icon')   as HTMLElement).textContent = '';
+      (el.querySelector('.ci-status') as HTMLElement).textContent = 'Checking…';
+    });
+  }
+
+  function renderVerdict(data: any): void {
+    const banner = document.getElementById('verdict-banner')!;
+    banner.className = `verdict-banner ${data.verdict}`;
+    document.getElementById('verdict-icon')!.textContent  =
+      data.verdict === 'red' ? '🚨' : data.verdict === 'yellow' ? '⚠️' : '✅';
+    document.getElementById('verdict-label')!.textContent =
+      data.verdict === 'red'    ? 'DANGER — Do not connect your wallet' :
+      data.verdict === 'yellow' ? 'CAUTION — Cannot confirm this site is safe' :
+                                  'NONE FOUND — Not in any security database';
+    document.getElementById('verdict-url')!.textContent = data.domain;
+
+    const VERDICT_RANK: Record<string, number> = { flagged: 0, error: 1, unscanned: 1, clean: 2, whitelisted: 2, skipped: 3 };
+    const sorted = ([...data.sources] as any[]).sort(
+      (a, b) => (VERDICT_RANK[a.verdict] ?? 2) - (VERDICT_RANK[b.verdict] ?? 2),
+    );
+    document.getElementById('source-list')!.innerHTML = sorted.map((s: any) => `
+      <li class="source-item ${sourceClass(s.verdict)}">
+        <span class="source-badge">${s.icon}</span>
+        <div>
+          <p class="source-name">${s.name}</p>
+          <p class="source-detail">${s.detail}</p>
+        </div>
+        <span class="source-verdict-dot ${verdictDot(s.verdict)}"></span>
+      </li>`).join('');
+
+    document.getElementById('safety-tip')!.textContent =
+      data.verdict === 'red'
+        ? '🛑 One or more security databases have reported this site. We are not making that determination ourselves — always verify independently. Do NOT connect your wallet or sign any transactions until you are certain.'
+        : data.verdict === 'yellow'
+        ? '⚠️ This site has limited scan history. Only connect your wallet to sites you found yourself — never through a link in a DM or email.'
+        : '✅ No threats detected across all sources. Always double-check the URL in your browser bar before signing any transaction — even safe-looking sites can be typosquatted.';
   }
 
   async function runCheck() {
     const raw = input.value.trim();
     if (!raw) { input.focus(); return; }
 
-    // Reset state
+    clearVtCountdown();
     btn.disabled    = true;
-    loading.hidden  = false;
     result.hidden   = true;
     errBox.hidden   = true;
     statusEl.hidden = true;
     statusEl.textContent = '';
 
-    // After 8 s, show a warmup hint in a completely separate element — no
-    // dependency on the spinner's visibility state
+    const queue = document.getElementById('check-queue') as HTMLElement;
+    resetQueue();
+    queue.hidden = false;
+
+    const qs = new URLSearchParams({ url: raw });
+    let timedOut = false;
+
+    // Fire fast and slow fetches in parallel
+    const fastFetch = fetch(`/api/dapp-check?${qs}&phase=fast`)
+      .then((r) => r.json() as Promise<any>)
+      .catch(() => null);
+
+    const slowFetch = Promise.race<any>([
+      fetch(`/api/dapp-check?${qs}`).then((r) => r.json()),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => { timedOut = true; reject(new Error('timeout')); }, 30_000),
+      ),
+    ]);
+
+    // Apply fast results as soon as they land (~instant for cached lists)
+    fastFetch.then((data) => {
+      if (data?.sources) (data.sources as any[]).forEach(resolveCheckItem);
+    });
+
+    // Warm-up hint after 8 s if slow fetch still pending
     const warmupTimer = setTimeout(() => {
       statusEl.textContent = 'The server is waking up after a period of inactivity. Hang tight — results are on their way…';
       statusEl.hidden = false;
     }, 8_000);
 
-    // Timeout via Promise.race — guaranteed to fire even if the TCP connection
-    // is held open by Render's load balancer during a cold start
-    let timedOut = false;
-    const qs = new URLSearchParams({ url: raw });
-
+    let data: any;
     try {
-      const res = await Promise.race([
-        fetch(`/api/dapp-check?${qs}`),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => { timedOut = true; reject(new Error('timeout')); }, 30_000),
-        ),
-      ]);
+      data = await slowFetch;
+    } catch (e: any) {
+      clearTimeout(warmupTimer);
+      statusEl.hidden = true;
+      queue.hidden    = true;
 
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.message ?? `HTTP ${res.status}`);
+      if (timedOut || e?.message === 'timeout') {
+        errBox.textContent = 'The server is warming up after a period of inactivity — retrying in a moment…';
+        errBox.hidden = false;
+        setTimeout(() => runCheck(), 5_000);
+        // btn stays disabled; runCheck() will manage it
+        return;
+      }
+      errBox.textContent = `Check failed: ${e instanceof Error ? e.message : 'Unknown error'}. Try again.`;
+      errBox.hidden = false;
+      btn.disabled  = false;
+      return;
+    }
 
-      // Verdict banner
-      const banner = document.getElementById('verdict-banner')!;
-      banner.className = `verdict-banner ${data.verdict}`;
-      document.getElementById('verdict-icon')!.textContent  =
-        data.verdict === 'red' ? '🚨' : data.verdict === 'yellow' ? '⚠️' : '✅';
-      document.getElementById('verdict-label')!.textContent =
-        data.verdict === 'red'    ? 'DANGER — Do not connect your wallet' :
-        data.verdict === 'yellow' ? 'CAUTION — Cannot confirm this site is safe' :
-                                    'LOOKS SAFE — No threats detected';
-      document.getElementById('verdict-url')!.textContent = data.domain;
+    clearTimeout(warmupTimer);
+    statusEl.hidden = true;
 
-      // Source list — flagged sources float to the top, clean/skipped sink to the bottom
-      const VERDICT_RANK: Record<string, number> = { flagged: 0, error: 1, unscanned: 1, clean: 2, whitelisted: 2, skipped: 3 };
-      const sortedSources = ([...data.sources] as any[]).sort(
-        (a, b) => (VERDICT_RANK[a.verdict] ?? 2) - (VERDICT_RANK[b.verdict] ?? 2),
-      );
-      const list = document.getElementById('source-list')!;
-      list.innerHTML = sortedSources.map((s) => `
-        <li class="source-item ${sourceClass(s.verdict)}">
-          <span class="source-badge">${s.icon}</span>
-          <div>
-            <p class="source-name">${s.name}</p>
-            <p class="source-detail">${s.detail}</p>
-          </div>
-          <span class="source-verdict-dot ${verdictDot(s.verdict)}"></span>
-        </li>`).join('');
+    if (!data || data.error) {
+      queue.hidden      = true;
+      errBox.textContent = data?.message ?? 'Check failed. Please try again.';
+      errBox.hidden     = false;
+      btn.disabled      = false;
+      return;
+    }
 
-      // Safety tip
-      const tip = document.getElementById('safety-tip')!;
-      tip.textContent =
-        data.verdict === 'red'
-          ? '🛑 One or more security databases have reported this site. We are not making that determination ourselves — always verify independently. Do NOT connect your wallet or sign any transactions until you are certain.'
-          : data.verdict === 'yellow'
-          ? '⚠️ This site has limited scan history. Only connect your wallet to sites you found yourself — never through a link in a DM or email.'
-          : '✅ No threats detected across all sources. Always double-check the URL in your browser bar before signing any transaction — even safe-looking sites can be typosquatted.';
+    // Apply final results to all queue items
+    (data.sources as any[]).forEach(resolveCheckItem);
 
+    // Wait for animations (~flash 0.65s + delay 0.85s + fade 0.55s = ~1.4s) then show verdict
+    setTimeout(() => {
+      queue.hidden = true;
+      renderVerdict(data);
       result.hidden = false;
+
+      if (data.vtPending) startVtCountdown(90);
+
       if (typeof (window as any).gtag === 'function') {
         (window as any).gtag('event', 'dapp_check_submitted', {
           event_category: 'interactive_tool',
           event_label: data.verdict ?? 'unknown',
         });
       }
-
-    } catch (e: any) {
-      if (timedOut || e?.message === 'timeout') {
-        // Server still warming up — show message and auto-retry in 5 s
-        errBox.textContent = 'The server is warming up after a period of inactivity — retrying in a moment…';
-        errBox.hidden = false;
-        setTimeout(() => runCheck(), 5_000);
-        return;  // leave loading spinner hidden; runCheck() will re-show it
-      }
-      errBox.textContent = `Check failed: ${e instanceof Error ? e.message : 'Unknown error'}. Try again.`;
-      errBox.hidden = false;
-
-    } finally {
-      clearTimeout(warmupTimer);
-      // Only touch spinner, status, and button here — never touch errBox in finally
-      loading.hidden  = true;
-      statusEl.hidden = true;
-      btn.disabled    = false;
-    }
+      btn.disabled = false;
+    }, 1_400);
   }
 
   btn.addEventListener('click', runCheck);

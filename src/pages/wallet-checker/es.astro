@@ -246,8 +246,15 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
         <div class="safety-tip" id="safety-tip"></div>
       </div>
 
-      <div id="dapp-loading" class="dapp-loading" hidden>
-        <span class="spinner"></span> Consultando 7 bases de datos de seguridad…
+      <!-- Cola de verificación progresiva -->
+      <div id="check-queue" class="check-queue" hidden>
+        <div class="check-item" id="ci-metamask"    data-state="pending"><span class="ci-icon"></span><span class="ci-label">Bases de datos de phishing</span><span class="ci-status">Verificando…</span></div>
+        <div class="check-item" id="ci-scamsniffer" data-state="pending"><span class="ci-icon"></span><span class="ci-label">Listas de dominios fraudulentos</span><span class="ci-status">Verificando…</span></div>
+        <div class="check-item" id="ci-openphish"   data-state="pending"><span class="ci-icon"></span><span class="ci-label">Feed activo de phishing</span><span class="ci-status">Verificando…</span></div>
+        <div class="check-item" id="ci-goplus"      data-state="pending"><span class="ci-icon"></span><span class="ci-label">Inteligencia de amenazas en vivo</span><span class="ci-status">Verificando…</span></div>
+        <div class="check-item" id="ci-urlscan"     data-state="pending"><span class="ci-icon"></span><span class="ci-label">Historial de seguridad URL</span><span class="ci-status">Verificando…</span></div>
+        <div class="check-item" id="ci-gsb"         data-state="pending"><span class="ci-icon"></span><span class="ci-label">Google Safe Browsing</span><span class="ci-status">Verificando…</span></div>
+        <div class="check-item" id="ci-virustotal"  data-state="pending"><span class="ci-icon"></span><span class="ci-label">Análisis de malware</span><span class="ci-status">Verificando…</span></div>
       </div>
 
       <div id="dapp-error" class="dapp-error" hidden></div>
@@ -1246,15 +1253,47 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   .dapp-input-row button:hover { filter: brightness(1.12); transform: translateY(-1px); }
   .dapp-input-row button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-  /* ── Cargando ── */
-  .dapp-loading {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 1rem;
-    font-size: 0.9rem;
-    color: rgba(255,255,255,0.5);
+  /* Ensure [hidden] attribute wins over any display property */
+  [hidden] { display: none !important; }
+
+  /* ── Cola de verificación progresiva ── */
+  .check-queue {
+    display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem;
   }
+  .check-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.6rem 1rem; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+    font-size: 0.875rem; transition: background 0.3s ease, border-color 0.3s ease;
+    overflow: hidden; max-height: 60px;
+  }
+  .ci-icon   { font-size: 1rem; flex-shrink: 0; width: 1.25rem; text-align: center; line-height: 1; }
+  .ci-label  { flex: 1; color: rgba(255,255,255,0.75); }
+  .ci-status { font-size: 0.8rem; color: rgba(255,255,255,0.35); white-space: nowrap; }
+  .check-item[data-state="pending"] .ci-icon::before {
+    content: ''; display: inline-block; width: 11px; height: 11px;
+    border: 2px solid rgba(165,180,252,0.25); border-top-color: #a5b4fc;
+    border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle;
+  }
+  .check-item[data-state="clean"]     { background: rgba(52,211,153,0.08); border-color: rgba(52,211,153,0.2); }
+  .check-item[data-state="clean"]     .ci-status { color: #34d399; }
+  .check-item[data-state="flagged"]   { background: rgba(255,59,59,0.08); border-color: rgba(255,59,59,0.3); }
+  .check-item[data-state="flagged"]   .ci-status { color: #ff6b6b; font-weight: 600; }
+  .check-item[data-state="vt-pending"]{ background: rgba(245,158,11,0.07); border-color: rgba(245,158,11,0.25); }
+  .check-item[data-state="vt-pending"].ci-status { color: #f59e0b; }
+  .check-item[data-state="unscanned"] { background: rgba(255,193,7,0.04); border-color: rgba(255,193,7,0.18); }
+  .check-item[data-state="unscanned"] .ci-status { color: rgba(255,193,7,0.65); }
+  @keyframes ci-flash {
+    0%   { background: rgba(52,211,153,0.38); border-color: rgba(52,211,153,0.55); }
+    100% { background: rgba(52,211,153,0.08); border-color: rgba(52,211,153,0.20); }
+  }
+  .ci-flash { animation: ci-flash 0.65s ease-out forwards; }
+  @keyframes ci-fade {
+    0%   { opacity: 1; max-height: 60px; padding-top: 0.6rem; padding-bottom: 0.6rem; }
+    50%  { opacity: 0; max-height: 60px; }
+    100% { opacity: 0; max-height: 0;    padding-top: 0;      padding-bottom: 0; margin-bottom: -0.35rem; }
+  }
+  .ci-done { animation: ci-fade 0.55s ease-out 0.85s forwards; pointer-events: none; }
 
   .spinner {
     display: inline-block;
@@ -1502,15 +1541,7 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
   const input   = document.getElementById('dapp-url-input')   as HTMLInputElement;
   const btn     = document.getElementById('dapp-check-btn')   as HTMLButtonElement;
   const result  = document.getElementById('dapp-result')      as HTMLElement;
-  const loading = document.getElementById('dapp-loading')     as HTMLElement;
   const errBox  = document.getElementById('dapp-error')       as HTMLElement;
-
-  function setLoading(on: boolean) {
-    btn.disabled   = on;
-    loading.hidden = !on;
-    result.hidden  = true;
-    errBox.hidden  = true;
-  }
 
   function verdictDot(v: string): string {
     if (v === 'flagged')   return 'dot-red';
@@ -1525,25 +1556,102 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     return 'clean';
   }
 
-  function verdictEmoji(v: string): string {
-    if (v === 'flagged') return '🚫';
-    if (v === 'clean' || v === 'whitelisted') return '✅';
-    return '⚠️';
+  // ── Cola de verificación progresiva ──────────────────────────────────────────
+
+  const SOURCE_TO_ID: Record<string, string> = {
+    'MetaMask Blocklist':    'ci-metamask',
+    'ScamSniffer':           'ci-scamsniffer',
+    'OpenPhish':             'ci-openphish',
+    'GoPlus Security':       'ci-goplus',
+    'URLScan.io':            'ci-urlscan',
+    'Google Safe Browsing':  'ci-gsb',
+    'VirusTotal':            'ci-virustotal',
+  };
+
+  function resolveCheckItem(s: { name: string; verdict: string }): void {
+    const elemId = SOURCE_TO_ID[s.name];
+    if (!elemId) return;
+    const elem = document.getElementById(elemId);
+    if (!elem) return;
+    const iconEl   = elem.querySelector('.ci-icon')   as HTMLElement;
+    const statusEl = elem.querySelector('.ci-status') as HTMLElement;
+    const { verdict, name } = s as any;
+
+    if (verdict === 'flagged') {
+      iconEl.textContent = '🚨'; statusEl.textContent = 'Reportado'; elem.dataset.state = 'flagged'; return;
+    }
+    if (verdict === 'unscanned' && name === 'VirusTotal') {
+      iconEl.textContent = '⏳'; statusEl.textContent = 'Pendiente…'; elem.dataset.state = 'vt-pending'; return;
+    }
+    if (verdict === 'whitelisted') {
+      iconEl.textContent = '✅'; statusEl.textContent = 'No encontrado ✓'; elem.dataset.state = 'clean';
+    } else if (verdict === 'clean') {
+      iconEl.textContent = '✅'; statusEl.textContent = 'No encontrado ✓'; elem.dataset.state = 'clean';
+    } else if (verdict === 'unscanned') {
+      iconEl.textContent = '⚠️'; statusEl.textContent = 'Sin datos'; elem.dataset.state = 'unscanned';
+    } else {
+      elem.style.display = 'none'; return;
+    }
+    elem.classList.add('ci-flash'); elem.classList.add('ci-done');
+  }
+
+  function resetQueue(): void {
+    Object.values(SOURCE_TO_ID).forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = ''; el.dataset.state = 'pending'; el.className = 'check-item';
+      (el.querySelector('.ci-icon')   as HTMLElement).textContent = '';
+      (el.querySelector('.ci-status') as HTMLElement).textContent = 'Verificando…';
+    });
   }
 
   async function runCheck() {
     const raw = input.value.trim();
     if (!raw) { input.focus(); return; }
 
-    setLoading(true);
+    btn.disabled  = true;
+    result.hidden = true;
+    errBox.hidden = true;
+
+    const queue = document.getElementById('check-queue') as HTMLElement;
+    resetQueue();
+    queue.hidden = false;
+
+    const qs = new URLSearchParams({ url: raw });
+
+    const fastFetch = fetch(`/api/dapp-check?${qs}&phase=fast`)
+      .then((r) => r.json() as Promise<any>).catch(() => null);
+
+    const slowFetch = fetch(`/api/dapp-check?${qs}`).then((r) => r.json());
+
+    fastFetch.then((data) => {
+      if (data?.sources) (data.sources as any[]).forEach(resolveCheckItem);
+    });
+
+    let data: any;
     try {
-      const qs  = new URLSearchParams({ url: raw });
-      const res = await fetch(`/api/dapp-check?${qs}`);
-      const data = await res.json();
+      data = await slowFetch;
+    } catch (e) {
+      queue.hidden = true;
+      errBox.textContent = `Verificación fallida: ${e instanceof Error ? e.message : 'Error desconocido'}. Inténtalo de nuevo.`;
+      errBox.hidden = false;
+      btn.disabled  = false;
+      return;
+    }
 
-      if (!res.ok || data.error) throw new Error(data.message ?? `HTTP ${res.status}`);
+    if (!data || data.error) {
+      queue.hidden = true;
+      errBox.textContent = data?.message ?? 'Verificación fallida. Inténtalo de nuevo.';
+      errBox.hidden = false;
+      btn.disabled  = false;
+      return;
+    }
 
-      // Banner de veredicto
+    (data.sources as any[]).forEach(resolveCheckItem);
+
+    setTimeout(() => {
+      queue.hidden = true;
+
       const banner = document.getElementById('verdict-banner')!;
       banner.className = `verdict-banner ${data.verdict}`;
       document.getElementById('verdict-icon')!.textContent  =
@@ -1551,16 +1659,14 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       document.getElementById('verdict-label')!.textContent =
         data.verdict === 'red'    ? 'PELIGRO — No conectes tu billetera' :
         data.verdict === 'yellow' ? 'PRECAUCIÓN — No se puede confirmar que este sitio sea seguro' :
-                                    'PARECE SEGURO — No se detectaron amenazas';
+                                    'NO ENCONTRADO — Sin reportes en ninguna base de datos';
       document.getElementById('verdict-url')!.textContent = data.domain;
 
-      // Lista de fuentes — las marcadas como peligrosas aparecen primero
       const VERDICT_RANK: Record<string, number> = { flagged: 0, error: 1, unscanned: 1, clean: 2, whitelisted: 2, skipped: 3 };
-      const sortedSources = ([...data.sources] as any[]).sort(
+      const sorted = ([...data.sources] as any[]).sort(
         (a, b) => (VERDICT_RANK[a.verdict] ?? 2) - (VERDICT_RANK[b.verdict] ?? 2),
       );
-      const list = document.getElementById('source-list')!;
-      list.innerHTML = sortedSources.map((s) => `
+      document.getElementById('source-list')!.innerHTML = sorted.map((s: any) => `
         <li class="source-item ${sourceClass(s.verdict)}">
           <span class="source-badge">${s.icon}</span>
           <div>
@@ -1570,14 +1676,12 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
           <span class="source-verdict-dot ${verdictDot(s.verdict)}"></span>
         </li>`).join('');
 
-      // Consejo de seguridad
-      const tip = document.getElementById('safety-tip')!;
-      tip.textContent =
+      document.getElementById('safety-tip')!.textContent =
         data.verdict === 'red'
-          ? '🛑 Una o más bases de datos de seguridad han reportado este sitio. Nosotros no estamos haciendo esa determinación — verifica siempre de forma independiente. NO conectes tu billetera ni firmes ninguna transacción hasta estar seguro.'
+          ? '🛑 Una o más bases de datos de seguridad han reportado este sitio. NO conectes tu billetera ni firmes transacciones hasta estar seguro.'
           : data.verdict === 'yellow'
-          ? '⚠️ Este sitio tiene historial de escaneo limitado. Solo conecta tu billetera a sitios que encontraste tú mismo — nunca a través de un enlace en un mensaje directo o correo electrónico.'
-          : '✅ No se detectaron amenazas en todas las fuentes. Siempre verifica la URL en la barra de tu navegador antes de firmar cualquier transacción — incluso los sitios de apariencia segura pueden ser typosquatted.';
+          ? '⚠️ Este sitio tiene historial de escaneo limitado. Solo conecta tu billetera a sitios que encontraste tú mismo.'
+          : '✅ No se detectaron amenazas. Verifica siempre la URL en tu navegador antes de firmar cualquier transacción.';
 
       result.hidden = false;
       if (typeof (window as any).gtag === 'function') {
@@ -1586,12 +1690,8 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
           event_label: data.verdict ?? 'unknown',
         });
       }
-    } catch (e) {
-      errBox.textContent = `Verificación fallida: ${e instanceof Error ? e.message : 'Error desconocido'}. Inténtalo de nuevo.`;
-      errBox.hidden = false;
-    } finally {
-      setLoading(false);
-    }
+      btn.disabled = false;
+    }, 1_400);
   }
 
   btn.addEventListener('click', runCheck);

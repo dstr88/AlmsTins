@@ -266,6 +266,8 @@ export const GET: APIRoute = async ({ url }) => {
     return json({ error: true, message: 'url parameter is required' }, 400);
   }
 
+  const phase = url.searchParams.get('phase') ?? 'all';
+
   // Normalize
   const fullUrl = rawInput.startsWith('http') ? rawInput : `https://${rawInput}`;
   const domain  = extractDomain(fullUrl);
@@ -273,6 +275,26 @@ export const GET: APIRoute = async ({ url }) => {
   // Trigger background list refresh (non-blocking — lists may still be loading
   // on first cold-start request; static checkers return "warming up" if so)
   refreshLists();
+
+  // Fast phase: only static in-memory list checks (~instant, no network calls)
+  if (phase === 'fast') {
+    const sources: SourceResult[] = [
+      checkMetaMask(domain),
+      checkScamSniffer(domain),
+      checkOpenPhish(fullUrl),
+    ];
+    const anyFlagged  = sources.some((s) => s.verdict === 'flagged');
+    const isKnownSafe = sources[0].verdict === 'whitelisted';
+    const verdict: 'red' | 'yellow' | 'green' =
+      isKnownSafe ? 'green' :
+      anyFlagged  ? 'red'   :
+      sources.some((s) => s.verdict === 'unscanned') ? 'yellow' :
+      'green';
+    return new Response(
+      JSON.stringify({ url: fullUrl, domain, verdict, sources, vtPending: false }),
+      { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
+    );
+  }
 
   // Env-var-gated sources
   const gsb  = (process.env as any).GOOGLE_SAFE_BROWSING_KEY ?? import.meta.env.GOOGLE_SAFE_BROWSING_KEY ?? '';
@@ -297,10 +319,13 @@ export const GET: APIRoute = async ({ url }) => {
   ];
 
   // Overall verdict
-  const anyFlagged = sources.some((s) => s.verdict === 'flagged');
-  const anyError   = sources.every((s) => s.verdict === 'error' || s.verdict === 'skipped');
-  const unscanned  = !anyFlagged && sources.some((s) => s.verdict === 'unscanned');
+  const anyFlagged  = sources.some((s) => s.verdict === 'flagged');
+  const anyError    = sources.every((s) => s.verdict === 'error' || s.verdict === 'skipped');
   const isKnownSafe = sources.find((s) => s.name === 'MetaMask Blocklist')?.verdict === 'whitelisted';
+
+  // VT "unscanned" means it was just submitted — not a security signal, don't penalise the verdict
+  const vtPending = vtResult.verdict === 'unscanned';
+  const unscanned = !anyFlagged && sources.some((s) => s.verdict === 'unscanned' && s.name !== 'VirusTotal');
 
   const verdict: 'red' | 'yellow' | 'green' =
     isKnownSafe ? 'green' :
@@ -309,7 +334,7 @@ export const GET: APIRoute = async ({ url }) => {
     'green';
 
   return new Response(
-    JSON.stringify({ url: fullUrl, domain, verdict, sources }),
+    JSON.stringify({ url: fullUrl, domain, verdict, sources, vtPending }),
     {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
