@@ -83,7 +83,7 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 	const displayLabel = walletLabel || (walletAddress ? walletAddress.slice(-5) : walletId);
 
 	return (
-		<div className="wallet-card" style={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '1rem' }}>
+		<div className="wallet-card" style={{ border: '1px solid var(--border-bright)', borderRadius: '12px', padding: '1rem' }}>
 			<div className="wallet-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 				<h3 className="wallet-title" style={{ margin: 0 }}>
 					{displayLabel}
@@ -101,7 +101,7 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 			{loading && <p style={{ margin: '0.5rem 0' }}>Loading balances…</p>}
 
 			{error && (
-				<p style={{ margin: '0.5rem 0', color: '#fca5a5' }}>
+				<p style={{ margin: '0.5rem 0', color: 'var(--loss)' }}>
 					Error: {error}
 				</p>
 			)}

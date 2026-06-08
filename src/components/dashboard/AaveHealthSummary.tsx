@@ -578,7 +578,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true }: { 
 							plPct !== null && item.amount != null
 								? (currentPrice! - basisPrice!) * item.amount
 								: null;
-						const plColor = plPct === null ? undefined : plPct >= 0 ? '#86efac' : '#fca5a5';
+						const plColor = plPct === null ? undefined : plPct >= 0 ? 'var(--gain)' : 'var(--loss)';
 						const plLabel = plPct !== null
 							? `${plPct >= 0 ? '+' : ''}${plPct.toFixed(1)}%`
 							: '—';

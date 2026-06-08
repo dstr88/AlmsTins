@@ -50,7 +50,7 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 			<div className="breakdown">
 				{protocols.length > 0 ? protocols.map((name) => (
 					<div className="stat-row" key={name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-						<span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2dd4bf', flexShrink: 0, display: 'inline-block' }} />
+						<span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, display: 'inline-block' }} />
 						<span className="label">{name}</span>
 					</div>
 				)) : (
@@ -72,7 +72,7 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 						))}
 						{unnamed.map((p) => (
 							<div className="stat-row" key={p.programId}>
-								<span className="label" style={{ fontFamily: 'monospace', fontSize: '0.75em', color: '#94a3b8' }}>
+								<span className="label" style={{ fontFamily: 'monospace', fontSize: '0.75em', color: 'var(--text-secondary)' }}>
 									{p.programId.slice(0, 8)}…{p.programId.slice(-4)}
 								</span>
 							</div>
