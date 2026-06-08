@@ -94,8 +94,8 @@ function AlertPill({ walletId }: { walletId: string }) {
 
 	const isActive = pref?.enabled === true;
 	const pillLabel = isActive
-		? `🔔 HF ${pref!.direction === 'below' ? '<' : '>'} ${pref!.threshold}`
-		: '🔔 Set Alert';
+		? `HF ${pref!.direction === 'below' ? '<' : '>'} ${pref!.threshold}`
+		: 'Set Alert';
 
 	return (
 		<div className="alert-pill-wrap" ref={panelRef}>

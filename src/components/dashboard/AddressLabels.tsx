@@ -257,7 +257,7 @@ export function AddressLabels({ labels: initial }: Props) {
 							transition: 'background 0.15s',
 						}}
 					>
-						{scanning ? '⏳ Scanning…' : '📷 Scan Screenshot'}
+						{scanning ? 'Scanning…' : 'Scan Screenshot'}
 					</button>
 				</div>
 

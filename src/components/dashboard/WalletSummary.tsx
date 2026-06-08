@@ -664,7 +664,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											}
 										}
 										const valueNode = isUnverified ? (
-											<abbr title="Unverified contract — price cannot be confirmed" className="wallet-summary__cell--value-unverified">❓</abbr>
+											<abbr title="Unverified contract — price cannot be confirmed" className="wallet-summary__cell--value-unverified">?</abbr>
 										) : resolvedUsd !== null ? (
 											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{currencyFormatter.format(resolvedUsd)}</span>
 										) : (
@@ -842,7 +842,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											}
 										}
 										const valueNode = isUnverified ? (
-											<abbr title="Unverified contract — price cannot be confirmed" className="wallet-summary__cell--value-unverified">❓</abbr>
+											<abbr title="Unverified contract — price cannot be confirmed" className="wallet-summary__cell--value-unverified">?</abbr>
 										) : resolvedUsd !== null ? (
 											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{currencyFormatter.format(resolvedUsd)}</span>
 										) : (

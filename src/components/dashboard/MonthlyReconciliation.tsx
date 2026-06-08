@@ -193,7 +193,7 @@ export default function MonthlyReconciliationTile() {
 							display: 'flex', flexDirection: 'column', gap: '0.3rem',
 						}}>
 							<span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-								⚠ {data.unmatchedTxCount} unmatched transfer{data.unmatchedTxCount !== 1 ? 's' : ''} — data gap detected
+								{data.unmatchedTxCount} unmatched transfer{data.unmatchedTxCount !== 1 ? 's' : ''} — data gap detected
 							</span>
 							{data.unmatchedOutUsd > 0 && (
 								<span>Sent out with no inbound record: {usd(data.unmatchedOutUsd)} — transaction may have disappeared from source data</span>
@@ -231,7 +231,7 @@ export default function MonthlyReconciliationTile() {
 								<span>Asset</span>
 								<span style={{ textAlign: 'right' }}>In</span>
 								<span style={{ textAlign: 'right' }}>Out</span>
-								<span style={{ textAlign: 'right' }}>⚠ Gap</span>
+								<span style={{ textAlign: 'right' }}>Gap</span>
 							</div>
 							{data.assets.map((a) => {
 								const hasGap = a.unmatchedOutUsd > 0 || a.unmatchedInUsd > 0;

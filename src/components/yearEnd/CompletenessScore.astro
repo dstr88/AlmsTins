@@ -95,7 +95,7 @@ const uid = `cs-${Math.random().toString(36).slice(2, 8)}`;   // unique per inst
 // ── Helpers ────────────────────────────────────────────────────────────────
 const CIRCUMFERENCE = 2 * Math.PI * 36;  // 226.19
 
-const STATUS_ICON = { ok: '✅', warning: '⚠️', error: '❌', na: '➖' };
+const STATUS_ICON = { ok: '✓', warning: '!', error: '✕', na: '–' };
 const STATUS_COLOR = {
 	ok:      { text: '#059669', badge: 'bg-emerald-100 text-emerald-700' },
 	warning: { text: '#d97706', badge: 'bg-amber-100 text-amber-700' },
@@ -170,7 +170,7 @@ async function loadCompleteness() {
 			pillarsEl.innerHTML = '';
 			for (const p of pillars) {
 				const sc    = STATUS_COLOR[p.status] || STATUS_COLOR.na;
-				const icon  = STATUS_ICON[p.status]  || '➖';
+				const icon  = STATUS_ICON[p.status]  || '–';
 				const pct   = Math.round((p.score / p.maxScore) * 100);
 				const barW  = pct;
 

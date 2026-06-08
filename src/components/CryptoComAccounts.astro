@@ -301,7 +301,7 @@ try {
 	</button>
 
 	{tinError ? (
-		<p class="crypto-accounts__error">⚠ Temporarily unavailable — try refreshing</p>
+		<p class="crypto-accounts__error">Temporarily unavailable — try refreshing</p>
 	) : accountsWithHoldings.length ? (
 		<div class="crypto-accounts__list">
 		<p class="crypto-accounts__section-label">Account</p>
@@ -352,7 +352,7 @@ try {
 											{holding.stakingYtd > 0 && (
 												<div class="exchange-holding__row exchange-holding__row--staking">
 													<div class="exchange-holding__field exchange-holding__field--numeric">
-														<span class="exchange-holding__label">⚡ Earned {CURRENT_YEAR}</span>
+														<span class="exchange-holding__label">Earned {CURRENT_YEAR}</span>
 														<span class="exchange-holding__value">
 															{formatNumber(holding.stakingYtd, { maximumFractionDigits: 8 })}
 															{holding.stakingYtdUsd !== null && (
@@ -474,8 +474,8 @@ try {
 			}
 			if (status instanceof HTMLElement) {
 				const msg = payload.insertedNormalized === 0
-					? `⚠️ No new rows — ${payload.skippedDuplicates} duplicates skipped (already imported).`
-					: `✅ Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
+					? `No new rows — ${payload.skippedDuplicates} duplicates skipped (already imported).`
+					: `✓ Imported ${payload.insertedNormalized} rows, skipped ${payload.skippedDuplicates} duplicates.`;
 				status.textContent = msg;
 			}
 			if (accountIndex > 1) {

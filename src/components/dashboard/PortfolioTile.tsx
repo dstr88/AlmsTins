@@ -226,7 +226,7 @@ export default function PortfolioTile() {
 			{/* ── Aave debt footnote (not included above) ────────── */}
 			{debtTotal > 0 && (
 				<p className="pt-debt-note">
-					⚠ {fmtFull.format(debtTotal)} Aave debt not reflected above
+					{fmtFull.format(debtTotal)} Aave debt not reflected above
 				</p>
 			)}
 

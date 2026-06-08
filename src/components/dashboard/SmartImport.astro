@@ -75,7 +75,7 @@ import './SmartImport.css';
     if (files.length) {
       processFiles(files);
     } else {
-      showToast('error', '❌ Not a supported file type. Drop a CSV or ZIP export from a supported exchange.', 6000);
+      showToast('error', 'Not a supported file type. Drop a CSV or ZIP export from a supported exchange.', 6000);
     }
   });
 
@@ -87,7 +87,7 @@ import './SmartImport.css';
     // Inline result row (keeps a history below the dropzone)
     const row = addResult('processing', file.name, `Detecting exchange…`);
     // Toast in the corner — immediately visible
-    activeToast = showToast('processing', `⏳ Uploading ${file.name}…`, 0);
+    activeToast = showToast('processing', `Uploading ${file.name}…`, 0);
 
     try {
       // Step 1: detect
@@ -99,12 +99,12 @@ import './SmartImport.css';
       if (!detected.detected) {
         const msg = detected.error ?? 'Unknown format';
         setResult(row, 'error', file.name, msg);
-        swapToast('error', `❌ ${msg}`, 8000);
+        swapToast('error', msg,8000);
         return;
       }
 
       setResult(row, 'processing', file.name, `Detected: ${detected.name} — importing…`);
-      swapToast('processing', `⏳ ${detected.name} detected — importing…`, 0);
+      swapToast('processing', `${detected.name} detected — importing…`, 0);
 
       // Step 2: import
       const importForm = new FormData();
@@ -115,14 +115,14 @@ import './SmartImport.css';
       if (!importRes.ok || result.error) {
         const msg = result.error ?? `Import failed (${importRes.status})`;
         setResult(row, 'error', file.name, msg);
-        swapToast('error', `❌ ${msg}`, 10000);
+        swapToast('error', msg,10000);
         return;
       }
 
       const inserted = result.insertedNormalized ?? result.inserted ?? result.count ?? '?';
       const dupes    = result.skippedDuplicates  ?? result.skipped  ?? null;
       const skipped  = dupes != null ? ` · ${dupes} dupes skipped` : '';
-      const successMsg = `✅ ${detected.name} — ${inserted} rows imported${skipped}`;
+      const successMsg = `${detected.name} — ${inserted} rows imported${skipped}`;
 
       setResult(row, 'success', file.name, successMsg);
       swapToast('success', successMsg, 7000);
@@ -132,7 +132,7 @@ import './SmartImport.css';
     } catch (err) {
       const msg = `Unexpected error: ${err?.message ?? err}`;
       setResult(row, 'error', file.name, msg);
-      swapToast('error', `❌ ${msg}`, 10000);
+      swapToast('error', msg,10000);
     }
   }
 
@@ -157,7 +157,7 @@ import './SmartImport.css';
   function resultHTML(state, filename, message) {
     const icon = state === 'processing'
       ? '<div class="si-spinner"></div>'
-      : `<span class="si-icon">${state === 'success' ? '✅' : '❌'}</span>`;
+      : `<span class="si-icon" style="color:${state === 'success' ? 'var(--gain)' : 'var(--loss)'}">${state === 'success' ? '✓' : '✕'}</span>`;
     return `${icon}<div class="si-text"><div>${message}</div><div class="si-file">${filename}</div></div>`;
   }
 })();
