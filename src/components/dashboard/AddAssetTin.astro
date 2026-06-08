@@ -16,13 +16,22 @@ import './AddAssetTin.css';
 		<span class="add-tin__plus" aria-hidden="true">＋</span>
 		<span class="add-tin__title">Add Asset</span>
 	</div>
-	<button
-		id="demo-clear-btn"
-		class="add-tin__demo-clear"
-		type="button"
-		title="Clear all demo data"
-		style="display:none"
-	>Delete All</button>
+	<div id="demo-clear-wrap" class="add-tin__demo-clear-wrap" style="display:none">
+		<button
+			id="demo-clear-btn"
+			class="add-tin__demo-clear"
+			type="button"
+			aria-label="Reset demo"
+			title="Reset demo"
+		>✕</button>
+		<div id="demo-clear-popover" class="add-tin__demo-popover" hidden>
+			<p class="add-tin__demo-popover__msg">Reset all demo data?</p>
+			<div class="add-tin__demo-popover__actions">
+				<button id="demo-clear-confirm" class="add-tin__demo-popover__confirm" type="button">Reset</button>
+				<button id="demo-clear-cancel"  class="add-tin__demo-popover__cancel"  type="button">Cancel</button>
+			</div>
+		</div>
+	</div>
 
 	<!-- Tab bar -->
 	<div class="add-tin__tabs" role="tablist">
@@ -505,18 +514,37 @@ import './AddAssetTin.css';
 			});
 		}
 
-		// Show the red "Delete All" pill
-		var clearBtn = document.getElementById('demo-clear-btn');
-		if (clearBtn) {
-			clearBtn.style.display = '';
-			clearBtn.addEventListener('click', function () {
+		// Show the ✕ reset button + wire up confirmation popover
+		var clearWrap    = document.getElementById('demo-clear-wrap');
+		var clearBtn     = document.getElementById('demo-clear-btn');
+		var clearPopover = document.getElementById('demo-clear-popover');
+		var clearConfirm = document.getElementById('demo-clear-confirm');
+		var clearCancel  = document.getElementById('demo-clear-cancel');
+		if (clearWrap && clearBtn && clearPopover && clearConfirm && clearCancel) {
+			clearWrap.style.display = '';
+
+			clearBtn.addEventListener('click', function (e) {
+				e.stopPropagation();
+				clearPopover.hidden = !clearPopover.hidden;
+			});
+
+			clearCancel.addEventListener('click', function () {
+				clearPopover.hidden = true;
+			});
+
+			clearConfirm.addEventListener('click', function () {
+				clearPopover.hidden = true;
 				fetch('/api/demo/cleanup', { method: 'POST' })
 					.catch(function () {})
 					.finally(function () {
-						// Delete All intentionally wipes then reloads — skip cleanup beacon
 						try { sessionStorage.setItem('demo-reloading', '1'); } catch(e) {}
 						window.location.reload();
 					});
+			});
+
+			// Close popover on outside click
+			document.addEventListener('click', function (e) {
+				if (!clearWrap.contains(e.target)) clearPopover.hidden = true;
 			});
 		}
 

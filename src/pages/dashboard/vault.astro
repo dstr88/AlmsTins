@@ -9,7 +9,6 @@ import WalletSummary from '../../components/dashboard/WalletSummary';
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
 import SolanaDefiSummary from '@/components/dashboard/SolanaDefiSummary';
 import SovrynDefiSummary from '@/components/dashboard/SovrynDefiSummary';
-import VaultNftActivity from '@/components/dashboard/VaultNftActivity';
 import CryptoComAccounts from '../../components/CryptoComAccounts.astro';
 import ExchangeAccounts from '../../components/ExchangeAccounts.astro';
 import NetWorthOverviewCard from '../../components/dashboard/NetWorthOverviewCard';
@@ -241,7 +240,7 @@ const getChainBadge = (chains: string[]): string => {
 									</div>
 									<WalletSummary client:only="react" walletId={wallet.id} initialData={fullData} walletCreatedAt={wallet.createdAt ?? null} />
 								</SalmonTin>
-								{!wallet.chains.every(c => c === 'bitcoin') && (
+								{!wallet.chains.every(c => c === 'bitcoin' || c === 'litecoin') && (
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label" data-defi-summary-label>
@@ -255,17 +254,11 @@ const getChainBadge = (chains: string[]): string => {
 										? <SolanaDefiSummary  client:only="react" walletId={wallet.id} />
 										: wallet.chains.includes('rootstock')
 										? <SovrynDefiSummary  client:only="react" walletId={wallet.id} />
-										: <AaveHealthSummary  client:only="react" walletId={wallet.id} />
+										: <AaveHealthSummary  client:only="react" walletId={wallet.id} showHealthRow={false} />
 									}
 								</SalmonTin>
 								)}
-								<SalmonTin label="NFTs" class="wallet-tin--future is-collapsed">
-									<div slot="summary" class="tin-summary">
-										<span class="tin-summary__label">NFTs</span>
-										<span class="tin-summary__value" data-nft-summary-value>—</span>
-									</div>
-									<VaultNftActivity client:only="react" walletId={wallet.id} />
-								</SalmonTin>
+								{/* NFT tin removed — HTML/webpage NFTs can't render as images; spam airdrops dominate */}
 							</div>
 						</div>
 					);
@@ -381,21 +374,17 @@ const getChainBadge = (chains: string[]): string => {
 		const updateDefiSummary = (tin:any) => {
 			const labelEl = tin.querySelector('[data-defi-summary-label]');
 			const valueEl = tin.querySelector('[data-defi-summary-value]');
-			const sourceLabel = tin.querySelector('.stat-row.health .label');
-			const sourceValue = tin.querySelector('.stat-row.health .value');
+			const sourceRow   = tin.querySelector('.stat-row.health');
+			const sourceLabel = sourceRow?.querySelector('.label');
+			const sourceValue = sourceRow?.querySelector('.value');
 			if (labelEl instanceof HTMLElement && sourceLabel instanceof HTMLElement) {
 				labelEl.textContent = sourceLabel.textContent?.trim() || 'Health';
 			}
 			if (valueEl instanceof HTMLElement && sourceValue instanceof HTMLElement) {
 				valueEl.textContent = sourceValue.textContent?.trim() || '—';
+				const color = (sourceRow instanceof HTMLElement ? sourceRow.dataset.healthColor : '') || '';
+				valueEl.style.color = color;
 			}
-		};
-
-		const updateNftSummary = (tin:any) => {
-			const valueEl = tin.querySelector('[data-nft-summary-value]');
-			if (!(valueEl instanceof HTMLElement)) return;
-			const count = tin.querySelectorAll('.vault-nft').length;
-			valueEl.textContent = count ? String(count) : '—';
 		};
 
 		const attachSummaryObserver = (tin:any, updater:any) => {
@@ -408,7 +397,6 @@ const getChainBadge = (chains: string[]): string => {
 
 		document.querySelectorAll('.wallet-summary-tin').forEach((tin) => attachSummaryObserver(tin, updateWalletSummary));
 		document.querySelectorAll('.defi-summary-tin').forEach((tin) => attachSummaryObserver(tin, updateDefiSummary));
-		document.querySelectorAll('.wallet-tin--future').forEach((tin) => attachSummaryObserver(tin, updateNftSummary));
 
 		// Copy wallet address on button click
 		document.querySelectorAll('.wallet-copy-btn').forEach((btn) => {

@@ -779,6 +779,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 		'WETH',
 		'WBTC',
 		'BTC',
+		'LTC',
 		'LINK',
 		'POL',
 		'MATIC',
@@ -863,7 +864,7 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 			FISH:  new Set(['0x055a902303746382fbb7d18f6ae0df56efdc5213']),
 		},
 	};
-	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock']);
+	const allowedChains = new Set(['ethereum', 'polygon', 'avalanche', 'solana', 'sui', 'rootstock', 'bitcoin', 'litecoin']);
 
 	function normalizeSymbol(symbol: string) {
 		const upper = symbol.toUpperCase();
@@ -1009,6 +1010,8 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
 				if (tokenSymbol === 'PYTH') fallbackPrice = 0.25;  // updated Apr 2026
 				if (tokenSymbol === 'JTO')  fallbackPrice = 1.80;  // updated Apr 2026
 				if (tokenSymbol === 'BONK') fallbackPrice = 0.000018; // updated Apr 2026
+				if (tokenSymbol === 'BTC')  fallbackPrice = 95000; // updated Jun 2026
+				if (tokenSymbol === 'LTC')  fallbackPrice = 90;    // updated Jun 2026
 				// Rootstock / Sovryn fallbacks
 				if (tokenSymbol === 'RBTC' || tokenSymbol === 'WRBTC') fallbackPrice = 85000; // ~BTC price Apr 2026
 				if (tokenSymbol === 'SOV')   fallbackPrice = 0.45;   // updated Apr 2026

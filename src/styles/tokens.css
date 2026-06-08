@@ -43,4 +43,10 @@
 	--loss:        #ef4444;
 	--loss-bg:     rgba(239, 68, 68, 0.10);
 	--loss-border: rgba(239, 68, 68, 0.22);
+
+	/* ── Semantic: warning / caution (3) ──────────────────────────────────── */
+	/* Used exclusively for Aave health factor warning zone (HF 1.5–2.0).     */
+	--warning:        #f59e0b;
+	--warning-bg:     rgba(245, 158, 11, 0.10);
+	--warning-border: rgba(245, 158, 11, 0.22);
 }

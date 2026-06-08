@@ -253,7 +253,7 @@ function formatUsd(value: number) {
 	return currencyFormatter.format(value);
 }
 
-export default function AaveHealthSummary({ walletId, showAlertPill = true }: { walletId: string; showAlertPill?: boolean }) {
+export default function AaveHealthSummary({ walletId, showAlertPill = true, showHealthRow = true }: { walletId: string; showAlertPill?: boolean; showHealthRow?: boolean }) {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
 
 	useEffect(() => {
@@ -466,8 +466,9 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true }: { 
 		const first = state.healthByChain.find((entry) => entry.healthFactor !== null && entry.healthFactor !== undefined);
 		const hf = first?.healthFactor != null ? Number(first.healthFactor) : null;
 		if (hf === null || !Number.isFinite(hf)) return undefined;
-		if (hf < 1.5) return 'var(--loss)';
-		return undefined;
+		if (hf < 1.5)  return 'var(--loss)';
+		if (hf < 2.0)  return 'var(--warning)';
+		return 'var(--gain)';
 	}, [state]);
 
 	const healthRows = useMemo(() => {
@@ -521,13 +522,13 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true }: { 
 
 	return (
 		<div className="defi-stats">
-			<div className="stat-row health">
+			<div className="stat-row health" style={showHealthRow ? undefined : { display: 'none' }} data-health-color={healthColor ?? ''}>
 				<span className="label">{healthLabel}</span>
 				<span className="value" style={healthColor ? { color: healthColor } : undefined}>{healthText}</span>
 				{showAlertPill && <AlertPill walletId={walletId} />}
 			</div>
 
-			<div className="spacer spacer--lg"></div>
+			<div className="spacer spacer--lg" style={showHealthRow ? undefined : { display: 'none' }}></div>
 
 			<div className="stat-row">
 				<span className="label">Collateral</span>

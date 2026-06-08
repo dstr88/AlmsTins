@@ -308,35 +308,6 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
             </div>
           )}
 
-          {bd.nftHoldings.length > 0 && (
-            <>
-              <div class="nft-divider">
-                <span class="nft-divider__line"></span>
-                <span class="nft-divider__label">NFT Holdings</span>
-                <span class="nft-divider__line"></span>
-              </div>
-              <p class="nft-note">
-                Held NFTs are unrealized — no tax until sold. Cost basis unconfirmed.
-              </p>
-              <div class="tin-rows">
-                {bd.nftHoldings.map((nft) => (
-                  <div class="tin-row tin-row--nft">
-                    <span class="tin-row__asset nft-name">{nft.name}</span>
-                    {nft.symbol && nft.symbol !== nft.name && (
-                      <span class="tin-row__kind">{nft.symbol}</span>
-                    )}
-                    <span class="tin-row__date">{nft.chain}</span>
-                    <span class="tin-row__note">#{nft.tokenId.length > 12 ? nft.tokenId.slice(0, 10) + '…' : nft.tokenId}</span>
-                    {nft.url && (
-                      <a href={nft.url} target="_blank" rel="noopener noreferrer" class="nft-link">
-                        View ↗
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
         </OrnateTin>
       </div>
 
@@ -1109,34 +1080,6 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       font-style: italic;
     }
 
-    /* ── NFT sub-section ───────────────────────────────────── */
-    .nft-divider {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      margin: 1.25rem 0 0.5rem;
-    }
-    .nft-divider__line {
-      flex: 1;
-      height: 1px;
-      background: rgba(255,255,255,0.12);
-    }
-    .nft-divider__label {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      opacity: 0.45;
-      white-space: nowrap;
-    }
-    .nft-note {
-      font-size: 0.75rem;
-      opacity: 0.4;
-      font-style: italic;
-      margin: 0 0 0.5rem;
-      padding: 0 0.25rem;
-    }
-    .tin-row--nft { border-left: 3px solid rgba(139,92,246,0.5); }
 
     /* ── NFT Dust / Scam tin ─────────────────────────────────── */
     .dust-tin {
@@ -1200,15 +1143,6 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       color: #fca5a5;
       font-size: 0.82rem !important;
     }
-    .nft-name { font-size: 0.85rem !important; font-weight: 600; }
-    .nft-link {
-      margin-left: auto;
-      font-size: 0.75rem;
-      color: rgba(139,92,246,0.85);
-      text-decoration: none;
-    }
-    .nft-link:hover { text-decoration: underline; }
-
     /* ── "Confirmed held" checkbox ──────────────────────────── */
     .tin-row__confirm {
       display: inline-flex;

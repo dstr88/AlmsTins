@@ -271,29 +271,93 @@
 	margin-left: 0.25rem;
 }
 
-/* Demo-only "Delete All" pill — floats at top-right, mirrors heading chip position */
-.add-tin__demo-clear {
+/* Demo-only reset button — floats at top-right as a small ✕ icon */
+.add-tin__demo-clear-wrap {
 	position: absolute;
-	top: -12px;
+	top: -14px;
 	right: 1rem;
-	z-index: 2;
-	padding: 0.2rem 0.65rem;
-	border-radius: 999px;
+	z-index: 10;
+}
+
+.add-tin__demo-clear {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
 	border: 1px solid var(--loss-border);
-	background: var(--loss-bg);
+	background: var(--surface-card);
 	color: var(--loss);
-	font-size: 0.68rem;
-	font-weight: 700;
-	text-transform: uppercase;
-	letter-spacing: 0.08em;
+	font-size: 0.75rem;
+	line-height: 1;
 	cursor: pointer;
-	transition: background 0.15s, border-color 0.15s;
+	transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .add-tin__demo-clear:hover {
 	background: var(--loss-bg);
 	border-color: var(--loss);
 	color: var(--text-primary);
+}
+
+.add-tin__demo-popover {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: 0;
+	min-width: 160px;
+	background: var(--surface-card-2);
+	border: 1px solid var(--loss-border);
+	border-radius: 10px;
+	padding: 0.65rem 0.75rem 0.6rem;
+	box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+.add-tin__demo-popover__msg {
+	margin: 0 0 0.5rem;
+	font-size: 0.78rem;
+	color: var(--text-secondary);
+	white-space: nowrap;
+}
+
+.add-tin__demo-popover__actions {
+	display: flex;
+	gap: 0.4rem;
+}
+
+.add-tin__demo-popover__confirm {
+	flex: 1;
+	padding: 0.3rem 0.5rem;
+	border-radius: 6px;
+	border: 1px solid var(--loss-border);
+	background: var(--loss-bg);
+	color: var(--loss);
+	font-size: 0.75rem;
+	font-weight: 700;
+	cursor: pointer;
+	transition: background 0.12s;
+}
+
+.add-tin__demo-popover__confirm:hover {
+	background: rgba(239,68,68,0.2);
+}
+
+.add-tin__demo-popover__cancel {
+	flex: 1;
+	padding: 0.3rem 0.5rem;
+	border-radius: 6px;
+	border: 1px solid var(--border-bright);
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 0.75rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.12s;
+}
+
+.add-tin__demo-popover__cancel:hover {
+	background: var(--surface-hover);
+	color: var(--text-secondary);
 }
 
 .add-tin__demo-samples {

@@ -48,11 +48,13 @@ const DEMO_TABLES = [
 ];
 
 const ADDR_BTC  = 'bc1qbtcdemo0wallet000000000000000000000000';
+const ADDR_LTC  = 'ltc1qltcdemo0wallet00000000000000000000000';
 const ADDR_ETH  = '0xe1000000000000000000000000000000000000e1';
 const ADDR_POL  = '0xde000000000000000000000000000000000000de';
 const ADDR_AVAX = '0xab000000000000000000000000000000000000ab';
 
 const GRP_BTC  = 'DEMO-GRP-BTC-000000000000000000000001';
+const GRP_LTC  = 'DEMO-GRP-LTC-000000000000000000000001';
 const GRP_ETH  = 'DEMO-GRP-ETH-000000000000000000000001';
 const GRP_AVAX = 'DEMO-GRP-AVX-000000000000000000000001';
 const GRP_MATIC = 'DEMO-GRP-MAT-000000000000000000000001';
@@ -91,15 +93,20 @@ export const GET: APIRoute = async ({ request }) => {
 		})),
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`aave:health:${ADDR_ETH.toLowerCase()}`] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`aave:health:${ADDR_AVAX.toLowerCase()}`] },
+		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`aave:health:${ADDR_POL.toLowerCase()}`] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`t:${DEMO_TENANT_ID}:networth:summary:v3`] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`t:${DEMO_TENANT_ID}:networth:summary:v2`] },
 	]);
 
 	// ── Phase 1: Independent inserts + cache — all run concurrently ───────────
-	// ── Demo portfolio: total wallet value ~$422 (well under $500 cap) ──────────
+	// ── Demo portfolio: total wallet value ~$542 (well under $500 cap per tin) ──
 	// BTC: 0.0015 × $70k = $105
 	const btcTokens = [
 		{ symbol: 'BTC', amount: 0.0015, priceUsd: 70_000, valueUsd: 105.00, tokenAddress: null },
+	];
+	// LTC: 1.5 × $80 = $120 — shares the BTC / LTC tin
+	const ltcTokens = [
+		{ symbol: 'LTC', amount: 1.5, priceUsd: 80, valueUsd: 120.00, tokenAddress: null },
 	];
 	// ETH wallet (ethereum chain): 0.018 ETH + 8 USDC = $53
 	const ethTokens = [
@@ -138,6 +145,29 @@ export const GET: APIRoute = async ({ request }) => {
 			},
 		},
 	};
+	// Aave V3 Polygon — healthy position, HF 2.88 (green zone)
+	// Collateral: WBTC $14 + WETH $20 + USDC $20 = $54 | Debt: 15 USDC
+	const polAaveCachePayload = {
+		ok: true,
+		address: ADDR_POL.toLowerCase(),
+		asOf: new Date().toISOString(),
+		chains: {
+			polygon: {
+				chainId: 137,
+				market: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
+				healthFactor: 2.88,
+				totalCollateralBase: 54.00,
+				totalDebtBase: 15.00,
+				userSupplies: [
+					{ currency: { symbol: 'WBTC' }, balance: { amount: { value: '0.0002' } } },
+					{ currency: { symbol: 'WETH' }, balance: { amount: { value: '0.008'  } } },
+					{ currency: { symbol: 'USDC' }, balance: { amount: { value: '20'     } } },
+				],
+				userBorrows: [{ currency: { symbol: 'USDC' }, debt: { amount: { value: '15.0' } } }],
+			},
+		},
+	};
+
 	const cbTokens  = [{ symbol: 'USDC', amount: 85, priceUsd: 1, valueUsd: 85, tokenAddress: null }];
 	const cryTokens = [{ symbol: 'USDC', amount: 72, priceUsd: 1, valueUsd: 72, tokenAddress: null }];
 
@@ -171,7 +201,7 @@ export const GET: APIRoute = async ({ request }) => {
 			{
 				sql: `INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
 				      VALUES (?, ?, ?, ?, ?, 0, 'onchain')`,
-				args: [W_BTC, DEMO_TENANT_ID, ADDR_BTC, 'Bitcoin Cold Storage', JSON.stringify(['bitcoin'])],
+				args: [W_BTC, DEMO_TENANT_ID, ADDR_BTC, 'BTC / LTC Cold Storage', JSON.stringify(['bitcoin', 'litecoin'])],
 			},
 			{
 				sql: `INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
@@ -193,6 +223,7 @@ export const GET: APIRoute = async ({ request }) => {
 		// 8 asset lifecycle groups (no wallet dependency)
 		batch('lifecycle-groups', [
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_BTC,  DEMO_TENANT_ID, 'BTC',  0.0015,     28_500, '2021-06-15T00:00:00.000Z', '2021-06-15T00:00:00.000Z', '2021-06-15T00:00:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_LTC,  DEMO_TENANT_ID, 'LTC',  1.5,           55, '2022-11-01T00:00:00.000Z', '2022-11-01T00:00:00.000Z', '2022-11-01T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_ETH,  DEMO_TENANT_ID, 'ETH',  0.018,       3_200, '2021-10-05T00:00:00.000Z', '2021-10-05T00:00:00.000Z', '2021-10-05T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_AVAX, DEMO_TENANT_ID, 'AVAX', 1.5,            18, '2024-03-10T00:00:00.000Z', '2024-03-10T00:00:00.000Z', '2024-03-10T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_MATIC,DEMO_TENANT_ID, 'POL',  300,          0.80, '2021-09-01T00:00:00.000Z', '2021-09-01T00:00:00.000Z', '2021-09-01T00:00:00.000Z'] },
@@ -237,6 +268,8 @@ export const GET: APIRoute = async ({ request }) => {
 		setCache(`aave:health:${ADDR_ETH.toLowerCase()}`, aaveCachePayload, 24 * 60 * 60),
 		// Avalanche Aave position — health factor 1.05, near liquidation
 		setCache(`aave:health:${ADDR_AVAX.toLowerCase()}`, avaxAaveCachePayload, 24 * 60 * 60),
+		// Polygon Aave position — health factor 2.88, healthy (green)
+		setCache(`aave:health:${ADDR_POL.toLowerCase()}`, polAaveCachePayload, 24 * 60 * 60),
 	]);
 
 	console.log('[demo-seed] phase 1 done — wallets:', { W_BTC, W_ETH, W_POL, W_AVAX }, 'accounts:', { ACCT_CB, ACCT_CRY });
@@ -271,6 +304,11 @@ export const GET: APIRoute = async ({ request }) => {
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
 				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+				args: [DEMO_TENANT_ID, W_BTC, 'litecoin', 120.00, JSON.stringify(ltcTokens)],
+			},
+			{
+				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
+				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
 				args: [DEMO_TENANT_ID, W_ETH, 'ethereum', 53.00, JSON.stringify(ethTokens)],
 			},
 			{
@@ -288,6 +326,7 @@ export const GET: APIRoute = async ({ request }) => {
 		// lifecycle events (need group IDs)
 		batch('lifecycle-events', [
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-btc-buy',    GRP_BTC,   '2021-06-15T14:22:00.000Z', 'in',  'wallet', 'demo-evt-btc-buy-tx',    0.0015,     42.75, '2021-06-15T14:22:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-ltc-buy',    GRP_LTC,   '2022-11-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-ltc-buy-tx',    1.5,        82.50, '2022-11-01T10:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-eth-buy',    GRP_ETH,   '2021-10-05T11:00:00.000Z', 'in',  'wallet', 'demo-evt-eth-buy-tx',    0.023,      73.60, '2021-10-05T11:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-matic-buy',  GRP_MATIC, '2021-09-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-matic-buy-tx',  500,       400.00, '2021-09-01T10:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-eth-sell',   GRP_ETH,   '2023-08-10T09:30:00.000Z', 'out', 'wallet', 'demo-evt-eth-sell-tx',   0.005,       9.00, '2023-08-10T09:30:00.000Z'] },
@@ -310,6 +349,25 @@ export const GET: APIRoute = async ({ request }) => {
 				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
 				      VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
 				args: [DEMO_TENANT_ID, W_ETH, ethDefiHealth, ethDefiPositions],
+			},
+			{
+				sql: `INSERT OR REPLACE INTO wallet_defi_sync
+				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
+				      VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
+				args: [
+					DEMO_TENANT_ID, W_POL,
+					JSON.stringify({ ok: true, address: ADDR_POL, chains: { polygon: { healthFactor: 2.88, totalCollateralBase: 54.00, totalDebtBase: 15.00, availableBorrowsBase: 0 } } }),
+					JSON.stringify({ ok: true, address: ADDR_POL, chains: { polygon: {
+						chainId: 137,
+						market: '0x794a61358D6845594F94dc1DB02A252b5b4814aD',
+						positions: [
+							{ side: 'supply', marketName: 'Aave V3 Polygon', assetSymbol: 'WBTC', amount: 0.0002, apy: 0.009 },
+							{ side: 'supply', marketName: 'Aave V3 Polygon', assetSymbol: 'WETH', amount: 0.008,  apy: 0.024 },
+							{ side: 'supply', marketName: 'Aave V3 Polygon', assetSymbol: 'USDC', amount: 20,     apy: 0.048 },
+							{ side: 'borrow', marketName: 'Aave V3 Polygon', assetSymbol: 'USDC', amount: 15.00,  apy: 0.060 },
+						],
+					}}}),
+				],
 			},
 			{
 				sql: `INSERT OR REPLACE INTO wallet_defi_sync
