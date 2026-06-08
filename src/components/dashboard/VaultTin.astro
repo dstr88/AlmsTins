@@ -33,11 +33,11 @@ const hasSummary = Astro.slots.has('summary');
 <!-- Global so they override SalmonTin's scoped salmon styles -->
 <style is:global>
 	.vault-tin--exchange {
-		border-color: #d97706 !important;
-		background: #191200 !important;
+		border-color: var(--accent) !important;
+		background: var(--surface-card-2) !important;
 	}
 	.vault-tin--exchange > .salmon-tin__label {
-		background: #d97706 !important;
-		color: #1a0f00 !important;
+		background: var(--accent) !important;
+		color: var(--surface-card-2) !important;
 	}
 </style>

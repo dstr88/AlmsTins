@@ -237,7 +237,7 @@ export function PriceWatchlist() {
 			<div
 				className="price-watchlist-card"
 				style={{
-					backgroundColor: '#3b4a46',
+					backgroundColor: 'var(--surface-card-2)',
 					borderRadius: '12px',
 					padding: '1rem 1.25rem',
 					display: 'flex',
@@ -245,7 +245,7 @@ export function PriceWatchlist() {
 					gap: '0.5rem',
 					minHeight: '240px',
 					height: '100%',
-					color: '#f7f2eb',
+					color: 'var(--text-primary)',
 				}}
 			>
 				<div
@@ -285,8 +285,8 @@ export function PriceWatchlist() {
 									width: '32px',
 									height: '32px',
 									borderRadius: '50%',
-									border: '1px solid rgba(255,255,255,0.25)',
-									background: 'rgba(255,255,255,0.08)',
+									border: '1px solid var(--text-muted)',
+									background: 'var(--border-bright)',
 									display: 'inline-flex',
 									alignItems: 'center',
 									justifyContent: 'center',
@@ -303,9 +303,9 @@ export function PriceWatchlist() {
 								}}
 							>
 								{isExpanded ? (
-									<ChevronUp size={16} color="#f7f2eb" strokeWidth={2.4} />
+									<ChevronUp size={16} color="var(--text-primary)" strokeWidth={2.4} />
 								) : (
-									<ChevronDown size={16} color="#f7f2eb" strokeWidth={2.4} />
+									<ChevronDown size={16} color="var(--text-primary)" strokeWidth={2.4} />
 								)}
 							</button>
 						) : null}
@@ -334,9 +334,9 @@ export function PriceWatchlist() {
 							flex: '1 1 180px',
 							minWidth: '0',
 							borderRadius: '10px',
-							border: '1px solid rgba(255,255,255,0.25)',
+							border: '1px solid var(--text-muted)',
 							background: 'rgba(0,0,0,0.2)',
-							color: '#f7f2eb',
+							color: 'var(--text-primary)',
 							padding: '0.45rem 0.75rem',
 							fontSize: '0.9rem',
 						}}
@@ -347,9 +347,9 @@ export function PriceWatchlist() {
 						style={{
 							flex: '0 0 auto',
 							borderRadius: '10px',
-							border: '1px solid rgba(255,255,255,0.25)',
-							background: 'rgba(255,255,255,0.08)',
-							color: '#f7f2eb',
+							border: '1px solid var(--text-muted)',
+							background: 'var(--border-bright)',
+							color: 'var(--text-primary)',
 							padding: '0.45rem 0.9rem',
 							fontSize: '0.9rem',
 							cursor: 'pointer',
@@ -374,7 +374,7 @@ export function PriceWatchlist() {
 					<p
 						style={{
 							fontSize: '0.875rem',
-							color: '#fca5a5',
+							color: 'var(--loss)',
 						}}
 					>
 						{state.message}
@@ -410,7 +410,7 @@ export function PriceWatchlist() {
 								  })}`;
 
 							const changeLabel = '—';
-							const changeColor = 'rgba(255,255,255,0.7)';
+							const changeColor = 'var(--text-secondary)';
 
 							const isRemoving = removing.has(symbol);
 
@@ -434,7 +434,7 @@ export function PriceWatchlist() {
 									}}
 								>
 									<div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-										<GripVertical size={16} color="#c9d5d0" aria-hidden="true" />
+										<GripVertical size={16} color="var(--text-secondary)" aria-hidden="true" />
 										<div style={{ display: 'flex', flexDirection: 'column' }}>
 											<span style={{ fontWeight: 600 }}>{symbol}</span>
 											<span
@@ -495,9 +495,9 @@ export function PriceWatchlist() {
 													width: '26px',
 													height: '24px',
 													borderRadius: '8px',
-													border: '1px solid rgba(255,255,255,0.2)',
-													background: 'rgba(255,255,255,0.06)',
-													color: '#f7f2eb',
+													border: '1px solid var(--text-muted)',
+													background: 'var(--border-subtle)',
+													color: 'var(--text-primary)',
 													display: 'inline-flex',
 													alignItems: 'center',
 													justifyContent: 'center',
@@ -516,9 +516,9 @@ export function PriceWatchlist() {
 													width: '26px',
 													height: '24px',
 													borderRadius: '8px',
-													border: '1px solid rgba(255,255,255,0.2)',
-													background: 'rgba(255,255,255,0.06)',
-													color: '#f7f2eb',
+													border: '1px solid var(--text-muted)',
+													background: 'var(--border-subtle)',
+													color: 'var(--text-primary)',
 													display: 'inline-flex',
 													alignItems: 'center',
 													justifyContent: 'center',
@@ -537,9 +537,9 @@ export function PriceWatchlist() {
 												width: '32px',
 												height: '32px',
 												borderRadius: '10px',
-												border: '1px solid rgba(255,255,255,0.25)',
-												background: 'rgba(255,255,255,0.08)',
-												color: '#f7f2eb',
+												border: '1px solid var(--text-muted)',
+												background: 'var(--border-bright)',
+												color: 'var(--text-primary)',
 												display: 'inline-flex',
 												alignItems: 'center',
 												justifyContent: 'center',
@@ -576,11 +576,11 @@ export function PriceWatchlist() {
 					<div
 						key={toast.id}
 						style={{
-							background: 'rgba(59, 74, 70, 0.9)',
-							border: '1px solid rgba(250, 235, 215, 0.35)',
+							background: 'var(--surface-card-2)',
+							border: '1px solid var(--text-secondary)',
 							borderRadius: '10px',
 							padding: '0.55rem 0.8rem',
-							color: '#f7f2eb',
+							color: 'var(--text-primary)',
 							fontSize: '0.9rem',
 							boxShadow: '0 4px 10px rgba(0,0,0,0.25)',
 							pointerEvents: 'auto',

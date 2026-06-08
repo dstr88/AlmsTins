@@ -32,12 +32,13 @@ function truncateAddress(addr: string): string {
 }
 
 const NETWORK_COLORS: Record<string, string> = {
+	// Distinct per-network series colors (chart-readability exception, see CLAUDE.md)
 	EVM: '#a78bfa',
 	BTC: '#f97316',
 	LTC: '#94a3b8',
 	SOL: '#22d3ee',
 	SUI: '#34d399',
-	'???': 'rgba(255,255,255,0.3)',
+	'???': 'var(--text-muted)',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -45,9 +46,9 @@ const inputStyle: React.CSSProperties = {
 	minWidth: '180px',
 	padding: '0.45rem 0.75rem',
 	borderRadius: '8px',
-	border: '1px solid rgba(255,255,255,0.12)',
-	background: 'rgba(255,255,255,0.05)',
-	color: 'rgba(255,255,255,0.9)',
+	border: '1px solid var(--border-bright)',
+	background: 'var(--border-subtle)',
+	color: 'var(--text-secondary)',
 	fontSize: '0.875rem',
 	outline: 'none',
 	boxSizing: 'border-box' as const,
@@ -68,7 +69,7 @@ function CopyButton({ text }: { text: string }) {
 			style={{
 				background: 'none', border: 'none', cursor: 'pointer',
 				padding: '0 0.2rem',
-				color: copied ? '#4ade80' : 'rgba(255,255,255,0.3)',
+				color: copied ? 'var(--gain)' : 'var(--text-muted)',
 				fontSize: '0.8rem', lineHeight: 1, transition: 'color 0.15s', flexShrink: 0,
 			}}
 		>
@@ -193,7 +194,7 @@ export function AddressLabels({ labels: initial }: Props) {
 				<p style={{ margin: '0 0 0.15rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.45 }}>
 					Counterparties
 				</p>
-				<h2 style={{ margin: 0, fontSize: '1.55rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#fff' }}>
+				<h2 style={{ margin: 0, fontSize: '1.55rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
 					Address Labels
 				</h2>
 				<p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', opacity: 0.4, lineHeight: 1.5, maxWidth: '560px' }}>
@@ -203,8 +204,8 @@ export function AddressLabels({ labels: initial }: Props) {
 
 			{/* ── Add form ─────────────────────────────────────────────────── */}
 			<div style={{
-				background: 'rgba(255,255,255,0.025)',
-				border: '1px solid rgba(255,255,255,0.08)',
+				background: 'var(--border-subtle)',
+				border: '1px solid var(--border-bright)',
 				borderRadius: '14px',
 				padding: '1.25rem 1.35rem',
 			}}>
@@ -247,9 +248,9 @@ export function AddressLabels({ labels: initial }: Props) {
 							gap: '0.4rem',
 							padding: '0.35rem 0.85rem',
 							borderRadius: '8px',
-							border: '1px solid rgba(167,139,250,0.35)',
-							background: scanning ? 'rgba(167,139,250,0.06)' : 'rgba(167,139,250,0.12)',
-							color: scanning ? 'rgba(167,139,250,0.4)' : '#c4b5fd',
+							border: '1px solid var(--accent-dim)',
+							background: scanning ? 'var(--accent-soft)' : 'var(--accent-soft)',
+							color: scanning ? 'var(--accent-dim)' : 'var(--accent)',
 							fontWeight: 700,
 							fontSize: '0.78rem',
 							cursor: scanning ? 'not-allowed' : 'pointer',
@@ -265,9 +266,9 @@ export function AddressLabels({ labels: initial }: Props) {
 				{scanResult && (
 					<div style={{
 						fontSize: '0.78rem',
-						color: '#4ade80',
-						background: 'rgba(74,222,128,0.07)',
-						border: '1px solid rgba(74,222,128,0.2)',
+						color: 'var(--gain)',
+						background: 'var(--gain-bg)',
+						border: '1px solid var(--gain-bg)',
 						borderRadius: '7px',
 						padding: '0.45rem 0.75rem',
 						marginBottom: '0.75rem',
@@ -334,9 +335,9 @@ export function AddressLabels({ labels: initial }: Props) {
 						style={{
 							padding: '0.45rem 1.2rem',
 							borderRadius: '8px',
-							border: '1px solid rgba(34,211,238,0.4)',
-							background: saving ? 'rgba(34,211,238,0.05)' : 'rgba(34,211,238,0.12)',
-							color: saving ? 'rgba(34,211,238,0.35)' : '#67e8f9',
+							border: '1px solid var(--accent-dim)',
+							background: saving ? 'var(--accent-soft)' : 'var(--accent-soft)',
+							color: saving ? 'var(--accent-dim)' : 'var(--accent)',
 							fontWeight: 700,
 							fontSize: '0.875rem',
 							cursor: saving ? 'not-allowed' : 'pointer',
@@ -351,7 +352,7 @@ export function AddressLabels({ labels: initial }: Props) {
 					<p style={{
 						margin: '0.6rem 0 0',
 						fontSize: '0.8rem',
-						color: status.startsWith('✓') ? '#4ade80' : status.startsWith('Error') ? '#f87171' : 'rgba(255,255,255,0.5)',
+						color: status.startsWith('✓') ? 'var(--gain)' : status.startsWith('Error') ? 'var(--loss)' : 'var(--text-muted)',
 					}}>
 						{status}
 					</p>
@@ -363,9 +364,9 @@ export function AddressLabels({ labels: initial }: Props) {
 				<div style={{
 					padding: '2rem 1.5rem',
 					borderRadius: '14px',
-					border: '1px dashed rgba(255,255,255,0.09)',
+					border: '1px dashed var(--border-bright)',
 					textAlign: 'center',
-					color: 'rgba(255,255,255,0.3)',
+					color: 'var(--text-muted)',
 					fontSize: '0.875rem',
 				}}>
 					No address labels yet.
@@ -374,7 +375,7 @@ export function AddressLabels({ labels: initial }: Props) {
 				<div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
 					{labels.map(l => {
 						const network = detectNetwork(l.address);
-						const netColor = NETWORK_COLORS[network] ?? 'rgba(255,255,255,0.35)';
+						const netColor = NETWORK_COLORS[network] ?? 'var(--text-muted)';
 						return (
 							<div
 								key={l.id}
@@ -384,8 +385,8 @@ export function AddressLabels({ labels: initial }: Props) {
 									gap: '0.75rem',
 									padding: '0.75rem 1rem',
 									borderRadius: '10px',
-									background: 'rgba(255,255,255,0.03)',
-									border: '1px solid rgba(255,255,255,0.07)',
+									background: 'var(--border-subtle)',
+									border: '1px solid var(--border-bright)',
 									transition: 'background 0.12s',
 									flexWrap: 'wrap',
 								}}
@@ -409,6 +410,7 @@ export function AddressLabels({ labels: initial }: Props) {
 
 								{/* Category badge */}
 								{(() => {
+									// Distinct per-category series colors (chart-readability exception)
 									const catColors: Record<string, string> = {
 										defi:     '#a78bfa',
 										exchange: '#fbbf24',
@@ -424,7 +426,7 @@ export function AddressLabels({ labels: initial }: Props) {
 									};
 									const cat = l.category ?? '';
 									if (!cat || cat === 'counterparty') return null;
-									const color = catColors[cat] ?? 'rgba(255,255,255,0.4)';
+									const color = catColors[cat] ?? 'var(--text-muted)';
 									return (
 										<span style={{
 											fontSize: '0.65rem',
@@ -449,9 +451,9 @@ export function AddressLabels({ labels: initial }: Props) {
 										fontSize: '0.65rem',
 										fontWeight: 600,
 										letterSpacing: '0.05em',
-										color: '#94a3b8',
-										background: 'rgba(148,163,184,0.08)',
-										border: '1px solid rgba(148,163,184,0.18)',
+										color: 'var(--text-secondary)',
+										background: 'var(--surface-card-2)',
+										border: '1px solid var(--surface-card-2)',
 										padding: '0.15rem 0.45rem',
 										borderRadius: '999px',
 										flexShrink: 0,
@@ -466,7 +468,7 @@ export function AddressLabels({ labels: initial }: Props) {
 								<span style={{
 									fontWeight: 600,
 									fontSize: '0.9rem',
-									color: 'rgba(255,255,255,0.85)',
+									color: 'var(--text-secondary)',
 									minWidth: '100px',
 									flex: '0 0 auto',
 								}}>
@@ -487,7 +489,7 @@ export function AddressLabels({ labels: initial }: Props) {
 										gap: '0.2rem',
 										fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 										fontSize: '0.75rem',
-										color: 'rgba(255,255,255,0.4)',
+										color: 'var(--text-muted)',
 									}}>
 										{truncateAddress(l.address)}
 										<CopyButton text={l.address} />
@@ -495,7 +497,7 @@ export function AddressLabels({ labels: initial }: Props) {
 									{l.phone_number && (
 										<span style={{
 											fontSize: '0.72rem',
-											color: 'rgba(251,191,36,0.7)',
+											color: 'var(--accent)',
 											fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 											letterSpacing: '0.02em',
 										}}>
@@ -508,9 +510,9 @@ export function AddressLabels({ labels: initial }: Props) {
 								{l.source === 'auto' && (
 									<span style={{
 										fontSize: '0.65rem',
-										color: 'rgba(167,139,250,0.7)',
-										background: 'rgba(167,139,250,0.1)',
-										border: '1px solid rgba(167,139,250,0.2)',
+										color: 'var(--accent)',
+										background: 'var(--accent-soft)',
+										border: '1px solid var(--accent-soft)',
 										padding: '0.1rem 0.4rem',
 										borderRadius: '999px',
 										flexShrink: 0,
@@ -527,9 +529,9 @@ export function AddressLabels({ labels: initial }: Props) {
 										style={{
 											padding: '0.25rem 0.6rem',
 											borderRadius: '7px',
-											border: '1px solid rgba(248,113,113,0.3)',
+											border: '1px solid var(--loss-border)',
 											background: 'transparent',
-											color: 'rgba(248,113,113,0.7)',
+											color: 'var(--loss)',
 											fontSize: '0.75rem',
 											fontWeight: 600,
 											cursor: 'pointer',

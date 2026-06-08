@@ -29,7 +29,7 @@ export function TinColumn({ tinId, tinName, type, assetsUsd, debtUsd, notes, wal
 				flexDirection: 'column',
 				gap: '0.75rem',
 				height: '100%',
-				border: '2px solid rgba(250, 235, 215, 0.75)',
+				border: '2px solid var(--text-secondary)',
 				borderRadius: '14px',
 				padding: '0.5rem',
 			}}
@@ -39,10 +39,10 @@ export function TinColumn({ tinId, tinName, type, assetsUsd, debtUsd, notes, wal
 			<div
 				className="networth-card tin-debt-card"
 				style={{
-					backgroundColor: '#3b4a46',
+					backgroundColor: 'var(--surface-card-2)',
 					borderRadius: '12px',
 					padding: '1rem 1.25rem',
-					color: '#f7f2eb',
+					color: 'var(--text-primary)',
 					position: 'relative',
 					overflow: 'hidden',
 				}}
@@ -63,7 +63,7 @@ export function TinColumn({ tinId, tinName, type, assetsUsd, debtUsd, notes, wal
 						margin: '0.35rem 0',
 						fontSize: '1.6rem',
 						fontWeight: 700,
-						color: '#f97373',
+						color: 'var(--loss)',
 					}}
 				>
 					{formatUsd(debtUsd)}

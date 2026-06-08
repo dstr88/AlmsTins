@@ -34,6 +34,9 @@ type NetWorthSummary = {
 
 type NetWorthResponse = { ok: boolean; summary?: NetWorthSummary };
 
+// Distinct per-chain series colors — chart-readability exception (same rationale
+// as AaveRateChart): chains must be visually distinguishable, so these intentionally
+// use brand/identity hues outside the token palette. Documented in CLAUDE.md.
 const CHAIN_COLORS: Record<string, string> = {
 	ethereum: '#a855f7',
 	polygon: '#6366f1',
@@ -238,7 +241,7 @@ function ChainDonut({ segments, totalUsd }: { segments: DonutSegment[]; totalUsd
 					cy={size / 2}
 					r={radius}
 					fill="transparent"
-					stroke="rgba(148, 163, 184, 0.25)"
+					stroke="var(--border-bright)"
 					strokeWidth={strokeWidth}
 				/>
 				{segments.map((segment) => {

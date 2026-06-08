@@ -93,10 +93,10 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 	return (
 		<div
 			style={{
-				backgroundColor: '#3b4a46',
+				backgroundColor: 'var(--surface-card-2)',
 				borderRadius: '12px',
 				padding: '1rem 1.1rem',
-				color: '#f7f2eb',
+				color: 'var(--text-primary)',
 				display: 'flex',
 				flexDirection: 'column',
 				gap: '0.6rem',
@@ -124,7 +124,7 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 			) : null}
 
 			{state.status === 'error' ? (
-				<p style={{ margin: 0, fontSize: '0.9rem', color: '#fca5a5' }}>Unable to load tokens.</p>
+				<p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--loss)' }}>Unable to load tokens.</p>
 			) : null}
 
 			{state.status === 'ready' ? (
@@ -168,9 +168,9 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 									marginTop: '0.15rem',
 									padding: '0.25rem 0.55rem',
 									borderRadius: '8px',
-									border: '1px solid rgba(255,255,255,0.25)',
-									background: 'rgba(255,255,255,0.08)',
-									color: '#f7f2eb',
+									border: '1px solid var(--text-muted)',
+									background: 'var(--border-bright)',
+									color: 'var(--text-primary)',
 									fontSize: '0.85rem',
 									cursor: 'pointer',
 								}}
@@ -189,8 +189,8 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 									zIndex: 10,
 									maxHeight: '220px',
 									overflowY: 'auto',
-									background: '#2f3b37',
-									border: '1px solid rgba(250, 235, 215, 0.3)',
+									background: 'var(--surface-card-2)',
+									border: '1px solid var(--text-secondary)',
 									borderRadius: '10px',
 									boxShadow: '0 10px 24px rgba(0,0,0,0.35)',
 									padding: '0.6rem 0.75rem',

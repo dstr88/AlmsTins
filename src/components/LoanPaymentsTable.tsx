@@ -39,14 +39,14 @@ export default function LoanPaymentsTable() {
 	}, []);
 
 	const tableWrap: React.CSSProperties = {
-		background: 'rgba(8, 12, 22, 0.85)',
-		border: '1px solid rgba(255, 255, 255, 0.12)',
+		background: 'var(--surface-bg)',
+		border: '1px solid var(--border-bright)',
 		borderRadius: '12px',
 		overflow: 'hidden',
 	};
 
 	const theadStyle: React.CSSProperties = {
-		background: 'rgba(255, 255, 255, 0.05)',
+		background: 'var(--border-subtle)',
 	};
 
 	const thStyle: React.CSSProperties = {
@@ -55,32 +55,32 @@ export default function LoanPaymentsTable() {
 		fontSize: '0.7rem',
 		textTransform: 'uppercase',
 		letterSpacing: '0.1em',
-		color: 'rgba(255, 255, 255, 0.5)',
+		color: 'var(--text-muted)',
 		fontWeight: 600,
-		borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+		borderBottom: '1px solid var(--border-bright)',
 	};
 
 	const tdStyle: React.CSSProperties = {
 		padding: '0.65rem 1rem',
 		fontSize: '0.9rem',
-		color: '#f5f8ff',
-		borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+		color: 'var(--text-primary)',
+		borderBottom: '1px solid var(--border-subtle)',
 	};
 
 	const tdMuted: React.CSSProperties = {
 		...tdStyle,
-		color: 'rgba(255, 255, 255, 0.6)',
+		color: 'var(--text-muted)',
 	};
 
 	const tdAmount: React.CSSProperties = {
 		...tdStyle,
 		fontWeight: 600,
-		color: '#f7f2eb',
+		color: 'var(--text-primary)',
 	};
 
 	if (loading) {
 		return (
-			<p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem', margin: 0 }}>
+			<p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
 				Loading payments…
 			</p>
 		);
@@ -90,9 +90,9 @@ export default function LoanPaymentsTable() {
 		return (
 			<p
 				style={{
-					color: '#f87171',
-					background: 'rgba(248,113,113,0.08)',
-					border: '1px solid rgba(248,113,113,0.3)',
+					color: 'var(--loss)',
+					background: 'var(--loss-bg)',
+					border: '1px solid var(--loss-border)',
 					borderRadius: '8px',
 					padding: '0.75rem 1rem',
 					fontSize: '0.9rem',
@@ -106,7 +106,7 @@ export default function LoanPaymentsTable() {
 
 	if (payments.length === 0) {
 		return (
-			<p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem', margin: 0 }}>
+			<p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
 				No payments recorded yet.
 			</p>
 		);

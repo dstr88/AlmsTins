@@ -126,7 +126,7 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 		}
 		if (state.status === 'error') {
 			return (
-				<p style={{ margin: 0, color: '#fca5a5', fontSize: '0.95rem' }}>
+				<p style={{ margin: 0, color: 'var(--loss)', fontSize: '0.95rem' }}>
 					{state.message || 'Unable to load totals right now.'}
 				</p>
 			);
@@ -145,7 +145,7 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 				<div
 					style={{
 						marginTop: '0.5rem',
-						borderTop: '1px solid rgba(255,255,255,0.15)',
+						borderTop: '1px solid var(--border-bright)',
 						paddingTop: '0.5rem',
 						display: 'flex',
 						justifyContent: 'space-between',
@@ -159,9 +159,9 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 						onChange={(e) => setMode(e.target.value as Mode)}
 						style={{
 							borderRadius: '10px',
-							border: '1px solid rgba(255,255,255,0.25)',
-							background: 'rgba(255,255,255,0.08)',
-							color: '#f7f2eb',
+							border: '1px solid var(--text-muted)',
+							background: 'var(--border-bright)',
+							color: 'var(--text-primary)',
 							padding: '0.35rem 0.65rem',
 							cursor: 'pointer',
 						}}
@@ -177,7 +177,7 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 				<div
 					style={{
 						marginTop: '0.5rem',
-						border: '1px solid rgba(255,255,255,0.15)',
+						border: '1px solid var(--border-bright)',
 						borderRadius: '10px',
 						overflow: 'hidden',
 						maxHeight: '240px',
@@ -195,21 +195,21 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 							}}
 						>
 							<thead>
-								<tr style={{ background: 'rgba(255,255,255,0.05)' }}>
+								<tr style={{ background: 'var(--border-subtle)' }}>
 									<th style={thStyle}>Label</th>
 									<th style={thStyle}>Assets</th>
 									<th style={thStyle}>Free</th>
-									<th style={{ ...thStyle, color: '#f97373' }}>Debt</th>
+									<th style={{ ...thStyle, color: 'var(--loss)' }}>Debt</th>
 									<th style={thStyle}>Net</th>
 								</tr>
 							</thead>
 							<tbody>
 								{rows.map((row, idx) => (
-									<tr key={`${row.label}-${idx}`} style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+									<tr key={`${row.label}-${idx}`} style={{ borderTop: '1px solid var(--border-bright)' }}>
 										<td style={tdLabelStyle}>{row.label}</td>
 										<td style={tdValueStyle}>{formatUsd(row.assetsUsd)}</td>
 										<td style={tdValueStyle}>{formatUsd(row.freeAssetsUsd)}</td>
-										<td style={{ ...tdValueStyle, color: '#f97373' }}>{formatUsd(row.debtUsd)}</td>
+										<td style={{ ...tdValueStyle, color: 'var(--loss)' }}>{formatUsd(row.debtUsd)}</td>
 										<td style={tdValueStyle}>{formatUsd(row.netUsd)}</td>
 									</tr>
 								))}
@@ -225,14 +225,14 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 		<div
 			className="networth-card totals-tin-card"
 			style={{
-				backgroundColor: '#3b4a46',
+				backgroundColor: 'var(--surface-card-2)',
 				borderRadius: '12px',
 				padding: '1rem 1.25rem',
 				display: 'flex',
 				flexDirection: 'column',
 				gap: '0.5rem',
 				height: '100%',
-				color: '#f7f2eb',
+				color: 'var(--text-primary)',
 				position: 'relative',
 				overflow: 'hidden',
 			}}
@@ -264,7 +264,7 @@ function Row({
 	muted?: boolean;
 	accent?: 'red';
 }) {
-	const color = accent === 'red' ? '#f97373' : undefined;
+	const color = accent === 'red' ? 'var(--loss)' : undefined;
 	return (
 		<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 			<span style={{ fontSize: '0.95rem', opacity: muted ? 0.75 : 0.9 }}>{label}</span>

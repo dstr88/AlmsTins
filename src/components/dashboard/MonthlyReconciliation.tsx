@@ -53,10 +53,10 @@ const usd = (n: number | null | undefined) =>
 const sign = (n: number) => (n >= 0 ? '+' : '');
 
 function deltaColor(delta: number | null): string {
-	if (delta == null) return '#888';
-	if (Math.abs(delta) < 50) return '#4ade80';   // green — balanced
-	if (delta > 0) return '#4ade80';               // gain
-	return '#e05555';                              // loss / data gap
+	if (delta == null) return 'var(--text-muted)';
+	if (Math.abs(delta) < 50) return 'var(--gain)';   // green — balanced
+	if (delta > 0) return 'var(--gain)';               // gain
+	return 'var(--loss)';                              // loss / data gap
 }
 
 function monthLabel(ym: string): string {
@@ -126,8 +126,8 @@ export default function MonthlyReconciliationTile() {
 					value={selected}
 					onChange={(e) => setSelected(e.target.value)}
 					style={{
-						background: '#1a1f2b', border: '1px solid rgba(232,160,32,0.4)',
-						color: '#e0e0e0', borderRadius: 8, padding: '0.35rem 0.6rem',
+						background: 'var(--surface-card-2)', border: '1px solid var(--accent-dim)',
+						color: 'var(--text-secondary)', borderRadius: 8, padding: '0.35rem 0.6rem',
 						fontSize: '0.85rem', cursor: 'pointer',
 					}}
 				>
@@ -139,8 +139,8 @@ export default function MonthlyReconciliationTile() {
 					onClick={() => recompute(selected)}
 					disabled={loading || !selected}
 					style={{
-						background: 'none', border: '1px solid rgba(232,160,32,0.45)',
-						color: '#e8a020', borderRadius: 8, padding: '0.3rem 0.7rem',
+						background: 'none', border: '1px solid var(--accent-dim)',
+						color: 'var(--accent)', borderRadius: 8, padding: '0.3rem 0.7rem',
 						fontSize: '0.75rem', cursor: 'pointer', textTransform: 'uppercase',
 						letterSpacing: '0.1em', opacity: loading ? 0.5 : 1,
 					}}
@@ -150,32 +150,32 @@ export default function MonthlyReconciliationTile() {
 			</div>
 
 			{loading && (
-				<p style={{ color: '#888', fontSize: '0.85rem', margin: 0 }}>Computing…</p>
+				<p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Computing…</p>
 			)}
 
 			{data && !loading && (
 				<>
 					{/* Checkbook summary */}
 					<div style={{
-						background: '#111827', borderRadius: 10, padding: '0.85rem 1rem',
+						background: 'var(--surface-card-2)', borderRadius: 10, padding: '0.85rem 1rem',
 						display: 'flex', flexDirection: 'column', gap: '0.45rem',
-						border: '1px solid rgba(255,255,255,0.07)',
+						border: '1px solid var(--border-bright)',
 					}}>
 						<Row label="Opening balance" value={usd(data.openingAssetsUsd)} />
-						<Row label="+ Inflows (buys, income)" value={usd(data.inflowsUsd)} color="#4ade80" />
-						<Row label="− Outflows (sells, fees)" value={`−${usd(data.outflowsUsd)}`} color="#e05555" />
+						<Row label="+ Inflows (buys, income)" value={usd(data.inflowsUsd)} color="var(--gain)" />
+						<Row label="− Outflows (sells, fees)" value={`−${usd(data.outflowsUsd)}`} color="var(--loss)" />
 						{(data.transferInUsd > 0 || data.transferOutUsd > 0) && (
 							<Row
 								label="± Matched transfers (net)"
 								value={usd(data.transferInUsd - data.transferOutUsd)}
-								color="#888"
+								color="var(--text-muted)"
 								muted
 							/>
 						)}
-						<div style={{ borderTop: '1px dashed rgba(232,160,32,0.25)', margin: '0.2rem 0' }} />
+						<div style={{ borderTop: '1px dashed var(--accent-dim)', margin: '0.2rem 0' }} />
 						<Row label="Expected closing" value={usd(data.expectedClosingUsd)} />
 						<Row label="Actual closing (wallets)" value={usd(data.closingAssetsUsd)} bold />
-						<div style={{ borderTop: '1px solid rgba(232,160,32,0.35)', margin: '0.2rem 0' }} />
+						<div style={{ borderTop: '1px solid var(--accent-dim)', margin: '0.2rem 0' }} />
 						<Row
 							label="Delta (price change + gaps)"
 							value={data.deltaUsd != null ? `${sign(data.deltaUsd)}${usd(data.deltaUsd)}` : '—'}
@@ -187,9 +187,9 @@ export default function MonthlyReconciliationTile() {
 					{/* Unmatched transfer warning */}
 					{hasUnmatched && (
 						<div style={{
-							background: 'rgba(224,85,85,0.1)', border: '1px solid rgba(224,85,85,0.4)',
+							background: 'var(--loss-bg)', border: '1px solid var(--loss-border)',
 							borderRadius: 8, padding: '0.65rem 0.85rem',
-							fontSize: '0.8rem', color: '#fca5a5',
+							fontSize: '0.8rem', color: 'var(--loss)',
 							display: 'flex', flexDirection: 'column', gap: '0.3rem',
 						}}>
 							<span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -209,8 +209,8 @@ export default function MonthlyReconciliationTile() {
 						<button
 							onClick={() => setExpanded((x) => !x)}
 							style={{
-								background: 'none', border: '1px dashed rgba(232,160,32,0.3)',
-								color: '#e8a020', borderRadius: 8, padding: '0.3rem 0.75rem',
+								background: 'none', border: '1px dashed var(--accent-dim)',
+								color: 'var(--accent)', borderRadius: 8, padding: '0.3rem 0.75rem',
 								fontSize: '0.72rem', cursor: 'pointer', textTransform: 'uppercase',
 								letterSpacing: '0.12em', alignSelf: 'flex-start',
 							}}
@@ -226,7 +226,7 @@ export default function MonthlyReconciliationTile() {
 								display: 'grid', gridTemplateColumns: '4rem 1fr 1fr 1fr',
 								gap: '0.5rem', padding: '0.25rem 0.5rem',
 								fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em',
-								color: '#888',
+								color: 'var(--text-muted)',
 							}}>
 								<span>Asset</span>
 								<span style={{ textAlign: 'right' }}>In</span>
@@ -239,17 +239,17 @@ export default function MonthlyReconciliationTile() {
 									<div key={a.assetSymbol} style={{
 										display: 'grid', gridTemplateColumns: '4rem 1fr 1fr 1fr',
 										gap: '0.5rem', padding: '0.3rem 0.5rem',
-										background: hasGap ? 'rgba(224,85,85,0.06)' : 'rgba(255,255,255,0.02)',
+										background: hasGap ? 'var(--loss-bg)' : 'var(--border-subtle)',
 										borderRadius: 6, fontSize: '0.8rem', alignItems: 'center',
 									}}>
-										<span style={{ fontWeight: 700, color: '#e8a020' }}>{a.assetSymbol}</span>
-										<span style={{ textAlign: 'right', color: '#4ade80' }}>
+										<span style={{ fontWeight: 700, color: 'var(--accent)' }}>{a.assetSymbol}</span>
+										<span style={{ textAlign: 'right', color: 'var(--gain)' }}>
 											{usd(a.inflowsUsd)}
 										</span>
-										<span style={{ textAlign: 'right', color: '#e05555' }}>
+										<span style={{ textAlign: 'right', color: 'var(--loss)' }}>
 											{a.outflowsUsd > 0 ? `−${usd(a.outflowsUsd)}` : '—'}
 										</span>
-										<span style={{ textAlign: 'right', color: hasGap ? '#fca5a5' : '#444' }}>
+										<span style={{ textAlign: 'right', color: hasGap ? 'var(--loss)' : 'var(--text-muted)' }}>
 											{hasGap ? usd(a.unmatchedOutUsd + a.unmatchedInUsd) : '—'}
 										</span>
 									</div>
@@ -258,14 +258,14 @@ export default function MonthlyReconciliationTile() {
 						</div>
 					)}
 
-					<p style={{ margin: 0, fontSize: '0.7rem', color: '#555' }}>
+					<p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
 						{data.txCount} transactions · snapshots from wallet sync
 					</p>
 				</>
 			)}
 
 			{!loading && !data && selected && (
-				<p style={{ color: '#888', fontSize: '0.85rem', margin: 0 }}>No data for this month.</p>
+				<p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>No data for this month.</p>
 			)}
 		</div>
 	);
@@ -288,8 +288,8 @@ function Row({
 			fontSize: muted ? '0.78rem' : '0.85rem',
 			opacity: muted ? 0.65 : 1,
 		}}>
-			<span style={{ color: '#888' }}>{label}</span>
-			<span style={{ color: color ?? '#e0e0e0', fontWeight: bold ? 700 : 400 }}>{value}</span>
+			<span style={{ color: 'var(--text-muted)' }}>{label}</span>
+			<span style={{ color: color ?? 'var(--text-secondary)', fontWeight: bold ? 700 : 400 }}>{value}</span>
 		</div>
 	);
 }
