@@ -45,6 +45,10 @@
 
 const SOLEND_PROGRAM = 'So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo';
 const OBLIGATION_OWNER_OFFSET = 42;
+// Solend obligation accounts are a fixed 1300 bytes. Filtering on size turns a
+// full-program scan into a narrow one — many RPCs (incl. Helius) throttle or
+// time out an owner-only getProgramAccounts on a large program.
+const OBLIGATION_SIZE = 1300;
 const WAD = 1e18;
 
 const PUBLIC_SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
@@ -213,7 +217,10 @@ export async function getSolendPositions(
 			SOLEND_PROGRAM,
 			{
 				encoding: 'base64',
-				filters: [{ memcmp: { offset: OBLIGATION_OWNER_OFFSET, bytes: walletAddress } }],
+				filters: [
+					{ dataSize: OBLIGATION_SIZE },
+					{ memcmp: { offset: OBLIGATION_OWNER_OFFSET, bytes: walletAddress } },
+				],
 			},
 		],
 		url,
