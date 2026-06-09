@@ -3,17 +3,11 @@ import React, { useEffect, useState } from 'react';
 console.log('[island.mount]', 'SolanaDefiSummary');
 
 type Program = { programId: string; name: string | null };
-type Position = { protocol: string; symbol: string; amount: number; usdValue: number; side: 'supply' | 'borrow' };
 
 type FetchState =
 	| { status: 'loading' }
 	| { status: 'error'; message?: string }
-	| { status: 'ready'; protocols: string[]; recentPrograms: Program[]; positions: Position[] };
-
-const usd = (n: number) =>
-	n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-const qty = (n: number) =>
-	n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+	| { status: 'ready'; protocols: string[]; recentPrograms: Program[] };
 
 export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
@@ -23,10 +17,10 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 		(async () => {
 			try {
 				const res  = await fetch(`/api/wallets/${walletId}/solana-defi`, { credentials: 'include' });
-				const data = await res.json() as { ok?: boolean; protocols?: string[]; recentPrograms?: Program[]; positions?: Position[]; message?: string };
+				const data = await res.json() as { ok?: boolean; protocols?: string[]; recentPrograms?: Program[]; message?: string };
 				if (!cancelled) {
 					if (!data.ok) throw new Error(data.message ?? 'DeFi lookup failed');
-					setState({ status: 'ready', protocols: data.protocols ?? [], recentPrograms: data.recentPrograms ?? [], positions: data.positions ?? [] });
+					setState({ status: 'ready', protocols: data.protocols ?? [], recentPrograms: data.recentPrograms ?? [] });
 				}
 			} catch (err: any) {
 				if (!cancelled) setState({ status: 'error', message: err?.message });
@@ -42,7 +36,7 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 		return <div className="defi-stats"><div className="defi-status defi-status--error">Unable to load DeFi activity.</div></div>;
 	}
 
-	const { protocols, recentPrograms, positions } = state;
+	const { protocols, recentPrograms } = state;
 	const named   = recentPrograms.filter((p) => p.name !== null);
 	const unnamed = recentPrograms.filter((p) => p.name === null);
 
@@ -50,35 +44,8 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 	const detectedSet = new Set(protocols);
 	const namedNew    = named.filter((p) => !detectedSet.has(p.name!));
 
-	const lendingTotal = positions.reduce(
-		(sum, p) => sum + (p.side === 'borrow' ? -p.usdValue : p.usdValue),
-		0,
-	);
-
 	return (
 		<div className="defi-stats">
-			{positions.length > 0 && (
-				<>
-					<div className="stat-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-						<span className="breakdown-title" style={{ margin: 0 }}>Lending positions</span>
-						<span className="label" style={{ fontWeight: 700 }}>{usd(lendingTotal)}</span>
-					</div>
-					<div className="breakdown">
-						{positions.map((p) => (
-							<div className="stat-row" key={`${p.protocol}-${p.symbol}-${p.side}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-								<span className="label">
-									{p.protocol} · {qty(p.amount)} {p.symbol}
-									{p.side === 'borrow' && <span style={{ color: 'var(--loss, #e5484d)', marginLeft: 4 }}>(borrow)</span>}
-								</span>
-								<span className="label">{usd(p.usdValue)}</span>
-							</div>
-						))}
-					</div>
-					<div className="spacer spacer--md" />
-					<div className="divider" />
-					<div className="spacer spacer--sm" />
-				</>
-			)}
 			<div className="breakdown-title">Active protocols</div>
 			<div className="breakdown">
 				{protocols.length > 0 ? protocols.map((name) => (

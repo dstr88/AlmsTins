@@ -7,7 +7,6 @@ import AddAssetTin from '@/components/dashboard/AddAssetTin.astro';
 import VaultNotepad from '@/components/dashboard/VaultNotepad';
 import WalletSummary from '../../components/dashboard/WalletSummary';
 import AaveHealthSummary from '../../components/dashboard/AaveHealthSummary';
-import SolanaDefiSummary from '@/components/dashboard/SolanaDefiSummary';
 import SovrynDefiSummary from '@/components/dashboard/SovrynDefiSummary';
 import CryptoComAccounts from '../../components/CryptoComAccounts.astro';
 import ExchangeAccounts from '../../components/ExchangeAccounts.astro';
@@ -241,19 +240,20 @@ const getChainBadge = (chains: string[]): string => {
 									</div>
 									<WalletSummary client:only="react" walletId={wallet.id} initialData={fullData} walletCreatedAt={wallet.createdAt ?? null} />
 								</SalmonTin>
-								{!wallet.chains.every(c => c === 'bitcoin' || c === 'litecoin') && (
+								{/* Solana DeFi visibility intentionally disabled — positions in
+								    forked/non-standard programs (e.g. dumpy.fun) can't be decoded to
+								    an exact balance, and an approximate/partial figure is worse than
+								    none for a documentation product. Re-enable once a proper
+								    discovery+decode layer matches the Aave standard. */}
+								{!wallet.chains.every(c => c === 'bitcoin' || c === 'litecoin' || c === 'solana') && (
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label" data-defi-summary-label>
-											{wallet.chains.includes('solana')    ? 'Protocols'
-											: wallet.chains.includes('rootstock') ? 'Sovryn'
-											: 'Health'}
+											{wallet.chains.includes('rootstock') ? 'Sovryn' : 'Health'}
 										</span>
 										<span class="tin-summary__value" data-defi-summary-value>—</span>
 									</div>
-									{wallet.chains.includes('solana')
-										? <SolanaDefiSummary  client:only="react" walletId={wallet.id} />
-										: wallet.chains.includes('rootstock')
+									{wallet.chains.includes('rootstock')
 										? <SovrynDefiSummary  client:only="react" walletId={wallet.id} />
 										: <AaveHealthSummary  client:only="react" walletId={wallet.id} showHealthRow={false} />
 									}

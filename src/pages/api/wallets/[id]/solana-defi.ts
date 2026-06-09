@@ -3,21 +3,10 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { getAllActiveWallets } from '@/lib/wallets';
 import { getCache } from '@/lib/tursoCache';
-import { getSolendPositions } from '@/lib/solend';
-import { getPrices } from '@/lib/prices';
 
 export const prerender = false;
 
-// Prefer a configured RPC (Helius/Triton/QuickNode) — the public endpoint
-// heavily rate-limits getProgramAccounts and is unreliable for DeFi reads.
-const PUBLIC_SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
-const SOLANA_RPC =
-	process.env.SOLANA_RPC_URL ||
-	import.meta.env.SOLANA_RPC_URL ||
-	PUBLIC_SOLANA_RPC;
-if (SOLANA_RPC === PUBLIC_SOLANA_RPC) {
-	console.warn('[solana-defi] SOLANA_RPC_URL not set — using rate-limited public RPC; DeFi reads may fail.');
-}
+const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
 
 // ── Known DeFi protocol definitions ──────────────────────────────────────────
 
@@ -37,7 +26,7 @@ const DEFI_PROTOCOLS: ProtocolDef[] = [
 	{ name: 'Jupiter',          programId: 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4', offset: 8  },
 	{ name: 'Pyth Staking',     programId: 'pytS9TFNez6VM5kMon3apkp9zsEFXDfNnGFZ2aSbKbE', offset: 12 },
 	{ name: 'Marinade Finance', programId: 'MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD', offset: 8  },
-	{ name: 'Solend',           programId: 'So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo', offset: 42 },
+	{ name: 'Solend',           programId: 'So1endDq2YkqhipRh3WViPa8hdiSpxWy6z3Z6tMCpAo', offset: 8  },
 	{ name: 'Native Staking',   programId: 'Stake11111111111111111111111111111111111111112', offset: 44 },
 ];
 
@@ -120,40 +109,6 @@ async function fetchRecentPrograms(address: string): Promise<Array<{ programId: 
 	return Array.from(seen).map((id) => ({ programId: id, name: PROGRAM_ID_TO_NAME[id] ?? null }));
 }
 
-// ── Lending positions (Solend/Save) with USD value ─────────────────────────────
-
-type DefiPosition = {
-	protocol: string;
-	symbol: string;
-	amount: number;
-	usdValue: number;
-	side: 'supply' | 'borrow';
-};
-
-async function getLendingPositions(address: string): Promise<DefiPosition[]> {
-	const raw = await getSolendPositions(address);
-	if (raw.length === 0) return [];
-
-	const quotes = await getPrices(
-		raw.map((p) => ({ chain: 'solana' as const, tokenAddress: p.mint, symbol: p.symbol })),
-	);
-
-	return raw.map((p) => {
-		const quote = quotes[`solana:${p.mint}`];
-		const livePrice = quote?.priceUsd ?? 0;
-		// Prefer live price × amount; fall back to the obligation's on-chain
-		// market value when the token has no DefiLlama price.
-		const usdValue = livePrice > 0 ? p.amount * livePrice : p.onchainMarketValueUsd;
-		return {
-			protocol: p.protocol,
-			symbol: p.symbol,
-			amount: p.amount,
-			usdValue,
-			side: p.side,
-		};
-	});
-}
-
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 export const GET: APIRoute = async ({ params, request }) => {
@@ -176,15 +131,12 @@ export const GET: APIRoute = async ({ params, request }) => {
 
 		const address = wallet.address;
 
-		// Lending positions (with USD value) are always computed live — prices move.
-		const positions = await getLendingPositions(address);
-
 		// Check for seeded/cached data before hitting the live Solana RPC
 		const cached = await getCache<{ protocols: string[]; recentPrograms: { programId: string; name: string | null }[] }>(
 			`solana-defi:${walletId}`,
 		);
 		if (cached) {
-			return respond({ ok: true, address, protocols: cached.protocols, recentPrograms: cached.recentPrograms, positions }, 200);
+			return respond({ ok: true, address, protocols: cached.protocols, recentPrograms: cached.recentPrograms }, 200);
 		}
 
 		const [detectedNames, recentPrograms] = await Promise.all([
@@ -194,7 +146,7 @@ export const GET: APIRoute = async ({ params, request }) => {
 			fetchRecentPrograms(address),
 		]);
 
-		return respond({ ok: true, address, protocols: detectedNames, recentPrograms, positions }, 200);
+		return respond({ ok: true, address, protocols: detectedNames, recentPrograms }, 200);
 	} catch (err) {
 		if (err instanceof Response) return err;
 		console.error('[solana-defi] error', err);
