@@ -225,10 +225,12 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
         </a>
         <p class="landing__demo-cta-sub">Walk a sample portfolio end to end — every holding, its cost basis, and realized gains, already reconciled.</p>
 
-        <!-- Product Hunt badge -->
-        <a href="https://www.producthunt.com/products/almstins?launch=almstins" target="_blank" rel="noopener noreferrer" class="ph-badge-link" aria-label="Almstins on Product Hunt">
-          <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=almstins&theme=dark" alt="Almstins on Product Hunt" width="200" height="43" style="width:200px;height:43px" />
-        </a>
+        <!-- Proof row — true, verifiable capabilities (no live metric) -->
+        <ul class="landing__proof-row" aria-label="What Almstins checks">
+          <li>345,000+ phishing domains checked</li>
+          <li>OFAC sanctions screening</li>
+          <li>6+ chains, every major exchange</li>
+        </ul>
 
         <!-- Secondary: wallet input -->
         <div class="landing__wallet-secondary">
@@ -262,7 +264,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             <span class="fc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h4"/></svg></span>
             <div>
               <div class="fc-title">Know your tax exposure</div>
-              <div class="fc-desc">Every gain, flagged gap, and missing cost basis — surfaced before April hits.</div>
+              <div class="fc-desc">The demo flags it on a sample $57,680 portfolio: taxable gains, short- vs. long-term holds, and every position missing a cost basis — surfaced before April, not after.</div>
             </div>
           </div>
           <div class="feature-card">
@@ -273,6 +275,11 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
             </div>
           </div>
         </div>
+
+        <!-- Product Hunt badge — below the feature stack, out of the CTA path -->
+        <a href="https://www.producthunt.com/products/almstins?launch=almstins" target="_blank" rel="noopener noreferrer" class="ph-badge-link" aria-label="Almstins on Product Hunt">
+          <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=almstins&theme=dark" alt="Almstins on Product Hunt" width="200" height="43" style="width:200px;height:43px" />
+        </a>
 
       </div>
 
@@ -675,6 +682,34 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       text-align: center;
     }
 
+    /* ── Proof row — quiet, verifiable capabilities ──────────── */
+    .landing__proof-row {
+      list-style: none;
+      margin: 0.9rem 0 0;
+      padding: 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.4rem 0.9rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .landing__proof-row li {
+      position: relative;
+      white-space: nowrap;
+    }
+    .landing__proof-row li:not(:first-child)::before {
+      content: "·";
+      position: absolute;
+      left: -0.55rem;
+      color: var(--text-muted);
+      opacity: 0.5;
+    }
+
     /* ── Secondary wallet input ──────────────────────────────── */
     .landing__wallet-secondary {
       margin-top: clamp(1.5rem, 3vw, 2rem);
@@ -745,18 +780,20 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
       outline: 0;
     }
     .landing__demo-input::placeholder { color: var(--text-muted); }
+    /* Secondary submit — muted so the primary demo CTA stays unambiguous */
     .landing__demo-submit {
-      background: var(--accent);
-      color: var(--surface-bg);
+      background: transparent;
+      color: var(--text-secondary);
       border: 0;
+      border-left: 1px solid var(--border-bright);
       padding: 0 1.5rem;
       font-size: 1.25rem;
       font-weight: 600;
       cursor: pointer;
       flex-shrink: 0;
-      transition: box-shadow 0.15s;
+      transition: color 0.15s, background 0.15s;
     }
-    .landing__demo-submit:hover { box-shadow: 0 0 1.5rem var(--accent-glow); }
+    .landing__demo-submit:hover { color: var(--accent); background: var(--surface-card-2); }
     .landing__demo-hint {
       font-size: 0.875rem;
       color: var(--text-muted);
@@ -1154,7 +1191,7 @@ const hasAlert = error === "missing" || (message && message !== "LOCKED_OUT") ||
     .founder-section {
       max-width: 75rem;
       margin: 0 auto;
-      padding: 0 clamp(1.5rem, 4vw, 3rem) clamp(4rem, 8vw, 6rem);
+      padding: clamp(4rem, 8vw, 6rem) clamp(1.5rem, 4vw, 3rem) clamp(4rem, 8vw, 6rem);
       text-align: center;
     }
     .founder-section__story h2 {

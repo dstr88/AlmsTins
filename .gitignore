@@ -49,3 +49,6 @@ test-results/
 # Private marketing notes & strategy — keep OUT of version control
 marketing.claude.md
 MARKETING-READINESS-PLAN.md
+
+# Private design notes — keep OUT of version control
+design.claude.md

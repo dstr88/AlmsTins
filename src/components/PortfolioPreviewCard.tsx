@@ -20,7 +20,7 @@ export default function PortfolioPreviewCard() {
   return (
     <div className="ppc ppc--tilt-target" id="portfolioPreviewCard">
       <div className="ppc__header">
-        <span className="ppc__title">Portfolio</span>
+        <span className="ppc__title">Sample Portfolio</span>
         <span className="ppc__live">
           <span className="ppc__live-dot" />
           Live

@@ -131,10 +131,10 @@ const getChainBadge = (chains: string[]): string => {
 		{isDemo && (
 			<div class="demo-banner">
 				<span class="demo-banner__text">
-					Demo mode — exploring {onchainWallets.length} of 3 wallets.
+					You're exploring a live sample vault — {onchainWallets.length} of 3 wallets.
 					{onchainWallets.length < 3
-						? ` Add up to ${3 - onchainWallets.length} more below.`
-						: ' Wallet limit reached.'}
+						? ` Add up to ${3 - onchainWallets.length} more, or make it yours.`
+						: ' Make it yours.'}
 				</span>
 				<a href="/" class="demo-banner__cta">Sign up free →</a>
 			</div>
@@ -285,9 +285,9 @@ const getChainBadge = (chains: string[]): string => {
 
 		{isDemo && (
 			<div class="demo-signup-prompt">
-				<p class="demo-signup-prompt__text">Ready to track your own portfolio?</p>
-				<p class="demo-signup-prompt__sub">Sign up free — no credit card required. Your vault, your data.</p>
-				<a href="/" class="demo-banner__cta">Sign up free →</a>
+				<p class="demo-signup-prompt__text">Keep these records.</p>
+				<p class="demo-signup-prompt__sub">Your reconciled vault — every holding, cost basis, and gain — saved to your account. No credit card.</p>
+				<a href="/" class="demo-banner__cta">Save my vault — sign up free →</a>
 			</div>
 		)}
 
