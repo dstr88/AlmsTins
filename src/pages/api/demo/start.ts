@@ -99,14 +99,14 @@ export const GET: APIRoute = async ({ request }) => {
 	]);
 
 	// ── Phase 1: Independent inserts + cache — all run concurrently ───────────
-	// ── Demo portfolio: total wallet value ~$542 (well under $500 cap per tin) ──
-	// BTC: 0.0015 × $70k = $105
+	// ── Demo portfolio: total wallet value ~$478 (well under $500 cap per tin) ──
+	// BTC: 0.001 × $100k = $100
 	const btcTokens = [
-		{ symbol: 'BTC', amount: 0.0015, priceUsd: 70_000, valueUsd: 105.00, tokenAddress: null },
+		{ symbol: 'BTC', amount: 0.001, priceUsd: 100_000, valueUsd: 100.00, tokenAddress: null },
 	];
-	// LTC: 1.5 × $80 = $120 — shares the BTC / LTC tin
+	// LTC: 0.625 × $80 = $50 — shares the BTC / LTC tin
 	const ltcTokens = [
-		{ symbol: 'LTC', amount: 1.5, priceUsd: 80, valueUsd: 120.00, tokenAddress: null },
+		{ symbol: 'LTC', amount: 0.625, priceUsd: 80, valueUsd: 50.00, tokenAddress: null },
 	];
 	// ETH wallet (ethereum chain): 0.018 ETH + 8 USDC = $53
 	const ethTokens = [
@@ -201,7 +201,7 @@ export const GET: APIRoute = async ({ request }) => {
 			{
 				sql: `INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
 				      VALUES (?, ?, ?, ?, ?, 0, 'onchain')`,
-				args: [W_BTC, DEMO_TENANT_ID, ADDR_BTC, 'BTC / LTC Cold Storage', JSON.stringify(['bitcoin', 'litecoin'])],
+				args: [W_BTC, DEMO_TENANT_ID, ADDR_BTC, 'Bitcoin Cold Storage', JSON.stringify(['bitcoin', 'litecoin'])],
 			},
 			{
 				sql: `INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
@@ -222,8 +222,8 @@ export const GET: APIRoute = async ({ request }) => {
 
 		// 8 asset lifecycle groups (no wallet dependency)
 		batch('lifecycle-groups', [
-			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_BTC,  DEMO_TENANT_ID, 'BTC',  0.0015,     28_500, '2021-06-15T00:00:00.000Z', '2021-06-15T00:00:00.000Z', '2021-06-15T00:00:00.000Z'] },
-			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_LTC,  DEMO_TENANT_ID, 'LTC',  1.5,           55, '2022-11-01T00:00:00.000Z', '2022-11-01T00:00:00.000Z', '2022-11-01T00:00:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_BTC,  DEMO_TENANT_ID, 'BTC',  0.001,      28_500, '2021-06-15T00:00:00.000Z', '2021-06-15T00:00:00.000Z', '2021-06-15T00:00:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_LTC,  DEMO_TENANT_ID, 'LTC',  0.625,         55, '2022-11-01T00:00:00.000Z', '2022-11-01T00:00:00.000Z', '2022-11-01T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_ETH,  DEMO_TENANT_ID, 'ETH',  0.018,       3_200, '2021-10-05T00:00:00.000Z', '2021-10-05T00:00:00.000Z', '2021-10-05T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_AVAX, DEMO_TENANT_ID, 'AVAX', 1.5,            18, '2024-03-10T00:00:00.000Z', '2024-03-10T00:00:00.000Z', '2024-03-10T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_groups (id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [GRP_MATIC,DEMO_TENANT_ID, 'POL',  300,          0.80, '2021-09-01T00:00:00.000Z', '2021-09-01T00:00:00.000Z', '2021-09-01T00:00:00.000Z'] },
@@ -299,12 +299,12 @@ export const GET: APIRoute = async ({ request }) => {
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
 				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
-				args: [DEMO_TENANT_ID, W_BTC, 'bitcoin',  105.00, JSON.stringify(btcTokens)],
+				args: [DEMO_TENANT_ID, W_BTC, 'bitcoin',  100.00, JSON.stringify(btcTokens)],
 			},
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
 				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
-				args: [DEMO_TENANT_ID, W_BTC, 'litecoin', 120.00, JSON.stringify(ltcTokens)],
+				args: [DEMO_TENANT_ID, W_BTC, 'litecoin', 50.00, JSON.stringify(ltcTokens)],
 			},
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
@@ -325,8 +325,8 @@ export const GET: APIRoute = async ({ request }) => {
 
 		// lifecycle events (need group IDs)
 		batch('lifecycle-events', [
-			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-btc-buy',    GRP_BTC,   '2021-06-15T14:22:00.000Z', 'in',  'wallet', 'demo-evt-btc-buy-tx',    0.0015,     42.75, '2021-06-15T14:22:00.000Z'] },
-			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-ltc-buy',    GRP_LTC,   '2022-11-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-ltc-buy-tx',    1.5,        82.50, '2022-11-01T10:00:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-btc-buy',    GRP_BTC,   '2021-06-15T14:22:00.000Z', 'in',  'wallet', 'demo-evt-btc-buy-tx',    0.001,      28.50, '2021-06-15T14:22:00.000Z'] },
+			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-ltc-buy',    GRP_LTC,   '2022-11-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-ltc-buy-tx',    0.625,      34.38, '2022-11-01T10:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-eth-buy',    GRP_ETH,   '2021-10-05T11:00:00.000Z', 'in',  'wallet', 'demo-evt-eth-buy-tx',    0.023,      73.60, '2021-10-05T11:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-matic-buy',  GRP_MATIC, '2021-09-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-matic-buy-tx',  500,       400.00, '2021-09-01T10:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)`, args: ['demo-evt-eth-sell',   GRP_ETH,   '2023-08-10T09:30:00.000Z', 'out', 'wallet', 'demo-evt-eth-sell-tx',   0.005,       9.00, '2023-08-10T09:30:00.000Z'] },

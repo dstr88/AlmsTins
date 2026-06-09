@@ -106,6 +106,7 @@ const formatWalletLabel = (wallet: { label?: string | null; address: string }) =
 const getChainBadge = (chains: string[]): string => {
 	if (chains.includes('solana'))    return 'SOL';
 	if (chains.includes('sui'))       return 'SUI';
+	if (chains.includes('bitcoin') && chains.includes('litecoin')) return 'BTC/LTC';
 	if (chains.includes('bitcoin'))   return 'BTC';
 	if (chains.includes('litecoin'))  return 'LTC';
 	if (chains.includes('rootstock')) return 'RBTC';
