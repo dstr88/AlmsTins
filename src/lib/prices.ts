@@ -23,7 +23,12 @@ const CHAIN_KEY_MAP: Partial<Record<SupportedChain, string>> = {
 	polygon: 'polygon',
 	avalanche: 'avalanche',
 	rootstock: 'rsk',
+	solana: 'solana',
 };
+
+// Chains whose token addresses are case-sensitive (base58) and must NOT be
+// lowercased when building the DefiLlama key. EVM addresses are case-insensitive.
+const CASE_SENSITIVE_ADDRESS_CHAINS = new Set<SupportedChain>(['solana']);
 
 /**
  * Fetches USD prices for the requested assets using DefiLlama.
@@ -81,18 +86,21 @@ export async function getPrices(assets: PriceRequest[]): Promise<Record<string, 
 	return result;
 }
 
+function normalizeAddress(asset: PriceRequest): string {
+	if (!asset.tokenAddress) return 'native';
+	return CASE_SENSITIVE_ADDRESS_CHAINS.has(asset.chain)
+		? asset.tokenAddress
+		: asset.tokenAddress.toLowerCase();
+}
+
 function buildPriceKey(asset: PriceRequest) {
-	const tokenPart = asset.tokenAddress ? asset.tokenAddress.toLowerCase() : 'native';
-	return `${asset.chain}:${tokenPart}`;
+	return `${asset.chain}:${normalizeAddress(asset)}`;
 }
 
 function buildLlamaKey(asset: PriceRequest) {
 	const chainKey = CHAIN_KEY_MAP[asset.chain];
 	if (!chainKey) return null;
-	if (asset.tokenAddress) {
-		return `${chainKey}:${asset.tokenAddress.toLowerCase()}`;
-	}
-	return `${chainKey}:native`;
+	return `${chainKey}:${normalizeAddress(asset)}`;
 }
 
 function readCache(key: string): number | undefined {
