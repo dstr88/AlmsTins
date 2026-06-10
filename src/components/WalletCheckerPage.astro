@@ -1,0 +1,708 @@
+---
+/**
+ * Shared wallet-checker page. Renders the full page (markup, schema, behaviour)
+ * for any language; all copy comes from `src/i18n/walletChecker.ts`.
+ *
+ * Route files are thin wrappers, e.g.:
+ *   <WalletCheckerPage lang="fr" />
+ *
+ * Styles live once in `src/styles/wallet-checker.css`.
+ */
+import LoginLayout from '../layouts/LoginLayout.astro';
+import WalletChecker from '../components/WalletChecker';
+import { copy, LANGS, type Lang } from '../i18n/walletChecker';
+import '../styles/wallet-checker.css';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = copy[lang];
+
+// If ?address= is in the URL, pre-fill the checker (enables shareable result links)
+const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
+
+// Language toggles = every language except the current one, in canonical order.
+const otherLangs = LANGS.filter((l) => l.code !== lang);
+
+// FAQPage schema is derived from the visible FAQ so structured data always
+// matches on-page content (Google's FAQPage guideline).
+const webAppLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: t.ld.name,
+  url: t.url,
+  description: t.ld.description,
+  applicationCategory: 'FinanceApplication',
+  operatingSystem: 'Any',
+  browserRequirements: 'Requires JavaScript',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  creator: { '@type': 'Organization', name: 'Almstins', url: 'https://almstins.com' },
+  featureList: t.ld.featureList,
+};
+const faqLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: t.faq.items.map((item) => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: { '@type': 'Answer', text: item.a },
+  })),
+};
+---
+
+<LoginLayout lang={lang} title={t.meta.title} description={t.meta.description} noindex={false}>
+
+  <!-- JSON-LD: WebApplication schema for rich results -->
+  <script type="application/ld+json" set:html={JSON.stringify(webAppLd)} />
+  <!-- JSON-LD: FAQPage schema for rich results -->
+  <script type="application/ld+json" set:html={JSON.stringify(faqLd)} />
+
+  <!-- Top nav bar -->
+  <nav class="topnav" aria-label={t.nav.aria}>
+    <a class="topnav__brand" href="/" aria-label={t.nav.brandAria}>
+      <span class="topnav__wordmark">Almstins</span>
+      <span class="topnav__tagline">{t.nav.tagline}</span>
+    </a>
+    <div class="topnav__actions">
+      {otherLangs.map((l) => (
+        <a class="topnav__lang" href={l.href} aria-label={l.toggleAria}>{l.toggle}</a>
+      ))}
+      <a class="topnav__login" href="/login">{t.nav.login}</a>
+      <a class="topnav__signup" href="/login">{t.nav.signup}</a>
+    </div>
+  </nav>
+
+  <div class="page">
+
+    <!-- Hero -->
+    <header class="hero">
+      <div class="hero__eyebrow">{t.hero.eyebrow}</div>
+      <h1 class="hero__title">{t.hero.title}</h1>
+      <p class="hero__sub">{t.hero.sub}</p>
+
+      <!-- Three threats grid -->
+      <div class="threat-grid">
+
+        <!-- Card 1: Malicious site -->
+        <div class="threat-card">
+          <button class="threat-card__top" data-modal="modal-phishing" aria-haspopup="dialog">
+            <span class="threat-card__icon">🌐</span>
+            <span class="threat-card__title">{t.cards.dapp.title}</span>
+            <span class="threat-card__cta">{t.cards.dapp.cta}</span>
+          </button>
+          <div class="threat-card__divider"></div>
+          <div class="threat-card__checker">
+            <input class="threat-card__input" type="text" placeholder={t.cards.dapp.placeholder} autocomplete="off" spellcheck="false" data-checker="dapp" />
+            <button class="threat-card__check-btn" data-checker="dapp">{t.cards.dapp.btn}</button>
+          </div>
+        </div>
+
+        <!-- Card 2: Known scam -->
+        <div class="threat-card">
+          <button class="threat-card__top" data-modal="modal-scam" aria-haspopup="dialog">
+            <span class="threat-card__icon">💀</span>
+            <span class="threat-card__title">{t.cards.wallet.title}</span>
+            <span class="threat-card__cta">{t.cards.wallet.cta}</span>
+          </button>
+          <div class="threat-card__divider"></div>
+          <div class="threat-card__checker">
+            <input class="threat-card__input" type="text" placeholder={t.cards.wallet.placeholder} autocomplete="off" spellcheck="false" data-checker="wallet" />
+            <button class="threat-card__check-btn" data-checker="wallet">{t.cards.wallet.btn}</button>
+          </div>
+        </div>
+
+        <!-- Card 3: Token approval -->
+        <div class="threat-card">
+          <button class="threat-card__top" data-modal="modal-approval" aria-haspopup="dialog">
+            <span class="threat-card__icon">🔓</span>
+            <span class="threat-card__title">{t.cards.approval.title}</span>
+            <span class="threat-card__cta">{t.cards.approval.cta}</span>
+          </button>
+          <div class="threat-card__divider"></div>
+          <div class="threat-card__approval-links">
+            <p class="threat-card__approval-desc">{t.cards.approval.desc}</p>
+            <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer" class="threat-card__approval-link">
+              <span class="approval-link__name">revoke.cash</span>
+              <span class="approval-link__arrow">↗</span>
+            </a>
+            <a href="https://etherscan.io/tokenapprovalchecker" target="_blank" rel="noopener noreferrer" class="threat-card__approval-link">
+              <span class="approval-link__name">etherscan.io</span>
+              <span class="approval-link__arrow">↗</span>
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </header>
+
+    <!-- Modal: Malicious site / phishing -->
+    <div id="modal-phishing" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-phishing-title">
+      <div class="threat-modal__box">
+        <button class="threat-modal__close" aria-label={t.modalClose}>&times;</button>
+        <div class="threat-modal__icon">🌐</div>
+        <h2 class="threat-modal__title" id="modal-phishing-title">{t.modals.phishing.title}</h2>
+        <p class="threat-modal__subtitle">{t.modals.phishing.subtitle}</p>
+        <div class="threat-modal__body" set:html={t.modals.phishing.bodyHtml}></div>
+      </div>
+    </div>
+
+    <!-- Modal: Known scam investment -->
+    <div id="modal-scam" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-scam-title">
+      <div class="threat-modal__box">
+        <button class="threat-modal__close" aria-label={t.modalClose}>&times;</button>
+        <div class="threat-modal__icon">💀</div>
+        <h2 class="threat-modal__title" id="modal-scam-title">{t.modals.scam.title}</h2>
+        <p class="threat-modal__subtitle">{t.modals.scam.subtitle}</p>
+        <div class="threat-modal__body" set:html={t.modals.scam.bodyHtml}></div>
+      </div>
+    </div>
+
+    <!-- Modal: Token approval theft -->
+    <div id="modal-approval" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-approval-title">
+      <div class="threat-modal__box">
+        <button class="threat-modal__close" aria-label={t.modalClose}>&times;</button>
+        <div class="threat-modal__icon">🔓</div>
+        <h2 class="threat-modal__title" id="modal-approval-title">{t.modals.approval.title}</h2>
+        <p class="threat-modal__subtitle">{t.modals.approval.subtitle}</p>
+        <div class="threat-modal__body" set:html={t.modals.approval.bodyHtml}></div>
+      </div>
+    </div>
+
+    <!-- Tab switcher -->
+    <div class="checker-tabs" role="tablist" aria-label={t.tablistAria}>
+      <button class="checker-tab active" id="tab-btn-wallet" role="tab" aria-selected="true"  aria-controls="panel-wallet" data-tab="wallet">
+        {t.tabs.wallet}
+      </button>
+      <button class="checker-tab"        id="tab-btn-dapp"   role="tab" aria-selected="false" aria-controls="panel-dapp"   data-tab="dapp">
+        {t.tabs.dapp}
+      </button>
+    </div>
+
+    <!-- Wallet checker panel -->
+    <div id="panel-wallet" class="checker-wrap" role="tabpanel" aria-labelledby="tab-btn-wallet">
+      <WalletChecker client:load prefilledAddress={prefilledAddress} />
+    </div>
+
+    <!-- dApp checker panel -->
+    <div id="panel-dapp" class="dapp-panel" role="tabpanel" aria-labelledby="tab-btn-dapp" hidden>
+
+      <div class="dapp-input-row">
+        <input id="dapp-url-input" type="text" placeholder={t.dapp.placeholder} autocomplete="off" spellcheck="false" />
+        <button id="dapp-check-btn" type="button">{t.dapp.btn}</button>
+      </div>
+
+      <div id="dapp-result" class="dapp-result" hidden>
+
+        <!-- Verdict banner -->
+        <div class="verdict-banner" id="verdict-banner">
+          <span class="verdict-icon" id="verdict-icon"></span>
+          <div>
+            <p class="verdict-label" id="verdict-label"></p>
+            <p class="verdict-url"  id="verdict-url"></p>
+          </div>
+        </div>
+
+        <!-- Per-source breakdown -->
+        <ul class="source-list" id="source-list"></ul>
+
+        <!-- VirusTotal pending notice (shown only after a fresh VT submission) -->
+        <div id="vt-pending" class="vt-pending" hidden>
+          <span class="vt-pending__icon">🦠</span>
+          <div class="vt-pending__body">
+            <p class="vt-pending__msg" set:html={t.vtPending.msgHtml}></p>
+          </div>
+          <button id="vt-recheck-btn" class="vt-recheck-btn" disabled>{t.vtPending.recheck}</button>
+        </div>
+
+        <!-- Safety tip -->
+        <div class="safety-tip" id="safety-tip"></div>
+      </div>
+
+      <!-- Progressive check queue — items appear as checks resolve, fade out when clean -->
+      <div id="check-queue" class="check-queue" hidden>
+        <div class="check-item" id="ci-metamask"    data-state="pending"><span class="ci-icon"></span><span class="ci-label">{t.checkQueue.metamask}</span><span class="ci-status">{t.js.checking}</span></div>
+        <div class="check-item" id="ci-scamsniffer" data-state="pending"><span class="ci-icon"></span><span class="ci-label">{t.checkQueue.scamsniffer}</span><span class="ci-status">{t.js.checking}</span></div>
+        <div class="check-item" id="ci-openphish"   data-state="pending"><span class="ci-icon"></span><span class="ci-label">{t.checkQueue.openphish}</span><span class="ci-status">{t.js.checking}</span></div>
+        <div class="check-item" id="ci-goplus"      data-state="pending"><span class="ci-icon"></span><span class="ci-label">{t.checkQueue.goplus}</span><span class="ci-status">{t.js.checking}</span></div>
+        <div class="check-item" id="ci-urlscan"     data-state="pending"><span class="ci-icon"></span><span class="ci-label">{t.checkQueue.urlscan}</span><span class="ci-status">{t.js.checking}</span></div>
+        <div class="check-item" id="ci-gsb"         data-state="pending"><span class="ci-icon"></span><span class="ci-label">{t.checkQueue.gsb}</span><span class="ci-status">{t.js.checking}</span></div>
+        <div class="check-item" id="ci-virustotal"  data-state="pending"><span class="ci-icon"></span><span class="ci-label">{t.checkQueue.virustotal}</span><span class="ci-status">{t.js.checking}</span></div>
+      </div>
+
+      <div id="dapp-status" class="dapp-status" hidden></div>
+
+      <div id="dapp-error" class="dapp-error" hidden></div>
+    </div>
+
+    <!-- Almstins CTA -->
+    <section class="cta-banner" aria-label={t.cta.aria}>
+      <div class="cta-banner__icon" aria-hidden="true">📊</div>
+      <div class="cta-banner__body">
+        <p class="cta-banner__headline">{t.cta.headline}</p>
+        <p class="cta-banner__sub">{t.cta.sub}</p>
+      </div>
+      <a class="cta-banner__btn" href="/login">{t.cta.btn}</a>
+    </section>
+
+    <!-- What we check -->
+    <section class="signals" aria-labelledby="signals-heading">
+      <h2 id="signals-heading" class="signals__title">{t.signals.title}</h2>
+
+      <p class="signals__sub">{t.signals.walletSub}</p>
+      <div class="signals__grid">
+        {t.signals.wallet.map((s) => (
+          <div class="signal-card">
+            <span class="signal-card__icon">{s.icon}</span>
+            <h3 class="signal-card__label">{s.label}</h3>
+            <p class="signal-card__body">{s.body}</p>
+          </div>
+        ))}
+      </div>
+
+      <p class="signals__sub" style="margin-top:2rem">{t.signals.dappSub}</p>
+      <div class="signals__grid">
+        {t.signals.dapp.map((s) => (
+          <div class="signal-card">
+            <span class="signal-card__icon">{s.icon}</span>
+            <h3 class="signal-card__label">{s.label}</h3>
+            <p class="signal-card__body">{s.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Wallet approvals / connections section -->
+    <section class="approvals-section" aria-labelledby="approvals-heading">
+      <h2 id="approvals-heading" class="approvals__title">{t.approvals.title}</h2>
+      <p class="approvals__intro">{t.approvals.intro}</p>
+
+      <div class="approvals__cards">
+        <div class="approvals__card approvals__card--what">
+          <h3>{t.approvals.whatTitle}</h3>
+          <div set:html={t.approvals.whatHtml}></div>
+        </div>
+
+        <div class="approvals__card approvals__card--how">
+          <h3>{t.approvals.howTitle}</h3>
+          <p>{t.approvals.howIntro}</p>
+          <ul class="approvals__tools">
+            {t.approvals.tools.map((tool) => (
+              <li>
+                <a href={tool.href} target="_blank" rel="noopener noreferrer" class="tool-link">
+                  <span class="tool-link__name">{tool.name}</span>
+                  {tool.badge && <span class="tool-link__badge">{tool.badge}</span>}
+                </a>
+                <span class="tool-link__desc">{tool.desc}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div class="approvals__tips">
+        <h3 class="approvals__tips-title">{t.approvals.tipsTitle}</h3>
+        <div class="approvals__tips-grid">
+          {t.approvals.tips.map((tip) => (
+            <div class="approvals__tip">
+              <span class="tip-icon">{tip.icon}</span>
+              <div>
+                <strong>{tip.title}</strong>
+                <p>{tip.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq" aria-labelledby="faq-heading">
+      <h2 id="faq-heading" class="faq__title">{t.faq.title}</h2>
+      <div class="faq__list">
+        {t.faq.items.map((item) => (
+          <details class="faq__item">
+            <summary class="faq__q">
+              <span>{item.q}</span>
+              <span class="faq__chevron" aria-hidden="true">›</span>
+            </summary>
+            <p class="faq__a">{item.a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <!-- Disclaimer -->
+    <p class="disclaimer">
+      {t.disclaimer.text}
+      <br />
+      <a class="disclaimer__link" href="/">{t.disclaimer.link}</a>
+    </p>
+
+  </div>
+
+  <!-- User-facing strings for the behaviour script below -->
+  <script type="application/json" id="wc-i18n" set:html={JSON.stringify(t.js)}></script>
+</LoginLayout>
+
+<script>
+  // All user-facing strings come from the injected JSON blob, so this one
+  // bundled script serves every language.
+  const I18N: any = JSON.parse(document.getElementById('wc-i18n')!.textContent || '{}');
+
+  // ── Threat modals ─────────────────────────────────────────────────────────────
+  function openModal(id: string) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    const closeBtn = modal.querySelector<HTMLButtonElement>('.threat-modal__close');
+    closeBtn?.focus();
+  }
+
+  function closeModal(modal: HTMLElement) {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // Top half of each card → open modal
+  document.querySelectorAll<HTMLButtonElement>('.threat-card__top').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const modalId = btn.dataset.modal;
+      if (modalId) openModal(modalId);
+    });
+  });
+
+  // Bottom half check buttons
+  document.querySelectorAll<HTMLButtonElement>('.threat-card__check-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const type  = btn.dataset.checker;
+      const input = btn.closest('.threat-card__checker')
+                       ?.querySelector<HTMLInputElement>('.threat-card__input');
+      const value = input?.value.trim() ?? '';
+      if (!value) { input?.focus(); return; }
+
+      if (type === 'dapp') {
+        // Switch to dApp tab, pre-fill, and run check
+        const dappTab   = document.getElementById('tab-btn-dapp') as HTMLButtonElement | null;
+        const walletTab = document.getElementById('tab-btn-wallet') as HTMLButtonElement | null;
+        const dappPanel   = document.getElementById('panel-dapp')   as HTMLElement | null;
+        const walletPanel = document.getElementById('panel-wallet') as HTMLElement | null;
+        const urlInput  = document.getElementById('dapp-url-input') as HTMLInputElement | null;
+        const checkBtn  = document.getElementById('dapp-check-btn') as HTMLButtonElement | null;
+        if (dappTab && walletTab && dappPanel && walletPanel && urlInput && checkBtn) {
+          walletTab.classList.remove('active'); walletTab.setAttribute('aria-selected', 'false');
+          dappTab.classList.add('active');      dappTab.setAttribute('aria-selected', 'true');
+          walletPanel.hidden = true;
+          dappPanel.hidden   = false;
+          urlInput.value = value;
+          dappPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setTimeout(() => checkBtn.click(), 350);
+        }
+      } else if (type === 'wallet') {
+        // Switch to wallet tab and navigate to ?address= so React pre-fills
+        const url = new URL(window.location.href);
+        url.searchParams.set('address', value);
+        url.hash = 'panel-wallet';
+        window.location.href = url.toString();
+      } else if (type === 'approval') {
+        // Open revoke.cash with the address
+        const addr = encodeURIComponent(value);
+        window.open(`https://revoke.cash/address/${addr}`, '_blank', 'noopener,noreferrer');
+      }
+    });
+  });
+
+  // Prevent input clicks from bubbling to card top
+  document.querySelectorAll<HTMLInputElement>('.threat-card__input').forEach((inp) => {
+    inp.addEventListener('click', (e) => e.stopPropagation());
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        (inp.closest('.threat-card__checker')
+             ?.querySelector<HTMLButtonElement>('.threat-card__check-btn'))?.click();
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>('.threat-modal').forEach((modal) => {
+    // Close button
+    modal.querySelector('.threat-modal__close')?.addEventListener('click', () => closeModal(modal));
+    // Click backdrop to close
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal(modal);
+    });
+  });
+
+  // Escape key closes any open modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll<HTMLElement>('.threat-modal.open').forEach(closeModal);
+    }
+  });
+
+  // ── Tab switching ─────────────────────────────────────────────────────────────
+  const tabs = document.querySelectorAll<HTMLButtonElement>('.checker-tab');
+  tabs.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      tabs.forEach((tt) => { tt.classList.remove('active'); tt.setAttribute('aria-selected', 'false'); });
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+
+      const target = btn.dataset.tab!;
+      (document.getElementById('panel-wallet') as HTMLElement).hidden = target !== 'wallet';
+      (document.getElementById('panel-dapp')   as HTMLElement).hidden = target !== 'dapp';
+    });
+  });
+
+  // ── dApp checker ──────────────────────────────────────────────────────────────
+  const input    = document.getElementById('dapp-url-input')   as HTMLInputElement;
+  const btn      = document.getElementById('dapp-check-btn')   as HTMLButtonElement;
+  const result   = document.getElementById('dapp-result')      as HTMLElement;
+  const statusEl = document.getElementById('dapp-status')      as HTMLElement;
+  const errBox   = document.getElementById('dapp-error')       as HTMLElement;
+
+  // ── VirusTotal pending countdown ──────────────────────────────────────────────
+  let vtTimer: number | null = null;
+
+  function clearVtCountdown() {
+    if (vtTimer !== null) { clearInterval(vtTimer); vtTimer = null; }
+    (document.getElementById('vt-pending') as HTMLElement).hidden = true;
+  }
+
+  function startVtCountdown(seconds: number) {
+    clearVtCountdown();
+    const vtPendingEl  = document.getElementById('vt-pending')     as HTMLElement;
+    const countdownEl  = document.getElementById('vt-countdown')   as HTMLElement;
+    const recheckBtn   = document.getElementById('vt-recheck-btn') as HTMLButtonElement;
+
+    vtPendingEl.hidden      = false;
+    recheckBtn.disabled     = true;
+    countdownEl.textContent = String(seconds);
+
+    // Let user re-check early after 15s
+    setTimeout(() => { recheckBtn.disabled = false; }, 15_000);
+
+    let remaining = seconds;
+    vtTimer = window.setInterval(() => {
+      remaining--;
+      countdownEl.textContent = String(remaining);
+      if (remaining <= 0) {
+        clearVtCountdown();
+        runCheck();
+      }
+    }, 1_000);
+  }
+
+  document.getElementById('vt-recheck-btn')?.addEventListener('click', () => {
+    clearVtCountdown();
+    runCheck();
+  });
+
+  function verdictDot(v: string): string {
+    if (v === 'flagged')   return 'dot-red';
+    if (v === 'clean' || v === 'whitelisted') return 'dot-green';
+    if (v === 'unscanned') return 'dot-yellow';
+    return 'dot-gray';
+  }
+
+  function sourceClass(v: string): string {
+    if (v === 'flagged')   return 'flagged';
+    if (v === 'unscanned') return 'yellow';
+    return 'clean';
+  }
+
+  // ── Progressive check queue ───────────────────────────────────────────────────
+
+  const SOURCE_TO_ID: Record<string, string> = {
+    'MetaMask Blocklist':    'ci-metamask',
+    'ScamSniffer':           'ci-scamsniffer',
+    'OpenPhish':             'ci-openphish',
+    'GoPlus Security':       'ci-goplus',
+    'URLScan.io':            'ci-urlscan',
+    'Google Safe Browsing':  'ci-gsb',
+    'VirusTotal':            'ci-virustotal',
+  };
+
+  function resolveCheckItem(s: { name: string; verdict: string; detail?: string }): void {
+    const elemId = SOURCE_TO_ID[s.name];
+    if (!elemId) return;
+    const elem = document.getElementById(elemId);
+    if (!elem) return;
+    const iconEl   = elem.querySelector('.ci-icon')   as HTMLElement;
+    const statusEl = elem.querySelector('.ci-status') as HTMLElement;
+
+    const { verdict, name } = s;
+
+    if (verdict === 'flagged') {
+      iconEl.textContent   = '🚨';
+      statusEl.textContent = I18N.reported;
+      elem.dataset.state   = 'flagged';
+      return;
+    }
+
+    if (verdict === 'unscanned' && name === 'VirusTotal') {
+      iconEl.textContent   = '⏳';
+      statusEl.textContent = I18N.pending;
+      elem.dataset.state   = 'vt-pending';
+      return;
+    }
+
+    if (verdict === 'whitelisted') {
+      iconEl.textContent   = '✅';
+      statusEl.textContent = I18N.noneFound;
+      elem.dataset.state   = 'clean';
+    } else if (verdict === 'clean') {
+      iconEl.textContent   = '✅';
+      statusEl.textContent = I18N.noneFound;
+      elem.dataset.state   = 'clean';
+    } else if (verdict === 'unscanned') {
+      iconEl.textContent   = '⚠️';
+      statusEl.textContent = I18N.noData;
+      elem.dataset.state   = 'unscanned';
+    } else {
+      // error or skipped — silently collapse
+      elem.style.display = 'none';
+      return;
+    }
+
+    // Flash green, then fade-and-collapse
+    elem.classList.add('ci-flash');
+    elem.classList.add('ci-done');
+  }
+
+  function resetQueue(): void {
+    Object.values(SOURCE_TO_ID).forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = '';
+      el.dataset.state = 'pending';
+      el.className     = 'check-item';
+      (el.querySelector('.ci-icon')   as HTMLElement).textContent = '';
+      (el.querySelector('.ci-status') as HTMLElement).textContent = I18N.checking;
+    });
+  }
+
+  function renderVerdict(data: any): void {
+    const banner = document.getElementById('verdict-banner')!;
+    banner.className = `verdict-banner ${data.verdict}`;
+    document.getElementById('verdict-icon')!.textContent  =
+      data.verdict === 'red' ? '🚨' : data.verdict === 'yellow' ? '⚠️' : '✅';
+    document.getElementById('verdict-label')!.textContent =
+      I18N.verdict[data.verdict] ?? I18N.verdict.green;
+    document.getElementById('verdict-url')!.textContent = data.domain;
+
+    const VERDICT_RANK: Record<string, number> = { flagged: 0, error: 1, unscanned: 1, clean: 2, whitelisted: 2, skipped: 3 };
+    const sorted = ([...data.sources] as any[]).sort(
+      (a, b) => (VERDICT_RANK[a.verdict] ?? 2) - (VERDICT_RANK[b.verdict] ?? 2),
+    );
+    document.getElementById('source-list')!.innerHTML = sorted.map((s: any) => `
+      <li class="source-item ${sourceClass(s.verdict)}">
+        <span class="source-badge">${s.icon}</span>
+        <div>
+          <p class="source-name">${s.name}</p>
+          <p class="source-detail">${s.detail}</p>
+        </div>
+        <span class="source-verdict-dot ${verdictDot(s.verdict)}"></span>
+      </li>`).join('');
+
+    document.getElementById('safety-tip')!.textContent =
+      I18N.safety[data.verdict] ?? I18N.safety.green;
+  }
+
+  async function runCheck() {
+    const raw = input.value.trim();
+    if (!raw) { input.focus(); return; }
+
+    clearVtCountdown();
+    btn.disabled    = true;
+    result.hidden   = true;
+    errBox.hidden   = true;
+    statusEl.hidden = true;
+    statusEl.textContent = '';
+
+    const queue = document.getElementById('check-queue') as HTMLElement;
+    resetQueue();
+    queue.hidden = false;
+
+    const qs = new URLSearchParams({ url: raw });
+    let timedOut = false;
+
+    // Fire fast and slow fetches in parallel
+    const fastFetch = fetch(`/api/dapp-check?${qs}&phase=fast`)
+      .then((r) => r.json() as Promise<any>)
+      .catch(() => null);
+
+    const slowFetch = Promise.race<any>([
+      fetch(`/api/dapp-check?${qs}`).then((r) => r.json()),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => { timedOut = true; reject(new Error('timeout')); }, 30_000),
+      ),
+    ]);
+
+    // Apply fast results as soon as they land (~instant for cached lists)
+    fastFetch.then((data) => {
+      if (data?.sources) (data.sources as any[]).forEach(resolveCheckItem);
+    });
+
+    // Warm-up hint after 8 s if slow fetch still pending
+    const warmupTimer = setTimeout(() => {
+      statusEl.textContent = I18N.warmup;
+      statusEl.hidden = false;
+    }, 8_000);
+
+    let data: any;
+    try {
+      data = await slowFetch;
+    } catch (e: any) {
+      clearTimeout(warmupTimer);
+      statusEl.hidden = true;
+      queue.hidden    = true;
+
+      if (timedOut || e?.message === 'timeout') {
+        errBox.textContent = I18N.timeoutRetry;
+        errBox.hidden = false;
+        setTimeout(() => runCheck(), 5_000);
+        // btn stays disabled; runCheck() will manage it
+        return;
+      }
+      errBox.textContent = `${I18N.checkFailedPrefix}${e instanceof Error ? e.message : I18N.unknownError}${I18N.checkFailedSuffix}`;
+      errBox.hidden = false;
+      btn.disabled  = false;
+      return;
+    }
+
+    clearTimeout(warmupTimer);
+    statusEl.hidden = true;
+
+    if (!data || data.error) {
+      queue.hidden      = true;
+      errBox.textContent = data?.message ?? I18N.checkFailedGeneric;
+      errBox.hidden     = false;
+      btn.disabled      = false;
+      return;
+    }
+
+    // Apply final results to all queue items
+    (data.sources as any[]).forEach(resolveCheckItem);
+
+    // Wait for animations (~flash 0.65s + delay 0.85s + fade 0.55s = ~1.4s) then show verdict
+    setTimeout(() => {
+      queue.hidden = true;
+      renderVerdict(data);
+      result.hidden = false;
+
+      if (data.vtPending) startVtCountdown(90);
+
+      if (typeof (window as any).gtag === 'function') {
+        (window as any).gtag('event', 'dapp_check_submitted', {
+          event_category: 'interactive_tool',
+          event_label: data.verdict ?? 'unknown',
+        });
+      }
+      btn.disabled = false;
+    }, 1_400);
+  }
+
+  btn.addEventListener('click', runCheck);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') runCheck(); });
+</script>
