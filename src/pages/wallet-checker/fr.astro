@@ -2,24 +2,24 @@
 import LoginLayout from '../../layouts/LoginLayout.astro';
 import WalletChecker from '../../components/WalletChecker';
 
-// Si ?address= está en la URL, pre-rellenar el verificador (permite compartir resultados)
+// Si ?address= est dans l'URL, pré-remplir le vérificateur (permet de partager les résultats)
 const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 ---
 
 <LoginLayout
-  lang="es"
-  title="Verificador de Estafas de Cripto — ¿Es Segura Esta Dirección?"
-  description="Pega cualquier dirección de billetera de Ethereum, Solana o Sui para verificar al instante si hay estafas conocidas, phishing, honeypots, actividad en la dark web y uso de mixers. Gratis, sin cuenta requerida."
+  lang="fr"
+  title="Vérificateur d'Arnaques Crypto — Cette Adresse Est-Elle Sûre ?"
+  description="Collez n'importe quelle adresse de portefeuille Ethereum, Solana ou Sui pour vérifier instantanément les arnaques connues, le phishing, les honeypots, l'activité sur le dark web et l'usage de mixers. Gratuit, sans compte requis."
   noindex={false}
 >
 
-  <!-- JSON-LD: esquema WebApplication para resultados enriquecidos -->
+  <!-- JSON-LD : schéma WebApplication pour les résultats enrichis -->
   <script type="application/ld+json" set:html={JSON.stringify({
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    "name": "Verificador de Estafas de Cripto",
-    "url": "https://almstins.com/wallet-checker/es",
-    "description": "Herramienta gratuita para verificar cualquier dirección de billetera cripto en busca de estafas conocidas, phishing, honeypots, actividad en la dark web y uso de mixers. Compatible con Ethereum, Solana y Sui.",
+    "name": "Vérificateur d'Arnaques Crypto",
+    "url": "https://almstins.com/wallet-checker/fr",
+    "description": "Outil gratuit pour vérifier n'importe quelle adresse de portefeuille crypto à la recherche d'arnaques connues, de phishing, de honeypots, d'activité sur le dark web et d'usage de mixers. Compatible avec Ethereum, Solana et Sui.",
     "applicationCategory": "FinanceApplication",
     "operatingSystem": "Any",
     "browserRequirements": "Requires JavaScript",
@@ -34,28 +34,28 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       "url": "https://almstins.com"
     },
     "featureList": [
-      "Detección de direcciones de estafa conocidas",
-      "Identificación de billeteras de phishing",
-      "Detección de tokens honeypot",
-      "Marcado de transacciones en la dark web",
-      "Detección de Mixer / Tornado Cash",
-      "Identificación de contratos multi-sig",
-      "Consulta de saldo de tokens",
-      "Historial de actividad y antigüedad de la billetera"
+      "Détection des adresses d'arnaque connues",
+      "Identification des portefeuilles de phishing",
+      "Détection des tokens honeypot",
+      "Signalement des transactions sur le dark web",
+      "Détection de Mixer / Tornado Cash",
+      "Identification des contrats multi-sig",
+      "Consultation du solde de tokens",
+      "Historique d'activité et ancienneté du portefeuille"
     ]
   })} />
 
-  <!-- Barra de navegación superior -->
-  <nav class="topnav" aria-label="Navegación del sitio Almstins">
-    <a class="topnav__brand" href="/" aria-label="Inicio de Almstins">
+  <!-- Barre de navigation supérieure -->
+  <nav class="topnav" aria-label="Navigation du site Almstins">
+    <a class="topnav__brand" href="/" aria-label="Accueil Almstins">
       <span class="topnav__wordmark">Almstins</span>
-      <span class="topnav__tagline">Rastreador de portafolio cripto y herramienta de contabilidad</span>
+      <span class="topnav__tagline">Suivi de portefeuille crypto et outil de comptabilité</span>
     </a>
     <div class="topnav__actions">
       <a class="topnav__lang" href="/wallet-checker" aria-label="View in English">🇺🇸 In English</a>
-      <a class="topnav__lang" href="/wallet-checker/fr" aria-label="Voir en français">🇫🇷 En Français</a>
-      <a class="topnav__login" href="/login">Iniciar sesión</a>
-      <a class="topnav__signup" href="/login">Registrarse gratis</a>
+      <a class="topnav__lang" href="/wallet-checker/es" aria-label="Ver en español">🇪🇸 En Español</a>
+      <a class="topnav__login" href="/login">Se connecter</a>
+      <a class="topnav__signup" href="/login">S'inscrire gratuitement</a>
     </div>
   </nav>
 
@@ -63,69 +63,69 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 
     <!-- Hero -->
     <header class="hero">
-      <div class="hero__eyebrow">Gratis · Sin cuenta · Resultados en segundos</div>
-      <h1 class="hero__title">Verificador de Estafas de Cripto</h1>
+      <div class="hero__eyebrow">Gratuit · Sans compte · Résultats en quelques secondes</div>
+      <h1 class="hero__title">Vérificateur d'Arnaques Crypto</h1>
       <p class="hero__sub">
-        ¿Te ofrecieron un trato que parece demasiado bueno para ser verdad? Antes de enviar un solo token,
-        pega la dirección de la billetera aquí abajo. La verificaremos contra bases de datos públicas de estafas,
-        detectores de honeypots y datos on-chain — al instante.
+        On vous propose une offre qui semble trop belle pour être vraie ? Avant d'envoyer le moindre token,
+        collez l'adresse du portefeuille ci-dessous. Nous la vérifions contre des bases de données publiques d'arnaques,
+        des détecteurs de honeypots et des données on-chain — instantanément.
       </p>
 
-      <!-- Cuadrícula de tres amenazas -->
+      <!-- Grille des trois menaces -->
       <div class="threat-grid">
 
-        <!-- Tarjeta 1: Sitio malicioso -->
+        <!-- Carte 1 : Site malveillant -->
         <div class="threat-card">
           <button class="threat-card__top" data-modal="modal-phishing" aria-haspopup="dialog">
             <span class="threat-card__icon">🌐</span>
-            <span class="threat-card__title">Conexión a sitio malicioso</span>
-            <span class="threat-card__cta">¿Qué es esto? →</span>
+            <span class="threat-card__title">Connexion à un site malveillant</span>
+            <span class="threat-card__cta">Qu'est-ce que c'est ? →</span>
           </button>
           <div class="threat-card__divider"></div>
           <div class="threat-card__checker">
             <input
               class="threat-card__input"
               type="text"
-              placeholder="Pega una URL o dominio…"
+              placeholder="Collez une URL ou un domaine…"
               autocomplete="off"
               spellcheck="false"
               data-checker="dapp"
             />
-            <button class="threat-card__check-btn" data-checker="dapp">Verificar sitio</button>
+            <button class="threat-card__check-btn" data-checker="dapp">Vérifier le site</button>
           </div>
         </div>
 
-        <!-- Tarjeta 2: Estafa conocida -->
+        <!-- Carte 2 : Arnaque connue -->
         <div class="threat-card">
           <button class="threat-card__top" data-modal="modal-scam" aria-haspopup="dialog">
             <span class="threat-card__icon">💀</span>
-            <span class="threat-card__title">Invertir en una estafa conocida</span>
-            <span class="threat-card__cta">¿Qué es esto? →</span>
+            <span class="threat-card__title">Investir dans une arnaque connue</span>
+            <span class="threat-card__cta">Qu'est-ce que c'est ? →</span>
           </button>
           <div class="threat-card__divider"></div>
           <div class="threat-card__checker">
             <input
               class="threat-card__input"
               type="text"
-              placeholder="Pega una dirección de billetera…"
+              placeholder="Collez une adresse de portefeuille…"
               autocomplete="off"
               spellcheck="false"
               data-checker="wallet"
             />
-            <button class="threat-card__check-btn" data-checker="wallet">Verificar billetera</button>
+            <button class="threat-card__check-btn" data-checker="wallet">Vérifier le portefeuille</button>
           </div>
         </div>
 
-        <!-- Tarjeta 3: Robo por aprobación de tokens -->
+        <!-- Carte 3 : Vol par approbation de tokens -->
         <div class="threat-card">
           <button class="threat-card__top" data-modal="modal-approval" aria-haspopup="dialog">
             <span class="threat-card__icon">🔓</span>
-            <span class="threat-card__title">Robo por aprobación de tokens</span>
-            <span class="threat-card__cta">¿Qué es esto? →</span>
+            <span class="threat-card__title">Vol par approbation de tokens</span>
+            <span class="threat-card__cta">Qu'est-ce que c'est ? →</span>
           </button>
           <div class="threat-card__divider"></div>
           <div class="threat-card__approval-links">
-            <p class="threat-card__approval-desc">Estas herramientas de la comunidad te muestran al instante qué contratos tienen acceso a tu cripto — y te permiten revocarlos.</p>
+            <p class="threat-card__approval-desc">Ces outils communautaires vous montrent instantanément quels contrats ont accès à vos cryptos — et vous permettent de les révoquer.</p>
             <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer" class="threat-card__approval-link">
               <span class="approval-link__name">revoke.cash</span>
               <span class="approval-link__arrow">↗</span>
@@ -140,98 +140,98 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       </div>
     </header>
 
-    <!-- Modal: Sitio malicioso / phishing -->
+    <!-- Modal : Site malveillant / phishing -->
     <div id="modal-phishing" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-phishing-title">
       <div class="threat-modal__box">
-        <button class="threat-modal__close" aria-label="Cerrar">&times;</button>
+        <button class="threat-modal__close" aria-label="Fermer">&times;</button>
         <div class="threat-modal__icon">🌐</div>
-        <h2 class="threat-modal__title" id="modal-phishing-title">Conectarse a un sitio malicioso</h2>
-        <p class="threat-modal__subtitle">Wallet drainers y dApps de phishing</p>
+        <h2 class="threat-modal__title" id="modal-phishing-title">Se connecter à un site malveillant</h2>
+        <p class="threat-modal__subtitle">Wallet drainers et dApps de phishing</p>
         <div class="threat-modal__body">
-          <p>Los estafadores crean copias casi perfectas de dApps legítimas — mints falsos de NFTs, reclamaciones falsas de tokens, páginas falsas de airdrop. El sitio parece real. La URL es parecida pero ligeramente diferente (<code>blur-io.xyz</code> en lugar de <code>blur.io</code>). Cuando conectas tu MetaMask y firmas lo que parece una transacción rutinaria, en realidad estás otorgando permiso para vaciar todos los tokens de tu billetera en un solo movimiento.</p>
+          <p>Les escrocs créent des copies quasi parfaites de dApps légitimes — faux mints de NFT, fausses réclamations de tokens, fausses pages d'airdrop. Le site a l'air vrai. L'URL est proche mais légèrement différente (<code>blur-io.xyz</code> au lieu de <code>blur.io</code>). Quand vous connectez votre MetaMask et signez ce qui ressemble à une transaction de routine, vous accordez en réalité la permission de vider tous les tokens de votre portefeuille en un seul mouvement.</p>
           <div class="threat-modal__example">
-            💸 <strong>Ejemplo real:</strong> En 2023, una página falsa de airdrop de Blur.io drenó más de <strong>$1.2 millones</strong> de titulares de NFTs en pocas horas tras su lanzamiento. La mayoría de las víctimas dijeron que "verificaron la URL dos veces" pero no vieron un solo carácter diferente.
+            💸 <strong>Exemple réel :</strong> En 2023, une fausse page d'airdrop de Blur.io a drainé plus de <strong>1,2 million de dollars</strong> à des détenteurs de NFT en quelques heures après son lancement. La plupart des victimes ont dit avoir « vérifié l'URL deux fois » mais n'ont pas vu un seul caractère différent.
           </div>
-          <p>Estos sitios aparecen como enlaces en mensajes directos de Discord, respuestas en Twitter/X, grupos de Telegram e incluso anuncios pagados. El atacante paga por un anuncio de Google para aparecer encima del sitio real.</p>
+          <p>Ces sites apparaissent sous forme de liens dans des messages privés Discord, des réponses sur Twitter/X, des groupes Telegram et même des publicités payantes. L'attaquant paie une annonce Google pour apparaître au-dessus du vrai site.</p>
           <div class="threat-modal__tip">
-            ✅ <strong>Cómo te protege nuestro verificador de dApps:</strong> Pega la URL antes de conectarte. Consultamos 7 bases de datos de seguridad — incluyendo la propia lista de bloqueo de phishing de MetaMask y la base de datos de 345,000 dominios de ScamSniffer — y devolvemos un veredicto en segundos. <strong>Regla de oro: nunca hagas clic en un enlace de billetera enviado por mensaje directo.</strong>
+            ✅ <strong>Comment notre vérificateur de dApps vous protège :</strong> collez l'URL avant de vous connecter. Nous interrogeons 7 bases de données de sécurité — y compris la liste de blocage anti-phishing de MetaMask et la base de 345 000 domaines de ScamSniffer — et renvoyons un verdict en quelques secondes. <strong>Règle d'or : ne cliquez jamais sur un lien de portefeuille envoyé en message privé.</strong>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Modal: Inversión en estafa conocida -->
+    <!-- Modal : Investissement dans une arnaque connue -->
     <div id="modal-scam" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-scam-title">
       <div class="threat-modal__box">
-        <button class="threat-modal__close" aria-label="Cerrar">&times;</button>
+        <button class="threat-modal__close" aria-label="Fermer">&times;</button>
         <div class="threat-modal__icon">💀</div>
-        <h2 class="threat-modal__title" id="modal-scam-title">Invertir en una estafa conocida</h2>
-        <p class="threat-modal__subtitle">Pig butchering, honeypots y rug pulls</p>
+        <h2 class="threat-modal__title" id="modal-scam-title">Investir dans une arnaque connue</h2>
+        <p class="threat-modal__subtitle">Pig butchering, honeypots et rug pulls</p>
         <div class="threat-modal__body">
-          <p>Las estafas de <strong>pig butchering</strong> construyen confianza durante semanas o meses — un nuevo contacto en una app de citas o redes sociales te va presentando gradualmente una "gran oportunidad de inversión". La dirección de billetera que te envían a menudo ya ha sido reportada. Los <strong>tokens honeypot</strong> te permiten comprar pero te bloquean para vender — el contrato está programado para atrapar tus fondos mientras el desarrollador vacía el pool de liquidez.</p>
+          <p>Les arnaques de <strong>pig butchering</strong> construisent la confiance sur des semaines ou des mois — un nouveau contact sur une appli de rencontre ou un réseau social vous présente progressivement une « belle opportunité d'investissement ». L'adresse de portefeuille qu'on vous envoie a souvent déjà été signalée. Les <strong>tokens honeypot</strong> vous laissent acheter mais vous empêchent de vendre — le contrat est programmé pour piéger vos fonds pendant que le développeur vide le pool de liquidité.</p>
           <div class="threat-modal__example">
-            💸 <strong>Ejemplo real:</strong> El Centro de Quejas de Crímenes en Internet (IC3) del FBI reportó <strong>$3.3 mil millones</strong> en fraudes de inversión cripto solo en 2023 — la categoría de fraude de más rápido crecimiento. La mayoría de las víctimas nunca habían escuchado sobre el "pig butchering" antes de sufrirlo.
+            💸 <strong>Exemple réel :</strong> le Centre de plaintes contre la criminalité sur Internet (IC3) du FBI a signalé <strong>3,3 milliards de dollars</strong> de fraudes à l'investissement crypto rien qu'en 2023 — la catégorie de fraude qui croît le plus vite. La plupart des victimes n'avaient jamais entendu parler du « pig butchering » avant d'en être victimes.
           </div>
-          <p>Un rug pull parece un lanzamiento de token legítimo. Los desarrolladores generan hype del proyecto, entra liquidez, luego el equipo retira todo de la noche a la mañana y el token cae a cero.</p>
+          <p>Un rug pull ressemble à un lancement de token légitime. Les développeurs créent du hype autour du projet, la liquidité afflue, puis l'équipe retire tout du jour au lendemain et le token tombe à zéro.</p>
           <div class="threat-modal__tip">
-            ✅ <strong>Cómo te protege nuestro verificador de billeteras:</strong> Antes de enviar fondos a cualquier billetera, pega la dirección aquí. La verificamos contra la lista negra global de estafas de GoPlus Security, buscamos patrones honeypot en los tokens asociados y señalamos el uso de mixers que indica lavado de dinero. Si alguien te presiona para enviar cripto rápidamente — eso es la estafa.
+            ✅ <strong>Comment notre vérificateur de portefeuilles vous protège :</strong> avant d'envoyer des fonds à un portefeuille, collez l'adresse ici. Nous la vérifions contre la liste noire mondiale d'arnaques de GoPlus Security, recherchons des schémas de honeypot dans les tokens associés et signalons l'usage de mixers qui indique du blanchiment. Si quelqu'un vous presse d'envoyer des cryptos rapidement — c'est ça l'arnaque.
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Modal: Robo por aprobación de tokens -->
+    <!-- Modal : Vol par approbation de tokens -->
     <div id="modal-approval" class="threat-modal" role="dialog" aria-modal="true" aria-labelledby="modal-approval-title">
       <div class="threat-modal__box">
-        <button class="threat-modal__close" aria-label="Cerrar">&times;</button>
+        <button class="threat-modal__close" aria-label="Fermer">&times;</button>
         <div class="threat-modal__icon">🔓</div>
-        <h2 class="threat-modal__title" id="modal-approval-title">Robo por aprobación de tokens</h2>
-        <p class="threat-modal__subtitle">Aprobaciones ilimitadas y vaciados silenciosos</p>
+        <h2 class="threat-modal__title" id="modal-approval-title">Vol par approbation de tokens</h2>
+        <p class="threat-modal__subtitle">Approbations illimitées et vidages silencieux</p>
         <div class="threat-modal__body">
-          <p>Cada vez que haces clic en "Aprobar" en un swap de tokens o un mint de NFT, firmas un mensaje de contrato inteligente que dice <em>"este contrato puede gastar mis tokens"</em>. La mayoría de las dApps usan <strong>aprobación ilimitada</strong> por defecto — pueden tomar todo tu saldo de ese token, en cualquier momento, para siempre, hasta que lo revoques explícitamente. Estos permisos persisten mucho después de que hayas olvidado que el sitio existió.</p>
+          <p>Chaque fois que vous cliquez sur « Approuver » lors d'un swap de tokens ou d'un mint de NFT, vous signez un message de contrat intelligent qui dit <em>« ce contrat peut dépenser mes tokens »</em>. La plupart des dApps utilisent l'<strong>approbation illimitée</strong> par défaut — elles peuvent prendre la totalité de votre solde de ce token, à tout moment, pour toujours, jusqu'à ce que vous la révoquiez explicitement. Ces permissions persistent longtemps après que vous ayez oublié que le site existait.</p>
           <div class="threat-modal__example">
-            💸 <strong>Ejemplo real:</strong> Cuando el puente Multichain fue explotado en 2023, los atacantes usaron <strong>aprobaciones antiguas</strong> que los usuarios habían otorgado meses antes para drenar <strong>$125 millones</strong>. Muchas víctimas no habían usado el puente en más de un año.
+            💸 <strong>Exemple réel :</strong> lorsque le pont Multichain a été exploité en 2023, les attaquants ont utilisé d'<strong>anciennes approbations</strong> que les utilisateurs avaient accordées des mois plus tôt pour drainer <strong>125 millions de dollars</strong>. Beaucoup de victimes n'avaient pas utilisé le pont depuis plus d'un an.
           </div>
-          <p>Una dApp comprometida, un rug pull, o un exploit de día cero puede activar esas aprobaciones en el momento en que se lanza — sin necesidad de una segunda firma de tu parte.</p>
+          <p>Une dApp compromise, un rug pull ou un exploit zero-day peut activer ces approbations au moment où il est lancé — sans aucune seconde signature de votre part.</p>
           <div class="threat-modal__tip">
-            ✅ <strong>Cómo protegerte:</strong> Visita <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer" style="color:#a5b4fc">revoke.cash</a> para ver cada aprobación activa en tu billetera y revocar todo lo que no reconozcas. Siempre establece montos exactos en lugar de ilimitados cuando tu billetera te dé esa opción — y revoca después de cada interacción que hayas terminado.
+            ✅ <strong>Comment vous protéger :</strong> rendez-vous sur <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer" style="color:#a5b4fc">revoke.cash</a> pour voir chaque approbation active sur votre portefeuille et révoquer tout ce que vous ne reconnaissez pas. Définissez toujours des montants exacts plutôt qu'illimités lorsque votre portefeuille vous le permet — et révoquez après chaque interaction terminée.
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Selector de pestañas -->
-    <div class="checker-tabs" role="tablist" aria-label="Tipo de verificación">
+    <!-- Sélecteur d'onglets -->
+    <div class="checker-tabs" role="tablist" aria-label="Type de vérification">
       <button class="checker-tab active" id="tab-btn-wallet" role="tab" aria-selected="true"  aria-controls="panel-wallet" data-tab="wallet">
-        🔍 Dirección de Billetera
+        🔍 Adresse de Portefeuille
       </button>
       <button class="checker-tab"        id="tab-btn-dapp"   role="tab" aria-selected="false" aria-controls="panel-dapp"   data-tab="dapp">
-        🌐 dApp / Sitio Web
+        🌐 dApp / Site Web
       </button>
     </div>
 
-    <!-- Panel del verificador de billeteras -->
+    <!-- Panneau du vérificateur de portefeuilles -->
     <div id="panel-wallet" class="checker-wrap" role="tabpanel" aria-labelledby="tab-btn-wallet">
       <WalletChecker client:load prefilledAddress={prefilledAddress} />
     </div>
 
-    <!-- Panel del verificador de dApps -->
+    <!-- Panneau du vérificateur de dApps -->
     <div id="panel-dapp" class="dapp-panel" role="tabpanel" aria-labelledby="tab-btn-dapp" hidden>
 
       <div class="dapp-input-row">
         <input
           id="dapp-url-input"
           type="text"
-          placeholder="https://dapp-sospechosa.xyz  o simplemente pega el dominio"
+          placeholder="https://dapp-suspecte.xyz  ou collez simplement le domaine"
           autocomplete="off"
           spellcheck="false"
         />
-        <button id="dapp-check-btn" type="button">Verificar sitio</button>
+        <button id="dapp-check-btn" type="button">Vérifier le site</button>
       </div>
 
       <div id="dapp-result" class="dapp-result" hidden>
 
-        <!-- Banner de veredicto -->
+        <!-- Bannière de verdict -->
         <div class="verdict-banner" id="verdict-banner">
           <span class="verdict-icon" id="verdict-icon"></span>
           <div>
@@ -240,55 +240,55 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
           </div>
         </div>
 
-        <!-- Desglose por fuente -->
+        <!-- Détail par source -->
         <ul class="source-list" id="source-list"></ul>
 
-        <!-- Consejo de seguridad -->
+        <!-- Conseil de sécurité -->
         <div class="safety-tip" id="safety-tip"></div>
       </div>
 
-      <!-- Cola de verificación progresiva -->
+      <!-- File de vérification progressive -->
       <div id="check-queue" class="check-queue" hidden>
-        <div class="check-item" id="ci-metamask"    data-state="pending"><span class="ci-icon"></span><span class="ci-label">Bases de datos de phishing</span><span class="ci-status">Verificando…</span></div>
-        <div class="check-item" id="ci-scamsniffer" data-state="pending"><span class="ci-icon"></span><span class="ci-label">Listas de dominios fraudulentos</span><span class="ci-status">Verificando…</span></div>
-        <div class="check-item" id="ci-openphish"   data-state="pending"><span class="ci-icon"></span><span class="ci-label">Feed activo de phishing</span><span class="ci-status">Verificando…</span></div>
-        <div class="check-item" id="ci-goplus"      data-state="pending"><span class="ci-icon"></span><span class="ci-label">Inteligencia de amenazas en vivo</span><span class="ci-status">Verificando…</span></div>
-        <div class="check-item" id="ci-urlscan"     data-state="pending"><span class="ci-icon"></span><span class="ci-label">Historial de seguridad URL</span><span class="ci-status">Verificando…</span></div>
-        <div class="check-item" id="ci-gsb"         data-state="pending"><span class="ci-icon"></span><span class="ci-label">Google Safe Browsing</span><span class="ci-status">Verificando…</span></div>
-        <div class="check-item" id="ci-virustotal"  data-state="pending"><span class="ci-icon"></span><span class="ci-label">Análisis de malware</span><span class="ci-status">Verificando…</span></div>
+        <div class="check-item" id="ci-metamask"    data-state="pending"><span class="ci-icon"></span><span class="ci-label">Bases de données de phishing</span><span class="ci-status">Vérification…</span></div>
+        <div class="check-item" id="ci-scamsniffer" data-state="pending"><span class="ci-icon"></span><span class="ci-label">Listes de domaines frauduleux</span><span class="ci-status">Vérification…</span></div>
+        <div class="check-item" id="ci-openphish"   data-state="pending"><span class="ci-icon"></span><span class="ci-label">Flux actif de phishing</span><span class="ci-status">Vérification…</span></div>
+        <div class="check-item" id="ci-goplus"      data-state="pending"><span class="ci-icon"></span><span class="ci-label">Renseignement de menaces en direct</span><span class="ci-status">Vérification…</span></div>
+        <div class="check-item" id="ci-urlscan"     data-state="pending"><span class="ci-icon"></span><span class="ci-label">Historique de sécurité des URL</span><span class="ci-status">Vérification…</span></div>
+        <div class="check-item" id="ci-gsb"         data-state="pending"><span class="ci-icon"></span><span class="ci-label">Google Safe Browsing</span><span class="ci-status">Vérification…</span></div>
+        <div class="check-item" id="ci-virustotal"  data-state="pending"><span class="ci-icon"></span><span class="ci-label">Analyse de malwares</span><span class="ci-status">Vérification…</span></div>
       </div>
 
       <div id="dapp-error" class="dapp-error" hidden></div>
     </div>
 
-    <!-- CTA de Almstins -->
-    <section class="cta-banner" aria-label="Acerca de Almstins">
+    <!-- CTA Almstins -->
+    <section class="cta-banner" aria-label="À propos d'Almstins">
       <div class="cta-banner__icon" aria-hidden="true">📊</div>
       <div class="cta-banner__body">
-        <p class="cta-banner__headline">¿Quieres rastrear todo lo que tienes?</p>
+        <p class="cta-banner__headline">Vous voulez suivre tout ce que vous détenez ?</p>
         <p class="cta-banner__sub">
-          Almstins conecta tus billeteras, posiciones DeFi y cuentas de exchanges en un solo lugar —
-          y rastrea automáticamente tus ganancias de capital, tenencias y ganancias realizadas.
+          Almstins réunit vos portefeuilles, positions DeFi et comptes d'exchange au même endroit —
+          et suit automatiquement vos plus-values, vos avoirs et vos gains réalisés.
         </p>
       </div>
-      <a class="cta-banner__btn" href="/login">Comenzar gratis →</a>
+      <a class="cta-banner__btn" href="/login">Commencer gratuitement →</a>
     </section>
 
-    <!-- Qué verificamos -->
+    <!-- Ce que nous vérifions -->
     <section class="signals" aria-labelledby="signals-heading">
-      <h2 id="signals-heading" class="signals__title">Qué verificamos</h2>
+      <h2 id="signals-heading" class="signals__title">Ce que nous vérifions</h2>
 
-      <p class="signals__sub">🔍 Verificador de dirección de billetera</p>
+      <p class="signals__sub">🔍 Vérificateur d'adresse de portefeuille</p>
       <div class="signals__grid">
         {[
-          { icon: '🚨', label: 'Bases de datos de estafas conocidas', body: 'Cruzado contra la lista negra global de GoPlus Security de billeteras de estafa, phishing y vaciado reportadas.' },
-          { icon: '🍯', label: 'Detección de honeypot',              body: 'Verifica si los tokens asociados con esta dirección realmente pueden venderse — o si están diseñados para atrapar tus fondos.' },
-          { icon: '🌑', label: 'Actividad en la dark web',           body: 'Señala direcciones con conexiones conocidas a mercados de la dark web y patrones de transacciones ilícitas.' },
-          { icon: '🔀', label: 'Mixer / Tornado Cash',               body: 'Detecta el uso de mixers cripto como Tornado Cash — una forma común que usan los estafadores para lavar fondos antes de un rug pull.' },
-          { icon: '📅', label: 'Antigüedad de la billetera',         body: 'Las billeteras nuevas (< 30 días) son una gran señal de alerta. Los estafadores crean direcciones nuevas para cada operación.' },
-          { icon: '💰', label: 'Tenencias de tokens',                body: 'Muestra lo que realmente hay en la billetera. Las billeteras de estafa suelen contener tokens sin valor diseñados para parecer valiosos.' },
-          { icon: '⚖️', label: 'Verificación de sanciones',          body: 'Verifica contra las listas de sanciones de la OFAC e internacionales para direcciones involucradas en crímenes financieros.' },
-          { icon: '🔑', label: 'Detección multi-sig',                body: 'Identifica si la dirección es un contrato multi-sig. Las inversiones legítimas nunca te piden depositar en los suyos.' },
+          { icon: '🚨', label: 'Bases de données d\'arnaques connues', body: 'Recoupé avec la liste noire mondiale de GoPlus Security regroupant les portefeuilles d\'arnaque, de phishing et de vidage signalés.' },
+          { icon: '🍯', label: 'Détection de honeypot',               body: 'Vérifie si les tokens associés à cette adresse peuvent réellement être vendus — ou s\'ils sont conçus pour piéger vos fonds.' },
+          { icon: '🌑', label: 'Activité sur le dark web',            body: 'Signale les adresses ayant des liens connus avec des marchés du dark web et des schémas de transactions illicites.' },
+          { icon: '🔀', label: 'Mixer / Tornado Cash',               body: 'Détecte l\'usage de mixers crypto comme Tornado Cash — une méthode courante des escrocs pour blanchir des fonds avant un rug pull.' },
+          { icon: '📅', label: 'Ancienneté du portefeuille',         body: 'Les portefeuilles récents (< 30 jours) sont un signal d\'alerte majeur. Les escrocs créent une nouvelle adresse pour chaque opération.' },
+          { icon: '💰', label: 'Avoirs en tokens',                   body: 'Montre ce que contient réellement le portefeuille. Les portefeuilles d\'arnaque contiennent souvent des tokens sans valeur conçus pour paraître précieux.' },
+          { icon: '⚖️', label: 'Vérification des sanctions',         body: 'Vérifie contre les listes de sanctions de l\'OFAC et internationales pour les adresses impliquées dans des crimes financiers.' },
+          { icon: '🔑', label: 'Détection multi-sig',                body: 'Identifie si l\'adresse est un contrat multi-sig. Les investissements légitimes ne vous demandent jamais de déposer dans le leur.' },
         ].map(s => (
           <div class="signal-card">
             <span class="signal-card__icon">{s.icon}</span>
@@ -298,17 +298,17 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
         ))}
       </div>
 
-      <p class="signals__sub" style="margin-top:2rem">🌐 Verificador de dApp / sitio web</p>
+      <p class="signals__sub" style="margin-top:2rem">🌐 Vérificateur de dApp / site web</p>
       <div class="signals__grid">
         {[
-          { icon: '🦊', label: 'Lista de bloqueo de MetaMask',  body: 'Verifica contra la propia lista eth-phishing-detect de MetaMask — más de 198,000 dominios de phishing cripto mantenidos por el equipo de seguridad de MetaMask.' },
-          { icon: '🕵️', label: 'Base de datos de ScamSniffer', body: 'La lista de dominios de phishing web3 más grande disponible, con más de 345,000 sitios reportados. Actualizada diariamente por el equipo de seguridad de ScamSniffer.' },
-          { icon: '🛡️', label: 'GoPlus Security',              body: 'Consulta en tiempo real contra la API de phishing web3 en vivo de GoPlus — el mismo motor usado por MetaMask, Trust Wallet y otras billeteras importantes.' },
-          { icon: '🔬', label: 'URLScan.io',                    body: 'Busca escaneos previos de investigadores de seguridad del dominio para mostrar cualquier veredicto malicioso de la comunidad global de seguridad.' },
-          { icon: '🎣', label: 'Feed de OpenPhish',             body: 'Cruza contra la lista activamente mantenida de OpenPhish de URLs de phishing en vivo actualizada en tiempo real.' },
-          { icon: '🔍', label: 'Google Safe Browsing',          body: 'Cuando está configurado, consulta la base de datos de amenazas de Google — uno de los repositorios de URLs de phishing y malware más grandes del mundo.' },
-          { icon: '🦠', label: 'VirusTotal',                    body: 'Cuando está configurado, verifica la URL contra más de 70 motores antivirus y de seguridad simultáneamente para un veredicto completo.' },
-          { icon: '⚠️', label: 'Atribución, no veredicto',     body: 'Reportamos lo que dicen las bases de datos de terceros. No declaramos de forma independiente que un sitio sea una estafa. Verifica siempre antes de conectar tu billetera.' },
+          { icon: '🦊', label: 'Liste de blocage de MetaMask',  body: 'Vérifie contre la liste eth-phishing-detect de MetaMask — plus de 198 000 domaines de phishing crypto maintenus par l\'équipe de sécurité de MetaMask.' },
+          { icon: '🕵️', label: 'Base de données ScamSniffer',  body: 'La plus grande liste de domaines de phishing web3 disponible, avec plus de 345 000 sites signalés. Mise à jour quotidiennement par l\'équipe de sécurité de ScamSniffer.' },
+          { icon: '🛡️', label: 'GoPlus Security',              body: 'Interrogation en temps réel de l\'API de phishing web3 en direct de GoPlus — le même moteur utilisé par MetaMask, Trust Wallet et d\'autres portefeuilles majeurs.' },
+          { icon: '🔬', label: 'URLScan.io',                    body: 'Recherche les analyses antérieures du domaine par des chercheurs en sécurité pour afficher tout verdict malveillant de la communauté mondiale de sécurité.' },
+          { icon: '🎣', label: 'Flux OpenPhish',                body: 'Recoupe avec la liste activement maintenue d\'OpenPhish d\'URLs de phishing en direct, mise à jour en temps réel.' },
+          { icon: '🔍', label: 'Google Safe Browsing',          body: 'Lorsqu\'il est configuré, interroge la base de données de menaces de Google — l\'un des plus grands référentiels d\'URLs de phishing et de malware au monde.' },
+          { icon: '🦠', label: 'VirusTotal',                    body: 'Lorsqu\'il est configuré, vérifie l\'URL contre plus de 70 moteurs antivirus et de sécurité simultanément pour un verdict complet.' },
+          { icon: '⚠️', label: 'Attribution, pas verdict',     body: 'Nous rapportons ce que disent les bases de données tierces. Nous ne déclarons pas de manière indépendante qu\'un site est une arnaque. Vérifiez toujours avant de connecter votre portefeuille.' },
         ].map(s => (
           <div class="signal-card">
             <span class="signal-card__icon">{s.icon}</span>
@@ -319,139 +319,139 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       </div>
     </section>
 
-    <!-- Sección de aprobaciones / conexiones de billetera -->
+    <!-- Section approbations / connexions de portefeuille -->
     <section class="approvals-section" aria-labelledby="approvals-heading">
-      <h2 id="approvals-heading" class="approvals__title">¿Está tu billetera conectada a algo que no debería?</h2>
+      <h2 id="approvals-heading" class="approvals__title">Votre portefeuille est-il connecté à quelque chose qu'il ne devrait pas ?</h2>
       <p class="approvals__intro">
-        Cada vez que conectas MetaMask (o cualquier billetera) a una dApp y apruebas una transacción, le estás otorgando
-        a ese contrato permiso para mover tokens en tu nombre — a veces sin límite de gasto y sin fecha de vencimiento.
-        Estas aprobaciones permanecen activas incluso después de que dejas de usar el sitio. Una dApp comprometida o maliciosa puede
-        vaciar tu billetera meses después usando un permiso que olvidaste que otorgaste.
+        Chaque fois que vous connectez MetaMask (ou n'importe quel portefeuille) à une dApp et approuvez une transaction, vous accordez
+        à ce contrat la permission de déplacer des tokens en votre nom — parfois sans plafond de dépense et sans date d'expiration.
+        Ces approbations restent actives même après que vous ayez cessé d'utiliser le site. Une dApp compromise ou malveillante peut
+        vider votre portefeuille des mois plus tard en utilisant une permission que vous avez oublié avoir accordée.
       </p>
 
       <div class="approvals__cards">
         <div class="approvals__card approvals__card--what">
-          <h3>⚠️ Lo que una aprobación realmente significa</h3>
+          <h3>⚠️ Ce qu'une approbation signifie vraiment</h3>
           <p>
-            Cuando haces clic en "Aprobar" en un swap de tokens o un mint de NFT, estás firmando una llamada a contrato inteligente que dice
-            <em>"este contrato puede gastar X cantidad de mis tokens"</em>. Muchas dApps usan
-            <strong>aprobación ilimitada</strong> por defecto — lo que significa que pueden tomar todo lo que tienes de ese token, en cualquier momento,
-            para siempre, hasta que lo revoques.
+            Quand vous cliquez sur « Approuver » lors d'un swap de tokens ou d'un mint de NFT, vous signez un appel de contrat intelligent qui dit
+            <em>« ce contrat peut dépenser X de mes tokens »</em>. Beaucoup de dApps utilisent l'
+            <strong>approbation illimitée</strong> par défaut — ce qui signifie qu'elles peuvent prendre tout ce que vous détenez de ce token, à tout moment,
+            pour toujours, jusqu'à ce que vous la révoquiez.
           </p>
           <p>
-            Si esa dApp es explotada después, hace un rug pull, o resulta haber sido maliciosa desde el principio,
-            el atacante puede usar tu aprobación existente para vaciar tu billetera — sin necesidad de una segunda firma.
+            Si cette dApp est ensuite exploitée, fait un rug pull, ou s'avère avoir été malveillante depuis le début,
+            l'attaquant peut utiliser votre approbation existante pour vider votre portefeuille — sans aucune seconde signature.
           </p>
         </div>
 
         <div class="approvals__card approvals__card--how">
-          <h3>🔍 Cómo ver y revocar tus aprobaciones</h3>
-          <p>Estas herramientas gratuitas se conectan a tu billetera (solo lectura) y muestran cada aprobación activa en todas las cadenas — luego te permiten revocar las que no reconoces o ya no necesitas.</p>
+          <h3>🔍 Comment voir et révoquer vos approbations</h3>
+          <p>Ces outils gratuits se connectent à votre portefeuille (en lecture seule) et affichent chaque approbation active sur toutes les chaînes — puis vous permettent de révoquer celles que vous ne reconnaissez pas ou dont vous n'avez plus besoin.</p>
           <ul class="approvals__tools">
             <li>
               <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer" class="tool-link">
                 <span class="tool-link__name">revoke.cash</span>
-                <span class="tool-link__badge">Más confiable</span>
+                <span class="tool-link__badge">Le plus fiable</span>
               </a>
-              <span class="tool-link__desc">El estándar de oro. Multi-cadena, muestra aprobaciones ilimitadas vs. limitadas, revocación con un clic. Sin cuenta necesaria.</span>
+              <span class="tool-link__desc">La référence absolue. Multi-chaînes, affiche les approbations illimitées vs limitées, révocation en un clic. Aucun compte requis.</span>
             </li>
             <li>
               <a href="https://etherscan.io/tokenapprovalchecker" target="_blank" rel="noopener noreferrer" class="tool-link">
                 <span class="tool-link__name">etherscan.io/tokenapprovalchecker</span>
               </a>
-              <span class="tool-link__desc">El verificador oficial de aprobaciones de Etherscan. Pega tu dirección para ver cada permiso abierto en Ethereum — sin necesidad de conectar tu billetera.</span>
+              <span class="tool-link__desc">Le vérificateur d'approbations officiel d'Etherscan. Collez votre adresse pour voir chaque permission ouverte sur Ethereum — sans avoir à connecter votre portefeuille.</span>
             </li>
           </ul>
         </div>
       </div>
 
       <div class="approvals__tips">
-        <h3 class="approvals__tips-title">Mejores prácticas</h3>
+        <h3 class="approvals__tips-title">Bonnes pratiques</h3>
         <div class="approvals__tips-grid">
           <div class="approvals__tip">
             <span class="tip-icon">✂️</span>
             <div>
-              <strong>Revoca después de cada interacción</strong>
-              <p>Una vez que termines con una dApp, revoca su aprobación. No hay desventaja — puedes volver a aprobarla la próxima vez que la uses.</p>
+              <strong>Révoquez après chaque interaction</strong>
+              <p>Une fois que vous en avez fini avec une dApp, révoquez son approbation. Aucun inconvénient — vous pourrez la ré-approuver la prochaine fois que vous l'utiliserez.</p>
             </div>
           </div>
           <div class="approvals__tip">
             <span class="tip-icon">🔢</span>
             <div>
-              <strong>Establece montos exactos, no ilimitados</strong>
-              <p>Al aprobar un swap, algunas billeteras te permiten establecer un monto personalizado. Aprueba siempre solo lo que necesites para esa transacción.</p>
+              <strong>Définissez des montants exacts, pas illimités</strong>
+              <p>En approuvant un swap, certains portefeuilles permettent de définir un montant personnalisé. N'approuvez toujours que ce dont vous avez besoin pour cette transaction.</p>
             </div>
           </div>
           <div class="approvals__tip">
             <span class="tip-icon">🗓️</span>
             <div>
-              <strong>Audita tus aprobaciones regularmente</strong>
-              <p>Haz una verificación en revoke.cash cada pocos meses — especialmente después de noticias de un exploit DeFi, ya que los atacantes a menudo apuntan a aprobaciones antiguas.</p>
+              <strong>Auditez vos approbations régulièrement</strong>
+              <p>Faites une vérification sur revoke.cash tous les quelques mois — surtout après l'annonce d'un exploit DeFi, car les attaquants visent souvent les anciennes approbations.</p>
             </div>
           </div>
           <div class="approvals__tip">
             <span class="tip-icon">🦊</span>
             <div>
-              <strong>Lee lo que MetaMask realmente te pide</strong>
-              <p>Antes de hacer clic en Confirmar, expande los detalles de la transacción. Si dice "Ilimitado" junto a una cantidad de token — esa es una señal de alerta que vale la pena pausar.</p>
+              <strong>Lisez ce que MetaMask vous demande vraiment</strong>
+              <p>Avant de cliquer sur Confirmer, déployez les détails de la transaction. S'il est écrit « Illimité » à côté d'une quantité de token — c'est un signal d'alerte qui mérite une pause.</p>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Preguntas frecuentes -->
+    <!-- Foire aux questions -->
     <section class="faq" aria-labelledby="faq-heading">
-      <h2 id="faq-heading" class="faq__title">Preguntas frecuentes y patrones de estafa</h2>
+      <h2 id="faq-heading" class="faq__title">Foire aux questions et schémas d'arnaque</h2>
       <div class="faq__list">
         {[
           {
-            q: '¿Qué es el verificador de dApp / sitio web?',
-            a: 'Es una herramienta gratuita que toma cualquier URL o dominio y consulta hasta 7 bases de datos de seguridad independientes simultáneamente — incluyendo la propia lista de bloqueo de phishing de MetaMask, ScamSniffer, GoPlus, URLScan.io y OpenPhish. Devuelve un resultado rojo, amarillo o verde según lo que reportan esas bases de datos. No hacemos nuestra propia determinación — mostramos lo que la comunidad de seguridad ya ha señalado.',
+            q: 'Qu\'est-ce que le vérificateur de dApp / site web ?',
+            a: 'C\'est un outil gratuit qui prend n\'importe quelle URL ou domaine et interroge jusqu\'à 7 bases de données de sécurité indépendantes simultanément — dont la liste de blocage anti-phishing de MetaMask, ScamSniffer, GoPlus, URLScan.io et OpenPhish. Il renvoie un résultat rouge, jaune ou vert selon ce que rapportent ces bases. Nous ne portons pas notre propre jugement — nous montrons ce que la communauté de sécurité a déjà signalé.',
           },
           {
-            q: '¿Qué significa un resultado rojo para un sitio web?',
-            a: 'Significa que una o más de las bases de datos de seguridad que consultamos ha reportado ese dominio. No significa que nosotros lo estemos llamando una estafa — esa determinación proviene de la base de datos de terceros. Debes tratar un resultado rojo como una advertencia seria, hacer tu propia investigación adicional y no conectar tu billetera hasta estar seguro de que el sitio es legítimo.',
+            q: 'Que signifie un résultat rouge pour un site web ?',
+            a: 'Cela signifie qu\'une ou plusieurs des bases de données de sécurité que nous interrogeons ont signalé ce domaine. Cela ne veut pas dire que nous le qualifions d\'arnaque — ce jugement provient de la base de données tierce. Vous devez traiter un résultat rouge comme un avertissement sérieux, faire vos propres recherches complémentaires et ne pas connecter votre portefeuille tant que vous n\'êtes pas certain que le site est légitime.',
           },
           {
-            q: '¿Qué significa un resultado amarillo?',
-            a: 'Amarillo significa que el sitio no está en ninguna lista de bloqueo, pero tampoco tiene poco o ningún historial de escaneos de seguridad — por lo que no hay suficientes datos para dar un certificado de salud limpio. Los sitios nuevos, dominios oscuros o direcciones registradas recientemente a menudo muestran amarillo. Procede con precaución y verifica el sitio a través de canales oficiales antes de conectarte.',
+            q: 'Que signifie un résultat jaune ?',
+            a: 'Jaune signifie que le site ne figure sur aucune liste de blocage, mais qu\'il a aussi peu ou pas d\'historique d\'analyses de sécurité — il n\'y a donc pas assez de données pour lui donner un certificat de bonne santé. Les sites récents, les domaines obscurs ou les adresses enregistrées récemment affichent souvent jaune. Procédez avec prudence et vérifiez le site via des canaux officiels avant de vous connecter.',
           },
           {
-            q: '¿Puedo confiar en un sitio solo porque muestra verde?',
-            a: 'No. Un resultado verde significa que el sitio no ha sido reportado a ninguna de las bases de datos que verificamos — no que sea definitivamente seguro. Los sitios de phishing nuevos tienen unas pocas horas antes de ser añadidos a las listas de bloqueo. Siempre verifica la URL exacta en la barra de tu navegador, busca las cuentas oficiales de redes sociales y nunca conectes una billetera desde un enlace enviado en un mensaje directo o correo electrónico.',
+            q: 'Puis-je faire confiance à un site juste parce qu\'il affiche vert ?',
+            a: 'Non. Un résultat vert signifie que le site n\'a été signalé dans aucune des bases de données que nous vérifions — pas qu\'il est définitivement sûr. Les nouveaux sites de phishing disposent de quelques heures avant d\'être ajoutés aux listes de blocage. Vérifiez toujours l\'URL exacte dans la barre de votre navigateur, cherchez les comptes officiels sur les réseaux sociaux, et ne connectez jamais un portefeuille depuis un lien envoyé par message privé ou e-mail.',
           },
           {
-            q: '¿Cómo funcionan los sitios de wallet drainer?',
-            a: 'Un wallet drainer es un sitio web que imita una dApp legítima — un mint falso de NFT, una reclamación falsa de token o un airdrop falso. Cuando conectas tu MetaMask y firmas una transacción, en realidad estás firmando un permiso que le permite al atacante transferir todos los tokens de tu billetera en un solo movimiento. Todo el saldo puede desaparecer en segundos. El sitio a menudo desaparece en pocas horas.',
+            q: 'Comment fonctionnent les sites de wallet drainer ?',
+            a: 'Un wallet drainer est un site web qui imite une dApp légitime — un faux mint de NFT, une fausse réclamation de token ou un faux airdrop. Quand vous connectez votre MetaMask et signez une transaction, vous signez en réalité une permission qui autorise l\'attaquant à transférer tous les tokens de votre portefeuille en un seul mouvement. Tout le solde peut disparaître en quelques secondes. Le site disparaît souvent en quelques heures.',
           },
           {
-            q: '¿Qué es una estafa honeypot?',
-            a: 'Un honeypot es un token que puedes comprar pero nunca vender. El estafador lo promociona, compras, el precio parece subir — pero cuando intentas vender, el contrato te bloquea. El estafador luego drena la liquidez y desaparece con tu ETH.',
+            q: 'Qu\'est-ce qu\'une arnaque honeypot ?',
+            a: 'Un honeypot est un token que vous pouvez acheter mais jamais revendre. L\'escroc en fait la promotion, vous achetez, le prix semble monter — mais quand vous essayez de vendre, le contrat vous bloque. L\'escroc draine ensuite la liquidité et disparaît avec votre ETH.',
           },
           {
-            q: '¿Cómo se ve "demasiado bueno para ser verdad" en cripto?',
-            a: 'Rendimientos diarios garantizados del 1–10%, "solo pon tus tokens en nuestra billetera", reclamaciones de airdrop que requieren enviar tokens primero, o alguien en mensajes directos ofreciendo duplicar tu cripto. Si el retorno suena imposible en las finanzas tradicionales, es una estafa en cripto.',
+            q: 'À quoi ressemble « trop beau pour être vrai » en crypto ?',
+            a: 'Des rendements quotidiens garantis de 1 à 10 %, « mettez simplement vos tokens dans notre portefeuille », des réclamations d\'airdrop qui exigent d\'envoyer des tokens d\'abord, ou quelqu\'un en message privé qui propose de doubler vos cryptos. Si le rendement paraît impossible dans la finance traditionnelle, c\'est une arnaque en crypto.',
           },
           {
-            q: '¿Por qué usaría una billetera Tornado Cash?',
-            a: 'Tornado Cash es un mixer que rompe el enlace on-chain entre direcciones de billetera. Aunque algunos usuarios valoran la privacidad, es ampliamente utilizado por estafadores y hackers para ocultar el origen de fondos robados antes de cobrarlos.',
+            q: 'Pourquoi utiliserais-je un portefeuille Tornado Cash ?',
+            a: 'Tornado Cash est un mixer qui brise le lien on-chain entre les adresses de portefeuille. Bien que certains utilisateurs y voient une question de confidentialité, il est largement utilisé par les escrocs et les hackers pour masquer l\'origine de fonds volés avant de les encaisser.',
           },
           {
-            q: '¿Debo confiar en una billetera solo porque tiene un saldo grande?',
-            a: 'No. Los estafadores a menudo cargan billeteras con tokens sin valor o saldos "de papel" inflados para crear apariencia de legitimidad. Verifica siempre si esos tokens pueden realmente venderse y cuánto valen realmente.',
+            q: 'Dois-je faire confiance à un portefeuille juste parce qu\'il a un gros solde ?',
+            a: 'Non. Les escrocs chargent souvent les portefeuilles de tokens sans valeur ou de soldes « sur le papier » gonflés pour donner une apparence de légitimité. Vérifiez toujours si ces tokens peuvent réellement être vendus et combien ils valent réellement.',
           },
           {
-            q: '¿Es una billetera nueva siempre sospechosa?',
-            a: 'No siempre — pero en el contexto de alguien que ofrece una inversión, una billetera creada en los últimos 30 días es una gran señal de alerta. Los protocolos y negocios legítimos tienen historial on-chain establecido.',
+            q: 'Un portefeuille récent est-il toujours suspect ?',
+            a: 'Pas toujours — mais dans le contexte de quelqu\'un qui propose un investissement, un portefeuille créé au cours des 30 derniers jours est un signal d\'alerte majeur. Les protocoles et entreprises légitimes ont un historique on-chain établi.',
           },
           {
-            q: '¿Qué debo hacer si esta herramienta señala una dirección de billetera?',
-            a: 'No envíes fondos. Toma una captura de pantalla de los resultados. Si alguien te presiona para enviar cripto a una dirección señalada, esa presión misma es parte de la estafa. Reporta la dirección en chainabuse.com y retírate.',
+            q: 'Que dois-je faire si cet outil signale une adresse de portefeuille ?',
+            a: 'N\'envoyez pas de fonds. Faites une capture d\'écran des résultats. Si quelqu\'un vous presse d\'envoyer des cryptos vers une adresse signalée, cette pression fait elle-même partie de l\'arnaque. Signalez l\'adresse sur chainabuse.com et retirez-vous.',
           },
           {
-            q: '¿Qué debo hacer si el verificador de dApp señala un sitio web?',
-            a: 'No conectes tu billetera. Cierra la pestaña. Encuentra el proyecto oficial a través de una fuente de confianza — su cuenta verificada de Twitter/X o un agregador reconocido como DeFiLlama o CoinGecko. Reporta el sitio a la base de datos de phishing de MetaMask en github.com/MetaMask/eth-phishing-detect.',
+            q: 'Que dois-je faire si le vérificateur de dApp signale un site web ?',
+            a: 'Ne connectez pas votre portefeuille. Fermez l\'onglet. Trouvez le projet officiel via une source fiable — son compte Twitter/X vérifié ou un agrégateur reconnu comme DeFiLlama ou CoinGecko. Signalez le site à la base de données de phishing de MetaMask sur github.com/MetaMask/eth-phishing-detect.',
           },
         ].map(item => (
           <details class="faq__item">
@@ -465,14 +465,14 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       </div>
     </section>
 
-    <!-- Aviso legal -->
+    <!-- Avertissement légal -->
     <p class="disclaimer">
-      Los resultados de verificación de billeteras provienen de bases de datos públicas incluyendo GoPlus Security, Etherscan, Alchemy y honeypot.is.
-      Los resultados de dApp / sitio web provienen de MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io y OpenPhish.
-      Todos los hallazgos se reportan desde bases de datos de terceros y no son verificados independientemente por Almstins.
-      Esta herramienta no constituye asesoramiento financiero ni legal. Haz siempre tu propia investigación.
+      Les résultats de vérification des portefeuilles proviennent de bases de données publiques dont GoPlus Security, Etherscan, Alchemy et honeypot.is.
+      Les résultats dApp / site web proviennent de MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io et OpenPhish.
+      Tous les constats sont rapportés depuis des bases de données tierces et ne sont pas vérifiés de manière indépendante par Almstins.
+      Cet outil ne constitue ni un conseil financier ni un conseil juridique. Faites toujours vos propres recherches.
       <br />
-      <a class="disclaimer__link" href="/">Una herramienta gratuita de Almstins — rastreador de portafolio cripto y herramienta de contabilidad.</a>
+      <a class="disclaimer__link" href="/">Un outil gratuit d'Almstins — suivi de portefeuille crypto et outil de comptabilité.</a>
     </p>
 
   </div>
@@ -1579,17 +1579,17 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
     const { verdict, name } = s as any;
 
     if (verdict === 'flagged') {
-      iconEl.textContent = '🚨'; statusEl.textContent = 'Reportado'; elem.dataset.state = 'flagged'; return;
+      iconEl.textContent = '🚨'; statusEl.textContent = 'Signalé'; elem.dataset.state = 'flagged'; return;
     }
     if (verdict === 'unscanned' && name === 'VirusTotal') {
-      iconEl.textContent = '⏳'; statusEl.textContent = 'Pendiente…'; elem.dataset.state = 'vt-pending'; return;
+      iconEl.textContent = '⏳'; statusEl.textContent = 'En attente…'; elem.dataset.state = 'vt-pending'; return;
     }
     if (verdict === 'whitelisted') {
-      iconEl.textContent = '✅'; statusEl.textContent = 'No encontrado ✓'; elem.dataset.state = 'clean';
+      iconEl.textContent = '✅'; statusEl.textContent = 'Introuvable ✓'; elem.dataset.state = 'clean';
     } else if (verdict === 'clean') {
-      iconEl.textContent = '✅'; statusEl.textContent = 'No encontrado ✓'; elem.dataset.state = 'clean';
+      iconEl.textContent = '✅'; statusEl.textContent = 'Introuvable ✓'; elem.dataset.state = 'clean';
     } else if (verdict === 'unscanned') {
-      iconEl.textContent = '⚠️'; statusEl.textContent = 'Sin datos'; elem.dataset.state = 'unscanned';
+      iconEl.textContent = '⚠️'; statusEl.textContent = 'Aucune donnée'; elem.dataset.state = 'unscanned';
     } else {
       elem.style.display = 'none'; return;
     }
@@ -1602,7 +1602,7 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       if (!el) return;
       el.style.display = ''; el.dataset.state = 'pending'; el.className = 'check-item';
       (el.querySelector('.ci-icon')   as HTMLElement).textContent = '';
-      (el.querySelector('.ci-status') as HTMLElement).textContent = 'Verificando…';
+      (el.querySelector('.ci-status') as HTMLElement).textContent = 'Vérification…';
     });
   }
 
@@ -1634,7 +1634,7 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       data = await slowFetch;
     } catch (e) {
       queue.hidden = true;
-      errBox.textContent = `Verificación fallida: ${e instanceof Error ? e.message : 'Error desconocido'}. Inténtalo de nuevo.`;
+      errBox.textContent = `Échec de la vérification : ${e instanceof Error ? e.message : 'Erreur inconnue'}. Réessayez.`;
       errBox.hidden = false;
       btn.disabled  = false;
       return;
@@ -1642,7 +1642,7 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 
     if (!data || data.error) {
       queue.hidden = true;
-      errBox.textContent = data?.message ?? 'Verificación fallida. Inténtalo de nuevo.';
+      errBox.textContent = data?.message ?? 'Échec de la vérification. Réessayez.';
       errBox.hidden = false;
       btn.disabled  = false;
       return;
@@ -1658,9 +1658,9 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
       document.getElementById('verdict-icon')!.textContent  =
         data.verdict === 'red' ? '🚨' : data.verdict === 'yellow' ? '⚠️' : '✅';
       document.getElementById('verdict-label')!.textContent =
-        data.verdict === 'red'    ? 'PELIGRO — No conectes tu billetera' :
-        data.verdict === 'yellow' ? 'PRECAUCIÓN — No se puede confirmar que este sitio sea seguro' :
-                                    'NO ENCONTRADO — Sin reportes en ninguna base de datos';
+        data.verdict === 'red'    ? 'DANGER — Ne connectez pas votre portefeuille' :
+        data.verdict === 'yellow' ? 'PRUDENCE — Impossible de confirmer que ce site est sûr' :
+                                    'INTROUVABLE — Aucun signalement dans aucune base de données';
       document.getElementById('verdict-url')!.textContent = data.domain;
 
       const VERDICT_RANK: Record<string, number> = { flagged: 0, error: 1, unscanned: 1, clean: 2, whitelisted: 2, skipped: 3 };
@@ -1679,10 +1679,10 @@ const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 
       document.getElementById('safety-tip')!.textContent =
         data.verdict === 'red'
-          ? '🛑 Una o más bases de datos de seguridad han reportado este sitio. NO conectes tu billetera ni firmes transacciones hasta estar seguro.'
+          ? '🛑 Une ou plusieurs bases de données de sécurité ont signalé ce site. NE connectez PAS votre portefeuille et ne signez aucune transaction tant que vous n\'êtes pas certain.'
           : data.verdict === 'yellow'
-          ? '⚠️ Este sitio tiene historial de escaneo limitado. Solo conecta tu billetera a sitios que encontraste tú mismo.'
-          : '✅ No se detectaron amenazas. Verifica siempre la URL en tu navegador antes de firmar cualquier transacción.';
+          ? '⚠️ Ce site a un historique d\'analyse limité. Ne connectez votre portefeuille qu\'à des sites que vous avez trouvés vous-même.'
+          : '✅ Aucune menace détectée. Vérifiez toujours l\'URL dans votre navigateur avant de signer une transaction.';
 
       result.hidden = false;
       if (typeof (window as any).gtag === 'function') {
