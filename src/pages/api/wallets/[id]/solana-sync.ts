@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { getAllActiveWallets } from '@/lib/wallets';
+import { syncSolanaWallet } from '@/lib/sync/syncSolanaTransactions';
 
 export const prerender = false;
 
@@ -23,9 +24,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 			return respond({ error: true, message: 'Wallet does not have solana chain configured.' }, 400);
 		}
 
-		// Full transaction sync is coming soon.
-		// For now return 0 inserted so the UI shows the wallet as synced.
-		return respond({ ok: true, walletId, inserted: 0, skipped: 0 }, 200);
+		const stats = await syncSolanaWallet(tenantId, wallet);
+		return respond({ ok: true, walletId, inserted: stats.totalInserted, skipped: stats.totalSkipped }, 200);
 	} catch (err) {
 		if (err instanceof Response) return err;
 		console.error('[solana-sync] error', err);
