@@ -367,6 +367,10 @@
 	text-transform: uppercase;
 }
 
+.wallet-label-text {
+	cursor: text;
+}
+.wallet-label-edit,
 .wallet-copy-btn {
 	display: inline-flex;
 	align-items: center;
@@ -378,6 +382,25 @@
 	color: rgba(0, 0, 0, 0.55);
 	transition: color 0.15s;
 	line-height: 1;
+}
+.wallet-label-edit {
+	font-size: 0.8em;
+}
+.wallet-label-edit:hover {
+	color: rgba(0, 0, 0, 0.85);
+}
+/* Inline rename input — inherits the pill's text styling, sits inline */
+.wallet-label-input {
+	background: rgba(255, 255, 255, 0.85);
+	border: none;
+	border-radius: 6px;
+	padding: 0.1rem 0.5rem;
+	font: inherit;
+	letter-spacing: inherit;
+	text-transform: none;
+	color: var(--surface-bg);
+	max-width: 12rem;
+	outline: none;
 }
 .wallet-copy-btn:hover {
 	color: rgba(0, 0, 0, 0.85);

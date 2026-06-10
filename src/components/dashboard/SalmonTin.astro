@@ -21,11 +21,14 @@ const CHAIN_COLORS: Record<string, string> = {
 interface Props {
 	label: string;
 	class?: string;
+	/** Optional key to color the corner flag (e.g. chain badge) when `label`
+	 *  is a custom name that wouldn't match CHAIN_COLORS. Defaults to `label`. */
+	flagKey?: string;
 }
 
-const { label, class: className = '' } = Astro.props;
+const { label, class: className = '', flagKey } = Astro.props;
 const hasSummary = Astro.slots.has('summary');
-const flagColor = CHAIN_COLORS[label.toUpperCase()] ?? 'var(--text-muted)';
+const flagColor = CHAIN_COLORS[(flagKey ?? label).toUpperCase()] ?? 'var(--text-muted)';
 ---
 
 <div class={`salmon-tin ${className}`}>

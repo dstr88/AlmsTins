@@ -221,10 +221,15 @@ const getChainBadge = (chains: string[]): string => {
 						: wallet;
 					const displayLabel = formatWalletLabel(labelSource);
 					const chainBadge = getChainBadge(wallet.chains);
+					// The user's own label is the wallet's identity and sticks regardless of
+					// how many chains attach. Fall back to the auto chain badge only when unlabeled.
+					const customLabel = (labelSource.label ?? '').toString().trim();
+					const tinLabel = customLabel || chainBadge;
 					return (
 						<div class="vault-stack-tin tile">
-							<div class="wallet-label-box" data-address={wallet.address}>
-								{displayLabel}
+							<div class="wallet-label-box" data-address={wallet.address} data-wallet-id={wallet.id}>
+								<span class="wallet-label-text" data-wallet-label-text>{displayLabel}</span>
+								<button class="wallet-label-edit" aria-label="Rename wallet" title="Rename">✎</button>
 								<button class="wallet-copy-btn" aria-label="Copy address" title={wallet.address}>
 									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 										<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -233,7 +238,7 @@ const getChainBadge = (chains: string[]): string => {
 								</button>
 							</div>
 							<div class="wallet-stack" data-accordion="wallet-stack">
-								<SalmonTin label={chainBadge} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
+								<SalmonTin label={tinLabel} flagKey={chainBadge} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label">Wallet value</span>
 										<span class="tin-summary__value" data-wallet-summary-value>—</span>
@@ -350,6 +355,79 @@ const getChainBadge = (chains: string[]): string => {
 			if (stack instanceof HTMLElement) {
 				initWalletAccordion(stack);
 			}
+		});
+
+		// ── Inline wallet rename ───────────────────────────────────────────────
+		// The user's label is the wallet's identity and sticks regardless of how
+		// many chains attach. Editing it here also updates the tin chip in place.
+		const initLabelEdit = (box: HTMLElement): void => {
+			if (box.dataset.labelEditInit === 'true') return;
+			box.dataset.labelEditInit = 'true';
+			const walletId = box.dataset.walletId ?? '';
+			const textEl = box.querySelector<HTMLElement>('[data-wallet-label-text]');
+			const editBtn = box.querySelector<HTMLButtonElement>('.wallet-label-edit');
+			if (!walletId || !(textEl instanceof HTMLElement)) return;
+			// The chip whose text mirrors this wallet's identity (same stack tin).
+			const chipEl = box.parentElement?.querySelector<HTMLElement>('.wallet-tin--wallet .salmon-tin__label') ?? null;
+
+			const beginEdit = (): void => {
+				if (box.querySelector('input')) return; // already editing
+				const current = textEl.textContent?.trim() ?? '';
+				const input = document.createElement('input');
+				input.type = 'text';
+				input.className = 'wallet-label-input';
+				input.value = current;
+				input.maxLength = 60;
+				input.setAttribute('aria-label', 'Wallet name');
+				textEl.replaceWith(input);
+				input.focus();
+				input.select();
+
+				let done = false;
+				const finish = async (save: boolean): Promise<void> => {
+					if (done) return;
+					done = true;
+					const next = input.value.trim();
+					const restore = (label: string): void => {
+						const span = document.createElement('span');
+						span.className = 'wallet-label-text';
+						span.setAttribute('data-wallet-label-text', '');
+						span.textContent = label;
+						input.replaceWith(span);
+						span.addEventListener('click', beginEdit);
+					};
+					if (!save || !next || next === current) { restore(current); return; }
+					try {
+						const res = await fetch(`/api/wallets/${walletId}`, {
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ label: next }),
+						});
+						const data = await res.json().catch(() => ({}));
+						if (res.ok && data?.ok) {
+							restore(next);
+							if (chipEl) chipEl.textContent = next; // keep the chip in sync
+						} else {
+							restore(current); // rejected (e.g. EMPTY_LABEL) — revert
+						}
+					} catch {
+						restore(current);
+					}
+				};
+
+				input.addEventListener('keydown', (e) => {
+					if (e.key === 'Enter') { e.preventDefault(); void finish(true); }
+					else if (e.key === 'Escape') { e.preventDefault(); void finish(false); }
+				});
+				input.addEventListener('blur', () => { void finish(true); });
+			};
+
+			textEl.addEventListener('click', beginEdit);
+			editBtn?.addEventListener('click', (e) => { e.preventDefault(); beginEdit(); });
+		};
+
+		document.querySelectorAll('.wallet-label-box').forEach((box) => {
+			if (box instanceof HTMLElement) initLabelEdit(box);
 		});
 
 		// updated wallet total
