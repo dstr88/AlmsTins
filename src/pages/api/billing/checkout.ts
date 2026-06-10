@@ -40,6 +40,10 @@ export const POST: APIRoute = async ({ request }) => {
 		const session = await stripe.checkout.sessions.create({
 			mode: 'subscription',
 			payment_method_types: ['card'],
+			// Surface the "Add promotion code" box at checkout. Codes (e.g. CYNIDA26)
+			// and their restrictions (yearly-only, % off) are defined as coupons /
+			// promotion codes in the Stripe Dashboard, not here.
+			allow_promotion_codes: true,
 			customer: existingCustomerId || undefined,
 			customer_email: existingCustomerId ? undefined : email,
 			line_items: [{ price: priceId, quantity: 1 }],
