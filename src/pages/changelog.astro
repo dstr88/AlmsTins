@@ -20,6 +20,15 @@ import Layout from '@/layouts/LoginLayout.astro';
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">June 10, 2026</time>
+          <div class="entry-body">
+            <p>Solana wallets now sync their full transaction history, not just current balances. Previously, adding a Solana wallet showed its balance but never imported the underlying transactions — so a transfer like moving tokens from an exchange to your Solana wallet had no on-chain record to match against, and stayed stuck as an unresolved item. Now syncing a Solana wallet pulls every on-chain token and SOL transfer into your ledger.</p>
+            <p>Because those transfers now land in the same place as your exchange imports, the Resolve button can automatically pair an exchange withdrawal with its matching on-chain arrival and classify it as a non-taxable self-transfer — the same way it already works for Bitcoin and Ethereum wallets. Cost basis carries across the move instead of breaking at the chain boundary.</p>
+            <p>A scheduled job now re-syncs Solana wallets every week, staggered alongside the existing Bitcoin, Ethereum, and Aave syncs, so your Solana history stays current without manual action. USD values for newly imported transactions are filled in by the existing price backfill.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">June 3, 2026</time>
           <div class="entry-body">
             <p>TradfiTins now has its own domain at <strong>tradifitins.com</strong>. Visiting the root redirects to the TradfiTins dashboard. When accessed from tradifitins.com, the navigation shows only TradfiTins links — Dashboard, Docs, and Upgrade — keeping the Almstins portfolio tools out of view for users who are here only for personal finance.</p>
