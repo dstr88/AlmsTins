@@ -74,7 +74,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 		logEnvStatus();
 		const requestHost = request.headers.get('x-forwarded-host') ?? url.host;
+		const TRADFI_HOSTS = new Set(['tradifitins.com', 'www.tradifitins.com']);
 		const canonicalHost = (() => {
+			// TradfiTins uses its own domain for redirects
+			if (TRADFI_HOSTS.has(requestHost)) {
+				return 'tradifitins.com';
+			}
+			// All other domains use AUTH_URL
 			const authUrl = process.env.AUTH_URL ?? '';
 			if (!authUrl) return requestHost;
 			try {
@@ -141,7 +147,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		}
 
 		// TradfiTins secondary domain — enforce HTTPS and root redirect, then fall through to normal auth
-		const TRADFI_HOSTS = new Set(['tradifitins.com', 'www.tradifitins.com']);
 		if (TRADFI_HOSTS.has(requestHost)) {
 			if (!isDev && request.headers.get('x-forwarded-proto') === 'http') {
 				return finish(new Response(null, { status: 301, headers: { Location: `https://tradifitins.com${url.pathname}${url.search}` } }));
