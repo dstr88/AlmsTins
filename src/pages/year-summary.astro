@@ -5,6 +5,7 @@ import './year-summary.css';
  * Annual Summary Hub — gated by TAX_SECRET passphrase cookie.
  */
 import Layout from '../layouts/Layout.astro';
+import WalletYearChangesWrapper from '../components/WalletYearChangesWrapper';
 import { hasTaxAccess } from '@/lib/taxAuth';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
@@ -421,13 +422,13 @@ const availableYears = bd?.availableYears ?? [priorYear];
           {wallets.length > 0 && (
             <>
               <p class="card-section-label" style="margin-top:1.25rem">Self-Custody Wallets</p>
-              <ul class="sync-list">
+              <ul class="sync-list" id="wallet-list">
                 {wallets.map(w => {
                   const stale = !w.lastSynced || new Date(w.lastSynced) < staleCutoff;
                   return (
-                    <li class="sync-item">
+                    <li class="sync-item" data-wallet-id={w.id} style="cursor:pointer">
                       <span class={`sync-dot ${stale ? 'sync-dot--stale' : 'sync-dot--ok'}`}></span>
-                      <span class="sync-name">{w.label || w.address.slice(0,14) + '…'}</span>
+                      <span class="sync-name" style="color:var(--accent);text-decoration:underline">{w.label || w.address.slice(0,14) + '…'}</span>
                       <span class="sync-date">{fmtDate(w.lastSynced)}</span>
                     </li>
                   );
@@ -841,6 +842,9 @@ const availableYears = bd?.availableYears ?? [priorYear];
     )}
 
   </div>
+
+  <!-- Wallet Year Changes Modal Wrapper -->
+  <WalletYearChangesWrapper client:load selectedYear={selectedYear} />
 </Layout>
 
 
