@@ -1,39 +1,30 @@
 ---
-import './year-summary.css';
+import '../../../year-summary.css';
 /**
- * /year-summary
- * Annual Summary Hub — gated by TAX_SECRET passphrase cookie.
+ * /dashboard/annual-records
+ * International Annual Records Hub — owner-only, no tax-form references.
+ * Same data structure as year-summary.astro but with generic descriptive section names.
  */
-import Layout from '../layouts/Layout.astro';
-import { hasTaxAccess } from '@/lib/taxAuth';
+import Layout from '../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
-import { getActivePlan } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
 
 export const prerender = false;
 
-if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/login', 302);
 const { tenantId, isDemo = false } = sess;
 
-// Gate to admin/owner only (tax prep tool)
+// Gate to owner only
 const OWNER_UUID = 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
 if (String(tenantId).toLowerCase() !== OWNER_UUID.toLowerCase()) {
   return Astro.redirect('/dashboard/vault', 302);
 }
 
-// ── Admin check (mirrors Layout.astro logic) ─────────────────────────────────
-const ADMIN_TENANT_IDS = new Set(
-  (process.env.ADMIN_TENANT_IDS ?? process.env.ADMIN_TENANT_ID ?? '')
-    .split(',').map((id: string) => id.trim().toLowerCase()).filter(Boolean)
-);
-const isAdmin = Boolean(tenantId && ADMIN_TENANT_IDS.has(String(tenantId).toLowerCase()));
-
-// ── Plan check ────────────────────────────────────────────────────────────────
-const activePlan = await getActivePlan(tenantId);
-const canDownload = activePlan.id !== 'free';
+// Owner always has access
+const isAdmin = true;
+const canDownload = true;
 
 const currentYear = new Date().getFullYear();
 const priorYear   = currentYear - 1;
@@ -187,23 +178,13 @@ const availableYears = bd?.availableYears ?? [priorYear];
     <header class="tax-hero">
       <div class="tax-hero__inner">
         <div class="tax-hero__text">
-          {isAdmin ? (
-            <>
-              <h1 class="tax-hero__title">Tax Preparation Hub</h1>
-              <p class="tax-hero__sub">
-                Everything in one place — your documents, your gains, your losses, and your downloads.
-                The app already knows what's connected. Check off what you've gathered and you're ready to file.
-              </p>
-            </>
-          ) : (
-            <>
-              <h1 class="tax-hero__title">Portfolio Hub</h1>
-              <p class="tax-hero__sub">
-                Everything in one place — your connected sources, your gains, your losses, and your exports.
-                Your data, clearly organized.
-              </p>
-            </>
-          )}
+          <>
+            <h1 class="tax-hero__title">Annual Records Hub</h1>
+            <p class="tax-hero__sub">
+              Everything in one place — your accounts, your gains, your losses, and your exports.
+              Your complete annual reconciliation, clearly organized.
+            </p>
+          </>
           {unclassCount > 0 && (
             <a href="/dashboard/yearEnd/review" class="review-warning">
               ⚠️ <strong>{unclassCount} transaction{unclassCount !== 1 ? 's' : ''} need review</strong>
@@ -214,7 +195,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
 
         <!-- Year bar -->
         <div class="year-bar">
-          <span class="year-bar__label">{isAdmin ? 'Tax Year' : 'Year'}</span>
+          <span class="year-bar__label">Year</span>
           <div class="year-bar__pills">
             {availableYears.map(y => (
               <a href={`/year-summary?year=${y}`} class={`year-pill${y === selectedYear ? ' year-pill--active' : ''}`}>{y}</a>
@@ -224,46 +205,28 @@ const availableYears = bd?.availableYears ?? [priorYear];
       </div>
     </header>
 
-    <!-- ── Premium sticky note ──────────────────────────────────────────── -->
-    <div style="
-      background: rgba(45,212,168,0.08);
-      border: 1px solid rgba(45,212,168,0.22);
-      border-left: 4px solid var(--accent);
-      border-radius: 0 8px 8px 0;
-      padding: 0.9rem 1.3rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.5rem;
-    ">
-      <span style="font-size:1.1rem;">📌</span>
-      <p style="margin:0; font-size:0.85rem; color:var(--text-secondary); line-height:1.5;">
-        <strong style="color:var(--accent);">Available on the Premium plan.</strong>
-        Upgrade to unlock PDF export, full multi-year history, and downloadable tax schedules.
-      </p>
-    </div>
 
     <!-- ── Row 1 ──────────────────────────────────────────────────────────── -->
     <div class="tax-row tax-row--1">
 
-      <!-- C1: Document Checklist (admin) / Data Health (users) -->
+      <!-- C1: Income & Records Checklist -->
       {isAdmin ? (
         <div class="tax-card tax-card--uploads">
           <div class="card-header card-header--violet">
             <span class="card-header__icon">📂</span>
-            <h2 class="card-header__title">Document Checklist</h2>
+            <h2 class="card-header__title">Income & Records</h2>
           </div>
 
           <div class="card-body">
             <p class="card-section-label">Traditional Income</p>
             <ul class="check-list" id="doc-checklist">
               {[
-                { label: 'W-2 (Employment income)',              type: 'w2'        },
-                { label: '1099-INT (Bank interest)',             type: '1099-int'  },
-                { label: '1099-DIV (Dividends)',                 type: '1099-div'  },
-                { label: '1099-R (Retirement distributions)',    type: '1099-r'    },
-                { label: '1099-MISC / 1099-NEC (Other income)', type: '1099-misc' },
-                { label: 'SSA-1099 (Social Security)',           type: 'ssa-1099'  },
+                { label: 'Employment Income',      type: 'w2'        },
+                { label: 'Interest Income',        type: '1099-int'  },
+                { label: 'Dividend Income',        type: '1099-div'  },
+                { label: 'Distribution Income',    type: '1099-r'    },
+                { label: 'Other Income',           type: '1099-misc' },
+                { label: 'Social Security',        type: 'ssa-1099'  },
               ].map(doc => (
                 <li class="check-item" data-doc-type={doc.type}>
                   <input type="checkbox" class="check-box" data-key={`doc_${doc.type}_${selectedYear}`} />
@@ -285,14 +248,13 @@ const availableYears = bd?.availableYears ?? [priorYear];
 
             {exchanges.length > 0 && (
               <>
-                <p class="card-section-label" style="margin-top:1.25rem">Crypto Exchange 1099s</p>
+                <p class="card-section-label" style="margin-top:1.25rem">Digital Asset Exchanges</p>
                 <ul class="check-list">
                   {exchanges.map(ex => (
                     <li class="check-item">
                       <input type="checkbox" class="check-box" data-key={`ex_${ex.id}_${selectedYear}`} />
                       <span class="check-label">
                         {ex.label}
-                        <span class="form-badge">{ex.formType}</span>
                       </span>
                     </li>
                   ))}
@@ -301,7 +263,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
             )}
 
             <div class="upload-zone">
-              <p class="card-section-label" style="margin-bottom:.6rem">Upload 1099 CSV/PDF for Reconciliation</p>
+              <p class="card-section-label" style="margin-bottom:.6rem">Upload CSV/PDF Records</p>
               <div class="upload-dropzone" id="upload-dropzone">
                 <span class="upload-icon">⬆️</span>
                 <span class="upload-text">Drop a CSV or PDF here or <label for="csv-file-input" class="upload-browse">browse</label></span>
@@ -586,37 +548,36 @@ const availableYears = bd?.availableYears ?? [priorYear];
             <span class="dl-btn__plan-badge">Sign up</span>
           </a>
         ) : canDownload ? (
-          <a href={`/api/year-summary/report?year=${selectedYear}`} target="_blank" class="dl-btn">
+          <a href={`/api/annual-records/report?year=${selectedYear}`} target="_blank" class="dl-btn">
             <span class="dl-btn__icon">📄</span>
-            <span>Year Summary PDF</span>
+            <span>Annual Records PDF</span>
           </a>
         ) : (
-          <a href="/dashboard/billing" class="dl-btn dl-btn--paywall" title="Available on any paid plan">
+          <a href="/dashboard/vault" class="dl-btn dl-btn--paywall" title="Owner only">
             <span class="dl-btn__icon">📄</span>
-            <span>Year Summary PDF</span>
-            <span class="dl-btn__plan-badge">Paid</span>
+            <span>Annual Records PDF</span>
           </a>
         )}
       </div>
 
-      <!-- Admin-only: advanced tax forms (hidden entirely for non-admin) -->
+      <!-- Admin-only: additional reports -->
       {isAdmin && (
         <>
           <div class="downloads__group-label downloads__group-label--admin">
-            Advanced tax forms
+            Additional Reports
           </div>
           <div class="downloads__grid">
             <a href={`/dashboard/yearEnd/form8949?year=${selectedYear}`} class="dl-btn">
               <span class="dl-btn__icon">📝</span>
-              <span>Form 8949</span>
+              <span>Capital Disposals</span>
             </a>
             <a href={`/dashboard/yearEnd/schedule-d?year=${selectedYear}`} class="dl-btn">
               <span class="dl-btn__icon">🗂</span>
-              <span>Schedule D</span>
+              <span>Realized Gains & Losses</span>
             </a>
             <a href={`/dashboard/yearEnd/1099?year=${selectedYear}`} class="dl-btn">
               <span class="dl-btn__icon">🧾</span>
-              <span>1099 Reconciliation</span>
+              <span>Income Records</span>
             </a>
           </div>
         </>
@@ -630,7 +591,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
       {isAdmin ? (
         <>
           <div class="faq__group">
-            <h3 class="faq__group-label">Understanding Your Numbers</h3>
+            <h3 class="faq__group-label">Understanding Your Records</h3>
 
             <details class="faq__item">
               <summary class="faq__q">What is the difference between short-term and long-term capital gains?</summary>
