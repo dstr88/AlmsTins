@@ -189,6 +189,11 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
           <input class="dt-input" id="dt-entry-desc" name="description" type="text" maxlength="200" placeholder="What was this for?" autocomplete="off" />
         </label>
 
+        <label class="dt-label">
+          Payment URL <span class="dt-optional">(optional)</span>
+          <input class="dt-input" id="dt-entry-url" name="url" type="url" placeholder="https://example.com/payment" />
+        </label>
+
         <div class="dt-modal-actions">
           <button type="submit" class="dt-btn-primary">Add</button>
           <button type="button" class="dt-btn-ghost" id="dt-entry-cancel">Cancel</button>
@@ -1528,6 +1533,7 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
       document.getElementById('dt-entry-date').value = new Date().toISOString().slice(0,10);
       document.getElementById('dt-entry-amount').value = '';
       document.getElementById('dt-entry-desc').value = '';
+      document.getElementById('dt-entry-url').value = '';
 
       // Set sensible default kind
       const kindSel = document.getElementById('dt-entry-kind');
@@ -1549,11 +1555,12 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
       const amount    = parseFloat(document.getElementById('dt-entry-amount').value);
       const entryDate = document.getElementById('dt-entry-date').value;
       const description = document.getElementById('dt-entry-desc').value.trim() || null;
+      const url = document.getElementById('dt-entry-url').value.trim() || null;
 
       await fetch('/api/petro-tins/entries', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ tinId, kind, amount, entryDate, description }),
+        body: JSON.stringify({ tinId, kind, amount, entryDate, description, url }),
       });
 
       document.getElementById('dt-entry-modal').style.display = 'none';
