@@ -308,7 +308,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
                     <li class="check-item">
                       <input type="checkbox" class="check-box" data-key={`wallet_${w.id}_${selectedYear}`} />
                       <span class="check-label">
-                        {w.label || w.address.slice(0, 12) + '...'}
+                        {w.label ? `${w.label} · ${w.address.slice(0, 12)}...` : w.address.slice(0, 12) + '...'}
                       </span>
                     </li>
                   ))}
