@@ -46,9 +46,8 @@ test-results/
 *.db
 *.pdf
 
-# Private marketing notes & strategy — keep OUT of version control
-marketing.claude.md
+# Private documentation — keep OUT of version control
+# Includes: CLAUDE.md, design.claude.md, marketing.claude.md, etc.
+*.claude.md
+CLAUDE.md
 MARKETING-READINESS-PLAN.md
-
-# Private design notes — keep OUT of version control
-design.claude.md
