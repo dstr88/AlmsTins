@@ -262,6 +262,22 @@ const availableYears = bd?.availableYears ?? [priorYear];
               </>
             )}
 
+            {wallets.length > 0 && (
+              <>
+                <p class="card-section-label" style="margin-top:1.25rem">Self-Custody Wallets</p>
+                <ul class="check-list">
+                  {wallets.map(w => (
+                    <li class="check-item">
+                      <input type="checkbox" class="check-box" data-key={`wallet_${w.id}_${selectedYear}`} />
+                      <span class="check-label">
+                        {w.label || w.address.slice(0, 12) + '...'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
             <div class="upload-zone">
               <p class="card-section-label" style="margin-bottom:.6rem">Upload CSV/PDF Records</p>
               <div class="upload-dropzone" id="upload-dropzone">
