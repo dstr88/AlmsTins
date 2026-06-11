@@ -111,7 +111,54 @@ const body = `
   related to the wallets, transactions, or data you track using the Service.
 </p>
 
-<h2>7. Third-Party Services</h2>
+<h2>7. Prohibited Users and Compliance</h2>
+<p>
+  You may <strong>not</strong> use Almstins if you are:
+</p>
+<ul>
+  <li>A person, entity, or organization listed on any OFAC (Office of Foreign Assets Control) sanctions list or otherwise subject to U.S. or international economic sanctions</li>
+  <li>Operating under jurisdictions that prohibit or restrict cryptocurrency use, where using Almstins would violate local law</li>
+  <li>Using the Service to evade capital controls, foreign exchange restrictions, or to circumvent lawful financial reporting requirements of your jurisdiction</li>
+  <li>Using the Service to facilitate money laundering, terrorist financing, fraud, or other financial crimes</li>
+</ul>
+<p>
+  If you are subject to any of these restrictions, you may not create an account or access the Service.
+  Continued use in violation of this section may result in immediate termination of your account and reporting
+  to appropriate authorities as required by law.
+</p>
+
+<h2>8. Architectural Privacy Guarantees — What Almstins Will Never Do</h2>
+<p>
+  Almstins is built on four non-negotiable architectural principles that will never change:
+</p>
+<ol>
+  <li>
+    <strong>No Custody.</strong> Almstins never holds, controls, or moves your assets. It never requests
+    your private keys, signing permissions, or any wallet connection. A breach of Almstins cannot move a single coin.
+  </li>
+  <li>
+    <strong>No Attribution.</strong> Almstins will <strong>never</strong> link a blockchain address to a person's
+    identity. We perform no KYC, identity verification, address clustering, de-anonymization, or attribution of any kind.
+    "Who owns this wallet?" is permanently out of scope — this is not a privacy policy choice, it is an architectural guarantee.
+  </li>
+  <li>
+    <strong>Read-Only, Always.</strong> Almstins reads public blockchain data and data you voluntarily provide.
+    It makes no changes to the chain, your wallets, or any system beyond our own database.
+  </li>
+  <li>
+    <strong>Absolute Tenant Isolation.</strong> In any multi-tenant or white-label deployment, one tenant
+    has no access to another's data — wallets, transactions, records, or identities. This is enforced at the
+    data layer, not just in policy.
+  </li>
+</ol>
+<p>
+  These guarantees exist because they are the foundation of Almstins' trust model. No government pressure,
+  regulatory demand, or business opportunity will cause us to add attribution features, surveillance capabilities,
+  or identity-linking functionality. If such features were added, Almstins would become something different entirely.
+  We will not do this.
+</p>
+
+<h2>9. Third-Party Services</h2>
 <p>
   The Service integrates with third-party providers including GitHub (authentication),
   Stripe (payments), Alchemy (blockchain data), CoinGecko and Coinpaprika (price feeds),
