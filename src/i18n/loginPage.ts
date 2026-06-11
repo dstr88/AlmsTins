@@ -1,5 +1,5 @@
 export interface LoginPageLocale {
-  lang: 'en' | 'es';
+  lang: 'en' | 'es' | 'fr';
   meta: { title: string; description: string };
   langToggle: { text: string; href: string; ariaLabel: string };
   signin: {
@@ -226,5 +226,87 @@ export const es: LoginPageLocale = {
     verifiedSuccess: 'Email verificado. Ya puedes iniciar sesión.',
     verifiedExpired: 'El enlace de verificación expiró. Inicia sesión para solicitar uno nuevo.',
     verifiedFailed: 'La verificación falló. Por favor intenta de nuevo.',
+  },
+};
+
+export const fr: LoginPageLocale = {
+  lang: 'fr',
+  meta: {
+    title: 'Almstins — Comprendre exactement ce que vous possédez',
+    description: 'Tracez chaque transaction de votre historique crypto. Transactions manquantes, lacunes inexplicables et surprises fiscales — tout en un seul endroit. Aucune inscription nécessaire pour explorer.',
+  },
+  langToggle: { text: '🇺🇸 In English', href: '/', ariaLabel: 'Passer à l\'anglais' },
+  signin: {
+    pillLabel: 'Connexion',
+    closeAriaLabel: 'Fermer le panneau de connexion',
+    continueDashboard: 'Continuer vers le tableau de bord →',
+    noSignupPrimary: 'Aucune inscription nécessaire — connectez-vous simplement.',
+    noSignupSub: 'Nous créerons votre compte automatiquement la première fois.',
+    continueGoogle: 'Continuer avec Google',
+    continueGithub: 'Continuer avec GitHub',
+    lastUsed: 'Dernière utilisation',
+    emailToggleLabel: 'Se connecter par email',
+    tabPassword: 'Mot de passe',
+    tabMagicLink: 'Lien magique',
+    emailLabel: 'Adresse email',
+    emailPlaceholder: 'vous@exemple.com',
+    passwordLabel: 'Mot de passe',
+    signInEmail: 'Se connecter par email',
+    sendMagicLink: 'Envoyer un lien magique',
+  },
+  hero: {
+    wordmarkAriaLabel: 'Accueil Almstins',
+    headline: 'Comprendre enfin<br/>ce qui s\'est passé<br/>dans votre portefeuille.',
+    subheadline: 'Transactions manquantes, lacunes inexplicables, surprises fiscales — tracez chaque mouvement de votre historique crypto pour savoir exactement ce qui s\'est passé et pourquoi.',
+    demoCta: 'Essayer la démo — Aucune inscription requise →',
+    demoCtaSub: 'Explorez un portefeuille réel avec des positions DeFi, des lacunes fiscales et un historique de portefeuille.',
+    showProductHunt: false,
+    walletSectionLabel: 'Ou entrez votre propre adresse de portefeuille',
+    walletPlaceholder: '0x… ou nom ENS',
+    walletAriaLabel: 'Adresse du portefeuille',
+    walletButtonAriaLabel: 'Aller',
+    walletHint: 'Voir les transactions, les lacunes signalées et ce que l\'IRS demandera. Aucune inscription requise.',
+    walletErrorHint: '⚠ Adresse non reconnue — essayez une adresse Ethereum (0x…), Bitcoin ou Solana.',
+    changelogLink: 'Quoi de neuf ? →',
+    socialProof: '345 000+ domaines de phishing vérifiés · Vérification des sanctions OFAC · 6+ chaînes et principaux échanges.',
+  },
+  featureCards: [
+    {
+      icon: '🔐',
+      title: 'Vos clés ne touchent jamais notre serveur. Jamais.',
+      desc: 'Almstins lit les soldes par adresse — pas de connexion de portefeuille, pas de permissions de signature, pas de clés privées. Une violation de nos serveurs ne peut pas déplacer une seule pièce. <a href="/login#faq-private-account" class="fc-anon-link" onclick="event.preventDefault();document.getElementById(\'faq-private-account\')?.click()">Découvrez comment rester anonyme sur notre plateforme →</a>',
+    },
+    {
+      icon: '🔍',
+      title: 'Connaître votre exposition fiscale',
+      desc: 'Le portefeuille de démonstration est de 57 680 $ entre BTC, ETH, SOL et AVAX — avec gains non réalisés calculés, base de coûts manquante signalée et chaque position étiquetée détention à court ou long terme.',
+    },
+    {
+      icon: '🏫',
+      title: 'Construit par un éducateur',
+      desc: 'Confidentialité en priorité depuis le premier jour. Jamais vendu. Jamais partagé.',
+    },
+  ],
+  hesitationModal: {
+    title: 'Voyez-le en direct — aucune inscription requise',
+    body: 'Explorez un portefeuille réel avec des positions DeFi, des lacunes fiscales et un historique de portefeuille.',
+    cta: 'Lancer la démo',
+    closeAriaLabel: 'Fermer',
+  },
+  sessionPopup: {
+    title: 'Vous êtes déjà connecté',
+    body: 'Il semble que vous ayez une session active sur un autre navigateur ou appareil. Déconnectez-vous d\'abord, puis réessayez.',
+    signOutBtn: 'Se déconnecter et réessayer',
+    dismissBtn: 'Ignorer',
+  },
+  errors: {
+    configuration: 'La connexion n\'est temporairement pas disponible. Veuillez réessayer dans un moment.',
+    generic: 'La connexion a échoué. Veuillez réessayer.',
+  },
+  notices: {
+    signupSuccess: 'Compte créé. Vérifiez votre boîte de réception pour vérifier votre email.',
+    verifiedSuccess: 'Email vérifié. Vous pouvez maintenant vous connecter.',
+    verifiedExpired: 'Le lien de vérification a expiré. Connectez-vous pour en demander un nouveau.',
+    verifiedFailed: 'La vérification a échoué. Veuillez réessayer.',
   },
 };
