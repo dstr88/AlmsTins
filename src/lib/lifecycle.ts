@@ -167,6 +167,12 @@ export type RebuildLifecycleOpts = {
 	 * recursion: price → rebuild(skipPricing:true).
 	 */
 	skipPricing?: boolean;
+	/**
+	 * Optional year to scope the rebuild to. If provided, only transactions
+	 * from that calendar year are included in the rebuild. Useful for
+	 * year-specific tax calculations.
+	 */
+	year?: number;
 };
 
 export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLifecycleOpts) {
@@ -181,18 +187,31 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 
 	const start = Date.now();
 	const queryStart = Date.now();
+
+	// Build year filter if provided
+	let importWhere = 'WHERE tenant_id = ?';
+	let onchainWhere = 'WHERE tenant_id = ?';
+	const queryArgs: (string | number)[] = [tenantId];
+	if (opts?.year) {
+		const yearStart = new Date(`${opts.year}-01-01T00:00:00Z`).toISOString();
+		const yearEnd = new Date(`${opts.year + 1}-01-01T00:00:00Z`).toISOString();
+		importWhere += ` AND timestamp_utc >= ? AND timestamp_utc < ?`;
+		onchainWhere += ` AND timestamp >= ? AND timestamp < ?`;
+		queryArgs.push(yearStart, yearEnd);
+	}
+
 	const importsResult = await db.execute({
 		sql: `SELECT id, asset_symbol, currency, amount, to_currency, to_amount, native_usd, timestamp_utc, direction, tx_hash, exchange_withdrawal_id, description, kind
 			FROM import_transactions
-			WHERE tenant_id = ?`,
-		args: [tenantId],
+			${importWhere}`,
+		args: opts?.year ? [tenantId, queryArgs[1], queryArgs[2]] : [tenantId],
 	});
 
 	const onchainResult = await db.execute({
 		sql: `SELECT id, hash, chain, block_number, token_symbol, token_decimals, value, usd_value, timestamp, tx_type, from_address, to_address, contract_address
 			FROM transactions
-			WHERE tenant_id = ?`,
-		args: [tenantId],
+			${onchainWhere}`,
+		args: opts?.year ? [tenantId, queryArgs[1], queryArgs[2]] : [tenantId],
 	});
 	const dbQueryMs = Date.now() - queryStart;
 

@@ -1069,9 +1069,13 @@ const availableYears = bd?.availableYears ?? [priorYear];
         new Promise(resolve => setTimeout(resolve, 90_000)),
       ]);
 
-      // Step 3: rebuild FIFO lifecycle so gain/loss numbers reflect new data
+      // Step 3: rebuild FIFO lifecycle for this year
       syncBtn.textContent = '⏳ Rebuilding…';
-      await fetch('/api/lifecycle/rebuild', { method: 'POST' });
+      await fetch('/api/lifecycle/rebuild', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: selectedYear }),
+      });
 
       syncBtn.textContent = '✓ Done';
       syncBtn.style.background = 'rgba(52,211,153,.25)';

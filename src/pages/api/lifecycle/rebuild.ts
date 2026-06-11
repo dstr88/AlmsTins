@@ -12,7 +12,15 @@ export const POST: APIRoute = async ({ request }) => {
 		const { tenantId } = session;
 		const start = Date.now();
 
-		await rebuildAssetLifecycles(tenantId);
+		let year: number | undefined;
+		try {
+			const body = await request.json() as { year?: number };
+			year = body.year;
+		} catch {
+			// No body or invalid JSON — full rebuild
+		}
+
+		await rebuildAssetLifecycles(tenantId, { year });
 
 		// Mark lifecycle cache fresh
 		const cacheKey = `lifecycle:${tenantId}`;
