@@ -728,6 +728,32 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
     .dt-register th.col-amt { text-align: right; }
     .dt-register th.col-bal { text-align: right; }
 
+    /* Sort button styling */
+    .dt-sort-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      white-space: nowrap;
+    }
+    .dt-sort-btn:hover {
+      color: var(--accent);
+    }
+    .dt-sort-arrow {
+      font-size: 0.6rem;
+      display: inline-block;
+      min-width: 0.4rem;
+      text-align: center;
+    }
+
     /* Existing saved rows */
     .dt-reg-saved {
       border-bottom: 1px solid var(--border-subtle);
@@ -981,6 +1007,9 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
     const fmtPct = n => (Number(n) * 100).toFixed(2) + '%';
 
     let _tins = [];
+
+    // Sort state: { tinId: { column: 'date'|'amount'|'checked', direction: 'asc'|'desc' } }
+    const _sortState = {};
 
     // ── Load tins from API ─────────────────────────────────────────────────────
     async function loadTins() {
@@ -1307,8 +1336,41 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
         </div>`;
     }
 
+    function sortEntries(entries, tinId) {
+      const sort = _sortState[tinId] ?? { column: 'date', direction: 'desc' };
+      const sorted = entries.slice();
+
+      if (sort.column === 'date') {
+        sorted.sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+      } else if (sort.column === 'amount') {
+        sorted.sort((a, b) => a.amount - b.amount);
+      } else if (sort.column === 'checked') {
+        sorted.sort((a, b) => (a.checked ? 1 : 0) - (b.checked ? 1 : 0));
+      }
+
+      return sort.direction === 'desc' ? sorted.reverse() : sorted;
+    }
+
+    function toggleSort(tinId, column) {
+      const current = _sortState[tinId] ?? { column: 'date', direction: 'desc' };
+      if (current.column === column) {
+        current.direction = current.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        current.column = column;
+        current.direction = 'desc';
+      }
+      _sortState[tinId] = current;
+      renderAll();
+    }
+
+    function getSortArrow(tinId, column) {
+      const sort = _sortState[tinId];
+      if (!sort || sort.column !== column) return '⇅';
+      return sort.direction === 'asc' ? '↑' : '↓';
+    }
+
     function buildBudgetRegister(tin, badgeClass, badgeLabel, sampleBadge) {
-      const entries = (tin.entries ?? []).slice().sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+      const entries = sortEntries(tin.entries ?? [], tin.id);
       const BLANK_ROWS = 10;
 
       // Compute running balance
@@ -1368,10 +1430,10 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
             <table>
               <thead>
                 <tr>
-                  <th style="width:110px">Date</th>
+                  <th style="width:110px"><button class="dt-sort-btn" onclick="toggleSort('${tin.id}', 'date')">Date <span class="dt-sort-arrow">${getSortArrow(tin.id, 'date')}</span></button></th>
                   <th>Description</th>
-                  <th class="col-amt" style="width:110px">Payment (−)</th>
-                  <th class="col-amt" style="width:110px">Deposit (+)</th>
+                  <th class="col-amt" style="width:110px"><button class="dt-sort-btn" onclick="toggleSort('${tin.id}', 'amount')">Amount <span class="dt-sort-arrow">${getSortArrow(tin.id, 'amount')}</span></button></th>
+                  <th class="col-amt" style="width:110px"><button class="dt-sort-btn" onclick="toggleSort('${tin.id}', 'amount')">Deposit <span class="dt-sort-arrow">${getSortArrow(tin.id, 'amount')}</span></button></th>
                   <th class="col-bal" style="width:110px">Balance</th>
                   <th style="width:28px"></th>
                 </tr>
