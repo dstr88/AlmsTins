@@ -109,11 +109,11 @@ const authConfig = {
 			// which may have a stale/empty email if the DB record predates OAuth).
 			const providerEmail = (profile?.email || user?.email || '') as string;
 			if (account?.type === 'oauth' || account?.type === 'oidc') {
-				// ── Layer 1: email-based deduplication ──────────────────────────────
-				// If a user with this email already exists under a different user record
-				// (e.g. signed up via email/password first, now signing in with OAuth),
-				// patch the user object to use the existing ID so they land in the same
-				// tenant rather than spawning a new orphan.
+				// ── Layer 1: email-based deduplication (credentials-only accounts only) ──
+				// If a user with this email exists AND they only have credentials (no OAuth),
+				// link them to this OAuth provider so they don't need separate passwords.
+				// Do NOT link if they already have OAuth accounts from other services —
+				// that means they intentionally use different services (almstins vs tradifitins).
 				if (providerEmail) {
 					try {
 						const existing = await db.execute({
@@ -123,31 +123,48 @@ const authConfig = {
 						if (existing.rows.length) {
 							const existingId = String((existing.rows[0] as Record<string, any>).id);
 							if (existingId !== String(user.id ?? '')) {
-								user.id = existingId;
-								await db.execute({
-									sql: `INSERT OR IGNORE INTO auth_accounts
-										(id, user_id, type, provider, provider_account_id,
-										 access_token, token_type, scope, expires_at, refresh_token, id_token, session_state)
-										VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-									args: [
-										crypto.randomUUID(),
+								// Check if this existing user has ANY OAuth accounts
+								const existingOAuthAccounts = await db.execute({
+									sql: `SELECT COUNT(*) as cnt FROM auth_accounts
+										  WHERE user_id = ? AND (type = 'oauth' OR type = 'oidc')`,
+									args: [existingId],
+								});
+								const hasOAuthAccounts = Number((existingOAuthAccounts.rows[0] as Record<string, any>)?.cnt ?? 0) > 0;
+
+								// Only link if they have NO OAuth accounts (credentials-only signup)
+								if (!hasOAuthAccounts) {
+									user.id = existingId;
+									await db.execute({
+										sql: `INSERT OR IGNORE INTO auth_accounts
+											(id, user_id, type, provider, provider_account_id,
+											 access_token, token_type, scope, expires_at, refresh_token, id_token, session_state)
+											VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+										args: [
+											crypto.randomUUID(),
+											existingId,
+											account.type,
+											account.provider,
+											account.providerAccountId,
+											account.access_token ?? null,
+											account.token_type ?? null,
+											account.scope ?? null,
+											account.expires_at ?? null,
+											account.refresh_token ?? null,
+											account.id_token ?? null,
+											account.session_state ?? null,
+										],
+									});
+									console.log('[auth][signIn] linked OAuth account to credentials-only user via email', {
 										existingId,
-										account.type,
-										account.provider,
-										account.providerAccountId,
-										account.access_token ?? null,
-										account.token_type ?? null,
-										account.scope ?? null,
-										account.expires_at ?? null,
-										account.refresh_token ?? null,
-										account.id_token ?? null,
-										account.session_state ?? null,
-									],
-								});
-								console.log('[auth][signIn] linked OAuth account to existing user via email', {
-									existingId,
-									provider: account.provider,
-								});
+										provider: account.provider,
+									});
+								} else {
+									// User has OAuth accounts from other services — allow new separate account
+									console.log('[auth][signIn] email exists but user has OAuth accounts, allowing separate signup', {
+										existingId,
+										provider: account.provider,
+									});
+								}
 							}
 						}
 					} catch (error) {
