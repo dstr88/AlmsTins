@@ -1454,6 +1454,7 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
         });
         if (res.ok) {
           document.getElementById('dt-splits-modal').style.display = 'none';
+          window.dispatchEvent(new Event('petro-tins-changed'));
           location.reload();
         } else {
           const data = await res.json().catch(() => ({}));
@@ -1501,6 +1502,8 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
 
       document.getElementById('dt-modal').style.display = 'none';
       await loadTins();
+      // Notify React component to refresh
+      window.dispatchEvent(new Event('petro-tins-changed'));
     });
 
     // Expose to onclick handlers
@@ -1513,6 +1516,7 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
       if (!confirm(`Delete "${tin.name}"? This cannot be undone.`)) return;
       await fetch(`/api/petro-tins/${tinId}`, { method: 'DELETE' });
       await loadTins();
+      window.dispatchEvent(new Event('petro-tins-changed'));
     }
     window.deleteTin = deleteTin;
 
@@ -1554,6 +1558,7 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
 
       document.getElementById('dt-entry-modal').style.display = 'none';
       await loadTins();
+      window.dispatchEvent(new Event('petro-tins-changed'));
     });
 
     // ── Delete entry ───────────────────────────────────────────────────────────
@@ -1564,6 +1569,7 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
         body: JSON.stringify({ entryId }),
       });
       await loadTins();
+      window.dispatchEvent(new Event('petro-tins-changed'));
     }
 
     // ── Register row auto-save ────────────────────────────────────────────────

@@ -50,6 +50,13 @@ export default function PetroTinsGrid() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Listen for tin creation/deletion from modal
+  useEffect(() => {
+    const handleRefresh = () => { load(); };
+    window.addEventListener('petro-tins-changed', handleRefresh);
+    return () => window.removeEventListener('petro-tins-changed', handleRefresh);
+  }, [load]);
+
   const handleEdit   = (id: string) => { (window as any).openEditTin?.(id); };
   const handleDelete = (id: string) => { (window as any).deleteTin?.(id); };
   const handleAddEntry = (id: string) => {
