@@ -311,15 +311,26 @@ const authConfig = {
 };
 
 const ensureAbsoluteUrl = (request: Request) => {
-	// Use AUTH_URL as the canonical base — Render's internal request.url is
-	// http://localhost:10000/... which breaks @auth/core's origin check.
-	const authUrl = process.env.AUTH_URL;
-	if (!authUrl) {
-		console.error('[auth] AUTH_URL env var is not set — OAuth callbacks will fail. Set AUTH_URL to your deployed domain.');
-		throw new Error('AUTH_URL is not configured.');
-	}
-	const origin = /^https?:\/\//i.test(authUrl) ? authUrl.replace(/\/$/, '') : `https://${authUrl}`;
+	// Render's internal request.url is http://localhost:10000/... which breaks @auth/core's origin check.
+	// Use the x-forwarded-host header (set by reverse proxy) for the origin when available.
+	// Fall back to AUTH_URL only if the request is from Render's internal localhost.
 	const base = new URL(request.url.startsWith('http') ? request.url : `https://placeholder${request.url}`);
+	const isRenderInternal = base.hostname === 'localhost' || base.hostname === '127.0.0.1';
+
+	let origin: string;
+	if (isRenderInternal) {
+		// Render internal request — use AUTH_URL
+		const authUrl = process.env.AUTH_URL;
+		if (!authUrl) {
+			console.error('[auth] AUTH_URL env var is not set — OAuth callbacks will fail. Set AUTH_URL to your deployed domain.');
+			throw new Error('AUTH_URL is not configured.');
+		}
+		origin = /^https?:\/\//i.test(authUrl) ? authUrl.replace(/\/$/, '') : `https://${authUrl}`;
+	} else {
+		// Real request with a real origin — preserve it
+		origin = `${base.protocol}//${base.host}`;
+	}
+
 	return `${origin}${base.pathname}${base.search}`;
 };
 
