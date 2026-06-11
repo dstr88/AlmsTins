@@ -39,6 +39,8 @@ export default function DebtTin({ tin, onEdit, onDelete, onAddEntry, onRefresh }
   const [editingEntry, setEditingEntry] = useState<{ id: string; amount: string; desc: string } | null>(null);
   const [addForm, setAddForm]           = useState<{ desc: string; amount: string; recurring: boolean } | null>(null);
   const [showOneTime, setShowOneTime]   = useState(false);
+  const [sortBy, setSortBy]             = useState<'date' | 'amount' | 'checked'>('date');
+  const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('desc');
 
   // Partition entries
   const { recurring, oneTime } = useMemo(() => {
@@ -50,6 +52,32 @@ export default function DebtTin({ tin, onEdit, onDelete, onAddEntry, onRefresh }
   }, [tin.entries, curMonth]);
 
   const allRecurringChecked = recurring.length > 0 && recurring.every(e => e.checked);
+
+  const toggleSort = useCallback((col: 'date' | 'amount' | 'checked') => {
+    if (sortBy === col) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(col);
+      setSortDir('desc');
+    }
+  }, [sortBy, sortDir]);
+
+  const getSortArrow = (col: 'date' | 'amount' | 'checked') => {
+    if (sortBy !== col) return '⇅';
+    return sortDir === 'asc' ? '↑' : '↓';
+  };
+
+  const sortEntries = (entries: PetroTinEntry[]) => {
+    const sorted = [...entries];
+    if (sortBy === 'date') {
+      sorted.sort((a, b) => a.entryDate.localeCompare(b.entryDate));
+    } else if (sortBy === 'amount') {
+      sorted.sort((a, b) => a.amount - b.amount);
+    } else if (sortBy === 'checked') {
+      sorted.sort((a, b) => (a.checked ? 1 : 0) - (b.checked ? 1 : 0));
+    }
+    return sortDir === 'desc' ? sorted.reverse() : sorted;
+  };
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
@@ -172,7 +200,19 @@ export default function DebtTin({ tin, onEdit, onDelete, onAddEntry, onRefresh }
           <p className="pt-debt-register__empty">No recurring charges yet — add one below.</p>
         )}
 
-        {recurring.map(e => {
+        <div className="pt-debt-register__sort-header" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.75rem' }}>
+          <button onClick={() => toggleSort('checked')} style={{ flex: 0 }} title="Sort by completion">
+            Done {getSortArrow('checked')}
+          </button>
+          <button onClick={() => toggleSort('date')} title="Sort by date">
+            Date {getSortArrow('date')}
+          </button>
+          <button onClick={() => toggleSort('amount')} style={{ marginLeft: 'auto' }} title="Sort by amount">
+            Amount {getSortArrow('amount')}
+          </button>
+        </div>
+
+        {sortEntries(recurring).map(e => {
           const isEditing = editingEntry?.id === e.id;
           return (
             <div key={e.id} className={`pt-debt-register__row${e.checked ? ' checked' : ''}`}>
@@ -249,7 +289,7 @@ export default function DebtTin({ tin, onEdit, onDelete, onAddEntry, onRefresh }
               Payments &amp; one-time charges ({oneTime.length})
             </summary>
             <div className="pt-debt-tin__entries">
-              {oneTime.map(e => (
+              {sortEntries(oneTime).map(e => (
                 <div className="pt-debt-tin__entry" key={e.id}>
                   <div className="pt-debt-tin__entry-left">
                     <span className={`pt-debt-tin__entry-kind ${e.kind}`}>{e.kind}</span>
