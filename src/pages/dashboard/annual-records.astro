@@ -379,10 +379,10 @@ const availableYears = bd?.availableYears ?? [priorYear];
             </p>
           )}
 
-          <!-- Wallets table -->
+          <!-- Self-Custody Wallets -->
           {wallets.length > 0 && (
             <>
-              <p class="card-section-label" style="margin-top:1.25rem">Wallets</p>
+              <p class="card-section-label" style="margin-top:1.25rem">Self-Custody Wallets</p>
               <ul class="sync-list">
                 {wallets.map(w => {
                   const stale = !w.lastSynced || new Date(w.lastSynced) < staleCutoff;
@@ -398,10 +398,10 @@ const availableYears = bd?.availableYears ?? [priorYear];
             </>
           )}
 
-          <!-- Exchanges table -->
+          <!-- Exchange Accounts -->
           {exchanges.length > 0 && (
             <>
-              <p class="card-section-label" style="margin-top:1.25rem">Exchange Imports</p>
+              <p class="card-section-label" style="margin-top:1.25rem">Exchange Accounts</p>
               <ul class="sync-list" id="exchange-list">
                 {exchanges.map(ex => {
                   const hasData = !!ex.lastImport;
@@ -417,6 +417,25 @@ const availableYears = bd?.availableYears ?? [priorYear];
                         title={`Remove ${ex.label}`}
                         aria-label={`Remove ${ex.label}`}
                       >✕</button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+
+          <!-- Exchange Imports (CSV) -->
+          {exchanges.length > 0 && (
+            <>
+              <p class="card-section-label" style="margin-top:1.25rem">Exchange Imports</p>
+              <ul class="sync-list">
+                {exchanges.map(ex => {
+                  const hasData = !!ex.lastImport;
+                  return (
+                    <li class="sync-item">
+                      <span class={`sync-dot ${hasData ? 'sync-dot--ok' : 'sync-dot--stale'}`}></span>
+                      <span class="sync-name">{ex.label}</span>
+                      <span class="sync-date">{hasData ? fmtDate(ex.lastImport) : 'Never'}</span>
                     </li>
                   );
                 })}
