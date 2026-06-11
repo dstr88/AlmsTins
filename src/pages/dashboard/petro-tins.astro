@@ -186,7 +186,7 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
 
         <label class="dt-label">
           Description <span class="dt-optional">(optional)</span>
-          <input class="dt-input" id="dt-entry-desc" type="text" maxlength="200" placeholder="What was this for?" />
+          <input class="dt-input" id="dt-entry-desc" name="description" type="text" maxlength="200" placeholder="What was this for?" autocomplete="off" />
         </label>
 
         <div class="dt-modal-actions">
