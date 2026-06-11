@@ -1778,9 +1778,18 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
 
     // ── Close modals on overlay click ──────────────────────────────────────────
     ['dt-modal', 'dt-entry-modal', 'dt-splits-modal'].forEach(modalId => {
-      document.getElementById(modalId)?.addEventListener('click', e => {
-        if (e.target.id === modalId) e.target.style.display = 'none';
-      });
+      const modalEl = document.getElementById(modalId);
+      if (modalEl) {
+        modalEl.addEventListener('click', e => {
+          if (e.target.id === modalId) e.target.style.display = 'none';
+        });
+        // Prevent backspace from closing modal when typing in inputs
+        modalEl.addEventListener('keydown', e => {
+          if (e.key === 'Backspace' && (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+            e.stopPropagation();
+          }
+        });
+      }
     });
 
     // ── Load sample data ───────────────────────────────────────────────────────
