@@ -51,3 +51,6 @@ test-results/
 *.claude.md
 CLAUDE.md
 MARKETING-READINESS-PLAN.md
+
+# Claude Code config/plans (any depth)
+.claude/
