@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { classifyContract, isSpamToken } from '@/lib/knownContracts';
+import { extractSpamDomains, savePhishingDomains } from '@/lib/phishingDomains';
 import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '@/lib/demo';
 
 const ETHEREUM_CHAIN_ID = 1;
@@ -105,7 +106,12 @@ async function buildAlchemySnapshot(
 			if (classifyContract(chainName, symbol, contract) === 'scam') return null;
 			// Drop phishing airdrop tokens whose name/symbol contains URLs or Telegram links
 			const tokenName = metadata?.name ?? null;
-			if (isSpamToken(symbol, typeof tokenName === 'string' ? tokenName : null)) return null;
+			const tokenNameStr = typeof tokenName === 'string' ? tokenName : null;
+			if (isSpamToken(symbol, tokenNameStr)) {
+				const domains = extractSpamDomains(symbol, tokenNameStr);
+				if (domains.length) void savePhishingDomains(domains);
+				return null;
+			}
 			return { symbol, amount, priceUsd: null, valueUsd: null, tokenAddress: contract };
 		})
 		.filter((token): token is { symbol: string; amount: number; priceUsd: null; valueUsd: null; tokenAddress: string } =>

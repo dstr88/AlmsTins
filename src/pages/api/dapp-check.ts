@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { checkLocalPhishingDb } from '@/lib/phishingDomains';
 
 /**
  * /api/dapp-check?url={url}
@@ -300,13 +301,31 @@ export const GET: APIRoute = async ({ url }) => {
   const gsb  = (process.env as any).GOOGLE_SAFE_BROWSING_KEY ?? import.meta.env.GOOGLE_SAFE_BROWSING_KEY ?? '';
   const vt   = (process.env as any).VIRUSTOTAL_API_KEY       ?? import.meta.env.VIRUSTOTAL_API_KEY       ?? '';
 
+  // Local phishing DB — runs in parallel with external APIs; short-circuit if hit
+  const localDbPromise = checkLocalPhishingDb(domain);
+
   // Run all checks in parallel
-  const [goplusResult, urlscanResult, gsbResult, vtResult] = await Promise.all([
+  const [localDbHit, goplusResult, urlscanResult, gsbResult, vtResult] = await Promise.all([
+    localDbPromise,
     checkGoPlus(fullUrl),
     checkURLScan(domain),
     gsb  ? checkGoogleSafeBrowsing(fullUrl, gsb) : Promise.resolve<SourceResult>({ name: 'Google Safe Browsing', verdict: 'skipped', detail: 'API key not configured (GOOGLE_SAFE_BROWSING_KEY)', icon: '🔍' }),
     vt   ? checkVirusTotal(fullUrl, vt)           : Promise.resolve<SourceResult>({ name: 'VirusTotal',           verdict: 'skipped', detail: 'API key not configured (VIRUSTOTAL_API_KEY)',       icon: '🦠' }),
   ]);
+
+  // Short-circuit: community-confirmed phishing domain
+  if (localDbHit) {
+    const localResult: SourceResult = {
+      name:    'Almstins Community',
+      verdict: 'flagged',
+      detail:  'Flagged via community-reported phishing airdrop token',
+      icon:    '🚨',
+    };
+    return new Response(
+      JSON.stringify({ url: fullUrl, domain, verdict: 'red', sources: [localResult], vtPending: false }),
+      { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
+    );
+  }
 
   const sources: SourceResult[] = [
     checkMetaMask(domain),

@@ -107,6 +107,8 @@ export const GET: APIRoute = async ({ request, url }) => {
         return { symbol, startQty, endQty, deltaQty, endValueUsd };
       })
       .filter(h => h.startQty !== 0 || h.endQty !== 0)
+      // Hide dust: only show tokens with >= $1 current value or held at year start
+      .filter(h => h.endValueUsd >= 1 || h.startQty > 0)
       .sort((a, b) => Math.abs(b.deltaQty) - Math.abs(a.deltaQty));
 
     // 4. Build net change summary
