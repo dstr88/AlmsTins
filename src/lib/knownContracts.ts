@@ -143,6 +143,8 @@ const FUNGIBLE_SPAM_PATTERNS: RegExp[] = [
   /www\./i,                                               // www. prefix
   /fli\.so/i,                                             // fli.so shortener
   /\.(com|xyz|site|top|vip|cab|lat|io|org|to)\b/i,       // phishing domain TLDs
+  /\S+ \S+ \S+/,                                         // 3+ word "sentence" symbols — never legit
+  /\|/,                                                   // pipe characters — not used in real token symbols
 ];
 
 /**
