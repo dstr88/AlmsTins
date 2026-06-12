@@ -1,5 +1,18 @@
 import { db } from '@/lib/db';
 
+let tableReady = false;
+async function ensureTable(): Promise<void> {
+  if (tableReady) return;
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS known_phishing_domains (
+      domain        TEXT PRIMARY KEY,
+      source        TEXT NOT NULL DEFAULT 'token_airdrop',
+      confirmed_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  tableReady = true;
+}
+
 // URL shorteners whose domains should not be added to the phishing list —
 // they're delivery mechanisms, not the phishing sites themselves.
 const URL_SHORTENERS = new Set(['t.me', 't.ly', 'fli.so', 'bit.ly', 'tinyurl.com']);
@@ -32,6 +45,7 @@ export async function savePhishingDomains(
 ): Promise<void> {
   if (!domains.length) return;
   try {
+    await ensureTable();
     await db.batch(
       domains.map((domain) => ({
         sql: `INSERT OR IGNORE INTO known_phishing_domains (domain, source) VALUES (?, ?)`,
@@ -51,6 +65,7 @@ export async function checkLocalPhishingDb(
   domain: string,
 ): Promise<{ domain: string; source: string } | null> {
   try {
+    await ensureTable();
     const res = await db.execute({
       sql: `SELECT domain, source FROM known_phishing_domains WHERE domain = ? LIMIT 1`,
       args: [domain.toLowerCase()],
