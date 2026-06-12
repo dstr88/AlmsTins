@@ -19,6 +19,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getCache, setCache } from '@/lib/tursoCache';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
+import { isSpamToken } from '@/lib/knownContracts';
 
 // Keep WBTC/WETH as-is (they match on-chain snapshot symbols).
 // Only unwrap wrappers that differ between Aave and Alchemy naming.
@@ -152,6 +153,7 @@ export const GET: APIRoute = async ({ request }) => {
 			for (const t of tokens) {
 				const sym = (t.symbol ?? '').toString().trim().toUpperCase();
 				if (!sym) continue;
+				if (isSpamToken(sym)) continue;
 				const qty = Number(t.amount ?? 0);
 				const val = Number(t.valueUsd ?? 0);
 				if (qty <= 0) continue;

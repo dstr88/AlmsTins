@@ -5,7 +5,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
-import { classifyContract } from '@/lib/knownContracts';
+import { classifyContract, isSpamToken } from '@/lib/knownContracts';
 import { DEMO_TENANT_ID, DEMO_WALLET_CONFIGS, isDemoWalletAddress } from '@/lib/demo';
 
 const ETHEREUM_CHAIN_ID = 1;
@@ -103,6 +103,9 @@ async function buildAlchemySnapshot(
 			// Drop tokens whose contract address doesn't match the known-good address for
 			// their symbol on this chain (catches fake AAVE, fake USDC airdrops, etc.)
 			if (classifyContract(chainName, symbol, contract) === 'scam') return null;
+			// Drop phishing airdrop tokens whose name/symbol contains URLs or Telegram links
+			const tokenName = metadata?.name ?? null;
+			if (isSpamToken(symbol, typeof tokenName === 'string' ? tokenName : null)) return null;
 			return { symbol, amount, priceUsd: null, valueUsd: null, tokenAddress: contract };
 		})
 		.filter((token): token is { symbol: string; amount: number; priceUsd: null; valueUsd: null; tokenAddress: string } =>

@@ -134,6 +134,27 @@ export function classifyContract(
   return knownSet.has(addr) ? 'legitimate' : 'scam';
 }
 
+// Patterns that appear in spam/phishing airdrop token names but never in real ones.
+// Checked against the combined symbol+name string (lower-case).
+const FUNGIBLE_SPAM_PATTERNS: RegExp[] = [
+  /https?:\/\//i,                                         // any HTTP/S URL
+  /t\.me\//i,                                             // Telegram link
+  /t\.ly\//i,                                             // t.ly shortener
+  /www\./i,                                               // www. prefix
+  /fli\.so/i,                                             // fli.so shortener
+  /\.(com|xyz|site|top|vip|cab|lat|io|org|to)\b/i,       // phishing domain TLDs
+];
+
+/**
+ * Returns true when a fungible token's symbol or name matches a known spam/phishing
+ * airdrop pattern. These tokens are airdropped unsolicited with URLs or Telegram
+ * links embedded in their name to lure users into visiting drainer sites.
+ */
+export function isSpamToken(symbol: string, name?: string | null): boolean {
+  const text = `${symbol} ${name ?? ''}`;
+  return FUNGIBLE_SPAM_PATTERNS.some(p => p.test(text));
+}
+
 /** Symbols that are stablecoins and should be auto-resolved at $1.00/token */
 export const STABLECOIN_SYMBOLS = new Set([
   'USDC', 'USDT', 'DAI', 'BUSD', 'FRAX', 'TUSD', 'USDP', 'GUSD', 'LUSD',
