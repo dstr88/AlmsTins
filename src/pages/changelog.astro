@@ -20,6 +20,25 @@ import Layout from '@/layouts/LoginLayout.astro';
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">June 12, 2026</time>
+          <div class="entry-body">
+            <p>The Year Summary page now has a second level of detail. Clicking any wallet card opens a panel showing what changed inside that wallet during the year across three tabs: Holdings Delta, Net Change, and Transactions. Holdings Delta shows every token that moved — what you held at the start of the year, what you held at year end, and the difference. Net Change gives the same picture condensed to one line per symbol, useful for quick scanning. Transactions shows every on-chain send and receive for that wallet in the selected year with date, type, asset, and USD value. Tokens under a dollar in current value that weren't held at the start of the year are hidden from the delta so the list stays focused on what matters. Self-custody wallets now have their own section on the year summary page, separate from exchange accounts.</p>
+            <p>The portfolio views — Holdings Delta, the portfolio table, and the reconciliation panel — no longer show phishing airdrop tokens. These are unsolicited tokens dropped into wallet addresses with scam URLs or instructions embedded in their symbol name: things like "VISIT TRUSTBOX.SITE TO CLAIM" or "CLAIM REWARDS ON T.LY/SHIBASWAP" or "*REDEEM WITHIN 7 DAYS." They appeared in holdings lists because wallet snapshots faithfully recorded everything found on-chain. They are now recognized by pattern — any token carrying a URL, a Telegram link, or a multi-word sentence as its symbol — and stripped from every view that displays token quantities. The filter runs at read time, so existing wallet snapshots are cleaned up immediately without a fresh sync.</p>
+            <p>The Data Sync Status section has been reorganized. Wallets are now grouped by type — self-custody wallets and exchange-linked accounts in separate sections — making it easier to see at a glance which sources are syncing and when each last ran.</p>
+            <p>A Privacy Policy is now available at <a href="/privacy">almstins.com/privacy</a>, covering what data is collected, what is not, and why certain commitments are architectural rather than contractual.</p>
+            <p>The wallet and website safety checker is now available in French at <a href="/wallet-checker/fr">almstins.com/wallet-checker/fr</a>.</p>
+          </div>
+        </article>
+
+        <article class="entry">
+          <time class="entry-date">June 12, 2026 — TradfiTins</time>
+          <div class="entry-body">
+            <p>The Budget Register and Debt tin entry lists now have sort controls. In the Budget Register, click the date or amount column header to sort; click again to reverse. Debt tin entries can be sorted by date, amount, or kind — payments separate from charges. Both default to date descending, which is the natural reading order for a running register.</p>
+            <p>Descriptions in entry modals are now reliably editable. Clicking into an existing description field to make a change — a common action when a recurring bill amount or label shifts — previously required extra clicks or a workaround to trigger edit mode in certain cases. That is fixed.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">June 10, 2026</time>
           <div class="entry-body">
             <p>Solana wallets now sync their full transaction history, not just current balances. Previously, adding a Solana wallet showed its balance but never imported the underlying transactions — so a transfer like moving tokens from an exchange to your Solana wallet had no on-chain record to match against, and stayed stuck as an unresolved item. Now syncing a Solana wallet pulls every on-chain token and SOL transfer into your ledger.</p>
