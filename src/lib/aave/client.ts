@@ -332,7 +332,13 @@ function buildMissingMarketSummary(
 
 // --- Public function used by /api/aave/positions ---
 
+const EVM_ADDRESS_RE = /^0x[0-9a-f]{40}$/i;
+
 export async function getAavePositionsForWallet(address: string): Promise<AavePositionsResponse> {
+	if (!EVM_ADDRESS_RE.test(address)) {
+		return { chains: [], ok: true };
+	}
+
 	const normalized = address.toLowerCase();
 
 	try {
