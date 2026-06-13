@@ -233,6 +233,13 @@ Astro.response.headers.set('Cache-Control', 'no-store');
           <div id="results-label" class="results-label" style="display:none"></div>
         </div>
 
+        <!-- Sort controls -->
+        <div id="results-sort-bar" class="results-sort-bar" style="display:none">
+          <span class="sort-label">Sort within groups:</span>
+          <button id="sort-btn-date"   class="sort-btn active" onclick="setResultsSort('date')">Date ↑</button>
+          <button id="sort-btn-amount" class="sort-btn"        onclick="setResultsSort('amount')">Amount</button>
+        </div>
+
         <!-- Action panel: shown when an NA item is selected -->
         <div id="na-action-panel" style="display:none"></div>
 
@@ -862,19 +869,57 @@ async function runSearch() {
   }
 }
 
+let _lastResultsData = null;
+let _sortBy  = 'date';
+let _sortDir = 'asc';
+
+function setResultsSort(field) {
+  if (_sortBy === field) {
+    _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _sortBy  = field;
+    _sortDir = 'asc';
+  }
+  const arrow = _sortDir === 'asc' ? '↑' : '↓';
+  $('sort-btn-date').textContent   = 'Date'   + (_sortBy === 'date'   ? ' ' + arrow : '');
+  $('sort-btn-amount').textContent = 'Amount' + (_sortBy === 'amount' ? ' ' + arrow : '');
+  $('sort-btn-date').classList.toggle('active',   _sortBy === 'date');
+  $('sort-btn-amount').classList.toggle('active', _sortBy === 'amount');
+  if (_lastResultsData) renderResults(_lastResultsData);
+}
+
 function renderResults(data) {
+  _lastResultsData = data;
   const list  = $('results-list');
   const count = $('results-count');
-  const rows  = data.rows ?? [];
+  const rows  = (data.rows ?? []).slice().sort((a, b) => {
+    const symCmp = (a.asset_symbol ?? '').localeCompare(b.asset_symbol ?? '');
+    if (symCmp !== 0) return symCmp;
+    let cmp = 0;
+    if (_sortBy === 'amount') {
+      cmp = Math.abs(Number(a.amount ?? 0)) - Math.abs(Number(b.amount ?? 0));
+    } else {
+      cmp = (a.timestamp_utc ?? '').localeCompare(b.timestamp_utc ?? '');
+    }
+    return _sortDir === 'asc' ? cmp : -cmp;
+  });
   count.textContent = rows.length > 0 ? String(rows.length) : '';
 
   if (!rows.length) {
     list.innerHTML = '<div class="empty-msg">No transactions found.</div>';
+    $('results-sort-bar').style.display = 'none';
     return;
   }
 
+  $('results-sort-bar').style.display = 'flex';
+
   let html = '';
+  let lastSym = null;
   for (const t of rows) {
+    if (t.asset_symbol !== lastSym) {
+      html += `<div class="results-group-header">${t.asset_symbol ?? '—'}</div>`;
+      lastSym = t.asset_symbol;
+    }
     const dir         = (t.direction ?? '').toLowerCase();
     const isTransfer  = dir === 'out' && t.category === 'own_wallet';
     const dirClass    = isTransfer ? 'transfer' : dir;
