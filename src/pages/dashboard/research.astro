@@ -122,78 +122,6 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       </div>
     </div>
 
-    <!-- ── Search card ─────────────────────────────────────────────────────── -->
-    <div class="search-card">
-      <div class="search-tier-1">
-        <span class="search-icon"></span>
-        <input
-          id="q"
-          type="text"
-          placeholder="Search by hash, symbol, keyword, or note…"
-          autocomplete="off"
-          spellcheck="false"
-        />
-      </div>
-
-      <div class="search-tier-2">
-        <select id="filter-symbol">
-          <option value="">All symbols</option>
-          {allSymbols.map(sym => <option value={sym}>{sym}</option>)}
-        </select>
-
-        <input id="filter-from" type="date" title="From date" />
-        <span class="date-sep">→</span>
-        <input id="filter-to"   type="date" title="To date"   />
-
-        <input id="filter-note" type="text" placeholder="Note keyword…" autocomplete="off" />
-      </div>
-
-      <!-- Symbol chips -->
-      <div class="chip-row" id="chip-row">
-        {allSymbols.map(sym => (
-          <button class="chip" data-sym={sym} type="button">{sym}</button>
-        ))}
-      </div>
-
-      <div class="search-actions">
-        <button id="btn-resolve" class="btn-secondary" type="button">Resolve</button>
-        <button id="btn-ignore-dust" class="btn-secondary" type="button">Ignore dust</button>
-        <button id="btn-classify-p2p" class="btn-secondary" type="button">P2P</button>
-        <div class="wallet-picker-wrap">
-          <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
-          <div id="wallet-picker" class="wallet-picker" style="display:none">
-            <div class="wallet-picker-header">Select wallet</div>
-            {tenantWallets.length === 0 ? (
-              <div class="wallet-picker-empty">No wallets found.</div>
-            ) : (
-              tenantWallets.map(w => (
-                <button
-                  class="wallet-picker-item"
-                  type="button"
-                  data-wallet-id={w.id}
-                  data-wallet-label={w.label || w.address.slice(0, 8) + '…'}
-                  data-wallet-address={w.address}
-                >
-                  <span class="wpi-label">{w.label || <span style="opacity:0.5">Unnamed</span>}</span>
-                  <span class="wpi-addr">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-        <button id="btn-search" class="btn-primary" type="button">Search</button>
-      </div>
-      <div id="resolve-status-bar" class="resolve-status-bar" style="display:none">
-        <span id="resolve-status" class="resolve-status"></span>
-      </div>
-      <div id="p2p-panel" class="p2p-panel" style="display:none">
-        <span class="p2p-panel__label">These phone-number transfers could be yours or someone else's:</span>
-        <button id="btn-p2p-own" class="btn-secondary" type="button">My own account</button>
-        <button id="btn-p2p-disposal" class="btn-secondary" type="button">Third-party disposal</button>
-        <button id="btn-p2p-cancel" class="btn-secondary" type="button">✕</button>
-      </div>
-    </div>
-
     <!-- ── Address lookup panel ───────────────────────────────────────────────── -->
     <div id="addr-panel" class="addr-panel" style="display:none">
       <div id="addr-panel-inner"></div>
@@ -226,8 +154,82 @@ Astro.response.headers.set('Cache-Control', 'no-store');
         <div id="resolved-list" class="resolved-list" style="display:none"></div>
       </div>
 
-      <!-- Right: Search results -->
+      <!-- Right: Search + Results -->
       <div class="col-right">
+
+        <!-- Search card — lives at top of the results panel -->
+        <div class="search-card">
+          <div class="search-tier-1">
+            <span class="search-icon"></span>
+            <input
+              id="q"
+              type="text"
+              placeholder="Search by hash, symbol, keyword, or note…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+
+          <div class="search-tier-2">
+            <select id="filter-symbol">
+              <option value="">All symbols</option>
+              {allSymbols.map(sym => <option value={sym}>{sym}</option>)}
+            </select>
+
+            <input id="filter-from" type="date" title="From date" />
+            <span class="date-sep">→</span>
+            <input id="filter-to"   type="date" title="To date"   />
+
+            <input id="filter-note" type="text" placeholder="Note keyword…" autocomplete="off" />
+          </div>
+
+          <!-- Symbol chips -->
+          <div class="chip-row" id="chip-row">
+            {allSymbols.map(sym => (
+              <button class="chip" data-sym={sym} type="button">{sym}</button>
+            ))}
+          </div>
+
+          <div class="search-actions">
+            <button id="btn-resolve" class="btn-secondary" type="button">Resolve</button>
+            <button id="btn-ignore-dust" class="btn-secondary" type="button">Ignore dust</button>
+            <button id="btn-classify-p2p" class="btn-secondary" type="button">P2P</button>
+            <div class="wallet-picker-wrap">
+              <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
+              <div id="wallet-picker" class="wallet-picker" style="display:none">
+                <div class="wallet-picker-header">Select wallet</div>
+                {tenantWallets.length === 0 ? (
+                  <div class="wallet-picker-empty">No wallets found.</div>
+                ) : (
+                  tenantWallets.map(w => (
+                    <button
+                      class="wallet-picker-item"
+                      type="button"
+                      data-wallet-id={w.id}
+                      data-wallet-label={w.label || w.address.slice(0, 8) + '…'}
+                      data-wallet-address={w.address}
+                    >
+                      <span class="wpi-label">{w.label || <span style="opacity:0.5">Unnamed</span>}</span>
+                      <span class="wpi-addr">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+            <button id="btn-search" class="btn-primary" type="button">Search</button>
+          </div>
+          <div id="resolve-status-bar" class="resolve-status-bar" style="display:none">
+            <span id="resolve-status" class="resolve-status"></span>
+          </div>
+          <div id="p2p-panel" class="p2p-panel" style="display:none">
+            <span class="p2p-panel__label">These phone-number transfers could be yours or someone else's:</span>
+            <button id="btn-p2p-own" class="btn-secondary" type="button">My own account</button>
+            <button id="btn-p2p-disposal" class="btn-secondary" type="button">Third-party disposal</button>
+            <button id="btn-p2p-cancel" class="btn-secondary" type="button">✕</button>
+          </div>
+        </div>
+
+        <!-- Results header -->
         <div class="col-header">
           <h2>Results <span id="results-count" class="count-badge"></span></h2>
           <div id="results-label" class="results-label" style="display:none"></div>
@@ -244,7 +246,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
         <div id="na-action-panel" style="display:none"></div>
 
         <div id="results-list" class="item-list">
-          <div class="empty-msg">Use the search above or click a symbol chip to explore your transactions.</div>
+          <div class="empty-msg">Search above or click a symbol chip to explore your transactions.</div>
         </div>
       </div>
 
