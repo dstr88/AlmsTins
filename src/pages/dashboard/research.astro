@@ -873,6 +873,7 @@ let _lastResultsData = null;
 let _sortBy  = 'date';
 let _sortDir = 'asc';
 
+window.setResultsSort = setResultsSort;
 function setResultsSort(field) {
   if (_sortBy === field) {
     _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
