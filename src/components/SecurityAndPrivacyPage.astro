@@ -1,0 +1,252 @@
+---
+// Shared Security & Privacy page template (EN · ES · FR).
+// Strings come from src/i18n/securityAndPrivacy.ts.
+// Wrappers: src/pages/security-and-privacy.astro (en), /security-and-privacy/es.astro,
+// /security-and-privacy/fr.astro.
+import Layout from "@/layouts/Layout.astro";
+import type { SecurityContent } from "@/i18n/securityAndPrivacy";
+
+interface Props {
+  t: SecurityContent;
+}
+const { t } = Astro.props;
+
+const langs = [
+  { code: "en", label: "EN", href: "/security-and-privacy" },
+  { code: "es", label: "ES", href: "/security-and-privacy/es" },
+  { code: "fr", label: "FR", href: "/security-and-privacy/fr" },
+] as const;
+---
+
+<Layout lang={t.lang} title={t.meta.title}>
+  <style>
+    .lang-toggle {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.25rem;
+      z-index: 50;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid var(--border-bright);
+      background: var(--surface-card);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .lang-toggle a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .lang-toggle a:hover { color: var(--text-primary); }
+    .lang-toggle a[aria-current="true"] { color: var(--text-primary); font-weight: 700; }
+
+    .security-hero {
+      background: var(--surface-bg);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 4rem 2rem;
+    }
+    .hero-inner {
+      max-width: 48rem;
+      margin: 0 auto;
+    }
+    .hero-inner h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      line-height: 1.2;
+    }
+    .hero-inner p {
+      color: var(--text-secondary);
+      font-size: 1.125rem;
+      line-height: 1.6;
+    }
+
+    .security-content {
+      max-width: 48rem;
+      margin: 0 auto;
+      padding: 3rem 2rem;
+    }
+
+    .section {
+      margin-bottom: 4rem;
+    }
+
+    .section h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .section p {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+
+    .section ul {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-left: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .section li {
+      margin-bottom: 0.75rem;
+    }
+
+    .callout {
+      background: var(--accent-soft);
+      border-left: 4px solid var(--accent);
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      border-radius: 4px;
+    }
+
+    .callout p {
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .callout strong {
+      color: var(--accent);
+    }
+
+    .faq {
+      margin-top: 3rem;
+    }
+
+    .faq-item {
+      margin-bottom: 2rem;
+    }
+
+    .faq-q {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .faq-a {
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .footer-note {
+      background: var(--surface-card);
+      border: 1px solid var(--border-subtle);
+      padding: 1.5rem;
+      margin-top: 3rem;
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+  </style>
+
+  <nav class="lang-toggle" aria-label="Language">
+    {langs.map((l) => (
+      <a href={l.href} aria-current={t.lang === l.code ? "true" : undefined}>{l.label}</a>
+    ))}
+  </nav>
+
+  <div class="security-hero">
+    <div class="hero-inner">
+      <h1>{t.hero.title}</h1>
+      <p>{t.hero.subtitle}</p>
+    </div>
+  </div>
+
+  <div class="security-content">
+    <div class="section">
+      <h2>{t.corePromise.heading}</h2>
+      <p>{t.corePromise.p1}</p>
+      <p set:html={t.corePromise.p2}></p>
+    </div>
+
+    <div class="section">
+      <h2>{t.dataStore.heading}</h2>
+      <p>{t.dataStore.storeIntro}</p>
+      <ul>
+        {t.dataStore.storeItems.map((item) => <li set:html={item}></li>)}
+      </ul>
+      <p set:html={t.dataStore.notStoreIntro}></p>
+      <ul>
+        {t.dataStore.notStoreItems.map((item) => <li>{item}</li>)}
+      </ul>
+    </div>
+
+    <div class="callout">
+      <p set:html={t.callout.p1}></p>
+      <p>{t.callout.p2}</p>
+      <p>{t.callout.p3}</p>
+    </div>
+
+    <div class="section">
+      <h2>{t.encryption.heading}</h2>
+      <p set:html={t.encryption.p1}></p>
+      <p set:html={t.encryption.p2}></p>
+      <p set:html={t.encryption.p3}></p>
+    </div>
+
+    <div class="section">
+      <h2>{t.billing.heading}</h2>
+      <p>{t.billing.p1}</p>
+      <p>{t.billing.p2}</p>
+    </div>
+
+    <div class="section">
+      <h2>{t.auth.heading}</h2>
+      <p>{t.auth.intro}</p>
+      <ul>
+        {t.auth.items.map((item) => <li set:html={item}></li>)}
+      </ul>
+      <p>{t.auth.outro}</p>
+    </div>
+
+    <div class="section">
+      <h2>{t.deletion.heading}</h2>
+      <p set:html={t.deletion.p1}></p>
+      <p set:html={t.deletion.p2}></p>
+    </div>
+
+    <div class="section">
+      <h2>{t.thirdParty.heading}</h2>
+      <p>{t.thirdParty.intro}</p>
+      <ul>
+        {t.thirdParty.items.map((item) => <li set:html={item}></li>)}
+      </ul>
+      <p>{t.thirdParty.outro}</p>
+    </div>
+
+    <div class="section">
+      <h2>{t.compliance.heading}</h2>
+      <p>{t.compliance.intro}</p>
+      <ul>
+        {t.compliance.items.map((item) => <li>{item}</li>)}
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>{t.faq.heading}</h2>
+      <div class="faq">
+        {t.faq.items.map((item) => (
+          <div class="faq-item">
+            <div class="faq-q">{item.q}</div>
+            <div class="faq-a" set:html={item.a}></div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="footer-note">
+      <p set:html={t.footer.p1}></p>
+      <p set:html={t.footer.p2}></p>
+    </div>
+  </div>
+</Layout>
