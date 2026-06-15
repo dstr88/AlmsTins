@@ -420,6 +420,13 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   // Keep a live ref to handleCheck so the scanner loop always calls the latest version
   useEffect(() => { handleCheckRef.current = handleCheck; }, [handleCheck]);
 
+  // Allow an external trigger (e.g. the prominent button at the top of the page) to open the scanner
+  useEffect(() => {
+    const open = () => { setScanError(null); setScanning(true); };
+    window.addEventListener('almstins:open-qr', open);
+    return () => window.removeEventListener('almstins:open-qr', open);
+  }, []);
+
   // Camera QR scanning — runs while `scanning` is true; tears down the stream on close/unmount
   useEffect(() => {
     if (!scanning) return;

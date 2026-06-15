@@ -61,6 +61,13 @@ const { t, prefilledAddress } = Astro.props;
 
   <div class="page">
 
+    <!-- Prominent quick-scan entry (under the language toggle) -->
+    <div class="qr-top-bar">
+      <button type="button" id="qr-top-btn" class="qr-top-btn" aria-label={t.checker.scanAria}>
+        {t.checker.scanQr}
+      </button>
+    </div>
+
     <!-- Hero -->
     <header class="hero">
       <div class="hero__eyebrow">{t.hero.eyebrow}</div>
@@ -435,6 +442,19 @@ const { t, prefilledAddress } = Astro.props;
   .topnav__lang:hover { color: #f5f8ff; }
   .topnav__langs { display: inline-flex; align-items: center; gap: 0.1rem; }
   .topnav__lang[aria-current="true"] { color: #f5f8ff; font-weight: 700; }
+
+  /* Prominent top-of-page QR scan button */
+  .qr-top-bar { display: flex; justify-content: flex-end; margin: 0 0 0.75rem; }
+  .qr-top-btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    background: linear-gradient(135deg, #5767ff, #934dff); color: #fff;
+    border: none; border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-size: 0.95rem; font-weight: 600;
+    padding: 0.6rem 1.3rem;
+    box-shadow: 0 4px 16px rgba(87,103,255,0.35);
+    transition: filter 0.15s ease, transform 0.15s ease;
+  }
+  .qr-top-btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
   .topnav__login {
     font-size: 0.875rem; font-weight: 500; color: rgba(255, 255, 255, 0.6);
     text-decoration: none; padding: 0.4rem 0.75rem; border-radius: 999px;
@@ -836,4 +856,10 @@ const { t, prefilledAddress } = Astro.props;
 
   btn.addEventListener('click', runCheck);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') runCheck(); });
+
+  // Top quick-scan button → switch to the wallet tab, then open the QR scanner in the React island
+  document.getElementById('qr-top-btn')?.addEventListener('click', () => {
+    (document.getElementById('tab-btn-wallet') as HTMLButtonElement | null)?.click();
+    window.dispatchEvent(new CustomEvent('almstins:open-qr'));
+  });
 </script>
