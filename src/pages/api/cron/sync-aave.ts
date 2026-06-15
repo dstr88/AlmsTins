@@ -10,6 +10,7 @@
 
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
+import { syncLiquidationsToImportTransactions } from '@/lib/aave/syncAaveLiquidations';
 
 export const prerender = false;
 
@@ -198,6 +199,18 @@ export const GET: APIRoute = async ({ request }) => {
 			const message = err instanceof Error ? err.message : String(err);
 			console.error(`[cron/sync-aave] Failed ${label}:`, message);
 			results.push({ walletId, label, status: 'failed', error: message });
+		}
+
+		try {
+			const liquidationCount = await syncLiquidationsToImportTransactions(tenantId, address);
+			if (liquidationCount > 0) {
+				console.log(`[cron/sync-aave] ${label}: wrote ${liquidationCount} liquidation(s) to bookkeeping`);
+			}
+		} catch (err) {
+			console.error(
+				`[cron/sync-aave] Liquidation sync failed for ${label}:`,
+				err instanceof Error ? err.message : String(err),
+			);
 		}
 
 		await sleep(2_000);

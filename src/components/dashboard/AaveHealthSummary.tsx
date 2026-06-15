@@ -253,8 +253,127 @@ function formatUsd(value: number) {
 	return currencyFormatter.format(value);
 }
 
+type AaveLiquidation = {
+	txHash: string;
+	timestamp: string;
+	blockExplorerUrl: string;
+	chain: string;
+	collateralSymbol: string;
+	collateralAmount: number;
+	collateralUsd: number;
+	debtSymbol: string;
+	debtAmount: number;
+	debtUsd: number;
+	penaltyUsd: number;
+};
+
+const usdFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+
+function LiquidationCallout({ liq }: { liq: AaveLiquidation }) {
+	const date = new Date(liq.timestamp).toLocaleDateString('en-US', {
+		year: 'numeric', month: 'short', day: 'numeric',
+	});
+
+	return (
+		<div className="aave-liq-callout">
+			<div className="aave-liq-header">
+				<span className="aave-liq-icon">⚠</span>
+				<span>Liquidation — {liq.chain.charAt(0).toUpperCase() + liq.chain.slice(1)} — {date}</span>
+			</div>
+			<div className="aave-liq-body">
+				<div className="aave-liq-row">
+					<span className="aave-liq-label">Loan cleared</span>
+					<span className="aave-liq-value">{usdFmt.format(liq.debtUsd)} {liq.debtSymbol}</span>
+				</div>
+				<div className="aave-liq-row">
+					<span className="aave-liq-label">Collateral seized</span>
+					<span className="aave-liq-value aave-liq-loss">
+						{liq.collateralAmount.toFixed(6)} {liq.collateralSymbol} ({usdFmt.format(liq.collateralUsd)})
+					</span>
+				</div>
+				<div className="aave-liq-row">
+					<span className="aave-liq-label">Penalty to liquidator</span>
+					<span className="aave-liq-value aave-liq-loss">{usdFmt.format(liq.penaltyUsd)}</span>
+				</div>
+				{liq.blockExplorerUrl && (
+					<div className="aave-liq-row">
+						<a
+							href={liq.blockExplorerUrl}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="aave-liq-link"
+						>
+							View transaction ↗
+						</a>
+					</div>
+				)}
+				<div className="aave-liq-tax">
+					⚠ Taxable disposal — logged to your bookkeeping records
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function LiquidationAlertToggle() {
+	const [enabled, setEnabled] = useState(false);
+	const [loading, setLoading] = useState(true);
+	const [saving, setSaving]   = useState(false);
+
+	useEffect(() => {
+		fetch('/api/account/liquidation-alert')
+			.then((r) => r.json())
+			.then((d) => { if (d.ok) setEnabled(d.enabled); })
+			.catch(() => {})
+			.finally(() => setLoading(false));
+	}, []);
+
+	const toggle = useCallback(async () => {
+		setSaving(true);
+		try {
+			const res  = await fetch('/api/account/liquidation-alert', {
+				method:  'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body:    JSON.stringify({ enabled: !enabled }),
+			});
+			const data = await res.json();
+			if (data.ok) setEnabled(data.enabled);
+		} finally {
+			setSaving(false);
+		}
+	}, [enabled]);
+
+	if (loading) return null;
+
+	return (
+		<div className="stat-row liq-alert-row">
+			<span className="label">Liquidation email</span>
+			<button
+				className={`alert-pill${enabled ? ' alert-pill--active' : ''}`}
+				onClick={toggle}
+				disabled={saving}
+				title={enabled
+					? 'Email alerts on — click to disable'
+					: 'Click to receive an email if this position is liquidated'}
+			>
+				{saving ? '…' : enabled ? 'On' : 'Off'}
+			</button>
+		</div>
+	);
+}
+
 export default function AaveHealthSummary({ walletId, showAlertPill = true, showHealthRow = true }: { walletId: string; showAlertPill?: boolean; showHealthRow?: boolean }) {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
+	const [walletAddress, setWalletAddress] = useState<string | null>(null);
+	const [liquidations, setLiquidations] = useState<AaveLiquidation[]>([]);
+
+	useEffect(() => {
+		if (!walletAddress) return;
+		fetch(`/api/aave/liquidations?address=${encodeURIComponent(walletAddress)}`)
+			.then((r) => r.json())
+			.then((d) => { if (d.ok) setLiquidations(d.liquidations ?? []); })
+			.catch(() => {});
+	}, [walletAddress]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -271,6 +390,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 				if (!address) {
 					throw new Error('Missing wallet address');
 				}
+				if (!cancelled) setWalletAddress(address);
 
 				const res = await fetch(`/api/aave/health?address=${encodeURIComponent(address)}`);
 				if (!res.ok) {
@@ -286,17 +406,15 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 					chain,
 					healthFactor: summary.healthFactor ?? null,
 				}));
-				const activeChain =
-					chainEntries.find(([, summary]) => (summary.userSupplies ?? []).length > 0)?.[0] ??
-					chainEntries.find(([, summary]) => (summary.userBorrows ?? []).length > 0)?.[0] ??
-					healthByChain.find((entry) => entry.healthFactor !== null && entry.healthFactor !== undefined)?.chain ??
-					healthByChain[0]?.chain ??
-					null;
-				const activeSummary = activeChain ? data.chains?.[activeChain] : null;
-				const supplies = Array.isArray(activeSummary?.userSupplies) ? activeSummary.userSupplies : [];
-				const borrows = Array.isArray(activeSummary?.userBorrows) ? activeSummary.userBorrows : [];
-				const unavailableMessage =
-					activeSummary?.status === 'UNAVAILABLE' ? activeSummary?.message ?? 'Unavailable' : null;
+				// Aggregate positions from ALL chains that have active supplies or borrows.
+				// A wallet can have positions on Ethereum, Polygon, and Avalanche simultaneously —
+				// picking only one active chain would hide the others.
+				const activeChainEntries = chainEntries.filter(([, summary]) =>
+					(summary.userSupplies ?? []).length > 0 || (summary.userBorrows ?? []).length > 0
+				);
+				const supplies = activeChainEntries.flatMap(([, summary]) => summary.userSupplies ?? []);
+				const borrows = activeChainEntries.flatMap(([, summary]) => summary.userBorrows ?? []);
+				const unavailableMessage = null;
 
 				// Normalize Avalanche bridge/wrapped token symbols to their base price symbol
 				const normalizePriceSymbol = (sym: string): string => {
@@ -394,8 +512,12 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 					return sum + (typeof usdValue === 'number' ? usdValue : 0);
 				}, 0);
 
-				const totalCollateralFromState = Number(activeSummary?.totalCollateralBase ?? 0);
-				const totalDebtFromState = Number(activeSummary?.totalDebtBase ?? 0);
+				const totalCollateralFromState = activeChainEntries.reduce(
+					(sum, [, s]) => sum + Number(s.totalCollateralBase ?? 0), 0
+				);
+				const totalDebtFromState = activeChainEntries.reduce(
+					(sum, [, s]) => sum + Number(s.totalDebtBase ?? 0), 0
+				);
 				const totals = {
 					totalCollateralBase:
 						Number.isFinite(totalCollateralFromState) && totalCollateralFromState > 0
@@ -455,35 +577,28 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 		};
 	}, [walletId]);
 
-	const healthText = useMemo(() => {
-		if (state.status !== 'ready') return '---';
-		const first = state.healthByChain.find((entry) => entry.healthFactor !== null && entry.healthFactor !== undefined);
-		return formatHealthFactor(first?.healthFactor ?? null);
-	}, [state]);
-
-	const healthColor = useMemo(() => {
-		if (state.status !== 'ready') return undefined;
-		const first = state.healthByChain.find((entry) => entry.healthFactor !== null && entry.healthFactor !== undefined);
-		const hf = first?.healthFactor != null ? Number(first.healthFactor) : null;
-		if (hf === null || !Number.isFinite(hf)) return undefined;
-		if (hf < 1.5)  return 'var(--loss)';
-		if (hf < 2.0)  return 'var(--warning)';
-		return 'var(--gain)';
-	}, [state]);
-
 	const healthRows = useMemo(() => {
 		if (state.status !== 'ready') return [];
 		return state.healthByChain
-			.map((entry) => ({
-				chain: entry.chain,
-				value: formatHealthFactor(entry.healthFactor),
-			}))
+			.map((entry) => {
+				const hf = entry.healthFactor != null ? Number(entry.healthFactor) : null;
+				const color =
+					hf === null || !Number.isFinite(hf)
+						? undefined
+						: hf < 1.5
+						? 'var(--loss)'
+						: hf < 2.0
+						? 'var(--warning)'
+						: 'var(--gain)';
+				return {
+					chain: entry.chain,
+					value: formatHealthFactor(entry.healthFactor),
+					color,
+				};
+			})
 			.filter((entry) => entry.value !== '---');
 	}, [state]);
 
-	const healthLabel = healthRows.length
-		? `${healthRows[0].chain.charAt(0).toUpperCase() + healthRows[0].chain.slice(1)} Health`
-		: 'Health';
 
 	const totalCollateral = state.status === 'ready' ? state.totalCollateralBase : 0;
 	const totalDebt = state.status === 'ready' ? state.totalDebtBase : 0;
@@ -522,13 +637,34 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 
 	return (
 		<div className="defi-stats">
-			<div className="stat-row health" style={showHealthRow ? undefined : { display: 'none' }} data-health-color={healthColor ?? ''}>
-				<span className="label">{healthLabel}</span>
-				<span className="value" style={healthColor ? { color: healthColor } : undefined}>{healthText}</span>
-				{showAlertPill && <AlertPill walletId={walletId} />}
-			</div>
+			{healthRows.length ? (
+				healthRows.map((entry, i) => (
+					<div
+						key={entry.chain}
+						className="stat-row health"
+						style={showHealthRow ? undefined : { display: 'none' }}
+						data-health-color={entry.color ?? ''}
+					>
+						<span className="label">
+							{entry.chain.charAt(0).toUpperCase() + entry.chain.slice(1)} Health
+						</span>
+						<span className="value" style={entry.color ? { color: entry.color } : undefined}>
+							{entry.value}
+						</span>
+						{i === 0 && showAlertPill && <AlertPill walletId={walletId} />}
+					</div>
+				))
+			) : (
+				<div className="stat-row health" style={showHealthRow ? undefined : { display: 'none' }} data-health-color="">
+					<span className="label">Health</span>
+					<span className="value">---</span>
+					{showAlertPill && <AlertPill walletId={walletId} />}
+				</div>
+			)}
 
 			<div className="spacer spacer--lg" style={showHealthRow ? undefined : { display: 'none' }}></div>
+
+			{showAlertPill && <LiquidationAlertToggle />}
 
 			<div className="stat-row">
 				<span className="label">Collateral</span>
@@ -638,6 +774,14 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 			{state.status === 'error' ? (
 				<div className="defi-status defi-status--error">Unable to load health factor.</div>
 			) : null}
+
+			{liquidations.length > 0 && (
+				<div className="aave-liquidations">
+					{liquidations.map((liq) => (
+						<LiquidationCallout key={`${liq.txHash}-${liq.chain}`} liq={liq} />
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
