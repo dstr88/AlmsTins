@@ -49,7 +49,11 @@ const { t, prefilledAddress } = Astro.props;
       <span class="topnav__tagline">{t.nav.tagline}</span>
     </a>
     <div class="topnav__actions">
-      <a class="topnav__lang" href={t.nav.langHref} aria-label={t.nav.langAriaLabel}>{t.nav.langLabel}</a>
+      <div class="topnav__langs" aria-label="Language">
+        <a class="topnav__lang" href="/wallet-checker" aria-current={t.lang === 'en' ? 'true' : undefined}>EN</a>
+        <a class="topnav__lang" href="/wallet-checker/es" aria-current={t.lang === 'es' ? 'true' : undefined}>ES</a>
+        <a class="topnav__lang" href="/wallet-checker/fr" aria-current={t.lang === 'fr' ? 'true' : undefined}>FR</a>
+      </div>
       <a class="topnav__login" href="/login">{t.nav.login}</a>
       <a class="topnav__signup" href="/login">{t.nav.signup}</a>
     </div>
@@ -429,6 +433,8 @@ const { t, prefilledAddress } = Astro.props;
     transition: color 0.15s ease; margin-right: 0.25rem;
   }
   .topnav__lang:hover { color: #f5f8ff; }
+  .topnav__langs { display: inline-flex; align-items: center; gap: 0.1rem; }
+  .topnav__lang[aria-current="true"] { color: #f5f8ff; font-weight: 700; }
   .topnav__login {
     font-size: 0.875rem; font-weight: 500; color: rgba(255, 255, 255, 0.6);
     text-decoration: none; padding: 0.4rem 0.75rem; border-radius: 999px;
