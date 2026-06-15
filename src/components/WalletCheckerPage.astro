@@ -444,14 +444,17 @@ const { t, prefilledAddress } = Astro.props;
   .topnav__lang[aria-current="true"] { color: #f5f8ff; font-weight: 700; }
 
   /* Prominent top-of-page QR scan button */
-  .qr-top-bar { display: flex; justify-content: flex-end; margin: 0 0 0.75rem; }
+  /* Prominent, centered so it is impossible to miss on desktop too
+     (full-width on phones, a wide centered pill on wider screens). */
+  .qr-top-bar { display: flex; justify-content: center; margin: 0 0 1.25rem; }
   .qr-top-btn {
-    display: inline-flex; align-items: center; gap: 0.4rem;
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    width: 100%; max-width: 440px;
     background: linear-gradient(135deg, #5767ff, #934dff); color: #fff;
     border: none; border-radius: 999px; cursor: pointer;
-    font-family: inherit; font-size: 0.95rem; font-weight: 600;
-    padding: 0.6rem 1.3rem;
-    box-shadow: 0 4px 16px rgba(87,103,255,0.35);
+    font-family: inherit; font-size: 1.05rem; font-weight: 700;
+    padding: 0.9rem 1.5rem;
+    box-shadow: 0 6px 20px rgba(87,103,255,0.40);
     transition: filter 0.15s ease, transform 0.15s ease;
   }
   .qr-top-btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
