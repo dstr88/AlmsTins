@@ -1,29 +1,32 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import jsQR from 'jsqr';
 import type { WalletCheckResult } from '@/lib/walletChecker';
+import type { WalletCheckerLocale } from '@/i18n/walletChecker';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = 'safety' | 'holdings' | 'activity' | 'honeypot' | 'funding' | 'multisig';
+type CheckerStrings = WalletCheckerLocale['checker'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(iso: string | null): string {
+function fmt(iso: string | null, locale: string): string {
   if (!iso) return '—';
   try {
-    return new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat(locale, {
       month: 'short', day: 'numeric', year: 'numeric',
     }).format(new Date(iso));
   } catch { return '—'; }
 }
 
-function chainLabel(chain: string): string {
+function chainLabel(chain: string, c: CheckerStrings): string {
   return {
-    evm:      'Ethereum / EVM',
-    sui:      'Sui',
-    solana:   'Solana',
-    bitcoin:  'Bitcoin',
-    litecoin: 'Litecoin',
-  }[chain] ?? 'Unknown chain';
+    evm:      c.chains.evm,
+    sui:      c.chains.sui,
+    solana:   c.chains.solana,
+    bitcoin:  c.chains.bitcoin,
+    litecoin: c.chains.litecoin,
+  }[chain] ?? c.chains.unknown;
 }
 
 function isNewWallet(firstSeen: string | null): boolean {
@@ -32,22 +35,34 @@ function isNewWallet(firstSeen: string | null): boolean {
   return days < 30;
 }
 
+// Extracts a blockchain address from a scanned QR payload.
+// Handles raw addresses and URI forms like "ethereum:0x..@1?value=..", "bitcoin:bc1..?amount=..".
+function parseAddressFromQR(raw: string): string {
+  const s = raw.trim();
+  // EVM addresses are unambiguous — grab the first one if present (covers EIP-681 URIs too)
+  const evm = s.match(/0x[a-fA-F0-9]{40}/);
+  if (evm) return evm[0];
+  // Otherwise strip any URI scheme ("bitcoin:", "litecoin:", "solana:", …) and trailing params
+  const noScheme = s.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:/, '');
+  return noScheme.split(/[?@\s]/)[0].trim();
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function ScamMeter({ score, level }: { score: number; level: string }) {
+function ScamMeter({ score, level, c }: { score: number; level: string; c: CheckerStrings }) {
   const color =
     level === 'clean'   ? '#22c55e' :
     level === 'caution' ? '#f59e0b' :
                           '#ef4444';
   const label =
-    level === 'clean'   ? '✅ No known risks detected' :
-    level === 'caution' ? '⚠️ Exercise caution' :
-                          '🚨 High risk — likely a scam';
+    level === 'clean'   ? c.scamClean :
+    level === 'caution' ? c.scamCaution :
+                          c.scamHigh;
 
   return (
     <div style={{ marginBottom: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.5rem' }}>
-        <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Scam Risk Score</span>
+        <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{c.scamRiskScore}</span>
         <span style={{ fontSize: '2rem', fontWeight: 700, color, lineHeight: 1 }}>{score}</span>
       </div>
       {/* Track */}
@@ -66,7 +81,7 @@ function ScamMeter({ score, level }: { score: number; level: string }) {
   );
 }
 
-function FlagRow({ label, active }: { label: string; active: boolean }) {
+function FlagRow({ label, active, c }: { label: string; active: boolean; c: CheckerStrings }) {
   return (
     <div style={{
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -75,13 +90,13 @@ function FlagRow({ label, active }: { label: string; active: boolean }) {
     }}>
       <span style={{ color: 'rgba(255,255,255,0.75)' }}>{label}</span>
       <span style={{ color: active ? '#ef4444' : '#22c55e', fontWeight: 600 }}>
-        {active ? '🚨 Reported' : '✅ Clear'}
+        {active ? c.reported : c.clear}
       </span>
     </div>
   );
 }
 
-function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
+function TabContent({ tab, result, c }: { tab: Tab; result: WalletCheckResult; c: CheckerStrings }) {
   if (tab === 'safety') {
     const f = result.flags;
     return (
@@ -108,11 +123,11 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
                 )}
               </div>
               <div style={{ fontSize: '0.78rem', opacity: 0.55, textTransform: 'capitalize' }}>
-                {result.entityLabel.type} · {result.entityLabel.confidence} identification
+                {result.entityLabel.type} · {result.entityLabel.confidence} {c.identification}
                 {result.entityLabel.url && (
                   <> · <a href={result.entityLabel.url} target="_blank" rel="noopener noreferrer"
                     style={{ color: 'rgba(147,196,255,0.8)', textDecoration: 'none' }}>
-                    Visit ↗
+                    {c.visit}
                   </a></>
                 )}
               </div>
@@ -120,20 +135,20 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
           </div>
         )}
         {[
-          { label: 'Blacklisted address',      active: f.blacklisted },
-          { label: 'Phishing activity',        active: f.phishing },
-          { label: 'Sanctioned (OFAC/etc)',    active: f.sanctioned },
-          { label: 'Stealing / drainer',       active: f.stealingAttack },
-          { label: 'Honeypot-related',         active: f.honeypotRelated },
-          { label: 'Cybercrime involvement',   active: f.cybercrime },
-          { label: 'Dark web transactions',    active: f.darkwebTransactions },
-          { label: 'Money laundering',         active: f.moneyLaundering },
-          { label: 'Financial crime',          active: f.financialCrime },
-          { label: 'Blackmail / extortion',    active: f.blackmail },
-          { label: 'Mixer / Tornado Cash use', active: f.mixer },
+          { label: c.flags.blacklisted,     active: f.blacklisted },
+          { label: c.flags.phishing,        active: f.phishing },
+          { label: c.flags.sanctioned,      active: f.sanctioned },
+          { label: c.flags.stealing,        active: f.stealingAttack },
+          { label: c.flags.honeypotRelated, active: f.honeypotRelated },
+          { label: c.flags.cybercrime,      active: f.cybercrime },
+          { label: c.flags.darkweb,         active: f.darkwebTransactions },
+          { label: c.flags.moneyLaundering, active: f.moneyLaundering },
+          { label: c.flags.financialCrime,  active: f.financialCrime },
+          { label: c.flags.blackmail,       active: f.blackmail },
+          { label: c.flags.mixer,           active: f.mixer },
         ].sort((a, b) => Number(b.active) - Number(a.active))
           .map(({ label, active }) => (
-            <FlagRow key={label} label={label} active={active} />
+            <FlagRow key={label} label={label} active={active} c={c} />
           ))}
 
         {/* Chainabuse community reports */}
@@ -145,14 +160,14 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
           }}>
             <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600, color: result.chainabuseReports > 0 ? '#fca5a5' : 'rgba(255,255,255,0.55)' }}>
               {result.chainabuseReports > 0
-                ? `🚨 ${result.chainabuseReports} community scam report${result.chainabuseReports !== 1 ? 's' : ''} on Chainabuse`
-                : '✅ No Chainabuse community reports'}
+                ? (result.chainabuseReports === 1 ? c.chainabuseOne : c.chainabuseMany).replace('{n}', String(result.chainabuseReports))
+                : c.chainabuseNone}
             </p>
           </div>
         )}
 
         <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
-          Source: GoPlus Security (ETH, BSC, Polygon) + Chainabuse community reports. Results are reported, not legally confirmed.
+          {c.safetySource}
         </p>
       </div>
     );
@@ -162,19 +177,19 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
     const h = result.holdings;
     if (result.chain !== 'evm' && result.chain !== 'sui') return (
       <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
-        Token balance lookup is only available for EVM and Sui addresses.
+        {c.holdingsEvmSuiOnly}
       </p>
     );
     if (h.length === 0) return (
       <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
-        {result.chain === 'sui' ? 'No coin balances found.' : 'No ERC-20 token holdings found.'}
+        {result.chain === 'sui' ? c.noCoinBalances : c.noErc20}
       </p>
     );
     return (
       <div>
         {result.activity?.ethBalance && result.chain !== 'sui' && (
           <div style={{ padding: '0.6rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem' }}>ETH Balance</span>
+            <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem' }}>{c.ethBalanceRow}</span>
             <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{result.activity.ethBalance} ETH</span>
           </div>
         )}
@@ -188,9 +203,7 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
           </div>
         ))}
         <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>
-          {result.chain === 'sui'
-            ? 'Data via Sui RPC · All coin balances shown · SUI price via CoinGecko'
-            : 'Data via Alchemy · Ethereum Mainnet only · Top 10 tokens shown'}
+          {result.chain === 'sui' ? c.holdingsSourceSui : c.holdingsSourceEvm}
         </p>
       </div>
     );
@@ -203,10 +216,10 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
       <div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
           {[
-            { label: 'First seen',     value: fmt(a.firstSeen)    },
-            { label: 'Last activity',  value: fmt(a.lastActivity) },
-            { label: result.chain === 'sui' ? 'SUI balance' : 'ETH balance', value: a.ethBalance ?? '—' },
-            { label: 'Tx count',       value: a.txCount !== null ? String(a.txCount) : '—' },
+            { label: c.firstSeen,    value: fmt(a.firstSeen, c.dateLocale)    },
+            { label: c.lastActivity, value: fmt(a.lastActivity, c.dateLocale) },
+            { label: result.chain === 'sui' ? c.suiBalance : c.ethBalance, value: a.ethBalance ?? '—' },
+            { label: c.txCount,      value: a.txCount !== null ? String(a.txCount) : '—' },
           ].map(({ label, value }) => (
             <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.75rem 1rem' }}>
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
@@ -216,11 +229,11 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
         </div>
         {newWallet && (
           <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#fca5a5' }}>
-            🚩 <strong>New wallet</strong> — created less than 30 days ago. Scam wallets are often brand new.
+            🚩 <strong>{c.newWallet}</strong>{c.newWalletRest}
           </div>
         )}
         <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>
-          Activity data via Etherscan · Ethereum Mainnet only
+          {c.activitySource}
         </p>
       </div>
     );
@@ -230,11 +243,11 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
     const h = result.honeypot;
     if (result.chain !== 'evm') return (
       <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
-        Honeypot detection is only available for EVM addresses.
+        {c.honeypotEvmOnly}
       </p>
     );
     if (!h.checked) return (
-      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>Honeypot check unavailable.</p>
+      <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>{c.honeypotUnavailable}</p>
     );
     return (
       <div>
@@ -246,18 +259,16 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
           marginBottom: '1rem',
         }}>
           <p style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: h.isHoneypot ? '#ef4444' : '#22c55e' }}>
-            {h.isHoneypot
-              ? '🚨 Honeypot detected — tokens CANNOT be sold'
-              : '✅ Tokens appear sellable'}
+            {h.isHoneypot ? c.honeypotDetected : c.honeypotSellable}
           </p>
           {h.reason && (
             <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'rgba(255,255,255,0.6)' }}>{h.reason}</p>
           )}
         </div>
         <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
-          A honeypot is a token that can be bought but never sold. Scammers use them to steal funds — you send ETH in, your tokens are locked, they keep the ETH.
+          {c.honeypotExplain}
         </p>
-        <p style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>Source: honeypot.is</p>
+        <p style={{ marginTop: '0.75rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>{c.honeypotSource}</p>
       </div>
     );
   }
@@ -273,16 +284,16 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
             </div>
           ) : (
             <div style={{ padding: '1rem', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <p style={{ margin: 0, color: 'rgba(255,255,255,0.55)', fontSize: '0.9rem' }}>No mixer or high-risk funding source detected via GoPlus flags.</p>
+              <p style={{ margin: 0, color: 'rgba(255,255,255,0.55)', fontSize: '0.9rem' }}>{c.fundingNone}</p>
             </div>
           )}
         </div>
         <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
-          Scammers often fund their wallets through mixers like Tornado Cash to hide where the ETH came from. Mixer use is a significant red flag even without other scam indicators.
+          {c.fundingExplain}
         </p>
         {result.chain !== 'evm' && (
           <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)' }}>
-            Detailed funding source tracing only available for EVM addresses.
+            {c.fundingEvmOnly}
           </p>
         )}
       </div>
@@ -299,22 +310,18 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
           border: `1px solid ${ms === true ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.1)'}`,
         }}>
           <p style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: ms === true ? '#f59e0b' : 'rgba(255,255,255,0.8)' }}>
-            {ms === null
-              ? '— Multi-sig status unknown (EOA or check unavailable)'
-              : ms
-              ? '⚠️ This is a multi-sig contract wallet'
-              : '✅ Standard EOA wallet — not a multi-sig'}
+            {ms === null ? c.multisigUnknown : ms ? c.multisigYes : c.multisigNo}
           </p>
         </div>
         <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>
-          <strong style={{ color: 'rgba(255,255,255,0.75)' }}>What is multi-sig?</strong> A multi-sig wallet requires multiple private keys to approve transactions. While legitimate protocols use them, scammers sometimes use multi-sig setups to create the illusion that funds are secure — while they control all the keys.
+          <strong style={{ color: 'rgba(255,255,255,0.75)' }}>{c.multisigWhatLabel}</strong>{c.multisigWhat}
         </p>
         <p style={{ marginTop: '0.75rem', fontSize: '0.875rem', color: '#fbbf24', lineHeight: 1.6 }}>
-          ⚠️ Legitimate investments never ask you to deposit into their wallet. If someone is asking you to send tokens to any address — multi-sig or not — it is very likely a scam.
+          {c.multisigWarning}
         </p>
         {result.chain !== 'evm' && (
           <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)' }}>
-            Multi-sig detection only available for EVM addresses.
+            {c.multisigEvmOnly}
           </p>
         )}
       </div>
@@ -326,20 +333,12 @@ function TabContent({ tab, result }: { tab: Tab; result: WalletCheckResult }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'safety',   label: '🛡 Safety Report' },
-  { id: 'holdings', label: '💰 Holdings'       },
-  { id: 'activity', label: '📊 Activity'       },
-  { id: 'honeypot', label: '🍯 Honeypot'       },
-  { id: 'funding',  label: '🔗 Funding'        },
-  { id: 'multisig', label: '🔑 Multi-sig'      },
-];
-
 interface Props {
   prefilledAddress?: string;
+  c: CheckerStrings;
 }
 
-export default function WalletChecker({ prefilledAddress = '' }: Props) {
+export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const [address, setAddress]     = useState(prefilledAddress);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
@@ -348,6 +347,23 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
   const [cached, setCached]       = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const didAutoCheck = useRef(false);
+
+  // QR camera scanning state
+  const [scanning, setScanning]   = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const videoRef       = useRef<HTMLVideoElement | null>(null);
+  const streamRef      = useRef<MediaStream | null>(null);
+  const rafRef         = useRef<number | null>(null);
+  const handleCheckRef = useRef<(addr: string) => void>(() => {});
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'safety',   label: c.tabs.safety   },
+    { id: 'holdings', label: c.tabs.holdings },
+    { id: 'activity', label: c.tabs.activity },
+    { id: 'honeypot', label: c.tabs.honeypot },
+    { id: 'funding',  label: c.tabs.funding  },
+    { id: 'multisig', label: c.tabs.multisig },
+  ];
 
   const handleCheck = useCallback(async (overrideAddr?: string) => {
     const addr = (overrideAddr ?? address).trim();
@@ -371,7 +387,7 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
       const data = await res.json() as { ok: boolean; result?: WalletCheckResult; error?: string; cached?: boolean };
 
       if (!data.ok || !data.result) {
-        setError(data.error ?? 'Check failed. Please try again.');
+        setError(data.error ?? c.checkFailed);
       } else {
         setResult(data.result);
         setCached(Boolean(data.cached));
@@ -385,12 +401,12 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
       }
     } catch (err: any) {
       if (err?.name !== 'AbortError') {
-        setError('Network error. Please try again.');
+        setError(c.networkError);
       }
     } finally {
       setLoading(false);
     }
-  }, [address]);
+  }, [address, c]);
 
   // Auto-check on first mount when a prefilled address is provided
   useEffect(() => {
@@ -401,10 +417,101 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keep a live ref to handleCheck so the scanner loop always calls the latest version
+  useEffect(() => { handleCheckRef.current = handleCheck; }, [handleCheck]);
+
+  // Camera QR scanning — runs while `scanning` is true; tears down the stream on close/unmount
+  useEffect(() => {
+    if (!scanning) return;
+    let cancelled = false;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const tick = () => {
+      if (cancelled) return;
+      const video = videoRef.current;
+      if (video && ctx && video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+          if (code?.data) {
+            const addr = parseAddressFromQR(code.data);
+            if (addr) {
+              cancelled = true;
+              setAddress(addr);
+              setScanning(false);
+              handleCheckRef.current(addr);
+              return;
+            }
+          }
+        } catch { /* getImageData can throw mid-teardown; ignore and keep looping */ }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setScanning(false); };
+    window.addEventListener('keydown', onKey);
+
+    (async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setScanError(c.scanUnsupported);
+        setScanning(false);
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play().catch(() => {});
+          rafRef.current = requestAnimationFrame(tick);
+        }
+      } catch (err: any) {
+        const name = err?.name;
+        setScanError(
+          name === 'NotAllowedError' || name === 'SecurityError'
+            ? c.scanDenied
+            : name === 'NotFoundError'
+            ? c.scanNoCamera
+            : c.scanGeneric,
+        );
+        setScanning(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('keydown', onKey);
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      const video = videoRef.current;
+      if (video) video.srcObject = null;
+    };
+  }, [scanning, c]);
+
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCheck(); }
   };
 
+  const flagKeyToLabel: Record<string, string> = {
+    blacklisted: c.flags.blacklisted,
+    phishing: c.flags.phishing,
+    sanctioned: c.flags.sanctioned,
+    stealingAttack: c.flags.stealing,
+    honeypotRelated: c.flags.honeypotRelated,
+    cybercrime: c.flags.cybercrime,
+    darkwebTransactions: c.flags.darkweb,
+    moneyLaundering: c.flags.moneyLaundering,
+    financialCrime: c.flags.financialCrime,
+    blackmail: c.flags.blackmail,
+    mixer: c.flags.mixer,
+  };
   const activeFlags = result
     ? Object.entries(result.flags).filter(([, v]) => v).map(([k]) => k)
     : [];
@@ -415,7 +522,7 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
       {/* Input area */}
       <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
         <label htmlFor="wallet-input" style={{ display: 'block', fontSize: '0.8rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
-          Wallet Address
+          {c.inputLabel}
         </label>
         <textarea
           id="wallet-input"
@@ -424,7 +531,7 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
           onKeyDown={handleKey}
           maxLength={128}
           rows={2}
-          placeholder="Paste any wallet address — Ethereum, Bitcoin, Solana, Litecoin, Sui..."
+          placeholder={c.placeholder}
           spellCheck={false}
           autoComplete="off"
           style={{
@@ -441,43 +548,74 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
             boxSizing: 'border-box',
           }}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', gap: '0.75rem', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.25)' }}>
             {address.length}/128
           </span>
-          <button
-            onClick={() => handleCheck()}
-            disabled={loading || !address.trim()}
-            style={{
-              background: loading || !address.trim()
-                ? 'rgba(255,255,255,0.08)'
-                : 'linear-gradient(135deg, #5767ff, #934dff)',
-              border: 'none',
-              borderRadius: '999px',
-              color: loading || !address.trim() ? 'rgba(255,255,255,0.35)' : '#fff',
-              cursor: loading || !address.trim() ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              padding: '0.65rem 1.5rem',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}
-          >
-            {loading ? (
-              <>
-                <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-                Checking…
-              </>
-            ) : '🔍 Check Wallet'}
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              onClick={() => { setScanError(null); setScanning(true); }}
+              disabled={loading}
+              aria-label={c.scanAria}
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(165,180,252,0.45)',
+                borderRadius: '999px',
+                color: loading ? 'rgba(255,255,255,0.35)' : '#a5b4fc',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                padding: '0.65rem 1.1rem',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {c.scanQr}
+            </button>
+            <button
+              onClick={() => handleCheck()}
+              disabled={loading || !address.trim()}
+              style={{
+                background: loading || !address.trim()
+                  ? 'rgba(255,255,255,0.08)'
+                  : 'linear-gradient(135deg, #5767ff, #934dff)',
+                border: 'none',
+                borderRadius: '999px',
+                color: loading || !address.trim() ? 'rgba(255,255,255,0.35)' : '#fff',
+                cursor: loading || !address.trim() ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                padding: '0.65rem 1.5rem',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              {loading ? (
+                <>
+                  <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                  {c.checking}
+                </>
+              ) : c.checkWallet}
+            </button>
+          </div>
         </div>
 
         {error && (
           <p style={{ marginTop: '0.75rem', color: '#fca5a5', fontSize: '0.875rem', margin: '0.75rem 0 0' }}>
             {error}
+          </p>
+        )}
+
+        {scanError && (
+          <p style={{ marginTop: '0.75rem', color: '#fca5a5', fontSize: '0.875rem', margin: '0.75rem 0 0' }}>
+            {scanError}
           </p>
         )}
       </div>
@@ -489,16 +627,16 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
           {/* Chain + ENS + cache badges */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: result.ensName ? '0.5rem' : '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', padding: '0.3rem 0.75rem', borderRadius: '999px' }}>
-              {chainLabel(result.chain)}
+              {chainLabel(result.chain, c)}
             </span>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
               {result.chainabuseReports !== null && result.chainabuseReports > 0 && (
                 <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#fca5a5', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', padding: '0.3rem 0.75rem', borderRadius: '999px' }}>
-                  🚨 {result.chainabuseReports} community report{result.chainabuseReports !== 1 ? 's' : ''}
+                  {(result.chainabuseReports === 1 ? c.reportBadgeOne : c.reportBadgeMany).replace('{n}', String(result.chainabuseReports))}
                 </span>
               )}
               {cached && (
-                <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>⚡ Cached</span>
+                <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>{c.cached}</span>
               )}
             </div>
           </div>
@@ -506,7 +644,7 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
           {/* ENS name */}
           {result.ensName && (
             <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ENS</span>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.ens}</span>
               <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a78bfa', fontFamily: 'ui-monospace, monospace' }}>
                 {result.ensName}
               </span>
@@ -522,19 +660,19 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
           )}
 
           {/* Scam meter */}
-          <ScamMeter score={result.scamScore} level={result.scamLevel} />
+          <ScamMeter score={result.scamScore} level={result.scamLevel} c={c} />
 
           {/* Active flags summary */}
           {activeFlags.length > 0 && (
             <div style={{ marginBottom: '1.25rem', padding: '0.75rem 1rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', fontSize: '0.85rem', color: '#fca5a5' }}>
-              <strong>Flagged for:</strong>{' '}
-              {activeFlags.map(f => f.replace(/([A-Z])/g, ' $1').toLowerCase()).join(', ')}
+              <strong>{c.flaggedFor}</strong>{' '}
+              {activeFlags.map(f => (flagKeyToLabel[f] ?? f).toLowerCase()).join(', ')}
             </div>
           )}
 
           {/* Disclaimer */}
           <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-            Results sourced from public scam databases (GoPlus, Etherscan, honeypot.is). Reported, not legally confirmed. Not financial or legal advice.
+            {c.resultsDisclaimer}
           </p>
 
           {/* Tab bar */}
@@ -564,8 +702,49 @@ export default function WalletChecker({ prefilledAddress = '' }: Props) {
 
           {/* Tab content */}
           <div style={{ minHeight: '120px' }}>
-            <TabContent tab={activeTab} result={result} />
+            <TabContent tab={activeTab} result={result} c={c} />
           </div>
+        </div>
+      )}
+
+      {/* QR scanner camera overlay */}
+      {scanning && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={c.scanTitle}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(5,7,15,0.92)', backdropFilter: 'blur(6px)', padding: '1.5rem',
+          }}
+        >
+          <p style={{ color: '#f5f8ff', fontSize: '1rem', fontWeight: 600, margin: '0 0 1rem', textAlign: 'center' }}>
+            {c.scanTitle}
+          </p>
+          <div style={{ position: 'relative', width: 'min(78vw, 320px)', aspectRatio: '1 / 1', borderRadius: '18px', overflow: 'hidden', background: '#000', boxShadow: '0 0 0 1px rgba(165,180,252,0.25)' }}>
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              autoPlay
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            <div style={{ position: 'absolute', inset: '12%', border: '2px solid rgba(165,180,252,0.9)', borderRadius: '12px' }} />
+          </div>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.8rem', margin: '1rem 0 1.25rem', textAlign: 'center', maxWidth: '320px', lineHeight: 1.5 }}>
+            {c.scanPrivacy}
+          </p>
+          <button
+            onClick={() => setScanning(false)}
+            style={{
+              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '999px', color: '#f5f8ff', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: 600, padding: '0.6rem 1.6rem',
+            }}
+          >
+            {c.cancel}
+          </button>
         </div>
       )}
 

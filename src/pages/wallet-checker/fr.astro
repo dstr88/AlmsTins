@@ -1,4 +1,7 @@
 ---
+import { fr } from '../../i18n/walletChecker';
 import WalletCheckerPage from '../../components/WalletCheckerPage.astro';
+
+const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
 ---
-<WalletCheckerPage lang="fr" />
+<WalletCheckerPage t={fr} prefilledAddress={prefilledAddress} />

@@ -1,5 +1,5 @@
 export interface WalletCheckerLocale {
-  lang: 'en' | 'es';
+  lang: 'en' | 'es' | 'fr';
   meta: { title: string; description: string };
   jsonld: {
     appName: string;
@@ -68,6 +68,79 @@ export interface WalletCheckerLocale {
     tipRed: string;
     tipYellow: string;
     tipGreen: string;
+  };
+  checker: {
+    dateLocale: string;
+    inputLabel: string;
+    placeholder: string;
+    scanQr: string;
+    scanAria: string;
+    checkWallet: string;
+    checking: string;
+    checkFailed: string;
+    networkError: string;
+    scanTitle: string;
+    scanPrivacy: string;
+    cancel: string;
+    scanUnsupported: string;
+    scanDenied: string;
+    scanNoCamera: string;
+    scanGeneric: string;
+    chains: { evm: string; sui: string; solana: string; bitcoin: string; litecoin: string; unknown: string };
+    ens: string;
+    cached: string;
+    reportBadgeOne: string;
+    reportBadgeMany: string;
+    flaggedFor: string;
+    resultsDisclaimer: string;
+    scamRiskScore: string;
+    scamClean: string;
+    scamCaution: string;
+    scamHigh: string;
+    reported: string;
+    clear: string;
+    tabs: { safety: string; holdings: string; activity: string; honeypot: string; funding: string; multisig: string };
+    identification: string;
+    visit: string;
+    flags: {
+      blacklisted: string; phishing: string; sanctioned: string; stealing: string;
+      honeypotRelated: string; cybercrime: string; darkweb: string; moneyLaundering: string;
+      financialCrime: string; blackmail: string; mixer: string;
+    };
+    chainabuseOne: string;
+    chainabuseMany: string;
+    chainabuseNone: string;
+    safetySource: string;
+    holdingsEvmSuiOnly: string;
+    noCoinBalances: string;
+    noErc20: string;
+    ethBalanceRow: string;
+    holdingsSourceSui: string;
+    holdingsSourceEvm: string;
+    firstSeen: string;
+    lastActivity: string;
+    suiBalance: string;
+    ethBalance: string;
+    txCount: string;
+    newWallet: string;
+    newWalletRest: string;
+    activitySource: string;
+    honeypotEvmOnly: string;
+    honeypotUnavailable: string;
+    honeypotDetected: string;
+    honeypotSellable: string;
+    honeypotExplain: string;
+    honeypotSource: string;
+    fundingNone: string;
+    fundingExplain: string;
+    fundingEvmOnly: string;
+    multisigUnknown: string;
+    multisigYes: string;
+    multisigNo: string;
+    multisigWhatLabel: string;
+    multisigWhat: string;
+    multisigWarning: string;
+    multisigEvmOnly: string;
   };
 }
 
@@ -247,6 +320,87 @@ export const en: WalletCheckerLocale = {
     tipYellow: '⚠️ This site has limited scan history. Only connect your wallet to sites you found yourself — never through a link in a DM or email.',
     tipGreen: '✅ No threats detected across all sources. Always double-check the URL in your browser bar before signing any transaction — even safe-looking sites can be typosquatted.',
   },
+  checker: {
+    dateLocale: 'en-US',
+    inputLabel: 'Wallet Address',
+    placeholder: 'Paste any wallet address — Ethereum, Bitcoin, Solana, Litecoin, Sui...',
+    scanQr: '📷 Scan QR',
+    scanAria: 'Scan a QR code with your camera',
+    checkWallet: '🔍 Check Wallet',
+    checking: 'Checking…',
+    checkFailed: 'Check failed. Please try again.',
+    networkError: 'Network error. Please try again.',
+    scanTitle: 'Point your camera at a wallet QR code',
+    scanPrivacy: 'The address is read on your device. Nothing is sent until you run the check.',
+    cancel: 'Cancel',
+    scanUnsupported: 'Camera isn’t available on this browser — paste the address instead.',
+    scanDenied: 'Camera permission was denied. Allow camera access and try again.',
+    scanNoCamera: 'No camera was found on this device.',
+    scanGeneric: 'Couldn’t start the camera. The page must be served over HTTPS.',
+    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', unknown: 'Unknown chain' },
+    ens: 'ENS',
+    cached: '⚡ Cached',
+    reportBadgeOne: '🚨 {n} community report',
+    reportBadgeMany: '🚨 {n} community reports',
+    flaggedFor: 'Flagged for:',
+    resultsDisclaimer: 'Results sourced from public scam databases (GoPlus, Etherscan, honeypot.is). Reported, not legally confirmed. Not financial or legal advice.',
+    scamRiskScore: 'Scam Risk Score',
+    scamClean: '✅ No known risks detected',
+    scamCaution: '⚠️ Exercise caution',
+    scamHigh: '🚨 High risk — likely a scam',
+    reported: '🚨 Reported',
+    clear: '✅ Clear',
+    tabs: { safety: '🛡 Safety Report', holdings: '💰 Holdings', activity: '📊 Activity', honeypot: '🍯 Honeypot', funding: '🔗 Funding', multisig: '🔑 Multi-sig' },
+    identification: 'identification',
+    visit: 'Visit ↗',
+    flags: {
+      blacklisted: 'Blacklisted address',
+      phishing: 'Phishing activity',
+      sanctioned: 'Sanctioned (OFAC/etc)',
+      stealing: 'Stealing / drainer',
+      honeypotRelated: 'Honeypot-related',
+      cybercrime: 'Cybercrime involvement',
+      darkweb: 'Dark web transactions',
+      moneyLaundering: 'Money laundering',
+      financialCrime: 'Financial crime',
+      blackmail: 'Blackmail / extortion',
+      mixer: 'Mixer / Tornado Cash use',
+    },
+    chainabuseOne: '🚨 {n} community scam report on Chainabuse',
+    chainabuseMany: '🚨 {n} community scam reports on Chainabuse',
+    chainabuseNone: '✅ No Chainabuse community reports',
+    safetySource: 'Source: GoPlus Security (ETH, BSC, Polygon) + Chainabuse community reports. Results are reported, not legally confirmed.',
+    holdingsEvmSuiOnly: 'Token balance lookup is only available for EVM and Sui addresses.',
+    noCoinBalances: 'No coin balances found.',
+    noErc20: 'No ERC-20 token holdings found.',
+    ethBalanceRow: 'ETH Balance',
+    holdingsSourceSui: 'Data via Sui RPC · All coin balances shown · SUI price via CoinGecko',
+    holdingsSourceEvm: 'Data via Alchemy · Ethereum Mainnet only · Top 10 tokens shown',
+    firstSeen: 'First seen',
+    lastActivity: 'Last activity',
+    suiBalance: 'SUI balance',
+    ethBalance: 'ETH balance',
+    txCount: 'Tx count',
+    newWallet: 'New wallet',
+    newWalletRest: ' — created less than 30 days ago. Scam wallets are often brand new.',
+    activitySource: 'Activity data via Etherscan · Ethereum Mainnet only',
+    honeypotEvmOnly: 'Honeypot detection is only available for EVM addresses.',
+    honeypotUnavailable: 'Honeypot check unavailable.',
+    honeypotDetected: '🚨 Honeypot detected — tokens CANNOT be sold',
+    honeypotSellable: '✅ Tokens appear sellable',
+    honeypotExplain: 'A honeypot is a token that can be bought but never sold. Scammers use them to steal funds — you send ETH in, your tokens are locked, they keep the ETH.',
+    honeypotSource: 'Source: honeypot.is',
+    fundingNone: 'No mixer or high-risk funding source detected via GoPlus flags.',
+    fundingExplain: 'Scammers often fund their wallets through mixers like Tornado Cash to hide where the ETH came from. Mixer use is a significant red flag even without other scam indicators.',
+    fundingEvmOnly: 'Detailed funding source tracing only available for EVM addresses.',
+    multisigUnknown: '— Multi-sig status unknown (EOA or check unavailable)',
+    multisigYes: '⚠️ This is a multi-sig contract wallet',
+    multisigNo: '✅ Standard EOA wallet — not a multi-sig',
+    multisigWhatLabel: 'What is multi-sig?',
+    multisigWhat: ' A multi-sig wallet requires multiple private keys to approve transactions. While legitimate protocols use them, scammers sometimes use multi-sig setups to create the illusion that funds are secure — while they control all the keys.',
+    multisigWarning: '⚠️ Legitimate investments never ask you to deposit into their wallet. If someone is asking you to send tokens to any address — multi-sig or not — it is very likely a scam.',
+    multisigEvmOnly: 'Multi-sig detection only available for EVM addresses.',
+  },
 };
 
 export const es: WalletCheckerLocale = {
@@ -424,5 +578,345 @@ export const es: WalletCheckerLocale = {
     tipRed: '🛑 Una o más bases de datos de seguridad han reportado este sitio. No somos nosotros quienes hacemos esa determinación — verifica siempre de forma independiente. NO conectes tu billetera ni firmes transacciones hasta estar seguro.',
     tipYellow: '⚠️ Este sitio tiene historial de análisis limitado. Conecta tu billetera solo a sitios que encontraste tú mismo — nunca a través de un enlace en un mensaje directo o correo electrónico.',
     tipGreen: '✅ No se detectaron amenazas en todas las fuentes. Siempre verifica la URL en la barra de tu navegador antes de firmar cualquier transacción — incluso los sitios que parecen seguros pueden ser typosquatted.',
+  },
+  checker: {
+    dateLocale: 'es-ES',
+    inputLabel: 'Dirección de billetera',
+    placeholder: 'Pega cualquier dirección de billetera — Ethereum, Bitcoin, Solana, Litecoin, Sui...',
+    scanQr: '📷 Escanear QR',
+    scanAria: 'Escanear un código QR con tu cámara',
+    checkWallet: '🔍 Verificar billetera',
+    checking: 'Verificando…',
+    checkFailed: 'La verificación falló. Inténtalo de nuevo.',
+    networkError: 'Error de red. Inténtalo de nuevo.',
+    scanTitle: 'Apunta tu cámara a un código QR de billetera',
+    scanPrivacy: 'La dirección se lee en tu dispositivo. No se envía nada hasta que ejecutes la verificación.',
+    cancel: 'Cancelar',
+    scanUnsupported: 'La cámara no está disponible en este navegador — pega la dirección en su lugar.',
+    scanDenied: 'Se denegó el permiso de cámara. Permite el acceso a la cámara e inténtalo de nuevo.',
+    scanNoCamera: 'No se encontró ninguna cámara en este dispositivo.',
+    scanGeneric: 'No se pudo iniciar la cámara. La página debe servirse por HTTPS.',
+    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', unknown: 'Cadena desconocida' },
+    ens: 'ENS',
+    cached: '⚡ En caché',
+    reportBadgeOne: '🚨 {n} reporte de la comunidad',
+    reportBadgeMany: '🚨 {n} reportes de la comunidad',
+    flaggedFor: 'Señalado por:',
+    resultsDisclaimer: 'Resultados obtenidos de bases de datos públicas de estafas (GoPlus, Etherscan, honeypot.is). Reportados, no confirmados legalmente. No es asesoramiento financiero ni legal.',
+    scamRiskScore: 'Puntuación de riesgo de estafa',
+    scamClean: '✅ No se detectaron riesgos conocidos',
+    scamCaution: '⚠️ Procede con precaución',
+    scamHigh: '🚨 Alto riesgo — probablemente una estafa',
+    reported: '🚨 Reportado',
+    clear: '✅ Limpio',
+    tabs: { safety: '🛡 Informe de seguridad', holdings: '💰 Tenencias', activity: '📊 Actividad', honeypot: '🍯 Honeypot', funding: '🔗 Financiación', multisig: '🔑 Multi-firma' },
+    identification: 'identificación',
+    visit: 'Visitar ↗',
+    flags: {
+      blacklisted: 'Dirección en lista negra',
+      phishing: 'Actividad de phishing',
+      sanctioned: 'Sancionado (OFAC/etc)',
+      stealing: 'Robo / drainer',
+      honeypotRelated: 'Relacionado con honeypot',
+      cybercrime: 'Implicación en cibercrimen',
+      darkweb: 'Transacciones en la dark web',
+      moneyLaundering: 'Lavado de dinero',
+      financialCrime: 'Delito financiero',
+      blackmail: 'Chantaje / extorsión',
+      mixer: 'Uso de mixer / Tornado Cash',
+    },
+    chainabuseOne: '🚨 {n} reporte de estafa de la comunidad en Chainabuse',
+    chainabuseMany: '🚨 {n} reportes de estafa de la comunidad en Chainabuse',
+    chainabuseNone: '✅ Sin reportes de la comunidad en Chainabuse',
+    safetySource: 'Fuente: GoPlus Security (ETH, BSC, Polygon) + reportes de la comunidad de Chainabuse. Los resultados son reportados, no confirmados legalmente.',
+    holdingsEvmSuiOnly: 'La consulta de saldo de tokens solo está disponible para direcciones EVM y Sui.',
+    noCoinBalances: 'No se encontraron saldos de monedas.',
+    noErc20: 'No se encontraron tenencias de tokens ERC-20.',
+    ethBalanceRow: 'Saldo de ETH',
+    holdingsSourceSui: 'Datos vía Sui RPC · Se muestran todos los saldos de monedas · Precio de SUI vía CoinGecko',
+    holdingsSourceEvm: 'Datos vía Alchemy · Solo Ethereum Mainnet · Se muestran los 10 tokens principales',
+    firstSeen: 'Visto por primera vez',
+    lastActivity: 'Última actividad',
+    suiBalance: 'Saldo de SUI',
+    ethBalance: 'Saldo de ETH',
+    txCount: 'Nº de transacciones',
+    newWallet: 'Billetera nueva',
+    newWalletRest: ' — creada hace menos de 30 días. Las billeteras de estafa suelen ser totalmente nuevas.',
+    activitySource: 'Datos de actividad vía Etherscan · Solo Ethereum Mainnet',
+    honeypotEvmOnly: 'La detección de honeypot solo está disponible para direcciones EVM.',
+    honeypotUnavailable: 'Verificación de honeypot no disponible.',
+    honeypotDetected: '🚨 Honeypot detectado — los tokens NO se pueden vender',
+    honeypotSellable: '✅ Los tokens parecen vendibles',
+    honeypotExplain: 'Un honeypot es un token que se puede comprar pero nunca vender. Los estafadores los usan para robar fondos — envías ETH, tus tokens quedan bloqueados y ellos se quedan con el ETH.',
+    honeypotSource: 'Fuente: honeypot.is',
+    fundingNone: 'No se detectó ningún mixer ni fuente de financiación de alto riesgo mediante las señales de GoPlus.',
+    fundingExplain: 'Los estafadores a menudo financian sus billeteras a través de mixers como Tornado Cash para ocultar de dónde vino el ETH. El uso de mixers es una señal de alerta importante incluso sin otros indicadores de estafa.',
+    fundingEvmOnly: 'El rastreo detallado de la fuente de financiación solo está disponible para direcciones EVM.',
+    multisigUnknown: '— Estado de multi-firma desconocido (EOA o verificación no disponible)',
+    multisigYes: '⚠️ Esta es una billetera de contrato multi-firma',
+    multisigNo: '✅ Billetera EOA estándar — no es multi-firma',
+    multisigWhatLabel: '¿Qué es multi-firma?',
+    multisigWhat: ' Una billetera multi-firma requiere varias claves privadas para aprobar transacciones. Aunque los protocolos legítimos las usan, los estafadores a veces usan configuraciones multi-firma para crear la ilusión de que los fondos están seguros — mientras ellos controlan todas las claves.',
+    multisigWarning: '⚠️ Las inversiones legítimas nunca te piden depositar en su billetera. Si alguien te pide enviar tokens a cualquier dirección — multi-firma o no — es muy probable que sea una estafa.',
+    multisigEvmOnly: 'La detección de multi-firma solo está disponible para direcciones EVM.',
+  },
+};
+
+export const fr: WalletCheckerLocale = {
+  lang: 'fr',
+  meta: {
+    title: 'Vérificateur d’arnaques de portefeuille crypto — Cette adresse est-elle sûre ?',
+    description: 'Collez n’importe quelle adresse de portefeuille Ethereum, Solana ou Sui pour vérifier instantanément les arnaques connues, le phishing, les honeypots, l’activité du dark web et l’usage de mixers. Gratuit, sans inscription.',
+  },
+  jsonld: {
+    appName: 'Vérificateur d’arnaques de portefeuille crypto',
+    appUrl: 'https://almstins.com/wallet-checker/fr',
+    appDescription: 'Outil gratuit pour vérifier toute adresse de portefeuille crypto : arnaques connues, phishing, honeypots, activité du dark web et usage de mixers. Prend en charge Ethereum, Solana et Sui.',
+    featureList: [
+      'Détection d’adresses d’arnaque connues',
+      'Identification des portefeuilles de phishing',
+      'Détection de tokens honeypot',
+      'Signalement des transactions du dark web',
+      'Détection de mixers / Tornado Cash',
+      'Identification des contrats multi-signatures',
+      'Consultation du solde de tokens',
+      'Âge du portefeuille et historique d’activité',
+    ],
+  },
+  nav: {
+    ariaLabel: 'Navigation du site Almstins',
+    brandAriaLabel: 'Accueil Almstins',
+    tagline: 'Suivi de portefeuille crypto et outil de comptabilité',
+    langLabel: '🇬🇧 In English',
+    langHref: '/wallet-checker',
+    langAriaLabel: 'View in English',
+    login: 'Se connecter',
+    signup: 'Inscription gratuite',
+  },
+  hero: {
+    eyebrow: 'Gratuit · Sans inscription · Résultats en quelques secondes',
+    title: 'Vérificateur d’arnaques de portefeuille crypto',
+    sub: 'On vous a proposé une affaire trop belle pour être vraie ? Avant d’envoyer le moindre token, collez l’adresse du portefeuille ci-dessous. Nous la vérifions instantanément dans les bases de données publiques d’arnaques, les détecteurs de honeypot et les données on-chain.',
+  },
+  cards: {
+    site: {
+      title: 'Collez votre URL ici',
+      cta: 'Qu’est-ce que c’est ? →',
+      placeholder: 'Collez une URL ou un domaine…',
+      button: 'Vérifier le site',
+    },
+    wallet: {
+      title: 'Collez une adresse de portefeuille',
+      cta: 'Qu’est-ce que c’est ? →',
+      placeholder: 'Collez une adresse de portefeuille…',
+      button: 'Vérifier le portefeuille',
+    },
+    approval: {
+      title: 'Vol par approbation de tokens',
+      cta: 'Qu’est-ce que c’est ? →',
+      desc: 'Ces outils communautaires vous montrent instantanément quels contrats ont mis la main sur votre crypto — et vous permettent de les révoquer.',
+    },
+  },
+  modal: { close: 'Fermer' },
+  modals: {
+    phishing: {
+      title: 'Se connecter à un site malveillant',
+      subtitle: 'Drainers de portefeuille et dApps de phishing',
+      p1: 'Les arnaqueurs créent des copies quasi parfaites de dApps légitimes — faux mints de NFT, fausses réclamations de tokens, fausses pages d’airdrop. Le site semble réel. L’URL est proche mais légèrement différente (<code>blur-io.xyz</code> au lieu de <code>blur.io</code>). Quand vous connectez votre MetaMask et signez ce qui ressemble à une transaction de routine, vous accordez en réalité la permission de vider tous les tokens de votre portefeuille en une seule fois.',
+      example: '💸 <strong>Exemple réel :</strong> en 2023, une fausse page d’airdrop Blur.io a vidé plus de <strong>1,2 million de dollars</strong> aux détenteurs de NFT en quelques heures après son lancement. La plupart des victimes affirmaient avoir « bien vérifié l’URL » mais avaient raté un seul caractère.',
+      p2: 'Ces sites apparaissent sous forme de liens dans les DM Discord, les réponses Twitter/X, les groupes Telegram et même les publicités payantes. L’attaquant paie une annonce Google pour apparaître au-dessus du vrai site.',
+      tip: '✅ <strong>Comment notre vérificateur de dApp vous protège :</strong> collez l’URL avant de vous connecter. Nous interrogeons 7 bases de données de sécurité — dont la liste de blocage anti-phishing de MetaMask et la base de 345 000 domaines de ScamSniffer — et renvoyons un verdict en quelques secondes. <strong>Règle d’or : ne cliquez jamais sur un lien de portefeuille envoyé en DM.</strong>',
+    },
+    scam: {
+      title: 'Investir dans une arnaque connue',
+      subtitle: 'Pig butchering, honeypots et rug pulls',
+      p1: 'Les arnaques de <strong>pig-butchering</strong> bâtissent la confiance sur des semaines ou des mois — un nouveau contact sur une appli de rencontre ou un réseau social vous présente peu à peu une « excellente opportunité d’investissement ». L’adresse de portefeuille qu’ils envoient a souvent déjà été signalée. Les <strong>tokens honeypot</strong> vous laissent acheter mais vous empêchent de vendre — le contrat est codé pour piéger vos fonds pendant que le développeur vide le pool de liquidité.',
+      example: '💸 <strong>Exemple réel :</strong> le Centre de plaintes contre la criminalité sur Internet (IC3) du FBI a signalé <strong>3,3 milliards de dollars</strong> de fraude à l’investissement crypto rien qu’en 2023 — la catégorie de fraude qui croît le plus vite. La plupart des victimes n’avaient jamais entendu parler du « pig butchering » avant d’en être victimes.',
+      p2: 'Un rug pull ressemble au lancement d’un token légitime. Les développeurs font le buzz autour du projet, la liquidité afflue, puis l’équipe retire tout du jour au lendemain et le token tombe à zéro.',
+      tip: '✅ <strong>Comment notre vérificateur de portefeuille vous protège :</strong> avant d’envoyer des fonds à un portefeuille, collez l’adresse ici. Nous la comparons à la liste noire mondiale d’arnaques de GoPlus Security, recherchons des schémas de honeypot dans les tokens associés et signalons l’usage de mixers révélateur de blanchiment. Si quelqu’un vous presse d’envoyer de la crypto rapidement — c’est l’arnaque.',
+    },
+    approval: {
+      title: 'Vol par approbation de tokens',
+      subtitle: 'Approbations illimitées et drains silencieux',
+      p1: 'Chaque fois que vous cliquez sur « Approuver » lors d’un échange de tokens ou d’un mint de NFT, vous signez un message de contrat intelligent qui dit <em>« ce contrat peut dépenser mes tokens »</em>. La plupart des dApps utilisent par défaut une <strong>approbation illimitée</strong> — elles peuvent prendre la totalité de votre solde de ce token, à tout moment, pour toujours, jusqu’à ce que vous la révoquiez explicitement. Ces permissions survivent longtemps après que vous avez oublié l’existence du site.',
+      example: '💸 <strong>Exemple réel :</strong> lors de l’exploitation du pont Multichain en 2023, les attaquants ont utilisé d’<strong>anciennes approbations</strong> accordées par les utilisateurs des mois plus tôt pour dérober <strong>125 millions de dollars</strong>. Beaucoup de victimes n’avaient pas utilisé le pont depuis plus d’un an.',
+      p2: 'Une dApp compromise, un rug pull ou une faille zero-day peut déclencher ces approbations dès son lancement — sans aucune signature supplémentaire de votre part.',
+      tip: '✅ <strong>Comment vous protéger :</strong> rendez-vous sur <a href="https://revoke.cash" target="_blank" rel="noopener noreferrer" style="color:#a5b4fc">revoke.cash</a> pour voir toutes les approbations actives de votre portefeuille et révoquer celles que vous ne reconnaissez pas. Définissez toujours des montants exacts plutôt qu’illimités quand votre portefeuille vous en laisse le choix — et révoquez après chaque interaction terminée.',
+    },
+  },
+  tabs: {
+    ariaLabel: 'Type de vérification',
+    wallet: '🔍 Adresse de portefeuille',
+    dapp: '🌐 dApp / Site web',
+  },
+  dappPanel: {
+    placeholder: 'https://dapp-suspecte.xyz  ou collez simplement le domaine',
+    button: 'Vérifier le site',
+    loading: 'Vérification des bases de données de sécurité…',
+  },
+  cta: {
+    ariaLabel: 'À propos d’Almstins',
+    headline: 'Vous voulez suivre tout ce que vous possédez ?',
+    sub: 'Almstins réunit vos portefeuilles, positions DeFi et comptes d’échange au même endroit — et suit automatiquement vos plus-values, vos avoirs et vos gains réalisés.',
+    button: 'Commencer gratuitement →',
+  },
+  signals: {
+    title: 'Ce que nous vérifions',
+    walletSub: '🔍 Vérificateur d’adresse de portefeuille',
+    walletCards: [
+      { icon: '🚨', label: 'Bases de données d’arnaques connues', body: 'Comparé à la liste noire mondiale de GoPlus Security des portefeuilles signalés pour arnaque, phishing et drain.' },
+      { icon: '🍯', label: 'Détection de honeypot', body: 'Vérifie si les tokens associés à cette adresse peuvent réellement être vendus — ou s’ils sont conçus pour piéger vos fonds.' },
+      { icon: '🌑', label: 'Activité du dark web', body: 'Signale les adresses ayant des liens connus avec des marchés du dark web et des schémas de transactions illicites.' },
+      { icon: '🔀', label: 'Mixer / Tornado Cash', body: 'Détecte l’usage de mixers crypto comme Tornado Cash — un moyen courant pour les arnaqueurs de blanchir des fonds avant un rug pull.' },
+      { icon: '📅', label: 'Âge du portefeuille', body: 'Les nouveaux portefeuilles (< 30 jours) sont un signal d’alerte majeur. Les arnaqueurs créent de nouvelles adresses pour chaque opération.' },
+      { icon: '💰', label: 'Avoirs en tokens', body: 'Montre ce qui se trouve réellement dans le portefeuille. Les portefeuilles d’arnaque contiennent souvent des tokens sans valeur conçus pour paraître précieux.' },
+      { icon: '⚖️', label: 'Vérification des sanctions', body: 'Vérifie les listes de sanctions de l’OFAC et internationales pour les adresses impliquées dans la criminalité financière.' },
+      { icon: '🔑', label: 'Détection multi-signature', body: 'Identifie si l’adresse est un contrat multi-signature. Les investissements légitimes ne vous demandent jamais de déposer dans le leur.' },
+    ],
+    dappSub: '🌐 Vérificateur de dApp / site web',
+    dappCards: [
+      { icon: '🦊', label: 'Liste de blocage MetaMask', body: 'Comparé à la liste eth-phishing-detect de MetaMask — plus de 198 000 domaines de phishing crypto maintenus par l’équipe de sécurité de MetaMask.' },
+      { icon: '🕵️', label: 'Base de données ScamSniffer', body: 'La plus grande liste de domaines de phishing web3 disponible, avec plus de 345 000 sites signalés. Mise à jour quotidiennement par l’équipe de sécurité ScamSniffer.' },
+      { icon: '🛡️', label: 'GoPlus Security', body: 'Consultation en temps réel via l’API de phishing web3 en direct de GoPlus — le même moteur utilisé par MetaMask, Trust Wallet et d’autres grands portefeuilles.' },
+      { icon: '🔬', label: 'URLScan.io', body: 'Recherche les analyses antérieures de chercheurs en sécurité sur le domaine pour faire remonter tout verdict malveillant de la communauté mondiale de la sécurité.' },
+      { icon: '🎣', label: 'Flux OpenPhish', body: 'Comparé à la liste activement maintenue d’URL de phishing en direct d’OpenPhish, mise à jour en temps réel.' },
+      { icon: '🔍', label: 'Google Safe Browsing', body: 'Lorsqu’il est configuré, interroge la base de menaces de Google — l’un des plus grands référentiels d’URL de phishing et de malwares au monde.' },
+      { icon: '🦠', label: 'VirusTotal', body: 'Lorsqu’il est configuré, vérifie l’URL auprès de plus de 70 moteurs antivirus et de sécurité simultanément pour un verdict complet.' },
+      { icon: '⚠️', label: 'Attribution, pas verdict', body: 'Nous rapportons ce que disent les bases de données tierces. Nous ne déclarons jamais nous-mêmes qu’un site est une arnaque. Vérifiez toujours avant de connecter votre portefeuille.' },
+    ],
+  },
+  approvals: {
+    title: 'Votre portefeuille est-il connecté à quelque chose qu’il ne devrait pas ?',
+    intro: 'Chaque fois que vous connectez MetaMask (ou tout portefeuille) à une dApp et approuvez une transaction, vous accordez à ce contrat la permission de déplacer des tokens en votre nom — parfois sans limite de dépense ni date d’expiration. Ces approbations restent actives même après que vous avez cessé d’utiliser le site. Une dApp compromise ou malveillante peut vider votre portefeuille des mois plus tard grâce à une permission que vous avez oubliée.',
+    whatTitle: '⚠️ Ce que signifie réellement une approbation',
+    whatP1: 'Quand vous cliquez sur « Approuver » lors d’un échange de tokens ou d’un mint de NFT, vous signez un appel de contrat intelligent qui dit <em>« ce contrat peut dépenser X tokens m’appartenant »</em>. De nombreuses dApps utilisent par défaut une <strong>approbation illimitée</strong> — ce qui signifie qu’elles peuvent prendre tout ce que vous possédez de ce token, à tout moment, pour toujours, jusqu’à ce que vous la révoquiez.',
+    whatP2: 'Si cette dApp est ensuite exploitée, victime d’un rug pull, ou se révèle malveillante depuis le début, l’attaquant peut utiliser votre approbation existante pour vider votre portefeuille — sans seconde signature.',
+    howTitle: '🔍 Comment voir et révoquer vos approbations',
+    howIntro: 'Ces outils gratuits se connectent à votre portefeuille (en lecture seule) et affichent toutes les approbations actives sur toutes les chaînes — puis vous permettent de révoquer celles que vous ne reconnaissez pas ou dont vous n’avez plus besoin.',
+    tools: [
+      { badge: 'Le plus fiable', desc: 'La référence. Multi-chaîne, distingue les approbations illimitées et limitées, révocation en un clic. Aucun compte requis.' },
+      { desc: 'Le vérificateur d’approbations officiel d’Etherscan. Collez votre adresse pour voir toutes les permissions ouvertes sur Ethereum — sans connexion de portefeuille.' },
+    ],
+    tipsTitle: 'Bonnes pratiques',
+    tips: [
+      { icon: '✂️', title: 'Révoquez après chaque interaction', body: 'Une fois que vous en avez fini avec une dApp, révoquez son approbation. Aucun inconvénient — vous pourrez la réapprouver la prochaine fois.' },
+      { icon: '🔢', title: 'Définissez des montants exacts, pas illimités', body: 'Lors de l’approbation d’un échange, certains portefeuilles permettent de définir un montant personnalisé. N’approuvez que ce dont vous avez besoin pour cette transaction.' },
+      { icon: '🗓️', title: 'Auditez vos approbations régulièrement', body: 'Lancez une vérification revoke.cash tous les quelques mois — surtout après toute annonce d’exploitation DeFi, car les attaquants ciblent souvent les anciennes approbations.' },
+      { icon: '🦊', title: 'Lisez ce que MetaMask demande réellement', body: 'Avant de cliquer sur Confirmer, dépliez les détails de la transaction. S’il est indiqué « Illimité » à côté d’un montant de token — c’est un signal d’alerte qui mérite une pause.' },
+    ],
+  },
+  faq: {
+    title: 'Questions fréquentes et schémas d’arnaque',
+    items: [
+      { q: 'Qu’est-ce que le vérificateur de dApp / site web ?', a: 'C’est un outil gratuit qui prend n’importe quelle URL ou domaine et interroge jusqu’à 7 bases de données de sécurité indépendantes simultanément — dont la liste de blocage anti-phishing de MetaMask, ScamSniffer, GoPlus, URLScan.io et OpenPhish. Il renvoie un résultat rouge, jaune ou vert selon ce que rapportent ces bases. Nous ne portons pas notre propre jugement — nous faisons remonter ce que la communauté de la sécurité a déjà signalé.' },
+      { q: 'Que signifie un résultat rouge pour un site web ?', a: 'Cela signifie qu’une ou plusieurs des bases de données que nous interrogeons ont signalé ce domaine. Cela ne veut pas dire que nous le qualifions d’arnaque — ce jugement vient de la base de données tierce. Traitez un résultat rouge comme un avertissement sérieux, faites vos propres recherches supplémentaires et ne connectez pas votre portefeuille tant que vous n’êtes pas certain que le site est légitime.' },
+      { q: 'Que signifie un résultat jaune ?', a: 'Le jaune signifie que le site n’est dans aucune liste de blocage, mais qu’il a peu ou pas d’historique d’analyse de sécurité — il n’y a donc pas assez de données pour lui donner un feu vert. Les sites récents, les domaines obscurs ou les adresses récemment enregistrées affichent souvent du jaune. Procédez avec prudence et vérifiez le site par des canaux officiels avant de vous connecter.' },
+      { q: 'Puis-je faire confiance à un site juste parce qu’il est vert ?', a: 'Non. Un résultat vert signifie que le site n’a été signalé à aucune des bases que nous vérifions — pas qu’il est définitivement sûr. Les sites de phishing tout neufs disposent de quelques heures avant d’être ajoutés aux listes de blocage. Vérifiez toujours l’URL exacte dans la barre de votre navigateur, cherchez les comptes officiels sur les réseaux sociaux, et ne connectez jamais un portefeuille à partir d’un lien envoyé en DM ou par e-mail.' },
+      { q: 'Comment fonctionnent les sites drainers de portefeuille ?', a: 'Un drainer de portefeuille est un site web qui imite une dApp légitime — un faux mint de NFT, une fausse réclamation de token ou un faux airdrop. Quand vous connectez votre MetaMask et signez une transaction, vous signez en réalité une permission qui permet à l’attaquant de transférer tous les tokens hors de votre portefeuille en une seule fois. La totalité du solde peut disparaître en quelques secondes. Le site disparaît souvent en quelques heures.' },
+      { q: 'Qu’est-ce qu’une arnaque honeypot ?', a: 'Un honeypot est un token que vous pouvez acheter mais jamais vendre. L’arnaqueur en fait la promotion, vous achetez, le prix semble monter — mais quand vous essayez de vendre, le contrat vous bloque. L’arnaqueur vide alors la liquidité et disparaît avec votre ETH.' },
+      { q: 'À quoi ressemble vraiment le « trop beau pour être vrai » en crypto ?', a: 'Des rendements quotidiens garantis de 1 à 10 %, « stakez simplement vos tokens dans notre portefeuille », des réclamations d’airdrop qui exigent d’envoyer des tokens d’abord, ou quelqu’un en DM proposant de doubler votre crypto. Si le rendement semble impossible dans la finance traditionnelle, c’est une arnaque en crypto.' },
+      { q: 'Pourquoi un portefeuille utiliserait-il Tornado Cash ?', a: 'Tornado Cash est un mixer qui rompt le lien on-chain entre les adresses de portefeuille. Si certains utilisateurs tiennent à leur vie privée, il est largement utilisé par les arnaqueurs et les hackers pour cacher l’origine de fonds volés avant de les retirer.' },
+      { q: 'Dois-je faire confiance à un portefeuille juste parce qu’il a un gros solde ?', a: 'Non. Les arnaqueurs garnissent souvent les portefeuilles de tokens sans valeur ou de soldes « sur le papier » gonflés pour donner une apparence de légitimité. Vérifiez toujours si ces tokens peuvent réellement être vendus et ce qu’ils valent vraiment.' },
+      { q: 'Un nouveau portefeuille est-il toujours suspect ?', a: 'Pas toujours — mais dans le contexte de quelqu’un qui propose un investissement, un portefeuille créé au cours des 30 derniers jours est un signal d’alerte majeur. Les protocoles et entreprises légitimes ont un historique on-chain établi.' },
+      { q: 'Que dois-je faire si cet outil signale une adresse de portefeuille ?', a: 'N’envoyez pas de fonds. Faites une capture d’écran des résultats. Si quelqu’un vous presse d’envoyer de la crypto à une adresse signalée, cette pression fait elle-même partie de l’arnaque. Signalez l’adresse sur chainabuse.com et partez.' },
+      { q: 'Que dois-je faire si le vérificateur de dApp signale un site web ?', a: 'Ne connectez pas votre portefeuille. Fermez l’onglet. Trouvez le projet officiel via une source fiable — son compte Twitter/X vérifié ou un agrégateur reconnu comme DeFiLlama ou CoinGecko. Signalez le site à la base de phishing de MetaMask sur github.com/MetaMask/eth-phishing-detect.' },
+    ],
+  },
+  disclaimer: {
+    text: 'Les résultats de vérification de portefeuille proviennent de bases de données publiques dont GoPlus Security, Etherscan, Alchemy et honeypot.is. Les résultats dApp / site web proviennent de MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io et OpenPhish. Tous les constats sont rapportés depuis des bases de données tierces et ne sont pas vérifiés indépendamment par Almstins. Cet outil ne constitue pas un conseil financier ou juridique. Faites toujours vos propres recherches.',
+    link: 'Un outil gratuit d’Almstins — suivi de portefeuille crypto et outil de comptabilité.',
+  },
+  js: {
+    warmupHint: 'Le serveur se réveille après une période d’inactivité. Patientez — les résultats arrivent…',
+    warmupRetry: 'Le serveur se réveille après une période d’inactivité — nouvelle tentative dans un instant…',
+    checkFailed: 'Échec de la vérification',
+    tryAgain: 'Réessayer',
+    verdictDanger: 'DANGER — Ne connectez pas votre portefeuille',
+    verdictCaution: 'PRUDENCE — Impossible de confirmer que ce site est sûr',
+    verdictSafe: 'SEMBLE SÛR — Aucune menace détectée',
+    tipRed: '🛑 Une ou plusieurs bases de données de sécurité ont signalé ce site. Ce n’est pas nous qui portons ce jugement — vérifiez toujours de façon indépendante. NE connectez PAS votre portefeuille et ne signez aucune transaction tant que vous n’êtes pas certain.',
+    tipYellow: '⚠️ Ce site a un historique d’analyse limité. Ne connectez votre portefeuille qu’à des sites que vous avez trouvés vous-même — jamais via un lien en DM ou par e-mail.',
+    tipGreen: '✅ Aucune menace détectée sur l’ensemble des sources. Vérifiez toujours l’URL dans la barre de votre navigateur avant de signer une transaction — même les sites d’apparence sûre peuvent être victimes de typosquatting.',
+  },
+  checker: {
+    dateLocale: 'fr-FR',
+    inputLabel: 'Adresse de portefeuille',
+    placeholder: 'Collez n’importe quelle adresse de portefeuille — Ethereum, Bitcoin, Solana, Litecoin, Sui...',
+    scanQr: '📷 Scanner un QR',
+    scanAria: 'Scanner un code QR avec votre caméra',
+    checkWallet: '🔍 Vérifier le portefeuille',
+    checking: 'Vérification…',
+    checkFailed: 'La vérification a échoué. Veuillez réessayer.',
+    networkError: 'Erreur réseau. Veuillez réessayer.',
+    scanTitle: 'Pointez votre caméra vers un code QR de portefeuille',
+    scanPrivacy: 'L’adresse est lue sur votre appareil. Rien n’est envoyé tant que vous ne lancez pas la vérification.',
+    cancel: 'Annuler',
+    scanUnsupported: 'La caméra n’est pas disponible sur ce navigateur — collez plutôt l’adresse.',
+    scanDenied: 'L’autorisation de la caméra a été refusée. Autorisez l’accès à la caméra et réessayez.',
+    scanNoCamera: 'Aucune caméra n’a été trouvée sur cet appareil.',
+    scanGeneric: 'Impossible de démarrer la caméra. La page doit être servie en HTTPS.',
+    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', unknown: 'Chaîne inconnue' },
+    ens: 'ENS',
+    cached: '⚡ En cache',
+    reportBadgeOne: '🚨 {n} signalement de la communauté',
+    reportBadgeMany: '🚨 {n} signalements de la communauté',
+    flaggedFor: 'Signalé pour :',
+    resultsDisclaimer: 'Résultats issus de bases de données publiques d’arnaques (GoPlus, Etherscan, honeypot.is). Rapportés, non confirmés légalement. Ni conseil financier ni juridique.',
+    scamRiskScore: 'Score de risque d’arnaque',
+    scamClean: '✅ Aucun risque connu détecté',
+    scamCaution: '⚠️ Faites preuve de prudence',
+    scamHigh: '🚨 Risque élevé — probablement une arnaque',
+    reported: '🚨 Signalé',
+    clear: '✅ Clean',
+    tabs: { safety: '🛡 Rapport de sécurité', holdings: '💰 Avoirs', activity: '📊 Activité', honeypot: '🍯 Honeypot', funding: '🔗 Financement', multisig: '🔑 Multi-signature' },
+    identification: 'identification',
+    visit: 'Visiter ↗',
+    flags: {
+      blacklisted: 'Adresse sur liste noire',
+      phishing: 'Activité de phishing',
+      sanctioned: 'Sous sanctions (OFAC/etc)',
+      stealing: 'Vol / drainer',
+      honeypotRelated: 'Lié à un honeypot',
+      cybercrime: 'Implication dans la cybercriminalité',
+      darkweb: 'Transactions sur le dark web',
+      moneyLaundering: 'Blanchiment d’argent',
+      financialCrime: 'Criminalité financière',
+      blackmail: 'Chantage / extorsion',
+      mixer: 'Usage de mixer / Tornado Cash',
+    },
+    chainabuseOne: '🚨 {n} signalement d’arnaque de la communauté sur Chainabuse',
+    chainabuseMany: '🚨 {n} signalements d’arnaque de la communauté sur Chainabuse',
+    chainabuseNone: '✅ Aucun signalement de la communauté sur Chainabuse',
+    safetySource: 'Source : GoPlus Security (ETH, BSC, Polygon) + signalements de la communauté Chainabuse. Les résultats sont rapportés, non confirmés légalement.',
+    holdingsEvmSuiOnly: 'La consultation du solde de tokens n’est disponible que pour les adresses EVM et Sui.',
+    noCoinBalances: 'Aucun solde de pièce trouvé.',
+    noErc20: 'Aucun avoir en tokens ERC-20 trouvé.',
+    ethBalanceRow: 'Solde ETH',
+    holdingsSourceSui: 'Données via Sui RPC · Tous les soldes de pièces affichés · Prix du SUI via CoinGecko',
+    holdingsSourceEvm: 'Données via Alchemy · Ethereum Mainnet uniquement · 10 principaux tokens affichés',
+    firstSeen: 'Première apparition',
+    lastActivity: 'Dernière activité',
+    suiBalance: 'Solde SUI',
+    ethBalance: 'Solde ETH',
+    txCount: 'Nb de transactions',
+    newWallet: 'Nouveau portefeuille',
+    newWalletRest: ' — créé il y a moins de 30 jours. Les portefeuilles d’arnaque sont souvent tout neufs.',
+    activitySource: 'Données d’activité via Etherscan · Ethereum Mainnet uniquement',
+    honeypotEvmOnly: 'La détection de honeypot n’est disponible que pour les adresses EVM.',
+    honeypotUnavailable: 'Vérification de honeypot indisponible.',
+    honeypotDetected: '🚨 Honeypot détecté — les tokens NE PEUVENT PAS être vendus',
+    honeypotSellable: '✅ Les tokens semblent vendables',
+    honeypotExplain: 'Un honeypot est un token que l’on peut acheter mais jamais vendre. Les arnaqueurs s’en servent pour voler des fonds — vous envoyez de l’ETH, vos tokens sont bloqués, ils gardent l’ETH.',
+    honeypotSource: 'Source : honeypot.is',
+    fundingNone: 'Aucun mixer ni source de financement à haut risque détecté via les signaux de GoPlus.',
+    fundingExplain: 'Les arnaqueurs financent souvent leurs portefeuilles via des mixers comme Tornado Cash pour cacher d’où vient l’ETH. L’usage d’un mixer est un signal d’alerte important, même sans autres indicateurs d’arnaque.',
+    fundingEvmOnly: 'Le traçage détaillé de la source de financement n’est disponible que pour les adresses EVM.',
+    multisigUnknown: '— Statut multi-signature inconnu (EOA ou vérification indisponible)',
+    multisigYes: '⚠️ Ceci est un portefeuille à contrat multi-signature',
+    multisigNo: '✅ Portefeuille EOA standard — pas un multi-signature',
+    multisigWhatLabel: 'Qu’est-ce que le multi-signature ?',
+    multisigWhat: ' Un portefeuille multi-signature exige plusieurs clés privées pour approuver les transactions. Bien que les protocoles légitimes les utilisent, les arnaqueurs s’en servent parfois pour donner l’illusion que les fonds sont sécurisés — alors qu’ils contrôlent toutes les clés.',
+    multisigWarning: '⚠️ Les investissements légitimes ne vous demandent jamais de déposer dans leur portefeuille. Si quelqu’un vous demande d’envoyer des tokens à une adresse — multi-signature ou non — c’est très probablement une arnaque.',
+    multisigEvmOnly: 'La détection multi-signature n’est disponible que pour les adresses EVM.',
   },
 };

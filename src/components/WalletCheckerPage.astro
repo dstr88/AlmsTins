@@ -177,7 +177,7 @@ const { t, prefilledAddress } = Astro.props;
 
     <!-- Wallet checker panel -->
     <div id="panel-wallet" class="checker-wrap" role="tabpanel" aria-labelledby="tab-btn-wallet">
-      <WalletChecker client:load prefilledAddress={prefilledAddress} />
+      <WalletChecker client:load prefilledAddress={prefilledAddress} c={t.checker} />
     </div>
 
     <!-- dApp checker panel -->
