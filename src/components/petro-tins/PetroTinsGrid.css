@@ -150,6 +150,69 @@
   width: 100%;
 }
 
+/* Quick Calculator table */
+.qct-wrap { width: 100%; }
+.qct-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.qct {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.qct thead th {
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0 4px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+.qct tbody tr { border-bottom: 1px solid var(--border-subtle); }
+.qct tbody td { padding: 2px; }
+.qct-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  padding: 5px 6px;
+  min-height: 34px;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background 0.15s;
+}
+.qct-input:focus {
+  outline: none;
+  border-color: var(--border-bright);
+  background: var(--surface-hover);
+}
+.qct-input::placeholder { color: var(--text-muted); }
+.qct-input--date  { min-width: 110px; }
+.qct-input--desc  { min-width: 90px; }
+.qct-input--amount { min-width: 64px; text-align: right; }
+.qct tfoot td { padding: 7px 6px 4px; font-variant-numeric: tabular-nums; }
+.qct-totals { border-top: 2px solid var(--border-bright); }
+.qct-totals__label,
+.qct-net__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.qct-totals__val,
+.qct-net__val {
+  text-align: right;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.qct-totals__val.gain, .qct-net__val.gain { color: var(--gain); }
+.qct-totals__val.loss, .qct-net__val.loss { color: var(--loss); }
+.qct-net { border-top: 1px solid var(--border-subtle); }
+.qct-net__val { font-size: 1rem; }
+
 /* Slush fund zone */
 .pt-grid__zone--slush {
   margin-top: 1.5rem;

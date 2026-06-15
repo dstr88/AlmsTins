@@ -6,6 +6,7 @@ import SharedCCGrid from './SharedCCGrid';
 import BudgetTin from './BudgetTin';
 import SlushTin from './SlushTin';
 import SplitsTinComponent from './SplitsTin';
+import QuickCalcTable from './QuickCalcTable';
 import './PetroTinsGrid.css';
 
 function fmt(n: number) {
@@ -133,6 +134,7 @@ export default function PetroTinsGrid() {
             <span className="pt-summary__label">Est. Annual Interest</span>
             <span className="pt-summary__val loss">{fmt(monthlyInterest * 12)}</span>
           </div>
+          <QuickCalcTable />
         </div>
       </div>
 
