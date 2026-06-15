@@ -1,5 +1,5 @@
 ---
-import { en } from '@/i18n/signup';
+import { fr } from '@/i18n/signup';
 import SignupPage from '@/components/SignupPage.astro';
 import { getAuthSession } from '@/lib/authSession';
 
@@ -10,4 +10,4 @@ if (session) {
 
 const error = Astro.url.searchParams.get('error');
 ---
-<SignupPage t={en} error={error} />
+<SignupPage t={fr} error={error} />

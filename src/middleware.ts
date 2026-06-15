@@ -16,6 +16,26 @@ import { isPublicPath } from './middleware/auth';
 export const onRequest = defineMiddleware(async (context, next) => {
 	const { pathname } = new URL(context.request.url);
 
+	// ── Sanctions geo-block ───────────────────────────────────────────────────
+	// Runs before everything else, for every route except static assets. The geo
+	// stack is dynamically imported (kept out of the static graph) and the check
+	// is FAIL-OPEN: any error lets the request through, so a geo/db outage can
+	// never take the site — or the login page — offline.
+	if (
+		!pathname.startsWith('/_astro/') &&
+		!pathname.startsWith('/assets/') &&
+		pathname !== '/favicon.ico' &&
+		pathname !== '/favicon.webp'
+	) {
+		try {
+			const { getGeoblockResponse } = await import('./middleware/geoblock');
+			const blocked = await getGeoblockResponse(context.request);
+			if (blocked) return blocked;
+		} catch (err) {
+			console.error('[geoblock] check failed — allowing through (fail-open)', err);
+		}
+	}
+
 	// Auth + public paths: pure pass-through.
 	// app.ts is never even imported — nothing it does can break login.
 	if (isPublicPath(pathname)) {

@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer';
 import { db } from '@/lib/db';
 import { ensureTenantForUser } from '@/lib/tenants';
 import { hashPassword } from '@/lib/passwords';
+import { isEmailDomainBlocked } from '@/lib/blockedEmailDomains';
 
 export const prerender = false;
 
@@ -13,12 +14,6 @@ function normalizeEmail(input: FormDataEntryValue | null) {
 	if (typeof input !== 'string') return null;
 	const value = input.trim().toLowerCase();
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : null;
-}
-
-function normalizeName(input: FormDataEntryValue | null) {
-	if (typeof input !== 'string') return null;
-	const value = input.trim();
-	return value.length ? value.slice(0, 120) : null;
 }
 
 async function sendVerificationEmail(email: string, verifyUrl: string) {
@@ -39,15 +34,13 @@ async function sendVerificationEmail(email: string, verifyUrl: string) {
 export const POST: APIRoute = async ({ request, redirect }) => {
 	const form = await request.formData();
 	const email = normalizeEmail(form.get('email'));
-	const firstName = normalizeName(form.get('first_name'));
-	const lastName = normalizeName(form.get('last_name'));
 	const password = form.get('password');
 
 	if (!email) {
 		return redirect('/signup?error=email', 303);
 	}
-	if (!firstName) {
-		return redirect('/signup?error=first_name', 303);
+	if (isEmailDomainBlocked(email)) {
+		return redirect('/signup?error=email_domain', 303);
 	}
 	if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
 		return redirect('/signup?error=password', 303);
@@ -62,19 +55,19 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	}
 
 	const userId = crypto.randomUUID();
-	const fullName = lastName ? `${firstName} ${lastName}` : firstName;
 	const passwordHash = await hashPassword(password);
 
+	// Store no name — only the email — matching the OAuth path (authAdapter.createUser).
 	await db.execute({
-		sql: 'INSERT INTO auth_users (id, name, email, email_verified, image) VALUES (?, ?, ?, NULL, NULL)',
-		args: [userId, fullName, email],
+		sql: 'INSERT INTO auth_users (id, name, email, email_verified, image) VALUES (?, NULL, ?, NULL, NULL)',
+		args: [userId, email],
 	});
 	await db.execute({
 		sql: 'INSERT INTO auth_credentials (user_id, password_hash, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
 		args: [userId, passwordHash],
 	});
 
-	await ensureTenantForUser(userId, firstName);
+	await ensureTenantForUser(userId);
 
 	const token = crypto.randomBytes(32).toString('hex');
 	const expires = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();

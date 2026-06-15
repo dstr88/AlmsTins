@@ -18,6 +18,8 @@
 
 export function isPublicPath(pathname: string): boolean {
 	return (
+		// Homepage — public marketing surface (merged with the login page 2026-06-15).
+		pathname === '/' ||
 		pathname === '/login' ||
 		pathname.startsWith('/login/') ||
 		pathname === '/es' ||
@@ -31,6 +33,8 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/security-and-privacy/fr' ||
 		pathname === '/signup' ||
 		pathname.startsWith('/signup/') ||
+		// Credentials signup endpoint — must be reachable without a session
+		pathname === '/api/signup' ||
 		pathname === '/wallet' ||
 		pathname.startsWith('/wallet/') ||
 		pathname === '/wallet-checker' ||
@@ -51,6 +55,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/petro-tins/demo' ||
 		// PetroTins docs — public documentation page
 		pathname === '/petro-tins/docs' ||
+		// PetroTins legal pages — public Terms & Privacy
+		pathname === '/petro-tins/terms' ||
+		pathname === '/petro-tins/privacy' ||
 		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
 		pathname === '/api/wallet-check' ||
 		pathname === '/api/dapp-check' ||

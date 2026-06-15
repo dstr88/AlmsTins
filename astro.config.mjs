@@ -41,4 +41,11 @@ export default defineConfig({
 		// all POST form submissions. @auth/core handles its own CSRF for auth routes.
 		checkOrigin: false,
 	},
+	vite: {
+		ssr: {
+			// geoip-lite reads its MaxMind data files from disk at runtime; keep it
+			// external so the bundler doesn't rewrite/break those file paths.
+			external: ['geoip-lite'],
+		},
+	},
 });

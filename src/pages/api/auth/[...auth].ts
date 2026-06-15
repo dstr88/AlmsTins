@@ -9,6 +9,7 @@ import { authAdapter } from '../../../lib/authAdapter';
 import { verifyPassword } from '../../../lib/passwords';
 import { getPostLoginRedirect } from '../../../lib/postLoginRedirect';
 import { ensureTenantForUser, resolveActiveTenantId } from '../../../lib/tenants';
+import { isEmailDomainBlocked } from '../../../lib/blockedEmailDomains';
 
 const providers = [];
 
@@ -100,6 +101,15 @@ const authConfig = {
 	},
 	callbacks: {
 		async signIn({ user, account, profile }: { user?: any; account?: any; profile?: any }) {
+			// ── Blocked email-domain screen (sanctions supplement; weak signal) ────
+			// Reject any sign-in / sign-up whose email domain is on the blocklist.
+			// The IP geo-block (src/middleware/geoblock.ts) is the primary control.
+			const screenEmail = (profile?.email || user?.email || '') as string;
+			if (screenEmail && isEmailDomainBlocked(screenEmail)) {
+				console.warn('[auth] sign-in blocked — email domain on blocklist');
+				return false;
+			}
+
 			// ── OAuth / OIDC account linking ───────────────────────────────────────
 			// If a social sign-in (OAuth or OIDC) arrives for an email that already
 			// exists via a different provider (e.g. credentials), pre-emptively link

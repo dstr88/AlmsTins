@@ -1,0 +1,64 @@
+---
+import PetroTinsLegalLayout from '../../layouts/PetroTinsLegalLayout.astro';
+---
+<PetroTinsLegalLayout
+	title="Privacy Policy"
+	description="PetroTins Privacy Policy — pure math on data you enter. No bank connections, no card storage."
+>
+	<p class="notice">PetroTins (tradfitins.com), operated by TitaniumHut, does pure math on data <strong>you type in</strong>. It never connects to your bank, never uses account-aggregation APIs, and never requests bank credentials. This policy is separate from the Almstins Privacy Policy.</p>
+
+	<h2>1. Scope</h2>
+	<p>This Privacy Policy explains how PetroTins handles your information. It is separate from the Almstins Privacy Policy, which governs the Almstins crypto products.</p>
+
+	<h2>2. Information We Collect</h2>
+	<h3>You provide directly</h3>
+	<ul>
+		<li><strong>Account:</strong> email and password (or OAuth sign-in) and subscription tier. We do not collect or store your name.</li>
+		<li><strong>Financial inputs you enter:</strong> debt balances, APRs, credit limits, minimum payments, budget income/expense entries, and business figures. These are figures you type in — not pulled from any institution.</li>
+	</ul>
+	<h3>Collected automatically</h3>
+	<ul>
+		<li>Usage data, device/browser information, IP address, and log data.</li>
+	</ul>
+	<h3>We do NOT collect</h3>
+	<ul>
+		<li><span class="checkmark">✓</span> Bank account credentials or any account-aggregation / open-banking connection</li>
+		<li><span class="checkmark">✓</span> Payment-card numbers (subscription billing is handled entirely by our processor)</li>
+		<li><span class="checkmark">✓</span> Government IDs, biometric data, or credit-bureau data</li>
+	</ul>
+
+	<h2>3. How We Use Your Information</h2>
+	<p>To provide the Service (compute interest, utilization, payoff, and cash-flow summaries), authenticate your account, process subscription payments, respond to support, prevent abuse, and comply with legal obligations. We do not sell your data or use it for advertising or profiling.</p>
+
+	<h2>4. Tenant Isolation</h2>
+	<p>Your PetroTins data is isolated to your account. No other user, and no operator, can view it. PetroTins data and Almstins data live in separate tables and never cross.</p>
+
+	<h2>5. Data Retention</h2>
+	<p>We retain your data while your account is active and as required to comply with legal obligations or resolve disputes. You may request deletion of your account and data at any time, subject to legal retention requirements; deletion is permanent.</p>
+
+	<h2>6. Third-Party Services</h2>
+	<ul>
+		<li><strong>Stripe</strong> — subscription billing and payment processing (card data handled entirely by Stripe)</li>
+		<li><strong>GitHub &amp; Google</strong> — OAuth sign-in (we receive your email; provider-supplied names are discarded)</li>
+		<li><strong>Turso</strong> — database hosting (encrypted at rest)</li>
+		<li><strong>Render</strong> — web hosting and deployment</li>
+		<li><strong>Email delivery (SMTP)</strong> — transactional email (verification, reminders)</li>
+		<li><strong>Google Analytics</strong> — aggregated, non-identifying usage analytics</li>
+	</ul>
+	<p>PetroTins uses <strong>no</strong> crypto, blockchain, or chain-analysis providers. We share only the minimum data necessary with each provider.</p>
+
+	<h2>7. Cookies</h2>
+	<p>We use only essential cookies — the session token that keeps you logged in. We do not use advertising cookies or cross-site tracking.</p>
+
+	<h2>8. Security</h2>
+	<p>We use HTTPS/TLS in transit and encrypted storage at rest, with role-based access. No system is perfectly secure; we cannot guarantee absolute protection.</p>
+
+	<h2>9. Legal Requests, International Transfer &amp; Children's Privacy</h2>
+	<p>We may disclose data when required by valid legal process, and will notify you when legally possible. Your data may be processed in the United States or other countries. The Service is not intended for anyone under 18, and we do not knowingly collect data from minors.</p>
+
+	<h2>10. Your Rights</h2>
+	<p>You may request access to, correction of, export of, or deletion of your data (subject to legal holds). Contact <strong>privacy@titaniumhut.com</strong>.</p>
+
+	<h2>11. Changes &amp; Contact</h2>
+	<p>We may update this policy and will notify you of material changes. Questions: privacy@titaniumhut.com.</p>
+</PetroTinsLegalLayout>

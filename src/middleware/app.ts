@@ -166,10 +166,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			);
 		}
 
-		if (pathname === '/') {
-			return finish(Response.redirect(`https://${canonicalHost}/login`, 303));
-		}
-
 		// ── Auth session check (must happen before demo mode) ───────────────────
 		// A signed-in user must never be routed into demo mode — their real
 		// session takes priority over any lingering demo cookie.

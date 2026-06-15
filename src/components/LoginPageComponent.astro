@@ -12,15 +12,21 @@ interface Props {
   notice: string;       // localized notice string or ""
   hasAlert: boolean;
   isLoggedIn: boolean;
+  /** Optional canonical URL override (e.g. point /login at the / homepage). */
+  canonical?: string;
 }
 
-const { t, safeCallbackUrl, csrfToken, message, notice, hasAlert, isLoggedIn } = Astro.props;
+const { t, safeCallbackUrl, csrfToken, message, notice, hasAlert, isLoggedIn, canonical } = Astro.props;
 const isLockedOut = message === 'LOCKED_OUT';
 ---
 
-<LoginLayout title={t.meta.title} description={t.meta.description} noindex={false}>
+<LoginLayout title={t.meta.title} description={t.meta.description} noindex={false} canonical={canonical} lang={t.lang}>
 
-  <a href={t.langToggle.href} class="lang-toggle" aria-label={t.langToggle.ariaLabel}>{t.langToggle.text}</a>
+  <nav class="lang-switch" aria-label="Language">
+    <a class="lang-switch__lang" href="/" aria-current={t.lang === 'en' ? 'true' : undefined}>EN</a>
+    <a class="lang-switch__lang" href="/es" aria-current={t.lang === 'es' ? 'true' : undefined}>ES</a>
+    <a class="lang-switch__lang" href="/fr" aria-current={t.lang === 'fr' ? 'true' : undefined}>FR</a>
+  </nav>
 
   <!-- ── Fixed sign-in pill — top-right ───────────────────────────────── -->
   <div class="signin-pill-wrap" id="signinPillWrap">
@@ -696,26 +702,37 @@ const isLockedOut = message === 'LOCKED_OUT';
     .fc-anon-link { color: var(--accent); text-decoration: none; white-space: nowrap; }
     .fc-anon-link:hover { text-decoration: underline; }
 
-    /* ── Language toggle ─────────────────────────────────────── */
-    .lang-toggle {
+    /* ── Language switcher (EN / ES / FR) ─────────────────────── */
+    .lang-switch {
       position: fixed;
       top: 2rem;
       left: 2rem;
       z-index: 200;
-      padding: 0.4rem 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+      padding: 0.25rem 0.3rem;
       border-radius: 999px;
       border: 1px solid var(--border-bright);
       background: transparent;
+      animation: slideInFromRight 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .lang-switch__lang {
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
       color: var(--text-muted);
       font-size: 0.78rem;
       font-weight: 700;
       letter-spacing: 0.06em;
       text-decoration: none;
       transition: background 0.15s, color 0.15s;
-      animation: slideInFromRight 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
-    .lang-toggle:hover {
+    .lang-switch__lang:hover {
       background: var(--surface-hover);
+      color: var(--text-primary);
+    }
+    .lang-switch__lang[aria-current="true"] {
+      background: var(--accent-soft);
       color: var(--text-primary);
     }
 

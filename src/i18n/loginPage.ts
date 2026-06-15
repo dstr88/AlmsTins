@@ -1,7 +1,6 @@
 export interface LoginPageLocale {
   lang: 'en' | 'es' | 'fr';
   meta: { title: string; description: string };
-  langToggle: { text: string; href: string; ariaLabel: string };
   signin: {
     pillLabel: string;
     closeAriaLabel: string;
@@ -71,7 +70,6 @@ export const en: LoginPageLocale = {
     title: 'Almstins — Know Exactly What You Own',
     description: 'Trace every transaction in your crypto history. Missing cost basis, unexplained gaps, and tax surprises — surfaced in one place. No signup needed to explore.',
   },
-  langToggle: { text: '🇪🇸 En Español', href: '/es', ariaLabel: 'Ver en español' },
   signin: {
     pillLabel: 'Login',
     closeAriaLabel: 'Close sign-in panel',
@@ -153,7 +151,6 @@ export const es: LoginPageLocale = {
     title: 'Almstins — Por fin entiende qué pasó en tu billetera',
     description: 'Rastrea cada transacción en tu historial crypto. Transacciones perdidas, brechas inexplicables y sorpresas fiscales — todo en un solo lugar. Sin registro para explorar.',
   },
-  langToggle: { text: '🇺🇸 In English', href: '/', ariaLabel: 'Switch to English' },
   signin: {
     pillLabel: 'Iniciar sesión',
     closeAriaLabel: 'Cerrar panel',
@@ -235,7 +232,6 @@ export const fr: LoginPageLocale = {
     title: 'Almstins — Comprendre exactement ce que vous possédez',
     description: 'Tracez chaque transaction de votre historique crypto. Transactions manquantes, lacunes inexplicables et surprises fiscales — tout en un seul endroit. Aucune inscription nécessaire pour explorer.',
   },
-  langToggle: { text: '🇺🇸 In English', href: '/', ariaLabel: 'Passer à l\'anglais' },
   signin: {
     pillLabel: 'Connexion',
     closeAriaLabel: 'Fermer le panneau de connexion',

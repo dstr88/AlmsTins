@@ -1,221 +1,36 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import WalletChecker from '../components/WalletChecker';
-import logo from '../assets/logo.jpeg';
+// Homepage (/) — English marketing/login surface.
+// Localized siblings: /es (es.astro), /fr (fr.astro). /login renders the same
+// component (its canonical points here). Merged 2026-06-15: the old standalone
+// scam-checker landing was retired — it was unreachable behind the / → /login
+// redirect. The wallet scam checker lives at /wallet-checker (trilingual).
+import { en } from '../i18n/loginPage';
+import LoginPageComponent from '../components/LoginPageComponent.astro';
+import { getLoginPageData } from '../lib/loginPageData';
 
-const bye = Astro.url.searchParams.get('bye') === '1';
+const data = await getLoginPageData(Astro.request, Astro.url);
+const t = en;
+
+const message =
+  data.error === 'missing'                  ? '' :
+  data.error === 'Configuration'            ? t.errors.configuration :
+  data.error === 'OAuthAccountNotLinked'    ? 'LOCKED_OUT' :
+  data.error                                ? t.errors.generic : '';
+
+const notice =
+  data.signup   === 'success' ? t.notices.signupSuccess :
+  data.verified === 'success' ? t.notices.verifiedSuccess :
+  data.verified === 'expired' ? t.notices.verifiedExpired :
+  data.verified === 'failed'  ? t.notices.verifiedFailed : '';
+
+const hasAlert = data.error === 'missing' || (!!message && message !== 'LOCKED_OUT') || !!notice;
 ---
-
-<Layout
-	title="Almstins — Crypto Portfolio Tracker & Bookkeeping Tool"
-	description="Track wallets, DeFi positions, and exchange accounts in one place. Calculate realized gains, download your Year Summary, and know your real net worth."
-	canonical="https://almstins.com"
->
-	<!-- JSON-LD: SoftwareApplication schema -->
-	<script type="application/ld+json" set:html={JSON.stringify({
-		"@context": "https://schema.org",
-		"@type": "SoftwareApplication",
-		"name": "Almstins",
-		"url": "https://almstins.com",
-		"description": "Almstins tracks your crypto wallets, DeFi positions, and exchange accounts in one place. Calculate realized gains, download your Year Summary, and know your real net worth.",
-		"applicationCategory": "FinanceApplication",
-		"operatingSystem": "Web",
-		"browserRequirements": "Requires JavaScript",
-		"offers": {
-			"@type": "Offer",
-			"price": "0",
-			"priceCurrency": "USD",
-			"description": "Free to start — no credit card required"
-		},
-		"featureList": [
-			"Multi-wallet portfolio tracking",
-			"DeFi position monitoring",
-			"Exchange account aggregation",
-			"Capital gains calculation",
-			"Year Summary PDF export",
-			"Net worth dashboard",
-			"Crypto wallet scam checker",
-			"Ethereum, Solana, and Sui support"
-		],
-		"creator": {
-			"@type": "Organization",
-			"name": "Almstins",
-			"url": "https://almstins.com"
-		},
-		"screenshot": "https://almstins.com/og-default.png"
-	})} />
-	<div class="landing">
-		<img class="logo" src={logo.src} width="56" height="56" alt="Almstins logo" />
-		<h1 class="sr-only">Almstins — Crypto Portfolio Tracker</h1>
-		{bye && (
-			<div class="bye-toast">
-				Thanks for your visit — come back soon! 👋
-			</div>
-		)}
-		<div class="beta-banner">
-			<span class="beta-badge">BETA</span>
-			Almstins is under active development. Bugs happen, data may shift, and features are still being built.
-			Use it to explore — not as your single source of financial truth just yet.
-		</div>
-
-		<a class="login-button" href="/login">Login</a>
-
-		<!-- Wallet scam checker -->
-		<div class="checker-wrap">
-			<div class="checker-header">
-				<h2 class="checker-title">🔍 Wallet Scam Checker</h2>
-				<p class="checker-sub">
-					Been offered a "too good to be true" crypto deal? Paste the wallet address
-					here before you send anything.
-				</p>
-			</div>
-			<WalletChecker client:load />
-		</div>
-	</div>
-</Layout>
-
-<style>
-	.landing {
-		position: relative;
-		width: 100%;
-	}
-
-	.logo {
-		position: fixed;
-		top: 1.5rem;
-		left: 1.5rem;
-		width: 56px;
-		height: 56px;
-		object-fit: cover;
-		border-radius: 12px;
-		z-index: 5;
-	}
-
-	.login-button {
-		position: fixed;
-		top: 10rem;
-		right: 5rem;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.75rem 1.4rem;
-		border-radius: 999px;
-		background: linear-gradient(135deg, #5767ff, #934dff);
-		color: #fff;
-		text-decoration: none;
-		font-weight: 600;
-		transition:
-			transform 0.2s ease,
-			box-shadow 0.2s ease,
-			filter 0.2s ease;
-		z-index: 5;
-	}
-
-	.login-button:hover {
-		transform: translateY(-2px) scale(1.02);
-		filter: brightness(1.12);
-		box-shadow: 0 12px 24px rgba(88, 95, 255, 0.35);
-	}
-
-	.login-button:focus-visible {
-		outline: 2px solid rgba(147, 77, 255, 0.6);
-		outline-offset: 4px;
-	}
-
-	/* sr-only utility */
-	.sr-only {
-		position: absolute;
-		width: 1px; height: 1px;
-		padding: 0; margin: -1px;
-		overflow: hidden; clip: rect(0,0,0,0);
-		white-space: nowrap; border: 0;
-	}
-
-	/* Wallet checker section */
-	.checker-wrap {
-		position: relative;
-		z-index: 5;
-		margin: 14rem auto 4rem;
-		width: min(680px, 92vw);
-	}
-
-	.checker-header {
-		text-align: center;
-		margin-bottom: 1.5rem;
-	}
-
-	.checker-title {
-		font-size: clamp(1.4rem, 3vw, 1.9rem);
-		font-weight: 700;
-		color: #f5f8ff;
-		margin: 0 0 0.5rem;
-	}
-
-	.checker-sub {
-		font-size: 0.95rem;
-		color: rgba(255, 255, 255, 0.45);
-		margin: 0;
-		line-height: 1.6;
-		max-width: 520px;
-		margin: 0 auto;
-	}
-
-	/* Beta banner */
-	.beta-banner {
-		position: fixed;
-		bottom: 1.5rem;
-		left: 50%;
-		transform: translateX(-50%);
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		background: rgba(10, 14, 28, 0.85);
-		border: 1px solid rgba(245, 158, 11, 0.35);
-		backdrop-filter: blur(12px);
-		color: rgba(255, 255, 255, 0.6);
-		padding: 0.65rem 1.25rem;
-		border-radius: 999px;
-		font-size: 0.8rem;
-		line-height: 1.5;
-		z-index: 20;
-		max-width: min(560px, 90vw);
-		text-align: center;
-		white-space: normal;
-	}
-
-	.beta-badge {
-		flex-shrink: 0;
-		background: rgba(245, 158, 11, 0.15);
-		border: 1px solid rgba(245, 158, 11, 0.4);
-		color: #f59e0b;
-		font-size: 0.65rem;
-		font-weight: 800;
-		letter-spacing: 0.12em;
-		padding: 0.2rem 0.5rem;
-		border-radius: 999px;
-	}
-
-	.bye-toast {
-		position: fixed;
-		top: 2rem;
-		left: 50%;
-		transform: translateX(-50%);
-		background: rgba(255, 255, 255, 0.08);
-		border: 1px solid rgba(255, 255, 255, 0.18);
-		backdrop-filter: blur(12px);
-		color: #f0f4ff;
-		padding: 0.85rem 1.75rem;
-		border-radius: 999px;
-		font-size: 0.95rem;
-		font-weight: 500;
-		z-index: 10;
-		animation: fadeOut 4s ease forwards;
-	}
-
-	@keyframes fadeOut {
-		0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
-		70%  { opacity: 1; transform: translateX(-50%) translateY(0); }
-		100% { opacity: 0; transform: translateX(-50%) translateY(-8px); }
-	}
-
-</style>
+<LoginPageComponent
+  t={t}
+  safeCallbackUrl={data.safeCallbackUrl}
+  csrfToken={data.csrfToken}
+  message={message}
+  notice={notice}
+  hasAlert={hasAlert}
+  isLoggedIn={data.isLoggedIn}
+/>

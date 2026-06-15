@@ -8,6 +8,8 @@ export interface Props {
   noindex?: boolean;
   /** HTML lang attribute — set to "es" for Spanish pages. Defaults to "en". */
   lang?: string;
+  /** Canonical URL override. Defaults to the current path. */
+  canonical?: string;
 }
 
 const {
@@ -15,7 +17,9 @@ const {
   description = 'Sign in to your Almstins account to track your crypto portfolio, DeFi positions, and year-end summaries.',
   noindex = true,
   lang = 'en',
+  canonical,
 } = Astro.props;
+const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
 ---
 
 <!doctype html>
@@ -37,7 +41,7 @@ const {
 		<meta name="twitter:image" content="https://almstins.com/og-default.png" />
 		<meta name="author" content="AlmsTins" />
 		<meta property="article:author" content="https://www.linkedin.com/company/almstins/" />
-		<link rel="canonical" href={`https://almstins.com${Astro.url.pathname}`} />
+		<link rel="canonical" href={canonicalHref} />
 		{noindex && <meta name="robots" content="noindex, nofollow" />}
 		<link rel="icon" type="image/webp" href="/favicon.webp" />
 		<link rel="icon" href="/favicon.ico" sizes="any" />
