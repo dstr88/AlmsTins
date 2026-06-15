@@ -683,6 +683,87 @@
 .defi-summary-tin .defi-status--warning { color: var(--accent); opacity: 1; }
 .defi-summary-tin .defi-status--refreshing { color: var(--accent); opacity: 0.9; }
 
+/* ── Liquidation callout ──────────────────────────────────────────────────── */
+.defi-summary-tin .aave-liquidations {
+	margin-top: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.defi-summary-tin .aave-liq-callout {
+	border: 1px solid var(--loss-border);
+	border-left: 3px solid var(--loss);
+	background: var(--loss-bg);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.defi-summary-tin .aave-liq-header {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.45rem 0.75rem;
+	background: rgba(239,68,68,0.15);
+	color: var(--loss);
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+}
+
+.defi-summary-tin .aave-liq-icon {
+	font-size: 0.8rem;
+}
+
+.defi-summary-tin .aave-liq-body {
+	padding: 0.6rem 0.75rem 0.65rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+}
+
+.defi-summary-tin .aave-liq-row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.5rem;
+	font-size: 0.73rem;
+}
+
+.defi-summary-tin .aave-liq-label {
+	color: var(--text-secondary);
+	flex-shrink: 0;
+}
+
+.defi-summary-tin .aave-liq-value {
+	color: var(--text-primary);
+	text-align: right;
+}
+
+.defi-summary-tin .aave-liq-loss {
+	color: var(--loss);
+}
+
+.defi-summary-tin .aave-liq-link {
+	color: var(--accent-dim);
+	font-size: 0.7rem;
+	text-decoration: none;
+}
+.defi-summary-tin .aave-liq-link:hover {
+	color: var(--accent);
+	text-decoration: underline;
+}
+
+.defi-summary-tin .aave-liq-tax {
+	margin-top: 0.35rem;
+	padding-top: 0.35rem;
+	border-top: 1px solid var(--loss-border);
+	color: var(--loss);
+	font-size: 0.68rem;
+	font-weight: 600;
+}
+
 /* ── Alert pill ───────────────────────────────────────────────────────────── */
 .alert-pill-wrap {
 	position: relative;

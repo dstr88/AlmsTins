@@ -53,6 +53,9 @@ const ADDR_ETH  = '0xe1000000000000000000000000000000000000e1';
 const ADDR_POL  = '0xde000000000000000000000000000000000000de';
 const ADDR_AVAX = '0xab000000000000000000000000000000000000ab';
 
+// Demo addresses for wallet checker community trust demo
+const ADDR_SCAM_DEMO = '0xba5eba110000000000000000000000000000dead'; // fraud flag demo — shows the safety system
+
 const GRP_BTC  = 'DEMO-GRP-BTC-000000000000000000000001';
 const GRP_LTC  = 'DEMO-GRP-LTC-000000000000000000000001';
 const GRP_ETH  = 'DEMO-GRP-ETH-000000000000000000000001';
@@ -96,6 +99,12 @@ export const GET: APIRoute = async ({ request }) => {
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`aave:health:${ADDR_POL.toLowerCase()}`] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`t:${DEMO_TENANT_ID}:networth:summary:v3`] },
 		{ sql: `DELETE FROM cache WHERE cache_key = ?`, args: [`t:${DEMO_TENANT_ID}:networth:summary:v2`] },
+	]);
+	// Community trust tables may not exist yet — separate batch so failure here never blocks the main clear
+	await batch('clear-community-trust', [
+		{ sql: `DELETE FROM wallet_claims          WHERE address IN (?, ?)`, args: [ADDR_ETH, ADDR_SCAM_DEMO] },
+		{ sql: `DELETE FROM address_reviews        WHERE address IN (?, ?)`, args: [ADDR_ETH, ADDR_SCAM_DEMO] },
+		{ sql: `DELETE FROM community_wallet_flags WHERE address IN (?, ?)`, args: [ADDR_ETH, ADDR_SCAM_DEMO] },
 	]);
 
 	// ── Phase 1: Independent inserts + cache — all run concurrently ───────────
@@ -436,6 +445,22 @@ export const GET: APIRoute = async ({ request }) => {
 			// Crypto.com 2025 continuation
 			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, 'Earn Interest', 'USDC', ?, ?, 'in', 'crypto_earn_interest_paid', 'USDC', ?, ?)`, args: ['demo-itx-cry-2025-1', BATCH_CRY_2025, ACCT_CRY, DEMO_TENANT_ID, '2025-02-01T00:00:00.000Z', 41.56, 41.56, 'demo-rh-cry-2025-1', '2025-02-01T00:00:00.000Z'] },
 			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, row_hash, created_at) VALUES (?, 'crypto_com', ?, ?, ?, ?, 'Earn Interest', 'USDC', ?, ?, 'in', 'crypto_earn_interest_paid', 'USDC', ?, ?)`, args: ['demo-itx-cry-2025-2', BATCH_CRY_2025, ACCT_CRY, DEMO_TENANT_ID, '2025-05-01T00:00:00.000Z', 38.92, 38.92, 'demo-rh-cry-2025-2', '2025-05-01T00:00:00.000Z'] },
+			// Aave V3 Ethereum liquidation — March 14 2025
+			// ETH dropped sharply; health factor fell to 0.97; 0.005 WETH collateral seized to repay $13.30 USDC
+			// Taxable event: disposal of WETH at $14.00 ($2,800/ETH). Cost basis ~$16.00 ($3,200 avg). Capital loss ~$2.00.
+			{ sql: `INSERT OR IGNORE INTO import_transactions (id, source, import_batch_id, account_id, tenant_id, timestamp_utc, description, currency, amount, native_usd, direction, kind, asset_symbol, category, notes, row_hash, created_at) VALUES (?, 'aave', ?, NULL, ?, ?, ?, ?, ?, ?, 'out', 'liquidation', 'WETH', 'liquidation', ?, ?, ?)`, args: [
+				'demo-itx-aave-liq-eth-1',
+				'demo-batch-aave-liq-0000000000000000001',
+				DEMO_TENANT_ID,
+				'2025-03-14T08:23:41.000Z',
+				'Aave V3 Liquidation — 0.005 WETH collateral seized to repay $13.30 USDC debt (5% liquidation penalty)',
+				'WETH',
+				0.005,
+				14.00,
+				'Aave liquidated part of your WETH collateral after your health factor dropped below 1.0. The seized WETH is treated as a disposal at $14.00 ($2,800/ETH). This is a taxable event — include in your tax records as a capital loss of ~$2.00 vs. your cost basis.',
+				'demo-rh-aave-liq-eth-1',
+				'2025-03-14T08:23:41.000Z',
+			] },
 		]),
 	]);
 
@@ -509,6 +534,42 @@ export const GET: APIRoute = async ({ request }) => {
 		{ sql: `INSERT INTO petro_tin_entries (id, tin_id, tenant_id, entry_date, kind, amount, description) VALUES (?, ?, ?, ?, 'expense', 45, 'Domain & hosting')`,   args: [randomUUID(), bizId, DEMO_TENANT_ID, thisMonth(4)] },
 	];
 	await db.batch(entryStmts).catch(() => {});
+
+	// ── Phase 5: Community Trust Demo (fire and forget — tables may not exist yet) ─
+	// Seeds wallet checker demo data. Activated once migrations/20260613_community_flags.sql runs.
+	// Trust badge demo: ADDR_ETH (Ethereum Main) — claimed business, mixed reviews
+	// Fraud demo:       ADDR_SCAM_DEMO           — confirmed flag, all-bad reviews
+	void (async () => {
+		try {
+			await db.batch([
+				// Create tables if they don't exist yet (idempotent — migration will confirm later)
+				{ sql: `CREATE TABLE IF NOT EXISTS wallet_claims (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, claimed_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(address))`, args: [] },
+				{ sql: `CREATE TABLE IF NOT EXISTS address_reviews (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, verdict TEXT NOT NULL CHECK (verdict IN ('completed','not_received','suspected_fraud')), reviewed_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(tenant_id, address))`, args: [] },
+				{ sql: `CREATE TABLE IF NOT EXISTS community_wallet_flags (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT, address TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0, goplus_flagged INTEGER, goplus_flags TEXT, reported_at TEXT NOT NULL DEFAULT (datetime('now')), validated_at TEXT, UNIQUE(address))`, args: [] },
+			]);
+
+			await db.batch([
+				// ── Trust badge: Ethereum Main wallet claimed by demo tenant ──────────────
+				{ sql: `INSERT OR IGNORE INTO wallet_claims (tenant_id, address, claimed_at) VALUES (?, ?, ?)`,
+				  args: [DEMO_TENANT_ID, ADDR_ETH, '2026-01-15T10:00:00.000Z'] },
+				// 4 completed reviews + 1 not_received from other demo reviewers
+				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)`,     args: ['demo-reviewer-001', ADDR_ETH, '2026-02-03T14:22:00.000Z'] },
+				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)`,     args: ['demo-reviewer-002', ADDR_ETH, '2026-03-11T09:15:00.000Z'] },
+				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)`,     args: ['demo-reviewer-003', ADDR_ETH, '2026-04-07T16:44:00.000Z'] },
+				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)`,     args: ['demo-reviewer-004', ADDR_ETH, '2026-05-20T11:30:00.000Z'] },
+				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'not_received', ?)`,  args: ['demo-reviewer-005', ADDR_ETH, '2026-06-01T08:05:00.000Z'] },
+
+				// ── Fraud flag: scam address — confirmed, all suspected_fraud reviews ─────
+				{ sql: `INSERT OR IGNORE INTO community_wallet_flags (tenant_id, address, confirmed, goplus_flagged, goplus_flags, reported_at, validated_at) VALUES (?, ?, 1, 1, ?, ?, ?)`,
+				  args: ['demo-reviewer-006', ADDR_SCAM_DEMO, JSON.stringify(['blacklist_doubt','phishing_activities']), '2026-04-02T13:00:00.000Z', '2026-04-02T13:00:41.000Z'] },
+				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'suspected_fraud', ?)`, args: ['demo-reviewer-006', ADDR_SCAM_DEMO, '2026-04-02T13:05:00.000Z'] },
+				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'suspected_fraud', ?)`, args: ['demo-reviewer-007', ADDR_SCAM_DEMO, '2026-04-03T09:22:00.000Z'] },
+				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'suspected_fraud', ?)`, args: ['demo-reviewer-008', ADDR_SCAM_DEMO, '2026-04-05T17:11:00.000Z'] },
+			]);
+		} catch {
+			// Tables don't exist yet — silently skip. Will seed correctly after migration runs.
+		}
+	})();
 
 	const lang = (request.headers.get('referer') ?? '').includes('/es') ? 'es' : 'en';
 	const langCookie = `almstins-demo-lang=${lang}; Path=/; SameSite=Lax; Max-Age=3600`;

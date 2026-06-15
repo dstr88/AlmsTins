@@ -37,33 +37,32 @@ const importedLabel = fmtDate(lastImported);
 		</div>
 		<div class="exchange-tin__header-right">
 			<slot name="header-actions" />
-			<button class="exchange-tin__toggle" data-tin-toggle aria-expanded="false" aria-label="Expand">▾</button>
+			<button class="exchange-tin__toggle" data-tin-toggle aria-expanded="false" aria-label="Expand">
+				<span class="exchange-tin__toggle-label" data-tin-label>Open</span> ▾
+			</button>
 		</div>
 	</header>
-	<div class="exchange-tin__body">
+	<div class="exchange-tin__body" hidden>
 		<slot />
 	</div>
 </section>
 
 
 <script>
-	// Collapsible exchange tins — default collapsed, state persisted in localStorage.
+	// Collapsible exchange tins — always start collapsed (body hidden in HTML).
+	// No localStorage persistence: resets to closed on every page load, same as wallet tins.
 	document.querySelectorAll<HTMLElement>('.exchange-tin[data-tin-key]').forEach((tin) => {
-		const key    = `tin-expanded:${tin.dataset.tinKey}`;
 		const body   = tin.querySelector<HTMLElement>('.exchange-tin__body');
 		const toggle = tin.querySelector<HTMLButtonElement>('[data-tin-toggle]');
 		if (!body || !toggle) return;
 
-		// Default: collapsed. Only expand if localStorage says 'true'.
-		const expand = localStorage.getItem(key) === 'true';
-		body.hidden            = !expand;
-		toggle.ariaExpanded    = String(expand);
+		const label = toggle.querySelector<HTMLElement>('[data-tin-label]');
 
 		const doToggle = () => {
-			const nowHidden = !body.hidden;
-			body.hidden           = nowHidden;
-			toggle.ariaExpanded   = String(!nowHidden);
-			localStorage.setItem(key, String(!nowHidden));
+			const nowOpen = body.hidden;
+			body.hidden         = !nowOpen;
+			toggle.ariaExpanded = String(nowOpen);
+			if (label) label.textContent = nowOpen ? 'Close' : 'Open';
 		};
 
 		toggle.addEventListener('click', (e) => { e.stopPropagation(); doToggle(); });
