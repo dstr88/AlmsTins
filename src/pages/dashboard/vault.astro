@@ -22,8 +22,12 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { isDemoRequest } from '@/lib/demo';
 import DemoTutorial from '@/components/dashboard/DemoTutorial.astro';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getVault } from '@/i18n/dashboard/vault';
 
 const ENABLE_ALL_TX = false;
+const lang = getLang(Astro.request);
+const t = getVault(lang);
 
 const pageStart = Date.now();
 const tenant = await requireTenantSession(Astro.request);
@@ -68,7 +72,7 @@ try {
 		const ym    = String(row.year_month ?? '');
 		if (ym) {
 			const [y, m] = ym.split('-');
-			digestMonth  = new Date(Number(y), Number(m) - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+			digestMonth  = new Date(Number(y), Number(m) - 1).toLocaleDateString(lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US', { month: 'long', year: 'numeric' });
 		}
 	}
 } catch {
@@ -121,21 +125,16 @@ const getChainBadge = (chains: string[]): string => {
 };
 ---
 
-<Layout title={isDemo ? 'Demo Vault | Almstins' : 'Vault | Almstins'} noindex={true}>
+<Layout title={isDemo ? t.demoPageTitle : t.pageTitle} noindex={true}>
 	<section class="vault-page">
 		<div class="hero-bleed">
-			<NetWorthHero title="Vault" subtitle="TradFi + DeFi vault overview" heightMobile="28vh" heightDesktop="32vh" />
+			<NetWorthHero title={t.heroTitle} subtitle={t.heroSubtitle} heightMobile="28vh" heightDesktop="32vh" />
 		</div>
 
 		{isDemo && (
 			<div class="demo-banner">
-				<span class="demo-banner__text">
-					You're exploring a live sample vault — {onchainWallets.length} of 3 wallets.
-					{onchainWallets.length < 3
-						? ` Add up to ${3 - onchainWallets.length} more, or make it yours.`
-						: ' Make it yours.'}
-				</span>
-				<a href="/" class="demo-banner__cta">Save my vault — sign up free →</a>
+				<span class="demo-banner__text">{t.demoBanner(onchainWallets.length)}</span>
+				<a href="/" class="demo-banner__cta">{t.saveCta}</a>
 			</div>
 		)}
 
@@ -150,16 +149,16 @@ const getChainBadge = (chains: string[]): string => {
 		)}
 
 		<section class="bk-grid">
-			<SalmonTin label="Notepad" class="tile tile--r1c1">
+			<SalmonTin label={t.notepad} class="tile tile--r1c1">
 				<VaultNotepad client:only="react" />
 			</SalmonTin>
 			<div class="tile tile--r1c2 portfolio-digest-wrapper">
-				<SalmonTin label="Portfolio">
+				<SalmonTin label={t.portfolio}>
 					<PortfolioTile client:only="react" />
 				</SalmonTin>
 				{digestCount > 0 && (
 					<a href="/dashboard/yearEnd/review" class="digest-pill">
-						{digestCount} flagged · {digestMonth}
+						{t.digestFlagged(digestCount, digestMonth)}
 					</a>
 				)}
 			</div>
@@ -168,14 +167,14 @@ const getChainBadge = (chains: string[]): string => {
 					? <Tin0AllTransactions client:visible />
 					: (!isDemo || onchainWallets.length < 5) ? <AddAssetTin /> : (
 						<div class="demo-wallet-limit">
-							<span>Wallet limit reached</span>
-							<a href="/">Sign up for unlimited wallets →</a>
+							<span>{t.walletLimitReached}</span>
+							<a href="/">{t.signupUnlimited}</a>
 						</div>
 					)
 				}
 			</div>
 			<div class="vault-section-divider vault-section-divider--exchange">
-				<span class="vault-section-divider__label">Centralized Exchanges</span>
+				<span class="vault-section-divider__label">{t.dividerExchanges}</span>
 				<span class="vault-section-divider__line"></span>
 			</div>
 
@@ -189,7 +188,7 @@ const getChainBadge = (chains: string[]): string => {
 			</div>
 
 			<details class="other-exchanges">
-				<summary class="other-exchanges__toggle">+ More exchanges available</summary>
+				<summary class="other-exchanges__toggle">{t.moreExchanges}</summary>
 				<div class="vault-lane vault-lane--row2 exchange-lane other-exchanges__lane">
 					<ExchangeAccounts source="kraken" title="Kraken" />
 					<ExchangeAccounts source="gemini" title="Gemini" />
@@ -201,7 +200,7 @@ const getChainBadge = (chains: string[]): string => {
 			</details>
 
 			<div class="vault-section-divider vault-section-divider--onchain">
-				<span class="vault-section-divider__label">On-Chain Wallets</span>
+				<span class="vault-section-divider__label">{t.dividerOnchain}</span>
 				<span class="vault-section-divider__line"></span>
 			</div>
 
@@ -229,8 +228,8 @@ const getChainBadge = (chains: string[]): string => {
 						<div class="vault-stack-tin tile">
 							<div class="wallet-label-box" data-address={wallet.address} data-wallet-id={wallet.id}>
 								<span class="wallet-label-text" data-wallet-label-text>{displayLabel}</span>
-								<button class="wallet-label-edit" aria-label="Rename wallet" title="Rename">✎</button>
-								<button class="wallet-copy-btn" aria-label="Copy address" title={wallet.address}>
+								<button class="wallet-label-edit" aria-label={t.renameWallet} title={t.rename}>✎</button>
+								<button class="wallet-copy-btn" aria-label={t.copyAddress} title={wallet.address}>
 									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 										<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
 										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -240,7 +239,7 @@ const getChainBadge = (chains: string[]): string => {
 							<div class="wallet-stack" data-accordion="wallet-stack">
 								<SalmonTin label={tinLabel} flagKey={chainBadge} class="wallet-summary-tin wallet-tin--wallet is-collapsed">
 									<div slot="summary" class="tin-summary">
-										<span class="tin-summary__label">Wallet value</span>
+										<span class="tin-summary__label">{t.walletValue}</span>
 										<span class="tin-summary__value" data-wallet-summary-value>—</span>
 									</div>
 									<WalletSummary client:only="react" walletId={wallet.id} initialData={fullData} walletCreatedAt={wallet.createdAt ?? null} />
@@ -254,7 +253,7 @@ const getChainBadge = (chains: string[]): string => {
 								<SalmonTin label="DeFi" class="defi-summary-tin wallet-tin--defi is-collapsed">
 									<div slot="summary" class="tin-summary">
 										<span class="tin-summary__label" data-defi-summary-label>
-											{wallet.chains.includes('rootstock') ? 'Sovryn' : 'Health'}
+											{wallet.chains.includes('rootstock') ? 'Sovryn' : t.health}
 										</span>
 										<span class="tin-summary__value" data-defi-summary-value>—</span>
 									</div>
@@ -275,7 +274,7 @@ const getChainBadge = (chains: string[]): string => {
 		{customWallets.length > 0 && (
 			<section class="vault-custom-section">
 				<div class="vault-section-divider vault-section-divider--custom">
-					<span class="vault-section-divider__label">Custom Wallets</span>
+					<span class="vault-section-divider__label">{t.dividerCustom}</span>
 					<span class="vault-section-divider__line"></span>
 				</div>
 				<div class="vault-lane vault-lane--custom">
@@ -290,9 +289,9 @@ const getChainBadge = (chains: string[]): string => {
 
 		{isDemo && (
 			<div class="demo-signup-prompt">
-				<p class="demo-signup-prompt__text">Keep these records.</p>
-				<p class="demo-signup-prompt__sub">Your reconciled vault — every holding, cost basis, and gain — saved to your account. No credit card.</p>
-				<a href="/" class="demo-banner__cta">Save my vault — sign up free →</a>
+				<p class="demo-signup-prompt__text">{t.keepRecords}</p>
+				<p class="demo-signup-prompt__sub">{t.keepRecordsSub}</p>
+				<a href="/" class="demo-banner__cta">{t.saveCta}</a>
 			</div>
 		)}
 
