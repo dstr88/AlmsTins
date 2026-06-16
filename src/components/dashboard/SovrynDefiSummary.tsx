@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getSovrynDefiSummary } from '@/i18n/components/sovrynDefiSummary';
 
 console.log('[island.mount]', 'SovrynDefiSummary');
 
@@ -17,6 +19,7 @@ type FetchState =
 	  };
 
 export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
+	const t = getSovrynDefiSummary(getClientLang());
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
 
 	useEffect(() => {
@@ -52,7 +55,7 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 	if (state.status === 'loading') {
 		return (
 			<div className="defi-stats">
-				<div className="defi-status defi-status--loading">Scanning Sovryn…</div>
+				<div className="defi-status defi-status--loading">{t.loading}</div>
 			</div>
 		);
 	}
@@ -60,7 +63,7 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 	if (state.status === 'error') {
 		return (
 			<div className="defi-stats">
-				<div className="defi-status defi-status--error">Unable to load Sovryn data.</div>
+				<div className="defi-status defi-status--error">{t.error}</div>
 			</div>
 		);
 	}
@@ -78,9 +81,7 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 			<div className="stat-row health">
 				<span className="label">Sovryn</span>
 				<span className="value">
-					{hasAny
-						? `${lendingTotal + ammPositions.length} position${(lendingTotal + ammPositions.length) !== 1 ? 's' : ''}`
-						: '—'}
+					{hasAny ? t.positionCount(lendingTotal + ammPositions.length) : '—'}
 				</span>
 			</div>
 
@@ -89,7 +90,7 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 			{/* Lending positions */}
 			{lendingPositions.length > 0 && (
 				<>
-					<div className="breakdown-title">Lending positions</div>
+					<div className="breakdown-title">{t.lendingPositions}</div>
 					<div className="breakdown">
 						{lendingPositions.map((pos) => (
 							<div className="stat-row" key={pos.pool} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -114,7 +115,7 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 							<div className="spacer spacer--sm" />
 						</>
 					)}
-					<div className="breakdown-title">AMM liquidity</div>
+					<div className="breakdown-title">{t.ammLiquidity}</div>
 					<div className="breakdown">
 						{ammPositions.map((pos) => (
 							<div className="stat-row" key={pos.pair} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -139,7 +140,7 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 							<div className="spacer spacer--sm" />
 						</>
 					)}
-					<div className="breakdown-title">Detected contracts</div>
+					<div className="breakdown-title">{t.detectedContracts}</div>
 					<div className="breakdown">
 						{detectedContracts.map((name) => (
 							<div className="stat-row" key={name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -152,12 +153,12 @@ export default function SovrynDefiSummary({ walletId }: { walletId: string }) {
 			)}
 
 			{!hasAny && (
-				<div className="breakdown-empty">No active Sovryn positions found.</div>
+				<div className="breakdown-empty">{t.noPositions}</div>
 			)}
 
 			{!subgraphAvailable && !hasAny && (
 				<div className="defi-status defi-status--warning" style={{ marginTop: '0.5rem' }}>
-					Sovryn subgraph unavailable — on-chain scan used.
+					{t.subgraphUnavailable}
 				</div>
 			)}
 		</div>

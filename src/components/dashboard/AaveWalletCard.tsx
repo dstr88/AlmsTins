@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getAaveWalletCard } from '@/i18n/components/aaveWalletCard';
 
 type Props = {
 	walletId: string;
@@ -33,6 +35,7 @@ type AavePositionsResponse = {
 };
 
 const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress }) => {
+	const t = getAaveWalletCard(getClientLang());
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [positions, setPositions] = useState<AavePosition[]>([]);
@@ -98,7 +101,7 @@ const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress 
 				console.log('[AaveWalletCard v3] polygon positions', polygonPositions);
 
 				if (polygon && !polygon.ok) {
-					setError(polygon.error ?? 'Polygon Aave positions unavailable');
+					setError(polygon.error ?? t.errorPolygonUnavailable);
 					setPositions([]);
 					return;
 				}
@@ -106,7 +109,7 @@ const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress 
 				setPositions(polygonPositions);
 			} catch (err: any) {
 				console.error('[AaveWalletCard v3] failed to load positions', err);
-				setError(err?.message ?? 'Failed to load Aave positions');
+				setError(err?.message ?? t.errorFallback);
 				setPositions([]);
 			} finally {
 				setLoading(false);
@@ -119,8 +122,8 @@ const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress 
 	if (loading) {
 		return (
 			<div className="card aave-card tin-panel">
-				<h3 className="tin-title">Aave positions – {walletLabel}</h3>
-				<p>Loading Aave positions…</p>
+				<h3 className="tin-title">{t.cardTitle(walletLabel)}</h3>
+				<p>{t.loading}</p>
 			</div>
 		);
 	}
@@ -128,8 +131,8 @@ const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress 
 	if (error) {
 		return (
 			<div className="card aave-card tin-panel">
-				<h3 className="tin-title">Aave positions – {walletLabel}</h3>
-				<p>Unable to load Aave positions.</p>
+				<h3 className="tin-title">{t.cardTitle(walletLabel)}</h3>
+				<p>{t.errorUnable}</p>
 				<small style={{ opacity: 0.7 }}>{error}</small>
 			</div>
 		);
@@ -138,29 +141,29 @@ const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress 
 	if (!positions.length) {
 		return (
 			<div className="card aave-card tin-panel">
-				<h3 className="tin-title">Aave positions – {walletLabel}</h3>
-				<p>No active Aave positions on this wallet.</p>
+				<h3 className="tin-title">{t.cardTitle(walletLabel)}</h3>
+				<p>{t.empty}</p>
 			</div>
 		);
 	}
 
 	return (
 		<div className="card aave-card tin-panel">
-			<h3 className="tin-title">Aave positions – {walletLabel}</h3>
+			<h3 className="tin-title">{t.cardTitle(walletLabel)}</h3>
 			<div className="aave-positions-table">
 				<table>
 					<thead>
 						<tr>
-							<th>Side</th>
-							<th>Asset</th>
-							<th>Amount</th>
-							<th>APY</th>
+							<th>{t.colSide}</th>
+							<th>{t.colAsset}</th>
+							<th>{t.colAmount}</th>
+							<th>{t.colApy}</th>
 						</tr>
 					</thead>
 					<tbody>
 						{positions.map((p, idx) => (
 							<tr key={`${p.side}-${p.assetSymbol}-${idx}`}>
-								<td>{p.side === 'supply' ? 'Supply' : 'Borrow'}</td>
+								<td>{p.side === 'supply' ? t.sideSupply : t.sideBorrow}</td>
 								<td>{p.assetSymbol}</td>
 								<td>{p.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
 								<td>{(p.apy * 100).toFixed(2)}%</td>

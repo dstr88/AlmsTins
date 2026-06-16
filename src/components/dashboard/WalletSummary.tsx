@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import './WalletSummary.css';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getWalletSummary } from '@/i18n/components/walletSummary';
 
 console.log('[island.mount]', 'WalletSummary');
 
@@ -13,6 +15,7 @@ type BasisFormProps = {
 	onClose: () => void;
 };
 function BasisForm({ walletId, symbol, chain, onClose }: BasisFormProps) {
+	const t = getWalletSummary(getClientLang());
 	const [date, setDate]   = useState('');
 	const [price, setPrice] = useState('');
 	const [saving, setSaving] = useState(false);
@@ -21,7 +24,7 @@ function BasisForm({ walletId, symbol, chain, onClose }: BasisFormProps) {
 	const save = async () => {
 		const d = date.trim();
 		const p = parseFloat(price.trim());
-		if (!d && isNaN(p)) { setMsg('Enter a date, a price, or both.'); return; }
+		if (!d && isNaN(p)) { setMsg(t.basisFormValidation); return; }
 		setSaving(true);
 		setMsg(null);
 		try {
@@ -36,13 +39,13 @@ function BasisForm({ walletId, symbol, chain, onClose }: BasisFormProps) {
 			});
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				setMsg((err as any).message ?? 'Save failed.');
+				setMsg((err as any).message ?? t.basisFormSaveFailed);
 				setSaving(false);
 				return;
 			}
 			window.location.reload();
 		} catch {
-			setMsg('Network error — please try again.');
+			setMsg(t.basisFormNetworkError);
 			setSaving(false);
 		}
 	};
@@ -50,21 +53,21 @@ function BasisForm({ walletId, symbol, chain, onClose }: BasisFormProps) {
 	return (
 		<div className="wallet-summary__basis-form">
 			<label className="wallet-summary__basis-label">
-				Bought
+				{t.basisFormBought}
 				<input type="date" value={date} onChange={(e) => setDate(e.target.value)}
 					max={new Date().toISOString().slice(0, 10)} className="wallet-summary__basis-input" />
 			</label>
 			<label className="wallet-summary__basis-label">
-				$ per coin
+				{t.basisFormPerCoin}
 				<input type="number" min="0" step="any" placeholder="0.00"
 					value={price} onChange={(e) => setPrice(e.target.value)}
 					className="wallet-summary__basis-input wallet-summary__basis-input--num" />
 			</label>
 			<button onClick={save} disabled={saving} className="wallet-summary__basis-save">
-				{saving ? 'Saving…' : 'Save'}
+				{saving ? t.basisFormSaving : t.basisFormSave}
 			</button>
 			<button onClick={onClose} className="wallet-summary__basis-cancel">
-				Cancel
+				{t.basisFormCancel}
 			</button>
 			{msg && <span className="wallet-summary__basis-error">{msg}</span>}
 		</div>
@@ -203,14 +206,17 @@ type WalletSummaryProps = {
 	} | null;
 };
 
-const formatLastSync = (value?: string | null) => {
-	if (!value) return 'never';
+const formatLastSync = (value?: string | null, neverLabel = 'never') => {
+	if (!value) return neverLabel;
 	const stamp = Date.parse(value);
 	if (!Number.isFinite(stamp)) return value;
-	return new Date(stamp).toLocaleString();
+	const lang = getClientLang();
+	const locale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+	return new Date(stamp).toLocaleString(locale);
 };
 
 export default function WalletSummary({ walletId, walletCreatedAt, initialData }: WalletSummaryProps) {
+	const t = getWalletSummary(getClientLang());
 	const [state, setState] = useState<WalletSummaryState>({ status: 'loading' });
 	const [hideSpam, setHideSpam] = useState(true);
 	const [copied, setCopied] = useState(false);
@@ -414,8 +420,8 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 						setStateLogged(
 							{
 								status: 'empty',
-								message: 'No balance data yet.',
-								hint: 'Add a wallet and run a sync to populate totals.',
+								message: t.emptyMessage,
+								hint: t.emptyHint,
 							},
 							'refresh.empty',
 						);
@@ -500,7 +506,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 						onChange={(event) => setHideSpam(event.target.checked)}
 						className="mr-2"
 					/>
-					Hide likely spam/dust tokens
+					{t.hideSpam}
 				</label>
 			) : null}
 			{WALLET_DEBUG ? (
@@ -518,9 +524,9 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 							<div className="wallet-summary__chain-rows">
 								<div className="wallet-summary__asset-row wallet-summary__asset-row--header">
 									<div className="wallet-summary__asset-line wallet-summary__asset-line--top">
-										<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
-										<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
-										<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
+										<span className="wallet-summary__cell wallet-summary__cell--days">{t.colDays}</span>
+										<span className="wallet-summary__cell wallet-summary__cell--token">{t.colToken}</span>
+										<span className="wallet-summary__cell wallet-summary__cell--value">{t.colValue}</span>
 									</div>
 								</div>
 								{chain.tokens.map((token) => (
@@ -533,7 +539,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											</span>
 											<span className="wallet-summary__cell wallet-summary__cell--token">{token.symbol}</span>
 											<span className="wallet-summary__cell wallet-summary__cell--value">
-												{token.usdValue == null ? 'Unpriced' : currencyFormatter.format(Number(token.usdValue))}
+												{token.usdValue == null ? t.unpriced : currencyFormatter.format(Number(token.usdValue))}
 											</span>
 										</div>
 										<div className="wallet-summary__asset-line wallet-summary__asset-line--bottom">
@@ -575,17 +581,17 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 			) : null}
 			{state.status === 'error' ? (
 				<div className="wallet-summary__error-panel">
-					<div className="wallet-summary__error-message">Could not load wallet data</div>
+					<div className="wallet-summary__error-message">{t.errorMessage}</div>
 					<div className="wallet-summary__error-detail">{state.message}</div>
 					<div className="wallet-summary__error-ref">
-						<span className="wallet-summary__error-ref-label">Ref</span>
+						<span className="wallet-summary__error-ref-label">{t.errorRefLabel}</span>
 						<code className="wallet-summary__error-ref-code">{state.refCode}</code>
 					</div>
 					<button
 						className="wallet-summary__retry-btn"
 						onClick={() => setRetryKey((k) => k + 1)}
 					>
-						Try again
+						{t.retryBtn}
 					</button>
 				</div>
 			) : null}
@@ -599,26 +605,26 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 			{state.status === 'stale' ? (
 				<>
 					<div className="wallet-summary__status wallet-summary__status--error">
-						Stale: refresh failed. Showing last known balances.
+						{t.staleBanner}
 					</div>
 					{(() => {
 						const tokens = state.wallet.tokens ?? [];
-						const unpricedCount = tokens.filter((t) => t.unpricedReason || t.usdValue == null).length;
+						const unpricedCount = tokens.filter((tok) => tok.unpricedReason || tok.usdValue == null).length;
 						const showBanner = tokens.length > 0 && unpricedCount >= Math.ceil(tokens.length * 0.5);
 						return showBanner ? (
 							<div className="wallet-summary__status">
-								Holdings loaded; most tokens are unpriced/unverified (likely spam).
+								{t.unpricedBanner}
 							</div>
 						) : null;
 					})()}
 					<div className="wallet-summary__total">
-						<span className="wallet-summary__total-label">Total</span>
+						<span className="wallet-summary__total-label">{t.totalLabel}</span>
 						<span className="wallet-summary__total-value">
 							{(() => {
 								const tokens = state.wallet.tokens ?? [];
-								const unpricedCount = tokens.filter((t) => t.unpricedReason || t.usdValue == null).length;
+								const unpricedCount = tokens.filter((tok) => tok.unpricedReason || tok.usdValue == null).length;
 								return state.wallet.totalUsd === 0 && unpricedCount > 0
-									? 'Unpriced'
+									? t.unpriced
 									: currencyFormatter.format(state.wallet.totalUsd);
 							})()}
 						</span>
@@ -627,10 +633,10 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 						const tokens = state.wallet.tokens ?? [];
 						const displayedTokens = hideSpam
 							? tokens.filter(
-									(t) =>
-										(t.usdValue != null && t.usdValue > 0.01) ||
-										t.amount >= 1e-4 ||
-										!t.unpricedReason,
+									(tok) =>
+										(tok.usdValue != null && tok.usdValue > 0.01) ||
+										tok.amount >= 1e-4 ||
+										!tok.unpricedReason,
 							  )
 							: tokens;
 						const groups = buildChainGroups(displayedTokens);
@@ -640,9 +646,9 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 								<div className="wallet-summary__chain-rows">
 									<div className="wallet-summary__asset-row wallet-summary__asset-row--header">
 										<div className="wallet-summary__asset-line wallet-summary__asset-line--top">
-											<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
-											<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
-											<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
+											<span className="wallet-summary__cell wallet-summary__cell--days">{t.colDays}</span>
+											<span className="wallet-summary__cell wallet-summary__cell--token">{t.colToken}</span>
+											<span className="wallet-summary__cell wallet-summary__cell--value">{t.colValue}</span>
 										</div>
 									</div>
 									{group.items.map((token: any) => {
@@ -664,11 +670,11 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											}
 										}
 										const valueNode = isUnverified ? (
-											<abbr title="Unverified contract — price cannot be confirmed" className="wallet-summary__cell--value-unverified">?</abbr>
+											<abbr title={t.unpricedContractTitle} className="wallet-summary__cell--value-unverified">?</abbr>
 										) : resolvedUsd !== null ? (
 											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{currencyFormatter.format(resolvedUsd)}</span>
 										) : (
-											<abbr title="Price data unavailable for this token" className="wallet-summary__cell--value-unpriced">—</abbr>
+											<abbr title={t.unpricedDataTitle} className="wallet-summary__cell--value-unpriced">—</abbr>
 										);
 										// Days held priority:
 										// 1. purchaseAt — from imported tx history (most accurate)
@@ -734,7 +740,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													<span className="wallet-summary__cell wallet-summary__cell--qty wallet-summary__cell--qty-top">
 														{Number(token.amount ?? 0).toLocaleString(undefined, {
 															maximumFractionDigits: 4,
-														})} ea
+														})} {t.qtyEach}
 													</span>
 													<span className="wallet-summary__cell wallet-summary__cell--value">
 														{valueNode}
@@ -758,8 +764,8 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 																		: { symbol: token.tokenSymbol, chain: token.chain }
 																)}
 																className="wallet-summary__add-basis-btn"
-																title="Enter your purchase date and/or price paid"
-															>+ basis</button>
+																title={t.addBasisTitle}
+															>{t.addBasis}</button>
 														)}
 													</span>
 												</div>
@@ -781,22 +787,22 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 				<>
 					{(() => {
 						const tokens = state.wallet.tokens ?? [];
-						const unpricedCount = tokens.filter((t) => t.unpricedReason || t.usdValue == null).length;
+						const unpricedCount = tokens.filter((tok) => tok.unpricedReason || tok.usdValue == null).length;
 						const showBanner = tokens.length > 0 && unpricedCount >= Math.ceil(tokens.length * 0.5);
 						return showBanner ? (
 							<div className="wallet-summary__status">
-								Holdings loaded; most tokens are unpriced/unverified (likely spam).
+								{t.unpricedBanner}
 							</div>
 						) : null;
 					})()}
 					<div className="wallet-summary__total">
-						<span className="wallet-summary__total-label">Total</span>
+						<span className="wallet-summary__total-label">{t.totalLabel}</span>
 						<span className="wallet-summary__total-value">
 							{(() => {
 								const tokens = state.wallet.tokens ?? [];
-								const unpricedCount = tokens.filter((t) => t.unpricedReason || t.usdValue == null).length;
+								const unpricedCount = tokens.filter((tok) => tok.unpricedReason || tok.usdValue == null).length;
 								return state.wallet.totalUsd === 0 && unpricedCount > 0
-									? 'Unpriced'
+									? t.unpriced
 									: currencyFormatter.format(state.wallet.totalUsd);
 							})()}
 						</span>
@@ -805,10 +811,10 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 						const tokens = state.wallet.tokens ?? [];
 						const displayedTokens = hideSpam
 							? tokens.filter(
-									(t) =>
-										(t.usdValue != null && t.usdValue > 0.01) ||
-										t.amount >= 1e-4 ||
-										!t.unpricedReason,
+									(tok) =>
+										(tok.usdValue != null && tok.usdValue > 0.01) ||
+										tok.amount >= 1e-4 ||
+										!tok.unpricedReason,
 							  )
 							: tokens;
 						const groups = buildChainGroups(displayedTokens);
@@ -818,9 +824,9 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 								<div className="wallet-summary__chain-rows">
 									<div className="wallet-summary__asset-row wallet-summary__asset-row--header">
 										<div className="wallet-summary__asset-line wallet-summary__asset-line--top">
-											<span className="wallet-summary__cell wallet-summary__cell--days">Days</span>
-											<span className="wallet-summary__cell wallet-summary__cell--token">Token</span>
-											<span className="wallet-summary__cell wallet-summary__cell--value">Value</span>
+											<span className="wallet-summary__cell wallet-summary__cell--days">{t.colDays}</span>
+											<span className="wallet-summary__cell wallet-summary__cell--token">{t.colToken}</span>
+											<span className="wallet-summary__cell wallet-summary__cell--value">{t.colValue}</span>
 										</div>
 									</div>
 									{group.items.map((token: any) => {
@@ -842,11 +848,11 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 											}
 										}
 										const valueNode = isUnverified ? (
-											<abbr title="Unverified contract — price cannot be confirmed" className="wallet-summary__cell--value-unverified">?</abbr>
+											<abbr title={t.unpricedContractTitle} className="wallet-summary__cell--value-unverified">?</abbr>
 										) : resolvedUsd !== null ? (
 											<span className={resolvedUsd > 0 ? 'wallet-summary__cell--value-positive' : undefined}>{currencyFormatter.format(resolvedUsd)}</span>
 										) : (
-											<abbr title="Price data unavailable for this token" className="wallet-summary__cell--value-unpriced">—</abbr>
+											<abbr title={t.unpricedDataTitle} className="wallet-summary__cell--value-unpriced">—</abbr>
 										);
 										// Days held priority:
 										// 1. purchaseAt — from imported tx history (most accurate)
@@ -912,7 +918,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 													<span className="wallet-summary__cell wallet-summary__cell--qty wallet-summary__cell--qty-top">
 														{Number(token.amount ?? 0).toLocaleString(undefined, {
 															maximumFractionDigits: 4,
-														})} ea
+														})} {t.qtyEach}
 													</span>
 													<span className="wallet-summary__cell wallet-summary__cell--value">
 														{valueNode}
@@ -936,8 +942,8 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 																		: { symbol: token.tokenSymbol, chain: token.chain }
 																)}
 																className="wallet-summary__add-basis-btn"
-																title="Enter your purchase date and/or price paid"
-															>+ basis</button>
+																title={t.addBasisTitle}
+															>{t.addBasis}</button>
 														)}
 													</span>
 												</div>

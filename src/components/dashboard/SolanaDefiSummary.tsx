@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getSolanaDefiSummary } from '@/i18n/components/solanaDefiSummary';
 
 console.log('[island.mount]', 'SolanaDefiSummary');
 
@@ -11,6 +13,7 @@ type FetchState =
 
 export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
+	const t = getSolanaDefiSummary(getClientLang());
 
 	useEffect(() => {
 		let cancelled = false;
@@ -30,10 +33,10 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 	}, [walletId]);
 
 	if (state.status === 'loading') {
-		return <div className="defi-stats"><div className="defi-status defi-status--loading">Scanning Solana DeFi…</div></div>;
+		return <div className="defi-stats"><div className="defi-status defi-status--loading">{t.loading}</div></div>;
 	}
 	if (state.status === 'error') {
-		return <div className="defi-stats"><div className="defi-status defi-status--error">Unable to load DeFi activity.</div></div>;
+		return <div className="defi-stats"><div className="defi-status defi-status--error">{t.error}</div></div>;
 	}
 
 	const { protocols, recentPrograms } = state;
@@ -46,7 +49,7 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 
 	return (
 		<div className="defi-stats">
-			<div className="breakdown-title">Active protocols</div>
+			<div className="breakdown-title">{t.activeProtocols}</div>
 			<div className="breakdown">
 				{protocols.length > 0 ? protocols.map((name) => (
 					<div className="stat-row" key={name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -54,7 +57,7 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 						<span className="label">{name}</span>
 					</div>
 				)) : (
-					<div className="breakdown-empty">No active protocol accounts found.</div>
+					<div className="breakdown-empty">{t.noActiveProtocols}</div>
 				)}
 			</div>
 
@@ -63,7 +66,7 @@ export default function SolanaDefiSummary({ walletId }: { walletId: string }) {
 					<div className="spacer spacer--md" />
 					<div className="divider" />
 					<div className="spacer spacer--sm" />
-					<div className="breakdown-title">Also seen in tx history</div>
+					<div className="breakdown-title">{t.alsoSeenInHistory}</div>
 					<div className="breakdown">
 						{namedNew.map((p) => (
 							<div className="stat-row" key={p.programId}>

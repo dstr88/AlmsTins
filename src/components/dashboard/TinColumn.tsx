@@ -1,6 +1,8 @@
 import React from 'react';
 
 import { TinAssetsCard } from '@/components/dashboard/TinAssetsCard';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getTinColumn } from '@/i18n/components/tinColumn';
 
 export type TinColumnProps = {
 	tinId: string;
@@ -16,10 +18,11 @@ const formatUsd = (value: number) =>
 	`$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export function TinColumn({ tinId, tinName, type, assetsUsd, debtUsd, notes, walletLabel }: TinColumnProps) {
+	const t = getTinColumn(getClientLang());
 	const typeLabel = type ? type.toString() : 'N/A';
 	const noteLine = notes || typeLabel;
 
-	const debtTitle = `${tinName} — Debt`;
+	const debtTitle = t.debtTitle(tinName);
 
 	return (
 		<div

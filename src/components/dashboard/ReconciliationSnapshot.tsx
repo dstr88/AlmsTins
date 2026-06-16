@@ -11,6 +11,8 @@
 
 import React, { useEffect, useState } from 'react';
 import './reconciliation.css';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getReconciliationSnapshot } from '@/i18n/components/reconciliationSnapshot';
 
 interface ReconciliationItem {
 	symbol:       string;
@@ -41,6 +43,7 @@ const fmtDelta = (delta: number): string => {
 const currentYear = new Date().getFullYear();
 
 export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?: number }) {
+	const t = getReconciliationSnapshot(getClientLang());
 	const [items, setItems]         = useState<ReconciliationItem[] | null>(null);
 	const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 	const [error, setError]         = useState(false);
@@ -60,22 +63,22 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 		<div className="recon-card">
 			<div className="recon-card__header">
 				<span className="recon-card__num">2</span>
-				<span className="recon-card__title">From Snapshot</span>
+				<span className="recon-card__title">{t.heading}</span>
 			</div>
 
 			{error && (
-				<div className="recon-state">Unable to load snapshot data.</div>
+				<div className="recon-state">{t.errorState}</div>
 			)}
 
 			{!error && items === null && (
 				<div className="recon-state">
 					<div className="recon-spinner" />
-					Loading…
+					{t.loadingState}
 				</div>
 			)}
 
 			{!error && items !== null && items.length === 0 && (
-				<div className="recon-state">No holdings above ${threshold} threshold.</div>
+				<div className="recon-state">{t.emptyState(threshold)}</div>
 			)}
 
 			{!error && items !== null && items.length > 0 && (
@@ -104,7 +107,7 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 								{item.match ? (
 									<div className="recon-status">
 										<span className="recon-status__dot recon-status__dot--match" />
-										<span className="recon-status__label recon-status__label--match">Match</span>
+										<span className="recon-status__label recon-status__label--match">{t.matchLabel}</span>
 									</div>
 								) : (
 									<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
@@ -115,9 +118,9 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 										<a
 											href={`/dashboard/yearEnd/memory-lane?year=${currentYear}&symbol=${item.symbol}`}
 											className="recon-ml-link"
-											title={`Investigate ${item.symbol} in History`}
+											title={t.investigateTitle(item.symbol)}
 										>
-											History →
+											{t.historyLink}
 										</a>
 									</div>
 								)}
@@ -127,7 +130,7 @@ export default function ReconciliationSnapshot({ threshold = 50 }: { threshold?:
 
 					{updatedAt && (
 						<div className="recon-footer">
-							Snapshot as of {new Date(updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+							{t.footerAs(new Date(updatedAt).toLocaleTimeString(t.lang, { hour: '2-digit', minute: '2-digit' }))}
 						</div>
 					)}
 				</>

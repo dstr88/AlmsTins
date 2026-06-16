@@ -10,6 +10,8 @@
 
 import React, { useEffect, useState } from 'react';
 import './reconciliation.css';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getReconciliationTransactions } from '@/i18n/components/reconciliationTransactions';
 
 interface ReconciliationItem {
 	symbol:       string;
@@ -28,6 +30,7 @@ const fmtQty = (n: number): string => {
 };
 
 export default function ReconciliationTransactions({ threshold = 50 }: { threshold?: number }) {
+	const t = getReconciliationTransactions(getClientLang());
 	const [items, setItems]       = useState<ReconciliationItem[] | null>(null);
 	const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 	const [error, setError]       = useState(false);
@@ -47,22 +50,22 @@ export default function ReconciliationTransactions({ threshold = 50 }: { thresho
 		<div className="recon-card">
 			<div className="recon-card__header">
 				<span className="recon-card__num">1</span>
-				<span className="recon-card__title">From Transactions</span>
+				<span className="recon-card__title">{t.heading}</span>
 			</div>
 
 			{error && (
-				<div className="recon-state">Unable to load transaction data.</div>
+				<div className="recon-state">{t.errorState}</div>
 			)}
 
 			{!error && items === null && (
 				<div className="recon-state">
 					<div className="recon-spinner" />
-					Loading…
+					{t.loadingState}
 				</div>
 			)}
 
 			{!error && items !== null && items.length === 0 && (
-				<div className="recon-state">No holdings above ${threshold} threshold.</div>
+				<div className="recon-state">{t.emptyState(threshold)}</div>
 			)}
 
 			{!error && items !== null && items.length > 0 && (
@@ -86,7 +89,7 @@ export default function ReconciliationTransactions({ threshold = 50 }: { thresho
 								<div className="recon-status">
 									<span className={`recon-status__dot recon-status__dot--${item.match ? 'match' : 'gap'}`} />
 									<span className={`recon-status__label recon-status__label--${item.match ? 'match' : 'gap'}`}>
-										{item.match ? 'Match' : 'Gap'}
+										{item.match ? t.matchLabel : t.gapLabel}
 									</span>
 								</div>
 							</li>
@@ -95,7 +98,7 @@ export default function ReconciliationTransactions({ threshold = 50 }: { thresho
 
 					{updatedAt && (
 						<div className="recon-footer">
-							Lifecycle as of {new Date(updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+							{t.lifecycleAsOf(new Date(updatedAt).toLocaleTimeString(t.timeLocale, { hour: '2-digit', minute: '2-digit' }))}
 						</div>
 					)}
 				</>
