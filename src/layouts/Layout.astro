@@ -132,7 +132,8 @@ if (tenantId) {
       const days = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
       if (days <= 30 && days > 0) {
         promoDaysLeft = days;
-        promoExpiryDisplay = new Intl.DateTimeFormat('en-US', {
+        const dateLocale = navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US';
+        promoExpiryDisplay = new Intl.DateTimeFormat(dateLocale, {
           month: 'long', day: 'numeric', year: 'numeric'
         }).format(new Date(expiresAt));
       }
@@ -143,13 +144,13 @@ if (tenantId) {
 const fmtDate = (iso: string | null) => {
   if (!iso) return null;
   try {
-    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+    return new Intl.DateTimeFormat(navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
   } catch { return null; }
 };
 
 const lastLoginDisplay = fmtDate(lastLoginIso);
 const memberSinceDisplay = memberSinceIso
-  ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(memberSinceIso))
+  ? new Intl.DateTimeFormat(navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(memberSinceIso))
   : null;
 ---
 
@@ -210,12 +211,12 @@ const memberSinceDisplay = memberSinceIso
 			<div class="promo-expiry-banner">
 				<span class="promo-expiry-banner__icon">⏳</span>
 				<span class="promo-expiry-banner__text">
-					Your free year ends in <strong>{promoDaysLeft} day{promoDaysLeft === 1 ? '' : 's'}</strong>
+					<strong>{tNav.chrome.promoDays(promoDaysLeft!)}</strong>
 					{promoExpiryDisplay ? ` (${promoExpiryDisplay})` : ''}.
-					Keep your access — upgrade before it expires.
+					{tNav.chrome.promoKeep}
 				</span>
 				<a href="/dashboard/billing" class="promo-expiry-banner__btn">
-					View Plans →
+					{tNav.chrome.promoViewPlans}
 				</a>
 			</div>
 		)}
@@ -224,20 +225,20 @@ const memberSinceDisplay = memberSinceIso
 				<div>
 					<p class="brand">Titanium Hut</p>
 					{isAdmin
-					? <a class="dashboard-link" href="/admin">Admin Dashboard</a>
+					? <a class="dashboard-link" href="/admin">{tNav.chrome.adminDashboard}</a>
 					: <a class="dashboard-link" href={currentPath}>{
-						currentPath.includes('/bookkeeping') ? 'Bookkeeping' :
-						currentPath.includes('memory-lane')  ? 'History' :
-						currentPath.includes('/wallets')     ? 'Addresses' :
-						currentPath.includes('/research')    ? 'Research' :
-						currentPath.includes('/billing')     ? 'Billing' :
-						currentPath.includes('/wallet-checker') ? 'Scam Checker' :
-						currentPath.includes('/admin')       ? 'Admin' :
-						'Vault'
+						currentPath.includes('/bookkeeping') ? tNav.nav.bookkeeping :
+						currentPath.includes('memory-lane')  ? tNav.nav.history :
+						currentPath.includes('/wallets')     ? tNav.nav.addresses :
+						currentPath.includes('/research')    ? tNav.nav.research :
+						currentPath.includes('/billing')     ? tNav.nav.billing :
+						currentPath.includes('/wallet-checker') ? tNav.chrome.scamChecker :
+						currentPath.includes('/admin')       ? tNav.chrome.admin :
+						tNav.nav.vault
 					}</a>
 				}
 				</div>
-				<button id="nav-toggle" class="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">☰</button>
+				<button id="nav-toggle" class="nav-toggle" aria-label={tNav.chrome.ariaOpenMenu} aria-expanded="false" aria-controls="nav-drawer">☰</button>
 				<nav id="nav-drawer">
 				{isTradfiDomain ? (
 					<!-- TradfiTins-only nav -->
@@ -258,7 +259,7 @@ const memberSinceDisplay = memberSinceIso
 						)}
 						<a href="/dashboard/yearEnd/memory-lane" class={`nav-link ${currentPath.includes('memory-lane') ? 'active' : ''}`}>{tNav.nav.history}</a>
 						<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>{tNav.nav.alerts}</a>
-						<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>
+						<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>{tNav.chrome.scamChecker}</a>
 						<a href="/dashboard/research" class={`nav-link nav-link--research ${isActive('/dashboard/research') ? 'active' : ''}`}>{tNav.nav.research}</a>
 					</>
 				)}
@@ -287,7 +288,7 @@ const memberSinceDisplay = memberSinceIso
 							) : (
 								<img class="account-avatar account-avatar--default" src={defaultAvatar.src} alt="Account" />
 							)}
-							<span class="account-label">Account</span>
+							<span class="account-label">{tNav.chrome.account}</span>
 							<span class="account-caret" aria-hidden="true">▾</span>
 						</summary>
 
@@ -310,17 +311,17 @@ const memberSinceDisplay = memberSinceIso
 							<!-- Meta: email, tenant ID, last login, member since -->
 							<div class="account-meta-block">
 								<div class="account-meta-row">
-									<span class="account-meta-label">Account email</span>
+									<span class="account-meta-label">{tNav.chrome.accountEmail}</span>
 									<span class="account-meta-value account-meta-email">{displayEmail ?? '—'}</span>
 								</div>
 								<div class="account-meta-row">
-									<span class="account-meta-label">Alert email</span>
+									<span class="account-meta-label">{tNav.chrome.alertEmail}</span>
 									<span id="alert-email-display" class="account-meta-value">
 										{alertEmail
 											? <span id="alert-email-text">{alertEmail}</span>
-											: <em id="alert-email-text" class="account-meta-unset">not set</em>
+											: <em id="alert-email-text" class="account-meta-unset">{tNav.chrome.notSet}</em>
 										}
-										<button type="button" id="alert-email-edit-btn" class="account-inline-edit" title="Edit alert email" aria-label="Edit alert email">✏</button>
+										<button type="button" id="alert-email-edit-btn" class="account-inline-edit" title={tNav.chrome.ariaEditAlertEmail} aria-label={tNav.chrome.ariaEditAlertEmail}>✏</button>
 									</span>
 									<form id="alert-email-form" class="alert-email-form" hidden>
 										<input
@@ -332,22 +333,22 @@ const memberSinceDisplay = memberSinceIso
 											autocomplete="email"
 										/>
 										<div class="alert-email-actions">
-											<button type="submit" class="alert-email-save">Save</button>
-											<button type="button" id="alert-email-cancel" class="alert-email-cancel">Cancel</button>
+											<button type="submit" class="alert-email-save">{tNav.ui.save}</button>
+											<button type="button" id="alert-email-cancel" class="alert-email-cancel">{tNav.ui.cancel}</button>
 										</div>
 									</form>
 								</div>
 								{tenantId && (
 									<div class="account-meta-row">
-										<span class="account-meta-label">Tenant ID</span>
+										<span class="account-meta-label">{tNav.chrome.tenantId}</span>
 										<span class="account-meta-value">
 											<code>{tenantId.slice(0, 8)}&hellip;</code>
 											<button
 												class="copy-btn"
 												type="button"
 												data-copy={tenantId}
-												aria-label="Copy tenant ID"
-												title="Copy full tenant ID"
+												aria-label={tNav.chrome.ariaCopyTenantId}
+												title={tNav.chrome.ariaCopyTenantId}
 											>
 												<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
 											</button>
@@ -356,13 +357,13 @@ const memberSinceDisplay = memberSinceIso
 								)}
 								{lastLoginDisplay && (
 									<div class="account-meta-row">
-										<span class="account-meta-label">Last login</span>
+										<span class="account-meta-label">{tNav.chrome.lastLogin}</span>
 										<span class="account-meta-value">{lastLoginDisplay}</span>
 									</div>
 								)}
 								{memberSinceDisplay && (
 									<div class="account-meta-row">
-										<span class="account-meta-label">Member since</span>
+										<span class="account-meta-label">{tNav.chrome.memberSince}</span>
 										<span class="account-meta-value">{memberSinceDisplay}</span>
 									</div>
 								)}
@@ -370,27 +371,27 @@ const memberSinceDisplay = memberSinceIso
 
 							<hr class="account-divider" />
 
-							<a href="/dashboard/billing" class="account-billing-link">Billing &amp; Plan</a>
+							<a href="/dashboard/billing" class="account-billing-link">{tNav.chrome.billingPlan}</a>
 
 							<hr class="account-divider" />
 
 							<!-- Delete account -->
 							<div class="account-delete-wrap">
-								<button id="delete-account-btn" class="account-delete" type="button">Delete my account</button>
+								<button id="delete-account-btn" class="account-delete" type="button">{tNav.chrome.deleteAccount}</button>
 							</div>
 
 							<hr class="account-divider" />
 
 							<!-- Logout -->
 							<form id="logout" method={logoutRedirect ? 'get' : 'post'} action={logoutRedirect ? `/api/logout?next=${encodeURIComponent(logoutRedirect)}` : '/api/logout'}>
-								<button class="account-logout" type="submit">Log out</button>
+								<button class="account-logout" type="submit">{tNav.chrome.logOut}</button>
 							</form>
 						</div>
 					</details>
 					{isDemo && (
 						<div class="nav-demo-links">
-							<a href="/" class="nav-link nav-demo-signup">Log in / Sign up free →</a>
-							<a href="/api/demo/end" class="nav-link nav-demo-exit">Exit demo</a>
+							<a href="/" class="nav-link nav-demo-signup">{tNav.chrome.demoSignup}</a>
+							<a href="/api/demo/end" class="nav-link nav-demo-exit">{tNav.chrome.demoExit}</a>
 						</div>
 					)}
 				</nav>
@@ -404,31 +405,31 @@ const memberSinceDisplay = memberSinceIso
 		{user && (
 			<>
 				<!-- ── Help pill ──────────────────────────────────────────────────── -->
-				<button id="help-pill" class="help-pill" aria-label="Get help" title="Get help">
-					💬 Help
+				<button id="help-pill" class="help-pill" aria-label={tNav.chrome.helpTitle} title={tNav.chrome.helpTitle}>
+					{tNav.chrome.helpPill}
 					<span id="help-pill-badge" class="help-pill__badge" hidden>0</span>
 				</button>
 
 				<!-- ── Help drawer ───────────────────────────────────────────────── -->
 				<div id="help-drawer" class="help-drawer" role="dialog" aria-modal="true" aria-label="Support chat" hidden>
 					<div class="help-drawer__header">
-						<span class="help-drawer__title">Get Help</span>
-						<button id="help-drawer-close" class="help-drawer__close" aria-label="Close">✕</button>
+						<span class="help-drawer__title">{tNav.chrome.helpTitle}</span>
+						<button id="help-drawer-close" class="help-drawer__close" aria-label={tNav.ui.close}>✕</button>
 					</div>
 					<div class="help-drawer__messages" id="help-messages">
-						<p class="help-drawer__loading">Loading…</p>
+						<p class="help-drawer__loading">{tNav.chrome.helpLoading}</p>
 					</div>
 					<div class="help-drawer__compose">
 						<textarea
 							id="help-input"
 							class="help-drawer__input"
-							placeholder="Describe your issue…"
+							placeholder={tNav.chrome.helpPlaceholder}
 							maxlength="500"
 							rows="3"
 						></textarea>
 						<div class="help-drawer__footer">
 							<span id="help-char-count" class="help-drawer__count">0 / 500</span>
-							<button id="help-send" class="help-drawer__send">Send</button>
+							<button id="help-send" class="help-drawer__send">{tNav.chrome.helpSend}</button>
 						</div>
 					</div>
 				</div>
@@ -436,6 +437,22 @@ const memberSinceDisplay = memberSinceIso
 		)}
 	</body>
 </html>
+
+{user && (
+<script is:inline define:vars={{ chromeI18n: {
+  helpLoading:       tNav.chrome.helpLoading,
+  helpEmpty:         tNav.chrome.helpEmpty,
+  helpSupportPrefix: tNav.chrome.helpSupportPrefix,
+  helpYouPrefix:     tNav.chrome.helpYouPrefix,
+  helpLoadError:     tNav.chrome.helpLoadError,
+  helpSending:       tNav.chrome.helpSending,
+  helpSend:          tNav.chrome.helpSend,
+  helpSendError:     tNav.chrome.helpSendError,
+  dateLocale:        navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US',
+} }}>
+window.__chromeI18n = chromeI18n;
+</script>
+)}
 
 {user && (
 
@@ -486,7 +503,8 @@ const memberSinceDisplay = memberSinceIso
 
 	const fmtDate = (iso: string) => {
 		try {
-			return new Intl.DateTimeFormat('en-US', {
+			const _loc = (window as any).__chromeI18n?.dateLocale || 'en-US';
+			return new Intl.DateTimeFormat(_loc, {
 				month: 'short', day: 'numeric',
 				hour: 'numeric', minute: '2-digit',
 			}).format(new Date(iso));
@@ -498,7 +516,7 @@ const memberSinceDisplay = memberSinceIso
 		if (!msgs.length) {
 			const p = document.createElement('p');
 			p.className = 'help-drawer__empty';
-			p.textContent = 'No messages yet.\nDescribe your issue below and we\'ll get back to you.';
+			p.textContent = ((window as any).__chromeI18n?.helpEmpty) || 'No messages yet.\nDescribe your issue below and we\'ll get back to you.';
 			messages!.appendChild(p);
 			return;
 		}
@@ -513,7 +531,8 @@ const memberSinceDisplay = memberSinceIso
 
 			const time = document.createElement('div');
 			time.className = 'help-msg__time';
-			time.textContent = (isAdmin ? 'Support · ' : 'You · ') + fmtDate(msg.created_at);
+			const _i18n = (window as any).__chromeI18n || {};
+			time.textContent = (isAdmin ? (_i18n.helpSupportPrefix || 'Support · ') : (_i18n.helpYouPrefix || 'You · ')) + fmtDate(msg.created_at);
 
 			wrap.appendChild(text);
 			wrap.appendChild(time);
@@ -523,14 +542,14 @@ const memberSinceDisplay = memberSinceIso
 	}
 
 	async function loadThread() {
-		messages!.innerHTML = '<p class="help-drawer__loading">Loading…</p>';
+		messages!.innerHTML = `<p class="help-drawer__loading">${((window as any).__chromeI18n?.helpLoading) || 'Loading…'}</p>`;
 		try {
 			const res  = await fetch('/api/support');
 			const data = await res.json();
 			renderMessages(Array.isArray(data.messages) ? data.messages : []);
 			badge!.hidden = true; // cleared on read
 		} catch {
-			messages!.innerHTML = '<p class="help-drawer__empty">Could not load messages.</p>';
+			messages!.innerHTML = `<p class="help-drawer__empty">${((window as any).__chromeI18n?.helpLoadError) || 'Could not load messages.'}</p>`;
 		}
 	}
 
@@ -583,7 +602,7 @@ const memberSinceDisplay = memberSinceIso
 		const text = input!.value.trim();
 		if (!text) return;
 		sendBtn!.disabled = true;
-		sendBtn!.textContent = 'Sending…';
+		sendBtn!.textContent = ((window as any).__chromeI18n?.helpSending) || 'Sending…';
 		try {
 			const res  = await fetch('/api/support', {
 				method:  'POST',
@@ -597,10 +616,10 @@ const memberSinceDisplay = memberSinceIso
 			counter!.className = 'help-drawer__count';
 			await loadThread();
 		} catch (err: any) {
-			alert(err?.message ?? 'Could not send message. Please try again.');
+			alert(err?.message ?? ((window as any).__chromeI18n?.helpSendError || 'Could not send message. Please try again.'));
 		} finally {
 			sendBtn!.disabled = false;
-			sendBtn!.textContent = 'Send';
+			sendBtn!.textContent = ((window as any).__chromeI18n?.helpSend) || 'Send';
 		}
 	});
 

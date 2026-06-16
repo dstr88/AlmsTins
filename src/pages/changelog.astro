@@ -1,21 +1,26 @@
 ---
 import Layout from '@/layouts/LoginLayout.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getChangelog } from '@/i18n/changelog';
+const lang = getLang(Astro.request);
+const t = getChangelog(lang);
 ---
 
 <Layout
-  title="Changelog | Almstins"
-  description="What's new, what changed, and why — updates from the Almstins team."
+  title={t.pageTitle}
+  description={t.description}
+  lang={lang}
   noindex={true}
 >
   <div class="page">
 
     <header class="page-header">
-      <a href="/login" class="back-link">← Back to Almstins</a>
+      <a href="/login" class="back-link">{t.backLink}</a>
     </header>
 
     <main class="content">
-      <h1 class="page-title">Changelog</h1>
-      <p class="page-sub">What's new, what changed, and why.</p>
+      <h1 class="page-title">{t.heading}</h1>
+      <p class="page-sub">{t.sub}</p>
 
       <div class="entries">
 
