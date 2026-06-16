@@ -157,6 +157,27 @@ const defiHoldings   = bd.stillHolding.filter(p => isDefiAsset(p.asset));
 
 const walletCostBasis = walletHoldings.reduce((s, p) => s + (p.costUsd ?? 0), 0);
 const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0);
+
+// ── On-chain transaction-sync freshness (drives the "synced N ago" strip) ──────
+// Reads wallet_sync_state.last_run_at — stamped after the EVM ledger is pulled
+// (sync-wallets cron OR the in-app sync). If it's old, the bookkeeping data is
+// behind, which is otherwise silent. Thresholds: ok ≤8d, warn ≤30d, else stale.
+const syncFreshRow = await db.execute({
+  sql: `SELECT MAX(last_run_at) AS last FROM wallet_sync_state WHERE tenant_id = ?`,
+  args: [tenantId],
+});
+const lastSyncRaw = syncFreshRow.rows[0]?.last as string | null;
+const lastSyncMs  = lastSyncRaw ? Date.parse(String(lastSyncRaw).replace(' ', 'T') + 'Z') : NaN;
+const hasSync     = Number.isFinite(lastSyncMs);
+const syncAgeDays = hasSync ? (Date.now() - lastSyncMs) / 86_400_000 : Infinity;
+const syncLevel: 'ok' | 'warn' | 'stale' | 'never' =
+  !hasSync ? 'never' : syncAgeDays <= 8 ? 'ok' : syncAgeDays <= 30 ? 'warn' : 'stale';
+const syncRtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
+const syncRelative = !hasSync ? '' :
+  syncAgeDays < 1   ? syncRtf.format(-Math.max(1, Math.round((Date.now() - lastSyncMs) / 3_600_000)), 'hour') :
+  syncAgeDays < 45  ? syncRtf.format(-Math.round(syncAgeDays), 'day') :
+  syncAgeDays < 365 ? syncRtf.format(-Math.round(syncAgeDays / 30), 'month') :
+                      syncRtf.format(-Math.round(syncAgeDays / 365), 'year');
 ---
 
 <Layout title={t.pageTitle} noindex={true}>
@@ -204,6 +225,51 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
         )}
       </div>
     </div>
+
+    <!-- ══ On-chain transaction-sync freshness strip ═══════════════════════ -->
+    <div class={`sync-strip sync-strip--${syncLevel}`}>
+      <span class="sync-strip__status">
+        {syncLevel === 'never' ? t.txSyncedNever : `${t.txSyncedPrefix} ${syncRelative}`}
+      </span>
+      {(syncLevel === 'warn' || syncLevel === 'stale' || syncLevel === 'never') && (
+        <span class="sync-strip__note">{t.syncStaleNote}</span>
+      )}
+      <button type="button" class="sync-strip__btn" id="bk-sync-now">{t.syncNow}</button>
+    </div>
+
+    <style>
+      .sync-strip { display: flex; align-items: center; gap: 0.5rem 0.9rem; flex-wrap: wrap; margin: 0.25rem 0 1rem; padding: 0.5rem 0.9rem; border-radius: 8px; font-size: 0.82rem; border: 1px solid var(--border-subtle); background: var(--surface-card); color: var(--text-secondary); }
+      .sync-strip__status { font-weight: 600; }
+      .sync-strip__note { color: var(--text-muted); }
+      .sync-strip__btn { margin-left: auto; padding: 0.32rem 0.95rem; border-radius: 999px; border: 1px solid var(--border-bright); background: transparent; color: var(--text-primary); font-size: 0.78rem; cursor: pointer; transition: background 0.15s ease; }
+      .sync-strip__btn:hover { background: var(--surface-hover); }
+      .sync-strip__btn:disabled { opacity: 0.6; cursor: default; }
+      .sync-strip--warn { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
+      .sync-strip--stale, .sync-strip--never { border-color: var(--loss-border); background: var(--loss-bg); color: var(--loss); }
+    </style>
+
+    <script is:inline define:vars={{ bkSyncI18n: { syncing: t.syncingLabel, err: t.syncErrLabel } }}>window.__bkSyncI18n = bkSyncI18n;</script>
+    <script>
+      (() => {
+        const btn = document.getElementById('bk-sync-now');
+        if (!btn) return;
+        const I = (window as any).__bkSyncI18n || {};
+        const original = btn.textContent;
+        btn.addEventListener('click', async () => {
+          (btn as HTMLButtonElement).disabled = true;
+          btn.textContent = I.syncing ?? 'Syncing…';
+          try {
+            const res = await fetch('/api/wallets/sync-all', { method: 'POST' });
+            if (!res.ok) throw new Error(String(res.status));
+            location.reload();
+          } catch {
+            (btn as HTMLButtonElement).disabled = false;
+            btn.textContent = I.err ?? 'Sync failed — please try again.';
+            setTimeout(() => { btn.textContent = original; }, 4000);
+          }
+        });
+      })();
+    </script>
 
     <!-- ══ Tax Readiness Bar ════════════════════════════════════════════════ -->
     <div class="readiness-bar" id="readiness-bar" data-year={selectedYear}>

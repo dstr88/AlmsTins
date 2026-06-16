@@ -34,6 +34,14 @@ export interface BookkeepingLocale {
   readinessCalculating: string;
   readinessLink: string;
 
+  // On-chain transaction-sync freshness strip
+  txSyncedPrefix: string;
+  txSyncedNever: string;
+  syncStaleNote: string;
+  syncNow: string;
+  syncingLabel: string;
+  syncErrLabel: string;
+
   // Needs Attention tin
   tinNeedsAttention: string;
   /** "{n} items" */
@@ -108,6 +116,12 @@ export const en: BookkeepingLocale = {
 
   readinessCalculating: 'Calculating tax readiness…',
   readinessLink: 'Tax Readiness →',
+  txSyncedPrefix: 'On-chain transactions synced',
+  txSyncedNever: 'On-chain transactions never synced',
+  syncStaleNote: 'May be out of date — sync to pull the latest.',
+  syncNow: 'Sync now',
+  syncingLabel: 'Syncing… (up to a minute)',
+  syncErrLabel: 'Sync failed — please try again.',
 
   tinNeedsAttention: 'Needs Attention',
   countItems: (n) => `${n} items`,
@@ -167,6 +181,12 @@ export const es: BookkeepingLocale = {
 
   readinessCalculating: 'Calculando preparación fiscal…',
   readinessLink: 'Preparación fiscal →',
+  txSyncedPrefix: "Transacciones on-chain sincronizadas",
+  txSyncedNever: "Transacciones on-chain nunca sincronizadas",
+  syncStaleNote: "Puede estar desactualizado — sincroniza para obtener lo último.",
+  syncNow: "Sincronizar ahora",
+  syncingLabel: "Sincronizando… (hasta un minuto)",
+  syncErrLabel: "Error al sincronizar — inténtalo de nuevo.",
 
   tinNeedsAttention: 'Requiere atención',
   countItems: (n) => `${n} elementos`,
@@ -226,6 +246,12 @@ export const fr: BookkeepingLocale = {
 
   readinessCalculating: 'Calcul de la préparation fiscale…',
   readinessLink: 'Préparation fiscale →',
+  txSyncedPrefix: "Transactions on-chain synchronisées",
+  txSyncedNever: "Transactions on-chain jamais synchronisées",
+  syncStaleNote: "Peut être obsolète — synchronisez pour les dernières.",
+  syncNow: "Synchroniser",
+  syncingLabel: "Synchronisation… (jusqu'à une minute)",
+  syncErrLabel: "Échec de la synchronisation — veuillez réessayer.",
 
   tinNeedsAttention: 'Nécessite attention',
   countItems: (n) => `${n} éléments`,
