@@ -25,6 +25,8 @@ import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { getCache, setCache } from '../../../lib/tursoCache';
 import { buildAnnualBreakdown, type CostBasisMethod, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
+import { getLang } from '@/lib/i18n/locale';
+import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
 
 export const prerender = false;
 
@@ -55,6 +57,8 @@ export const GET: APIRoute = async ({ request, url }) => {
 	if (!session) return respond({ ok: false, error: 'Unauthorized' }, 401);
 	const { tenantId } = session;
 
+	const t = getYearEndErrors(getLang(request));
+
 	const yearParam   = url.searchParams.get('year');
 	const year        = yearParam ? Number(yearParam) : new Date().getFullYear();
 	const methodParam = url.searchParams.get('method');
@@ -64,7 +68,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		methodParam === 'spec_id' ? 'spec_id' : 'fifo';
 
 	if (Number.isNaN(year) || year < 2009 || year > 2100) {
-		return respond({ ok: false, error: 'Invalid year parameter.' }, 400);
+		return respond({ ok: false, error: t.invalidYear }, 400);
 	}
 
 	const memKey   = `tax-summary:${tenantId}:${year}:${method}`;
@@ -972,7 +976,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		return respond({ ...payload, cached: false });
 	} catch (error) {
 		console.error('[tax/summary] failed:', error);
-		return respond({ ok: false, error: 'Unable to build tax summary.' }, 500);
+		return respond({ ok: false, error: t.unableToBuildSummary }, 500);
 	}
 };
 

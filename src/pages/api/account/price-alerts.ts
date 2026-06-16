@@ -9,6 +9,8 @@ import { getAuthSession } from '@/lib/authSession';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
+import { getLang } from '@/lib/i18n/locale';
+import { getAccountErrors } from '@/i18n/apiErrors/account';
 
 export const prerender = false;
 
@@ -53,6 +55,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 // ── POST ──────────────────────────────────────────────────────────────────────
 export const POST: APIRoute = async ({ request }) => {
+	const t = getAccountErrors(getLang(request));
 	const session = await getAuthSession(request).catch(() => null);
 	if (!session?.user?.id) return json({ ok: false, error: 'Unauthorized' }, 401);
 
@@ -78,8 +81,8 @@ export const POST: APIRoute = async ({ request }) => {
 	const threshold   = Number(body.threshold);
 	const enabled     = body.enabled !== false;
 
-	if (!assetSymbol) return json({ ok: false, error: 'assetSymbol required' }, 400);
-	if (!Number.isFinite(threshold) || threshold <= 0) return json({ ok: false, error: 'threshold must be a positive number' }, 400);
+	if (!assetSymbol) return json({ ok: false, error: t.assetSymbolRequired }, 400);
+	if (!Number.isFinite(threshold) || threshold <= 0) return json({ ok: false, error: t.thresholdPositive }, 400);
 
 	try {
 		if (id) {

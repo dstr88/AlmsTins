@@ -1,8 +1,11 @@
 import type { APIRoute } from 'astro';
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getAccountErrors } from '@/i18n/apiErrors/account';
 
 export const POST: APIRoute = async ({ request }) => {
+	const t = getAccountErrors(getLang(request));
 	const session = await getAuthSession(request).catch(() => null);
 	if (!session?.user?.id) {
 		return json({ ok: false, error: 'Unauthorized' }, 401);
@@ -25,7 +28,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	// Basic format check when a value is provided
 	if (value !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-		return json({ ok: false, error: 'Invalid email address' }, 400);
+		return json({ ok: false, error: t.invalidEmail }, 400);
 	}
 
 	try {

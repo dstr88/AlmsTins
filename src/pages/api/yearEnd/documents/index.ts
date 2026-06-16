@@ -7,6 +7,8 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
+import { getLang } from '@/lib/i18n/locale';
+import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
 
 export const prerender = false;
 
@@ -54,6 +56,8 @@ export const POST: APIRoute = async ({ request }) => {
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
 
+	const t = getYearEndErrors(getLang(request));
+
 	let formData: FormData;
 	try {
 		formData = await request.formData();
@@ -66,10 +70,10 @@ export const POST: APIRoute = async ({ request }) => {
 	const taxYear = parseInt(String(formData.get('taxYear') ?? ''), 10);
 
 	const validTypes = ['w2', '1099-int', '1099-div', '1099-r', '1099-misc', 'ssa-1099'];
-	if (!validTypes.includes(docType)) return json({ ok: false, error: 'Invalid document type' }, 400);
-	if (!Number.isFinite(taxYear) || taxYear < 2015 || taxYear > 2030) return json({ ok: false, error: 'Invalid tax year' }, 400);
-	if (!file || file.size === 0) return json({ ok: false, error: 'No file provided' }, 400);
-	if (file.size > MAX_SIZE) return json({ ok: false, error: 'File too large (max 5 MB)' }, 400);
+	if (!validTypes.includes(docType)) return json({ ok: false, error: t.invalidDocumentType }, 400);
+	if (!Number.isFinite(taxYear) || taxYear < 2015 || taxYear > 2030) return json({ ok: false, error: t.invalidTaxYear }, 400);
+	if (!file || file.size === 0) return json({ ok: false, error: t.noFileProvided }, 400);
+	if (file.size > MAX_SIZE) return json({ ok: false, error: t.fileTooLarge5mb }, 400);
 
 	const bytes = new Uint8Array(await file.arrayBuffer());
 	// Convert to base64 in chunks to avoid stack overflow on large files

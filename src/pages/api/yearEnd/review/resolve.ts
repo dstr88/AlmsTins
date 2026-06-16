@@ -6,6 +6,8 @@ import type { APIRoute } from 'astro';
 import { randomUUID } from 'node:crypto';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
 
 export const prerender = false;
 
@@ -14,6 +16,9 @@ export const POST: APIRoute = async ({ request }) => {
 		const session = await requireTenantSession(request);
 		if (!session) return new Response('Unauthorized', { status: 401 });
 		const { tenantId } = session;
+
+		const t = getYearEndErrors(getLang(request));
+
 		const body = await request.json();
 
 		const {
@@ -35,7 +40,7 @@ export const POST: APIRoute = async ({ request }) => {
 		};
 
 		if (!reviewItemId || !sourceType || !sourceId || !category) {
-			return respond({ ok: false, error: 'Missing required fields.' }, 400);
+			return respond({ ok: false, error: t.missingRequiredFields }, 400);
 		}
 
 		// Verify the review item belongs to this tenant
@@ -44,7 +49,7 @@ export const POST: APIRoute = async ({ request }) => {
 			args: [reviewItemId, tenantId],
 		});
 		if (!itemResult.rows.length) {
-			return respond({ ok: false, error: 'Review item not found.' }, 404);
+			return respond({ ok: false, error: t.reviewItemNotFound }, 404);
 		}
 
 		const now = new Date().toISOString();
@@ -98,7 +103,8 @@ export const POST: APIRoute = async ({ request }) => {
 	} catch (error) {
 		if (error instanceof Response) return error;
 		console.error('[tax/review/resolve]', error);
-		return respond({ ok: false, error: 'Failed to save.' }, 500);
+		const t = getYearEndErrors(getLang(request));
+		return respond({ ok: false, error: t.failedToSave }, 500);
 	}
 };
 

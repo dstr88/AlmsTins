@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
 import { randomUUID } from 'node:crypto';
+import { getLang } from '@/lib/i18n/locale';
+import { getAccountErrors } from '@/i18n/apiErrors/account';
 
 export const prerender = false;
 
@@ -47,6 +49,7 @@ export const GET: APIRoute = async ({ request }) => {
 // Body: { walletId?, threshold, direction, enabled }
 // Upserts the preference row.
 export const POST: APIRoute = async ({ request }) => {
+	const t = getAccountErrors(getLang(request));
 	const session = await getAuthSession(request).catch(() => null);
 	if (!session?.user?.id) return json({ ok: false, error: 'Unauthorized' }, 401);
 
@@ -63,7 +66,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const enabled   = body.enabled === false ? 0 : 1;
 
 	if (threshold <= 0 || threshold > 100) {
-		return json({ ok: false, error: 'Threshold must be between 0 and 100' }, 400);
+		return json({ ok: false, error: t.thresholdRange }, 400);
 	}
 
 	try {

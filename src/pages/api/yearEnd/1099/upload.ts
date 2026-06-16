@@ -21,6 +21,8 @@ import { db } from '@/lib/db';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { randomUUID } from 'node:crypto';
 import pdfParse from 'pdf-parse';
+import { getLang } from '@/lib/i18n/locale';
+import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
 
 export const prerender = false;
 
@@ -225,14 +227,16 @@ export const POST: APIRoute = async ({ request }) => {
 	let tenantId: string;
 	let userId: string;
 	try {
-		const t = await requireTenantSession(request);
-		if (!t) return json({ ok: false, error: 'Unauthorized' }, 401);
-		tenantId = t.tenantId;
+		const sess = await requireTenantSession(request);
+		if (!sess) return json({ ok: false, error: 'Unauthorized' }, 401);
+		tenantId = sess.tenantId;
 		const session = await getAuthSession(request);
 		userId = session?.user?.id ?? tenantId;
 	} catch {
 		return json({ ok: false, error: 'Unauthorized' }, 401);
 	}
+
+	const t = getYearEndErrors(getLang(request));
 
 	let formData: FormData;
 	try {
@@ -246,12 +250,12 @@ export const POST: APIRoute = async ({ request }) => {
 	const taxYearRaw   = formData.get('taxYear');
 	const exchangeName = String(formData.get('exchangeName') ?? '').trim() || null;
 
-	if (!file || file.size === 0) return json({ ok: false, error: 'No file provided' }, 400);
-	if (file.size > 10 * 1024 * 1024) return json({ ok: false, error: 'File too large (max 10 MB)' }, 400);
+	if (!file || file.size === 0) return json({ ok: false, error: t.noFileProvided }, 400);
+	if (file.size > 10 * 1024 * 1024) return json({ ok: false, error: t.fileTooLarge10mb }, 400);
 
 	const taxYear = parseInt(String(taxYearRaw ?? new Date().getFullYear() - 1), 10);
 	if (!Number.isFinite(taxYear) || taxYear < 2015 || taxYear > 2030) {
-		return json({ ok: false, error: 'Invalid tax year' }, 400);
+		return json({ ok: false, error: t.invalidTaxYear }, 400);
 	}
 
 	const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
@@ -267,18 +271,18 @@ export const POST: APIRoute = async ({ request }) => {
 			parsedRows = parse1099DAPdf(pdfData.text);
 		} catch (err) {
 			console.error('[1099/upload] PDF parse error', err);
-			return json({ ok: false, error: 'Could not read PDF. Make sure it is a valid 1099-DA or 1099-B form.' }, 422);
+			return json({ ok: false, error: t.couldNotReadPdf }, 422);
 		}
 
 		if (parsedRows.length === 0) {
-			return json({ ok: false, error: 'No transactions found in this PDF. Only Form 1099-DA PDFs are supported — try a CSV export if available.' }, 422);
+			return json({ ok: false, error: t.noTransactionsInPdf }, 422);
 		}
 	} else {
 		// ── CSV path ──────────────────────────────────────────────────────────────
 		try {
 			csvText = await file.text();
 		} catch {
-			return json({ ok: false, error: 'Could not read file' }, 400);
+			return json({ ok: false, error: t.couldNotReadFile }, 400);
 		}
 
 		try {
@@ -286,11 +290,11 @@ export const POST: APIRoute = async ({ request }) => {
 			parsedRows = rawRows.map(r => normaliseRow(r, formType)).filter((r): r is NormRow => r !== null);
 		} catch (err) {
 			console.error('[1099/upload] CSV parse error', err);
-			return json({ ok: false, error: 'Failed to parse CSV' }, 422);
+			return json({ ok: false, error: t.failedToParseCsv }, 422);
 		}
 
 		if (parsedRows.length === 0) {
-			return json({ ok: false, error: 'No data rows found in CSV. Check that this is a valid 1099-DA/B file.' }, 422);
+			return json({ ok: false, error: t.noRowsInCsv }, 422);
 		}
 	}
 

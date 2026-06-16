@@ -34,6 +34,8 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type CostBasisMethod, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getCache, setCache } from '@/lib/tursoCache';
+import { getLang } from '@/lib/i18n/locale';
+import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
 
 export const prerender = false;
 
@@ -90,6 +92,8 @@ export const GET: APIRoute = async ({ request }) => {
 		if (!sess) return json({ ok: false, error: 'Unauthorized' }, 401);
 		const { tenantId } = sess;
 
+		const t = getYearEndErrors(getLang(request));
+
 		const url = new URL(request.url);
 		const yearParam = url.searchParams.get('year');
 		const year = yearParam ? Number(yearParam) : new Date().getFullYear() - 1;
@@ -100,7 +104,7 @@ export const GET: APIRoute = async ({ request }) => {
 			methodParam === 'spec_id' ? 'spec_id' : 'fifo';
 
 		if (isNaN(year) || year < 2009 || year > 2100) {
-			return json({ ok: false, error: 'Invalid year' }, 400);
+			return json({ ok: false, error: t.invalidYear }, 400);
 		}
 
 		const cacheKey = `t:${tenantId}:form8949:${year}:${method}:v1`;

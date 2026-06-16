@@ -3,6 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getActivePlan } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getResearchErrors } from '@/i18n/apiErrors/research';
 
 export const prerender = false;
 
@@ -92,11 +94,12 @@ export const POST: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
+	const t = getResearchErrors(getLang(request));
 
 	const plan = await getActivePlan(tenantId);
 	if (plan.id === 'free') {
 		return new Response(JSON.stringify({
-			error: 'AI Triage is available on any paid plan. Upgrade at /dashboard/billing.',
+			error: t.aiTriagePaywall,
 			planRequired: 'paid',
 		}), { status: 403, headers: { 'Content-Type': 'application/json' } });
 	}
@@ -105,11 +108,11 @@ export const POST: APIRoute = async ({ request }) => {
 	const transactions: any[] = Array.isArray(body?.transactions) ? body.transactions : [];
 
 	if (transactions.length === 0) {
-		return new Response(JSON.stringify({ error: 'No transactions provided' }), { status: 400 });
+		return new Response(JSON.stringify({ error: t.noTransactionsProvided }), { status: 400 });
 	}
 
 	if (!process.env.ANTHROPIC_API_KEY) {
-		return new Response(JSON.stringify({ error: 'AI triage is not configured.' }), { status: 503 });
+		return new Response(JSON.stringify({ error: t.aiTriageNotConfigured }), { status: 503 });
 	}
 
 	const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

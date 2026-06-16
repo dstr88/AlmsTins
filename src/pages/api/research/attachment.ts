@@ -3,6 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getActivePlan } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getResearchErrors } from '@/i18n/apiErrors/research';
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_TYPES = [
@@ -149,6 +151,7 @@ export const POST: APIRoute = async ({ request }) => {
 	const session = await requireTenantSession(request);
 	if (!session) return new Response('Unauthorized', { status: 401 });
 	const { tenantId } = session;
+	const t = getResearchErrors(getLang(request));
 
 	const formData = await request.formData();
 	const txId            = formData.get('txId');
@@ -162,13 +165,13 @@ export const POST: APIRoute = async ({ request }) => {
 		return new Response(JSON.stringify({ error: 'Missing txId' }), { status: 400 });
 	}
 	if (!(file instanceof File)) {
-		return new Response(JSON.stringify({ error: 'Missing file' }), { status: 400 });
+		return new Response(JSON.stringify({ error: t.missingFile }), { status: 400 });
 	}
 	if (!ALLOWED_TYPES.includes(file.type)) {
-		return new Response(JSON.stringify({ error: 'Unsupported file type. Use PNG, JPG, GIF, WEBP, or PDF.' }), { status: 400 });
+		return new Response(JSON.stringify({ error: t.unsupportedFileType }), { status: 400 });
 	}
 	if (file.size > MAX_SIZE_BYTES) {
-		return new Response(JSON.stringify({ error: 'File exceeds 5 MB limit.' }), { status: 400 });
+		return new Response(JSON.stringify({ error: t.fileTooLarge }), { status: 400 });
 	}
 
 	const buffer  = await file.arrayBuffer();

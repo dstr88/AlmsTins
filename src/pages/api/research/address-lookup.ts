@@ -11,6 +11,8 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getResearchErrors } from '@/i18n/apiErrors/research';
 
 export const prerender = false;
 
@@ -75,12 +77,13 @@ export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return new Response('Unauthorized', { status: 401 });
   const { tenantId } = session;
+  const t = getResearchErrors(getLang(request));
 
   const url     = new URL(request.url);
   const raw     = url.searchParams.get('address')?.trim() ?? '';
   const address = raw.toLowerCase();
 
-  if (!address) return json({ error: 'address is required' }, 400);
+  if (!address) return json({ error: t.addressRequired }, 400);
 
   // 1. Tenant's own wallets
   const walletRes = await db.execute({

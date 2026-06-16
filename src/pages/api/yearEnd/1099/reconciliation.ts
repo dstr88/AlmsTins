@@ -7,6 +7,8 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getYearEndErrors } from '@/i18n/apiErrors/yearEnd';
 
 export const prerender = false;
 
@@ -23,6 +25,8 @@ export const GET: APIRoute = async ({ request }) => {
 		if (!sess) return json({ ok: false, error: 'Unauthorized' }, 401);
 		const { tenantId } = sess;
 
+		const t = getYearEndErrors(getLang(request));
+
 		const url = new URL(request.url);
 		const uploadId = url.searchParams.get('uploadId');
 		if (!uploadId) return json({ ok: false, error: 'uploadId required' }, 400);
@@ -34,7 +38,7 @@ export const GET: APIRoute = async ({ request }) => {
 			      WHERE id = ? AND tenant_id = ?`,
 			args: [uploadId, tenantId],
 		});
-		if (!upload.rows[0]) return json({ ok: false, error: 'Not found' }, 404);
+		if (!upload.rows[0]) return json({ ok: false, error: t.uploadNotFound }, 404);
 
 		const rows = await db.execute({
 			sql: `SELECT id, form_asset, form_proceeds_usd, form_cost_basis, form_acquired_at, form_disposed_at,
