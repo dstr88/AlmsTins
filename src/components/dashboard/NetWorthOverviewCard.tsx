@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { normalizeNetWorthSummary, type NetWorthSummary } from '@/lib/networth/summaryContract';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getNetWorthOverviewCard } from '@/i18n/components/netWorthOverviewCard';
 
 console.log('[island.mount]', 'NetWorthOverviewCard');
 
@@ -12,6 +14,7 @@ const formatter = Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD
 function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 	const [summary, setSummary] = useState<NetWorthSummary | null>(null);
 	const [open, setOpen] = useState(false);
+	const t = getNetWorthOverviewCard(getClientLang());
 
 	useEffect(() => {
 		let mounted = true;
@@ -49,7 +52,7 @@ function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 					type="button"
 					className={`overview-screw ${open ? 'overview-screw--open' : ''}`}
 					onClick={() => setOpen((prev) => !prev)}
-					aria-label="Toggle token breakdown"
+					aria-label={t.toggleBreakdown}
 				>
 					<span className="screw-groove screw-groove--horizontal" />
 					<span className="screw-groove screw-groove--vertical" />
@@ -59,16 +62,16 @@ function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 			<div className="overview-body">
 				{!open && (
 					<div className="overview-total">
-						<span>Total</span>
+						<span>{t.total}</span>
 						<strong>{formatter.format(totalUsd)}</strong>
 					</div>
 				)}
 
 				{open && (
 					<div className="overview-breakdown">
-						<h4>Chain breakdown</h4>
+						<h4>{t.chainBreakdown}</h4>
 						{chains.length === 0 ? (
-							<p className="overview-empty">Breakdown will appear here.</p>
+							<p className="overview-empty">{t.breakdownPlaceholder}</p>
 						) : (
 							<ul className="overview-token-list">
 								{chains.map((chain) => (
@@ -84,7 +87,7 @@ function NetWorthOverviewCard({ endpoint = '/api/networth/summary' }: Props) {
 							</ul>
 						)}
 						<div className="overview-realized">
-							<p>Realized gains history (placeholder)</p>
+							<p>{t.realizedPlaceholder}</p>
 							{/* Future realized gains component will mount here */}
 						</div>
 					</div>
