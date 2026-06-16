@@ -32,6 +32,9 @@ export interface AaveHealthSummaryLocale {
   saveAlertBtn: string;
   disableBtn: string;
 
+  // Health-factor alert row label (labels the relocated AlertPill row)
+  healthAlertLabel: string;
+
   // LiquidationCallout header (dynamic: chain name + date string)
   liquidationHeader: (chain: string, date: string) => string;
 
@@ -98,6 +101,7 @@ export const en: AaveHealthSummaryLocale = {
   savingBtn: 'Saving…',
   saveAlertBtn: 'Save alert',
   disableBtn: 'Disable',
+  healthAlertLabel: 'Health alert',
 
   liquidationHeader: (chain, date) => `Liquidation — ${chain} — ${date}`,
   loanCleared: 'Loan cleared',
@@ -151,6 +155,7 @@ export const es: AaveHealthSummaryLocale = {
   savingBtn: "Guardando…",
   saveAlertBtn: "Guardar alerta",
   disableBtn: "Desactivar",
+  healthAlertLabel: "Alerta de salud",
 
   liquidationHeader: (chain, date) => `Liquidación — ${chain} — ${date}`,
   loanCleared: "Préstamo liquidado",
@@ -204,6 +209,7 @@ export const fr: AaveHealthSummaryLocale = {
   savingBtn: "Enregistrement…",
   saveAlertBtn: "Enregistrer l'alerte",
   disableBtn: "Désactiver",
+  healthAlertLabel: "Alerte de santé",
 
   liquidationHeader: (chain, date) => `Liquidation — ${chain} — ${date}`,
   loanCleared: "Prêt remboursé",

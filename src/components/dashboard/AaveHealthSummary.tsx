@@ -664,18 +664,23 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 						<span className="value" style={entry.color ? { color: entry.color } : undefined}>
 							{entry.value}
 						</span>
-						{i === 0 && showAlertPill && <AlertPill walletId={walletId} />}
 					</div>
 				))
 			) : (
 				<div className="stat-row health" style={showHealthRow ? undefined : { display: 'none' }} data-health-color="">
 					<span className="label">{t.healthLabel}</span>
 					<span className="value">---</span>
-					{showAlertPill && <AlertPill walletId={walletId} />}
 				</div>
 			)}
 
 			<div className="spacer spacer--lg" style={showHealthRow ? undefined : { display: 'none' }}></div>
+
+			{showAlertPill && (
+				<div className="stat-row health-alert-row">
+					<span className="label">{t.healthAlertLabel}</span>
+					<AlertPill walletId={walletId} />
+				</div>
+			)}
 
 			{showAlertPill && <LiquidationAlertToggle />}
 
