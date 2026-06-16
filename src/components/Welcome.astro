@@ -1,8 +1,11 @@
 ---
 import './Welcome.css';
+import type { Lang } from "@/lib/i18n/locale";
+import { getWelcome } from "@/i18n/welcome";
 import DonnieLori2025 from "../assets/donnie&lori2025.jpeg";
 
-const { compact = false } = Astro.props as { compact?: boolean };
+const { compact = false, lang = "en" } = Astro.props as { compact?: boolean; lang?: Lang };
+const t = getWelcome(lang);
 ---
 
 <section class={`welcome ${compact ? "compact" : ""}`}>
@@ -13,7 +16,7 @@ const { compact = false } = Astro.props as { compact?: boolean };
 
     <div class="hero-info">
       <h2>Donnie Starkey</h2>
-      <p class="hero-role">Founder • Builder • Crypto Analytics</p>
+      <p class="hero-role">{t.role}</p>
 
       <div class="hero-links">
         <a href="https://medium.com/@donnie.starkey" target="_blank" rel="noreferrer">Medium</a>

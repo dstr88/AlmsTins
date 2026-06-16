@@ -1,5 +1,7 @@
 ---
 import './Footer.css';
+import type { Lang } from "@/lib/i18n/locale";
+import { getFooter } from "@/i18n/footer";
 import DonnieSelfie from "../assets/DonnieSelfie.jpeg";
 import TitaniumHut from "../assets/TitaniumHut.png";
 import Faq from "./faq.astro";
@@ -7,6 +9,8 @@ import Welcome from "./Welcome.astro";
 import PrivacyPolicy from "./privacy-policy.astro";
 import TermsOfService from "./terms-of-service.astro";
 
+const { lang = "en" } = Astro.props as { lang?: Lang };
+const t = getFooter(lang);
 const year = new Date().getFullYear();
 ---
 
@@ -23,8 +27,8 @@ const year = new Date().getFullYear();
           loading="lazy"
         />
         <div class="license-copy">
-          <h3>MIT License</h3>
-          <p>Open-source under the MIT License.</p>
+          <h3>{t.licenseHeading}</h3>
+          <p>{t.licenseLine}</p>
           <p>© {year} Titanium Hut</p>
         </div>
       </div>
@@ -47,39 +51,39 @@ const year = new Date().getFullYear();
     </section>
 
     <section class="footer-col footer-faq">
-      <Faq />
+      <Faq lang={lang} />
       <div class="footer-legal">
-        <a href="/about" class="footer-legal-link">
-          about
+        <a href={t.aboutHref} class="footer-legal-link">
+          {t.aboutLabel}
         </a>
-        <a href="/security-and-privacy" class="footer-legal-link">
-          security & privacy
+        <a href={t.securityHref} class="footer-legal-link">
+          {t.securityLabel}
         </a>
         <button class="footer-legal-link" type="button" data-footer-modal="privacy-modal">
-          privacy-policy
+          {t.privacyLabel}
         </button>
         <button class="footer-legal-link" type="button" data-footer-modal="terms-modal">
-          terms of service
+          {t.termsLabel}
         </button>
       </div>
     </section>
 
     <section class="footer-col footer-welcome">
-      <Welcome compact />
+      <Welcome compact lang={lang} />
     </section>
   </div>
 
   <div class="footer-modal" id="privacy-modal" aria-hidden="true">
-    <div class="footer-modal-content" role="dialog" aria-modal="true" aria-label="Privacy Policy">
+    <div class="footer-modal-content" role="dialog" aria-modal="true" aria-label={t.privacyAria}>
       <button class="footer-modal-close" type="button" data-footer-close="privacy-modal">×</button>
-      <PrivacyPolicy variant="modal" />
+      <PrivacyPolicy variant="modal" lang={lang} />
     </div>
   </div>
 
   <div class="footer-modal" id="terms-modal" aria-hidden="true">
-    <div class="footer-modal-content" role="dialog" aria-modal="true" aria-label="Terms of Service">
+    <div class="footer-modal-content" role="dialog" aria-modal="true" aria-label={t.termsAria}>
       <button class="footer-modal-close" type="button" data-footer-close="terms-modal">×</button>
-      <TermsOfService variant="modal" />
+      <TermsOfService variant="modal" lang={lang} />
     </div>
   </div>
 </footer>

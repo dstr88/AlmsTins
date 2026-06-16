@@ -1,5 +1,6 @@
 ---
 import Footer from "@/components/Footer.astro";
+import { isLang } from "@/lib/i18n/locale";
 import '@/styles/tokens.css';
 
 export interface Props {
@@ -62,7 +63,7 @@ const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
 		<main>
 			<slot />
 		</main>
-		<Footer />
+		<Footer lang={isLang(lang) ? lang : "en"} />
 	</body>
 </html>
 
