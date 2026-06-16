@@ -200,7 +200,7 @@ const isLockedOut = message === 'LOCKED_OUT';
       <!-- Right column — portfolio preview card -->
       <div class="landing__right">
         <div class="landing__right-inner">
-          <PortfolioPreviewCard client:visible />
+          <PortfolioPreviewCard client:visible lang={t.lang} />
           <a href="/changelog" class="landing__changelog-link">{t.hero.changelogLink}</a>
         </div>
       </div>

@@ -1,12 +1,14 @@
 import "@/styles/portfolio-preview-card.css";
+import type { Lang } from "@/lib/i18n/locale";
+import { getPortfolioPreviewCard } from "@/i18n/components/portfolioPreviewCard";
 
 // SVG donut: r=56, cx=cy=70 → C = 2π×56 ≈ 351.858
 // Segments (crypto 42%, stocks 41%, defi 17%)
 const C = 351.858;
 const segments = [
-  { pct: 42, color: "var(--accent)", label: "Crypto", offset: 0 },
-  { pct: 41, color: "#8b9dc8",      label: "Stocks", offset: -(C * 0.42) },
-  { pct: 17, color: "var(--gain)",  label: "DeFi",   offset: -(C * 0.83) },
+  { pct: 42, color: "var(--accent)", id: "crypto", offset: 0 },
+  { pct: 41, color: "#8b9dc8",      id: "stocks", offset: -(C * 0.42) },
+  { pct: 17, color: "var(--gain)",  id: "defi",   offset: -(C * 0.83) },
 ];
 
 const holdings = [
@@ -16,20 +18,22 @@ const holdings = [
   { symbol: "TSLA",  chain: "Tesla Inc.", value: "$6,240",  change: "-0.9%", up: false },
 ];
 
-export default function PortfolioPreviewCard() {
+export default function PortfolioPreviewCard({ lang = "en" }: { lang?: Lang }) {
+  const t = getPortfolioPreviewCard(lang);
+  const segLabels: Record<string, string> = { crypto: t.segCrypto, stocks: t.segStocks, defi: t.segDefi };
   return (
     <div className="ppc ppc--tilt-target" id="portfolioPreviewCard">
       <div className="ppc__header">
-        <span className="ppc__title">Sample Portfolio</span>
+        <span className="ppc__title">{t.samplePortfolio}</span>
         <span className="ppc__live">
           <span className="ppc__live-dot" />
-          Live
+          {t.live}
         </span>
       </div>
 
       <div className="ppc__total">
         <span className="ppc__total-value">$57,680</span>
-        <span className="ppc__total-change">↑ +$2,340 today</span>
+        <span className="ppc__total-change">{t.totalChangeToday}</span>
       </div>
 
       <div className="ppc__donut-wrap">
@@ -38,7 +42,7 @@ export default function PortfolioPreviewCard() {
             const len = C * (seg.pct / 100);
             return (
               <circle
-                key={seg.label}
+                key={seg.id}
                 cx="70"
                 cy="70"
                 r="56"
@@ -55,14 +59,14 @@ export default function PortfolioPreviewCard() {
           {/* Centre hole */}
           <circle cx="70" cy="70" r="47" fill="var(--surface-card)" />
           <text x="70" y="65" textAnchor="middle" fill="var(--text-primary)" fontSize="11" fontWeight="700" fontFamily="inherit">$57,680</text>
-          <text x="70" y="79" textAnchor="middle" fill="var(--gain)" fontSize="8.5" fontFamily="inherit">+4.1% today</text>
+          <text x="70" y="79" textAnchor="middle" fill="var(--gain)" fontSize="8.5" fontFamily="inherit">{t.donutChangeToday}</text>
         </svg>
 
         <div className="ppc__legend">
           {segments.map((seg) => (
-            <div className="ppc__legend-item" key={seg.label}>
+            <div className="ppc__legend-item" key={seg.id}>
               <span className="ppc__legend-dot" style={{ background: seg.color }} />
-              <span className="ppc__legend-label">{seg.label}</span>
+              <span className="ppc__legend-label">{segLabels[seg.id]}</span>
               <span className="ppc__legend-pct">{seg.pct}%</span>
             </div>
           ))}
@@ -88,11 +92,11 @@ export default function PortfolioPreviewCard() {
       </div>
 
       <div className="ppc__footer">
-        <span className="ppc__footer-label">Last synced</span>
-        <span className="ppc__footer-sync">2 min ago</span>
+        <span className="ppc__footer-label">{t.lastSynced}</span>
+        <span className="ppc__footer-sync">{t.lastSyncedValue}</span>
       </div>
 
-      <p className="ppc__footnote">Demo data. Connect your wallet, exchange, or brokerage to see yours.</p>
+      <p className="ppc__footnote">{t.footnote}</p>
     </div>
   );
 }
