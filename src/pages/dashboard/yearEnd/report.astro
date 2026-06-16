@@ -14,6 +14,12 @@ import Layout from '../../../layouts/Layout.astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { hasTaxAccess } from '@/lib/taxAuth';
+import { getLang } from '@/lib/i18n/locale';
+import { getReport } from '@/i18n/dashboard/yearEnd/report';
+
+const lang = getLang(Astro.request);
+const t = getReport(lang);
+const locale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const { tenantId } = await requireTenantSession(Astro.request);
@@ -26,9 +32,9 @@ type DbRow = Record<string, unknown>;
 const s  = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
 const n  = (v: unknown) => (typeof v === 'number' ? v : null);
 const fmtUSD = (v: number | null) =>
-	v === null ? '—' : v.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+	v === null ? '—' : v.toLocaleString(locale, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 const fmtQty = (v: number | null) =>
-	v === null ? '—' : v.toLocaleString('en-US', { maximumFractionDigits: 6 });
+	v === null ? '—' : v.toLocaleString(locale, { maximumFractionDigits: 6 });
 const fmtDate = (v: string) => v.slice(0, 10);
 
 // ── Available years ───────────────────────────────────────────────────────────
@@ -175,16 +181,16 @@ const reviewResult = await db.execute({
 const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 ---
 
-<Layout title="Year Summary | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<div class="max-w-5xl mx-auto px-4 py-8 space-y-10" id="report-root">
 
 		<!-- Header -->
 		<div class="flex items-start justify-between flex-wrap gap-4">
 			<div>
-				<a href="/dashboard/yearEnd" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
-				<h1 class="text-2xl font-bold text-gray-900">Year Summary — {taxYear}</h1>
+				<a href="/dashboard/yearEnd" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">{t.backLink}</a>
+				<h1 class="text-2xl font-bold text-gray-900">{t.pageHeading(taxYear)}</h1>
 				<p class="text-sm text-gray-500 mt-1">
-					Realized gains and losses for {taxYear}. For filing purposes, consult a qualified accountant.
+					{t.pageSubtitle(taxYear)}
 				</p>
 			</div>
 			<div class="flex flex-wrap gap-2">
@@ -204,15 +210,15 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 				            ${reviewCount > 0
 				              ? 'bg-amber-500 hover:bg-amber-600 text-white'
 				              : 'border border-gray-300 bg-white hover:bg-gray-50 text-gray-700'}`}>
-					{reviewCount > 0 ? `⚠ ${reviewCount} need review` : '✅ Review queue clear'}
+					{reviewCount > 0 ? t.reviewNeedReview(reviewCount) : t.reviewClear}
 				</a>
 				<button id="btn-html" class="rounded-lg border border-gray-300 bg-white hover:bg-gray-50
 				                             text-gray-700 text-sm font-medium px-4 py-2 transition-colors">
-					⬇ Download HTML
+					{t.btnDownloadHtml}
 				</button>
 				<button id="btn-csv" class="rounded-lg bg-blue-600 hover:bg-blue-700
 				                            text-white text-sm font-medium px-4 py-2 transition-colors">
-					⬇ Download CSV
+					{t.btnDownloadCsv}
 				</button>
 			</div>
 		</div>
@@ -220,10 +226,10 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 		<!-- Summary cards -->
 		<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
 			{[
-				{ label: 'Short-Term Gain/Loss', value: totalSTGain, note: 'Held < 1 year' },
-				{ label: 'Long-Term Gain/Loss',  value: totalLTGain, note: 'Held ≥ 1 year' },
-				{ label: 'Ordinary Income',      value: totalIncome + totalAirdrops, note: 'Staking + airdrops' },
-				{ label: 'Net Capital Gain/Loss', value: totalGain,  note: 'Short + long term' },
+				{ label: t.cardShortTermLabel, value: totalSTGain, note: t.cardShortTermNote },
+				{ label: t.cardLongTermLabel,  value: totalLTGain, note: t.cardLongTermNote },
+				{ label: t.cardOrdinaryIncomeLabel, value: totalIncome + totalAirdrops, note: t.cardOrdinaryIncomeNote },
+				{ label: t.cardNetCapitalLabel, value: totalGain,  note: t.cardNetCapitalNote },
 			].map(({ label, value, note }) => (
 				<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 space-y-1">
 					<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
@@ -239,21 +245,21 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 		{stDisposals.length > 0 && (
 			<section>
 				<h2 class="text-lg font-semibold text-gray-800 mb-3">
-					Short-Term Capital Gains / Losses
-					<span class="text-sm font-normal text-gray-400 ml-2">(held &lt; 1 year — taxed as ordinary income)</span>
+					{t.stSectionHeading}
+					<span class="text-sm font-normal text-gray-400 ml-2">{t.stSectionNote}</span>
 				</h2>
 				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
 					<table class="min-w-full text-sm">
 						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
 							<tr>
-								<th class="px-4 py-2.5 text-left">Asset</th>
-								<th class="px-4 py-2.5 text-left">Date Acquired</th>
-								<th class="px-4 py-2.5 text-left">Date Sold</th>
-								<th class="px-4 py-2.5 text-right">Qty</th>
-								<th class="px-4 py-2.5 text-right">Proceeds</th>
-								<th class="px-4 py-2.5 text-right">Cost Basis</th>
-								<th class="px-4 py-2.5 text-right">Gain / Loss</th>
-								<th class="px-4 py-2.5 text-left">Note</th>
+								<th class="px-4 py-2.5 text-left">{t.thAsset}</th>
+								<th class="px-4 py-2.5 text-left">{t.thDateAcquired}</th>
+								<th class="px-4 py-2.5 text-left">{t.thDateSold}</th>
+								<th class="px-4 py-2.5 text-right">{t.thQty}</th>
+								<th class="px-4 py-2.5 text-right">{t.thProceeds}</th>
+								<th class="px-4 py-2.5 text-right">{t.thCostBasis}</th>
+								<th class="px-4 py-2.5 text-right">{t.thGainLoss}</th>
+								<th class="px-4 py-2.5 text-left">{t.thNote}</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-gray-100">
@@ -272,7 +278,7 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 								</tr>
 							))}
 							<tr class="bg-gray-50 font-semibold text-sm">
-								<td colspan="6" class="px-4 py-2.5 text-gray-700">Short-Term Total</td>
+								<td colspan="6" class="px-4 py-2.5 text-gray-700">{t.stTotalLabel}</td>
 								<td class={`px-4 py-2.5 text-right ${totalSTGain >= 0 ? 'text-green-700' : 'text-red-600'}`}>
 									{fmtUSD(totalSTGain)}
 								</td>
@@ -288,21 +294,21 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 		{ltDisposals.length > 0 && (
 			<section>
 				<h2 class="text-lg font-semibold text-gray-800 mb-3">
-					Long-Term Capital Gains / Losses
-					<span class="text-sm font-normal text-gray-400 ml-2">(held ≥ 1 year — preferential tax rate)</span>
+					{t.ltSectionHeading}
+					<span class="text-sm font-normal text-gray-400 ml-2">{t.ltSectionNote}</span>
 				</h2>
 				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
 					<table class="min-w-full text-sm">
 						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
 							<tr>
-								<th class="px-4 py-2.5 text-left">Asset</th>
-								<th class="px-4 py-2.5 text-left">Date Acquired</th>
-								<th class="px-4 py-2.5 text-left">Date Sold</th>
-								<th class="px-4 py-2.5 text-right">Qty</th>
-								<th class="px-4 py-2.5 text-right">Proceeds</th>
-								<th class="px-4 py-2.5 text-right">Cost Basis</th>
-								<th class="px-4 py-2.5 text-right">Gain / Loss</th>
-								<th class="px-4 py-2.5 text-left">Note</th>
+								<th class="px-4 py-2.5 text-left">{t.thAsset}</th>
+								<th class="px-4 py-2.5 text-left">{t.thDateAcquired}</th>
+								<th class="px-4 py-2.5 text-left">{t.thDateSold}</th>
+								<th class="px-4 py-2.5 text-right">{t.thQty}</th>
+								<th class="px-4 py-2.5 text-right">{t.thProceeds}</th>
+								<th class="px-4 py-2.5 text-right">{t.thCostBasis}</th>
+								<th class="px-4 py-2.5 text-right">{t.thGainLoss}</th>
+								<th class="px-4 py-2.5 text-left">{t.thNote}</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-gray-100">
@@ -321,7 +327,7 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 								</tr>
 							))}
 							<tr class="bg-gray-50 font-semibold text-sm">
-								<td colspan="6" class="px-4 py-2.5 text-gray-700">Long-Term Total</td>
+								<td colspan="6" class="px-4 py-2.5 text-gray-700">{t.ltTotalLabel}</td>
 								<td class={`px-4 py-2.5 text-right ${totalLTGain >= 0 ? 'text-green-700' : 'text-red-600'}`}>
 									{fmtUSD(totalLTGain)}
 								</td>
@@ -337,18 +343,18 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 		{(incomeRows.length > 0 || airdropRows.length > 0) && (
 			<section>
 				<h2 class="text-lg font-semibold text-gray-800 mb-3">
-					Ordinary Income
-					<span class="text-sm font-normal text-gray-400 ml-2">(Schedule 1 / Form 1040)</span>
+					{t.ordinaryIncomeHeading}
+					<span class="text-sm font-normal text-gray-400 ml-2">{t.ordinaryIncomeFormNote}</span>
 				</h2>
 				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
 					<table class="min-w-full text-sm">
 						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
 							<tr>
-								<th class="px-4 py-2.5 text-left">Source</th>
-								<th class="px-4 py-2.5 text-left">Asset</th>
-								<th class="px-4 py-2.5 text-left">Type</th>
-								<th class="px-4 py-2.5 text-right">Events</th>
-								<th class="px-4 py-2.5 text-right">Amount</th>
+								<th class="px-4 py-2.5 text-left">{t.thSource}</th>
+								<th class="px-4 py-2.5 text-left">{t.thAsset}</th>
+								<th class="px-4 py-2.5 text-left">{t.thType}</th>
+								<th class="px-4 py-2.5 text-right">{t.thEvents}</th>
+								<th class="px-4 py-2.5 text-right">{t.thAmount}</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-gray-100">
@@ -356,7 +362,7 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 								<tr class="hover:bg-gray-50">
 									<td class="px-4 py-2.5 text-gray-700 capitalize">{r.source}</td>
 									<td class="px-4 py-2.5 font-mono text-gray-900">{r.symbol}</td>
-									<td class="px-4 py-2.5 text-gray-500">Rewards / Staking / Interest</td>
+									<td class="px-4 py-2.5 text-gray-500">{t.incomeTypeRewards}</td>
 									<td class="px-4 py-2.5 text-right text-gray-500">{r.count}</td>
 									<td class="px-4 py-2.5 text-right font-semibold text-green-700">{fmtUSD(r.total)}</td>
 								</tr>
@@ -365,13 +371,13 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 								<tr class="hover:bg-gray-50">
 									<td class="px-4 py-2.5 text-gray-700 capitalize">{r.source}</td>
 									<td class="px-4 py-2.5 font-mono text-gray-900">{r.symbol}</td>
-									<td class="px-4 py-2.5 text-gray-500">Airdrop</td>
+									<td class="px-4 py-2.5 text-gray-500">{t.incomeTypeAirdrop}</td>
 									<td class="px-4 py-2.5 text-right text-gray-500">{r.count}</td>
 									<td class="px-4 py-2.5 text-right font-semibold text-green-700">{fmtUSD(r.total)}</td>
 								</tr>
 							))}
 							<tr class="bg-gray-50 font-semibold text-sm">
-								<td colspan="4" class="px-4 py-2.5 text-gray-700">Total Ordinary Income</td>
+								<td colspan="4" class="px-4 py-2.5 text-gray-700">{t.totalOrdinaryIncome}</td>
 								<td class="px-4 py-2.5 text-right text-green-700">{fmtUSD(totalIncome + totalAirdrops)}</td>
 							</tr>
 						</tbody>
@@ -384,22 +390,21 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 		{cardRebateRows.length > 0 && (
 			<section>
 				<h2 class="text-lg font-semibold text-gray-800 mb-1">
-					Card Rebates
-					<span class="text-sm font-normal text-gray-400 ml-2">(non-taxable — treated as purchase discount)</span>
+					{t.cardRebatesHeading}
+					<span class="text-sm font-normal text-gray-400 ml-2">{t.cardRebatesNote}</span>
 				</h2>
 				<p class="text-sm text-gray-500 mb-3">
-					These "Card Rebate" rewards are not reported as income. The IRS treats credit/debit card rebates
-					as a reduction in purchase price, not taxable compensation.
+					{t.cardRebatesDesc}
 				</p>
 				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
 					<table class="min-w-full text-sm">
 						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
 							<tr>
-								<th class="px-4 py-2.5 text-left">Source</th>
-								<th class="px-4 py-2.5 text-left">Asset</th>
-								<th class="px-4 py-2.5 text-left">Type</th>
-								<th class="px-4 py-2.5 text-right">Events</th>
-								<th class="px-4 py-2.5 text-right">Est. Value</th>
+								<th class="px-4 py-2.5 text-left">{t.thSource}</th>
+								<th class="px-4 py-2.5 text-left">{t.thAsset}</th>
+								<th class="px-4 py-2.5 text-left">{t.thType}</th>
+								<th class="px-4 py-2.5 text-right">{t.thEvents}</th>
+								<th class="px-4 py-2.5 text-right">{t.thEstValue}</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-gray-100">
@@ -407,13 +412,13 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 								<tr class="hover:bg-gray-50">
 									<td class="px-4 py-2.5 text-gray-700 capitalize">{r.source.replace(/_/g, ' ')}</td>
 									<td class="px-4 py-2.5 font-mono text-gray-900">{r.symbol}</td>
-									<td class="px-4 py-2.5 text-gray-500">Card Rebate</td>
+									<td class="px-4 py-2.5 text-gray-500">{t.cardRebateTypeLabel}</td>
 									<td class="px-4 py-2.5 text-right text-gray-500">{r.count}</td>
 									<td class="px-4 py-2.5 text-right text-gray-400">{fmtUSD(r.total)}</td>
 								</tr>
 							))}
 							<tr class="bg-gray-50 font-semibold text-sm">
-								<td colspan="4" class="px-4 py-2.5 text-gray-500">Total (not reported as income)</td>
+								<td colspan="4" class="px-4 py-2.5 text-gray-500">{t.cardRebateTotalLabel}</td>
 								<td class="px-4 py-2.5 text-right text-gray-400">{fmtUSD(totalCardRebates)}</td>
 							</tr>
 						</tbody>
@@ -425,17 +430,17 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 		<!-- Loans -->
 		{loanRows.length > 0 && (
 			<section>
-				<h2 class="text-lg font-semibold text-gray-800 mb-1">Loan Activity</h2>
-				<p class="text-sm text-gray-500 mb-3">Non-taxable loan events. If collateral was liquidated, it appears in capital gains above.</p>
+				<h2 class="text-lg font-semibold text-gray-800 mb-1">{t.loanActivityHeading}</h2>
+				<p class="text-sm text-gray-500 mb-3">{t.loanActivityDesc}</p>
 				<div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
 					<table class="min-w-full text-sm">
 						<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
 							<tr>
-								<th class="px-4 py-2.5 text-left">Date</th>
-								<th class="px-4 py-2.5 text-left">Event</th>
-								<th class="px-4 py-2.5 text-left">Asset</th>
-								<th class="px-4 py-2.5 text-right">USD Value</th>
-								<th class="px-4 py-2.5 text-left">Tax Treatment</th>
+								<th class="px-4 py-2.5 text-left">{t.thDate}</th>
+								<th class="px-4 py-2.5 text-left">{t.thEvent}</th>
+								<th class="px-4 py-2.5 text-left">{t.thAsset}</th>
+								<th class="px-4 py-2.5 text-right">{t.thUsdValue}</th>
+								<th class="px-4 py-2.5 text-left">{t.thTaxTreatment}</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-gray-100">
@@ -447,8 +452,8 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 									<td class="px-4 py-2.5 text-right text-gray-700">{fmtUSD(r.amountUsd)}</td>
 									<td class="px-4 py-2.5 text-xs text-gray-400">
 										{r.category === 'liquidation'
-											? '⚠ Taxable forced sale — see capital gains'
-											: 'Not taxable'}
+											? t.loanLiquidationWarning
+											: t.loanNotTaxable}
 									</td>
 								</tr>
 							))}
@@ -462,13 +467,13 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 		{disposals.length === 0 && incomeRows.length === 0 && airdropRows.length === 0 && cardRebateRows.length === 0 && loanRows.length === 0 && (
 			<div class="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center space-y-2">
 				<p class="text-2xl">📂</p>
-				<p class="font-semibold text-gray-700">No classified tax events for {taxYear}</p>
+				<p class="font-semibold text-gray-700">{t.emptyHeading(taxYear)}</p>
 				<p class="text-sm text-gray-500">
-					Run the classifier first, or check that your wallets and exchange CSV files are imported.
+					{t.emptyDesc}
 				</p>
 				<button id="run-classify"
 				        class="mt-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2">
-					Run Tax Classifier
+					{t.emptyBtn}
 				</button>
 			</div>
 		)}
@@ -479,16 +484,16 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 				<hr class="border-gray-200" />
 				<div class="pt-6">
 					<h2 class="text-base font-semibold text-gray-600 mb-1">
-						Interest Paid — {taxYear}
-						<span class="text-xs font-normal text-gray-400 ml-2">(potentially deductible — consult your tax advisor)</span>
+						{t.interestPaidHeading(taxYear)}
+						<span class="text-xs font-normal text-gray-400 ml-2">{t.interestPaidNote}</span>
 					</h2>
 					<div class="overflow-x-auto rounded-xl border border-gray-100 bg-gray-50">
 						<table class="min-w-full text-sm">
 							<thead class="text-xs uppercase tracking-wide text-gray-400">
 								<tr>
-									<th class="px-4 py-2 text-left">Protocol / Exchange</th>
-									<th class="px-4 py-2 text-right">Events</th>
-									<th class="px-4 py-2 text-right">Total Paid</th>
+									<th class="px-4 py-2 text-left">{t.thProtocolExchange}</th>
+									<th class="px-4 py-2 text-right">{t.thEvents}</th>
+									<th class="px-4 py-2 text-right">{t.thTotalPaid}</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-100">
@@ -500,7 +505,7 @@ const reviewCount = Number((reviewResult.rows[0] as DbRow)?.cnt ?? 0);
 									</tr>
 								))}
 								<tr class="font-semibold">
-									<td class="px-4 py-2 text-gray-600">Total</td>
+									<td class="px-4 py-2 text-gray-600">{t.interestTotalLabel}</td>
 									<td></td>
 									<td class="px-4 py-2 text-right text-gray-700">{fmtUSD(totalInterestPaid)}</td>
 								</tr>

@@ -11,10 +11,16 @@
 import Layout from '../../../layouts/Layout.astro';
 import TaxNotice from '@/components/TaxNotice.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getForm8949 } from '@/i18n/dashboard/yearEnd/form8949';
 
 import { hasTaxAccess } from '@/lib/taxAuth';
 
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
+
+const lang = getLang(Astro.request);
+const t = getForm8949(lang);
+
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
 const showTurboTax = _authSess.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
@@ -26,15 +32,15 @@ const initialYear = yearParam ? Number(yearParam) : defaultYear;
 const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 ---
 
-<Layout title="Form 8949 | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<div id="app">
 
 		<!-- Screen-only header -->
 		<div class="f8-header">
 			<div class="f8-header__left">
-				<a href="/dashboard/yearEnd" class="f8-back">← Tax Center</a>
-				<h1 class="f8-title">Capital Gains Summary</h1>
-				<p class="f8-subtitle">A US-style gain/loss summary, formatted to mirror IRS Form 8949 for your reference.</p>
+				<a href="/dashboard/yearEnd" class="f8-back">{t.backLink}</a>
+				<h1 class="f8-title">{t.heroTitle}</h1>
+				<p class="f8-subtitle">{t.heroSubtitle}</p>
 			</div>
 			<div class="f8-controls">
 				<!-- Year + method selectors -->
@@ -49,10 +55,10 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 					<option value="lifo"    selected={methodParam === 'lifo'}>LIFO</option>
 					<option value="spec_id" selected={methodParam === 'spec_id'}>Spec ID</option>
 				</select>
-				<button id="btn-load" class="f8-btn f8-btn--primary">Load</button>
-				<button id="btn-csv"  class="f8-btn f8-btn--ghost hidden">↓ CSV</button>
+				<button id="btn-load" class="f8-btn f8-btn--primary">{t.btnLoad}</button>
+				<button id="btn-csv"  class="f8-btn f8-btn--ghost hidden">{t.btnCsv}</button>
 				{showTurboTax && <button id="btn-turbotax" class="f8-btn f8-btn--turbotax hidden">↓ TurboTax</button>}
-				<button id="btn-print" class="f8-btn f8-btn--dark hidden">🖨 Print</button>
+				<button id="btn-print" class="f8-btn f8-btn--dark hidden">{t.btnPrint}</button>
 			</div>
 		</div>
 
@@ -61,36 +67,36 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 		<!-- Loading/error/empty states -->
 		<div id="state-loading" class="f8-state-loading">
 			<div class="f8-spinner"></div>
-			<p>Loading Form 8949…</p>
+			<p>{t.stateLoading}</p>
 		</div>
 		<div id="state-error" class="f8-state-error hidden"></div>
 		<div id="state-empty" class="hidden empty-state">
 			<div class="empty-state__header">
 				<span class="empty-state__icon">⚠️</span>
 				<div>
-					<p class="empty-state__title">No classified disposals found for this year</p>
-					<p class="empty-state__context" id="empty-context">AlmsTins found transactions for this year but none have been matched into taxable disposal lots yet.</p>
+					<p class="empty-state__title">{t.emptyTitle}</p>
+					<p class="empty-state__context" id="empty-context">{t.emptyContext}</p>
 				</div>
 			</div>
 
 			<div class="empty-state__section">
-				<p class="empty-state__label">What this usually means</p>
+				<p class="empty-state__label">{t.emptyWhatLabel}</p>
 				<ul class="empty-state__list">
-					<li id="diag-pipeline"><strong>Pipeline not run</strong> — transactions need to be classified before lots can be matched</li>
-					<li id="diag-missing-buy">A sell transaction exists but the matching buy is missing — check the Review Queue</li>
-					<li id="diag-no-data">No transactions were imported for this year yet</li>
+					<li id="diag-pipeline"><strong>{t.diagPipelineStrong}</strong>{t.diagPipelineText}</li>
+					<li id="diag-missing-buy">{t.diagMissingBuyText}</li>
+					<li id="diag-no-data">{t.diagNoDataText}</li>
 				</ul>
 			</div>
 
 			<div id="empty-tokens" class="empty-state__section hidden">
-				<p class="empty-state__label">Tokens with unresolved transactions this year</p>
+				<p class="empty-state__label">{t.emptyTokensLabel}</p>
 				<div id="empty-tokens-list" class="empty-state__chips"></div>
 			</div>
 
 			<div class="empty-state__actions" id="empty-actions">
-				<a href="/dashboard/yearEnd/review" class="es-btn es-btn--primary" id="btn-review-queue">🔍 Open Review Queue</a>
-				<a href="/dashboard/bookkeeping" class="es-btn es-btn--secondary">📥 Import Transactions</a>
-				<a href="/dashboard/yearEnd" class="es-btn es-btn--secondary" id="btn-pipeline">⚙️ Run Classification Pipeline</a>
+				<a href="/dashboard/yearEnd/review" class="es-btn es-btn--primary" id="btn-review-queue">{t.btnReviewQueue}</a>
+				<a href="/dashboard/bookkeeping" class="es-btn es-btn--secondary">{t.btnImport}</a>
+				<a href="/dashboard/yearEnd" class="es-btn es-btn--secondary" id="btn-pipeline">{t.btnPipeline}</a>
 			</div>
 		</div>
 
@@ -100,24 +106,22 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 			<!-- Screen-only summary -->
 			<div id="summary-cards" class="f8-summary-cards">
 				<div class="f8-card">
-					<p class="f8-card__label">Total Proceeds</p>
+					<p class="f8-card__label">{t.cardProceeds}</p>
 					<p id="sum-proceeds" class="f8-card__value"></p>
 				</div>
 				<div class="f8-card">
-					<p class="f8-card__label">Total Basis</p>
+					<p class="f8-card__label">{t.cardBasis}</p>
 					<p id="sum-basis" class="f8-card__value"></p>
 				</div>
 				<div class="f8-card">
-					<p class="f8-card__label">Net Gain / (Loss)</p>
+					<p class="f8-card__label">{t.cardNetGain}</p>
 					<p id="sum-gain" class="f8-card__value"></p>
 				</div>
 			</div>
 
 			<!-- BO warning -->
 			<div id="bo-warning" class="f8-bo-warning hidden">
-				<strong>⚠ Some rows are marked BO</strong> (basis not reported). These are transactions where
-				no cost basis was recorded. Review your <a href="/dashboard/yearEnd/review" class="f8-link">Review Queue</a>
-				to resolve missing basis before you rely on these figures.
+				{t.boWarningText} <a href="/dashboard/yearEnd/review" class="f8-link">{t.boWarningLinkText}</a>{t.boWarningTail}
 			</div>
 
 			<!-- Form pages container — one page per part -->
@@ -504,7 +508,118 @@ const methodParam = Astro.url.searchParams.get('method') ?? 'fifo';
 }
 </style>
 
+<script is:inline define:vars={{ f8i18n: {
+	errLoadFailed:           t.errLoadFailed,
+	errNetwork:              t.errNetwork,
+	ctxNoImports:            t.ctxNoImports,
+	ctxPipelineNotRun:       t.ctxPipelineNotRun,
+	ctxCoinSingular:         t.ctxCoinSingular,
+	ctxCoinPlural:           t.ctxCoinPlural,
+	ctxHasSingular:          t.ctxHasSingular,
+	ctxHavePlural:           t.ctxHavePlural,
+	ctxTxSingular:           t.ctxTxSingular,
+	ctxTxPlural:             t.ctxTxPlural,
+	ctxMustFix:              t.ctxMustFix,
+	ctxNone:                 t.ctxNone,
+	diagPipelineNotRunStrong: t.diagPipelineNotRunStrong,
+	diagPipelineNotRunText:  t.diagPipelineNotRunText,
+	diagNoBuyStrong:         t.diagNoBuyStrong,
+	diagNoBuyConnector:      t.diagNoBuyConnector,
+	diagNoBuyTail:           t.diagNoBuyTail,
+	diagNoBasisStrong:       t.diagNoBasisStrong,
+	diagNoBasisConnector:    t.diagNoBasisConnector,
+	diagNoBasisTail:         t.diagNoBasisTail,
+	diagNoDisposalsStrong:   t.diagNoDisposalsStrong,
+	diagNoDisposalsTail:     t.diagNoDisposalsTail,
+	diagNoFoundStrong:       t.diagNoFoundStrong,
+	diagNoFoundTail:         t.diagNoFoundTail,
+	importBtnLabel:          t.importBtnLabel,
+	pipelineAfterImport:     t.pipelineAfterImport,
+	pipelineClassify:        t.pipelineClassify,
+	pipelineRerunMissing:    t.pipelineRerunMissing,
+	pipelineRerunPrices:     t.pipelineRerunPrices,
+	reviewNoBuy:             t.reviewNoBuy,
+	reviewNoBasis:           t.reviewNoBasis,
+	rowCountSingular:        t.rowCountSingular,
+	rowCountPlural:          t.rowCountPlural,
+	chipNoBuy:               t.chipNoBuy,
+	chipNoPrice:             t.chipNoPrice,
+	irsHeaderBadge:          t.irsHeaderBadge,
+	irsHeaderTitle:          t.irsHeaderTitle,
+	irsHeaderDesc:           t.irsHeaderDesc,
+	irsHeaderDisclaimer:     t.irsHeaderDisclaimer,
+	irsHeaderTaxYear:        t.irsHeaderTaxYear,
+	irsHeaderMethod:         t.irsHeaderMethod,
+	irsHeaderPreparedBy:     t.irsHeaderPreparedBy,
+	boxNoteTemplate:         t.boxNoteTemplate,
+	totalsPrefix:            t.totalsPrefix,
+} }}>window.__f8i18n = f8i18n;</script>
+
 <script>
+// i18n strings injected by the inline define:vars block above.
+// English fallbacks ensure the script works if that block ever fails to run.
+interface F8I18n {
+	errLoadFailed: string; errNetwork: string;
+	ctxNoImports: string; ctxPipelineNotRun: string;
+	ctxCoinSingular: string; ctxCoinPlural: string;
+	ctxHasSingular: string; ctxHavePlural: string;
+	ctxTxSingular: string; ctxTxPlural: string;
+	ctxMustFix: string; ctxNone: string;
+	diagPipelineNotRunStrong: string; diagPipelineNotRunText: string;
+	diagNoBuyStrong: string; diagNoBuyConnector: string; diagNoBuyTail: string;
+	diagNoBasisStrong: string; diagNoBasisConnector: string; diagNoBasisTail: string;
+	diagNoDisposalsStrong: string; diagNoDisposalsTail: string;
+	diagNoFoundStrong: string; diagNoFoundTail: string;
+	importBtnLabel: string; pipelineAfterImport: string;
+	pipelineClassify: string; pipelineRerunMissing: string; pipelineRerunPrices: string;
+	reviewNoBuy: string; reviewNoBasis: string;
+	rowCountSingular: string; rowCountPlural: string;
+	chipNoBuy: string; chipNoPrice: string;
+	irsHeaderBadge: string; irsHeaderTitle: string; irsHeaderDesc: string;
+	irsHeaderDisclaimer: string; irsHeaderTaxYear: string;
+	irsHeaderMethod: string; irsHeaderPreparedBy: string;
+	boxNoteTemplate: string; totalsPrefix: string;
+}
+const I18N: F8I18n = (window as unknown as { __f8i18n?: F8I18n }).__f8i18n ?? {
+	errLoadFailed: 'Failed to load form data.', errNetwork: 'Network error — please try again.',
+	ctxNoImports: 'No transactions were found for {year}. Import transactions for your wallets or exchanges first, then re-run the pipeline.',
+	ctxPipelineNotRun: "AlmsTins found transactions for {year} but the classification pipeline hasn't run yet. Run the pipeline from the Tax Center to match buys and sells into taxable lots.",
+	ctxCoinSingular: ' coin', ctxCoinPlural: ' coins',
+	ctxHasSingular: 'has', ctxHavePlural: 'have',
+	ctxTxSingular: 'unresolved transaction', ctxTxPlural: 'unresolved transactions',
+	ctxMustFix: 'These must be fixed before this summary is complete.',
+	ctxNone: "The pipeline ran but found no taxable disposals for {year}. If you didn't sell any crypto this year that's expected — otherwise check your imports.",
+	diagPipelineNotRunStrong: 'Pipeline not run',
+	diagPipelineNotRunText: " — transactions exist for {year} but haven't been classified into taxable lots yet",
+	diagNoBuyStrong: '{n} sell{s} with no matching purchase record',
+	diagNoBuyConnector: ' — ',
+	diagNoBuyTail: " · the buy transaction is either missing from your imports or happened on a platform you haven't connected yet",
+	diagNoBasisStrong: '{n} lot{s} missing purchase price or date',
+	diagNoBasisConnector: ' — ',
+	diagNoBasisTail: " · the buy was found but its USD value at purchase time is unknown",
+	diagNoDisposalsStrong: 'No disposals in {year}',
+	diagNoDisposalsTail: ' — the pipeline ran successfully but found no sells, swaps, or trades to report',
+	diagNoFoundStrong: 'No transactions found for {year}',
+	diagNoFoundTail: ' — nothing has been imported for this year yet',
+	importBtnLabel: '📥 Import Transactions — add data for {year}',
+	pipelineAfterImport: '⚙️ Run Pipeline — after importing',
+	pipelineClassify: '⚙️ Run Pipeline — classify transactions for {year}',
+	pipelineRerunMissing: '⚙️ Re-run Pipeline — after adding missing records',
+	pipelineRerunPrices: '⚙️ Re-run Pipeline — after fixing missing prices',
+	reviewNoBuy: '🔍 Review Queue — find the missing buys for {n} sell{s}',
+	reviewNoBasis: '🔍 Review Queue — enter purchase prices for {n} lot{s}',
+	rowCountSingular: 'transaction', rowCountPlural: 'transactions · See Schedule D for totals',
+	chipNoBuy: '⚠ no purchase record', chipNoPrice: '⚠ missing price',
+	irsHeaderBadge: 'Informational summary — not for filing',
+	irsHeaderTitle: 'Capital Gains Summary',
+	irsHeaderDesc: 'Realized gains and losses, formatted to mirror IRS Form 8949 for reference',
+	irsHeaderDisclaimer: 'Not a tax filing or tax advice — confirm with your tax professional',
+	irsHeaderTaxYear: 'Tax Year:', irsHeaderMethod: 'Method:',
+	irsHeaderPreparedBy: 'Prepared by Almstins — not an IRS-issued form',
+	boxNoteTemplate: 'Note: Crypto transactions are reported in Box {box} ("all other") because exchanges were not required to issue 1099-B for these transactions.',
+	totalsPrefix: 'Totals (Box {box})',
+};
+
 const USD = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
 const fmtGain = (n: number) => { const abs = USD(Math.abs(n)); return n < 0 ? `(${abs})` : n > 0 ? `+${abs}` : abs; };
 
@@ -558,7 +673,7 @@ async function loadForm8949() {
 		stLoading.classList.add('hidden');
 
 		if (!data.ok) {
-			stError.textContent = data.error ?? 'Failed to load form data.';
+			stError.textContent = data.error ?? I18N.errLoadFailed;
 			stError.classList.remove('hidden');
 			return;
 		}
@@ -582,7 +697,7 @@ async function loadForm8949() {
 
 	} catch (err) {
 		stLoading.classList.add('hidden');
-		stError.textContent = 'Network error — please try again.';
+		stError.textContent = I18N.errNetwork;
 		stError.classList.remove('hidden');
 	}
 }
@@ -654,15 +769,15 @@ function renderForm(data: NonNullable<typeof currentData>) {
 		header.innerHTML = `
 			<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1.5rem;">
 				<div>
-					<p style="font-size:0.7rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:#9ca3af; margin:0 0 4px;">Informational summary &mdash; not for filing</p>
-					<p style="font-size:1.25rem; font-weight:800; color:#111827; margin:0 0 2px;">Capital Gains Summary</p>
-					<p style="font-size:0.8rem; color:#374151; margin:0 0 2px;">Realized gains and losses, formatted to mirror IRS Form 8949 for reference</p>
-					<p style="font-size:0.75rem; color:#6b7280; margin:0;">Not a tax filing or tax advice &mdash; confirm with your tax professional</p>
+					<p style="font-size:0.7rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:#9ca3af; margin:0 0 4px;">${I18N.irsHeaderBadge}</p>
+					<p style="font-size:1.25rem; font-weight:800; color:#111827; margin:0 0 2px;">${I18N.irsHeaderTitle}</p>
+					<p style="font-size:0.8rem; color:#374151; margin:0 0 2px;">${I18N.irsHeaderDesc}</p>
+					<p style="font-size:0.75rem; color:#6b7280; margin:0;">${I18N.irsHeaderDisclaimer}</p>
 				</div>
 				<div style="text-align:right; font-size:0.8rem; color:#374151; white-space:nowrap;">
-					<p style="margin:0 0 3px;"><strong>Tax Year:</strong> ${data.year}</p>
-					<p style="margin:0 0 6px;"><strong>Method:</strong> ${data.method.toUpperCase()}</p>
-					<p style="margin:0; font-size:0.7rem; color:#9ca3af;">Prepared by Almstins &mdash; not an IRS-issued form</p>
+					<p style="margin:0 0 3px;"><strong>${I18N.irsHeaderTaxYear}</strong> ${data.year}</p>
+					<p style="margin:0 0 6px;"><strong>${I18N.irsHeaderMethod}</strong> ${data.method.toUpperCase()}</p>
+					<p style="margin:0; font-size:0.7rem; color:#9ca3af;">${I18N.irsHeaderPreparedBy}</p>
 				</div>
 			</div>
 		`;
@@ -691,7 +806,7 @@ function renderForm(data: NonNullable<typeof currentData>) {
 		// Note about Box C/F for crypto
 		const note = document.createElement('p');
 		note.style.cssText = 'font-size:0.75rem; color:#6b7280; line-height:1.6; margin:0 0 1.5rem; padding:0.6rem 0.875rem; background:#f9fafb; border-left:3px solid #d1d5db; border-radius:0 4px 4px 0;';
-		note.textContent = `Note: Crypto transactions are reported in Box ${p.activeBox} ("all other") because exchanges were not required to issue 1099-B for these transactions.`;
+		note.textContent = I18N.boxNoteTemplate.replace('{box}', p.activeBox);
 		page.appendChild(note);
 
 		// Table
@@ -712,7 +827,7 @@ function renderForm(data: NonNullable<typeof currentData>) {
 			<tbody id="tbody-${p.part}"></tbody>
 			<tfoot>
 				<tr class="totals-row">
-					<td colspan="3" style="font-weight:700">Totals (Box ${p.activeBox})</td>
+					<td colspan="3" style="font-weight:700">${I18N.totalsPrefix.replace('{box}', p.activeBox)}</td>
 					<td style="text-align:right">${USD(p.totals.proceeds)}</td>
 					<td style="text-align:right">${USD(p.totals.basis)}</td>
 					<td></td>
@@ -743,7 +858,7 @@ function renderForm(data: NonNullable<typeof currentData>) {
 		// Row count note
 		const countNote = document.createElement('p');
 		countNote.style.cssText = 'font-size:0.75rem; color:#9ca3af; margin:10px 0 0; text-align:right; letter-spacing:0.01em;';
-		countNote.textContent = `${p.rows.length.toLocaleString()} transaction${p.rows.length !== 1 ? 's' : ''} · See Schedule D for totals`;
+		countNote.textContent = `${p.rows.length.toLocaleString()} ${p.rows.length !== 1 ? I18N.rowCountPlural : I18N.rowCountSingular}`;
 		page.appendChild(countNote);
 
 		pagesEl.appendChild(page);
@@ -795,14 +910,17 @@ async function populateDiagnostics(year: string, method: string, _totals: { proc
 
 		// ── Update headline context ──────────────────────────────────────────
 		if (hasNoImports) {
-			ctxEl.textContent = `No transactions were found for ${year}. Import transactions for your wallets or exchanges first, then re-run the pipeline.`;
+			ctxEl.textContent = I18N.ctxNoImports.replace('{year}', year);
 		} else if (!pipelineRan) {
-			ctxEl.textContent = `AlmsTins found transactions for ${year} but the classification pipeline hasn't run yet. Run the pipeline from the Tax Center to match buys and sells into taxable lots.`;
+			ctxEl.textContent = I18N.ctxPipelineNotRun.replace('{year}', year);
 		} else if (affectedAssets.length > 0) {
 			const named = affectedAssets.slice(0, 4).join(', ') + (affectedAssets.length > 4 ? ` +${affectedAssets.length - 4} more` : '');
-			ctxEl.textContent = `${affectedAssets.length} coin${affectedAssets.length === 1 ? '' : 's'} (${named}) ${affectedAssets.length === 1 ? 'has' : 'have'} ${totalMissing} unresolved transaction${totalMissing === 1 ? '' : 's'}. These must be fixed before this summary is complete.`;
+			const coinWord  = affectedAssets.length === 1 ? I18N.ctxCoinSingular : I18N.ctxCoinPlural;
+			const haveWord  = affectedAssets.length === 1 ? I18N.ctxHasSingular  : I18N.ctxHavePlural;
+			const txWord    = totalMissing   === 1 ? I18N.ctxTxSingular    : I18N.ctxTxPlural;
+			ctxEl.textContent = `${affectedAssets.length}${coinWord} (${named}) ${haveWord} ${totalMissing} ${txWord}. ${I18N.ctxMustFix}`;
 		} else {
-			ctxEl.textContent = `The pipeline ran but found no taxable disposals for ${year}. If you didn't sell any crypto this year that's expected — otherwise check your imports.`;
+			ctxEl.textContent = I18N.ctxNone.replace('{year}', year);
 		}
 
 		// ── Highlight the relevant diagnostic bullet, dim the others ────────
@@ -811,21 +929,23 @@ async function populateDiagnostics(year: string, method: string, _totals: { proc
 
 		if (hasNoImports) {
 			dim(diagPipeline); dim(diagMissingBuy); show(diagNoData);
-			diagNoData.innerHTML = `<strong>No transactions found for ${year}</strong> — nothing has been imported for this year yet`;
+			diagNoData.innerHTML = `<strong>${I18N.diagNoFoundStrong.replace('{year}', year)}</strong>${I18N.diagNoFoundTail}`;
 		} else if (!pipelineRan) {
 			show(diagPipeline); dim(diagMissingBuy); dim(diagNoData);
-			diagPipeline.innerHTML = `<strong>Pipeline not run</strong> — transactions exist for ${year} but haven't been classified into taxable lots yet`;
+			diagPipeline.innerHTML = `<strong>${I18N.diagPipelineNotRunStrong}</strong>${I18N.diagPipelineNotRunText.replace('{year}', year)}`;
 		} else if (totalNoBuy > 0) {
 			dim(diagPipeline); show(diagMissingBuy); dim(diagNoData);
 			const coinList = affectedAssets.filter(a => (assetIssues.get(a)?.noBuy ?? 0) > 0).slice(0, 3).join(', ');
-			diagMissingBuy.innerHTML = `<strong>${totalNoBuy} sell${totalNoBuy === 1 ? '' : 's'} with no matching purchase record</strong> — ${coinList} · the buy transaction is either missing from your imports or happened on a platform you haven't connected yet`;
+			const strong = I18N.diagNoBuyStrong.replace('{n}', String(totalNoBuy)).replace('{s}', totalNoBuy === 1 ? '' : 's');
+			diagMissingBuy.innerHTML = `<strong>${strong}</strong>${I18N.diagNoBuyConnector}${coinList}${I18N.diagNoBuyTail}`;
 		} else if (totalNoBasis > 0) {
 			dim(diagPipeline); show(diagMissingBuy); dim(diagNoData);
 			const coinList = affectedAssets.slice(0, 3).join(', ');
-			diagMissingBuy.innerHTML = `<strong>${totalNoBasis} lot${totalNoBasis === 1 ? '' : 's'} missing purchase price or date</strong> — ${coinList} · the buy was found but its USD value at purchase time is unknown`;
+			const strong = I18N.diagNoBasisStrong.replace('{n}', String(totalNoBasis)).replace('{s}', totalNoBasis === 1 ? '' : 's');
+			diagMissingBuy.innerHTML = `<strong>${strong}</strong>${I18N.diagNoBasisConnector}${coinList}${I18N.diagNoBasisTail}`;
 		} else {
 			dim(diagPipeline); dim(diagMissingBuy); show(diagNoData);
-			diagNoData.innerHTML = `<strong>No disposals in ${year}</strong> — the pipeline ran successfully but found no sells, swaps, or trades to report`;
+			diagNoData.innerHTML = `<strong>${I18N.diagNoDisposalsStrong.replace('{year}', year)}</strong>${I18N.diagNoDisposalsTail}`;
 		}
 
 		// ── Coin chips ───────────────────────────────────────────────────────
@@ -839,7 +959,7 @@ async function populateDiagnostics(year: string, method: string, _totals: { proc
 				chip.className = `asset-chip asset-chip--${hasNoBuy ? 'no-buy' : 'no-basis'}`;
 				chip.innerHTML =
 					`<strong>${asset}</strong>` +
-					`<span class="chip-badge">${hasNoBuy ? '⚠ no purchase record' : '⚠ missing price'}</span>` +
+					`<span class="chip-badge">${hasNoBuy ? I18N.chipNoBuy : I18N.chipNoPrice}</span>` +
 					(count > 1 ? `<span class="chip-count">×${count}</span>` : '');
 				tokensList.appendChild(chip);
 			}
@@ -851,20 +971,20 @@ async function populateDiagnostics(year: string, method: string, _totals: { proc
 		const [reviewBtn, importBtn, pipelineBtn] = buttons;
 
 		if (hasNoImports) {
-			if (importBtn)   { importBtn.innerHTML   = '📥 Import Transactions — add data for ' + year; importBtn.className   = 'es-btn es-btn--primary'; }
+			if (importBtn)   { importBtn.innerHTML   = I18N.importBtnLabel.replace('{year}', year); importBtn.className   = 'es-btn es-btn--primary'; }
 			if (reviewBtn)   { reviewBtn.className   = 'es-btn es-btn--secondary'; }
-			if (pipelineBtn) { pipelineBtn.innerHTML = '⚙️ Run Pipeline — after importing'; pipelineBtn.className = 'es-btn es-btn--secondary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = I18N.pipelineAfterImport; pipelineBtn.className = 'es-btn es-btn--secondary'; }
 		} else if (!pipelineRan) {
-			if (pipelineBtn) { pipelineBtn.innerHTML = `⚙️ Run Pipeline — classify transactions for ${year}`; pipelineBtn.className = 'es-btn es-btn--primary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = I18N.pipelineClassify.replace('{year}', year); pipelineBtn.className = 'es-btn es-btn--primary'; }
 			if (reviewBtn)   { reviewBtn.className   = 'es-btn es-btn--secondary'; }
 			if (importBtn)   { importBtn.className   = 'es-btn es-btn--secondary'; }
 		} else if (totalNoBuy > 0) {
-			if (reviewBtn)   { reviewBtn.innerHTML   = `🔍 Review Queue — find the missing buys for ${totalNoBuy} sell${totalNoBuy === 1 ? '' : 's'}`; reviewBtn.className = 'es-btn es-btn--primary'; }
-			if (pipelineBtn) { pipelineBtn.innerHTML = '⚙️ Re-run Pipeline — after adding missing records'; pipelineBtn.className = 'es-btn es-btn--secondary'; }
+			if (reviewBtn)   { reviewBtn.innerHTML   = I18N.reviewNoBuy.replace('{n}', String(totalNoBuy)).replace('{s}', totalNoBuy === 1 ? '' : 's'); reviewBtn.className = 'es-btn es-btn--primary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = I18N.pipelineRerunMissing; pipelineBtn.className = 'es-btn es-btn--secondary'; }
 			if (importBtn)   { importBtn.className   = 'es-btn es-btn--secondary'; }
 		} else if (totalNoBasis > 0) {
-			if (reviewBtn)   { reviewBtn.innerHTML   = `🔍 Review Queue — enter purchase prices for ${totalNoBasis} lot${totalNoBasis === 1 ? '' : 's'}`; reviewBtn.className = 'es-btn es-btn--primary'; }
-			if (pipelineBtn) { pipelineBtn.innerHTML = '⚙️ Re-run Pipeline — after fixing missing prices'; pipelineBtn.className = 'es-btn es-btn--secondary'; }
+			if (reviewBtn)   { reviewBtn.innerHTML   = I18N.reviewNoBasis.replace('{n}', String(totalNoBasis)).replace('{s}', totalNoBasis === 1 ? '' : 's'); reviewBtn.className = 'es-btn es-btn--primary'; }
+			if (pipelineBtn) { pipelineBtn.innerHTML = I18N.pipelineRerunPrices; pipelineBtn.className = 'es-btn es-btn--secondary'; }
 			if (importBtn)   { importBtn.className   = 'es-btn es-btn--secondary'; }
 		}
 

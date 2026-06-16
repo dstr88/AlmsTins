@@ -11,9 +11,14 @@ import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { hasTaxAccess } from '@/lib/taxAuth';
 import YearEndTour from '../../../components/tours/YearEndTour.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getReview } from '@/i18n/dashboard/yearEnd/review';
 
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const { tenantId } = await requireTenantSession(Astro.request);
+const lang = getLang(Astro.request);
+const t = getReview(lang);
+const localeDateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 
 const currentYear = new Date().getFullYear();
 const defaultYear = currentYear - 1;
@@ -107,22 +112,8 @@ const items: ReviewRow[] = result.rows.map((r: DbRow) => {
 
 // Group by reason
 const groups = new Map<string, ReviewRow[]>();
-const REASON_LABELS: Record<string, string> = {
-	unmatched_transfer: '📤 Unmatched Transfers',
-	possible_loan:      '🏦 Possible Loan Events',
-	airdrop_unpriced:   '🪂 Airdrops Without Prices',
-	missing_price:      '💲 Missing Prices',
-	low_confidence:     '🤔 Low Confidence Classifications',
-	unknown_type:       '❓ Unknown Transaction Types',
-};
-const REASON_DESC: Record<string, string> = {
-	unmatched_transfer: "We found coins leaving your wallets/exchanges but couldn't find a matching incoming transfer. Each could be a send to another of your wallets (not taxable), a gift, or a payment/sale.",
-	possible_loan:      "These transactions involve known lending protocols. Auto-classified as loan events (not taxable), but please confirm.",
-	airdrop_unpriced:   "Airdrops are ordinary income at fair market value when received. These need a USD price to calculate your tax liability.",
-	missing_price:      "These taxable events have no USD value recorded. Without a price, gain/loss cannot be calculated.",
-	low_confidence:     "The pipeline classified these but isn't sure. Please confirm or correct.",
-	unknown_type:       "These couldn't be classified automatically. Select the correct type below.",
-};
+const REASON_LABELS: Record<string, string> = t.reasonLabels;
+const REASON_DESC: Record<string, string> = t.reasonDescs;
 
 for (const item of items) {
 	const group = groups.get(item.reason) ?? [];
@@ -130,42 +121,26 @@ for (const item of items) {
 	groups.set(item.reason, group);
 }
 
-const CATEGORY_OPTIONS = [
-	{ value: 'buy',                 label: 'Buy / Purchase' },
-	{ value: 'sell',                label: 'Sell' },
-	{ value: 'swap',                label: 'Swap (crypto-to-crypto)' },
-	{ value: 'transfer',            label: 'Transfer to my own wallet' },
-	{ value: 'income',              label: 'Income (staking / rewards / interest)' },
-	{ value: 'airdrop',             label: 'Airdrop' },
-	{ value: 'burn',                label: 'Burned / Destroyed' },
-	{ value: 'lost',                label: 'Lost (documented)' },
-	{ value: 'loan-proceeds',       label: 'Loan proceeds (not taxable)' },
-	{ value: 'loan-repayment',      label: 'Loan repayment (not taxable)' },
-	{ value: 'collateral-deposit',  label: 'Collateral deposit (not taxable)' },
-	{ value: 'liquidation',         label: 'Collateral liquidated (taxable sale)' },
-	{ value: 'fee',                 label: 'Transaction fee / gas' },
-	{ value: 'nft-sale',            label: 'NFT sale' },
-	{ value: 'loan-interest-paid',  label: 'Loan interest paid (deductible)' },
-];
+const CATEGORY_OPTIONS = t.categoryOptions;
 ---
 
-<Layout title="Tax Review | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<div id="app">
 
 		<!-- Header -->
 		<div class="rq-header">
 			<div>
-				<a href="/dashboard/yearEnd" class="page-back">← Tax Center</a>
-				<h1 class="page-title">Tax Review Queue — {activeYear}</h1>
+				<a href="/dashboard/yearEnd" class="page-back">{t.backLink}</a>
+				<h1 class="page-title">{t.headingPrefix} {activeYear}</h1>
 				<p class="page-subtitle">
 					{items.length === 0
-						? `No unresolved items for ${activeYear}.`
-						: `${items.length} item${items.length !== 1 ? 's' : ''} need${items.length === 1 ? 's' : ''} your attention before the ${activeYear} summary is final.`}
+						? t.subtitleEmpty(activeYear)
+						: t.subtitleItems(items.length, activeYear)}
 				</p>
 			</div>
 			<div class="header-actions">
 				<YearEndTour />
-				<select id="year-sel" class="rq-select" aria-label="Tax year">
+				<select id="year-sel" class="rq-select" aria-label={t.yearAriaLabel}>
 					{availableYears.length === 0
 						? <option value={activeYear}>{activeYear}</option>
 						: availableYears.map(y => (
@@ -173,8 +148,8 @@ const CATEGORY_OPTIONS = [
 						))
 					}
 				</select>
-				<a href={`/dashboard/yearEnd/report?year=${activeYear}`} class="rq-btn rq-btn--ghost">← Year Summary</a>
-				<button id="run-pipeline" class="rq-btn rq-btn--primary">🔄 Re-classify All</button>
+				<a href={`/dashboard/yearEnd/report?year=${activeYear}`} class="rq-btn rq-btn--ghost">{t.btnYearSummary}</a>
+				<button id="run-pipeline" class="rq-btn rq-btn--primary">{t.btnReclassify}</button>
 			</div>
 		</div>
 
@@ -182,9 +157,9 @@ const CATEGORY_OPTIONS = [
 		{items.length === 0 && (
 			<div class="empty-ok">
 				<p class="empty-ok__icon">✅</p>
-				<p class="empty-ok__title">Nothing left to review</p>
-				<p class="empty-ok__text">Head to the Year Summary for your complete breakdown.</p>
-				<a href="/dashboard/yearEnd/report" class="rq-btn rq-btn--green">Open Year Summary →</a>
+				<p class="empty-ok__title">{t.emptyTitle}</p>
+				<p class="empty-ok__text">{t.emptyText}</p>
+				<a href="/dashboard/yearEnd/report" class="rq-btn rq-btn--green">{t.emptyCta}</a>
 			</div>
 		)}
 
@@ -202,7 +177,7 @@ const CATEGORY_OPTIONS = [
 				<div class="group-items">
 					{groupItems.map((item) => {
 						const { sym, amt, usd, ts, autoCat, needsPrice } = item;
-						const usdFmt = usd ? `$${Number(usd).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}` : '';
+						const usdFmt = usd ? `$${Number(usd).toLocaleString(localeDateLocale, {minimumFractionDigits:2, maximumFractionDigits:2})}` : '';
 
 						return (
 							<div class="review-item"
@@ -219,7 +194,7 @@ const CATEGORY_OPTIONS = [
 										</p>
 										<p class="item-date">{ts}</p>
 										{autoCat && (
-											<p class="item-auto">Auto-classified as <strong>{autoCat}</strong> — please confirm</p>
+											<p class="item-auto" set:html={t.autoClassifiedAs(`<strong>${autoCat}</strong>`)}></p>
 										)}
 									</div>
 									<span class="reason-badge">{reason.replace(/_/g, ' ')}</span>
@@ -231,9 +206,9 @@ const CATEGORY_OPTIONS = [
 								<!-- Resolution form -->
 								<form class="resolve-form">
 									<div class="field-row">
-										<label class="field-label">Classify as:</label>
+										<label class="field-label">{t.labelClassify}</label>
 										<select class="category-select" value={autoCat}>
-											<option value="">— select —</option>
+											<option value="">{t.selectPlaceholder}</option>
 											{CATEGORY_OPTIONS.map((opt) => (
 												<option value={opt.value} selected={opt.value === autoCat}>{opt.label}</option>
 											))}
@@ -242,21 +217,21 @@ const CATEGORY_OPTIONS = [
 
 									{needsPrice && (
 										<div class="field-row price-field">
-											<label class="field-label">USD price per token on {ts}:</label>
-											<input type="number" step="any" min="0" placeholder="e.g. 2450.00"
+											<label class="field-label">{t.labelPricePerToken(ts)}</label>
+											<input type="number" step="any" min="0" placeholder={t.priceInputPlaceholder}
 											       class="price-input" />
 										</div>
 									)}
 
 									<div>
-										<label class="field-label">Note (optional):</label>
+										<label class="field-label">{t.labelNote}</label>
 										<textarea rows="2" class="notes-input"
-										          placeholder="e.g. 'Sent to my Ledger' or 'Aave borrow for ETH purchase'"
+										          placeholder={t.notePlaceholder}
 										>{item.notes ?? ''}</textarea>
 									</div>
 
 									<div class="form-actions">
-										<button type="submit" class="save-btn">Save &amp; Resolve</button>
+										<button type="submit" class="save-btn">{t.btnSave}</button>
 										<span class="status-msg hidden"></span>
 									</div>
 								</form>
@@ -520,7 +495,29 @@ const CATEGORY_OPTIONS = [
 .status-msg { font-size: .85rem; color: #9ca3af; }
 </style>
 
+<script is:inline define:vars={{ i18n: {
+	statusRunning:    t.statusRunning,
+	statusDone:       t.statusDone,
+	statusFailed:     t.statusFailed,
+	statusError:      t.statusError,
+	statusSelectFirst: t.statusSelectFirst,
+	statusSaving:     t.statusSaving,
+	statusSaved:      t.statusSaved,
+	statusNetworkError: t.statusNetworkError,
+} }}>window.__reviewI18n = i18n;</script>
+
 <script>
+interface ReviewI18n {
+	statusRunning: string; statusDone: string; statusFailed: string; statusError: string;
+	statusSelectFirst: string; statusSaving: string; statusSaved: string; statusNetworkError: string;
+}
+const I18N: ReviewI18n = (window as unknown as { __reviewI18n?: ReviewI18n }).__reviewI18n ?? {
+	statusRunning: '⏳ Running…', statusDone: '✅ Done — reloading…',
+	statusFailed: '❌ Failed', statusError: '❌ Error',
+	statusSelectFirst: 'Please select a category first.',
+	statusSaving: 'Saving…', statusSaved: '✅ Saved!', statusNetworkError: '❌ Network error',
+};
+
 // ── Year selector — reload page with ?year= param ────────────────────────────
 document.getElementById('year-sel')?.addEventListener('change', (e) => {
 	const year = (e.currentTarget as HTMLSelectElement).value;
@@ -533,20 +530,20 @@ document.getElementById('year-sel')?.addEventListener('change', (e) => {
 document.getElementById('run-pipeline')?.addEventListener('click', async (e) => {
 	const btn = e.currentTarget as HTMLButtonElement;
 	btn.disabled = true;
-	btn.textContent = '⏳ Running…';
+	btn.textContent = I18N.statusRunning;
 	try {
 		const year = new URL(window.location.href).searchParams.get('year') ?? String(new Date().getFullYear() - 1);
 	const res = await fetch('/api/yearEnd/classify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ year }) });
 		const data = await res.json();
 		if (data.ok) {
-			btn.textContent = '✅ Done — reloading…';
+			btn.textContent = I18N.statusDone;
 			setTimeout(() => window.location.reload(), 1000);
 		} else {
-			btn.textContent = '❌ Failed';
+			btn.textContent = I18N.statusFailed;
 			btn.disabled = false;
 		}
 	} catch {
-		btn.textContent = '❌ Error';
+		btn.textContent = I18N.statusError;
 		btn.disabled = false;
 	}
 });
@@ -570,12 +567,12 @@ document.querySelectorAll<HTMLDivElement>('.review-item').forEach((card) => {
 		const saveBtn       = card.querySelector<HTMLButtonElement>('.save-btn');
 
 		if (!category) {
-			if (statusMsg) { statusMsg.textContent = 'Please select a category first.'; statusMsg.classList.remove('hidden'); }
+			if (statusMsg) { statusMsg.textContent = I18N.statusSelectFirst; statusMsg.classList.remove('hidden'); }
 			return;
 		}
 
 		if (saveBtn) saveBtn.disabled = true;
-		if (statusMsg) { statusMsg.textContent = 'Saving…'; statusMsg.classList.remove('hidden'); }
+		if (statusMsg) { statusMsg.textContent = I18N.statusSaving; statusMsg.classList.remove('hidden'); }
 
 		try {
 			const res = await fetch('/api/yearEnd/review/resolve', {
@@ -585,17 +582,17 @@ document.querySelectorAll<HTMLDivElement>('.review-item').forEach((card) => {
 			});
 			const data = await res.json();
 			if (data.ok) {
-				if (statusMsg) statusMsg.textContent = '✅ Saved!';
+				if (statusMsg) statusMsg.textContent = I18N.statusSaved;
 				// Fade out the card
 				card.style.transition = 'opacity 0.4s';
 				card.style.opacity = '0';
 				setTimeout(() => card.remove(), 450);
 			} else {
-				if (statusMsg) statusMsg.textContent = `❌ ${data.error ?? 'Failed'}`;
+				if (statusMsg) statusMsg.textContent = `❌ ${data.error ?? I18N.statusFailed}`;
 				if (saveBtn) saveBtn.disabled = false;
 			}
 		} catch {
-			if (statusMsg) statusMsg.textContent = '❌ Network error';
+			if (statusMsg) statusMsg.textContent = I18N.statusNetworkError;
 			if (saveBtn) saveBtn.disabled = false;
 		}
 	});

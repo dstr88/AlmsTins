@@ -16,6 +16,11 @@
 import Layout from '../../../layouts/Layout.astro';
 import { hasTaxAccess } from '@/lib/taxAuth';
 import CompletenessScore from '@/components/yearEnd/CompletenessScore.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getGains } from '@/i18n/dashboard/yearEnd/gains';
+
+const lang = getLang(Astro.request);
+const t = getGains(lang);
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type AssetIncome = { symbol: string; amount: number; count: number };
@@ -176,11 +181,13 @@ const payload        = data.ok ? data : null;
 const availableYears = payload?.availableYears ?? [];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+
 const fmt = (n: number) =>
 	n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 
 const fmtDate = (iso: string) => {
-	try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+	try { return new Date(iso).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' }); }
 	catch { return iso; }
 };
 
@@ -193,19 +200,19 @@ const fmtGain = (n: number) => {
 };
 ---
 
-<Layout title="Gains Summary | almsTins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<div class="max-w-4xl mx-auto px-4 py-8 space-y-8">
 
 		<!-- Header + year picker -->
 		<div class="flex items-center justify-between flex-wrap gap-4">
 			<div>
-				<a href="/dashboard/yearEnd" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">← Tax Center</a>
-				<h1 class="text-2xl font-bold">Gains Summary</h1>
+				<a href="/dashboard/yearEnd" class="text-xs text-indigo-500 hover:text-indigo-700 font-medium mb-1 inline-block">{t.backLink}</a>
+				<h1 class="text-2xl font-bold">{t.heroTitle}</h1>
 				<p class="text-sm text-gray-500 mt-1">
-					Realized gains overview for <strong>{year}</strong>.
-					Detailed gain/loss per lot is in the
+					{t.heroSub(year)}
+					{t.heroSubDetail}
 					<a href="/dashboard/transactions" class="underline text-blue-600 hover:text-blue-800">
-						CSV export
+						{t.heroSubLinkLabel}
 					</a>.
 				</p>
 			</div>
@@ -216,37 +223,37 @@ const fmtGain = (n: number) => {
 					<a
 						href={`?year=${year}&method=fifo`}
 						class={`px-3 py-1.5 transition-colors ${method === 'fifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-						title="First In, First Out — IRS default"
+						title={t.fifoTitle}
 					>FIFO</a>
 					<a
 						href={`?year=${year}&method=hifo`}
 						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'hifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-						title="Highest In, First Out — minimizes taxable gain"
+						title={t.hifoTitle}
 					>HIFO</a>
 					<a
 						href={`?year=${year}&method=lifo`}
 						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'lifo' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-						title="Last In, First Out — preferred in down markets"
+						title={t.lifoTitle}
 					>LIFO</a>
 					<a
 						href={`/dashboard/yearEnd/lots?year=${year}&method=${method}`}
 						class={`px-3 py-1.5 border-l border-gray-300 transition-colors ${method === 'spec_id' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
-						title="Specific Identification — manually choose which lot to sell"
+						title={t.specIdTitle}
 					>Spec ID</a>
 				</div>
 
 				{(method === 'hifo' || method === 'lifo' || method === 'spec_id') && (
 					<span class="text-xs text-indigo-600 font-medium bg-indigo-50 border border-indigo-200 rounded-full px-2 py-0.5">
-						{method === 'hifo' ? 'HIFO active — selling highest-cost lots first' :
-						 method === 'lifo' ? 'LIFO active — selling most-recently-acquired lots first' :
-						 'Spec ID active — using your pinned lot assignments'}
+						{method === 'hifo' ? t.hifoActive :
+						 method === 'lifo' ? t.lifoActive :
+						 t.specIdActive}
 					</span>
 				)}
 
 				{availableYears.length > 0 && (
 					<form id="gains-year-filter" method="get" class="flex items-center gap-2">
 						<input type="hidden" name="method" value={method} />
-						<label for="year-select" class="text-sm font-medium text-gray-700">Year</label>
+						<label for="year-select" class="text-sm font-medium text-gray-700">{t.yearLabel}</label>
 						<select
 							id="year-select"
 							name="year"
@@ -269,7 +276,7 @@ const fmtGain = (n: number) => {
 		<!-- API / data error -->
 		{!payload && (
 			<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-				Unable to load tax data for {year}. Try refreshing the page.
+				{t.loadError(year)}
 			</div>
 		)}
 
@@ -281,15 +288,11 @@ const fmtGain = (n: number) => {
 						<span class="text-amber-500 text-xl leading-none mt-0.5">⚠</span>
 						<div class="text-sm">
 							<p class="font-semibold text-amber-800">
-								{payload.unpricedOnchain} on-chain
-								transaction{payload.unpricedOnchain !== 1 ? 's are' : ' is'} missing
-								historical USD prices.
+								{t.unpricedHeading(payload.unpricedOnchain!)}
 							</p>
 							<p class="text-amber-700 mt-1">
-								Cost basis and proceeds may be incomplete. Historical pricing runs
-								automatically after each sync — check back shortly or trigger a
-								re-sync from the
-								<a href="/dashboard/wallets" class="underline">wallets page</a>.
+								{t.unpricedBody}
+								<a href="/dashboard/wallets" class="underline">{t.unpricedWalletsLink}</a>.
 							</p>
 						</div>
 					</div>
@@ -300,9 +303,9 @@ const fmtGain = (n: number) => {
 					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
 						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
 							<div>
-								<h2 class="text-sm font-semibold text-gray-700">Realized Capital Gains</h2>
+								<h2 class="text-sm font-semibold text-gray-700">{t.capitalGainsHeading}</h2>
 								<p class="text-xs text-gray-400 mt-0.5">
-									{method === 'fifo' ? 'FIFO' : method === 'hifo' ? 'HIFO' : method === 'lifo' ? 'LIFO' : 'Spec ID'} cost basis · Schedule D
+									{t.capitalGainsSub(method === 'fifo' ? 'FIFO' : method === 'hifo' ? 'HIFO' : method === 'lifo' ? 'LIFO' : 'Spec ID')}
 								</p>
 							</div>
 							<!-- Data source badge: shows whether gains came from the pipeline or
@@ -310,11 +313,11 @@ const fmtGain = (n: number) => {
 							{payload.gains.dataSource === 'pipeline'
 								? <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-medium px-2.5 py-1">
 										<span class="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"></span>
-										Pipeline data
+										{t.pipelineBadge}
 									</span>
 								: <span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 border border-gray-200 text-gray-500 text-xs font-medium px-2.5 py-1">
 										<span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>
-										In-memory FIFO
+										{t.inMemoryBadge}
 									</span>
 							}
 						</div>
@@ -323,7 +326,7 @@ const fmtGain = (n: number) => {
 							<!-- Short-term -->
 							<div class="p-5 space-y-1">
 								<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
-									Short-term &nbsp;<span class="normal-case font-normal text-gray-400">(held ≤ 1 yr)</span>
+									{t.shortTermLabel} &nbsp;<span class="normal-case font-normal text-gray-400">{t.shortTermNote}</span>
 								</p>
 								<p class={`text-2xl font-bold ${
 									(payload.gains.shortTermGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
@@ -331,15 +334,15 @@ const fmtGain = (n: number) => {
 									{fmtGain(payload.gains.shortTermGain)}
 								</p>
 								<p class="text-xs text-gray-500">
-									{payload.gains.shortTermCount} lot{payload.gains.shortTermCount !== 1 ? 's' : ''}
-									&nbsp;·&nbsp;taxed as ordinary income
+									{t.lotCount(payload.gains.shortTermCount)}
+									&nbsp;·&nbsp;{t.shortTermSub}
 								</p>
 							</div>
 
 							<!-- Long-term -->
 							<div class="p-5 space-y-1">
 								<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
-									Long-term &nbsp;<span class="normal-case font-normal text-gray-400">(held &gt; 1 yr)</span>
+									{t.longTermLabel} &nbsp;<span class="normal-case font-normal text-gray-400">{t.longTermNote}</span>
 								</p>
 								<p class={`text-2xl font-bold ${
 									(payload.gains.longTermGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
@@ -347,15 +350,15 @@ const fmtGain = (n: number) => {
 									{fmtGain(payload.gains.longTermGain)}
 								</p>
 								<p class="text-xs text-gray-500">
-									{payload.gains.longTermCount} lot{payload.gains.longTermCount !== 1 ? 's' : ''}
-									&nbsp;·&nbsp;0% / 15% / 20% rate
+									{t.lotCount(payload.gains.longTermCount)}
+									&nbsp;·&nbsp;{t.longTermSub}
 								</p>
 							</div>
 
 							<!-- Net -->
 							<div class="p-5 space-y-1">
 								<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
-									Net realized
+									{t.netRealizedLabel}
 								</p>
 								<p class={`text-2xl font-bold ${
 									(payload.gains.netGain ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'
@@ -363,7 +366,7 @@ const fmtGain = (n: number) => {
 									{fmtGain(payload.gains.netGain)}
 								</p>
 								<p class="text-xs text-gray-500">
-									ST + LT combined
+									{t.netRealizedSub}
 								</p>
 							</div>
 
@@ -377,14 +380,14 @@ const fmtGain = (n: number) => {
 						<span class="text-orange-500 text-xl leading-none mt-0.5">⚠</span>
 						<div class="space-y-1">
 							<p class="text-sm font-semibold text-orange-900">
-								Pipeline gain/loss diverges from displayed calculation
+								{t.gainDivergeHeading}
 							</p>
 							<p class="text-xs text-orange-700">
-								The stored <code class="font-mono bg-orange-100 px-1 rounded">tax_disposals</code> net
-								gain is <strong>{fmtGain(payload.gainCrossCheck.pipelineNet ?? 0)}</strong> but
-								the displayed total is <strong>{fmtGain(payload.gainCrossCheck.displayedNet ?? payload.gainCrossCheck.inMemoryNet ?? 0)}</strong>
-								(diff&nbsp;{fmtGain(payload.gainCrossCheck.netDiff ?? 0)}).
-								Re-run the classification pipeline to regenerate the stored lots.
+								{t.gainDivergeSub(
+									fmtGain(payload.gainCrossCheck.pipelineNet ?? 0),
+									fmtGain(payload.gainCrossCheck.displayedNet ?? payload.gainCrossCheck.inMemoryNet ?? 0),
+									fmtGain(payload.gainCrossCheck.netDiff ?? 0)
+								)}
 							</p>
 						</div>
 					</div>
@@ -396,13 +399,14 @@ const fmtGain = (n: number) => {
 						<span class="text-orange-500 text-xl leading-none mt-0.5">⚠</span>
 						<div class="space-y-1">
 							<p class="text-sm font-semibold text-orange-900">
-								Pipeline income total diverges from displayed calculation
+								{t.incomeDivergeHeading}
 							</p>
 							<p class="text-xs text-orange-700">
-								The classification pipeline shows <strong>{fmt(payload.incomeCrossCheck.pipelineTotal ?? 0)}</strong> but
-								the displayed total is <strong>{fmt(payload.incomeCrossCheck.displayedTotal ?? payload.incomeCrossCheck.inMemoryTotal ?? 0)}</strong>
-								(diff&nbsp;{fmt(Math.abs(payload.incomeCrossCheck.diff ?? 0))}).
-								Re-run the classification pipeline to resolve.
+								{t.incomeDivergeSub(
+									fmt(payload.incomeCrossCheck.pipelineTotal ?? 0),
+									fmt(payload.incomeCrossCheck.displayedTotal ?? payload.incomeCrossCheck.inMemoryTotal ?? 0),
+									fmt(Math.abs(payload.incomeCrossCheck.diff ?? 0))
+								)}
 							</p>
 						</div>
 					</div>
@@ -420,14 +424,14 @@ const fmtGain = (n: number) => {
 							{payload.lastPipelineRun.status === 'failed'  && <span class="text-red-500 font-bold">✗</span>}
 							{payload.lastPipelineRun.status === 'running' && <span class="text-yellow-500 font-bold">↻</span>}
 							<span>
-								Pipeline {payload.lastPipelineRun.status}&nbsp;·&nbsp;
+								{t.pipelineStatus(payload.lastPipelineRun.status)}&nbsp;·&nbsp;
 								{payload.lastPipelineRun.completedAt
-									? new Date(payload.lastPipelineRun.completedAt).toLocaleString()
-									: 'in progress'}
+									? new Date(payload.lastPipelineRun.completedAt).toLocaleString(dateLocale)
+									: t.inProgress}
 								{payload.lastPipelineRun.totalClassified != null && (
 									<span class="ml-2 text-gray-400">
-										{payload.lastPipelineRun.totalClassified.toLocaleString()} classified
-										{(payload.lastPipelineRun.totalUnknown ?? 0) > 0 && ` · ${payload.lastPipelineRun.totalUnknown} unknown`}
+										{t.classified(payload.lastPipelineRun.totalClassified)}
+										{(payload.lastPipelineRun.totalUnknown ?? 0) > 0 && ` · ${t.unknown(payload.lastPipelineRun.totalUnknown!)}`}
 									</span>
 								)}
 							</span>
@@ -441,7 +445,7 @@ const fmtGain = (n: number) => {
 						        class="pipeline-run-btn shrink-0 rounded border border-gray-300 hover:border-indigo-400
 						               hover:text-indigo-600 disabled:opacity-50 text-gray-500 text-xs font-medium
 						               px-2.5 py-1 transition-colors bg-white">
-							Re-run
+							{t.rerunBtn}
 						</button>
 					</div>
 				)}
@@ -450,15 +454,15 @@ const fmtGain = (n: number) => {
 				{!payload.lastPipelineRun && payload.gains?.dataSource === 'lifecycle' && (
 					<div class="rounded-xl border border-indigo-200 bg-indigo-50 shadow-sm p-4 flex items-center justify-between gap-4">
 						<div>
-							<p class="text-sm font-semibold text-indigo-900">Run the classification pipeline</p>
+							<p class="text-sm font-semibold text-indigo-900">{t.firstRunHeading}</p>
 							<p class="text-xs text-indigo-700 mt-0.5">
-								Classify your transactions for IRS-accurate FIFO lot matching, income detection, and Schedule D output.
+								{t.firstRunSub}
 							</p>
 						</div>
 						<button id="run-pipeline-btn-first"
 						        class="pipeline-run-btn shrink-0 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60
 						               text-white text-sm font-semibold px-4 py-2 transition-colors">
-							Run Pipeline
+							{t.runPipelineBtn}
 						</button>
 					</div>
 				)}
@@ -471,25 +475,25 @@ const fmtGain = (n: number) => {
 						<span class="text-amber-500 text-xl leading-none mt-0.5">⚠</span>
 						<div class="space-y-1 flex-1 min-w-0">
 							<p class="text-sm font-semibold text-amber-900">
-								Pipeline data may be out of date
+								{t.stalePipelineHeading}
 							</p>
 							<p class="text-xs text-amber-700">
-								New transactions were imported
+								{t.stalePipelineBody}
 								{payload.pipelineStale.staleSinceMs != null && (() => {
 									const ms   = payload.pipelineStale!.staleSinceMs!;
 									const days = Math.floor(ms / 86_400_000);
 									const hrs  = Math.floor(ms / 3_600_000);
-									return days >= 2 ? ` ${days} days`
-									     : hrs  >= 1 ? ` ${hrs} hour${hrs !== 1 ? 's' : ''}`
-									     : ' recently';
+									return days >= 2 ? t.staleDays(days)
+									     : hrs  >= 1 ? t.staleHours(hrs)
+									     : t.staleRecent;
 								})()}
-								after the last pipeline run. The gains shown may not reflect your latest data.
+								{t.staleAfterPipeline}
 							</p>
 							{payload.pipelineStale.lastRunAt && (
 								<p class="text-xs text-amber-600">
-									Last run: {new Date(payload.pipelineStale.lastRunAt).toLocaleString()}
+									{t.staleLastRun} {new Date(payload.pipelineStale.lastRunAt).toLocaleString(dateLocale)}
 									{payload.pipelineStale.latestImportAt && (
-										<> · Latest import: {new Date(payload.pipelineStale.latestImportAt).toLocaleString()}</>
+										<> {t.staleLatestImport} {new Date(payload.pipelineStale.latestImportAt).toLocaleString(dateLocale)}</>
 									)}
 								</p>
 							)}
@@ -497,7 +501,7 @@ const fmtGain = (n: number) => {
 						<button id="run-pipeline-btn-stale"
 						        class="pipeline-run-btn shrink-0 rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-60
 						               text-white text-xs font-semibold px-3 py-2 transition-colors">
-							Re-run Pipeline
+							{t.rerunPipelineBtn}
 						</button>
 					</div>
 				)}
@@ -507,12 +511,12 @@ const fmtGain = (n: number) => {
 					<div class="rounded-xl border border-emerald-200 bg-emerald-50 shadow-sm overflow-hidden">
 						<div class="px-5 py-3 border-b border-emerald-200 flex items-center justify-between">
 							<div>
-								<h2 class="text-sm font-semibold text-emerald-900">Capital Loss Carryforward</h2>
-								<p class="text-xs text-emerald-700 mt-0.5">Unused losses from prior years that can offset your {year} gains</p>
+								<h2 class="text-sm font-semibold text-emerald-900">{t.carryforwardHeading}</h2>
+								<p class="text-xs text-emerald-700 mt-0.5">{t.carryforwardSub(year)}</p>
 							</div>
 							<div class="text-right">
 								<p class="text-xl font-bold text-emerald-800">{fmtGain(-(payload.carryforwardAvailable ?? 0))}</p>
-								<p class="text-xs text-emerald-600">available to apply</p>
+								<p class="text-xs text-emerald-600">{t.availableToApply}</p>
 							</div>
 						</div>
 
@@ -520,11 +524,11 @@ const fmtGain = (n: number) => {
 							<table class="min-w-full text-sm">
 								<thead class="bg-emerald-100">
 									<tr>
-										<th class="px-5 py-2.5 text-left  text-xs font-medium text-emerald-800 uppercase tracking-wide">Year</th>
-										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">Net Gain / Loss</th>
-										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">Deducted vs Income</th>
-										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">Absorbed by Gain</th>
-										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">Ending Balance</th>
+										<th class="px-5 py-2.5 text-left  text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColYear}</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColNetGain}</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColDeducted}</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColAbsorbed}</th>
+										<th class="px-5 py-2.5 text-right text-xs font-medium text-emerald-800 uppercase tracking-wide">{t.carryColEnding}</th>
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-emerald-100 bg-white">
@@ -551,9 +555,7 @@ const fmtGain = (n: number) => {
 
 						<div class="px-5 py-3 border-t border-emerald-200 bg-emerald-50">
 							<p class="text-xs text-emerald-700">
-								<strong>How to use it:</strong> Apply this carryforward against your {year} net gain before calculating tax.
-								Up to $3,000 per year can also offset ordinary income if your net is still negative after applying it.
-								Your tax software or CPA will enter this on Schedule D.
+								<strong>{t.carryHowTo(year)}</strong>
 							</p>
 						</div>
 					</div>
@@ -564,7 +566,7 @@ const fmtGain = (n: number) => {
 					<div class="rounded-lg border border-gray-200 bg-gray-50 px-5 py-3 flex items-center gap-3">
 						<span class="text-gray-400 text-lg">✓</span>
 						<p class="text-xs text-gray-500">
-							You had loss years in the past but the full balance has been used up — no carryforward available for {year}.
+							{t.noCarryforward(year)}
 						</p>
 					</div>
 				)}
@@ -574,20 +576,20 @@ const fmtGain = (n: number) => {
 					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
 						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
 							<div>
-								<h2 class="text-sm font-semibold text-gray-700">Gain / Loss by Asset</h2>
-								<p class="text-xs text-gray-400 mt-0.5">Click any row to see individual lots · sorted by impact</p>
+								<h2 class="text-sm font-semibold text-gray-700">{t.byAssetHeading}</h2>
+								<p class="text-xs text-gray-400 mt-0.5">{t.byAssetSub}</p>
 							</div>
 						</div>
 						<table class="min-w-full text-sm">
 							<thead class="bg-gray-50">
 								<tr>
 									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide w-8"></th>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Asset</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">ST Gain / Loss</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">ST Lots</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">LT Gain / Loss</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">LT Lots</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Net</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colAsset}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colStGain}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colStLots}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colLtGain}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colLtLots}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.colNet}</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-100">
@@ -631,13 +633,13 @@ const fmtGain = (n: number) => {
 														<!-- Sub-table header + CSV export -->
 														<div class="flex items-center justify-between px-6 pt-3 pb-1.5">
 															<span class="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
-																{row.asset} · {lots.length} disposal{lots.length !== 1 ? 's' : ''}
+																{t.assetDisposals(row.asset, lots.length)}
 															</span>
 															<button class="csv-export-btn text-xs text-indigo-500 hover:text-indigo-700 font-medium
 															               border border-indigo-200 hover:border-indigo-400 rounded px-2 py-0.5
 															               transition-colors"
 															        data-asset={row.asset}>
-																↓ CSV
+																{t.csvBtn}
 															</button>
 														</div>
 														<!-- Individual lot table -->
@@ -645,14 +647,14 @@ const fmtGain = (n: number) => {
 															<table class="min-w-full text-xs border-t border-indigo-100">
 																<thead>
 																	<tr class="bg-indigo-50 text-indigo-600">
-																		<th class="px-6 py-2 text-left font-medium uppercase tracking-wide">Sold</th>
-																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">Qty</th>
-																		<th class="px-4 py-2 text-left font-medium uppercase tracking-wide">Acquired</th>
-																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">Held</th>
-																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">Proceeds</th>
-																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">Cost Basis</th>
-																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">Gain / Loss</th>
-																		<th class="px-4 py-2 text-center font-medium uppercase tracking-wide">Term</th>
+																		<th class="px-6 py-2 text-left font-medium uppercase tracking-wide">{t.lotColSold}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColQty}</th>
+																		<th class="px-4 py-2 text-left font-medium uppercase tracking-wide">{t.lotColAcquired}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColHeld}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColProceeds}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColCostBasis}</th>
+																		<th class="px-4 py-2 text-right font-medium uppercase tracking-wide">{t.lotColGainLoss}</th>
+																		<th class="px-4 py-2 text-center font-medium uppercase tracking-wide">{t.lotColTerm}</th>
 																	</tr>
 																</thead>
 																<tbody class="divide-y divide-indigo-100/60">
@@ -660,7 +662,7 @@ const fmtGain = (n: number) => {
 																		<tr class="hover:bg-indigo-50/60">
 																			<td class="px-6 py-2 text-gray-700 whitespace-nowrap">{fmtDate(lot.sellDate)}</td>
 																			<td class="px-4 py-2 text-right font-mono text-gray-700 whitespace-nowrap">
-																				{lot.amount.toLocaleString('en-US', { maximumFractionDigits: 8 })}
+																				{lot.amount.toLocaleString(dateLocale, { maximumFractionDigits: 8 })}
 																			</td>
 																			<td class="px-4 py-2 text-gray-500 whitespace-nowrap">{fmtDate(lot.buyDate)}</td>
 																			<td class="px-4 py-2 text-right text-gray-500 whitespace-nowrap">{lot.daysHeld}d</td>
@@ -682,7 +684,7 @@ const fmtGain = (n: number) => {
 																						? 'bg-green-100 text-green-700'
 																						: 'bg-amber-100 text-amber-700'
 																				}`}>
-																					{lot.term === 'long' ? 'LT' : 'ST'}
+																					{lot.term === 'long' ? t.termLong : t.termShort}
 																				</span>
 																			</td>
 																		</tr>
@@ -691,7 +693,7 @@ const fmtGain = (n: number) => {
 																<!-- Sub-total row -->
 																<tfoot>
 																	<tr class="bg-indigo-50 font-semibold border-t border-indigo-200">
-																		<td class="px-6 py-2 text-indigo-700">Subtotal</td>
+																		<td class="px-6 py-2 text-indigo-700">{t.lotSubtotal}</td>
 																		<td class="px-4 py-2"></td>
 																		<td class="px-4 py-2"></td>
 																		<td class="px-4 py-2"></td>
@@ -719,7 +721,7 @@ const fmtGain = (n: number) => {
 								<!-- Totals row -->
 								<tr class="bg-gray-50 font-semibold border-t-2 border-gray-200">
 									<td class="px-4 py-3"></td>
-									<td class="px-5 py-3 text-gray-700">Total</td>
+									<td class="px-5 py-3 text-gray-700">{t.colTotal}</td>
 									<td class={`px-5 py-3 text-right tabular-nums ${(payload.gains?.shortTermGain ?? 0) < 0 ? 'text-red-600' : 'text-green-700'}`}>
 										{fmtGain(payload.gains?.shortTermGain ?? 0)}
 									</td>
@@ -742,27 +744,27 @@ const fmtGain = (n: number) => {
 					<div class="rounded-xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
 						<div class="px-5 py-3 border-b border-amber-200 flex items-center justify-between">
 							<div>
-								<h2 class="text-sm font-semibold text-amber-900">Tax-Loss Harvesting Opportunities</h2>
-								<p class="text-xs text-amber-700 mt-0.5">Open lots currently below cost basis · selling locks in a deductible loss</p>
+								<h2 class="text-sm font-semibold text-amber-900">{t.harvestHeading}</h2>
+								<p class="text-xs text-amber-700 mt-0.5">{t.harvestSub}</p>
 							</div>
-							<span class="text-xs text-amber-600 font-medium">{payload.harvestLosses!.length} asset{payload.harvestLosses!.length !== 1 ? 's' : ''} underwater</span>
+							<span class="text-xs text-amber-600 font-medium">{t.harvestCount(payload.harvestLosses!.length)}</span>
 						</div>
 						<table class="min-w-full text-sm">
 							<thead class="bg-amber-100">
 								<tr>
-									<th class="px-5 py-2.5 text-left   text-xs font-medium text-amber-800 uppercase tracking-wide">Asset</th>
-									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">Qty Held</th>
-									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">Cost Basis</th>
-									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">Current Value</th>
-									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">Unrealized Loss</th>
-									<th class="px-5 py-2.5 text-center text-xs font-medium text-amber-800 uppercase tracking-wide">Term</th>
-									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">Days to LT</th>
+									<th class="px-5 py-2.5 text-left   text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColAsset}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColQty}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColCost}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColValue}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColLoss}</th>
+									<th class="px-5 py-2.5 text-center text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColTerm}</th>
+									<th class="px-5 py-2.5 text-right  text-xs font-medium text-amber-800 uppercase tracking-wide">{t.harvestColDaysToLt}</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-amber-100 bg-white">
 								{payload.harvestLosses!.map((row) => {
 									const termLabel = row.longTermQty > 0 && row.shortTermQty > 0
-										? 'Mixed'
+										? t.termMixed
 										: row.longTermQty > 0 ? 'Long' : 'Short';
 									const termColor = termLabel === 'Long'
 										? 'text-green-700 bg-green-50'
@@ -773,7 +775,7 @@ const fmtGain = (n: number) => {
 										<tr class="hover:bg-amber-50">
 											<td class="px-5 py-3 font-mono font-semibold text-gray-800">{row.asset}</td>
 											<td class="px-5 py-3 text-right text-gray-600 tabular-nums">
-												{row.totalQty.toLocaleString('en-US', { maximumFractionDigits: 6 })}
+												{row.totalQty.toLocaleString(dateLocale, { maximumFractionDigits: 6 })}
 											</td>
 											<td class="px-5 py-3 text-right text-gray-700 tabular-nums">{fmt(row.totalCost)}</td>
 											<td class="px-5 py-3 text-right text-gray-700 tabular-nums">
@@ -789,7 +791,7 @@ const fmtGain = (n: number) => {
 											</td>
 											<td class="px-5 py-3 text-right text-gray-500 tabular-nums">
 												{termLabel === 'Long'
-													? <span class="text-green-600 font-medium">✓ LT</span>
+													? <span class="text-green-600 font-medium">{t.harvestLtCheck}</span>
 													: row.soonestLotDaysToLT !== null
 														? `${row.soonestLotDaysToLT}d`
 														: '—'
@@ -802,9 +804,7 @@ const fmtGain = (n: number) => {
 						</table>
 						<div class="px-5 py-3 border-t border-amber-200 bg-amber-50">
 							<p class="text-xs text-amber-700">
-								<strong>Note:</strong> Prices are live spot rates. Selling and immediately rebuying
-								may trigger wash-sale–like treatment depending on IRS guidance for your situation.
-								Consult a tax professional before harvesting.
+								{t.harvestNote}
 							</p>
 						</div>
 					</div>
@@ -815,23 +815,23 @@ const fmtGain = (n: number) => {
 					<div class="rounded-xl border border-red-200 bg-red-50 shadow-sm overflow-hidden">
 						<div class="px-5 py-3 border-b border-red-200 flex items-center justify-between">
 							<div>
-								<h2 class="text-sm font-semibold text-red-900">Missing Cost Basis</h2>
-								<p class="text-xs text-red-700 mt-0.5">These disposals have incomplete records — your gain/loss totals above may be wrong</p>
+								<h2 class="text-sm font-semibold text-red-900">{t.missingBasisHeading}</h2>
+								<p class="text-xs text-red-700 mt-0.5">{t.missingBasisSub}</p>
 							</div>
 							<span class="text-xs text-red-600 font-semibold bg-red-100 px-2 py-0.5 rounded-full">
-								{payload.missingBasis!.length} issue{payload.missingBasis!.length !== 1 ? 's' : ''}
+								{t.missingBasisCount(payload.missingBasis!.length)}
 							</span>
 						</div>
 						<table class="min-w-full text-sm">
 							<thead class="bg-red-100">
 								<tr>
-									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Asset</th>
-									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Disposed</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-red-800 uppercase tracking-wide">Qty</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-red-800 uppercase tracking-wide">Proceeds</th>
-									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Term</th>
-									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Problem</th>
-									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">Fix</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColAsset}</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColDisposed}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColQty}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColProceeds}</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColTerm}</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColProblem}</th>
+									<th class="px-5 py-2.5 text-left  text-xs font-medium text-red-800 uppercase tracking-wide">{t.missingColFix}</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-red-100 bg-white">
@@ -842,7 +842,7 @@ const fmtGain = (n: number) => {
 											<td class="px-5 py-3 font-mono font-semibold text-gray-800">{row.asset}</td>
 											<td class="px-5 py-3 text-gray-600">{fmtDate(row.date)}</td>
 											<td class="px-5 py-3 text-right text-gray-600 tabular-nums">
-												{row.qty.toLocaleString('en-US', { maximumFractionDigits: 6 })}
+												{row.qty.toLocaleString(dateLocale, { maximumFractionDigits: 6 })}
 											</td>
 											<td class="px-5 py-3 text-right tabular-nums text-gray-700">
 												{row.proceeds !== null ? fmt(row.proceeds) : <span class="text-gray-300">—</span>}
@@ -850,21 +850,21 @@ const fmtGain = (n: number) => {
 											<td class="px-5 py-3">
 												{row.term
 													? <span class={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${row.term === 'long' ? 'text-green-700 bg-green-50' : 'text-amber-700 bg-amber-50'}`}>
-														{row.term === 'long' ? 'Long' : 'Short'}
+														{row.term === 'long' ? t.termLong : t.termShort}
 													</span>
-													: <span class="text-gray-300 text-xs">Unknown</span>
+													: <span class="text-gray-300 text-xs">{t.termUnknown}</span>
 												}
 											</td>
 											<td class="px-5 py-3">
 												{isOrphan
-													? <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-red-700 bg-red-100">No matching buy</span>
-													: <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-orange-700 bg-orange-50">Buy has no price</span>
+													? <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-red-700 bg-red-100">{t.issueNoMatchingBuy}</span>
+													: <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-orange-700 bg-orange-50">{t.issueBuyNoPrice}</span>
 												}
 											</td>
 											<td class="px-5 py-3 text-xs text-gray-500">
 												{isOrphan
-													? <a href="/dashboard/bookkeeping" class="underline text-blue-600 hover:text-blue-800">Find in Bookkeeping →</a>
-													: <a href="/dashboard/bookkeeping" class="underline text-blue-600 hover:text-blue-800">Enter cost manually →</a>
+													? <a href="/dashboard/bookkeeping" class="underline text-blue-600 hover:text-blue-800">{t.fixFindBookkeeping}</a>
+													: <a href="/dashboard/bookkeeping" class="underline text-blue-600 hover:text-blue-800">{t.fixEnterCost}</a>
 												}
 											</td>
 										</tr>
@@ -874,9 +874,7 @@ const fmtGain = (n: number) => {
 						</table>
 						<div class="px-5 py-3 border-t border-red-200 bg-red-50">
 							<p class="text-xs text-red-700">
-								<strong>Impact:</strong> "No matching buy" means the IRS may treat the full proceeds as gain.
-								"Buy has no price" means cost basis is assumed $0, overstating your taxable gain.
-								Resolve these in Bookkeeping before relying on these totals.
+								{t.missingImpact}
 							</p>
 						</div>
 					</div>
@@ -893,28 +891,28 @@ const fmtGain = (n: number) => {
 				>
 					<div class="px-5 py-3 border-b border-indigo-100 flex items-center justify-between">
 						<div>
-							<h2 class="text-sm font-semibold text-indigo-900">Estimated Tax Liability</h2>
+							<h2 class="text-sm font-semibold text-indigo-900">{t.estimatorHeading}</h2>
 							<p class="text-xs text-indigo-600 mt-0.5">
-								Based on {year} IRS brackets · {method.toUpperCase()} cost basis · estimate only
+								{t.estimatorSub(year, method.toUpperCase())}
 							</p>
 						</div>
-						<span class="text-xs text-indigo-400 font-medium">Not financial advice</span>
+						<span class="text-xs text-indigo-400 font-medium">{t.estimatorDisclaimer}</span>
 					</div>
 
 					<!-- Inputs -->
 					<div class="px-5 py-4 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50">
 						<div>
-							<label class="block text-xs font-semibold text-gray-600 mb-1">Filing Status</label>
+							<label class="block text-xs font-semibold text-gray-600 mb-1">{t.labelFilingStatus}</label>
 							<select id="est-filing-status" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-								<option value="single">Single</option>
-								<option value="mfj">Married Filing Jointly</option>
-								<option value="mfs">Married Filing Separately</option>
-								<option value="hoh">Head of Household</option>
+								<option value="single">{t.optSingle}</option>
+								<option value="mfj">{t.optMfj}</option>
+								<option value="mfs">{t.optMfs}</option>
+								<option value="hoh">{t.optHoh}</option>
 							</select>
 						</div>
 						<div>
 							<label class="block text-xs font-semibold text-gray-600 mb-1">
-								Other Taxable Income (wages, salary, etc.)
+								{t.labelOtherIncome}
 							</label>
 							<div class="relative">
 								<span class="absolute left-3 top-2 text-gray-400 text-sm">$</span>
@@ -929,7 +927,7 @@ const fmtGain = (n: number) => {
 							</div>
 						</div>
 						<div>
-							<label class="block text-xs font-semibold text-gray-600 mb-1">State</label>
+							<label class="block text-xs font-semibold text-gray-600 mb-1">{t.labelState}</label>
 							<select id="est-state" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
 								<option value="none">No state income tax</option>
 								<option value="AL">Alabama (5.0%)</option>
@@ -990,55 +988,47 @@ const fmtGain = (n: number) => {
 					<!-- Output -->
 					<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
 						<div class="p-5 space-y-1">
-							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">ST Federal</p>
+							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{t.estStFederal}</p>
 							<p id="est-st-tax" class="text-2xl font-bold text-gray-900">—</p>
-							<p id="est-st-rate" class="text-xs text-gray-500">marginal rate</p>
+							<p id="est-st-rate" class="text-xs text-gray-500">{t.estMarginalRate}</p>
 						</div>
 						<div class="p-5 space-y-1">
-							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">LT Federal</p>
+							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{t.estLtFederal}</p>
 							<p id="est-lt-tax" class="text-2xl font-bold text-gray-900">—</p>
-							<p id="est-lt-rate" class="text-xs text-gray-500">capital gains rate</p>
+							<p id="est-lt-rate" class="text-xs text-gray-500">{t.estCapGainsRate}</p>
 						</div>
 						<div class="p-5 space-y-1">
-							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Crypto Income</p>
+							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{t.estCryptoIncome}</p>
 							<p id="est-income-tax" class="text-2xl font-bold text-gray-900">—</p>
-							<p class="text-xs text-gray-500">staking / interest</p>
+							<p class="text-xs text-gray-500">{t.estCryptoIncomeSub}</p>
 						</div>
 						<div id="est-niit-cell" class="p-5 space-y-1 hidden">
-							<p class="text-xs font-semibold uppercase tracking-wide text-orange-500">NIIT (3.8%)</p>
+							<p class="text-xs font-semibold uppercase tracking-wide text-orange-500">{t.estNiit}</p>
 							<p id="est-niit-tax" class="text-2xl font-bold text-orange-700">—</p>
-							<p class="text-xs text-orange-500">net investment income</p>
+							<p class="text-xs text-orange-500">{t.estNiitSub}</p>
 						</div>
 						<div class="p-5 space-y-1">
-							<p class="text-xs font-semibold uppercase tracking-wide text-teal-600">State Tax Est.</p>
+							<p class="text-xs font-semibold uppercase tracking-wide text-teal-600">{t.estStateTax}</p>
 							<p id="est-state-tax" class="text-2xl font-bold text-teal-700">—</p>
-							<p id="est-state-rate" class="text-xs text-teal-500">top marginal rate</p>
+							<p id="est-state-rate" class="text-xs text-teal-500">{t.estTopMarginal}</p>
 						</div>
 						<div class="p-5 space-y-1 bg-indigo-50">
-							<p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Total Estimate</p>
+							<p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">{t.estTotal}</p>
 							<p id="est-total-tax" class="text-2xl font-bold text-indigo-900">—</p>
-							<p class="text-xs text-indigo-500">federal + state</p>
+							<p class="text-xs text-indigo-500">{t.estTotalSub}</p>
 						</div>
 					</div>
 
 					<!-- NIIT warning banner — shown/hidden by JS -->
 					<div id="est-niit-banner" class="hidden px-5 py-3 border-t border-orange-200 bg-orange-50">
 						<p class="text-xs text-orange-800">
-							<strong>⚠ Net Investment Income Tax applies.</strong> Your total income exceeds the NIIT threshold.
-							An additional 3.8% applies to your crypto gains and income on top of ordinary rates.
-							This is included in the total estimate above.
+							{t.niitBanner}
 						</p>
 					</div>
 
 					<div class="px-5 py-3 border-t border-gray-100 bg-gray-50">
 						<p class="text-xs text-gray-400">
-							Rough estimate using {year} IRS marginal brackets + state top marginal rate (flat
-							applied to all crypto income and gains). Does not account for deductions, AMT,
-							capital loss carryforward, local taxes, or state-specific preferential rates
-							(e.g. MA short-term gains at 8.5%, WA 7% LT gains above $262K threshold).
-							Short-term gains are stacked on top of your other income. If you don't have
-							employer withholding covering this amount, you may owe quarterly estimated
-							payments — ask your CPA. Not financial advice.
+							{t.estimatorFootnote(year)}
 						</p>
 					</div>
 				</div>
@@ -1049,37 +1039,33 @@ const fmtGain = (n: number) => {
 					<!-- Ordinary Income -->
 					<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-1">
 						<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
-							Ordinary Income
+							{t.ordinaryIncomeLabel}
 						</p>
 						<p class="text-2xl font-bold text-gray-900">
 							{fmt(payload.ordinaryIncome?.total ?? 0)}
 						</p>
 						<p class="text-xs text-gray-500">
-							{payload.ordinaryIncome?.count ?? 0} interest
-							event{(payload.ordinaryIncome?.count ?? 0) !== 1 ? 's' : ''}
-							&nbsp;·&nbsp;Schedule 1 / Form 1040
+							{t.ordinaryIncomeSub(payload.ordinaryIncome?.count ?? 0)}
 						</p>
 					</div>
 
 					<!-- Disposal Proceeds -->
 					<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-1">
 						<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
-							Disposal Proceeds
+							{t.disposalProceedsLabel}
 						</p>
 						<p class="text-2xl font-bold text-gray-900">
 							{fmt(payload.disposals?.totalProceeds ?? 0)}
 						</p>
 						<p class="text-xs text-gray-500">
-							{payload.disposals?.count ?? 0}
-							disposal{(payload.disposals?.count ?? 0) !== 1 ? 's' : ''}
-							&nbsp;·&nbsp;gross proceeds
+							{t.disposalsSub(payload.disposals?.count ?? 0)}
 						</p>
 					</div>
 
 					<!-- Forced Liquidations -->
 					<div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-1">
 						<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
-							Forced Liquidations
+							{t.forcedLiquidationsLabel}
 						</p>
 						<p class={`text-2xl font-bold ${
 							(payload.disposals?.liquidationCount ?? 0) > 0
@@ -1089,7 +1075,7 @@ const fmtGain = (n: number) => {
 							{payload.disposals?.liquidationCount ?? 0}
 						</p>
 						<p class="text-xs text-gray-500">
-							Aave liquidations — treated as taxable sales
+							{t.forcedLiquidationsSub}
 						</p>
 					</div>
 
@@ -1100,18 +1086,18 @@ const fmtGain = (n: number) => {
 					<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
 						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
 							<div>
-								<h2 class="text-sm font-semibold text-gray-700">Ordinary Income by Type</h2>
-								<p class="text-xs text-gray-400 mt-0.5">Each income type maps to a different IRS form line</p>
+								<h2 class="text-sm font-semibold text-gray-700">{t.incomeByTypeHeading}</h2>
+								<p class="text-xs text-gray-400 mt-0.5">{t.incomeByTypeSub}</p>
 							</div>
-							<span class="text-xs text-gray-400">Schedule 1 · Form 1040</span>
+							<span class="text-xs text-gray-400">{t.incomeByTypeFormRef}</span>
 						</div>
 						<table class="min-w-full text-sm">
 							<thead class="bg-gray-50">
 								<tr>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Type</th>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">IRS Line</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Events</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Total Income</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.incomeColType}</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.incomeColIrsLine}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.incomeColEvents}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.incomeColTotal}</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-100">
@@ -1124,7 +1110,7 @@ const fmtGain = (n: number) => {
 									</tr>
 								))}
 								<tr class="bg-gray-50 font-semibold">
-									<td class="px-5 py-3 text-gray-700" colspan="2">Total</td>
+									<td class="px-5 py-3 text-gray-700" colspan="2">{t.colTotal}</td>
 									<td class="px-5 py-3 text-right text-gray-500">
 										{payload.ordinaryIncome!.byCategory!.reduce((s, r) => s + r.count, 0)}
 									</td>
@@ -1143,27 +1129,27 @@ const fmtGain = (n: number) => {
 						<div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
 							<div>
 								<h2 class="text-sm font-semibold text-gray-700">
-									Ordinary Income by Asset
+									{t.incomeByAssetHeading}
 								</h2>
 								{(payload.ordinaryIncome as any)?.incomeSource === 'pipeline' ? (
-									<p class="text-xs text-indigo-500 mt-0.5">Source: classification pipeline</p>
+									<p class="text-xs text-indigo-500 mt-0.5">{t.incomeByAssetPipeline}</p>
 								) : (
-									<p class="text-xs text-gray-400 mt-0.5">Source: lifecycle events (run pipeline for full breakdown)</p>
+									<p class="text-xs text-gray-400 mt-0.5">{t.incomeByAssetLifecycle}</p>
 								)}
 							</div>
-							<span class="text-xs text-gray-400">Schedule 1 · Form 1040</span>
+							<span class="text-xs text-gray-400">{t.incomeByAssetFormRef}</span>
 						</div>
 						<table class="min-w-full text-sm">
 							<thead class="bg-gray-50">
 								<tr>
 									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
-										Asset
+										{t.incomeColAsset}
 									</th>
 									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">
-										Events
+										{t.incomeColEvents}
 									</th>
 									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">
-										Total Income
+										{t.incomeColTotal}
 									</th>
 								</tr>
 							</thead>
@@ -1180,7 +1166,7 @@ const fmtGain = (n: number) => {
 									</tr>
 								))}
 								<tr class="bg-gray-50 font-semibold">
-									<td class="px-5 py-3 text-gray-700">Total</td>
+									<td class="px-5 py-3 text-gray-700">{t.colTotal}</td>
 									<td class="px-5 py-3 text-right text-gray-500">
 										{payload.ordinaryIncome!.count}
 									</td>
@@ -1196,12 +1182,11 @@ const fmtGain = (n: number) => {
 				<!-- Disposals missing prices warning -->
 				{(payload.disposals?.unpricedCount ?? 0) > 0 && (
 					<div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-						<strong>{payload.disposals!.unpricedCount}</strong>
-						disposal{payload.disposals!.unpricedCount !== 1 ? 's' : ''} in {year}
-						{payload.disposals!.unpricedCount !== 1 ? ' are' : ' is'} missing USD prices —
-						the proceeds total above is understated. Open the
+						{payload.disposals!.unpricedCount !== 1
+							? t.unpricedDisposals(payload.disposals!.unpricedCount, year)
+							: t.unpricedDisposalsSingular(payload.disposals!.unpricedCount, year)}
 						<a href="/dashboard/transactions" class="underline font-medium">
-							transactions page
+							{t.unpricedDisposalsLink}
 						</a>
 						and use the FIFO export to review and fill in missing cost basis manually.
 					</div>
@@ -1211,8 +1196,8 @@ const fmtGain = (n: number) => {
 				{(payload.ordinaryIncome?.total ?? 0) === 0 &&
 				 (payload.disposals?.count ?? 0) === 0 && (
 					<div class="rounded-lg border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600 text-center">
-						No taxable events found for {year}.
-						If this seems wrong, check that your wallets and exchange imports are up to date.
+						{t.noTaxableEvents(year)}
+						{t.noTaxableEventsSub}
 					</div>
 				)}
 
@@ -1222,28 +1207,26 @@ const fmtGain = (n: number) => {
 						<div class="px-5 py-3 border-b border-amber-200 flex items-start justify-between gap-4">
 							<div>
 								<h2 class="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
-									<span>Wash Sale Shadow Tracker</span>
-									<span class="text-xs font-normal bg-amber-200 text-amber-800 rounded-full px-2 py-0.5">Shadow Mode</span>
+									<span>{t.washSaleHeading}</span>
+									<span class="text-xs font-normal bg-amber-200 text-amber-800 rounded-full px-2 py-0.5">{t.washSaleShadowBadge}</span>
 								</h2>
 								<p class="text-xs text-amber-700 mt-0.5">
-									Crypto is currently <strong>exempt</strong> from wash sale rules (IRS treats it as property, not a security).
-									This analysis shows losses that <em>would</em> be disallowed under proposed legislation extending wash sale rules to crypto.
-									No tax is owed — this is for planning only.
+									{t.washSaleSubheading}
 								</p>
 							</div>
 							<div class="text-right shrink-0">
 								<p class="text-lg font-bold text-amber-800">{fmt(payload.washSaleShadow!.totalDisallowed)}</p>
-								<p class="text-xs text-amber-600">would-be disallowed</p>
+								<p class="text-xs text-amber-600">{t.washSaleWouldBe}</p>
 							</div>
 						</div>
 						<table class="min-w-full text-sm">
 							<thead class="bg-amber-100/60">
 								<tr>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">Asset</th>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">Sale Date</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-amber-700 uppercase tracking-wide">Loss</th>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">Triggered By (Re-buy)</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-amber-700 uppercase tracking-wide">Would Disallow</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColAsset}</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColSaleDate}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColLoss}</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColTrigger}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-amber-700 uppercase tracking-wide">{t.washColWouldDisallow}</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-amber-100">
@@ -1259,9 +1242,7 @@ const fmtGain = (n: number) => {
 							</tbody>
 						</table>
 						<div class="px-5 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-700">
-							A wash sale occurs when you sell at a loss and buy the same asset within 30 days before or after.
-							Under current law, crypto is exempt. Congress has proposed extending wash sale rules to digital assets
-							in several bills — this tracker helps you understand your exposure if that happens.
+							{t.washFootnote}
 						</div>
 					</div>
 				)}
@@ -1271,23 +1252,23 @@ const fmtGain = (n: number) => {
 					<div class="rounded-xl border border-violet-200 bg-white shadow-sm overflow-hidden">
 						<div class="px-5 py-3 border-b border-violet-100 flex items-center justify-between">
 							<div>
-								<h2 class="text-sm font-semibold text-violet-900">DeFi Events Flagged for Review</h2>
+								<h2 class="text-sm font-semibold text-violet-900">{t.defiHeading}</h2>
 								<p class="text-xs text-gray-500 mt-0.5">
-									These transactions have no clear IRS guidance — review each one with your tax advisor.
+									{t.defiSub}
 								</p>
 							</div>
 							<a href={`/dashboard/yearEnd/review?year=${year}`}
 							   class="text-xs text-violet-600 hover:text-violet-800 font-medium underline">
-								Review queue →
+								{t.defiReviewLink}
 							</a>
 						</div>
 						<table class="min-w-full text-sm">
 							<thead class="bg-gray-50">
 								<tr>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Event Type</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Events</th>
-									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Total USD</th>
-									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Tax Consideration</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.defiColType}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.defiColEvents}</th>
+									<th class="px-5 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">{t.defiColTotal}</th>
+									<th class="px-5 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">{t.defiColTax}</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-100">
@@ -1299,19 +1280,19 @@ const fmtGain = (n: number) => {
 											{row.totalUsd > 0 ? fmt(row.totalUsd) : '—'}
 										</td>
 										<td class="px-5 py-3 text-xs text-gray-500">
-											{row.type === 'lp-deposit'    && 'May be taxable swap at time of deposit'}
-											{row.type === 'lp-withdrawal' && 'May include taxable gain/loss and/or impermanent loss'}
-											{row.type === 'rebase-income' && 'Likely ordinary income at FMV — Schedule 1 Line 8z'}
-											{row.type === 'wrapped-swap'  && 'Property exchange — may realise capital gain/loss'}
+											{row.type === 'lp-deposit'    && t.defiLpDeposit}
+											{row.type === 'lp-withdrawal' && t.defiLpWithdrawal}
+											{row.type === 'rebase-income' && t.defiRebaseIncome}
+											{row.type === 'wrapped-swap'  && t.defiWrappedSwap}
 										</td>
 									</tr>
 								))}
 							</tbody>
 						</table>
 						<div class="px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500">
-							DeFi events are flagged automatically by the classification pipeline.
-							Open the <a href={`/dashboard/yearEnd/review?year=${year}`} class="underline">review queue</a> to
-							confirm or override each transaction.
+							{t.defiFootnote}
+							<a href={`/dashboard/yearEnd/review?year=${year}`} class="underline">{t.defiReviewQueueLink}</a>
+							to confirm or override each transaction.
 						</div>
 					</div>
 				)}
@@ -1375,7 +1356,7 @@ const fmtGain = (n: number) => {
 									})}
 
 									{/* axis label */}
-									<text x={midX} y={SVG_H - 2} text-anchor="middle" font-size="10" fill="#9ca3af">Net Realized Gain / (Loss)</text>
+									<text x={midX} y={SVG_H - 2} text-anchor="middle" font-size="10" fill="#9ca3af">{t.yoyAxisLabel}</text>
 								</svg>
 							</div>
 						</div>
@@ -1385,10 +1366,9 @@ const fmtGain = (n: number) => {
 				<!-- Form 8949 CTA -->
 				<div class="rounded-xl border border-blue-100 bg-blue-50 p-5 flex items-center justify-between flex-wrap gap-4">
 					<div>
-						<p class="font-semibold text-blue-900">Ready to export?</p>
+						<p class="font-semibold text-blue-900">{t.exportCtaHeading}</p>
 						<p class="text-sm text-blue-700 mt-0.5">
-							Download the line-by-line CSV with short-term vs long-term classification
-							per lot from the transactions page.
+							{t.exportCtaBody}
 						</p>
 					</div>
 					<a
@@ -1396,7 +1376,7 @@ const fmtGain = (n: number) => {
 						class="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700
 						       text-white text-sm font-medium px-4 py-2 transition-colors"
 					>
-						Open Transactions →
+						{t.exportCtaBtn}
 					</a>
 				</div>
 			</>
@@ -1404,6 +1384,13 @@ const fmtGain = (n: number) => {
 
 	</div>
 </Layout>
+
+<script is:inline define:vars={{ pipelineI18n: {
+	running: t.pipelineBtnRunning,
+	done: t.pipelineBtnDone,
+	rerun: t.pipelineBtnRerun,
+	networkError: t.pipelineNetworkError,
+} }}>window.__gainsI18n = pipelineI18n;</script>
 
 <script>
 // ── 2024 / 2025 IRS Tax Brackets ─────────────────────────────────────────────
@@ -1646,6 +1633,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 (function () {
   const ENDPOINT = '/api/yearEnd/classify';
+  interface GainsI18n { running: string; done: string; rerun: string; networkError: string; }
+  const GAPI18N: GainsI18n = (window as unknown as { __gainsI18n?: GainsI18n }).__gainsI18n ?? {
+    running: '⏳ Running…', done: '✓ Done — reloading…',
+    rerun: 'Re-run Pipeline', networkError: 'Network error — could not reach the server. Please try again.',
+  };
 
   function setAllBtns(disabled: boolean, label: string) {
     document.querySelectorAll<HTMLButtonElement>('.pipeline-run-btn').forEach((btn) => {
@@ -1655,19 +1647,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function runPipeline() {
-    setAllBtns(true, '⏳ Running…');
+    setAllBtns(true, GAPI18N.running);
 
     try {
       const res  = await fetch(ENDPOINT, { method: 'POST' });
       const data = await res.json() as { ok: boolean; stats?: Record<string, unknown>; error?: string };
 
       if (data.ok) {
-        setAllBtns(true, '✓ Done — reloading…');
+        setAllBtns(true, GAPI18N.done);
         // Brief pause so the user sees the success state, then reload with fresh data
         setTimeout(() => window.location.reload(), 1200);
       } else {
         const msg = data.error ?? 'Pipeline failed.';
-        setAllBtns(false, 'Re-run Pipeline');
+        setAllBtns(false, GAPI18N.rerun);
         // Show error inline near whichever button was clicked
         document.querySelectorAll<HTMLButtonElement>('.pipeline-run-btn').forEach((btn) => {
           const err = document.createElement('span');
@@ -1678,8 +1670,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
     } catch {
-      setAllBtns(false, 'Re-run Pipeline');
-      alert('Network error — could not reach the server. Please try again.');
+      setAllBtns(false, GAPI18N.rerun);
+      alert(GAPI18N.networkError);
     }
   }
 
