@@ -3,6 +3,11 @@ import './transactions.css';
 import Layout from '../../layouts/Layout.astro';
 import { getAllActiveWallets } from '../../lib/wallets';
 import { requireTenantSession } from '../../lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getTransactions } from '@/i18n/dashboard/transactions';
+
+const lang = getLang(Astro.request);
+const t = getTransactions(lang);
 
 const { tenantId } = await requireTenantSession(Astro.request);
 const wallets = await getAllActiveWallets(tenantId);
@@ -10,23 +15,23 @@ const defaultWalletId = wallets[0]?.id ?? '';
 const walletPayload = JSON.stringify(wallets);
 ---
 
-<Layout title="Transactions | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<section class="transactions-page" data-default-wallet={defaultWalletId}>
 		<header class="page-header">
 			<div>
-				<p class="eyebrow">Ledger view</p>
-				<h1>Transactions & annotations</h1>
-				<p class="lede">Review on-chain activity, classify each movement, and attach notes for taxes.</p>
+				<p class="eyebrow">{t.eyebrow}</p>
+				<h1>{t.heroTitle}</h1>
+				<p class="lede">{t.lede}</p>
 			</div>
 			<div class="actions">
-				<button type="button" id="refresh-selected">Sync selected wallet</button>
-				<button type="button" id="refresh-all">Refresh all wallets</button>
+				<button type="button" id="refresh-selected">{t.syncSelected}</button>
+				<button type="button" id="refresh-all">{t.refreshAll}</button>
 			</div>
 		</header>
 
 		<form class="filters" id="filter-form">
 			<label>
-				<span>Wallet</span>
+				<span>{t.filterWallet}</span>
 				<select name="walletId" id="wallet-select" required>
 					{wallets.map((wallet) => (
 						<option value={wallet.id} selected={wallet.id === defaultWalletId}>
@@ -36,9 +41,9 @@ const walletPayload = JSON.stringify(wallets);
 				</select>
 			</label>
 			<label>
-				<span>Chain</span>
+				<span>{t.filterChain}</span>
 				<select name="chain" id="chain-select">
-					<option value="">All</option>
+					<option value="">{t.filterChainAll}</option>
 					<option value="bitcoin">Bitcoin</option>
 					<option value="ethereum">Ethereum</option>
 					<option value="polygon">Polygon</option>
@@ -46,37 +51,37 @@ const walletPayload = JSON.stringify(wallets);
 				</select>
 			</label>
 			<label>
-				<span>From</span>
+				<span>{t.filterFrom}</span>
 				<input type="date" name="from" id="from-date" />
 			</label>
 			<label>
-				<span>To</span>
+				<span>{t.filterTo}</span>
 				<input type="date" name="to" id="to-date" />
 			</label>
-			<button type="submit">Load transactions</button>
+			<button type="submit">{t.loadBtn}</button>
 		</form>
 
-		<p class="status" data-tx-status>Choose a wallet and press “Load transactions”.</p>
+		<p class=”status” data-tx-status>{t.statusInitial}</p>
 
 		<div class="table-shell">
 			<table>
 				<thead>
 					<tr>
-						<th>Date</th>
-						<th>Chain</th>
-						<th>From</th>
-						<th>To</th>
-						<th>Token</th>
-						<th>Amount</th>
-						<th>Category</th>
-						<th>Note</th>
-						<th>Shots</th>
+						<th>{t.thDate}</th>
+						<th>{t.thChain}</th>
+						<th>{t.thFrom}</th>
+						<th>{t.thTo}</th>
+						<th>{t.thToken}</th>
+						<th>{t.thAmount}</th>
+						<th>{t.thCategory}</th>
+						<th>{t.thNote}</th>
+						<th>{t.thShots}</th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody data-transaction-rows>
 					<tr>
-						<td colspan="10" class="empty">No transactions loaded yet.</td>
+						<td colspan="10" class="empty">{t.emptyInitial}</td>
 					</tr>
 				</tbody>
 			</table>
@@ -87,8 +92,8 @@ const walletPayload = JSON.stringify(wallets);
 	<div id="screenshot-modal" class="shot-modal" role="dialog" aria-modal="true" aria-labelledby="shot-modal-title">
 		<div class="shot-modal-box">
 			<div class="shot-modal-header">
-				<h2 id="shot-modal-title">Screenshots</h2>
-				<button type="button" id="shot-modal-close" class="ghost" aria-label="Close">✕</button>
+				<h2 id="shot-modal-title">{t.modalTitle}</h2>
+				<button type="button" id="shot-modal-close" class="ghost" aria-label={t.modalClose}>✕</button>
 			</div>
 			<div id="shot-grid" class="shot-grid"></div>
 			<p id="shot-status" class="shot-status"></p>
@@ -96,21 +101,66 @@ const walletPayload = JSON.stringify(wallets);
 				<input id="shot-upload-input" type="file" accept="image/*" style="display:none" />
 				<button type="button" id="shot-upload-btn">
 					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-					Upload image
+					{t.uploadImage}
 				</button>
 				<button type="button" id="shot-camera-btn" class="ghost">
 					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
-					Take photo
+					{t.takePhoto}
 				</button>
 				<button type="button" id="shot-parse-btn" class="ghost" style="margin-left:auto" disabled>
 					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><path d="M18 2v4h4"/></svg>
-					Parse &amp; import
+					{t.parseImport}
 				</button>
 			</div>
 		</div>
 	</div>
 
 	<script type="application/json" id="wallet-data" set:html={walletPayload}></script>
+
+	<script is:inline define:vars={{ i18n: {
+		syncingWallet: t.syncingWallet,
+		syncFailed: t.syncFailed,
+		syncingAll: t.syncingAll,
+		syncAllFailed: t.syncAllFailed,
+		selectWalletFirst: t.selectWalletFirst,
+		loadingTransactions: t.loadingTransactions,
+		failedToLoad: t.failedToLoad,
+		unableToLoad: t.unableToLoad,
+		noMatchFilters: t.noMatchFilters,
+		missingIds: t.missingIds,
+		failedToSave: t.failedToSave,
+		savedBtn: t.savedBtn,
+		saveBtn: t.saveBtn,
+		annotationSaved: t.annotationSaved,
+		failedToSaveAnnotation: t.failedToSaveAnnotation,
+		notePlaceholder: t.notePlaceholder,
+		shotsLoading: t.shotsLoading,
+		shotsFailed: t.shotsFailed,
+		shotsEmpty: t.shotsEmpty,
+		uploading: t.uploading,
+		uploaded: t.uploaded,
+		uploadFailed: t.uploadFailed,
+		deleteFailed: t.deleteFailed,
+		confirmDelete: t.confirmDelete,
+		parseFailed: t.parseFailed,
+		checkTins: t.checkTins,
+		// Interpolated strings: singular (n=1) and plural template (n=many, number replaced by "N")
+		syncedTransactions1: t.syncedTransactions(1),
+		syncedTransactionsN: t.syncedTransactions(2).replace('2', 'N'),
+		// syncedAll: separate templates for wallets and txns counts
+		syncedAll1w1t: t.syncedAll(1, 1),
+		syncedAllNw1t: t.syncedAll(2, 1).replace('2', 'W'),
+		syncedAll1wNt: t.syncedAll(1, 2).replace('2', 'T'),
+		syncedAllNwNt: t.syncedAll(22, 33).replace('22', 'W').replace('33', 'T'),
+		showingCount1: t.showingCount(1),
+		showingCountN: t.showingCount(2).replace('2', 'N'),
+		importedCount1: t.importedCount(1),
+		importedCountN: t.importedCount(2).replace('2', 'N'),
+		duplicatesSkipped1: t.duplicatesSkipped(1),
+		duplicatesSkippedN: t.duplicatesSkipped(2).replace('2', 'N'),
+		parsing1: t.parsing(1),
+		parsingN: t.parsing(2).replace('2', 'N'),
+	} }}>window.__txI18n = i18n;</script>
 
 	<script type="module">
 		const walletDataEl = document.getElementById('wallet-data');
@@ -134,6 +184,19 @@ const walletPayload = JSON.stringify(wallets);
 			'lost',
 			'other',
 		];
+		// i18n bootstrap — falls back to English if the inline script failed
+		const I18N = (window).__txI18n ?? {};
+		const _s = (key) => I18N[key] ?? key;
+		// Interpolate plural string: n=1 uses *1 key, n>1 uses *N key with 'N' replaced by n
+		const _p1 = (key, n) => n === 1 ? _s(key + '1') : _s(key + 'N').replace('N', String(n));
+		// Interpolate syncedAll (two vars: W wallets, T txns)
+		const _syncedAll = (w, t2) => {
+			const k = (w === 1 ? '1w' : 'Nw') + (t2 === 1 ? '1t' : 'Nt');
+			let s = _s('syncedAll' + k);
+			if (w !== 1) s = s.replace('W', String(w));
+			if (t2 !== 1) s = s.replace('T', String(t2));
+			return s;
+		};
 		let wallets = [];
 
 		if (walletDataEl?.textContent) {
@@ -152,45 +215,42 @@ const walletPayload = JSON.stringify(wallets);
 		refreshSelectedBtn?.addEventListener('click', async () => {
 			const walletId = walletSelect?.value;
 			if (!walletId) return;
-			setStatus('Syncing wallet history…');
+			setStatus(_s('syncingWallet'));
 			try {
 				const response = await fetch(`/api/wallets/${walletId}/sync`, {
 					method: 'POST',
 				});
 				const payload = await response.json();
 				if (!response.ok) {
-					throw new Error(payload.message || 'Failed to sync wallet');
+					throw new Error(payload.message || _s('syncFailed'));
 				}
-				setStatus(`Synced ${payload.transactionsUpserted} transactions. Loading latest data…`, 'success');
+				setStatus(_p1('syncedTransactions', payload.transactionsUpserted), 'success');
 				await loadTransactions();
 			} catch (error) {
 				console.error(error);
-				setStatus(error instanceof Error ? error.message : 'Sync failed', 'error');
+				setStatus(error instanceof Error ? error.message : _s('syncFailed'), 'error');
 			}
 		});
 
 		refreshAllBtn?.addEventListener('click', async () => {
-			setStatus('Syncing all wallets… this may take a moment.');
+			setStatus(_s('syncingAll'));
 			try {
 				const response = await fetch('/api/wallets/sync-all', { method: 'POST' });
 				const payload = await response.json();
 				if (!response.ok) {
-					throw new Error(payload.message || 'Failed to sync wallets');
+					throw new Error(payload.message || _s('syncAllFailed'));
 				}
-				setStatus(
-					`Synced ${payload.wallets} wallets (${payload.totalTransactionsUpserted} transactions). Reloading…`,
-					'success',
-				);
+				setStatus(_syncedAll(payload.wallets, payload.totalTransactionsUpserted), 'success');
 				await loadTransactions();
 			} catch (error) {
 				console.error(error);
-				setStatus(error instanceof Error ? error.message : 'Sync failed', 'error');
+				setStatus(error instanceof Error ? error.message : _s('syncFailed'), 'error');
 			}
 		});
 
 		async function loadTransactions() {
 			if (!walletSelect?.value) {
-				setStatus('Select a wallet first.', 'error');
+				setStatus(_s('selectWalletFirst'), 'error');
 				return;
 			}
 			const params = new URLSearchParams({
@@ -205,18 +265,18 @@ const walletPayload = JSON.stringify(wallets);
 			if (toDate?.value) {
 				params.set('to', toDate.value);
 			}
-			setStatus('Loading transactions…');
+			setStatus(_s('loadingTransactions'));
 			try {
 				const response = await fetch(`/api/transactions/list?${params.toString()}`);
 				const payload = await response.json();
 				if (!response.ok) {
-					throw new Error(payload.message || 'Failed to load transactions');
+					throw new Error(payload.message || _s('failedToLoad'));
 				}
 				renderRows(payload.transactions || []);
-				setStatus(`Showing ${payload.count || 0} transactions.`, 'success');
+				setStatus(_p1('showingCount', payload.count || 0), 'success');
 			} catch (error) {
 				console.error(error);
-				setStatus(error instanceof Error ? error.message : 'Unable to load transactions.', 'error');
+				setStatus(error instanceof Error ? error.message : _s('unableToLoad'), 'error');
 			}
 		}
 
@@ -225,7 +285,7 @@ const walletPayload = JSON.stringify(wallets);
 			tableBody.innerHTML = '';
 			if (!transactions.length) {
 				const tr = document.createElement('tr');
-				tr.innerHTML = `<td colspan="10" class="empty">No transactions match your filters.</td>`;
+				tr.innerHTML = `<td colspan="10" class="empty">${_s("noMatchFilters")}</td>`;
 				tableBody.appendChild(tr);
 				return;
 			}
@@ -247,17 +307,17 @@ const walletPayload = JSON.stringify(wallets);
             </select>
           </td>
           <td>
-            <input type="text" data-annotation-note value="${tx.note ?? ''}" placeholder="Add note" />
+            <input type="text" data-annotation-note value="${tx.note ?? ''}" placeholder="${_s('notePlaceholder')}" />
           </td>
           <td>
-            <button type="button" class="ghost shot-btn" data-hash="${tx.hash}" data-chain="${tx.chain}" title="Screenshots">
+            <button type="button" class="ghost shot-btn" data-hash="${tx.hash}" data-chain="${tx.chain}" title="${_s('shotsTitle')}">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
               <span class="shot-count" data-shot-count></span>
             </button>
           </td>
           <td>
             <button type="button" class="ghost" data-save data-hash="${tx.hash}" data-chain="${tx.chain}" data-direction="${tx.tx_type || ''}">
-              Save
+              ${_s('saveBtn')}
             </button>
           </td>
         `;
@@ -281,7 +341,7 @@ const walletPayload = JSON.stringify(wallets);
 			const category = tr.querySelector('[data-annotation-category]')?.value;
 			const note = tr.querySelector('[data-annotation-note]')?.value;
 			if (!hash || !chain) {
-				setStatus('Missing transaction identifiers.', 'error');
+				setStatus(_s('missingIds'), 'error');
 				return;
 			}
 			try {
@@ -298,18 +358,18 @@ const walletPayload = JSON.stringify(wallets);
 				});
 				const payload = await response.json();
 				if (!response.ok) {
-					throw new Error(payload.message || 'Failed to save annotation');
+					throw new Error(payload.message || _s('failedToSave'));
 				}
-				button.textContent = 'Saved';
+				button.textContent = _s('savedBtn');
 				button.classList.add('success');
 				setTimeout(() => {
-					button.textContent = 'Save';
+					button.textContent = _s('saveBtn');
 					button.classList.remove('success');
 				}, 1500);
-				setStatus('Annotation saved.', 'success');
+				setStatus(_s('annotationSaved'), 'success');
 			} catch (error) {
 				console.error(error);
-				setStatus(error instanceof Error ? error.message : 'Failed to save annotation.', 'error');
+				setStatus(error instanceof Error ? error.message : _s('failedToSaveAnnotation'), 'error');
 			}
 		}
 
@@ -392,9 +452,9 @@ const walletPayload = JSON.stringify(wallets);
 			activeHash = btn.dataset.hash;
 			activeChain = btn.dataset.chain;
 			if (!activeHash || !activeChain) return;
-			modalTitle.textContent = `Screenshots — ${shorten(activeHash)}`;
+			modalTitle.textContent = `${_s("shotsTitle")} — ${shorten(activeHash)}`;
 			shotStatus.textContent = '';
-			shotGrid.innerHTML = '<p class="shot-loading">Loading…</p>';
+			shotGrid.innerHTML = `<p class="shot-loading">${_s("shotsLoading")}</p>`;
 			modal.classList.add('open');
 			await refreshScreenshots();
 		}
@@ -414,7 +474,7 @@ const walletPayload = JSON.stringify(wallets);
 				const badge = btn?.querySelector('[data-shot-count]');
 				if (badge) badge.textContent = data.screenshots?.length ? String(data.screenshots.length) : '';
 			} catch {
-				shotGrid.innerHTML = '<p class="shot-loading">Failed to load screenshots.</p>';
+				shotGrid.innerHTML = `<p class="shot-loading">${_s("shotsFailed")}</p>`;
 			}
 		}
 
@@ -422,7 +482,7 @@ const walletPayload = JSON.stringify(wallets);
 			currentScreenshots = screenshots;
 			if (shotParseBtn) shotParseBtn.disabled = screenshots.length === 0;
 			if (!screenshots.length) {
-				shotGrid.innerHTML = '<p class="shot-loading">No screenshots yet. Upload one below.</p>';
+				shotGrid.innerHTML = `<p class="shot-loading">${_s("shotsEmpty")}</p>`;
 				return;
 			}
 			shotGrid.innerHTML = '';
@@ -435,7 +495,7 @@ const walletPayload = JSON.stringify(wallets);
           </a>
           <div class="shot-meta">
             <span>${shot.filename}</span>
-            <button type="button" class="shot-delete ghost" data-id="${shot.id}" title="Delete">✕</button>
+            <button type="button" class="shot-delete ghost" data-id="${shot.id}" title="${_s("deleteTitle")}">✕</button>
           </div>
         `;
 				item.querySelector('.shot-delete')?.addEventListener('click', () => deleteScreenshot(shot.id));
@@ -444,7 +504,7 @@ const walletPayload = JSON.stringify(wallets);
 		}
 
 		async function uploadScreenshot(file) {
-			setShotStatus('Uploading…');
+			setShotStatus(_s('uploading'));
 			const fd = new FormData();
 			fd.append('txHash', activeHash);
 			fd.append('chain', activeChain);
@@ -452,22 +512,22 @@ const walletPayload = JSON.stringify(wallets);
 			try {
 				const res = await fetch('/api/transactions/screenshots', { method: 'POST', body: fd });
 				const data = await res.json();
-				if (!res.ok) throw new Error(data.error || 'Upload failed');
-				setShotStatus('Uploaded.', 'success');
+				if (!res.ok) throw new Error(data.error || _s('uploadFailed'));
+				setShotStatus(_s('uploaded'), 'success');
 				await refreshScreenshots();
 			} catch (err) {
-				setShotStatus(err instanceof Error ? err.message : 'Upload failed.', 'error');
+				setShotStatus(err instanceof Error ? err.message : _s('uploadFailed'), 'error');
 			}
 		}
 
 		async function deleteScreenshot(id) {
-			if (!confirm('Delete this screenshot?')) return;
+			if (!confirm(_s('confirmDelete'))) return;
 			try {
 				const res = await fetch(`/api/transactions/screenshots?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-				if (!res.ok) throw new Error('Delete failed');
+				if (!res.ok) throw new Error(_s('deleteFailed'));
 				await refreshScreenshots();
 			} catch (err) {
-				setShotStatus(err instanceof Error ? err.message : 'Delete failed.', 'error');
+				setShotStatus(err instanceof Error ? err.message : _s('deleteFailed'), 'error');
 			}
 		}
 
@@ -477,7 +537,7 @@ const walletPayload = JSON.stringify(wallets);
 			let imported = 0;
 			let duplicates = 0;
 			shotParseBtn.disabled = true;
-			setShotStatus(`Parsing ${total} screenshot${total > 1 ? 's' : ''} with AI…`);
+			setShotStatus(_p1('parsing', total));
 			for (const shot of currentScreenshots) {
 				try {
 					const res = await fetch('/api/transactions/screenshots/parse', {
@@ -486,20 +546,20 @@ const walletPayload = JSON.stringify(wallets);
 						body: JSON.stringify({ screenshotId: shot.id }),
 					});
 					const data = await res.json();
-					if (!res.ok) throw new Error(data.error || 'Parse failed');
+					if (!res.ok) throw new Error(data.error || _s('parseFailed'));
 					if (data.duplicate) duplicates++;
 					else imported++;
 				} catch (err) {
-					setShotStatus(err instanceof Error ? err.message : 'Parse failed.', 'error');
+					setShotStatus(err instanceof Error ? err.message : _s('parseFailed'), 'error');
 					shotParseBtn.disabled = false;
 					return;
 				}
 			}
 			await refreshScreenshots();
 			const parts = [];
-			if (imported) parts.push(`${imported} imported`);
-			if (duplicates) parts.push(`${duplicates} duplicate${duplicates > 1 ? 's' : ''} skipped`);
-			setShotStatus(parts.join(', ') + '. Check your exchange tins.', 'success');
+			if (imported) parts.push(_p1('importedCount', imported));
+			if (duplicates) parts.push(_p1('duplicatesSkipped', duplicates));
+			setShotStatus(parts.join(', ') + '. ' + _s('checkTins'), 'success');
 		});
 
 		function setShotStatus(msg, mode = 'info') {

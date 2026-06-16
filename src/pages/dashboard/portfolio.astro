@@ -15,32 +15,41 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import ReconciliationTransactions from '@/components/dashboard/ReconciliationTransactions';
 import ReconciliationSnapshot from '@/components/dashboard/ReconciliationSnapshot';
 import PortfolioTour from '../../components/tours/PortfolioTour.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getPortfolio } from '@/i18n/dashboard/portfolio';
+
+const lang = getLang(Astro.request);
+const t = getPortfolio(lang);
+// Split heroCostBasis into prefix/suffix around the amount placeholder for static HTML use.
+const _cbParts = t.heroCostBasis('\x00').split('\x00');
+const heroCostBasisPrefix = _cbParts[0] ?? 'vs. ';
+const heroCostBasisSuffix = _cbParts[1] ?? ' cost basis';
 
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
 ---
 
-<Layout title="Portfolio Performance | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 <div class="portfolio-page">
 
 	<!-- ── Loading ──────────────────────────────────────────────────────── -->
 	<div id="pf-loading" class="pf-loading">
 		<div class="pf-spinner"></div>
-		<span class="pf-loading__label">Loading portfolio…</span>
+		<span class="pf-loading__label">{t.loadingLabel}</span>
 	</div>
 
 	<!-- ── Error state ──────────────────────────────────────────────────── -->
 	<div id="pf-error" class="pf-state pf-state--error" hidden>
 		<div class="pf-state__icon"></div>
-		<p class="pf-state__title">Failed to load portfolio data</p>
-		<p class="pf-state__sub">Please refresh and try again.</p>
+		<p class="pf-state__title">{t.errorTitle}</p>
+		<p class="pf-state__sub">{t.errorSub}</p>
 	</div>
 
 	<!-- ── Empty state ──────────────────────────────────────────────────── -->
 	<div id="pf-empty" class="pf-state" hidden>
 		<div class="pf-state__icon"></div>
-		<p class="pf-state__title">No holdings found</p>
-		<p class="pf-state__sub">Import transactions to see your portfolio performance.</p>
+		<p class="pf-state__title">{t.emptyTitle}</p>
+		<p class="pf-state__sub">{t.emptySub}</p>
 	</div>
 
 	<!-- ── Main content (hidden until data loads) ───────────────────────── -->
@@ -51,12 +60,12 @@ if (!_authSess) return Astro.redirect('/login');
 			<div class="pf-hero__inner">
 				<div class="pf-hero__eyebrow">
 					<span class="pf-hero__eyebrow-dot"></span>
-					Portfolio Performance
+					{t.heroEyebrow}
 					<PortfolioTour />
 				</div>
 
 				<div class="pf-hero__value-block">
-					<span class="pf-hero__value-label">Current Value</span>
+					<span class="pf-hero__value-label">{t.heroValueLabel}</span>
 					<div class="pf-hero__value" id="hero-value">—</div>
 				</div>
 
@@ -65,7 +74,7 @@ if (!_authSess) return Astro.redirect('/login');
 					<span class="pf-hero__sep">·</span>
 					<span class="pf-hero__pct pf-hero__pct--neutral" id="hero-pct">—</span>
 					<span class="pf-hero__sep">·</span>
-					<span class="pf-hero__meta" id="hero-vs" style="margin-bottom:0">vs. <strong id="hero-invested">—</strong> cost basis</span>
+					<span class="pf-hero__meta" id="hero-vs" style="margin-bottom:0">{heroCostBasisPrefix}<strong id="hero-invested">—</strong>{heroCostBasisSuffix}</span>
 				</div>
 				<div class="pf-hero__unpriced-note" id="hero-unpriced-note" hidden>
 					<span id="hero-unpriced-text"></span>
@@ -81,19 +90,19 @@ if (!_authSess) return Astro.redirect('/login');
 		<!-- Metric cards ───────────────────────────────────────────────── -->
 		<div class="pf-metrics">
 			<div class="pf-metric">
-				<span class="pf-metric__label">Cost Basis</span>
+				<span class="pf-metric__label">{t.metricCostBasis}</span>
 				<span class="pf-metric__value" id="card-cost">—</span>
 			</div>
 			<div class="pf-metric">
-				<span class="pf-metric__label">Current Value</span>
+				<span class="pf-metric__label">{t.metricCurrentValue}</span>
 				<span class="pf-metric__value" id="card-value">—</span>
 			</div>
 			<div class="pf-metric">
-				<span class="pf-metric__label">Unrealized P&amp;L</span>
+				<span class="pf-metric__label">{t.metricUnrealizedPnl}</span>
 				<span class="pf-metric__value" id="card-pnl">—</span>
 			</div>
 			<div class="pf-metric">
-				<span class="pf-metric__label">Total Return</span>
+				<span class="pf-metric__label">{t.metricTotalReturn}</span>
 				<span class="pf-metric__value" id="card-pct">—</span>
 			</div>
 		</div>
@@ -101,7 +110,7 @@ if (!_authSess) return Astro.redirect('/login');
 		<!-- Per-asset table ────────────────────────────────────────────── -->
 		<section class="pf-positions">
 			<div class="pf-positions__header">
-				<span class="pf-positions__title">Positions</span>
+				<span class="pf-positions__title">{t.positionsTitle}</span>
 				<span class="pf-positions__ts" id="updated-at"></span>
 			</div>
 
@@ -109,14 +118,14 @@ if (!_authSess) return Astro.redirect('/login');
 				<table class="pf-table">
 					<thead>
 						<tr>
-							<th>Asset</th>
-							<th class="pf-col--holdings">Holdings</th>
-							<th class="pf-col--avg-cost">Avg Cost</th>
-							<th>Cost Basis</th>
-							<th class="pf-col--price-now">Price Now</th>
-							<th>Market Value</th>
-							<th>Unrealized P&amp;L</th>
-							<th>Return</th>
+							<th>{t.colAsset}</th>
+							<th class="pf-col--holdings">{t.colHoldings}</th>
+							<th class="pf-col--avg-cost">{t.colAvgCost}</th>
+							<th>{t.colCostBasis}</th>
+							<th class="pf-col--price-now">{t.colPriceNow}</th>
+							<th>{t.colMarketValue}</th>
+							<th>{t.colUnrealizedPnl}</th>
+							<th>{t.colReturn}</th>
 						</tr>
 					</thead>
 					<tbody id="asset-tbody"></tbody>
@@ -125,7 +134,7 @@ if (!_authSess) return Astro.redirect('/login');
 			</div>
 
 			<p id="no-price-note" class="pf-note" hidden>
-				* Price unavailable — these assets have no current market price in our feed.
+				{t.noPriceNote}
 			</p>
 		</section>
 	</div><!-- /pf-content -->
@@ -133,7 +142,7 @@ if (!_authSess) return Astro.redirect('/login');
 	<!-- ── Reconciliation ───────────────────────────────────────────────── -->
 	<section class="recon-section">
 		<div class="recon-section-divider">
-			<span class="recon-section-divider__label">Reconciliation</span>
+			<span class="recon-section-divider__label">{t.reconDivider}</span>
 			<span class="recon-section-divider__line"></span>
 		</div>
 		<div class="recon-grid">
@@ -144,6 +153,15 @@ if (!_authSess) return Astro.redirect('/login');
 
 </div><!-- /portfolio-page -->
 </Layout>
+
+<script is:inline define:vars={{ pfI18n: {
+	lang:           lang,
+	heroUpdated:    t.heroUpdated('__T__'),
+	heroUnpriced:   t.heroUnpriced('__A__'),
+	tableTotal:     t.tableTotal,
+	lastAcquired:   t.lastAcquired('__D__'),
+	aaveCollateral: t.aaveCollateral,
+} }}>window.__pfI18n = pfI18n;</script>
 
 <script>
 // ── Formatters ──────────────────────────────────────────────────────────── //
@@ -184,6 +202,29 @@ function metricClass(n: number | null): string {
 // Ticker badge: up to 4 chars, clipped sensibly
 function tickerLabel(sym: string): string {
 	return sym.slice(0, 4).toUpperCase();
+}
+
+// ── i18n strings (injected by inline define:vars script above) ─────────── //
+interface PfI18n {
+	lang:           string;
+	heroUpdated:    string;
+	heroUnpriced:   string;
+	tableTotal:     string;
+	lastAcquired:   string;
+	aaveCollateral: string;
+}
+const I18N: PfI18n = (window as unknown as { __pfI18n?: PfI18n }).__pfI18n ?? {
+	lang:           'en',
+	heroUpdated:    'Prices as of __T__',
+	heroUnpriced:   '+ __A__ in assets with no live price',
+	tableTotal:     'Total',
+	lastAcquired:   'Last acq. __D__',
+	aaveCollateral: 'Aave Collateral',
+};
+const lang = I18N.lang;
+/** Replace a single __PLACEHOLDER__ in a template string. */
+function interpolate(tmpl: string, value: string): string {
+	return tmpl.replace(/__[A-Z_]+__/, value);
 }
 
 // ── Allocation bar ──────────────────────────────────────────────────────── //
@@ -313,14 +354,16 @@ async function loadPortfolio() {
 		if (unpricedCost > 0.005) {
 			const noteEl = document.getElementById('hero-unpriced-note')!;
 			const textEl = document.getElementById('hero-unpriced-text')!;
-			textEl.textContent = `+ ${USD.format(unpricedCost)} in assets with no live price`;
+			textEl.textContent = interpolate(I18N.heroUnpriced, USD.format(unpricedCost));
 			noteEl.hidden = false;
 		}
 
 		try {
-			const ts = new Date(data.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-			(document.getElementById('hero-updated')!).textContent = `Prices as of ${ts}`;
-			(document.getElementById('updated-at')!).textContent   = `Prices as of ${ts}`;
+			const locale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+			const ts = new Date(data.updatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+			const updatedStr = interpolate(I18N.heroUpdated, ts);
+			(document.getElementById('hero-updated')!).textContent = updatedStr;
+			(document.getElementById('updated-at')!).textContent   = updatedStr;
 		} catch {}
 
 		// ── Metric cards ──────────────────────────────────────────────── //
@@ -356,10 +399,10 @@ async function loadPortfolio() {
 						<div class="pf-ticker__info">
 							<div class="pf-ticker__name">${a.symbol}</div>
 							${a.lastAcquiredAt
-								? `<div class="pf-ticker__sub">Last acq. ${a.lastAcquiredAt}</div>`
+								? `<div class="pf-ticker__sub">${interpolate(I18N.lastAcquired, a.lastAcquiredAt)}</div>`
 								: ''}
 							${a.isCollateral
-								? `<span class="pf-collateral-badge">Aave Collateral</span>`
+								? `<span class="pf-collateral-badge">${I18N.aaveCollateral}</span>`
 								: ''}
 						</div>
 					</div>
@@ -388,7 +431,7 @@ async function loadPortfolio() {
 			// Unpriced assets are excluded here (they have no matching current value to sum against).
 			tfoot.innerHTML = `
 				<tr>
-					<td>Total</td>
+					<td>${I18N.tableTotal}</td>
 					<td class="pf-col--holdings"></td>
 					<td class="pf-col--avg-cost"></td>
 					<td>${USD.format(footPricedCost)}</td>

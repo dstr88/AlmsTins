@@ -2,6 +2,11 @@
 import Layout from '@/layouts/Layout.astro';
 import { db } from '@/lib/db';
 import { getGA4Summary } from '@/lib/ga4';
+import { getLang } from '@/lib/i18n/locale';
+import { getAnalytics } from '@/i18n/dashboard/analytics';
+
+const lang = getLang(Astro.request);
+const t = getAnalytics(lang);
 
 // You already gate /dashboard/* in middleware.
 // This is just a belt-and-suspenders check if you ever bypass middleware in dev.
@@ -166,29 +171,29 @@ const recentLogs = showLogs
 	: [];
 ---
 
-<Layout title="Analytics | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<section style="max-width: 1100px; margin: 0 auto; padding: 1.25rem;">
-		<h1 style="font-size: 1.6rem; margin-bottom: 0.25rem;">Analytics</h1>
+		<h1 style="font-size: 1.6rem; margin-bottom: 0.25rem;">{t.heading}</h1>
 		<p style="opacity: 0.85; margin-top: 0;">
-			Daily aggregates + (optional) last 100 detailed logs.
+			{t.subheading}
 		</p>
 
 		<!-- ── Google Analytics 4 — last 28 days ── -->
 		{ga4 ? (
 			<div style="margin-bottom: 2rem;">
 				<h2 style="font-size: 1.1rem; margin: 0 0 0.75rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">
-					Google Analytics · Last 28 days
+					{t.ga4Heading}
 				</h2>
 
 				<!-- Stat cards -->
 				<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
 					{[
-						{ label: 'Users',            value: ga4.totalUsers.toLocaleString()  },
-						{ label: 'New Users',         value: ga4.newUsers.toLocaleString()    },
-						{ label: 'Sessions',          value: ga4.sessions.toLocaleString()    },
-						{ label: 'Scam Checker Views',value: ga4.checkerViews.toLocaleString()},
-						{ label: 'Login Page Views',  value: ga4.loginViews.toLocaleString()  },
-						{ label: 'Checker → Login',   value: ga4.conversionRate               },
+						{ label: t.ga4LabelUsers,        value: ga4.totalUsers.toLocaleString()  },
+						{ label: t.ga4LabelNewUsers,     value: ga4.newUsers.toLocaleString()    },
+						{ label: t.ga4LabelSessions,     value: ga4.sessions.toLocaleString()    },
+						{ label: t.ga4LabelCheckerViews, value: ga4.checkerViews.toLocaleString()},
+						{ label: t.ga4LabelLoginViews,   value: ga4.loginViews.toLocaleString()  },
+						{ label: t.ga4LabelCheckerToLogin, value: ga4.conversionRate             },
 					].map((s) => (
 						<div style="padding: 0.9rem 1rem; border-radius: 1rem; border: 1px solid rgba(87,103,255,0.3); background: rgba(87,103,255,0.07);">
 							<div style="font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.3rem;">{s.label}</div>
@@ -200,13 +205,13 @@ const recentLogs = showLogs
 				<div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
 					<!-- Top pages -->
 					<div style="padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.12);">
-						<h3 style="margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em;">Top Pages</h3>
+						<h3 style="margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em;">{t.ga4TopPages}</h3>
 						<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
 							<thead>
 								<tr style="opacity: 0.6; text-align: left;">
-									<th style="padding: 0.3rem 0;">Page</th>
-									<th style="padding: 0.3rem 0;">Views</th>
-									<th style="padding: 0.3rem 0;">Users</th>
+									<th style="padding: 0.3rem 0;">{t.ga4PageCol}</th>
+									<th style="padding: 0.3rem 0;">{t.ga4ViewsCol}</th>
+									<th style="padding: 0.3rem 0;">{t.ga4UsersCol}</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -223,12 +228,12 @@ const recentLogs = showLogs
 
 					<!-- Traffic sources -->
 					<div style="padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.12);">
-						<h3 style="margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em;">Sources</h3>
+						<h3 style="margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em;">{t.ga4Sources}</h3>
 						<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
 							<thead>
 								<tr style="opacity: 0.6; text-align: left;">
-									<th style="padding: 0.3rem 0;">Source</th>
-									<th style="padding: 0.3rem 0;">Sessions</th>
+									<th style="padding: 0.3rem 0;">{t.ga4SourceCol}</th>
+									<th style="padding: 0.3rem 0;">{t.ga4SessionsCol}</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -244,12 +249,12 @@ const recentLogs = showLogs
 
 					<!-- Countries -->
 					<div style="padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.12);">
-						<h3 style="margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em;">Countries</h3>
+						<h3 style="margin: 0 0 0.75rem; font-size: 0.9rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em;">{t.ga4Countries}</h3>
 						<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
 							<thead>
 								<tr style="opacity: 0.6; text-align: left;">
-									<th style="padding: 0.3rem 0;">Country</th>
-									<th style="padding: 0.3rem 0;">Sessions</th>
+									<th style="padding: 0.3rem 0;">{t.ga4CountryCol}</th>
+									<th style="padding: 0.3rem 0;">{t.ga4SessionsCol}</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -266,13 +271,13 @@ const recentLogs = showLogs
 			</div>
 		) : (
 			<div style="margin-bottom: 1.5rem; padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.1); opacity: 0.6; font-size: 0.875rem;">
-				Google Analytics data unavailable — check GA4_PROPERTY_ID and GA4_PRIVATE_KEY in .env
+				{t.ga4Unavailable}
 			</div>
 		)}
 
 		<form method="GET" style="display:flex; gap:0.75rem; align-items:end; flex-wrap: wrap; margin: 1rem 0;">
 			<div>
-				<label for="day" style="display:block; font-weight:600; margin-bottom:0.25rem;">Day (UTC)</label>
+				<label for="day" style="display:block; font-weight:600; margin-bottom:0.25rem;">{t.formDayLabel}</label>
 				<input
 					id="day"
 					name="day"
@@ -284,36 +289,36 @@ const recentLogs = showLogs
 
 			<label style="display:flex; gap:0.5rem; align-items:center; padding-bottom:0.15rem;">
 				<input type="checkbox" name="logs" value="1" checked={showLogs} />
-				Show last 100 detailed logs
+				{t.formShowLogs}
 			</label>
 
 			<button
 				type="submit"
 				style="padding:0.6rem 0.9rem; border-radius:0.6rem; border:1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.1); color: inherit; cursor:pointer;"
 			>
-				Refresh
+				{t.formRefresh}
 			</button>
 		</form>
 
 		<!-- Totals -->
 		<div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin: 1rem 0;">
-			{(totalsRows.length ? totalsRows : [{ day: dayParam, requests: 0, avg_ms: 0, max_ms: 0 }]).map((t) => (
+			{(totalsRows.length ? totalsRows : [{ day: dayParam, requests: 0, avg_ms: 0, max_ms: 0 }]).map((row) => (
 				<>
 					<div style="padding: 0.9rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.15);">
-						<div style="opacity:0.8;">Day</div>
-						<div style="font-size:1.1rem; font-weight:700;">{str(t.day)}</div>
+						<div style="opacity:0.8;">{t.cardDay}</div>
+						<div style="font-size:1.1rem; font-weight:700;">{str(row.day)}</div>
 					</div>
 					<div style="padding: 0.9rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.15);">
-						<div style="opacity:0.8;">Requests</div>
-						<div style="font-size:1.4rem; font-weight:800;">{num(t.requests)}</div>
+						<div style="opacity:0.8;">{t.cardRequests}</div>
+						<div style="font-size:1.4rem; font-weight:800;">{num(row.requests)}</div>
 					</div>
 					<div style="padding: 0.9rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.15);">
-						<div style="opacity:0.8;">Avg ms</div>
-						<div style="font-size:1.4rem; font-weight:800;">{num(t.avg_ms)}</div>
+						<div style="opacity:0.8;">{t.cardAvgMs}</div>
+						<div style="font-size:1.4rem; font-weight:800;">{num(row.avg_ms)}</div>
 					</div>
 					<div style="padding: 0.9rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.15);">
-						<div style="opacity:0.8;">Max ms</div>
-						<div style="font-size:1.4rem; font-weight:800;">{num(t.max_ms)}</div>
+						<div style="opacity:0.8;">{t.cardMaxMs}</div>
+						<div style="font-size:1.4rem; font-weight:800;">{num(row.max_ms)}</div>
 					</div>
 				</>
 			))}
@@ -322,13 +327,13 @@ const recentLogs = showLogs
 		<div style="display:grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
 			<!-- By route -->
 			<div style="padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.12);">
-				<h2 style="margin-top:0;">Top routes</h2>
+				<h2 style="margin-top:0;">{t.topRoutes}</h2>
 				<table style="width:100%; border-collapse: collapse;">
 					<thead>
 						<tr style="text-align:left; opacity:0.85;">
-							<th style="padding:0.4rem 0;">Route</th>
-							<th style="padding:0.4rem 0;">Requests</th>
-							<th style="padding:0.4rem 0;">Avg ms</th>
+							<th style="padding:0.4rem 0;">{t.colRoute}</th>
+							<th style="padding:0.4rem 0;">{t.colRequests}</th>
+							<th style="padding:0.4rem 0;">{t.colAvgMs}</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -342,7 +347,7 @@ const recentLogs = showLogs
 							</tr>
 						))}
 						{byRoute.length === 0 && (
-							<tr><td colspan="3" style="padding:0.75rem 0; opacity:0.8;">No rows for that day.</td></tr>
+							<tr><td colspan="3" style="padding:0.75rem 0; opacity:0.8;">{t.noRowsForDay}</td></tr>
 						)}
 					</tbody>
 				</table>
@@ -351,12 +356,12 @@ const recentLogs = showLogs
 			<!-- Status + Country -->
 			<div style="display:flex; flex-direction:column; gap: 1rem;">
 				<div style="padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.12);">
-					<h2 style="margin-top:0;">Status codes</h2>
+					<h2 style="margin-top:0;">{t.statusCodes}</h2>
 					<table style="width:100%; border-collapse: collapse;">
 						<thead>
 							<tr style="text-align:left; opacity:0.85;">
-								<th style="padding:0.4rem 0;">Status</th>
-								<th style="padding:0.4rem 0;">Requests</th>
+								<th style="padding:0.4rem 0;">{t.colStatus}</th>
+								<th style="padding:0.4rem 0;">{t.colRequests}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -367,19 +372,19 @@ const recentLogs = showLogs
 								</tr>
 							))}
 							{byStatus.length === 0 && (
-								<tr><td colspan="2" style="padding:0.75rem 0; opacity:0.8;">No rows.</td></tr>
+								<tr><td colspan="2" style="padding:0.75rem 0; opacity:0.8;">{t.noRows}</td></tr>
 							)}
 						</tbody>
 					</table>
 				</div>
 
 				<div style="padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.12);">
-					<h2 style="margin-top:0;">Countries</h2>
+					<h2 style="margin-top:0;">{t.countries}</h2>
 					<table style="width:100%; border-collapse: collapse;">
 						<thead>
 							<tr style="text-align:left; opacity:0.85;">
-								<th style="padding:0.4rem 0;">Country</th>
-								<th style="padding:0.4rem 0;">Requests</th>
+								<th style="padding:0.4rem 0;">{t.colCountry}</th>
+								<th style="padding:0.4rem 0;">{t.colRequests}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -390,7 +395,7 @@ const recentLogs = showLogs
 								</tr>
 							))}
 							{byCountry.length === 0 && (
-								<tr><td colspan="2" style="padding:0.75rem 0; opacity:0.8;">No rows.</td></tr>
+								<tr><td colspan="2" style="padding:0.75rem 0; opacity:0.8;">{t.noRows}</td></tr>
 							)}
 						</tbody>
 					</table>
@@ -400,7 +405,7 @@ const recentLogs = showLogs
 
 		{showLogs && (
 			<div style="margin-top: 1.25rem; padding: 1rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.12);">
-				<h2 style="margin-top:0;">Recent detailed logs (last 100)</h2>
+				<h2 style="margin-top:0;">{t.recentLogs}</h2>
 				<div style="overflow:auto;">
 					<table style="width:100%; border-collapse: collapse; min-width: 900px;">
 						<thead>
@@ -431,7 +436,7 @@ const recentLogs = showLogs
 								</tr>
 							))}
 							{recentLogs.length === 0 && (
-								<tr><td colspan="9" style="padding:0.75rem 0; opacity:0.8;">No detailed logs yet.</td></tr>
+								<tr><td colspan="9" style="padding:0.75rem 0; opacity:0.8;">{t.noDetailedLogs}</td></tr>
 							)}
 						</tbody>
 					</table>
@@ -442,18 +447,18 @@ const recentLogs = showLogs
 		<!-- ── Scam Checker Usage ── -->
 		<div style="margin-top: 2.5rem;">
 			<h2 style="font-size: 1.1rem; margin: 0 0 0.75rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;">
-				Scam Checker · All-time
+				{t.checkerHeading}
 			</h2>
 
 			{checkerTotals[0] ? (() => {
-				const t = checkerTotals[0];
+				const chk = checkerTotals[0];
 				return (
 					<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem;">
 						{[
-							{ label: 'Total Checks',      value: num(t.total_checks).toLocaleString()    },
-							{ label: 'Unique Users',       value: num(t.unique_users).toLocaleString()    },
-							{ label: 'Unique Addresses',   value: num(t.unique_addresses).toLocaleString() },
-							{ label: 'Cache Hits',         value: num(t.cache_hits).toLocaleString()      },
+							{ label: t.checkerLabelTotal,           value: num(chk.total_checks).toLocaleString()    },
+							{ label: t.checkerLabelUniqueUsers,     value: num(chk.unique_users).toLocaleString()    },
+							{ label: t.checkerLabelUniqueAddresses, value: num(chk.unique_addresses).toLocaleString() },
+							{ label: t.checkerLabelCacheHits,       value: num(chk.cache_hits).toLocaleString()      },
 						].map((s) => (
 							<div style="padding: 0.9rem 1rem; border-radius: 1rem; border: 1px solid rgba(234,179,8,0.3); background: rgba(234,179,8,0.06);">
 								<div style="font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.3rem;">{s.label}</div>
@@ -462,19 +467,19 @@ const recentLogs = showLogs
 						))}
 					</div>
 				);
-			})() : <p style="opacity:0.6;">No checks recorded yet.</p>}
+			})() : <p style="opacity:0.6;">{t.checkerNoData}</p>}
 
 			<!-- Per-day trend -->
 			{checkerByDay.length > 0 && (
 				<div style="margin-bottom: 1.5rem;">
-					<h3 style="font-size: 0.9rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 0.5rem;">Daily Activity (last 30 days)</h3>
+					<h3 style="font-size: 0.9rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 0.5rem;">{t.checkerDailyHeading}</h3>
 					<div style="overflow-x: auto;">
 						<table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
 							<thead>
 								<tr style="opacity: 0.6; text-align: left;">
-									<th style="padding: 0.3rem 0.75rem 0.3rem 0;">Date</th>
-									<th style="padding: 0.3rem 0.75rem;">Checks</th>
-									<th style="padding: 0.3rem 0.75rem;">Unique Users</th>
+									<th style="padding: 0.3rem 0.75rem 0.3rem 0;">{t.checkerColDate}</th>
+									<th style="padding: 0.3rem 0.75rem;">{t.checkerColChecks}</th>
+									<th style="padding: 0.3rem 0.75rem;">{t.checkerColUniqueUsers}</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -494,15 +499,15 @@ const recentLogs = showLogs
 			<!-- Per-user breakdown -->
 			{checkerByUser.length > 0 && (
 				<div>
-					<h3 style="font-size: 0.9rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 0.5rem;">Per-User Breakdown (top 50, IPs hashed)</h3>
+					<h3 style="font-size: 0.9rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 0.5rem;">{t.checkerPerUserHeading}</h3>
 					<div style="overflow-x: auto;">
 						<table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
 							<thead>
 								<tr style="opacity: 0.6; text-align: left;">
-									<th style="padding: 0.3rem 0.75rem 0.3rem 0;">User (hash)</th>
-									<th style="padding: 0.3rem 0.75rem;">Total Checks</th>
-									<th style="padding: 0.3rem 0.75rem;">Unique Addresses</th>
-									<th style="padding: 0.3rem 0.75rem;">Last Seen</th>
+									<th style="padding: 0.3rem 0.75rem 0.3rem 0;">{t.checkerColUserHash}</th>
+									<th style="padding: 0.3rem 0.75rem;">{t.checkerColTotalChecks}</th>
+									<th style="padding: 0.3rem 0.75rem;">{t.checkerColUniqueAddresses}</th>
+									<th style="padding: 0.3rem 0.75rem;">{t.checkerColLastSeen}</th>
 								</tr>
 							</thead>
 							<tbody>

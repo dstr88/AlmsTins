@@ -11,6 +11,8 @@ import { db } from '@/lib/db';
 import { getLatestNetWorthSummary } from '@/lib/networth';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getNetworth } from '@/i18n/dashboard/networth';
 
 type SliceType = 'asset' | 'stable' | 'debt';
 
@@ -63,6 +65,9 @@ const debtAmount = debtValue * 1000;
 const netAmount = netValue * 1000;
 const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
+const lang = getLang(Astro.request);
+const t = getNetworth(lang);
+
 const { tenantId } = await requireTenantSession(Astro.request);
 const walletsResult = await db.execute({
 	sql: 'SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY created_at ASC',
@@ -100,18 +105,18 @@ const walletTins = wallets.map((wallet) => {
 });
 ---
 
-<Layout title="Net Worth | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<section class="networth-page">
 		<div class="hero-bleed">
-			<NetWorthHero title="Net Worth" subtitle="TradFi + DeFi at a glance" />
+			<NetWorthHero title={t.heroTitle} subtitle={t.heroSubtitle} />
 		</div>
 
 		<header>
-			<h1 class="text-2xl font-semibold">Net worth</h1>
+			<h1 class="text-2xl font-semibold">{t.heading}</h1>
 		</header>
 
 	<section class="tins-grid">
-		<SalmonTin label="Watchlist">
+		<SalmonTin label={t.watchlistLabel}>
 			<PriceWatchlist client:load />
 		</SalmonTin>
 		<div class="tin tin--totals">

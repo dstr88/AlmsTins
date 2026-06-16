@@ -4,32 +4,37 @@ import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import SalmonTin from '../../components/dashboard/SalmonTin.astro';
 import LoanPayoffCalculator from '../../components/LoanPayoffCalculator.astro';
 import LoanPaymentsTable from '../../components/LoanPaymentsTable.tsx';
+import { getLang } from '@/lib/i18n/locale';
+import { getTradfi } from '@/i18n/dashboard/tradfi';
+
+const lang = getLang(Astro.request);
+const t = getTradfi(lang);
 ---
 
-<Layout title="Traditional Finance | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<section class="tradfi-page">
 		<div class="hero-bleed">
-			<NetWorthHero title="TradFi" subtitle="Traditional finance overview" />
+			<NetWorthHero title="TradFi" subtitle={t.heroSubtitle} />
 		</div>
 
 		<section class="tins-grid">
-			<SalmonTin label="Totals">
+			<SalmonTin label={t.tinTotals}>
 				<div class="totals-row">
-					<span class="totals-label">Debt</span>
+					<span class="totals-label">{t.debtLabel}</span>
 					<span class="totals-value" data-total-debt>$0</span>
 				</div>
 			</SalmonTin>
-			<SalmonTin label="Add loan">
-				<button type="button" class="add-loan-button" data-add-loan>Add another contract</button>
+			<SalmonTin label={t.tinAddLoan}>
+				<button type="button" class="add-loan-button" data-add-loan>{t.addLoanButton}</button>
 				<p class="add-loan-status" data-add-loan-status></p>
 			</SalmonTin>
-			<SalmonTin label="Loan payoff" class="loan-tin">
+			<SalmonTin label={t.tinLoanPayoff} class="loan-tin">
 				<LoanPayoffCalculator loanId="tradfi-loan-1" />
 			</SalmonTin>
 		</section>
 
 		<section class="tradfi-table">
-			<h2>Payment history</h2>
+			<h2>{t.paymentHistory}</h2>
 			<LoanPaymentsTable client:only="react" />
 		</section>
 	</section>
@@ -116,7 +121,7 @@ import LoanPaymentsTable from '../../components/LoanPaymentsTable.tsx';
 		}
 	</style>
 
-	<script>
+	<script define:vars={{ i18nLoanPayoffLabel: t.loanPayoffLabel(0).replace('0', '{n}'), i18nAddedContract: t.addedContract(0).replace('0', '{n}') }}>
 	const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 	function parseAmount(value) {
@@ -152,7 +157,7 @@ import LoanPaymentsTable from '../../components/LoanPaymentsTable.tsx';
 			const existingCount = grid.querySelectorAll('.loan-tin').length;
 			const nextIndex = existingCount + 1;
 			const label = clone.querySelector('.salmon-tin__label');
-			if (label) label.textContent = `Loan payoff ${nextIndex}`;
+			if (label) label.textContent = i18nLoanPayoffLabel.replace('{n}', String(nextIndex));
 
 			const loanRoot = clone.querySelector('[data-loan-payoff]');
 			if (loanRoot) {
@@ -175,7 +180,7 @@ import LoanPaymentsTable from '../../components/LoanPaymentsTable.tsx';
 				window.loanPayoffInit(loanRoot);
 			}
 			if (addLoanStatus) {
-				addLoanStatus.textContent = `Added contract ${nextIndex}.`;
+				addLoanStatus.textContent = i18nAddedContract.replace('{n}', String(nextIndex));
 				setTimeout(() => {
 					addLoanStatus.textContent = '';
 				}, 2500);
