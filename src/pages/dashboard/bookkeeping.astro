@@ -259,8 +259,14 @@ const syncRelative = !hasSync ? '' :
           (btn as HTMLButtonElement).disabled = true;
           btn.textContent = I.syncing ?? 'Syncing…';
           try {
-            const res = await fetch('/api/wallets/sync-all', { method: 'POST' });
-            if (!res.ok) throw new Error(String(res.status));
+            // 1. Pull the on-chain ledger (Etherscan/Snowtrace) into `transactions`.
+            const sync = await fetch('/api/wallets/sync-all', { method: 'POST' });
+            if (!sync.ok) throw new Error('sync ' + sync.status);
+            // 2. Rebuild the lifecycle so the freshly-fetched txns — including Aave
+            //    repays/deposits — get classified into the events bookkeeping reads.
+            //    Without this, sync-all fetches the repay but never surfaces it.
+            const rebuild = await fetch('/api/lifecycle/rebuild', { method: 'POST' });
+            if (!rebuild.ok) throw new Error('rebuild ' + rebuild.status);
             location.reload();
           } catch {
             (btn as HTMLButtonElement).disabled = false;
