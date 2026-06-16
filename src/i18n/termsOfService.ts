@@ -1,7 +1,5 @@
-// User Agreement — replaces the prior Terms of Service as of 2026-06-16.
-// EN is the authoritative language. ES and FR display the English body until
-// counsel finalizes the agreement and a qualified legal translator produces
-// reviewed ES/FR versions.
+// Operative User Agreement v1.0 (replaces the prior Terms of Service).
+// ES/FR are first-pass legal translations pending review by a fluent legal translator.
 //
 // `body` is developer-controlled HTML rendered with set:html (legal markup with
 // <strong>/<ul>/<a>, etc.). Crypto jargon (wallet, token, phishing, honeypot,
@@ -27,10 +25,8 @@ export const en: TermsLocale = {
   body: `
 <h1>ALMSTINS USER AGREEMENT</h1>
 
-<p><strong>Effective Date:</strong> June 16, 2026 &nbsp;·&nbsp; <strong>Version:</strong> DRAFT 1.0<br/>
+<p><strong>Effective Date:</strong> June 16, 2026 &nbsp;·&nbsp; <strong>Version:</strong> 1.0<br/>
 <strong>Operator:</strong> Almstins, a product of TitaniumHut ("Almstins," "we," "us," "our")</p>
-
-<blockquote><p>⚠️ <strong>DRAFT — NOT YET LEGAL ADVICE.</strong> This document was prepared to be reviewed and finalized by a qualified attorney before it is published or relied upon. It is written to be protective and comprehensive, but it has not been reviewed by counsel. Items in <strong>[COUNSEL: …]</strong> brackets mark decisions that require a lawyer's judgment. Do not rely on this as your operative agreement until counsel has approved it and it is properly presented to users for assent (clickwrap).</p></blockquote>
 
 <blockquote><p><strong>Scope &amp; precedence.</strong> This is the single canonical contract governing your use of Almstins. It is organized as <strong>Part A — General Terms</strong> (apply to all of Almstins) and <strong>Part B — Supplemental Terms</strong> (apply only to specific features, called "Surfaces"). If a Part B Supplemental Term conflicts with a Part A General Term, <strong>the Supplemental Term controls for that Surface only.</strong> The <strong>Privacy Policy</strong> is incorporated by reference. <strong>PetroTins</strong> (tradfitins.com) is a separate product governed by its own terms and is <strong>not</strong> covered by this Agreement.</p></blockquote>
 
@@ -53,7 +49,7 @@ export const en: TermsLocale = {
 <li><strong>(d) White-label purpose limit.</strong> Any white-label or embedded deployment provides software and branding only — never a window into users, and never a tool to monitor, profile, or track third parties.</li>
 </ul>
 
-<p><strong>P.5 Changes.</strong> We may modify this Agreement. Material changes will be notified by email or in-product notice and become effective for existing users thirty (30) days after posting (immediately for new users). Continued use after the effective date constitutes acceptance. [COUNSEL: confirm notice mechanics.]</p>
+<p><strong>P.5 Changes.</strong> We may modify this Agreement. Material changes will be notified by email or in-product notice and become effective for existing users thirty (30) days after posting (immediately for new users). Continued use after the effective date constitutes acceptance.</p>
 
 <hr/>
 
@@ -74,12 +70,12 @@ export const en: TermsLocale = {
 <p><strong>A.2.1</strong> You must be 18+ and legally permitted to use the Service in your jurisdiction.<br/>
 <strong>A.2.2</strong> You represent and warrant that you are not a person with whom transactions are prohibited under economic or trade sanctions laws (including U.S. OFAC programs), and that you are not located in, ordinarily resident in, or accessing the Service from any comprehensively sanctioned jurisdiction — <strong>including Cuba, Iran, North Korea, Syria, or the Crimea, Donetsk, or Luhansk regions of Ukraine.</strong><br/>
 <strong>A.2.3</strong> We do not offer the Service to, or conduct business with, any individual, entity, or jurisdiction restricted under applicable sanctions laws or prohibited by our payment or compliance providers.<br/>
-<strong>A.2.4</strong> We apply geographic access controls (including IP-based geo-blocking) on a best-effort basis; these controls may fail open and are not guaranteed. [COUNSEL: fail-open vs. fail-closed; enumerated list vs. general statement; SDN name-screening for the free tier.]</p>
+<strong>A.2.4</strong> We apply geographic access controls (including IP-based geo-blocking) on a best-effort basis; these controls may fail open and are not guaranteed.</p>
 
 <h2>A.3 Accounts and Sign-In</h2>
 <p><strong>A.3.1</strong> You may sign in via supported OAuth providers (Google, GitHub) or by email. We do not collect or store your name; a provider-supplied name is discarded.<br/>
 <strong>A.3.2</strong> You are responsible for safeguarding access to your account and for all activity under it. Notify us promptly of any unauthorized use.<br/>
-<strong>A.3.3</strong> We may suspend or terminate accounts as set out in A.17.</p>
+<strong>A.3.3</strong> We may suspend or terminate accounts as set out in A.15.</p>
 
 <h2>A.4 License to Use the Service</h2>
 <p>Subject to this Agreement, we grant you a limited, non-exclusive, non-transferable, non-sublicensable, revocable license to access and use the Service for your personal or internal business record-keeping and safety-verification purposes. All rights not expressly granted are reserved.</p>
@@ -100,9 +96,9 @@ export const en: TermsLocale = {
 
 <h2>A.9 Subscriptions, Billing, Renewal, and Refunds</h2>
 <p><strong>A.9.1</strong> Paid plans and their features and prices are published on the Service. Billing is handled by Stripe; we do not see or store your card details.<br/>
-<strong>A.9.2 Auto-renewal.</strong> Paid subscriptions renew automatically at the then-current price until cancelled. You authorize recurring charges. [COUNSEL: confirm auto-renewal disclosure satisfies California ARL and EU requirements.]<br/>
+<strong>A.9.2 Auto-renewal.</strong> Paid subscriptions renew automatically at the then-current price until cancelled. You authorize recurring charges.<br/>
 <strong>A.9.3 Cancellation.</strong> You may cancel at any time; cancellation stops future renewals and takes effect at the end of the current billing period.<br/>
-<strong>A.9.4 Refunds.</strong> [COUNSEL: insert refund policy.]<br/>
+<strong>A.9.4 Refunds.</strong> Except where required by applicable law, payments for the Service are non-refundable; any refund is provided at our discretion.<br/>
 <strong>A.9.5 Price changes.</strong> We may change prices with prior notice; changes apply to the next billing cycle.</p>
 
 <h2>A.10 Disclaimer of Warranties</h2>
@@ -110,7 +106,7 @@ export const en: TermsLocale = {
 
 <h2>A.11 Limitation of Liability</h2>
 <p><strong>A.11.1</strong> TO THE FULLEST EXTENT PERMITTED BY LAW, IN NO EVENT WILL ALMSTINS OR ITS OPERATORS, AFFILIATES, OR SUPPLIERS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, DATA, CRYPTOCURRENCY, OR DIGITAL ASSETS, OR FOR LOSSES ARISING FROM YOUR RELIANCE ON ANY SAFETY RESULT, PRICE, CALCULATION, OR TAX FIGURE, OR FROM ANY TRANSACTION YOU CHOOSE TO MAKE OR NOT MAKE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.<br/>
-<strong>A.11.2 Cap.</strong> OUR TOTAL AGGREGATE LIABILITY FOR ANY CLAIM ARISING OUT OF OR RELATING TO THE SERVICE WILL NOT EXCEED THE GREATER OF (i) THE AMOUNTS YOU PAID US FOR THE SERVICE IN THE TWELVE (12) MONTHS PRECEDING THE CLAIM, OR (ii) ONE HUNDRED U.S. DOLLARS ($100). [COUNSEL: confirm cap.]<br/>
+<strong>A.11.2 Cap.</strong> OUR TOTAL AGGREGATE LIABILITY FOR ANY CLAIM ARISING OUT OF OR RELATING TO THE SERVICE WILL NOT EXCEED THE GREATER OF (i) THE AMOUNTS YOU PAID US FOR THE SERVICE IN THE TWELVE (12) MONTHS PRECEDING THE CLAIM, OR (ii) ONE HUNDRED U.S. DOLLARS ($100).<br/>
 <strong>A.11.3 Free Surfaces.</strong> FOR ANY SURFACE YOU USE WITHOUT PAYMENT (INCLUDING THE PUBLIC CHECKER), TO THE EXTENT PERMITTED BY LAW YOUR SOLE REMEDY IS TO STOP USING IT, AND YOU ARE LIMITED TO INJUNCTIVE RELIEF.<br/>
 <strong>A.11.4</strong> Paid safety Surfaces carry their own scope and limitations as set out in B.5. Nothing in this Section excludes liability that cannot be excluded by law (such as for fraud or death/personal injury caused by our negligence).</p>
 
@@ -134,8 +130,8 @@ export const en: TermsLocale = {
 
 <h2>A.18 Dispute Resolution; Arbitration; Class Waiver</h2>
 <p><strong>A.18.1 Informal resolution first.</strong> Before filing any claim, you agree to contact support@titaniumhut.com with a description of the dispute and to attempt good-faith resolution for thirty (30) days.<br/>
-<strong>A.18.2 Binding arbitration.</strong> If not resolved, any dispute arising out of or relating to this Agreement or the Service will be resolved by <strong>final and binding arbitration</strong>, not in court, except as stated below. Arbitration will be seated in <strong>Cookeville, Tennessee</strong>, conducted in English. [COUNSEL: select arbitral body/rules; confirm seat.]<br/>
-<strong>A.18.3 Class-action waiver.</strong> Disputes will be conducted only on an individual basis. You and Almstins waive any right to bring or participate in a class, collective, consolidated, or representative action. [COUNSEL: enforceability review.]<br/>
+<strong>A.18.2 Binding arbitration.</strong> If not resolved, any dispute arising out of or relating to this Agreement or the Service will be resolved by <strong>final and binding arbitration</strong>, not in court, except as stated below. Arbitration will be seated in <strong>Cookeville, Tennessee</strong>, conducted in English.<br/>
+<strong>A.18.3 Class-action waiver.</strong> Disputes will be conducted only on an individual basis. You and Almstins waive any right to bring or participate in a class, collective, consolidated, or representative action.<br/>
 <strong>A.18.4 Exceptions.</strong> Either party may bring an individual claim in small-claims court and may seek injunctive relief to protect intellectual property.</p>
 
 <h2>A.19 Governing Law</h2>
@@ -154,7 +150,7 @@ export const en: TermsLocale = {
 <h2>B.1 Public Wallet &amp; Website Safety Checker (free, no login)</h2>
 <p><strong>B.1.1</strong> The Checker reports safety information about a blockchain address or website by querying third-party databases (including GoPlus, OFAC lists, honeypot detection, Etherscan/Alchemy, Chainabuse, MetaMask, ScamSniffer, URLScan, OpenPhish, and VirusTotal).<br/>
 <strong>B.1.2 Attribution, not verdict.</strong> All findings are <strong>reported from third-party sources and are not independently verified by Almstins.</strong> A result indicating no detected threat means only that no source has flagged the item <strong>at this time</strong> — it is <strong>not</strong> a guarantee of safety, legitimacy, or quality. A result indicating a detected risk reflects a third-party report, not a legal determination.<br/>
-<strong>B.1.3 No reliance.</strong> The Checker is informational and is not financial, legal, or security advice. You must exercise your own judgment and conduct your own research before transacting. To the extent permitted by law, Almstins has no liability for any action you take or do not take based on a Checker result. [COUNSEL: review the imperative "do not connect" wording for added exposure.]<br/>
+<strong>B.1.3 No reliance.</strong> The Checker is informational and is not financial, legal, or security advice. You must exercise your own judgment and conduct your own research before transacting. To the extent permitted by law, Almstins has no liability for any action you take or do not take based on a Checker result.<br/>
 <strong>B.1.4</strong> The Checker is provided free and best-effort; A.11.3 applies.<br/>
 <strong>B.1.5</strong> Automated or bulk access to the Checker is prohibited except under a separate written agreement.</p>
 
@@ -178,18 +174,18 @@ export const en: TermsLocale = {
 <strong>B.4.4 Claims — control proof; anti-impersonation.</strong> Claiming an address asserts that <strong>you control it.</strong> Claiming is on a first-claimer basis. You may be required to prove control through an out-of-band method (for example, a wallet-generated signature of a one-time message that you provide to us) — <strong>Almstins never asks you to connect a wallet or provide keys.</strong> Claiming an address you do not control, or to impersonate a business, is prohibited and a material breach, and you indemnify Almstins for resulting claims (A.12).<br/>
 <strong>B.4.5 Trust badge disclaimer.</strong> A trust badge means only that an address has been claimed by a verified member and was clear of automated checks at the relevant time. <strong>It is NOT a guarantee of safety, legitimacy, solvency, or quality, and is not a recommendation.</strong> Where both a badge and a fraud signal exist, both are shown; you must consider all displayed signals before transacting. This disclaimer is also presented at the point of display.<br/>
 <strong>B.4.6 Moderation; no duty to monitor.</strong> Almstins may remove, refuse, or decline to surface any flag, review, or claim, and may investigate suspected abuse, <strong>in its sole discretion and with no obligation to pre-screen or monitor.</strong> We assume no liability for surfacing or not surfacing any Community Content.<br/>
-<strong>B.4.7 Objective gating; dispute and correction.</strong> Surfaced fraud signals are gated by independent third-party validation (e.g., GoPlus), not by user vote or headcount. A business or address owner who believes a signal is in error may request review; <strong>because Almstins does not attribute contributions to identities, correction is handled through re-validation against the independent source and removal where appropriate, not by disclosing who contributed a signal.</strong> [COUNSEL: define notice-and-correction workflow; defamation/disparagement review of aggregate signals.]<br/>
+<strong>B.4.7 Objective gating; dispute and correction.</strong> Surfaced fraud signals are gated by independent third-party validation (e.g., GoPlus), not by user vote or headcount. A business or address owner who believes a signal is in error may request review; <strong>because Almstins does not attribute contributions to identities, correction is handled through re-validation against the independent source and removal where appropriate, not by disclosing who contributed a signal.</strong><br/>
 <strong>B.4.8 No attribution preserved.</strong> Who contributed a flag, review, or claim is stored only for abuse-prevention and is never displayed or linked to a person.</p>
 
 <h2>B.5 Merchant / Anti-MITM Verification Tier (paid)</h2>
 <blockquote><p><em>Planned/optional paid Surface. Terms apply when and where it is offered. A separate Merchant Addendum may apply.</em></p></blockquote>
 
-<p><strong>B.5.1 Not money transmission.</strong> The merchant tier is a flat software subscription. Almstins never touches, holds, routes, or settles funds and takes no per-transaction fee. The term "merchant account" refers only to this software feature and does not imply payment processing or money transmission. [COUNSEL: confirm terminology.]<br/>
-<strong>B.5.2 Paid safety service — scope and limits.</strong> The tier may provide address verification and monitoring/alerting on a defined, best-effort basis. <strong>It does not guarantee detection of every address swap, tampering, or fraud, and is not insurance.</strong> Service levels, if any, are as published. To the extent permitted by law, Almstins' liability for any failure to detect or alert is subject to A.11, and you acknowledge that monitoring is a tool, not a guarantee of outcome. [COUNSEL: SLA language; whether any uptime/detection commitment is made.]<br/>
-<strong>B.5.3 Trademark license for verification markings.</strong> If you display Almstins verification markings (e.g., a "verified" sticker) on your own signage, we grant a limited, revocable, non-transferable license to do so solely in accordance with our brand-use guidelines. The <strong>scan</strong>, not the marking, is the source of truth. We may revoke this license for misuse. [COUNSEL: brand-use guidelines; quality control.]<br/>
-<strong>B.5.4 "Verified" representations.</strong> A verified scan or badge attests only that an address is claimed by a paying member and clear of automated checks at scan time. It does <strong>not</strong> attest that any business is legitimate, solvent, or safe, and is not a recommendation; consumers must exercise their own judgment. [COUNSEL: consumer-reliance exposure by jurisdiction.]<br/>
-<strong>B.5.5 Lapse.</strong> Verification status may persist after a subscription lapses to avoid misleading consumers relying on physical signage; the recurring fee buys monitoring, alerts, bookkeeping, and additional capacity, not the verification itself. [COUNSEL: what is represented about a lapsed merchant; badge wording post-lapse.]<br/>
-<strong>B.5.6 Camera, scanning, and monitoring; consent.</strong> One-time QR/address scans are decoded on-device; no image is stored or transmitted by that action. Any <strong>continuous or always-on camera monitoring</strong> option may capture third parties (bystanders, employees, customers) and may be subject to biometric, surveillance, two-party-consent, and employee-monitoring laws that vary by jurisdiction. If you enable such monitoring, <strong>you are the controller of that capture and are solely responsible</strong> for obtaining all required consents, posting required notices, and complying with retention limits; you indemnify Almstins for your use of it. [COUNSEL: biometric/BIPA, consent, signage, retention; possible separate addendum.]<br/>
+<p><strong>B.5.1 Not money transmission.</strong> The merchant tier is a flat software subscription. Almstins never touches, holds, routes, or settles funds and takes no per-transaction fee. The term "merchant account" refers only to this software feature and does not imply payment processing or money transmission.<br/>
+<strong>B.5.2 Paid safety service — scope and limits.</strong> The tier may provide address verification and monitoring/alerting on a defined, best-effort basis. <strong>It does not guarantee detection of every address swap, tampering, or fraud, and is not insurance.</strong> Service levels, if any, are as published. To the extent permitted by law, Almstins' liability for any failure to detect or alert is subject to A.11, and you acknowledge that monitoring is a tool, not a guarantee of outcome.<br/>
+<strong>B.5.3 Trademark license for verification markings.</strong> If you display Almstins verification markings (e.g., a "verified" sticker) on your own signage, we grant a limited, revocable, non-transferable license to do so solely in accordance with our brand-use guidelines. The <strong>scan</strong>, not the marking, is the source of truth. We may revoke this license for misuse.<br/>
+<strong>B.5.4 "Verified" representations.</strong> A verified scan or badge attests only that an address is claimed by a paying member and clear of automated checks at scan time. It does <strong>not</strong> attest that any business is legitimate, solvent, or safe, and is not a recommendation; consumers must exercise their own judgment.<br/>
+<strong>B.5.5 Lapse.</strong> Verification status may persist after a subscription lapses to avoid misleading consumers relying on physical signage; the recurring fee buys monitoring, alerts, bookkeeping, and additional capacity, not the verification itself.<br/>
+<strong>B.5.6 Camera, scanning, and monitoring; consent.</strong> One-time QR/address scans are decoded on-device; no image is stored or transmitted by that action. Any <strong>continuous or always-on camera monitoring</strong> option may capture third parties (bystanders, employees, customers) and may be subject to biometric, surveillance, two-party-consent, and employee-monitoring laws that vary by jurisdiction. If you enable such monitoring, <strong>you are the controller of that capture and are solely responsible</strong> for obtaining all required consents, posting required notices, and complying with retention limits; you indemnify Almstins for your use of it.<br/>
 <strong>B.5.7 Merchant bookkeeping.</strong> Bookkeeping applied to received payments is governed by B.3.</p>
 
 <h2>B.6 Alerts (Price and DeFi Health)</h2>
@@ -201,22 +197,7 @@ export const en: TermsLocale = {
 <strong>B.7.2</strong> By using these features you consent to the necessary processing described in the Privacy Policy. Do not upload documents you are not permitted to share.</p>
 
 <h2>B.8 PetroTins — Excluded</h2>
-<p>PetroTins is a separate product offered at tradfitins.com under its own Terms and Privacy Policy. This Agreement does not govern PetroTins. [COUNSEL: confirm carve-out adequacy; whether a shared agreement is preferable.]</p>
-
-<hr/>
-
-<h2>SCHEDULE OF OPEN ITEMS FOR COUNSEL</h2>
-<ol>
-<li>Sanctions: general vs. enumerated clause; free-tier screening; fail-open vs. fail-closed (A.2.4).</li>
-<li>Liability cap amount and free/paid split (A.11); paid-merchant SLA and detection commitments (B.5.2).</li>
-<li>Arbitration body/rules, seat, and class-waiver enforceability (A.18).</li>
-<li>Auto-renewal disclosure (CA ARL / EU) and refund policy (A.9).</li>
-<li>Community layer: verified-interaction and control-proof sufficiency; no-attribution correction workflow; defamation exposure of aggregate signals (B.4).</li>
-<li>Merchant tier: trademark/brand-use terms; "verified" reliance; lapsed-badge wording; camera/biometric/continuous-monitoring consent and possible separate addendum (B.5).</li>
-<li>Checker "do not connect" directive wording (B.1.3).</li>
-<li>PetroTins carve-out vs. shared agreement (B.8).</li>
-<li>Clickwrap assent flow and versioning so this remains the single canonical contract.</li>
-</ol>
+<p>PetroTins is a separate product offered at tradfitins.com under its own Terms and Privacy Policy. This Agreement does not govern PetroTins.</p>
 `,
 };
 
@@ -224,14 +205,366 @@ export const es: TermsLocale = {
   lang: 'es',
   summaryLabel: 'Acuerdo de Usuario',
   ariaLabel: 'Acuerdo de Usuario',
-  body: en.body,
+  body: `
+<h1>ACUERDO DE USUARIO DE ALMSTINS</h1>
+
+<p><strong>Fecha de vigencia:</strong> 16 de junio de 2026 &nbsp;·&nbsp; <strong>Versión:</strong> 1.0<br/>
+<strong>Operador:</strong> Almstins, un producto de TitaniumHut ("Almstins," "nosotros," "nos," "nuestro")</p>
+
+<blockquote><p><strong>Ámbito y prelación.</strong> Este es el contrato canónico único que rige su uso de Almstins. Se organiza en <strong>Parte A — Condiciones Generales</strong> (aplicables a todo Almstins) y <strong>Parte B — Condiciones Complementarias</strong> (aplicables únicamente a funciones específicas denominadas "Superficies"). Si una Condición Complementaria de la Parte B entra en conflicto con una Condición General de la Parte A, <strong>la Condición Complementaria prevalece únicamente para esa Superficie.</strong> La <strong>Política de Privacidad</strong> queda incorporada por referencia. <strong>PetroTins</strong> (tradfitins.com) es un producto independiente regido por sus propios términos y <strong>no</strong> está cubierto por este Acuerdo.</p></blockquote>
+
+<hr/>
+
+<h2>PREÁMBULO — ACEPTACIÓN Y LÍMITES ARQUITECTÓNICOS</h2>
+
+<p><strong>P.1 Acuerdo.</strong> Al acceder o utilizar Almstins de cualquier forma — incluyendo visitar el sitio web, usar el verificador público de wallets o de sitios web, crear una cuenta o suscribirse — usted reconoce que ha leído, comprendido y acepta quedar vinculado por este Acuerdo de Usuario y la Política de Privacidad. <strong>Si no está de acuerdo, no utilice Almstins.</strong></p>
+
+<p><strong>P.2 Quién puede aceptar.</strong> Usted declara tener al menos 18 años de edad y contar con la capacidad legal y la autorización necesarias para celebrar este Acuerdo.</p>
+
+<p><strong>P.3 Qué es Almstins.</strong> Almstins es un software informativo: un rastreador de portafolio de criptomonedas, una herramienta de contabilidad y una plataforma de verificación de seguridad. Almstins <strong>no</strong> es un wallet, un exchange, un bróker, un custodio, un transmisor de dinero, un procesador de pagos, un asesor de inversiones, un preparador de impuestos, un contador, un despacho jurídico ni un servicio de cumplimiento/AML. Almstins se ofrece actualmente en versión <strong>beta</strong> y está destinado a la exploración y la organización, no como fuente única de verdad financiera, fiscal o legal.</p>
+
+<p><strong>P.4 Límites Arquitectónicos de Confianza (rigen todas las Superficies).</strong> Los siguientes son garantías arquitectónicas, no meras promesas. Definen lo que es Almstins y condicionan todo lo que figura a continuación:</p>
+
+<ul>
+<li><strong>(a) Solo lectura · sin custodia · sin movimiento.</strong> Almstins nunca guarda claves privadas, nunca solicita permisos de firma, y nunca inicia, enruta, liquida ni mueve ninguna transacción o activo. Un compromiso de Almstins no puede mover sus fondos.</li>
+<li><strong>(b) Sin atribución.</strong> Almstins nunca vincula una dirección de blockchain con una identidad legal. No realizamos KYC, verificación de identidad, agrupación de direcciones ni des-anonimización. "¿Quién es la persona detrás de este wallet?" está permanentemente fuera del alcance. Lo contrario permitido — que usted utilice sus propios registros para evidenciar su propia titularidad — es compatible.</li>
+<li><strong>(c) Aislamiento de inquilinos.</strong> Sus datos están aislados de los de cualquier otro usuario y de cualquier operador. Ningún usuario, ni ningún operador de etiqueta blanca, puede acceder a los datos de otro inquilino o usuario final.</li>
+<li><strong>(d) Límite de finalidad de etiqueta blanca.</strong> Cualquier implementación de etiqueta blanca o integrada proporciona únicamente software y marca — nunca una ventana a los usuarios, y nunca una herramienta para vigilar, perfilar o rastrear a terceros.</li>
+</ul>
+
+<p><strong>P.5 Cambios.</strong> Podemos modificar este Acuerdo. Los cambios sustanciales se notificarán por correo electrónico o aviso en el producto y entrarán en vigor para los usuarios existentes treinta (30) días después de su publicación (inmediatamente para los nuevos usuarios). El uso continuado tras la fecha de entrada en vigor constituye aceptación.</p>
+
+<hr/>
+
+<h1>PARTE A — CONDICIONES GENERALES</h1>
+
+<h2>A.1 Definiciones</h2>
+<ul>
+<li><strong>"Servicio" / "Almstins"</strong> — todos los sitios web, aplicaciones, APIs y funciones de Almstins.</li>
+<li><strong>"Superficie"</strong> — un área de funciones diferenciada regida por una Condición Complementaria de la Parte B (p. ej., el Verificador Público, el Rastreador, la Capa de Confianza Comunitaria).</li>
+<li><strong>"Visitante"</strong> — cualquier persona que usa una Superficie sin iniciar sesión.</li>
+<li><strong>"Miembro"</strong> — una persona con una cuenta de Almstins (gratuita o de pago).</li>
+<li><strong>"Contenido Comunitario"</strong> — marcas de fraude, reclamaciones de direcciones, reseñas y cualquier otra señal aportada por usuarios.</li>
+<li><strong>"Contenido"</strong> — cualquier dato, texto, imagen, documento u otro material que usted proporcione o cargue.</li>
+<li><strong>"Servicios de Terceros"</strong> — servicios externos con los que Almstins se integra o a los que enlaza.</li>
+</ul>
+
+<h2>A.2 Elegibilidad, Sanciones y Restricciones Geográficas</h2>
+<p><strong>A.2.1</strong> Debe tener 18 o más años y estar legalmente autorizado a usar el Servicio en su jurisdicción.<br/>
+<strong>A.2.2</strong> Usted declara y garantiza que no es una persona con la que las transacciones estén prohibidas bajo leyes de sanciones económicas o comerciales (incluidos los programas OFAC de EE. UU.), y que no se encuentra, reside habitualmente ni accede al Servicio desde ninguna jurisdicción sujeta a sanciones globales — <strong>incluyendo Cuba, Iran, North Korea, Syria, o las regiones de Crimea, Donetsk o Luhansk de Ukraine.</strong><br/>
+<strong>A.2.3</strong> No ofrecemos el Servicio a ninguna persona física, entidad o jurisdicción restringida bajo las leyes de sanciones aplicables o prohibida por nuestros proveedores de pagos o cumplimiento.<br/>
+<strong>A.2.4</strong> Aplicamos controles de acceso geográfico (incluido el bloqueo geográfico basado en IP) con base en el mejor esfuerzo; dichos controles pueden fallar de forma abierta y no están garantizados.</p>
+
+<h2>A.3 Cuentas e Inicio de Sesión</h2>
+<p><strong>A.3.1</strong> Puede iniciar sesión a través de proveedores OAuth compatibles (Google, GitHub) o por correo electrónico. No recopilamos ni almacenamos su nombre; el nombre proporcionado por el proveedor se descarta.<br/>
+<strong>A.3.2</strong> Usted es responsable de proteger el acceso a su cuenta y de toda la actividad que se realice en ella. Notifíquenos de inmediato cualquier uso no autorizado.<br/>
+<strong>A.3.3</strong> Podemos suspender o cancelar cuentas según lo establecido en A.15.</p>
+
+<h2>A.4 Licencia de Uso del Servicio</h2>
+<p>Con sujeción a este Acuerdo, le otorgamos una licencia limitada, no exclusiva, intransferible, no sublicenciable y revocable para acceder y usar el Servicio con fines de gestión de registros personales o comerciales internos y de verificación de seguridad. Todos los derechos no concedidos expresamente quedan reservados.</p>
+
+<h2>A.5 Uso Aceptable</h2>
+<p>Usted no hará, ni intentará: (a) proporcionar información falsa o engañosa; (b) usar el Servicio en violación de cualquier ley o para facilitar actividades ilegales, lavado de dinero, financiamiento del terrorismo, fraude o evasión de sanciones; (c) hacerse pasar por cualquier persona o entidad o tergiversar su afiliación; (d) acceder, manipular o usar áreas no públicas o datos de otros usuarios; (e) realizar ingeniería inversa, descompilar o derivar código fuente, salvo lo permitido por la ley; (f) interferir, interrumpir, sobrecargar o degradar el Servicio; (g) eludir límites de velocidad, controles de acceso o cuotas de uso; (h) usar cualquier robot, araña, raspador o medio automatizado para acceder al Servicio o extraer datos, salvo lo expresamente permitido; (i) recopilar o recabar datos que permitan el contacto con personas o entidades, o usar los datos del Servicio para marketing directo; o (j) enviar Contenido Comunitario en violación de la Parte B.4. Cualquier uso no autorizado cancela las licencias aquí concedidas.</p>
+
+<h2>A.6 Propiedad Intelectual</h2>
+<p>El Servicio, y todo el software, contenido y marcas relacionados ("Marcas de Almstins"), son propiedad de Almstins y sus licenciantes y están protegidos por la ley. Salvo lo expresamente permitido (incluida la licencia de marca comercial limitada para comerciantes de B.5), no puede usar las Marcas de Almstins sin nuestro previo consentimiento por escrito. Los componentes de código abierto siguen rigiéndose por sus respectivas licencias.</p>
+
+<h2>A.7 Sus Datos y Contenido</h2>
+<p><strong>A.7.1</strong> En la relación entre usted y Almstins, su Contenido le pertenece. No reclamamos <strong>ningún</strong> derecho de propiedad sobre él.<br/>
+<strong>A.7.2</strong> Usted nos concede únicamente la licencia limitada necesaria para alojar, procesar y mostrar su Contenido <strong>a usted</strong> con el propósito de operar el Servicio (por ejemplo, calcular la base de costo, mostrar su panel y generar sus informes). No usamos su Contenido para publicidad, elaboración de perfiles, reventa o entrenamiento, y no lo compartimos con terceros excepto según lo descrito en la Política de Privacidad. (El Contenido Comunitario se licencia por separado en virtud de B.4.)<br/>
+<strong>A.7.3</strong> Usted declara que tiene derecho a proporcionar su Contenido y que no infringe los derechos de terceros.</p>
+
+<h2>A.8 Servicios de Terceros</h2>
+<p>El Servicio se integra y depende de Servicios de Terceros, que pueden incluir GitHub y Google (inicio de sesión), Stripe (facturación), Alchemy, Etherscan, Blockstream (datos de blockchain), CoinGecko y Coinpaprika (precios), GoPlus Security, VirusTotal y Chainabuse (datos de riesgo), Anthropic/Claude (funciones opcionales de IA), Turso (base de datos), Render (alojamiento), Google Analytics y un proveedor de correo electrónico/SMTP. Compartimos únicamente los datos mínimos necesarios. No somos responsables de los Servicios de Terceros, y su uso de ellos puede estar regido por sus propios términos. No respaldamos ni somos responsables de ningún sitio, protocolo, exchange o "socio del ecosistema" de terceros al que acceda o que evalúe mediante el Servicio.</p>
+
+<h2>A.9 Suscripciones, Facturación, Renovación y Reembolsos</h2>
+<p><strong>A.9.1</strong> Los planes de pago, sus funciones y precios se publican en el Servicio. La facturación es gestionada por Stripe; no vemos ni almacenamos los datos de su tarjeta.<br/>
+<strong>A.9.2 Renovación automática.</strong> Las suscripciones de pago se renuevan automáticamente al precio vigente hasta que se cancelen. Usted autoriza los cargos recurrentes.<br/>
+<strong>A.9.3 Cancelación.</strong> Puede cancelar en cualquier momento; la cancelación detiene las renovaciones futuras y surte efecto al término del período de facturación actual.<br/>
+<strong>A.9.4 Reembolsos.</strong> Salvo que la ley aplicable lo exija, los pagos por el Servicio no son reembolsables; cualquier reembolso se otorga a nuestra discreción.<br/>
+<strong>A.9.5 Cambios de precio.</strong> Podemos cambiar los precios con previo aviso; los cambios se aplican al siguiente ciclo de facturación.</p>
+
+<h2>A.10 Exclusión de Garantías</h2>
+<p>EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY, EL SERVICIO SE PROPORCIONA "TAL CUAL" Y "SEGÚN DISPONIBILIDAD," CON TODOS LOS DEFECTOS Y SIN GARANTÍAS DE NINGÚN TIPO, YA SEAN EXPRESAS, IMPLÍCITAS O LEGALES, INCLUIDAS LAS GARANTÍAS IMPLÍCITAS DE COMERCIABILIDAD, IDONEIDAD PARA UN PROPÓSITO PARTICULAR, TÍTULO Y NO INFRACCIÓN. NO GARANTIZAMOS QUE EL SERVICIO SEA ININTERRUMPIDO, PUNTUAL, SEGURO, LIBRE DE ERRORES, NI QUE ALGÚN DATO, PRECIO, CÁLCULO O RESULTADO DE SEGURIDAD SEA EXACTO, COMPLETO O FIABLE. NINGÚN CONSEJO O INFORMACIÓN OBTENIDA DEL SERVICIO CREA NINGUNA GARANTÍA NO DECLARADA EXPRESAMENTE AQUÍ.</p>
+
+<h2>A.11 Limitación de Responsabilidad</h2>
+<p><strong>A.11.1</strong> EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY, EN NINGÚN CASO ALMSTINS NI SUS OPERADORES, FILIALES O PROVEEDORES SERÁN RESPONSABLES DE DAÑOS INDIRECTOS, INCIDENTALES, ESPECIALES, CONSECUENTES, EJEMPLARES O PUNITIVOS, NI POR PÉRDIDA DE BENEFICIOS, INGRESOS, DATOS, CRIPTOMONEDAS O ACTIVOS DIGITALES, NI POR PÉRDIDAS DERIVADAS DE SU CONFIANZA EN ALGÚN RESULTADO DE SEGURIDAD, PRECIO, CÁLCULO O CIFRA FISCAL, NI DE ALGUNA TRANSACCIÓN QUE DECIDA REALIZAR O NO REALIZAR, INCLUSO SI SE LE HUBIERA ADVERTIDO DE LA POSIBILIDAD DE DICHOS DAÑOS.<br/>
+<strong>A.11.2 Límite.</strong> NUESTRA RESPONSABILIDAD AGREGADA TOTAL POR CUALQUIER RECLAMACIÓN DERIVADA DEL SERVICIO O RELACIONADA CON ÉL NO EXCEDERÁ EL MAYOR ENTRE (i) LAS CANTIDADES QUE NOS HAYA PAGADO POR EL SERVICIO EN LOS DOCE (12) MESES ANTERIORES A LA RECLAMACIÓN, O (ii) CIEN DÓLARES ESTADOUNIDENSES ($100).<br/>
+<strong>A.11.3 Superficies gratuitas.</strong> PARA CUALQUIER SUPERFICIE QUE USE SIN PAGO (INCLUIDO EL VERIFICADOR PÚBLICO), EN LA MEDIDA PERMITIDA POR LA LEY SU ÚNICO RECURSO ES DEJAR DE USARLA, Y QUEDA LIMITADO A MEDIDAS CAUTELARES.<br/>
+<strong>A.11.4</strong> Las Superficies de seguridad de pago tienen su propio alcance y limitaciones según lo dispuesto en B.5. Nada en esta Sección excluye la responsabilidad que no pueda excluirse por ley (como la derivada de fraude o muerte/lesiones personales causadas por nuestra negligencia).</p>
+
+<h2>A.12 Indemnización</h2>
+<p>Usted acepta indemnizar, defender y mantener indemnes a Almstins y a sus operadores, filiales y proveedores frente a cualquier reclamación, pérdida, responsabilidad, daño, coste y gasto (incluidos los honorarios razonables de abogados) que surjan de o estén relacionados con: (a) su Contenido o Contenido Comunitario; (b) su uso del Servicio o la imposibilidad de usarlo; (c) su incumplimiento de este Acuerdo; (d) su violación de cualquier ley o derecho de un tercero (incluido cualquier negocio o propietario de dirección afectado por una marca, reseña, reclamación o insignia que usted envíe); o (e) cualquier transacción que realice. Podemos asumir la defensa exclusiva de cualquier asunto sujeto a indemnización, y usted cooperará.</p>
+
+<h2>A.13 Sus Responsabilidades; Exactitud</h2>
+<p>Usted es el único responsable de la exactitud e integridad de todos los datos que proporcione o importe. Almstins no puede verificar CSV importados, datos sincronizados ni entradas manuales. Los datos incompletos o incorrectos producirán resultados no fiables que se trasladarán a informes, P&amp;L y cifras fiscales. Usted debe verificar personalmente la integridad (todas las fuentes importadas, todas las sincronizaciones exitosas) y la exactitud (precios, clasificaciones, base de costo).</p>
+
+<h2>A.14 Disponibilidad, Cambios, Pérdida de Datos, Fuerza Mayor</h2>
+<p>El Servicio puede experimentar tiempos de inactividad, interrupciones, errores o cortes, y las funciones pueden modificarse, descontinuarse o suprimirse en cualquier momento. Aunque mantenemos copias de seguridad razonables, ningún sistema es completamente seguro frente a pérdidas o corrupción; debe conservar sus propias copias de seguridad, y los datos eliminados son permanentes e irrecuperables. No somos responsables de demoras o fallos causados por eventos fuera de nuestro control razonable.</p>
+
+<h2>A.15 Duración y Rescisión</h2>
+<p>Este Acuerdo se aplica mientras usted use el Servicio. Puede dejar de usar el Servicio en cualquier momento. Podemos suspender o cancelar su acceso por cualquier motivo a nuestra discreción, incluido el incumplimiento de este Acuerdo, sin responsabilidad. Las disposiciones que por su naturaleza deban sobrevivir (incluidas A.6, A.7, A.10–A.12, A.18–A.21 y las exenciones de responsabilidad aplicables de la Parte B) sobreviven a la rescisión. Si su acceso es cancelado, no intentará volver a acceder mediante otra cuenta.</p>
+
+<h2>A.16 Cumplimiento de Leyes</h2>
+<p>Usted acepta usar el Servicio únicamente en cumplimiento de todas las leyes aplicables, incluidas las leyes fiscales, de sanciones/AML, de valores, de control de exportaciones y de privacidad. Garantiza que su uso es legal en su jurisdicción.</p>
+
+<h2>A.17 Sin Asesoramiento Profesional</h2>
+<p>Almstins no proporciona y renuncia expresamente a brindar asesoramiento fiscal, financiero, de inversión, legal o contable. Los resultados son únicamente informativos. Debe consultar a un profesional cualificado antes de presentar declaraciones de impuestos, tomar decisiones de inversión o basarse en cualquier resultado para fines legales o financieros.</p>
+
+<h2>A.18 Resolución de Disputas; Arbitraje; Renuncia a Demandas Colectivas</h2>
+<p><strong>A.18.1 Resolución informal primero.</strong> Antes de interponer cualquier reclamación, usted acepta contactar a support@titaniumhut.com con una descripción de la disputa e intentar una resolución de buena fe durante treinta (30) días.<br/>
+<strong>A.18.2 Arbitraje vinculante.</strong> Si no se resuelve, cualquier disputa que surja de o esté relacionada con este Acuerdo o el Servicio se resolverá mediante <strong>arbitraje final y vinculante</strong>, no ante los tribunales, salvo lo indicado a continuación. El arbitraje tendrá sede en <strong>Cookeville, Tennessee</strong> y se llevará a cabo en inglés.<br/>
+<strong>A.18.3 Renuncia a demandas colectivas.</strong> Las disputas se tramitarán únicamente de forma individual. Usted y Almstins renuncian a cualquier derecho de iniciar o participar en una acción colectiva, conjunta, consolidada o representativa.<br/>
+<strong>A.18.4 Excepciones.</strong> Cualquiera de las partes puede interponer una reclamación individual ante un tribunal de causas menores y puede solicitar medidas cautelares para proteger la propiedad intelectual.</p>
+
+<h2>A.19 Ley Aplicable</h2>
+<p>Este Acuerdo se rige por las leyes del <strong>Estado de Tennessee</strong>, sin tener en cuenta las normas sobre conflicto de leyes. Con sujeción a A.18, el foro exclusivo para cualquier acción judicial permitida son los tribunales estatales o federales ubicados en <strong>Cookeville, Tennessee</strong>.</p>
+
+<h2>A.20 Disposiciones Generales</h2>
+<p>Este Acuerdo (junto con la Política de Privacidad y cualquier Condición Complementaria) constituye el acuerdo íntegro entre usted y Almstins y reemplaza los acuerdos anteriores. Si alguna disposición resulta inaplicable, se reformará en la medida mínima necesaria y el resto permanecerá vigente. Usted no puede ceder este Acuerdo; nosotros sí podemos. El hecho de que no hagamos cumplir una disposición no implica una renuncia. Los encabezados son solo para conveniencia.</p>
+
+<h2>A.21 Contacto</h2>
+<p>Legal: legal@titaniumhut.com · Soporte: support@titaniumhut.com · Privacidad: privacy@titaniumhut.com</p>
+
+<hr/>
+
+<h1>PARTE B — CONDICIONES COMPLEMENTARIAS (POR SUPERFICIE)</h1>
+
+<h2>B.1 Verificador Público de Wallets y Sitios Web (gratuito, sin inicio de sesión)</h2>
+<p><strong>B.1.1</strong> El Verificador reporta información de seguridad sobre una dirección de blockchain o un sitio web consultando bases de datos de terceros (incluidas GoPlus, listas OFAC, detección de honeypot, Etherscan/Alchemy, Chainabuse, MetaMask, ScamSniffer, URLScan, OpenPhish y VirusTotal).<br/>
+<strong>B.1.2 Atribución, no veredicto.</strong> Todos los hallazgos son <strong>informados por fuentes de terceros y no han sido verificados de forma independiente por Almstins.</strong> Un resultado que indique que no se detectó ninguna amenaza significa únicamente que ninguna fuente ha marcado el elemento <strong>en este momento</strong> — <strong>no</strong> es una garantía de seguridad, legitimidad o calidad. Un resultado que indique un riesgo detectado refleja un informe de un tercero, no una determinación legal.<br/>
+<strong>B.1.3 Sin confianza.</strong> El Verificador es informativo y no constituye asesoramiento financiero, legal o de seguridad. Debe ejercer su propio juicio y realizar su propia investigación antes de realizar transacciones. En la medida permitida por la ley, Almstins no tiene responsabilidad alguna por cualquier acción que usted tome o no tome basándose en un resultado del Verificador.<br/>
+<strong>B.1.4</strong> El Verificador se proporciona de forma gratuita y en base al mejor esfuerzo; se aplica A.11.3.<br/>
+<strong>B.1.5</strong> El acceso automatizado o masivo al Verificador está prohibido salvo mediante un acuerdo escrito por separado.</p>
+
+<h2>B.2 Rastreador de Portafolio y Wallet (solo lectura)</h2>
+<p><strong>B.2.1</strong> El Rastreador lee datos públicos de blockchain para las direcciones <strong>que usted proporciona</strong> y los datos <strong>que usted importa</strong>. Usted nunca conecta un wallet ni proporciona claves o permisos de firma.<br/>
+<strong>B.2.2</strong> Usted es responsable de la exactitud e integridad de las direcciones proporcionadas y de los registros importados (A.13).<br/>
+<strong>B.2.3</strong> Las cifras on-chain y de exchanges pueden diferir debido al almacenamiento en caché, el filtrado de polvo, los tokens sin precio o de fraude, los tiempos de sincronización y las limitaciones de los datos de terceros. Los valores mostrados son estimaciones, no extractos de cuenta.</p>
+
+<h2>B.3 Contabilidad, Desglose Fiscal y Resumen Anual</h2>
+<p><strong>B.3.1 Sin asesoramiento fiscal; sin presentación.</strong> Los resultados de contabilidad, base de costo, ganancias/pérdidas, conciliación y Resumen Anual son <strong>únicamente informativos</strong>. Almstins no presenta declaraciones, no determina su obligación tributaria y no ofrece asesoramiento fiscal. Debe consultar a un profesional fiscal cualificado, quien podrá rectificar o recalcular cualquier cifra.<br/>
+<strong>B.3.2 Método.</strong> La base de costo se calcula utilizando el costo promedio ponderado salvo que se indique lo contrario; otros métodos, el seguimiento de ventas con pérdidas, los impuestos estatales/locales y las jurisdicciones fuera de EE. UU. son su responsabilidad.<br/>
+<strong>B.3.3 Sin garantía de tratamiento.</strong> Aunque un cálculo sea exacto, las autoridades fiscales pueden tratar una transacción de forma diferente; Almstins no es responsable de ninguna liquidación, sanción, interés, auditoría o disputa.<br/>
+<strong>B.3.4 Datos históricos.</strong> Las transacciones más antiguas o anteriores a 2018 pueden carecer de verificación on-chain o de precios; las lagunas derivadas de exchanges que han fallado o de acceso perdido deben ser reconstruidas por usted. Almstins puede ayudar a organizar los datos reconstruidos, pero no puede suministrar los datos faltantes.</p>
+
+<h2>B.4 Capa de Confianza Comunitaria — Marcas, Reseñas, Reclamaciones, Insignias</h2>
+<blockquote><p><em>Esta Superficie puede no estar habilitada en todas las regiones ni en todo momento. Los términos se aplican cuando y donde se ofrezca.</em></p></blockquote>
+
+<p><strong>B.4.1 Qué es.</strong> Los Miembros pueden contribuir con <strong>marcas de fraude</strong>, <strong>reseñas</strong> y <strong>reclamaciones de direcciones</strong>, que pueden publicar señales de seguridad agregadas y anonimizadas (incluyendo una <strong>insignia de confianza</strong>) a otros usuarios. La lectura de información de seguridad está abierta a todos; <strong>contribuir</strong> está restringido por nivel de membresía según se describe en el producto.<br/>
+<strong>B.4.2 Licencia y declaraciones.</strong> Usted concede a Almstins una licencia mundial, libre de regalías y sublicenciable para almacenar, agregar, mostrar y distribuir su Contenido Comunitario en forma anonimizada y agregada con el fin de operar la Superficie. Usted declara que cada contribución se realiza de buena fe, es exacta según su leal saber y entender, y que dispone de la base de primera mano descrita a continuación.<br/>
+<strong>B.4.3 Reseñas — interacción verificada; solo estructuradas.</strong> Las reseñas se limitan a selecciones predefinidas (p. ej., "transacción completada como se esperaba," "no recibí lo esperado," "sospecha de fraude"); <strong>no se recopila ni muestra texto libre, calificaciones con estrellas ni identidad del reseñador.</strong> Solo se muestran recuentos agregados. Puede reseñar una dirección únicamente si sus registros rastreados reflejan una transacción con esa dirección; al enviar una reseña, declara que realizó transacciones con ella. Una reseña por miembro por dirección (el último valor prevalece).<br/>
+<strong>B.4.4 Reclamaciones — prueba de control; anti-suplantación.</strong> Reclamar una dirección afirma que <strong>usted la controla.</strong> La reclamación es por orden de llegada. Es posible que se le requiera demostrar el control mediante un método fuera de banda (por ejemplo, una firma generada por el wallet de un mensaje de un solo uso que usted nos proporcione) — <strong>Almstins nunca le pide que conecte un wallet ni que proporcione claves.</strong> Reclamar una dirección que no controla, o hacerlo para suplantar a un negocio, está prohibido y constituye un incumplimiento material, y usted indemniza a Almstins por las reclamaciones resultantes (A.12).<br/>
+<strong>B.4.5 Exención de responsabilidad de la insignia de confianza.</strong> Una insignia de confianza significa únicamente que una dirección ha sido reclamada por un miembro verificado y estaba libre de verificaciones automatizadas en el momento relevante. <strong>NO es una garantía de seguridad, legitimidad, solvencia o calidad, y no es una recomendación.</strong> Cuando existan tanto una insignia como una señal de fraude, ambas se muestran; debe considerar todas las señales mostradas antes de realizar transacciones. Esta exención de responsabilidad también se presenta en el punto de visualización.<br/>
+<strong>B.4.6 Moderación; sin obligación de supervisar.</strong> Almstins puede eliminar, rechazar o negarse a publicar cualquier marca, reseña o reclamación, y puede investigar el abuso sospechoso, <strong>a su exclusiva discreción y sin obligación de pre-filtrar o supervisar.</strong> No asumimos responsabilidad alguna por publicar o no publicar ningún Contenido Comunitario.<br/>
+<strong>B.4.7 Control objetivo; disputa y corrección.</strong> Las señales de fraude publicadas están sujetas a la validación independiente de terceros (p. ej., GoPlus), no a votos de usuarios o recuentos. Un negocio o propietario de dirección que crea que una señal es errónea puede solicitar revisión; <strong>dado que Almstins no atribuye contribuciones a identidades, la corrección se gestiona mediante la revalidación frente a la fuente independiente y la eliminación cuando corresponda, sin revelar quién contribuyó con la señal.</strong><br/>
+<strong>B.4.8 Sin atribución conservada.</strong> Quién contribuyó con una marca, reseña o reclamación se almacena únicamente para prevención de abusos y nunca se muestra ni se vincula a una persona.</p>
+
+<h2>B.5 Nivel de Verificación para Comerciantes / Anti-MITM (de pago)</h2>
+<blockquote><p><em>Superficie de pago planificada/opcional. Los términos se aplican cuando y donde se ofrezca. Puede aplicarse un Addendum para Comerciantes por separado.</em></p></blockquote>
+
+<p><strong>B.5.1 Sin transmisión de dinero.</strong> El nivel para comerciantes es una suscripción de software plana. Almstins nunca toca, guarda, enruta ni liquida fondos y no cobra ninguna comisión por transacción. El término "cuenta de comerciante" se refiere únicamente a esta función de software y no implica procesamiento de pagos ni transmisión de dinero.<br/>
+<strong>B.5.2 Servicio de seguridad de pago — alcance y limitaciones.</strong> El nivel puede proporcionar verificación de direcciones y supervisión/alertas de forma definida y de mejor esfuerzo. <strong>No garantiza la detección de todo intercambio de direcciones, manipulación o fraude, y no es un seguro.</strong> Los niveles de servicio, si los hay, son los publicados. En la medida permitida por la ley, la responsabilidad de Almstins por cualquier fallo en la detección o la alerta está sujeta a A.11, y usted reconoce que la supervisión es una herramienta, no una garantía de resultado.<br/>
+<strong>B.5.3 Licencia de marca comercial para marcas de verificación.</strong> Si muestra marcas de verificación de Almstins (p. ej., una etiqueta de "verificado") en su propia señalización, le otorgamos una licencia limitada, revocable e intransferible para hacerlo únicamente de conformidad con nuestras directrices de uso de marca. El <strong>escaneo</strong>, no la marca, es la fuente de verdad. Podemos revocar esta licencia por uso indebido.<br/>
+<strong>B.5.4 Representaciones de "verificado".</strong> Un escaneo o insignia verificado atestigua únicamente que una dirección ha sido reclamada por un miembro de pago y estaba libre de verificaciones automatizadas en el momento del escaneo. <strong>No</strong> atestigua que ningún negocio sea legítimo, solvente o seguro, y no es una recomendación; los consumidores deben ejercer su propio juicio.<br/>
+<strong>B.5.5 Caducidad.</strong> El estado de verificado puede persistir después de que una suscripción caduque para evitar engañar a los consumidores que confían en señalización física; la cuota periódica financia la supervisión, las alertas, la contabilidad y la capacidad adicional, no la verificación en sí.<br/>
+<strong>B.5.6 Cámara, escaneo y supervisión; consentimiento.</strong> Los escaneos puntuales de QR/dirección se decodifican en el dispositivo; ninguna imagen se almacena ni transmite por esa acción. Cualquier opción de <strong>supervisión continua o permanente mediante cámara</strong> puede capturar a terceros (transeúntes, empleados, clientes) y puede estar sujeta a leyes sobre datos biométricos, vigilancia, consentimiento de dos partes y supervisión de empleados que varían según la jurisdicción. Si habilita dicha supervisión, <strong>usted es el responsable de dicha captura y es el único responsable</strong> de obtener todos los consentimientos requeridos, publicar los avisos requeridos y cumplir con los límites de conservación; usted indemniza a Almstins por su uso de la misma.<br/>
+<strong>B.5.7 Contabilidad para comerciantes.</strong> La contabilidad aplicada a los pagos recibidos se rige por B.3.</p>
+
+<h2>B.6 Alertas (Precio y Salud DeFi)</h2>
+<p><strong>B.6.1</strong> Las alertas de umbral de precio y de factor de salud de Aave se entregan en base al mejor esfuerzo (generalmente por correo electrónico). No garantizamos una entrega puntual ni exitosa, y no debe basarse en las alertas como su único control de riesgo.<br/>
+<strong>B.6.2 Sin acción automatizada.</strong> Almstins nunca opera, paga deudas, ajusta posiciones ni mueve ningún activo en su nombre. Las alertas son únicamente informativas.</p>
+
+<h2>B.7 Funciones de IA (AI Triage, Validación de Recibos)</h2>
+<p><strong>B.7.1</strong> Las funciones opcionales de IA de pago procesan datos de transacciones seleccionados y recibos cargados a través de un proveedor de modelos de terceros (Anthropic/Claude). Los resultados son sugerencias para su revisión y confirmación, <strong>no</strong> son autoritativos y pueden ser incorrectos.<br/>
+<strong>B.7.2</strong> Al usar estas funciones, usted consiente el procesamiento necesario descrito en la Política de Privacidad. No cargue documentos que no esté autorizado a compartir.</p>
+
+<h2>B.8 PetroTins — Excluido</h2>
+<p>PetroTins es un producto independiente ofrecido en tradfitins.com bajo sus propios Términos y Política de Privacidad. Este Acuerdo no rige PetroTins.</p>
+`,
 };
 
 export const fr: TermsLocale = {
   lang: 'fr',
   summaryLabel: "Accord d'utilisateur",
   ariaLabel: "Accord d'utilisateur",
-  body: en.body,
+  body: `
+<h1>ACCORD D'UTILISATEUR ALMSTINS</h1>
+
+<p><strong>Date d'entrée en vigueur :</strong> 16 juin 2026 &nbsp;·&nbsp; <strong>Version :</strong> 1.0<br/>
+<strong>Opérateur :</strong> Almstins, un produit de TitaniumHut (« Almstins », « nous », « notre »)</p>
+
+<blockquote><p><strong>Champ d'application et préséance.</strong> Le présent document constitue le contrat canonique unique régissant votre utilisation d'Almstins. Il est organisé en <strong>Partie A — Conditions Générales</strong> (applicables à l'ensemble d'Almstins) et <strong>Partie B — Conditions Complémentaires</strong> (applicables uniquement aux fonctionnalités spécifiques appelées « Surfaces »). En cas de conflit entre une Condition Complémentaire de la Partie B et une Condition Générale de la Partie A, <strong>la Condition Complémentaire prévaut uniquement pour cette Surface.</strong> La <strong>Politique de Confidentialité</strong> est incorporée par référence. <strong>PetroTins</strong> (tradfitins.com) est un produit distinct régi par ses propres conditions et n'est <strong>pas</strong> couvert par le présent Accord.</p></blockquote>
+
+<hr/>
+
+<h2>PRÉAMBULE — ACCEPTATION ET LIMITES ARCHITECTURALES</h2>
+
+<p><strong>P.1 Accord.</strong> En accédant à Almstins ou en l'utilisant de quelque manière que ce soit — notamment en visitant le site web, en utilisant le vérificateur public de wallet ou de site web, en créant un compte ou en souscrivant un abonnement — vous reconnaissez avoir lu, compris et accepté d'être lié par le présent Accord d'utilisateur et la Politique de Confidentialité. <strong>Si vous n'acceptez pas, n'utilisez pas Almstins.</strong></p>
+
+<p><strong>P.2 Qui peut accepter.</strong> Vous déclarez avoir au moins 18 ans et disposer de la capacité juridique et de l'autorité nécessaires pour conclure le présent Accord.</p>
+
+<p><strong>P.3 Ce qu'est Almstins.</strong> Almstins est un logiciel d'information : un outil de suivi de portefeuille de cryptomonnaies, de tenue de livres comptables et de vérification de sécurité. Almstins n'est <strong>pas</strong> un wallet, un exchange, un courtier, un dépositaire, un transmetteur de fonds, un processeur de paiement, un conseiller en investissement, un préparateur de déclarations fiscales, un comptable, un cabinet d'avocats ou un service de conformité/AML. Almstins est actuellement proposé en version <strong>bêta</strong> et est destiné à l'exploration et à l'organisation, et non comme seule source de vérité financière, fiscale ou juridique.</p>
+
+<p><strong>P.4 Limites Architecturales de Confiance (applicables à toutes les Surfaces).</strong> Les éléments suivants sont des garanties architecturales, et non de simples promesses. Ils définissent ce qu'est Almstins et encadrent tout ce qui suit :</p>
+
+<ul>
+<li><strong>(a) Lecture seule · sans garde · sans mouvement.</strong> Almstins ne détient jamais de clés privées, ne demande jamais de permission de signature, et n'initie, n'achemine, ne règle ni ne déplace jamais de transaction ou d'actif. Une compromission d'Almstins ne peut pas déplacer vos fonds.</li>
+<li><strong>(b) Sans attribution.</strong> Almstins ne relie jamais une adresse blockchain à une identité juridique. Nous n'effectuons pas de KYC, de vérification d'identité, de regroupement d'adresses ni de désanonymisation. « Qui est la personne derrière ce wallet ? » est définitivement hors périmètre. Le contraire autorisé — que vous utilisiez vos propres enregistrements pour prouver votre propre propriété — est pris en charge.</li>
+<li><strong>(c) Isolation des locataires.</strong> Vos données sont isolées de celles de tout autre utilisateur et de tout opérateur. Aucun utilisateur, et aucun opérateur en marque blanche, ne peut accéder aux données d'un autre locataire ou utilisateur final.</li>
+<li><strong>(d) Limitation de la finalité en marque blanche.</strong> Tout déploiement en marque blanche ou intégré ne fournit que du logiciel et une image de marque — jamais une fenêtre sur les utilisateurs, et jamais un outil de surveillance, de profilage ou de suivi de tiers.</li>
+</ul>
+
+<p><strong>P.5 Modifications.</strong> Nous pouvons modifier le présent Accord. Les modifications substantielles seront notifiées par courrier électronique ou avis dans le produit et prendront effet pour les utilisateurs existants trente (30) jours après leur publication (immédiatement pour les nouveaux utilisateurs). L'utilisation continue après la date d'entrée en vigueur vaut acceptation.</p>
+
+<hr/>
+
+<h1>PARTIE A — CONDITIONS GÉNÉRALES</h1>
+
+<h2>A.1 Définitions</h2>
+<ul>
+<li><strong>« Service » / « Almstins »</strong> — l'ensemble des sites web, applications, API et fonctionnalités d'Almstins.</li>
+<li><strong>« Surface »</strong> — un espace fonctionnel distinct régi par une Condition Complémentaire de la Partie B (p. ex., le Vérificateur Public, le Tracker, la Couche de Confiance Communautaire).</li>
+<li><strong>« Visiteur »</strong> — toute personne utilisant une Surface sans être connectée.</li>
+<li><strong>« Membre »</strong> — une personne disposant d'un compte Almstins (gratuit ou payant).</li>
+<li><strong>« Contenu Communautaire »</strong> — signalements de fraude, réclamations d'adresses, avis et tout autre signal contribué par les utilisateurs.</li>
+<li><strong>« Contenu »</strong> — toute donnée, tout texte, toute image, tout document ou autre matériel que vous fournissez ou téléchargez.</li>
+<li><strong>« Services Tiers »</strong> — services externes avec lesquels Almstins s'intègre ou vers lesquels il renvoie.</li>
+</ul>
+
+<h2>A.2 Éligibilité, Sanctions et Restrictions Géographiques</h2>
+<p><strong>A.2.1</strong> Vous devez avoir 18 ans ou plus et être légalement autorisé à utiliser le Service dans votre juridiction.<br/>
+<strong>A.2.2</strong> Vous déclarez et garantissez que vous n'êtes pas une personne avec laquelle les transactions sont interdites en vertu des lois sur les sanctions économiques ou commerciales (y compris les programmes OFAC des États-Unis), et que vous n'êtes pas situé, ne résidez pas habituellement ou n'accédez pas au Service depuis une juridiction soumise à des sanctions globales — <strong>notamment Cuba, Iran, North Korea, Syria, ou les régions de Crimée, Donetsk ou Luhansk d'Ukraine.</strong><br/>
+<strong>A.2.3</strong> Nous n'offrons pas le Service à, ni ne faisons affaire avec, toute personne physique, entité ou juridiction restreinte en vertu des lois sur les sanctions applicables ou interdite par nos prestataires de paiement ou de conformité.<br/>
+<strong>A.2.4</strong> Nous appliquons des contrôles d'accès géographiques (y compris le blocage géographique par adresse IP) au mieux de nos capacités ; ces contrôles peuvent échouer en mode ouvert et ne sont pas garantis.</p>
+
+<h2>A.3 Comptes et Connexion</h2>
+<p><strong>A.3.1</strong> Vous pouvez vous connecter via des fournisseurs OAuth pris en charge (Google, GitHub) ou par courrier électronique. Nous ne collectons ni ne stockons votre nom ; le nom fourni par le prestataire est supprimé.<br/>
+<strong>A.3.2</strong> Vous êtes responsable de la protection de l'accès à votre compte et de toute l'activité qui s'y déroule. Informez-nous rapidement de toute utilisation non autorisée.<br/>
+<strong>A.3.3</strong> Nous pouvons suspendre ou résilier des comptes conformément à A.15.</p>
+
+<h2>A.4 Licence d'Utilisation du Service</h2>
+<p>Sous réserve du présent Accord, nous vous accordons une licence limitée, non exclusive, non transférable, non sous-licenciable et révocable pour accéder au Service et l'utiliser à des fins de tenue de registres personnels ou professionnels internes et de vérification de sécurité. Tous les droits non expressément accordés sont réservés.</p>
+
+<h2>A.5 Utilisation Acceptable</h2>
+<p>Vous ne ferez pas, et ne tenterez pas de : (a) fournir des informations fausses ou trompeuses ; (b) utiliser le Service en violation d'une loi ou pour faciliter une activité illégale, le blanchiment d'argent, le financement du terrorisme, la fraude ou le contournement de sanctions ; (c) usurper l'identité d'une personne ou d'une entité ou déformer votre affiliation ; (d) accéder, manipuler ou utiliser des zones non publiques ou les données d'autres utilisateurs ; (e) effectuer de l'ingénierie inverse, décompiler ou dériver le code source, sauf dans la mesure permise par la loi ; (f) interférer avec, perturber, surcharger ou dégrader le Service ; (g) contourner les limites de débit, les contrôles d'accès ou les quotas d'utilisation ; (h) utiliser tout robot, araignée, outil de scraping ou moyen automatisé pour accéder au Service ou en extraire des données, sauf autorisation expresse ; (i) collecter des données permettant de contacter des personnes ou des entités, ou utiliser les données du Service à des fins de marketing direct ; ou (j) soumettre du Contenu Communautaire en violation de la Partie B.4. Toute utilisation non autorisée met fin aux licences accordées dans le présent document.</p>
+
+<h2>A.6 Propriété Intellectuelle</h2>
+<p>Le Service, ainsi que tous les logiciels, contenus et marques associés (« Marques Almstins »), appartiennent à Almstins et à ses concédants de licence et sont protégés par la loi. Sauf autorisation expresse (y compris la licence de marque commerciale limitée pour les commerçants prévue en B.5), vous ne pouvez pas utiliser les Marques Almstins sans notre consentement préalable et écrit. Les composants open source restent régis par leurs licences respectives.</p>
+
+<h2>A.7 Vos Données et Contenu</h2>
+<p><strong>A.7.1</strong> Dans la relation entre vous et Almstins, votre Contenu vous appartient. Nous ne revendiquons <strong>aucun</strong> droit de propriété sur celui-ci.<br/>
+<strong>A.7.2</strong> Vous nous accordez uniquement la licence limitée nécessaire pour héberger, traiter et afficher votre Contenu <strong>à votre intention</strong> dans le but d'exploiter le Service (par exemple, calculer la base de coût, afficher votre tableau de bord, générer vos rapports). Nous n'utilisons pas votre Contenu à des fins de publicité, de profilage, de revente ou de formation, et nous ne le partageons pas avec des tiers, sauf dans les conditions décrites dans la Politique de Confidentialité. (Le Contenu Communautaire est licencié séparément en vertu de B.4.)<br/>
+<strong>A.7.3</strong> Vous déclarez avoir le droit de fournir votre Contenu et qu'il ne viole pas les droits de tiers.</p>
+
+<h2>A.8 Services Tiers</h2>
+<p>Le Service s'intègre à des Services Tiers et en dépend, qui peuvent inclure GitHub et Google (connexion), Stripe (facturation), Alchemy, Etherscan, Blockstream (données blockchain), CoinGecko et Coinpaprika (prix), GoPlus Security, VirusTotal et Chainabuse (données de risque), Anthropic/Claude (fonctionnalités IA optionnelles), Turso (base de données), Render (hébergement), Google Analytics et un prestataire de messagerie/SMTP. Nous ne partageons que le minimum de données nécessaire. Nous ne sommes pas responsables des Services Tiers, et votre utilisation de ceux-ci peut être régie par leurs propres conditions. Nous n'approuvons pas et ne sommes pas responsables de tout site, protocole, exchange ou « partenaire de l'écosystème » tiers que vous atteignez ou évaluez via le Service.</p>
+
+<h2>A.9 Abonnements, Facturation, Renouvellement et Remboursements</h2>
+<p><strong>A.9.1</strong> Les plans payants, leurs fonctionnalités et leurs prix sont publiés sur le Service. La facturation est gérée par Stripe ; nous ne voyons ni ne stockons vos coordonnées bancaires.<br/>
+<strong>A.9.2 Renouvellement automatique.</strong> Les abonnements payants se renouvellent automatiquement au prix en vigueur jusqu'à leur résiliation. Vous autorisez les prélèvements récurrents.<br/>
+<strong>A.9.3 Résiliation.</strong> Vous pouvez résilier à tout moment ; la résiliation stoppe les renouvellements futurs et prend effet à la fin de la période de facturation en cours.<br/>
+<strong>A.9.4 Remboursements.</strong> Sauf obligation légale applicable, les paiements effectués pour le Service ne sont pas remboursables ; tout remboursement est accordé à notre seule discrétion.<br/>
+<strong>A.9.5 Modifications de prix.</strong> Nous pouvons modifier les prix avec un préavis ; les modifications s'appliquent au prochain cycle de facturation.</p>
+
+<h2>A.10 Exclusion de Garanties</h2>
+<p>DANS TOUTE LA MESURE PERMISE PAR LA LOI, LE SERVICE EST FOURNI « EN L'ÉTAT » ET « SELON DISPONIBILITÉ », AVEC TOUS SES DÉFAUTS ET SANS GARANTIE D'AUCUNE SORTE, QU'ELLE SOIT EXPRESSE, IMPLICITE OU LÉGALE, Y COMPRIS LES GARANTIES IMPLICITES DE QUALITÉ MARCHANDE, D'ADÉQUATION À UN USAGE PARTICULIER, DE TITRE ET DE NON-CONTREFAÇON. NOUS NE GARANTISSONS PAS QUE LE SERVICE SERA ININTERROMPU, PONCTUEL, SÉCURISÉ, EXEMPT D'ERREURS, NI QUE TOUTE DONNÉE, TOUT PRIX, TOUT CALCUL OU TOUT RÉSULTAT DE SÉCURITÉ SERA EXACT, COMPLET OU FIABLE. AUCUN CONSEIL OU INFORMATION OBTENUS VIA LE SERVICE NE CRÉE DE GARANTIE NON EXPRESSÉMENT STIPULÉE DANS LE PRÉSENT DOCUMENT.</p>
+
+<h2>A.11 Limitation de Responsabilité</h2>
+<p><strong>A.11.1</strong> DANS TOUTE LA MESURE PERMISE PAR LA LOI, EN AUCUN CAS ALMSTINS NI SES OPÉRATEURS, AFFILIÉS OU FOURNISSEURS NE SERONT RESPONSABLES DE DOMMAGES INDIRECTS, ACCESSOIRES, SPÉCIAUX, CONSÉCUTIFS, EXEMPLAIRES OU PUNITIFS, NI DE TOUTE PERTE DE BÉNÉFICES, DE REVENUS, DE DONNÉES, DE CRYPTOMONNAIES OU D'ACTIFS NUMÉRIQUES, NI DE PERTES RÉSULTANT DE VOTRE CONFIANCE EN TOUT RÉSULTAT DE SÉCURITÉ, PRIX, CALCUL OU CHIFFRE FISCAL, OU DE TOUTE TRANSACTION QUE VOUS CHOISISSEZ D'EFFECTUER OU NON, MÊME SI CES DOMMAGES AVAIENT ÉTÉ SIGNALÉS COMME POSSIBLES.<br/>
+<strong>A.11.2 Plafond.</strong> NOTRE RESPONSABILITÉ TOTALE CUMULÉE POUR TOUTE RÉCLAMATION DÉCOULANT DU SERVICE OU EN RAPPORT AVEC CELUI-CI NE DÉPASSERA PAS LE PLUS ÉLEVÉ DE (i) LES MONTANTS QUE VOUS NOUS AVEZ PAYÉS POUR LE SERVICE AU COURS DES DOUZE (12) MOIS PRÉCÉDANT LA RÉCLAMATION, OU (ii) CENT DOLLARS AMÉRICAINS ($100).<br/>
+<strong>A.11.3 Surfaces gratuites.</strong> POUR TOUTE SURFACE QUE VOUS UTILISEZ SANS PAIEMENT (Y COMPRIS LE VÉRIFICATEUR PUBLIC), DANS LA MESURE PERMISE PAR LA LOI VOTRE SEUL RECOURS EST DE CESSER DE L'UTILISER, ET VOUS ÊTES LIMITÉ À DES MESURES D'INJONCTION.<br/>
+<strong>A.11.4</strong> Les Surfaces de sécurité payantes ont leur propre champ d'application et leurs propres limites, tels qu'énoncés en B.5. Rien dans la présente Section n'exclut la responsabilité qui ne peut être exclue par la loi (telle que la fraude ou le décès/préjudice corporel causé par notre négligence).</p>
+
+<h2>A.12 Indemnisation</h2>
+<p>Vous acceptez d'indemniser, de défendre et de dégager de toute responsabilité Almstins ainsi que ses opérateurs, affiliés et fournisseurs de toute réclamation, perte, responsabilité, dommage, coût et dépense (y compris les honoraires raisonnables d'avocats) découlant de ou liés à : (a) votre Contenu ou Contenu Communautaire ; (b) votre utilisation du Service ou votre incapacité à l'utiliser ; (c) votre violation du présent Accord ; (d) votre violation de toute loi ou de tout droit d'un tiers (y compris toute entreprise ou propriétaire d'adresse affecté par un signalement, un avis, une réclamation ou un badge que vous soumettez) ; ou (e) toute transaction que vous effectuez. Nous pouvons assumer la défense exclusive de toute affaire soumise à indemnisation, et vous coopérerez.</p>
+
+<h2>A.13 Vos Responsabilités ; Exactitude</h2>
+<p>Vous êtes seul responsable de l'exactitude et de l'exhaustivité de toutes les données que vous fournissez ou importez. Almstins ne peut pas vérifier les CSV importés, les données synchronisées ou les saisies manuelles. Des données incomplètes ou incorrectes produiront des résultats peu fiables qui se répercuteront sur les rapports, les P&amp;L et les chiffres fiscaux. Vous devez vérifier vous-même l'exhaustivité (toutes les sources importées, toutes les synchronisations réussies) et l'exactitude (prix, classifications, base de coût).</p>
+
+<h2>A.14 Disponibilité, Modifications, Perte de Données, Force Majeure</h2>
+<p>Le Service peut connaître des interruptions, des pannes, des erreurs ou des coupures, et des fonctionnalités peuvent être modifiées, abandonnées ou supprimées à tout moment. Bien que nous maintenions des sauvegardes raisonnables, aucun système n'est totalement sécurisé contre la perte ou la corruption ; vous devez conserver vos propres sauvegardes, et les données supprimées sont définitives et irrécupérables. Nous ne sommes pas responsables des retards ou défaillances causés par des événements indépendants de notre volonté raisonnable.</p>
+
+<h2>A.15 Durée et Résiliation</h2>
+<p>Le présent Accord s'applique tant que vous utilisez le Service. Vous pouvez cesser d'utiliser le Service à tout moment. Nous pouvons suspendre ou résilier votre accès pour toute raison à notre discrétion, y compris en cas de violation du présent Accord, sans engagement de responsabilité. Les dispositions qui par leur nature doivent survivre (notamment A.6, A.7, A.10–A.12, A.18–A.21 et les clauses de non-responsabilité applicables de la Partie B) survivent à la résiliation. Si votre accès est résilié, vous ne tenterez pas d'y accéder à nouveau via un autre compte.</p>
+
+<h2>A.16 Conformité aux Lois</h2>
+<p>Vous acceptez d'utiliser le Service uniquement en conformité avec toutes les lois applicables, notamment les lois fiscales, de sanctions/AML, sur les valeurs mobilières, le contrôle des exportations et la protection des données. Vous garantissez que votre utilisation est légale dans votre juridiction.</p>
+
+<h2>A.17 Absence de Conseil Professionnel</h2>
+<p>Almstins ne fournit pas et décline expressément tout conseil fiscal, financier, en matière d'investissement, juridique ou comptable. Les résultats sont uniquement informatifs. Vous devez consulter un professionnel qualifié avant de déposer des déclarations fiscales, de prendre des décisions d'investissement ou de vous fier à tout résultat à des fins juridiques ou financières.</p>
+
+<h2>A.18 Résolution des Litiges ; Arbitrage ; Renonciation aux Actions Collectives</h2>
+<p><strong>A.18.1 Résolution informelle en premier lieu.</strong> Avant d'introduire toute réclamation, vous acceptez de contacter support@titaniumhut.com avec une description du litige et de tenter une résolution de bonne foi pendant trente (30) jours.<br/>
+<strong>A.18.2 Arbitrage contraignant.</strong> En l'absence de résolution, tout litige découlant du présent Accord ou du Service ou s'y rapportant sera résolu par <strong>arbitrage définitif et contraignant</strong>, et non devant les tribunaux, sauf dans les cas indiqués ci-dessous. L'arbitrage aura son siège à <strong>Cookeville, Tennessee</strong> et se déroulera en anglais.<br/>
+<strong>A.18.3 Renonciation aux actions collectives.</strong> Les litiges seront traités uniquement à titre individuel. Vous et Almstins renoncez à tout droit d'engager ou de participer à une action collective, conjointe, consolidée ou représentative.<br/>
+<strong>A.18.4 Exceptions.</strong> L'une ou l'autre des parties peut introduire une réclamation individuelle devant un tribunal des petites créances et peut demander des mesures d'injonction pour protéger la propriété intellectuelle.</p>
+
+<h2>A.19 Droit Applicable</h2>
+<p>Le présent Accord est régi par les lois de l'<strong>État du Tennessee</strong>, sans égard aux règles de conflit de lois. Sous réserve de A.18, le for exclusif pour toute action judiciaire autorisée est constitué par les tribunaux étatiques ou fédéraux situés à <strong>Cookeville, Tennessee</strong>.</p>
+
+<h2>A.20 Dispositions Générales</h2>
+<p>Le présent Accord (avec la Politique de Confidentialité et toutes Conditions Complémentaires) constitue l'intégralité de l'accord entre vous et Almstins et remplace les accords antérieurs. Si une disposition est inapplicable, elle sera réformée dans la mesure minimale nécessaire et le reste demeurera en vigueur. Vous ne pouvez pas céder le présent Accord ; nous pouvons le faire. Notre défaut d'appliquer une disposition ne constitue pas une renonciation. Les titres sont fournis à titre de commodité uniquement.</p>
+
+<h2>A.21 Contact</h2>
+<p>Juridique : legal@titaniumhut.com · Support : support@titaniumhut.com · Confidentialité : privacy@titaniumhut.com</p>
+
+<hr/>
+
+<h1>PARTIE B — CONDITIONS COMPLÉMENTAIRES (PAR SURFACE)</h1>
+
+<h2>B.1 Vérificateur Public de Wallet et de Site Web (gratuit, sans connexion)</h2>
+<p><strong>B.1.1</strong> Le Vérificateur fournit des informations de sécurité sur une adresse blockchain ou un site web en interrogeant des bases de données tierces (notamment GoPlus, les listes OFAC, la détection de honeypot, Etherscan/Alchemy, Chainabuse, MetaMask, ScamSniffer, URLScan, OpenPhish et VirusTotal).<br/>
+<strong>B.1.2 Attribution, pas verdict.</strong> Tous les résultats sont <strong>rapportés de sources tierces et ne sont pas vérifiés de manière indépendante par Almstins.</strong> Un résultat indiquant l'absence de menace détectée signifie uniquement qu'aucune source n'a signalé l'élément <strong>à ce moment</strong> — il ne constitue <strong>pas</strong> une garantie de sécurité, de légitimité ou de qualité. Un résultat indiquant un risque détecté reflète un rapport tiers, et non une décision juridique.<br/>
+<strong>B.1.3 Absence de confiance.</strong> Le Vérificateur est informatif et ne constitue pas un conseil financier, juridique ou de sécurité. Vous devez exercer votre propre jugement et effectuer vos propres recherches avant d'effectuer des transactions. Dans la mesure permise par la loi, Almstins n'est pas responsable de toute action que vous prenez ou ne prenez pas sur la base d'un résultat du Vérificateur.<br/>
+<strong>B.1.4</strong> Le Vérificateur est fourni gratuitement et au mieux des capacités ; A.11.3 s'applique.<br/>
+<strong>B.1.5</strong> L'accès automatisé ou en masse au Vérificateur est interdit sauf dans le cadre d'un accord écrit distinct.</p>
+
+<h2>B.2 Tracker de Portefeuille et de Wallet (lecture seule)</h2>
+<p><strong>B.2.1</strong> Le Tracker lit les données publiques de la blockchain pour les adresses <strong>que vous fournissez</strong> et les données <strong>que vous importez</strong>. Vous ne connectez jamais de wallet et ne fournissez jamais de clés ni d'autorisation de signature.<br/>
+<strong>B.2.2</strong> Vous êtes responsable de l'exactitude et de l'exhaustivité des adresses fournies et des enregistrements importés (A.13).<br/>
+<strong>B.2.3</strong> Les chiffres on-chain et d'exchange peuvent différer en raison de la mise en cache, du filtrage des poussières, des tokens non tarifés ou frauduleux, de la synchronisation temporelle et des limites des données tierces. Les valeurs affichées sont des estimations et non des relevés de compte.</p>
+
+<h2>B.3 Tenue de Livres, Synthèse Fiscale et Résumé Annuel</h2>
+<p><strong>B.3.1 Pas de conseil fiscal ; pas de dépôt.</strong> Les résultats de tenue de livres, de base de coût, de gains/pertes, de réconciliation et de Résumé Annuel sont <strong>uniquement informatifs</strong>. Almstins ne dépose pas de déclarations, ne détermine pas votre obligation fiscale et ne fournit pas de conseils fiscaux. Vous devez consulter un professionnel fiscal qualifié, qui peut rectifier ou recalculer tout chiffre.<br/>
+<strong>B.3.2 Méthode.</strong> La base de coût est calculée en utilisant le coût moyen pondéré sauf indication contraire ; les autres méthodes, le suivi des ventes à perte, les taxes locales/d'État et les juridictions hors États-Unis relèvent de votre responsabilité.<br/>
+<strong>B.3.3 Aucune garantie de traitement.</strong> Même si un calcul est exact, les autorités fiscales peuvent traiter une transaction différemment ; Almstins n'est pas responsable de tout redressement, pénalité, intérêt, audit ou litige.<br/>
+<strong>B.3.4 Données historiques.</strong> Les transactions plus anciennes ou antérieures à 2018 peuvent manquer de vérification on-chain ou de tarification ; les lacunes dues à des exchanges défaillants ou à un accès perdu doivent être reconstituées par vous. Almstins peut aider à organiser les données reconstituées mais ne peut pas fournir les données manquantes.</p>
+
+<h2>B.4 Couche de Confiance Communautaire — Signalements, Avis, Réclamations, Badges</h2>
+<blockquote><p><em>Cette Surface peut ne pas être activée dans toutes les régions ni à tout moment. Les conditions s'appliquent lorsqu'elle est proposée et là où elle l'est.</em></p></blockquote>
+
+<p><strong>B.4.1 Ce qu'elle est.</strong> Les Membres peuvent contribuer des <strong>signalements de fraude</strong>, des <strong>avis</strong> et des <strong>réclamations d'adresses</strong>, qui peuvent publier des signaux de sécurité agrégés et anonymisés (y compris un <strong>badge de confiance</strong>) à d'autres utilisateurs. La lecture des informations de sécurité est ouverte à tous ; <strong>contribuer</strong> est conditionné au niveau d'adhésion comme décrit dans le produit.<br/>
+<strong>B.4.2 Licence et déclarations.</strong> Vous accordez à Almstins une licence mondiale, libre de droits et sous-licenciable pour stocker, agréger, afficher et distribuer votre Contenu Communautaire sous forme anonymisée et agrégée dans le but d'exploiter la Surface. Vous déclarez que chaque contribution est faite de bonne foi, est exacte au meilleur de votre connaissance et que vous disposez de la base de première main décrite ci-dessous.<br/>
+<strong>B.4.3 Avis — interaction vérifiée ; structurés uniquement.</strong> Les avis sont limités à des sélections prédéfinies (p. ex., « transaction effectuée comme prévu », « n'ai pas reçu ce qui était attendu », « fraude suspectée ») ; <strong>aucun texte libre, aucune note par étoiles et aucune identité du rédacteur n'est collecté ou affiché.</strong> Seuls les totaux agrégés sont affichés. Vous pouvez soumettre un avis sur une adresse uniquement si vos enregistrements suivis reflètent une transaction avec cette adresse ; en soumettant un avis, vous déclarez avoir effectué une transaction avec elle. Un avis par membre par adresse (la dernière valeur prévaut).<br/>
+<strong>B.4.4 Réclamations — preuve de contrôle ; anti-usurpation.</strong> Réclamer une adresse affirme que <strong>vous la contrôlez.</strong> La réclamation est sur la base du premier arrivé, premier servi. Il peut vous être demandé de prouver le contrôle par une méthode hors bande (par exemple, une signature générée par un wallet d'un message à usage unique que vous nous fournissez) — <strong>Almstins ne vous demande jamais de connecter un wallet ou de fournir des clés.</strong> Réclamer une adresse que vous ne contrôlez pas, ou pour usurper l'identité d'une entreprise, est interdit et constitue une violation substantielle, et vous indemnisez Almstins pour les réclamations en résultant (A.12).<br/>
+<strong>B.4.5 Clause de non-responsabilité relative au badge de confiance.</strong> Un badge de confiance signifie uniquement qu'une adresse a été réclamée par un membre vérifié et était exempte de vérifications automatisées au moment concerné. <strong>Il ne constitue PAS une garantie de sécurité, de légitimité, de solvabilité ou de qualité, et n'est pas une recommandation.</strong> Lorsqu'un badge et un signal de fraude coexistent, les deux sont affichés ; vous devez considérer tous les signaux affichés avant d'effectuer des transactions. Cette clause de non-responsabilité est également présentée au point d'affichage.<br/>
+<strong>B.4.6 Modération ; aucune obligation de surveiller.</strong> Almstins peut supprimer, refuser ou s'abstenir de publier tout signalement, avis ou réclamation, et peut enquêter sur les abus suspectés, <strong>à sa seule discrétion et sans obligation de filtrage préalable ou de surveillance.</strong> Nous n'assumons aucune responsabilité quant à la publication ou non de tout Contenu Communautaire.<br/>
+<strong>B.4.7 Filtrage objectif ; litige et correction.</strong> Les signaux de fraude publiés sont soumis à la validation indépendante de tiers (p. ex., GoPlus), et non aux votes des utilisateurs ou aux décomptes. Une entreprise ou un propriétaire d'adresse qui estime qu'un signal est erroné peut demander un réexamen ; <strong>étant donné qu'Almstins n'attribue pas les contributions à des identités, la correction est gérée par la revalidation auprès de la source indépendante et la suppression si approprié, sans divulguer qui a contribué au signal.</strong><br/>
+<strong>B.4.8 Aucune attribution conservée.</strong> L'identité de celui qui a contribué un signalement, un avis ou une réclamation est stockée uniquement à des fins de prévention des abus et n'est jamais affichée ni liée à une personne.</p>
+
+<h2>B.5 Niveau de Vérification Marchand / Anti-MITM (payant)</h2>
+<blockquote><p><em>Surface payante planifiée/optionnelle. Les conditions s'appliquent lorsqu'elle est proposée et là où elle l'est. Un Avenant Marchand distinct peut s'appliquer.</em></p></blockquote>
+
+<p><strong>B.5.1 Pas de transmission de fonds.</strong> Le niveau marchand est un abonnement logiciel forfaitaire. Almstins ne touche, détient, achemine ni règle jamais de fonds et ne prélève aucune commission par transaction. Le terme « compte marchand » désigne uniquement cette fonctionnalité logicielle et n'implique pas de traitement de paiement ni de transmission de fonds.<br/>
+<strong>B.5.2 Service de sécurité payant — champ d'application et limites.</strong> Le niveau peut fournir une vérification d'adresses et une surveillance/alerte selon des modalités définies et au mieux des capacités. <strong>Il ne garantit pas la détection de tout échange d'adresse, falsification ou fraude, et ne constitue pas une assurance.</strong> Les niveaux de service, le cas échéant, sont tels que publiés. Dans la mesure permise par la loi, la responsabilité d'Almstins en cas de défaut de détection ou d'alerte est soumise à A.11, et vous reconnaissez que la surveillance est un outil et non une garantie de résultat.<br/>
+<strong>B.5.3 Licence de marque commerciale pour les marquages de vérification.</strong> Si vous affichez des marquages de vérification Almstins (p. ex., un autocollant « vérifié ») sur votre propre signalétique, nous vous accordons une licence limitée, révocable et non transférable pour le faire uniquement conformément à nos directives d'utilisation de la marque. Le <strong>scan</strong>, et non le marquage, est la source de vérité. Nous pouvons révoquer cette licence en cas d'utilisation abusive.<br/>
+<strong>B.5.4 Représentations « vérifiées ».</strong> Un scan ou badge vérifié atteste uniquement qu'une adresse a été réclamée par un membre payant et était exempte de vérifications automatisées au moment du scan. Il <strong>n'atteste pas</strong> qu'une entreprise est légitime, solvable ou sûre, et ne constitue pas une recommandation ; les consommateurs doivent exercer leur propre jugement.<br/>
+<strong>B.5.5 Expiration.</strong> Le statut vérifié peut persister après l'expiration d'un abonnement pour éviter d'induire en erreur les consommateurs qui se fient à la signalétique physique ; la redevance récurrente finance la surveillance, les alertes, la tenue de livres et la capacité supplémentaire, et non la vérification elle-même.<br/>
+<strong>B.5.6 Caméra, scan et surveillance ; consentement.</strong> Les scans ponctuels de QR/adresse sont décodés sur l'appareil ; aucune image n'est stockée ou transmise par cette action. Toute option de <strong>surveillance continue ou permanente par caméra</strong> peut capturer des tiers (passants, employés, clients) et peut être soumise à des lois sur la biométrie, la surveillance, le consentement bipartite et la surveillance des employés qui varient selon les juridictions. Si vous activez cette surveillance, <strong>vous êtes le responsable du traitement de cette capture et êtes seul responsable</strong> d'obtenir tous les consentements requis, d'afficher les avis requis et de respecter les limites de conservation ; vous indemnisez Almstins pour votre utilisation de celle-ci.<br/>
+<strong>B.5.7 Tenue de livres marchands.</strong> La tenue de livres appliquée aux paiements reçus est régie par B.3.</p>
+
+<h2>B.6 Alertes (Prix et Santé DeFi)</h2>
+<p><strong>B.6.1</strong> Les alertes de seuil de prix et de facteur de santé Aave sont délivrées au mieux des capacités (généralement par courrier électronique). Nous ne garantissons pas une livraison ponctuelle ni réussie, et vous ne devez pas vous fier aux alertes comme seul contrôle de risque.<br/>
+<strong>B.6.2 Aucune action automatisée.</strong> Almstins ne négocie jamais, ne rembourse jamais de dettes, n'ajuste jamais de positions ni ne déplace jamais d'actifs en votre nom. Les alertes sont uniquement informatives.</p>
+
+<h2>B.7 Fonctionnalités IA (AI Triage, Validation de Reçus)</h2>
+<p><strong>B.7.1</strong> Les fonctionnalités IA optionnelles et payantes traitent des données de transactions sélectionnées et des reçus téléchargés via un fournisseur de modèle tiers (Anthropic/Claude). Les résultats sont des suggestions soumises à votre examen et confirmation, <strong>ne font pas</strong> autorité et peuvent être incorrects.<br/>
+<strong>B.7.2</strong> En utilisant ces fonctionnalités, vous consentez au traitement nécessaire décrit dans la Politique de Confidentialité. Ne téléchargez pas de documents que vous n'êtes pas autorisé à partager.</p>
+
+<h2>B.8 PetroTins — Exclu</h2>
+<p>PetroTins est un produit distinct proposé sur tradfitins.com sous ses propres Conditions et Politique de Confidentialité. Le présent Accord ne régit pas PetroTins.</p>
+`,
 };
 
 const MAP: Record<Lang, TermsLocale> = { en, es, fr };
