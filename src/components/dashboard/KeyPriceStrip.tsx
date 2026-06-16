@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getKeyPriceStrip } from '@/i18n/components/keyPriceStrip';
 
 type SymbolCode = 'BTC' | 'ETH' | 'POL' | 'AVAX';
 
@@ -32,13 +34,14 @@ const INITIAL_DATA: KeyPriceRow[] = [
 
 export default function KeyPriceStrip() {
 	const [expandedSymbol, setExpandedSymbol] = useState<SymbolCode | null>(null);
+	const t = getKeyPriceStrip(getClientLang());
 	const keyPrices = INITIAL_DATA;
 
 	const expandedRow = useMemo(() => keyPrices.find((row) => row.symbol === expandedSymbol), [expandedSymbol]);
 
 	return (
 		<div className="key-price-card">
-			<h3>Key prices</h3>
+			<h3>{t.heading}</h3>
 			<ul className="key-price-list">
 				{keyPrices.map((row) => (
 					<li
@@ -60,7 +63,7 @@ export default function KeyPriceStrip() {
 									/>
 								</svg>
 							) : (
-								<div className="sparkline-placeholder">chart</div>
+								<div className="sparkline-placeholder">{t.sparklinePlaceholder}</div>
 							)}
 						</div>
 					</li>
@@ -69,8 +72,8 @@ export default function KeyPriceStrip() {
 
 			{expandedRow && (
 				<div className="key-price-expanded-panel">
-					<h4>{expandedRow.symbol} price action</h4>
-					<div className="expanded-chart-placeholder">Expanded chart placeholder</div>
+					<h4>{t.priceActionHeading(expandedRow.symbol)}</h4>
+					<div className="expanded-chart-placeholder">{t.expandedChartPlaceholder}</div>
 				</div>
 			)}
 		</div>

@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getTinAssetsCard } from '@/i18n/components/tinAssetsCard';
 
 export type TinAssetsCardProps = {
 	walletId: string;
@@ -44,6 +46,7 @@ function getDisplayLabel(wallet: { walletLabel?: string | null; walletAddress?: 
 export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
 	const [showAll, setShowAll] = useState(false);
+	const t = getTinAssetsCard(getClientLang());
 
 	const displayLabel = getDisplayLabel({ walletLabel: label, walletAddress: null, walletId });
 
@@ -88,7 +91,7 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 		}
 	}, [walletId, state]);
 
-	const title = displayLabel ? `${displayLabel} – Assets` : 'Assets';
+	const title = displayLabel ? `${displayLabel}${t.assetsSuffix}` : t.assetsTitle;
 
 	return (
 		<div
@@ -120,11 +123,11 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 			</div>
 
 			{state.status === 'loading' ? (
-				<p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.8 }}>Loading tokens…</p>
+				<p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.8 }}>{t.loadingTokens}</p>
 			) : null}
 
 			{state.status === 'error' ? (
-				<p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--loss)' }}>Unable to load tokens.</p>
+				<p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--loss)' }}>{t.errorTokens}</p>
 			) : null}
 
 			{state.status === 'ready' ? (
@@ -134,7 +137,7 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 							walletId,
 							label,
 						});
-						return <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.75 }}>No tokens found.</p>;
+						return <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.75 }}>{t.noTokens}</p>;
 					})()
 				) : (
 					<div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
@@ -175,7 +178,7 @@ export function TinAssetsCard({ walletId, label }: TinAssetsCardProps) {
 									cursor: 'pointer',
 								}}
 							>
-								{showAll ? 'Hide full list' : `View all ${state.tokens.length} tokens`}
+								{showAll ? t.hideFullList : t.viewAllTokens(state.tokens.length)}
 							</button>
 						) : null}
 

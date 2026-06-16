@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getNetWorthWalletCard } from '@/i18n/components/netWorthWalletCard';
 
 type Token = {
 	tokenSymbol: string;
@@ -20,6 +22,7 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 	const [totalUsd, setTotalUsd] = useState<number>(0);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const t = getNetWorthWalletCard(getClientLang());
 
 	useEffect(() => {
 		let cancelled = false;
@@ -98,27 +101,27 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 				</h3>
 			</div>
 
-			{loading && <p style={{ margin: '0.5rem 0' }}>Loading balances…</p>}
+			{loading && <p style={{ margin: '0.5rem 0' }}>{t.loadingBalances}</p>}
 
 			{error && (
 				<p style={{ margin: '0.5rem 0', color: 'var(--loss)' }}>
-					Error: {error}
+					{t.errorPrefix}{error}
 				</p>
 			)}
 
 			{!loading && !error && (
 				<>
 					<p className="wallet-card-total" style={{ fontWeight: 700, margin: '0.5rem 0' }}>
-						Total: ${totalUsd.toFixed(2)}
+						{t.totalPrefix}{totalUsd.toFixed(2)}
 					</p>
 
 					<table className="wallet-card-table" style={{ width: '100%', fontSize: '0.9rem', borderSpacing: 0 }}>
 						<thead>
 							<tr>
-								<th style={{ textAlign: 'left', padding: '4px 0' }}>Token</th>
-								<th style={{ textAlign: 'left', padding: '4px 0' }}>Chain</th>
-								<th style={{ textAlign: 'right', padding: '4px 0' }}>Amount</th>
-								<th style={{ textAlign: 'right', padding: '4px 0' }}>USD</th>
+								<th style={{ textAlign: 'left', padding: '4px 0' }}>{t.colToken}</th>
+								<th style={{ textAlign: 'left', padding: '4px 0' }}>{t.colChain}</th>
+								<th style={{ textAlign: 'right', padding: '4px 0' }}>{t.colAmount}</th>
+								<th style={{ textAlign: 'right', padding: '4px 0' }}>{t.colUsd}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -134,7 +137,7 @@ export default function NetWorthWalletCard({ walletId, walletLabel, walletAddres
 							) : (
 								<tr>
 									<td colSpan={4} style={{ padding: '6px 0', opacity: 0.75 }}>
-										No tokens found.
+										{t.noTokens}
 									</td>
 								</tr>
 							)}

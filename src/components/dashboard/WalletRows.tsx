@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import NetWorthWalletCard from './NetWorthWalletCard';
 import AaveWalletCard from './AaveWalletCard';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getWalletRows } from '@/i18n/components/walletRows';
 
 type WalletSummary = {
 	walletId: string;
@@ -19,6 +21,7 @@ type NetworthSummaryResponse =
 	| { ok: false; error: string; message?: string };
 
 export default function WalletRows() {
+	const t = getWalletRows(getClientLang());
 	const [wallets, setWallets] = useState<WalletSummary[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -62,9 +65,9 @@ export default function WalletRows() {
 		};
 	}, []);
 
-	if (loading) return <p>Loading wallets…</p>;
-	if (error) return <p>Error: {error}</p>;
-	if (wallets.length === 0) return <p>No wallets found.</p>;
+	if (loading) return <p>{t.loading}</p>;
+	if (error) return <p>{t.errorPrefix} {error}</p>;
+	if (wallets.length === 0) return <p>{t.noWallets}</p>;
 
 	return (
 		<div className="wallet-rows">

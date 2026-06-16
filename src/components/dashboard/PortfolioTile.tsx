@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { normalizeNetWorthSummary, type NetWorthSummary } from '@/lib/networth/summaryContract';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getPortfolioTile } from '@/i18n/components/portfolioTile';
 
 const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const fmtFull = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -38,6 +40,7 @@ export default function PortfolioTile() {
 	const [syncing, setSyncing] = useState(false);
 	const [syncStatus, setSyncStatus] = useState<SyncStatus>(null);
 	const fileRef = useRef<HTMLInputElement>(null);
+	const t = getPortfolioTile(getClientLang());
 
 	const loadSummary = (mounted: { current: boolean }) => {
 		fetch('/api/networth/summary')
@@ -67,9 +70,9 @@ export default function PortfolioTile() {
 			const res = await fetch('/api/portfolio/import-screenshot', { method: 'POST', body: fd });
 			const data = await res.json();
 			if (!res.ok) {
-				setStatus({ ok: false, message: data.error || 'Upload failed.' });
+				setStatus({ ok: false, message: data.error || t.uploadFailed });
 			} else if (data.duplicate) {
-				setStatus({ ok: true, message: 'Already imported (duplicate).' });
+				setStatus({ ok: true, message: t.alreadyImported });
 			} else {
 				const tx = data.transaction;
 				const desc = tx?.description ? `${tx.description} — ` : '';
@@ -77,7 +80,7 @@ export default function PortfolioTile() {
 				setStatus({ ok: true, message: `Imported: ${desc}${amt}` });
 			}
 		} catch {
-			setStatus({ ok: false, message: 'Upload failed.' });
+			setStatus({ ok: false, message: t.uploadFailed });
 		} finally {
 			setUploading(false);
 			if (fileRef.current) fileRef.current.value = '';
@@ -154,17 +157,17 @@ export default function PortfolioTile() {
 					className={`pt-upload-btn${uploading ? ' is-uploading' : ''}`}
 					onClick={() => fileRef.current?.click()}
 					disabled={uploading}
-					aria-label="Import transaction screenshot">
+					aria-label={t.importScreenshotAriaLabel}>
 					<CameraIcon />
-					{uploading ? 'Parsing…' : 'Import Screenshot'}
+					{uploading ? t.importScreenshotParsing : t.importScreenshot}
 				</button>
 				<button type="button"
 					className={`pt-upload-btn${syncing ? ' is-uploading' : ''}`}
 					onClick={handleSync}
 					disabled={syncing}
-					aria-label="Sync all tins">
+					aria-label={t.syncAllAriaLabel}>
 					<SyncIcon />
-					{syncing ? 'Syncing…' : 'Sync Tins'}
+					{syncing ? t.syncingSyncing : t.syncTins}
 				</button>
 				{status && (
 					<span className={`pt-status${status.ok ? ' pt-status--ok' : ' pt-status--err'}`}>
@@ -175,10 +178,10 @@ export default function PortfolioTile() {
 					<span className={`pt-status${syncStatus.ok ? ' pt-status--ok' : ' pt-status--err'}`}>
 						{syncStatus.ok ? '✓' : '✗'}{' '}
 						{syncStatus.ok
-							? `Synced ${syncStatus.processed} account${syncStatus.processed !== 1 ? 's' : ''}`
+							? t.syncedAccounts(syncStatus.processed)
 							: syncStatus.failedNames?.length
-								? `Failed: ${syncStatus.failedNames.join(', ')}`
-								: `${syncStatus.failed} account${syncStatus.failed !== 1 ? 's' : ''} failed`}
+								? t.syncFailed(syncStatus.failedNames)
+								: t.syncFailedCount(syncStatus.failed)}
 					</span>
 				)}
 			</div>
@@ -188,13 +191,13 @@ export default function PortfolioTile() {
 
 			{/* ── Grand total ──────────────────────────────────── */}
 			{!summary
-				? <p className="pt-loading">Loading…</p>
+				? <p className="pt-loading">{t.loading}</p>
 				: (() => {
 					const pnl = costBasis != null ? assetsTotal - costBasis : null;
 					const pnlColor = pnl == null ? undefined : pnl >= 0 ? 'var(--gain)' : 'var(--loss)';
 					return (
 						<div className="pt-hero">
-							<span className="pt-hero__label">Market Value</span>
+							<span className="pt-hero__label">{t.marketValue}</span>
 							<div className="pt-hero__row">
 								<strong className="pt-hero__value">{fmt.format(assetsTotal)}</strong>
 								{pnl != null && (
@@ -210,7 +213,7 @@ export default function PortfolioTile() {
 
 			{/* ── Per-wallet list ───────────────────────────────── */}
 			{summary && tins.length === 0 && (
-				<p className="pt-empty">No wallet balances found.</p>
+				<p className="pt-empty">{t.noWalletBalances}</p>
 			)}
 			{tins.length > 0 && (
 				<ul className="pt-wallets">
@@ -226,7 +229,7 @@ export default function PortfolioTile() {
 			{/* ── Aave debt footnote (not included above) ────────── */}
 			{debtTotal > 0 && (
 				<p className="pt-debt-note">
-					{fmtFull.format(debtTotal)} Aave debt not reflected above
+					{t.aaveDebtNote(fmtFull.format(debtTotal))}
 				</p>
 			)}
 

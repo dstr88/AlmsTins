@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { normalizeNetWorthSummary } from '@/lib/networth/summaryContract';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getTotalsTin } from '@/i18n/components/totalsTin';
 
 type WalletRow = {
 	walletId: string;
@@ -36,6 +38,7 @@ const formatUsd = (value: number) =>
 type Mode = 'wallet' | 'chain';
 
 export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endpoint?: string }) {
+	const t = getTotalsTin(getClientLang());
 	const [state, setState] = useState<TotalsState>({ status: 'loading' });
 	const [mode, setMode] = useState<Mode>('wallet');
 	const [hasWalletBreakdown, setHasWalletBreakdown] = useState(false);
@@ -49,7 +52,7 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 				const payload = await res.json();
 				if (!mounted) return;
 				if (!payload?.ok) {
-					throw new Error(payload?.message ?? 'Unable to load totals right now.');
+					throw new Error(payload?.message ?? t.errorFallback);
 				}
 				const normalized = normalizeNetWorthSummary(payload);
 				const summary: SummaryPayload = {
@@ -79,7 +82,7 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 				setState({ status: 'ready', summary });
 			} catch (err) {
 				if (!mounted) return;
-				setState({ status: 'error', message: err instanceof Error ? err.message : 'Unable to load totals right now.' });
+				setState({ status: 'error', message: err instanceof Error ? err.message : t.errorFallback });
 			}
 		};
 		load();
@@ -122,12 +125,12 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 
 	const content = useMemo(() => {
 		if (state.status === 'loading') {
-			return <p style={{ margin: 0, opacity: 0.8 }}>Loading totals…</p>;
+			return <p style={{ margin: 0, opacity: 0.8 }}>{t.loading}</p>;
 		}
 		if (state.status === 'error') {
 			return (
 				<p style={{ margin: 0, color: 'var(--loss)', fontSize: '0.95rem' }}>
-					{state.message || 'Unable to load totals right now.'}
+					{state.message || t.errorFallback}
 				</p>
 			);
 		}
@@ -137,9 +140,9 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 		return (
 			<>
 				<div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-					<Row label="Total Assets" value={formatUsd(summary.totalAssetsUsd)} />
-					<Row label="Total Free Assets" value={formatUsd(summary.totalFreeAssetsUsd)} muted />
-					<Row label="Total Debt" value={formatUsd(summary.totalDebtUsd)} accent="red" />
+					<Row label={t.totalAssets} value={formatUsd(summary.totalAssetsUsd)} />
+					<Row label={t.totalFreeAssets} value={formatUsd(summary.totalFreeAssetsUsd)} muted />
+					<Row label={t.totalDebt} value={formatUsd(summary.totalDebtUsd)} accent="red" />
 				</div>
 
 				<div
@@ -153,7 +156,7 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 						gap: '0.5rem',
 					}}
 				>
-					<span style={{ fontSize: '0.9rem', opacity: 0.85 }}>View breakdown by</span>
+					<span style={{ fontSize: '0.9rem', opacity: 0.85 }}>{t.viewBreakdownBy}</span>
 					<select
 						value={mode}
 						onChange={(e) => setMode(e.target.value as Mode)}
@@ -165,12 +168,12 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 							padding: '0.35rem 0.65rem',
 							cursor: 'pointer',
 						}}
-						aria-label="Totals breakdown mode"
+						aria-label={t.breakdownModeAriaLabel}
 					>
 						<option value="wallet" disabled={!hasWalletBreakdown}>
-							Wallet
+							{t.optionWallet}
 						</option>
-						<option value="chain">Chain</option>
+						<option value="chain">{t.optionChain}</option>
 					</select>
 				</div>
 
@@ -185,7 +188,7 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 					}}
 				>
 					{isEmpty ? (
-						<p style={{ margin: '0.5rem 0.75rem', opacity: 0.75 }}>No data yet.</p>
+						<p style={{ margin: '0.5rem 0.75rem', opacity: 0.75 }}>{t.noData}</p>
 					) : (
 						<table
 							style={{
@@ -196,11 +199,11 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 						>
 							<thead>
 								<tr style={{ background: 'var(--border-subtle)' }}>
-									<th style={thStyle}>Label</th>
-									<th style={thStyle}>Assets</th>
-									<th style={thStyle}>Free</th>
-									<th style={{ ...thStyle, color: 'var(--loss)' }}>Debt</th>
-									<th style={thStyle}>Net</th>
+									<th style={thStyle}>{t.colLabel}</th>
+									<th style={thStyle}>{t.colAssets}</th>
+									<th style={thStyle}>{t.colFree}</th>
+									<th style={{ ...thStyle, color: 'var(--loss)' }}>{t.colDebt}</th>
+									<th style={thStyle}>{t.colNet}</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -246,7 +249,7 @@ export default function TotalsTin({ endpoint = '/api/networth/summary' }: { endp
 					margin: 0,
 				}}
 			>
-				Totals Tin
+				{t.heading}
 			</h2>
 			{content}
 		</div>
