@@ -5,28 +5,34 @@
  * Private landing page linking to every tax tool in almsTins.
  * Not indexed (noindex) — authenticated users only.
  */
+import { getLang } from '@/lib/i18n/locale';
+import { getYearEnd } from '@/i18n/dashboard/yearEnd/index';
+
+const lang = getLang(Astro.request);
+const t = getYearEnd(lang);
+
 // /dashboard/yearEnd → redirect to the tax login gate
 return Astro.redirect('/tax-login', 302);
 ---
 
-<Layout title="Tax Center | almsTins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<div class="tax-hub">
 
 		<!-- Header -->
 		<div class="hub-header">
-			<h1 class="hub-title">Tax Center</h1>
-			<p class="hub-sub">All your crypto tax tools in one place. Not a tax preparation service — always consult a CPA before filing.</p>
+			<h1 class="hub-title">{t.hubTitle}</h1>
+			<p class="hub-sub">{t.hubSub}</p>
 		</div>
 
 		<!-- TurboTax Quick Access -->
 		<div class="doc-section">
-			<p class="doc-tile__label">TurboTax Documents</p>
+			<p class="doc-tile__label">{t.docSectionLabel}</p>
 			<div class="doc-grid">
 				<a href="/dashboard/yearEnd/gains" class="doc-tile">
-					<span class="doc-pill">Gains Summary</span>
+					<span class="doc-pill">{t.docGainsSummary}</span>
 				</a>
 				<a href={`/dashboard/yearEnd/report?year=${priorYear}`} class="doc-tile">
-					<span class="doc-pill">Year Summary</span>
+					<span class="doc-pill">{t.docYearSummary}</span>
 				</a>
 				<a href="/dashboard/yearEnd/form8949" class="doc-tile">
 					<span class="doc-pill">Form 8949</span>
@@ -39,19 +45,19 @@ return Astro.redirect('/tax-login', 302);
 
 		<!-- Data Completeness Score -->
 		<div id="completeness" class="hub-section">
-			<h2 class="section-label">Data Completeness</h2>
+			<h2 class="section-label">{t.completenessLabel}</h2>
 			<CompletenessScore year={priorYear} />
 		</div>
 
 		<!-- Analysis & Planning -->
 		<section class="hub-section">
-			<h2 class="section-label">Analysis &amp; Planning</h2>
+			<h2 class="section-label">{t.analysisSectionLabel}</h2>
 
 			<a href="/dashboard/yearEnd/gains" class="tax-card">
 				<div class="tax-card__icon">G/L</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">Gains Summary</p>
-					<p class="tax-card__desc">Short-term vs long-term gains, per-asset breakdown, tax-loss harvesting opportunities, missing cost basis alerts, estimated liability, loss carryforward, and year-over-year chart.</p>
+					<p class="tax-card__title">{t.gainsSummaryTitle}</p>
+					<p class="tax-card__desc">{t.gainsSummaryDesc}</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -59,8 +65,8 @@ return Astro.redirect('/tax-login', 302);
 			<a href={`/dashboard/yearEnd/report?year=${priorYear}`} class="tax-card">
 				<div class="tax-card__icon">Rpt</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">Year Summary Report <span class="tax-badge">{priorYear}</span></p>
-					<p class="tax-card__desc">Full disposal history with capital gains, ordinary income, loan events, and interest paid. Download as HTML or Form 8949–style CSV.</p>
+					<p class="tax-card__title">{t.yearReportTitle} <span class="tax-badge">{priorYear}</span></p>
+					<p class="tax-card__desc">{t.yearReportDesc}</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -68,8 +74,8 @@ return Astro.redirect('/tax-login', 302);
 			<a href="/dashboard/yearEnd/review" class="tax-card">
 				<div class="tax-card__icon">!</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">Review Queue</p>
-					<p class="tax-card__desc">Transactions the classifier couldn't categorize automatically. Resolve them here before they affect your report totals.</p>
+					<p class="tax-card__title">{t.reviewQueueTitle}</p>
+					<p class="tax-card__desc">{t.reviewQueueDesc}</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -77,13 +83,13 @@ return Astro.redirect('/tax-login', 302);
 
 		<!-- US-style summaries (informational) -->
 		<section class="hub-section">
-			<h2 class="section-label">US Summaries <span class="section-note">(informational — not filing documents)</span></h2>
+			<h2 class="section-label">{t.usSummariesLabel} <span class="section-note">{t.usSummariesNote}</span></h2>
 
 			<a href="/dashboard/yearEnd/form8949" class="tax-card">
 				<div class="tax-card__icon">8949</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">Capital Gains Summary</p>
-					<p class="tax-card__desc">Per-lot realized gains and losses, formatted to mirror IRS Form 8949 for reference, sorted by short-term and long-term. Print or CSV. Informational — not a filing document.</p>
+					<p class="tax-card__title">{t.capitalGainsSummaryTitle}</p>
+					<p class="tax-card__desc">{t.capitalGainsSummaryDesc}</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -91,8 +97,8 @@ return Astro.redirect('/tax-login', 302);
 			<a href="/dashboard/yearEnd/schedule-d" class="tax-card">
 				<div class="tax-card__icon">Sch D</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">Capital Gains &amp; Losses Summary</p>
-					<p class="tax-card__desc">Totals laid out in the US Schedule D line-by-line format for reference. Flows from the same realized-gains math. Informational — not a filing document.</p>
+					<p class="tax-card__title">{t.capitalGainsLossesTitle}</p>
+					<p class="tax-card__desc">{t.capitalGainsLossesDesc}</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -100,8 +106,8 @@ return Astro.redirect('/tax-login', 302);
 			<a href="/dashboard/yearEnd/lots" class="tax-card">
 				<div class="tax-card__icon">Lots</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">Lot Manager — Specific ID</p>
-					<p class="tax-card__desc">Manually pin each disposal to a specific cost-basis lot. When Spec ID method is active, these pins override FIFO/HIFO/LIFO — the lowest-tax outcome in any scenario.</p>
+					<p class="tax-card__title">{t.lotManagerTitle}</p>
+					<p class="tax-card__desc">{t.lotManagerDesc}</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -109,13 +115,13 @@ return Astro.redirect('/tax-login', 302);
 
 		<!-- 1099 Reconciliation -->
 		<section class="hub-section">
-			<h2 class="section-label">Reconciliation</h2>
+			<h2 class="section-label">{t.reconciliationLabel}</h2>
 
 			<a href="/dashboard/yearEnd/1099" class="tax-card">
 				<div class="tax-card__icon">1099</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">1099 Reconciliation</p>
-					<p class="tax-card__desc">Upload a 1099-DA or 1099-B CSV from your exchange and compare it against Almstins' computed gains. Quickly spot discrepancies early.</p>
+					<p class="tax-card__title">{t.recon1099Title}</p>
+					<p class="tax-card__desc">{t.recon1099Desc}</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -123,13 +129,13 @@ return Astro.redirect('/tax-login', 302);
 
 		<!-- Export -->
 		<section class="hub-section">
-			<h2 class="section-label">Export</h2>
+			<h2 class="section-label">{t.exportLabel}</h2>
 
 			<a href={`/api/year-summary/report?year=${priorYear}`} target="_blank" class="tax-card">
 				<div class="tax-card__icon">PDF</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">Year Summary PDF <span class="tax-badge">{priorYear}</span></p>
-					<p class="tax-card__desc">Landscape PDF with cover page, summary totals, short-term disposals, long-term disposals, income events, and open lots. Premium plan required.</p>
+					<p class="tax-card__title">{t.yearSummaryPdfTitle} <span class="tax-badge">{priorYear}</span></p>
+					<p class="tax-card__desc">{t.yearSummaryPdfDesc}</p>
 				</div>
 				<span class="tax-card__arrow">↗</span>
 			</a>
@@ -137,8 +143,8 @@ return Astro.redirect('/tax-login', 302);
 			<a href="/dashboard/transactions" class="tax-card">
 				<div class="tax-card__icon">CSV</div>
 				<div class="tax-card__body">
-					<p class="tax-card__title">FIFO CSV Export</p>
-					<p class="tax-card__desc">Download the line-by-line gain/loss CSV from the transactions page. Includes short-term vs long-term classification per lot — the format your CPA or tax software needs.</p>
+					<p class="tax-card__title">{t.fifoCsvTitle}</p>
+					<p class="tax-card__desc">{t.fifoCsvDesc}</p>
 				</div>
 				<span class="tax-card__arrow">→</span>
 			</a>
@@ -146,18 +152,18 @@ return Astro.redirect('/tax-login', 302);
 
 		<!-- Prior Tax Years -->
 		<section class="hub-section">
-			<h2 class="section-label">Prior Tax Years</h2>
+			<h2 class="section-label">{t.priorYearsLabel}</h2>
 			<div class="year-pills">
 				{Array.from({ length: 5 }, (_, i) => currentYear - 1 - i).map((y) => (
-					<a href={`/dashboard/yearEnd/report?year=${y}`} class="year-pill">{y} Report</a>
+					<a href={`/dashboard/yearEnd/report?year=${y}`} class="year-pill">{t.yearPillLabel(y)}</a>
 				))}
 			</div>
-			<p class="year-note">Opens the Year Summary Report filtered to that tax year.</p>
+			<p class="year-note">{t.yearPillNote}</p>
 		</section>
 
 		<!-- Disclaimer -->
 		<div class="disclaimer">
-			<p><strong>Disclaimer:</strong> almsTins is a record-keeping and analysis tool, not a tax preparation service. The information here is based on the transaction data you have provided and may be incomplete if imports are missing or wallets are unsynced. Nothing on this page constitutes tax, legal, or financial advice. Consult a qualified CPA or tax professional before filing.</p>
+			<p><strong>{t.disclaimerStrong}</strong> {t.disclaimerText}</p>
 		</div>
 
 	</div>

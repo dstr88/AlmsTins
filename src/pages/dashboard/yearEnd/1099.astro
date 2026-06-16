@@ -9,40 +9,43 @@ import Layout from '../../../layouts/Layout.astro';
 import TaxNotice from '@/components/TaxNotice.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { hasTaxAccess } from '@/lib/taxAuth';
+import { getLang } from '@/lib/i18n/locale';
+import { get1099 } from '@/i18n/dashboard/yearEnd/1099';
 
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
 
+const lang = getLang(Astro.request);
+const t = get1099(lang);
+const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 ---
 
-<Layout title="1099 Reconciliation | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
   <div class="recon-page">
 
     <!-- Header -->
     <div class="recon-header">
-      <a href="/year-summary" class="recon-back">← Summary</a>
-      <h1 class="recon-title">1099 Reconciliation</h1>
-      <p class="recon-sub">
-        Upload a 1099-DA or 1099-B CSV from your exchange and compare it line-by-line against what Almstins calculated.
-        Catch discrepancies early.
-      </p>
+      <a href="/year-summary" class="recon-back">{t.backLink}</a>
+      <h1 class="recon-title">{t.heroTitle}</h1>
+      <p class="recon-sub">{t.heroSub}</p>
     </div>
 
     <TaxNotice />
 
     <!-- Upload card -->
     <div class="recon-card">
-      <h2 class="recon-card__title">Upload New Form</h2>
+      <h2 class="recon-card__title">{t.uploadCardTitle}</h2>
 
       <form id="upload-form" enctype="multipart/form-data">
         <div class="form-grid">
 
           <!-- Form type -->
           <div class="form-field">
-            <label class="form-label">Form type</label>
+            <label class="form-label">{t.labelFormType}</label>
             <select id="form-type" name="formType" class="form-select">
               <option value="1099-da">1099-DA (crypto)</option>
               <option value="1099-b">1099-B (brokerage)</option>
@@ -51,7 +54,7 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 
           <!-- Tax year -->
           <div class="form-field">
-            <label class="form-label">Tax year</label>
+            <label class="form-label">{t.labelTaxYear}</label>
             <select id="tax-year" name="taxYear" class="form-select">
               {years.map(y => <option value={y} selected={y === currentYear - 1}>{y}</option>)}
             </select>
@@ -59,9 +62,9 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 
           <!-- Exchange name -->
           <div class="form-field">
-            <label class="form-label">Exchange <span class="form-optional">(optional)</span></label>
+            <label class="form-label">{t.labelExchange} <span class="form-optional">{t.labelExchangeOptional}</span></label>
             <input type="text" id="exchange-name" name="exchangeName"
-                   placeholder="e.g. Coinbase, Kraken…"
+                   placeholder={t.exchangePlaceholder}
                    class="form-input" />
           </div>
         </div>
@@ -70,13 +73,13 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
         <div id="drop-zone" class="drop-zone">
           <input type="file" id="file-input" name="file" accept=".csv,text/csv,.pdf,application/pdf" style="display:none" required />
           <span class="drop-zone__icon">📄</span>
-          <p class="drop-zone__primary">Drag &amp; drop your CSV or PDF here</p>
-          <p class="drop-zone__secondary">or <span id="browse-btn" class="drop-zone__browse">browse files</span></p>
+          <p class="drop-zone__primary">{t.dropPrimary}</p>
+          <p class="drop-zone__secondary">{t.dropSecondary} <span id="browse-btn" class="drop-zone__browse">{t.dropBrowse}</span></p>
           <p id="file-name" class="drop-zone__filename" style="display:none"></p>
         </div>
 
         <div class="form-actions">
-          <button type="submit" id="upload-btn" class="upload-btn">Upload &amp; Reconcile</button>
+          <button type="submit" id="upload-btn" class="upload-btn">{t.uploadBtn}</button>
           <span id="upload-status" class="upload-status" style="display:none"></span>
         </div>
       </form>
@@ -88,21 +91,21 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
       <!-- Summary banner -->
       <div id="results-banner" class="results-banner">
         <div>
-          <p class="results-banner__title" id="results-title">Reconciliation Complete</p>
+          <p class="results-banner__title" id="results-title">{t.resultsTitle}</p>
           <p class="results-banner__sub" id="results-subtitle"></p>
         </div>
         <div class="results-banner__counts">
           <span class="count-pill count-pill--green">
             <span class="count-dot count-dot--green"></span>
-            <span id="count-matched">0 matched</span>
+            <span id="count-matched">{t.countMatched(0)}</span>
           </span>
           <span class="count-pill count-pill--amber">
             <span class="count-dot count-dot--amber"></span>
-            <span id="count-diff">0 differences</span>
+            <span id="count-diff">{t.countDiff(0)}</span>
           </span>
           <span class="count-pill count-pill--red">
             <span class="count-dot count-dot--red"></span>
-            <span id="count-unmatched">0 unmatched</span>
+            <span id="count-unmatched">{t.countUnmatched(0)}</span>
           </span>
         </div>
       </div>
@@ -113,14 +116,14 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
           <table class="recon-table">
             <thead>
               <tr>
-                <th>Asset</th>
-                <th class="text-right">1099 Proceeds</th>
-                <th class="text-right">1099 Basis</th>
-                <th class="text-right">Almstins Proceeds</th>
-                <th class="text-right">Almstins Basis</th>
-                <th class="text-right">Δ Proceeds</th>
-                <th class="text-right">Δ Basis</th>
-                <th class="text-center">Status</th>
+                <th>{t.tableAsset}</th>
+                <th class="text-right">{t.tableFormProceeds}</th>
+                <th class="text-right">{t.tableFormBasis}</th>
+                <th class="text-right">{t.tableAlmstinsProceeds}</th>
+                <th class="text-right">{t.tableAlmstinsBasis}</th>
+                <th class="text-right">{t.tableDeltaProceeds}</th>
+                <th class="text-right">{t.tableDeltaBasis}</th>
+                <th class="text-center">{t.tableStatus}</th>
               </tr>
             </thead>
             <tbody id="results-tbody"></tbody>
@@ -130,21 +133,21 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 
       <!-- Guidance -->
       <div class="guidance-box">
-        <p class="guidance-box__title">How to read this</p>
+        <p class="guidance-box__title">{t.guidanceTitle}</p>
         <ul class="guidance-box__list">
-          <li><strong>Matched</strong> — Almstins and the exchange agree within $1.</li>
-          <li><strong>Proceeds diff</strong> — The exchange reported different proceeds. Check for missing trades in Almstins.</li>
-          <li><strong>Basis diff</strong> — Cost basis differs. May indicate wash-sale adjustments or missing import data.</li>
-          <li><strong>Unmatched</strong> — The exchange reported an asset Almstins has no record of. Import the missing data.</li>
+          <li set:html={t.guidanceMatched}></li>
+          <li set:html={t.guidanceProceedsDiff}></li>
+          <li set:html={t.guidanceBasisDiff}></li>
+          <li set:html={t.guidanceUnmatched}></li>
         </ul>
       </div>
     </div>
 
     <!-- Past uploads -->
     <div class="recon-card">
-      <h2 class="recon-card__title">Previous Uploads</h2>
-      <div id="history-loading" class="history-placeholder">Loading…</div>
-      <div id="history-empty" class="history-placeholder" style="display:none">No uploads yet.</div>
+      <h2 class="recon-card__title">{t.historyCardTitle}</h2>
+      <div id="history-loading" class="history-placeholder">{t.historyLoading}</div>
+      <div id="history-empty" class="history-placeholder" style="display:none">{t.historyEmpty}</div>
       <div id="history-list" style="display:none"></div>
     </div>
 
@@ -360,9 +363,82 @@ const years = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
   }
 </style>
 
+<script is:inline define:vars={{ i18n: {
+  dateLocale,
+  pleaseSelectFile:   t.pleaseSelectFile,
+  uploading:          t.uploading,
+  uploadFailed:       t.uploadFailed,
+  networkError:       t.networkError,
+  resultsTitle:       t.resultsTitle,
+  /** String with literal "{n}" replaced by the count at runtime */
+  tplCountMatched:    t.countMatched(0).replace('0', '{n}'),
+  tplCountDiff:       t.countDiff(0).replace('0', '{n}'),
+  tplCountUnmatched:  t.countUnmatched(0).replace('0', '{n}'),
+  tplSubtitle:        t.resultsSubtitle(0).replace('0', '{n}'),
+  /** "✅ N rows processed" — uses tpl "{n}" */
+  tplRowsProcessed:   t.rowsProcessed(0).replace('0', '{n}'),
+  statusMatched:      t.statusMatched,
+  statusProceedsDiff: t.statusProceedsDiff,
+  statusBasisDiff:    t.statusBasisDiff,
+  statusUnmatched:    t.statusUnmatched,
+  statusExtra:        t.statusExtra,
+  uploaded:           t.uploaded,
+  rows:               t.rows,
+  historyViewLink:    t.historyViewLink,
+} }}>window.__1099I18n = i18n;</script>
+
 <script>
+interface Locale1099 {
+  dateLocale: string;
+  pleaseSelectFile: string;
+  uploading: string;
+  uploadFailed: string;
+  networkError: string;
+  resultsTitle: string;
+  tplCountMatched: string;
+  tplCountDiff: string;
+  tplCountUnmatched: string;
+  tplSubtitle: string;
+  tplRowsProcessed: string;
+  statusMatched: string;
+  statusProceedsDiff: string;
+  statusBasisDiff: string;
+  statusUnmatched: string;
+  statusExtra: string;
+  uploaded: string;
+  rows: string;
+  historyViewLink: string;
+}
+const I18N: Locale1099 = (window as unknown as { __1099I18n?: Locale1099 }).__1099I18n ?? {
+  dateLocale: 'en-US',
+  pleaseSelectFile: 'Please select a file.',
+  uploading: '⏳ Uploading and reconciling…',
+  uploadFailed: 'Upload failed',
+  networkError: 'Network error',
+  resultsTitle: 'Reconciliation Complete',
+  tplCountMatched: '{n} matched',
+  tplCountDiff: '{n} differences',
+  tplCountUnmatched: '{n} unmatched',
+  tplSubtitle: '{n} assets compared',
+  tplRowsProcessed: '✅ {n} rows processed',
+  statusMatched: '✓ Matched',
+  statusProceedsDiff: 'Δ Proceeds',
+  statusBasisDiff: 'Δ Basis',
+  statusUnmatched: '! Unmatched',
+  statusExtra: 'Extra',
+  uploaded: 'Uploaded',
+  rows: 'rows',
+  historyViewLink: 'View →',
+};
+
+const fmt = (tpl: string, n: number) => tpl.replace('{n}', String(n));
+function fmtMatched(n: number)   { return fmt(I18N.tplCountMatched, n); }
+function fmtDiff(n: number)      { return fmt(I18N.tplCountDiff, n); }
+function fmtUnmatched(n: number) { return fmt(I18N.tplCountUnmatched, n); }
+function fmtSubtitle(n: number)  { return fmt(I18N.tplSubtitle, n); }
+
 const USD = (n: number | null) => n != null
-  ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
+  ? new Intl.NumberFormat(I18N.dateLocale, { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
   : '—';
 
 const DELTA = (n: number | null) => {
@@ -410,13 +486,13 @@ document.getElementById('upload-form')?.addEventListener('submit', async (e) => 
   const statusEl  = document.getElementById('upload-status')!;
 
   if (!fileInput.files?.[0]) {
-    statusEl.textContent = 'Please select a file.';
+    statusEl.textContent = I18N.pleaseSelectFile;
     statusEl.style.display = 'inline';
     return;
   }
 
   uploadBtn.disabled = true;
-  statusEl.textContent = '⏳ Uploading and reconciling…';
+  statusEl.textContent = I18N.uploading;
   statusEl.style.display = 'inline';
 
   const fd = new FormData(e.currentTarget as HTMLFormElement);
@@ -434,19 +510,19 @@ document.getElementById('upload-form')?.addEventListener('submit', async (e) => 
     };
 
     if (!data.ok) {
-      statusEl.textContent = `❌ ${data.error ?? 'Upload failed'}`;
+      statusEl.textContent = `❌ ${data.error ?? I18N.uploadFailed}`;
       uploadBtn.disabled = false;
       return;
     }
 
-    statusEl.textContent = `✅ ${data.rowCount} rows processed`;
+    statusEl.textContent = fmt(I18N.tplRowsProcessed, data.rowCount ?? 0);
     setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
     uploadBtn.disabled = false;
     renderReconciliation(data.reconciliation ?? []);
     loadHistory();
   } catch (err) {
     console.error('[1099] upload error', err);
-    statusEl.textContent = '❌ Network error';
+    statusEl.textContent = `❌ ${I18N.networkError}`;
     uploadBtn.disabled = false;
   }
 });
@@ -466,21 +542,23 @@ function renderReconciliation(rows: Array<{
   const diffs     = rows.filter(r => ['proceeds_diff','basis_diff'].includes(r.matchStatus)).length;
   const unmatched = rows.filter(r => r.matchStatus === 'unmatched').length;
 
-  document.getElementById('count-matched')!.textContent   = `${matched} matched`;
-  document.getElementById('count-diff')!.textContent      = `${diffs} difference${diffs !== 1 ? 's' : ''}`;
-  document.getElementById('count-unmatched')!.textContent = `${unmatched} unmatched`;
-  document.getElementById('results-subtitle')!.textContent = `${rows.length} asset${rows.length !== 1 ? 's' : ''} compared`;
+  document.getElementById('count-matched')!.textContent   = fmtMatched(matched);
+  document.getElementById('count-diff')!.textContent      = fmtDiff(diffs);
+  document.getElementById('count-unmatched')!.textContent = fmtUnmatched(unmatched);
+  document.getElementById('results-subtitle')!.textContent = fmtSubtitle(rows.length);
 
   const banner = document.getElementById('results-banner')!;
   if (unmatched > 0 || diffs > 0) banner.classList.add('results-banner--warn');
   else banner.classList.remove('results-banner--warn');
 
+  const pill = (color: string, bg: string, border: string, label: string) =>
+    `<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:${bg};color:${color};border:1px solid ${border}">${label}</span>`;
   const STATUS_BADGE: Record<string, string> = {
-    matched:      '<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.3)">✓ Matched</span>',
-    proceeds_diff:'<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)">Δ Proceeds</span>',
-    basis_diff:   '<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)">Δ Basis</span>',
-    unmatched:    '<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3)">! Unmatched</span>',
-    extra:        '<span style="padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:rgba(99,102,241,.15);color:#a5b4fc;border:1px solid rgba(99,102,241,.3)">Extra</span>',
+    matched:      pill('#34d399', 'rgba(52,211,153,.15)',  'rgba(52,211,153,.3)',  I18N.statusMatched),
+    proceeds_diff:pill('#fbbf24', 'rgba(251,191,36,.15)',  'rgba(251,191,36,.3)',  I18N.statusProceedsDiff),
+    basis_diff:   pill('#fbbf24', 'rgba(251,191,36,.15)',  'rgba(251,191,36,.3)',  I18N.statusBasisDiff),
+    unmatched:    pill('#f87171', 'rgba(248,113,113,.15)', 'rgba(248,113,113,.3)', I18N.statusUnmatched),
+    extra:        pill('#a5b4fc', 'rgba(99,102,241,.15)',  'rgba(99,102,241,.3)',  I18N.statusExtra),
   };
 
   for (const row of rows) {
@@ -537,13 +615,13 @@ async function loadHistory() {
           <p style="font-size:.75rem;color:#475569;margin:0">
             ${u.formType.toUpperCase()} · ${u.taxYear}
             ${u.exchangeName ? ` · ${u.exchangeName}` : ''}
-            · ${u.rowCount ?? '?'} rows
-            · Uploaded ${new Date(u.createdAt).toLocaleDateString()}
+            · ${u.rowCount ?? '?'} ${I18N.rows}
+            · ${I18N.uploaded} ${new Date(u.createdAt).toLocaleDateString(I18N.dateLocale)}
           </p>
         </div>
         <a href="/dashboard/yearEnd/1099?uploadId=${u.id}"
            style="font-size:.85rem;font-weight:600;color:#a5b4fc;text-decoration:none;white-space:nowrap;flex-shrink:0">
-          View →
+          ${I18N.historyViewLink}
         </a>
       `;
       listEl.appendChild(div);

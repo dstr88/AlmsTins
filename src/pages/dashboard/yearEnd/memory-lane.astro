@@ -5,7 +5,12 @@ import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { buildAnnualBreakdown } from '../../../lib/annualBreakdown';
 import { db } from '../../../lib/db';
 import { getTickersUSD } from '../../../lib/coinpaprikaProvider';
+import { getLang } from '@/lib/i18n/locale';
+import { getMemoryLane } from '@/i18n/dashboard/yearEnd/memory-lane';
 import './memory-lane.css';
+
+const lang = getLang(Astro.request);
+const t = getMemoryLane(lang);
 
 const isDemo      = isDemoRequest(Astro.request);
 const defaultYear = new Date().getFullYear() - 1;
@@ -161,10 +166,10 @@ const openGroups   = groupByType(open,   (h: any) => h.asset);
 
 const TYPE_ORDER: CoinType[] = ['L1', 'DeFi', 'Wrapped', 'Stable', 'Other'];
 const TYPE_LABEL: Record<CoinType, string> = {
-	L1:      'Layer 1',
+	L1:      t.typeL1,
 	DeFi:    'DeFi',
 	Wrapped: 'Wrapped',
-	Stable:  'Stablecoins',
+	Stable:  t.typeStable,
 	Other:   'Other',
 };
 
@@ -172,6 +177,7 @@ const TYPE_LABEL: Record<CoinType, string> = {
 const totalRealized = closed.reduce((s: number, a: any) => s + a.netGain, 0);
 
 // ── Formatters ─────────────────────────────────────────────────────────────────
+const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 function fmt(n: number) {
 	return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 }
@@ -179,12 +185,12 @@ function fmtDate(d: string) {
 	if (!d) return '—';
 	try {
 		const iso = d.length > 10 && d.includes('T') ? d : d.slice(0, 10) + 'T12:00:00Z';
-		return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+		return new Date(iso).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
 	}
 	catch { return d.slice(0, 10); }
 }
 function fmtQty(n: number) {
-	return n.toLocaleString('en-US', { maximumFractionDigits: 8 });
+	return n.toLocaleString(dateLocale, { maximumFractionDigits: 8 });
 }
 function logoUrl(symbol: string) {
 	return `https://cdn.jsdelivr.net/gh/spothq/cryptocurrency-icons@master/svg/color/${symbol.toLowerCase().split('.')[0]}.svg`;
@@ -194,35 +200,34 @@ function timelineId(asset: string) {
 }
 ---
 
-<Layout title={`History ${year} | almsTins`} noindex={true}>
+<Layout title={t.pageTitle(year)} noindex={true}>
 <div class="ml-page">
 
-	<a href="/dashboard/vault" class="ml-back">← Dashboard</a>
+	<a href="/dashboard/vault" class="ml-back">{t.backLink}</a>
 
 	{fetchError && !isDemo && (
 		<div class="ml-error">
-			<strong>Could not load History</strong>
+			<strong>{t.errorHeading}</strong>
 			<p>{fetchError}</p>
-			<a href={`?year=${year}`}>Try again</a>
+			<a href={`?year=${year}`}>{t.errorRetry}</a>
 		</div>
 	)}
 
 	{isDemo && (
 		<div class="ml-demo-note">
 			<p>
-				<strong>Your full position history.</strong>
-				Every asset you've held — what you paid, what you realized, and the complete
-				transaction trail behind each one. This view uses demo data.
+				<strong>{t.demoHeading}</strong>
+				{t.demoBody}
 			</p>
 		</div>
 	)}
 
 	<!-- ── Header ──────────────────────────────────────────────────────────── -->
 	<header class="ml-hero">
-		<h1 class="ml-title">History</h1>
-		<p class="ml-sub">Every asset you've held — and the full transaction history behind each one.</p>
+		<h1 class="ml-title">{t.heroTitle}</h1>
+		<p class="ml-sub">{t.heroSubtitle}</p>
 
-		<p class="ml-year-label">Year</p>
+		<p class="ml-year-label">{t.yearLabel}</p>
 		<div class="ml-years">
 			{availableYears.map((y) => (
 				<a href={`?year=${y}`} class={`ml-year${y === year ? ' ml-year--active' : ''}`}>{y}</a>
@@ -235,15 +240,15 @@ function timelineId(asset: string) {
 		<div class="ml-stats">
 			<div class="ml-stat">
 				<span class="ml-stat__num">{closed.length}</span>
-				<span class="ml-stat__label">Closed positions</span>
+				<span class="ml-stat__label">{t.statClosed}</span>
 			</div>
 			<div class="ml-stat">
 				<span class={`ml-stat__num ${totalRealized >= 0 ? 'is-gain' : 'is-loss'}`}>{fmt(totalRealized)}</span>
-				<span class="ml-stat__label">Realized P&amp;L · {year}</span>
+				<span class="ml-stat__label">{t.statRealizedPnl(year)}</span>
 			</div>
 			<div class="ml-stat">
 				<span class="ml-stat__num">{open.length}</span>
-				<span class="ml-stat__label">Open positions</span>
+				<span class="ml-stat__label">{t.statOpen}</span>
 			</div>
 		</div>
 	)}
@@ -253,8 +258,8 @@ function timelineId(asset: string) {
 		<section class="ml-section">
 			<div class="ml-section-head">
 				<div>
-					<h2 class="ml-section-title">Closed Positions</h2>
-					<p class="ml-section-sub">Assets you fully sold in {year}</p>
+					<h2 class="ml-section-title">{t.sectionClosedTitle}</h2>
+					<p class="ml-section-sub">{t.sectionClosedSub(year)}</p>
 				</div>
 				<span class="ml-section-count">{closed.length}</span>
 			</div>
@@ -283,7 +288,7 @@ function timelineId(asset: string) {
 													<div class="pos-card__logo-fallback" style="display:none">{asset.asset.slice(0, 3)}</div>
 												</div>
 												<span class="pos-card__ticker">{asset.asset}</span>
-												<span class="pos-card__tag">Closed</span>
+												<span class="pos-card__tag">{t.tagClosed}</span>
 											</div>
 
 											<div class="pos-card__pnl">
@@ -295,27 +300,27 @@ function timelineId(asset: string) {
 														{isWin ? '+' : ''}{stats.gainPct.toFixed(1)}%
 													</span>
 												)}
-												<span class="pos-card__pnl-label">realized</span>
+												<span class="pos-card__pnl-label">{t.labelRealized}</span>
 											</div>
 
 											<div class="pos-card__stats">
 												{lots.length > 0 && (
-													<div class="pos-card__stat"><span class="pos-card__stat-k">Lots</span><span class="pos-card__stat-v">{lots.length}</span></div>
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyLots}</span><span class="pos-card__stat-v">{lots.length}</span></div>
 												)}
 												{asset.stLots > 0 && (
-													<div class="pos-card__stat"><span class="pos-card__stat-k">Short-term</span><span class="pos-card__stat-v">{asset.stLots}</span></div>
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyShortTerm}</span><span class="pos-card__stat-v">{asset.stLots}</span></div>
 												)}
 												{asset.ltLots > 0 && (
-													<div class="pos-card__stat"><span class="pos-card__stat-k">Long-term</span><span class="pos-card__stat-v">{asset.ltLots}</span></div>
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyLongTerm}</span><span class="pos-card__stat-v">{asset.ltLots}</span></div>
 												)}
 												{stats.lastSell && (
-													<div class="pos-card__stat"><span class="pos-card__stat-k">Closed</span><span class="pos-card__stat-v">{fmtDate(stats.lastSell)}</span></div>
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyClosed}</span><span class="pos-card__stat-v">{fmtDate(stats.lastSell)}</span></div>
 												)}
 											</div>
 
 											{lots.length > 0 && (
 												<button class="pos-card__cta" data-asset={asset.asset}>
-													View transactions <span class="pos-card__chev">▾</span>
+													{t.ctaViewTx}
 												</button>
 											)}
 										</div>
@@ -323,7 +328,7 @@ function timelineId(asset: string) {
 										{lots.length > 0 && (
 											<div class="pos-card__timeline" id={timelineId(asset.asset)} hidden>
 												<div class="tl-head">
-													{asset.asset} · {lots.length} disposal{lots.length !== 1 ? 's' : ''} in {year}
+													{t.tlHead(asset.asset, lots.length, year)}
 												</div>
 												<div class="tl-track">
 													{lots.map((lot: any) => {
@@ -334,7 +339,7 @@ function timelineId(asset: string) {
 																<div class="tl-node">
 																	<div class="tl-dot tl-dot--buy"></div>
 																	<div class="tl-content">
-																		<span class="tl-action tl-action--buy">Buy</span>
+																		<span class="tl-action tl-action--buy">{t.tlBuy}</span>
 																		<span class="tl-date">{fmtDate(lot.buyDate)}</span>
 																		<span class="tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
 																		<span class="tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
@@ -343,16 +348,16 @@ function timelineId(asset: string) {
 																<div class="tl-connector">
 																	<div class="tl-line"></div>
 																	<span class="tl-held">
-																		{lot.daysHeld}d held ·
+																		{t.tlHeld(lot.daysHeld)}
 																		<span class={lot.term === 'long' ? 'tl-term tl-term--long' : 'tl-term tl-term--short'}>
-																			{lot.term === 'long' ? 'Long-term' : 'Short-term'}
+																			{lot.term === 'long' ? t.tlTermLong : t.tlTermShort}
 																		</span>
 																	</span>
 																</div>
 																<div class="tl-node">
 																	<div class={`tl-dot tl-dot--sell ${isLotWin ? 'is-gain' : 'is-loss'}`}></div>
 																	<div class="tl-content">
-																		<span class="tl-action tl-action--sell">Sell</span>
+																		<span class="tl-action tl-action--sell">{t.tlSell}</span>
 																		<span class="tl-date">{fmtDate(lot.sellDate)}</span>
 																		<span class="tl-qty">{fmtQty(lot.amount)} {asset.asset}</span>
 																		<span class="tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
@@ -384,8 +389,8 @@ function timelineId(asset: string) {
 		<section class="ml-section">
 			<div class="ml-section-head">
 				<div>
-					<h2 class="ml-section-title">Open Positions</h2>
-					<p class="ml-section-sub">Assets you currently hold</p>
+					<h2 class="ml-section-title">{t.sectionOpenTitle}</h2>
+					<p class="ml-section-sub">{t.sectionOpenSub}</p>
 				</div>
 				<span class="ml-section-count">{open.length}</span>
 			</div>
@@ -414,7 +419,7 @@ function timelineId(asset: string) {
 													<div class="pos-card__logo-fallback" style="display:none">{h.asset.slice(0, 3)}</div>
 												</div>
 												<span class="pos-card__ticker">{h.asset}</span>
-												<span class="pos-card__tag pos-card__tag--open">Open</span>
+												<span class="pos-card__tag pos-card__tag--open">{t.tagOpen}</span>
 											</div>
 
 											<div class="pos-card__pnl">
@@ -423,36 +428,36 @@ function timelineId(asset: string) {
 														{isUp ? '+' : ''}{fmt(h.unrealizedGainLoss)}
 													</span>
 												) : (
-													<span class="pos-card__pnl-num pos-card__pnl-num--muted">Unpriced</span>
+													<span class="pos-card__pnl-num pos-card__pnl-num--muted">{t.labelUnpriced}</span>
 												)}
-												<span class="pos-card__pnl-label">unrealized</span>
+												<span class="pos-card__pnl-label">{t.labelUnrealized}</span>
 											</div>
 
 											<div class="pos-card__stats">
-												<div class="pos-card__stat"><span class="pos-card__stat-k">Held</span><span class="pos-card__stat-v">{fmtQty(h.totalQty)}</span></div>
+												<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyHeld}</span><span class="pos-card__stat-v">{fmtQty(h.totalQty)}</span></div>
 												{h.currentPrice != null && (
-													<div class="pos-card__stat"><span class="pos-card__stat-k">Price</span><span class="pos-card__stat-v">${h.currentPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span></div>
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyPrice}</span><span class="pos-card__stat-v">${h.currentPrice.toLocaleString(dateLocale, { maximumFractionDigits: 2 })}</span></div>
 												)}
 												{h.shortTermQty > 0 && (
-													<div class="pos-card__stat"><span class="pos-card__stat-k">Short-term qty</span><span class="pos-card__stat-v">{fmtQty(h.shortTermQty)}</span></div>
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyShortTermQty}</span><span class="pos-card__stat-v">{fmtQty(h.shortTermQty)}</span></div>
 												)}
 												{h.longTermQty > 0 && (
-													<div class="pos-card__stat"><span class="pos-card__stat-k">Long-term qty</span><span class="pos-card__stat-v">{fmtQty(h.longTermQty)}</span></div>
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyLongTermQty}</span><span class="pos-card__stat-v">{fmtQty(h.longTermQty)}</span></div>
 												)}
 												{h.soonestLotDaysToLT != null && (
-													<div class="pos-card__stat"><span class="pos-card__stat-k">To long-term</span><span class="pos-card__stat-v">{h.soonestLotDaysToLT}d</span></div>
+													<div class="pos-card__stat"><span class="pos-card__stat-k">{t.statKeyToLongTerm}</span><span class="pos-card__stat-v">{h.soonestLotDaysToLT}d</span></div>
 												)}
 											</div>
 
 											{soldGains && (
 												<div class="pos-card__note">
-													Also sold {soldGains.stLots + soldGains.ltLots} lot{(soldGains.stLots + soldGains.ltLots) !== 1 ? 's' : ''} in {year} · {fmt(soldGains.netGain)} realized
+													{t.alsoSold(soldGains.stLots + soldGains.ltLots, year, fmt(soldGains.netGain))}
 												</div>
 											)}
 
 											{lots.length > 0 && (
 												<button class="pos-card__cta" data-asset={h.asset}>
-													View sold lots <span class="pos-card__chev">▾</span>
+													{t.ctaViewLots}
 												</button>
 											)}
 										</div>
@@ -460,7 +465,7 @@ function timelineId(asset: string) {
 										{lots.length > 0 && (
 											<div class="pos-card__timeline" id={timelineId(h.asset)} hidden>
 												<div class="tl-head">
-													{h.asset} · {lots.length} disposal{lots.length !== 1 ? 's' : ''} in {year}
+													{t.tlHead(h.asset, lots.length, year)}
 												</div>
 												<div class="tl-track">
 													{lots.map((lot: any) => {
@@ -471,7 +476,7 @@ function timelineId(asset: string) {
 																<div class="tl-node">
 																	<div class="tl-dot tl-dot--buy"></div>
 																	<div class="tl-content">
-																		<span class="tl-action tl-action--buy">Buy</span>
+																		<span class="tl-action tl-action--buy">{t.tlBuy}</span>
 																		<span class="tl-date">{fmtDate(lot.buyDate)}</span>
 																		<span class="tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
 																		<span class="tl-usd">{lot.costUsd != null ? fmt(lot.costUsd) : '—'}</span>
@@ -480,16 +485,16 @@ function timelineId(asset: string) {
 																<div class="tl-connector">
 																	<div class="tl-line"></div>
 																	<span class="tl-held">
-																		{lot.daysHeld}d ·
+																		{t.tlHeld(lot.daysHeld)}
 																		<span class={lot.term === 'long' ? 'tl-term tl-term--long' : 'tl-term tl-term--short'}>
-																			{lot.term === 'long' ? 'Long-term' : 'Short-term'}
+																			{lot.term === 'long' ? t.tlTermLong : t.tlTermShort}
 																		</span>
 																	</span>
 																</div>
 																<div class="tl-node">
 																	<div class={`tl-dot tl-dot--sell ${isLotWin ? 'is-gain' : 'is-loss'}`}></div>
 																	<div class="tl-content">
-																		<span class="tl-action tl-action--sell">Sell</span>
+																		<span class="tl-action tl-action--sell">{t.tlSell}</span>
 																		<span class="tl-date">{fmtDate(lot.sellDate)}</span>
 																		<span class="tl-qty">{fmtQty(lot.amount)} {h.asset}</span>
 																		<span class="tl-usd">{lot.proceedsUsd != null ? fmt(lot.proceedsUsd) : '—'}</span>
@@ -519,8 +524,8 @@ function timelineId(asset: string) {
 	<!-- ── Empty state ────────────────────────────────────────────────────── -->
 	{closed.length === 0 && open.length === 0 && (
 		<div class="ml-empty">
-			<p class="ml-empty-title">No history for {year}</p>
-			<p class="ml-empty-sub">Select a different year above, or make sure your transactions are synced.</p>
+			<p class="ml-empty-title">{t.emptyTitle(year)}</p>
+			<p class="ml-empty-sub">{t.emptySub}</p>
 		</div>
 	)}
 

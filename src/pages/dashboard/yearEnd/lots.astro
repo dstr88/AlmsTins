@@ -9,6 +9,12 @@ import Layout from '../../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { hasTaxAccess } from '@/lib/taxAuth';
+import { getLang } from '@/lib/i18n/locale';
+import { getLots } from '@/i18n/dashboard/yearEnd/lots';
+
+const lang = getLang(Astro.request);
+const t = getLots(lang);
+const dateLang = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 const sess = await requireTenantSession(Astro.request);
@@ -82,7 +88,7 @@ const groups = [...groupMap.values()]
 const missingCount = groups.reduce((acc, g) => acc + g.disposals.filter(d => d.gainLoss === null).length, 0);
 
 const fmt     = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-const fmtDate = (iso: string) => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return iso; } };
+const fmtDate = (iso: string) => { try { return new Date(iso).toLocaleDateString(dateLang, { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return iso; } };
 const fmtQty  = (n: number)   => n.toLocaleString('en-US', { maximumFractionDigits: 8 });
 
 // For a disposal, filter open lots to only those acquired BEFORE the sale date
@@ -91,26 +97,24 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 	openLots.filter(ol => ol.acquiredDate < sellDate);
 ---
 
-<Layout title="Lot Manager | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 <div class="lm-page">
 
 	<!-- Header -->
 	<div class="lm-header">
-		<a href={`/dashboard/yearEnd/gains?method=spec_id&year=${year}`} class="lm-back">← Back to Gains Summary</a>
+		<a href={`/dashboard/yearEnd/gains?method=spec_id&year=${year}`} class="lm-back">{t.backLink}</a>
 		<div class="lm-header__row">
-			<h1 class="lm-title">Lot Manager</h1>
-			<a href={`/dashboard/yearEnd/gains?method=spec_id&year=${year}`} class="lm-results-btn">View Results →</a>
+			<h1 class="lm-title">{t.heading}</h1>
+			<a href={`/dashboard/yearEnd/gains?method=spec_id&year=${year}`} class="lm-results-btn">{t.viewResults}</a>
 		</div>
-		<p class="lm-subtitle">
-			Choose which lot you sold for each disposal. Pins are used when <strong>Specific ID</strong> is your cost basis method.
-		</p>
+		<p class="lm-subtitle" set:html={t.subtitle}></p>
 	</div>
 
 	{groups.length === 0 && (
 		<div class="lm-empty">
 			<p class="lm-empty__icon">📋</p>
-			<p class="lm-empty__title">No disposals for {year}</p>
-			<p class="lm-empty__sub">Switch to a year with transactions.</p>
+			<p class="lm-empty__title">{t.emptyTitle(year)}</p>
+			<p class="lm-empty__sub">{t.emptySub}</p>
 		</div>
 	)}
 
@@ -127,10 +131,10 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 						<span class="lm-avatar">{group.asset.slice(0, 3)}</span>
 						<span class="lm-asset">{group.asset}</span>
 						{group.hasMissingBasis && (
-							<span class="lm-badge lm-badge--warn">Needs attention</span>
+							<span class="lm-badge lm-badge--warn">{t.needsAttention}</span>
 						)}
 					</div>
-					<span class="lm-group__meta">{group.disposals.length} disposal{group.disposals.length !== 1 ? 's' : ''}</span>
+					<span class="lm-group__meta">{t.disposalCount(group.disposals.length)}</span>
 				</div>
 
 				<!-- ── MISSING DISPOSALS — hero treatment ── -->
@@ -149,35 +153,35 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 								{d.proceeds != null && (
 									<span class="lm-hero__proceeds">{fmt(d.proceeds)}</span>
 								)}
-								<span class="lm-hero__date">Sold {fmtDate(d.sellDate)}</span>
+								<span class="lm-hero__date">{t.soldOn(fmtDate(d.sellDate))}</span>
 							</div>
 
 							<!-- No purchase record callout -->
 							<div class="lm-hero__problem">
 								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-								<span>No purchase record found — select the lot you sold to fix the gain/loss calculation.</span>
+								<span>{t.noPurchaseRecord}</span>
 							</div>
 
 							<!-- Lot selector -->
 							<div class="lm-hero__selector">
-								<label class="lm-hero__label">Which lot did you sell?</label>
+								<label class="lm-hero__label">{t.whichLotLabel}</label>
 								{lots.length === 0 ? (
 									<p class="lm-hero__no-lots">
-										No open lots acquired before {fmtDate(d.sellDate)} — the purchase may not be imported yet.
+										{t.noLotsBeforeDate(fmtDate(d.sellDate))}
 									</p>
 								) : (
 									<div class="lm-hero__select-row">
 										<select class="lm-select lot-pin-select" data-idx={idx}>
-											<option value="">— choose a lot —</option>
+											<option value="">{t.chooseLotPlaceholder}</option>
 											{lots.map(ol => (
 												<option value={ol.acquiredDate + '|' + ol.amount}>
-													{fmtQty(ol.amount)} acquired {fmtDate(ol.acquiredDate)}
+													{fmtQty(ol.amount)} {t.acquiredOn(fmtDate(ol.acquiredDate))}
 													{ol.costUsd != null ? ` · ${fmt(ol.costUsd / ol.amount)}/unit` : ''}
-													· {ol.daysHeld >= 365 ? 'Long-term' : 'Short-term'}
+													· {ol.daysHeld >= 365 ? t.longTerm : t.shortTerm}
 												</option>
 											))}
 										</select>
-										<button class="lm-save-btn save-pin-btn hidden">Save</button>
+										<button class="lm-save-btn save-pin-btn hidden">{t.save}</button>
 										<span class="lm-pin-status pin-status hidden"></span>
 									</div>
 								)}
@@ -190,7 +194,7 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 				{resolvedDisposals.length > 0 && (
 					<details class="lm-resolved">
 						<summary class="lm-resolved__toggle">
-							{resolvedDisposals.length} resolved disposal{resolvedDisposals.length !== 1 ? 's' : ''} — show
+							{t.resolvedToggle(resolvedDisposals.length)}
 						</summary>
 						<div class="lm-resolved__body">
 							{resolvedDisposals.map((d, rawIdx) => {
@@ -203,14 +207,14 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 									     data-amount={d.amount}>
 										<div class="lm-disposal__info">
 											<p class="lm-disposal__headline">
-												Sold {fmtQty(d.amount)} {group.asset}
-												{d.proceeds != null && <span class="lm-disposal__proceeds"> for {fmt(d.proceeds)}</span>}
+												{t.soldQtyAsset(fmtQty(d.amount), group.asset)}
+												{d.proceeds != null && <span class="lm-disposal__proceeds">{t.forProceeds(fmt(d.proceeds))}</span>}
 											</p>
 											<p class="lm-disposal__meta">
-												{fmtDate(d.sellDate)} · lot acquired {fmtDate(d.buyDate)} · {d.daysHeld} days ·
+												{fmtDate(d.sellDate)} · {t.lotAcquiredOn(fmtDate(d.buyDate))} · {d.daysHeld} days ·
 												{d.daysHeld >= 365
-													? <span class="lm-term lm-term--long">Long-term</span>
-													: <span class="lm-term lm-term--short">Short-term</span>}
+													? <span class="lm-term lm-term--long">{t.longTerm}</span>
+													: <span class="lm-term lm-term--short">{t.shortTerm}</span>}
 											</p>
 											{d.gainLoss != null && (
 												<p class={`lm-disposal__gain${d.gainLoss >= 0 ? ' lm-disposal__gain--pos' : ' lm-disposal__gain--neg'}`}>
@@ -219,17 +223,17 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 											)}
 										</div>
 										<div class="lm-pin-row">
-											<label class="lm-pin-label">Override lot:</label>
+											<label class="lm-pin-label">{t.overrideLotLabel}</label>
 											<select class="lm-select lm-select--sm lot-pin-select" data-idx={idx}>
-												<option value="">Automatic (earliest purchase first)</option>
+												<option value="">{t.automaticOption}</option>
 												{lots.map(ol => (
 													<option value={ol.acquiredDate + '|' + ol.amount}>
-														{fmtQty(ol.amount)} acquired {fmtDate(ol.acquiredDate)}
+														{fmtQty(ol.amount)} {t.acquiredOn(fmtDate(ol.acquiredDate))}
 														{ol.costUsd != null ? ` · ${fmt(ol.costUsd / ol.amount)}/unit` : ''}
 													</option>
 												))}
 											</select>
-											<button class="lm-save-btn lm-save-btn--sm save-pin-btn hidden">Save</button>
+											<button class="lm-save-btn lm-save-btn--sm save-pin-btn hidden">{t.save}</button>
 											<span class="lm-pin-status pin-status hidden"></span>
 										</div>
 									</div>
@@ -245,12 +249,8 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 	<!-- IRS notice — at bottom, collapsible -->
 	{groups.length > 0 && (
 		<details class="lm-irs">
-			<summary>IRS Specific Identification rules</summary>
-			<p>
-				You must identify the lot <em>before or at the time of sale</em> and receive confirmation from your
-				exchange or broker. Lot pins here are for computational purposes — maintain separate documentation
-				(exchange confirmations, wallet records) as required by IRS Rev. Rul. 2024-28.
-			</p>
+			<summary>{t.irsNoticeTitle}</summary>
+			<p set:html={t.irsNoticeBody}></p>
 		</details>
 	)}
 
@@ -462,7 +462,20 @@ const relevantLots = (openLots: OpenLot[], sellDate: string) =>
 .lm-irs p { margin: 0.5rem 0 0; line-height: 1.55; }
 </style>
 
+<script is:inline define:vars={{ lotsI18n: {
+	saving: t.saving,
+	pinned: t.pinned,
+	networkError: t.networkError,
+} }}>window.__lotsI18n = lotsI18n;</script>
+
 <script>
+// Localized strings injected by the inline <script is:inline define:vars> above.
+// English fallbacks keep the script working if that block ever fails to run.
+interface LotsI18n { saving: string; pinned: string; networkError: string; }
+const L: LotsI18n = (window as unknown as { __lotsI18n?: LotsI18n }).__lotsI18n ?? {
+	saving: 'Saving…', pinned: '✓ Pinned', networkError: '❌ Network error',
+};
+
 const year = new URLSearchParams(window.location.search).get('year') ?? String(new Date().getFullYear() - 1);
 
 async function loadPins() {
@@ -482,7 +495,7 @@ async function loadPins() {
 
 function showSaved(sel: HTMLSelectElement) {
 	const status = sel.closest('.lm-hero__select-row, .lm-pin-row')?.querySelector<HTMLSpanElement>('.pin-status');
-	if (status) { status.textContent = '✓ Pinned'; status.classList.remove('hidden'); }
+	if (status) { status.textContent = L.pinned; status.classList.remove('hidden'); }
 	const btn = sel.closest('.lm-hero__select-row, .lm-pin-row')?.querySelector<HTMLButtonElement>('.save-pin-btn');
 	if (btn) btn.classList.add('hidden');
 }
@@ -509,7 +522,7 @@ document.querySelectorAll<HTMLSelectElement>('.lot-pin-select').forEach((sel) =>
 		const lotAmountHint = parseFloat(lotAmountHintStr ?? '0');
 
 		saveBtn.disabled = true;
-		if (status) { status.textContent = 'Saving…'; status.classList.remove('hidden'); }
+		if (status) { status.textContent = L.saving; status.classList.remove('hidden'); }
 
 		try {
 			const res  = await fetch('/api/yearEnd/lot-pins', {
@@ -526,7 +539,7 @@ document.querySelectorAll<HTMLSelectElement>('.lot-pin-select').forEach((sel) =>
 			if (data.ok) { showSaved(sel); }
 			else if (status) { status.textContent = `❌ ${data.error ?? 'Failed'}`; }
 		} catch {
-			if (status) status.textContent = '❌ Network error';
+			if (status) status.textContent = L.networkError;
 		} finally {
 			saveBtn.disabled = false;
 		}
