@@ -10,6 +10,11 @@ import { isAdminSession } from '../../lib/adminGuard';
 import { db } from '../../lib/db';
 import { runNeedsAttentionQueries } from '../../lib/getNeedsAttention';
 import { getCache, setCache } from '../../lib/tursoCache';
+import { getLang } from '@/lib/i18n/locale';
+import { getResearch } from '@/i18n/dashboard/research';
+
+const lang = getLang(Astro.request);
+const t = getResearch(lang);
 
 const session = await requireTenantSession(Astro.request);
 if (!session) return Astro.redirect('/login');
@@ -84,7 +89,7 @@ const tenantWallets = walletResult.rows.map(r => ({
 Astro.response.headers.set('Cache-Control', 'no-store');
 ---
 
-<Layout title="Research | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
   <section class="research-page">
 
     <div class="hero-bleed">
@@ -105,19 +110,17 @@ Astro.response.headers.set('Cache-Control', 'no-store');
     ">
       <span style="font-size:1.1rem; line-height:1.4;"></span>
       <div style="display:flex; flex-direction:column; gap:0.4rem;">
-        <p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--accent);">This is where the mysteries live.</p>
+        <p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--accent);">{t.stickyHeading}</p>
         <p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
-          Research is your detective desk for the unresolved chapters of your crypto journey —
-          tokens that showed up with no purchase history, assets missing a price basis,
-          and disposals with no clear origin. If it raised a flag in Bookkeeping, the trail starts here.
+          {t.stickyBody}
         </p>
         <ul style="margin:0.2rem 0 0; padding-left:1.2rem; font-size:0.83rem; color:var(--text-secondary); line-height:1.7;">
-          <li><strong style="color:var(--text-primary);">No purchase history</strong> — tokens that appeared in your wallet without a tracked buy.</li>
-          <li><strong style="color:var(--text-primary);">Missing cost basis</strong> — assets you hold but can't price because the acquisition wasn't recorded.</li>
-          <li><strong style="color:var(--text-primary);">Unclear disposals</strong> — outbound transfers with no matching sale record or counterparty label.</li>
+          <li><strong style="color:var(--text-primary);">{t.stickyLi1Strong}</strong>{t.stickyLi1Rest}</li>
+          <li><strong style="color:var(--text-primary);">{t.stickyLi2Strong}</strong>{t.stickyLi2Rest}</li>
+          <li><strong style="color:var(--text-primary);">{t.stickyLi3Strong}</strong>{t.stickyLi3Rest}</li>
         </ul>
         <p style="margin:0.3rem 0 0; font-size:0.78rem; color:var(--text-muted);">
-          Search by hash, symbol, or keyword to dig into any transaction. Label what you find and it flows back through your whole history.
+          {t.stickyTip}
         </p>
       </div>
     </div>
@@ -133,11 +136,11 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       <!-- Left: Needs Attention -->
       <div class="col-left">
         <div class="col-header">
-          <h2>Needs Attention <span id="na-count" class="count-badge"></span> <ResearchTour /> <LostTxTour /></h2>
-          <p class="col-scope">All years · Bookkeeping shows current year only <span id="na-synced" class="na-synced-badge" style="display:none"></span></p>
+          <h2>{t.colNeedsAttention} <span id="na-count" class="count-badge"></span> <ResearchTour /> <LostTxTour /></h2>
+          <p class="col-scope">{t.colScope} <span id="na-synced" class="na-synced-badge" style="display:none"></span></p>
           <div class="na-ai-actions">
-            <button id="btn-ai-triage" class="btn-ai-triage" type="button">AI Triage</button>
-            <button id="btn-backfill" class="btn-backfill" type="button">Fill Missing Prices</button>
+            <button id="btn-ai-triage" class="btn-ai-triage" type="button">{t.btnAiTriage}</button>
+            <button id="btn-backfill" class="btn-backfill" type="button">{t.btnFillPrices}</button>
           </div>
         </div>
         <div id="triage-panel" class="triage-panel" style="display:none"></div>
@@ -147,9 +150,9 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 
         <!-- Resolved tin -->
         <div class="resolved-header" id="resolved-header" style="display:none">
-          <span>Resolved</span>
+          <span>{t.resolved}</span>
           <span id="resolved-count" class="count-badge-green"></span>
-          <button id="resolved-toggle" class="resolved-toggle" type="button">▾ show</button>
+          <button id="resolved-toggle" class="resolved-toggle" type="button">{t.resolvedShow}</button>
         </div>
         <div id="resolved-list" class="resolved-list" style="display:none"></div>
       </div>
@@ -164,7 +167,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
             <input
               id="q"
               type="text"
-              placeholder="Search by hash, symbol, keyword, or note…"
+              placeholder={t.searchPlaceholder}
               autocomplete="off"
               spellcheck="false"
             />
@@ -172,7 +175,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 
           <div class="search-tier-2">
             <select id="filter-symbol">
-              <option value="">All symbols</option>
+              <option value="">{t.filterAllSymbols}</option>
               {allSymbols.map(sym => <option value={sym}>{sym}</option>)}
             </select>
 
@@ -180,7 +183,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
             <span class="date-sep">→</span>
             <input id="filter-to"   type="date" title="To date"   />
 
-            <input id="filter-note" type="text" placeholder="Note keyword…" autocomplete="off" />
+            <input id="filter-note" type="text" placeholder={t.filterNotePlaceholder} autocomplete="off" />
           </div>
 
           <!-- Symbol chips -->
@@ -191,15 +194,15 @@ Astro.response.headers.set('Cache-Control', 'no-store');
           </div>
 
           <div class="search-actions">
-            <button id="btn-resolve" class="btn-secondary" type="button">Resolve</button>
-            <button id="btn-ignore-dust" class="btn-secondary" type="button">Ignore dust</button>
-            <button id="btn-classify-p2p" class="btn-secondary" type="button">P2P</button>
+            <button id="btn-resolve" class="btn-secondary" type="button">{t.btnResolve}</button>
+            <button id="btn-ignore-dust" class="btn-secondary" type="button">{t.btnIgnoreDust}</button>
+            <button id="btn-classify-p2p" class="btn-secondary" type="button">{t.btnP2p}</button>
             <div class="wallet-picker-wrap">
-              <button id="btn-add-tx" class="btn-secondary" type="button">＋ Add Transaction</button>
+              <button id="btn-add-tx" class="btn-secondary" type="button">{t.btnAddTransaction}</button>
               <div id="wallet-picker" class="wallet-picker" style="display:none">
-                <div class="wallet-picker-header">Select wallet</div>
+                <div class="wallet-picker-header">{t.walletPickerHeader}</div>
                 {tenantWallets.length === 0 ? (
-                  <div class="wallet-picker-empty">No wallets found.</div>
+                  <div class="wallet-picker-empty">{t.walletPickerEmpty}</div>
                 ) : (
                   tenantWallets.map(w => (
                     <button
@@ -209,44 +212,44 @@ Astro.response.headers.set('Cache-Control', 'no-store');
                       data-wallet-label={w.label || w.address.slice(0, 8) + '…'}
                       data-wallet-address={w.address}
                     >
-                      <span class="wpi-label">{w.label || <span style="opacity:0.5">Unnamed</span>}</span>
+                      <span class="wpi-label">{w.label || <span style="opacity:0.5">{t.walletUnnamed}</span>}</span>
                       <span class="wpi-addr">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span>
                     </button>
                   ))
                 )}
               </div>
             </div>
-            <button id="btn-search" class="btn-primary" type="button">Search</button>
+            <button id="btn-search" class="btn-primary" type="button">{t.btnSearch}</button>
           </div>
           <div id="resolve-status-bar" class="resolve-status-bar" style="display:none">
             <span id="resolve-status" class="resolve-status"></span>
           </div>
           <div id="p2p-panel" class="p2p-panel" style="display:none">
-            <span class="p2p-panel__label">These phone-number transfers could be yours or someone else's:</span>
-            <button id="btn-p2p-own" class="btn-secondary" type="button">My own account</button>
-            <button id="btn-p2p-disposal" class="btn-secondary" type="button">Third-party disposal</button>
+            <span class="p2p-panel__label">{t.p2pPanelLabel}</span>
+            <button id="btn-p2p-own" class="btn-secondary" type="button">{t.p2pOwnAccount}</button>
+            <button id="btn-p2p-disposal" class="btn-secondary" type="button">{t.p2pThirdParty}</button>
             <button id="btn-p2p-cancel" class="btn-secondary" type="button">✕</button>
           </div>
         </div>
 
         <!-- Results header -->
         <div class="col-header">
-          <h2>Results <span id="results-count" class="count-badge"></span></h2>
+          <h2>{t.colResults} <span id="results-count" class="count-badge"></span></h2>
           <div id="results-label" class="results-label" style="display:none"></div>
         </div>
 
         <!-- Sort controls -->
         <div id="results-sort-bar" class="results-sort-bar" style="display:none">
-          <span class="sort-label">Sort within groups:</span>
-          <button id="sort-btn-date"   class="sort-btn active" onclick="setResultsSort('date')">Date ↑</button>
-          <button id="sort-btn-amount" class="sort-btn"        onclick="setResultsSort('amount')">Amount</button>
+          <span class="sort-label">{t.sortLabel}</span>
+          <button id="sort-btn-date"   class="sort-btn active" onclick="setResultsSort('date')">{t.sortDate}</button>
+          <button id="sort-btn-amount" class="sort-btn"        onclick="setResultsSort('amount')">{t.sortAmount}</button>
         </div>
 
         <!-- Action panel: shown when an NA item is selected -->
         <div id="na-action-panel" style="display:none"></div>
 
         <div id="results-list" class="item-list">
-          <div class="empty-msg">Search above or click a symbol chip to explore your transactions.</div>
+          <div class="empty-msg">{t.emptySearch}</div>
         </div>
       </div>
 
@@ -255,10 +258,10 @@ Astro.response.headers.set('Cache-Control', 'no-store');
     <!-- ── Dataset Health Check ──────────────────────────────────────────── -->
     <div class="health-section" id="health-section">
       <div class="health-header">
-        <h2>Dataset Health Check</h2>
+        <h2>{t.healthTitle}</h2>
         <div class="health-header-right">
           <span id="health-last-run" class="health-last-run"></span>
-          <button id="btn-run-health" class="btn-secondary" type="button">Run diagnostics</button>
+          <button id="btn-run-health" class="btn-secondary" type="button">{t.btnRunDiagnostics}</button>
         </div>
       </div>
 
@@ -266,7 +269,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 
       <div class="intake-launch-row">
         <button id="btn-open-questionnaire" class="btn-questionnaire-launch" type="button">
-          Dataset Questionnaire
+          {t.btnDatasetQuestionnaire}
         </button>
         <span id="intake-completion-badge" class="intake-completion-badge" style="display:none"></span>
       </div>
@@ -315,11 +318,11 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 <div class="modal-overlay" id="match-modal" style="display:none">
   <div class="modal-content">
     <button class="modal-close" id="match-modal-close">×</button>
-    <h2>Confirm Transfer Match?</h2>
+    <h2>{t.matchModalTitle}</h2>
     <div id="match-modal-body"></div>
     <div class="modal-actions">
-      <button class="btn-danger"    id="match-reject">Reject</button>
-      <button class="btn-primary"   id="match-confirm">Confirm Match</button>
+      <button class="btn-danger"    id="match-reject">{t.matchModalReject}</button>
+      <button class="btn-primary"   id="match-confirm">{t.matchModalConfirm}</button>
     </div>
   </div>
 </div>
@@ -327,6 +330,160 @@ Astro.response.headers.set('Cache-Control', 'no-store');
 {naData && (
   <div id="na-ssr-data" style="display:none" set:text={JSON.stringify(naData)}></div>
 )}
+
+<script is:inline define:vars={{ researchI18n: {
+  loading:                   t.colNeedsAttention === 'Needs Attention' ? 'Loading…' : (t.lang === 'es' ? 'Cargando…' : 'Chargement…'),
+  retrying:                  t.lang === 'es' ? "Reintentando…" : t.lang === 'fr' ? "Nouvelle tentative…" : "Retrying…",
+  stillWorking:              t.lang === 'es' ? "Aún procesando — vuelve en un momento." : t.lang === 'fr' ? "Toujours en cours — revenez dans un instant." : "Still working on it — check back in a moment.",
+  nothingToReview:           t.lang === 'es' ? "✓ Todo al día — nada por revisar." : t.lang === 'fr' ? "✓ Tout est à jour — rien à examiner." : "✓ You're all caught up — nothing to review.",
+  everythingMatched:         t.lang === 'es' ? "✓ Todo coincide. Nada pendiente por revisar." : t.lang === 'fr' ? "✓ Tout est rapproché. Rien à examiner." : "✓ Everything's matched. Nothing left to review.",
+  cleanSlate:                t.lang === 'es' ? "✓ Tabla rasa — sin transacciones pendientes." : t.lang === 'fr' ? "✓ Ardoise vierge — aucune transaction à traiter." : "✓ Clean slate — no transactions need attention.",
+  syncedAt:                  t.lang === 'es' ? "· sincronizado a las __T__" : t.lang === 'fr' ? "· synchronisé à __T__" : "· synced __T__",
+  suggestedMatches:          t.lang === 'es' ? "Coincidencias sugeridas" : t.lang === 'fr' ? "Correspondances suggérées" : "Suggested matches",
+  unresolvedTxs:             t.lang === 'es' ? "Transacciones sin resolver" : t.lang === 'fr' ? "Transactions non résolues" : "Unresolved transactions",
+  confidence:                t.lang === 'es' ? "confianza" : t.lang === 'fr' ? "confiance" : "confidence",
+  sent:                      t.lang === 'es' ? "Enviado" : t.lang === 'fr' ? "Envoyé" : "Sent",
+  received:                  t.lang === 'es' ? "Recibido" : t.lang === 'fr' ? "Reçu" : "Received",
+  fee:                       t.lang === 'es' ? "Comisión" : t.lang === 'fr' ? "Frais" : "Fee",
+  clickToFindLanded:         t.lang === 'es' ? "Haz clic para ver a dónde fue →" : t.lang === 'fr' ? "Cliquer pour voir où cela est allé →" : "Click to find where this landed →",
+  clickToFindSource:         t.lang === 'es' ? "Haz clic para ver de dónde vino →" : t.lang === 'fr' ? "Cliquer pour voir d'où cela vient →" : "Click to find where this came from →",
+  dispose:                   t.lang === 'es' ? "Disponer" : t.lang === 'fr' ? "Céder" : "Dispose",
+  editDisposal:              t.lang === 'es' ? "Editar disposición" : t.lang === 'fr' ? "Modifier la cession" : "Edit disposal",
+  forward:                   t.lang === 'es' ? "↗ Reenviar" : t.lang === 'fr' ? "↗ Transférer" : "↗ Forward",
+  addNote:                   t.lang === 'es' ? "Añadir nota" : t.lang === 'fr' ? "Ajouter une note" : "Add note",
+  editNote:                  t.lang === 'es' ? "Editar nota" : t.lang === 'fr' ? "Modifier la note" : "Edit note",
+  legacyExchange:            t.lang === 'es' ? "Exchange heredado" : t.lang === 'fr' ? "Exchange défunt" : "Legacy exchange",
+  attach:                    t.lang === 'es' ? "Adjuntar" : t.lang === 'fr' ? "Joindre" : "Attach",
+  helpBtn:                   t.lang === 'es' ? "? Ayuda" : t.lang === 'fr' ? "? Aide" : "? Help",
+  aboutTxHistory:            t.lang === 'es' ? "Sobre mi historial de transacciones" : t.lang === 'fr' ? "À propos de mon historique de transactions" : "About my transaction history",
+  resolvedAuto:              t.lang === 'es' ? "auto" : t.lang === 'fr' ? "auto" : "auto",
+  resolvedConfirmed:         t.lang === 'es' ? "✓ confirmado" : t.lang === 'fr' ? "✓ confirmé" : "✓ confirmed",
+  resolvedShow:              t.resolvedShow,
+  resolvedHide:              t.resolvedHide,
+  searchCleared:             t.lang === 'es' ? "Búsqueda borrada." : t.lang === 'fr' ? "Recherche effacée." : "Search cleared.",
+  searching:                 t.lang === 'es' ? "Buscando…" : t.lang === 'fr' ? "Recherche en cours…" : "Searching…",
+  noTransactionsFound:       t.lang === 'es' ? "No se encontraron transacciones." : t.lang === 'fr' ? "Aucune transaction trouvée." : "No transactions found.",
+  searchFailed:              t.lang === 'es' ? "Búsqueda fallida: __MSG__" : t.lang === 'fr' ? "Échec de la recherche : __MSG__" : "Search failed: __MSG__",
+  matching:                  t.lang === 'es' ? "Cotejando…" : t.lang === 'fr' ? "Mise en correspondance…" : "Matching…",
+  classifying:               t.lang === 'es' ? "Clasificando…" : t.lang === 'fr' ? "Classification…" : "Classifying…",
+  nothingNewToResolve:       t.lang === 'es' ? "✓ Nada nuevo por resolver" : t.lang === 'fr' ? "✓ Rien de nouveau à résoudre" : "✓ Nothing new to resolve",
+  matched:                   t.lang === 'es' ? "cotejadas" : t.lang === 'fr' ? "rapprochées" : "matched",
+  classified:                t.lang === 'es' ? "clasificadas" : t.lang === 'fr' ? "classifiées" : "classified",
+  scanned:                   t.lang === 'es' ? "analizadas" : t.lang === 'fr' ? "analysées" : "scanned",
+  dismissing:                t.lang === 'es' ? "Descartando…" : t.lang === 'fr' ? "Rejet en cours…" : "Dismissing…",
+  dustDismissed:             t.lang === 'es' ? "✓ __N__ transacciones de polvo descartadas" : t.lang === 'fr' ? "✓ __N__ transactions poussière rejetées" : "✓ __N__ dust transactions dismissed",
+  noDust:                    t.lang === 'es' ? "✓ Sin polvo por descartar" : t.lang === 'fr' ? "✓ Aucune poussière à rejeter" : "✓ No dust to dismiss",
+  p2pClassified:             t.lang === 'es' ? "✓ __N__ transferencias P2P clasificadas" : t.lang === 'fr' ? "✓ __N__ transferts P2P classifiés" : "✓ __N__ P2P transfers classified",
+  noP2p:                     t.lang === 'es' ? "✓ No se encontraron transferencias P2P" : t.lang === 'fr' ? "✓ Aucun transfert P2P trouvé" : "✓ No P2P transfers found",
+  failedTryAgain:            t.lang === 'es' ? "Fallido — inténtalo de nuevo" : t.lang === 'fr' ? "Échec — veuillez réessayer" : "Failed — try again",
+  loadNaFirst:               t.lang === 'es' ? "Carga primero Needs Attention." : t.lang === 'fr' ? "Chargez d'abord Needs Attention." : "Load Needs Attention first.",
+  triaging:                  t.lang === 'es' ? "Triando…" : t.lang === 'fr' ? "Triage en cours…" : "Triaging…",
+  analysingTxs:              t.lang === 'es' ? "Analizando __N__ transacciones…" : t.lang === 'fr' ? "Analyse de __N__ transactions…" : "Analysing __N__ transactions…",
+  upgradeForTriage:          t.lang === 'es' ? "Actualiza a un plan de pago para usar AI Triage." : t.lang === 'fr' ? "Passez à un forfait payant pour utiliser AI Triage." : "Upgrade to a paid plan to use AI Triage.",
+  triageFailed:              t.lang === 'es' ? "Triage fallido: __MSG__" : t.lang === 'fr' ? "Échec du triage : __MSG__" : "Triage failed: __MSG__",
+  triageAutoNote:            t.lang === 'es' ? "✓ __N__ elemento(s) resueltos automáticamente y eliminados de Needs Attention. Los backfills de precios quedan para tu revisión." : t.lang === 'fr' ? "✓ __N__ élément(s) résolu(s) automatiquement et retiré(s) de Needs Attention. Les complétions de prix restent pour votre examen." : "✓ __N__ item__S__ auto-resolved and removed from Needs Attention. Price backfills stay for your review.",
+  triageAdvisory:            t.lang === 'es' ? "El triage es orientativo — revisa antes de actuar." : t.lang === 'fr' ? "Le triage est indicatif — vérifiez avant d'agir." : "Triage is advisory — review before acting on AI suggestions.",
+  triageLabelAnnotated:      t.lang === 'es' ? "Ya anotado" : t.lang === 'fr' ? "Déjà annoté" : "Already annotated",
+  triageLabelPurchase:       t.lang === 'es' ? "Compra obvia" : t.lang === 'fr' ? "Achat évident" : "Obvious purchase",
+  triageLabelIncome:         t.lang === 'es' ? "Ingreso obvio" : t.lang === 'fr' ? "Revenu évident" : "Obvious income",
+  triageLabelOwnWallet:      t.lang === 'es' ? "Wallet propia obvia" : t.lang === 'fr' ? "Wallet propre évident" : "Obvious own-wallet",
+  triageLabelSale:           t.lang === 'es' ? "Venta/disposición obvia" : t.lang === 'fr' ? "Vente/cession évidente" : "Obvious sale/disposal",
+  triageLabelNeedsReview:    t.lang === 'es' ? "Necesita revisión manual" : t.lang === 'fr' ? "Nécessite une révision manuelle" : "Needs manual review",
+  fetchingPrices:            t.lang === 'es' ? "Obteniendo precios…" : t.lang === 'fr' ? "Récupération des prix…" : "Fetching prices…",
+  paidFeature:               t.lang === 'es' ? "Función de pago" : t.lang === 'fr' ? "Fonctionnalité payante" : "Paid feature",
+  pricedSkipped:             t.lang === 'es' ? "✓ __P__ valorados · __S__ omitidos" : t.lang === 'fr' ? "✓ __P__ valorisés · __S__ ignorés" : "✓ __P__ priced · __S__ skipped",
+  backfillFailed:            t.lang === 'es' ? "Backfill fallido" : t.lang === 'fr' ? "Échec du backfill" : "Backfill failed",
+  fillMissingPrices:         t.btnFillPrices,
+  addNoteEllipsis:           t.lang === 'es' ? "Añade una nota…" : t.lang === 'fr' ? "Ajouter une note…" : "Add a note…",
+  save:                      t.lang === 'es' ? "Guardar" : t.lang === 'fr' ? "Enregistrer" : "Save",
+  saving:                    t.lang === 'es' ? "Guardando…" : t.lang === 'fr' ? "Enregistrement…" : "Saving…",
+  saveFailed:                t.lang === 'es' ? "Error al guardar" : t.lang === 'fr' ? "Échec de l'enregistrement" : "Save failed",
+  failed:                    t.lang === 'es' ? "Fallido" : t.lang === 'fr' ? "Échec" : "Failed",
+  fromLabel:                 t.lang === 'es' ? "De:" : t.lang === 'fr' ? "De :" : "From:",
+  forwardedTo:               t.lang === 'es' ? "Reenviado a…" : t.lang === 'fr' ? "Transféré vers…" : "Forwarded to…",
+  pickTrackedWallet:         t.lang === 'es' ? "— elige una wallet rastreada —" : t.lang === 'fr' ? "— choisir un wallet suivi —" : "— pick a tracked wallet —",
+  orTypeExchange:            t.lang === 'es' ? "O escribe un exchange / dirección…" : t.lang === 'fr' ? "Ou tapez un exchange / adresse…" : "Or type an exchange / address…",
+  orTypeExchangeLabel:       t.lang === 'es' ? "O escribe un exchange / dirección / etiqueta…" : t.lang === 'fr' ? "Ou tapez un exchange / adresse / étiquette…" : "Or type an exchange / address / label…",
+  optionalNote:              t.lang === 'es' ? "Nota opcional…" : t.lang === 'fr' ? "Note optionnelle…" : "Optional note…",
+  helpTitle:                 t.lang === 'es' ? "Ayúdame a entender esto" : t.lang === 'fr' ? "Aidez-moi à comprendre" : "Help me understand this",
+  whatDoesRepresent:         t.lang === 'es' ? "¿Qué representa esto?" : t.lang === 'fr' ? "Que représente ceci ?" : "What does this represent?",
+  myOwnWalletOut:            t.lang === 'es' ? "↗ Mi propia wallet" : t.lang === 'fr' ? "↗ Mon propre wallet" : "↗ My own wallet",
+  saleOrTrade:               t.lang === 'es' ? "Venta o intercambio" : t.lang === 'fr' ? "Vente ou échange" : "Sale or trade",
+  other:                     t.lang === 'es' ? "Otro" : t.lang === 'fr' ? "Autre" : "Other",
+  myOwnWalletIn:             t.lang === 'es' ? "↙ Mi propia wallet" : t.lang === 'fr' ? "↙ Mon propre wallet" : "↙ My own wallet",
+  incomePurchase:            t.lang === 'es' ? "Ingreso / compra" : t.lang === 'fr' ? "Revenu / achat" : "Income / purchase",
+  saveNote:                  t.lang === 'es' ? "Guardar nota" : t.lang === 'fr' ? "Enregistrer la note" : "Save note",
+  addContextPlaceholder:     t.lang === 'es' ? "Añade contexto o explicación…" : t.lang === 'fr' ? "Ajoutez un contexte ou une explication…" : "Add any context or explanation…",
+  uploadValidating:          t.lang === 'es' ? "Subiendo y validando…" : t.lang === 'fr' ? "Téléversement et validation…" : "Uploading & validating…",
+  upgradeToVerify:           t.lang === 'es' ? "Actualiza para verificar recibos automáticamente" : t.lang === 'fr' ? "Passez à la version supérieure pour vérifier les reçus automatiquement" : "Upgrade to verify receipts automatically",
+  uploadFailed:              t.lang === 'es' ? "Subida fallida — inténtalo de nuevo" : t.lang === 'fr' ? "Échec du téléversement — veuillez réessayer" : "Upload failed — try again",
+  receiptVerified:           t.lang === 'es' ? "✓ Recibo verificado · __F__" : t.lang === 'fr' ? "✓ Reçu vérifié · __F__" : "✓ Receipt verified · __F__",
+  overrideAccepted:          t.lang === 'es' ? "Anulación aceptada · __F__" : t.lang === 'fr' ? "Remplacement accepté · __F__" : "Override accepted · __F__",
+  receiptMismatch:           t.lang === 'es' ? "El recibo no coincide · __F__" : t.lang === 'fr' ? "Le reçu ne correspond pas · __F__" : "Receipt mismatch · __F__",
+  overrideRejection:         t.lang === 'es' ? "Anular rechazo" : t.lang === 'fr' ? "Ignorer le rejet" : "Override rejection",
+  overrideConfirmPrompt:     t.lang === 'es' ? "¿Estás seguro? Este recibo no coincide con los datos de la transacción. Proporciona un motivo:" : t.lang === 'fr' ? "Êtes-vous sûr(e) ? Ce reçu ne correspond pas aux données de la transaction. Veuillez indiquer un motif :" : "Are you sure? This receipt doesn't match the transaction data. Provide a reason:",
+  overrideNotePlaceholder:   t.lang === 'es' ? "p. ej. Comisión mostrada aparte, pequeño redondeo…" : t.lang === 'fr' ? "ex. Frais affichés séparément, léger arrondi…" : "e.g. Fee shown separately, minor rounding…",
+  yesKeepIt:                 t.lang === 'es' ? "Sí, mantenerlo" : t.lang === 'fr' ? "Oui, conserver" : "Yes, keep it",
+  cancel:                    t.lang === 'es' ? "Cancelar" : t.lang === 'fr' ? "Annuler" : "Cancel",
+  healthNoIssues:            t.lang === 'es' ? "Sin problemas detectados — el dataset parece limpio." : t.lang === 'fr' ? "Aucun problème détecté — le dataset semble propre." : "No issues found — dataset looks clean.",
+  healthTopUnresolved:       t.lang === 'es' ? "Principales sin resolver por valor en dólares" : t.lang === 'fr' ? "Principales non résolues par valeur en dollars" : "Top unresolved by dollar value",
+  healthRunning:             t.lang === 'es' ? "Ejecutando diagnósticos…" : t.lang === 'fr' ? "Exécution des diagnostics…" : "Running diagnostics…",
+  healthLastRun:             t.lang === 'es' ? "Última ejecución: __T__" : t.lang === 'fr' ? "Dernière exécution : __T__" : "Last run: __T__",
+  hcImportCoverage:          t.lang === 'es' ? "Cobertura de importación" : t.lang === 'fr' ? "Couverture des importations" : "Import Coverage",
+  hcSources:                 t.lang === 'es' ? "__N__ fuente(s)" : t.lang === 'fr' ? "__N__ source(s)" : "__N__ source__S__",
+  hcPre2019:                 t.lang === 'es' ? "Registros pre-2019" : t.lang === 'fr' ? "Enregistrements pré-2019" : "Pre-2019 Records",
+  hcTransactions:            t.lang === 'es' ? "__N__ transacciones" : t.lang === 'fr' ? "__N__ transactions" : "__N__ transactions",
+  hcNoHash:                  t.lang === 'es' ? "__N__ sin tx hash" : t.lang === 'fr' ? "__N__ sans tx hash" : "__N__ without tx hash",
+  hcExposed:                 t.lang === 'es' ? "__V__ expuesto" : t.lang === 'fr' ? "__V__ exposé" : "__V__ exposed",
+  hcNonEvm:                  t.lang === 'es' ? "No-EVM sin resolver" : t.lang === 'fr' ? "Non-EVM non résolues" : "Non-EVM Unresolved",
+  hcAssets:                  t.lang === 'es' ? "__N__ activo(s)" : t.lang === 'fr' ? "__N__ actif(s)" : "__N__ asset__S__",
+  hcTotal:                   t.lang === 'es' ? "__V__ total" : t.lang === 'fr' ? "__V__ total" : "__V__ total",
+  hcP2p:                     t.lang === 'es' ? "Transferencias P2P por teléfono" : t.lang === 'fr' ? "Transferts P2P par téléphone" : "P2P Phone Transfers",
+  hcNeedManual:              t.lang === 'es' ? "Requieren categorización manual" : t.lang === 'fr' ? "Nécessitent une catégorisation manuelle" : "Need manual categorization",
+  hcMissingPrices:           t.lang === 'es' ? "Precios faltantes" : t.lang === 'fr' ? "Prix manquants" : "Missing Prices",
+  hcOrphanedIns:             t.lang === 'es' ? "Recepciones inexplicadas" : t.lang === 'fr' ? "Réceptions inexpliquées" : "Unexplained Receipts",
+  hcFailedExchange:          t.lang === 'es' ? "Datos de exchange fallido" : t.lang === 'fr' ? "Données d'exchange défaillant" : "Failed Exchange Data",
+  hcFailedExchangeDetail:    t.lang === 'es' ? "Registros importados de plataformas fallidas — verifica pérdidas y bajas" : t.lang === 'fr' ? "Enregistrements importés de plateformes défaillantes — vérifiez les pertes et radiations" : "Records imported from failed platforms — verify loss claims and write-offs",
+  hcSuspectPrice:            t.lang === 'es' ? "Datos de precio sospechosos" : t.lang === 'fr' ? "Données de prix suspectes" : "Suspect Price Data",
+  hcBelowMax:                t.lang === 'es' ? "__R__× por debajo del máx" : t.lang === 'fr' ? "__R__× sous le max" : "__R__× below max",
+  hcSuspect:                 t.lang === 'es' ? "sospechoso" : t.lang === 'fr' ? "suspect" : "suspect",
+  hcCostBasisUnderstated:    t.lang === 'es' ? "La base de coste puede estar subestimada" : t.lang === 'fr' ? "La base de coût est peut-être sous-estimée" : "Cost basis may be understated",
+  hcMissingBasis:            t.lang === 'es' ? "Base de coste faltante" : t.lang === 'fr' ? "Base de coût manquante" : "Missing Cost Basis",
+  hcCurrentBalance:          t.lang === 'es' ? "saldo actual" : t.lang === 'fr' ? "solde actuel" : "current balance",
+  hcEstCostBasis:            t.lang === 'es' ? "Base de coste est. ~__T__ @ __P__/moneda el __D__ — solo estimación" : t.lang === 'fr' ? "Base de coût est. ~__T__ @ __P__/coin le __D__ — estimation seulement" : "Est. cost basis ~__T__ @ __P__/coin on __D__ — estimate only",
+  hcFirstSeen:               t.lang === 'es' ? "Visto por primera vez el __D__ · precio no disponible" : t.lang === 'fr' ? "Vu pour la première fois le __D__ · prix non disponible" : "First seen __D__ · no price available",
+  hcAndMore:                 t.lang === 'es' ? "…y __N__ más" : t.lang === 'fr' ? "…et __N__ de plus" : "…and __N__ more",
+  hcInWallet:                t.lang === 'es' ? "__N__ activo(s) · __V__ en wallet" : t.lang === 'fr' ? "__N__ actif(s) · __V__ en wallet" : "__N__ asset__S__ · __V__ in wallet",
+  hcImportMissing:           t.lang === 'es' ? "Importa los CSV del exchange faltante para establecer la base de coste" : t.lang === 'fr' ? "Importez les CSV d'exchange manquants pour établir la base de coût" : "Import missing exchange CSVs to establish cost basis",
+  hcFiatNoise:               t.lang === 'es' ? "Fiat como activo" : t.lang === 'fr' ? "Fiat comme actif" : "Fiat as Asset",
+  hcFiatDetail:              t.lang === 'es' ? "USD/EUR registrados como asset_symbol — probable ruido de stablecoins o CSV" : t.lang === 'fr' ? "USD/EUR enregistrés comme asset_symbol — probablement du bruit de stablecoins ou CSV" : "USD/EUR recorded as asset_symbol — likely noise from stablecoins or CSV quirks",
+  hcMore:                    t.lang === 'es' ? "+más" : t.lang === 'fr' ? "+plus" : "+more",
+  hcMoreN:                   t.lang === 'es' ? "…y __N__ más" : t.lang === 'fr' ? "…et __N__ de plus" : "…and __N__ more",
+  wizardAnswered:            t.lang === 'es' ? "__A__/__T__ respondidas" : t.lang === 'fr' ? "__A__/__T__ répondues" : "__A__/__T__ answered",
+  wizardSave:                t.lang === 'es' ? "✓ Guardar" : t.lang === 'fr' ? "✓ Enregistrer" : "✓ Save",
+  wizardSaving:              t.lang === 'es' ? "Guardando…" : t.lang === 'fr' ? "Enregistrement…" : "Saving…",
+  addrLoading:               t.lang === 'es' ? "Buscando __A__…" : t.lang === 'fr' ? "Recherche de __A__…" : "Looking up __A__…",
+  addrLookupFailed:          t.lang === 'es' ? "Búsqueda fallida: __MSG__" : t.lang === 'fr' ? "Échec de la recherche : __MSG__" : "Lookup failed: __MSG__",
+  addrInfoTitle:             t.lang === 'es' ? "Información de la dirección" : t.lang === 'fr' ? "Infos sur l'adresse" : "Address info",
+  addrCommunityLabel:        t.lang === 'es' ? "etiqueta comunitaria" : t.lang === 'fr' ? "étiquette communautaire" : "community label",
+  addrYourWallet:            t.lang === 'es' ? "Tu wallet: __L__" : t.lang === 'fr' ? "Votre wallet : __L__" : "Your wallet: __L__",
+  addrUnknown:               t.lang === 'es' ? "Dirección desconocida" : t.lang === 'fr' ? "Adresse inconnue" : "Unknown address",
+  addrAddAsWallet:           t.lang === 'es' ? "＋ Añadir como mi wallet" : t.lang === 'fr' ? "＋ Ajouter comme mon wallet" : "＋ Add as my wallet",
+  addrWalletLabel:           t.lang === 'es' ? "Etiqueta del wallet (p. ej. Mi wallet LTC)" : t.lang === 'fr' ? "Nom du wallet (ex. Mon wallet LTC)" : "Wallet label (e.g. My LTC wallet)",
+  addrSymbolPlaceholder:     t.lang === 'es' ? "Símbolo (p. ej. LTC, BTC, ETH)" : t.lang === 'fr' ? "Symbole (ex. LTC, BTC, ETH)" : "Symbol (e.g. LTC, BTC, ETH)",
+  addrLabelRequired:         t.lang === 'es' ? "La etiqueta es obligatoria" : t.lang === 'fr' ? "L'étiquette est obligatoire" : "Label is required",
+  addrSaving:                t.lang === 'es' ? "Guardando…" : t.lang === 'fr' ? "Enregistrement…" : "Saving…",
+  addrRecentTxs:             t.lang === 'es' ? "Transacciones recientes" : t.lang === 'fr' ? "Transactions récentes" : "Recent transactions",
+  addrFailedToSave:          t.lang === 'es' ? "Error al guardar" : t.lang === 'fr' ? "Échec de l'enregistrement" : "Failed to save",
+  naReasonNeedsPrice:        t.lang === 'es' ? "precio faltante" : t.lang === 'fr' ? "prix manquant" : "needs price",
+  btnAiTriage:               t.btnAiTriage,
+  btnResolve:                t.btnResolve,
+  btnIgnoreDust:             t.btnIgnoreDust,
+  btnP2pCancel:              t.lang === 'es' ? "Cancelar" : t.lang === 'fr' ? "Annuler" : "Cancel",
+  showingReceived:           t.lang === 'es' ? "Mostrando __S__ recibidos__W__ — posibles orígenes de tu envío de __S__" : t.lang === 'fr' ? "Affichage de __S__ reçus__W__ — sources potentielles de votre envoi de __S__" : "Showing __S__ received__W__ — potential sources for your __S__ send",
+  showingSent:               t.lang === 'es' ? "Mostrando __S__ enviados__W__ — posibles destinos de tu depósito de __S__" : t.lang === 'fr' ? "Affichage de __S__ envoyés__W__ — destinations potentielles de votre dépôt de __S__" : "Showing __S__ sent__W__ — potential destinations for your __S__ deposit",
+  within7Days:               t.lang === 'es' ? " en 7 días de __D__" : t.lang === 'fr' ? " dans les 7 jours de __D__" : " within 7 days of __D__",
+} }}>window.__researchI18n = researchI18n;</script>
 
 <script is:inline>
 // ── Error catcher: shows JS errors inside na-list instead of silent failure ───
@@ -421,6 +578,12 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 
 <script>
+// ── i18n ─────────────────────────────────────────────────────────────────────
+// Strings injected by the <script is:inline define:vars> island above.
+// English fallbacks keep the script working if that block ever fails to run.
+const I18N = (window as any).__researchI18n ?? {};
+const i18n = (key: string, fallback: string) => (I18N[key] as string) ?? fallback;
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let activeChip    = '';
 let pendingMatch  = null;
@@ -471,7 +634,7 @@ async function loadNeedsAttention(attempt = 1) {
         const badge = $('na-synced');
         if (badge) {
           const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-          badge.textContent = `· synced ${t}`;
+          badge.textContent = i18n('syncedAt', '· synced __T__').replace('__T__', t);
           badge.style.display = 'inline';
         }
         return;
@@ -496,7 +659,7 @@ async function loadNeedsAttention(attempt = 1) {
           const badge = $('na-synced');
           if (badge) {
             const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-            badge.textContent = `· synced ${t}`;
+            badge.textContent = i18n('syncedAt', '· synced __T__').replace('__T__', t);
             badge.style.display = 'inline';
           }
           return;
@@ -507,7 +670,7 @@ async function loadNeedsAttention(attempt = 1) {
     }
   }
 
-  list.innerHTML = '<div class="loading-msg">Loading…</div>';
+  list.innerHTML = '<div class="loading-msg">' + i18n('loading', 'Loading…') + '</div>';
   try {
     const ctrl = new AbortController();
     const tid  = setTimeout(() => ctrl.abort(), 28_000);
@@ -516,10 +679,10 @@ async function loadNeedsAttention(attempt = 1) {
     const data = await res.json();
     if (data.error) {
       if (attempt < MAX_ATTEMPTS) {
-        list.innerHTML = `<div class="loading-msg">Retrying…</div>`;
+        list.innerHTML = '<div class="loading-msg">' + i18n('retrying', 'Retrying…') + '</div>';
         setTimeout(() => loadNeedsAttention(attempt + 1), 5_000);
       } else {
-        list.innerHTML = `<div class="empty-msg">Still working on it — check back in a moment.</div>`;
+        list.innerHTML = '<div class="empty-msg">' + i18n('stillWorking', 'Still working on it — check back in a moment.') + '</div>';
       }
       return;
     }
@@ -527,15 +690,15 @@ async function loadNeedsAttention(attempt = 1) {
     const badge = $('na-synced');
     if (badge) {
       const t = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-      badge.textContent = `· synced ${t}`;
+      badge.textContent = i18n('syncedAt', '· synced __T__').replace('__T__', t);
       badge.style.display = 'inline';
     }
   } catch {
     if (attempt < MAX_ATTEMPTS) {
-      list.innerHTML = `<div class="loading-msg">Retrying…</div>`;
+      list.innerHTML = '<div class="loading-msg">' + i18n('retrying', 'Retrying…') + '</div>';
       setTimeout(() => loadNeedsAttention(attempt + 1), 5_000);
     } else {
-      list.innerHTML = `<div class="empty-msg">Still working on it — check back in a moment.</div>`;
+      list.innerHTML = '<div class="empty-msg">' + i18n('stillWorking', 'Still working on it — check back in a moment.') + '</div>';
     }
   }
 }
@@ -546,7 +709,7 @@ const NON_EVM_ASSETS = new Set(['BTC','XBT','LTC','SOL','XRP','DOT','ADA','ATOM'
 function naReasonTag(t, dir) {
   const desc = t.description ?? '';
   const sym  = (t.asset_symbol ?? '').toUpperCase();
-  if (!t.native_usd)                      return { label: 'needs price',   cls: 'price' };
+  if (!t.native_usd)                      return { label: i18n('naReasonNeedsPrice','needs price'),   cls: 'price' };
   if (PHONE_RE.test(desc))                return { label: 'P2P',           cls: 'p2p' };
   if (t.kind === 'crypto_earn_deposit' ||
       t.kind === 'crypto_earn_withdraw')  return { label: 'Earn',          cls: 'earn' };
@@ -581,7 +744,7 @@ function renderNeedsAttention(data) {
 
   // ── Suggested matches ──────────────────────────────────────────────────────
   if (data.suggested?.length) {
-    html += `<div class="section-label">Suggested matches</div>`;
+    html += '<div class="section-label">' + i18n('suggestedMatches', 'Suggested matches') + '</div>';
     for (const m of data.suggested) {
       const safeM = JSON.stringify(m).replace(/'/g,"&#39;");
       html += `<div class="suggest-item" data-match-id="${m.match_id}" data-match='${safeM}'>
@@ -598,7 +761,7 @@ function renderNeedsAttention(data) {
 
   // ── Unresolved transactions ────────────────────────────────────────────────
   if (data.unmatched?.length) {
-    html += `<div class="section-label">Unresolved transactions</div>`;
+    html += '<div class="section-label">' + i18n('unresolvedTxs', 'Unresolved transactions') + '</div>';
     for (const t of data.unmatched) {
       const dir       = (t.direction ?? '').toLowerCase();
       const isTransfer = dir === 'out' && t.category === 'own_wallet';
@@ -606,7 +769,7 @@ function renderNeedsAttention(data) {
       const dirLabel  = isTransfer ? 'transfer' : dir;
       const absAmt = Math.abs(Number(t.amount));
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
-      const hint    = dir === 'out' ? 'Click to find where this landed →' : 'Click to find where this came from →';
+      const hint    = dir === 'out' ? i18n('clickToFindLanded', 'Click to find where this landed →') : i18n('clickToFindSource', 'Click to find where this came from →');
       const src     = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
       const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
       const noteText = t.notes   ? `<span class="tx-note-text">${t.notes}</span>` : '';
@@ -638,13 +801,13 @@ function renderNeedsAttention(data) {
                     data-category="${t.category ?? ''}"
                     data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
                     onclick="openDisposeForm(event, this)">
-              ${hasAnnotation ? 'Edit disposal' : 'Dispose'}
+              ${hasAnnotation ? i18n('editDisposal', 'Edit disposal') : i18n('dispose', 'Dispose')}
             </button>
             ${t.category !== 'own_wallet' ? `
             <button class="btn-transfer"
                     data-tx-id="${t.id}"
                     onclick="openForwardForm(event, this)">
-              ↗ Forward
+              ${i18n('forward', '↗ Forward')}
             </button>` : ''}
             ` : `
             <button class="btn-annotate${hasAnnotation ? ' has-note' : ''}"
@@ -652,24 +815,24 @@ function renderNeedsAttention(data) {
                     data-category="${t.category ?? ''}"
                     data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
                     onclick="openAnnotateForm(event, this)">
-              ${hasAnnotation ? 'Edit note' : 'Add note'}
+              ${hasAnnotation ? i18n('editNote', 'Edit note') : i18n('addNote', 'Add note')}
             </button>
             ${t.category !== 'legacy_exchange' ? `
             <button class="btn-legacy"
                     onclick="markLegacy(event, '${t.id}')">
-              Legacy exchange
+              ${i18n('legacyExchange', 'Legacy exchange')}
             </button>` : ''}`}
             <button class="btn-attach"
                     onclick="attachReceipt(event,'${t.id}')">
-              Attach
+              ${i18n('attach', 'Attach')}
             </button>
             <button class="btn-context-pill"
                     onclick="event.stopPropagation();openWizard()"
-                    title="About my transaction history"></button>
+                    title="${i18n('aboutTxHistory', 'About my transaction history')}"></button>
             <button class="btn-help"
                     data-tx-id="${t.id}"
                     onclick="openHelpPanel(event,'${t.id}','${(t.kind??'').replace(/'/g,'')}','${dir}','${t.asset_symbol}','${(t.description??'').replace(/'/g,'').replace(/"/g,'').slice(0,80)}','${(srcName(t.source)??'').replace(/'/g,'')}')">
-              ? Help
+              ${i18n('helpBtn', '? Help')}
             </button>
           </div>
           <div class="att-panel" id="atp-${t.id}"></div>
@@ -682,12 +845,12 @@ function renderNeedsAttention(data) {
 
   if (!html) {
     const emptyMessages = [
-      { icon: '✓', text: "You're all caught up — nothing to review." },
-      { icon: '✓', text: "Everything's matched. Nothing left to review." },
-      { icon: '✓', text: "Clean slate — no transactions need attention." },
+      { icon: '✓', text: i18n('nothingToReview', "You're all caught up — nothing to review.") },
+      { icon: '✓', text: i18n('everythingMatched', "Everything's matched. Nothing left to review.") },
+      { icon: '✓', text: i18n('cleanSlate', "Clean slate — no transactions need attention.") },
     ];
     const pick = emptyMessages[Math.floor(Math.random() * emptyMessages.length)];
-    html = `<div class="empty-msg">${pick.icon} ${pick.text}</div>`;
+    html = '<div class="empty-msg">' + pick.icon + ' ' + pick.text + '</div>';
   }
 
   list.innerHTML = html;
@@ -740,7 +903,7 @@ function renderNeedsAttention(data) {
 
     let rHtml = '';
     for (const r of resolved) {
-      const autoLabel = r.status === 'auto' ? 'auto' : '✓ confirmed';
+      const autoLabel = r.status === 'auto' ? i18n('resolvedAuto', 'auto') : i18n('resolvedConfirmed', '✓ confirmed');
       rHtml += `<div class="resolved-item">
         <div class="resolved-top">
           <span class="resolved-sym">${r.asset_symbol}</span>
@@ -765,7 +928,7 @@ function renderNeedsAttention(data) {
 $('resolved-toggle')?.addEventListener('click', () => {
   resolvedOpen = !resolvedOpen;
   $('resolved-list').style.display  = resolvedOpen ? 'block' : 'none';
-  $('resolved-toggle').textContent  = resolvedOpen ? '▴ hide' : '▾ show';
+  $('resolved-toggle').textContent  = resolvedOpen ? i18n('resolvedHide', '▴ hide') : i18n('resolvedShow', '▾ show');
 });
 
 // ── Chip row ──────────────────────────────────────────────────────────────────
@@ -785,7 +948,7 @@ document.querySelectorAll('.chip').forEach(chip => {
       $('filter-symbol').value = '';
       $('results-label').textContent = '';
       $('results-label').style.display = 'none';
-      $('results-list').innerHTML = '<div class="empty-msg">Search cleared.</div>';
+      $('results-list').innerHTML = '<div class="empty-msg">' + i18n('searchCleared', 'Search cleared.') + '</div>';
       $('results-count').textContent = '';
     } else {
       setActiveChip(sym);
@@ -815,15 +978,15 @@ async function runSearchNa(sym, direction, ts) {
     // Also pre-fill the date inputs so the user can see / adjust the window
     $('filter-from').value = toDate(before);
     $('filter-to').value   = toDate(after);
-    windowLabel = ` within 7 days of ${center.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}`;
+    windowLabel = i18n('within7Days',' within 7 days of __D__').replace('__D__',center.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }));
   }
 
   const list = $('results-list');
   const fromLabel = direction === 'in'
-    ? `Showing ${sym} received${windowLabel} — potential sources for your ${sym} send`
-    : `Showing ${sym} sent${windowLabel} — potential destinations for your ${sym} deposit`;
+    ? i18n('showingReceived','Showing __S__ received__W__ — potential sources for your __S__ send').replace(/__S__/g,sym).replace('__W__',windowLabel)
+    : i18n('showingSent','Showing __S__ sent__W__ — potential destinations for your __S__ deposit').replace(/__S__/g,sym).replace('__W__',windowLabel);
 
-  list.innerHTML = '<div class="loading-msg">Searching…</div>';
+  list.innerHTML = '<div class="loading-msg">' + i18n('searching', 'Searching…') + '</div>';
   $('results-count').textContent = '';
   $('results-label').textContent = fromLabel;
   $('results-label').style.display = 'block';
@@ -833,7 +996,7 @@ async function runSearchNa(sym, direction, ts) {
     const data = await res.json();
     renderResults(data);
   } catch (e) {
-    list.innerHTML = `<div class="empty-msg">Search failed: ${e.message}</div>`;
+    list.innerHTML = '<div class="empty-msg">' + i18n('searchFailed', 'Search failed: __MSG__').replace('__MSG__', e.message) + '</div>';
   }
 }
 
@@ -859,7 +1022,7 @@ async function runSearch() {
   $('results-label').style.display = 'none';
 
   const list = $('results-list');
-  list.innerHTML = '<div class="loading-msg">Searching…</div>';
+  list.innerHTML = '<div class="loading-msg">' + i18n('searching', 'Searching…') + '</div>';
   $('results-count').textContent = '';
 
   try {
@@ -867,7 +1030,7 @@ async function runSearch() {
     const data = await res.json();
     renderResults(data);
   } catch (e) {
-    list.innerHTML = `<div class="empty-msg">Search failed: ${e.message}</div>`;
+    list.innerHTML = '<div class="empty-msg">' + i18n('searchFailed', 'Search failed: __MSG__').replace('__MSG__', e.message) + '</div>';
   }
 }
 
@@ -909,7 +1072,7 @@ function renderResults(data) {
   count.textContent = rows.length > 0 ? String(rows.length) : '';
 
   if (!rows.length) {
-    list.innerHTML = '<div class="empty-msg">No transactions found.</div>';
+    list.innerHTML = '<div class="empty-msg">' + i18n('noTransactionsFound', 'No transactions found.') + '</div>';
     $('results-sort-bar').style.display = 'none';
     return;
   }
@@ -970,11 +1133,11 @@ function renderResults(data) {
                   data-category="${t.category ?? ''}"
                   data-note="${(t.notes ?? '').replace(/"/g,'&quot;')}"
                   onclick="openResultAnnotateForm(event, this)">
-            ${hasAnnotation ? 'Edit note' : 'Add note'}
+            ${hasAnnotation ? i18n('editNote','Edit note') : i18n('addNote','Add note')}
           </button>
           <button class="btn-attach"
                   onclick="attachReceipt(event,'${t.id}')">
-            Attach
+            ${i18n('attach','Attach')}
           </button>
         </div>
         <div class="att-panel" id="atp-${t.id}"></div>
@@ -1027,12 +1190,12 @@ $('btn-resolve').addEventListener('click', async () => {
   btn.disabled = true;
   bar.style.display = 'none';
   try {
-    btn.textContent = 'Matching…';
+    btn.textContent = i18n('matching', 'Matching…');
     const matchRes  = await fetch('/api/research/run-matching', { method: 'POST' });
     if (!matchRes.ok) throw new Error(`Matching failed (${matchRes.status})`);
     const matchData = await matchRes.json();
 
-    btn.textContent = 'Classifying…';
+    btn.textContent = i18n('classifying', 'Classifying…');
     const classRes  = await fetch('/api/research/auto-classify', { method: 'POST' });
     if (!classRes.ok) throw new Error(`Classify failed (${classRes.status})`);
     const classData = await classRes.json();
@@ -1041,16 +1204,16 @@ $('btn-resolve').addEventListener('click', async () => {
     const skipped    = matchData.skipped    ?? 0;
     const classified = classData.classified ?? 0;
     const parts = [];
-    if (matched > 0)    parts.push(`${matched} matched`);
-    if (classified > 0) parts.push(`${classified} classified`);
-    const summary = parts.length ? `✓ ${parts.join(' · ')}` : '✓ Nothing new to resolve';
-    const detail  = skipped > 0 ? ` (${skipped} scanned)` : '';
+    if (matched > 0)    parts.push(matched + ' ' + i18n('matched', 'matched'));
+    if (classified > 0) parts.push(classified + ' ' + i18n('classified', 'classified'));
+    const summary = parts.length ? '✓ ' + parts.join(' · ') : i18n('nothingNewToResolve', '✓ Nothing new to resolve');
+    const detail  = skipped > 0 ? ' (' + skipped + ' ' + i18n('scanned', 'scanned') + ')' : '';
     setStatus(summary + detail);
-    btn.textContent = 'Resolve';
+    btn.textContent = i18n('btnResolve', 'Resolve');
     btn.disabled = false;
     await loadNeedsAttention();
   } catch (err) {
-    setStatus(`${err.message ?? 'Failed — try again'}`, true);
+    setStatus(`(err.message ?? i18n('failedTryAgain', 'Failed — try again'))`, true);
     btn.textContent = 'Resolve';
     btn.disabled = false;
   }
@@ -1067,15 +1230,15 @@ $('btn-ignore-dust').addEventListener('click', async () => {
     bar.style.display = 'block';
   };
   btn.disabled = true;
-  btn.textContent = 'Dismissing…';
+  btn.textContent = i18n('dismissing', 'Dismissing…');
   bar.style.display = 'none';
   try {
     const res  = await fetch('/api/research/ignore-dust', { method: 'POST' });
     if (!res.ok) throw new Error(`Failed (${res.status})`);
     const data = await res.json();
     const dismissed = data.dismissed ?? 0;
-    setStatus(dismissed > 0 ? `✓ ${dismissed} dust transactions dismissed` : '✓ No dust to dismiss');
-    btn.textContent = 'Ignore dust';
+    setStatus(dismissed > 0 ? i18n('dustDismissed', '✓ __N__ dust transactions dismissed').replace('__N__', dismissed) : i18n('noDust', '✓ No dust to dismiss'));
+    btn.textContent = i18n('btnIgnoreDust', 'Ignore dust');
     btn.disabled = false;
     if (dismissed > 0) await loadNeedsAttention();
   } catch (err) {
@@ -1112,7 +1275,7 @@ async function runP2PClassify(disposition) {
     if (!res.ok) throw new Error(`Failed (${res.status})`);
     const data = await res.json();
     const classified = data.classified ?? 0;
-    setStatus(classified > 0 ? `✓ ${classified} P2P transfers classified` : '✓ No P2P transfers found');
+    setStatus(classified > 0 ? i18n('p2pClassified', '✓ __N__ P2P transfers classified').replace('__N__', classified) : i18n('noP2p', '✓ No P2P transfers found'));
     if (classified > 0) await loadNeedsAttention();
   } catch (err) {
     setStatus(`${err.message ?? 'Failed — try again'}`, true);
@@ -1124,12 +1287,12 @@ $('btn-p2p-disposal').addEventListener('click', () => runP2PClassify('disposal')
 
 // ── AI Triage ─────────────────────────────────────────────────────────────────
 const TRIAGE_LABELS = {
-  annotated:          { label: 'Already annotated',      cls: 'triage-ok'   },
-  obvious_purchase:   { label: 'Obvious purchase',        cls: 'triage-info' },
-  obvious_income:     { label: 'Obvious income',          cls: 'triage-info' },
-  obvious_own_wallet: { label: 'Obvious own-wallet',      cls: 'triage-info' },
-  obvious_sale:       { label: 'Obvious sale/disposal',   cls: 'triage-info' },
-  needs_review:       { label: 'Needs manual review',     cls: 'triage-warn' },
+  annotated:          { label: i18n('triageLabelAnnotated',   'Already annotated'),      cls: 'triage-ok'   },
+  obvious_purchase:   { label: i18n('triageLabelPurchase',    'Obvious purchase'),        cls: 'triage-info' },
+  obvious_income:     { label: i18n('triageLabelIncome',      'Obvious income'),          cls: 'triage-info' },
+  obvious_own_wallet: { label: i18n('triageLabelOwnWallet',   'Obvious own-wallet'),      cls: 'triage-info' },
+  obvious_sale:       { label: i18n('triageLabelSale',        'Obvious sale/disposal'),   cls: 'triage-info' },
+  needs_review:       { label: i18n('triageLabelNeedsReview', 'Needs manual review'),     cls: 'triage-warn' },
 };
 
 let naDataCache = null; // set by renderNeedsAttention
@@ -1139,13 +1302,13 @@ $('btn-ai-triage').addEventListener('click', async () => {
   const panel = $('triage-panel');
   if (!naDataCache?.unmatched?.length) {
     panel.style.display = 'block';
-    panel.innerHTML = '<p class="triage-msg">Load Needs Attention first.</p>';
+    panel.innerHTML = '<p class="triage-msg">' + i18n('loadNaFirst', 'Load Needs Attention first.') + '</p>';
     return;
   }
   btn.disabled = true;
-  btn.textContent = 'Triaging…';
+  btn.textContent = i18n('triaging', 'Triaging…');
   panel.style.display = 'block';
-  panel.innerHTML = '<p class="triage-msg">Analysing ' + naDataCache.unmatched.length + ' transactions…</p>';
+  panel.innerHTML = '<p class="triage-msg">' + i18n('analysingTxs', 'Analysing __N__ transactions…').replace('__N__', naDataCache.unmatched.length) + '</p>';
   try {
     const res  = await fetch('/api/research/ai-triage', {
       method: 'POST',
@@ -1154,7 +1317,7 @@ $('btn-ai-triage').addEventListener('click', async () => {
     });
     const data = await res.json();
     if (res.status === 403) {
-      panel.innerHTML = `<p class="triage-msg"><a href="/dashboard/billing" style="color:var(--accent)">Upgrade to a paid plan</a> to use AI Triage.</p>`;
+      panel.innerHTML = '<p class="triage-msg"><a href="/dashboard/billing" style="color:var(--accent)">' + i18n('upgradeForTriage', 'Upgrade to a paid plan to use AI Triage.') + '</a></p>';
       return;
     }
     if (!data.ok) throw new Error(data.error ?? 'Triage failed');
@@ -1164,7 +1327,7 @@ $('btn-ai-triage').addEventListener('click', async () => {
 
     const groups = data.groups;
     const autoMsg = data.autoResolved > 0
-      ? `<p class="triage-auto-note">✓ ${data.autoResolved} item${data.autoResolved !== 1 ? 's' : ''} auto-resolved and removed from Needs Attention. Price backfills stay for your review.</p>`
+      ? '<p class="triage-auto-note">' + i18n('triageAutoNote', '✓ __N__ item__S__ auto-resolved and removed from Needs Attention. Price backfills stay for your review.').replace('__N__', data.autoResolved).replace('__S__', data.autoResolved !== 1 ? 's' : '') + '</p>'
       : '';
     let html = `<div class="triage-results">${autoMsg}`;
     for (const [key, meta] of Object.entries(TRIAGE_LABELS)) {
@@ -1188,17 +1351,17 @@ $('btn-ai-triage').addEventListener('click', async () => {
       }
       html += `</div></div>`;
     }
-    html += `<p class="triage-note">Triage is advisory — review before acting on AI suggestions.</p></div>`;
+    html += '<p class="triage-note">' + i18n('triageAdvisory', 'Triage is advisory — review before acting on AI suggestions.') + '</p></div>';
     panel.innerHTML = html;
     // Wire group headers to expand/collapse
     panel.querySelectorAll('.triage-group-header').forEach(hdr => {
       hdr.addEventListener('click', () => hdr.closest('.triage-group').classList.toggle('open'));
     });
   } catch (err) {
-    panel.innerHTML = `<p class="triage-msg triage-err">Triage failed: ${err.message}</p>`;
+    panel.innerHTML = '<p class="triage-msg triage-err">' + i18n('triageFailed', 'Triage failed: __MSG__').replace('__MSG__', err.message) + '</p>';
   } finally {
     btn.disabled = false;
-    btn.textContent = 'AI Triage';
+    btn.textContent = i18n('btnAiTriage', 'AI Triage');
   }
 });
 
@@ -1206,25 +1369,25 @@ $('btn-ai-triage').addEventListener('click', async () => {
 $('btn-backfill').addEventListener('click', async () => {
   const btn = $('btn-backfill');
   btn.disabled = true;
-  btn.textContent = 'Fetching prices…';
+  btn.textContent = i18n('fetchingPrices', 'Fetching prices…');
   try {
     const res  = await fetch('/api/research/backfill-prices', { method: 'POST' });
     const data = await res.json();
     if (res.status === 403) {
-      btn.textContent = 'Paid feature';
-      setTimeout(() => { btn.textContent = 'Fill Missing Prices'; btn.disabled = false; }, 3000);
+      btn.textContent = i18n('paidFeature', 'Paid feature');
+      setTimeout(() => { btn.textContent = i18n('fillMissingPrices', 'Fill Missing Prices'); btn.disabled = false; }, 3000);
       return;
     }
     if (data.ok) {
-      btn.textContent = `✓ ${data.priced} priced · ${data.skipped} skipped`;
+      btn.textContent = i18n('pricedSkipped', '✓ __P__ priced · __S__ skipped').replace('__P__', data.priced).replace('__S__', data.skipped);
       if (data.priced > 0) await loadNeedsAttention();
     } else {
-      btn.textContent = 'Backfill failed';
+      btn.textContent = i18n('backfillFailed', 'Backfill failed');
     }
   } catch {
     btn.textContent = 'Backfill failed';
   }
-  setTimeout(() => { btn.textContent = 'Fill Missing Prices'; btn.disabled = false; }, 4000);
+  setTimeout(() => { btn.textContent = i18n('fillMissingPrices', 'Fill Missing Prices'); btn.disabled = false; }, 4000);
 });
 
 // ── Suggested match modal ─────────────────────────────────────────────────────
@@ -1232,11 +1395,11 @@ function openMatchModal(match) {
   pendingMatch = match;
   $('match-modal-body').innerHTML = `<div class="match-detail">
     <strong>${match.asset_symbol}</strong> transfer<br>
-    <strong>From:</strong> ${srcName(match.out_source)}${match.out_account_name ? ' · ' + match.out_account_name : ''}<br>
+    <strong>${i18n('fromLabel','From:')}</strong> ${srcName(match.out_source)}${match.out_account_name ? ' · ' + match.out_account_name : ''}<br>
     <strong>To:</strong> ${srcName(match.in_source)}${match.in_account_name ? ' · ' + match.in_account_name : ''}<br>
-    <strong>Sent:</strong> ${fmtDT(match.out_ts)}<br>
-    <strong>Received:</strong> ${fmtDT(match.in_ts)}<br>
-    <strong>Amount out:</strong> ${fmt(match.out_amount)} &nbsp; <strong>Amount in:</strong> ${fmt(match.in_amount)}${match.fee_amount ? `&nbsp; <strong>Fee:</strong> ${fmt(match.fee_amount)}` : ''}<br>
+    <strong>${i18n('sent','Sent')}:</strong> ${fmtDT(match.out_ts)}<br>
+    <strong>${i18n('received','Received')}:</strong> ${fmtDT(match.in_ts)}<br>
+    <strong>${i18n('sent','Sent')}:</strong> ${fmt(match.out_amount)} &nbsp; <strong>Amount in:</strong> ${fmt(match.in_amount)}${match.fee_amount ? `&nbsp; <strong>Fee:</strong> ${fmt(match.fee_amount)}` : ''}<br>
     <strong>Confidence score:</strong> ${match.confidence_score}
   </div>`;
   $('match-modal').style.display = 'flex';
@@ -1294,8 +1457,8 @@ function openAnnotateForm(e, btn) {
   formEl.innerHTML = `
     <select id="af-cat-${txId}">${options}</select>
     <div class="annotate-form-row">
-      <input id="af-note-${txId}" type="text" placeholder="Add a note…" value="${curNote}" />
-      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">Save</button>
+      <input id="af-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${curNote}" />
+      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">${i18n('save','Save')}</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
     </div>`;
   formEl.style.display = 'flex';
@@ -1317,7 +1480,7 @@ async function saveAnnotation(e, txId) {
     // Reload NA list — transaction may now auto-resolve off the list
     await loadNeedsAttention();
   } catch (err) {
-    if (btn) btn.textContent = 'Save failed';
+    if (btn) btn.textContent = i18n('saveFailed','Save failed');
   }
 }
 
@@ -1325,7 +1488,7 @@ async function markLegacy(e, txId) {
   e.stopPropagation();
   const btn = e.currentTarget;
   btn.disabled = true;
-  btn.textContent = 'Saving…';
+  btn.textContent = i18n('saving','Saving…');
   try {
     const res = await fetch(`/api/research/annotate/${txId}`, {
       method: 'PATCH',
@@ -1336,7 +1499,7 @@ async function markLegacy(e, txId) {
     await loadNeedsAttention();
   } catch {
     btn.disabled = false;
-    btn.textContent = 'Legacy exchange';
+    btn.textContent = i18n('legacyExchange', 'Legacy exchange');
   }
 }
 
@@ -1355,7 +1518,7 @@ async function markOwnWallet(e, txId) {
     await loadNeedsAttention();
   } catch {
     btn.disabled = false;
-    btn.textContent = 'Own wallet';
+    btn.textContent = i18n('myOwnWalletOut','↗ My own wallet');
   }
 }
 
@@ -1380,18 +1543,18 @@ function renderNaActionPanel({ txId, sym, dir, src, cat, note, amt }) {
   ).join('');
 
   panel.innerHTML = `
-    <div class="nap-from">From: ${src}</div>
+    <div class="nap-from">${i18n('fromLabel','From:')} ${src}</div>
     <div class="nap-tx">${dir === 'out' ? '↑' : '↓'} ${amt} &nbsp;·&nbsp; ${sym}</div>
     ${dir === 'out' ? `
     <div class="nap-actions">
-      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">Dispose</button>
-      <button class="nap-btn-forward" onclick="napShowForward('${txId}')">↗ Forward</button>
+      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">${i18n('dispose','Dispose')}</button>
+      <button class="nap-btn-forward" onclick="napShowForward('${txId}')">${i18n('forward','↗ Forward')}</button>
     </div>
     <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
     ` : `
     <div class="nap-actions">
-      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">Annotate</button>
-      <button class="nap-btn-forward nap-btn-legacy-style" onclick="markLegacy(event,'${txId}')">Legacy exchange</button>
+      <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">${i18n('addNote','Add note')}</button>
+      <button class="nap-btn-forward nap-btn-legacy-style" onclick="markLegacy(event,'${txId}')">${i18n('legacyExchange','Legacy exchange')}</button>
     </div>
     <div class="nap-form" id="nap-form-${txId}" style="display:none"></div>
     `}`;
@@ -1411,9 +1574,9 @@ function napShowDispose(txId) {
   form.style.display = 'flex';
   form.innerHTML = `
     <select id="nap-cat-${txId}">${panel._disposeOpts}</select>
-    <input  id="nap-note-${txId}" type="text" placeholder="Add a note…" value="${panel._note ?? ''}" />
+    <input  id="nap-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${panel._note ?? ''}" />
     <div class="nap-form-row">
-      <button class="btn-annotate-save" onclick="napSaveDispose('${txId}')">Save</button>
+      <button class="btn-annotate-save" onclick="napSaveDispose('${txId}')">${i18n('save','Save')}</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('nap-form-${txId}').style.display='none'">✕</button>
       <span id="nap-status-${txId}" class="form-status"></span>
     </div>`;
@@ -1425,15 +1588,15 @@ function napShowForward(txId) {
   if (!form) return;
   form.style.display = 'flex';
   form.innerHTML = `
-    <div class="form-hint">Forwarded to…</div>
+    <div class="form-hint">${i18n('forwardedTo','Forwarded to…')}</div>
     ${panel._walletOpts ? `<select id="nap-fwallet-${txId}">
-      <option value="">— pick a tracked wallet —</option>
+      <option value="">${i18n('pickTrackedWallet','— pick a tracked wallet —')}</option>
       ${panel._walletOpts}
     </select>` : ''}
-    <input id="nap-faddr-${txId}" type="text" placeholder="Or type an exchange / address…" />
-    <input id="nap-fnote-${txId}" type="text" placeholder="Optional note…" />
+    <input id="nap-faddr-${txId}" type="text" placeholder="${i18n('orTypeExchange','Or type an exchange / address…')}" />
+    <input id="nap-fnote-${txId}" type="text" placeholder="${i18n('optionalNote','Optional note…')}" />
     <div class="nap-form-row">
-      <button class="btn-annotate-save" onclick="napSaveForward('${txId}')">Save</button>
+      <button class="btn-annotate-save" onclick="napSaveForward('${txId}')">${i18n('save','Save')}</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('nap-form-${txId}').style.display='none'">✕</button>
       <span id="nap-status-${txId}" class="form-status"></span>
     </div>`;
@@ -1443,7 +1606,7 @@ async function napSaveDispose(txId) {
   const cat    = document.getElementById('nap-cat-'  + txId)?.value ?? '';
   const note   = document.getElementById('nap-note-' + txId)?.value ?? '';
   const status = $('nap-status-' + txId);
-  if (status) status.textContent = 'Saving…';
+  if (status) status.textContent = i18n('saving','Saving…');
   try {
     const res = await fetch(`/api/research/annotate/${txId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -1465,7 +1628,7 @@ async function napSaveForward(txId) {
   const dest = walletSel?.value.trim() || addrInput?.value.trim() || '';
   const extra = noteInput?.value.trim() ?? '';
   const note = [dest ? `To: ${dest}` : '', extra].filter(Boolean).join(' · ');
-  if (status) status.textContent = 'Saving…';
+  if (status) status.textContent = i18n('addrSaving','Saving…');
   try {
     const res = await fetch(`/api/research/annotate/${txId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -1496,11 +1659,11 @@ function openDisposeForm(e, btn) {
   ).join('');
 
   formEl.innerHTML = `
-    <div class="af-source-label">From: ${srcName}</div>
+    <div class="af-source-label">${i18n('fromLabel','From:')} ${srcName}</div>
     <select id="af-cat-${txId}">${options}</select>
     <div class="annotate-form-row">
-      <input id="af-note-${txId}" type="text" placeholder="Add a note…" value="${curNote}" />
-      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">Save</button>
+      <input id="af-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${curNote}" />
+      <button class="btn-annotate-save" onclick="saveAnnotation(event,'${txId}')">${i18n('save','Save')}</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
     </div>`;
   formEl.style.display = 'flex';
@@ -1524,14 +1687,14 @@ function openForwardForm(e, btn) {
   }).join('');
 
   formEl.innerHTML = `
-    <div class="af-source-label">From: ${srcTin}</div>
-    <div class="form-hint-mb">Forwarded to…</div>
+    <div class="af-source-label">${i18n('fromLabel','From:')} ${srcTin}</div>
+    <div class="form-hint-mb">${i18n('forwardedTo','Forwarded to…')}</div>
     ${walletOptions ? `<select id="af-twallet-${txId}">
-      <option value="">— pick a tracked wallet —</option>
+      <option value="">${i18n('pickTrackedWallet','— pick a tracked wallet —')}</option>
       ${walletOptions}
     </select>` : ''}
-    <input id="af-taddr-${txId}" type="text" placeholder="Or type an exchange / address / label…" />
-    <input id="af-tnote-${txId}" type="text" placeholder="Optional note…" />
+    <input id="af-taddr-${txId}" type="text" placeholder="${i18n('orTypeExchangeLabel','Or type an exchange / address / label…')}" />
+    <input id="af-tnote-${txId}" type="text" placeholder="${i18n('optionalNote','Optional note…')}" />
     <div class="annotate-form-row">
       <button class="btn-annotate-save" onclick="saveTransfer(event,'${txId}')">Save</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
@@ -1551,7 +1714,7 @@ async function saveTransfer(e, txId) {
   const extra       = noteInput?.value.trim() ?? '';
   const note        = [destination ? `To: ${destination}` : '', extra].filter(Boolean).join(' · ');
 
-  if (statusEl) statusEl.textContent = 'Saving…';
+  if (statusEl) statusEl.textContent = i18n('saving','Saving…');
 
   try {
     const res = await fetch(`/api/research/annotate/${txId}`, {
@@ -1562,7 +1725,7 @@ async function saveTransfer(e, txId) {
     if (!res.ok) throw new Error(await res.text());
     await loadNeedsAttention();
   } catch {
-    if (statusEl) statusEl.textContent = 'Save failed';
+    if (statusEl) statusEl.textContent = i18n('saveFailed','Save failed');
   }
 }
 
@@ -1585,7 +1748,7 @@ function openResultAnnotateForm(e, btn) {
     <select id="af-cat-${txId}">${options}</select>
     <div class="annotate-form-row">
       <input id="af-note-${txId}" type="text" placeholder="Add a note…" value="${curNote}" />
-      <button class="btn-annotate-save" onclick="saveResultAnnotation(event,'${txId}')">Save</button>
+      <button class="btn-annotate-save" onclick="saveResultAnnotation(event,'${txId}')">${i18n('save','Save')}</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('af-${txId}').style.display='none'">✕</button>
     </div>`;
   formEl.style.display = 'flex';
@@ -1632,27 +1795,27 @@ function renderAttPanel(panel, attId, filename, validation, overrideNote) {
     return;
   }
   if (validation.status === 'matched') {
-    panel.innerHTML = `<span class="att-badge att-badge--ok">✓ Receipt verified · ${fname}</span>`;
+    panel.innerHTML = '<span class="att-badge att-badge--ok">' + i18n('receiptVerified','✓ Receipt verified · __F__').replace('__F__',fname) + '</span>';
     return;
   }
   if (validation.status === 'overridden') {
     const noteText = overrideNote ? ` · <em>${overrideNote}</em>` : '';
-    panel.innerHTML = `<span class="att-badge att-badge--warn">Override accepted · ${fname}${noteText}</span>`;
+    panel.innerHTML = '<span class="att-badge att-badge--warn">' + i18n('overrideAccepted','Override accepted · __F__').replace('__F__',fname) + noteText + '</span>';
     return;
   }
   // rejected
   const missList = (validation.mismatches ?? []).map(m => `<li>${m}</li>`).join('');
   panel.innerHTML = `
     <div class="att-rejected">
-      <span class="att-badge att-badge--err">Receipt mismatch · ${fname}</span>
+      <span class="att-badge att-badge--err">${i18n('receiptMismatch','Receipt mismatch · __F__').replace('__F__',fname)}</span>
       ${missList ? `<ul class="att-mismatch-list">${missList}</ul>` : ''}
-      <button class="btn-att-override" onclick="startOverride(event,'${attId}',this)">Override rejection</button>
+      <button class="btn-att-override" onclick="startOverride(event,'${attId}',this)">${i18n('overrideRejection','Override rejection')}</button>
       <div class="att-override-form" id="ovf-${attId}" style="display:none">
-        <p class="att-override-confirm">Are you sure? This receipt doesn't match the transaction data. Provide a reason:</p>
-        <textarea class="att-override-note" id="ovn-${attId}" placeholder="e.g. Fee shown separately, minor rounding…" rows="2"></textarea>
+        <p class="att-override-confirm">${i18n('overrideConfirmPrompt',"Are you sure? This receipt doesn't match the transaction data. Provide a reason:")}</p>
+        <textarea class="att-override-note" id="ovn-${attId}" placeholder="${i18n('overrideNotePlaceholder','e.g. Fee shown separately, minor rounding…')}" rows="2"></textarea>
         <div class="att-override-actions">
-          <button class="btn-att-confirm-override" onclick="confirmOverride(event,'${attId}')">Yes, keep it</button>
-          <button class="btn-att-cancel-override" onclick="cancelOverride(event,'${attId}')">Cancel</button>
+          <button class="btn-att-confirm-override" onclick="confirmOverride(event,'${attId}')">${i18n('yesKeepIt','Yes, keep it')}</button>
+          <button class="btn-att-cancel-override" onclick="cancelOverride(event,'${attId}')">${i18n('cancel','Cancel')}</button>
         </div>
       </div>
     </div>`;
@@ -1673,7 +1836,7 @@ function attachReceipt(e, txId) {
     const file = input.files?.[0];
     if (!file) return;
     const panel = document.getElementById('atp-' + txId);
-    if (panel) panel.innerHTML = '<span class="att-uploading">Uploading & validating…</span>';
+    if (panel) panel.innerHTML = '<span class="att-uploading">' + i18n('uploadValidating','Uploading & validating…') + '</span>';
     const fd = new FormData();
     fd.append('txId',           txId);
     fd.append('file',           file);
@@ -1686,7 +1849,7 @@ function attachReceipt(e, txId) {
       const data = await res.json();
       if (data.ok) {
         if (data.paywalled && panel) {
-          panel.innerHTML = `<span class="att-badge">${data.filename}</span><a class="att-upgrade-hint" href="/dashboard/billing">Upgrade to verify receipts automatically</a>`;
+          panel.innerHTML = '<span class="att-badge">' + data.filename + '</span><a class="att-upgrade-hint" href="/dashboard/billing">' + i18n('upgradeToVerify','Upgrade to verify receipts automatically') + '</a>';
         } else {
           renderAttPanel(panel, data.id, data.filename, data.validation, null);
         }
@@ -1694,7 +1857,7 @@ function attachReceipt(e, txId) {
         if (panel) panel.innerHTML = `<span class="att-error">${data.error ?? 'Upload failed'}</span>`;
       }
     } catch {
-      if (panel) panel.innerHTML = '<span class="att-error">Upload failed — try again</span>';
+      if (panel) panel.innerHTML = '<span class="att-error">' + i18n('uploadFailed','Upload failed — try again') + '</span>';
     }
   };
   input.click();
@@ -1735,7 +1898,7 @@ async function confirmOverride(e, attId) {
     }
   } catch {
     btn.disabled = false;
-    btn.textContent = 'Yes, keep it';
+    btn.textContent = i18n('yesKeepIt','Yes, keep it');
   }
 }
 
@@ -1751,23 +1914,23 @@ function openHelpPanel(e, txId, kind, dir, sym, desc, src) {
     : `No transaction type recorded.`);
 
   const quickBtns = dir === 'out' ? `
-    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Sent to my own wallet')">↗ My own wallet</button>
-    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','sell','')">Sale or trade</button>
-    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','')">Other</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Sent to my own wallet')">${i18n('myOwnWalletOut','↗ My own wallet')}</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','sell','')">${i18n('saleOrTrade','Sale or trade')}</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','')">${i18n('other','Other')}</button>
   ` : `
-    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Received from my own wallet')">↙ My own wallet</button>
-    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','Income or purchase')">Income / purchase</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','own_wallet','Received from my own wallet')">${i18n('myOwnWalletIn','↙ My own wallet')}</button>
+    <button class="help-quick" onclick="helpQuickSave(event,'${txId}','other','Income or purchase')">${i18n('incomePurchase','Income / purchase')}</button>
   `;
 
   el.innerHTML = `
-    <div class="help-panel-title">Help me understand this</div>
+    <div class="help-panel-title">${i18n('helpTitle','Help me understand this')}</div>
     <div class="help-kind-line">${explanation}</div>
     ${desc ? `<div class="help-desc">"${desc}"</div>` : ''}
-    <div class="help-quick-label">What does this represent?</div>
+    <div class="help-quick-label">${i18n('whatDoesRepresent','What does this represent?')}</div>
     <div class="help-quick-row">${quickBtns}</div>
     <div class="help-note-row">
-      <input id="hp-note-${txId}" type="text" class="help-note-input" placeholder="Add any context or explanation…" />
-      <button class="btn-annotate-save" onclick="helpSaveNote(event,'${txId}')">Save note</button>
+      <input id="hp-note-${txId}" type="text" class="help-note-input" placeholder="${i18n('addContextPlaceholder','Add any context or explanation…')}" />
+      <button class="btn-annotate-save" onclick="helpSaveNote(event,'${txId}')">${i18n('saveNote','Save note')}</button>
       <button class="btn-annotate-cancel" onclick="document.getElementById('hp-${txId}').style.display='none'">✕</button>
     </div>`;
   el.style.display = 'flex';
@@ -1787,7 +1950,7 @@ async function helpQuickSave(e, txId, cat, note) {
     await loadNeedsAttention();
   } catch {
     btn.disabled = false;
-    btn.textContent = 'Failed';
+    btn.textContent = i18n('failed','Failed');
   }
 }
 
@@ -1808,7 +1971,7 @@ async function helpSaveNote(e, txId) {
     await loadNeedsAttention();
   } catch {
     btn.disabled = false;
-    btn.textContent = 'Failed';
+    btn.textContent = i18n('failed','Failed');
   }
 }
 
@@ -1838,8 +2001,8 @@ function renderHealthCheck(d) {
       return `${r.source}: ${e}–${l}`;
     });
     cards.push({
-      title:   'Import Coverage',
-      body:    `${sources.length} source${sources.length !== 1 ? 's' : ''}`,
+      title:   i18n('hcImportCoverage','Import Coverage'),
+      body:    i18n('hcSources','__N__ source__S__').replace('__N__',sources.length).replace('__S__',sources.length !== 1 ? 's' : ''),
       detail:  years.slice(0, 4).join('<br>') + (years.length > 4 ? '<br>+more' : ''),
       status:  'ok',
     });
@@ -1850,9 +2013,9 @@ function renderHealthCheck(d) {
   if (Number(pre.total) > 0) {
     const noHash = Number(pre.no_hash ?? 0);
     cards.push({
-      title:  'Pre-2019 Records',
-      body:   `${pre.total} transactions`,
-      detail: `${noHash} without tx hash · ${fmtV(Number(pre.value_usd ?? 0))} exposed`,
+      title:  i18n('hcPre2019','Pre-2019 Records'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',pre.total),
+      detail: i18n('hcNoHash','__N__ without tx hash').replace('__N__',noHash) + ' · ' + i18n('hcExposed','__V__ exposed').replace('__V__',fmtV(Number(pre.value_usd ?? 0))),
       status: noHash > 0 ? 'warn' : 'ok',
     });
   }
@@ -1863,9 +2026,9 @@ function renderHealthCheck(d) {
     const total = nonEvm.reduce((s, r) => s + Number(r.value_usd ?? 0), 0);
     const top   = nonEvm.slice(0, 3).map(r => `${r.asset_symbol} (${r.cnt})`).join(', ');
     cards.push({
-      title:  'Non-EVM Unresolved',
-      body:   `${nonEvm.length} asset${nonEvm.length !== 1 ? 's' : ''}`,
-      detail: `${top}${nonEvm.length > 3 ? ', +more' : ''}<br>${fmtV(total)} total`,
+      title:  i18n('hcNonEvm','Non-EVM Unresolved'),
+      body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',nonEvm.length).replace('__S__',nonEvm.length !== 1 ? 's' : ''),
+      detail: top + (nonEvm.length > 3 ? ', ' + i18n('hcMore','+more') : '') + '<br>' + i18n('hcTotal','__V__ total').replace('__V__',fmtV(total)),
       status: total > 5000 ? 'warn' : 'info',
     });
   }
@@ -1873,9 +2036,9 @@ function renderHealthCheck(d) {
   // P2P
   if (Number(d.p2p?.cnt) > 0) {
     cards.push({
-      title:  'P2P Phone Transfers',
-      body:   `${d.p2p.cnt} transactions`,
-      detail: `${fmtV(Number(d.p2p.value_usd ?? 0))} · Need manual categorization`,
+      title:  i18n('hcP2p','P2P Phone Transfers'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',d.p2p.cnt),
+      detail: fmtV(Number(d.p2p.value_usd ?? 0)) + ' · ' + i18n('hcNeedManual','Need manual categorization'),
       status: 'info',
     });
   }
@@ -1885,8 +2048,8 @@ function renderHealthCheck(d) {
   if (gaps.length) {
     const total = gaps.reduce((s, r) => s + Number(r.cnt ?? 0), 0);
     cards.push({
-      title:  'Missing Prices',
-      body:   `${total} transactions`,
+      title:  i18n('hcMissingPrices','Missing Prices'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',total),
       detail: gaps.map(r => `${r.source}: ${r.cnt}`).slice(0, 4).join('<br>'),
       status: 'warn',
     });
@@ -1897,8 +2060,8 @@ function renderHealthCheck(d) {
   if (orphans.length) {
     const total = orphans.reduce((s, r) => s + Number(r.value_usd ?? 0), 0);
     cards.push({
-      title:  'Unexplained Receipts',
-      body:   `${orphans.length} asset${orphans.length !== 1 ? 's' : ''} · ${fmtV(total)}`,
+      title:  i18n('hcOrphanedIns','Unexplained Receipts'),
+      body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',orphans.length).replace('__S__',orphans.length !== 1 ? 's' : '') + ' · ' + fmtV(total),
       detail: orphans.slice(0, 4).map(r => `${r.asset_symbol} ${fmtV(Number(r.value_usd))}`).join('<br>'),
       status: 'warn',
     });
@@ -1907,9 +2070,9 @@ function renderHealthCheck(d) {
   // Failed exchanges
   if (d.failedExchanges?.length) {
     cards.push({
-      title:  'Failed Exchange Data',
+      title:  i18n('hcFailedExchange','Failed Exchange Data'),
       body:   d.failedExchanges.map(ex => ex.name).join(', '),
-      detail: 'Records imported from failed platforms — verify loss claims and write-offs',
+      detail: i18n('hcFailedExchangeDetail','Records imported from failed platforms — verify loss claims and write-offs'),
       status: 'warn',
     });
   }
@@ -1921,12 +2084,12 @@ function renderHealthCheck(d) {
       const implied = Number(r.implied_price ?? 0);
       const max     = Number(r.max_price ?? 0);
       const ratio   = max > 0 ? Math.round(max / implied) : 0;
-      return `${r.asset_symbol} · ${fmtUsd(r.native_usd)} (${ratio > 0 ? ratio + '× below max' : 'suspect'})`;
+      return `${r.asset_symbol} · ${fmtUsd(r.native_usd)} (${ratio > 0 ? i18n('hcBelowMax','__R__× below max').replace('__R__',String(ratio)) : i18n('hcSuspect','suspect')})`;
     }).join('<br>');
     cards.push({
-      title:  'Suspect Price Data',
-      body:   `${suspPrices.length} transaction${suspPrices.length !== 1 ? 's' : ''}`,
-      detail: sample + '<br><span class="health-card-footnote">Cost basis may be understated</span>',
+      title:  i18n('hcSuspectPrice','Suspect Price Data'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',suspPrices.length),
+      detail: sample + '<br><span class="health-card-footnote">' + i18n('hcCostBasisUnderstated','Cost basis may be understated') + '</span>',
       status: 'warn',
     });
   }
@@ -1938,22 +2101,22 @@ function renderHealthCheck(d) {
     const rows = missingBasis.slice(0, 6).map(r => {
       const val   = fmtUsd(r.snapValueUsd);
       const qty   = Number(r.snapQty ?? 0);
-      let line = `<strong>${r.symbol}</strong> · ${val} current balance`;
+      let line = '<strong>' + r.symbol + '</strong> · ' + val + ' ' + i18n('hcCurrentBalance','current balance');
       if (r.estimatedPrice != null) {
         const estTotal = fmtUsd(r.estimatedTotal ?? r.estimatedPrice * qty);
         const estPer   = fmtUsd(r.estimatedPrice);
         const dateStr  = r.earliestDate ? r.earliestDate.slice(0, 10) : '';
-        line += `<br><span class="health-card-footnote">Est. cost basis ~${estTotal} @ ${estPer}/coin on ${dateStr} — estimate only</span>`;
+        line += '<br><span class="health-card-footnote">' + i18n('hcEstCostBasis','Est. cost basis ~__T__ @ __P__/coin on __D__ — estimate only').replace('__T__',estTotal).replace('__P__',estPer).replace('__D__',dateStr) + '</span>';
       } else if (r.earliestDate) {
-        line += `<br><span class="health-card-footnote">First seen ${r.earliestDate.slice(0, 10)} · no price available</span>`;
+        line += '<br><span class="health-card-footnote">' + i18n('hcFirstSeen','First seen __D__ · no price available').replace('__D__',r.earliestDate.slice(0,10)) + '</span>';
       }
       return line;
     });
-    if (missingBasis.length > 6) rows.push(`<span class="health-card-footnote">…and ${missingBasis.length - 6} more</span>`);
+    if (missingBasis.length > 6) rows.push('<span class="health-card-footnote">' + i18n('hcAndMore','…and __N__ more').replace('__N__',missingBasis.length - 6) + '</span>');
     cards.push({
-      title:  'Missing Cost Basis',
-      body:   `${missingBasis.length} asset${missingBasis.length !== 1 ? 's' : ''} · ${fmtUsd(totalExposed)} in wallet`,
-      detail: rows.join('<br>') + '<br><span class="health-card-footnote">Import missing exchange CSVs to establish cost basis</span>',
+      title:  i18n('hcMissingBasis','Missing Cost Basis'),
+      body:   i18n('hcInWallet','__N__ asset__S__ · __V__ in wallet').replace('__N__',missingBasis.length).replace('__S__',missingBasis.length !== 1 ? 's' : '').replace('__V__',fmtUsd(totalExposed)),
+      detail: rows.join('<br>') + '<br><span class="health-card-footnote">' + i18n('hcImportMissing','Import missing exchange CSVs to establish cost basis') + '</span>',
       status: 'warn',
     });
   }
@@ -1961,15 +2124,15 @@ function renderHealthCheck(d) {
   // Fiat noise
   if (Number(d.fiatNoise) > 0) {
     cards.push({
-      title:  'Fiat as Asset',
-      body:   `${d.fiatNoise} transactions`,
-      detail: 'USD/EUR recorded as asset_symbol — likely noise from stablecoins or CSV quirks',
+      title:  i18n('hcFiatNoise','Fiat as Asset'),
+      body:   i18n('hcTransactions','__N__ transactions').replace('__N__',d.fiatNoise),
+      detail: i18n('hcFiatDetail','USD/EUR recorded as asset_symbol — likely noise from stablecoins or CSV quirks'),
       status: 'info',
     });
   }
 
   if (!cards.length) {
-    grid.innerHTML = '<div class="health-empty">No issues found — dataset looks clean.</div>';
+    grid.innerHTML = '<div class="health-empty">' + i18n('healthNoIssues','No issues found — dataset looks clean.') + '</div>';
     return;
   }
 
@@ -1998,7 +2161,7 @@ function renderHealthCheck(d) {
     }).join('');
     grid.insertAdjacentHTML('beforeend', `
       <div class="health-unresolved-block">
-        <div class="health-unresolved-title">Top unresolved by dollar value</div>
+        <div class="health-unresolved-title">${i18n('healthTopUnresolved','Top unresolved by dollar value')}</div>
         ${topHtml}
       </div>
     `);
@@ -2106,7 +2269,7 @@ function updateCompletionBadge() {
     return !!wizardAnswers[s.key];
   }).length;
   if (answered > 0) {
-    badge.textContent = `${answered}/${WIZARD_STEPS.length} answered`;
+    badge.textContent = i18n('wizardAnswered','__A__/__T__ answered').replace('__A__',answered).replace('__T__',WIZARD_STEPS.length);
     badge.style.display = 'inline-block';
   } else {
     badge.style.display = 'none';
@@ -2205,13 +2368,13 @@ function renderWizardStep() {
   // Nav buttons
   back.style.visibility = wizardStep === 0 ? 'hidden' : 'visible';
   const isLast = wizardStep === total - 1;
-  next.textContent = isLast ? '✓ Save' : 'Next →';
+  next.textContent = isLast ? i18n('wizardSave','✓ Save') : 'Next →';
 }
 
 async function saveWizardAnswers() {
   const next = $('intake-wizard-next');
   next.disabled = true;
-  next.textContent = 'Saving…';
+  next.textContent = i18n('wizardSaving','Saving…');
   try {
     const res = await fetch('/api/research/intake', {
       method: 'POST',
@@ -2224,7 +2387,7 @@ async function saveWizardAnswers() {
   } catch (e) {
     next.textContent = '' + e.message;
     setTimeout(() => {
-      next.textContent = '✓ Save';
+      next.textContent = i18n('wizardSave','✓ Save');
       next.disabled = false;
     }, 2500);
   }
@@ -2256,12 +2419,12 @@ $('btn-run-health')?.addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = 'Running…';
   const grid = $('health-grid');
-  if (grid) grid.innerHTML = '<div class="health-empty">Running diagnostics…</div>';
+  if (grid) grid.innerHTML = '<div class="health-empty">' + i18n('healthRunning','Running diagnostics…') + '</div>';
   await loadHealthCheck();
   const now = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   const lr = $('health-last-run');
-  if (lr) lr.textContent = `Last run: ${now}`;
-  btn.textContent = 'Run diagnostics';
+  if (lr) lr.textContent = i18n('healthLastRun','Last run: __T__').replace('__T__',now);
+  btn.textContent = i18n('btnRunDiagnostics','Run diagnostics');
   btn.disabled = false;
 });
 
@@ -2312,14 +2475,14 @@ async function checkAddress(address) {
   const panel = $('addr-panel');
   const inner = $('addr-panel-inner');
   panel.style.display = 'block';
-  inner.innerHTML = `<div class="addr-loading">Looking up ${address.slice(0,10)}…</div>`;
+  inner.innerHTML = '<div class="addr-loading">' + i18n('addrLoading','Looking up __A__…').replace('__A__',address.slice(0,10)) + '</div>';
 
   try {
     const res  = await fetch('/api/research/address-lookup?address=' + encodeURIComponent(address));
     const data = await res.json();
     renderAddressPanel(data);
   } catch (e) {
-    inner.innerHTML = `<div class="addr-loading">Lookup failed: ${e.message}</div>`;
+    inner.innerHTML = '<div class="addr-loading">' + i18n('addrLookupFailed','Lookup failed: __MSG__').replace('__MSG__',e.message) + '</div>';
   }
 }
 
@@ -2329,7 +2492,7 @@ let lastLookupData = null;
 function renderAddressPanel(data) {
   lastLookupData = data;
   const inner = $('addr-panel-inner');
-  let html = `<div class="addr-panel-title">Address info</div>`;
+  let html = '<div class="addr-panel-title">' + i18n('addrInfoTitle','Address info') + '</div>';
 
   // Resolve the best label for this address
   const resolvedLabel = data.addressLabel || data.globalLabel || data.knownExchange || null;
@@ -2348,7 +2511,7 @@ function renderAddressPanel(data) {
       ⧉ <span class="addr-copy-text">${resolvedLabel}</span>
     </button>`;
     if (labelSource === 'community') {
-      html += `<span class="addr-community-badge">community label</span>`;
+      html += '<span class="addr-community-badge">' + i18n('addrCommunityLabel','community label') + '</span>';
     }
   }
   html += `</div>`;
@@ -2357,7 +2520,7 @@ function renderAddressPanel(data) {
   html += `<div class="addr-info-grid">`;
   if (data.ownWallet) {
     const lbl = data.ownWallet.label || data.ownWallet.address.slice(0,8) + '…';
-    html += `<span class="addr-info-chip own">Your wallet: ${lbl}</span>`;
+    html += '<span class="addr-info-chip own">' + i18n('addrYourWallet','Your wallet: __L__').replace('__L__',lbl) + '</span>';
   }
   if (data.knownExchange) {
     html += `<span class="addr-info-chip exchange">${data.knownExchange}</span>`;
@@ -2369,7 +2532,7 @@ function renderAddressPanel(data) {
     html += `<span class="addr-info-chip label">${data.globalLabel}</span>`;
   }
   if (!data.ownWallet && !data.knownExchange && !data.addressLabel && !data.globalLabel) {
-    html += `<span class="addr-info-chip unknown">Unknown address</span>`;
+    html += '<span class="addr-info-chip unknown">' + i18n('addrUnknown','Unknown address') + '</span>';
   }
   html += `</div>`;
 
@@ -2377,10 +2540,10 @@ function renderAddressPanel(data) {
   if (!data.ownWallet) {
     html += `
       <div id="add-wallet-area">
-        <button class="btn-add-wallet" type="button" id="btn-show-add-wallet">＋ Add as my wallet</button>
+        <button class="btn-add-wallet" type="button" id="btn-show-add-wallet">${i18n('addrAddAsWallet','＋ Add as my wallet')}</button>
         <div id="add-wallet-form" style="display:none" class="add-wallet-form">
-          <input id="add-wallet-label" type="text" placeholder="Wallet label (e.g. My LTC wallet)" class="add-wallet-input" />
-          <input id="add-wallet-symbol" type="text" placeholder="Symbol (e.g. LTC, BTC, ETH)" class="add-wallet-input" style="margin-top:0.4rem" />
+          <input id="add-wallet-label" type="text" placeholder="${i18n('addrWalletLabel','Wallet label (e.g. My LTC wallet)')}" class="add-wallet-input" />
+          <input id="add-wallet-symbol" type="text" placeholder="${i18n('addrSymbolPlaceholder','Symbol (e.g. LTC, BTC, ETH)')}" class="add-wallet-input" style="margin-top:0.4rem" />
           <div class="add-wallet-row">
             <button class="btn-annotate-save" type="button" id="btn-confirm-add-wallet">Save</button>
             <button class="btn-annotate-cancel" type="button" id="btn-cancel-add-wallet">Cancel</button>
@@ -2393,7 +2556,7 @@ function renderAddressPanel(data) {
   // Recent transactions
   const txs = data.recentTxs ?? [];
   if (txs.length) {
-    html += `<div class="addr-txs-label" style="margin-top:0.75rem">Recent transactions</div>`;
+    html += '<div class="addr-txs-label" style="margin-top:0.75rem">' + i18n('addrRecentTxs','Recent transactions') + '</div>';
     for (const t of txs) {
       const dir    = (t.direction ?? '').toLowerCase();
       const absAmt = Math.abs(Number(t.amount ?? 0));
@@ -2451,7 +2614,7 @@ async function saveNewWallet(address) {
   const symbol = $('add-wallet-symbol')?.value ?? '';
   const status = $('add-wallet-status');
   const btn    = $('btn-confirm-add-wallet');
-  if (!label) { if (status) status.textContent = 'Label is required'; return; }
+  if (!label) { if (status) status.textContent = i18n('addrLabelRequired','Label is required'); return; }
 
   const chains = symbolToChains(symbol, address);
 
@@ -2466,7 +2629,7 @@ async function saveNewWallet(address) {
     });
     const data = await res.json();
     if (!res.ok) {
-      if (status) status.textContent = data.message ?? 'Failed to save';
+      if (status) status.textContent = data.message ?? i18n('addrFailedToSave','Failed to save');
       btn.disabled = false;
       return;
     }
