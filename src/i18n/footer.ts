@@ -35,9 +35,9 @@ export const en: FooterLocale = {
   securityLabel: 'security & privacy',
   securityHref: '/security-and-privacy',
   privacyLabel: 'privacy-policy',
-  termsLabel: 'terms of service',
+  termsLabel: 'user agreement',
   privacyAria: 'Privacy Policy',
-  termsAria: 'Terms of Service',
+  termsAria: 'User Agreement',
 };
 
 export const es: FooterLocale = {
@@ -49,9 +49,9 @@ export const es: FooterLocale = {
   securityLabel: 'seguridad y privacidad',
   securityHref: '/security-and-privacy/es',
   privacyLabel: 'política de privacidad',
-  termsLabel: 'términos del servicio',
+  termsLabel: 'acuerdo de usuario',
   privacyAria: 'Política de Privacidad',
-  termsAria: 'Términos del Servicio',
+  termsAria: 'Acuerdo de Usuario',
 };
 
 export const fr: FooterLocale = {
@@ -63,9 +63,9 @@ export const fr: FooterLocale = {
   securityLabel: 'sécurité et confidentialité',
   securityHref: '/security-and-privacy/fr',
   privacyLabel: 'politique de confidentialité',
-  termsLabel: 'conditions d’utilisation',
+  termsLabel: 'accord d’utilisateur',
   privacyAria: 'Politique de Confidentialité',
-  termsAria: 'Conditions d’Utilisation',
+  termsAria: 'Accord d’Utilisation',
 };
 
 const MAP: Record<Lang, FooterLocale> = { en, es, fr };

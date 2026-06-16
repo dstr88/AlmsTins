@@ -1,16 +1,12 @@
-// Terms of Service — consolidated ToS, all user-visible copy (EN · ES · FR).
-//
-// Rendered by src/components/terms-of-service.astro (inline <details> on some
-// pages, and as the footer "terms of service" modal via Footer.astro). The
-// component receives a `lang` prop and selects the locale with getTerms(lang);
-// the modal inherits whatever language the page passed to the Footer, so there
-// are no per-locale routes for this surface.
+// User Agreement — replaces the prior Terms of Service as of 2026-06-16.
+// EN is the authoritative language. ES and FR display the English body until
+// counsel finalizes the agreement and a qualified legal translator produces
+// reviewed ES/FR versions.
 //
 // `body` is developer-controlled HTML rendered with set:html (legal markup with
 // <strong>/<ul>/<a>, etc.). Crypto jargon (wallet, token, phishing, honeypot,
 // blockchain) and all proper nouns (Almstins, Stripe, OFAC, Tennessee…) are kept
-// in English per design.claude.md. ES/FR are first-pass legal copy — gate behind
-// counsel + a fluent reviewer before treating as authoritative.
+// in English per design.claude.md.
 
 import type { Lang } from '@/lib/i18n/locale';
 
@@ -20,825 +16,227 @@ export interface TermsLocale {
   summaryLabel: string;
   /** aria-label for the footer modal dialog. */
   ariaLabel: string;
-  /** Full Terms of Service body — HTML, rendered with set:html. */
+  /** Full User Agreement body — HTML, rendered with set:html. */
   body: string;
 }
 
 export const en: TermsLocale = {
   lang: 'en',
-  summaryLabel: 'Terms of Service',
-  ariaLabel: 'Terms of Service',
+  summaryLabel: 'User Agreement',
+  ariaLabel: 'User Agreement',
   body: `
-<h1>Terms of Service</h1>
-<p><strong>Last updated: June 15, 2026</strong></p>
+<h1>ALMSTINS USER AGREEMENT</h1>
 
-<p>
-  Welcome to Almstins ("we", "us", "our"). These Terms govern your use of almstins.com and
-  everything we offer there — the free <strong>Wallet &amp; Website Checker</strong>, the
-  <strong>portfolio &amp; wallet tracker</strong>, the <strong>bookkeeping, tax-breakdown, and
-  year-summary</strong> tools, any dashboard feature, and any related service (collectively, the
-  "Service"). <strong>By accessing or using the Service, you agree to these Terms</strong> — whether
-  or not you create an account. If you do not agree, please do not use the Service.
-</p>
+<p><strong>Effective Date:</strong> June 16, 2026 &nbsp;·&nbsp; <strong>Version:</strong> DRAFT 1.0<br/>
+<strong>Operator:</strong> Almstins, a product of TitaniumHut ("Almstins," "we," "us," "our")</p>
 
-<h2>1. Beta Software — Independent, Read-Only, Verifiable</h2>
-<p>
-  Almstins is in <strong>beta</strong>. That means we are still learning what advisories need, what
-  emerging-market users need, and what the next layer of security looks like. We are building this
-  openly and iterating based on real feedback.
-</p>
-<p>
-  Being in beta does not mean the code is unstable or your data is at risk. It means features may evolve,
-  and we may introduce new ones based on user feedback. The core promise—read-only access, no wallet
-  connection, verifiable against the chain—is architectural, not provisional.
-</p>
-<p>
-  <strong>Verify everything against the chain.</strong> Because Almstins reads public blockchain data,
-  you can cross-check every balance, every transaction, every calculation yourself. That's the point.
-</p>
+<blockquote><p>⚠️ <strong>DRAFT — NOT YET LEGAL ADVICE.</strong> This document was prepared to be reviewed and finalized by a qualified attorney before it is published or relied upon. It is written to be protective and comprehensive, but it has not been reviewed by counsel. Items in <strong>[COUNSEL: …]</strong> brackets mark decisions that require a lawyer's judgment. Do not rely on this as your operative agreement until counsel has approved it and it is properly presented to users for assent (clickwrap).</p></blockquote>
 
-<h2>2. Eligibility, Sanctions &amp; Geographic Restrictions</h2>
-<p>You may <strong>not</strong> use Almstins if you are:</p>
+<blockquote><p><strong>Scope &amp; precedence.</strong> This is the single canonical contract governing your use of Almstins. It is organized as <strong>Part A — General Terms</strong> (apply to all of Almstins) and <strong>Part B — Supplemental Terms</strong> (apply only to specific features, called "Surfaces"). If a Part B Supplemental Term conflicts with a Part A General Term, <strong>the Supplemental Term controls for that Surface only.</strong> The <strong>Privacy Policy</strong> is incorporated by reference. <strong>PetroTins</strong> (tradfitins.com) is a separate product governed by its own terms and is <strong>not</strong> covered by this Agreement.</p></blockquote>
+
+<hr/>
+
+<h2>PREAMBLE — ACCEPTANCE AND ARCHITECTURAL BOUNDARIES</h2>
+
+<p><strong>P.1 Agreement.</strong> By accessing or using Almstins in any way — including visiting the website, using the public wallet or website checker, creating an account, or subscribing — you acknowledge that you have read, understood, and agree to be bound by this User Agreement and the Privacy Policy. <strong>If you do not agree, do not use Almstins.</strong></p>
+
+<p><strong>P.2 Who may agree.</strong> You represent that you are at least 18 years old and have the legal capacity and authority to enter into this Agreement.</p>
+
+<p><strong>P.3 What Almstins is.</strong> Almstins is informational software: a cryptocurrency portfolio tracker, bookkeeping tool, and safety-verification platform. Almstins is <strong>not</strong> a wallet, exchange, broker, custodian, money transmitter, payment processor, investment adviser, tax preparer, accountant, law firm, or compliance/AML service. Almstins is currently offered on a <strong>beta</strong> basis and is intended for exploration and organization, not as a sole source of financial, tax, or legal truth.</p>
+
+<p><strong>P.4 Architectural Trust Boundaries (these govern every Surface).</strong> The following are architectural guarantees, not merely promises. They define what Almstins is and constrain everything below:</p>
+
 <ul>
-  <li>A person, entity, or organization listed on any OFAC (Office of Foreign Assets Control) sanctions list or otherwise subject to U.S. or international economic sanctions</li>
-  <li>Operating under jurisdictions that prohibit or restrict cryptocurrency use, where using Almstins would violate local law</li>
-  <li>Using the Service to evade capital controls, foreign exchange restrictions, or to circumvent lawful financial reporting requirements of your jurisdiction</li>
-  <li>Using the Service to facilitate money laundering, terrorist financing, fraud, or other financial crimes</li>
-</ul>
-<p>
-  <strong>Geographic restrictions and your representation.</strong> Almstins and its affiliates do not
-  offer the Service to, or conduct business with, any individual, entity, or jurisdiction restricted
-  under applicable economic sanctions laws or prohibited by our payment and compliance providers.
-  <strong>By accessing or using the Service, you represent and warrant that you are not located in,
-  ordinarily resident in, or accessing the Service from any comprehensively sanctioned jurisdiction —
-  including Cuba, Iran, North Korea, Syria, or the Crimea, Donetsk, or Luhansk regions of Ukraine.</strong>
-  We may use geolocation to restrict access from these locations; this representation applies in addition
-  to, and independent of, any technical control.
-</p>
-<p>
-  If you are subject to any of these restrictions, you may not create an account or access the Service.
-  Continued use in violation of this section may result in immediate termination of your account and
-  reporting to appropriate authorities as required by law.
-</p>
-
-<h2>3. What Almstins Is — and Is Not</h2>
-<p>
-  Almstins is an <strong>investment-tracking, bookkeeping, and safety tool</strong>. It helps you see
-  where your crypto holdings are and how they have moved, organize your transactions and cost basis,
-  and check wallet addresses and websites before you send funds.
-</p>
-<p>Almstins is <strong>not</strong>:</p>
-<ul>
-  <li>A tax preparation service</li>
-  <li>A tax advisor or accountant</li>
-  <li>A financial advisor or investment advisor</li>
-  <li>A legal service</li>
-  <li>A certified or regulated financial product</li>
-  <li>A custodian, wallet, or exchange — it never holds, moves, or has access to your funds</li>
-</ul>
-<p>
-  Any tax-related summaries, cost-basis estimates, gain/loss figures, bookkeeping views, or safety
-  results are provided for <strong>informational and organizational purposes only</strong>. They are
-  not advice of any kind and are not a substitute for a qualified professional. You are solely
-  responsible for your own decisions, tax filings, reporting, and compliance.
-</p>
-
-<h2>4. The Service — Specific Features</h2>
-
-<h3>4a. Wallet &amp; Website Scam Checker</h3>
-<p>
-  The Checker is a <strong>free, informational</strong> tool. It queries public third-party reputation
-  databases (such as GoPlus, OFAC sanctions data, honeypot.is, Chainabuse, MetaMask's phishing list,
-  ScamSniffer, URLScan, and OpenPhish) and reports what they say.
-</p>
-<ul>
-  <li><strong>Attribution, not verdict.</strong> We report what third-party databases report. We do not independently investigate, verify, or declare any address or website a scam — or safe.</li>
-  <li><strong>No guarantee, either way.</strong> A "clean" or "looks safe" result means only that no source we checked has flagged it — not that it is safe. A flagged result reflects a third-party report, not our own determination. New scams appear faster than databases update.</li>
-  <li><strong>No reliance.</strong> The Checker is one signal among many. <strong>You must independently verify any address or website before sending funds or connecting a wallet.</strong> We are not liable for any loss resulting from reliance on Checker results.</li>
-  <li>Any community signals (flags, trust badges, reviews), where and if offered, are informational only and are <strong>not</strong> a guarantee of safety, legitimacy, or quality.</li>
+<li><strong>(a) Read-only · no custody · no movement.</strong> Almstins never holds private keys, never requests signing permission, and never initiates, routes, settles, or moves any transaction or asset. A compromise of Almstins cannot move your funds.</li>
+<li><strong>(b) No attribution.</strong> Almstins never links a blockchain address to a legal identity. We do not perform KYC, identity verification, address clustering, or de-anonymization. "Who is the person behind this wallet?" is permanently out of scope. The permitted opposite — you using your own records to evidence your own ownership — is supported.</li>
+<li><strong>(c) Tenant isolation.</strong> Your data is isolated from every other user and from any operator. No user, and no white-label operator, can access another tenant's or any end user's data.</li>
+<li><strong>(d) White-label purpose limit.</strong> Any white-label or embedded deployment provides software and branding only — never a window into users, and never a tool to monitor, profile, or track third parties.</li>
 </ul>
 
-<h3>4b. Portfolio &amp; Wallet Tracker</h3>
-<p>
-  The tracker reads <strong>public</strong> blockchain data for wallet addresses you voluntarily provide,
-  together with data you import (such as exchange CSVs and manual entries), to show balances, holdings,
-  and performance over time.
-</p>
+<p><strong>P.5 Changes.</strong> We may modify this Agreement. Material changes will be notified by email or in-product notice and become effective for existing users thirty (30) days after posting (immediately for new users). Continued use after the effective date constitutes acceptance. [COUNSEL: confirm notice mechanics.]</p>
+
+<hr/>
+
+<h1>PART A — GENERAL TERMS</h1>
+
+<h2>A.1 Definitions</h2>
 <ul>
-  <li><strong>Read-only, no custody, no connection.</strong> Almstins never requests your private keys, seed phrase, or any wallet connection, and never holds or moves funds. A breach of Almstins cannot move a single coin.</li>
-  <li><strong>You supply the addresses.</strong> You are responsible for the wallet addresses and records you choose to track. Almstins does not link any address to your identity (see §10).</li>
-  <li><strong>Accuracy depends on your inputs and on third-party data.</strong> Balances, prices, and history come from public sources and your imports and may be delayed, incomplete, or wrong. "Garbage in, garbage out": incomplete or inaccurate inputs produce unreliable figures.</li>
+<li><strong>"Service" / "Almstins"</strong> — all Almstins websites, applications, APIs, and features.</li>
+<li><strong>"Surface"</strong> — a distinct feature area governed by a Part B Supplemental Term (e.g., the Public Checker, the Tracker, the Community Trust Layer).</li>
+<li><strong>"Visitor"</strong> — any person using a Surface without signing in.</li>
+<li><strong>"Member"</strong> — a person with an Almstins account (free or paid).</li>
+<li><strong>"Community Content"</strong> — fraud flags, address claims, reviews, and any other user-contributed signal.</li>
+<li><strong>"Content"</strong> — any data, text, images, documents, or other material you provide or upload.</li>
+<li><strong>"Third-Party Services"</strong> — external services Almstins integrates with or links to.</li>
 </ul>
 
-<h3>4c. Bookkeeping, Tax Breakdown &amp; Year Summary</h3>
-<p>
-  The bookkeeping tools organize your transactions and compute informational figures — cost basis,
-  realized and unrealized gains/losses, reconciliation, and a year-end summary you can hand to a
-  professional.
-</p>
-<ul>
-  <li><strong>Not tax advice.</strong> Cost-basis and gain/loss figures are informational estimates based solely on the data you provide. They are not tax advice and may not be defensible without professional review.</li>
-  <li><strong>You must consult a qualified professional.</strong> Different transactions can be treated differently (staking, airdrops, bridges, cost-basis method, wash sales). A tax professional may override or recalculate any figure. You are solely responsible for your filings.</li>
-  <li><strong>No guarantee of tax treatment.</strong> Even if our figures are correct, a tax authority may dispute your characterization, apply different treatment, or assess penalties. Almstins is not liable for tax outcomes, audits, or penalties.</li>
-</ul>
+<h2>A.2 Eligibility, Sanctions &amp; Geographic Restrictions</h2>
+<p><strong>A.2.1</strong> You must be 18+ and legally permitted to use the Service in your jurisdiction.<br/>
+<strong>A.2.2</strong> You represent and warrant that you are not a person with whom transactions are prohibited under economic or trade sanctions laws (including U.S. OFAC programs), and that you are not located in, ordinarily resident in, or accessing the Service from any comprehensively sanctioned jurisdiction — <strong>including Cuba, Iran, North Korea, Syria, or the Crimea, Donetsk, or Luhansk regions of Ukraine.</strong><br/>
+<strong>A.2.3</strong> We do not offer the Service to, or conduct business with, any individual, entity, or jurisdiction restricted under applicable sanctions laws or prohibited by our payment or compliance providers.<br/>
+<strong>A.2.4</strong> We apply geographic access controls (including IP-based geo-blocking) on a best-effort basis; these controls may fail open and are not guaranteed. [COUNSEL: fail-open vs. fail-closed; enumerated list vs. general statement; SDN name-screening for the free tier.]</p>
 
-<h2>5. Accounts &amp; Sign-In</h2>
-<p>
-  You access account features by signing in (for example, with Google or GitHub). You agree to keep your
-  sign-in secure, to provide accurate information, and that you are responsible for all activity under your
-  account. We collect only the email associated with your sign-in to identify your account — see our
-  Privacy Policy for details.
-</p>
+<h2>A.3 Accounts and Sign-In</h2>
+<p><strong>A.3.1</strong> You may sign in via supported OAuth providers (Google, GitHub) or by email. We do not collect or store your name; a provider-supplied name is discarded.<br/>
+<strong>A.3.2</strong> You are responsible for safeguarding access to your account and for all activity under it. Notify us promptly of any unauthorized use.<br/>
+<strong>A.3.3</strong> We may suspend or terminate accounts as set out in A.17.</p>
 
-<h2>6. Subscriptions and Paid Features</h2>
-<p>
-  Almstins offers optional paid subscription plans. By subscribing you agree to:
-</p>
-<ul>
-  <li>Pay the fees described at the time of purchase</li>
-  <li>Allow Stripe (our payment processor) to charge your selected payment method</li>
-  <li>The cancellation and refund policies presented at checkout</li>
-</ul>
-<p>
-  Subscriptions are billed through Stripe. We do not store your payment card details.
-  Subscriptions may be cancelled at any time from the billing settings in your dashboard.
-  We reserve the right to change pricing with reasonable notice to active subscribers.
-</p>
+<h2>A.4 License to Use the Service</h2>
+<p>Subject to this Agreement, we grant you a limited, non-exclusive, non-transferable, non-sublicensable, revocable license to access and use the Service for your personal or internal business record-keeping and safety-verification purposes. All rights not expressly granted are reserved.</p>
 
-<h2>7. No Warranty — "As Is" and "As Available"</h2>
-<p>
-  The Service is provided <strong>AS IS</strong> and <strong>AS AVAILABLE</strong>, with no
-  warranties of any kind — express, implied, or statutory. We specifically disclaim:
-</p>
-<ul>
-  <li>Any warranty of accuracy, completeness, or reliability of data</li>
-  <li>Any warranty of fitness for a particular purpose</li>
-  <li>Any warranty that the Service will be uninterrupted, error-free, or secure</li>
-  <li>Any warranty regarding the accuracy of third-party price feeds, blockchain data, or scam databases</li>
-</ul>
-<p>You use the Service entirely at your own risk.</p>
+<h2>A.5 Acceptable Use</h2>
+<p>You will not, and will not attempt to: (a) provide false or misleading information; (b) use the Service in violation of any law or to facilitate illegal activity, money laundering, terrorist financing, fraud, or sanctions evasion; (c) impersonate any person or entity or misrepresent your affiliation; (d) access, tamper with, or use non-public areas or other users' data; (e) reverse engineer, decompile, or derive source code except as permitted by law; (f) interfere with, disrupt, overburden, or degrade the Service; (g) circumvent rate limits, access controls, or usage quotas; (h) use any robot, spider, scraper, or automated means to access the Service or extract data except as expressly permitted; (i) harvest or collect data enabling contact with individuals or entities, or use Service data for direct marketing; or (j) submit Community Content in violation of Part B.4. Any unauthorized use terminates the licenses granted herein.</p>
 
-<h2>8. Limitation of Liability</h2>
-<p>
-  To the fullest extent permitted by law, Almstins, its creator (Donnie Starkey / Titanium Hut),
-  contributors, and affiliates will <strong>not be liable</strong> for any damages arising from
-  your use of or inability to use the Service — including direct, indirect, incidental, special,
-  consequential, or punitive damages — even if we have been advised of the possibility of such
-  damages.
-</p>
-<p>This includes, without limitation:</p>
-<ul>
-  <li>Financial losses or investment decisions made based on Service data</li>
-  <li>Tax penalties, audits, or filing errors</li>
-  <li>Data loss or inaccurate portfolio calculations</li>
-  <li>Losses resulting from reliance on Wallet &amp; Website Checker results</li>
-  <li>Service downtime or feature removal during beta</li>
-</ul>
-<p>
-  If any jurisdiction does not allow this limitation, our liability is limited to the maximum
-  extent permitted by applicable law.
-</p>
+<h2>A.6 Intellectual Property</h2>
+<p>The Service, and all related software, content, and trademarks ("Almstins Marks"), are owned by Almstins and its licensors and protected by law. Except as expressly permitted (including the limited merchant trademark license in B.5), you may not use the Almstins Marks without our prior written consent. Open-source components remain governed by their respective licenses.</p>
 
-<h2>9. Your Responsibilities</h2>
-<p>You agree to:</p>
-<ul>
-  <li>Use the Service only for lawful purposes</li>
-  <li>Not attempt to hack, scrape, abuse, or disrupt the hosted Service or its infrastructure, or interfere with other users' data or experience</li>
-  <li>Not use the Service to commit fraud, evade taxes, or violate any applicable law</li>
-  <li>Keep your login credentials secure — you are responsible for all activity under your account</li>
-  <li>Provide accurate information when creating an account or uploading transaction data</li>
-</ul>
-<p>
-  You are solely responsible for any tax reporting, financial decisions, or legal obligations
-  related to the wallets, transactions, or data you track using the Service.
-</p>
+<h2>A.7 Your Data and Content</h2>
+<p><strong>A.7.1</strong> As between you and Almstins, your Content is yours. We claim <strong>no</strong> ownership of it.<br/>
+<strong>A.7.2</strong> You grant us only the limited license necessary to host, process, and display your Content <strong>to you</strong> for the purpose of operating the Service (for example, computing cost basis, rendering your dashboard, generating your reports). We do not use your Content for advertising, profiling, resale, or training, and we do not share it with third parties except as described in the Privacy Policy. (Community Content is licensed separately under B.4.)<br/>
+<strong>A.7.3</strong> You represent that you have the right to provide your Content and that it does not infringe the rights of others.</p>
 
-<h2>10. Architectural Privacy Guarantees — What Almstins Will Never Do</h2>
-<p>
-  Almstins is built on four non-negotiable architectural principles that will never change:
-</p>
+<h2>A.8 Third-Party Services</h2>
+<p>The Service integrates with and relies on Third-Party Services, which may include GitHub and Google (sign-in), Stripe (billing), Alchemy, Etherscan, Blockstream (blockchain data), CoinGecko and Coinpaprika (prices), GoPlus Security, VirusTotal, and Chainabuse (risk data), Anthropic/Claude (optional AI features), Turso (database), Render (hosting), Google Analytics, and an email/SMTP provider. We share only the minimum data necessary. We are not responsible for Third-Party Services, and your use of them may be governed by their own terms. We do not endorse and are not liable for any third-party site, protocol, exchange, or "ecosystem partner" you reach through or evaluate using the Service.</p>
+
+<h2>A.9 Subscriptions, Billing, Renewal, and Refunds</h2>
+<p><strong>A.9.1</strong> Paid plans and their features and prices are published on the Service. Billing is handled by Stripe; we do not see or store your card details.<br/>
+<strong>A.9.2 Auto-renewal.</strong> Paid subscriptions renew automatically at the then-current price until cancelled. You authorize recurring charges. [COUNSEL: confirm auto-renewal disclosure satisfies California ARL and EU requirements.]<br/>
+<strong>A.9.3 Cancellation.</strong> You may cancel at any time; cancellation stops future renewals and takes effect at the end of the current billing period.<br/>
+<strong>A.9.4 Refunds.</strong> [COUNSEL: insert refund policy.]<br/>
+<strong>A.9.5 Price changes.</strong> We may change prices with prior notice; changes apply to the next billing cycle.</p>
+
+<h2>A.10 Disclaimer of Warranties</h2>
+<p>TO THE FULLEST EXTENT PERMITTED BY LAW, THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITH ALL FAULTS AND WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, TIMELY, SECURE, ERROR-FREE, OR THAT ANY DATA, PRICE, CALCULATION, OR SAFETY RESULT WILL BE ACCURATE, COMPLETE, OR RELIABLE. NO ADVICE OR INFORMATION OBTAINED FROM THE SERVICE CREATES ANY WARRANTY NOT EXPRESSLY STATED HERE.</p>
+
+<h2>A.11 Limitation of Liability</h2>
+<p><strong>A.11.1</strong> TO THE FULLEST EXTENT PERMITTED BY LAW, IN NO EVENT WILL ALMSTINS OR ITS OPERATORS, AFFILIATES, OR SUPPLIERS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, DATA, CRYPTOCURRENCY, OR DIGITAL ASSETS, OR FOR LOSSES ARISING FROM YOUR RELIANCE ON ANY SAFETY RESULT, PRICE, CALCULATION, OR TAX FIGURE, OR FROM ANY TRANSACTION YOU CHOOSE TO MAKE OR NOT MAKE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.<br/>
+<strong>A.11.2 Cap.</strong> OUR TOTAL AGGREGATE LIABILITY FOR ANY CLAIM ARISING OUT OF OR RELATING TO THE SERVICE WILL NOT EXCEED THE GREATER OF (i) THE AMOUNTS YOU PAID US FOR THE SERVICE IN THE TWELVE (12) MONTHS PRECEDING THE CLAIM, OR (ii) ONE HUNDRED U.S. DOLLARS ($100). [COUNSEL: confirm cap.]<br/>
+<strong>A.11.3 Free Surfaces.</strong> FOR ANY SURFACE YOU USE WITHOUT PAYMENT (INCLUDING THE PUBLIC CHECKER), TO THE EXTENT PERMITTED BY LAW YOUR SOLE REMEDY IS TO STOP USING IT, AND YOU ARE LIMITED TO INJUNCTIVE RELIEF.<br/>
+<strong>A.11.4</strong> Paid safety Surfaces carry their own scope and limitations as set out in B.5. Nothing in this Section excludes liability that cannot be excluded by law (such as for fraud or death/personal injury caused by our negligence).</p>
+
+<h2>A.12 Indemnification</h2>
+<p>You agree to indemnify, defend, and hold harmless Almstins and its operators, affiliates, and suppliers from any claims, losses, liabilities, damages, costs, and expenses (including reasonable attorneys' fees) arising out of or relating to: (a) your Content or Community Content; (b) your use of, or inability to use, the Service; (c) your violation of this Agreement; (d) your violation of any law or any right of any third party (including any business or address owner affected by a flag, review, claim, or badge you submit); or (e) any transaction you enter. We may assume exclusive defense of any matter subject to indemnification, and you will cooperate.</p>
+
+<h2>A.13 Your Responsibilities; Accuracy</h2>
+<p>You are solely responsible for the accuracy and completeness of all data you provide or import. Almstins cannot verify imported CSVs, synced data, or manual entries. Incomplete or incorrect data will produce unreliable outputs, which flow through to reports, P&amp;L, and tax figures. You must verify completeness (all sources imported, all syncs successful) and accuracy (prices, classifications, cost basis) yourself.</p>
+
+<h2>A.14 Availability, Changes, Data Loss, Force Majeure</h2>
+<p>The Service may experience downtime, outages, errors, or interruptions, and features may be modified, deprecated, or discontinued at any time. While we maintain reasonable backups, no system is fully secure against loss or corruption; you should keep your own backups, and deleted data is permanent and unrecoverable. We are not liable for delays or failures caused by events beyond our reasonable control.</p>
+
+<h2>A.15 Term and Termination</h2>
+<p>This Agreement applies while you use the Service. You may stop using the Service at any time. We may suspend or terminate your access for any reason in our discretion, including breach of this Agreement, without liability. Provisions that by their nature should survive (including A.6, A.7, A.10–A.12, A.18–A.21, and applicable Part B disclaimers) survive termination. If your access is terminated, you will not attempt to re-access through another account.</p>
+
+<h2>A.16 Compliance with Laws</h2>
+<p>You agree to use the Service only in compliance with all applicable laws, including tax, sanctions/AML, securities, export-control, and privacy laws. You warrant that your use is lawful in your jurisdiction.</p>
+
+<h2>A.17 No Professional Advice</h2>
+<p>Almstins does not provide and expressly disclaims tax, financial, investment, legal, or accounting advice. Outputs are informational only. You must consult a qualified professional before filing taxes, making investment decisions, or relying on any output for a legal or financial purpose.</p>
+
+<h2>A.18 Dispute Resolution; Arbitration; Class Waiver</h2>
+<p><strong>A.18.1 Informal resolution first.</strong> Before filing any claim, you agree to contact support@titaniumhut.com with a description of the dispute and to attempt good-faith resolution for thirty (30) days.<br/>
+<strong>A.18.2 Binding arbitration.</strong> If not resolved, any dispute arising out of or relating to this Agreement or the Service will be resolved by <strong>final and binding arbitration</strong>, not in court, except as stated below. Arbitration will be seated in <strong>Cookeville, Tennessee</strong>, conducted in English. [COUNSEL: select arbitral body/rules; confirm seat.]<br/>
+<strong>A.18.3 Class-action waiver.</strong> Disputes will be conducted only on an individual basis. You and Almstins waive any right to bring or participate in a class, collective, consolidated, or representative action. [COUNSEL: enforceability review.]<br/>
+<strong>A.18.4 Exceptions.</strong> Either party may bring an individual claim in small-claims court and may seek injunctive relief to protect intellectual property.</p>
+
+<h2>A.19 Governing Law</h2>
+<p>This Agreement is governed by the laws of the <strong>State of Tennessee</strong>, without regard to conflict-of-laws rules. Subject to A.18, the exclusive venue for any permitted court action is the state or federal courts located in <strong>Cookeville, Tennessee</strong>.</p>
+
+<h2>A.20 General Provisions</h2>
+<p>This Agreement (with the Privacy Policy and any Supplemental Terms) is the entire agreement between you and Almstins and supersedes prior agreements. If any provision is unenforceable, it will be reformed to the minimum extent necessary and the remainder stays in effect. You may not assign this Agreement; we may. Our failure to enforce a provision is not a waiver. Headings are for convenience only.</p>
+
+<h2>A.21 Contact</h2>
+<p>Legal: legal@titaniumhut.com · Support: support@titaniumhut.com · Privacy: privacy@titaniumhut.com</p>
+
+<hr/>
+
+<h1>PART B — SUPPLEMENTAL TERMS (BY SURFACE)</h1>
+
+<h2>B.1 Public Wallet &amp; Website Safety Checker (free, no login)</h2>
+<p><strong>B.1.1</strong> The Checker reports safety information about a blockchain address or website by querying third-party databases (including GoPlus, OFAC lists, honeypot detection, Etherscan/Alchemy, Chainabuse, MetaMask, ScamSniffer, URLScan, OpenPhish, and VirusTotal).<br/>
+<strong>B.1.2 Attribution, not verdict.</strong> All findings are <strong>reported from third-party sources and are not independently verified by Almstins.</strong> A result indicating no detected threat means only that no source has flagged the item <strong>at this time</strong> — it is <strong>not</strong> a guarantee of safety, legitimacy, or quality. A result indicating a detected risk reflects a third-party report, not a legal determination.<br/>
+<strong>B.1.3 No reliance.</strong> The Checker is informational and is not financial, legal, or security advice. You must exercise your own judgment and conduct your own research before transacting. To the extent permitted by law, Almstins has no liability for any action you take or do not take based on a Checker result. [COUNSEL: review the imperative "do not connect" wording for added exposure.]<br/>
+<strong>B.1.4</strong> The Checker is provided free and best-effort; A.11.3 applies.<br/>
+<strong>B.1.5</strong> Automated or bulk access to the Checker is prohibited except under a separate written agreement.</p>
+
+<h2>B.2 Portfolio &amp; Wallet Tracker (read-only)</h2>
+<p><strong>B.2.1</strong> The Tracker reads public blockchain data for addresses <strong>you supply</strong> and data <strong>you import</strong>. You never connect a wallet and never provide keys or signing permission.<br/>
+<strong>B.2.2</strong> You are responsible for the accuracy and completeness of supplied addresses and imported records (A.13).<br/>
+<strong>B.2.3</strong> On-chain and exchange figures may differ due to caching, dust filtering, unpriced or scam tokens, sync timing, and the limits of third-party data. Displayed values are estimates, not statements of account.</p>
+
+<h2>B.3 Bookkeeping, Tax Breakdown &amp; Year Summary</h2>
+<p><strong>B.3.1 Not tax advice; no filing.</strong> Bookkeeping, cost-basis, gain/loss, reconciliation, and Year Summary outputs are <strong>informational only</strong>. Almstins does not file returns, does not determine your tax liability, and does not provide tax advice. You must consult a qualified tax professional, who may override or recalculate any figure.<br/>
+<strong>B.3.2 Method.</strong> Cost basis is computed using weighted-average cost unless otherwise stated; other methods, wash-sale tracking, state/local tax, and non-US jurisdictions are your responsibility.<br/>
+<strong>B.3.3 No guarantee of treatment.</strong> Even if a calculation is accurate, tax authorities may treat a transaction differently; Almstins is not liable for any assessment, penalty, interest, audit, or dispute.<br/>
+<strong>B.3.4 Historical data.</strong> Older or pre-2018 transactions may lack on-chain verification or pricing; gaps from failed exchanges or lost access must be reconstructed by you. Almstins can help organize reconstructed data but cannot supply missing data.</p>
+
+<h2>B.4 Community Trust Layer — Flags, Reviews, Claims, Badges</h2>
+<blockquote><p><em>This Surface may not be enabled in all regions or at all times. Terms apply when and where it is offered.</em></p></blockquote>
+
+<p><strong>B.4.1 What it is.</strong> Members may contribute <strong>fraud flags</strong>, <strong>reviews</strong>, and <strong>address claims</strong>, which may surface aggregated, anonymized safety signals (including a <strong>trust badge</strong>) to other users. Reading safety information is open to all; <strong>contributing</strong> is gated by membership tier as described in-product.<br/>
+<strong>B.4.2 License and representations.</strong> You grant Almstins a worldwide, royalty-free, sublicensable license to store, aggregate, display, and distribute your Community Content in anonymized and aggregated form for the purpose of operating the Surface. You represent that each contribution is made in good faith and is accurate to the best of your knowledge, and that you have the firsthand basis described below.<br/>
+<strong>B.4.3 Reviews — verified interaction; structured only.</strong> Reviews are limited to predefined selections (e.g., "transaction completed as expected," "did not receive what was expected," "suspected fraud"); <strong>no free text, no star ratings, and no reviewer identity is collected or displayed.</strong> Only aggregate counts are shown. You may review an address only where your tracked records reflect a transaction with that address; by submitting a review you represent that you transacted with it. One review per member per address (latest value controls).<br/>
+<strong>B.4.4 Claims — control proof; anti-impersonation.</strong> Claiming an address asserts that <strong>you control it.</strong> Claiming is on a first-claimer basis. You may be required to prove control through an out-of-band method (for example, a wallet-generated signature of a one-time message that you provide to us) — <strong>Almstins never asks you to connect a wallet or provide keys.</strong> Claiming an address you do not control, or to impersonate a business, is prohibited and a material breach, and you indemnify Almstins for resulting claims (A.12).<br/>
+<strong>B.4.5 Trust badge disclaimer.</strong> A trust badge means only that an address has been claimed by a verified member and was clear of automated checks at the relevant time. <strong>It is NOT a guarantee of safety, legitimacy, solvency, or quality, and is not a recommendation.</strong> Where both a badge and a fraud signal exist, both are shown; you must consider all displayed signals before transacting. This disclaimer is also presented at the point of display.<br/>
+<strong>B.4.6 Moderation; no duty to monitor.</strong> Almstins may remove, refuse, or decline to surface any flag, review, or claim, and may investigate suspected abuse, <strong>in its sole discretion and with no obligation to pre-screen or monitor.</strong> We assume no liability for surfacing or not surfacing any Community Content.<br/>
+<strong>B.4.7 Objective gating; dispute and correction.</strong> Surfaced fraud signals are gated by independent third-party validation (e.g., GoPlus), not by user vote or headcount. A business or address owner who believes a signal is in error may request review; <strong>because Almstins does not attribute contributions to identities, correction is handled through re-validation against the independent source and removal where appropriate, not by disclosing who contributed a signal.</strong> [COUNSEL: define notice-and-correction workflow; defamation/disparagement review of aggregate signals.]<br/>
+<strong>B.4.8 No attribution preserved.</strong> Who contributed a flag, review, or claim is stored only for abuse-prevention and is never displayed or linked to a person.</p>
+
+<h2>B.5 Merchant / Anti-MITM Verification Tier (paid)</h2>
+<blockquote><p><em>Planned/optional paid Surface. Terms apply when and where it is offered. A separate Merchant Addendum may apply.</em></p></blockquote>
+
+<p><strong>B.5.1 Not money transmission.</strong> The merchant tier is a flat software subscription. Almstins never touches, holds, routes, or settles funds and takes no per-transaction fee. The term "merchant account" refers only to this software feature and does not imply payment processing or money transmission. [COUNSEL: confirm terminology.]<br/>
+<strong>B.5.2 Paid safety service — scope and limits.</strong> The tier may provide address verification and monitoring/alerting on a defined, best-effort basis. <strong>It does not guarantee detection of every address swap, tampering, or fraud, and is not insurance.</strong> Service levels, if any, are as published. To the extent permitted by law, Almstins' liability for any failure to detect or alert is subject to A.11, and you acknowledge that monitoring is a tool, not a guarantee of outcome. [COUNSEL: SLA language; whether any uptime/detection commitment is made.]<br/>
+<strong>B.5.3 Trademark license for verification markings.</strong> If you display Almstins verification markings (e.g., a "verified" sticker) on your own signage, we grant a limited, revocable, non-transferable license to do so solely in accordance with our brand-use guidelines. The <strong>scan</strong>, not the marking, is the source of truth. We may revoke this license for misuse. [COUNSEL: brand-use guidelines; quality control.]<br/>
+<strong>B.5.4 "Verified" representations.</strong> A verified scan or badge attests only that an address is claimed by a paying member and clear of automated checks at scan time. It does <strong>not</strong> attest that any business is legitimate, solvent, or safe, and is not a recommendation; consumers must exercise their own judgment. [COUNSEL: consumer-reliance exposure by jurisdiction.]<br/>
+<strong>B.5.5 Lapse.</strong> Verification status may persist after a subscription lapses to avoid misleading consumers relying on physical signage; the recurring fee buys monitoring, alerts, bookkeeping, and additional capacity, not the verification itself. [COUNSEL: what is represented about a lapsed merchant; badge wording post-lapse.]<br/>
+<strong>B.5.6 Camera, scanning, and monitoring; consent.</strong> One-time QR/address scans are decoded on-device; no image is stored or transmitted by that action. Any <strong>continuous or always-on camera monitoring</strong> option may capture third parties (bystanders, employees, customers) and may be subject to biometric, surveillance, two-party-consent, and employee-monitoring laws that vary by jurisdiction. If you enable such monitoring, <strong>you are the controller of that capture and are solely responsible</strong> for obtaining all required consents, posting required notices, and complying with retention limits; you indemnify Almstins for your use of it. [COUNSEL: biometric/BIPA, consent, signage, retention; possible separate addendum.]<br/>
+<strong>B.5.7 Merchant bookkeeping.</strong> Bookkeeping applied to received payments is governed by B.3.</p>
+
+<h2>B.6 Alerts (Price and DeFi Health)</h2>
+<p><strong>B.6.1</strong> Price-threshold and Aave health-factor alerts are delivered on a best-effort basis (typically by email). We do not guarantee timely or successful delivery, and you should not rely on alerts as your sole risk control.<br/>
+<strong>B.6.2 No automated action.</strong> Almstins never trades, repays debt, adjusts positions, or moves any asset on your behalf. Alerts are informational only.</p>
+
+<h2>B.7 AI Features (AI Triage, Receipt Validation)</h2>
+<p><strong>B.7.1</strong> Optional, paid AI features process selected transaction data and uploaded receipts via a third-party model provider (Anthropic/Claude). Outputs are suggestions for your review and confirmation, are <strong>not</strong> authoritative, and may be incorrect.<br/>
+<strong>B.7.2</strong> By using these features you consent to the necessary processing described in the Privacy Policy. Do not upload documents you are not permitted to share.</p>
+
+<h2>B.8 PetroTins — Excluded</h2>
+<p>PetroTins is a separate product offered at tradfitins.com under its own Terms and Privacy Policy. This Agreement does not govern PetroTins. [COUNSEL: confirm carve-out adequacy; whether a shared agreement is preferable.]</p>
+
+<hr/>
+
+<h2>SCHEDULE OF OPEN ITEMS FOR COUNSEL</h2>
 <ol>
-  <li>
-    <strong>No Custody.</strong> Almstins never holds, controls, or moves your assets. It never requests
-    your private keys, signing permissions, or any wallet connection. A breach of Almstins cannot move a single coin.
-  </li>
-  <li>
-    <strong>No Attribution.</strong> Almstins will <strong>never</strong> link a blockchain address to a person's
-    identity. We perform no KYC, identity verification, address clustering, de-anonymization, or attribution of any kind.
-    "Who owns this wallet?" is permanently out of scope — this is not a privacy policy choice, it is an architectural guarantee.
-  </li>
-  <li>
-    <strong>Read-Only, Always.</strong> Almstins reads public blockchain data and data you voluntarily provide.
-    It makes no changes to the chain, your wallets, or any system beyond our own database.
-  </li>
-  <li>
-    <strong>Absolute Tenant Isolation.</strong> In any multi-tenant or white-label deployment, one tenant
-    has no access to another's data — wallets, transactions, records, or identities. This is enforced at the
-    data layer, not just in policy.
-  </li>
+<li>Sanctions: general vs. enumerated clause; free-tier screening; fail-open vs. fail-closed (A.2.4).</li>
+<li>Liability cap amount and free/paid split (A.11); paid-merchant SLA and detection commitments (B.5.2).</li>
+<li>Arbitration body/rules, seat, and class-waiver enforceability (A.18).</li>
+<li>Auto-renewal disclosure (CA ARL / EU) and refund policy (A.9).</li>
+<li>Community layer: verified-interaction and control-proof sufficiency; no-attribution correction workflow; defamation exposure of aggregate signals (B.4).</li>
+<li>Merchant tier: trademark/brand-use terms; "verified" reliance; lapsed-badge wording; camera/biometric/continuous-monitoring consent and possible separate addendum (B.5).</li>
+<li>Checker "do not connect" directive wording (B.1.3).</li>
+<li>PetroTins carve-out vs. shared agreement (B.8).</li>
+<li>Clickwrap assent flow and versioning so this remains the single canonical contract.</li>
 </ol>
-<p>
-  These guarantees exist because they are the foundation of Almstins' trust model. No government pressure,
-  regulatory demand, or business opportunity will cause us to add attribution features, surveillance capabilities,
-  or identity-linking functionality. If such features were added, Almstins would become something different entirely.
-  We will not do this.
-</p>
-
-<h2>11. Third-Party Services</h2>
-<p>
-  The Service integrates with third-party providers including GitHub and Google (authentication),
-  Stripe (payments), Alchemy (blockchain data), CoinGecko and Coinpaprika (price feeds),
-  GoPlus and VirusTotal (security data), Chainabuse (scam reporting), Turso (database hosting),
-  and Render (hosting). The Wallet &amp; Website Checker additionally surfaces results from public
-  reputation sources named in §4a. We are not responsible for the accuracy, availability, or actions
-  of these providers.
-</p>
-
-<h2>12. Intellectual Property &amp; Open Source</h2>
-<p>
-  Almstins is open source (MIT License). The source code is available on GitHub. Using the
-  hosted Service at almstins.com is subject to these Terms regardless of the open-source nature
-  of the underlying code.
-</p>
-<p>
-  While the MIT License does not legally require attribution beyond preserving the copyright
-  notice, we kindly ask that anyone building on this codebase acknowledge Almstins and
-  Donnie Starkey / Titanium Hut as the original creators. A link back to
-  <a href="https://almstins.com">almstins.com</a> or the GitHub repository is always appreciated.
-  Open source runs on goodwill — thank you for being part of that.
-</p>
-
-<h2>13. Changes to the Service or Terms</h2>
-<p>
-  We may change, suspend, or discontinue any part of the Service at any time, including during
-  the beta period, without prior notice. We may also update these Terms. Continued use of the
-  Service after changes are posted constitutes acceptance of the updated Terms.
-</p>
-
-<h2>14. Termination</h2>
-<p>
-  We may suspend or terminate your access at any time for any reason, including violation of
-  these Terms. You may delete your account at any time by contacting us.
-</p>
-
-<h2>15. Governing Law</h2>
-<p>
-  These Terms are governed by the laws of the State of Tennessee, United States, without regard
-  to conflict of law principles. Any disputes will be resolved in the state or federal courts
-  located in Cookeville, Tennessee.
-</p>
-
-<h2>16. Contact</h2>
-<p>Questions about these Terms? Email: <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a></p>
-<p>Thank you for using Almstins.</p>
 `,
 };
 
 export const es: TermsLocale = {
   lang: 'es',
-  summaryLabel: 'Términos del Servicio',
-  ariaLabel: 'Términos del Servicio',
-  body: `
-<h1>Términos del Servicio</h1>
-<p><strong>Última actualización: 15 de junio de 2026</strong></p>
-
-<p>
-  Bienvenido a Almstins («nosotros», «nos», «nuestro»). Estos Términos rigen tu uso de almstins.com y
-  todo lo que ofrecemos allí: el <strong>Wallet &amp; Website Checker</strong> gratuito, el
-  <strong>rastreador de portafolio y wallets</strong>, las herramientas de <strong>contabilidad,
-  desglose de impuestos y resumen anual</strong>, cualquier función del panel y cualquier servicio
-  relacionado (en conjunto, el «Servicio»). <strong>Al acceder o usar el Servicio, aceptas estos
-  Términos</strong>, tengas o no una cuenta. Si no estás de acuerdo, por favor no uses el Servicio.
-</p>
-
-<h2>1. Software en beta — independiente, de solo lectura, verificable</h2>
-<p>
-  Almstins está en <strong>beta</strong>. Eso significa que seguimos aprendiendo qué necesitan los
-  usuarios, qué necesitan las personas en mercados emergentes y cómo es la próxima capa de seguridad.
-  Lo estamos construyendo de forma abierta e iterando según el feedback real.
-</p>
-<p>
-  Estar en beta no significa que el código sea inestable ni que tus datos estén en riesgo. Significa que
-  las funciones pueden evolucionar y que podemos introducir nuevas según el feedback de los usuarios. La
-  promesa central —acceso de solo lectura, sin conexión de wallet, verificable contra la cadena— es
-  arquitectónica, no provisional.
-</p>
-<p>
-  <strong>Verifica todo contra la cadena.</strong> Como Almstins lee datos públicos de la blockchain,
-  puedes comprobar por ti mismo cada saldo, cada transacción y cada cálculo. Ese es el objetivo.
-</p>
-
-<h2>2. Elegibilidad, sanciones y restricciones geográficas</h2>
-<p><strong>No</strong> puedes usar Almstins si eres:</p>
-<ul>
-  <li>Una persona, entidad u organización incluida en alguna lista de sanciones de la OFAC (Office of Foreign Assets Control) o sujeta de otro modo a sanciones económicas de EE. UU. o internacionales</li>
-  <li>Alguien que opera bajo jurisdicciones que prohíben o restringen el uso de criptomonedas, donde usar Almstins infringiría la ley local</li>
-  <li>Alguien que usa el Servicio para eludir controles de capital, restricciones cambiarias o para evitar requisitos legales de información financiera de tu jurisdicción</li>
-  <li>Alguien que usa el Servicio para facilitar el blanqueo de capitales, la financiación del terrorismo, el fraude u otros delitos financieros</li>
-</ul>
-<p>
-  <strong>Restricciones geográficas y tu declaración.</strong> Almstins y sus afiliadas no ofrecen el
-  Servicio a, ni hacen negocios con, ninguna persona, entidad o jurisdicción restringida conforme a las
-  leyes de sanciones económicas aplicables o prohibida por nuestros proveedores de pago y cumplimiento.
-  <strong>Al acceder o usar el Servicio, declaras y garantizas que no te encuentras, no resides
-  habitualmente, ni accedes al Servicio desde ninguna jurisdicción sancionada de forma integral —
-  incluidas Cuba, Irán, Corea del Norte, Siria, o las regiones de Crimea, Donetsk o Lugansk de
-  Ucrania.</strong> Podemos usar geolocalización para restringir el acceso desde estos lugares; esta
-  declaración se aplica además de, y con independencia de, cualquier control técnico.
-</p>
-<p>
-  Si estás sujeto a alguna de estas restricciones, no puedes crear una cuenta ni acceder al Servicio.
-  El uso continuado en violación de esta sección puede dar lugar a la terminación inmediata de tu cuenta
-  y a la notificación a las autoridades correspondientes según lo exija la ley.
-</p>
-
-<h2>3. Qué es Almstins — y qué no es</h2>
-<p>
-  Almstins es una <strong>herramienta de seguimiento de inversiones, contabilidad y seguridad</strong>.
-  Te ayuda a ver dónde están tus tenencias de cripto y cómo se han movido, a organizar tus transacciones
-  y tu base de coste, y a verificar direcciones de wallet y sitios web antes de enviar fondos.
-</p>
-<p>Almstins <strong>no</strong> es:</p>
-<ul>
-  <li>Un servicio de preparación de impuestos</li>
-  <li>Un asesor fiscal ni un contador</li>
-  <li>Un asesor financiero ni un asesor de inversiones</li>
-  <li>Un servicio jurídico</li>
-  <li>Un producto financiero certificado o regulado</li>
-  <li>Un custodio, wallet o exchange: nunca retiene, mueve ni tiene acceso a tus fondos</li>
-</ul>
-<p>
-  Cualquier resumen relacionado con impuestos, estimación de base de coste, cifra de ganancias/pérdidas,
-  vista de contabilidad o resultado de seguridad se proporciona <strong>solo con fines informativos y de
-  organización</strong>. No constituyen asesoramiento de ningún tipo y no sustituyen a un profesional
-  cualificado. Eres el único responsable de tus propias decisiones, declaraciones de impuestos, reportes
-  y cumplimiento.
-</p>
-
-<h2>4. El Servicio — funciones específicas</h2>
-
-<h3>4a. Wallet &amp; Website Scam Checker</h3>
-<p>
-  El Checker es una herramienta <strong>gratuita e informativa</strong>. Consulta bases de datos públicas
-  de reputación de terceros (como GoPlus, datos de sanciones de la OFAC, honeypot.is, Chainabuse, la lista
-  de phishing de MetaMask, ScamSniffer, URLScan y OpenPhish) y reporta lo que estas indican.
-</p>
-<ul>
-  <li><strong>Atribución, no veredicto.</strong> Reportamos lo que reportan las bases de datos de terceros. No investigamos, verificamos ni declaramos de forma independiente que una dirección o un sitio web sea una estafa — ni que sea seguro.</li>
-  <li><strong>Sin garantía, en ningún sentido.</strong> Un resultado «limpio» o «parece seguro» significa únicamente que ninguna fuente que consultamos lo ha marcado — no que sea seguro. Un resultado marcado refleja un reporte de terceros, no una determinación nuestra. Las nuevas estafas aparecen más rápido de lo que se actualizan las bases de datos.</li>
-  <li><strong>Sin dependencia.</strong> El Checker es una señal entre muchas. <strong>Debes verificar de forma independiente cualquier dirección o sitio web antes de enviar fondos o conectar una wallet.</strong> No somos responsables de ninguna pérdida derivada de la confianza en los resultados del Checker.</li>
-  <li>Cualquier señal de la comunidad (reportes, insignias de confianza, reseñas), donde y si se ofrece, es solo informativa y <strong>no</strong> constituye una garantía de seguridad, legitimidad o calidad.</li>
-</ul>
-
-<h3>4b. Rastreador de portafolio y wallets</h3>
-<p>
-  El rastreador lee datos <strong>públicos</strong> de la blockchain para las direcciones de wallet que
-  proporcionas voluntariamente, junto con los datos que importas (como CSV de exchanges y entradas
-  manuales), para mostrar saldos, tenencias y rendimiento a lo largo del tiempo.
-</p>
-<ul>
-  <li><strong>Solo lectura, sin custodia, sin conexión.</strong> Almstins nunca solicita tus private keys, tu seed phrase ni ninguna conexión de wallet, y nunca retiene ni mueve fondos. Una brecha en Almstins no puede mover ni una sola moneda.</li>
-  <li><strong>Tú aportas las direcciones.</strong> Eres responsable de las direcciones de wallet y los registros que decides rastrear. Almstins no vincula ninguna dirección con tu identidad (ver §10).</li>
-  <li><strong>La exactitud depende de tus datos y de datos de terceros.</strong> Los saldos, precios e historial provienen de fuentes públicas y de tus importaciones, y pueden estar retrasados, incompletos o ser erróneos. «Si entra basura, sale basura»: datos incompletos o inexactos producen cifras poco fiables.</li>
-</ul>
-
-<h3>4c. Contabilidad, desglose de impuestos y resumen anual</h3>
-<p>
-  Las herramientas de contabilidad organizan tus transacciones y calculan cifras informativas: base de
-  coste, ganancias/pérdidas realizadas y no realizadas, conciliación y un resumen de fin de año que puedes
-  entregar a un profesional.
-</p>
-<ul>
-  <li><strong>No es asesoramiento fiscal.</strong> Las cifras de base de coste y de ganancias/pérdidas son estimaciones informativas basadas únicamente en los datos que proporcionas. No constituyen asesoramiento fiscal y pueden no ser defendibles sin una revisión profesional.</li>
-  <li><strong>Debes consultar a un profesional cualificado.</strong> Distintas transacciones pueden tratarse de forma diferente (staking, airdrops, bridges, método de base de coste, wash sales). Un profesional fiscal puede anular o recalcular cualquier cifra. Eres el único responsable de tus declaraciones.</li>
-  <li><strong>Sin garantía de tratamiento fiscal.</strong> Aunque nuestras cifras sean correctas, una autoridad fiscal puede cuestionar tu caracterización, aplicar un tratamiento diferente o imponer sanciones. Almstins no es responsable de los resultados fiscales, auditorías ni sanciones.</li>
-</ul>
-
-<h2>5. Cuentas e inicio de sesión</h2>
-<p>
-  Accedes a las funciones de cuenta iniciando sesión (por ejemplo, con Google o GitHub). Aceptas mantener
-  seguro tu inicio de sesión, proporcionar información veraz y ser responsable de toda la actividad bajo tu
-  cuenta. Solo recopilamos el correo electrónico asociado a tu inicio de sesión para identificar tu cuenta —
-  consulta nuestra Política de Privacidad para más detalles.
-</p>
-
-<h2>6. Suscripciones y funciones de pago</h2>
-<p>
-  Almstins ofrece planes de suscripción de pago opcionales. Al suscribirte aceptas:
-</p>
-<ul>
-  <li>Pagar las tarifas descritas en el momento de la compra</li>
-  <li>Permitir que Stripe (nuestro procesador de pagos) cargue el método de pago que selecciones</li>
-  <li>Las políticas de cancelación y reembolso presentadas en el momento del pago</li>
-</ul>
-<p>
-  Las suscripciones se facturan a través de Stripe. No almacenamos los datos de tu tarjeta de pago.
-  Las suscripciones pueden cancelarse en cualquier momento desde la configuración de facturación de tu panel.
-  Nos reservamos el derecho de cambiar los precios con un aviso razonable a los suscriptores activos.
-</p>
-
-<h2>7. Sin garantía — «tal cual» y «según disponibilidad»</h2>
-<p>
-  El Servicio se proporciona <strong>TAL CUAL</strong> y <strong>SEGÚN DISPONIBILIDAD</strong>, sin
-  garantías de ningún tipo — expresas, implícitas o legales. En particular, renunciamos a:
-</p>
-<ul>
-  <li>Cualquier garantía de exactitud, integridad o fiabilidad de los datos</li>
-  <li>Cualquier garantía de idoneidad para un propósito particular</li>
-  <li>Cualquier garantía de que el Servicio sea ininterrumpido, libre de errores o seguro</li>
-  <li>Cualquier garantía sobre la exactitud de los feeds de precios de terceros, los datos de la blockchain o las bases de datos de estafas</li>
-</ul>
-<p>Usas el Servicio enteramente bajo tu propio riesgo.</p>
-
-<h2>8. Limitación de responsabilidad</h2>
-<p>
-  En la máxima medida permitida por la ley, Almstins, su creador (Donnie Starkey / Titanium Hut),
-  los colaboradores y las afiliadas <strong>no serán responsables</strong> de ningún daño derivado de tu
-  uso o de la imposibilidad de usar el Servicio — incluidos daños directos, indirectos, incidentales,
-  especiales, consecuentes o punitivos — incluso si se nos ha advertido de la posibilidad de tales daños.
-</p>
-<p>Esto incluye, sin limitación:</p>
-<ul>
-  <li>Pérdidas financieras o decisiones de inversión tomadas con base en datos del Servicio</li>
-  <li>Sanciones fiscales, auditorías o errores en las declaraciones</li>
-  <li>Pérdida de datos o cálculos de portafolio inexactos</li>
-  <li>Pérdidas derivadas de la confianza en los resultados del Wallet &amp; Website Checker</li>
-  <li>Caídas del Servicio o eliminación de funciones durante la beta</li>
-</ul>
-<p>
-  Si alguna jurisdicción no permite esta limitación, nuestra responsabilidad se limita al máximo grado
-  permitido por la ley aplicable.
-</p>
-
-<h2>9. Tus responsabilidades</h2>
-<p>Aceptas:</p>
-<ul>
-  <li>Usar el Servicio únicamente para fines lícitos</li>
-  <li>No intentar hackear, hacer scraping, abusar de o interrumpir el Servicio alojado o su infraestructura, ni interferir con los datos o la experiencia de otros usuarios</li>
-  <li>No usar el Servicio para cometer fraude, evadir impuestos ni violar ninguna ley aplicable</li>
-  <li>Mantener seguras tus credenciales de acceso — eres responsable de toda la actividad bajo tu cuenta</li>
-  <li>Proporcionar información veraz al crear una cuenta o subir datos de transacciones</li>
-</ul>
-<p>
-  Eres el único responsable de cualquier reporte fiscal, decisión financiera u obligación legal relacionada
-  con las wallets, transacciones o datos que rastreas usando el Servicio.
-</p>
-
-<h2>10. Garantías arquitectónicas de privacidad — lo que Almstins nunca hará</h2>
-<p>
-  Almstins se construye sobre cuatro principios arquitectónicos innegociables que nunca cambiarán:
-</p>
-<ol>
-  <li>
-    <strong>Sin custodia.</strong> Almstins nunca retiene, controla ni mueve tus activos. Nunca solicita
-    tus private keys, permisos de firma ni ninguna conexión de wallet. Una brecha en Almstins no puede mover ni una sola moneda.
-  </li>
-  <li>
-    <strong>Sin atribución.</strong> Almstins <strong>nunca</strong> vinculará una dirección de la blockchain con la
-    identidad de una persona. No realizamos KYC, verificación de identidad, clustering de direcciones, desanonimización ni atribución de ningún tipo.
-    «¿Quién es el dueño de esta wallet?» queda permanentemente fuera de alcance — esto no es una decisión de política de privacidad, es una garantía arquitectónica.
-  </li>
-  <li>
-    <strong>Solo lectura, siempre.</strong> Almstins lee datos públicos de la blockchain y datos que proporcionas voluntariamente.
-    No realiza cambios en la cadena, en tus wallets ni en ningún sistema más allá de nuestra propia base de datos.
-  </li>
-  <li>
-    <strong>Aislamiento absoluto entre inquilinos.</strong> En cualquier despliegue multi-inquilino o de marca blanca, un inquilino
-    no tiene acceso a los datos de otro — wallets, transacciones, registros o identidades. Esto se aplica en la
-    capa de datos, no solo en la política.
-  </li>
-</ol>
-<p>
-  Estas garantías existen porque son la base del modelo de confianza de Almstins. Ninguna presión gubernamental,
-  exigencia regulatoria ni oportunidad de negocio nos hará añadir funciones de atribución, capacidades de vigilancia
-  ni funcionalidad de vinculación de identidad. Si se añadieran tales funciones, Almstins se convertiría en algo completamente distinto.
-  No lo haremos.
-</p>
-
-<h2>11. Servicios de terceros</h2>
-<p>
-  El Servicio se integra con proveedores externos, incluidos GitHub y Google (autenticación),
-  Stripe (pagos), Alchemy (datos de blockchain), CoinGecko y Coinpaprika (feeds de precios),
-  GoPlus y VirusTotal (datos de seguridad), Chainabuse (reportes de estafas), Turso (alojamiento de base de datos)
-  y Render (alojamiento). El Wallet &amp; Website Checker también muestra resultados de fuentes públicas
-  de reputación nombradas en §4a. No somos responsables de la exactitud, disponibilidad ni acciones
-  de estos proveedores.
-</p>
-
-<h2>12. Propiedad intelectual y código abierto</h2>
-<p>
-  Almstins es de código abierto (MIT License). El código fuente está disponible en GitHub. El uso del
-  Servicio alojado en almstins.com está sujeto a estos Términos con independencia de la naturaleza de
-  código abierto del código subyacente.
-</p>
-<p>
-  Aunque la MIT License no exige legalmente atribución más allá de conservar el aviso de copyright,
-  pedimos amablemente que quien construya sobre este código reconozca a Almstins y a
-  Donnie Starkey / Titanium Hut como los creadores originales. Un enlace de vuelta a
-  <a href="https://almstins.com">almstins.com</a> o al repositorio de GitHub siempre se agradece.
-  El código abierto funciona con buena voluntad — gracias por ser parte de eso.
-</p>
-
-<h2>13. Cambios en el Servicio o en los Términos</h2>
-<p>
-  Podemos cambiar, suspender o discontinuar cualquier parte del Servicio en cualquier momento, incluso durante
-  el periodo de beta, sin previo aviso. También podemos actualizar estos Términos. El uso continuado del
-  Servicio después de que se publiquen los cambios constituye la aceptación de los Términos actualizados.
-</p>
-
-<h2>14. Terminación</h2>
-<p>
-  Podemos suspender o terminar tu acceso en cualquier momento por cualquier motivo, incluida la violación de
-  estos Términos. Puedes eliminar tu cuenta en cualquier momento contactándonos.
-</p>
-
-<h2>15. Ley aplicable</h2>
-<p>
-  Estos Términos se rigen por las leyes del Estado de Tennessee, Estados Unidos, sin tener en cuenta
-  los principios de conflicto de leyes. Cualquier disputa se resolverá en los tribunales estatales o federales
-  ubicados en Cookeville, Tennessee.
-</p>
-
-<h2>16. Contacto</h2>
-<p>¿Preguntas sobre estos Términos? Correo: <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a></p>
-<p>Gracias por usar Almstins.</p>
-`,
+  summaryLabel: 'Acuerdo de Usuario',
+  ariaLabel: 'Acuerdo de Usuario',
+  body: en.body,
 };
 
 export const fr: TermsLocale = {
   lang: 'fr',
-  summaryLabel: 'Conditions d’Utilisation',
-  ariaLabel: 'Conditions d’Utilisation',
-  body: `
-<h1>Conditions d’Utilisation</h1>
-<p><strong>Dernière mise à jour : 15 juin 2026</strong></p>
-
-<p>
-  Bienvenue sur Almstins (« nous », « notre »). Les présentes Conditions régissent votre utilisation de
-  almstins.com et de tout ce que nous y proposons — le <strong>Wallet &amp; Website Checker</strong> gratuit,
-  le <strong>suivi de portefeuille et de wallets</strong>, les outils de <strong>comptabilité, de ventilation
-  fiscale et de récapitulatif annuel</strong>, toute fonctionnalité du tableau de bord et tout service
-  connexe (collectivement, le « Service »). <strong>En accédant au Service ou en l’utilisant, vous acceptez
-  ces Conditions</strong> — que vous créiez un compte ou non. Si vous n’êtes pas d’accord, veuillez ne pas
-  utiliser le Service.
-</p>
-
-<h2>1. Logiciel en bêta — indépendant, en lecture seule, vérifiable</h2>
-<p>
-  Almstins est en <strong>bêta</strong>. Cela signifie que nous apprenons encore ce dont les utilisateurs ont
-  besoin, ce dont les utilisateurs des marchés émergents ont besoin, et à quoi ressemble la prochaine couche de
-  sécurité. Nous le construisons ouvertement et itérons en fonction des retours réels.
-</p>
-<p>
-  Être en bêta ne signifie pas que le code est instable ou que vos données sont en danger. Cela signifie que les
-  fonctionnalités peuvent évoluer et que nous pouvons en introduire de nouvelles selon les retours des
-  utilisateurs. La promesse centrale — accès en lecture seule, aucune connexion de wallet, vérifiable contre la
-  chaîne — est architecturale, et non provisoire.
-</p>
-<p>
-  <strong>Vérifiez tout contre la chaîne.</strong> Parce qu’Almstins lit des données publiques de la blockchain,
-  vous pouvez recouper vous-même chaque solde, chaque transaction, chaque calcul. C’est tout l’intérêt.
-</p>
-
-<h2>2. Éligibilité, sanctions et restrictions géographiques</h2>
-<p>Vous <strong>ne pouvez pas</strong> utiliser Almstins si vous êtes :</p>
-<ul>
-  <li>Une personne, entité ou organisation figurant sur une liste de sanctions de l’OFAC (Office of Foreign Assets Control) ou autrement soumise à des sanctions économiques américaines ou internationales</li>
-  <li>Une personne opérant sous des juridictions qui interdisent ou restreignent l’usage des cryptomonnaies, où l’utilisation d’Almstins enfreindrait la loi locale</li>
-  <li>Une personne utilisant le Service pour contourner des contrôles de capitaux, des restrictions de change, ou pour échapper aux obligations légales de déclaration financière de votre juridiction</li>
-  <li>Une personne utilisant le Service pour faciliter le blanchiment d’argent, le financement du terrorisme, la fraude ou d’autres délits financiers</li>
-</ul>
-<p>
-  <strong>Restrictions géographiques et votre déclaration.</strong> Almstins et ses affiliés n’offrent pas le
-  Service à, et ne font pas affaire avec, aucune personne, entité ou juridiction restreinte en vertu des lois de
-  sanctions économiques applicables ou interdite par nos prestataires de paiement et de conformité.
-  <strong>En accédant au Service ou en l’utilisant, vous déclarez et garantissez que vous n’êtes pas situé,
-  ne résidez pas habituellement, et n’accédez pas au Service depuis une juridiction faisant l’objet de
-  sanctions globales — y compris Cuba, l’Iran, la Corée du Nord, la Syrie, ou les régions de Crimée, de
-  Donetsk ou de Louhansk en Ukraine.</strong> Nous pouvons recourir à la géolocalisation pour restreindre
-  l’accès depuis ces lieux ; cette déclaration s’applique en plus de, et indépendamment de, tout contrôle technique.
-</p>
-<p>
-  Si vous êtes soumis à l’une de ces restrictions, vous ne pouvez pas créer de compte ni accéder au Service.
-  Toute utilisation continue en violation de la présente section peut entraîner la résiliation immédiate de votre
-  compte et le signalement aux autorités compétentes, comme l’exige la loi.
-</p>
-
-<h2>3. Ce qu’Almstins est — et n’est pas</h2>
-<p>
-  Almstins est un <strong>outil de suivi d’investissements, de comptabilité et de sécurité</strong>. Il vous aide
-  à voir où se trouvent vos avoirs en crypto et comment ils ont évolué, à organiser vos transactions et votre coût
-  de base, et à vérifier des adresses de wallet et des sites web avant d’envoyer des fonds.
-</p>
-<p>Almstins <strong>n’est pas</strong> :</p>
-<ul>
-  <li>Un service de préparation des déclarations fiscales</li>
-  <li>Un conseiller fiscal ni un comptable</li>
-  <li>Un conseiller financier ni un conseiller en investissement</li>
-  <li>Un service juridique</li>
-  <li>Un produit financier certifié ou réglementé</li>
-  <li>Un dépositaire, un wallet ou un exchange — il ne détient, ne déplace ni n’accède jamais à vos fonds</li>
-</ul>
-<p>
-  Tout récapitulatif lié aux impôts, estimation de coût de base, chiffre de gains/pertes, vue comptable ou
-  résultat de sécurité est fourni <strong>à des fins d’information et d’organisation uniquement</strong>. Il ne
-  constitue en aucun cas un conseil et ne remplace pas un professionnel qualifié. Vous êtes seul responsable de vos
-  propres décisions, déclarations fiscales, déclarations et conformité.
-</p>
-
-<h2>4. Le Service — fonctionnalités spécifiques</h2>
-
-<h3>4a. Wallet &amp; Website Scam Checker</h3>
-<p>
-  Le Checker est un outil <strong>gratuit et informatif</strong>. Il interroge des bases de données publiques de
-  réputation de tiers (telles que GoPlus, les données de sanctions de l’OFAC, honeypot.is, Chainabuse, la liste de
-  phishing de MetaMask, ScamSniffer, URLScan et OpenPhish) et rapporte ce qu’elles indiquent.
-</p>
-<ul>
-  <li><strong>Attribution, pas verdict.</strong> Nous rapportons ce que rapportent les bases de données tierces. Nous n’enquêtons pas, ne vérifions pas et ne déclarons pas de façon indépendante qu’une adresse ou un site web est une arnaque — ni qu’il est sûr.</li>
-  <li><strong>Aucune garantie, dans un sens comme dans l’autre.</strong> Un résultat « propre » ou « semble sûr » signifie seulement qu’aucune source que nous avons consultée ne l’a signalé — non qu’il est sûr. Un résultat signalé reflète un rapport de tiers, et non notre propre détermination. De nouvelles arnaques apparaissent plus vite que les bases de données ne se mettent à jour.</li>
-  <li><strong>Aucune dépendance.</strong> Le Checker est un signal parmi d’autres. <strong>Vous devez vérifier de façon indépendante toute adresse ou tout site web avant d’envoyer des fonds ou de connecter un wallet.</strong> Nous ne sommes pas responsables des pertes résultant de la confiance accordée aux résultats du Checker.</li>
-  <li>Tout signal communautaire (signalements, badges de confiance, avis), lorsqu’il est proposé, est purement informatif et ne constitue <strong>pas</strong> une garantie de sécurité, de légitimité ou de qualité.</li>
-</ul>
-
-<h3>4b. Suivi de portefeuille et de wallets</h3>
-<p>
-  Le suivi lit des données <strong>publiques</strong> de la blockchain pour les adresses de wallet que vous
-  fournissez volontairement, ainsi que les données que vous importez (telles que des CSV d’exchanges et des saisies
-  manuelles), afin d’afficher les soldes, les avoirs et la performance dans le temps.
-</p>
-<ul>
-  <li><strong>Lecture seule, aucune garde, aucune connexion.</strong> Almstins ne demande jamais vos private keys, votre seed phrase ni aucune connexion de wallet, et ne détient ni ne déplace jamais de fonds. Une faille d’Almstins ne peut déplacer la moindre pièce.</li>
-  <li><strong>Vous fournissez les adresses.</strong> Vous êtes responsable des adresses de wallet et des enregistrements que vous choisissez de suivre. Almstins ne relie aucune adresse à votre identité (voir §10).</li>
-  <li><strong>L’exactitude dépend de vos saisies et des données de tiers.</strong> Les soldes, prix et historiques proviennent de sources publiques et de vos imports, et peuvent être retardés, incomplets ou erronés. « Garbage in, garbage out » : des saisies incomplètes ou inexactes produisent des chiffres peu fiables.</li>
-</ul>
-
-<h3>4c. Comptabilité, ventilation fiscale et récapitulatif annuel</h3>
-<p>
-  Les outils de comptabilité organisent vos transactions et calculent des chiffres informatifs — coût de base,
-  gains/pertes réalisés et latents, rapprochement, et un récapitulatif de fin d’année que vous pouvez remettre à un
-  professionnel.
-</p>
-<ul>
-  <li><strong>Pas un conseil fiscal.</strong> Les chiffres de coût de base et de gains/pertes sont des estimations informatives fondées uniquement sur les données que vous fournissez. Ils ne constituent pas un conseil fiscal et peuvent ne pas être défendables sans examen professionnel.</li>
-  <li><strong>Vous devez consulter un professionnel qualifié.</strong> Différentes transactions peuvent être traitées différemment (staking, airdrops, bridges, méthode de coût de base, wash sales). Un professionnel fiscal peut annuler ou recalculer n’importe quel chiffre. Vous êtes seul responsable de vos déclarations.</li>
-  <li><strong>Aucune garantie de traitement fiscal.</strong> Même si nos chiffres sont corrects, une administration fiscale peut contester votre qualification, appliquer un traitement différent ou imposer des pénalités. Almstins n’est pas responsable des résultats fiscaux, des contrôles ni des pénalités.</li>
-</ul>
-
-<h2>5. Comptes et connexion</h2>
-<p>
-  Vous accédez aux fonctionnalités de compte en vous connectant (par exemple, avec Google ou GitHub). Vous acceptez
-  de garder votre connexion sécurisée, de fournir des informations exactes, et d’être responsable de toute activité
-  sous votre compte. Nous ne collectons que l’adresse e-mail associée à votre connexion pour identifier votre compte —
-  voir notre Politique de Confidentialité pour plus de détails.
-</p>
-
-<h2>6. Abonnements et fonctionnalités payantes</h2>
-<p>
-  Almstins propose des formules d’abonnement payantes optionnelles. En vous abonnant, vous acceptez de :
-</p>
-<ul>
-  <li>Payer les frais décrits au moment de l’achat</li>
-  <li>Autoriser Stripe (notre processeur de paiement) à débiter le moyen de paiement que vous avez sélectionné</li>
-  <li>Les politiques d’annulation et de remboursement présentées au moment du paiement</li>
-</ul>
-<p>
-  Les abonnements sont facturés via Stripe. Nous ne stockons pas les détails de votre carte de paiement.
-  Les abonnements peuvent être annulés à tout moment depuis les paramètres de facturation de votre tableau de bord.
-  Nous nous réservons le droit de modifier les tarifs moyennant un préavis raisonnable aux abonnés actifs.
-</p>
-
-<h2>7. Aucune garantie — « en l’état » et « selon disponibilité »</h2>
-<p>
-  Le Service est fourni <strong>EN L’ÉTAT</strong> et <strong>SELON DISPONIBILITÉ</strong>, sans
-  garantie d’aucune sorte — expresse, implicite ou légale. Nous déclinons en particulier :
-</p>
-<ul>
-  <li>Toute garantie d’exactitude, d’exhaustivité ou de fiabilité des données</li>
-  <li>Toute garantie d’adéquation à un usage particulier</li>
-  <li>Toute garantie que le Service sera ininterrompu, exempt d’erreurs ou sécurisé</li>
-  <li>Toute garantie concernant l’exactitude des flux de prix tiers, des données de la blockchain ou des bases de données d’arnaques</li>
-</ul>
-<p>Vous utilisez le Service entièrement à vos propres risques.</p>
-
-<h2>8. Limitation de responsabilité</h2>
-<p>
-  Dans toute la mesure permise par la loi, Almstins, son créateur (Donnie Starkey / Titanium Hut),
-  les contributeurs et les affiliés <strong>ne seront pas responsables</strong> des dommages découlant de
-  votre utilisation ou de votre incapacité à utiliser le Service — y compris les dommages directs, indirects,
-  accessoires, spéciaux, consécutifs ou punitifs — même si nous avons été informés de la possibilité de tels dommages.
-</p>
-<p>Cela inclut, sans limitation :</p>
-<ul>
-  <li>Les pertes financières ou les décisions d’investissement prises sur la base des données du Service</li>
-  <li>Les pénalités fiscales, contrôles ou erreurs de déclaration</li>
-  <li>La perte de données ou des calculs de portefeuille inexacts</li>
-  <li>Les pertes résultant de la confiance accordée aux résultats du Wallet &amp; Website Checker</li>
-  <li>Les interruptions du Service ou la suppression de fonctionnalités pendant la bêta</li>
-</ul>
-<p>
-  Si une juridiction n’autorise pas cette limitation, notre responsabilité est limitée dans toute la mesure
-  permise par la loi applicable.
-</p>
-
-<h2>9. Vos responsabilités</h2>
-<p>Vous acceptez de :</p>
-<ul>
-  <li>N’utiliser le Service qu’à des fins licites</li>
-  <li>Ne pas tenter de pirater, scraper, abuser ou perturber le Service hébergé ou son infrastructure, ni d’interférer avec les données ou l’expérience d’autres utilisateurs</li>
-  <li>Ne pas utiliser le Service pour commettre une fraude, échapper à l’impôt ou enfreindre une loi applicable</li>
-  <li>Garder vos identifiants de connexion sécurisés — vous êtes responsable de toute activité sous votre compte</li>
-  <li>Fournir des informations exactes lors de la création d’un compte ou du téléversement de données de transactions</li>
-</ul>
-<p>
-  Vous êtes seul responsable de toute déclaration fiscale, décision financière ou obligation légale liée aux
-  wallets, transactions ou données que vous suivez à l’aide du Service.
-</p>
-
-<h2>10. Garanties architecturales de confidentialité — ce qu’Almstins ne fera jamais</h2>
-<p>
-  Almstins repose sur quatre principes architecturaux non négociables qui ne changeront jamais :
-</p>
-<ol>
-  <li>
-    <strong>Aucune garde.</strong> Almstins ne détient, ne contrôle ni ne déplace jamais vos actifs. Il ne demande jamais
-    vos private keys, des autorisations de signature ni aucune connexion de wallet. Une faille d’Almstins ne peut déplacer la moindre pièce.
-  </li>
-  <li>
-    <strong>Aucune attribution.</strong> Almstins ne reliera <strong>jamais</strong> une adresse de la blockchain à
-    l’identité d’une personne. Nous n’effectuons aucun KYC, aucune vérification d’identité, aucun clustering d’adresses, aucune désanonymisation ni aucune attribution d’aucune sorte.
-    « À qui appartient ce wallet ? » est définitivement hors de portée — ce n’est pas un choix de politique de confidentialité, c’est une garantie architecturale.
-  </li>
-  <li>
-    <strong>Lecture seule, toujours.</strong> Almstins lit des données publiques de la blockchain et des données que vous fournissez volontairement.
-    Il n’apporte aucune modification à la chaîne, à vos wallets ni à aucun système au-delà de notre propre base de données.
-  </li>
-  <li>
-    <strong>Isolation absolue des locataires.</strong> Dans tout déploiement multi-locataire ou en marque blanche, un locataire
-    n’a aucun accès aux données d’un autre — wallets, transactions, enregistrements ou identités. Cela est appliqué au niveau de la
-    couche de données, et pas seulement dans la politique.
-  </li>
-</ol>
-<p>
-  Ces garanties existent parce qu’elles sont le fondement du modèle de confiance d’Almstins. Aucune pression gouvernementale,
-  exigence réglementaire ni opportunité commerciale ne nous fera ajouter des fonctions d’attribution, des capacités de surveillance
-  ni une fonctionnalité de liaison d’identité. Si de telles fonctions étaient ajoutées, Almstins deviendrait quelque chose de totalement différent.
-  Nous ne le ferons pas.
-</p>
-
-<h2>11. Services tiers</h2>
-<p>
-  Le Service s’intègre à des prestataires tiers, notamment GitHub et Google (authentification),
-  Stripe (paiements), Alchemy (données de blockchain), CoinGecko et Coinpaprika (flux de prix),
-  GoPlus et VirusTotal (données de sécurité), Chainabuse (signalement d’arnaques), Turso (hébergement de base de données)
-  et Render (hébergement). Le Wallet &amp; Website Checker fait également remonter des résultats de sources publiques
-  de réputation nommées au §4a. Nous ne sommes pas responsables de l’exactitude, de la disponibilité ni des actions
-  de ces prestataires.
-</p>
-
-<h2>12. Propriété intellectuelle et open source</h2>
-<p>
-  Almstins est open source (MIT License). Le code source est disponible sur GitHub. L’utilisation du
-  Service hébergé sur almstins.com est soumise aux présentes Conditions, indépendamment de la nature
-  open source du code sous-jacent.
-</p>
-<p>
-  Bien que la MIT License n’exige pas légalement d’attribution au-delà de la conservation de l’avis de copyright,
-  nous demandons aimablement que quiconque s’appuie sur ce code reconnaisse Almstins et
-  Donnie Starkey / Titanium Hut comme les créateurs d’origine. Un lien de retour vers
-  <a href="https://almstins.com">almstins.com</a> ou vers le dépôt GitHub est toujours apprécié.
-  L’open source fonctionne grâce à la bonne volonté — merci d’en faire partie.
-</p>
-
-<h2>13. Modifications du Service ou des Conditions</h2>
-<p>
-  Nous pouvons modifier, suspendre ou interrompre toute partie du Service à tout moment, y compris pendant
-  la période de bêta, sans préavis. Nous pouvons également mettre à jour ces Conditions. L’utilisation continue du
-  Service après la publication des modifications vaut acceptation des Conditions mises à jour.
-</p>
-
-<h2>14. Résiliation</h2>
-<p>
-  Nous pouvons suspendre ou résilier votre accès à tout moment et pour quelque raison que ce soit, y compris en cas de violation
-  des présentes Conditions. Vous pouvez supprimer votre compte à tout moment en nous contactant.
-</p>
-
-<h2>15. Droit applicable</h2>
-<p>
-  Les présentes Conditions sont régies par les lois de l’État du Tennessee, États-Unis, sans égard
-  aux principes de conflit de lois. Tout litige sera résolu devant les tribunaux étatiques ou fédéraux
-  situés à Cookeville, Tennessee.
-</p>
-
-<h2>16. Contact</h2>
-<p>Des questions sur ces Conditions ? E-mail : <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a></p>
-<p>Merci d’utiliser Almstins.</p>
-`,
+  summaryLabel: "Accord d'utilisateur",
+  ariaLabel: "Accord d'utilisateur",
+  body: en.body,
 };
 
 const MAP: Record<Lang, TermsLocale> = { en, es, fr };
 
-/** Select the Terms locale for a language, falling back to English. */
+/** Select the User Agreement locale for a language, falling back to English. */
 export function getTerms(lang: Lang): TermsLocale {
   return MAP[lang] ?? en;
 }
