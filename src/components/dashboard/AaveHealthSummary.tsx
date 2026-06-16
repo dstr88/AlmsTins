@@ -460,7 +460,14 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 				const oraclePrices: Record<string, number> = {};
 
 				const collateralBreakdown = supplies.reduce<
-					Array<{ symbol: string; amount: number | null; usdValue: number | null }>
+					Array<{
+						symbol: string;
+						amount: number | null;
+						usdValue: number | null;
+						priceUsd: number | null;
+						purchasePriceUsd: number | null;
+						purchaseAt: string | null;
+					}>
 				>((acc, entry) => {
 					const symbol = entry.currency?.symbol?.toUpperCase();
 					if (!symbol) return acc;
