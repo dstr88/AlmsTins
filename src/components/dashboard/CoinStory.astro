@@ -2,8 +2,12 @@
 import './CoinStory.css';
 import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
+import { getLang } from '@/lib/i18n/locale';
+import { getCoinStory } from '@/i18n/components/coinStory';
 
 const { title = 'All Transactions' } = Astro.props;
+const lang = getLang(Astro.request);
+const t = getCoinStory(lang);
 ---
 
 <article class="coin-story">
@@ -23,9 +27,9 @@ const { title = 'All Transactions' } = Astro.props;
 					<span class="tx-usd-value">$1,245.19</span>
 				</span>
 				<span class="tx-status">
-					<img class="tx-status-icon" src={walletIn.src} alt="Bought" />
+					<img class="tx-status-icon" src={walletIn.src} alt={t.altBought} />
 				</span>
-				<textarea class="tx-notes" placeholder="Notes..."></textarea>
+				<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
 			</div>
 
 			<div class="tx-row">
@@ -38,9 +42,9 @@ const { title = 'All Transactions' } = Astro.props;
 					<span class="tx-usd-value">$4,812.22</span>
 				</span>
 				<span class="tx-status">
-					<img class="tx-status-icon" src={walletOut.src} alt="Sold" />
+					<img class="tx-status-icon" src={walletOut.src} alt={t.altSold} />
 				</span>
-				<textarea class="tx-notes" placeholder="Notes..."></textarea>
+				<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
 			</div>
 
 			<div class="tx-row">
@@ -55,7 +59,7 @@ const { title = 'All Transactions' } = Astro.props;
 				<span class="tx-status">
 					<span class="tx-status-loss">✕</span>
 				</span>
-				<textarea class="tx-notes" placeholder="Notes..."></textarea>
+				<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
 			</div>
 		</div>
 	</div>

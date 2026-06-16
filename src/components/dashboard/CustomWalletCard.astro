@@ -2,10 +2,15 @@
 import './CustomWalletCard.css';
 import type { Wallet } from '@/lib/wallets';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getCustomWalletCard } from '@/i18n/components/customWalletCard';
 
 interface Props {
 	wallet: Wallet;
 }
+
+const lang = getLang(Astro.request);
+const t = getCustomWalletCard(lang);
 
 const { wallet } = Astro.props;
 
@@ -32,7 +37,7 @@ try {
 
 const fDate = (iso: string | null) => {
 	if (!iso) return '—';
-	try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+	try { return new Date(iso).toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' }); }
 	catch { return iso; }
 };
 const fUsd = (v: number | null) => {
@@ -54,7 +59,7 @@ const parseMeta = (raw: string | null) => {
 	<div class="cwc-meta">
 		<span class="cwc-meta__item">
 			<span class="cwc-meta__dot"></span>
-			<span class="cwc-meta__text">Manual</span>
+			<span class="cwc-meta__text">{t.metaManual}</span>
 		</span>
 	</div>
 
@@ -66,13 +71,13 @@ const parseMeta = (raw: string | null) => {
 			data-wallet-id={wallet.id}
 			data-wallet-label={displayLabel}
 		>
-			+ Add Transaction
+			{t.btnAddTransaction}
 		</button>
 	</div>
 
 	<p class="cwc-tx-count">
 		<span class="cwc-tx-count__value">{transactions.length}</span>
-		<span class="cwc-tx-count__label">{transactions.length === 1 ? 'transaction' : 'transactions'}</span>
+		<span class="cwc-tx-count__label">{transactions.length === 1 ? t.txSingular : t.txPlural}</span>
 	</p>
 
 	{transactions.length > 0 && (
@@ -104,10 +109,10 @@ const parseMeta = (raw: string | null) => {
 			data-wallet-id={wallet.id}
 			data-wallet-label={displayLabel}
 		>
-			Delete Wallet
+			{t.btnDeleteWallet}
 		</button>
 		<div class="cwc-confirm is-hidden" data-delete-confirm>
-			<p class="cwc-confirm__hint">Type the wallet name to confirm:</p>
+			<p class="cwc-confirm__hint">{t.confirmHint}</p>
 			<input
 				class="cwc-confirm__input"
 				type="text"
@@ -116,21 +121,40 @@ const parseMeta = (raw: string | null) => {
 				autocomplete="off"
 			/>
 			<div class="cwc-confirm__btns">
-				<button class="cwc-btn cwc-btn--confirm-yes" type="button" data-delete-yes disabled>Delete</button>
-				<button class="cwc-btn cwc-btn--confirm-no" type="button" data-delete-no>Cancel</button>
+				<button class="cwc-btn cwc-btn--confirm-yes" type="button" data-delete-yes disabled>{t.btnConfirmYes}</button>
+				<button class="cwc-btn cwc-btn--confirm-no" type="button" data-delete-no>{t.btnConfirmNo}</button>
 			</div>
 			<p class="cwc-confirm__message" data-delete-message aria-live="polite"></p>
 		</div>
 	</div>
 </div>
 
+<script define:vars={{
+	__customWalletI18n: {
+		defaultWalletLabel: t.scriptDefaultWalletLabel,
+		deleting:           t.scriptDeleting,
+		deleteFailed:       t.scriptDeleteFailed,
+		deleted:            t.scriptDeleted,
+		networkError:       t.scriptNetworkError,
+	}
+}}>
+	window.__customWalletI18n = __customWalletI18n;
+</script>
 
 <script>
+	const _cwI18n = (window as any).__customWalletI18n ?? {
+		defaultWalletLabel: 'Custom Wallet',
+		deleting:           'Deleting…',
+		deleteFailed:       'Delete failed.',
+		deleted:            'Deleted — reloading…',
+		networkError:       'Network error — try again.',
+	};
+
 	// ── Add Transaction ───────────────────────────────────────────────
 	document.querySelectorAll<HTMLButtonElement>('[data-custom-wallet-add]').forEach((btn) => {
 		btn.addEventListener('click', () => {
 			const walletId = btn.dataset.walletId ?? '';
-			const walletLabel = btn.dataset.walletLabel ?? 'Custom Wallet';
+			const walletLabel = btn.dataset.walletLabel ?? _cwI18n.defaultWalletLabel;
 			document.dispatchEvent(new CustomEvent('open-add-tx', { detail: { walletId, walletLabel } }));
 		});
 	});
@@ -174,20 +198,20 @@ const parseMeta = (raw: string | null) => {
 		yesBtn?.addEventListener('click', async () => {
 			if (!walletId) return;
 			if (yesBtn) yesBtn.disabled = true;
-			setMsg('Deleting…');
+			setMsg(_cwI18n.deleting);
 
 			try {
 				const res = await fetch(`/api/wallets/${walletId}`, { method: 'DELETE' });
 				if (!res.ok && res.status !== 204) {
 					const data = await res.json().catch(() => ({}));
-					setMsg(data.message ?? 'Delete failed.');
+					setMsg(data.message ?? _cwI18n.deleteFailed);
 					if (yesBtn) yesBtn.disabled = false;
 					return;
 				}
-				setMsg('Deleted — reloading…');
+				setMsg(_cwI18n.deleted);
 				window.location.reload();
 			} catch {
-				setMsg('Network error — try again.');
+				setMsg(_cwI18n.networkError);
 				if (yesBtn) yesBtn.disabled = false;
 			}
 		});

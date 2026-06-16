@@ -16,11 +16,15 @@ import yearDivide2024 from '@/assets/2024yearlyDivide.webp';
 import yearDivide2025 from '@/assets/2025yearlyDivide.webp';
 import yearDivideEarlier from '@/assets/EarlieryearlyDivide.webp';
 import Tin0AllTransactionsClient from '@/components/transactions/Tin0AllTransactionsClient';
+import { getLang } from '@/lib/i18n/locale';
+import { getTin0AllTransactions } from '@/i18n/components/tin0AllTransactions';
 
 const lostIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 
 const { walletId } = Astro.props as { walletId?: string };
 const { tenantId } = await requireTenantSession(Astro.request);
+const lang = getLang(Astro.request);
+const t = getTin0AllTransactions(lang);
 const requestUrl = new URL(Astro.request.url);
 const rowsLimit = Math.min(Math.max(Number(requestUrl.searchParams.get('limit') ?? 200), 1), 500);
 const rowsOffset = Math.max(Number(requestUrl.searchParams.get('offset') ?? 0), 0);
@@ -79,7 +83,7 @@ try {
 		.filter(Boolean);
 } catch (error) {
 	console.error('[Tin0AllTransactions] Failed to load sources', error);
-	loadError = 'Internal error.';
+	loadError = t.internalError;
 }
 
 type UnifiedRow = {
@@ -250,7 +254,7 @@ try {
 	console.log('[Tin0AllTransactions] rows ms', Date.now() - rowsStart, 'count', rows.length);
 } catch (error) {
 	console.error('[Tin0AllTransactions] Failed to load rows', error);
-	loadError = loadError ?? 'Internal error.';
+	loadError = loadError ?? t.internalError;
 	rows = [];
 }
 
@@ -288,7 +292,7 @@ const formatDate = (value: string) => {
 	if (!value) return '';
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return value;
-	return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+	return date.toLocaleString(t.dateLocale, { month: 'short', day: 'numeric' });
 };
 
 const formatRelativeDays = (value: string | null) => {
@@ -298,7 +302,7 @@ const formatRelativeDays = (value: string | null) => {
 	const diffMs = Date.now() - date.getTime();
 	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 	if (!Number.isFinite(diffDays)) return '—';
-	return `${diffDays} days ago`;
+	return t.daysAgo(diffDays);
 };
 
 const formatTokenAmount = (value: string | null, decimals = 18) => {
@@ -374,7 +378,7 @@ const resolveFee = (row: UnifiedRow) => {
 const aaveLabel = (row: UnifiedRow) => {
 	if (row.source !== 'aave') return null;
 	const symbol = pickSymbol(row) || 'assets';
-	return `Deposited ${symbol} into Aave (collateral — non-taxable)`;
+	return t.aaveDeposit(symbol);
 };
 
 const filteredRows = rows.filter((row) => {
@@ -394,12 +398,12 @@ const exportUrl = walletId
 <article class="tin0-all" id="all-transactions">
 	<div class="tin0-all__inner">
 	<header class="tin0-all__header">
-		<h3 class="tin0-all__title">All Transactions</h3>
-		<a class="tin0-all__export" href={exportUrl}>Export CSV</a>
+		<h3 class="tin0-all__title">{t.headerTitle}</h3>
+		<a class="tin0-all__export" href={exportUrl}>{t.exportCsv}</a>
 		<label class="tin0-all__filter">
-			<span>Source</span>
-			<select class="tin0-all__select" aria-label="Filter by source">
-				<option value="all">All sources</option>
+			<span>{t.filterSourceLabel}</span>
+			<select class="tin0-all__select" aria-label={t.filterSourceAriaLabel}>
+				<option value="all">{t.filterAllSources}</option>
 				{sources.map((source) => (
 					<option value={source}>{source}</option>
 				))}
@@ -416,15 +420,15 @@ const exportUrl = walletId
 						<summary class="lifecycle-summary">
 							<span class="lifecycle-asset">{group.asset_symbol}</span>
 							<span class="lifecycle-meta">
-								Avg cost {formatUsd(group.weighted_avg_cost_usd)} · Qty {formatAmount(group.total_quantity)}
+								{t.lifecycleAvgCost} {formatUsd(group.weighted_avg_cost_usd)} · {t.lifecycleQty} {formatAmount(group.total_quantity)}
 							</span>
 							<span class="lifecycle-meta">
-								Last buy {group.latest_acquired_at ? formatDate(group.latest_acquired_at) : '—'} · {formatRelativeDays(group.latest_acquired_at)}
+								{t.lifecycleLastBuy} {group.latest_acquired_at ? formatDate(group.latest_acquired_at) : '—'} · {formatRelativeDays(group.latest_acquired_at)}
 							</span>
 						</summary>
 						<div class="lifecycle-events">
 							{events.length === 0 ? (
-								<p class="lifecycle-empty">No lifecycle events found.</p>
+								<p class="lifecycle-empty">{t.lifecycleNoEvents}</p>
 							) : (
 								events.map((event) => (
 									<div class="lifecycle-event">
@@ -436,7 +440,7 @@ const exportUrl = walletId
 											{formatAmount(event.amount, { maximumFractionDigits: 8 })}
 										</span>
 										<span class="lifecycle-event__src">
-											{event.source_type}{event.linked_transfer ? ' · linked' : ''}
+											{event.source_type}{event.linked_transfer ? ` · ${t.lifecycleLinked}` : ''}
 										</span>
 									</div>
 								))
@@ -472,7 +476,7 @@ const exportUrl = walletId
 					<span class="tx-symbol">{pickSymbol(item.row) || '—'}</span>
 					{isUnwrapRow(item.row) && pickTokenAmount(item.row) === null ? (
 						<span class="tx-amount">
-							<span class="tx-na" data-tooltip="Token unwrapped, no funds exchanged.">N/A?</span>
+							<span class="tx-na" data-tooltip={t.unwrapTooltip}>{t.unwrapLabel}</span>
 						</span>
 					) : (
 						<span class="tx-amount">
@@ -481,7 +485,7 @@ const exportUrl = walletId
 					)}
 					{isUnwrapRow(item.row) && pickUsdAmount(item.row) === null ? (
 						<span class="tx-usd" data-role="usd">
-							<span class="tx-na" data-tooltip="Token unwrapped, no funds exchanged.">N/A?</span>
+							<span class="tx-na" data-tooltip={t.unwrapTooltip}>{t.unwrapLabel}</span>
 						</span>
 					) : (
 						<span class="tx-usd" data-role="usd">
@@ -493,9 +497,9 @@ const exportUrl = walletId
 							{normalizeDirection(item.row) === 'lost' ? (
 								<span class="tx-icon-svg" set:html={lostIcon} />
 							) : normalizeDirection(item.row) === 'out' ? (
-								<img class="tx-icon-img" src={walletOut.src} alt="Sold" />
+								<img class="tx-icon-img" src={walletOut.src} alt={t.altSold} />
 							) : (
-								<img class="tx-icon-img" src={walletIn.src} alt="Bought" />
+								<img class="tx-icon-img" src={walletIn.src} alt={t.altBought} />
 							)}
 						</span>
 					</span>
@@ -503,26 +507,26 @@ const exportUrl = walletId
 					{item.row.id === latestRowId ? (
 						<div class="tx-detail">
 							<span>
-								Token:{' '}
+								{t.detailToken}{' '}
 								{formatAmount(pickTokenAmount(item.row), { maximumFractionDigits: 8 })}{' '}
 								{pickSymbol(item.row)}
 							</span>
 							<span>
-								USD:{' '}
+								{t.detailUsd}{' '}
 								{formatAmount(pickUsdAmount(item.row), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 							</span>
-							{resolveFee(item.row) ? <span>Fee: {resolveFee(item.row)}</span> : null}
+							{resolveFee(item.row) ? <span>{t.detailFee} {resolveFee(item.row)}</span> : null}
 						</div>
 					) : null}
 					<textarea
 						class="tx-notes"
-						placeholder="Notes..."
+						placeholder={t.notesPlaceholder}
 						data-id={item.row.id}
 						data-initial={item.row.notes ?? ''}
 						data-category={item.row.category ?? ''}
 						data-group-id={item.row.group_id ?? ''}
 					>{item.row.notes ?? ''}</textarea>
-					<span class="tx-saved" aria-live="polite">Saved</span>
+					<span class="tx-saved" aria-live="polite">{t.savedLabel}</span>
 			</div>
 		))}
 	</div>

@@ -2,6 +2,11 @@
 import './SmartImport.css';
 // SmartImport.astro
 // Drop-zone that auto-detects any supported CSV and routes it to the right tin.
+import { getLang } from '@/lib/i18n/locale';
+import { getSmartImport } from '@/i18n/components/smartImport';
+
+const lang = getLang(Astro.request);
+const t = getSmartImport(lang);
 ---
 
 <div class="smart-import" id="smart-import">
@@ -12,9 +17,9 @@ import './SmartImport.css';
       <path stroke-linecap="round" stroke-linejoin="round"
         d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
     </svg>
-    <p class="smart-import__label">Drop any exchange CSV here</p>
+    <p class="smart-import__label">{t.dropLabel}</p>
     <p class="smart-import__sub">Crypto.com · Coinbase · Exodus · Gemini · Kraken · Robinhood · Cash App · Venmo</p>
-    <button class="smart-import__btn" id="smart-import-browse">Browse files</button>
+    <button class="smart-import__btn" id="smart-import-browse">{t.browseFiles}</button>
   </div>
 
   <div class="smart-import__results" id="smart-import-results"></div>
@@ -23,6 +28,26 @@ import './SmartImport.css';
 
 <!-- Fixed toast container — appended to body by JS so it's always on top -->
 <div id="si-toast-container" class="si-toast"></div>
+
+<!-- i18n island: injects window.__smartImportI18n before the inline script runs -->
+<script define:vars={{
+  __si18n: {
+    // Static strings
+    errorUnsupportedType: t.errorUnsupportedType,
+    detectingExchange:    t.detectingExchange,
+    unknownFormat:        t.unknownFormat,
+    // Interpolation templates — locale functions called with sentinel tokens
+    tplUploadingFile:     t.uploadingFile('{filename}'),
+    tplDetectedImporting: t.detectedImporting('{name}'),
+    tplDetectedToast:     t.detectedToast('{name}'),
+    tplImportFailed:      t.importFailed('{status}'),
+    tplDupesSkipped:      t.dupesSkipped('{count}'),
+    tplImportSuccess:     t.importSuccess('{name}', '{inserted}', '{skipped}'),
+    tplUnexpectedError:   t.unexpectedError('{message}'),
+  }
+}}>
+  window.__smartImportI18n = __si18n;
+</script>
 
 <script is:inline>
 (function () {
@@ -33,6 +58,27 @@ import './SmartImport.css';
   const toastEl = document.getElementById('si-toast-container');
 
   if (!drop || !input || !browse || !results) return;
+
+  // ── i18n helpers ──────────────────────────────────────────────────────────
+  const _i = window.__smartImportI18n || {};
+  function _t(tpl, vars) {
+    if (!tpl) return '';
+    return Object.keys(vars).reduce(function(s, k) {
+      return s.split('{' + k + '}').join(vars[k]);
+    }, tpl);
+  }
+  const i18n = {
+    errorUnsupportedType: _i.errorUnsupportedType || 'Not a supported file type. Drop a CSV or ZIP export from a supported exchange.',
+    detectingExchange:    _i.detectingExchange    || 'Detecting exchange…',
+    unknownFormat:        _i.unknownFormat        || 'Unknown format',
+    uploadingFile:  function(f)           { return _t(_i.tplUploadingFile     || 'Uploading {filename}…',                       { filename: f }); },
+    detectedImporting: function(n)        { return _t(_i.tplDetectedImporting || 'Detected: {name} — importing…',          { name: n }); },
+    detectedToast: function(n)            { return _t(_i.tplDetectedToast     || '{name} detected — importing…',           { name: n }); },
+    importFailed:  function(s)            { return _t(_i.tplImportFailed      || 'Import failed ({status})',                         { status: s }); },
+    dupesSkipped:  function(c)            { return _t(_i.tplDupesSkipped      || ' · {count} dupes skipped',                   { count: c }); },
+    importSuccess: function(n, ins, skip) { return _t(_i.tplImportSuccess     || '{name} — {inserted} rows imported{skipped}',  { name: n, inserted: ins, skipped: skip }); },
+    unexpectedError: function(m)          { return _t(_i.tplUnexpectedError   || 'Unexpected error: {message}',                     { message: m }); },
+  };
 
   // ── Toast helpers ─────────────────────────────────────────────────────────
   // Toasts are fixed to the bottom-right corner so they're visible no matter
@@ -75,7 +121,7 @@ import './SmartImport.css';
     if (files.length) {
       processFiles(files);
     } else {
-      showToast('error', 'Not a supported file type. Drop a CSV or ZIP export from a supported exchange.', 6000);
+      showToast('error', i18n.errorUnsupportedType, 6000);
     }
   });
 
@@ -85,9 +131,9 @@ import './SmartImport.css';
 
   async function processOne(file) {
     // Inline result row (keeps a history below the dropzone)
-    const row = addResult('processing', file.name, `Detecting exchange…`);
+    const row = addResult('processing', file.name, i18n.detectingExchange);
     // Toast in the corner — immediately visible
-    activeToast = showToast('processing', `Uploading ${file.name}…`, 0);
+    activeToast = showToast('processing', i18n.uploadingFile(file.name), 0);
 
     try {
       // Step 1: detect
@@ -97,14 +143,14 @@ import './SmartImport.css';
       const detected   = await detectRes.json();
 
       if (!detected.detected) {
-        const msg = detected.error ?? 'Unknown format';
+        const msg = detected.error ?? i18n.unknownFormat;
         setResult(row, 'error', file.name, msg);
-        swapToast('error', msg,8000);
+        swapToast('error', msg, 8000);
         return;
       }
 
-      setResult(row, 'processing', file.name, `Detected: ${detected.name} — importing…`);
-      swapToast('processing', `${detected.name} detected — importing…`, 0);
+      setResult(row, 'processing', file.name, i18n.detectedImporting(detected.name));
+      swapToast('processing', i18n.detectedToast(detected.name), 0);
 
       // Step 2: import
       const importForm = new FormData();
@@ -113,16 +159,16 @@ import './SmartImport.css';
       const result     = await importRes.json();
 
       if (!importRes.ok || result.error) {
-        const msg = result.error ?? `Import failed (${importRes.status})`;
+        const msg = result.error ?? i18n.importFailed(importRes.status);
         setResult(row, 'error', file.name, msg);
-        swapToast('error', msg,10000);
+        swapToast('error', msg, 10000);
         return;
       }
 
       const inserted = result.insertedNormalized ?? result.inserted ?? result.count ?? '?';
       const dupes    = result.skippedDuplicates  ?? result.skipped  ?? null;
-      const skipped  = dupes != null ? ` · ${dupes} dupes skipped` : '';
-      const successMsg = `${detected.name} — ${inserted} rows imported${skipped}`;
+      const skipped  = dupes != null ? i18n.dupesSkipped(dupes) : '';
+      const successMsg = i18n.importSuccess(detected.name, inserted, skipped);
 
       setResult(row, 'success', file.name, successMsg);
       swapToast('success', successMsg, 7000);
@@ -130,9 +176,9 @@ import './SmartImport.css';
       fetch('/api/lifecycle/rebuild', { method: 'POST' }).catch(() => {});
 
     } catch (err) {
-      const msg = `Unexpected error: ${err?.message ?? err}`;
+      const msg = i18n.unexpectedError(err?.message ?? String(err));
       setResult(row, 'error', file.name, msg);
-      swapToast('error', msg,10000);
+      swapToast('error', msg, 10000);
     }
   }
 

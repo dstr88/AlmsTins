@@ -2,6 +2,8 @@
 import './OnchainWalletTransactions.css';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getOnchainWalletTransactions } from '@/i18n/components/onchainWalletTransactions';
 import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
 import yearDivide2023 from '@/assets/2023yearlyDivide.webp';
@@ -67,6 +69,8 @@ const toTxRows = (rows: unknown): TxRow[] => {
 };
 
 const { walletId, title } = Astro.props as Props;
+const lang = getLang(Astro.request);
+const t = getOnchainWalletTransactions(lang);
 const { tenantId } = await requireTenantSession(Astro.request);
 
 const walletResult = await db.execute({
@@ -84,14 +88,15 @@ const syncRow = syncResult.rows[0] as Record<string, unknown> | undefined;
 const lastSynced = (syncRow?.last_synced as string | null) ?? null;
 const dataThroughRaw = (syncRow?.data_through as string | null) ?? null;
 
+const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 function fmtSyncDate(iso: string | null): string {
 	if (!iso) return '';
 	const d = new Date(iso);
 	if (isNaN(d.getTime())) return '';
-	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	return d.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
 }
-const syncLabel = lastSynced ? `synced ${fmtSyncDate(lastSynced)}` : null;
-const dataThroughLabel = dataThroughRaw ? `data through ${fmtSyncDate(dataThroughRaw)}` : null;
+const syncLabel = lastSynced ? `${t.syncedPrefix}${fmtSyncDate(lastSynced)}` : null;
+const dataThroughLabel = dataThroughRaw ? `${t.dataThroughPrefix}${fmtSyncDate(dataThroughRaw)}` : null;
 
 const walletAddress = String(walletResult.rows?.[0]?.address ?? '').toLowerCase();
 
@@ -154,7 +159,7 @@ const resolveSymbol = (row: TxRow) => {
 	return upper;
 };
 
-const resolveAmountLabel = (row: TxRow) => (resolveDirection(row) === 'out' ? 'Sold' : 'Bought');
+const resolveAmountLabel = (row: TxRow) => (resolveDirection(row) === 'out' ? t.amountSold : t.amountBought);
 
 const resolveDirection = (row: TxRow) => {
 	const from = row.from_address?.toLowerCase() ?? '';
@@ -218,7 +223,7 @@ for (const row of rows) {
 					<div class="txRow">
 						<span class="txCol--date">{formatDate(item.row.timestamp)}</span>
 						<span class="txCol--chain">
-							<span class="tx-label">Chain</span>
+							<span class="tx-label">{t.labelChain}</span>
 							<span class="tx-value">{item.row.chain || '—'}</span>
 						</span>
 						<span
@@ -226,14 +231,14 @@ for (const row of rows) {
 							data-full={item.row.hash || '—'}
 							title={item.row.hash || '—'}
 						>
-							<span class="tx-label">Hash</span>
+							<span class="tx-label">{t.labelHash}</span>
 							<span class="tx-value">{shortenHash(item.row.hash)}</span>
 						</span>
 						<span class="txCol--dir">
 							{resolveDirection(item.row) === 'out' ? (
-								<img class="tx-icon-img" src={walletOut.src} alt="Outbound" />
+								<img class="tx-icon-img" src={walletOut.src} alt={t.altOutbound} />
 							) : (
-								<img class="tx-icon-img" src={walletIn.src} alt="Inbound" />
+								<img class="tx-icon-img" src={walletIn.src} alt={t.altInbound} />
 							)}
 						</span>
 					</div>
@@ -256,34 +261,43 @@ for (const row of rows) {
 						data-fee-symbol={resolveNativeSymbol(item.row.chain)}
 					>
 						<span class="tx-detail__item">
-							<span class="tx-detail__label">USD</span>
+							<span class="tx-detail__label">{t.labelUsd}</span>
 							<span class="tx-detail__value" data-role="usd">—</span>
 						</span>
 						<span class="tx-detail__item">
-							<span class="tx-detail__label">Fee</span>
+							<span class="tx-detail__label">{t.labelFee}</span>
 							<span class="tx-detail__value" data-role="fee">—</span>
 						</span>
 						<span class="tx-detail__item">
-							<span class="tx-detail__label">Loss</span>
+							<span class="tx-detail__label">{t.labelLoss}</span>
 							<span class="tx-detail__value" data-role="loss">—</span>
 						</span>
 					</div>
 					<textarea
 						class="tx-notes"
-						placeholder="Notes..."
+						placeholder={t.notesPlaceholder}
 						data-id={item.row.id}
 						data-initial={item.row.note ?? ''}
 						data-category={item.row.category ?? ''}
 					>{item.row.note ?? ''}</textarea>
-					<span class="tx-saved" aria-live="polite">Saved</span>
+					<span class="tx-saved" aria-live="polite">{t.savedText}</span>
 				</div>
 			)
 		)}
 	</div>
 </article>
 
+<script is:inline define:vars={{ onchainTxI18n: {
+	linkedSwapPrefix: t.linkedSwapPrefix,
+	savedText:        t.savedText,
+	saveFailedText:   t.saveFailedText,
+} }}>window.__onchainTxI18n = onchainTxI18n;</script>
+
 <script>
 	import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
+
+	// Strings injected by the <script is:inline define:vars> island above.
+	const I = (window as any).__onchainTxI18n ?? {};
 
 	const container = document.querySelector('.onchain-wallet__list');
 	if (container) {
@@ -476,7 +490,7 @@ for (const row of rows) {
 					const detail = group[0].querySelector('.tx-detail');
 					const outUsdRaw = detail instanceof HTMLElement ? Number(detail.dataset.tradeOutUsd ?? 0) : 0;
 					const usdText = outUsdRaw > 0 ? formatUsd(outUsdRaw) : '—';
-					label.textContent = `Linked swap • USD ${usdText}`;
+					label.textContent = `${I.linkedSwapPrefix ?? 'Linked swap • USD '}${usdText}`;
 					wrapper.appendChild(label);
 					card.parentElement?.insertBefore(wrapper, card);
 					group.forEach((node) => wrapper.appendChild(node));
@@ -523,11 +537,11 @@ for (const row of rows) {
 				}
 			} catch {
 				if (saved instanceof HTMLElement) {
-					saved.textContent = 'Save failed';
+					saved.textContent = I.saveFailedText ?? 'Save failed';
 					saved.classList.add('is-visible');
 					setTimeout(() => {
 						saved.classList.remove('is-visible');
-						saved.textContent = 'Saved';
+						saved.textContent = I.savedText ?? 'Saved';
 					}, 2000);
 				}
 			}
