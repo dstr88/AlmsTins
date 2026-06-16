@@ -7,6 +7,11 @@
  */
 import Layout from '@/layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getRedeem } from '@/i18n/redeem';
+
+const lang = getLang(Astro.request);
+const t = getRedeem(lang);
 
 const sess = await requireTenantSession(Astro.request).catch(() => null);
 if (!sess) return Astro.redirect('/login?next=/redeem', 302);
@@ -14,15 +19,12 @@ if (!sess) return Astro.redirect('/login?next=/redeem', 302);
 const prefill = Astro.url.searchParams.get('code') ?? '';
 ---
 
-<Layout title="Redeem Promo Code">
+<Layout title={t.pageTitle}>
   <main class="redeem-page">
     <div class="card">
       <div class="card__icon">🎁</div>
-      <h1 class="card__title">Redeem a Promo Code</h1>
-      <p class="card__sub">
-        Enter your code below to unlock your plan upgrade instantly.
-        No credit card required.
-      </p>
+      <h1 class="card__title">{t.cardTitle}</h1>
+      <p class="card__sub">{t.cardSub}</p>
 
       <form class="redeem-form" id="redeem-form">
         <input
@@ -30,7 +32,7 @@ const prefill = Astro.url.searchParams.get('code') ?? '';
           class="code-input"
           type="text"
           name="code"
-          placeholder="e.g. LAUNCH2026"
+          placeholder={t.placeholder}
           value={prefill}
           autocomplete="off"
           autocapitalize="characters"
@@ -39,7 +41,7 @@ const prefill = Astro.url.searchParams.get('code') ?? '';
           required
         />
         <button class="submit-btn" type="submit" id="submit-btn">
-          Apply Code
+          {t.submitBtn}
         </button>
       </form>
 
@@ -48,11 +50,52 @@ const prefill = Astro.url.searchParams.get('code') ?? '';
   </main>
 </Layout>
 
+<script is:inline define:vars={{ i18n: {
+  applying:      t.applying,
+  dashboardLink: t.dashboardLink,
+  neverExpires:  t.neverExpires,
+  genericError:  t.genericError,
+  networkError:  t.networkError,
+  submitBtn:     t.submitBtn,
+  accessThrough: t.accessThrough('__DATE__'),
+  planUnlocked:  t.planUnlocked('__PLAN__'),
+} }}>window.__redeemI18n = i18n;</script>
+
 <script>
 const form     = document.getElementById('redeem-form') as HTMLFormElement;
 const input    = document.getElementById('code-input')  as HTMLInputElement;
 const btn      = document.getElementById('submit-btn')  as HTMLButtonElement;
 const resultEl = document.getElementById('result')      as HTMLDivElement;
+
+interface RedeemI18n {
+  applying: string;
+  dashboardLink: string;
+  neverExpires: string;
+  genericError: string;
+  networkError: string;
+  submitBtn: string;
+  /** Template with literal __DATE__ placeholder. */
+  accessThrough: string;
+  /** Template with literal __PLAN__ placeholder. */
+  planUnlocked: string;
+}
+
+const I18N: RedeemI18n = (window as unknown as { __redeemI18n?: RedeemI18n }).__redeemI18n ?? {
+  applying: 'Applying…',
+  dashboardLink: 'Go to dashboard →',
+  neverExpires: 'Your access never expires.',
+  genericError: 'Something went wrong. Please try again.',
+  networkError: 'Network error. Please check your connection and try again.',
+  submitBtn: 'Apply Code',
+  accessThrough: 'Your access runs through <strong>__DATE__</strong>.',
+  planUnlocked: '__PLAN__ plan unlocked!',
+};
+
+function formatExpiry(isoDate: string): string {
+  const d = new Date(isoDate);
+  // Use the browser locale for formatting so dates feel natural to the user.
+  return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+}
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -60,7 +103,7 @@ form.addEventListener('submit', async (e) => {
   if (!code) return;
 
   btn.disabled = true;
-  btn.textContent = 'Applying…';
+  btn.textContent = I18N.applying;
   resultEl.className = 'result';
   resultEl.textContent = '';
 
@@ -75,28 +118,29 @@ form.addEventListener('submit', async (e) => {
     if (res.ok && data.ok) {
       const neverExpires = data.expiresAt === '9999-12-31T23:59:59Z';
       const expiryText = neverExpires
-        ? 'Your access never expires.'
-        : `Your access runs through <strong>${new Date(data.expiresAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong>.`;
+        ? I18N.neverExpires
+        : I18N.accessThrough.replace('__DATE__', formatExpiry(data.expiresAt));
+      const planText = I18N.planUnlocked.replace('__PLAN__', data.plan);
       resultEl.className = 'result result--success';
       resultEl.innerHTML = `
         <span class="result__icon">🎉</span>
         <span>
-          <strong>${data.plan} plan unlocked!</strong><br>
+          <strong>${planText}</strong><br>
           ${expiryText}
-          <a href="/dashboard" class="result__link">Go to dashboard →</a>
+          <a href="/dashboard" class="result__link">${I18N.dashboardLink}</a>
         </span>
       `;
       input.value = '';
     } else {
       resultEl.className = 'result result--error';
-      resultEl.innerHTML = `<span class="result__icon">⚠️</span><span>${data.error ?? 'Something went wrong. Please try again.'}</span>`;
+      resultEl.innerHTML = `<span class="result__icon">⚠️</span><span>${data.error ?? I18N.genericError}</span>`;
     }
   } catch {
     resultEl.className = 'result result--error';
-    resultEl.textContent = 'Network error. Please check your connection and try again.';
+    resultEl.textContent = I18N.networkError;
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Apply Code';
+    btn.textContent = I18N.submitBtn;
   }
 });
 
@@ -118,8 +162,8 @@ input.addEventListener('input', () => {
   }
 
   .card {
-    background: rgba(255,255,255,.04);
-    border: 1px solid rgba(255,255,255,.1);
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
     border-radius: 20px;
     padding: 2.5rem 2rem;
     max-width: 440px;
@@ -135,13 +179,13 @@ input.addEventListener('input', () => {
   .card__title {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #e2e8ff;
+    color: var(--text-primary);
     margin-bottom: .5rem;
   }
 
   .card__sub {
     font-size: .9rem;
-    color: rgba(255,255,255,.45);
+    color: var(--text-muted);
     line-height: 1.6;
     margin-bottom: 2rem;
   }
@@ -156,9 +200,9 @@ input.addEventListener('input', () => {
     width: 100%;
     padding: .75rem 1rem;
     border-radius: 10px;
-    background: rgba(255,255,255,.07);
-    border: 1px solid rgba(255,255,255,.15);
-    color: #fff;
+    background: var(--surface-card-2);
+    border: 1px solid var(--border-bright);
+    color: var(--text-primary);
     font-size: 1.1rem;
     font-family: 'Courier New', monospace;
     font-weight: 700;
@@ -170,11 +214,11 @@ input.addEventListener('input', () => {
 
   .code-input:focus {
     outline: none;
-    border-color: rgba(99,102,241,.6);
+    border-color: var(--accent);
   }
 
   .code-input::placeholder {
-    color: rgba(255,255,255,.2);
+    color: var(--text-muted);
     font-weight: 400;
     letter-spacing: normal;
     text-transform: none;
@@ -183,16 +227,16 @@ input.addEventListener('input', () => {
   .submit-btn {
     padding: .75rem 1rem;
     border-radius: 10px;
-    background: #6366f1;
+    background: var(--accent);
     border: none;
-    color: #fff;
+    color: var(--surface-bg);
     font-size: 1rem;
     font-weight: 700;
     cursor: pointer;
-    transition: background .15s, opacity .15s;
+    transition: opacity .15s;
   }
 
-  .submit-btn:hover:not(:disabled) { background: #4f46e5; }
+  .submit-btn:hover:not(:disabled) { opacity: .85; }
   .submit-btn:disabled { opacity: .5; cursor: default; }
 
   /* Result states */
@@ -212,15 +256,15 @@ input.addEventListener('input', () => {
   .result:empty { display: none; }
 
   .result--success {
-    background: rgba(16,185,129,.1);
-    border: 1px solid rgba(16,185,129,.25);
-    color: #6ee7b7;
+    background: var(--gain-bg);
+    border: 1px solid var(--gain-border);
+    color: var(--gain);
   }
 
   .result--error {
-    background: rgba(239,68,68,.1);
-    border: 1px solid rgba(239,68,68,.25);
-    color: #fca5a5;
+    background: var(--loss-bg);
+    border: 1px solid var(--loss-border);
+    color: var(--loss);
   }
 
   .result__icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .1rem; }
@@ -228,7 +272,7 @@ input.addEventListener('input', () => {
   .result__link {
     display: inline-block;
     margin-top: .4rem;
-    color: #a5b4fc;
+    color: var(--accent);
     text-decoration: none;
     font-weight: 600;
   }

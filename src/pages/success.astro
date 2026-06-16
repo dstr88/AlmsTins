@@ -1,17 +1,36 @@
 ---
 import Layout from '@/layouts/Layout.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getSuccess } from '@/i18n/success';
+
+const lang = getLang(Astro.request);
+const t = getSuccess(lang);
+
+// Serialise JS runtime strings for the inline script to consume.
+const jsStrings = JSON.stringify({
+  unavailable: t.jsUnavailable,
+  noSession: t.jsNoSession,
+  stillProcessing: t.jsStillProcessing,
+  notePrefix: lang === 'es' ? 'Nota: ' : lang === 'fr' ? 'Remarque : ' : 'Note: ',
+  fulfilled: t.jsFulfilled,
+  inProgress: t.jsInProgress,
+  fetchError: t.jsFetchError,
+});
 ---
 
-<Layout showHero={false} title="Payment Successful | Almstins" noindex={true}>
+<Layout showHero={false} title={t.pageTitle} noindex={true}>
+  {/* Hidden element carrying localised JS strings — read synchronously by the inline script below */}
+  <div id="i18n-success" data-strings={jsStrings} style="display:none" aria-hidden="true"></div>
+
   <main class="status-page">
     <section class="status-card" aria-live="polite">
-      <h1>Payment successful</h1>
-      <p id="statusMessage">Thanks! We are confirming your domain registration now.</p>
+      <h1>{t.heading}</h1>
+      <p id="statusMessage">{t.initialMessage}</p>
       <p class="status-domain">
-        Domain: <span id="domainValue">Loading…</span>
+        {t.domainLabel} <span id="domainValue">{t.domainLoading}</span>
       </p>
       <p class="status-note" id="statusNote"></p>
-      <a class="status-link" href="/">Back to home</a>
+      <a class="status-link" href="/">{t.backHome}</a>
     </section>
   </main>
 
@@ -59,42 +78,50 @@ import Layout from '@/layouts/Layout.astro';
 
   <script>
     (function () {
-      const statusMessage = document.getElementById("statusMessage");
-      const statusNote = document.getElementById("statusNote");
-      const domainValue = document.getElementById("domainValue");
+      // Read localised strings embedded by the server.
+      var i18nEl = document.getElementById("i18n-success");
+      var s = i18nEl
+        ? JSON.parse(i18nEl.dataset.strings || "{}")
+        : {};
+      var unavailable   = s.unavailable   || "Unavailable";
+      var noSession     = s.noSession     || "We could not find your checkout session. Contact support if needed.";
+      var stillProc     = s.stillProcessing || "We are still processing your order. Please check back soon.";
+      var notePrefix    = s.notePrefix    || "Note: ";
+      var fulfilled     = s.fulfilled     || "Your domain is registered.";
+      var inProgress    = s.inProgress    || "Your order is confirmed and in progress.";
+      var fetchError    = s.fetchError    || "We could not verify your order right now.";
 
-      const params = new URLSearchParams(window.location.search);
-      const sessionId = params.get("session_id");
+      var statusMessage = document.getElementById("statusMessage");
+      var statusNote    = document.getElementById("statusNote");
+      var domainValue   = document.getElementById("domainValue");
+
+      var params    = new URLSearchParams(window.location.search);
+      var sessionId = params.get("session_id");
 
       if (!sessionId) {
-        domainValue.textContent = "Unavailable";
-        statusMessage.textContent =
-          "We could not find your checkout session. Contact support if needed.";
+        domainValue.textContent   = unavailable;
+        statusMessage.textContent = noSession;
         return;
       }
 
-      fetch(`/api/pay/status.php?session_id=${encodeURIComponent(sessionId)}`)
-        .then((res) => res.json())
-        .then((data) => {
+      fetch("/api/pay/status.php?session_id=" + encodeURIComponent(sessionId))
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
           if (!data || !data.ok) {
-            domainValue.textContent = "Unavailable";
-            statusMessage.textContent =
-              "We are still processing your order. Please check back soon.";
-            statusNote.textContent = data?.error ? `Note: ${data.error}` : "";
+            domainValue.textContent   = unavailable;
+            statusMessage.textContent = stillProc;
+            statusNote.textContent    = data && data.error ? notePrefix + data.error : "";
             return;
           }
 
-          domainValue.textContent = data.domain || "Unavailable";
+          domainValue.textContent   = data.domain || unavailable;
           statusMessage.textContent =
-            data.status === "fulfilled"
-              ? "Your domain is registered."
-              : "Your order is confirmed and in progress.";
-          statusNote.textContent = data.message || "";
+            data.status === "fulfilled" ? fulfilled : inProgress;
+          statusNote.textContent    = data.message || "";
         })
-        .catch(() => {
-          domainValue.textContent = "Unavailable";
-          statusMessage.textContent =
-            "We could not verify your order right now.";
+        .catch(function () {
+          domainValue.textContent   = unavailable;
+          statusMessage.textContent = fetchError;
         });
     })();
   </script>

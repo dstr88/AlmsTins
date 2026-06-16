@@ -1,13 +1,18 @@
 ---
 import Layout from '@/layouts/Layout.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getCancel } from '@/i18n/cancel';
+
+const lang = getLang(Astro.request);
+const t = getCancel(lang);
 ---
 
-<Layout showHero={false} title="Payment Canceled | Almstins" noindex={true}>
+<Layout showHero={false} title={t.pageTitle} noindex={true} lang={lang}>
   <main class="status-page">
     <section class="status-card" aria-live="polite">
-      <h1>Checkout canceled</h1>
-      <p>Your payment was not completed. You can try again anytime.</p>
-      <a class="status-link" href="/">Back to home</a>
+      <h1>{t.heading}</h1>
+      <p>{t.body}</p>
+      <a class="status-link" href="/">{t.backHome}</a>
     </section>
   </main>
 

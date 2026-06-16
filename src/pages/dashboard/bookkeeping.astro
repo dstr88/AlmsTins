@@ -10,6 +10,11 @@ import { getActivePlan } from '../../lib/subscriptions';
 import { db } from '../../lib/db';
 import { getJurisdictionProfile } from '../../lib/jurisdictionProfile';
 import { tenantHasTaxAccess } from '../../lib/taxAuth';
+import { getLang } from '@/lib/i18n/locale';
+import { getBookkeeping } from '@/i18n/dashboard/bookkeeping';
+
+const lang = getLang(Astro.request);
+const t = getBookkeeping(lang);
 
 const { tenantId } = await requireTenantSession(Astro.request);
 const canTax = tenantHasTaxAccess(tenantId);
@@ -92,10 +97,11 @@ function sourceIcon(source: string | null | undefined): { url: string; alt: stri
 }
 
 // ── Formatters ──────────────────────────────────────────────────────────────
+const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 const fDate = (iso: string | null) => {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(iso).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
   } catch { return iso; }
 };
 const fQty = (v: number) =>
@@ -141,15 +147,15 @@ const walletCostBasis = walletHoldings.reduce((s, p) => s + (p.costUsd ?? 0), 0)
 const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0);
 ---
 
-<Layout title="Bookkeeping | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
   <section class="bookkeeping-page">
     <div class="hero-bleed">
-      <NetWorthHero title="Bookkeeping" subtitle="Annual breakdown" />
+      <NetWorthHero title={t.heroTitle} subtitle={t.heroSubtitle} />
     </div>
 
     <!-- ══ Year Selector ════════════════════════════════════════════════════ -->
     <div class="year-bar">
-      <span class="year-bar__label">Calendar Year</span>
+      <span class="year-bar__label">{t.yearBarLabel}</span>
       <div class="year-bar__pills">
         {bd.availableYears.map((y) => (
           <a
@@ -170,18 +176,18 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
             href={`/api/year-summary/report?year=${selectedYear}`}
             download={`almstins-${selectedYear}-year-summary.pdf`}
             class="year-summary-btn"
-            title={`Download ${selectedYear} Year Summary PDF`}
+            title={t.pdfDownloadTitle(selectedYear)}
           >
-            ↓ Year Summary PDF
+            {t.pdfBtnLabel}
           </a>
         ) : (
           <a
             href="/dashboard/billing"
             class="year-summary-btn year-summary-btn--locked"
-            title="Upgrade to Premium to download Year Summary PDF"
+            title={t.pdfLockedTitle}
           >
-            Year Summary PDF
-            <span class="year-summary-badge">Premium</span>
+            {t.pdfLockedLabel}
+            <span class="year-summary-badge">{t.pdfPremiumBadge}</span>
           </a>
         )}
       </div>
@@ -194,9 +200,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       </div>
       <div class="readiness-bar__body">
         <span class="readiness-bar__score" id="readiness-score">—</span>
-        <span class="readiness-bar__label" id="readiness-label">Calculating tax readiness…</span>
+        <span class="readiness-bar__label" id="readiness-label">{t.readinessCalculating}</span>
         {canTax && (
-          <a href="/dashboard/yearEnd" class="readiness-bar__link">Tax Readiness →</a>
+          <a href="/dashboard/yearEnd" class="readiness-bar__link">{t.readinessLink}</a>
         )}
       </div>
     </div>
@@ -206,16 +212,16 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
 
       <!-- 1. Needs Attention -->
       <div class="grid-cell">
-        <OrnateTin label="Needs Attention" class="tin-section tin-section--alert">
+        <OrnateTin label={t.tinNeedsAttention} class="tin-section tin-section--alert">
           <div class="tin-toolbar">
-            <span class="tin-toolbar__count">{bd.needsAttention.length} items</span>
+            <span class="tin-toolbar__count">{t.countItems(bd.needsAttention.length)}</span>
             <a href={csvBase('needsAttention')} download class="tin-csv-btn">↓ CSV</a>
           </div>
           <div class="tin-total tin-total--warn">
-            Untraced proceeds: <strong>{fUsd(bd.totals.unsettledProceeds)}</strong>
+            {t.untracedProceeds} <strong>{fUsd(bd.totals.unsettledProceeds)}</strong>
           </div>
           {bd.needsAttention.length === 0 ? (
-            <p class="tin-empty">✓ No orphaned sales for {selectedYear}</p>
+            <p class="tin-empty">{t.noOrphanedSales(selectedYear)}</p>
           ) : (
             <div class="tin-rows">
               {bd.needsAttention.map((item) => {
@@ -248,9 +254,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                     <span class="tin-row__usd">{fUsd(item.proceedsUsd)}</span>
                     {counterpartyLabel
                       ? <span class="tin-row__note tin-row__note--labeled">→ {counterpartyLabel}</span>
-                      : <span class="tin-row__note">{scamLikely ? 'Unrecognised · round amount' : scamPossible ? 'Unrecognised transfer' : 'No purchase found'}</span>
+                      : <span class="tin-row__note">{scamLikely ? t.noteUnrecognisedRound : scamPossible ? t.noteUnrecognisedTransfer : t.noteNoPurchase}</span>
                     }
-                    <span class="tin-row__cta">Details →</span>
+                    <span class="tin-row__cta">{t.detailsCta}</span>
                   </div>
                 );
               })}
@@ -261,18 +267,18 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
 
       <!-- 2. Still in Wallet -->
       <div class="grid-cell">
-        <OrnateTin label="Still in Wallet" class="tin-section tin-section--hold">
+        <OrnateTin label={t.tinStillInWallet} class="tin-section tin-section--hold">
           <div class="tin-toolbar">
-            <span class="tin-toolbar__count">{walletHoldings.length} positions</span>
+            <span class="tin-toolbar__count">{t.countPositions(walletHoldings.length)}</span>
             <a href={csvBase('stillHolding')} download class="tin-csv-btn">↓ CSV</a>
           </div>
           <div class="tin-total">
-            <span class="tin-total__kind">Cost Basis</span>
+            <span class="tin-total__kind">{t.costBasisLabel}</span>
             <strong>{fUsd(walletCostBasis)}</strong>
-            <span class="tin-total__note">what you paid · not market value</span>
+            <span class="tin-total__note">{t.costBasisNote}</span>
           </div>
           {walletHoldings.length === 0 ? (
-            <p class="tin-empty">No open positions</p>
+            <p class="tin-empty">{t.noOpenPositions}</p>
           ) : (
             <div class="tin-rows">
               {walletHoldings.map((pos) => (
@@ -280,16 +286,16 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                   <span class="tin-row__asset">{pos.asset}</span>
                   {isStable(pos.asset) && <span class="asset-badge asset-badge--stable">STABLE</span>}
                   <span class="tin-row__qty">{fQty(pos.amount)}</span>
-                  <span class="tin-row__date">Since {fDate(pos.acquiredDate)}</span>
+                  <span class="tin-row__date">{t.sinceDateLabel(fDate(pos.acquiredDate))}</span>
                   <span class="tin-row__usd">{fUsd(pos.costUsd)}</span>
                   <span class={`tin-row__term ${pos.daysHeld >= 365 ? 'term-long' : 'term-short'}`}>
                     {profile.splitByTerm
-                      ? `${pos.daysHeld >= 365 ? 'Long' : 'Short'} · ${pos.daysHeld}d`
+                      ? `${pos.daysHeld >= 365 ? t.termLong : t.termShort} · ${pos.daysHeld}d`
                       : `${pos.daysHeld}d`}
                   </span>
                   <label class="tin-row__confirm">
                     <input type="checkbox" class="confirm-check" data-asset={pos.asset} data-date={pos.acquiredDate} />
-                    <span class="confirm-label">Confirmed</span>
+                    <span class="confirm-label">{t.confirmedLabel}</span>
                   </label>
                 </div>
               ))}
@@ -302,14 +308,14 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       <!-- DeFi Positions — full width, only shown when present -->
       {defiHoldings.length > 0 && (
         <div class="grid-cell grid-cell--full">
-          <OrnateTin label="DeFi Positions" class="tin-section tin-section--defi">
+          <OrnateTin label={t.tinDefiPositions} class="tin-section tin-section--defi">
             <div class="tin-toolbar">
-              <span class="tin-toolbar__count">{defiHoldings.length} positions</span>
-              <span class="tin-toolbar__note">Aave collateral &amp; protocol balances — unrealized, no tax until withdrawn &amp; sold</span>
+              <span class="tin-toolbar__count">{t.countPositions(defiHoldings.length)}</span>
+              <span class="tin-toolbar__note">{t.defiToolbarNote}</span>
             </div>
             <div class="tin-total">
-              Protocol cost basis: <strong>{fUsd(defiCostBasis)}</strong>
-              <span class="tin-total__note">not included in wallet total above</span>
+              {t.protocolCostBasis} <strong>{fUsd(defiCostBasis)}</strong>
+              <span class="tin-total__note">{t.protocolCostBasisNote}</span>
             </div>
             <div class="tin-rows tin-rows--defi">
               {defiHoldings.map((pos) => (
@@ -320,11 +326,11 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
                     : <span class="asset-badge asset-badge--atoken">AAVE</span>
                   }
                   <span class="tin-row__qty">{fQty(pos.amount)}</span>
-                  <span class="tin-row__date">Since {fDate(pos.acquiredDate)}</span>
+                  <span class="tin-row__date">{t.sinceDateLabel(fDate(pos.acquiredDate))}</span>
                   <span class="tin-row__usd">{fUsd(pos.costUsd)}</span>
                   <span class={`tin-row__term ${pos.daysHeld >= 365 ? 'term-long' : 'term-short'}`}>
                     {profile.splitByTerm
-                      ? `${pos.daysHeld >= 365 ? 'Long' : 'Short'} · ${pos.daysHeld}d`
+                      ? `${pos.daysHeld >= 365 ? t.termLong : t.termShort} · ${pos.daysHeld}d`
                       : `${pos.daysHeld}d`}
                   </span>
                 </div>
@@ -341,22 +347,22 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
           <div class="grid-cell">
             <OrnateTin label={profile.shortTermLabel} class="tin-section tin-section--short">
               <div class="tin-toolbar">
-                <span class="tin-toolbar__count">{bd.shortTerm.length} lots</span>
+                <span class="tin-toolbar__count">{t.countLots(bd.shortTerm.length)}</span>
                 <a href={csvBase('shortTerm')} download class="tin-csv-btn">↓ CSV</a>
               </div>
               {(() => {
                 const g = fGain(bd.totals.shortTermGain);
                 return (
                   <div class={`tin-total ${g.cls}`}>
-                    Net short-term: <strong>{g.text}</strong>
+                    {t.netShortTerm} <strong>{g.text}</strong>
                     {profile.showUsTaxNotes && (
-                      <span class="tin-total__note">taxed as ordinary income</span>
+                      <span class="tin-total__note">{t.taxedAsOrdinaryIncome}</span>
                     )}
                   </div>
                 );
               })()}
               {bd.shortTerm.length === 0 ? (
-                <p class="tin-empty">No short-term disposals in {selectedYear}</p>
+                <p class="tin-empty">{t.noShortTermDisposals(selectedYear)}</p>
               ) : (
                 <div class="tin-rows">
                   {bd.shortTerm.map((lot) => {
@@ -386,22 +392,22 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
           <div class="grid-cell">
             <OrnateTin label={profile.longTermLabel} class="tin-section tin-section--long">
               <div class="tin-toolbar">
-                <span class="tin-toolbar__count">{bd.longTerm.length} lots</span>
+                <span class="tin-toolbar__count">{t.countLots(bd.longTerm.length)}</span>
                 <a href={csvBase('longTerm')} download class="tin-csv-btn">↓ CSV</a>
               </div>
               {(() => {
                 const g = fGain(bd.totals.longTermGain);
                 return (
                   <div class={`tin-total ${g.cls}`}>
-                    Net long-term: <strong>{g.text}</strong>
+                    {t.netLongTerm} <strong>{g.text}</strong>
                     {profile.showUsTaxNotes && (
-                      <span class="tin-total__note">preferential rate</span>
+                      <span class="tin-total__note">{t.preferentialRate}</span>
                     )}
                   </div>
                 );
               })()}
               {bd.longTerm.length === 0 ? (
-                <p class="tin-empty">No long-term disposals in {selectedYear}</p>
+                <p class="tin-empty">{t.noLongTermDisposals(selectedYear)}</p>
               ) : (
                 <div class="tin-rows">
                   {bd.longTerm.map((lot) => {
@@ -430,9 +436,9 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
       ) : (
         /* International: single date-ordered Realized G/L tin */
         <div class="grid-cell grid-cell--full">
-          <OrnateTin label="Realized G/L" class="tin-section tin-section--short">
+          <OrnateTin label={t.tinRealizedGL} class="tin-section tin-section--short">
             <div class="tin-toolbar">
-              <span class="tin-toolbar__count">{bd.shortTerm.length + bd.longTerm.length} lots</span>
+              <span class="tin-toolbar__count">{t.countLots(bd.shortTerm.length + bd.longTerm.length)}</span>
               <a href={csvBase('shortTerm')} download class="tin-csv-btn">↓ CSV</a>
             </div>
             {(() => {
@@ -440,12 +446,12 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
               const g = fGain(total);
               return (
                 <div class={`tin-total ${g.cls}`}>
-                  Net realized: <strong>{g.text}</strong>
+                  {t.netRealized} <strong>{g.text}</strong>
                 </div>
               );
             })()}
             {(bd.shortTerm.length + bd.longTerm.length) === 0 ? (
-              <p class="tin-empty">No disposals in {selectedYear}</p>
+              <p class="tin-empty">{t.noDisposals(selectedYear)}</p>
             ) : (
               <div class="tin-rows">
                 {[...bd.shortTerm, ...bd.longTerm]
@@ -476,16 +482,16 @@ const defiCostBasis   = defiHoldings.reduce((s, p)   => s + (p.costUsd ?? 0), 0)
 
       <!-- 5. Income & Fees — full width -->
       <div class="grid-cell grid-cell--full">
-        <OrnateTin label="Income — Interest, Staking & Rewards" class="tin-section tin-section--income">
+        <OrnateTin label={t.tinIncome} class="tin-section tin-section--income">
           <div class="tin-toolbar">
-            <span class="tin-toolbar__count">{bd.income.length} items</span>
+            <span class="tin-toolbar__count">{t.countItems(bd.income.length)}</span>
             <a href={csvBase('income')} download class="tin-csv-btn">↓ CSV</a>
           </div>
           <div class="tin-total">
-            Total ordinary income: <strong>{fUsd(bd.totals.totalIncome)}</strong>
+            {t.totalOrdinaryIncome} <strong>{fUsd(bd.totals.totalIncome)}</strong>
           </div>
           {bd.income.length === 0 ? (
-            <p class="tin-empty">No income events in {selectedYear}</p>
+            <p class="tin-empty">{t.noIncomeEvents(selectedYear)}</p>
           ) : (
             <div class="tin-rows tin-rows--income">
               {bd.income.map((item) => (
