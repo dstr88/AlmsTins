@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getTransactionsTable } from '@/i18n/components/transactionsTable';
 
 type TransactionWithAnnotation = {
 	id: string;
@@ -40,6 +42,8 @@ function formatTokenAmount(value: string, tokenDecimals: number | null | undefin
 }
 
 export default function TransactionsTable({ walletId }: Props) {
+	const lang = getClientLang();
+	const t = getTransactionsTable(lang);
 	const [rows, setRows] = useState<TransactionWithAnnotation[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -62,7 +66,7 @@ export default function TransactionsTable({ walletId }: Props) {
 		} catch (err) {
 			if ((err as any).name === 'AbortError') return;
 			console.error(err);
-			setError('Failed to load transactions.');
+			setError(t.errorFailed);
 		} finally {
 			if (!signal?.aborted) {
 				setLoading(false);
@@ -107,7 +111,7 @@ export default function TransactionsTable({ walletId }: Props) {
 	};
 
 	if (loading && !rows.length) {
-		return <p>Loading transactions…</p>;
+		return <p>{t.loading}</p>;
 	}
 
 	if (error) {
@@ -130,29 +134,30 @@ export default function TransactionsTable({ walletId }: Props) {
 	});
 
 	if (!visibleRows.length) {
-	   return <p className="text-sm text-gray-500">No transactions yet.</p>;
+	   return <p className="text-sm text-gray-500">{t.empty}</p>;
 	}
 
-	const formatDate = (iso: string) => new Date(iso).toLocaleString();
+	const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+	const formatDate = (iso: string) => new Date(iso).toLocaleString(dateLocale);
 
 	const shorten = (addr: string | null) =>
 		addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
 
 	function renderFlags(tx: TransactionWithAnnotation) {
 		const tags = tx.riskTags ?? [];
-		if (!tags.length) return '—';
+		if (!tags.length) return t.flagsNone;
 		return (
 			<div className="flex flex-wrap gap-1">
 				{tags.map((tag) => {
 					const label =
 						tag === 'newDeposit'
-							? 'New'
+							? t.tagNew
 							: tag === 'aaveMovement'
 							? 'Aave'
 							: tag === 'likelyLost'
-							? 'Lost?'
+							? t.tagLost
 							: tag === 'internalTransfer'
-							? 'Internal'
+							? t.tagInternal
 							: tag;
 					return (
 						<span
@@ -170,14 +175,14 @@ export default function TransactionsTable({ walletId }: Props) {
 	return (
 		<div className="overflow-x-auto border rounded-lg p-4 mt-4">
 			<div className="flex items-center justify-between mb-3">
-				<h2 className="text-lg font-semibold">Transactions</h2>
+				<h2 className="text-lg font-semibold">{t.heading}</h2>
 				<div className="flex items-center gap-2">
 					<select
 						className="border rounded px-2 py-1 text-xs"
 						value={chainFilter}
 						onChange={(e) => setChainFilter(e.target.value as 'all' | 'ethereum' | 'polygon' | 'avalanche' | 'bitcoin')}
 					>
-						<option value="all">All chains</option>
+						<option value="all">{t.filterAllChains}</option>
 						<option value="bitcoin">Bitcoin</option>
 						<option value="ethereum">Ethereum</option>
 						<option value="polygon">Polygon</option>
@@ -188,29 +193,29 @@ export default function TransactionsTable({ walletId }: Props) {
 						value={dateFilter}
 						onChange={(e) => setDateFilter(e.target.value as 'all' | '30d' | 'ytd')}
 					>
-						<option value="all">All time</option>
-						<option value="30d">Last 30 days</option>
-						<option value="ytd">This year</option>
+						<option value="all">{t.filterAllTime}</option>
+						<option value="30d">{t.filterLast30}</option>
+						<option value="ytd">{t.filterThisYear}</option>
 					</select>
 					<button
 						className="border rounded px-3 py-1 text-sm"
 						onClick={handleRefresh}
 						disabled={refreshing}
 					>
-						{refreshing ? 'Refreshing…' : 'Refresh from chain'}
+						{refreshing ? t.refreshing : t.refreshBtn}
 					</button>
 				</div>
 			</div>
 			<table className="min-w-full text-sm">
 				<thead>
 					<tr className="text-left border-b">
-						<th className="py-2 pr-4">Date</th>
-						<th className="py-2 pr-4">Chain / Token</th>
-						<th className="py-2 pr-4">From → To</th>
-						<th className="py-2 pr-4">Value</th>
-						<th className="py-2 pr-4">Flags</th>
-						<th className="py-2 pr-4">Category</th>
-						<th className="py-2 pr-4">Note</th>
+						<th className="py-2 pr-4">{t.colDate}</th>
+						<th className="py-2 pr-4">{t.colChainToken}</th>
+						<th className="py-2 pr-4">{t.colFromTo}</th>
+						<th className="py-2 pr-4">{t.colValue}</th>
+						<th className="py-2 pr-4">{t.colFlags}</th>
+						<th className="py-2 pr-4">{t.colCategory}</th>
+						<th className="py-2 pr-4">{t.colNote}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -241,15 +246,15 @@ export default function TransactionsTable({ walletId }: Props) {
 										saveAnnotation(tx.id, e.target.value || null, tx.note ?? null)
 									}
 								>
-									<option value="">–</option>
-									<option value="deposit">Deposit</option>
-									<option value="borrow">Borrow</option>
-									<option value="repay">Repay</option>
-									<option value="yield">Yield</option>
-									<option value="fee">Fee</option>
-									<option value="internal_transfer">Internal</option>
-									<option value="lost">Lost</option>
-									<option value="other">Other</option>
+									<option value="">{t.catEmpty}</option>
+									<option value="deposit">{t.catDeposit}</option>
+									<option value="borrow">{t.catBorrow}</option>
+									<option value="repay">{t.catRepay}</option>
+									<option value="yield">{t.catYield}</option>
+									<option value="fee">{t.catFee}</option>
+									<option value="internal_transfer">{t.catInternalTransfer}</option>
+									<option value="lost">{t.catLost}</option>
+									<option value="other">{t.catOther}</option>
 								</select>
 							</td>
 							<td className="py-1 pr-4">
@@ -260,7 +265,7 @@ export default function TransactionsTable({ walletId }: Props) {
 									onBlur={(e) =>
 										saveAnnotation(tx.id, tx.category ?? null, e.target.value || null)
 									}
-									placeholder="Purpose / notes…"
+									placeholder={t.notePlaceholder}
 								/>
 							</td>
 						</tr>

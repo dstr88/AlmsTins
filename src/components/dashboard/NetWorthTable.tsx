@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getNetWorthTable } from '@/i18n/components/netWorthTable';
 
 type ChainBreakdown = { chain: string; totalUsd: number };
 
@@ -47,6 +49,7 @@ const CHAIN_COLORS: Record<string, string> = {
 const FALLBACK_COLORS = ['#10b981', '#ec4899', '#facc15', '#0ea5e9', '#f472b6'];
 
 export default function NetWorthTable() {
+	const t = getNetWorthTable(getClientLang());
 	const [summary, setSummary] = useState<NetWorthSummary | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -89,7 +92,7 @@ export default function NetWorthTable() {
 	const donutSegments = useMemo(() => buildSegments(chainBreakdown, totalUsd), [chainBreakdown, totalUsd]);
 
 	if (loading) {
-		return <p className="text-sm text-muted-foreground">Loading net worth…</p>;
+		return <p className="text-sm text-muted-foreground">{t.loading}</p>;
 	}
 
 	if (error) {
@@ -103,7 +106,7 @@ export default function NetWorthTable() {
 	if (!summary) {
 		return (
 			<p className="text-sm text-muted-foreground">
-				No snapshots yet. Run the wallet value sync to populate net worth.
+				{t.noSnapshots}
 			</p>
 		);
 	}
@@ -113,10 +116,10 @@ export default function NetWorthTable() {
 			<div className="rounded-lg border bg-card p-6">
 				<div className="flex flex-col gap-8 md:flex-row">
 					<div className="space-y-2">
-						<p className="text-xs uppercase tracking-wide text-muted-foreground">Aggregate net worth</p>
+						<p className="text-xs uppercase tracking-wide text-muted-foreground">{t.aggregateLabel}</p>
 						<p className="text-3xl font-semibold">${formatUsd(totalUsd)}</p>
 						<p className="text-sm text-muted-foreground">
-							{tinCount} tins in the ecosystem — on-chain wallets, exchanges, and custom accounts.
+							{t.tinCountDescription(tinCount)}
 						</p>
 						<ul className="mt-4 space-y-2 text-sm">
 							{chainBreakdown.map((entry, idx) => {
@@ -145,16 +148,16 @@ export default function NetWorthTable() {
 
 			<div className="rounded-lg border bg-card">
 				<div className="border-b px-4 py-3">
-					<h2 className="text-lg font-semibold">By tin</h2>
-					<p className="text-sm text-muted-foreground">Latest balances and per-chain contributions.</p>
+					<h2 className="text-lg font-semibold">{t.byTinHeading}</h2>
+					<p className="text-sm text-muted-foreground">{t.byTinSubtitle}</p>
 				</div>
 				<div className="overflow-x-auto">
 					<table className="min-w-full text-sm">
 						<thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
 							<tr>
-								<th className="px-4 py-2 text-left">Tin</th>
-								<th className="px-4 py-2 text-left">Total USD</th>
-								<th className="px-4 py-2 text-left">Per chain</th>
+								<th className="px-4 py-2 text-left">{t.colTin}</th>
+								<th className="px-4 py-2 text-left">{t.colTotalUsd}</th>
+								<th className="px-4 py-2 text-left">{t.colPerChain}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -200,6 +203,7 @@ type DonutCenterSegment = {
 };
 
 function ChainDonut({ segments, totalUsd }: { segments: DonutSegment[]; totalUsd: number }) {
+	const t = getNetWorthTable(getClientLang());
 	const size = 180;
 	const strokeWidth = 26;
 	const radius = (size - strokeWidth) / 2;
@@ -213,7 +217,7 @@ function ChainDonut({ segments, totalUsd }: { segments: DonutSegment[]; totalUsd
 	if (!segments.length) {
 		return (
 			<div className="flex h-[180px] w-[180px] items-center justify-center text-sm text-muted-foreground">
-				No data
+				{t.donutNoData}
 			</div>
 		);
 	}
@@ -339,6 +343,7 @@ type DonutCenterPanelProps = {
 };
 
 function DonutCenterPanel({ totalUsd, selectedSegment }: DonutCenterPanelProps) {
+	const t = getNetWorthTable(getClientLang());
 	const amountFormatter = (value: number) =>
 		value.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
@@ -360,9 +365,9 @@ function DonutCenterPanel({ totalUsd, selectedSegment }: DonutCenterPanelProps) 
 					pointerEvents: 'none',
 				}}
 			>
-				<p className="donut-center-line1">Portfolio overview</p>
+				<p className="donut-center-line1">{t.donutCenterLine1}</p>
 				<p className="donut-center-line2">{amountFormatter(totalUsd)}</p>
-				<p className="donut-center-line3">Tap a segment for details</p>
+				<p className="donut-center-line3">{t.donutCenterLine3}</p>
 			</div>
 		);
 	}
@@ -386,7 +391,7 @@ function DonutCenterPanel({ totalUsd, selectedSegment }: DonutCenterPanelProps) 
 		>
 			<p className="donut-center-line1">{selectedSegment.label}</p>
 			<p className="donut-center-line2">{amountFormatter(selectedSegment.amountUsd)}</p>
-			<p className="donut-center-line3">{(selectedSegment.pct * 100).toFixed(1)}% of portfolio</p>
+			<p className="donut-center-line3">{t.donutSelectedPct((selectedSegment.pct * 100).toFixed(1))}</p>
 		</div>
 	);
 }

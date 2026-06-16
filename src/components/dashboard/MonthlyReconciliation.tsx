@@ -10,6 +10,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getMonthlyReconciliation } from '@/i18n/components/monthlyReconciliation';
 
 // ── Types (mirrors src/lib/monthlyReconciliation.ts) ─────────────────────────
 
@@ -59,15 +61,16 @@ function deltaColor(delta: number | null): string {
 	return 'var(--loss)';                              // loss / data gap
 }
 
-function monthLabel(ym: string): string {
+function monthLabel(ym: string, dateLocale: string): string {
 	const [y, m] = ym.split('-');
 	const date = new Date(Number(y), Number(m) - 1, 1);
-	return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+	return date.toLocaleString(dateLocale, { month: 'long', year: 'numeric' });
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function MonthlyReconciliationTile() {
+	const t = getMonthlyReconciliation(getClientLang());
 	const [months, setMonths]       = useState<string[]>([]);
 	const [selected, setSelected]   = useState<string>('');
 	const [data, setData]           = useState<MonthlyReconciliation | null>(null);
@@ -132,7 +135,7 @@ export default function MonthlyReconciliationTile() {
 					}}
 				>
 					{months.map((m) => (
-						<option key={m} value={m}>{monthLabel(m)}</option>
+						<option key={m} value={m}>{monthLabel(m, t.dateLocale)}</option>
 					))}
 				</select>
 				<button
@@ -145,12 +148,12 @@ export default function MonthlyReconciliationTile() {
 						letterSpacing: '0.1em', opacity: loading ? 0.5 : 1,
 					}}
 				>
-					{loading ? 'Computing…' : '↻ Recompute'}
+					{loading ? t.computing : t.recompute}
 				</button>
 			</div>
 
 			{loading && (
-				<p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Computing…</p>
+				<p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>{t.computing}</p>
 			)}
 
 			{data && !loading && (
@@ -161,23 +164,23 @@ export default function MonthlyReconciliationTile() {
 						display: 'flex', flexDirection: 'column', gap: '0.45rem',
 						border: '1px solid var(--border-bright)',
 					}}>
-						<Row label="Opening balance" value={usd(data.openingAssetsUsd)} />
-						<Row label="+ Inflows (buys, income)" value={usd(data.inflowsUsd)} color="var(--gain)" />
-						<Row label="− Outflows (sells, fees)" value={`−${usd(data.outflowsUsd)}`} color="var(--loss)" />
+						<Row label={t.openingBalance} value={usd(data.openingAssetsUsd)} />
+						<Row label={t.inflows} value={usd(data.inflowsUsd)} color="var(--gain)" />
+						<Row label={t.outflows} value={`−${usd(data.outflowsUsd)}`} color="var(--loss)" />
 						{(data.transferInUsd > 0 || data.transferOutUsd > 0) && (
 							<Row
-								label="± Matched transfers (net)"
+								label={t.matchedTransfers}
 								value={usd(data.transferInUsd - data.transferOutUsd)}
 								color="var(--text-muted)"
 								muted
 							/>
 						)}
 						<div style={{ borderTop: '1px dashed var(--accent-dim)', margin: '0.2rem 0' }} />
-						<Row label="Expected closing" value={usd(data.expectedClosingUsd)} />
-						<Row label="Actual closing (wallets)" value={usd(data.closingAssetsUsd)} bold />
+						<Row label={t.expectedClosing} value={usd(data.expectedClosingUsd)} />
+						<Row label={t.actualClosing} value={usd(data.closingAssetsUsd)} bold />
 						<div style={{ borderTop: '1px solid var(--accent-dim)', margin: '0.2rem 0' }} />
 						<Row
-							label="Delta (price change + gaps)"
+							label={t.delta}
 							value={data.deltaUsd != null ? `${sign(data.deltaUsd)}${usd(data.deltaUsd)}` : '—'}
 							color={deltaColor(data.deltaUsd)}
 							bold
@@ -193,13 +196,13 @@ export default function MonthlyReconciliationTile() {
 							display: 'flex', flexDirection: 'column', gap: '0.3rem',
 						}}>
 							<span style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-								{data.unmatchedTxCount} unmatched transfer{data.unmatchedTxCount !== 1 ? 's' : ''} — data gap detected
+								{t.unmatchedWarning(data.unmatchedTxCount)}
 							</span>
 							{data.unmatchedOutUsd > 0 && (
-								<span>Sent out with no inbound record: {usd(data.unmatchedOutUsd)} — transaction may have disappeared from source data</span>
+								<span>{t.unmatchedOut(usd(data.unmatchedOutUsd))}</span>
 							)}
 							{data.unmatchedInUsd > 0 && (
-								<span>Received with no outbound record: {usd(data.unmatchedInUsd)} — check if source wallet/exchange is connected</span>
+								<span>{t.unmatchedIn(usd(data.unmatchedInUsd))}</span>
 							)}
 						</div>
 					)}
@@ -215,7 +218,7 @@ export default function MonthlyReconciliationTile() {
 								letterSpacing: '0.12em', alignSelf: 'flex-start',
 							}}
 						>
-							{expanded ? '▲ Hide' : '▼ Show'} asset breakdown ({data.assets.length})
+							{expanded ? t.hideBreakdown : t.showBreakdown}{t.assetBreakdownSuffix(data.assets.length)}
 						</button>
 					)}
 
@@ -228,10 +231,10 @@ export default function MonthlyReconciliationTile() {
 								fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em',
 								color: 'var(--text-muted)',
 							}}>
-								<span>Asset</span>
-								<span style={{ textAlign: 'right' }}>In</span>
-								<span style={{ textAlign: 'right' }}>Out</span>
-								<span style={{ textAlign: 'right' }}>Gap</span>
+								<span>{t.colAsset}</span>
+								<span style={{ textAlign: 'right' }}>{t.colIn}</span>
+								<span style={{ textAlign: 'right' }}>{t.colOut}</span>
+								<span style={{ textAlign: 'right' }}>{t.colGap}</span>
 							</div>
 							{data.assets.map((a) => {
 								const hasGap = a.unmatchedOutUsd > 0 || a.unmatchedInUsd > 0;
@@ -259,13 +262,13 @@ export default function MonthlyReconciliationTile() {
 					)}
 
 					<p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-						{data.txCount} transactions · snapshots from wallet sync
+						{t.txFooter(data.txCount)}
 					</p>
 				</>
 			)}
 
 			{!loading && !data && selected && (
-				<p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>No data for this month.</p>
+				<p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>{t.noData}</p>
 			)}
 		</div>
 	);

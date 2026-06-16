@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getThisYearTransactions } from '@/i18n/components/thisYearTransactions';
 
 type WalletResponse = {
 	id: string;
@@ -35,10 +37,11 @@ type FetchState =
 			priceMap: Record<string, number>;
 	  };
 
-function formatDateLabel(value: string) {
+function formatDateLabel(value: string, lang: string) {
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return '—';
-	return date.toLocaleString();
+	const locale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+	return date.toLocaleString(locale);
 }
 
 function quarterLabel(date: Date) {
@@ -62,6 +65,7 @@ function chainToSymbol(chain: string) {
 
 export default function ThisYearTransactions({ walletId }: { walletId: string }) {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
+	const t = getThisYearTransactions(getClientLang());
 
 	useEffect(() => {
 		let cancelled = false;
@@ -167,7 +171,7 @@ export default function ThisYearTransactions({ walletId }: { walletId: string })
 		}
 
 		const summaryText = truncateWords(
-			`${txCount} transactions, ${uniqueContracts.size} unique contracts, gas $${gasUsdTotal.toFixed(2)}.`,
+			t.summaryText(txCount, uniqueContracts.size, gasUsdTotal.toFixed(2)),
 			20,
 		);
 
@@ -195,42 +199,42 @@ export default function ThisYearTransactions({ walletId }: { walletId: string })
 			label,
 			count: txs.length,
 			latest: txs
-				.map((t) => t.timestamp)
+				.map((tx) => tx.timestamp)
 				.sort()
 				.reverse()[0],
 		}));
 	}, [state]);
 
 	if (state.status === 'loading') {
-		return <div className="this-year-status">Loading transactions…</div>;
+		return <div className="this-year-status">{t.loading}</div>;
 	}
 
 	if (state.status === 'error') {
-		return <div className="this-year-status this-year-status--error">Unable to load transactions.</div>;
+		return <div className="this-year-status this-year-status--error">{t.errorMessage}</div>;
 	}
 
 	if (!summary) {
-		return <div className="this-year-status">No transactions found.</div>;
+		return <div className="this-year-status">{t.emptyMessage}</div>;
 	}
 
 	return (
 		<div className="this-year">
 			<div className="this-year__summary">
 				<div className="summary-row">
-					<span className="label">Transactions</span>
+					<span className="label">{t.labelTransactions}</span>
 					<span className="value">{summary.txCount}</span>
 				</div>
 				<div className="summary-row">
-					<span className="label">Contracts</span>
+					<span className="label">{t.labelContracts}</span>
 					<span className="value">{summary.uniqueContracts}</span>
 				</div>
 				<div className="summary-row">
-					<span className="label">Gas spent</span>
+					<span className="label">{t.labelGasSpent}</span>
 					<span className="value">${summary.gasUsdTotal.toFixed(2)}</span>
 				</div>
 				<div className="summary-row">
-					<span className="label">Most recent</span>
-					<span className="value">{summary.latestTimestamp ? formatDateLabel(summary.latestTimestamp) : '—'}</span>
+					<span className="label">{t.labelMostRecent}</span>
+					<span className="value">{summary.latestTimestamp ? formatDateLabel(summary.latestTimestamp, t.lang) : '—'}</span>
 				</div>
 			</div>
 
@@ -242,8 +246,8 @@ export default function ThisYearTransactions({ walletId }: { walletId: string })
 						<div className="quarter-divider"></div>
 						<div className="quarter-label">{quarter.label}</div>
 						<div className="quarter-meta">
-							<span>{quarter.count} transactions</span>
-							<span>{quarter.latest ? formatDateLabel(quarter.latest) : '—'}</span>
+							<span>{t.quarterTransactions(quarter.count)}</span>
+							<span>{quarter.latest ? formatDateLabel(quarter.latest, t.lang) : '—'}</span>
 						</div>
 					</div>
 				))}
