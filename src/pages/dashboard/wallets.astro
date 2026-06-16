@@ -4,8 +4,13 @@ import WalletOverview from '../../components/dashboard/WalletOverview';
 import AddressLabels from '../../components/dashboard/AddressLabels';
 import { db } from '../../lib/db';
 import { requireTenantSession } from '../../lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getWallets } from '@/i18n/dashboard/wallets';
 
 const { tenantId } = await requireTenantSession(Astro.request);
+
+const lang = getLang(Astro.request);
+const t = getWallets(lang);
 
 const walletResult = await db.execute({
 	sql: 'SELECT id, address, label FROM wallets WHERE tenant_id = ? ORDER BY created_at ASC',
@@ -32,7 +37,7 @@ const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
 }));
 ---
 
-<Layout title="Wallets | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<section style="
 		max-width: 900px;
 		margin: 0 auto;
@@ -55,23 +60,20 @@ const addressLabels = labelResult.rows.map((row: Record<string, any>) => ({
 			margin-bottom: -1rem;
 		">
 			<p style="margin:0; font-size:0.88rem; font-weight:600; color:var(--accent);">
-				Why label your addresses?
+				{t.whyLabelTitle}
 			</p>
 			<p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
-				Every on-chain transaction links two addresses — a sender and a receiver.
-				Giving those addresses a name (<em>Coinbase Deposit</em>, <em>Sis's Wallet</em>, <em>Aave V3 Pool</em>)
-				lets that context travel through your entire transaction history.
-				AlmsTins automatically labels hundreds of known exchange and protocol addresses;
-				your custom labels fill in the rest.
+				{t.whyLabelBody1} (<em>Coinbase Deposit</em>, <em>Sis's Wallet</em>, <em>Aave V3 Pool</em>)
+				{" "}{t.whyLabelBody2}
 			</p>
 			<ul style="margin:0.2rem 0 0; padding-left:1.2rem; font-size:0.83rem; color:var(--text-secondary); line-height:1.7;">
-				<li><strong style="color:var(--text-primary);">Bookkeeping clarity</strong> — labeled counterparties replace cryptic hashes in your G/L and income sections.</li>
-				<li><strong style="color:var(--text-primary);">Fewer "Needs Attention" items</strong> — a named address gives the tax engine context it needs to categorize a transfer.</li>
-				<li><strong style="color:var(--text-primary);">Scam detection</strong> — unknown addresses stand out when everything else has a name.</li>
-				<li><strong style="color:var(--text-primary);">Audit trail</strong> — your labels are private notes that make any future review fast and defensible.</li>
+				<li><strong style="color:var(--text-primary);">{t.bookkeepingLabel}</strong> — {t.bookkeepingText}</li>
+				<li><strong style="color:var(--text-primary);">{t.fewerNeedsAttentionLabel}</strong> — {t.fewerNeedsAttentionText}</li>
+				<li><strong style="color:var(--text-primary);">{t.scamDetectionLabel}</strong> — {t.scamDetectionText}</li>
+				<li><strong style="color:var(--text-primary);">{t.auditTrailLabel}</strong> — {t.auditTrailText}</li>
 			</ul>
 			<p style="margin:0.3rem 0 0; font-size:0.78rem; color:var(--text-muted);">
-				Tip: label addresses right after a new transaction — a fresh label today saves a tax-season mystery tomorrow.
+				{t.tip}
 			</p>
 		</div>
 

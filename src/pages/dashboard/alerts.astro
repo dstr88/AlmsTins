@@ -9,7 +9,12 @@ import Layout from '../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getAlerts } from '@/i18n/dashboard/alerts';
 import '../../styles/alerts.css';
+
+const lang = getLang(Astro.request);
+const t = getAlerts(lang);
 
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
@@ -25,18 +30,15 @@ if (userId) {
 }
 ---
 
-<Layout title="Price Alerts | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
 	<div class="dash-page">
 		<div class="dash-content">
 		<div class="alerts-body">
 
 			<!-- Header -->
 			<div>
-				<h1 class="alerts-page__title">Price Alerts</h1>
-				<p class="alerts-page__intro">
-					Get an email when any asset crosses a price threshold you set.
-					Useful for harvesting decisions and entry/exit timing.
-				</p>
+				<h1 class="alerts-page__title">{t.heroTitle}</h1>
+				<p class="alerts-page__intro">{t.intro}</p>
 			</div>
 
 			<!-- Sticky note -->
@@ -53,18 +55,10 @@ if (userId) {
 			">
 				<span style="font-size:1.1rem; line-height:1.4;"></span>
 				<div style="display:flex; flex-direction:column; gap:0.4rem;">
-					<p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--accent);">Stay one step ahead of your portfolio.</p>
-					<p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
-						Set a <strong style="color:var(--text-primary);">price alert</strong> and get an email the moment any asset crosses a threshold you choose —
-						useful for timing entries, exits, and tax-loss harvesting decisions.
-					</p>
-					<p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;">
-						<strong style="color:var(--text-primary);">DeFi health alerts</strong> notify you when your collateral ratio approaches the liquidation zone,
-						giving you time to add collateral or reduce debt before the protocol acts for you.
-					</p>
-					<p style="margin:0; font-size:0.78rem; color:var(--text-muted);">
-						Tip: set a health factor alert at 1.3 if you're borrowing on Aave — it gives you a buffer before the 1.0 liquidation floor.
-					</p>
+					<p style="margin:0; font-size:0.85rem; font-weight:600; color:var(--accent);">{t.noteHeading}</p>
+					<p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;" set:html={t.notePriceAlert}></p>
+					<p style="margin:0; font-size:0.83rem; color:var(--text-secondary); line-height:1.55;" set:html={t.noteHealthAlert}></p>
+					<p style="margin:0; font-size:0.78rem; color:var(--text-muted);">{t.noteTip}</p>
 				</div>
 			</div>
 
@@ -73,10 +67,10 @@ if (userId) {
 				<div class="dash-notice dash-notice--warn">
 					<span class="dash-notice__icon"></span>
 					<div class="dash-notice__body">
-						<p class="dash-notice__title">Alert email not set</p>
+						<p class="dash-notice__title">{t.noEmailTitle}</p>
 						<p class="dash-notice__text">
-							You won't receive notifications until you add an alert email in your
-							<a href="/dashboard/account" class="dash-notice__link">Account settings</a>.
+							{t.noEmailTextBefore}
+							<a href="/dashboard/account" class="dash-notice__link">{t.noEmailLink}</a>{t.noEmailTextAfter}
 						</p>
 					</div>
 				</div>
@@ -85,60 +79,58 @@ if (userId) {
 			<!-- Email confirmed -->
 			{alertEmail && (
 				<p class="alerts__email-line">
-					Alerts will be sent to <span class="alerts__email-value">{alertEmail}</span>.
-					<a href="/dashboard/account" class="alerts__email-change">Change</a>
+					{t.emailLineBefore}<span class="alerts__email-value">{alertEmail}</span>{t.emailLineAfter}
+					<a href="/dashboard/account" class="alerts__email-change">{t.emailChange}</a>
 				</p>
 			)}
 
 			<!-- Add Alert form -->
 			<div class="alerts__form-card">
-				<h2 class="alerts__section-heading">Add New Alert</h2>
+				<h2 class="alerts__section-heading">{t.addHeading}</h2>
 				<form id="add-alert-form">
 					<div class="alerts__form-row">
 						<!-- Asset symbol -->
 						<div class="alerts__field">
-							<label class="alerts__label" for="new-symbol">Asset</label>
+							<label class="alerts__label" for="new-symbol">{t.labelAsset}</label>
 							<input type="text" id="new-symbol" class="alerts__input"
 							       placeholder="BTC, ETH, SOL…" maxlength="20" required />
 						</div>
 						<!-- Direction -->
 						<div class="alerts__field">
-							<label class="alerts__label" for="new-direction">Condition</label>
+							<label class="alerts__label" for="new-direction">{t.labelCondition}</label>
 							<select id="new-direction" class="alerts__input">
-								<option value="above">Price rises above</option>
-								<option value="below">Price drops below</option>
+								<option value="above">{t.optionAbove}</option>
+								<option value="below">{t.optionBelow}</option>
 							</select>
 						</div>
 						<!-- Threshold -->
 						<div class="alerts__field alerts__field--price">
-							<label class="alerts__label" for="new-threshold">Price (USD)</label>
+							<label class="alerts__label" for="new-threshold">{t.labelPrice}</label>
 							<span class="alerts__price-prefix">$</span>
 							<input type="number" id="new-threshold" class="alerts__input"
-							       step="any" min="0.000001" placeholder="e.g. 100000" required />
+							       step="any" min="0.000001" placeholder={t.pricePlaceholder} required />
 						</div>
 					</div>
 					<div class="alerts__form-footer">
 						<span id="add-status" class="alerts__status" hidden></span>
-						<button type="submit" id="add-btn" class="alerts__submit">Add Alert</button>
+						<button type="submit" id="add-btn" class="alerts__submit">{t.addBtn}</button>
 					</div>
 				</form>
 			</div>
 
 			<!-- Existing alerts list -->
 			<div class="alerts__list-section">
-				<h2 class="alerts__section-heading">Your Alerts</h2>
+				<h2 class="alerts__section-heading">{t.listHeading}</h2>
 
-				<div id="alerts-loading" class="alerts__loading">Loading…</div>
+				<div id="alerts-loading" class="alerts__loading">{t.loading}</div>
 
 				<div id="alerts-empty" class="alerts__empty" hidden>
 					<span class="alerts__empty-icon"></span>
-					<p class="alerts__empty-title">No alerts yet</p>
-					<p class="alerts__empty-text">Add one above to get started.</p>
+					<p class="alerts__empty-title">{t.emptyTitle}</p>
+					<p class="alerts__empty-text">{t.emptyText}</p>
 				</div>
 
-				<p id="alerts-error" class="alerts__error" hidden>
-					Failed to load alerts. Please refresh.
-				</p>
+				<p id="alerts-error" class="alerts__error" hidden>{t.loadError}</p>
 
 				<div id="alerts-list" class="alerts__list" hidden></div>
 			</div>
@@ -148,8 +140,33 @@ if (userId) {
 	</div>
 </Layout>
 
+<script is:inline define:vars={{ i18n: {
+	pillAbove: t.pillAbove,
+	pillBelow: t.pillBelow,
+	deleteTitle: t.deleteTitle,
+	deleteBefore: t.deleteBefore,
+	deleteSuffix: t.deleteSuffix,
+	saving: t.saving,
+	added: t.added,
+	failed: t.failed,
+	networkError: t.networkError,
+} }}>window.__alertsI18n = i18n;</script>
+
 <script>
 const USD = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
+// Localized strings injected by the inline <script is:inline define:vars> above.
+// English fallbacks keep the script working if that block ever fails to run.
+interface AlertsI18n {
+	pillAbove: string; pillBelow: string; deleteTitle: string;
+	deleteBefore: string; deleteSuffix: string;
+	saving: string; added: string; failed: string; networkError: string;
+}
+const I18N: AlertsI18n = (window as unknown as { __alertsI18n?: AlertsI18n }).__alertsI18n ?? {
+	pillAbove: '↑ above', pillBelow: '↓ below', deleteTitle: 'Delete alert',
+	deleteBefore: 'Delete alert for ', deleteSuffix: '?',
+	saving: 'Saving…', added: '✓ Alert added!', failed: 'Failed', networkError: 'Network error',
+};
 
 interface Alert {
 	id: string;
@@ -206,18 +223,18 @@ function renderAlerts() {
 		card.className = 'alerts__item';
 		card.dataset.id = alert.id;
 
-		const dirLabel = alert.direction === 'above' ? '↑ above' : '↓ below';
+		const dirLabel = alert.direction === 'above' ? I18N.pillAbove : I18N.pillBelow;
 
 		card.innerHTML = `
 			<span class="alerts__item-symbol">${alert.assetSymbol}</span>
 			<span class="alerts__item-pill">${dirLabel}</span>
 			<span class="alerts__item-price">${USD(alert.threshold)}</span>
-			<button class="alerts__item-delete delete-btn" title="Delete alert" type="button">×</button>
+			<button class="alerts__item-delete delete-btn" title="${I18N.deleteTitle}" type="button">×</button>
 		`;
 
 		const delBtn = card.querySelector<HTMLButtonElement>('.delete-btn')!;
 		delBtn.addEventListener('click', async () => {
-			if (!confirm(`Delete alert for ${alert.assetSymbol} ${alert.direction} ${USD(alert.threshold)}?`)) return;
+			if (!confirm(`${I18N.deleteBefore}${alert.assetSymbol} ${alert.direction} ${USD(alert.threshold)}${I18N.deleteSuffix}`)) return;
 			try {
 				const res = await fetch(`/api/account/price-alerts?id=${alert.id}`, { method: 'DELETE' });
 				if ((await res.json()).ok) {
@@ -258,7 +275,7 @@ document.getElementById('add-alert-form')?.addEventListener('submit', async (e) 
 	if (!assetSymbol || !threshold || threshold <= 0) return;
 
 	addBtn.disabled       = true;
-	statusEl.textContent  = 'Saving…';
+	statusEl.textContent  = I18N.saving;
 	statusEl.hidden       = false;
 
 	try {
@@ -270,7 +287,7 @@ document.getElementById('add-alert-form')?.addEventListener('submit', async (e) 
 		const data = await res.json() as { ok: boolean; id?: string; error?: string };
 
 		if (data.ok) {
-			statusEl.textContent = '✓ Alert added!';
+			statusEl.textContent = I18N.added;
 			symbolEl.value   = '';
 			thresholdEl.value = '';
 			setTimeout(() => {
@@ -279,11 +296,11 @@ document.getElementById('add-alert-form')?.addEventListener('submit', async (e) 
 				loadAlerts();
 			}, 800);
 		} else {
-			statusEl.textContent = `${data.error ?? 'Failed'}`;
+			statusEl.textContent = `${data.error ?? I18N.failed}`;
 			addBtn.disabled = false;
 		}
 	} catch {
-		statusEl.textContent = 'Network error';
+		statusEl.textContent = I18N.networkError;
 		addBtn.disabled = false;
 	}
 });

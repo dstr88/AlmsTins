@@ -4,6 +4,12 @@ import Layout from '../../layouts/Layout.astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getActivePlan, PLANS } from '@/lib/subscriptions';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getBilling } from '@/i18n/dashboard/billing';
+
+const lang = getLang(Astro.request);
+const t = getBilling(lang);
+const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
 
 const { tenantId } = await requireTenantSession(Astro.request);
 const currentPlan = await getActivePlan(tenantId);
@@ -37,19 +43,19 @@ const priceIds = {
 };
 ---
 
-<Layout title="Billing | Almstins" noindex={true}>
+<Layout title={t.pageTitle} noindex={true}>
   <main class="billing-page">
 
     <header class="billing-header">
-      <h1 class="billing-title">Billing & Plan</h1>
+      <h1 class="billing-title">{t.heroTitle}</h1>
       {successParam && (
         <div class="billing-banner billing-banner--success">
-          ✓ Subscription activated — welcome to {currentPlan.label}!
+          {t.successBanner(currentPlan.label)}
         </div>
       )}
       {cancelledParam && (
         <div class="billing-banner billing-banner--warn">
-          Checkout cancelled. Your plan was not changed.
+          {t.cancelledBanner}
         </div>
       )}
     </header>
@@ -57,23 +63,23 @@ const priceIds = {
     <!-- Current plan status -->
     <section class="billing-current">
       <div class="billing-current__card">
-        <div class="billing-current__label">Current plan</div>
+        <div class="billing-current__label">{t.currentPlanLabel}</div>
         <div class="billing-current__plan">{currentPlan.label}</div>
         <div class="billing-current__limits">
           {currentPlan.walletLimit === 0
-            ? 'Unlimited tins'
-            : `Up to ${currentPlan.walletLimit} tins`}
+            ? t.unlimitedTins
+            : t.upToTins(currentPlan.walletLimit)}
         </div>
         {periodEnd && (
           <div class="billing-current__renewal">
             {cancelAtEnd
-              ? `Cancels on ${new Date(periodEnd).toLocaleDateString()}`
-              : `Renews ${new Date(periodEnd).toLocaleDateString()}`}
+              ? t.cancelsOn(new Date(periodEnd).toLocaleDateString(dateLocale))
+              : t.renews(new Date(periodEnd).toLocaleDateString(dateLocale))}
           </div>
         )}
         {hasStripeSubscription && (
           <button class="billing-portal-btn" id="portal-btn">
-            Manage subscription →
+            {t.manageSubscription}
           </button>
         )}
       </div>
@@ -81,12 +87,12 @@ const priceIds = {
 
     <!-- Billing interval toggle -->
     <div class="billing-toggle">
-      <span class="billing-toggle__label">Monthly</span>
+      <span class="billing-toggle__label">{t.intervalMonthly}</span>
       <button class="billing-toggle__btn" id="interval-toggle" aria-pressed="false">
         <span class="billing-toggle__knob"></span>
       </button>
       <span class="billing-toggle__label">
-        Yearly <em class="billing-toggle__save">Save ~17%</em>
+        {t.intervalYearly} <em class="billing-toggle__save">{t.yearlySave}</em>
       </span>
     </div>
 
@@ -101,47 +107,47 @@ const priceIds = {
           <span class="billing-plan__per" data-monthly="/mo" data-yearly="/yr">/mo</span>
         </div>
         <ul class="billing-plan__features">
-          <li>Up to 8 tins</li>
-          <li>All exchanges & importers</li>
-          <li>Bookkeeping & tax breakdown</li>
-          <li>Email support</li>
+          <li>{t.starterFeat1}</li>
+          <li>{t.starterFeat2}</li>
+          <li>{t.starterFeat3}</li>
+          <li>{t.starterFeat4}</li>
         </ul>
         {currentPlan.id === 'starter' ? (
-          <div class="billing-plan__badge">Current plan</div>
+          <div class="billing-plan__badge">{t.currentPlanBadge}</div>
         ) : (
           <button
             class="billing-plan__btn"
             data-monthly={priceIds.starter.monthly}
             data-yearly={priceIds.starter.yearly}
           >
-            {currentPlan.id === 'free' ? 'Upgrade to Starter' : 'Switch to Starter'}
+            {currentPlan.id === 'free' ? t.upgradeToStarter : t.switchToStarter}
           </button>
         )}
       </div>
 
       <!-- Pro -->
       <div class={`billing-plan billing-plan--featured ${currentPlan.id === 'pro' ? 'billing-plan--current' : ''}`}>
-        <div class="billing-plan__badge-top">Most popular</div>
+        <div class="billing-plan__badge-top">{t.mostPopular}</div>
         <div class="billing-plan__name">Pro</div>
         <div class="billing-plan__price">
           <span class="billing-plan__amount" data-monthly="$20" data-yearly="$200">$20</span>
           <span class="billing-plan__per" data-monthly="/mo" data-yearly="/yr">/mo</span>
         </div>
         <ul class="billing-plan__features">
-          <li>Up to 20 tins</li>
-          <li>Everything in Starter</li>
-          <li>Priority support</li>
-          <li>Early access to new features</li>
+          <li>{t.proFeat1}</li>
+          <li>{t.proFeat2}</li>
+          <li>{t.proFeat3}</li>
+          <li>{t.proFeat4}</li>
         </ul>
         {currentPlan.id === 'pro' ? (
-          <div class="billing-plan__badge">Current plan</div>
+          <div class="billing-plan__badge">{t.currentPlanBadge}</div>
         ) : (
           <button
             class="billing-plan__btn billing-plan__btn--featured"
             data-monthly={priceIds.pro.monthly}
             data-yearly={priceIds.pro.yearly}
           >
-            {['free','starter'].includes(currentPlan.id) ? 'Upgrade to Pro' : 'Switch to Pro'}
+            {['free','starter'].includes(currentPlan.id) ? t.upgradeToPro : t.switchToPro}
           </button>
         )}
       </div>
@@ -154,20 +160,20 @@ const priceIds = {
           <span class="billing-plan__per" data-monthly="/mo" data-yearly="/yr">/mo</span>
         </div>
         <ul class="billing-plan__features">
-          <li>Unlimited tins</li>
-          <li>Everything in Pro</li>
-          <li>White-glove onboarding</li>
-          <li>Direct access to founder</li>
+          <li>{t.unlimitedFeat1}</li>
+          <li>{t.unlimitedFeat2}</li>
+          <li>{t.unlimitedFeat3}</li>
+          <li>{t.unlimitedFeat4}</li>
         </ul>
         {currentPlan.id === 'unlimited' ? (
-          <div class="billing-plan__badge">Current plan</div>
+          <div class="billing-plan__badge">{t.currentPlanBadge}</div>
         ) : (
           <button
             class="billing-plan__btn"
             data-monthly={priceIds.unlimited.monthly}
             data-yearly={priceIds.unlimited.yearly}
           >
-            Upgrade to Unlimited
+            {t.upgradeToUnlimited}
           </button>
         )}
       </div>
@@ -175,16 +181,38 @@ const priceIds = {
     </div>
 
     <p class="billing-fine">
-      Cancel anytime. Switching plans takes effect immediately. Questions?
-      <a href="mailto:donnie@titaniumhut.com">Contact us</a>.
+      {t.finePrint}
+      <a href="mailto:donnie@titaniumhut.com">{t.contactUs}</a>.
     </p>
 
   </main>
 </Layout>
 
+<div
+  id="billing-i18n"
+  hidden
+  data-redirecting={t.redirecting}
+  data-checkout-error={t.checkoutError}
+  data-network-error={t.networkError}
+  data-opening-portal={t.openingPortal}
+  data-portal-error={t.portalError}
+  data-manage-subscription={t.manageSubscription}
+></div>
+
 <script>
   const toggle = document.getElementById('interval-toggle') as HTMLButtonElement;
   let yearly = false;
+
+  // Localized status strings injected from the page (see #billing-i18n)
+  const i18n = document.getElementById('billing-i18n')?.dataset ?? {};
+  const T = {
+    redirecting: i18n.redirecting ?? 'Redirecting…',
+    checkoutError: i18n.checkoutError ?? 'Unable to start checkout. Please try again.',
+    networkError: i18n.networkError ?? 'Network error. Please try again.',
+    openingPortal: i18n.openingPortal ?? 'Opening portal…',
+    portalError: i18n.portalError ?? 'Unable to open billing portal.',
+    manageSubscription: i18n.manageSubscription ?? 'Manage subscription →',
+  };
 
   // Sync all price amounts and per-labels
   function syncInterval() {
@@ -210,7 +238,7 @@ const priceIds = {
       const priceId = yearly ? btn.dataset.yearly : btn.dataset.monthly;
       if (!priceId) return;
       btn.disabled = true;
-      btn.textContent = 'Redirecting…';
+      btn.textContent = T.redirecting;
 
       try {
         const res = await fetch('/api/billing/checkout', {
@@ -222,11 +250,11 @@ const priceIds = {
         if (data.url) {
           window.location.href = data.url;
         } else {
-          alert(data.message ?? 'Unable to start checkout. Please try again.');
+          alert(data.message ?? T.checkoutError);
           btn.disabled = false;
         }
       } catch {
-        alert('Network error. Please try again.');
+        alert(T.networkError);
         btn.disabled = false;
       }
     });
@@ -236,21 +264,21 @@ const priceIds = {
   document.getElementById('portal-btn')?.addEventListener('click', async () => {
     const btn = document.getElementById('portal-btn') as HTMLButtonElement;
     btn.disabled = true;
-    btn.textContent = 'Opening portal…';
+    btn.textContent = T.openingPortal;
     try {
       const res = await fetch('/api/billing/portal', { method: 'POST' });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert(data.message ?? 'Unable to open billing portal.');
+        alert(data.message ?? T.portalError);
         btn.disabled = false;
-        btn.textContent = 'Manage subscription →';
+        btn.textContent = T.manageSubscription;
       }
     } catch {
-      alert('Network error. Please try again.');
+      alert(T.networkError);
       btn.disabled = false;
-      btn.textContent = 'Manage subscription →';
+      btn.textContent = T.manageSubscription;
     }
   });
 </script>
