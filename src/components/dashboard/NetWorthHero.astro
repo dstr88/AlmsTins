@@ -3,6 +3,8 @@ import './NetWorthHero.css';
 import { Image } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
 import defaultHero from '../../assets/TradFiVSDfiImg.png';
+import { getLang } from '@/lib/i18n/locale';
+import { getNetWorthHero } from '@/i18n/components/netWorthHero';
 
 interface Props {
 	title?: string;
@@ -12,9 +14,10 @@ interface Props {
 	heightDesktop?: string;
 }
 
+const tHero = getNetWorthHero(getLang(Astro.request));
 const {
-	title = 'Net Worth',
-	subtitle = 'TradFi + DeFi at a glance',
+	title = tHero.title,
+	subtitle = tHero.subtitle,
 	imageSrc = defaultHero,
 	heightMobile = '45vh',
 	heightDesktop = '61.8vh',

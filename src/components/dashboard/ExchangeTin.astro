@@ -1,5 +1,7 @@
 ---
 import './ExchangeTin.css';
+import { getLang } from '@/lib/i18n/locale';
+import { getExchangeTin } from '@/i18n/components/exchangeTin';
 
 interface Props {
 	title: string;
@@ -9,12 +11,13 @@ interface Props {
 }
 
 const { title, class: className = '', dataThrough, lastImported } = Astro.props;
+const t = getExchangeTin(getLang(Astro.request));
 
 function fmtDate(iso: string | null | undefined): string {
 	if (!iso) return '—';
 	const d = new Date(iso);
 	if (isNaN(d.getTime())) return '—';
-	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	return d.toLocaleDateString(t.dateLocale, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 const throughLabel = fmtDate(dataThrough);
@@ -30,15 +33,15 @@ const importedLabel = fmtDate(lastImported);
 		<div class="exchange-tin__title-group">
 			<h3>{title}</h3>
 			{dataThrough && (
-				<span class="exchange-tin__freshness" title={`Last imported: ${importedLabel}`}>
-					data through {throughLabel}
+				<span class="exchange-tin__freshness" title={t.lastImportedTemplate.replace('{date}', importedLabel)}>
+					{t.dataThrough} {throughLabel}
 				</span>
 			)}
 		</div>
 		<div class="exchange-tin__header-right">
 			<slot name="header-actions" />
-			<button class="exchange-tin__toggle" data-tin-toggle aria-expanded="false" aria-label="Expand">
-				<span class="exchange-tin__toggle-label" data-tin-label>Open</span> ▾
+			<button class="exchange-tin__toggle" data-tin-toggle aria-expanded="false" aria-label={t.expand}>
+				<span class="exchange-tin__toggle-label" data-tin-label>{t.open}</span> ▾
 			</button>
 		</div>
 	</header>
@@ -47,6 +50,8 @@ const importedLabel = fmtDate(lastImported);
 	</div>
 </section>
 
+
+<script is:inline define:vars={{ exchangeTinI18n: { open: t.open, close: t.close } }}>window.__exchangeTinI18n = exchangeTinI18n;</script>
 
 <script>
 	// Collapsible exchange tins — always start collapsed (body hidden in HTML).
@@ -62,7 +67,7 @@ const importedLabel = fmtDate(lastImported);
 			const nowOpen = body.hidden;
 			body.hidden         = !nowOpen;
 			toggle.ariaExpanded = String(nowOpen);
-			if (label) label.textContent = nowOpen ? 'Close' : 'Open';
+			if (label) label.textContent = nowOpen ? ((window as any).__exchangeTinI18n?.close ?? 'Close') : ((window as any).__exchangeTinI18n?.open ?? 'Open');
 		};
 
 		toggle.addEventListener('click', (e) => { e.stopPropagation(); doToggle(); });

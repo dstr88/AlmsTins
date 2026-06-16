@@ -1,8 +1,11 @@
 ---
 import './Tin2Wallet.css';
 import OnchainWalletTransactions from '@/components/dashboard/OnchainWalletTransactions.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getWalletSyncTin } from '@/i18n/components/walletSyncTin';
 
 const WALLET_ID = 'fa58b';
+const t = getWalletSyncTin(getLang(Astro.request));
 ---
 
 <section class="tin2-wallet" data-wallet-id={WALLET_ID}>
@@ -10,6 +13,8 @@ const WALLET_ID = 'fa58b';
 
 	<OnchainWalletTransactions walletId={WALLET_ID} title="Wallet — fa58b" />
 </section>
+
+<script is:inline define:vars={{ tin2SyncI18n: { syncingHistory: t.syncingHistory, syncedCount: t.syncedCountTemplate, syncFailed: t.syncFailed } }}>window.__tin2SyncI18n = tin2SyncI18n;</script>
 
 <script>
 	const status = document.querySelector('.tin2-wallet__status');
@@ -40,20 +45,20 @@ const WALLET_ID = 'fa58b';
 		if (!status || !WALLET_ID) return;
 		try {
 			const wallet = await ensureAvalancheChain();
-			status.textContent = 'Syncing wallet history...';
+			status.textContent = (window as any).__tin2SyncI18n?.syncingHistory ?? 'Syncing wallet history...';
 			const response = await fetch(`/api/wallets/${WALLET_ID}/sync`, { method: 'POST' });
 			const payload = await response.json();
 			if (!response.ok) {
-				throw new Error(payload?.message || 'Sync failed.');
+				throw new Error(payload?.message || ((window as any).__tin2SyncI18n?.syncFailed ?? 'Sync failed.'));
 			}
 			const address = wallet?.address;
 			if (address) {
 				await fetch(`/api/aave/positions?address=${encodeURIComponent(address)}`);
 				await fetch(`/api/aave/health?address=${encodeURIComponent(address)}`);
 			}
-			status.textContent = `Synced ${payload.totalInserted ?? 0} transactions.`;
+			status.textContent = ((window as any).__tin2SyncI18n?.syncedCount ?? 'Synced {n} transactions.').replace('{n}', String(payload.totalInserted ?? 0));
 		} catch (error) {
-			status.textContent = error instanceof Error ? error.message : 'Sync failed.';
+			status.textContent = error instanceof Error ? error.message : ((window as any).__tin2SyncI18n?.syncFailed ?? 'Sync failed.');
 		}
 	};
 

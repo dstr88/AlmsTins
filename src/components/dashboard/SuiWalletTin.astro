@@ -1,5 +1,7 @@
 ---
 import SuiWalletTransactions from '@/components/dashboard/SuiWalletTransactions.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getWalletSyncTin } from '@/i18n/components/walletSyncTin';
 
 type Props = {
 	walletId: string;
@@ -7,16 +9,19 @@ type Props = {
 };
 
 const { walletId, label } = Astro.props as Props;
+const t = getWalletSyncTin(getLang(Astro.request));
 ---
 
 <section class="sui-tin" data-wallet-id={walletId}>
 	<div class="sui-tin__controls">
 		<span class="sui-tin__status" aria-live="polite"></span>
-		<button type="button" class="sui-tin__sync-btn">Sync</button>
+		<button type="button" class="sui-tin__sync-btn">{t.sync}</button>
 	</div>
 
 	<SuiWalletTransactions walletId={walletId} title={label} />
 </section>
+
+<script is:inline define:vars={{ suiSyncI18n: { syncing: t.syncing, syncedNew: t.syncedNewTemplate, syncFailed: t.syncFailed } }}>window.__suiSyncI18n = suiSyncI18n;</script>
 
 <script>
 	document.querySelectorAll<HTMLElement>('.sui-tin').forEach((tin) => {
@@ -30,16 +35,16 @@ const { walletId, label } = Astro.props as Props;
 
 		const doSync = async () => {
 			if (!walletId) return;
-			setStatus('Syncing…');
+			setStatus((window as any).__suiSyncI18n?.syncing ?? 'Syncing…');
 			try {
 				const res = await fetch(`/api/wallets/${walletId}/sui-sync`, { method: 'POST' });
 				const data = await res.json();
-				if (!res.ok) throw new Error(data?.message ?? 'Sync failed');
-				setStatus(`Synced ${data.inserted ?? 0} new transactions.`);
+				if (!res.ok) throw new Error(data?.message ?? ((window as any).__suiSyncI18n?.syncFailed ?? 'Sync failed'));
+				setStatus(((window as any).__suiSyncI18n?.syncedNew ?? 'Synced {n} new transactions.').replace('{n}', String(data.inserted ?? 0)));
 				// Reload the tin to show fresh data
 				setTimeout(() => window.location.reload(), 800);
 			} catch (err) {
-				setStatus(err instanceof Error ? err.message : 'Sync failed.');
+				setStatus(err instanceof Error ? err.message : ((window as any).__suiSyncI18n?.syncFailed ?? 'Sync failed.'));
 			}
 		};
 
