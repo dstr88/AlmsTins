@@ -13,6 +13,9 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
 import { sendMail } from '@/lib/email';
+import { isLang } from '@/lib/i18n/locale';
+import { ensureUserLangColumn } from '@/lib/i18n/userLang';
+import { getPriceAlertEmail } from '@/i18n/emails/priceAlert';
 
 export const prerender = false;
 
@@ -42,6 +45,7 @@ export const GET: APIRoute = async ({ request }) => {
 	console.log('[cron/price-alerts] Starting price alert check');
 
 	// ── Load enabled alerts with email ────────────────────────────────────────
+	await ensureUserLangColumn();
 	const rows = await db.execute(`
 		SELECT
 			pap.id              AS alert_id,
@@ -50,7 +54,8 @@ export const GET: APIRoute = async ({ request }) => {
 			pap.threshold,
 			pap.last_alerted_at,
 			au.alert_email,
-			au.email            AS fallback_email
+			au.email            AS fallback_email,
+			au.lang             AS lang
 		FROM price_alert_preferences pap
 		JOIN auth_users au ON au.id = pap.user_id
 		WHERE pap.enabled = 1
@@ -65,6 +70,7 @@ export const GET: APIRoute = async ({ request }) => {
 		last_alerted_at: unknown;
 		alert_email: unknown;
 		fallback_email: unknown;
+		lang: unknown;
 	};
 	const prefs = rows.rows as unknown as PrefRow[];
 	console.log(`[cron/price-alerts] ${prefs.length} active alert(s)`);
@@ -136,27 +142,11 @@ export const GET: APIRoute = async ({ request }) => {
 		// Send email
 		const fmtPrice = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(currentPrice);
 		const fmtThreshold = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(threshold);
-		const dirWord = direction === 'above' ? 'risen above' : 'dropped below';
+			const lang = typeof pref.lang === 'string' && isLang(pref.lang) ? pref.lang : 'en';
+			const rendered = getPriceAlertEmail(lang).render({ symbol, fmtPrice, fmtThreshold, direction, appBase: APP_BASE });
 
-		try {
-			await sendMail({
-				to:      toEmail,
-				subject: `💰 Price Alert — ${symbol} has ${dirWord} ${fmtThreshold}`,
-				text: [
-					`Your ${symbol} price alert has been triggered.`,
-					``,
-					`  Asset          : ${symbol}`,
-					`  Current price  : ${fmtPrice}`,
-					`  Your threshold : ${direction} ${fmtThreshold}`,
-					``,
-					`Log in to review your portfolio or adjust your alerts:`,
-					`${APP_BASE}/dashboard/alerts`,
-					``,
-					`— Almstins`,
-					``,
-					`To change or disable this alert, visit the Alerts page in the app.`,
-				].join('\n'),
-			});
+			try {
+				await sendMail({ to: toEmail, subject: rendered.subject, text: rendered.text });
 
 			await db.execute({
 				sql: `UPDATE price_alert_preferences SET last_alerted_at = datetime('now') WHERE id = ?`,
