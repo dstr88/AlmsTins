@@ -14,6 +14,9 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
+import { isLang } from '@/lib/i18n/locale';
+import { ensureUserLangColumn } from '@/lib/i18n/userLang';
+import { getPromoExpiry } from '@/i18n/emails/promoExpiry';
 
 export const prerender = false;
 
@@ -38,87 +41,6 @@ function fmtDate(iso: string): string {
   }).format(new Date(iso));
 }
 
-function buildEmail(days: number, expiresAt: string): { subject: string; text: string; html: string } {
-  const expiryDisplay = fmtDate(expiresAt);
-  const urgency = days <= 7 ? '🚨' : '⏳';
-  const subject = `${urgency} Your Almstins free year expires in ${days} day${days === 1 ? '' : 's'}`;
-
-  const billingUrl = `${APP_BASE}/dashboard/billing`;
-  const dashboardUrl = `${APP_BASE}/dashboard`;
-
-  const text = `
-Hi there,
-
-Just a heads-up — your free year of Almstins Unlimited access expires on ${expiryDisplay} (${days} day${days === 1 ? '' : 's'} from now).
-
-After that date your account will revert to the Free plan, which includes:
-  - Up to 3 wallets
-  - Core portfolio tracking
-  - No CSV downloads or Year Summary PDF
-
-To keep your full access — including unlimited wallets, FIFO gain/loss exports, and the Year Summary PDF — upgrade before your promo expires.
-
-View plans and upgrade: ${billingUrl}
-
-Your account and all your data will always be safe — upgrading just keeps your features intact.
-
-— The Almstins Team
-${dashboardUrl}
-  `.trim();
-
-  const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0d1117;font-family:Inter,system-ui,sans-serif;color:#e0e0e0;">
-  <div style="max-width:560px;margin:40px auto;padding:0 16px;">
-
-    <div style="background:#1a1f2e;border:1px solid rgba(251,191,36,.2);border-top:3px solid #fbbf24;border-radius:12px;padding:32px;">
-
-      <p style="font-size:28px;margin:0 0 8px;">${urgency}</p>
-      <h1 style="font-size:20px;font-weight:700;color:#fde68a;margin:0 0 8px;">
-        Your free year expires in ${days} day${days === 1 ? '' : 's'}
-      </h1>
-      <p style="font-size:14px;color:#9ca3af;margin:0 0 24px;">
-        Promo access ends <strong style="color:#fef3c7;">${expiryDisplay}</strong>
-      </p>
-
-      <p style="font-size:15px;color:#d1d5db;margin:0 0 16px;">
-        After this date your account reverts to the <strong style="color:#fff;">Free plan</strong>, which limits you to:
-      </p>
-      <ul style="font-size:14px;color:#9ca3af;margin:0 0 24px;padding-left:20px;line-height:2;">
-        <li>Up to 3 wallets (tins)</li>
-        <li>No CSV downloads</li>
-        <li>No Year Summary PDF</li>
-      </ul>
-
-      <p style="font-size:15px;color:#d1d5db;margin:0 0 24px;">
-        Upgrade before <strong style="color:#fef3c7;">${expiryDisplay}</strong> to keep everything —
-        unlimited wallets, gain/loss exports, and your Year Summary.
-      </p>
-
-      <a href="${billingUrl}"
-         style="display:inline-block;background:#6366f1;color:#fff;font-weight:700;font-size:15px;
-                padding:12px 28px;border-radius:8px;text-decoration:none;">
-        View Plans &amp; Upgrade →
-      </a>
-
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:28px 0;">
-
-      <p style="font-size:13px;color:#6b7280;margin:0;">
-        Your account and all your data are always safe — this is just about keeping your features.
-        <br><a href="${dashboardUrl}" style="color:#6366f1;">Go to dashboard</a>
-      </p>
-
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
-
-  return { subject, text, html };
-}
-
 export const GET: APIRoute = async ({ request }) => {
   // ── Auth ───────────────────────────────────────────────────────────────────
   const secret   = process.env.CRON_SECRET ?? import.meta.env.CRON_SECRET;
@@ -134,8 +56,11 @@ export const GET: APIRoute = async ({ request }) => {
   console.log('[cron/promo-expiry] Starting promo expiry check');
   const results: Array<{ redemptionId: string; email: string; days: number; type: '30d' | '7d'; sent: boolean }> = [];
 
+  // ── Ensure auth_users.lang column exists ──────────────────────────────────
+  await ensureUserLangColumn();
+
   // ── Find redemptions needing a warning email ───────────────────────────────
-  // Join through tenant_memberships → auth_users to get email.
+  // Join through tenant_memberships → auth_users to get email and lang.
   // Only promos that actually expire (not the sentinel) and are still active.
   const rows = await db.execute(`
     SELECT
@@ -145,7 +70,8 @@ export const GET: APIRoute = async ({ request }) => {
       pr.access_expires_at,
       pr.warning_30d_sent_at,
       pr.warning_7d_sent_at,
-      COALESCE(au.alert_email, au.email) AS email
+      COALESCE(au.alert_email, au.email) AS email,
+      au.lang                AS lang
     FROM promo_redemptions pr
     JOIN tenant_memberships tm ON tm.tenant_id = pr.tenant_id AND tm.role = 'owner'
     JOIN auth_users au ON au.id = tm.user_id
@@ -172,7 +98,18 @@ export const GET: APIRoute = async ({ request }) => {
 
     if (!need7d && !need30d) continue;
 
-    const { subject, text, html } = buildEmail(days, expiresAt);
+    // Resolve language and render the locale
+    const rawLang = row.lang;
+    const lang = isLang(rawLang) ? rawLang : 'en';
+    const expiryDisplay = fmtDate(expiresAt);
+    const urgency = days <= 7 ? '🚨' : '⏳';
+    const { subject, text, html } = getPromoExpiry(lang).render({
+      days,
+      expiryDisplay,
+      urgency,
+      billingUrl: `${APP_BASE}/dashboard/billing`,
+      dashboardUrl: `${APP_BASE}/dashboard`,
+    });
 
     let sent = false;
     try {

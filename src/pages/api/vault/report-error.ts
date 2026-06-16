@@ -10,6 +10,8 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { sendMail } from '@/lib/email';
 import { db } from '@/lib/db';
+import { getLang } from '@/lib/i18n/locale';
+import { getWalletErrorAlert } from '@/i18n/emails/walletErrorAlert';
 
 export const prerender = false;
 
@@ -22,6 +24,7 @@ const rateLimitMap = new Map<string, number>();
 const RATE_LIMIT_MS = 60 * 60 * 1000;
 
 export const POST: APIRoute = async ({ request }) => {
+	const lang = getLang(request);
 	const session = await requireTenantSession(request);
 	if (!session) return json({ ok: false }, 401);
 	const { tenantId } = session;
@@ -76,15 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
 	void sendMail({ to: OWNER_EMAIL, subject: adminSubject, text: adminText }).catch(() => {});
 
 	if (userAlertEmail && userAlertEmail.toLowerCase() !== OWNER_EMAIL.toLowerCase()) {
-		const userSubject = 'Almstins — a wallet could not load';
-		const userText = [
-			'One of your wallets could not load its latest balance. Your funds are safe —',
-			'this is a display error, not a wallet issue.',
-			'',
-			`Ref: ${refCode}`,
-			'',
-			'If this keeps happening, reply to this email with the ref code above.',
-		].join('\n');
+		const { subject: userSubject, text: userText } = getWalletErrorAlert(lang).render({ refCode });
 		void sendMail({ to: userAlertEmail, subject: userSubject, text: userText }).catch(() => {});
 	}
 

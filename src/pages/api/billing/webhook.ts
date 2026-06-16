@@ -3,6 +3,8 @@ import type Stripe from 'stripe';
 import nodemailer from 'nodemailer';
 import { stripe, PRICE_TO_PLAN } from '../../../lib/stripe';
 import { db } from '../../../lib/db';
+import { getTenantLang } from '@/lib/i18n/userLang';
+import { getSubscriptionWelcome } from '@/i18n/emails/subscriptionWelcome';
 
 // ── Email helpers ──────────────────────────────────────────────────────────────
 
@@ -63,49 +65,24 @@ async function sendOwnerNotification(opts: {
 async function sendWelcomeEmail(opts: {
 	customerEmail: string;
 	planId: string;
+	lang?: import('@/lib/i18n/locale').Lang;
 }) {
 	const mailer = getMailTransport();
 	if (!mailer) return;
 
 	const planLabel = PLAN_LABELS[opts.planId] ?? opts.planId;
+	const { subject, text, html } = getSubscriptionWelcome(opts.lang ?? 'en').render({
+		planLabel,
+		dashboardUrl: 'https://almstins.com/dashboard',
+		appUrl: 'https://almstins.com',
+	});
 
 	await mailer.transport.sendMail({
 		to: opts.customerEmail,
 		from: mailer.from,
-		subject: `Welcome to almsTins — you're on ${planLabel}!`,
-		text: [
-			`Hi there,`,
-			'',
-			`Thanks for subscribing to almsTins! Your ${planLabel} plan is now active.`,
-			'',
-			'Get started by heading to your dashboard:',
-			'https://almstins.com/dashboard',
-			'',
-			'Here\'s what you can do right now:',
-			'  • Upload a CSV from your exchange (Coinbase, Kraken, Exodus, and more)',
-			'  • Add a wallet address to track on-chain holdings',
-			'  • View your bookkeeping breakdown by year',
-			'',
-			'If you ever have questions, reply to this email — Donnie reads every one.',
-			'',
-			'— The almsTins team',
-			'https://almstins.com',
-		].join('\n'),
-		html: `
-			<div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#1a1a1a;color:#f0f0f0;border-radius:10px;padding:32px;">
-				<h2 style="color:#FA8072;margin-top:0;">Welcome to almsTins!</h2>
-				<p style="color:#ccc;">Thanks for subscribing. Your <strong style="color:#FA8072;">${planLabel}</strong> plan is now active.</p>
-				<a href="https://almstins.com/dashboard" style="display:inline-block;margin:20px 0;background:#FA8072;color:#1a1a1a;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Go to your dashboard →</a>
-				<p style="color:#aaa;font-size:14px;">Here's what you can do right now:</p>
-				<ul style="color:#ccc;font-size:14px;line-height:1.8;">
-					<li>Upload a CSV from your exchange (Coinbase, Kraken, Exodus, and more)</li>
-					<li>Add a wallet address to track on-chain holdings</li>
-					<li>View your bookkeeping breakdown by year</li>
-				</ul>
-				<p style="color:#aaa;font-size:13px;margin-top:24px;">Questions? Just reply to this email — Donnie reads every one.</p>
-				<p style="color:#555;font-size:12px;margin-top:16px;">almsTins · <a href="https://almstins.com" style="color:#555;">almstins.com</a></p>
-			</div>
-		`,
+		subject,
+		text,
+		html,
 	});
 }
 
@@ -207,9 +184,13 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 	const amountPaid = session.amount_total ?? 0;
 
 	if (customerEmail) {
+		// Resolve the tenant's stored language for the user-facing welcome email.
+		// getTenantLang defaults to 'en' on any error, so this is always safe.
+		const lang = await getTenantLang(tenantId);
+
 		Promise.allSettled([
 			sendOwnerNotification({ customerEmail, planId, tenantId, amountPaid }),
-			sendWelcomeEmail({ customerEmail, planId }),
+			sendWelcomeEmail({ customerEmail, planId, lang }),
 		]).then((results) => {
 			results.forEach((r, i) => {
 				if (r.status === 'rejected') {

@@ -47,6 +47,30 @@ export async function getUserLang(userId: string): Promise<Lang> {
   }
 }
 
+/**
+ * Stored language for a tenant (its owner, falling back to any member). For
+ * tenant-scoped emails (Stripe receipts, promo expiry, error alerts) that have a
+ * tenant_id but no single user id. Defaults to English.
+ */
+export async function getTenantLang(tenantId: string): Promise<Lang> {
+  try {
+    await ensureUserLangColumn();
+    const res = await db.execute({
+      sql: `SELECT au.lang
+              FROM tenant_memberships tm
+              JOIN auth_users au ON au.id = tm.user_id
+             WHERE tm.tenant_id = ?
+             ORDER BY (tm.role = 'owner') DESC
+             LIMIT 1`,
+      args: [tenantId],
+    });
+    const raw = res.rows[0]?.lang;
+    return typeof raw === 'string' && isLang(raw) ? raw : DEFAULT_LANG;
+  } catch {
+    return DEFAULT_LANG;
+  }
+}
+
 /** Persist a user's language preference. Best-effort — never throws. */
 export async function setUserLang(userId: string, lang: Lang): Promise<void> {
   try {

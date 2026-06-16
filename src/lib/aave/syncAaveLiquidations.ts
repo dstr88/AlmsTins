@@ -1,6 +1,9 @@
 import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
 import { randomUUID } from 'node:crypto';
+import { isLang } from '@/lib/i18n/locale';
+import { ensureUserLangColumn } from '@/lib/i18n/userLang';
+import { getLiquidationAlert } from '@/i18n/emails/liquidationAlert';
 
 const AAVE_GRAPHQL_ENDPOINT = 'https://api.v3.aave.com/graphql';
 const CHAIN_IDS = [1, 137, 43114];
@@ -215,8 +218,9 @@ export async function syncLiquidationsToImportTransactions(
 
 	if (imported > 0) {
 		try {
+			await ensureUserLangColumn();
 			const alertRes = await db.execute({
-				sql: `SELECT au.alert_email
+				sql: `SELECT au.alert_email, au.lang
 				      FROM tenant_memberships tm
 				      JOIN auth_users au ON au.id = tm.user_id
 				      WHERE tm.tenant_id = ?
@@ -224,26 +228,16 @@ export async function syncLiquidationsToImportTransactions(
 				        AND au.alert_email IS NOT NULL`,
 				args: [tenantId],
 			});
+			const appBase = process.env.AUTH_URL ?? 'https://almstins.com';
 			for (const row of alertRes.rows) {
 				const toEmail = typeof (row as Record<string, unknown>).alert_email === 'string'
 					? String((row as Record<string, unknown>).alert_email)
 					: null;
 				if (!toEmail) continue;
-				await sendMail({
-					to: toEmail,
-					subject: '⚠ Aave Liquidation Detected',
-					text: [
-						`Your Aave position was partially or fully liquidated.`,
-						``,
-						`Wallet: ${address}`,
-						`New liquidation event(s) logged: ${imported}`,
-						``,
-						`These have been added to your Almstins bookkeeping records as taxable disposals.`,
-						``,
-						`Review your records:`,
-						`https://almstins.com/dashboard/research`,
-					].join('\n'),
-				}).catch((err) => {
+				const rawLang = (row as Record<string, unknown>).lang;
+				const lang = typeof rawLang === 'string' && isLang(rawLang) ? rawLang : 'en';
+				const { subject, text } = getLiquidationAlert(lang).render({ address, imported, appBase });
+				await sendMail({ to: toEmail, subject, text }).catch((err) => {
 					console.error('[syncLiquidations] email send failed', err);
 				});
 			}

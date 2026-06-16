@@ -12,6 +12,9 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
+import { isLang } from '@/lib/i18n/locale';
+import { ensureUserLangColumn } from '@/lib/i18n/userLang';
+import { getHealthAlert } from '@/i18n/emails/healthAlert';
 
 export const prerender = false;
 
@@ -34,11 +37,12 @@ export const GET: APIRoute = async ({ request }) => {
 	console.log('[cron/health-alerts] Starting health factor check');
 
 	// ── Load all actionable preferences ────────────────────────────────────
-	// Join with auth_users to get alert_email, join with wallets to get address.
+	// Join with auth_users to get alert_email + lang, join with wallets to get address.
 	// Only rows where:
 	//   - alert is enabled
 	//   - user has an alert_email
 	//   - wallet_id is set (wallet-level alerts only for now)
+	await ensureUserLangColumn();
 	const rows = await db.execute(`
 		SELECT
 			ap.id            AS pref_id,
@@ -48,6 +52,7 @@ export const GET: APIRoute = async ({ request }) => {
 			ap.direction,
 			ap.last_alerted_at,
 			au.alert_email,
+			au.lang          AS lang,
 			w.address        AS wallet_address,
 			w.label          AS wallet_label
 		FROM alert_preferences ap
@@ -58,7 +63,7 @@ export const GET: APIRoute = async ({ request }) => {
 		  AND ap.wallet_id  IS NOT NULL
 	`);
 
-	const prefs = rows.rows as Array<Record<string, unknown>>;
+	const prefs = rows.rows as unknown as Array<Record<string, unknown> & { lang: unknown }>;
 	console.log(`[cron/health-alerts] Checking ${prefs.length} active alert(s)`);
 
 	const results: Array<{ walletId: string; status: string; hf?: number }> = [];
@@ -129,29 +134,21 @@ export const GET: APIRoute = async ({ request }) => {
 		}
 
 		// ── Send alert email ──────────────────────────────────────────────────
-		const hfFormatted   = hf.toFixed(2);
-		const chainLabel    = hfChain.charAt(0).toUpperCase() + hfChain.slice(1);
-		const directionWord = direction === 'below' ? 'dropped below' : 'risen above';
+		const hfFormatted = hf.toFixed(2);
+		const chainLabel  = hfChain.charAt(0).toUpperCase() + hfChain.slice(1);
+		const lang        = typeof pref.lang === 'string' && isLang(pref.lang) ? pref.lang : 'en';
+		const { subject, text } = getHealthAlert(lang).render({
+			label,
+			address,
+			chainLabel,
+			hfFormatted,
+			direction,
+			threshold,
+			appBase: AAVE_HEALTH_BASE,
+		});
 
 		try {
-			await sendMail({
-				to:      alertEmail,
-				subject: `⚠️ Aave Health Factor Alert — ${label}`,
-				text: [
-					`Your Aave health factor on ${chainLabel} has ${directionWord} your alert threshold.`,
-					``,
-					`  Health factor : ${hfFormatted}`,
-					`  Your threshold: ${direction} ${threshold}`,
-					`  Wallet        : ${label} (${address})`,
-					``,
-					`Log in to review your positions and add collateral or repay debt if needed:`,
-					`${AAVE_HEALTH_BASE}/dashboard/vault`,
-					``,
-					`— Almstins`,
-					``,
-					`To change or disable this alert, visit Account → Alert email in the app.`,
-				].join('\n'),
-			});
+			await sendMail({ to: alertEmail, subject, text });
 
 			// ── Record send time ───────────────────────────────────────────────
 			await db.execute({

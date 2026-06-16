@@ -7,6 +7,7 @@ import { hashPassword } from '@/lib/passwords';
 import { isEmailDomainBlocked } from '@/lib/blockedEmailDomains';
 import { isLang, type Lang } from '@/lib/i18n/locale';
 import { setUserLang } from '@/lib/i18n/userLang';
+import { getVerifyEmail } from '@/i18n/emails/verifyEmail';
 
 export const prerender = false;
 
@@ -18,18 +19,19 @@ function normalizeEmail(input: FormDataEntryValue | null) {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : null;
 }
 
-async function sendVerificationEmail(email: string, verifyUrl: string) {
+async function sendVerificationEmail(email: string, verifyUrl: string, lang: Lang) {
 	const server = import.meta.env.EMAIL_SERVER;
 	const from = import.meta.env.EMAIL_FROM;
 	if (!server || !from) return;
 
+	const t = getVerifyEmail(lang);
 	const transport = nodemailer.createTransport(server);
 	await transport.sendMail({
 		to: email,
 		from,
-		subject: 'Verify your email address',
-		text: `Verify your email address: ${verifyUrl}`,
-		html: `<p>Verify your email address:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>`,
+		subject: t.subject,
+		text: t.text(verifyUrl),
+		html: t.html(verifyUrl),
 	});
 }
 
@@ -85,7 +87,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	const baseUrl = import.meta.env.AUTH_URL || new URL(request.url).origin;
 	const verifyUrl = `${baseUrl}/api/verify-email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
 	try {
-		await sendVerificationEmail(email, verifyUrl);
+		await sendVerificationEmail(email, verifyUrl, lang);
 	} catch (error) {
 		console.warn('Failed to send verification email', error);
 	}
