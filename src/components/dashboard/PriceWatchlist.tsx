@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
 import { ChevronDown, ChevronUp, GripVertical, Trash2 } from 'lucide-react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getPriceWatchlist } from '@/i18n/components/priceWatchlist';
 
 console.log('[island.mount]', 'PriceWatchlist');
 
@@ -41,6 +43,7 @@ type Toast = { id: number; message: string };
  * suitable for the top-left column of the Net Worth dashboard.
  */
 export function PriceWatchlist() {
+	const t = getPriceWatchlist(getClientLang());
 	const [state, setState] = useState<FetchState>({ status: 'idle' });
 	const [tokens, setTokens] = useState<WatchlistToken[]>(
 		BASE_SYMBOLS.map((sym) => ({ symbol: sym })),
@@ -51,7 +54,7 @@ export function PriceWatchlist() {
 	const [removing, setRemoving] = useState<Set<string>>(new Set());
 	const [toasts, setToasts] = useState<Toast[]>([]);
 	const [toastCounter, setToastCounter] = useState(0);
-	const combinedSymbols = useMemo(() => allowlistSymbols(tokens.map((t) => t.symbol)), [tokens]);
+	const combinedSymbols = useMemo(() => allowlistSymbols(tokens.map((tok) => tok.symbol)), [tokens]);
 	const combinedSymbolsKey = useMemo(() => stableHash(combinedSymbols), [combinedSymbols]);
 
 	const totalTokens = combinedSymbols.length;
@@ -75,8 +78,8 @@ export function PriceWatchlist() {
 							symbol: String(sym).toUpperCase(),
 						}));
 					} else {
-						migrated = (parsed.tokens as WatchlistToken[]).map((t) => ({
-							symbol: String((t as any).symbol ?? '').toUpperCase(),
+						migrated = (parsed.tokens as WatchlistToken[]).map((tok) => ({
+							symbol: String((tok as any).symbol ?? '').toUpperCase(),
 						}));
 					}
 				}
@@ -144,9 +147,9 @@ export function PriceWatchlist() {
 					}
 				}
 
-				const entries: PriceEntry[] = tokens.map((t) => ({
-					symbol: t.symbol.toUpperCase(),
-					priceUsd: Number(priceMap[t.symbol.toUpperCase()] ?? 0),
+				const entries: PriceEntry[] = tokens.map((tok) => ({
+					symbol: tok.symbol.toUpperCase(),
+					priceUsd: Number(priceMap[tok.symbol.toUpperCase()] ?? 0),
 				}));
 
 				if (!cancelled) {
@@ -157,7 +160,7 @@ export function PriceWatchlist() {
 				if (!cancelled) {
 					setState({
 						status: 'error',
-						message: 'Unable to load prices right now.',
+						message: t.errorLoadingPrices,
 					});
 				}
 			}
@@ -192,25 +195,25 @@ export function PriceWatchlist() {
 		setTokens((prev) => [...prev, { symbol: trimmed }]);
 		setInput('');
 		setIsExpanded(true);
-		pushToast(`Added ${trimmed} to watchlist.`);
+		pushToast(t.toastAdded(trimmed));
 	}
 
 	function handleDelete(symbol: string) {
 		setRemoving((prev) => new Set(prev).add(symbol));
 		setTimeout(() => {
-			setTokens((prev) => prev.filter((t) => t.symbol !== symbol));
+			setTokens((prev) => prev.filter((tok) => tok.symbol !== symbol));
 			setRemoving((prev) => {
 				const next = new Set(prev);
 				next.delete(symbol);
 				return next;
 			});
-			pushToast(`Removed ${symbol} from watchlist.`);
+			pushToast(t.toastRemoved(symbol));
 		}, 180);
 	}
 
 	function handleMove(symbol: string, direction: 'up' | 'down') {
 		setTokens((prev) => {
-			const idx = prev.findIndex((t) => t.symbol === symbol);
+			const idx = prev.findIndex((tok) => tok.symbol === symbol);
 			if (idx === -1) return prev;
 			const swapWith = direction === 'up' ? idx - 1 : idx + 1;
 			if (swapWith < 0 || swapWith >= prev.length) return prev;
@@ -265,7 +268,7 @@ export function PriceWatchlist() {
 							textTransform: 'uppercase',
 						}}
 					>
-						Price watchlist
+						{t.heading}
 					</h2>
 					<div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
 						<span
@@ -274,13 +277,13 @@ export function PriceWatchlist() {
 								opacity: 0.75,
 							}}
 						>
-							Source: Aave
+							{t.source}
 						</span>
 						{showToggle ? (
 							<button
 								type="button"
 								onClick={() => setIsExpanded((prev) => !prev)}
-								aria-label={isExpanded ? 'Collapse watchlist' : 'Expand watchlist'}
+								aria-label={isExpanded ? t.collapseWatchlist : t.expandWatchlist}
 								style={{
 									width: '32px',
 									height: '32px',
@@ -329,7 +332,7 @@ export function PriceWatchlist() {
 								handleAddSymbol(event);
 							}
 						}}
-						placeholder="Add token (e.g. LINK, SOL)"
+						placeholder={t.inputPlaceholder}
 						style={{
 							flex: '1 1 180px',
 							minWidth: '0',
@@ -355,7 +358,7 @@ export function PriceWatchlist() {
 							cursor: 'pointer',
 						}}
 					>
-						Add
+						{t.addBtn}
 					</button>
 				</form>
 
@@ -366,7 +369,7 @@ export function PriceWatchlist() {
 							opacity: 0.8,
 						}}
 					>
-						Loading prices…
+						{t.loadingPrices}
 					</p>
 				) : null}
 
@@ -443,7 +446,7 @@ export function PriceWatchlist() {
 													opacity: 0.7,
 												}}
 											>
-												Aave reference
+												{t.aaveReference}
 											</span>
 											{showNoData ? (
 												<span
@@ -453,7 +456,7 @@ export function PriceWatchlist() {
 														marginTop: '0.15rem',
 													}}
 												>
-													No data yet
+													{t.noDataYet}
 												</span>
 											) : null}
 										</div>
@@ -489,7 +492,7 @@ export function PriceWatchlist() {
 											<button
 												type="button"
 												onClick={() => handleMove(symbol, 'up')}
-												aria-label={`Move ${symbol} up`}
+												aria-label={t.moveUp(symbol)}
 												disabled={isFirst}
 												style={{
 													width: '26px',
@@ -510,7 +513,7 @@ export function PriceWatchlist() {
 											<button
 												type="button"
 												onClick={() => handleMove(symbol, 'down')}
-												aria-label={`Move ${symbol} down`}
+												aria-label={t.moveDown(symbol)}
 												disabled={isLast}
 												style={{
 													width: '26px',
@@ -532,7 +535,7 @@ export function PriceWatchlist() {
 										<button
 											type="button"
 											onClick={() => handleDelete(symbol)}
-											aria-label={`Remove ${symbol}`}
+											aria-label={t.remove(symbol)}
 											style={{
 												width: '32px',
 												height: '32px',

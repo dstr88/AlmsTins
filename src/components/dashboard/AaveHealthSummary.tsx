@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { allowlistSymbols } from '@/lib/prices/sanitizeSymbols';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getAaveHealthSummary } from '@/i18n/components/aaveHealthSummary';
 
 console.log('[island.mount]', 'AaveHealthSummary');
 
@@ -12,6 +14,7 @@ type AlertPref = {
 } | null;
 
 function AlertPill({ walletId }: { walletId: string }) {
+	const t = getAaveHealthSummary(getClientLang());
 	const [pref, setPref]           = useState<AlertPref>(null);
 	const [loading, setLoading]     = useState(true);
 	const [open, setOpen]           = useState(false);
@@ -94,39 +97,39 @@ function AlertPill({ walletId }: { walletId: string }) {
 
 	const isActive = pref?.enabled === true;
 	const pillLabel = isActive
-		? `HF ${pref!.direction === 'below' ? '<' : '>'} ${pref!.threshold}`
-		: 'Set Alert';
+		? t.activePillLabel(pref!.direction === 'below' ? '<' : '>', pref!.threshold)
+		: t.setAlert;
 
 	return (
 		<div className="alert-pill-wrap" ref={panelRef}>
 			<button
 				className={`alert-pill${isActive ? ' alert-pill--active' : ''}`}
 				onClick={() => setOpen((o) => !o)}
-				title={isActive ? 'Edit health factor alert' : 'Set health factor alert'}
+				title={isActive ? t.editAlertTitle : t.setAlertTitle}
 			>
 				{pillLabel}
 			</button>
 
 			{open && (
 				<div className="alert-panel">
-					<p className="alert-panel__title">Health Factor Alert</p>
+					<p className="alert-panel__title">{t.panelTitle}</p>
 					<p className="alert-panel__sub">
-						Get an email when your health factor crosses a threshold.
-						{' '}<a href="/dashboard/vault" onClick={() => setOpen(false)}>Set alert email in Account ↗</a>
+						{t.panelSub}
+						{' '}<a href="/dashboard/vault" onClick={() => setOpen(false)}>{t.panelAccountLink}</a>
 					</p>
 					<div className="alert-panel__row">
-						<label className="alert-panel__label">Alert when HF is</label>
+						<label className="alert-panel__label">{t.alertWhenHfIs}</label>
 						<select
 							value={direction}
 							onChange={(e) => setDirection(e.target.value as 'below' | 'above')}
 							className="alert-panel__select"
 						>
-							<option value="below">below</option>
-							<option value="above">above</option>
+							<option value="below">{t.directionBelow}</option>
+							<option value="above">{t.directionAbove}</option>
 						</select>
 					</div>
 					<div className="alert-panel__row">
-						<label className="alert-panel__label">Threshold</label>
+						<label className="alert-panel__label">{t.thresholdLabel}</label>
 						<input
 							type="number"
 							step="0.1"
@@ -143,7 +146,7 @@ function AlertPill({ walletId }: { walletId: string }) {
 							onClick={save}
 							disabled={saving}
 						>
-							{saving ? 'Saving…' : 'Save alert'}
+							{saving ? t.savingBtn : t.saveAlertBtn}
 						</button>
 						{isActive && (
 							<button
@@ -151,7 +154,7 @@ function AlertPill({ walletId }: { walletId: string }) {
 								onClick={disable}
 								disabled={saving}
 							>
-								Disable
+								{t.disableBtn}
 							</button>
 						)}
 					</div>
@@ -270,7 +273,10 @@ type AaveLiquidation = {
 const usdFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 
 function LiquidationCallout({ liq }: { liq: AaveLiquidation }) {
-	const date = new Date(liq.timestamp).toLocaleDateString('en-US', {
+	const t = getAaveHealthSummary(getClientLang());
+	const lang = getClientLang();
+	const dateLocale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+	const date = new Date(liq.timestamp).toLocaleDateString(dateLocale, {
 		year: 'numeric', month: 'short', day: 'numeric',
 	});
 
@@ -278,21 +284,21 @@ function LiquidationCallout({ liq }: { liq: AaveLiquidation }) {
 		<div className="aave-liq-callout">
 			<div className="aave-liq-header">
 				<span className="aave-liq-icon">⚠</span>
-				<span>Liquidation — {liq.chain.charAt(0).toUpperCase() + liq.chain.slice(1)} — {date}</span>
+				<span>{t.liquidationHeader(liq.chain.charAt(0).toUpperCase() + liq.chain.slice(1), date)}</span>
 			</div>
 			<div className="aave-liq-body">
 				<div className="aave-liq-row">
-					<span className="aave-liq-label">Loan cleared</span>
+					<span className="aave-liq-label">{t.loanCleared}</span>
 					<span className="aave-liq-value">{usdFmt.format(liq.debtUsd)} {liq.debtSymbol}</span>
 				</div>
 				<div className="aave-liq-row">
-					<span className="aave-liq-label">Collateral seized</span>
+					<span className="aave-liq-label">{t.collateralSeized}</span>
 					<span className="aave-liq-value aave-liq-loss">
 						{liq.collateralAmount.toFixed(6)} {liq.collateralSymbol} ({usdFmt.format(liq.collateralUsd)})
 					</span>
 				</div>
 				<div className="aave-liq-row">
-					<span className="aave-liq-label">Penalty to liquidator</span>
+					<span className="aave-liq-label">{t.penaltyToLiquidator}</span>
 					<span className="aave-liq-value aave-liq-loss">{usdFmt.format(liq.penaltyUsd)}</span>
 				</div>
 				{liq.blockExplorerUrl && (
@@ -303,12 +309,12 @@ function LiquidationCallout({ liq }: { liq: AaveLiquidation }) {
 							rel="noopener noreferrer"
 							className="aave-liq-link"
 						>
-							View transaction ↗
+							{t.viewTransaction}
 						</a>
 					</div>
 				)}
 				<div className="aave-liq-tax">
-					⚠ Taxable disposal — logged to your bookkeeping records
+					{t.taxableDisposal}
 				</div>
 			</div>
 		</div>
@@ -316,6 +322,7 @@ function LiquidationCallout({ liq }: { liq: AaveLiquidation }) {
 }
 
 function LiquidationAlertToggle() {
+	const t = getAaveHealthSummary(getClientLang());
 	const [enabled, setEnabled] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving]   = useState(false);
@@ -347,22 +354,21 @@ function LiquidationAlertToggle() {
 
 	return (
 		<div className="stat-row liq-alert-row">
-			<span className="label">Liquidation email</span>
+			<span className="label">{t.liquidationEmail}</span>
 			<button
 				className={`alert-pill${enabled ? ' alert-pill--active' : ''}`}
 				onClick={toggle}
 				disabled={saving}
-				title={enabled
-					? 'Email alerts on — click to disable'
-					: 'Click to receive an email if this position is liquidated'}
+				title={enabled ? t.liqAlertOnTitle : t.liqAlertOffTitle}
 			>
-				{saving ? '…' : enabled ? 'On' : 'Off'}
+				{saving ? '…' : enabled ? t.liqAlertOn : t.liqAlertOff}
 			</button>
 		</div>
 	);
 }
 
 export default function AaveHealthSummary({ walletId, showAlertPill = true, showHealthRow = true }: { walletId: string; showAlertPill?: boolean; showHealthRow?: boolean }) {
+	const t = getAaveHealthSummary(getClientLang());
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
 	const [walletAddress, setWalletAddress] = useState<string | null>(null);
 	const [liquidations, setLiquidations] = useState<AaveLiquidation[]>([]);
@@ -646,7 +652,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 						data-health-color={entry.color ?? ''}
 					>
 						<span className="label">
-							{entry.chain.charAt(0).toUpperCase() + entry.chain.slice(1)} Health
+							{t.chainHealthLabel(entry.chain.charAt(0).toUpperCase() + entry.chain.slice(1))}
 						</span>
 						<span className="value" style={entry.color ? { color: entry.color } : undefined}>
 							{entry.value}
@@ -656,7 +662,7 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 				))
 			) : (
 				<div className="stat-row health" style={showHealthRow ? undefined : { display: 'none' }} data-health-color="">
-					<span className="label">Health</span>
+					<span className="label">{t.healthLabel}</span>
 					<span className="value">---</span>
 					{showAlertPill && <AlertPill walletId={walletId} />}
 				</div>
@@ -667,17 +673,17 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 			{showAlertPill && <LiquidationAlertToggle />}
 
 			<div className="stat-row">
-				<span className="label">Collateral</span>
+				<span className="label">{t.collateralLabel}</span>
 				<span className="value">{collateralValue}</span>
 			</div>
 
 			<div className="stat-row debt">
-				<span className="label">Debt</span>
+				<span className="label">{t.debtLabel}</span>
 				<span className="value">{debtValue}</span>
 			</div>
 
 			<div className="stat-row net">
-				<span className="label">Net</span>
+				<span className="label">{t.netLabel}</span>
 				<span className="value">{netValue}</span>
 			</div>
 
@@ -687,14 +693,14 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 
 			<div className="spacer spacer--sm"></div>
 
-			<div className="breakdown-title">Collateral breakdown</div>
+			<div className="breakdown-title">{t.breakdownTitle}</div>
 
 			<div className="breakdown" style={qtyWidthStyle}>
 				<div className="breakdown-row breakdown-header" style={{ display: 'grid', gridTemplateColumns: '44px 2fr 2fr 2fr 2.5fr 1.5fr', columnGap: '0.5rem' }}>
-					<span className="col-days">Days</span>
-					<span className="col-token">Asset</span>
-					<span className="col-qty">Qty</span>
-					<span className="col-price">Price</span>
+					<span className="col-days">{t.colDays}</span>
+					<span className="col-token">{t.colAsset}</span>
+					<span className="col-qty">{t.colQty}</span>
+					<span className="col-price">{t.colPrice}</span>
 					<span className="col-usd">USD</span>
 					<span className="col-pl">P/L</span>
 				</div>
@@ -759,20 +765,20 @@ export default function AaveHealthSummary({ walletId, showAlertPill = true, show
 						);
 					})
 				) : (
-					<div className="breakdown-empty">No collateral positions found.</div>
+					<div className="breakdown-empty">{t.breakdownEmpty}</div>
 				)}
 			</div>
 			{state.status === 'ready' && state.unavailableMessage ? (
 				<div className="defi-status defi-status--warning">{state.unavailableMessage}</div>
 			) : null}
 			{state.status === 'ready' && state.isStale ? (
-				<div className="defi-status defi-status--refreshing">Refreshing…</div>
+				<div className="defi-status defi-status--refreshing">{t.refreshing}</div>
 			) : null}
 			{state.status === 'loading' ? (
-				<div className="defi-status defi-status--loading">Loading health factor…</div>
+				<div className="defi-status defi-status--loading">{t.loadingHealthFactor}</div>
 			) : null}
 			{state.status === 'error' ? (
-				<div className="defi-status defi-status--error">Unable to load health factor.</div>
+				<div className="defi-status defi-status--error">{t.errorHealthFactor}</div>
 			) : null}
 
 			{liquidations.length > 0 && (

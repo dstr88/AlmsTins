@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getWalletOverview } from '@/i18n/components/walletOverview';
 
 export type WalletOverviewWallet = {
 	id: string;
@@ -75,7 +77,7 @@ const inputStyle: React.CSSProperties = {
 	boxSizing: 'border-box' as const,
 };
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, title }: { text: string; title: string }) {
 	const [copied, setCopied] = useState(false);
 	return (
 		<button
@@ -86,7 +88,7 @@ function CopyButton({ text }: { text: string }) {
 					setTimeout(() => setCopied(false), 1500);
 				});
 			}}
-			title="Copy address"
+			title={title}
 			style={{
 				background: 'none',
 				border: 'none',
@@ -117,6 +119,8 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 	const [addStatus,  setAddStatus]  = useState<string | null>(null);
 	const [adding,     setAdding]     = useState(false);
 
+	const t = getWalletOverview(getClientLang());
+
 	React.useEffect(() => {
 		console.log('[WalletOverview] hydrated with', initialWallets.length, 'wallet(s)');
 	}, [initialWallets.length]);
@@ -134,27 +138,25 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 	}
 
 	async function handleDelete(wallet: WalletOverviewWallet) {
-		const confirmed = window.confirm(
-			`Delete wallet "${wallet.label || wallet.address}"?\n\nThis will permanently delete the wallet and ALL of its transaction history. This cannot be undone.`,
-		);
+		const confirmed = window.confirm(t.confirmDelete(wallet.label || wallet.address));
 		if (!confirmed) return;
 		try {
-			setStatus('Deleting…');
+			setStatus(t.statusDeleting);
 			const res = await fetch(`/api/wallets/${wallet.id}`, { method: 'DELETE' });
 			if (!res.ok && res.status !== 204) throw new Error('Failed to delete wallet');
 			setWallets((prev) => prev.filter((w) => w.id !== wallet.id));
 			setEditingId(null);
-			setStatus('Wallet deleted.');
+			setStatus(t.statusDeleted);
 		} catch {
-			setStatus('Unable to delete right now.');
+			setStatus(t.statusDeleteError);
 		}
 	}
 
 	async function handleSave(wallet: WalletOverviewWallet) {
 		const trimmed = draftLabel.trim();
-		if (!trimmed) { setStatus('Label is required'); return; }
+		if (!trimmed) { setStatus(t.statusLabelRequired); return; }
 		try {
-			setStatus('Saving…');
+			setStatus(t.statusSaving);
 			const res = await fetch(`/api/wallets/${wallet.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
@@ -167,20 +169,20 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 			setWallets((prev) => prev.map((w) => (w.id === wallet.id ? { ...w, label: trimmed } : w)));
 			setEditingId(null);
 			setDraftLabel('');
-			setStatus('Saved.');
+			setStatus(t.statusSaved);
 		} catch {
-			setStatus('Unable to save right now.');
+			setStatus(t.statusSaveError);
 		}
 	}
 
 	async function handleAdd() {
 		const address = addAddress.replace(/\s+/g, '');
 		const label   = addLabel.trim();
-		if (!address) { setAddStatus('Address is required'); return; }
-		if (!label)   { setAddStatus('Label is required');   return; }
+		if (!address) { setAddStatus(t.addStatusAddressRequired); return; }
+		if (!label)   { setAddStatus(t.addStatusLabelRequired);   return; }
 		const chains = symbolToChains(addSymbol, address);
 		setAdding(true);
-		setAddStatus('Saving…');
+		setAddStatus(t.addStatusSaving);
 		try {
 			const res  = await fetch('/api/wallets', {
 				method: 'POST',
@@ -193,9 +195,9 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 			setAddAddress('');
 			setAddLabel('');
 			setAddSymbol('');
-			setAddStatus('✓ Wallet added.');
+			setAddStatus(t.addStatusAdded);
 		} catch (e: unknown) {
-			setAddStatus('Error: ' + (e instanceof Error ? e.message : 'Unknown'));
+			setAddStatus(t.addStatusErrorPrefix + (e instanceof Error ? e.message : 'Unknown'));
 		}
 		setAdding(false);
 	}
@@ -207,13 +209,13 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 			<header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
 				<div>
 					<p style={{ margin: '0 0 0.15rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.45 }}>
-						Vault
+						{t.sectionEyebrow}
 					</p>
 					<h1 style={{ margin: 0, fontSize: '1.55rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-						My Wallets
+						{t.heading}
 					</h1>
 					<p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', opacity: 0.4, lineHeight: 1.5 }}>
-						Wallets added here are synced to the Vault and tracked as yours.
+						{t.subheading}
 					</p>
 				</div>
 				{status && (
@@ -221,8 +223,8 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 						fontSize: '0.82rem',
 						padding: '0.3rem 0.75rem',
 						borderRadius: '999px',
-						background: status.includes('deleted') || status.includes('Saved') ? 'var(--gain-bg)' : 'var(--border-subtle)',
-						color: status.includes('deleted') || status.includes('Saved') ? 'var(--gain)' : 'var(--text-muted)',
+						background: status === t.statusDeleted || status === t.statusSaved ? 'var(--gain-bg)' : 'var(--border-subtle)',
+						color: status === t.statusDeleted || status === t.statusSaved ? 'var(--gain)' : 'var(--text-muted)',
 						border: '1px solid var(--border-bright)',
 					}}>
 						{status}
@@ -240,7 +242,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 					color: 'var(--text-muted)',
 					fontSize: '0.9rem',
 				}}>
-					No wallets yet — add your first one below.
+					{t.emptyState}
 				</div>
 			) : (
 				<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
@@ -325,7 +327,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 										letterSpacing: '-0.01em',
 										lineHeight: 1.2,
 									}}>
-										{wallet.label || <span style={{ opacity: 0.4, fontStyle: 'italic', fontWeight: 400 }}>Unnamed</span>}
+										{wallet.label || <span style={{ opacity: 0.4, fontStyle: 'italic', fontWeight: 400 }}>{t.unnamed}</span>}
 									</div>
 								)}
 
@@ -350,7 +352,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 									}}>
 										{truncateAddress(wallet.address)}
 									</span>
-									<CopyButton text={wallet.address} />
+									<CopyButton text={wallet.address} title={t.copyAddressTitle} />
 								</div>
 
 								{/* Actions */}
@@ -358,22 +360,22 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 									{isEditing ? (
 										<>
 											<ActionBtn
-												label="Save"
+												label={t.btnSave}
 												onClick={() => handleSave(wallet)}
 												color={color.accent}
 												filled
 											/>
-											<ActionBtn label="Cancel" onClick={handleCancel} />
+											<ActionBtn label={t.btnCancel} onClick={handleCancel} />
 											<ActionBtn
-												label="Delete"
+												label={t.btnDelete}
 												onClick={() => handleDelete(wallet)}
 												color="var(--loss)"
 											/>
 										</>
 									) : (
 										<>
-											<ActionBtn label="Edit" onClick={() => handleEditClick(wallet)} color={color.accent} />
-											<ActionBtn label="Delete" onClick={() => handleDelete(wallet)} color="var(--loss)" />
+											<ActionBtn label={t.btnEdit} onClick={() => handleEditClick(wallet)} color={color.accent} />
+											<ActionBtn label={t.btnDelete} onClick={() => handleDelete(wallet)} color="var(--loss)" />
 										</>
 									)}
 								</div>
@@ -398,12 +400,12 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 					opacity: 0.4,
 					marginBottom: '0.85rem',
 				}}>
-					Add a wallet to the Vault
+					{t.addFormLabel}
 				</div>
 				<div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
 					<input
 						type="text"
-						placeholder="Wallet address"
+						placeholder={t.addPlaceholderAddress}
 						value={addAddress}
 						onChange={e => setAddAddress(e.target.value)}
 						onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
@@ -411,7 +413,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 					/>
 					<input
 						type="text"
-						placeholder="Label  (e.g. My Ledger)"
+						placeholder={t.addPlaceholderLabel}
 						value={addLabel}
 						onChange={e => setAddLabel(e.target.value)}
 						onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
@@ -419,7 +421,7 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 					/>
 					<input
 						type="text"
-						placeholder="Symbol  (e.g. LTC)"
+						placeholder={t.addPlaceholderSymbol}
 						value={addSymbol}
 						onChange={e => setAddSymbol(e.target.value)}
 						onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
@@ -442,14 +444,14 @@ export function WalletOverview({ wallets: initialWallets }: Props) {
 							transition: 'background 0.15s',
 						}}
 					>
-						{adding ? 'Adding…' : 'Add Wallet'}
+						{adding ? t.addBtnAdding : t.addBtnAdd}
 					</button>
 				</div>
 				{addStatus && (
 					<p style={{
 						margin: '0.6rem 0 0',
 						fontSize: '0.8rem',
-						color: addStatus.startsWith('✓') ? 'var(--gain)' : addStatus.startsWith('Error') ? 'var(--loss)' : 'var(--text-muted)',
+						color: addStatus.startsWith('✓') ? 'var(--gain)' : addStatus.startsWith(t.addStatusErrorPrefix) ? 'var(--loss)' : 'var(--text-muted)',
 					}}>
 						{addStatus}
 					</p>

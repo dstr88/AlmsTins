@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { CheckCircle2, Circle, Trash2 } from 'lucide-react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getVaultNotepad } from '@/i18n/components/vaultNotepad';
 
 console.log('[island.mount]', 'VaultNotepad');
 
@@ -15,9 +17,10 @@ type FetchState =
 	| { status: 'error'; message: string }
 	| { status: 'ready'; notes: Note[] };
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, lang: string): string {
 	const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
-	return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	const locale = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+	return d.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function VaultNotepad() {
@@ -28,6 +31,8 @@ export function VaultNotepad() {
 	const [charCount, setCharCount] = useState(0);
 	const [fontSize, setFontSize] = useState(14);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const lang = getClientLang();
+	const t = getVaultNotepad(lang);
 
 	useEffect(() => {
 		const stored = localStorage.getItem('vn_font_size');
@@ -50,7 +55,7 @@ export function VaultNotepad() {
 			const data = await res.json() as { ok: boolean; notes: Note[] };
 			setState({ status: 'ready', notes: data.notes });
 		} catch (err) {
-			setState({ status: 'error', message: 'Could not load notes.' });
+			setState({ status: 'error', message: t.loadError });
 		}
 	}
 
@@ -144,7 +149,7 @@ export function VaultNotepad() {
 					value={input}
 					maxLength={500}
 					rows={2}
-					placeholder="e.g. Sent 50 USDC to Webflow Apr 30 — need to import & classify"
+					placeholder={t.inputPlaceholder}
 					style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
 					onChange={(e) => {
 						setInput(e.target.value);
@@ -160,23 +165,23 @@ export function VaultNotepad() {
 				<div className="vn-form-footer">
 					<span className="vn-char-count">{charCount}/500</span>
 					<div className="vn-font-controls">
-						<button type="button" className="vn-font-btn" onClick={() => adjustFont(-1)} aria-label="Decrease font size" disabled={fontSize <= 11}>−</button>
+						<button type="button" className="vn-font-btn" onClick={() => adjustFont(-1)} aria-label={t.decreaseFontSize} disabled={fontSize <= 11}>−</button>
 						<span className="vn-font-size">{fontSize}</span>
-						<button type="button" className="vn-font-btn" onClick={() => adjustFont(1)} aria-label="Increase font size" disabled={fontSize >= 22}>+</button>
+						<button type="button" className="vn-font-btn" onClick={() => adjustFont(1)} aria-label={t.increaseFontSize} disabled={fontSize >= 22}>+</button>
 					</div>
 					<button
 						type="submit"
 						className="vn-add-btn"
 						disabled={submitting || !input.trim()}
 					>
-						{submitting ? 'Saving…' : 'Add note'}
+						{submitting ? t.saving : t.addNote}
 					</button>
 				</div>
 			</form>
 
 			{/* Note list */}
 			{state.status === 'loading' && (
-				<p className="vn-status">Loading…</p>
+				<p className="vn-status">{t.loading}</p>
 			)}
 			{state.status === 'error' && (
 				<p className="vn-status vn-status--error">{state.message}</p>
@@ -185,11 +190,11 @@ export function VaultNotepad() {
 			{state.status === 'ready' && (
 				<div className="vn-list">
 					{open.length === 0 && resolved.length === 0 && (
-						<p className="vn-empty">Jot down anything worth remembering — a transfer to flag, a cost basis question, a reminder to import a CSV.</p>
+						<p className="vn-empty">{t.empty}</p>
 					)}
 
 					{open.map((note) => (
-						<NoteRow key={note.id} note={note} fontSize={fontSize} onToggle={toggleResolved} onDelete={deleteNote} />
+						<NoteRow key={note.id} note={note} fontSize={fontSize} lang={lang} t={t} onToggle={toggleResolved} onDelete={deleteNote} />
 					))}
 
 					{resolved.length > 0 && (
@@ -199,10 +204,10 @@ export function VaultNotepad() {
 								className="vn-resolved-toggle"
 								onClick={() => setShowResolved((v) => !v)}
 							>
-								{showResolved ? '▾' : '▸'} {resolved.length} accounted for
+								{showResolved ? '▾' : '▸'} {t.resolvedToggle(resolved.length)}
 							</button>
 							{showResolved && resolved.map((note) => (
-								<NoteRow key={note.id} note={note} fontSize={fontSize} onToggle={toggleResolved} onDelete={deleteNote} dimmed />
+								<NoteRow key={note.id} note={note} fontSize={fontSize} lang={lang} t={t} onToggle={toggleResolved} onDelete={deleteNote} dimmed />
 							))}
 						</>
 					)}
@@ -440,12 +445,16 @@ export function VaultNotepad() {
 function NoteRow({
 	note,
 	fontSize,
+	lang,
+	t,
 	onToggle,
 	onDelete,
 	dimmed = false,
 }: {
 	note: Note;
 	fontSize: number;
+	lang: string;
+	t: import('@/i18n/components/vaultNotepad').VaultNotepadLocale;
 	onToggle: (note: Note) => void;
 	onDelete: (id: string) => void;
 	dimmed?: boolean;
@@ -457,8 +466,8 @@ function NoteRow({
 				type="button"
 				className={`vn-note-check${isDone ? ' vn-note-check--done' : ''}`}
 				onClick={() => onToggle(note)}
-				aria-label={isDone ? 'Mark as unaccounted' : 'Mark as accounted for'}
-				title={isDone ? 'Mark as unaccounted' : 'Mark as accounted for'}
+				aria-label={isDone ? t.markUnaccounted : t.markAccounted}
+				title={isDone ? t.markUnaccounted : t.markAccounted}
 			>
 				{isDone
 					? <CheckCircle2 size={16} strokeWidth={2} />
@@ -467,14 +476,14 @@ function NoteRow({
 			</button>
 			<div className="vn-note-body">
 				<div className="vn-note-text" style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}>{note.body}</div>
-				<div className="vn-note-date">{formatDate(note.createdAt)}</div>
+				<div className="vn-note-date">{formatDate(note.createdAt, lang)}</div>
 			</div>
 			<button
 				type="button"
 				className="vn-note-delete"
 				onClick={() => onDelete(note.id)}
-				aria-label="Delete note"
-				title="Delete note"
+				aria-label={t.deleteNote}
+				title={t.deleteNote}
 			>
 				<Trash2 size={14} strokeWidth={2} />
 			</button>

@@ -1,4 +1,6 @@
 import React, { useRef, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getAddressLabels } from '@/i18n/components/addressLabels';
 
 export type AddressLabel = {
 	id: string;
@@ -55,6 +57,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 function CopyButton({ text }: { text: string }) {
+	const t = getAddressLabels(getClientLang());
 	const [copied, setCopied] = useState(false);
 	return (
 		<button
@@ -65,7 +68,7 @@ function CopyButton({ text }: { text: string }) {
 					setTimeout(() => setCopied(false), 1500);
 				});
 			}}
-			title="Copy address"
+			title={t.copyTitle}
 			style={{
 				background: 'none', border: 'none', cursor: 'pointer',
 				padding: '0 0.2rem',
@@ -80,6 +83,7 @@ function CopyButton({ text }: { text: string }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function AddressLabels({ labels: initial }: Props) {
+	const t = getAddressLabels(getClientLang());
 	const [labels,       setLabels]       = useState<AddressLabel[]>(initial);
 	const [address,      setAddress]      = useState('');
 	const [labelText,    setLabelText]    = useState('');
@@ -102,7 +106,7 @@ export function AddressLabels({ labels: initial }: Props) {
 
 		setScanning(true);
 		setScanResult(null);
-		setStatus('Scanning image…');
+		setStatus(t.statusScanning);
 
 		try {
 			const form = new FormData();
@@ -112,14 +116,14 @@ export function AddressLabels({ labels: initial }: Props) {
 			const data = await res.json() as { addresses?: string[]; error?: boolean; message?: string };
 
 			if (!res.ok || data.error) {
-				setStatus(`Scan failed: ${data.message ?? 'Unknown error'}`);
+				setStatus(t.statusScanFailed(data.message ?? 'Unknown error'));
 				setScanning(false);
 				return;
 			}
 
 			const found = data.addresses ?? [];
 			if (found.length === 0) {
-				setStatus('No wallet address found in that image. Try a clearer crop.');
+				setStatus(t.statusNoAddress);
 				setScanning(false);
 				return;
 			}
@@ -130,11 +134,11 @@ export function AddressLabels({ labels: initial }: Props) {
 				setScanResult(`✓ Found: ${found[0]}`);
 				setStatus(null);
 			} else {
-				setScanResult(`Found ${found.length} addresses — first one pre-filled. Check the field.`);
+				setScanResult(t.statusFoundMultiple(found.length));
 				setStatus(null);
 			}
 		} catch (err: unknown) {
-			setStatus('Scan error: ' + (err instanceof Error ? err.message : 'Unknown'));
+			setStatus(t.statusScanError(err instanceof Error ? err.message : 'Unknown'));
 		}
 
 		setScanning(false);
@@ -143,11 +147,11 @@ export function AddressLabels({ labels: initial }: Props) {
 	async function handleAdd() {
 		const addr = address.replace(/\s+/g, '');
 		const lbl  = labelText.trim();
-		if (!addr) { setStatus('Address is required'); return; }
-		if (!lbl)  { setStatus('Label is required');   return; }
+		if (!addr) { setStatus(t.statusAddressRequired); return; }
+		if (!lbl)  { setStatus(t.statusLabelRequired);  return; }
 
 		setSaving(true);
-		setStatus('Saving…');
+		setStatus(t.statusSaving);
 		try {
 			const res  = await fetch('/api/address-labels', {
 				method: 'POST',
@@ -155,7 +159,7 @@ export function AddressLabels({ labels: initial }: Props) {
 				body: JSON.stringify({ address: addr, label: lbl, category, chain: chain || null, notes: notes || null, phoneNumber: phoneNumber || null }),
 			});
 			const data = await res.json();
-			if (!res.ok) { setStatus(data.message ?? 'Failed to save'); setSaving(false); return; }
+			if (!res.ok) { setStatus(data.message ?? t.statusSaveFailed); setSaving(false); return; }
 
 			setLabels(prev => {
 				const existing = prev.findIndex(l => l.address === data.address);
@@ -172,7 +176,7 @@ export function AddressLabels({ labels: initial }: Props) {
 			setChain('');
 			setNotes('');
 			setPhoneNumber('');
-			setStatus('✓ Label saved.');
+			setStatus(t.statusSaved);
 		} catch (e: unknown) {
 			setStatus('Error: ' + (e instanceof Error ? e.message : 'Unknown'));
 		}
@@ -192,13 +196,13 @@ export function AddressLabels({ labels: initial }: Props) {
 			{/* ── Header ──────────────────────────────────────────────────── */}
 			<header>
 				<p style={{ margin: '0 0 0.15rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.45 }}>
-					Counterparties
+					{t.eyebrow}
 				</p>
 				<h2 style={{ margin: 0, fontSize: '1.55rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-					Address Labels
+					{t.heading}
 				</h2>
 				<p style={{ margin: '0.3rem 0 0', fontSize: '0.78rem', opacity: 0.4, lineHeight: 1.5, maxWidth: '560px' }}>
-					Tag exchange hot wallets, other people's wallets, and services so they show up with a name in your history. These are <em>not</em> your wallets and are <em>not</em> added to the Vault.
+					{t.description}
 				</p>
 			</header>
 
@@ -224,7 +228,7 @@ export function AddressLabels({ labels: initial }: Props) {
 						textTransform: 'uppercase',
 						opacity: 0.4,
 					}}>
-						Tag an address
+						{t.formEyebrow}
 					</span>
 
 					{/* Hidden file input */}
@@ -241,7 +245,7 @@ export function AddressLabels({ labels: initial }: Props) {
 						type="button"
 						onClick={() => fileInputRef.current?.click()}
 						disabled={scanning}
-						title="Upload a screenshot — Claude will read the wallet address for you"
+						title={t.scanBtnTitle}
 						style={{
 							display: 'flex',
 							alignItems: 'center',
@@ -258,7 +262,7 @@ export function AddressLabels({ labels: initial }: Props) {
 							transition: 'background 0.15s',
 						}}
 					>
-						{scanning ? 'Scanning…' : 'Scan Screenshot'}
+						{scanning ? t.scanBtnScanning : t.scanBtnLabel}
 					</button>
 				</div>
 
@@ -280,7 +284,7 @@ export function AddressLabels({ labels: initial }: Props) {
 				<div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
 					<input
 						type="text"
-						placeholder="Address (any network)"
+						placeholder={t.placeholderAddress}
 						value={address}
 						onChange={e => { setAddress(e.target.value); setScanResult(null); }}
 						onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
@@ -288,7 +292,7 @@ export function AddressLabels({ labels: initial }: Props) {
 					/>
 					<input
 						type="text"
-						placeholder="Label  (e.g. Venmo LTC pool)"
+						placeholder={t.placeholderLabel}
 						value={labelText}
 						onChange={e => setLabelText(e.target.value)}
 						onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
@@ -299,19 +303,19 @@ export function AddressLabels({ labels: initial }: Props) {
 						onChange={e => setCategory(e.target.value)}
 						style={{ ...inputStyle, maxWidth: '180px' }}
 					>
-						<option value="counterparty">Counterparty</option>
-						<option value="defi">DeFi Protocol</option>
-						<option value="exchange">Exchange</option>
-						<option value="personal">Personal Wallet</option>
-						<option value="bridge">Bridge</option>
-						<option value="other">Other</option>
+						<option value="counterparty">{t.catCounterparty}</option>
+						<option value="defi">{t.catDefiProtocol}</option>
+						<option value="exchange">{t.catExchange}</option>
+						<option value="personal">{t.catPersonalWallet}</option>
+						<option value="bridge">{t.catBridge}</option>
+						<option value="other">{t.catOther}</option>
 					</select>
 					<select
 						value={chain}
 						onChange={e => setChain(e.target.value)}
 						style={{ ...inputStyle, maxWidth: '150px' }}
 					>
-						<option value="">All chains</option>
+						<option value="">{t.allChains}</option>
 						<option value="ethereum">Ethereum</option>
 						<option value="polygon">Polygon</option>
 						<option value="avalanche">Avalanche</option>
@@ -322,7 +326,7 @@ export function AddressLabels({ labels: initial }: Props) {
 					</select>
 					<input
 						type="tel"
-						placeholder="Phone # (optional, e.g. Venmo)"
+						placeholder={t.placeholderPhone}
 						value={phoneNumber}
 						onChange={e => setPhoneNumber(e.target.value)}
 						onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
@@ -345,7 +349,7 @@ export function AddressLabels({ labels: initial }: Props) {
 							transition: 'background 0.15s',
 						}}
 					>
-						{saving ? 'Saving…' : 'Save Label'}
+						{saving ? t.saveBtnSaving : t.saveBtnSave}
 					</button>
 				</div>
 				{status && (
@@ -369,7 +373,7 @@ export function AddressLabels({ labels: initial }: Props) {
 					color: 'var(--text-muted)',
 					fontSize: '0.875rem',
 				}}>
-					No address labels yet.
+					{t.emptyState}
 				</div>
 			) : (
 				<div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -418,11 +422,11 @@ export function AddressLabels({ labels: initial }: Props) {
 										bridge:   '#60a5fa',
 									};
 									const catLabels: Record<string, string> = {
-										defi:     'DeFi',
-										exchange: 'Exchange',
-										personal: 'Personal',
-										bridge:   'Bridge',
-										other:    'Other',
+										defi:     t.catBadgeDefi,
+										exchange: t.catBadgeExchange,
+										personal: t.catBadgePersonal,
+										bridge:   t.catBadgeBridge,
+										other:    t.catBadgeOther,
 									};
 									const cat = l.category ?? '';
 									if (!cat || cat === 'counterparty') return null;
@@ -517,7 +521,7 @@ export function AddressLabels({ labels: initial }: Props) {
 										borderRadius: '999px',
 										flexShrink: 0,
 									}}>
-										community
+										{t.sourceCommunity}
 									</span>
 								)}
 
@@ -539,7 +543,7 @@ export function AddressLabels({ labels: initial }: Props) {
 											transition: 'background 0.12s',
 										}}
 									>
-										Remove
+										{t.removeBtn}
 									</button>
 								)}
 							</div>
