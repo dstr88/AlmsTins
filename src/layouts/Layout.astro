@@ -771,6 +771,8 @@ window.__chromeI18n = chromeI18n;
 			const l = btn.getAttribute('data-setlang');
 			if (!l) return;
 			document.cookie = 'almstins-lang=' + l + '; path=/; max-age=31536000; samesite=lax';
+			// Persist to the account so emails (digests, alerts, receipts) match the chosen language.
+			try { fetch('/api/account/lang', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang: l }), keepalive: true }); } catch (e) {}
 			location.reload();
 		});
 	});

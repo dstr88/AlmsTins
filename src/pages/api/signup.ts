@@ -5,6 +5,8 @@ import { db } from '@/lib/db';
 import { ensureTenantForUser } from '@/lib/tenants';
 import { hashPassword } from '@/lib/passwords';
 import { isEmailDomainBlocked } from '@/lib/blockedEmailDomains';
+import { isLang, type Lang } from '@/lib/i18n/locale';
+import { setUserLang } from '@/lib/i18n/userLang';
 
 export const prerender = false;
 
@@ -35,15 +37,18 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	const form = await request.formData();
 	const email = normalizeEmail(form.get('email'));
 	const password = form.get('password');
+	const langRaw = String(form.get('lang') ?? '');
+	const lang: Lang = isLang(langRaw) ? langRaw : 'en';
+	const signupPath = lang === 'es' ? '/signup/es' : lang === 'fr' ? '/signup/fr' : '/signup';
 
 	if (!email) {
-		return redirect('/signup?error=email', 303);
+		return redirect(`${signupPath}?error=email`, 303);
 	}
 	if (isEmailDomainBlocked(email)) {
-		return redirect('/signup?error=email_domain', 303);
+		return redirect(`${signupPath}?error=email_domain`, 303);
 	}
 	if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
-		return redirect('/signup?error=password', 303);
+		return redirect(`${signupPath}?error=password`, 303);
 	}
 
 	const existing = await db.execute({
@@ -51,7 +56,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 		args: [email],
 	});
 	if (existing.rows.length) {
-		return redirect('/signup?error=exists', 303);
+		return redirect(`${signupPath}?error=exists`, 303);
 	}
 
 	const userId = crypto.randomUUID();
@@ -68,6 +73,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	});
 
 	await ensureTenantForUser(userId);
+	await setUserLang(userId, lang);
 
 	const token = crypto.randomBytes(32).toString('hex');
 	const expires = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString();
@@ -84,5 +90,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 		console.warn('Failed to send verification email', error);
 	}
 
-	return redirect('/login?signup=success', 303);
+	const loginSuccess =
+		lang === 'es' ? '/es?signup=success' : lang === 'fr' ? '/fr?signup=success' : '/login?signup=success';
+	return redirect(loginSuccess, 303);
 };

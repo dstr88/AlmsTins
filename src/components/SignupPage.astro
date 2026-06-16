@@ -192,6 +192,7 @@ const loginHref = t.lang === 'es' ? '/es' : t.lang === 'fr' ? '/fr' : '/login';
 			{message && <p class="notice">{message}</p>}
 
 			<form id="signup-new-account" method="POST" action="/api/signup">
+				<input type="hidden" name="lang" value={t.lang} />
 				<label>
 					<span>{t.labels.email}</span>
 					<input type="email" name="email" placeholder={t.placeholders.email} required />
