@@ -11,10 +11,15 @@ import { tenantHasTaxAccess } from '@/lib/taxAuth';
 import kingSolomon from '@/assets/KingSolomon.png';
 
 import minerva from '@/assets/Minerva.png';
+import { getLang, isLang } from '@/lib/i18n/locale';
+import { getDashboardCommon } from '@/i18n/dashboard/common';
 const GA_ID = import.meta.env.PUBLIC_GA_ID;
 
 const currentPath = Astro.url.pathname;
 const isActive = (path: string) => currentPath === path;
+
+// Dashboard language follows the almstins-lang cookie (Phase-3 i18n).
+const cookieLang = getLang(Astro.request);
 
 const session = await getAuthSession(Astro.request).catch(() => null);
 const user = session?.user ?? null;
@@ -104,8 +109,11 @@ const {
   image = 'https://almstins.com/og-default.png',
   noindex = false,
   logoutRedirect,
-  lang = 'en',
+  lang = cookieLang,
 } = Astro.props;
+
+const navLang = isLang(lang) ? lang : 'en';
+const tNav = getDashboardCommon(navLang);
 
 const isTradfiDomain = ['tradifitins.com', 'www.tradifitins.com'].includes(
   Astro.request.headers.get('x-forwarded-host') ?? Astro.url.hostname
@@ -146,7 +154,7 @@ const memberSinceDisplay = memberSinceIso
 ---
 
 <!doctype html>
-<html lang={lang}>
+<html lang={navLang}>
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -241,19 +249,17 @@ const memberSinceDisplay = memberSinceIso
 				) : (
 					<!-- Full Almstins nav -->
 					<>
-						<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>Bookkeeping</a>
-						<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>Vault</a>
-						<a href="/dashboard/portfolio" class={`nav-link ${isActive('/dashboard/portfolio') ? 'active' : ''}`}>Portfolio</a>
-						<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>Addresses</a>
+						<a href="/dashboard/bookkeeping" class={`nav-link ${isActive('/dashboard/bookkeeping') ? 'active' : ''}`}>{tNav.nav.bookkeeping}</a>
+						<a href="/dashboard/vault" class={`nav-link ${isActive('/dashboard/vault') ? 'active' : ''}`}>{tNav.nav.vault}</a>
+						<a href="/dashboard/portfolio" class={`nav-link ${isActive('/dashboard/portfolio') ? 'active' : ''}`}>{tNav.nav.portfolio}</a>
+						<a href="/dashboard/wallets" class={`nav-link ${isActive('/dashboard/wallets') ? 'active' : ''}`}>{tNav.nav.addresses}</a>
 						{canTax && (
-							<a href="/year-summary" class={`nav-link ${currentPath.startsWith('/dashboard/yearEnd') && !currentPath.includes('memory-lane') || currentPath === '/year-summary' ? 'active' : ''}`}>Summary</a>
+							<a href="/year-summary" class={`nav-link ${currentPath.startsWith('/dashboard/yearEnd') && !currentPath.includes('memory-lane') || currentPath === '/year-summary' ? 'active' : ''}`}>{tNav.nav.summary}</a>
 						)}
-						<a href="/dashboard/yearEnd/memory-lane" class={`nav-link ${currentPath.includes('memory-lane') ? 'active' : ''}`}>History</a>
-						<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>Alerts</a>
+						<a href="/dashboard/yearEnd/memory-lane" class={`nav-link ${currentPath.includes('memory-lane') ? 'active' : ''}`}>{tNav.nav.history}</a>
+						<a href="/dashboard/alerts" class={`nav-link ${isActive('/dashboard/alerts') ? 'active' : ''}`}>{tNav.nav.alerts}</a>
 						<a href="/wallet-checker" class={`nav-link ${isActive('/wallet-checker') ? 'active' : ''}`}>Scam Checker</a>
-						<a href="/dashboard/research" class={`nav-link nav-link--research ${isActive('/dashboard/research') ? 'active' : ''}`}>
-							Research
-						</a>
+						<a href="/dashboard/research" class={`nav-link nav-link--research ${isActive('/dashboard/research') ? 'active' : ''}`}>{tNav.nav.research}</a>
 					</>
 				)}
 				{!isTradfiDomain && isAdmin && (
@@ -265,6 +271,13 @@ const memberSinceDisplay = memberSinceIso
 						<a href="/aave-alisis" class={`nav-link nav-link--admin ${isActive('/aave-alisis') ? 'active' : ''}`}>AaveAlisis</a>
 					</>
 				)}
+
+					<!-- Language switcher -->
+					<div class="lang-switch" role="group" aria-label="Language">
+						<button type="button" class={`lang-opt ${navLang === 'en' ? 'active' : ''}`} data-setlang="en">EN</button>
+						<button type="button" class={`lang-opt ${navLang === 'es' ? 'active' : ''}`} data-setlang="es">ES</button>
+						<button type="button" class={`lang-opt ${navLang === 'fr' ? 'active' : ''}`} data-setlang="fr">FR</button>
+					</div>
 
 					<!-- Account dropdown -->
 					<details class="account-menu">
@@ -385,7 +398,7 @@ const memberSinceDisplay = memberSinceIso
 			<main>
 				<slot />
 			</main>
-			<Footer />
+			<Footer lang={navLang} />
 		</div>
 
 		{user && (
@@ -731,3 +744,33 @@ const memberSinceDisplay = memberSinceIso
 		}
 	});
 </script>
+
+<script>
+	// Dashboard language switcher — set the almstins-lang cookie and reload.
+	document.querySelectorAll('[data-setlang]').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			const l = btn.getAttribute('data-setlang');
+			if (!l) return;
+			document.cookie = 'almstins-lang=' + l + '; path=/; max-age=31536000; samesite=lax';
+			location.reload();
+		});
+	});
+</script>
+
+<style>
+	.lang-switch { display: inline-flex; gap: 2px; align-items: center; }
+	.lang-opt {
+		background: transparent;
+		border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+		color: var(--text-muted, rgba(245,248,255,0.45));
+		font-size: 0.72rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		padding: 0.18rem 0.42rem;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+	}
+	.lang-opt:hover { color: var(--text-secondary, rgba(245,248,255,0.70)); border-color: var(--border-bright, rgba(255,255,255,0.12)); }
+	.lang-opt.active { color: var(--surface-bg, #0a0f1a); background: var(--accent, #2dd4a8); border-color: var(--accent, #2dd4a8); }
+</style>

@@ -18,6 +18,9 @@ export interface DashboardCommon {
     transactions: string;
     alerts: string;
     wallets: string;
+    addresses: string;
+    summary: string;
+    history: string;
     settings: string;
     tradfi: string;
     analytics: string;
@@ -49,6 +52,9 @@ const en: DashboardCommon = {
     transactions: 'Transactions',
     alerts: 'Alerts',
     wallets: 'Wallets',
+    addresses: 'Addresses',
+    summary: 'Summary',
+    history: 'History',
     settings: 'Settings',
     tradfi: 'TradFi',
     analytics: 'Analytics',
@@ -80,6 +86,9 @@ const es: DashboardCommon = {
     transactions: 'Transacciones',
     alerts: 'Alertas',
     wallets: 'Billeteras',
+    addresses: 'Direcciones',
+    summary: 'Resumen',
+    history: 'Historial',
     settings: 'Configuración',
     tradfi: 'TradFi',
     analytics: 'Analíticas',
@@ -111,6 +120,9 @@ const fr: DashboardCommon = {
     transactions: 'Transactions',
     alerts: 'Alertes',
     wallets: 'Adresses',
+    addresses: 'Adresses',
+    summary: 'Récapitulatif',
+    history: 'Historique',
     settings: 'Paramètres',
     tradfi: 'TradFi',
     analytics: 'Analyses',
