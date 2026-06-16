@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getLoanPaymentsTable } from '@/i18n/components/loanPaymentsTable';
 
 type LoanPayment = {
 	id: string;
@@ -12,6 +14,7 @@ type ApiResponse = { ok: boolean; payments?: LoanPayment[]; error?: string };
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 export default function LoanPaymentsTable() {
+	const t = getLoanPaymentsTable(getClientLang());
 	const [payments, setPayments] = useState<LoanPayment[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -24,10 +27,10 @@ export default function LoanPaymentsTable() {
 				setError(null);
 				const res = await fetch('/api/tradfi/loan-payments/all');
 				const data = (await res.json()) as ApiResponse;
-				if (!data.ok) throw new Error(data.error ?? 'Failed to load payments.');
+				if (!data.ok) throw new Error(data.error ?? t.errorFallback);
 				if (mounted) setPayments(data.payments ?? []);
 			} catch (err) {
-				if (mounted) setError(err instanceof Error ? err.message : 'Failed to load payments.');
+				if (mounted) setError(err instanceof Error ? err.message : t.errorFallback);
 			} finally {
 				if (mounted) setLoading(false);
 			}
@@ -81,7 +84,7 @@ export default function LoanPaymentsTable() {
 	if (loading) {
 		return (
 			<p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-				Loading payments…
+				{t.loading}
 			</p>
 		);
 	}
@@ -107,7 +110,7 @@ export default function LoanPaymentsTable() {
 	if (payments.length === 0) {
 		return (
 			<p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-				No payments recorded yet.
+				{t.empty}
 			</p>
 		);
 	}
@@ -117,9 +120,9 @@ export default function LoanPaymentsTable() {
 			<table style={{ width: '100%', borderCollapse: 'collapse' }}>
 				<thead style={theadStyle}>
 					<tr>
-						<th style={thStyle}>Date</th>
-						<th style={thStyle}>Loan</th>
-						<th style={{ ...thStyle, textAlign: 'right' }}>Amount</th>
+						<th style={thStyle}>{t.colDate}</th>
+						<th style={thStyle}>{t.colLoan}</th>
+						<th style={{ ...thStyle, textAlign: 'right' }}>{t.colAmount}</th>
 					</tr>
 				</thead>
 				<tbody>

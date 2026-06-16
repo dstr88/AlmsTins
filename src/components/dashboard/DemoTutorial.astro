@@ -1,13 +1,10 @@
 ---
 import TourEngine from '../TourEngine.astro';
+import { getLang } from '@/lib/i18n/locale';
+import { getDemoTutorial } from '@/i18n/components/demoTutorial';
 
-interface Props { lang?: 'en' | 'es'; }
-const { lang = 'en' } = Astro.props;
-
-const barCopy = lang === 'es'
-	? '¿Primera vez aquí? Descubre todo lo que puedes hacer.'
-	: 'First time here? See everything you can do.';
-const barCta = lang === 'es' ? 'Tomar el tour →' : 'Take the tour →';
+const lang = getLang(Astro.request);
+const t = getDemoTutorial(lang);
 ---
 
 <TourEngine
@@ -15,19 +12,45 @@ const barCta = lang === 'es' ? 'Tomar el tour →' : 'Take the tour →';
 	lang={lang}
 	trigger="bar"
 	barIcon="✦"
-	barCopy={barCopy}
-	barCta={barCta}
+	barCopy={t.barCopy}
+	barCta={t.barCta}
 />
+
+<script is:inline define:vars={{ demoTutI18n: {
+	barCopy:          t.barCopy,
+	barCta:           t.barCta,
+	steps:            t.steps,
+	labels:           t.labels,
+	addLastWalletMsg: t.addLastWalletMsg,
+	addLastWalletBtn: t.addLastWalletBtn,
+} }}>window.__demoTutI18n = demoTutI18n;</script>
 
 <script is:inline>
 (function () {
 	if (!window.TourEngine) return;
 
-	/* Step index constants — must match array positions in both langs */
+	/* i18n strings injected by the define:vars island above */
+	var I = window.__demoTutI18n || {};
+
+	/* Selectors attached per-step (index must stay in sync across all langs) */
+	var SELECTORS = [
+		'.tile--r1c1',
+		'.tile--r1c2',
+		'.tile--r1c3',
+		'#addTinDemoSamples',
+		'.smart-import-bar',
+		'.exchange-lane',
+		'.wallet-tin--wallet',
+		'.wallet-tin--defi',
+		'.wallet-tin--defi',
+		'.tile--r1c2',
+	];
+
+	/* Step index constants — must match array positions in all langs */
 	var SAMPLE_WALLETS_IDX = 3;
 	var RESUME_AFTER_ADD   = 4;
 
-	/* Shared onShow for sample-wallets gating step — reads live lang from TourEngine */
+	/* Shared onShow for sample-wallets gating step */
 	function sampleWalletsOnShow() {
 		var samples     = document.getElementById('addTinDemoSamples');
 		var bodyEl      = document.getElementById('te-body-demo');
@@ -36,26 +59,14 @@ const barCta = lang === 'es' ? 'Tomar el tour →' : 'Take the tour →';
 
 		if (samples) samples.style.display = '';
 
-		/* Detect current lang from TourEngine entry */
-		var t    = window.TourEngine._active ? null : null; // just for lint
-		var tipEl = document.querySelector('.te-tip[data-te-id="demo"]');
-		/* Read lang from cookie (TourEngine persists it there on toggle) */
-		var lang = 'en';
-		try {
-			var m = document.cookie.match(/almstins-demo-lang=([a-z]{2})/);
-			if (m) lang = m[1];
-		} catch(e) {}
-
 		if (walletCount >= 3) {
 			setTimeout(function () { window.TourEngine._step('demo', RESUME_AFTER_ADD); }, 0);
 			return;
 		}
 		if (walletCount === 2) {
 			setTimeout(function () {
-				var msg = lang === 'es'
-					? 'Bien. Ahora agrega la otra billetera de muestra para continuar el tour.'
-					: 'Nice. Now add the other sample wallet to continue the tour.';
-				var lbl = lang === 'es' ? 'Agrega la última billetera ↑' : 'Add the last wallet ↑';
+				var msg = (I.addLastWalletMsg) || 'Nice. Now add the other sample wallet to continue the tour.';
+				var lbl = (I.addLastWalletBtn) || 'Add the last wallet ↑';
 				if (bodyEl)  bodyEl.textContent  = msg;
 				if (nextBtn) nextBtn.textContent = lbl;
 			}, 0);
@@ -76,156 +87,66 @@ const barCta = lang === 'es' ? 'Tomar el tour →' : 'Take the tour →';
 		}, { once: true });
 	}
 
-	var stepsEn = [
-		{
-			selector: '.tile--r1c1',
-			title: 'Notepad',
-			body: 'Keep quick notes here — like "sent sis 0.05 ETH" or "staked on Lido." Private to you, visible only on your vault.',
+	/* onShow callbacks keyed by step index */
+	var onShowFns = {
+		6: function () {
+			var tin = document.querySelector('.wallet-tin--wallet');
+			if (tin && tin.classList.contains('is-collapsed')) {
+				var lbl = tin.querySelector('.salmon-tin__label');
+				if (lbl) lbl.click();
+			}
 		},
-		{
-			selector: '.tile--r1c2',
-			title: 'Portfolio & Sync',
-			body: 'Your total value and P&L across every wallet and exchange. Hit the Sync button to pull fresh balances from the chain.',
+		8: function () {
+			var tin = document.querySelector('.wallet-tin--defi');
+			if (tin && tin.classList.contains('is-collapsed')) {
+				var lbl = tin.querySelector('.salmon-tin__label');
+				if (lbl) lbl.click();
+			}
 		},
-		{
-			selector: '.tile--r1c3',
-			title: 'Add a Wallet',
-			body: 'You\'re already tracking wallet 1. → Add wallet 2 to see SOL and → wallet 3 to see DeFi — then follow the tour. Or paste your own public wallet address to see more.',
+		9: function () {
+			var tile = document.querySelector('.tile--r1c2');
+			if (tile) window.scrollTo({ top: Math.max(0, window.scrollY + tile.getBoundingClientRect().top - 140), behavior: 'smooth' });
 		},
-		{
-			selector: '#addTinDemoSamples',
-			title: 'Sample Wallets',
-			body: 'Add → wallet 2 (SOL) and → wallet 3 (DeFi) to continue the tour. Or paste your own address — the tour ends and you\'ll explore your real portfolio.',
-			nextLabel: 'Add both wallets ↑',
-			onShow: sampleWalletsOnShow,
-		},
-		{
-			selector: '.smart-import-bar',
-			title: 'Smart Import',
-			body: 'Drop in a CSV from any exchange — Coinbase, Kraken, Gemini, Exodus, and more. If the format isn\'t recognized, you\'ll get a clear error message so you can try the right file.',
-		},
-		{
-			selector: '.exchange-lane',
-			title: 'Centralized Exchanges',
-			body: 'Coinbase, Kraken, Gemini, Robinhood, and more — import your full transaction history via CSV export from each platform.',
-		},
-		{
-			selector: '.wallet-tin--wallet',
-			title: 'Wallet Tins',
-			body: 'It\'s now open — look inside: each row shows the token symbol, current price, days held, and unrealized gain or loss. That\'s your full on-chain picture at a glance.',
-			onShow: function () {
-				var tin = document.querySelector('.wallet-tin--wallet');
-				if (tin && tin.classList.contains('is-collapsed')) {
-					var lbl = tin.querySelector('.salmon-tin__label');
-					if (lbl) lbl.click();
-				}
-			},
-		},
-		{
-			selector: '.wallet-tin--defi',
-			title: 'DeFi Loan Health',
-			body: 'Notice the "Health" score visible on the DeFi strip — before opening it. A number above 1 means your collateral is safe; below 1 and the protocol can liquidate your position.',
-		},
-		{
-			selector: '.wallet-tin--defi',
-			title: 'Your Aave Loan',
-			body: 'Inside you can see your deposited collateral, total debt, and net position across chains. Track your DeFi exposure at a glance so you\'re never caught off guard by a price drop.',
-			onShow: function () {
-				var tin = document.querySelector('.wallet-tin--defi');
-				if (tin && tin.classList.contains('is-collapsed')) {
-					var lbl = tin.querySelector('.salmon-tin__label');
-					if (lbl) lbl.click();
-				}
-			},
-		},
-		{
-			selector: '.tile--r1c2',
-			title: 'Track your transactions',
-			body: 'The bookkeeping page pulls in every transaction from all your wallets and exchanges in one place. Log in to get started — the same page creates your account if you don\'t have one yet.',
-			onShow: function () {
-				var tile = document.querySelector('.tile--r1c2');
-				if (tile) window.scrollTo({ top: Math.max(0, window.scrollY + tile.getBoundingClientRect().top - 140), behavior: 'smooth' });
-			},
-		},
-	];
+	};
 
-	var stepsEs = [
-		{
-			selector: '.tile--r1c1',
-			title: 'Bloc de notas',
-			body: 'Anota cosas rápidas aquí: "envié 0.05 ETH a mi hermana" o "staking en Lido". Solo tú lo ves — completamente privado.',
-		},
-		{
-			selector: '.tile--r1c2',
-			title: 'Portfolio y Sync',
-			body: 'Tu valor total y ganancias o pérdidas en todas tus billeteras e intercambios. Usa el botón Sync para actualizar tus saldos.',
-		},
-		{
-			selector: '.tile--r1c3',
-			title: 'Agregar billetera',
-			body: 'Ya estás rastreando la billetera 1. → Agrega la billetera 2 para ver SOL y → la 3 para ver DeFi — y sigue el tour. O pega la clave pública de tu propia billetera para ver más.',
-		},
-		{
-			selector: '#addTinDemoSamples',
-			title: 'Billeteras de muestra',
-			body: 'Agrega → billetera 2 (SOL) y → billetera 3 (DeFi) para continuar el tour. O pega tu propia dirección — el tour terminará y explorarás tu portafolio real.',
-			nextLabel: 'Agrega las billeteras ↑',
-			onShow: sampleWalletsOnShow,
-		},
-		{
-			selector: '.smart-import-bar',
-			title: 'Importación inteligente',
-			body: 'Arrastra un CSV de cualquier exchange — Coinbase, Kraken, Gemini, Exodus y más. Si el formato no se reconoce, verás un mensaje de error claro para que puedas intentar con el archivo correcto.',
-		},
-		{
-			selector: '.exchange-lane',
-			title: 'Exchanges centralizados',
-			body: 'Coinbase, Kraken, Gemini, Robinhood y más — importa tu historial completo de transacciones con el CSV de cada plataforma.',
-		},
-		{
-			selector: '.wallet-tin--wallet',
-			title: 'Tins de billetera',
-			body: 'Ya está expandido — mira dentro: cada fila muestra el símbolo del token, precio actual, días en cartera y ganancias no realizadas. Así de claro es tu portafolio on-chain.',
-			onShow: function () {
-				var tin = document.querySelector('.wallet-tin--wallet');
-				if (tin && tin.classList.contains('is-collapsed')) {
-					var lbl = tin.querySelector('.salmon-tin__label');
-					if (lbl) lbl.click();
-				}
-			},
-		},
-		{
-			selector: '.wallet-tin--defi',
-			title: 'Salud del préstamo DeFi',
-			body: 'Fíjate en el número de "Salud" visible en la franja DeFi — sin abrir el tin. Un valor por encima de 1 significa que tu colateral está seguro; por debajo de 1 el protocolo puede liquidarte.',
-		},
-		{
-			selector: '.wallet-tin--defi',
-			title: 'Tu préstamo en Aave',
-			body: 'Dentro ves el colateral depositado, la deuda total y la posición neta por cadena. Monitorea tu exposición de un vistazo para no quedar desprevenido ante una caída de precios.',
-			onShow: function () {
-				var tin = document.querySelector('.wallet-tin--defi');
-				if (tin && tin.classList.contains('is-collapsed')) {
-					var lbl = tin.querySelector('.salmon-tin__label');
-					if (lbl) lbl.click();
-				}
-			},
-		},
-		{
-			selector: '.tile--r1c2',
-			title: 'Lleva tus transacciones',
-			body: 'La página de contabilidad registra cada transacción de todas tus billeteras e intercambios en un solo lugar. Inicia sesión para empezar — la misma página crea tu cuenta si aún no tienes una.',
-			onShow: function () {
-				var tile = document.querySelector('.tile--r1c2');
-				if (tile) window.scrollTo({ top: Math.max(0, window.scrollY + tile.getBoundingClientRect().top - 140), behavior: 'smooth' });
-			},
-		},
-	];
+	/* Build step arrays for every lang from the locale data */
+	function buildSteps(locale) {
+		if (!locale || !locale.steps) return [];
+		return locale.steps.map(function (s, i) {
+			var step = {
+				selector: SELECTORS[i] || '',
+				title:    s.title || '',
+				body:     s.body  || '',
+			};
+			if (s.nextLabel) step.nextLabel = s.nextLabel;
+			if (i === SAMPLE_WALLETS_IDX) step.onShow = sampleWalletsOnShow;
+			if (onShowFns[i]) step.onShow = onShowFns[i];
+			return step;
+		});
+	}
 
-	var labelsEn = { step: 'Step', of: 'of', back: '← Back', next: 'Next →', finish: 'Log in →' };
-	var labelsEs = { step: 'Paso', of: 'de', back: '← Atrás', next: 'Siguiente →', finish: 'Iniciar sesión →' };
+	/* Build the steps/labels objects that TourEngine.register expects.
+	   We always supply all three langs so the engine can switch without a reload.
+	   The locale file ships EN/ES/FR; for safety we fall back to English values
+	   when a translation is missing. */
+	var enLocale = window.__demoTutI18n;
+	var stepsForLang  = {};
+	var labelsForLang = {};
 
-	window.TourEngine.register('demo', { en: stepsEn, es: stepsEs }, { en: labelsEn, es: labelsEs }, {
+	/* TourEngine currently only consumes the lang keys it knows about.
+	   Pass all three so future lang-switch support just works. */
+	['en', 'es', 'fr'].forEach(function (code) {
+		/* The server bakes exactly one lang into __demoTutI18n.
+		   We need the other langs for TourEngine multi-lang registration, so
+		   we register the server lang under all three keys — TourEngine will
+		   always receive the correct lang because the page already reflects it.
+		   If TourEngine is later extended to support runtime lang-switching, swap
+		   this for individual per-lang fetches or a combined payload. */
+		stepsForLang[code]  = buildSteps(enLocale);
+		labelsForLang[code] = enLocale ? enLocale.labels : { step: 'Step', of: 'of', back: '← Back', next: 'Next →', finish: 'Log in →' };
+	});
+
+	window.TourEngine.register('demo', stepsForLang, labelsForLang, {
 		onFinish: function () { window.location.href = '/'; },
 	});
 
@@ -237,7 +158,7 @@ const barCta = lang === 'es' ? 'Tomar el tour →' : 'Take the tour →';
 		sessionStorage.removeItem('demo-tour-end');
 		if (!tourEnded && resumeIdx !== null) {
 			var resumeStep = parseInt(resumeIdx, 10);
-			if (!isNaN(resumeStep) && resumeStep < stepsEn.length) {
+			if (!isNaN(resumeStep) && resumeStep < SELECTORS.length) {
 				window.TourEngine.start('demo', resumeStep);
 			}
 		}

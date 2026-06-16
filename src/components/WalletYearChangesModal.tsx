@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import './wallet-year-changes.css';
+import { getClientLang } from '@/lib/i18n/clientLang';
+import { getWalletYearChanges } from '@/i18n/components/walletYearChanges';
 
 interface YearChangesData {
   ok: boolean;
@@ -20,6 +22,7 @@ interface Props {
 }
 
 export default function WalletYearChangesModal({ walletId, year, onClose }: Props) {
+  const t = getWalletYearChanges(getClientLang());
   const [data, setData] = useState<YearChangesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,14 +55,14 @@ export default function WalletYearChangesModal({ walletId, year, onClose }: Prop
         <div className="wallet-modal__header">
           <div>
             <h2 className="wallet-modal__title">{data?.walletLabel}</h2>
-            <p className="wallet-modal__subtitle">{year} Changes</p>
+            <p className="wallet-modal__subtitle">{t.changesTitle(year)}</p>
           </div>
-          <button className="wallet-modal__close" onClick={onClose} aria-label="Close">✕</button>
+          <button className="wallet-modal__close" onClick={onClose} aria-label={t.closeBtn}>✕</button>
         </div>
 
         {loading && (
           <div className="wallet-modal__body wallet-modal__body--loading">
-            <p>Loading wallet changes…</p>
+            <p>{t.loading}</p>
           </div>
         )}
 
@@ -76,19 +79,19 @@ export default function WalletYearChangesModal({ walletId, year, onClose }: Prop
                 className={`wallet-modal__tab ${activeTab === 'delta' ? 'wallet-modal__tab--active' : ''}`}
                 onClick={() => setActiveTab('delta')}
               >
-                Holdings Delta
+                {t.tabHoldingsDelta}
               </button>
               <button
                 className={`wallet-modal__tab ${activeTab === 'netChange' ? 'wallet-modal__tab--active' : ''}`}
                 onClick={() => setActiveTab('netChange')}
               >
-                Net Change
+                {t.tabNetChange}
               </button>
               <button
                 className={`wallet-modal__tab ${activeTab === 'transactions' ? 'wallet-modal__tab--active' : ''}`}
                 onClick={() => setActiveTab('transactions')}
               >
-                Transactions
+                {t.tabTransactions}
               </button>
             </div>
 
@@ -96,18 +99,18 @@ export default function WalletYearChangesModal({ walletId, year, onClose }: Prop
               {/* Holdings Delta Tab */}
               {activeTab === 'delta' && (
                 <div className="wallet-modal__content">
-                  <p className="wallet-modal__content-label">Start: {data.startDate} — End: {data.endDate}</p>
+                  <p className="wallet-modal__content-label">{t.dateRange(data.startDate, data.endDate)}</p>
                   {data.holdingsDelta.length === 0 ? (
-                    <p className="wallet-modal__empty">No holdings in this wallet during {year}.</p>
+                    <p className="wallet-modal__empty">{t.emptyHoldings(year)}</p>
                   ) : (
                     <table className="wallet-modal__table">
                       <thead>
                         <tr>
-                          <th>Asset</th>
-                          <th align="right">Start</th>
-                          <th align="right">End</th>
-                          <th align="right">Change</th>
-                          <th align="right">End Value</th>
+                          <th>{t.colAsset}</th>
+                          <th align="right">{t.colStart}</th>
+                          <th align="right">{t.colEnd}</th>
+                          <th align="right">{t.colChange}</th>
+                          <th align="right">{t.colEndValue}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -132,13 +135,13 @@ export default function WalletYearChangesModal({ walletId, year, onClose }: Prop
               {activeTab === 'netChange' && (
                 <div className="wallet-modal__content">
                   {data.netChange.length === 0 ? (
-                    <p className="wallet-modal__empty">No changes in holdings during {year}.</p>
+                    <p className="wallet-modal__empty">{t.emptyNetChange(year)}</p>
                   ) : (
                     <table className="wallet-modal__table">
                       <thead>
                         <tr>
-                          <th>Asset</th>
-                          <th align="right">Net Change</th>
+                          <th>{t.colAsset}</th>
+                          <th align="right">{t.colNetChange}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -160,16 +163,16 @@ export default function WalletYearChangesModal({ walletId, year, onClose }: Prop
               {activeTab === 'transactions' && (
                 <div className="wallet-modal__content">
                   {data.transactions.length === 0 ? (
-                    <p className="wallet-modal__empty">No transactions in {year}.</p>
+                    <p className="wallet-modal__empty">{t.emptyTransactions(year)}</p>
                   ) : (
                     <table className="wallet-modal__table">
                       <thead>
                         <tr>
-                          <th>Date</th>
-                          <th>Type</th>
-                          <th>Asset</th>
-                          <th align="right">Amount</th>
-                          <th align="right">USD Value</th>
+                          <th>{t.colDate}</th>
+                          <th>{t.colType}</th>
+                          <th>{t.colAsset}</th>
+                          <th align="right">{t.colAmount}</th>
+                          <th align="right">{t.colUsdValue}</th>
                         </tr>
                       </thead>
                       <tbody>

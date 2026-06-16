@@ -2,9 +2,13 @@
 import './BookkeepingTin2.css';
 import walletIn from '@/assets/walletIn.webp';
 import walletOut from '@/assets/walletOut.webp';
+import { getLang } from '@/lib/i18n/locale';
+import { getBookkeepingTin2 } from '@/i18n/components/bookkeepingTin2';
 
 const { walletId = '', year = new Date().getFullYear() } = Astro.props;
 const accordionId = `bookkeeping-tin2-${walletId || 'wallet'}-${year}`;
+const lang = getLang(Astro.request);
+const t = getBookkeepingTin2(lang);
 ---
 
 <article class="bookkeeping-tin2" data-accordion-id={accordionId} data-year={year}>
@@ -12,8 +16,8 @@ const accordionId = `bookkeeping-tin2-${walletId || 'wallet'}-${year}`;
 		<button class="tin-toggle" type="button" aria-expanded="false">
 			<h3 class="tin-title">fa58b</h3>
 		</button>
-		<button class="tin-close" type="button" aria-label="Close">
-			Close
+		<button class="tin-close" type="button" aria-label={t.closeLabel}>
+			{t.close}
 		</button>
 	</header>
 
@@ -21,7 +25,7 @@ const accordionId = `bookkeeping-tin2-${walletId || 'wallet'}-${year}`;
 		<div class="summary-row">
 			<div class="summary-left">
 				<span class="tx-count">142 tx</span>
-				<button class="download-btn" type="button" aria-label="Download transactions">
+				<button class="download-btn" type="button" aria-label={t.downloadLabel}>
 					<svg viewBox="0 0 24 24" aria-hidden="true">
 						<path
 							d="M12 3v10m0 0 4-4m-4 4-4-4M4 17h16v3H4z"
@@ -37,18 +41,18 @@ const accordionId = `bookkeeping-tin2-${walletId || 'wallet'}-${year}`;
 			<span class="summary-right">-$3,412 net</span>
 		</div>
 		<div class="summary-row">
-			<span class="summary-label">Gas</span>
+			<span class="summary-label">{t.gas}</span>
 			<span class="summary-right">$186</span>
 		</div>
 		<div class="summary-row">
-			<span class="summary-label">Last activity</span>
+			<span class="summary-label">{t.lastActivity}</span>
 			<span class="summary-right">Dec 28</span>
 		</div>
 	</div>
 
 	<div class="tin-body">
 		<section class="section-block">
-			<h4>Still in wallet</h4>
+			<h4>{t.stillInWallet}</h4>
 			<div class="tx-list">
 				<button class="tx-row" type="button">
 					<span class="tx-date">Dec 28</span>
@@ -60,12 +64,12 @@ const accordionId = `bookkeeping-tin2-${walletId || 'wallet'}-${year}`;
 						<span class="tx-usd-value">$1,245.19</span>
 					</span>
 					<span class="tx-status">
-						<img class="tx-status-icon" src={walletIn.src} alt="Inbound" />
+						<img class="tx-status-icon" src={walletIn.src} alt={t.inbound} />
 					</span>
-					<textarea class="tx-notes" placeholder="Notes..."></textarea>
+					<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
 				</button>
 				<div class="tx-detail">
-					<textarea placeholder="Note (not saved yet)"></textarea>
+					<textarea placeholder={t.noteUnsavedPlaceholder}></textarea>
 				</div>
 				<button class="tx-row" type="button">
 					<span class="tx-date">Nov 18</span>
@@ -77,18 +81,18 @@ const accordionId = `bookkeeping-tin2-${walletId || 'wallet'}-${year}`;
 						<span class="tx-usd-value">$4,812.22</span>
 					</span>
 					<span class="tx-status">
-						<img class="tx-status-icon" src={walletIn.src} alt="Inbound" />
+						<img class="tx-status-icon" src={walletIn.src} alt={t.inbound} />
 					</span>
-					<textarea class="tx-notes" placeholder="Notes..."></textarea>
+					<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
 				</button>
 				<div class="tx-detail">
-					<textarea placeholder="Note (not saved yet)"></textarea>
+					<textarea placeholder={t.noteUnsavedPlaceholder}></textarea>
 				</div>
 			</div>
 		</section>
 
 		<section class="section-block">
-			<h4>Transferred out</h4>
+			<h4>{t.transferredOut}</h4>
 			<div class="tx-list">
 				<button class="tx-row" type="button">
 					<span class="tx-date">Oct 02</span>
@@ -100,12 +104,12 @@ const accordionId = `bookkeeping-tin2-${walletId || 'wallet'}-${year}`;
 						<span class="tx-usd-value">$6,030.10</span>
 					</span>
 					<span class="tx-status">
-						<img class="tx-status-icon" src={walletOut.src} alt="Outbound" />
+						<img class="tx-status-icon" src={walletOut.src} alt={t.outbound} />
 					</span>
-					<textarea class="tx-notes" placeholder="Notes..."></textarea>
+					<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
 				</button>
 				<div class="tx-detail">
-					<textarea placeholder="Note (not saved yet)"></textarea>
+					<textarea placeholder={t.noteUnsavedPlaceholder}></textarea>
 				</div>
 				<button class="tx-row" type="button">
 					<span class="tx-date">Sep 11</span>
@@ -117,12 +121,12 @@ const accordionId = `bookkeeping-tin2-${walletId || 'wallet'}-${year}`;
 						<span class="tx-usd-value">$421.00</span>
 					</span>
 					<span class="tx-status">
-						<img class="tx-status-icon" src={walletOut.src} alt="Outbound" />
+						<img class="tx-status-icon" src={walletOut.src} alt={t.outbound} />
 					</span>
-					<textarea class="tx-notes" placeholder="Notes..."></textarea>
+					<textarea class="tx-notes" placeholder={t.notesPlaceholder}></textarea>
 				</button>
 				<div class="tx-detail">
-					<textarea placeholder="Note (not saved yet)"></textarea>
+					<textarea placeholder={t.noteUnsavedPlaceholder}></textarea>
 				</div>
 			</div>
 		</section>
