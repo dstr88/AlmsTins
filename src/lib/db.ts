@@ -1,48 +1,14 @@
-import { createClient } from '@libsql/client';
+import type { Client } from '@libsql/client';
+import { makeTursoDb } from './db.turso';
+import { makePgDb } from './db.pg';
 
+// Engine switch for the Turso -> Postgres migration. Default stays Turso (and is
+// the instant rollback); set DB_ENGINE=pg (with DATABASE_URL) to run on Postgres.
+// Keeping the selection here means the ~800 call sites that `import { db }` never
+// change — only the engine behind this export does.
 const importMetaEnv = ((import.meta as any).env ?? {}) as Record<string, string | undefined>;
-const env = { ...process.env, ...importMetaEnv };
-const url = env.TURSO_DATABASE_URL;
-const authToken = env.TURSO_AUTH_TOKEN;
-const loggedFlag = '__ledgerlense_db_name_logged__';
-const pingFlag = '__ledgerlense_db_ping_logged__';
+const engine = (importMetaEnv.DB_ENGINE ?? process.env.DB_ENGINE) === 'pg' ? 'pg' : 'turso';
 
-if (!url) {
-	throw new Error('Missing TURSO_DATABASE_URL');
-}
-
-if (!authToken) {
-	throw new Error('Missing TURSO_AUTH_TOKEN');
-}
-
-const globalAny = globalThis as typeof globalThis & { [loggedFlag]?: boolean; [pingFlag]?: boolean };
-if (!globalAny[loggedFlag]) {
-	globalAny[loggedFlag] = true;
-	const dbName = url.replace(/^libsql:\/\//, '').split('.')[0] || 'unknown';
-	console.log('[db] turso database', dbName);
-}
-
-const db = createClient({
-	url,
-	authToken,
-});
-
-if (!globalAny[pingFlag]) {
-	globalAny[pingFlag] = true;
-	db.execute('PRAGMA foreign_keys = ON')
-		.then(() => db.execute('SELECT 1'))
-		.then(() => db.execute('PRAGMA foreign_keys'))
-		.then((result) => {
-			const value = Number((result.rows[0] as Record<string, unknown> | undefined)?.foreign_keys ?? 0);
-			console.log('[db] ping ok');
-			console.log('[db] foreign_keys', value === 1 ? 'on' : 'off');
-			if (value !== 1) {
-				console.warn('[db] WARNING: PRAGMA foreign_keys is OFF; cascading deletes and FK constraints may not behave as expected');
-			}
-		})
-		.catch((error) => {
-			console.error('[db] ping failed', error instanceof Error ? error.message : String(error));
-		});
-}
+const db: Client = engine === 'pg' ? makePgDb() : makeTursoDb();
 
 export { db };
