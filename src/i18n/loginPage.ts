@@ -32,6 +32,8 @@ export interface LoginPageLocale {
     walletButtonAriaLabel: string;
     walletHint: string;
     walletErrorHint: string;
+    checkerLabel: string;
+    checkerHint: string;
     changelogLink: string;
     socialProof: string;
   };
@@ -101,6 +103,8 @@ export const en: LoginPageLocale = {
     walletButtonAriaLabel: 'Go',
     walletHint: 'See transactions, flagged gaps, and what the IRS will ask about. No signup needed.',
     walletErrorHint: '⚠ Wallet not recognized — try an Ethereum (0x…), Bitcoin, or Solana address.',
+    checkerLabel: 'Check any wallet or website — free, no signup',
+    checkerHint: 'Scan a QR or paste an address/URL — screened against scam blacklists, OFAC sanctions, honeypots, and 345,000+ phishing domains.',
     changelogLink: "What's new →",
     socialProof: '345,000+ phishing domains checked · OFAC sanctions screening · 6+ chains, every major exchange.',
   },
@@ -182,6 +186,8 @@ export const es: LoginPageLocale = {
     walletButtonAriaLabel: 'Ir',
     walletHint: 'Ve transacciones, brechas marcadas y lo que el fisco te preguntará. Sin registro.',
     walletErrorHint: '⚠ Dirección no reconocida — prueba una dirección Ethereum (0x…), Bitcoin o Solana.',
+    checkerLabel: 'Verifica cualquier billetera o sitio web — gratis, sin registro',
+    checkerHint: 'Escanea un QR o pega una dirección/URL — revisada contra listas negras de estafas, sanciones OFAC, honeypots y más de 345.000 dominios de phishing.',
     changelogLink: '¿Qué hay de nuevo? →',
     socialProof: '345,000+ dominios de phishing · Verificación OFAC · 6+ redes y exchanges principales.',
   },
@@ -263,6 +269,8 @@ export const fr: LoginPageLocale = {
     walletButtonAriaLabel: 'Aller',
     walletHint: 'Voir les transactions, les lacunes signalées et ce que l\'IRS demandera. Aucune inscription requise.',
     walletErrorHint: '⚠ Adresse non reconnue — essayez une adresse Ethereum (0x…), Bitcoin ou Solana.',
+    checkerLabel: 'Vérifiez n\'importe quel portefeuille ou site web — gratuit, sans inscription',
+    checkerHint: 'Scannez un QR ou collez une adresse/URL — vérifiée contre les listes noires d\'arnaques, les sanctions OFAC, les honeypots et plus de 345 000 domaines de phishing.',
     changelogLink: 'Quoi de neuf ? →',
     socialProof: '345 000+ domaines de phishing vérifiés · Vérification des sanctions OFAC · 6+ chaînes et principaux échanges.',
   },

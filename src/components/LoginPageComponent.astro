@@ -159,6 +159,13 @@ const isLockedOut = message === 'LOCKED_OUT';
         <p class="landing__demo-cta-sub">{t.hero.demoCtaSub}</p>
         {t.hero.socialProof && <p class="hero__social-proof">{t.hero.socialProof}</p>}
 
+        <!-- Safety checker — wallet + URL scam check, trilingual via t.lang -->
+        <div class="landing__checker">
+          <div class="landing__checker-label">{t.hero.checkerLabel}</div>
+          <safety-check lang={t.lang}></safety-check>
+          <p class="landing__checker-hint">{t.hero.checkerHint}</p>
+        </div>
+
         <div class="landing__wallet-secondary">
           <div class="landing__wallet-label-row">
             <span class="landing__wallet-label">{t.hero.walletSectionLabel}</span>
@@ -247,6 +254,8 @@ const isLockedOut = message === 'LOCKED_OUT';
   ></div>
 
   <script>
+    import '@/lib/safetyCheck'; // wallet + URL scam checker (custom element)
+
     // ── CSRF refresh ──────────────────────────────────────────────────
     (async () => {
       try {
@@ -599,6 +608,17 @@ const isLockedOut = message === 'LOCKED_OUT';
 
     /* ── Product Hunt badge ──────────────────────────────────── */
     .ph-badge-link { display: inline-block; margin-top: 1.25rem; }
+
+    /* ── Safety checker ── */
+    .landing__checker {
+      margin: 1.5rem 0;
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--border-bright);
+      border-radius: 14px;
+      background: var(--surface-card);
+    }
+    .landing__checker-label { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.6rem; }
+    .landing__checker-hint { margin: 0.6rem 0 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; }
 
     /* ── Secondary wallet input ──────────────────────────────── */
     .landing__wallet-secondary {
