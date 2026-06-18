@@ -118,7 +118,7 @@ export async function setJurisdiction(
       VALUES (?, ?)
       ON CONFLICT(tenant_id) DO UPDATE SET
         jurisdiction = excluded.jurisdiction,
-        updated_at   = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+        updated_at   = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
     `,
     args: [tenantId, jurisdiction],
   });

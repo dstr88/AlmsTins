@@ -49,7 +49,7 @@ type DbRow = Record<string, unknown>;
 const s = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
 const n = (v: unknown) => (typeof v === 'number' ? v : null);
 
-const NOW_SQL = `strftime('%Y-%m-%dT%H:%M:%SZ','now')`;
+const NOW_SQL = `to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')`;
 
 // ── Load raw data ─────────────────────────────────────────────────────────────
 

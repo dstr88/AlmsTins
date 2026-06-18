@@ -69,7 +69,7 @@ export const POST: APIRoute = async ({ request }) => {
     if (kind === 'payment')  newBalance = Math.max(0, currentBalance - amount);
     if (kind === 'charge')   newBalance = currentBalance + amount;
     await db.execute({
-      sql: `UPDATE petro_tins SET balance = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
+      sql: `UPDATE petro_tins SET balance = ?, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS') WHERE id = ? AND tenant_id = ?`,
       args: [newBalance, tinId, tenantId],
     });
   }

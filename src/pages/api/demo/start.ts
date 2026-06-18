@@ -263,7 +263,7 @@ export const GET: APIRoute = async ({ request }) => {
 					id TEXT NOT NULL PRIMARY KEY,
 					tenant_id TEXT NOT NULL,
 					body TEXT NOT NULL,
-					created_at TEXT NOT NULL DEFAULT (datetime('now')),
+					created_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
 					resolved_at TEXT
 				)`,
 			},
@@ -498,7 +498,7 @@ export const GET: APIRoute = async ({ request }) => {
 		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 	};
 	await db.batch([
-		{ sql: `CREATE TABLE IF NOT EXISTS petro_tins (id TEXT NOT NULL PRIMARY KEY, tenant_id TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'debt', name TEXT NOT NULL, balance REAL, credit_limit REAL, apr REAL, min_payment REAL, goal_revenue REAL, notes TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`, args: [] },
+		{ sql: `CREATE TABLE IF NOT EXISTS petro_tins (id TEXT NOT NULL PRIMARY KEY, tenant_id TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'debt', name TEXT NOT NULL, balance REAL, credit_limit REAL, apr REAL, min_payment REAL, goal_revenue REAL, notes TEXT, sort_order INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), updated_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')))`, args: [] },
 		{ sql: `DELETE FROM petro_tins WHERE tenant_id = ?`, args: [DEMO_TENANT_ID] },
 	]).catch(() => {});
 	const budgetId = randomUUID();
@@ -521,7 +521,7 @@ export const GET: APIRoute = async ({ request }) => {
 	await db.batch(tinStmts).catch(() => {});
 	// Entries
 	await db.batch([
-		{ sql: `CREATE TABLE IF NOT EXISTS petro_tin_entries (id TEXT NOT NULL PRIMARY KEY, tin_id TEXT NOT NULL, tenant_id TEXT NOT NULL, entry_date TEXT NOT NULL, kind TEXT NOT NULL, amount REAL NOT NULL, description TEXT, splits_json TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`, args: [] },
+		{ sql: `CREATE TABLE IF NOT EXISTS petro_tin_entries (id TEXT NOT NULL PRIMARY KEY, tin_id TEXT NOT NULL, tenant_id TEXT NOT NULL, entry_date TEXT NOT NULL, kind TEXT NOT NULL, amount REAL NOT NULL, description TEXT, splits_json TEXT, created_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')))`, args: [] },
 		{ sql: `DELETE FROM petro_tin_entries WHERE tenant_id = ?`, args: [DEMO_TENANT_ID] },
 	]).catch(() => {});
 	const entryStmts = [
@@ -543,9 +543,9 @@ export const GET: APIRoute = async ({ request }) => {
 		try {
 			await db.batch([
 				// Create tables if they don't exist yet (idempotent — migration will confirm later)
-				{ sql: `CREATE TABLE IF NOT EXISTS wallet_claims (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, claimed_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(address))`, args: [] },
-				{ sql: `CREATE TABLE IF NOT EXISTS address_reviews (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, verdict TEXT NOT NULL CHECK (verdict IN ('completed','not_received','suspected_fraud')), reviewed_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE(tenant_id, address))`, args: [] },
-				{ sql: `CREATE TABLE IF NOT EXISTS community_wallet_flags (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT, address TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0, goplus_flagged INTEGER, goplus_flags TEXT, reported_at TEXT NOT NULL DEFAULT (datetime('now')), validated_at TEXT, UNIQUE(address))`, args: [] },
+				{ sql: `CREATE TABLE IF NOT EXISTS wallet_claims (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, claimed_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), UNIQUE(address))`, args: [] },
+				{ sql: `CREATE TABLE IF NOT EXISTS address_reviews (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, verdict TEXT NOT NULL CHECK (verdict IN ('completed','not_received','suspected_fraud')), reviewed_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), UNIQUE(tenant_id, address))`, args: [] },
+				{ sql: `CREATE TABLE IF NOT EXISTS community_wallet_flags (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT, address TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0, goplus_flagged INTEGER, goplus_flags TEXT, reported_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), validated_at TEXT, UNIQUE(address))`, args: [] },
 			]);
 
 			await db.batch([

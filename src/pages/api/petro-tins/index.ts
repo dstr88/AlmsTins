@@ -26,8 +26,8 @@ const ENSURE_SQL = `
     goal_revenue REAL,
     notes        TEXT,
     sort_order   INTEGER NOT NULL DEFAULT 0,
-    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at   TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    updated_at   TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )
 `;
 
@@ -41,7 +41,7 @@ const ENSURE_ENTRIES_SQL = `
     amount      REAL NOT NULL,
     description TEXT,
     splits_json TEXT,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )
 `;
 

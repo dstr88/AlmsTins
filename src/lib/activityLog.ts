@@ -14,7 +14,7 @@ async function ensureTable() {
 			chain       TEXT,
 			summary     TEXT NOT NULL,
 			payload     TEXT NOT NULL,
-			created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+			created_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 		)`,
 		args: [],
 	});

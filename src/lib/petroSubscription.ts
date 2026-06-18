@@ -20,8 +20,8 @@ const ENSURE_SQL = `
     tier        TEXT NOT NULL DEFAULT 'free',
     expires_at  TEXT,
     promo_code  TEXT,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    updated_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   );
 
   CREATE TABLE IF NOT EXISTS petro_promo_codes (
@@ -30,7 +30,7 @@ const ENSURE_SQL = `
     max_uses    INTEGER,             -- null = unlimited
     uses        INTEGER NOT NULL DEFAULT 0,
     active      INTEGER NOT NULL DEFAULT 1,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   );
 `;
 
@@ -43,8 +43,8 @@ export async function ensureTables() {
     tier        TEXT NOT NULL DEFAULT 'free',
     expires_at  TEXT,
     promo_code  TEXT,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    updated_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )`);
   await db.execute(`CREATE TABLE IF NOT EXISTS petro_promo_codes (
     code        TEXT NOT NULL PRIMARY KEY,
@@ -52,7 +52,7 @@ export async function ensureTables() {
     max_uses    INTEGER,
     uses        INTEGER NOT NULL DEFAULT 0,
     active      INTEGER NOT NULL DEFAULT 1,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )`);
   // Seed promo codes if not present
   await db.execute({
@@ -141,7 +141,7 @@ export async function redeemPromoCode(tenantId: string, code: string): Promise<R
             VALUES (?, 'paid', ?, ?)
             ON CONFLICT(tenant_id) DO UPDATE SET
               tier = 'paid', expires_at = excluded.expires_at,
-              promo_code = excluded.promo_code, updated_at = datetime('now')`,
+              promo_code = excluded.promo_code, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')`,
       args: [tenantId, expiresAt, upper],
     },
     {

@@ -76,7 +76,7 @@ export const GET: APIRoute = async ({ request }) => {
     JOIN tenant_memberships tm ON tm.tenant_id = pr.tenant_id AND tm.role = 'owner'
     JOIN auth_users au ON au.id = tm.user_id
     WHERE pr.access_expires_at != '${SENTINEL}'
-      AND pr.access_expires_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+      AND pr.access_expires_at > to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
       AND (
            (julianday(pr.access_expires_at) - julianday('now') <= 30 AND pr.warning_30d_sent_at IS NULL)
         OR (julianday(pr.access_expires_at) - julianday('now') <= 7  AND pr.warning_7d_sent_at  IS NULL)
@@ -119,7 +119,7 @@ export const GET: APIRoute = async ({ request }) => {
       // Mark as sent
       const col = type === '7d' ? 'warning_7d_sent_at' : 'warning_30d_sent_at';
       await db.execute({
-        sql: `UPDATE promo_redemptions SET ${col} = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`,
+        sql: `UPDATE promo_redemptions SET ${col} = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') WHERE id = ?`,
         args: [redemptionId],
       });
 

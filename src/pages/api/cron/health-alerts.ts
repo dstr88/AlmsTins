@@ -152,7 +152,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 			// ── Record send time ───────────────────────────────────────────────
 			await db.execute({
-				sql: `UPDATE alert_preferences SET last_alerted_at = datetime('now') WHERE id = ?`,
+				sql: `UPDATE alert_preferences SET last_alerted_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
 				args: [prefId],
 			});
 

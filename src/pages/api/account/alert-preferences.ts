@@ -84,7 +84,7 @@ export const POST: APIRoute = async ({ request }) => {
 		if (existingRow) {
 			await db.execute({
 				sql: `UPDATE alert_preferences
-				      SET threshold = ?, direction = ?, enabled = ?, updated_at = datetime('now')
+				      SET threshold = ?, direction = ?, enabled = ?, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')
 				      WHERE id = ?`,
 				args: [threshold, direction, enabled, existingRow.id],
 			});

@@ -13,7 +13,7 @@ async function ensureTable() {
 			id          TEXT NOT NULL PRIMARY KEY,
 			tenant_id   TEXT NOT NULL,
 			body        TEXT NOT NULL,
-			created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+			created_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
 			resolved_at TEXT
 		)`,
 		args: [],

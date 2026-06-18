@@ -47,7 +47,7 @@ export async function getActivePlan(tenantId: string): Promise<PlanConfig & { pr
   try {
     const promoResult = await db.execute({
       sql: `SELECT plan_id, access_expires_at FROM promo_redemptions
-            WHERE tenant_id = ? AND access_expires_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            WHERE tenant_id = ? AND access_expires_at > to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
             ORDER BY access_expires_at DESC LIMIT 1`,
       args: [tenantId],
     });

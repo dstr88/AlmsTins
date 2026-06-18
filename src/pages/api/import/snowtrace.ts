@@ -224,7 +224,7 @@ export const POST: APIRoute = async ({ request }) => {
 	if (walletAddress) {
 		await db.execute({
 			sql: `INSERT OR IGNORE INTO address_labels (id, tenant_id, address, label, source, created_at)
-			      VALUES (lower(hex(randomblob(16))), ?, ?, 'Avalanche C-Chain wallet', 'system', datetime('now'))`,
+			      VALUES (lower(hex(randomblob(16))), ?, ?, 'Avalanche C-Chain wallet', 'system', to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 			args: [tenantId, walletAddress],
 		});
 	}

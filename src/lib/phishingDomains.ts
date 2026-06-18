@@ -7,7 +7,7 @@ async function ensureTable(): Promise<void> {
     CREATE TABLE IF NOT EXISTS known_phishing_domains (
       domain        TEXT PRIMARY KEY,
       source        TEXT NOT NULL DEFAULT 'token_airdrop',
-      confirmed_at  TEXT NOT NULL DEFAULT (datetime('now'))
+      confirmed_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
     )
   `);
   tableReady = true;

@@ -269,7 +269,7 @@ export async function saveMonthlyReconciliation(
 			         unmatched_out_usd, unmatched_in_usd, expected_closing_usd, delta_usd,
 			         tx_count, unmatched_tx_count, computed_at)
 			      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-			              strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			              to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'))
 			      ON CONFLICT (tenant_id, year_month) DO UPDATE SET
 			        opening_assets_usd   = excluded.opening_assets_usd,
 			        closing_assets_usd   = excluded.closing_assets_usd,
@@ -283,7 +283,7 @@ export async function saveMonthlyReconciliation(
 			        delta_usd            = excluded.delta_usd,
 			        tx_count             = excluded.tx_count,
 			        unmatched_tx_count   = excluded.unmatched_tx_count,
-			        computed_at          = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
+			        computed_at          = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
 			args: [
 				randomUUID(), tenantId, rec.yearMonth,
 				rec.openingAssetsUsd, rec.closingAssetsUsd,

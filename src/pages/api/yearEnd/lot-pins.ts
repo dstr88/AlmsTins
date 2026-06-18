@@ -93,7 +93,7 @@ export const POST: APIRoute = async ({ request }) => {
 		if (existingRow) {
 			await db.execute({
 				sql: `UPDATE tax_lot_pins
-				      SET lot_acquired_at = ?, lot_amount_hint = ?, note = ?, updated_at = datetime('now')
+				      SET lot_acquired_at = ?, lot_amount_hint = ?, note = ?, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')
 				      WHERE id = ?`,
 				args: [lotAcquiredAt, lotAmountHint, note, String(existingRow.id)],
 			});

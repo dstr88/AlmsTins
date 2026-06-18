@@ -108,12 +108,12 @@ export const POST: APIRoute = async ({ request }) => {
 		await db.execute({
 			sql: `INSERT INTO manual_cost_basis
 			        (id, tenant_id, sell_source_id, quantity, price_per_token, buy_date_iso, updated_at)
-			      VALUES (?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+			      VALUES (?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'))
 			      ON CONFLICT (tenant_id, sell_source_id) DO UPDATE SET
 			        quantity        = excluded.quantity,
 			        price_per_token = excluded.price_per_token,
 			        buy_date_iso    = excluded.buy_date_iso,
-			        updated_at      = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`,
+			        updated_at      = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')`,
 			args: [
 				randomUUID(),
 				tenantId,
@@ -180,8 +180,8 @@ async function ensureTable() {
 			quantity        REAL NOT NULL,
 			price_per_token REAL NOT NULL,
 			buy_date_iso    TEXT,
-			created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-			updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+			created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')),
+			updated_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')),
 			PRIMARY KEY (id),
 			UNIQUE (tenant_id, sell_source_id)
 		)`,

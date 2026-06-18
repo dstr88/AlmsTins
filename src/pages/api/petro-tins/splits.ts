@@ -37,8 +37,8 @@ async function ensureTables() {
     name            TEXT NOT NULL,
     interest_rate   REAL NOT NULL DEFAULT 0,
     budget_tin_id   TEXT,
-    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    updated_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )`, args: [] });
 
   await db.execute({ sql: `CREATE TABLE IF NOT EXISTS petro_splits_people (
@@ -48,7 +48,7 @@ async function ensureTables() {
     name        TEXT NOT NULL,
     is_owner    INTEGER NOT NULL DEFAULT 0,
     sort_order  INTEGER NOT NULL DEFAULT 0,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )`, args: [] });
 
   await db.execute({ sql: `CREATE TABLE IF NOT EXISTS petro_splits_bills (
@@ -60,7 +60,7 @@ async function ensureTables() {
     is_default  INTEGER NOT NULL DEFAULT 1,
     no_budget   INTEGER NOT NULL DEFAULT 0,
     sort_order  INTEGER NOT NULL DEFAULT 0,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at  TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )`, args: [] });
 
   await db.execute({ sql: `CREATE TABLE IF NOT EXISTS petro_splits_assignments (
@@ -83,7 +83,7 @@ async function ensureTables() {
     amount          REAL NOT NULL,
     paid_date       TEXT NOT NULL,
     budget_entry_id TEXT,
-    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )`, args: [] });
 
   await db.execute({ sql: `CREATE TABLE IF NOT EXISTS petro_splits_carried (
@@ -209,7 +209,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (action === 'update_splits') {
     const { splitsId, name, interestRate, budgetTinId } = body;
     await db.execute({
-      sql: `UPDATE petro_splits SET name = ?, interest_rate = ?, budget_tin_id = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
+      sql: `UPDATE petro_splits SET name = ?, interest_rate = ?, budget_tin_id = ?, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS') WHERE id = ? AND tenant_id = ?`,
       args: [name, interestRate ?? 0, budgetTinId ?? null, splitsId, tenantId],
     });
     return json({ ok: true });

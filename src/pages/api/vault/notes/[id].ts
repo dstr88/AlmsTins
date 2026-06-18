@@ -20,7 +20,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
 	await db.execute({
 		sql: `UPDATE vault_notes
-		      SET resolved_at = ${body.resolved ? "datetime('now')" : 'NULL'}
+		      SET resolved_at = ${body.resolved ? "to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')" : 'NULL'}
 		      WHERE id = ? AND tenant_id = ?`,
 		args: [id, tenantId],
 	});

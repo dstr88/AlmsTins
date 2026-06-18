@@ -149,7 +149,7 @@ export const GET: APIRoute = async ({ request }) => {
 				await sendMail({ to: toEmail, subject: rendered.subject, text: rendered.text });
 
 			await db.execute({
-				sql: `UPDATE price_alert_preferences SET last_alerted_at = datetime('now') WHERE id = ?`,
+				sql: `UPDATE price_alert_preferences SET last_alerted_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS') WHERE id = ?`,
 				args: [alertId],
 			});
 

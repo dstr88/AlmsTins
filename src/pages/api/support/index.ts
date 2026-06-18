@@ -39,7 +39,7 @@ export const GET: APIRoute = async ({ request }) => {
   // Mark unread admin replies as read now that the user is fetching
   await db.execute({
     sql: `UPDATE support_messages
-          SET read_at = datetime('now')
+          SET read_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')
           WHERE user_id = ? AND from_admin = 1 AND read_at IS NULL`,
     args: [session.user.id],
   }).catch(() => {});

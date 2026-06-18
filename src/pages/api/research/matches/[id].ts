@@ -43,7 +43,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 	if (action === 'confirm') {
 		await db.execute({
 			sql: `UPDATE transfer_matches
-			      SET status = 'confirmed', confirmed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+			      SET status = 'confirmed', confirmed_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
 			      WHERE id = ? AND tenant_id = ?`,
 			args: [matchId, tenantId],
 		});

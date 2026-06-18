@@ -12,7 +12,7 @@ async function ensureTable() {
 		sql: `CREATE TABLE IF NOT EXISTS tenant_intake (
 			tenant_id TEXT PRIMARY KEY,
 			answers   TEXT NOT NULL DEFAULT '{}',
-			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+			updated_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 		)`,
 		args: [],
 	});
@@ -58,7 +58,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	await db.execute({
 		sql: `INSERT INTO tenant_intake (tenant_id, answers, updated_at)
-		      VALUES (?, ?, datetime('now'))
+		      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 		      ON CONFLICT(tenant_id) DO UPDATE SET
 		        answers    = excluded.answers,
 		        updated_at = excluded.updated_at`,

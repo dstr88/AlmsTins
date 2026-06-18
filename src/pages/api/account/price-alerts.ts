@@ -89,7 +89,7 @@ export const POST: APIRoute = async ({ request }) => {
 			// Update existing (verify ownership)
 			await db.execute({
 				sql: `UPDATE price_alert_preferences
-				      SET asset_symbol = ?, direction = ?, threshold = ?, enabled = ?, updated_at = datetime('now')
+				      SET asset_symbol = ?, direction = ?, threshold = ?, enabled = ?, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')
 				      WHERE id = ? AND user_id = ?`,
 				args: [assetSymbol, direction, threshold, enabled ? 1 : 0, id, session.user.id],
 			});
@@ -105,7 +105,7 @@ export const POST: APIRoute = async ({ request }) => {
 				const existingId = String(existingRow.id);
 				await db.execute({
 					sql: `UPDATE price_alert_preferences
-					      SET threshold = ?, enabled = ?, updated_at = datetime('now')
+					      SET threshold = ?, enabled = ?, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')
 					      WHERE id = ?`,
 					args: [threshold, enabled ? 1 : 0, existingId],
 				});

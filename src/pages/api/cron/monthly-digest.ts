@@ -347,7 +347,7 @@ export const GET: APIRoute = async ({ request }) => {
 			// ── Upsert digest row ────────────────────────────────────────────────
 			await db.execute({
 				sql: `INSERT INTO monthly_digests (id, tenant_id, year_month, item_count, items_json, computed_at, dismissed_at)
-				      VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), NULL)
+				      VALUES (?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'), NULL)
 				      ON CONFLICT(tenant_id, year_month) DO UPDATE SET
 				        item_count   = excluded.item_count,
 				        items_json   = excluded.items_json,

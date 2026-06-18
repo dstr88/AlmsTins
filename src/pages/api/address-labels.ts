@@ -64,7 +64,7 @@ export const POST: APIRoute = async ({ request }) => {
 			await db.execute({
 				sql: `UPDATE address_labels
 				      SET label = ?, source = 'user', category = ?, chain = ?, notes = ?, phone_number = ?,
-				          updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+				          updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
 				      WHERE tenant_id = ? AND address = ? AND COALESCE(phone_number, '') = ?`,
 				args: [label, category, chain, notes, phone, tenantId, address, phone ?? ''],
 			});
@@ -119,7 +119,7 @@ export const POST: APIRoute = async ({ request }) => {
 				if (topLabel.toLowerCase() !== currentLabel.toLowerCase() && topCount >= 5) {
 					await db.execute({
 						sql: `UPDATE global_address_labels
-						      SET label = ?, vote_count = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+						      SET label = ?, vote_count = ?, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
 						      WHERE address = ?`,
 						args: [topLabel, topCount, address],
 					});
