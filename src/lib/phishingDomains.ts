@@ -37,7 +37,7 @@ export function extractSpamDomains(symbol: string, name?: string | null): string
 
 /**
  * Persist phishing domains to the DB. Fire-and-forget — caller does not await.
- * Uses INSERT OR IGNORE so duplicates are silently skipped.
+ * Uses ON CONFLICT DO NOTHING so duplicates are silently skipped.
  * Newly added domains are reported to VirusTotal and URLScan in the background.
  */
 export async function savePhishingDomains(

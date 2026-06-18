@@ -9,7 +9,7 @@
 //   • Multiple independent signals must agree before auto-confirming.
 //   • Every match records which signals fired and their scores (audit trail).
 //   • Any match can be rejected by the user and reverts to unmatched.
-//   • Re-running is always safe — INSERT OR IGNORE prevents duplicates.
+//   • Re-running is always safe — ON CONFLICT DO NOTHING prevents duplicates.
 
 import { randomUUID } from 'node:crypto';
 import { db } from './db';
@@ -270,7 +270,7 @@ function inTx_category(source: string): string {
 
 /**
  * Runs the transfer matching engine for a tenant.
- * Safe to call after every CSV import — INSERT OR IGNORE prevents duplicates.
+ * Safe to call after every CSV import — ON CONFLICT DO NOTHING prevents duplicates.
  *
  * If accountId is provided, only out-transactions from that account are
  * scanned as new candidates (much faster for post-import incremental runs).
