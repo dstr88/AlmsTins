@@ -43,10 +43,10 @@ Already logs `created_at, ip_hash, addr_hash, chain, cache_hit` (hashed checker 
 
 ## Phases
 - [x] **0a Foundation** — branch, `pg` installed, shim (`db.pg.ts`), dispatcher (`db.ts`), Turso factory (`db.turso.ts`), schema-dump script (`src/scripts/dumpTursoSchema.mjs`).
-- [ ] **0b Schema** — dump live Turso schema → translate to PG DDL → apply to Render.  *(needs `DATABASE_URL` + Bash)*
-- [ ] **0c Build-verify** — shim compiles, Turso path still builds.
-- [ ] **1 Dialect fixes** — the ~150 edits above, parallelized by directory.
-- [ ] **2 Parity test** — `DB_ENGINE=pg`, build + smoke-test every endpoint, fix type stragglers.
+- [x] **0b Schema** — DONE. Render PG (PostgreSQL 18.4, ohio) has all **96 tables, exact parity with Turso** (0 missing / 0 extra). Empty (0 rows); FKs not yet applied (companion file `pg-foreign-keys.sql`, post-data-load); RLS off (Phase 4). Probes: `src/scripts/pgState.mjs`, `src/scripts/pgPing.mjs`.
+- [~] **0c Build-verify** — `tsc --noEmit` holds at the 50-error baseline (no new TS/syntax errors from the dialect edits; all edits are SQL-string contents the bundler never parses). Full `astro build` is **blocked locally** by a corrupted esbuild native-binary install (`esbuild` JS 0.25.12 vs binary 0.27.7 on disk — fails esbuild's own `validateBinaryVersion`; pre-existing, unrelated to migration). Fix when wanted: `rm -rf node_modules package-lock.json && npm install`. Render verifies the bundle on its clean-container build at deploy.
+- [x] **1 Dialect fixes** — DONE. ~244 spots across 7 commits (1a→1f): `datetime/strftime`→`to_char`, `CURRENT_TIMESTAMP`→`to_char`, `INSERT OR IGNORE`→`ON CONFLICT DO NOTHING` (84), `INSERT OR REPLACE`→`ON CONFLICT DO UPDATE` (15), `PRAGMA table_info`→`information_schema`, `randomblob`→`gen_random_uuid`. Final sweep clean; tsc=50.
+- [~] **2 Parity test** — **dialect parity PASSED** (`src/scripts/pgParity.mjs`, 11/11): every translated construct (to_char ×2, substr year/month, gen_random_uuid, interval, information_schema, real demo/stats queries, ON CONFLICT DO NOTHING + DO UPDATE) executes correctly on PG 18.4, transactionally rolled back so PG stays empty. Remaining: full-app `DB_ENGINE=pg` endpoint smoke — deferred to Render's clean build (local `astro dev` blocked by the same esbuild-binary corruption as 0c; `rm -rf node_modules package-lock.json && npm install` unblocks it locally).
 - [ ] **3 Data move** — export Turso → load PG.
 - [ ] **4 RLS** — policies on the 65 tenant-scoped tables; `SET LOCAL app.tenant_id` per request in the shim; keep app-level filters as belt-and-suspenders.
 - [ ] **5 Cutover** — swap env on `production`, deploy, keep Turso as instant rollback.
