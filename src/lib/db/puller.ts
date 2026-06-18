@@ -327,9 +327,9 @@ export async function getLatestWalletSnapshot(
         GROUP BY chain
       )
       SELECT ws.chain AS chain,
-             ws.captured_at AS capturedAt,
-             ws.totals_usd AS totalsUsd,
-             ws.payload_json AS payloadJson
+             ws.captured_at AS "capturedAt",
+             ws.totals_usd AS "totalsUsd",
+             ws.payload_json AS "payloadJson"
       FROM wallet_snapshots ws
       JOIN latest l
         ON l.chain = ws.chain
@@ -422,16 +422,16 @@ export async function getWalletNfts(tenantId: string, walletId: string) {
 	const hasNfts = await tableExists('nft_holdings');
 	if (!hasNfts) return [];
 	const result = await db.execute({
-		sql: `SELECT contract_address AS contractAddress,
-             token_id AS tokenId,
+		sql: `SELECT contract_address AS "contractAddress",
+             token_id AS "tokenId",
              name,
              symbol,
-             image_url AS imageUrl,
-             collection_name AS collectionName,
-             floor_price_usd AS floorPriceUsd,
-             acquired_at AS acquiredAt,
+             image_url AS "imageUrl",
+             collection_name AS "collectionName",
+             floor_price_usd AS "floorPriceUsd",
+             acquired_at AS "acquiredAt",
              hidden,
-             hidden_at AS hiddenAt
+             hidden_at AS "hiddenAt"
       FROM nft_holdings
       WHERE tenant_id = ? AND wallet_id = ?
         AND (hidden IS NULL OR hidden = 0)
@@ -459,16 +459,16 @@ export async function getHiddenNfts(tenantId: string, walletId: string) {
 	const hasNfts = await tableExists('nft_holdings');
 	if (!hasNfts) return [];
 	const result = await db.execute({
-		sql: `SELECT contract_address AS contractAddress,
-             token_id AS tokenId,
+		sql: `SELECT contract_address AS "contractAddress",
+             token_id AS "tokenId",
              name,
              symbol,
-             image_url AS imageUrl,
-             collection_name AS collectionName,
-             floor_price_usd AS floorPriceUsd,
-             acquired_at AS acquiredAt,
+             image_url AS "imageUrl",
+             collection_name AS "collectionName",
+             floor_price_usd AS "floorPriceUsd",
+             acquired_at AS "acquiredAt",
              hidden,
-             hidden_at AS hiddenAt
+             hidden_at AS "hiddenAt"
       FROM nft_holdings
       WHERE tenant_id = ? AND wallet_id = ?
         AND (hidden = 1 OR hidden_at IS NOT NULL)
@@ -509,13 +509,13 @@ export async function getLatestAaveSnapshot(tenantId: string, walletId: string):
 	if (!timeColumn) return null;
 
 	const selectCols = [
-		`${timeColumn} AS asOf`,
-		columns.has('health_factor') ? 'health_factor AS healthFactor' : null,
-		columns.has('total_collateral_usd') ? 'total_collateral_usd AS totalCollateralUsd' : null,
-		columns.has('total_debt_usd') ? 'total_debt_usd AS totalDebtUsd' : null,
-		columns.has('net_worth_usd') ? 'net_worth_usd AS netWorthUsd' : null,
-		columns.has('positions_json') ? 'positions_json AS positionsJson' : null,
-		columns.has('raw_response') ? 'raw_response AS rawResponse' : null,
+		`${timeColumn} AS "asOf"`,
+		columns.has('health_factor') ? 'health_factor AS "healthFactor"' : null,
+		columns.has('total_collateral_usd') ? 'total_collateral_usd AS "totalCollateralUsd"' : null,
+		columns.has('total_debt_usd') ? 'total_debt_usd AS "totalDebtUsd"' : null,
+		columns.has('net_worth_usd') ? 'net_worth_usd AS "netWorthUsd"' : null,
+		columns.has('positions_json') ? 'positions_json AS "positionsJson"' : null,
+		columns.has('raw_response') ? 'raw_response AS "rawResponse"' : null,
 	]
 		.filter(Boolean)
 		.join(', ');
@@ -575,10 +575,10 @@ export async function getWalletInteractions(
         FROM transactions
         WHERE wallet_id = ? AND tenant_id = ? AND from_address IS NOT NULL AND LOWER(from_address) != ?
       )
-      SELECT address, COUNT(*) AS count, MAX(timestamp) AS lastSeen
+      SELECT address, COUNT(*) AS count, MAX(timestamp) AS "lastSeen"
       FROM interactions
       GROUP BY address
-      ORDER BY lastSeen DESC, count DESC
+      ORDER BY "lastSeen" DESC, count DESC
       LIMIT ?`,
 		args: [
 			walletId,

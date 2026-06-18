@@ -16,15 +16,15 @@ export const GET: APIRoute = async ({ request }) => {
 
 	const result = await db.execute({
 		sql: `SELECT
-		        import_batch_id AS batchId,
-		        COUNT(*) AS rowCount,
-		        MIN(timestamp_utc) AS earliestTx,
-		        MAX(timestamp_utc) AS latestTx,
-		        MAX(created_at) AS importedAt
+		        import_batch_id AS "batchId",
+		        COUNT(*) AS "rowCount",
+		        MIN(timestamp_utc) AS "earliestTx",
+		        MAX(timestamp_utc) AS "latestTx",
+		        MAX(created_at) AS "importedAt"
 		      FROM import_transactions
 		      WHERE tenant_id = ? AND source = ? AND account_id = ?
 		      GROUP BY import_batch_id
-		      ORDER BY importedAt DESC`,
+		      ORDER BY "importedAt" DESC`,
 		args: [tenantId, source, accountId],
 	});
 

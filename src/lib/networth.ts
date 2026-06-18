@@ -183,12 +183,12 @@ export async function getNetWorthSummary(tenantId: string): Promise<NetWorthSumm
         GROUP BY wallet_id, chain
       )
       SELECT
-        ws.wallet_id   AS walletId,
-        w.label        AS walletLabel,
+        ws.wallet_id   AS "walletId",
+        w.label        AS "walletLabel",
         w.address      AS address,
         ws.chain       AS chain,
-        ws.payload_json AS payloadJson,
-        ws.captured_at AS capturedAt
+        ws.payload_json AS "payloadJson",
+        ws.captured_at AS "capturedAt"
       FROM wallet_snapshots ws
       JOIN latest l
         ON l.wallet_id = ws.wallet_id
@@ -295,12 +295,12 @@ export async function getLatestNetWorthSummary(tenantId: string): Promise<Latest
         GROUP BY wallet_id, chain
       )
       SELECT
-        ws.wallet_id AS walletId,
-        w.label      AS walletLabel,
-        w.address    AS walletAddress,
+        ws.wallet_id AS "walletId",
+        w.label      AS "walletLabel",
+        w.address    AS "walletAddress",
         ws.chain     AS chain,
-        ws.totals_usd AS totalsUsd,
-        ws.captured_at AS capturedAt
+        ws.totals_usd AS "totalsUsd",
+        ws.captured_at AS "capturedAt"
       FROM wallet_snapshots ws
       JOIN latest l
         ON l.wallet_id = ws.wallet_id
@@ -726,9 +726,9 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
         SELECT
           ws.id           AS id,
           ws.chain        AS chain,
-          ws.payload_json AS payloadJson,
-          ws.captured_at  AS capturedAt,
-          ws.totals_usd   AS totalsUsd,
+          ws.payload_json AS "payloadJson",
+          ws.captured_at  AS "capturedAt",
+          ws.totals_usd   AS "totalsUsd",
           ROW_NUMBER() OVER (
             PARTITION BY ws.chain
             ORDER BY ws.captured_at DESC, ws.id DESC

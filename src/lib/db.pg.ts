@@ -50,8 +50,16 @@ function toPg(sql: string): string {
 	return out;
 }
 
-function norm(stmt: Stmt): { text: string; values: unknown[] } {
-	if (typeof stmt === 'string') return { text: toPg(stmt), values: [] };
+// libSQL's execute accepts BOTH execute({ sql, args }) and the two-positional
+// form execute(sql, args) — the app uses both. `extraArgs` carries the second
+// positional argument when the statement is a bare SQL string.
+function norm(stmt: Stmt, extraArgs?: unknown[]): { text: string; values: unknown[] } {
+	if (typeof stmt === 'string') {
+		if (extraArgs !== undefined && !Array.isArray(extraArgs)) {
+			throw new Error('[db.pg] named/object args are not supported by the Postgres shim');
+		}
+		return { text: toPg(stmt), values: extraArgs ?? [] };
+	}
 	const args = stmt.args ?? [];
 	if (!Array.isArray(args)) {
 		throw new Error('[db.pg] named/object args are not supported by the Postgres shim');
@@ -119,8 +127,8 @@ export function makePgDb(): Client {
 		return ctx?.tenantId ? ctx : null;
 	}
 
-	async function execute(stmt: Stmt) {
-		const { text, values } = norm(stmt);
+	async function execute(stmt: Stmt, execArgs?: unknown[]) {
+		const { text, values } = norm(stmt, execArgs);
 		const ctx = tenantCtx();
 		if (!ctx) return shape(await ownerPool.query({ text, values }));
 

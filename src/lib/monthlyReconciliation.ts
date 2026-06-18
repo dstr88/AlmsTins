@@ -105,14 +105,14 @@ async function getMonthFlows(tenantId: string, yearMonth: string): Promise<FlowR
 	const result = await db.execute({
 		sql: `
 		SELECT
-		  it.id                                                       AS txId,
-		  UPPER(COALESCE(it.asset_symbol, '?'))                       AS assetSymbol,
+		  it.id                                                       AS "txId",
+		  UPPER(COALESCE(it.asset_symbol, '?'))                       AS "assetSymbol",
 		  LOWER(COALESCE(it.direction, ''))                           AS direction,
-		  COALESCE(it.native_usd, 0)                                  AS totalUsd,
-		  ABS(COALESCE(it.amount, 0))                                 AS totalQty,
-		  CASE WHEN tc.category = 'transfer' THEN 1 ELSE 0 END        AS isTransfer,
+		  COALESCE(it.native_usd, 0)                                  AS "totalUsd",
+		  ABS(COALESCE(it.amount, 0))                                 AS "totalQty",
+		  CASE WHEN tc.category = 'transfer' THEN 1 ELSE 0 END        AS "isTransfer",
 		  CASE WHEN (tm_out.id IS NOT NULL
-		          OR tm_in.id  IS NOT NULL) THEN 1 ELSE 0 END         AS isMatched
+		          OR tm_in.id  IS NOT NULL) THEN 1 ELSE 0 END         AS "isMatched"
 		FROM import_transactions it
 		LEFT JOIN tax_classifications tc
 		  ON  tc.source_type = 'import'
