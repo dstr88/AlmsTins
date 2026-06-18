@@ -61,6 +61,13 @@ export function isPublicPath(pathname: string): boolean {
 		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
 		pathname === '/api/wallet-check' ||
 		pathname === '/api/dapp-check' ||
+		// Machine endpoints — authenticated by their own secret/signature, not a
+		// user session. They must skip the session gate (app.ts), which 401s any
+		// /api/* without a logged-in user before the handler's own auth can run.
+		// Cron handlers check x-cron-secret; the billing webhook verifies its
+		// Stripe signature. (Regression since 2026-03-18 — crons + webhook were 401'd.)
+		pathname.startsWith('/api/cron/') ||
+		pathname === '/api/billing/webhook' ||
 		// Static assets
 		pathname.startsWith('/_astro/') ||
 		pathname.startsWith('/assets/') ||
