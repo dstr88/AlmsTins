@@ -147,6 +147,35 @@ function reportWalletError(walletId: string, refCode: string, message: string) {
 	} catch { /* ignore */ }
 }
 
+/**
+ * Fetch that rides out a deploy / restart window: retries network-level failures
+ * ("Load failed" / "Failed to fetch") and transient gateway statuses (502/503/504)
+ * a couple of times before giving up — so a redeploy blip never trips a false alert.
+ */
+async function fetchWithRetry(
+	url: string,
+	opts: RequestInit,
+	retries = 2,
+	delayMs = 3000,
+): Promise<Response> {
+	for (let attempt = 0; ; attempt++) {
+		try {
+			const res = await fetch(url, opts);
+			if ((res.status === 502 || res.status === 503 || res.status === 504) && attempt < retries) {
+				await new Promise((r) => setTimeout(r, delayMs));
+				continue;
+			}
+			return res;
+		} catch (e) {
+			if (attempt < retries) {
+				await new Promise((r) => setTimeout(r, delayMs));
+				continue;
+			}
+			throw e;
+		}
+	}
+}
+
 type SummaryCounts = {
 	byChainLength: number;
 	byWalletLength: number;
@@ -303,7 +332,7 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 				);
 				const url = `/api/wallets/${walletId}/tokens?refreshMissing=1`;
 				console.log('[WalletSummary.refresh] start', { walletId, url });
-				const res = await fetch(url, { credentials: 'include' });
+				const res = await fetchWithRetry(url, { credentials: 'include' });
 				const status = res.status;
 				const contentType = res.headers.get('content-type') || '';
 				const text = await res.text();
@@ -453,11 +482,13 @@ export default function WalletSummary({ walletId, walletCreatedAt, initialData }
 					refCode,
 					stack: err instanceof Error ? err.stack : undefined,
 				});
-				reportWalletError(walletId, refCode, message);
 				if (!cancelled) {
 					if (state.status === 'ready' || state.status === 'stale') {
+						// Prior balances still on screen — show them as stale, don't alert.
 						setStateLogged({ ...(state as any), status: 'stale', message }, 'refresh.exception');
 					} else {
+						// No prior data and still failing after retries — a real problem: alert + show error.
+						reportWalletError(walletId, refCode, message);
 						setStateLogged({ status: 'error', message, refCode }, 'refresh.exception');
 					}
 				}
