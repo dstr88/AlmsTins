@@ -304,14 +304,15 @@ export const POST: APIRoute = async ({ request }) => {
 		const groupId  = buildGroupId(r.symbol, datePart);
 
 		rawStatements.push({
-			sql: `INSERT OR IGNORE INTO import_raw_rows
+			sql: `INSERT INTO import_raw_rows
 				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
-				VALUES (?, ?, 'kraken', ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				VALUES (?, ?, 'kraken', ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 			args: [randomUUID(), tenantId, resolvedAccountId, batchId, JSON.stringify(r.rawRow), rowHash],
 		});
 
 		normStatements.push({
-			sql: `INSERT OR IGNORE INTO import_transactions
+			sql: `INSERT INTO import_transactions
 				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc,
 				 description, currency, amount, to_currency, to_amount,
 				 native_currency, native_amount, native_usd,
@@ -319,7 +320,8 @@ export const POST: APIRoute = async ({ request }) => {
 				VALUES (?, ?, 'kraken', ?, ?, ?,
 				        ?, ?, ?, ?, ?,
 				        ?, ?, ?,
-				        ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				        ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 			args: [
 				randomUUID(), tenantId, resolvedAccountId, batchId, r.time,
 				r.type || null,                          // description

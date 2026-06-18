@@ -223,8 +223,9 @@ export const POST: APIRoute = async ({ request }) => {
 
 	if (walletAddress) {
 		await db.execute({
-			sql: `INSERT OR IGNORE INTO address_labels (id, tenant_id, address, label, source, created_at)
-			      VALUES (lower(hex(randomblob(16))), ?, ?, 'Avalanche C-Chain wallet', 'system', to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
+			sql: `INSERT INTO address_labels (id, tenant_id, address, label, source, created_at)
+			      VALUES (lower(hex(randomblob(16))), ?, ?, 'Avalanche C-Chain wallet', 'system', to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+ON CONFLICT DO NOTHING`,
 			args: [tenantId, walletAddress],
 		});
 	}
@@ -291,20 +292,22 @@ export const POST: APIRoute = async ({ request }) => {
 	// ── Build INSERT statements ───────────────────────────────────────────────
 
 	const rawStatements  = normRows.map(r => ({
-		sql: `INSERT OR IGNORE INTO import_raw_rows
+		sql: `INSERT INTO import_raw_rows
 		      (id, tenant_id, account_id, batch_id, source, raw_json, row_hash)
-		      VALUES (?, ?, ?, ?, 'avalanche_cchain', ?, ?)`,
+		      VALUES (?, ?, ?, ?, 'avalanche_cchain', ?, ?)
+ON CONFLICT DO NOTHING`,
 		args: [randomUUID(), tenantId, resolvedAccountId, batchId, JSON.stringify(r), r.rowHash],
 	}));
 
 	const normStatements = normRows.map(r => ({
-		sql: `INSERT OR IGNORE INTO import_transactions
+		sql: `INSERT INTO import_transactions
 		      (id, tenant_id, account_id, import_batch_id, timestamp_utc,
 		       description, currency, amount,
 		       to_currency, to_amount,
 		       native_currency, native_amount, native_usd,
 		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, ?, ?, ?,   ?, 'AVAX', ?,   NULL, NULL,   'USD', ?, ?,   ?, ?, ?, 'AVAX', ?, CURRENT_TIMESTAMP)`,
+		      VALUES (?, ?, ?, ?, ?,   ?, 'AVAX', ?,   NULL, NULL,   'USD', ?, ?,   ?, ?, ?, 'AVAX', ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 		args: [
 			randomUUID(), tenantId, resolvedAccountId, batchId, r.timestamp,
 			r.description,
@@ -338,8 +341,9 @@ export const POST: APIRoute = async ({ request }) => {
 	// system and wallet-value sync can query it by actual address.
 	if (walletAddress) {
 		db.execute({
-			sql: `INSERT OR IGNORE INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
-			      VALUES (?, ?, ?, ?, ?, 0, 'onchain')`,
+			sql: `INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
+			      VALUES (?, ?, ?, ?, ?, 0, 'onchain')
+ON CONFLICT DO NOTHING`,
 			args: [
 				randomUUID(),
 				tenantId,

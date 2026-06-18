@@ -190,13 +190,14 @@ export async function syncLiquidationsToImportTransactions(
 			`Liquidation penalty: $${event.penaltyUsd.toFixed(2)}`;
 
 		const result = await db.execute({
-			sql: `INSERT OR IGNORE INTO import_transactions
+			sql: `INSERT INTO import_transactions
 			        (id, tenant_id, source, import_batch_id, timestamp_utc, direction,
 			         asset_symbol, amount, native_usd, kind, row_hash,
 			         tx_hash, description, notes, category)
 			      VALUES (?, ?, ?, ?, ?, 'out',
 			              ?, ?, ?, 'crypto_transfer', ?,
-			              ?, ?, ?, 'liquidation')`,
+			              ?, ?, ?, 'liquidation')
+ON CONFLICT DO NOTHING`,
 			args: [
 				randomUUID(),
 				tenantId,

@@ -79,8 +79,9 @@ export async function getActivePlan(tenantId: string): Promise<PlanConfig & { pr
 /** Ensure a free subscription row exists for a tenant (idempotent). */
 export async function ensureFreeSubscription(tenantId: string): Promise<void> {
   await db.execute({
-    sql: `INSERT OR IGNORE INTO subscriptions (tenant_id, plan_id, status, created_at)
-          VALUES (?, 'free', 'active', CURRENT_TIMESTAMP)`,
+    sql: `INSERT INTO subscriptions (tenant_id, plan_id, status, created_at)
+          VALUES (?, 'free', 'active', CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
     args: [tenantId],
   });
 }

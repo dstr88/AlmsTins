@@ -211,17 +211,19 @@ export const POST: APIRoute = async ({ request }) => {
 		const rowHash = buildRowHash(normalized);
 		const groupId = buildGroupId(source, normalized.assetSymbol, normalized.timestampUtc);
 		const rawResult = await db.execute({
-			sql: `INSERT OR IGNORE INTO import_raw_rows
+			sql: `INSERT INTO import_raw_rows
 				(id, tenant_id, source, import_batch_id, row_json, row_hash, imported_at)
-				VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 			args: [randomUUID(), tenantId, source, batchId, JSON.stringify(row), rowHash],
 		});
 
 		const normalizedResult = await db.execute({
-			sql: `INSERT OR IGNORE INTO import_transactions
+			sql: `INSERT INTO import_transactions
 				(id, tenant_id, source, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
 				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 			args: [
 				randomUUID(),
 				tenantId,

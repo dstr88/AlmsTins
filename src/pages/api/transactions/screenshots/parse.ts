@@ -146,11 +146,12 @@ If a field cannot be determined from the image, use null.`,
 	const txId = randomUUID();
 
 	const insertResult = await db.execute({
-		sql: `INSERT OR IGNORE INTO import_transactions
+		sql: `INSERT INTO import_transactions
 		      (id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description,
 		       currency, amount, native_usd, kind, tx_hash, direction, asset_symbol, row_hash,
 		       fee_usd, created_at)
-		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 		args: [
 			txId,
 			tenantId,

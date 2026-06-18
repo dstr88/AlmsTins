@@ -20,7 +20,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 		await db.execute(
 			`
-      INSERT OR IGNORE INTO wallets (
+      INSERT INTO wallets (
         id,
         tenant_id,
         user_id,
@@ -30,7 +30,8 @@ export const GET: APIRoute = async ({ request }) => {
         is_default
       )
       VALUES (?, ?, ?, ?, ?, ?, 1)
-      `,
+      
+ON CONFLICT DO NOTHING`,
 			[
 				testWalletId,
 				tenantId,

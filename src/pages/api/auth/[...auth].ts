@@ -145,10 +145,11 @@ const authConfig = {
 								if (!hasOAuthAccounts) {
 									user.id = existingId;
 									await db.execute({
-										sql: `INSERT OR IGNORE INTO auth_accounts
+										sql: `INSERT INTO auth_accounts
 											(id, user_id, type, provider, provider_account_id,
 											 access_token, token_type, scope, expires_at, refresh_token, id_token, session_state)
-											VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+											VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT DO NOTHING`,
 										args: [
 											crypto.randomUUID(),
 											existingId,

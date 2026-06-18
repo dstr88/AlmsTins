@@ -93,9 +93,10 @@ export async function syncSuiTransactions(
 				const id = `${digest}:fee`;
 				try {
 					await db.execute({
-						sql: `INSERT OR IGNORE INTO sui_transactions
+						sql: `INSERT INTO sui_transactions
                           (id, wallet_id, tenant_id, digest, coin_type, symbol, amount, decimals, timestamp, fee_mist, status)
-                          VALUES (?, ?, ?, ?, ?, 'SUI', '0', 9, ?, ?, ?)`,
+                          VALUES (?, ?, ?, ?, ?, 'SUI', '0', 9, ?, ?, ?)
+ON CONFLICT DO NOTHING`,
 						args: [
 							id,
 							wallet.id,
@@ -127,9 +128,10 @@ export async function syncSuiTransactions(
 
 				try {
 					await db.execute({
-						sql: `INSERT OR IGNORE INTO sui_transactions
+						sql: `INSERT INTO sui_transactions
                           (id, wallet_id, tenant_id, digest, coin_type, symbol, amount, decimals, timestamp, fee_mist, status)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT DO NOTHING`,
 						args: [
 							id,
 							wallet.id,

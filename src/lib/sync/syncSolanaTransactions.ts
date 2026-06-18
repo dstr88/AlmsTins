@@ -240,17 +240,19 @@ export async function syncSolanaAddress(
 	// Persist (mirror syncBtcAddress import_transactions + import_raw_rows shape).
 	const BATCH = 100;
 	const rawStmts = normRows.map((r) => ({
-		sql: `INSERT OR IGNORE INTO import_raw_rows (id, tenant_id, account_id, batch_id, source, raw_json, row_hash)
-		      VALUES (?, ?, ?, ?, 'solana', ?, ?)`,
+		sql: `INSERT INTO import_raw_rows (id, tenant_id, account_id, batch_id, source, raw_json, row_hash)
+		      VALUES (?, ?, ?, ?, 'solana', ?, ?)
+ON CONFLICT DO NOTHING`,
 		args: [randomUUID(), tenantId, accountId, batchId, JSON.stringify(r), r.rowHash],
 	}));
 	const normStmts = normRows.map((r) => ({
-		sql: `INSERT OR IGNORE INTO import_transactions
+		sql: `INSERT INTO import_transactions
 		      (id, tenant_id, source, account_id, wallet_id, import_batch_id, timestamp_utc,
 		       description, currency, amount, to_currency, to_amount,
 		       native_currency, native_amount, native_usd,
 		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, 'solana', ?, ?, ?, ?,  ?, ?, ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+		      VALUES (?, ?, 'solana', ?, ?, ?, ?,  ?, ?, ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 		args: [
 			randomUUID(), tenantId, accountId, walletId, batchId, r.timestamp,
 			r.description, r.symbol,

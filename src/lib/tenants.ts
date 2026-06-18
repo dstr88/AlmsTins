@@ -223,8 +223,9 @@ export async function ensureTenantForUser(userId: string, label?: string | null)
 				const membershipId = crypto.randomUUID();
 				try {
 					await db.execute({
-						sql: `INSERT OR IGNORE INTO tenant_memberships (id, tenant_id, user_id, role, created_at)
-						      VALUES (?, ?, ?, 'member', CURRENT_TIMESTAMP)`,
+						sql: `INSERT INTO tenant_memberships (id, tenant_id, user_id, role, created_at)
+						      VALUES (?, ?, ?, 'member', CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 						args: [membershipId, siblingTenantId, userId],
 					});
 				} catch {

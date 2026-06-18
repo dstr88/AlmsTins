@@ -56,11 +56,12 @@ export async function ensureTables() {
   )`);
   // Seed promo codes if not present
   await db.execute({
-    sql: `INSERT OR IGNORE INTO petro_promo_codes (code, discount, max_uses) VALUES
+    sql: `INSERT INTO petro_promo_codes (code, discount, max_uses) VALUES
       ('PETROYEAR', 'free_year',  10),
       ('PETRO50',   'half_off',   NULL),
       ('FOUNDER',   'free_life',  5),
-      ('TIN202606', 'free_year',  10)`,
+      ('TIN202606', 'free_year',  10)
+ON CONFLICT DO NOTHING`,
     args: [],
   });
   // Enforce max_uses cap on PETROYEAR in case it was seeded earlier with NULL

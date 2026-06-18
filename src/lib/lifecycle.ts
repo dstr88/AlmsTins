@@ -692,11 +692,12 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 
 	for (const event of eventRows) {
 			await db.execute({
-				sql: `INSERT OR IGNORE INTO asset_lifecycle_events
+				sql: `INSERT INTO asset_lifecycle_events
 					(id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, tx_hash, exchange_withdrawal_id, transaction_class, linked_transfer, confidence, contract_address, created_at)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 					-- UNIQUE index on (tenant_id, source_id) makes IGNORE skip true duplicates
-					-- even when concurrent rebuilds generate different 'id' UUIDs`,
+					-- even when concurrent rebuilds generate different 'id' UUIDs
+ON CONFLICT DO NOTHING`,
 				args: [
 					event.id,
 					tenantId,

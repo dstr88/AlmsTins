@@ -168,11 +168,12 @@ function buildClassificationStatements(
 
 	for (const r of results) {
 		stmts.push({
-			sql: `INSERT OR IGNORE INTO tax_classifications
+			sql: `INSERT INTO tax_classifications
 			      (id, tenant_id, source_type, source_id, category, sub_category, confidence,
 			       linked_tx_id, linked_source_type, asset_symbol, amount_usd, tax_year,
 			       is_manual, created_at, updated_at)
-			      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ${NOW_SQL}, ${NOW_SQL})`,
+			      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ${NOW_SQL}, ${NOW_SQL})
+ON CONFLICT DO NOTHING`,
 			args: [
 				randomUUID(), tenantId,
 				r.sourceType, r.sourceId,
@@ -191,10 +192,11 @@ function buildReviewItemStatements(
 	items: ReviewItem[],
 ): BatchStatement[] {
 	return items.map((item) => ({
-		sql: `INSERT OR IGNORE INTO tax_review_items
+		sql: `INSERT INTO tax_review_items
 		      (id, tenant_id, source_type, source_id, reason, reason_detail,
 		       snapshot_json, resolved, created_at, updated_at)
-		      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ${NOW_SQL}, ${NOW_SQL})`,
+		      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ${NOW_SQL}, ${NOW_SQL})
+ON CONFLICT DO NOTHING`,
 		args: [
 			randomUUID(), tenantId,
 			item.sourceType, item.sourceId,

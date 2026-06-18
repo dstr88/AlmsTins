@@ -269,10 +269,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
 		const rowHash = buildRowHash(norm, leg);
 		const groupId = buildGroupId('crypto_com', norm.assetSymbol, norm.timestampUtc);
 		return {
-			sql: `INSERT OR IGNORE INTO import_transactions
+			sql: `INSERT INTO import_transactions
 				(id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description, currency, amount, to_currency,
 				to_amount, native_currency, native_amount, native_usd, kind, tx_hash, direction, asset_symbol, group_id, row_hash, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 			args: [
 				randomUUID(), tenantId, 'crypto_com', resolvedAccountId, batchId,
 				norm.timestampUtc, norm.description || null, norm.currency || null,
@@ -306,9 +307,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
 		// Raw row — queue one statement per CSV row
 		const rawHash = buildRowHash(normalized, '');
 		rawStatements.push({
-			sql: `INSERT OR IGNORE INTO import_raw_rows
+			sql: `INSERT INTO import_raw_rows
 				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 			args: [randomUUID(), tenantId, 'crypto_com', resolvedAccountId, batchId, JSON.stringify(row), rawHash],
 		});
 

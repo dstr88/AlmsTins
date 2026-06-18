@@ -60,7 +60,8 @@ export async function savePhishingDomains(
 
     await db.batch(
       domains.map((domain) => ({
-        sql: `INSERT OR IGNORE INTO known_phishing_domains (domain, source) VALUES (?, ?)`,
+        sql: `INSERT INTO known_phishing_domains (domain, source) VALUES (?, ?)
+ON CONFLICT DO NOTHING`,
         args: [domain, source],
       })),
     );

@@ -181,11 +181,12 @@ async function persistMatch(
 	const status  = statusFromScore(best.score);
 
 	await db.execute({
-		sql: `INSERT OR IGNORE INTO transfer_matches
+		sql: `INSERT INTO transfer_matches
 		        (id, tenant_id, out_tx_id, in_tx_id, asset_symbol,
 		         out_amount, in_amount, fee_amount, confidence_score,
 		         signals_json, status)
-		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT DO NOTHING`,
 		args: [
 			matchId,
 			tenantId,
@@ -215,8 +216,9 @@ async function persistMatch(
 
 		if (inAddress) {
 			await db.execute({
-				sql: `INSERT OR IGNORE INTO address_labels (id, tenant_id, address, label, source, category)
-				      VALUES (?, ?, ?, ?, 'auto', ?)`,
+				sql: `INSERT INTO address_labels (id, tenant_id, address, label, source, category)
+				      VALUES (?, ?, ?, ?, 'auto', ?)
+ON CONFLICT DO NOTHING`,
 				args: [randomUUID(), tenantId, inAddress, inLabel, inCategory],
 			}).catch(() => { /* non-fatal: label may already exist */ });
 		}
@@ -227,8 +229,9 @@ async function persistMatch(
 			if (addrMatch) {
 				const rawAddr = addrMatch[1];
 				await db.execute({
-					sql: `INSERT OR IGNORE INTO address_labels (id, tenant_id, address, label, source, category)
-					      VALUES (?, ?, ?, ?, 'auto', ?)`,
+					sql: `INSERT INTO address_labels (id, tenant_id, address, label, source, category)
+					      VALUES (?, ?, ?, ?, 'auto', ?)
+ON CONFLICT DO NOTHING`,
 					args: [randomUUID(), tenantId, rawAddr, inLabel, inCategory],
 				}).catch(() => { /* non-fatal */ });
 			}

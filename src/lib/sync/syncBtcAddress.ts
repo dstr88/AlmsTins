@@ -107,8 +107,9 @@ export async function ensureBtcWallet(tenantId: string, address: string): Promis
 	const id = randomUUID();
 	const label = `Bitcoin Wallet (${address.slice(0, 12)}…)`;
 	await db.execute({
-		sql: `INSERT OR IGNORE INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
-		      VALUES (?, ?, ?, ?, ?, 0, 'onchain')`,
+		sql: `INSERT INTO wallets (id, tenant_id, address, label, chains, is_default, wallet_type)
+		      VALUES (?, ?, ?, ?, ?, 0, 'onchain')
+ON CONFLICT DO NOTHING`,
 		args: [id, tenantId, address, label, JSON.stringify(['bitcoin'])],
 	});
 	return id;
@@ -212,20 +213,22 @@ export async function syncBtcAddress(
 
 	const BATCH = 100;
 	const rawStmts = normRows.map(r => ({
-		sql: `INSERT OR IGNORE INTO import_raw_rows
+		sql: `INSERT INTO import_raw_rows
 		      (id, tenant_id, account_id, batch_id, source, raw_json, row_hash)
-		      VALUES (?, ?, ?, ?, 'bitcoin', ?, ?)`,
+		      VALUES (?, ?, ?, ?, 'bitcoin', ?, ?)
+ON CONFLICT DO NOTHING`,
 		args: [randomUUID(), tenantId, accountId, batchId, JSON.stringify(r), r.rowHash],
 	}));
 
 	const normStmts = normRows.map(r => ({
-		sql: `INSERT OR IGNORE INTO import_transactions
+		sql: `INSERT INTO import_transactions
 		      (id, tenant_id, source, account_id, wallet_id, import_batch_id, timestamp_utc,
 		       description, currency, amount,
 		       to_currency, to_amount,
 		       native_currency, native_amount, native_usd,
 		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, 'bitcoin', ?, ?, ?, ?,  ?, 'BTC', ?,  NULL, NULL,  'USD', NULL, ?,  ?, ?, ?, 'BTC', ?, CURRENT_TIMESTAMP)`,
+		      VALUES (?, ?, 'bitcoin', ?, ?, ?, ?,  ?, 'BTC', ?,  NULL, NULL,  'USD', NULL, ?,  ?, ?, ?, 'BTC', ?, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING`,
 		args: [
 			randomUUID(), tenantId, accountId, walletId, batchId, r.timestamp,
 			r.description,
