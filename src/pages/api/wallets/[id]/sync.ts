@@ -38,7 +38,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 				         (tenant_id, wallet_id, chain, totals_usd,
 				          collateral_usd, debt_usd, collateral_apy_pct,
 				          borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-				       VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+				       VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [tenantId, walletId, config.chain, totals, JSON.stringify(config.tokens)],
 			});
 			return respond({ ok: true, walletId, totalInserted: 0, totalSkipped: 0, chains: [{ chain: config.chain, inserted: 0, skipped: 0 }] }, 200);

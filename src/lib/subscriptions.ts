@@ -80,7 +80,7 @@ export async function getActivePlan(tenantId: string): Promise<PlanConfig & { pr
 export async function ensureFreeSubscription(tenantId: string): Promise<void> {
   await db.execute({
     sql: `INSERT INTO subscriptions (tenant_id, plan_id, status, created_at)
-          VALUES (?, 'free', 'active', CURRENT_TIMESTAMP)
+          VALUES (?, 'free', 'active', to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
     args: [tenantId],
   });

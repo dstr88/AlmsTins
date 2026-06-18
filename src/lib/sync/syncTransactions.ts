@@ -97,11 +97,11 @@ export async function updateLastSyncedCursorForWallet(
 ) {
 	await db.execute({
 		sql: `INSERT INTO wallet_sync_state (tenant_id, wallet_id, chain, last_block_number, last_timestamp, last_run_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
         ON CONFLICT(tenant_id, wallet_id, chain) DO UPDATE SET
           last_block_number = excluded.last_block_number,
           last_timestamp = excluded.last_timestamp,
-          last_run_at = CURRENT_TIMESTAMP`,
+          last_run_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')`,
 		args: [tenantId, walletId, chain, cursor.block ?? 0, cursor.timestamp ?? null],
 	});
 }

@@ -251,7 +251,7 @@ ON CONFLICT DO NOTHING`,
 		       description, currency, amount, to_currency, to_amount,
 		       native_currency, native_amount, native_usd,
 		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, 'solana', ?, ?, ?, ?,  ?, ?, ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		      VALUES (?, ?, 'solana', ?, ?, ?, ?,  ?, ?, ?,  NULL, NULL,  'USD', NULL, NULL,  ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 		args: [
 			randomUUID(), tenantId, accountId, walletId, batchId, r.timestamp,

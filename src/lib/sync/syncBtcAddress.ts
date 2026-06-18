@@ -85,7 +85,7 @@ export async function writeBtcSnapshot(
 		        (tenant_id, wallet_id, chain, totals_usd,
 		         collateral_usd, debt_usd, collateral_apy_pct,
 		         borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-		      VALUES (?, ?, 'bitcoin', ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+		      VALUES (?, ?, 'bitcoin', ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 		args: [tenantId, walletId, totalUsd, JSON.stringify(tokens)],
 	});
 
@@ -227,7 +227,7 @@ ON CONFLICT DO NOTHING`,
 		       to_currency, to_amount,
 		       native_currency, native_amount, native_usd,
 		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, 'bitcoin', ?, ?, ?, ?,  ?, 'BTC', ?,  NULL, NULL,  'USD', NULL, ?,  ?, ?, ?, 'BTC', ?, CURRENT_TIMESTAMP)
+		      VALUES (?, ?, 'bitcoin', ?, ?, ?, ?,  ?, 'BTC', ?,  NULL, NULL,  'USD', NULL, ?,  ?, ?, ?, 'BTC', ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 		args: [
 			randomUUID(), tenantId, accountId, walletId, batchId, r.timestamp,

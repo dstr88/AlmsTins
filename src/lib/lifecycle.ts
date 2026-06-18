@@ -678,7 +678,7 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 		await db.execute({
 			sql: `INSERT OR REPLACE INTO asset_lifecycle_groups
 				(id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+				VALUES (?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 			args: [
 				group.id,
 				tenantId,
@@ -694,7 +694,7 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 			await db.execute({
 				sql: `INSERT INTO asset_lifecycle_events
 					(id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, tx_hash, exchange_withdrawal_id, transaction_class, linked_transfer, confidence, contract_address, created_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 					-- UNIQUE index on (tenant_id, source_id) makes IGNORE skip true duplicates
 					-- even when concurrent rebuilds generate different 'id' UUIDs
 ON CONFLICT DO NOTHING`,

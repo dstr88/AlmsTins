@@ -70,7 +70,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 		args: [userId, email],
 	});
 	await db.execute({
-		sql: 'INSERT INTO auth_credentials (user_id, password_hash, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+		sql: `INSERT INTO auth_credentials (user_id, password_hash, created_at, updated_at) VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 		args: [userId, passwordHash],
 	});
 

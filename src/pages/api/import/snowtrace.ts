@@ -306,7 +306,7 @@ ON CONFLICT DO NOTHING`,
 		       to_currency, to_amount,
 		       native_currency, native_amount, native_usd,
 		       kind, tx_hash, direction, asset_symbol, row_hash, created_at)
-		      VALUES (?, ?, ?, ?, ?,   ?, 'AVAX', ?,   NULL, NULL,   'USD', ?, ?,   ?, ?, ?, 'AVAX', ?, CURRENT_TIMESTAMP)
+		      VALUES (?, ?, ?, ?, ?,   ?, 'AVAX', ?,   NULL, NULL,   'USD', ?, ?,   ?, ?, ?, 'AVAX', ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 		args: [
 			randomUUID(), tenantId, resolvedAccountId, batchId, r.timestamp,

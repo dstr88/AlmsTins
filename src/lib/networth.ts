@@ -615,7 +615,7 @@ export async function insertWalletSnapshotFromValueBreakdown(breakdown: Snapshot
 				payload_json,
 				captured_at
 			)
-			VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+			VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 		args: [
 			breakdown.tenantId,
 			breakdown.walletId,

@@ -96,7 +96,7 @@ If a field cannot be determined from the image, use null.`,
 	} else {
 		accountId = randomUUID();
 		await db.execute({
-			sql: `INSERT INTO exchange_accounts (id, tenant_id, source, name, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+			sql: `INSERT INTO exchange_accounts (id, tenant_id, source, name, created_at) VALUES (?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 			args: [accountId, tenantId, source, source.charAt(0).toUpperCase() + source.slice(1)],
 		});
 	}
@@ -122,7 +122,7 @@ If a field cannot be determined from the image, use null.`,
 		      (id, tenant_id, source, account_id, import_batch_id, timestamp_utc, description,
 		       currency, amount, native_usd, kind, tx_hash, direction, asset_symbol, row_hash,
 		       fee_usd, created_at)
-		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 		args: [
 			txId,

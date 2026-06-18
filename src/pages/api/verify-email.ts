@@ -30,7 +30,7 @@ export const GET: APIRoute = async ({ request, redirect }) => {
 	}
 
 	await db.execute({
-		sql: 'UPDATE auth_users SET email_verified = CURRENT_TIMESTAMP WHERE email = ?',
+		sql: `UPDATE auth_users SET email_verified = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS') WHERE email = ?`,
 		args: [email.toLowerCase()],
 	});
 	await db.execute({

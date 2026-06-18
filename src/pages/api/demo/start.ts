@@ -317,27 +317,27 @@ ON CONFLICT DO NOTHING`,
 		batch('wallet-snapshots', [
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [DEMO_TENANT_ID, W_BTC, 'bitcoin',  100.00, JSON.stringify(btcTokens)],
 			},
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [DEMO_TENANT_ID, W_BTC, 'litecoin', 50.00, JSON.stringify(ltcTokens)],
 			},
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [DEMO_TENANT_ID, W_ETH, 'ethereum', 53.00, JSON.stringify(ethTokens)],
 			},
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [DEMO_TENANT_ID, W_POL, 'polygon',  54.00, JSON.stringify(polTokens)],
 			},
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [DEMO_TENANT_ID, W_AVAX, 'avalanche', 64.00, JSON.stringify(avaxTokens)],
 			},
 		]),
@@ -381,13 +381,13 @@ ON CONFLICT DO NOTHING`, args: ['demo-evt-doge-sell',  GRP_DOGE,  '2022-03-01T14
 			{
 				sql: `INSERT OR REPLACE INTO wallet_defi_sync
 				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
-				      VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), 0, 0, 0, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [DEMO_TENANT_ID, W_ETH, ethDefiHealth, ethDefiPositions],
 			},
 			{
 				sql: `INSERT OR REPLACE INTO wallet_defi_sync
 				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
-				      VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), 0, 0, 0, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [
 					DEMO_TENANT_ID, W_POL,
 					JSON.stringify({ ok: true, address: ADDR_POL, chains: { polygon: { healthFactor: 2.88, totalCollateralBase: 54.00, totalDebtBase: 15.00, availableBorrowsBase: 0 } } }),
@@ -406,7 +406,7 @@ ON CONFLICT DO NOTHING`, args: ['demo-evt-doge-sell',  GRP_DOGE,  '2022-03-01T14
 			{
 				sql: `INSERT OR REPLACE INTO wallet_defi_sync
 				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
-				      VALUES (?, ?, CURRENT_TIMESTAMP, 0, 0, 0, ?, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), 0, 0, 0, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [
 					DEMO_TENANT_ID, W_AVAX,
 					JSON.stringify({ ok: true, address: ADDR_AVAX, chains: { avalanche: { healthFactor: 1.05, totalCollateralBase: 50.00, totalDebtBase: 45.00, availableBorrowsBase: 0 } } }),
@@ -445,12 +445,12 @@ ON CONFLICT DO NOTHING`, args: ['demo-evt-doge-sell',  GRP_DOGE,  '2022-03-01T14
 		batch('exchange-snapshots', [
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-				      VALUES (?, ?, 'exchange', ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, 'exchange', ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [DEMO_TENANT_ID, W_CB,  85, JSON.stringify(cbTokens)],
 			},
 			{
 				sql: `INSERT INTO wallet_snapshots (tenant_id, wallet_id, chain, totals_usd, collateral_usd, debt_usd, collateral_apy_pct, borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-				      VALUES (?, ?, 'exchange', ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+				      VALUES (?, ?, 'exchange', ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 				args: [DEMO_TENANT_ID, W_CRY, 72, JSON.stringify(cryTokens)],
 			},
 		]),

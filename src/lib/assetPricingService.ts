@@ -157,7 +157,7 @@ export async function priceTrackedAssets(userId: string) {
 		if (!coinpaprikaId || spam) {
 			await db.execute({
 				sql: `UPDATE tracked_assets
-					SET is_hidden = 1, last_priced_at = CURRENT_TIMESTAMP
+					SET is_hidden = 1, last_priced_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')
 					WHERE id = ?`,
 				args: [asset.id],
 			});
@@ -171,7 +171,7 @@ export async function priceTrackedAssets(userId: string) {
 
 		await db.execute({
 			sql: `UPDATE tracked_assets
-				SET last_price_usd = ?, last_value_usd = ?, last_priced_at = CURRENT_TIMESTAMP, is_hidden = ?
+				SET last_price_usd = ?, last_value_usd = ?, last_priced_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), is_hidden = ?
 				WHERE id = ?`,
 			args: [priceUsd, valueUsd, shouldHide ? 1 : 0, asset.id],
 		});

@@ -159,7 +159,7 @@ export async function snapshotCexAccount(
 			        (tenant_id, wallet_id, chain, totals_usd,
 			         collateral_usd, debt_usd, collateral_apy_pct,
 			         borrow_apy_pct, net_rate_pct, payload_json, captured_at)
-			      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, CURRENT_TIMESTAMP)`,
+			      VALUES (?, ?, ?, ?, 0, 0, NULL, NULL, 0, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 			args: [tenantId, walletId, CEX_CHAIN, totalUsd, JSON.stringify(tokens)],
 		});
 

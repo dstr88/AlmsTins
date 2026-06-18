@@ -306,7 +306,7 @@ export const POST: APIRoute = async ({ request }) => {
 		rawStatements.push({
 			sql: `INSERT INTO import_raw_rows
 				(id, tenant_id, source, account_id, import_batch_id, row_json, row_hash, imported_at)
-				VALUES (?, ?, 'kraken', ?, ?, ?, ?, CURRENT_TIMESTAMP)
+				VALUES (?, ?, 'kraken', ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 			args: [randomUUID(), tenantId, resolvedAccountId, batchId, JSON.stringify(r.rawRow), rowHash],
 		});
@@ -320,7 +320,7 @@ ON CONFLICT DO NOTHING`,
 				VALUES (?, ?, 'kraken', ?, ?, ?,
 				        ?, ?, ?, ?, ?,
 				        ?, ?, ?,
-				        ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+				        ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 			args: [
 				randomUUID(), tenantId, resolvedAccountId, batchId, r.time,

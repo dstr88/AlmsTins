@@ -156,7 +156,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
 
 	await db.execute({
 		sql: `INSERT INTO subscriptions (tenant_id, plan_id, status, stripe_customer_id, stripe_subscription_id, stripe_price_id, current_period_end, cancel_at_period_end, created_at)
-		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		      VALUES (?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 		      ON CONFLICT(tenant_id) DO UPDATE SET
 		        plan_id = excluded.plan_id,
 		        status = excluded.status,

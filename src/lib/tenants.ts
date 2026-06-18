@@ -132,7 +132,7 @@ export async function markOnboardingComplete(userId: string): Promise<boolean> {
 			sql: `
         UPDATE auth_users
         SET is_onboarded = 1,
-            setup_completed_at = COALESCE(setup_completed_at, CURRENT_TIMESTAMP)
+            setup_completed_at = COALESCE(setup_completed_at, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
         WHERE id = ?
       `,
 			args: [userId],
@@ -224,7 +224,7 @@ export async function ensureTenantForUser(userId: string, label?: string | null)
 				try {
 					await db.execute({
 						sql: `INSERT INTO tenant_memberships (id, tenant_id, user_id, role, created_at)
-						      VALUES (?, ?, ?, 'member', CURRENT_TIMESTAMP)
+						      VALUES (?, ?, ?, 'member', to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
 ON CONFLICT DO NOTHING`,
 						args: [membershipId, siblingTenantId, userId],
 					});
@@ -274,13 +274,13 @@ ON CONFLICT DO NOTHING`,
 	const tenantName = (label && label.trim().length ? label.trim() : 'Primary').slice(0, 120);
 
 	await db.execute({
-		sql: 'INSERT INTO tenants (id, name, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+		sql: `INSERT INTO tenants (id, name, created_at) VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 		args: [tenantId, tenantName],
 	});
 	try {
 		await db.execute({
 			sql: `INSERT INTO tenant_memberships (id, tenant_id, user_id, role, created_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      VALUES (?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 			args: [membershipId, tenantId, userId, 'owner'],
 		});
 	} catch (error) {
