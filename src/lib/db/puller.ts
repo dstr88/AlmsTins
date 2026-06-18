@@ -64,7 +64,8 @@ const getTableColumns = async (table: string) => {
 		return empty;
 	}
 	const result = await db.execute({
-		sql: `PRAGMA table_info(${table});`,
+		sql: `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ?`,
+		args: [table],
 	});
 	const columns = new Set<string>(result.rows.map((row: any) => String(row.name)));
 	tableColumnsCache.set(table, columns);

@@ -7,8 +7,8 @@ export const GET: APIRoute = async ({ request }) => {
 		const session = await requireTenantSession(request);
 		if (!session) return new Response('Unauthorized', { status: 401 });
 		const { tenantId } = session;
-		const walletTableInfo = await db.execute(/* sql */ `PRAGMA table_info(wallets);`);
-		const snapshotTableInfo = await db.execute(/* sql */ `PRAGMA table_info(wallet_snapshots);`);
+		const walletTableInfo = await db.execute(/* sql */ `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'wallets';`);
+		const snapshotTableInfo = await db.execute(/* sql */ `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'wallet_snapshots';`);
 
 		const wallets = await db.execute({
 			sql: `SELECT id, address, label, chains, created_at

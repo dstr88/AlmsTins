@@ -6,7 +6,7 @@ let cachedColumns: ColumnSet | null = null;
 
 export async function getImportTransactionColumns(): Promise<ColumnSet> {
 	if (cachedColumns) return cachedColumns;
-	const result = await db.execute({ sql: 'PRAGMA table_info(import_transactions)' });
+	const result = await db.execute({ sql: `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'import_transactions'` });
 	const columns = new Set<string>(
 		result.rows.map((row) => String((row as { name?: string }).name ?? '').trim()).filter(Boolean),
 	);
