@@ -65,23 +65,26 @@ export const POST: APIRoute = async ({ request }) => {
   for (const card of cards) {
     const id = randomUUID();
     tinInserts.push(db.execute({
-      sql: `INSERT OR REPLACE INTO petro_tins (id, tenant_id, type, name, balance, credit_limit, apr, min_payment, notes, sort_order, updated_at)
-            VALUES (?, ?, 'debt', ?, ?, ?, ?, ?, ?, 0, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
+      sql: `INSERT INTO petro_tins (id, tenant_id, type, name, balance, credit_limit, apr, min_payment, notes, sort_order, updated_at)
+            VALUES (?, ?, 'debt', ?, ?, ?, ?, ?, ?, 0, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+            ON CONFLICT (id) DO UPDATE SET tenant_id = excluded.tenant_id, type = excluded.type, name = excluded.name, balance = excluded.balance, credit_limit = excluded.credit_limit, apr = excluded.apr, min_payment = excluded.min_payment, notes = excluded.notes, sort_order = excluded.sort_order, updated_at = excluded.updated_at`,
       args: [id, tenantId, card.name, card.balance, card.limit, card.apr, card.min, SAMPLE_MARKER],
     }));
   }
 
   // Insert budget tin
   tinInserts.push(db.execute({
-    sql: `INSERT OR REPLACE INTO petro_tins (id, tenant_id, type, name, notes, sort_order, updated_at)
-          VALUES (?, ?, 'budget', 'Home Budget', ?, 10, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
+    sql: `INSERT INTO petro_tins (id, tenant_id, type, name, notes, sort_order, updated_at)
+          VALUES (?, ?, 'budget', 'Home Budget', ?, 10, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+          ON CONFLICT (id) DO UPDATE SET tenant_id = excluded.tenant_id, type = excluded.type, name = excluded.name, notes = excluded.notes, sort_order = excluded.sort_order, updated_at = excluded.updated_at`,
     args: [budgetId, tenantId, SAMPLE_MARKER],
   }));
 
   // Insert business tin
   tinInserts.push(db.execute({
-    sql: `INSERT OR REPLACE INTO petro_tins (id, tenant_id, type, name, goal_revenue, notes, sort_order, updated_at)
-          VALUES (?, ?, 'business', 'Side Business', 1500, ?, 20, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
+    sql: `INSERT INTO petro_tins (id, tenant_id, type, name, goal_revenue, notes, sort_order, updated_at)
+          VALUES (?, ?, 'business', 'Side Business', 1500, ?, 20, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+          ON CONFLICT (id) DO UPDATE SET tenant_id = excluded.tenant_id, type = excluded.type, name = excluded.name, goal_revenue = excluded.goal_revenue, notes = excluded.notes, sort_order = excluded.sort_order, updated_at = excluded.updated_at`,
     args: [bizId, tenantId, SAMPLE_MARKER],
   }));
 

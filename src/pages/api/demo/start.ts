@@ -379,15 +379,17 @@ ON CONFLICT DO NOTHING`, args: ['demo-evt-doge-sell',  GRP_DOGE,  '2022-03-01T14
 		// DeFi sync (needs W_ETH and W_AVAX)
 		batch('defi-sync', [
 			{
-				sql: `INSERT OR REPLACE INTO wallet_defi_sync
+				sql: `INSERT INTO wallet_defi_sync
 				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
-				      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), 0, 0, 0, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
+				      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), 0, 0, 0, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+ON CONFLICT (wallet_id) DO UPDATE SET tenant_id = excluded.tenant_id, last_defi_sync_at = excluded.last_defi_sync_at, interest_paid_total = excluded.interest_paid_total, interest_earned_total = excluded.interest_earned_total, net_interest_total = excluded.net_interest_total, health_payload = excluded.health_payload, positions_payload = excluded.positions_payload, updated_at = excluded.updated_at`,
 				args: [DEMO_TENANT_ID, W_ETH, ethDefiHealth, ethDefiPositions],
 			},
 			{
-				sql: `INSERT OR REPLACE INTO wallet_defi_sync
+				sql: `INSERT INTO wallet_defi_sync
 				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
-				      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), 0, 0, 0, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
+				      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), 0, 0, 0, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+ON CONFLICT (wallet_id) DO UPDATE SET tenant_id = excluded.tenant_id, last_defi_sync_at = excluded.last_defi_sync_at, interest_paid_total = excluded.interest_paid_total, interest_earned_total = excluded.interest_earned_total, net_interest_total = excluded.net_interest_total, health_payload = excluded.health_payload, positions_payload = excluded.positions_payload, updated_at = excluded.updated_at`,
 				args: [
 					DEMO_TENANT_ID, W_POL,
 					JSON.stringify({ ok: true, address: ADDR_POL, chains: { polygon: { healthFactor: 2.88, totalCollateralBase: 54.00, totalDebtBase: 15.00, availableBorrowsBase: 0 } } }),
@@ -404,9 +406,10 @@ ON CONFLICT DO NOTHING`, args: ['demo-evt-doge-sell',  GRP_DOGE,  '2022-03-01T14
 				],
 			},
 			{
-				sql: `INSERT OR REPLACE INTO wallet_defi_sync
+				sql: `INSERT INTO wallet_defi_sync
 				      (tenant_id, wallet_id, last_defi_sync_at, interest_paid_total, interest_earned_total, net_interest_total, health_payload, positions_payload, updated_at)
-				      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), 0, 0, 0, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
+				      VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), 0, 0, 0, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+ON CONFLICT (wallet_id) DO UPDATE SET tenant_id = excluded.tenant_id, last_defi_sync_at = excluded.last_defi_sync_at, interest_paid_total = excluded.interest_paid_total, interest_earned_total = excluded.interest_earned_total, net_interest_total = excluded.net_interest_total, health_payload = excluded.health_payload, positions_payload = excluded.positions_payload, updated_at = excluded.updated_at`,
 				args: [
 					DEMO_TENANT_ID, W_AVAX,
 					JSON.stringify({ ok: true, address: ADDR_AVAX, chains: { avalanche: { healthFactor: 1.05, totalCollateralBase: 50.00, totalDebtBase: 45.00, availableBorrowsBase: 0 } } }),
@@ -589,19 +592,27 @@ ON CONFLICT DO NOTHING`, args: [
 ON CONFLICT DO NOTHING`,
 				  args: [DEMO_TENANT_ID, ADDR_ETH, '2026-01-15T10:00:00.000Z'] },
 				// 4 completed reviews + 1 not_received from other demo reviewers
-				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)`,     args: ['demo-reviewer-001', ADDR_ETH, '2026-02-03T14:22:00.000Z'] },
-				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)`,     args: ['demo-reviewer-002', ADDR_ETH, '2026-03-11T09:15:00.000Z'] },
-				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)`,     args: ['demo-reviewer-003', ADDR_ETH, '2026-04-07T16:44:00.000Z'] },
-				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)`,     args: ['demo-reviewer-004', ADDR_ETH, '2026-05-20T11:30:00.000Z'] },
-				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'not_received', ?)`,  args: ['demo-reviewer-005', ADDR_ETH, '2026-06-01T08:05:00.000Z'] },
+				{ sql: `INSERT INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)
+ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, reviewed_at = excluded.reviewed_at`,     args: ['demo-reviewer-001', ADDR_ETH, '2026-02-03T14:22:00.000Z'] },
+				{ sql: `INSERT INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)
+ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, reviewed_at = excluded.reviewed_at`,     args: ['demo-reviewer-002', ADDR_ETH, '2026-03-11T09:15:00.000Z'] },
+				{ sql: `INSERT INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)
+ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, reviewed_at = excluded.reviewed_at`,     args: ['demo-reviewer-003', ADDR_ETH, '2026-04-07T16:44:00.000Z'] },
+				{ sql: `INSERT INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'completed', ?)
+ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, reviewed_at = excluded.reviewed_at`,     args: ['demo-reviewer-004', ADDR_ETH, '2026-05-20T11:30:00.000Z'] },
+				{ sql: `INSERT INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'not_received', ?)
+ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, reviewed_at = excluded.reviewed_at`,  args: ['demo-reviewer-005', ADDR_ETH, '2026-06-01T08:05:00.000Z'] },
 
 				// ── Fraud flag: scam address — confirmed, all suspected_fraud reviews ─────
 				{ sql: `INSERT INTO community_wallet_flags (tenant_id, address, confirmed, goplus_flagged, goplus_flags, reported_at, validated_at) VALUES (?, ?, 1, 1, ?, ?, ?)
 ON CONFLICT DO NOTHING`,
 				  args: ['demo-reviewer-006', ADDR_SCAM_DEMO, JSON.stringify(['blacklist_doubt','phishing_activities']), '2026-04-02T13:00:00.000Z', '2026-04-02T13:00:41.000Z'] },
-				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'suspected_fraud', ?)`, args: ['demo-reviewer-006', ADDR_SCAM_DEMO, '2026-04-02T13:05:00.000Z'] },
-				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'suspected_fraud', ?)`, args: ['demo-reviewer-007', ADDR_SCAM_DEMO, '2026-04-03T09:22:00.000Z'] },
-				{ sql: `INSERT OR REPLACE INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'suspected_fraud', ?)`, args: ['demo-reviewer-008', ADDR_SCAM_DEMO, '2026-04-05T17:11:00.000Z'] },
+				{ sql: `INSERT INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'suspected_fraud', ?)
+ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, reviewed_at = excluded.reviewed_at`, args: ['demo-reviewer-006', ADDR_SCAM_DEMO, '2026-04-02T13:05:00.000Z'] },
+				{ sql: `INSERT INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'suspected_fraud', ?)
+ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, reviewed_at = excluded.reviewed_at`, args: ['demo-reviewer-007', ADDR_SCAM_DEMO, '2026-04-03T09:22:00.000Z'] },
+				{ sql: `INSERT INTO address_reviews (tenant_id, address, verdict, reviewed_at) VALUES (?, ?, 'suspected_fraud', ?)
+ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, reviewed_at = excluded.reviewed_at`, args: ['demo-reviewer-008', ADDR_SCAM_DEMO, '2026-04-05T17:11:00.000Z'] },
 			]);
 		} catch {
 			// Tables don't exist yet — silently skip. Will seed correctly after migration runs.

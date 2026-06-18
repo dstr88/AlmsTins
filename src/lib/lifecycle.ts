@@ -676,9 +676,10 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 
 	for (const group of groupRows) {
 		await db.execute({
-			sql: `INSERT OR REPLACE INTO asset_lifecycle_groups
+			sql: `INSERT INTO asset_lifecycle_groups
 				(id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
+				VALUES (?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+				ON CONFLICT (tenant_id, asset_symbol) DO UPDATE SET total_quantity = excluded.total_quantity, weighted_avg_cost_usd = excluded.weighted_avg_cost_usd, latest_acquired_at = excluded.latest_acquired_at, updated_at = excluded.updated_at`,
 			args: [
 				group.id,
 				tenantId,
