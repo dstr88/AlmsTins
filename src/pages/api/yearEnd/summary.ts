@@ -259,7 +259,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		// ── 4. Year-over-year list for the selector (available tax years) ─────
 		const yearsRes = await db.execute({
-			sql: `SELECT DISTINCT strftime('%Y', timestamp_utc) AS y
+			sql: `SELECT DISTINCT substr(timestamp_utc, 1, 4) AS y
 			      FROM asset_lifecycle_events
 			      WHERE tenant_id = ?
 			      ORDER BY y DESC`,
@@ -599,7 +599,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				        COUNT(*)                                                                      AS disposal_count
 				      FROM tax_disposals
 				      WHERE tenant_id = ?
-				        AND strftime('%Y', disposed_at) = ?
+				        AND substr(disposed_at, 1, 4) = ?
 				        AND gain_loss_usd IS NOT NULL`,
 				args: [tenantId, String(year)],
 			});
@@ -836,7 +836,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 				        AND ABS(CAST(julianday(tl.acquired_at) - julianday(td.disposed_at) AS INTEGER)) <= 30
 				      WHERE td.tenant_id     = ?
 				        AND td.gain_loss_usd < -0.01
-				        AND strftime('%Y', td.disposed_at) = ?
+				        AND substr(td.disposed_at, 1, 4) = ?
 				      GROUP BY td.id
 				      ORDER BY td.gain_loss_usd ASC
 				      LIMIT 100`,

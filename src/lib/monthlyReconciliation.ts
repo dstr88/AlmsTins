@@ -127,7 +127,7 @@ async function getMonthFlows(tenantId: string, yearMonth: string): Promise<FlowR
 		  AND tm_in.tenant_id  = it.tenant_id
 		  AND tm_in.status     != 'rejected'
 		WHERE it.tenant_id = ?
-		  AND strftime('%Y-%m', it.timestamp_utc) = ?
+		  AND substr(it.timestamp_utc, 1, 7) = ?
 		  AND it.is_duplicate != 1
 		  AND it.direction IN ('in', 'out')
 		`,
@@ -371,7 +371,7 @@ export async function loadMonthlyReconciliation(
 
 export async function getAvailableReconciliationMonths(tenantId: string): Promise<string[]> {
 	const result = await db.execute({
-		sql: `SELECT DISTINCT strftime('%Y-%m', timestamp_utc) AS ym
+		sql: `SELECT DISTINCT substr(timestamp_utc, 1, 7) AS ym
 		      FROM import_transactions
 		      WHERE tenant_id = ? AND timestamp_utc IS NOT NULL
 		      ORDER BY ym DESC`,

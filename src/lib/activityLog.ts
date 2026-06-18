@@ -59,7 +59,7 @@ export function logActivity(
 			});
 			// Prune entries older than 30 days
 			await db.execute({
-				sql: `DELETE FROM admin_activity_log WHERE created_at < datetime('now', '-30 days')`,
+				sql: `DELETE FROM admin_activity_log WHERE created_at < to_char((now() - interval '30 days') AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')`,
 				args: [],
 			});
 		} catch {

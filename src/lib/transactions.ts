@@ -221,7 +221,7 @@ export async function getTransactionsForWalletDashboard(
 export async function upsertTransactionAnnotation(tenantId: string, annotation: NewTransactionAnnotation) {
 	await db.execute({
 		sql: `INSERT INTO transaction_annotations (id, tenant_id, transaction_id, category, note, created_at, updated_at)
-        VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+        VALUES (lower(replace(gen_random_uuid()::text,'-','')), ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
         ON CONFLICT(tenant_id, transaction_id) DO UPDATE SET category = excluded.category, note = excluded.note, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')`,
 		args: [tenantId, annotation.transactionId, annotation.category ?? null, annotation.note ?? null],
 	});

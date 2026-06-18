@@ -25,9 +25,9 @@ export const GET: APIRoute = async ({ request }) => {
 
 		const [total, today, last7, last30] = await Promise.all([
 			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions`, args: [] }),
-			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions WHERE started_at >= strftime('%Y-%m-%dT00:00:00Z', 'now')`, args: [] }),
-			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions WHERE started_at >= strftime('%Y-%m-%dT%H:%M:%SZ', datetime('now', '-7 days'))`, args: [] }),
-			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions WHERE started_at >= strftime('%Y-%m-%dT%H:%M:%SZ', datetime('now', '-30 days'))`, args: [] }),
+			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions WHERE started_at >= to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"00:00:00"Z"')`, args: [] }),
+			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions WHERE started_at >= to_char((now() - interval '7 days') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')`, args: [] }),
+			db.execute({ sql: `SELECT COUNT(*) as n FROM demo_sessions WHERE started_at >= to_char((now() - interval '30 days') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')`, args: [] }),
 		]);
 
 		return new Response(

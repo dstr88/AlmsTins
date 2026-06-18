@@ -163,7 +163,7 @@ export async function buildAnnualBreakdown(
     try {
       const countRes = await db.execute({
         sql: `SELECT COUNT(*) AS cnt FROM tax_disposals
-              WHERE tenant_id = ? AND strftime('%Y', disposed_at) = ?`,
+              WHERE tenant_id = ? AND substr(disposed_at, 1, 4) = ?`,
         args: [tenantId, String(year)],
       });
       const cnt = Number((countRes.rows[0] as Record<string, unknown>)?.cnt ?? 0);
@@ -206,7 +206,7 @@ export async function buildAnnualBreakdown(
               LEFT JOIN tax_lots tl
                 ON tl.id = td.lot_id AND tl.tenant_id = td.tenant_id
              WHERE td.tenant_id = ?
-               AND strftime('%Y', td.disposed_at) = ?
+               AND substr(td.disposed_at, 1, 4) = ?
              ORDER BY td.disposed_at ASC`,
       args: [tenantId, String(year)],
     });
@@ -679,14 +679,14 @@ export async function buildAnnualBreakdown(
   // ── 5. Available years ────────────────────────────────────────────────────
   const [yearsResult, suiYearsResult] = await Promise.all([
     db.execute({
-      sql: `SELECT DISTINCT strftime('%Y', e.timestamp_utc) AS yr
+      sql: `SELECT DISTINCT substr(e.timestamp_utc, 1, 4) AS yr
             FROM asset_lifecycle_events e
             WHERE e.tenant_id = ? AND e.direction = 'out'
             ORDER BY yr DESC`,
       args: [tenantId],
     }),
     db.execute({
-      sql: `SELECT DISTINCT strftime('%Y', timestamp) AS yr
+      sql: `SELECT DISTINCT substr(timestamp, 1, 4) AS yr
             FROM sui_transactions
             WHERE tenant_id = ? AND CAST(amount AS REAL) < 0
             ORDER BY yr DESC`,

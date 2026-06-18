@@ -227,7 +227,7 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
           SELECT
             ws.wallet_id,
             ws.chain,
-            MAX(datetime(ws.captured_at)) AS captured_at
+            MAX(ws.captured_at) AS captured_at
           FROM wallet_snapshots ws
           WHERE ws.tenant_id = ? ${walletClause}
           GROUP BY ws.wallet_id, ws.chain
@@ -242,7 +242,7 @@ export async function repriceMissingWalletTokens(options: RepriceOptions) {
         FROM wallet_snapshots ws
         JOIN latest l ON l.wallet_id = ws.wallet_id
                       AND l.chain = ws.chain
-                      AND datetime(l.captured_at) = datetime(ws.captured_at)
+                      AND l.captured_at = ws.captured_at
         WHERE ws.tenant_id = ? ${walletClause}
       `,
       args: [...baseArgs, ...baseArgs],

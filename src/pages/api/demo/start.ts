@@ -578,9 +578,9 @@ ON CONFLICT DO NOTHING`, args: [
 		try {
 			await db.batch([
 				// Create tables if they don't exist yet (idempotent — migration will confirm later)
-				{ sql: `CREATE TABLE IF NOT EXISTS wallet_claims (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, claimed_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), UNIQUE(address))`, args: [] },
-				{ sql: `CREATE TABLE IF NOT EXISTS address_reviews (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, verdict TEXT NOT NULL CHECK (verdict IN ('completed','not_received','suspected_fraud')), reviewed_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), UNIQUE(tenant_id, address))`, args: [] },
-				{ sql: `CREATE TABLE IF NOT EXISTS community_wallet_flags (id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), tenant_id TEXT, address TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0, goplus_flagged INTEGER, goplus_flags TEXT, reported_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), validated_at TEXT, UNIQUE(address))`, args: [] },
+				{ sql: `CREATE TABLE IF NOT EXISTS wallet_claims (id TEXT PRIMARY KEY DEFAULT (lower(replace(gen_random_uuid()::text,'-',''))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, claimed_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), UNIQUE(address))`, args: [] },
+				{ sql: `CREATE TABLE IF NOT EXISTS address_reviews (id TEXT PRIMARY KEY DEFAULT (lower(replace(gen_random_uuid()::text,'-',''))), tenant_id TEXT NOT NULL, address TEXT NOT NULL, verdict TEXT NOT NULL CHECK (verdict IN ('completed','not_received','suspected_fraud')), reviewed_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), UNIQUE(tenant_id, address))`, args: [] },
+				{ sql: `CREATE TABLE IF NOT EXISTS community_wallet_flags (id TEXT PRIMARY KEY DEFAULT (lower(replace(gen_random_uuid()::text,'-',''))), tenant_id TEXT, address TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0, goplus_flagged INTEGER, goplus_flags TEXT, reported_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')), validated_at TEXT, UNIQUE(address))`, args: [] },
 			]);
 
 			await db.batch([
