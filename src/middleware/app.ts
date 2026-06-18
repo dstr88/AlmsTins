@@ -18,7 +18,8 @@ import { getCountryForIpHash } from '../lib/analytics/geoip';
 import { hashWithSalt } from '../lib/analytics/hash';
 import { getClientIp } from '../lib/analytics/ip';
 import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } from '../lib/analytics/routes';
-import { isDemoRequest } from '../lib/demo';
+import { isDemoRequest, DEMO_TENANT_ID } from '../lib/demo';
+import { runWithDbContext } from '../lib/dbContext';
 
 /**
  * Mutation endpoints that demo users are allowed to call.
@@ -172,6 +173,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		const session = await getAuthSession(request);
 		const userId = session?.user?.id ? String(session.user.id) : '';
 
+			// Per-request RLS context: the Postgres web role is constrained to this
+			// tenant's rows via app.tenant_id (set transaction-locally by the db shim).
+			// Inert until WEB_DATABASE_URL exists. Background tasks spawned in the
+			// handler inherit this context via AsyncLocalStorage.
+			const proceedWith = async (tenantId: string | null) =>
+				finish(applySecurityHeaders(await runWithDbContext({ tenantId, userId: userId || null }, () => next())));
+
 		// ── Demo mode ───────────────────────────────────────────────────────────
 		// Visitors with the demo cookie bypass the auth check entirely.
 		// Wallet add/delete/sync mutations are allowed so visitors can explore
@@ -196,7 +204,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 				}
 			}
 			// Let the route handler render with the demo tenant.
-			return finish(applySecurityHeaders(await next()));
+			return proceedWith(DEMO_TENANT_ID);
 		}
 		// ── End demo mode ────────────────────────────────────────────────────────
 		if (!userId) {
@@ -242,7 +250,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 				pathname,
 				redirectDecision,
 			});
-			return finish(applySecurityHeaders(await next()));
+			return proceedWith(tenantState.activeTenantId ?? null);
 		}
 
 		if (pathname.startsWith('/dashboard/')) {
@@ -269,7 +277,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			pathname,
 			redirectDecision,
 		});
-		return finish(applySecurityHeaders(await next()));
+		return proceedWith(tenantState.activeTenantId ?? null);
 	} finally {
 		if (finalResponse) {
 			await writeRequestAnalyticsBestEffort(context.request, finalResponse, startedAt);
