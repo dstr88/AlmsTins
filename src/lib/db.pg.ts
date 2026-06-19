@@ -77,12 +77,18 @@ function shape(r: QueryResult) {
 }
 
 function makePool(connectionString: string): pg.Pool {
-	const isLocal = /@(localhost|127\.0\.0\.1|\[::1\])/.test(connectionString);
+	// SSL selection by host:
+	//   • Render EXTERNAL host (a public "*.render.com" domain) REQUIRES SSL.
+	//   • Render INTERNAL host is a bare name with no domain and does NOT support
+	//     SSL — forcing it there fails every connection (pg-pool connect error).
+	//   • localhost / local IPs need no SSL.
+	// Unparseable -> default to SSL (safe for the external case).
+	let host = '';
+	try { host = new URL(connectionString).hostname; } catch { /* leave blank -> SSL */ }
+	const noSsl = host !== '' && (/^(localhost|127\.0\.0\.1|::1)$/.test(host) || !host.includes('.'));
 	const pool = new pg.Pool({
 		connectionString,
-		// Render Postgres requires SSL on external connections; rejectUnauthorized
-		// is relaxed because Render presents its own CA on the public endpoint.
-		ssl: isLocal ? false : { rejectUnauthorized: false },
+		ssl: noSsl ? false : { rejectUnauthorized: false },
 		max: Number(process.env.PG_POOL_MAX ?? 10),
 	});
 	pool.on('error', (e) => console.error('[db] postgres pool error', e instanceof Error ? e.message : String(e)));
