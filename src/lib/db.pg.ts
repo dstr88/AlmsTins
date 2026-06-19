@@ -132,8 +132,17 @@ export function makePgDb(): Client {
 		return ctx?.tenantId ? ctx : null;
 	}
 
+	// Idempotent schema DDL (the app's lazy ensureTable/ensureIndex patterns) must
+	// run as the OWNER — the RLS-constrained web role has no CREATE on schema
+	// public, so these would 500 with "permission denied". DDL is trusted schema
+	// management (never tenant data), so owner routing is safe and keeps any newly
+	// created table owned by the migration role. (DROP/TRUNCATE deliberately not
+	// routed — they would bypass RLS and destroy data.)
+	const isSchemaDDL = (text: string) => /^\s*(CREATE\s+(TABLE|UNIQUE\s+INDEX|INDEX)|ALTER\s+TABLE)\b/i.test(text);
+
 	async function execute(stmt: Stmt, execArgs?: unknown[]) {
 		const { text, values } = norm(stmt, execArgs);
+		if (isSchemaDDL(text)) return shape(await ownerPool.query({ text, values }));
 		const ctx = tenantCtx();
 		if (!ctx) return shape(await ownerPool.query({ text, values }));
 
@@ -153,14 +162,16 @@ export function makePgDb(): Client {
 	}
 
 	async function batch(stmts: Stmt[], _mode?: string) {
-		const ctx = tenantCtx();
+		const normed = stmts.map((s) => norm(s));
+		// A batch containing schema DDL runs as the owner (see execute()); otherwise
+		// it honors the per-request tenant context.
+		const ctx = normed.some((n) => isSchemaDDL(n.text)) ? null : tenantCtx();
 		const client = await (ctx ? webPool : ownerPool).connect();
 		try {
 			await client.query('BEGIN');
 			if (ctx) await setTenantGuc(client, ctx);
 			const out = [];
-			for (const s of stmts) {
-				const { text, values } = norm(s);
+			for (const { text, values } of normed) {
 				out.push(shape(await client.query({ text, values })));
 			}
 			await client.query('COMMIT');
