@@ -739,9 +739,9 @@ export async function getWalletTokenBreakdown(tenantId: string, walletId: string
       SELECT
         id,
         chain,
-        payloadJson,
-        capturedAt,
-        totalsUsd
+        "payloadJson",
+        "capturedAt",
+        "totalsUsd"
       FROM ranked
       WHERE rn = 1
     `,
