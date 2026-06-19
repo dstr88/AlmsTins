@@ -61,6 +61,9 @@ export function isPublicPath(pathname: string): boolean {
 		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
 		pathname === '/api/wallet-check' ||
 		pathname === '/api/dapp-check' ||
+		// Deploy probe — public so the live commit SHA can be verified with one curl
+		// (no session). Returns only RENDER_GIT_COMMIT/branch/engine, no secrets.
+		pathname === '/api/version' ||
 		// Machine endpoints — authenticated by their own secret/signature, not a
 		// user session. They must skip the session gate (app.ts), which 401s any
 		// /api/* without a logged-in user before the handler's own auth can run.
