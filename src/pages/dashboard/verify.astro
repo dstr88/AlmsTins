@@ -1,0 +1,18 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import VerifyDashboard from '../../components/verify/VerifyDashboard';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+const session = await requireTenantSession(Astro.request);
+if (!session) return Astro.redirect('/verify');
+---
+
+<Layout title="Verify | Almstins" noindex={true} logoutRedirect="/verify">
+  <div class="vd-page">
+    <VerifyDashboard client:load />
+  </div>
+</Layout>
+
+<style>
+  .vd-page { min-height: 60vh; }
+</style>
