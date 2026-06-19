@@ -39,6 +39,11 @@ export function isPublicPath(pathname: string): boolean {
 		pathname.startsWith('/wallet/') ||
 		pathname === '/wallet-checker' ||
 		pathname.startsWith('/wallet-checker/') ||
+		// Almstins Verify — public merchant landing (canonical /verify; /verify/es, /verify/fr;
+		// /marchand is the Francophone-Africa promo URL that redirects to /verify/fr)
+		pathname === '/verify' ||
+		pathname.startsWith('/verify/') ||
+		pathname === '/marchand' ||
 		// All @auth/core routes — callbacks, CSRF, providers, sessions, etc.
 		pathname === '/api/auth' ||
 		pathname.startsWith('/api/auth/') ||

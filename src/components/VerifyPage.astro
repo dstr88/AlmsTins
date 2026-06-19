@@ -1,0 +1,397 @@
+---
+import LoginLayout from '../layouts/LoginLayout.astro';
+import { copy, LANGS, BRAND, BRAND_QUOTE, ALMSTINS_URL, type Lang } from '../i18n/verify';
+
+interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = copy[lang];
+
+const title = `${BRAND} — ${t.meta.tagline}`;
+const here = LANGS.find((l) => l.code === lang) ?? LANGS[0];
+const canonical = `https://almstins.com${here.href}`;
+---
+
+<LoginLayout title={title} description={t.meta.description} noindex={false} lang={lang} canonical={canonical}>
+
+  <!-- Per-language SEO alternates -->
+  <Fragment slot="head">
+    {LANGS.map((l) => (
+      <link rel="alternate" hreflang={l.code} href={`https://almstins.com${l.href}`} />
+    ))}
+    <link rel="alternate" hreflang="x-default" href="https://almstins.com/verify" />
+  </Fragment>
+
+  <!-- JSON-LD: WebApplication -->
+  <script type="application/ld+json" set:html={JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: BRAND,
+    url: canonical,
+    description: t.jsonld.description,
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Any',
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    creator: { '@type': 'Organization', name: 'Almstins', url: 'https://almstins.com' },
+    featureList: t.jsonld.featureList,
+  })} />
+
+  <!-- Top nav -->
+  <nav class="vnav" aria-label="Almstins">
+    <a class="vnav__brand" href="/" aria-label={t.nav.brandAria}>
+      <span class="vnav__wordmark">{BRAND}</span>
+      <span class="vnav__tagline">{t.nav.tagline}</span>
+    </a>
+    <div class="vnav__right">
+      <div class="vnav__langs" aria-label="Language">
+        {LANGS.map((l) => (
+          <a class="vnav__lang" href={l.href} hreflang={l.code} aria-label={l.aria}
+             aria-current={l.code === lang ? 'true' : undefined}>{l.label}</a>
+        ))}
+      </div>
+      <a class="vnav__login" href="/login">{t.nav.login}</a>
+    </div>
+  </nav>
+
+  <div class="vpage">
+
+    <!-- Section 1 — Hero -->
+    <header class="vhero">
+      <div class="vhero__eyebrow">{t.hero.eyebrow}</div>
+      <h1 class="vhero__title">{t.hero.title}</h1>
+      <p class="vhero__sub">{t.hero.sub}</p>
+      <div class="vhero__ctas">
+        <a class="vbtn" href="/login">{t.hero.ctaPrimary}</a>
+        <a class="vbtn vbtn--ghost" href="#how">{t.hero.ctaSecondary}</a>
+      </div>
+    </header>
+
+    <!-- Section 2 — The problem -->
+    <section class="vsection vproblem" aria-labelledby="vproblem-h">
+      <h2 id="vproblem-h" class="vsection__heading">{t.problem.heading}</h2>
+      {t.problem.body.map((p) => <p class="vproblem__p">{p}</p>)}
+    </section>
+
+    <!-- Section 3 — How it works -->
+    <section id="how" class="vsection" aria-labelledby="vhow-h">
+      <h2 id="vhow-h" class="vsection__heading">{t.how.heading}</h2>
+      <ol class="vsteps">
+        {t.how.steps.map((s, i) => (
+          <li class="vstep">
+            <span class="vstep__num" aria-hidden="true">{i + 1}</span>
+            <div>
+              <h3 class="vstep__title">{s.title}</h3>
+              <p class="vstep__body">{s.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <!-- Section 4 — What you get, free -->
+    <section class="vsection vfree" aria-labelledby="vfree-h">
+      <h2 id="vfree-h" class="vsection__heading">{t.free.heading}</h2>
+      <ul class="vfree__list">
+        {t.free.items.map((item) => <li class="vfree__item">{item}</li>)}
+      </ul>
+      <p class="vfree__note">{t.free.note}</p>
+    </section>
+
+    <!-- Section 5 — Why you can trust it -->
+    <section class="vsection vtrust" aria-labelledby="vtrust-h">
+      <h2 id="vtrust-h" class="vsection__heading">{t.trust.heading}</h2>
+      <div class="vtrust__points">
+        {t.trust.points.map((p) => (
+          <div class="vtrust__point">
+            <h3 class="vtrust__point-title">{p.title}</h3>
+            <p class="vtrust__point-body">{p.body}</p>
+          </div>
+        ))}
+      </div>
+      <blockquote class="vtrust__quote">{BRAND_QUOTE}</blockquote>
+    </section>
+
+    <!-- Section 6 — Early & honest -->
+    <section class="vsection vearly" aria-labelledby="vearly-h">
+      <h2 id="vearly-h" class="vsection__heading">{t.early.heading}</h2>
+      <p class="vearly__body">{t.early.body}</p>
+    </section>
+
+    <!-- Section 7 — Final CTA -->
+    <section class="vfinal" aria-labelledby="vfinal-h">
+      <h2 id="vfinal-h" class="vfinal__heading">{t.finalCta.heading}</h2>
+      <a class="vbtn vbtn--lg" href="/login">{t.finalCta.button}</a>
+      <p class="vfinal__sub">{t.finalCta.sub}</p>
+      <a class="vfinal__footer" href="https://almstins.com" aria-label={t.finalCta.footerAria}>{ALMSTINS_URL}</a>
+    </section>
+
+  </div>
+</LoginLayout>
+
+<style>
+  /* All colors reference design tokens from src/styles/tokens.css (loaded by LoginLayout). */
+  .vpage {
+    width: 100%;
+    box-sizing: border-box;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 3rem 1.25rem 6rem;
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* ── Top nav ── */
+  .vnav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1.25rem;
+    background: color-mix(in srgb, var(--surface-bg) 88%, transparent);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .vnav__brand { display: flex; flex-direction: column; gap: 0.1rem; text-decoration: none; }
+  .vnav__wordmark { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+  .vnav__tagline { font-size: 0.75rem; color: var(--text-muted); display: none; }
+  @media (min-width: 560px) { .vnav__tagline { display: inline; } }
+  .vnav__right { display: flex; align-items: center; gap: 0.75rem; }
+  .vnav__langs { display: inline-flex; align-items: center; gap: 0.1rem; }
+  .vnav__lang {
+    font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
+    text-decoration: none; padding: 0.35rem 0.6rem; border-radius: 999px;
+    transition: color 0.15s ease;
+  }
+  .vnav__lang:hover { color: var(--text-primary); }
+  .vnav__lang[aria-current='true'] { color: var(--accent); }
+  .vnav__login {
+    font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);
+    text-decoration: none; padding: 0.4rem 0.85rem; border-radius: 999px;
+    border: 1px solid var(--border-bright); transition: color 0.15s ease, border-color 0.15s ease;
+    white-space: nowrap;
+  }
+  .vnav__login:hover { color: var(--text-primary); border-color: var(--accent); }
+
+  /* ── Buttons ── */
+  .vbtn {
+    display: inline-block;
+    padding: 0.8rem 1.5rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--surface-bg);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: filter 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 6px 22px var(--accent-glow);
+  }
+  .vbtn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .vbtn--ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-bright);
+    box-shadow: none;
+    font-weight: 600;
+  }
+  .vbtn--ghost:hover { color: var(--text-primary); border-color: var(--accent); transform: none; }
+  .vbtn--lg { padding: 0.95rem 2rem; font-size: 1.05rem; }
+
+  /* ── Hero ── */
+  .vhero {
+    text-align: center;
+    padding: 2.5rem 0 3rem;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 3rem;
+  }
+  .vhero__eyebrow {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-glow);
+    padding: 0.3rem 0.9rem;
+    border-radius: 999px;
+    margin-bottom: 1.5rem;
+  }
+  .vhero__title {
+    font-size: clamp(2rem, 5vw, 3.1rem);
+    font-weight: 800;
+    line-height: 1.18;
+    letter-spacing: -0.02em;
+    margin: 0 0 1.25rem;
+    color: var(--text-primary);
+    max-width: 18ch;
+    margin-inline: auto;
+  }
+  .vhero__sub {
+    font-size: 1.12rem;
+    color: var(--text-secondary);
+    line-height: 1.8;
+    max-width: 600px;
+    margin: 0 auto 2rem;
+  }
+  .vhero__ctas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* ── Section shell ── */
+  .vsection { margin-bottom: 3.25rem; }
+  .vsection__heading {
+    font-size: clamp(1.3rem, 2.6vw, 1.7rem);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0 0 1.25rem;
+    color: var(--text-primary);
+  }
+
+  /* ── Section 2: problem ── */
+  .vproblem {
+    border-left: 3px solid var(--loss-border);
+    background: var(--loss-bg);
+    border-radius: 0 14px 14px 0;
+    padding: 1.5rem 1.6rem;
+  }
+  .vproblem__p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    line-height: 1.85;
+    margin: 0 0 1rem;
+  }
+  .vproblem__p:last-child { margin-bottom: 0; }
+
+  /* ── Section 3: how (steps) ── */
+  .vsteps {
+    list-style: none;
+    counter-reset: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 1rem;
+  }
+  .vstep {
+    display: flex;
+    gap: 1.1rem;
+    align-items: flex-start;
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem;
+  }
+  .vstep__num {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .vstep__title { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 0.15rem 0 0.4rem; }
+  .vstep__body { font-size: 0.92rem; color: var(--text-secondary); line-height: 1.7; margin: 0; }
+
+  /* ── Section 4: free ── */
+  .vfree__list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.25rem;
+    display: grid;
+    gap: 0.7rem;
+  }
+  .vfree__item {
+    position: relative;
+    padding-left: 1.6rem;
+    font-size: 0.97rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+  }
+  .vfree__item::before {
+    content: '';
+    position: absolute;
+    left: 0.1rem;
+    top: 0.55em;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+  .vfree__note { font-size: 0.875rem; color: var(--text-muted); line-height: 1.7; margin: 0; }
+
+  /* ── Section 5: trust ── */
+  .vtrust__points { display: grid; gap: 1rem; margin-bottom: 1.75rem; }
+  .vtrust__point {
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem;
+  }
+  .vtrust__point-title { font-size: 0.97rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.4rem; }
+  .vtrust__point-body { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.7; margin: 0; }
+  .vtrust__quote {
+    margin: 0;
+    padding: 1.25rem 1.5rem;
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    border-radius: 0 14px 14px 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.6;
+    color: var(--text-primary);
+  }
+
+  /* ── Section 6: early ── */
+  .vearly {
+    background: var(--surface-card-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 1.75rem;
+  }
+  .vearly__body { font-size: 1rem; color: var(--text-secondary); line-height: 1.85; margin: 0; }
+
+  /* ── Section 7: final CTA ── */
+  .vfinal {
+    text-align: center;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 3.5rem;
+  }
+  .vfinal__heading {
+    font-size: clamp(1.4rem, 3vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    margin: 0 0 1.5rem;
+  }
+  .vfinal__sub { font-size: 0.9rem; color: var(--text-muted); margin: 1rem 0 0; line-height: 1.6; }
+  .vfinal__footer {
+    display: inline-block;
+    margin-top: 1.75rem;
+    font-size: 0.85rem;
+    color: var(--accent-dim);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .vfinal__footer:hover { color: var(--accent); }
+
+  @media (max-width: 480px) {
+    .vpage { padding: 2rem 1rem 4rem; }
+    .vnav { padding: 0.75rem 1rem; }
+    .vhero__ctas .vbtn { width: 100%; text-align: center; }
+  }
+</style>

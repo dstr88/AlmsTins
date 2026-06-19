@@ -43,6 +43,7 @@ const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
 		<meta name="author" content="AlmsTins" />
 		<meta property="article:author" content="https://www.linkedin.com/company/almstins/" />
 		<link rel="canonical" href={canonicalHref} />
+		<slot name="head" />
 		{noindex && <meta name="robots" content="noindex, nofollow" />}
 		<link rel="icon" type="image/webp" href="/favicon.webp" />
 		<link rel="icon" href="/favicon.ico" sizes="any" />
