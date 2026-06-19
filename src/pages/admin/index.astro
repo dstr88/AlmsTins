@@ -2,6 +2,7 @@
 import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
 import { getGA4Summary } from '@/lib/ga4';
+import { countUniqueChecksByKind } from '@/lib/checkLog';
 
 // Guard — redirect non-admin users rather than returning a raw 4xx,
 // since Render's infrastructure renders raw error responses as "file not found".
@@ -76,7 +77,6 @@ const [
 	requestsToday,
 	topRoutes,
 	ga4,
-	totalSpamChecked,
 ] = await Promise.all([
 	safeScalar('SELECT COUNT(*) FROM auth_users'),
 	safeScalar('SELECT COUNT(*) FROM tenant_memberships WHERE created_at >= ?', [daysAgo(1)]),
@@ -115,8 +115,10 @@ const [
 	   ORDER BY hits DESC
 	   LIMIT 8`, [daysAgo(7).slice(0, 10)]),
 	getGA4Summary(28).catch(() => null),
-	safeScalar('SELECT COUNT(DISTINCT addr_hash) FROM wallet_check_log'),
 ]);
+
+// Unified safety-tool usage counter — one query → { wallet, dapp } (src/lib/checkLog.ts).
+const checkCounts = await countUniqueChecksByKind().catch(() => ({ wallet: 0, dapp: 0 } as Record<'wallet' | 'dapp', number>));
 
 // ── Adoption stats (separate pass — these need the above to finish first) ────
 const [
@@ -533,13 +535,13 @@ const fmtDate = (iso: string | null) => {
 			</div>
 			<div class="stat-card green">
 				<div class="stat-label">Spam Checked</div>
-				<div class="stat-value">{totalSpamChecked.toLocaleString()}</div>
+				<div class="stat-value">{checkCounts.wallet.toLocaleString()}</div>
 				<div class="stat-sub">unique addresses checked</div>
 			</div>
-			<a href="/wallet-checker" class="stat-card stat-card--link" style="text-decoration:none; cursor:pointer;">
+			<a href="/wallet-checker" class="stat-card stat-card--link green" style="text-decoration:none; cursor:pointer;">
 				<div class="stat-label">dApp Checker</div>
-				<div class="stat-value">🌐</div>
-				<div class="stat-sub">check a web3 site →</div>
+				<div class="stat-value">{checkCounts.dapp.toLocaleString()}</div>
+				<div class="stat-sub">unique sites checked →</div>
 			</a>
 			<div class="stat-card">
 				<div class="stat-label">Import rows</div>

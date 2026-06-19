@@ -21,9 +21,7 @@ import {
   setCache,
   checkWallet,
 } from '@/lib/walletChecker';
-import { db } from '@/lib/db';
-import { hashWithSalt } from '@/lib/analytics/hash';
-import { getClientIp } from '@/lib/analytics/ip';
+import { recordCheck } from '@/lib/checkLog';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -76,15 +74,9 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     : 'unknown';
 
   // ── Helper: log the check (fire-and-forget, never blocks the response) ───────
-  const logCheck = (cacheHit: boolean) => {
-    const ipHash   = hashWithSalt(getClientIp(request) ?? ip);
-    const addrHash = hashWithSalt(address);
-    db.execute({
-      sql: `INSERT INTO wallet_check_log (created_at, ip_hash, addr_hash, chain, cache_hit)
-            VALUES (?, ?, ?, ?, ?)`,
-      args: [new Date().toISOString(), ipHash, addrHash, chain, cacheHit ? 1 : 0],
-    }).catch((e) => console.warn('[wallet-check] log failed:', e instanceof Error ? e.message : e));
-  };
+  // Delegates to the shared safety-check counter (src/lib/checkLog.ts).
+  const logCheck = (cacheHit: boolean) =>
+    recordCheck({ kind: 'wallet', subject: address, request, fallbackIp: ip, chain, cacheHit });
 
   // ── Cache hit ────────────────────────────────────────────────────────────────
   const cached = getCached(address);

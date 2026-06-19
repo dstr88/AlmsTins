@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { checkLocalPhishingDb } from '@/lib/phishingDomains';
+import { recordCheck } from '@/lib/checkLog';
 
 /**
  * /api/dapp-check?url={url}
@@ -261,7 +262,7 @@ async function checkVirusTotal(rawUrl: string, key: string): Promise<SourceResul
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, request }) => {
   const rawInput = url.searchParams.get('url')?.trim() ?? '';
   if (!rawInput) {
     return json({ error: true, message: 'url parameter is required' }, 400);
@@ -296,6 +297,10 @@ export const GET: APIRoute = async ({ url }) => {
       { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
     );
   }
+
+  // Count this as one site check — the full 'all' pass ('fast' is just an instant
+  // preview, so it isn't counted). Fire-and-forget via the shared counter.
+  recordCheck({ kind: 'dapp', subject: domain, request });
 
   // Env-var-gated sources
   const gsb  = (process.env as any).GOOGLE_SAFE_BROWSING_KEY ?? import.meta.env.GOOGLE_SAFE_BROWSING_KEY ?? '';
