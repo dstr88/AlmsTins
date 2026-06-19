@@ -46,7 +46,7 @@ const tableExists = async (table: string) => {
 		return tableExistsCache.get(table) ?? false;
 	}
 	const result = await db.execute({
-		sql: `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1`,
+		sql: `SELECT table_name AS name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ? LIMIT 1`,
 		args: [table],
 	});
 	const exists = Boolean(result.rows?.[0]?.name);
