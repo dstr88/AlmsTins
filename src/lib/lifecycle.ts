@@ -16,8 +16,39 @@ import {
 } from './aave/events';
 import { computeRebasingInterest } from './aave/classify';
 
-const LINK_WINDOW_MINUTES = 30;
-const AMOUNT_TOLERANCE = 0.005; // 0.5% tolerance
+const LINK_WINDOW_MINUTES = 6 * 60; // 6h — exchange→on-chain arrivals can be slow (BTC, congestion). Conservative widening from 30m; best-match + arrival-after + tight tolerance guard against false links.
+const AMOUNT_TOLERANCE = 0.01;      // 1% — covers network fees on small transfers without over-matching.
+
+// Pick the best on-chain arrival to link to an exchange withdrawal. Best = closest in
+// time (then amount), strictly AFTER the withdrawal, within window + amount tolerance,
+// and not already linked. Pure + exported for unit tests. TAX-SENSITIVE: a false match
+// hides a disposal, so the amount tolerance + best-match + arrival-after are the guards.
+export type ArrivalCandidate = { source_id: string; direction: string | null; amount: number | null; timestamp_utc: string };
+export function selectArrivalMatch(
+	withdrawalAmount: number,
+	withdrawalTimeMs: number,
+	candidates: ArrivalCandidate[],
+	alreadyLinked: Set<string>,
+	windowMinutes: number,
+	tolerancePct: number,
+): ArrivalCandidate | null {
+	let best: ArrivalCandidate | null = null;
+	let bestScore = Infinity;
+	const wAbs = Math.abs(withdrawalAmount);
+	for (const c of candidates) {
+		if (c.direction !== 'in' || c.amount === null) continue;
+		if (alreadyLinked.has(c.source_id)) continue;
+		const cTime = Date.parse(c.timestamp_utc) || 0;
+		if (cTime < withdrawalTimeMs) continue; // an arrival cannot precede its own withdrawal
+		const minutesApart = (cTime - withdrawalTimeMs) / 60000;
+		if (minutesApart > windowMinutes) continue;
+		const amountDiff = Math.abs(c.amount - wAbs);
+		if (amountDiff > Math.max(wAbs, 1) * tolerancePct) continue;
+		const score = minutesApart + (amountDiff / Math.max(wAbs, 1e-9)) * 1000; // closest time, then amount
+		if (score < bestScore) { bestScore = score; best = c; }
+	}
+	return best;
+}
 
 // Stablecoins whose USD value equals their token amount (1:1 peg).
 // Used to fill native_usd without a CoinGecko round-trip when the import
@@ -578,18 +609,11 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 		if (evt.exchange_withdrawal_id) continue;
 		const candidates = onchainBySymbol.get(evt.asset_symbol) ?? [];
 		const evtTime = Date.parse(evt.timestamp_utc) || 0;
-		for (const candidate of candidates) {
-			if (candidate.direction !== 'in' || candidate.amount === null) continue;
-			const candidateTime = Date.parse(candidate.timestamp_utc) || 0;
-			const minutesApart = Math.abs(candidateTime - evtTime) / (60 * 1000);
-			if (minutesApart > LINK_WINDOW_MINUTES) continue;
-			const amountDiff = Math.abs(candidate.amount - Math.abs(evt.amount));
-			const tolerance = Math.max(Math.abs(evt.amount), 1) * AMOUNT_TOLERANCE;
-			if (amountDiff > tolerance) continue;
-			linkedPairs.set(`${evt.source_id}:${candidate.source_id}`, { linked: true, confidence: 0.9 });
+		const arrival = selectArrivalMatch(evt.amount, evtTime, candidates, new Set(linkedSources.keys()), LINK_WINDOW_MINUTES, AMOUNT_TOLERANCE);
+		if (arrival) {
+			linkedPairs.set(`${evt.source_id}:${arrival.source_id}`, { linked: true, confidence: 0.9 });
 			linkedSources.set(evt.source_id, 0.9);
-			linkedSources.set(candidate.source_id, 0.9);
-			break;
+			linkedSources.set(arrival.source_id, 0.9);
 		}
 	}
 
