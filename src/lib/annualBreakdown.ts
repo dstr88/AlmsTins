@@ -466,6 +466,19 @@ export async function buildAnnualBreakdown(
     const pickLot = (list: Lot[], disposalSourceId?: string) =>
       selectLotIndex(list, method, disposalSourceId, lotPins);
 
+    // Manual cost-basis overrides for the lifecycle path: an explicit basis set for a
+    // sell (sell_source_id -> price_per_token + buy date) wins over FIFO-matched lots.
+    const manualBasisRows = await db.execute({
+      sql: `SELECT sell_source_id, price_per_token, buy_date_iso FROM manual_cost_basis WHERE tenant_id = ?`,
+      args: [tenantId],
+    });
+    const manualBasisMap = new Map<string, { pricePerToken: number; buyDateIso: string }>();
+    for (const r of manualBasisRows.rows as Array<Record<string, unknown>>) {
+      const sid = toStr(r.sell_source_id);
+      const ppt = toNum(r.price_per_token);
+      if (sid && ppt != null) manualBasisMap.set(sid, { pricePerToken: ppt, buyDateIso: toStr(r.buy_date_iso) });
+    }
+
     const lotsByAsset = new Map<string, Lot[]>();
     const needsAttentionLifecycle: UnsettledItem[] = [];
 
@@ -493,6 +506,37 @@ export async function buildAnnualBreakdown(
         // the cost basis but are NOT taxable disposals — consume lots but skip gain/loss.
         const txClass = toStr(row.transaction_class);
         const isTaxable = !FIFO_NONTAXABLE.has(txClass);
+        const disposalSrcId: string | undefined = typeof row.source_id === 'string' ? row.source_id : undefined;
+
+        // Manual cost-basis override: an explicit user/resolver-set basis for this sell
+        // wins over FIFO-matched lots (which are wrong when coins arrived via an untraced
+        // transfer). We still consume lots so remaining holdings stay correct.
+        const manual = disposalSrcId ? manualBasisMap.get(disposalSrcId) : undefined;
+        if (manual && sellInYear && isTaxable) {
+          const costUsd = amount * manual.pricePerToken;
+          const buyDate = manual.buyDateIso || timestamp;
+          const days    = daysBetween(buyDate, timestamp);
+          const settled: SettledLot = {
+            asset, amount, buyDate, sellDate: timestamp,
+            costUsd, proceedsUsd: nativeUsd,
+            gainLossUsd: nativeUsd != null ? nativeUsd - costUsd : null,
+            daysHeld: days,
+          };
+          if (days < 365) shortTerm.push(settled); else longTerm.push(settled);
+          // Consume FIFO lots so remaining holdings don't double-count this disposal.
+          const olots = lotsByAsset.get(asset) ?? [];
+          let orem = amount;
+          while (orem > 0 && olots.length) {
+            const oi = pickLot(olots, disposalSrcId);
+            const otake = Math.min(orem, olots[oi].amount);
+            if (olots[oi].costUsd != null) olots[oi].costUsd = (olots[oi].costUsd ?? 0) - (otake / olots[oi].amount) * (olots[oi].costUsd ?? 0);
+            olots[oi].amount -= otake;
+            if (olots[oi].amount <= 0) olots.splice(oi, 1);
+            orem -= otake;
+          }
+          lotsByAsset.set(asset, olots);
+          continue;
+        }
 
         let remaining = amount;
         const list    = lotsByAsset.get(asset) ?? [];
@@ -517,7 +561,6 @@ export async function buildAnnualBreakdown(
             }
             break;
           }
-          const disposalSrcId = typeof row.source_id === 'string' ? row.source_id : undefined;
           const lotIdx = pickLot(list, disposalSrcId);
           const lot    = list[lotIdx];
 
