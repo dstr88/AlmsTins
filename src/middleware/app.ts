@@ -180,6 +180,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			const proceedWith = async (tenantId: string | null) =>
 				finish(applySecurityHeaders(await runWithDbContext({ tenantId, userId: userId || null }, () => next())));
 
+			// Admin pages are a cross-tenant "god view" (platform-owner only, guarded by
+			// requireAdminSession inside the handler). They must bypass RLS — run with NO
+			// tenant context so the shim uses the owner pool — otherwise RLS filters every
+			// count/list to the admin's own tenant (e.g. "1 tenant" instead of all).
+			const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
+
 		// ── Demo mode ───────────────────────────────────────────────────────────
 		// Visitors with the demo cookie bypass the auth check entirely.
 		// Wallet add/delete/sync mutations are allowed so visitors can explore
@@ -250,7 +256,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 				pathname,
 				redirectDecision,
 			});
-			return proceedWith(tenantState.activeTenantId ?? null);
+			return proceedWith(isAdminPath ? null : (tenantState.activeTenantId ?? null));
 		}
 
 		if (pathname.startsWith('/dashboard/')) {
@@ -277,7 +283,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			pathname,
 			redirectDecision,
 		});
-		return proceedWith(tenantState.activeTenantId ?? null);
+		return proceedWith(isAdminPath ? null : (tenantState.activeTenantId ?? null));
 	} finally {
 		if (finalResponse) {
 			await writeRequestAnalyticsBestEffort(context.request, finalResponse, startedAt);

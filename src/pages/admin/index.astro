@@ -86,7 +86,7 @@ const [
 	safeScalar('SELECT COUNT(*) FROM auth_users WHERE last_login >= ?', [daysAgo(1)]),
 	safeScalar('SELECT COUNT(*) FROM auth_users WHERE last_login >= ?', [daysAgo(7)]),
 	safeScalar('SELECT COUNT(*) FROM wallets'),
-	safeScalar('SELECT COUNT(DISTINCT batch_id) FROM import_transactions'),
+	safeScalar('SELECT COUNT(DISTINCT import_batch_id) FROM import_transactions'),
 	safeScalar('SELECT COUNT(*) FROM import_transactions'),
 	safeScalar('SELECT COUNT(*) FROM sui_transactions'),
 	safeScalar('SELECT COUNT(*) FROM transactions'),
@@ -134,7 +134,7 @@ const [
 			COALESCE(u.email, t.id) AS label,
 			(SELECT COUNT(*) FROM wallets w WHERE w.tenant_id = t.id) AS wallet_count,
 			(SELECT COUNT(*) FROM exchange_accounts ea WHERE ea.tenant_id = t.id) AS exchange_count,
-			(SELECT COUNT(DISTINCT batch_id) FROM import_transactions it WHERE it.account_id IN (SELECT id FROM exchange_accounts WHERE tenant_id = t.id)) AS import_batches,
+			(SELECT COUNT(DISTINCT import_batch_id) FROM import_transactions it WHERE it.account_id IN (SELECT id FROM exchange_accounts WHERE tenant_id = t.id)) AS import_batches,
 			u.last_login
 		FROM tenants t
 		LEFT JOIN tenant_memberships tm ON tm.tenant_id = t.id
