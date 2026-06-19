@@ -3,7 +3,7 @@ import './Footer.css';
 import type { Lang } from "@/lib/i18n/locale";
 import { getFooter } from "@/i18n/footer";
 import DonnieSelfie from "../assets/DonnieSelfie.jpeg";
-import TitaniumHut from "../assets/TitaniumHut.png";
+import AlmstinsLogo from "../assets/logo.jpeg";
 import Faq from "./faq.astro";
 import Welcome from "./Welcome.astro";
 import PrivacyPolicy from "./privacy-policy.astro";
@@ -29,22 +29,22 @@ const year = new Date().getFullYear();
         <div class="license-copy">
           <h3>{t.licenseHeading}</h3>
           <p>{t.licenseLine}</p>
-          <p>© {year} Titanium Hut</p>
+          <p>© {year} Almstins LLC</p>
         </div>
       </div>
       <a
-        href="https://www.titaniumhut.com"
+        href="https://almstins.com"
         target="_blank"
         rel="noreferrer"
         class="license-logo-link"
-        aria-label="Titanium Hut"
+        aria-label="Almstins"
       >
         <img
-          src={TitaniumHut.src}
-          alt="Titanium Hut"
+          src={AlmstinsLogo.src}
+          alt="Almstins"
           class="license-logo"
-          width="140"
-          height="40"
+          width="960"
+          height="1104"
           loading="lazy"
         />
       </a>

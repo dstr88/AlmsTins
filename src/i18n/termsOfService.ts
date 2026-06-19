@@ -26,9 +26,9 @@ export const en: TermsLocale = {
 <h1>ALMSTINS USER AGREEMENT</h1>
 
 <p><strong>Effective Date:</strong> June 16, 2026 &nbsp;·&nbsp; <strong>Version:</strong> 1.0<br/>
-<strong>Operator:</strong> Almstins, a product of TitaniumHut ("Almstins," "we," "us," "our")</p>
+<strong>Operator:</strong> Almstins LLC ("Almstins," "we," "us," "our")</p>
 
-<blockquote><p><strong>Scope &amp; precedence.</strong> This is the single canonical contract governing your use of Almstins. It is organized as <strong>Part A — General Terms</strong> (apply to all of Almstins) and <strong>Part B — Supplemental Terms</strong> (apply only to specific features, called "Surfaces"). If a Part B Supplemental Term conflicts with a Part A General Term, <strong>the Supplemental Term controls for that Surface only.</strong> The <strong>Privacy Policy</strong> is incorporated by reference. <strong>PetroTins</strong> (tradfitins.com) is a separate product governed by its own terms and is <strong>not</strong> covered by this Agreement.</p></blockquote>
+<blockquote><p><strong>Scope &amp; precedence.</strong> This is the single canonical contract governing your use of Almstins. It is organized as <strong>Part A — General Terms</strong> (apply to all of Almstins) and <strong>Part B — Supplemental Terms</strong> (apply only to specific features, called "Surfaces"). If a Part B Supplemental Term conflicts with a Part A General Term, <strong>the Supplemental Term controls for that Surface only.</strong> The <strong>Privacy Policy</strong> is incorporated by reference.</p></blockquote>
 
 <hr/>
 
@@ -83,7 +83,7 @@ export const en: TermsLocale = {
 <p>Subject to this Agreement, we grant you a limited, non-exclusive, non-transferable, non-sublicensable, revocable license to access and use the Service for your personal or internal business record-keeping and safety-verification purposes. All rights not expressly granted are reserved.</p>
 
 <h2>A.5 Acceptable Use</h2>
-<p>You will not, and will not attempt to: (a) provide false or misleading information; (b) use the Service in violation of any law or to facilitate illegal activity, money laundering, terrorist financing, fraud, or sanctions evasion; (c) impersonate any person or entity or misrepresent your affiliation; (d) access, tamper with, or use non-public areas or other users' data; (e) reverse engineer, decompile, or derive source code except as permitted by law; (f) interfere with, disrupt, overburden, or degrade the Service; (g) circumvent rate limits, access controls, or usage quotas; (h) use any robot, spider, scraper, or automated means to access the Service or extract data except as expressly permitted; (i) harvest or collect data enabling contact with individuals or entities, or use Service data for direct marketing; or (j) submit Community Content in violation of Part B.4. Any unauthorized use terminates the licenses granted herein.</p>
+<p>You will not, and will not attempt to: (a) provide false or misleading information; (b) use the Service in violation of any law or to facilitate illegal activity, money laundering, terrorist financing, fraud, or sanctions evasion; (c) impersonate any person or entity or misrepresent your affiliation; (d) access, tamper with, or use non-public areas or other users' data; (e) reverse engineer or decompile any non-public component of the hosted Service (the application's source code is published under the MIT License — see A.22); (f) interfere with, disrupt, overburden, or degrade the Service; (g) circumvent rate limits, access controls, or usage quotas; (h) use any robot, spider, scraper, or automated means to access the Service or extract data except as expressly permitted; (i) harvest or collect data enabling contact with individuals or entities, or use Service data for direct marketing; or (j) submit Community Content in violation of Part B.4. Any unauthorized use terminates the licenses granted herein.</p>
 
 <h2>A.6 Intellectual Property</h2>
 <p>The Service, and all related software, content, and trademarks ("Almstins Marks"), are owned by Almstins and its licensors and protected by law. Except as expressly permitted in writing, you may not use the Almstins Marks without our prior written consent. (No trademark or marking license is granted under Almstins Verify at this stage; see B.5.8.) Open-source components remain governed by their respective licenses.</p>
@@ -131,7 +131,7 @@ export const en: TermsLocale = {
 <p>Almstins does not provide and expressly disclaims tax, financial, investment, legal, or accounting advice. Outputs are informational only. You must consult a qualified professional before filing taxes, making investment decisions, or relying on any output for a legal or financial purpose.</p>
 
 <h2>A.18 Dispute Resolution; Arbitration; Class Waiver</h2>
-<p><strong>A.18.1 Informal resolution first.</strong> Before filing any claim, you agree to contact support@titaniumhut.com with a description of the dispute and to attempt good-faith resolution for thirty (30) days.<br/>
+<p><strong>A.18.1 Informal resolution first.</strong> Before filing any claim, you agree to contact support@almstins.com with a description of the dispute and to attempt good-faith resolution for thirty (30) days.<br/>
 <strong>A.18.2 Binding arbitration.</strong> If not resolved, any dispute arising out of or relating to this Agreement or the Service will be resolved by <strong>final and binding arbitration</strong>, not in court, except as stated below. Arbitration will be seated in <strong>Cookeville, Tennessee</strong>, conducted in English.<br/>
 <strong>A.18.3 Class-action waiver.</strong> Disputes will be conducted only on an individual basis. You and Almstins waive any right to bring or participate in a class, collective, consolidated, or representative action.<br/>
 <strong>A.18.4 Exceptions.</strong> Either party may bring an individual claim in small-claims court and may seek injunctive relief to protect intellectual property.</p>
@@ -143,10 +143,10 @@ export const en: TermsLocale = {
 <p>This Agreement (with the Privacy Policy and any Supplemental Terms) is the entire agreement between you and Almstins and supersedes prior agreements. If any provision is unenforceable, it will be reformed to the minimum extent necessary and the remainder stays in effect. You may not assign this Agreement; we may. Our failure to enforce a provision is not a waiver. Headings are for convenience only.</p>
 
 <h2>A.21 Contact</h2>
-<p>Legal: legal@titaniumhut.com · Support: support@titaniumhut.com · Privacy: privacy@titaniumhut.com</p>
+<p>Legal: legal@almstins.com · Support: support@almstins.com · Privacy: privacy@almstins.com</p>
 
 <h2>A.22 Open Source &amp; Attribution</h2>
-<p>The Almstins source code is released under the <strong>MIT License</strong> and is available on GitHub. Your use of the <strong>hosted Service</strong> at almstins.com is governed by this Agreement regardless of the open-source nature of the underlying code. The <strong>Almstins Marks</strong> and brand are protected as set out in A.6 and are <strong>not</strong> licensed under the MIT License. While the MIT License requires only that the copyright notice be preserved, we ask that anyone building on the codebase acknowledge <strong>Almstins</strong> and <strong>Donnie Starkey / TitaniumHut</strong> as the original creators, with a link back to almstins.com or the GitHub repository where practical.</p>
+<p>The Almstins source code is released under the <strong>MIT License</strong> and is available on GitHub. Your use of the <strong>hosted Service</strong> at almstins.com is governed by this Agreement regardless of the open-source nature of the underlying code. The <strong>Almstins Marks</strong> and brand are protected as set out in A.6 and are <strong>not</strong> licensed under the MIT License. While the MIT License requires only that the copyright notice be preserved, we ask that anyone building on the codebase acknowledge <strong>Almstins</strong> and <strong>Donnie Starkey / Almstins LLC</strong> as the original creators, with a link back to almstins.com or the GitHub repository where practical.</p>
 
 <hr/>
 
@@ -165,10 +165,10 @@ export const en: TermsLocale = {
 <strong>B.2.3</strong> On-chain and exchange figures may differ due to caching, dust filtering, unpriced or scam tokens, sync timing, and the limits of third-party data. Displayed values are estimates, not statements of account.</p>
 
 <h2>B.3 Bookkeeping, Tax Breakdown &amp; Year Summary</h2>
-<p><strong>B.3.1 Not tax advice; no filing.</strong> Bookkeeping, cost-basis, gain/loss, reconciliation, and Year Summary outputs are <strong>informational only</strong>. Almstins does not file returns, does not determine your tax liability, and does not provide tax advice. You must consult a qualified tax professional, who may override or recalculate any figure.<br/>
+<p><strong>B.3.1 Not tax advice; no filing.</strong> Bookkeeping, cost-basis, gain/loss, reconciliation, and Year Summary outputs are <strong>informational only</strong>. Almstins does not file returns, does not determine your tax liability, and does not provide tax advice. Almstins does not provide official tax documents and does not issue or file any tax form or return on your behalf; any summary, report, or export it generates is an informational aid for you and your tax professional, not an official tax document or a substitute for one. You must consult a qualified tax professional, who may override or recalculate any figure.<br/>
 <strong>B.3.2 Method.</strong> Cost basis is computed using weighted-average cost unless otherwise stated; other methods, wash-sale tracking, state/local tax, and non-US jurisdictions are your responsibility.<br/>
 <strong>B.3.3 No guarantee of treatment.</strong> Even if a calculation is accurate, tax authorities may treat a transaction differently; Almstins is not liable for any assessment, penalty, interest, audit, or dispute.<br/>
-<strong>B.3.4 Historical data.</strong> Older or pre-2018 transactions may lack on-chain verification or pricing; gaps from failed exchanges or lost access must be reconstructed by you. Almstins can help organize reconstructed data but cannot supply missing data.</p>
+<strong>B.3.4 Historical data.</strong> Older or pre-2023 transactions may lack on-chain verification or pricing; gaps from failed exchanges or lost access must be reconstructed by you. Almstins can help organize reconstructed data but cannot supply missing data.</p>
 
 <h2>B.4 Community Trust Layer — Flags, Reviews, Claims, Badges</h2>
 <blockquote><p><em>This Surface may not be enabled in all regions or at all times. Terms apply when and where it is offered.</em></p></blockquote>
@@ -201,9 +201,6 @@ export const en: TermsLocale = {
 <h2>B.7 AI Features (AI Triage, Receipt Validation)</h2>
 <p><strong>B.7.1</strong> Optional, paid AI features process selected transaction data and uploaded receipts via a third-party model provider (Anthropic/Claude). Outputs are suggestions for your review and confirmation, are <strong>not</strong> authoritative, and may be incorrect.<br/>
 <strong>B.7.2</strong> By using these features you consent to the necessary processing described in the Privacy Policy. Do not upload documents you are not permitted to share.</p>
-
-<h2>B.8 PetroTins — Excluded</h2>
-<p>PetroTins is a separate product offered at tradfitins.com under its own Terms and Privacy Policy. This Agreement does not govern PetroTins.</p>
 `,
 };
 
@@ -215,9 +212,9 @@ export const es: TermsLocale = {
 <h1>ACUERDO DE USUARIO DE ALMSTINS</h1>
 
 <p><strong>Fecha de vigencia:</strong> 16 de junio de 2026 &nbsp;·&nbsp; <strong>Versión:</strong> 1.0<br/>
-<strong>Operador:</strong> Almstins, un producto de TitaniumHut ("Almstins," "nosotros," "nos," "nuestro")</p>
+<strong>Operador:</strong> Almstins LLC ("Almstins," "nosotros," "nos," "nuestro")</p>
 
-<blockquote><p><strong>Ámbito y prelación.</strong> Este es el contrato canónico único que rige su uso de Almstins. Se organiza en <strong>Parte A — Condiciones Generales</strong> (aplicables a todo Almstins) y <strong>Parte B — Condiciones Complementarias</strong> (aplicables únicamente a funciones específicas denominadas "Superficies"). Si una Condición Complementaria de la Parte B entra en conflicto con una Condición General de la Parte A, <strong>la Condición Complementaria prevalece únicamente para esa Superficie.</strong> La <strong>Política de Privacidad</strong> queda incorporada por referencia. <strong>PetroTins</strong> (tradfitins.com) es un producto independiente regido por sus propios términos y <strong>no</strong> está cubierto por este Acuerdo.</p></blockquote>
+<blockquote><p><strong>Ámbito y prelación.</strong> Este es el contrato canónico único que rige su uso de Almstins. Se organiza en <strong>Parte A — Condiciones Generales</strong> (aplicables a todo Almstins) y <strong>Parte B — Condiciones Complementarias</strong> (aplicables únicamente a funciones específicas denominadas "Superficies"). Si una Condición Complementaria de la Parte B entra en conflicto con una Condición General de la Parte A, <strong>la Condición Complementaria prevalece únicamente para esa Superficie.</strong> La <strong>Política de Privacidad</strong> queda incorporada por referencia.</p></blockquote>
 
 <hr/>
 
@@ -272,7 +269,7 @@ export const es: TermsLocale = {
 <p>Con sujeción a este Acuerdo, le otorgamos una licencia limitada, no exclusiva, intransferible, no sublicenciable y revocable para acceder y usar el Servicio con fines de gestión de registros personales o comerciales internos y de verificación de seguridad. Todos los derechos no concedidos expresamente quedan reservados.</p>
 
 <h2>A.5 Uso Aceptable</h2>
-<p>Usted no hará, ni intentará: (a) proporcionar información falsa o engañosa; (b) usar el Servicio en violación de cualquier ley o para facilitar actividades ilegales, lavado de dinero, financiamiento del terrorismo, fraude o evasión de sanciones; (c) hacerse pasar por cualquier persona o entidad o tergiversar su afiliación; (d) acceder, manipular o usar áreas no públicas o datos de otros usuarios; (e) realizar ingeniería inversa, descompilar o derivar código fuente, salvo lo permitido por la ley; (f) interferir, interrumpir, sobrecargar o degradar el Servicio; (g) eludir límites de velocidad, controles de acceso o cuotas de uso; (h) usar cualquier robot, araña, raspador o medio automatizado para acceder al Servicio o extraer datos, salvo lo expresamente permitido; (i) recopilar o recabar datos que permitan el contacto con personas o entidades, o usar los datos del Servicio para marketing directo; o (j) enviar Contenido Comunitario en violación de la Parte B.4. Cualquier uso no autorizado cancela las licencias aquí concedidas.</p>
+<p>Usted no hará, ni intentará: (a) proporcionar información falsa o engañosa; (b) usar el Servicio en violación de cualquier ley o para facilitar actividades ilegales, lavado de dinero, financiamiento del terrorismo, fraude o evasión de sanciones; (c) hacerse pasar por cualquier persona o entidad o tergiversar su afiliación; (d) acceder, manipular o usar áreas no públicas o datos de otros usuarios; (e) realizar ingeniería inversa o descompilar cualquier componente no público del Servicio alojado (el código fuente de la aplicación se publica bajo la MIT License — véase A.22); (f) interferir, interrumpir, sobrecargar o degradar el Servicio; (g) eludir límites de velocidad, controles de acceso o cuotas de uso; (h) usar cualquier robot, araña, raspador o medio automatizado para acceder al Servicio o extraer datos, salvo lo expresamente permitido; (i) recopilar o recabar datos que permitan el contacto con personas o entidades, o usar los datos del Servicio para marketing directo; o (j) enviar Contenido Comunitario en violación de la Parte B.4. Cualquier uso no autorizado cancela las licencias aquí concedidas.</p>
 
 <h2>A.6 Propiedad Intelectual</h2>
 <p>El Servicio, y todo el software, contenido y marcas relacionados ("Marcas de Almstins"), son propiedad de Almstins y sus licenciantes y están protegidos por la ley. Salvo lo expresamente permitido por escrito, no puede usar las Marcas de Almstins sin nuestro previo consentimiento por escrito. (En esta etapa no se concede ninguna licencia de marca comercial ni de marcado bajo Almstins Verify; véase B.5.8.) Los componentes de código abierto siguen rigiéndose por sus respectivas licencias.</p>
@@ -320,7 +317,7 @@ export const es: TermsLocale = {
 <p>Almstins no proporciona y renuncia expresamente a brindar asesoramiento fiscal, financiero, de inversión, legal o contable. Los resultados son únicamente informativos. Debe consultar a un profesional cualificado antes de presentar declaraciones de impuestos, tomar decisiones de inversión o basarse en cualquier resultado para fines legales o financieros.</p>
 
 <h2>A.18 Resolución de Disputas; Arbitraje; Renuncia a Demandas Colectivas</h2>
-<p><strong>A.18.1 Resolución informal primero.</strong> Antes de interponer cualquier reclamación, usted acepta contactar a support@titaniumhut.com con una descripción de la disputa e intentar una resolución de buena fe durante treinta (30) días.<br/>
+<p><strong>A.18.1 Resolución informal primero.</strong> Antes de interponer cualquier reclamación, usted acepta contactar a support@almstins.com con una descripción de la disputa e intentar una resolución de buena fe durante treinta (30) días.<br/>
 <strong>A.18.2 Arbitraje vinculante.</strong> Si no se resuelve, cualquier disputa que surja de o esté relacionada con este Acuerdo o el Servicio se resolverá mediante <strong>arbitraje final y vinculante</strong>, no ante los tribunales, salvo lo indicado a continuación. El arbitraje tendrá sede en <strong>Cookeville, Tennessee</strong> y se llevará a cabo en inglés.<br/>
 <strong>A.18.3 Renuncia a demandas colectivas.</strong> Las disputas se tramitarán únicamente de forma individual. Usted y Almstins renuncian a cualquier derecho de iniciar o participar en una acción colectiva, conjunta, consolidada o representativa.<br/>
 <strong>A.18.4 Excepciones.</strong> Cualquiera de las partes puede interponer una reclamación individual ante un tribunal de causas menores y puede solicitar medidas cautelares para proteger la propiedad intelectual.</p>
@@ -332,10 +329,10 @@ export const es: TermsLocale = {
 <p>Este Acuerdo (junto con la Política de Privacidad y cualquier Condición Complementaria) constituye el acuerdo íntegro entre usted y Almstins y reemplaza los acuerdos anteriores. Si alguna disposición resulta inaplicable, se reformará en la medida mínima necesaria y el resto permanecerá vigente. Usted no puede ceder este Acuerdo; nosotros sí podemos. El hecho de que no hagamos cumplir una disposición no implica una renuncia. Los encabezados son solo para conveniencia.</p>
 
 <h2>A.21 Contacto</h2>
-<p>Legal: legal@titaniumhut.com · Soporte: support@titaniumhut.com · Privacidad: privacy@titaniumhut.com</p>
+<p>Legal: legal@almstins.com · Soporte: support@almstins.com · Privacidad: privacy@almstins.com</p>
 
 <h2>A.22 Código Abierto y Atribución</h2>
-<p>El código fuente de Almstins se publica bajo la <strong>MIT License</strong> y está disponible en GitHub. Su uso del <strong>Servicio alojado</strong> en almstins.com se rige por este Acuerdo con independencia de la naturaleza de código abierto del código subyacente. Las <strong>Marcas de Almstins</strong> y la marca están protegidas según lo dispuesto en A.6 y <strong>no</strong> están licenciadas bajo la MIT License. Si bien la MIT License solo exige que se conserve el aviso de derechos de autor, solicitamos que cualquier persona que desarrolle sobre el código reconozca a <strong>Almstins</strong> y a <strong>Donnie Starkey / TitaniumHut</strong> como los creadores originales, con un enlace de retorno a almstins.com o al repositorio de GitHub cuando sea factible.</p>
+<p>El código fuente de Almstins se publica bajo la <strong>MIT License</strong> y está disponible en GitHub. Su uso del <strong>Servicio alojado</strong> en almstins.com se rige por este Acuerdo con independencia de la naturaleza de código abierto del código subyacente. Las <strong>Marcas de Almstins</strong> y la marca están protegidas según lo dispuesto en A.6 y <strong>no</strong> están licenciadas bajo la MIT License. Si bien la MIT License solo exige que se conserve el aviso de derechos de autor, solicitamos que cualquier persona que desarrolle sobre el código reconozca a <strong>Almstins</strong> y a <strong>Donnie Starkey / Almstins LLC</strong> como los creadores originales, con un enlace de retorno a almstins.com o al repositorio de GitHub cuando sea factible.</p>
 
 <hr/>
 
@@ -354,10 +351,10 @@ export const es: TermsLocale = {
 <strong>B.2.3</strong> Las cifras on-chain y de exchanges pueden diferir debido al almacenamiento en caché, el filtrado de polvo, los tokens sin precio o de fraude, los tiempos de sincronización y las limitaciones de los datos de terceros. Los valores mostrados son estimaciones, no extractos de cuenta.</p>
 
 <h2>B.3 Contabilidad, Desglose Fiscal y Resumen Anual</h2>
-<p><strong>B.3.1 Sin asesoramiento fiscal; sin presentación.</strong> Los resultados de contabilidad, base de costo, ganancias/pérdidas, conciliación y Resumen Anual son <strong>únicamente informativos</strong>. Almstins no presenta declaraciones, no determina su obligación tributaria y no ofrece asesoramiento fiscal. Debe consultar a un profesional fiscal cualificado, quien podrá rectificar o recalcular cualquier cifra.<br/>
+<p><strong>B.3.1 Sin asesoramiento fiscal; sin presentación.</strong> Los resultados de contabilidad, base de costo, ganancias/pérdidas, conciliación y Resumen Anual son <strong>únicamente informativos</strong>. Almstins no presenta declaraciones, no determina su obligación tributaria y no ofrece asesoramiento fiscal. Almstins no proporciona documentos fiscales oficiales y no emite ni presenta ningún formulario o declaración fiscal en su nombre; cualquier resumen, informe o exportación que genere constituye una ayuda informativa para usted y su profesional fiscal, no un documento fiscal oficial ni un sustituto de este. Debe consultar a un profesional fiscal cualificado, quien podrá rectificar o recalcular cualquier cifra.<br/>
 <strong>B.3.2 Método.</strong> La base de costo se calcula utilizando el costo promedio ponderado salvo que se indique lo contrario; otros métodos, el seguimiento de ventas con pérdidas, los impuestos estatales/locales y las jurisdicciones fuera de EE. UU. son su responsabilidad.<br/>
 <strong>B.3.3 Sin garantía de tratamiento.</strong> Aunque un cálculo sea exacto, las autoridades fiscales pueden tratar una transacción de forma diferente; Almstins no es responsable de ninguna liquidación, sanción, interés, auditoría o disputa.<br/>
-<strong>B.3.4 Datos históricos.</strong> Las transacciones más antiguas o anteriores a 2018 pueden carecer de verificación on-chain o de precios; las lagunas derivadas de exchanges que han fallado o de acceso perdido deben ser reconstruidas por usted. Almstins puede ayudar a organizar los datos reconstruidos, pero no puede suministrar los datos faltantes.</p>
+<strong>B.3.4 Datos históricos.</strong> Las transacciones más antiguas o anteriores a 2023 pueden carecer de verificación on-chain o de precios; las lagunas derivadas de exchanges que han fallado o de acceso perdido deben ser reconstruidas por usted. Almstins puede ayudar a organizar los datos reconstruidos, pero no puede suministrar los datos faltantes.</p>
 
 <h2>B.4 Capa de Confianza Comunitaria — Marcas, Reseñas, Reclamaciones, Insignias</h2>
 <blockquote><p><em>Esta Superficie puede no estar habilitada en todas las regiones ni en todo momento. Los términos se aplican cuando y donde se ofrezca.</em></p></blockquote>
@@ -390,9 +387,6 @@ export const es: TermsLocale = {
 <h2>B.7 Funciones de IA (AI Triage, Validación de Recibos)</h2>
 <p><strong>B.7.1</strong> Las funciones opcionales de IA de pago procesan datos de transacciones seleccionados y recibos cargados a través de un proveedor de modelos de terceros (Anthropic/Claude). Los resultados son sugerencias para su revisión y confirmación, <strong>no</strong> son autoritativos y pueden ser incorrectos.<br/>
 <strong>B.7.2</strong> Al usar estas funciones, usted consiente el procesamiento necesario descrito en la Política de Privacidad. No cargue documentos que no esté autorizado a compartir.</p>
-
-<h2>B.8 PetroTins — Excluido</h2>
-<p>PetroTins es un producto independiente ofrecido en tradfitins.com bajo sus propios Términos y Política de Privacidad. Este Acuerdo no rige PetroTins.</p>
 `,
 };
 
@@ -404,9 +398,9 @@ export const fr: TermsLocale = {
 <h1>ACCORD D'UTILISATEUR ALMSTINS</h1>
 
 <p><strong>Date d'entrée en vigueur :</strong> 16 juin 2026 &nbsp;·&nbsp; <strong>Version :</strong> 1.0<br/>
-<strong>Opérateur :</strong> Almstins, un produit de TitaniumHut (« Almstins », « nous », « notre »)</p>
+<strong>Opérateur :</strong> Almstins LLC (« Almstins », « nous », « notre »)</p>
 
-<blockquote><p><strong>Champ d'application et préséance.</strong> Le présent document constitue le contrat canonique unique régissant votre utilisation d'Almstins. Il est organisé en <strong>Partie A — Conditions Générales</strong> (applicables à l'ensemble d'Almstins) et <strong>Partie B — Conditions Complémentaires</strong> (applicables uniquement aux fonctionnalités spécifiques appelées « Surfaces »). En cas de conflit entre une Condition Complémentaire de la Partie B et une Condition Générale de la Partie A, <strong>la Condition Complémentaire prévaut uniquement pour cette Surface.</strong> La <strong>Politique de Confidentialité</strong> est incorporée par référence. <strong>PetroTins</strong> (tradfitins.com) est un produit distinct régi par ses propres conditions et n'est <strong>pas</strong> couvert par le présent Accord.</p></blockquote>
+<blockquote><p><strong>Champ d'application et préséance.</strong> Le présent document constitue le contrat canonique unique régissant votre utilisation d'Almstins. Il est organisé en <strong>Partie A — Conditions Générales</strong> (applicables à l'ensemble d'Almstins) et <strong>Partie B — Conditions Complémentaires</strong> (applicables uniquement aux fonctionnalités spécifiques appelées « Surfaces »). En cas de conflit entre une Condition Complémentaire de la Partie B et une Condition Générale de la Partie A, <strong>la Condition Complémentaire prévaut uniquement pour cette Surface.</strong> La <strong>Politique de Confidentialité</strong> est incorporée par référence.</p></blockquote>
 
 <hr/>
 
@@ -461,7 +455,7 @@ export const fr: TermsLocale = {
 <p>Sous réserve du présent Accord, nous vous accordons une licence limitée, non exclusive, non transférable, non sous-licenciable et révocable pour accéder au Service et l'utiliser à des fins de tenue de registres personnels ou professionnels internes et de vérification de sécurité. Tous les droits non expressément accordés sont réservés.</p>
 
 <h2>A.5 Utilisation Acceptable</h2>
-<p>Vous ne ferez pas, et ne tenterez pas de : (a) fournir des informations fausses ou trompeuses ; (b) utiliser le Service en violation d'une loi ou pour faciliter une activité illégale, le blanchiment d'argent, le financement du terrorisme, la fraude ou le contournement de sanctions ; (c) usurper l'identité d'une personne ou d'une entité ou déformer votre affiliation ; (d) accéder, manipuler ou utiliser des zones non publiques ou les données d'autres utilisateurs ; (e) effectuer de l'ingénierie inverse, décompiler ou dériver le code source, sauf dans la mesure permise par la loi ; (f) interférer avec, perturber, surcharger ou dégrader le Service ; (g) contourner les limites de débit, les contrôles d'accès ou les quotas d'utilisation ; (h) utiliser tout robot, araignée, outil de scraping ou moyen automatisé pour accéder au Service ou en extraire des données, sauf autorisation expresse ; (i) collecter des données permettant de contacter des personnes ou des entités, ou utiliser les données du Service à des fins de marketing direct ; ou (j) soumettre du Contenu Communautaire en violation de la Partie B.4. Toute utilisation non autorisée met fin aux licences accordées dans le présent document.</p>
+<p>Vous ne ferez pas, et ne tenterez pas de : (a) fournir des informations fausses ou trompeuses ; (b) utiliser le Service en violation d'une loi ou pour faciliter une activité illégale, le blanchiment d'argent, le financement du terrorisme, la fraude ou le contournement de sanctions ; (c) usurper l'identité d'une personne ou d'une entité ou déformer votre affiliation ; (d) accéder, manipuler ou utiliser des zones non publiques ou les données d'autres utilisateurs ; (e) effectuer de l'ingénierie inverse ou décompiler tout composant non public du Service hébergé (le code source de l'application est publié sous la MIT License — voir A.22) ; (f) interférer avec, perturber, surcharger ou dégrader le Service ; (g) contourner les limites de débit, les contrôles d'accès ou les quotas d'utilisation ; (h) utiliser tout robot, araignée, outil de scraping ou moyen automatisé pour accéder au Service ou en extraire des données, sauf autorisation expresse ; (i) collecter des données permettant de contacter des personnes ou des entités, ou utiliser les données du Service à des fins de marketing direct ; ou (j) soumettre du Contenu Communautaire en violation de la Partie B.4. Toute utilisation non autorisée met fin aux licences accordées dans le présent document.</p>
 
 <h2>A.6 Propriété Intellectuelle</h2>
 <p>Le Service, ainsi que tous les logiciels, contenus et marques associés (« Marques Almstins »), appartiennent à Almstins et à ses concédants de licence et sont protégés par la loi. Sauf autorisation écrite expresse, vous ne pouvez pas utiliser les Marques Almstins sans notre consentement préalable et écrit. (Aucune licence de marque commerciale ou de marquage n'est accordée au titre d'Almstins Verify à ce stade ; voir B.5.8.) Les composants open source restent régis par leurs licences respectives.</p>
@@ -509,7 +503,7 @@ export const fr: TermsLocale = {
 <p>Almstins ne fournit pas et décline expressément tout conseil fiscal, financier, en matière d'investissement, juridique ou comptable. Les résultats sont uniquement informatifs. Vous devez consulter un professionnel qualifié avant de déposer des déclarations fiscales, de prendre des décisions d'investissement ou de vous fier à tout résultat à des fins juridiques ou financières.</p>
 
 <h2>A.18 Résolution des Litiges ; Arbitrage ; Renonciation aux Actions Collectives</h2>
-<p><strong>A.18.1 Résolution informelle en premier lieu.</strong> Avant d'introduire toute réclamation, vous acceptez de contacter support@titaniumhut.com avec une description du litige et de tenter une résolution de bonne foi pendant trente (30) jours.<br/>
+<p><strong>A.18.1 Résolution informelle en premier lieu.</strong> Avant d'introduire toute réclamation, vous acceptez de contacter support@almstins.com avec une description du litige et de tenter une résolution de bonne foi pendant trente (30) jours.<br/>
 <strong>A.18.2 Arbitrage contraignant.</strong> En l'absence de résolution, tout litige découlant du présent Accord ou du Service ou s'y rapportant sera résolu par <strong>arbitrage définitif et contraignant</strong>, et non devant les tribunaux, sauf dans les cas indiqués ci-dessous. L'arbitrage aura son siège à <strong>Cookeville, Tennessee</strong> et se déroulera en anglais.<br/>
 <strong>A.18.3 Renonciation aux actions collectives.</strong> Les litiges seront traités uniquement à titre individuel. Vous et Almstins renoncez à tout droit d'engager ou de participer à une action collective, conjointe, consolidée ou représentative.<br/>
 <strong>A.18.4 Exceptions.</strong> L'une ou l'autre des parties peut introduire une réclamation individuelle devant un tribunal des petites créances et peut demander des mesures d'injonction pour protéger la propriété intellectuelle.</p>
@@ -521,10 +515,10 @@ export const fr: TermsLocale = {
 <p>Le présent Accord (avec la Politique de Confidentialité et toutes Conditions Complémentaires) constitue l'intégralité de l'accord entre vous et Almstins et remplace les accords antérieurs. Si une disposition est inapplicable, elle sera réformée dans la mesure minimale nécessaire et le reste demeurera en vigueur. Vous ne pouvez pas céder le présent Accord ; nous pouvons le faire. Notre défaut d'appliquer une disposition ne constitue pas une renonciation. Les titres sont fournis à titre de commodité uniquement.</p>
 
 <h2>A.21 Contact</h2>
-<p>Juridique : legal@titaniumhut.com · Support : support@titaniumhut.com · Confidentialité : privacy@titaniumhut.com</p>
+<p>Juridique : legal@almstins.com · Support : support@almstins.com · Confidentialité : privacy@almstins.com</p>
 
 <h2>A.22 Open Source et Attribution</h2>
-<p>Le code source d'Almstins est publié sous la <strong>MIT License</strong> et est disponible sur GitHub. Votre utilisation du <strong>Service hébergé</strong> sur almstins.com est régie par le présent Accord, indépendamment de la nature open source du code sous-jacent. Les <strong>Marques Almstins</strong> et la marque sont protégées conformément à A.6 et ne sont <strong>pas</strong> licenciées sous la MIT License. Bien que la MIT License exige uniquement que la mention de droit d'auteur soit conservée, nous demandons à toute personne qui développe à partir du code de reconnaître <strong>Almstins</strong> et <strong>Donnie Starkey / TitaniumHut</strong> comme les créateurs originaux, avec un lien de retour vers almstins.com ou le dépôt GitHub lorsque cela est possible.</p>
+<p>Le code source d'Almstins est publié sous la <strong>MIT License</strong> et est disponible sur GitHub. Votre utilisation du <strong>Service hébergé</strong> sur almstins.com est régie par le présent Accord, indépendamment de la nature open source du code sous-jacent. Les <strong>Marques Almstins</strong> et la marque sont protégées conformément à A.6 et ne sont <strong>pas</strong> licenciées sous la MIT License. Bien que la MIT License exige uniquement que la mention de droit d'auteur soit conservée, nous demandons à toute personne qui développe à partir du code de reconnaître <strong>Almstins</strong> et <strong>Donnie Starkey / Almstins LLC</strong> comme les créateurs originaux, avec un lien de retour vers almstins.com ou le dépôt GitHub lorsque cela est possible.</p>
 
 <hr/>
 
@@ -543,10 +537,10 @@ export const fr: TermsLocale = {
 <strong>B.2.3</strong> Les chiffres on-chain et d'exchange peuvent différer en raison de la mise en cache, du filtrage des poussières, des tokens non tarifés ou frauduleux, de la synchronisation temporelle et des limites des données tierces. Les valeurs affichées sont des estimations et non des relevés de compte.</p>
 
 <h2>B.3 Tenue de Livres, Synthèse Fiscale et Résumé Annuel</h2>
-<p><strong>B.3.1 Pas de conseil fiscal ; pas de dépôt.</strong> Les résultats de tenue de livres, de base de coût, de gains/pertes, de réconciliation et de Résumé Annuel sont <strong>uniquement informatifs</strong>. Almstins ne dépose pas de déclarations, ne détermine pas votre obligation fiscale et ne fournit pas de conseils fiscaux. Vous devez consulter un professionnel fiscal qualifié, qui peut rectifier ou recalculer tout chiffre.<br/>
+<p><strong>B.3.1 Pas de conseil fiscal ; pas de dépôt.</strong> Les résultats de tenue de livres, de base de coût, de gains/pertes, de réconciliation et de Résumé Annuel sont <strong>uniquement informatifs</strong>. Almstins ne dépose pas de déclarations, ne détermine pas votre obligation fiscale et ne fournit pas de conseils fiscaux. Almstins ne fournit pas de documents fiscaux officiels et n'émet ni ne dépose aucun formulaire ou déclaration fiscale en votre nom ; tout récapitulatif, rapport ou export qu'il génère constitue une aide informative pour vous et votre professionnel fiscal, et non un document fiscal officiel ni un substitut à celui-ci. Vous devez consulter un professionnel fiscal qualifié, qui peut rectifier ou recalculer tout chiffre.<br/>
 <strong>B.3.2 Méthode.</strong> La base de coût est calculée en utilisant le coût moyen pondéré sauf indication contraire ; les autres méthodes, le suivi des ventes à perte, les taxes locales/d'État et les juridictions hors États-Unis relèvent de votre responsabilité.<br/>
 <strong>B.3.3 Aucune garantie de traitement.</strong> Même si un calcul est exact, les autorités fiscales peuvent traiter une transaction différemment ; Almstins n'est pas responsable de tout redressement, pénalité, intérêt, audit ou litige.<br/>
-<strong>B.3.4 Données historiques.</strong> Les transactions plus anciennes ou antérieures à 2018 peuvent manquer de vérification on-chain ou de tarification ; les lacunes dues à des exchanges défaillants ou à un accès perdu doivent être reconstituées par vous. Almstins peut aider à organiser les données reconstituées mais ne peut pas fournir les données manquantes.</p>
+<strong>B.3.4 Données historiques.</strong> Les transactions plus anciennes ou antérieures à 2023 peuvent manquer de vérification on-chain ou de tarification ; les lacunes dues à des exchanges défaillants ou à un accès perdu doivent être reconstituées par vous. Almstins peut aider à organiser les données reconstituées mais ne peut pas fournir les données manquantes.</p>
 
 <h2>B.4 Couche de Confiance Communautaire — Signalements, Avis, Réclamations, Badges</h2>
 <blockquote><p><em>Cette Surface peut ne pas être activée dans toutes les régions ni à tout moment. Les conditions s'appliquent lorsqu'elle est proposée et là où elle l'est.</em></p></blockquote>
@@ -579,9 +573,6 @@ export const fr: TermsLocale = {
 <h2>B.7 Fonctionnalités IA (AI Triage, Validation de Reçus)</h2>
 <p><strong>B.7.1</strong> Les fonctionnalités IA optionnelles et payantes traitent des données de transactions sélectionnées et des reçus téléchargés via un fournisseur de modèle tiers (Anthropic/Claude). Les résultats sont des suggestions soumises à votre examen et confirmation, <strong>ne font pas</strong> autorité et peuvent être incorrects.<br/>
 <strong>B.7.2</strong> En utilisant ces fonctionnalités, vous consentez au traitement nécessaire décrit dans la Politique de Confidentialité. Ne téléchargez pas de documents que vous n'êtes pas autorisé à partager.</p>
-
-<h2>B.8 PetroTins — Exclu</h2>
-<p>PetroTins est un produit distinct proposé sur tradfitins.com sous ses propres Conditions et Politique de Confidentialité. Le présent Accord ne régit pas PetroTins.</p>
 `,
 };
 

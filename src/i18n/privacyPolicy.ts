@@ -30,7 +30,7 @@ export const en: PrivacyLocale = {
   body: `
 <h1>ALMSTINS PRIVACY POLICY</h1>
 <p><strong>Effective Date:</strong> June 16, 2026 &nbsp;&middot;&nbsp; <strong>Version:</strong> 1.0<br/>
-<strong>Operator:</strong> Almstins, a product of TitaniumHut ("Almstins," "we," "us," "our")</p>
+<strong>Operator:</strong> Almstins LLC ("Almstins," "we," "us," "our")</p>
 
 <hr/>
 
@@ -151,13 +151,13 @@ export const en: PrivacyLocale = {
   <li><strong>Opt out</strong> of analytics and optional features;</li>
   <li><strong>Port</strong> your data via export in a standard format.</li>
 </ul>
-<p>We do not sell personal information and do not "share" it for cross-context behavioral advertising. To exercise any right, contact <strong>privacy@titaniumhut.com</strong>.</p>
+<p>We do not sell personal information and do not "share" it for cross-context behavioral advertising. To exercise any right, contact <strong>privacy@almstins.com</strong>.</p>
 
 <h2>17. Changes to This Policy</h2>
 <p>We may update this Policy. Material changes will be notified by email or in-product notice; continued use after the effective date constitutes acceptance.</p>
 
 <h2>18. Contact</h2>
-<p>Privacy Officer — Almstins / TitaniumHut — <strong>privacy@titaniumhut.com</strong></p>
+<p>Privacy Officer — Almstins LLC — <strong>privacy@almstins.com</strong></p>
 `,
 };
 
@@ -168,7 +168,7 @@ export const es: PrivacyLocale = {
   body: `
 <h1>POLÍTICA DE PRIVACIDAD DE ALMSTINS</h1>
 <p><strong>Fecha de Vigencia:</strong> 16 de junio de 2026 &nbsp;&middot;&nbsp; <strong>Versión:</strong> 1.0<br/>
-<strong>Operador:</strong> Almstins, un producto de TitaniumHut ("Almstins," "nosotros," "nos," "nuestro")</p>
+<strong>Operador:</strong> Almstins LLC ("Almstins," "nosotros," "nos," "nuestro")</p>
 
 <hr/>
 
@@ -289,13 +289,13 @@ export const es: PrivacyLocale = {
   <li><strong>Optar por no participar</strong> en analíticas y funciones opcionales;</li>
   <li><strong>Portar</strong> sus datos mediante exportación en un formato estándar.</li>
 </ul>
-<p>No vendemos información personal ni la "compartimos" para publicidad conductual entre contextos. Para ejercer cualquier derecho, contacte a <strong>privacy@titaniumhut.com</strong>.</p>
+<p>No vendemos información personal ni la "compartimos" para publicidad conductual entre contextos. Para ejercer cualquier derecho, contacte a <strong>privacy@almstins.com</strong>.</p>
 
 <h2>17. Cambios a Esta Política</h2>
 <p>Podemos actualizar esta Política. Los cambios materiales serán notificados por correo electrónico o mediante un aviso dentro del producto; el uso continuado tras la fecha de vigencia constituye la aceptación de los mismos.</p>
 
 <h2>18. Contacto</h2>
-<p>Responsable de Privacidad — Almstins / TitaniumHut — <strong>privacy@titaniumhut.com</strong></p>
+<p>Responsable de Privacidad — Almstins LLC — <strong>privacy@almstins.com</strong></p>
 `,
 };
 
@@ -306,7 +306,7 @@ export const fr: PrivacyLocale = {
   body: `
 <h1>POLITIQUE DE CONFIDENTIALITÉ D'ALMSTINS</h1>
 <p><strong>Date d'entrée en vigueur :</strong> 16 juin 2026 &nbsp;&middot;&nbsp; <strong>Version :</strong> 1.0<br/>
-<strong>Opérateur :</strong> Almstins, un produit de TitaniumHut (« Almstins », « nous », « notre »)</p>
+<strong>Opérateur :</strong> Almstins LLC (« Almstins », « nous », « notre »)</p>
 
 <hr/>
 
@@ -427,13 +427,13 @@ export const fr: PrivacyLocale = {
   <li><strong>Vous opposer</strong> aux analyses et aux fonctionnalités optionnelles ;</li>
   <li><strong>Portabiliser</strong> vos données via une exportation dans un format standard.</li>
 </ul>
-<p>Nous ne vendons pas d'informations personnelles et ne les « partageons » pas à des fins de publicité comportementale transcontextuelle. Pour exercer tout droit, contactez <strong>privacy@titaniumhut.com</strong>.</p>
+<p>Nous ne vendons pas d'informations personnelles et ne les « partageons » pas à des fins de publicité comportementale transcontextuelle. Pour exercer tout droit, contactez <strong>privacy@almstins.com</strong>.</p>
 
 <h2>17. Modifications de Cette Politique</h2>
 <p>Nous pouvons mettre à jour cette Politique. Les modifications importantes seront notifiées par e-mail ou par un avis dans le produit ; la poursuite de l'utilisation après la date d'entrée en vigueur constitue une acceptation.</p>
 
 <h2>18. Contact</h2>
-<p>Responsable de la Confidentialité — Almstins / TitaniumHut — <strong>privacy@titaniumhut.com</strong></p>
+<p>Responsable de la Confidentialité — Almstins LLC — <strong>privacy@almstins.com</strong></p>
 `,
 };
 
