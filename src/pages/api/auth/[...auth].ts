@@ -92,7 +92,7 @@ const authConfig = {
 	adapter: authAdapter(),
 	secret: process.env.AUTH_SECRET,
 	trustHost: true,
-	debug: true,
+	debug: process.env.AUTH_DEBUG === '1',
 	session: { strategy: 'jwt' as const, maxAge: SESSION_MAX_AGE_SECONDS },
 	jwt: { maxAge: SESSION_MAX_AGE_SECONDS },
 	pages: {
