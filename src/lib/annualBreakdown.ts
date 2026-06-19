@@ -64,6 +64,16 @@ export type HeldPosition = {
   daysHeld: number;
 };
 
+/**
+ * Where a disposal's cost basis came from — the audit trail. So that if tax laws
+ * change, or a user wants the complete provenance of every coin, it's all recoverable:
+ *  - 'recorded'  — basis from a real acquisition we have on file (exchange buy, priced on-chain receipt)
+ *  - 'manual'    — a user/good-faith estimated basis (manual_cost_basis override)
+ *  - 'estimated' — basis from a backfilled/looked-up historical price (a good-faith guess)
+ *  - 'missing'   — no recorded basis; treated as $0 and flagged for review (a "mystery" inflow)
+ */
+export type BasisSource = 'recorded' | 'estimated' | 'manual' | 'missing';
+
 export type SettledLot = {
   asset: string;
   amount: number;
@@ -73,6 +83,10 @@ export type SettledLot = {
   proceedsUsd: number | null;
   gainLossUsd: number | null;
   daysHeld: number;
+  /** Provenance — where this disposal's cost basis came from (audit trail). */
+  basisSource?: BasisSource;
+  /** Human-readable trace of how/when the disposed lot was acquired. */
+  originNote?: string;
 };
 
 export type IncomeItem = {
@@ -249,6 +263,8 @@ export async function buildAnnualBreakdown(
         proceedsUsd:  toNum(r.proceeds_usd),
         gainLossUsd:  toNum(r.gain_loss_usd),
         daysHeld,
+        basisSource:  toNum(r.cost_basis_usd) != null ? 'recorded' : 'missing',
+        originNote:   acquiredAt ? `Acquired ${acquiredAt.slice(0, 10)}` : 'Origin unknown — verify acquisition',
       };
       // The pipeline uses IRS calendar-month rule (is_short_term stored as 0/1).
       if (Number(r.is_short_term)) shortTerm.push(settled);
@@ -469,14 +485,14 @@ export async function buildAnnualBreakdown(
     // Manual cost-basis overrides for the lifecycle path: an explicit basis set for a
     // sell (sell_source_id -> price_per_token + buy date) wins over FIFO-matched lots.
     const manualBasisRows = await db.execute({
-      sql: `SELECT sell_source_id, price_per_token, buy_date_iso FROM manual_cost_basis WHERE tenant_id = ?`,
+      sql: `SELECT sell_source_id, price_per_token, buy_date_iso, notes FROM manual_cost_basis WHERE tenant_id = ?`,
       args: [tenantId],
     });
-    const manualBasisMap = new Map<string, { pricePerToken: number; buyDateIso: string }>();
+    const manualBasisMap = new Map<string, { pricePerToken: number; buyDateIso: string; notes: string }>();
     for (const r of manualBasisRows.rows as Array<Record<string, unknown>>) {
       const sid = toStr(r.sell_source_id);
       const ppt = toNum(r.price_per_token);
-      if (sid && ppt != null) manualBasisMap.set(sid, { pricePerToken: ppt, buyDateIso: toStr(r.buy_date_iso) });
+      if (sid && ppt != null) manualBasisMap.set(sid, { pricePerToken: ppt, buyDateIso: toStr(r.buy_date_iso), notes: toStr(r.notes) });
     }
 
     const lotsByAsset = new Map<string, Lot[]>();
@@ -521,6 +537,10 @@ export async function buildAnnualBreakdown(
             costUsd, proceedsUsd: nativeUsd,
             gainLossUsd: nativeUsd != null ? nativeUsd - costUsd : null,
             daysHeld: days,
+            basisSource: 'manual',
+            originNote: manual.notes
+              ? `Estimated basis — ${manual.notes}`
+              : `Estimated basis $${manual.pricePerToken.toLocaleString()}/${asset}, acquired ${buyDate.slice(0, 10)}`,
           };
           if (days < 365) shortTerm.push(settled); else longTerm.push(settled);
           // Consume FIFO lots so remaining holdings don't double-count this disposal.
@@ -585,6 +605,10 @@ export async function buildAnnualBreakdown(
               proceedsUsd: sellPortion,
               gainLossUsd: gainLoss,
               daysHeld:   days,
+              basisSource: costPortion != null ? 'recorded' : 'missing',
+              originNote: costPortion != null
+                ? `Acquired ${lot.timestamp.slice(0, 10)} (recorded cost basis)`
+                : `Acquired ${lot.timestamp.slice(0, 10)} — no recorded cost basis (treated as $0; verify origin)`,
             };
             if (days < 365) shortTerm.push(settled);
             else            longTerm.push(settled);
@@ -666,12 +690,12 @@ export async function buildAnnualBreakdown(
     });
     // Contracts the user has explicitly hidden/blacklisted
     const hiddenResult = await db.execute({
-      sql: `SELECT contract FROM nft_hidden WHERE tenant_id = ?`,
+      sql: `SELECT contract_address FROM nft_hidden WHERE tenant_id = ?`,
       args: [tenantId],
     });
     const hiddenContracts = new Set(
-      (hiddenResult.rows as unknown as { contract: string }[]).map((r) =>
-        r.contract.toLowerCase(),
+      (hiddenResult.rows as unknown as { contract_address: string }[]).map((r) =>
+        r.contract_address.toLowerCase(),
       ),
     );
 

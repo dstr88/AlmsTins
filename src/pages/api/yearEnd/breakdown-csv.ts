@@ -149,7 +149,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       }
       case 'shortTerm': {
         filename = `almstins-${year}-short-term.csv`;
-        const headers = ['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss'];
+        const headers = ['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss', 'Basis Source', 'Origin / Trace'];
         const rows: CsvRow[] = bd.shortTerm.map((i) => [
           i.asset,
           i.amount,
@@ -159,13 +159,15 @@ export const GET: APIRoute = async ({ request, url }) => {
           formatUsd(i.costUsd),
           formatUsd(i.proceedsUsd),
           formatUsd(i.gainLossUsd),
+          i.basisSource ?? '',
+          i.originNote ?? '',
         ]);
         csvContent = buildCsv('Short-Term Capital Gains & Losses', year, headers, rows);
         break;
       }
       case 'longTerm': {
         filename = `almstins-${year}-long-term.csv`;
-        const headers = ['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss'];
+        const headers = ['Asset', 'Qty', 'Acquired', 'Sold', 'Days Held', 'Cost Basis', 'Proceeds', 'Gain / Loss', 'Basis Source', 'Origin / Trace'];
         const rows: CsvRow[] = bd.longTerm.map((i) => [
           i.asset,
           i.amount,
@@ -175,6 +177,8 @@ export const GET: APIRoute = async ({ request, url }) => {
           formatUsd(i.costUsd),
           formatUsd(i.proceedsUsd),
           formatUsd(i.gainLossUsd),
+          i.basisSource ?? '',
+          i.originNote ?? '',
         ]);
         csvContent = buildCsv('Long-Term Capital Gains & Losses', year, headers, rows);
         break;

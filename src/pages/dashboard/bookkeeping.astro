@@ -134,6 +134,16 @@ const fGain = (v: number | null) => {
 const csvBase = (section: string) =>
   `/api/yearEnd/breakdown-csv?year=${selectedYear}&section=${section}`;
 
+// Provenance badge for a disposal's cost basis — see SettledLot.basisSource.
+const basisMeta = (s?: string): { label: string; cls: string } => {
+  switch (s) {
+    case 'manual':
+    case 'estimated': return { label: 'estimated basis', cls: 'basis-badge--est' };
+    case 'missing':   return { label: 'no recorded basis', cls: 'basis-badge--missing' };
+    default:          return { label: 'recorded basis', cls: 'basis-badge--recorded' };
+  }
+};
+
 const kindLabel = (kind: string) =>
   kind
     .replace(/_/g, ' ')
@@ -377,6 +387,9 @@ const syncRelative = !hasSync ? '' :
                       ? `${pos.daysHeld >= 365 ? t.termLong : t.termShort} · ${pos.daysHeld}d`
                       : `${pos.daysHeld}d`}
                   </span>
+                  {(pos.costUsd == null || pos.costUsd > 5) && (
+                    <a class="tin-hold-trace" href={`/dashboard/yearEnd/memory-lane?year=${selectedYear}&symbol=${encodeURIComponent(pos.asset)}`}>trace origin →</a>
+                  )}
                   <label class="tin-row__confirm">
                     <input type="checkbox" class="confirm-check" data-asset={pos.asset} data-date={pos.acquiredDate} />
                     <span class="confirm-label">{t.confirmedLabel}</span>
@@ -451,6 +464,7 @@ const syncRelative = !hasSync ? '' :
                 <div class="tin-rows">
                   {bd.shortTerm.map((lot) => {
                     const g = fGain(lot.gainLossUsd);
+                    const b = basisMeta(lot.basisSource);
                     return (
                       <div class="tin-row">
                         <span class="tin-row__asset">{lot.asset}</span>
@@ -464,6 +478,11 @@ const syncRelative = !hasSync ? '' :
                         <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
                         <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
                         <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                        <div class="tin-row__trace">
+                          <span class={`basis-badge ${b.cls}`}>{b.label}</span>
+                          {lot.originNote && <span class="tin-row__origin" title={lot.originNote}>{lot.originNote}</span>}
+                          <a class="tin-trace-link" href={`/dashboard/yearEnd/memory-lane?year=${selectedYear}&symbol=${encodeURIComponent(lot.asset)}`}>trace origin →</a>
+                        </div>
                       </div>
                     );
                   })}
@@ -496,6 +515,7 @@ const syncRelative = !hasSync ? '' :
                 <div class="tin-rows">
                   {bd.longTerm.map((lot) => {
                     const g = fGain(lot.gainLossUsd);
+                    const b = basisMeta(lot.basisSource);
                     return (
                       <div class="tin-row">
                         <span class="tin-row__asset">{lot.asset}</span>
@@ -509,6 +529,11 @@ const syncRelative = !hasSync ? '' :
                         <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
                         <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
                         <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                        <div class="tin-row__trace">
+                          <span class={`basis-badge ${b.cls}`}>{b.label}</span>
+                          {lot.originNote && <span class="tin-row__origin" title={lot.originNote}>{lot.originNote}</span>}
+                          <a class="tin-trace-link" href={`/dashboard/yearEnd/memory-lane?year=${selectedYear}&symbol=${encodeURIComponent(lot.asset)}`}>trace origin →</a>
+                        </div>
                       </div>
                     );
                   })}
@@ -542,6 +567,7 @@ const syncRelative = !hasSync ? '' :
                   .sort((a, b) => a.sellDate.localeCompare(b.sellDate))
                   .map((lot) => {
                     const g = fGain(lot.gainLossUsd);
+                    const b = basisMeta(lot.basisSource);
                     return (
                       <div class="tin-row">
                         <span class="tin-row__asset">{lot.asset}</span>
@@ -555,6 +581,11 @@ const syncRelative = !hasSync ? '' :
                         <span class="tin-row__usd">{fUsd(lot.costUsd)}</span>
                         <span class="tin-row__usd">{fUsd(lot.proceedsUsd)}</span>
                         <span class={`tin-row__gain ${g.cls}`}>{g.text}</span>
+                        <div class="tin-row__trace">
+                          <span class={`basis-badge ${b.cls}`}>{b.label}</span>
+                          {lot.originNote && <span class="tin-row__origin" title={lot.originNote}>{lot.originNote}</span>}
+                          <a class="tin-trace-link" href={`/dashboard/yearEnd/memory-lane?year=${selectedYear}&symbol=${encodeURIComponent(lot.asset)}`}>trace origin →</a>
+                        </div>
                       </div>
                     );
                   })}
@@ -1037,6 +1068,51 @@ const syncRelative = !hasSync ? '' :
     .tin-row__note--labeled { opacity: 1; font-style: normal; color: var(--accent-dim); font-weight: 600; }
     .tin-row__kind   { font-size: 0.75rem; opacity: 0.55; }
     .tin-row__term   { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; }
+
+    /* ── Provenance trace line (audit trail — origin + basis source) ── */
+    .tin-row__trace {
+      flex-basis: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem 0.6rem;
+      margin-top: 0.15rem;
+      padding-top: 0.3rem;
+      border-top: 1px dashed var(--border-subtle);
+    }
+    .basis-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      padding: 0.08rem 0.4rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .basis-badge--recorded { color: var(--gain);    background: var(--gain-bg);    border: 1px solid var(--gain-border); }
+    .basis-badge--est      { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); }
+    .basis-badge--missing  { color: var(--loss);    background: var(--loss-bg);    border: 1px solid var(--loss-border); }
+    .tin-row__origin {
+      font-size: 0.72rem;
+      opacity: 0.6;
+      font-style: italic;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 48ch;
+    }
+    .tin-trace-link {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-decoration: none;
+      margin-left: auto;
+      white-space: nowrap;
+      opacity: 0.85;
+    }
+    .tin-trace-link:hover { opacity: 1; text-decoration: underline; }
+    .tin-hold-trace { font-size: 0.72rem; font-weight: 600; color: var(--accent); text-decoration: none; opacity: 0.75; white-space: nowrap; }
+    .tin-hold-trace:hover { opacity: 1; text-decoration: underline; }
 
     /* ── DeFi rows grid (multi-column when wide) ────────────── */
     .tin-rows--defi {
