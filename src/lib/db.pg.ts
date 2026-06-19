@@ -100,13 +100,18 @@ async function setTenantGuc(client: pg.PoolClient, ctx: { tenantId: string | nul
 }
 
 export function makePgDb(): Client {
-	const ownerUrl = process.env.DATABASE_URL;
+	// Match db.turso.ts: in Astro/Vite dev, .env lands in import.meta.env, not
+	// process.env. Merge both (import.meta.env wins) so the URL resolves in dev
+	// and on Render (real process.env) alike.
+	const importMetaEnv = ((import.meta as { env?: Record<string, string | undefined> }).env ?? {});
+	const env = { ...process.env, ...importMetaEnv };
+	const ownerUrl = env.DATABASE_URL;
 	if (!ownerUrl) {
 		throw new Error('Missing DATABASE_URL (Postgres engine selected via DB_ENGINE=pg)');
 	}
 
 	const ownerPool = makePool(ownerUrl);
-	const webUrl = process.env.WEB_DATABASE_URL;
+	const webUrl = env.WEB_DATABASE_URL;
 	const webPool = webUrl ? makePool(webUrl) : ownerPool;
 	const enforce = webPool !== ownerPool;
 
