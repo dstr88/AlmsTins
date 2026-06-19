@@ -674,49 +674,40 @@ export async function rebuildAssetLifecycles(tenantId: string, opts?: RebuildLif
 		args: [tenantId],
 	});
 
-	for (const group of groupRows) {
+	const CHUNK = 500;
+	const nowExpr = `to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')`;
+	// Chunked multi-row inserts: the old one-INSERT-per-row loops were ~1-2ms each on
+	// Turso, but on Postgres every db.execute under tenant context is a full BEGIN /
+	// SET app.tenant_id / INSERT / COMMIT round-trip, so ~4,500 events ran >10 min and
+	// timed out the sync. Batching collapses thousands of round-trips into a few.
+	const seenGroup = new Set<string>();
+	const uniqueGroups = groupRows.filter((g) => { const k = String(g.asset_symbol); if (seenGroup.has(k)) return false; seenGroup.add(k); return true; });
+	for (let i = 0; i < uniqueGroups.length; i += CHUNK) {
+		const slice = uniqueGroups.slice(i, i + CHUNK);
+		const tuples = slice.map(() => `(?, ?, ?, ?, ?, ?, ${nowExpr}, ${nowExpr})`).join(', ');
+		const args = slice.flatMap((group) => [group.id, tenantId, group.asset_symbol, group.total_quantity, group.weighted_avg_cost_usd, group.latest_acquired_at]);
 		await db.execute({
 			sql: `INSERT INTO asset_lifecycle_groups
 				(id, tenant_id, asset_symbol, total_quantity, weighted_avg_cost_usd, latest_acquired_at, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+				VALUES ${tuples}
 				ON CONFLICT (tenant_id, asset_symbol) DO UPDATE SET total_quantity = excluded.total_quantity, weighted_avg_cost_usd = excluded.weighted_avg_cost_usd, latest_acquired_at = excluded.latest_acquired_at, updated_at = excluded.updated_at`,
-			args: [
-				group.id,
-				tenantId,
-				group.asset_symbol,
-				group.total_quantity,
-				group.weighted_avg_cost_usd,
-				group.latest_acquired_at,
-			],
+			args,
 		});
 	}
 
-	for (const event of eventRows) {
-			await db.execute({
-				sql: `INSERT INTO asset_lifecycle_events
-					(id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, tx_hash, exchange_withdrawal_id, transaction_class, linked_transfer, confidence, contract_address, created_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
-					-- UNIQUE index on (tenant_id, source_id) makes IGNORE skip true duplicates
-					-- even when concurrent rebuilds generate different 'id' UUIDs
-ON CONFLICT DO NOTHING`,
-				args: [
-					event.id,
-					tenantId,
-					event.group_id,
-					event.source_type,
-					event.source_id,
-					event.timestamp_utc,
-					event.direction,
-					event.amount,
-					event.native_usd,
-					event.tx_hash,
-					event.exchange_withdrawal_id,
-					event.transaction_class,
-					event.linked_transfer,
-					event.confidence,
-					(event as any).contract_address ?? null,
-				],
-			});
+	const seenEvent = new Set<string>();
+	const uniqueEvents = eventRows.filter((e) => { const k = e.source_id ? String(e.source_id) : null; if (k === null) return true; if (seenEvent.has(k)) return false; seenEvent.add(k); return true; });
+	for (let i = 0; i < uniqueEvents.length; i += CHUNK) {
+		const slice = uniqueEvents.slice(i, i + CHUNK);
+		const tuples = slice.map(() => `(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${nowExpr})`).join(', ');
+		const args = slice.flatMap((event) => [event.id, tenantId, event.group_id, event.source_type, event.source_id, event.timestamp_utc, event.direction, event.amount, event.native_usd, event.tx_hash, event.exchange_withdrawal_id, event.transaction_class, event.linked_transfer, event.confidence, (event as any).contract_address ?? null]);
+		await db.execute({
+			sql: `INSERT INTO asset_lifecycle_events
+				(id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, tx_hash, exchange_withdrawal_id, transaction_class, linked_transfer, confidence, contract_address, created_at)
+				VALUES ${tuples}
+				ON CONFLICT DO NOTHING`,
+			args,
+		});
 	}
 	const insertMs = Date.now() - insertStart;
 	const serializationMs = 0;
