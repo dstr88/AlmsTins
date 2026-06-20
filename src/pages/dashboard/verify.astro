@@ -2,6 +2,8 @@
 import Layout from '../../layouts/Layout.astro';
 import VerifyDashboard from '../../components/verify/VerifyDashboard';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getLang } from '@/lib/i18n/locale';
+import { getVerifyDashboard } from '@/i18n/dashboard/verify';
 import { getImage } from 'astro:assets';
 import heroDesktopImg from '../../assets/verifyHeroDesktop.png';
 import heroMobileImg from '../../assets/verifyHeroMobile.png';
@@ -9,12 +11,15 @@ import heroMobileImg from '../../assets/verifyHeroMobile.png';
 const session = await requireTenantSession(Astro.request);
 if (!session) return Astro.redirect('/verify');
 
+const lang = getLang(Astro.request);
+const t = getVerifyDashboard(lang);
+
 // Vault-style hero — portrait (mobile) / landscape (desktop), optimized to webp.
 const heroDesktop = await getImage({ src: heroDesktopImg, format: 'webp', width: 1376 });
 const heroMobile = await getImage({ src: heroMobileImg, format: 'webp', width: 928 });
 ---
 
-<Layout title="Verify | Almstins" noindex={true} logoutRedirect="/verify">
+<Layout title={t.pageTitle} noindex={true} logoutRedirect="/verify">
   <div class="vd-page">
     <div class="hero-bleed">
       <section class="vd-hero">
@@ -25,20 +30,20 @@ const heroMobile = await getImage({ src: heroMobileImg, format: 'webp', width: 9
             src={heroDesktop.src}
             width="1376"
             height="768"
-            alt="A merchant's Scan-to-Pay crypto QR protected by a glowing Almstins Verify shield"
+            alt={t.heroAlt}
             loading="eager"
             decoding="async"
           />
         </picture>
         <div class="vd-hero__overlay"></div>
         <div class="vd-hero__copy">
-          <p class="vd-hero__kicker">Almstins Verify</p>
-          <h1 class="vd-hero__title">Watch your receiving addresses</h1>
-          <p class="vd-hero__sub">Register the payment destinations you publish — Almstins watches them for swaps.</p>
+          <p class="vd-hero__kicker">{t.heroKicker}</p>
+          <h1 class="vd-hero__title">{t.heroTitle}</h1>
+          <p class="vd-hero__sub">{t.heroSub}</p>
         </div>
       </section>
     </div>
-    <VerifyDashboard client:load />
+    <VerifyDashboard client:load t={t} />
   </div>
 </Layout>
 

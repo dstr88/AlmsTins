@@ -68,3 +68,46 @@
 .vd-add__btn:hover:not(:disabled) { filter: brightness(1.08); }
 .vd-add__btn:disabled { opacity: 0.5; cursor: default; }
 .vd-add__err { flex-basis: 100%; font-size: 0.8rem; color: var(--loss); }
+
+/* ── Verify a sign (scan / paste → match against your registered destinations) ── */
+.vd-verify {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.1rem 1rem;
+  margin-bottom: 2rem;
+}
+.vd-verify__title { font-size: 1.05rem; font-weight: 700; margin: 0 0 0.3rem; color: var(--text-primary); }
+.vd-verify__hint { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.55; margin: 0 0 0.85rem; max-width: 62ch; }
+.vd-verify__row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.vd-verify__input {
+  flex: 1 1 240px; min-width: 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.85rem;
+  padding: 0.5rem 0.65rem;
+  background: var(--surface-card-2); border: 1px solid var(--border-bright);
+  border-radius: 8px; color: var(--text-primary); outline: none;
+}
+.vd-verify__input:focus { border-color: var(--accent); }
+.vd-verify__input::placeholder { color: var(--text-muted); }
+.vd-verify__scan {
+  font-family: inherit; font-size: 0.85rem; font-weight: 700; padding: 0.5rem 0.9rem;
+  background: transparent; color: var(--accent); border: 1px solid var(--border-bright);
+  border-radius: 8px; cursor: pointer; transition: border-color 0.15s, background 0.15s; white-space: nowrap;
+}
+.vd-verify__scan:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+.vd-verify__scan:disabled { opacity: 0.5; cursor: default; }
+.vd-verify__btn {
+  font-family: inherit; font-size: 0.85rem; font-weight: 700; padding: 0.5rem 1.1rem;
+  background: var(--accent); color: var(--surface-bg); border: none; border-radius: 8px;
+  cursor: pointer; transition: filter 0.15s; white-space: nowrap;
+}
+.vd-verify__btn:hover:not(:disabled) { filter: brightness(1.08); }
+.vd-verify__btn:disabled { opacity: 0.5; cursor: default; }
+.vd-verify__result {
+  margin-top: 0.85rem; font-size: 0.875rem; line-height: 1.55;
+  border-radius: 10px; padding: 0.7rem 0.9rem;
+}
+.vd-verify__result--ok   { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+.vd-verify__result--warn { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); }
+.vd-verify__result--err  { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
+.vd-verify__mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; word-break: break-all; }

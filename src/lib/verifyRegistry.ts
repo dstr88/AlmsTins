@@ -88,6 +88,49 @@ export async function listDestinations(tenantId: string): Promise<Destination[]>
   return (res.rows as any[]).map(mapRow);
 }
 
+/**
+ * Normalize a payment value for equality comparison. The registry stores values
+ * as the owner entered them, so BOTH sides must be canonicalized the same way:
+ *  - http(s) URL  → scheme + lowercased host + path (drop query/hash/trailing slash)
+ *  - EVM address  → lowercased 0x… (also pulled out of ethereum:/EIP-681 URIs)
+ *  - other chains → strip any URI scheme + trailing params; keep case
+ *    (BTC/SOL/LTC base58/bech32 are case-sensitive — never lowercase them)
+ */
+export function normalizeDestinationValue(raw: string): string {
+  const s = (raw ?? '').trim();
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s)) {
+    try {
+      const u = new URL(s);
+      return `${u.protocol.toLowerCase()}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}`;
+    } catch { return s.toLowerCase(); }
+  }
+  const evm = s.match(/0x[a-fA-F0-9]{40}/);
+  if (evm) return evm[0].toLowerCase();
+  const noScheme = s.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:/, '');
+  return noScheme.split(/[?@\s]/)[0].trim();
+}
+
+export interface CompareResult {
+  matched: boolean;
+  normalizedQuery: string;
+  destination: Destination | null;
+}
+
+/**
+ * Compare a scanned/entered value against the tenant's OWN registered destinations.
+ * Match = "still yours"; no match = a destination we never registered (possible swap).
+ * A direct equality check against the owner's ground truth — it catches a brand-new
+ * clean thief address that no blacklist would flag. Read-only, tenant-scoped.
+ */
+export async function compareToDestinations(tenantId: string, rawValue: string): Promise<CompareResult> {
+  const normalizedQuery = normalizeDestinationValue(rawValue);
+  if (!normalizedQuery) return { matched: false, normalizedQuery: '', destination: null };
+  const dests = await listDestinations(tenantId);
+  const hit = dests.find(d => normalizeDestinationValue(d.value) === normalizedQuery) ?? null;
+  return { matched: !!hit, normalizedQuery, destination: hit };
+}
+
 export type CreateResult =
   | { ok: true; destination: Destination }
   | { ok: false; error: 'limit_reached' | 'duplicate' | 'invalid'; message: string };
