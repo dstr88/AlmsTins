@@ -344,36 +344,36 @@ ON CONFLICT DO NOTHING`,
 
 		// lifecycle events (need group IDs)
 		batch('lifecycle-events', [
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-btc-buy',    GRP_BTC,   '2021-06-15T14:22:00.000Z', 'in',  'wallet', 'demo-evt-btc-buy-tx',    0.001,      28.50, '2021-06-15T14:22:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-ltc-buy',    GRP_LTC,   '2022-11-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-ltc-buy-tx',    0.625,      34.38, '2022-11-01T10:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-eth-buy',    GRP_ETH,   '2021-10-05T11:00:00.000Z', 'in',  'wallet', 'demo-evt-eth-buy-tx',    0.023,      73.60, '2021-10-05T11:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-matic-buy',  GRP_MATIC, '2021-09-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-matic-buy-tx',  500,       400.00, '2021-09-01T10:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-eth-sell',   GRP_ETH,   '2023-08-10T09:30:00.000Z', 'out', 'wallet', 'demo-evt-eth-sell-tx',   0.005,       9.00, '2023-08-10T09:30:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-matic-sell', GRP_MATIC, '2023-04-15T14:00:00.000Z', 'out', 'wallet', 'demo-evt-matic-sell-tx', 200,       300.00, '2023-04-15T14:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-avax-buy',   GRP_AVAX,  '2024-03-10T12:00:00.000Z', 'in',  'wallet', 'demo-evt-avax-buy-tx',   2.0,        36.00, '2024-03-10T12:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-avax-sell',  GRP_AVAX,  '2024-11-05T15:00:00.000Z', 'out', 'wallet', 'demo-evt-avax-sell-tx',  0.5,        12.00, '2024-11-05T15:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-cro-send',   GRP_CRO,   '2026-05-15T09:00:00.000Z', 'out', 'wallet', 'demo-evt-cro-send-tx',   30,          2.70, '2026-05-15T09:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-luna-buy',   GRP_LUNA,  '2022-01-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-luna-buy-tx',   5000,      175.00, '2022-01-01T10:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-luna-sell',  GRP_LUNA,  '2022-05-13T12:00:00.000Z', 'out', 'wallet', 'demo-evt-luna-sell-tx',  5000,        0.05, '2022-05-13T12:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-shib-buy',   GRP_SHIB,  '2021-10-29T09:00:00.000Z', 'in',  'wallet', 'demo-evt-shib-buy-tx',   10000000,  800.00, '2021-10-29T09:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-shib-sell',  GRP_SHIB,  '2022-06-30T15:00:00.000Z', 'out', 'wallet', 'demo-evt-shib-sell-tx',  10000000,  110.00, '2022-06-30T15:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-doge-buy',   GRP_DOGE,  '2021-05-07T08:00:00.000Z', 'in',  'wallet', 'demo-evt-doge-buy-tx',   2000,     1360.00, '2021-05-07T08:00:00.000Z'] },
-			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, source_type, source_id, timestamp_utc, direction, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
-ON CONFLICT DO NOTHING`, args: ['demo-evt-doge-sell',  GRP_DOGE,  '2022-03-01T14:00:00.000Z', 'out', 'wallet', 'demo-evt-doge-sell-tx',  2000,      160.00, '2022-03-01T14:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-btc-buy',    DEMO_TENANT_ID, GRP_BTC,   '2021-06-15T14:22:00.000Z', 'in',  'wallet', 'demo-evt-btc-buy-tx',    0.001,      28.50, '2021-06-15T14:22:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-ltc-buy',    DEMO_TENANT_ID, GRP_LTC,   '2022-11-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-ltc-buy-tx',    0.625,      34.38, '2022-11-01T10:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-eth-buy',    DEMO_TENANT_ID, GRP_ETH,   '2021-10-05T11:00:00.000Z', 'in',  'wallet', 'demo-evt-eth-buy-tx',    0.023,      73.60, '2021-10-05T11:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-matic-buy',  DEMO_TENANT_ID, GRP_MATIC, '2021-09-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-matic-buy-tx',  500,       400.00, '2021-09-01T10:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-eth-sell',   DEMO_TENANT_ID, GRP_ETH,   '2023-08-10T09:30:00.000Z', 'out', 'wallet', 'demo-evt-eth-sell-tx',   0.005,       9.00, '2023-08-10T09:30:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-matic-sell', DEMO_TENANT_ID, GRP_MATIC, '2023-04-15T14:00:00.000Z', 'out', 'wallet', 'demo-evt-matic-sell-tx', 200,       300.00, '2023-04-15T14:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-avax-buy',   DEMO_TENANT_ID, GRP_AVAX,  '2024-03-10T12:00:00.000Z', 'in',  'wallet', 'demo-evt-avax-buy-tx',   2.0,        36.00, '2024-03-10T12:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-avax-sell',  DEMO_TENANT_ID, GRP_AVAX,  '2024-11-05T15:00:00.000Z', 'out', 'wallet', 'demo-evt-avax-sell-tx',  0.5,        12.00, '2024-11-05T15:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-cro-send',   DEMO_TENANT_ID, GRP_CRO,   '2026-05-15T09:00:00.000Z', 'out', 'wallet', 'demo-evt-cro-send-tx',   30,          2.70, '2026-05-15T09:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-luna-buy',   DEMO_TENANT_ID, GRP_LUNA,  '2022-01-01T10:00:00.000Z', 'in',  'wallet', 'demo-evt-luna-buy-tx',   5000,      175.00, '2022-01-01T10:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-luna-sell',  DEMO_TENANT_ID, GRP_LUNA,  '2022-05-13T12:00:00.000Z', 'out', 'wallet', 'demo-evt-luna-sell-tx',  5000,        0.05, '2022-05-13T12:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-shib-buy',   DEMO_TENANT_ID, GRP_SHIB,  '2021-10-29T09:00:00.000Z', 'in',  'wallet', 'demo-evt-shib-buy-tx',   10000000,  800.00, '2021-10-29T09:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-shib-sell',  DEMO_TENANT_ID, GRP_SHIB,  '2022-06-30T15:00:00.000Z', 'out', 'wallet', 'demo-evt-shib-sell-tx',  10000000,  110.00, '2022-06-30T15:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-doge-buy',   DEMO_TENANT_ID, GRP_DOGE,  '2021-05-07T08:00:00.000Z', 'in',  'wallet', 'demo-evt-doge-buy-tx',   2000,     1360.00, '2021-05-07T08:00:00.000Z'] },
+			{ sql: `INSERT INTO asset_lifecycle_events (id, tenant_id, group_id, timestamp_utc, direction, source_type, source_id, amount, native_usd, transaction_class, linked_transfer, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'trade', 0, ?)
+ON CONFLICT DO NOTHING`, args: ['demo-evt-doge-sell',  DEMO_TENANT_ID, GRP_DOGE,  '2022-03-01T14:00:00.000Z', 'out', 'wallet', 'demo-evt-doge-sell-tx',  2000,      160.00, '2022-03-01T14:00:00.000Z'] },
 		]),
 
 		// DeFi sync (needs W_ETH and W_AVAX)

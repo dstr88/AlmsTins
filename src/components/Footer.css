@@ -68,8 +68,7 @@
 .footer-legal {
   margin-top: 0.75rem;
   font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -79,7 +78,7 @@
 .footer-legal-link {
   background: none;
   border: none;
-  padding: 0;
+  padding: 0.3rem 0;
   text-align: left;
   color: var(--text-secondary);
   cursor: pointer;
