@@ -32,9 +32,8 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/about' ||
 		pathname === '/about/es' ||
 		pathname === '/about/fr' ||
-		pathname === '/security-and-privacy' ||
-		pathname === '/security-and-privacy/es' ||
-		pathname === '/security-and-privacy/fr' ||
+		// Privacy Policy — public, crawlable canonical URL (same source as the footer modal)
+		pathname === '/privacy' ||
 		pathname === '/signup' ||
 		pathname.startsWith('/signup/') ||
 		// Credentials signup endpoint — must be reachable without a session
