@@ -1,5 +1,6 @@
 ---
 import LoginLayout from '../layouts/LoginLayout.astro';
+import AlmstinsLogo from '../assets/logo.jpeg';
 import { copy, LANGS, BRAND, BRAND_QUOTE, ALMSTINS_URL, type Lang } from '../i18n/verify';
 
 interface Props {
@@ -52,6 +53,9 @@ const canonical = `https://almstins.com${here.href}`;
         ))}
       </div>
       <a class="vnav__login" href="/login">{t.nav.login}</a>
+      <a class="vnav__logo" href="/" aria-label={t.nav.brandAria}>
+        <img src={AlmstinsLogo.src} alt="AlmsTins" width="960" height="1104" loading="eager" decoding="async" />
+      </a>
     </div>
   </nav>
 
@@ -178,6 +182,15 @@ const canonical = `https://almstins.com${here.href}`;
     white-space: nowrap;
   }
   .vnav__login:hover { color: var(--text-primary); border-color: var(--accent); }
+  .vnav__logo { display: inline-flex; align-items: center; line-height: 0; flex-shrink: 0; }
+  .vnav__logo img {
+    height: 40px;
+    width: auto;
+    border-radius: 9px;
+    border: 1px solid var(--border-subtle);
+    display: block;
+  }
+  @media (max-width: 480px) { .vnav__logo img { height: 34px; } }
 
   /* ── Buttons ── */
   .vbtn {
