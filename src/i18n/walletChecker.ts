@@ -21,6 +21,9 @@ export interface WalletCheckerLocale {
     eyebrow: string;
     title: string;
     sub: string;
+    loginCta: string;
+    loginNote: string;
+    orPaste: string;
   };
   cards: {
     site:     { title: string; cta: string; placeholder: string; button: string };
@@ -97,6 +100,12 @@ export interface WalletCheckerLocale {
     scamClean: string;
     scamCaution: string;
     scamHigh: string;
+    scamLimited: string;
+    limitedCoverageTitle: string;
+    limitedCoverageBody: string;
+    checksUnavailableTitle: string;
+    checksRan: string;
+    checksUnavailable: string;
     reported: string;
     clear: string;
     tabs: { safety: string; holdings: string; activity: string; honeypot: string; funding: string; multisig: string };
@@ -177,8 +186,11 @@ export const en: WalletCheckerLocale = {
   },
   hero: {
     eyebrow: 'Free · No login required · Results in seconds',
-    title: 'Crypto Wallet Scam Checker',
-    sub: 'Been offered a deal that sounds too good to be true? Before you send a single token, paste the wallet address below. We\'ll check it against public scam databases, honeypot detectors, and on-chain data — instantly.',
+    title: 'Scan a QR before you trust it',
+    sub: 'Point your camera at any payment or wallet QR and we\'ll check the address or link it contains against the major scam, phishing, and sanctions databases — before you send a thing. No wallet connection, ever.',
+    loginCta: 'Log in or sign up',
+    loginNote: 'Scanning is free — no account needed. Create a free account to save your checks.',
+    orPaste: 'or paste an address or URL below',
   },
   cards: {
     site: {
@@ -330,8 +342,8 @@ export const en: WalletCheckerLocale = {
     checking: 'Checking…',
     checkFailed: 'Check failed. Please try again.',
     networkError: 'Network error. Please try again.',
-    scanTitle: 'Point your camera at a wallet QR code',
-    scanPrivacy: 'The address is read on your device. Nothing is sent until you run the check.',
+    scanTitle: 'Point your camera at a wallet or payment QR code',
+    scanPrivacy: 'The code is read on your device. Nothing is sent until you run the check.',
     cancel: 'Cancel',
     scanUnsupported: 'Camera isn’t available on this browser — paste the address instead.',
     scanDenied: 'Camera permission was denied. Allow camera access and try again.',
@@ -348,6 +360,12 @@ export const en: WalletCheckerLocale = {
     scamClean: '✅ No known risks detected',
     scamCaution: '⚠️ Exercise caution',
     scamHigh: '🚨 High risk — likely a scam',
+    scamLimited: '⚠️ Limited check — not a clean bill',
+    limitedCoverageTitle: 'Limited check for {chain}',
+    limitedCoverageBody: 'We could not run the main scam databases for {chain}, so the absence of a flag here is not a clean bill of health. Verify the address independently before you send.',
+    checksUnavailableTitle: 'Some checks were unavailable',
+    checksRan: 'Checked',
+    checksUnavailable: 'Unavailable',
     reported: '🚨 Reported',
     clear: '✅ Clear',
     tabs: { safety: '🛡 Safety Report', holdings: '💰 Holdings', activity: '📊 Activity', honeypot: '🍯 Honeypot', funding: '🔗 Funding', multisig: '🔑 Multi-sig' },
@@ -436,8 +454,11 @@ export const es: WalletCheckerLocale = {
   },
   hero: {
     eyebrow: 'Gratis · Sin cuenta · Resultados en segundos',
-    title: 'Verificador de Estafas de Cripto',
-    sub: '¿Te ofrecieron un trato que parece demasiado bueno para ser verdad? Antes de enviar un solo token, pega la dirección de la billetera aquí abajo. La verificaremos contra bases de datos públicas de estafas, detectores de honeypots y datos on-chain — al instante.',
+    title: 'Escanea un QR antes de confiar',
+    sub: 'Apunta tu cámara a cualquier QR de pago o de billetera y comprobaremos la dirección o el enlace que contiene en las principales bases de datos de estafas, phishing y sanciones — antes de que envíes nada. Sin conectar la billetera, nunca.',
+    loginCta: 'Inicia sesión o regístrate',
+    loginNote: 'Escanear es gratis — no necesitas cuenta. Crea una cuenta gratis para guardar tus comprobaciones.',
+    orPaste: 'o pega una dirección o URL abajo',
   },
   cards: {
     site: {
@@ -589,8 +610,8 @@ export const es: WalletCheckerLocale = {
     checking: 'Verificando…',
     checkFailed: 'La verificación falló. Inténtalo de nuevo.',
     networkError: 'Error de red. Inténtalo de nuevo.',
-    scanTitle: 'Apunta tu cámara a un código QR de billetera',
-    scanPrivacy: 'La dirección se lee en tu dispositivo. No se envía nada hasta que ejecutes la verificación.',
+    scanTitle: 'Apunta tu cámara a un QR de billetera o de pago',
+    scanPrivacy: 'El código se lee en tu dispositivo. No se envía nada hasta que ejecutes la verificación.',
     cancel: 'Cancelar',
     scanUnsupported: 'La cámara no está disponible en este navegador — pega la dirección en su lugar.',
     scanDenied: 'Se denegó el permiso de cámara. Permite el acceso a la cámara e inténtalo de nuevo.',
@@ -607,6 +628,12 @@ export const es: WalletCheckerLocale = {
     scamClean: '✅ No se detectaron riesgos conocidos',
     scamCaution: '⚠️ Procede con precaución',
     scamHigh: '🚨 Alto riesgo — probablemente una estafa',
+    scamLimited: '⚠️ Comprobación limitada — no es garantía',
+    limitedCoverageTitle: 'Comprobación limitada para {chain}',
+    limitedCoverageBody: 'No pudimos consultar las principales bases de datos de fraude para {chain}, así que la ausencia de una alerta aquí no es una garantía de seguridad. Verifica la dirección de forma independiente antes de enviar.',
+    checksUnavailableTitle: 'Algunas comprobaciones no estuvieron disponibles',
+    checksRan: 'Comprobado',
+    checksUnavailable: 'No disponible',
     reported: '🚨 Reportado',
     clear: '✅ Limpio',
     tabs: { safety: '🛡 Informe de seguridad', holdings: '💰 Tenencias', activity: '📊 Actividad', honeypot: '🍯 Honeypot', funding: '🔗 Financiación', multisig: '🔑 Multi-firma' },
@@ -695,8 +722,11 @@ export const fr: WalletCheckerLocale = {
   },
   hero: {
     eyebrow: 'Gratuit · Sans inscription · Résultats en quelques secondes',
-    title: 'Vérificateur d’arnaques de portefeuille crypto',
-    sub: 'On vous a proposé une affaire trop belle pour être vraie ? Avant d’envoyer le moindre token, collez l’adresse du portefeuille ci-dessous. Nous la vérifions instantanément dans les bases de données publiques d’arnaques, les détecteurs de honeypot et les données on-chain.',
+    title: 'Scannez un QR avant de faire confiance',
+    sub: 'Pointez votre caméra vers n’importe quel QR de paiement ou de portefeuille et nous vérifierons l’adresse ou le lien qu’il contient dans les principales bases de données d’arnaques, de phishing et de sanctions — avant que vous n’envoyiez quoi que ce soit. Aucune connexion de portefeuille, jamais.',
+    loginCta: 'Connexion ou inscription',
+    loginNote: 'Le scan est gratuit — aucun compte requis. Créez un compte gratuit pour enregistrer vos vérifications.',
+    orPaste: 'ou collez une adresse ou une URL ci-dessous',
   },
   cards: {
     site: {
@@ -848,8 +878,8 @@ export const fr: WalletCheckerLocale = {
     checking: 'Vérification…',
     checkFailed: 'La vérification a échoué. Veuillez réessayer.',
     networkError: 'Erreur réseau. Veuillez réessayer.',
-    scanTitle: 'Pointez votre caméra vers un code QR de portefeuille',
-    scanPrivacy: 'L’adresse est lue sur votre appareil. Rien n’est envoyé tant que vous ne lancez pas la vérification.',
+    scanTitle: 'Pointez votre caméra vers un QR de portefeuille ou de paiement',
+    scanPrivacy: 'Le code est lu sur votre appareil. Rien n’est envoyé tant que vous ne lancez pas la vérification.',
     cancel: 'Annuler',
     scanUnsupported: 'La caméra n’est pas disponible sur ce navigateur — collez plutôt l’adresse.',
     scanDenied: 'L’autorisation de la caméra a été refusée. Autorisez l’accès à la caméra et réessayez.',
@@ -866,6 +896,12 @@ export const fr: WalletCheckerLocale = {
     scamClean: '✅ Aucun risque connu détecté',
     scamCaution: '⚠️ Faites preuve de prudence',
     scamHigh: '🚨 Risque élevé — probablement une arnaque',
+    scamLimited: '⚠️ Vérification limitée — pas une garantie',
+    limitedCoverageTitle: 'Vérification limitée pour {chain}',
+    limitedCoverageBody: 'Nous n\'avons pas pu interroger les principales bases de données d\'arnaques pour {chain} ; l\'absence de signalement ici n\'est donc pas un gage de sécurité. Vérifiez l\'adresse de manière indépendante avant d\'envoyer.',
+    checksUnavailableTitle: 'Certaines vérifications étaient indisponibles',
+    checksRan: 'Vérifié',
+    checksUnavailable: 'Indisponible',
     reported: '🚨 Signalé',
     clear: '✅ Clean',
     tabs: { safety: '🛡 Rapport de sécurité', holdings: '💰 Avoirs', activity: '📊 Activité', honeypot: '🍯 Honeypot', funding: '🔗 Financement', multisig: '🔑 Multi-signature' },

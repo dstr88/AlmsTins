@@ -123,6 +123,14 @@ export interface WalletCheckResult {
     confidence: 'definite' | 'likely';
   } | null;
   errors: string[];
+  /** Which scam sources actually ran for this address's chain (P0/P1 honesty). */
+  coverage: {
+    goplus: 'ran' | 'skipped' | 'error';
+    honeypot: 'ran' | 'skipped' | 'error';
+    chainabuse: 'ran' | 'error';
+  };
+  /** True when no PRIMARY scam source ran for this chain — a "clean" must NOT read as a confident green. */
+  partialCoverage: boolean;
 }
 
 // ─── In-memory LRU cache ──────────────────────────────────────────────────────
@@ -853,6 +861,24 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   const flags: WalletCheckResult['flags'] = { ...emptyFlags, ...(goplus.flags ?? {}) };
   const { score, level } = calculateScamScore(flags);
 
+  // ── Coverage: did the PRIMARY scam source run for this chain? ──────────────────
+  // GoPlus (blacklist/sanctions/phishing) is the primary source and covers EVM +
+  // Solana only; honeypot.is is EVM-only; Chainabuse is community/secondary. A
+  // "clean" verdict where the primary source could not run must NOT be shown as a
+  // confident green (P0/P1 hardening).
+  const goplusSupported   = chain === 'evm' || chain === 'solana';
+  const goplusErrored     = goplusResult.status     === 'rejected' || (goplus.errors     ?? []).some((e: string) => e.includes('GoPlus'));
+  const honeypotErrored   = honeypotResult.status   === 'rejected' || (honeypot.errors   ?? []).some((e: string) => e.includes('Honeypot'));
+  const chainabuseErrored = chainabuseResult.status === 'rejected' || (chainabuse.errors ?? []).length > 0;
+  const coverage: WalletCheckResult['coverage'] = {
+    goplus:     !goplusSupported ? 'skipped' : goplusErrored ? 'error' : 'ran',
+    honeypot:   chain === 'evm' ? (honeypotErrored ? 'error' : 'ran') : 'skipped',
+    chainabuse: chainabuseErrored ? 'error' : 'ran',
+  };
+  // Partial when no primary scam source ran: non-EVM/Solana chains have none at all;
+  // EVM/Solana are partial only if GoPlus itself didn't run.
+  const partialCoverage = goplusSupported ? coverage.goplus !== 'ran' : true;
+
   // Funding source: infer from GoPlus mixer flag for now
   const fundingSource: WalletCheckResult['fundingSource'] = {
     fromMixer:    flags.mixer ? true : null,
@@ -876,5 +902,7 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
     fundingSource,
     entityLabel,
     errors: allErrors,
+    coverage,
+    partialCoverage,
   };
 }

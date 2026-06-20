@@ -47,14 +47,54 @@ function parseAddressFromQR(raw: string): string {
   return noScheme.split(/[?@\s]/)[0].trim();
 }
 
+// Name-service handles (vitalik.eth, foo.sol …) resolve to an address — they go to the
+// wallet check, NOT the website/dApp check, even though they contain a dot.
+const NAME_SERVICE_TLD = /\.(eth|sol|crypto|nft|wallet|bnb|x|dao|zil|blockchain|888)$/i;
+
+// Decide whether a scanned QR payload is a website / dApp URL (→ dapp-check) or a
+// blockchain address / payment URI (→ wallet-check).
+function classifyScan(raw: string): { kind: 'url' | 'address'; value: string } {
+  const s = raw.trim();
+  // Explicit web URL → website / dApp check
+  if (/^https?:\/\//i.test(s)) return { kind: 'url', value: s };
+  // An EVM address anywhere wins (covers EIP-681 "ethereum:0x..@1?value=" URIs)
+  if (/0x[a-fA-F0-9]{40}/.test(s)) return { kind: 'address', value: parseAddressFromQR(s) };
+  // A bare domain ("app.uniswap.org", "example.com/path") → website check, but never a
+  // name-service handle like "vitalik.eth" (those resolve to an address).
+  const host = s.split(/[/?#\s]/)[0];
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(host) && !NAME_SERVICE_TLD.test(host)) {
+    return { kind: 'url', value: s };
+  }
+  // Everything else — bitcoin:/solana:/litecoin: URIs, raw addresses, ENS names → wallet check
+  return { kind: 'address', value: parseAddressFromQR(s) };
+}
+
+// Which scam sources actually ran for this result's chain (P0/P1 honesty).
+// goplus 'skipped' (chain unsupported) counts as unavailable — it's the gap that matters;
+// honeypot 'skipped' is EVM-only N/A, so it's omitted rather than shown as a failure.
+function coverageSummary(result: WalletCheckResult): { ran: string[]; unavailable: string[] } {
+  const ran: string[] = [];
+  const unavailable: string[] = [];
+  const cov = result.coverage;
+  if (!cov) return { ran, unavailable };
+  if (cov.goplus === 'ran') ran.push('GoPlus'); else unavailable.push('GoPlus');
+  if (cov.honeypot === 'ran') ran.push('honeypot.is'); else if (cov.honeypot === 'error') unavailable.push('honeypot.is');
+  if (cov.chainabuse === 'ran') ran.push('Chainabuse'); else unavailable.push('Chainabuse');
+  return { ran, unavailable };
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function ScamMeter({ score, level, c }: { score: number; level: string; c: CheckerStrings }) {
+function ScamMeter({ score, level, partialCoverage, c }: { score: number; level: string; partialCoverage?: boolean; c: CheckerStrings }) {
+  // A "clean" verdict on a chain we couldn't fully check must NOT read as a confident green.
+  const limited = level === 'clean' && Boolean(partialCoverage);
   const color =
+    limited             ? 'var(--warning)' :
     level === 'clean'   ? '#22c55e' :
     level === 'caution' ? '#f59e0b' :
                           '#ef4444';
   const label =
+    limited             ? c.scamLimited :
     level === 'clean'   ? c.scamClean :
     level === 'caution' ? c.scamCaution :
                           c.scamHigh;
@@ -167,7 +207,11 @@ function TabContent({ tab, result, c }: { tab: Tab; result: WalletCheckResult; c
         )}
 
         <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
-          {c.safetySource}
+          {(() => {
+            const { ran, unavailable } = coverageSummary(result);
+            if (ran.length === 0 && unavailable.length === 0) return c.safetySource;
+            return `${c.checksRan}: ${ran.join(', ') || '—'}${unavailable.length ? ` · ${c.checksUnavailable}: ${unavailable.join(', ')}` : ''}`;
+          })()}
         </p>
       </div>
     );
@@ -445,12 +489,20 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
           const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
           if (code?.data) {
-            const addr = parseAddressFromQR(code.data);
-            if (addr) {
+            const { kind, value } = classifyScan(code.data);
+            // A scanned website / dApp URL is checked by the dApp checker (lives in the
+            // page script) — hand it off via an event and close the camera.
+            if (kind === 'url') {
               cancelled = true;
-              setAddress(addr);
               setScanning(false);
-              handleCheckRef.current(addr);
+              window.dispatchEvent(new CustomEvent('almstins:scanned-url', { detail: { url: value } }));
+              return;
+            }
+            if (value) {
+              cancelled = true;
+              setAddress(value);
+              setScanning(false);
+              handleCheckRef.current(value);
               return;
             }
           }
@@ -667,7 +719,35 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
           )}
 
           {/* Scam meter */}
-          <ScamMeter score={result.scamScore} level={result.scamLevel} c={c} />
+          <ScamMeter score={result.scamScore} level={result.scamLevel} partialCoverage={result.partialCoverage} c={c} />
+
+          {/* Coverage honesty: a "clean" on a chain we couldn't fully check is NOT a green bill of health */}
+          {(result.partialCoverage || (result.errors?.length ?? 0) > 0) && (() => {
+            const { ran, unavailable } = coverageSummary(result);
+            return (
+              <div style={{
+                marginBottom: '1.25rem', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem',
+                background: 'color-mix(in srgb, var(--warning) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--warning) 30%, transparent)',
+                color: 'var(--warning)',
+              }}>
+                <strong>
+                  {result.partialCoverage
+                    ? c.limitedCoverageTitle.replace('{chain}', chainLabel(result.chain, c))
+                    : c.checksUnavailableTitle}
+                </strong>
+                {result.partialCoverage && (
+                  <p style={{ margin: '0.4rem 0 0', color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
+                    {c.limitedCoverageBody.replace('{chain}', chainLabel(result.chain, c))}
+                  </p>
+                )}
+                <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)' }}>
+                  {ran.length > 0 && <>{c.checksRan}: {ran.join(', ')}. </>}
+                  {unavailable.length > 0 && <>{c.checksUnavailable}: {unavailable.join(', ')}.</>}
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Active flags summary */}
           {activeFlags.length > 0 && (

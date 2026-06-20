@@ -49,7 +49,7 @@ async function loadListsInBackground(): Promise<void> {
   try {
     const [mm, ss, op] = await Promise.allSettled([
       fetchWithTimeout(
-        'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/master/src/config.json',
+        'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/main/src/config.json',
         LIST_TIMEOUT_MS,
       ).then((r) => r.json()),
       fetchWithTimeout(
