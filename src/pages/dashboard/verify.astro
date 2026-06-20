@@ -2,17 +2,117 @@
 import Layout from '../../layouts/Layout.astro';
 import VerifyDashboard from '../../components/verify/VerifyDashboard';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getImage } from 'astro:assets';
+import heroDesktopImg from '../../assets/verifyHeroDesktop.png';
+import heroMobileImg from '../../assets/verifyHeroMobile.png';
 
 const session = await requireTenantSession(Astro.request);
 if (!session) return Astro.redirect('/verify');
+
+// Vault-style hero — portrait (mobile) / landscape (desktop), optimized to webp.
+const heroDesktop = await getImage({ src: heroDesktopImg, format: 'webp', width: 1376 });
+const heroMobile = await getImage({ src: heroMobileImg, format: 'webp', width: 928 });
 ---
 
 <Layout title="Verify | Almstins" noindex={true} logoutRedirect="/verify">
   <div class="vd-page">
+    <div class="hero-bleed">
+      <section class="vd-hero">
+        <picture class="vd-hero__pic">
+          <source media="(max-width: 767px)" srcset={heroMobile.src} width="928" height="1152" />
+          <img
+            class="vd-hero__img"
+            src={heroDesktop.src}
+            width="1376"
+            height="768"
+            alt="A merchant's Scan-to-Pay crypto QR protected by a glowing Almstins Verify shield"
+            loading="eager"
+            decoding="async"
+          />
+        </picture>
+        <div class="vd-hero__overlay"></div>
+        <div class="vd-hero__copy">
+          <p class="vd-hero__kicker">Almstins Verify</p>
+          <h1 class="vd-hero__title">Watch your receiving addresses</h1>
+          <p class="vd-hero__sub">Register the payment destinations you publish — Almstins watches them for swaps.</p>
+        </div>
+      </section>
+    </div>
     <VerifyDashboard client:load />
   </div>
 </Layout>
 
 <style>
-  .vd-page { min-height: 60vh; }
+  .vd-page { min-height: 60vh; width: 100%; }
+
+  /* Full-bleed hero, vault-style (mirrors NetWorthHero): portrait on mobile,
+     landscape on desktop, gradient scrim, centered copy. All colors via tokens. */
+  .vd-hero {
+    position: relative;
+    width: 100%;
+    height: 42vh;
+    min-height: 300px;
+    overflow: hidden;
+    isolation: isolate;
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--surface-bg) 65%, transparent);
+  }
+  @media (min-width: 960px) {
+    .vd-hero { height: 40vh; min-height: 340px; }
+  }
+  .vd-hero__pic { position: absolute; inset: 0; }
+  .vd-hero__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
+  .vd-hero__overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-bg) 72%, transparent),
+      color-mix(in srgb, var(--surface-bg) 20%, transparent) 38%,
+      color-mix(in srgb, var(--surface-bg) 82%, transparent)
+    );
+  }
+  .vd-hero__copy {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0.4rem;
+    padding: 2rem 1.5rem;
+    pointer-events: none;
+    color: var(--text-primary);
+  }
+  .vd-hero__kicker {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .vd-hero__title {
+    margin: 0;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    font-size: clamp(1.6rem, 3vw + 1rem, 2.6rem);
+    text-shadow: 0 10px 40px color-mix(in srgb, var(--surface-bg) 60%, transparent);
+  }
+  .vd-hero__sub {
+    margin: 0.15rem 0 0;
+    max-width: 52ch;
+    line-height: 1.5;
+    font-size: clamp(0.95rem, 1vw + 0.7rem, 1.15rem);
+    color: var(--text-secondary);
+  }
 </style>

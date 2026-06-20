@@ -48,14 +48,6 @@ export default function VerifyDashboard() {
 
   return (
     <div className="vd">
-      <header className="vd__head">
-        <h1 className="vd__title">Verify</h1>
-        <p className="vd__sub">
-          Register the payment destinations you publish, and Almstins watches them for swaps.
-          Free early access: 3 receiving addresses and 1 payment QR.
-        </p>
-      </header>
-
       <div className="vd__notice">
         Ownership proof and live monitoring arrive in the next update. For now, register the
         destinations you want to watch — they're held privately under your account.

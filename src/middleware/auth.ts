@@ -22,6 +22,10 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/' ||
 		pathname === '/login' ||
 		pathname.startsWith('/login/') ||
+		// Astro internal asset + on-demand image-optimization endpoints — must be
+		// public so optimized images render on public pages for logged-out visitors.
+		pathname.startsWith('/_image') ||
+		pathname.startsWith('/_astro/') ||
 		pathname === '/es' ||
 		pathname === '/fr' ||
 		// Trust & discovery pages — must be reachable without a session
