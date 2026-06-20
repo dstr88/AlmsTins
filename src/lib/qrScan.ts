@@ -94,7 +94,11 @@ export function promptScan(): Promise<string | null> {
  * `scan-error`, or `scan-start`. Style the inner button via the `button-class`
  * attribute or the default `.qr-scan-btn` class.
  */
-class QrScanButton extends HTMLElement {
+// Declared inside a function so `extends HTMLElement` is only evaluated on the
+// client — top-level `extends HTMLElement` crashes SSR (HTMLElement is undefined
+// on the server) for any module that imports this file (e.g. a React island).
+function defineQrScanButton() {
+  class QrScanButton extends HTMLElement {
   connectedCallback() {
     if (this.dataset.ready) return;
     this.dataset.ready = '1';
@@ -133,6 +137,9 @@ class QrScanButton extends HTMLElement {
   }
 }
 
-if (typeof window !== 'undefined' && !customElements.get('qr-scan-button')) {
-  customElements.define('qr-scan-button', QrScanButton);
+  if (!customElements.get('qr-scan-button')) {
+    customElements.define('qr-scan-button', QrScanButton);
+  }
 }
+
+if (typeof window !== 'undefined') defineQrScanButton();

@@ -360,7 +360,7 @@ async function writeRequestAnalytics(request: Request, response: Response, start
 			ON CONFLICT(day, route_key, method, status, country_code) DO UPDATE SET
 				count = request_agg_daily.count + 1,
 				ms_total = request_agg_daily.ms_total + excluded.ms_total,
-				ms_max = GREATEST(request_agg_daily.ms_max, excluded.ms_max)
+				ms_max = CASE WHEN excluded.ms_max > request_agg_daily.ms_max THEN excluded.ms_max ELSE request_agg_daily.ms_max END
 		`,
 		args: [day, routeKey, method, status, countryCode, ms, ms],
 	});
