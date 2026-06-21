@@ -29,6 +29,26 @@ function short(v: string): string {
   return v.length <= 24 ? v : `${v.slice(0, 12)}…${v.slice(-8)}`;
 }
 
+// Name-service handles (vitalik.eth, foo.sol …) resolve to an address — they take
+// the wallet safety check, not the website check, despite containing a dot.
+const NAME_SERVICE_TLD = /\.(eth|sol|crypto|nft|wallet|bnb|x|dao|zil|blockchain|888)$/i;
+
+// Decide whether a scanned/pasted payload is a website / payment URL (→ dapp-check)
+// or a blockchain address / payment URI (→ wallet-check). Mirrors the public
+// wallet-checker's classifier so both surfaces route a scan the same way.
+function classifyScan(raw: string): { kind: 'url' | 'address'; value: string } {
+  const s = raw.trim();
+  if (/^https?:\/\//i.test(s)) return { kind: 'url', value: s };
+  const evm = s.match(/0x[a-fA-F0-9]{40}/);
+  if (evm) return { kind: 'address', value: evm[0] };
+  const host = s.split(/[/?#\s]/)[0];
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(host) && !NAME_SERVICE_TLD.test(host)) {
+    return { kind: 'url', value: s };
+  }
+  const noScheme = s.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:/, '');
+  return { kind: 'address', value: noScheme.split(/[?@\s]/)[0].trim() };
+}
+
 export default function VerifyDashboard({ t }: { t: VerifyDashboardLocale }) {
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,18 +188,27 @@ type CheckState =
   | { status: 'nomatch'; value: string }
   | { status: 'error'; message: string };
 
+// Independent scam screen on the scanned value, run in parallel with the match
+// check. 'unclear' = a yellow/partial-coverage result that can't be cleared.
+type SafetyState =
+  | { s: 'idle' } | { s: 'checking' } | { s: 'clean' } | { s: 'caution' }
+  | { s: 'unclear' } | { s: 'danger' } | { s: 'error' };
+
 // Scan or paste a payment QR/address and check it against the tenant's OWN
 // registered destinations — "✓ still yours" vs "⚠ swapped". The QR is decoded
 // on-device (jsQR via qrScan.ts); only the decoded string is sent.
 function VerifySign({ t }: { t: VerifyDashboardLocale }) {
   const [value, setValue] = useState('');
   const [state, setState] = useState<CheckState>({ status: 'idle' });
+  const [safety, setSafety] = useState<SafetyState>({ s: 'idle' });
   const [scanning, setScanning] = useState(false);
 
   async function check(override?: string) {
     const q = (override ?? value).trim();
     if (!q) return;
     setState({ status: 'checking' });
+    setSafety({ s: 'checking' });
+    void runSafety(q); // independent scam screen, in parallel with the match check
     try {
       const res = await fetch('/api/verify/compare', {
         method: 'POST',
@@ -192,6 +221,39 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
       else setState({ status: 'nomatch', value: q });
     } catch {
       setState({ status: 'error', message: t.verifyNetworkError });
+    }
+  }
+
+  // Screen the scanned value for scam signals — reusing the public safety
+  // checkers. A URL goes to dapp-check (phishing lists); an address goes to
+  // wallet-check (GoPlus / OFAC / honeypot / age). This is independent of the
+  // match: a "still yours" address is reassuringly clean; a swapped one is most
+  // useful to screen because it's brand-new and a registry match alone can't flag it.
+  async function runSafety(q: string) {
+    const { kind, value: target } = classifyScan(q);
+    try {
+      if (kind === 'url') {
+        const res = await fetch(`/api/dapp-check?url=${encodeURIComponent(target)}`);
+        const d = await res.json();
+        setSafety({ s: d.verdict === 'red' ? 'danger' : d.verdict === 'yellow' ? 'unclear' : 'clean' });
+      } else {
+        const res = await fetch('/api/wallet-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: target }),
+        });
+        const d = await res.json();
+        if (!d.ok || !d.result) { setSafety({ s: 'error' }); return; }
+        const lvl = d.result.scamLevel;
+        setSafety({
+          s: lvl === 'danger' ? 'danger'
+            : lvl === 'caution' ? 'caution'
+            : d.result.partialCoverage ? 'unclear'
+            : 'clean',
+        });
+      }
+    } catch {
+      setSafety({ s: 'error' });
     }
   }
 
@@ -233,7 +295,7 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
         <input
           className="vd-verify__input"
           value={value}
-          onChange={(e) => { setValue(e.target.value); if (state.status !== 'idle' && state.status !== 'checking') setState({ status: 'idle' }); }}
+          onChange={(e) => { setValue(e.target.value); if (state.status !== 'idle' && state.status !== 'checking') { setState({ status: 'idle' }); setSafety({ s: 'idle' }); } }}
           placeholder={t.verifyPlaceholder}
           spellCheck={false}
           autoComplete="off"
@@ -256,6 +318,25 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
       )}
       {state.status === 'error' && (
         <div className="vd-verify__result vd-verify__result--err">{state.message}</div>
+      )}
+
+      {safety.s !== 'idle' && (
+        <div className={
+          'vd-verify__result'
+          + (safety.s === 'clean' ? ' vd-verify__result--ok'
+            : safety.s === 'danger' ? ' vd-verify__result--err'
+            : (safety.s === 'caution' || safety.s === 'unclear' || safety.s === 'error') ? ' vd-verify__result--warn'
+            : '')
+        }>
+          {t.safetyLabel} {
+            safety.s === 'checking' ? t.safetyChecking
+            : safety.s === 'clean' ? t.safetyClean
+            : safety.s === 'caution' ? t.safetyCaution
+            : safety.s === 'unclear' ? t.safetyUnclear
+            : safety.s === 'danger' ? t.safetyDanger
+            : t.safetyError
+          }
+        </div>
       )}
     </section>
   );

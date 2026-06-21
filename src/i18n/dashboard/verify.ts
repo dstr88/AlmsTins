@@ -58,6 +58,15 @@ export interface VerifyDashboardLocale {
   scanReadError: string;
   checkFailed: string;
   verifyNetworkError: string;
+  // Safety overlay — an independent scam screen on the scanned value, shown
+  // alongside the "is it still yours" match. Address → wallet-check; URL → dapp-check.
+  safetyLabel: string;
+  safetyChecking: string;
+  safetyClean: string;
+  safetyCaution: string;
+  safetyUnclear: string;
+  safetyDanger: string;
+  safetyError: string;
 }
 
 export const en: VerifyDashboardLocale = {
@@ -100,6 +109,13 @@ export const en: VerifyDashboardLocale = {
   scanReadError: 'Could not read that image — paste the address instead.',
   checkFailed: 'Could not check that.',
   verifyNetworkError: 'Could not reach the verifier. Try again.',
+  safetyLabel: 'Safety check:',
+  safetyChecking: 'Screening for scam signals…',
+  safetyClean: '✓ No known scam signals on this destination.',
+  safetyCaution: '⚠ Some caution signals — review before you pay.',
+  safetyUnclear: 'Not enough data to clear it — treat with caution.',
+  safetyDanger: '⛔ Scam signals detected — do not pay this.',
+  safetyError: 'Could not complete the safety check.',
 };
 
 export const es: VerifyDashboardLocale = {
@@ -142,6 +158,13 @@ export const es: VerifyDashboardLocale = {
   scanReadError: 'No se pudo leer esa imagen — pega la dirección en su lugar.',
   checkFailed: 'No se pudo comprobar eso.',
   verifyNetworkError: 'No se pudo conectar con el verificador. Inténtalo de nuevo.',
+  safetyLabel: 'Control de seguridad:',
+  safetyChecking: 'Analizando señales de estafa…',
+  safetyClean: '✓ Sin señales de estafa conocidas en este destino.',
+  safetyCaution: '⚠ Algunas señales de precaución — revísalo antes de pagar.',
+  safetyUnclear: 'No hay datos suficientes para descartarlo — trátalo con precaución.',
+  safetyDanger: '⛔ Señales de estafa detectadas — no pagues esto.',
+  safetyError: 'No se pudo completar el control de seguridad.',
 };
 
 export const fr: VerifyDashboardLocale = {
@@ -184,6 +207,13 @@ export const fr: VerifyDashboardLocale = {
   scanReadError: 'Impossible de lire cette image — collez plutôt l’adresse.',
   checkFailed: 'Impossible de vérifier cela.',
   verifyNetworkError: 'Impossible de joindre le vérificateur. Réessayez.',
+  safetyLabel: 'Contrôle de sécurité :',
+  safetyChecking: 'Analyse des signaux d’arnaque…',
+  safetyClean: '✓ Aucun signal d’arnaque connu sur cette destination.',
+  safetyCaution: '⚠ Quelques signaux de prudence — vérifiez avant de payer.',
+  safetyUnclear: 'Données insuffisantes pour l’écarter — à traiter avec prudence.',
+  safetyDanger: '⛔ Signaux d’arnaque détectés — ne payez pas.',
+  safetyError: 'Impossible de terminer le contrôle de sécurité.',
 };
 
 const MAP: Record<Lang, VerifyDashboardLocale> = { en, es, fr };
