@@ -11,6 +11,7 @@ interface Destination {
   value: string;
   label: string | null;
   proofStatus: ProofStatus;
+  proofDomain: string | null;
   registeredAt: string;
 }
 
@@ -27,6 +28,14 @@ function railLabel(rail: string, t: VerifyDashboardLocale): string {
 
 function short(v: string): string {
   return v.length <= 24 ? v : `${v.slice(0, 12)}…${v.slice(-8)}`;
+}
+
+// Localized proof-status badge label. The raw status still drives the CSS class.
+function statusLabel(s: ProofStatus, t: VerifyDashboardLocale): string {
+  return s === 'proven' ? t.statusProven
+    : s === 'lapsed' ? t.statusLapsed
+    : s === 'revoked' ? t.statusRevoked
+    : t.statusUnproven;
 }
 
 // Name-service handles (vitalik.eth, foo.sol …) resolve to an address — they take
@@ -113,6 +122,10 @@ function DestSection({ title, kind, limit, items, loading, onChange, t }: {
 
 function DestRow({ d, onChange, t }: { d: Destination; onChange: () => void; t: VerifyDashboardLocale }) {
   const [busy, setBusy] = useState(false);
+  const [proving, setProving] = useState(false);
+  // Domain attestation proves a domain vouches for an address — only meaningful for
+  // address destinations, and only until one is proven.
+  const canProve = d.kind === 'address' && d.proofStatus !== 'proven';
   async function del() {
     if (!window.confirm(t.confirmRemove)) return;
     setBusy(true);
@@ -122,12 +135,104 @@ function DestRow({ d, onChange, t }: { d: Destination; onChange: () => void; t: 
     } finally { setBusy(false); }
   }
   return (
-    <div className="vd-row">
-      <span className="vd-row__rail">{railLabel(d.rail, t)}</span>
-      <span className="vd-row__value" title={d.value}>{short(d.value)}</span>
-      {d.label && <span className="vd-row__label">{d.label}</span>}
-      <span className={`vd-badge vd-badge--${d.proofStatus}`}>{d.proofStatus}</span>
-      <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
+    <div className="vd-rowwrap">
+      <div className="vd-row">
+        <span className="vd-row__rail">{railLabel(d.rail, t)}</span>
+        <span className="vd-row__value" title={d.value}>{short(d.value)}</span>
+        {d.label && <span className="vd-row__label">{d.label}</span>}
+        <span
+          className={`vd-badge vd-badge--${d.proofStatus}`}
+          title={d.proofStatus === 'proven' && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
+        >{statusLabel(d.proofStatus, t)}</span>
+        {canProve && (
+          <button className="vd-row__prove" onClick={() => setProving(p => !p)} aria-expanded={proving}>
+            {t.proveBtn}
+          </button>
+        )}
+        <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
+      </div>
+      {proving && canProve && (
+        <ProvePanel d={d} t={t} onProven={() => { setProving(false); onChange(); }} />
+      )}
+    </div>
+  );
+}
+
+// "Prove ownership" — the owner enters the domain that publishes this address, we
+// hand back the exact /.well-known file (listing all their registered addresses),
+// and on Verify we fetch it, match the challenge, and flip every vouched address to
+// proven. Proof is per-domain; one published file covers every address on it.
+function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
+  const [domain, setDomain] = useState('');
+  const [file, setFile] = useState<{ path: string; file: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null);
+
+  // Map a prove-endpoint outcome code → localized copy.
+  const proofString = (code: string): string => ({
+    proven: t.proofProven,
+    challenge_mismatch: t.proofChallengeMismatch,
+    address_not_listed: t.proofAddressNotListed,
+    unreachable: t.proofUnreachable,
+    malformed: t.proofMalformed,
+    invalid_domain: t.proofInvalidDomain,
+  } as Record<string, string>)[code] ?? t.proveError;
+
+  async function getFile() {
+    const dom = domain.trim();
+    if (!dom) return;
+    setBusy(true); setOutcome(null);
+    try {
+      const res = await fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/challenge`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: dom }),
+      });
+      const data = await res.json();
+      if (data.outcome === 'invalid_domain') { setFile(null); setOutcome({ text: t.proofInvalidDomain, ok: false }); return; }
+      if (!data.ok) { setOutcome({ text: t.proveError, ok: false }); return; }
+      setFile({ path: data.path, file: data.file });
+    } catch {
+      setOutcome({ text: t.proveError, ok: false });
+    } finally { setBusy(false); }
+  }
+
+  async function prove() {
+    setBusy(true); setOutcome(null);
+    try {
+      const res = await fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/prove`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: domain.trim() }),
+      });
+      const data = await res.json();
+      const ok = data.outcome === 'proven';
+      setOutcome({ text: data.ok ? proofString(data.outcome) : t.proveError, ok });
+      if (ok) setTimeout(onProven, 1400); // let the success show, then refresh the list
+    } catch {
+      setOutcome({ text: t.proveError, ok: false });
+    } finally { setBusy(false); }
+  }
+
+  const url = `https://${domain.trim() || 'yourdomain.com'}${file?.path ?? ''}`;
+
+  return (
+    <div className="vd-prove">
+      <p className="vd-prove__hint">{t.proveHint}</p>
+      <div className="vd-prove__row">
+        <input className="vd-prove__input" value={domain} onChange={(e) => setDomain(e.target.value)}
+          placeholder={t.proveDomainPlaceholder} spellCheck={false} autoComplete="off" />
+        <button className="vd-prove__get" onClick={getFile} disabled={busy || !domain.trim()}>{t.proveGetFileBtn}</button>
+      </div>
+      {file && (
+        <div className="vd-prove__file">
+          <p className="vd-prove__steps">{t.proveStep1.replace('{url}', url)}</p>
+          <pre className="vd-prove__pre">{file.file}</pre>
+          <div className="vd-prove__row">
+            <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(file.file); }}>{t.proveCopyBtn}</button>
+            <button className="vd-prove__verify" onClick={prove} disabled={busy}>{busy ? t.proveVerifyingBtn : t.proveVerifyBtn}</button>
+          </div>
+        </div>
+      )}
+      {outcome && (
+        <div className={`vd-prove__outcome ${outcome.ok ? 'vd-prove__outcome--ok' : 'vd-prove__outcome--warn'}`}>{outcome.text}</div>
+      )}
     </div>
   );
 }

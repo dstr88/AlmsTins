@@ -22,7 +22,6 @@
 import { randomBytes } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { normalizeDestinationValue } from './verifyRegistry';
 
 /** Where the owner publishes the proof. The path is fixed; the file is per-domain. */
 export const WELL_KNOWN_PATH = '/.well-known/almstins-verify.json';
@@ -182,8 +181,8 @@ export async function verifyDomainProof(rawDomain: string, expectedChallenge: st
   if (file.challenge !== expectedChallenge) return { ok: false, code: 'challenge_mismatch' };
 
   // Challenge matched → the domain controller published our token. Hand back the
-  // addresses it vouches for, normalized so the caller can match them to the
-  // tenant's registered destinations (EVM lowercased; BTC/SOL/LTC case kept).
-  const addresses = Array.from(new Set(file.addresses.map(normalizeDestinationValue).filter(Boolean)));
+  // addresses it vouches for, as published. The caller (verifyRegistry) normalizes
+  // both sides when matching them to the tenant's registered destinations.
+  const addresses = Array.from(new Set(file.addresses.map((a) => a.trim()).filter(Boolean)));
   return { ok: true, addresses };
 }

@@ -13,6 +13,10 @@
  */
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
+import { generateChallenge } from './verifyProof';
+
+/** Timestamp matching the columns' `to_char(now() … 'YYYY-MM-DD HH24:MI:SS')` default. */
+const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
 export type DestinationKind = 'address' | 'qr';
 export type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
@@ -32,6 +36,7 @@ export interface Destination {
   label: string | null;
   proofMethod: ProofMethod;
   proofStatus: ProofStatus;
+  proofDomain: string | null;
   registeredAt: string;
   provenAt: string | null;
 }
@@ -96,6 +101,7 @@ function mapRow(r: any): Destination {
     label: r.label ? String(r.label) : null,
     proofMethod: String(r.proof_method ?? 'none') as ProofMethod,
     proofStatus: String(r.proof_status ?? 'unproven') as ProofStatus,
+    proofDomain: r.proof_domain ? String(r.proof_domain) : null,
     registeredAt: String(r.registered_at),
     provenAt: r.proven_at ? String(r.proven_at) : null,
   };
@@ -104,7 +110,7 @@ function mapRow(r: any): Destination {
 export async function listDestinations(tenantId: string): Promise<Destination[]> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, registered_at, proven_at
+    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at
           FROM verify_destinations WHERE tenant_id = ?
           ORDER BY kind ASC, registered_at ASC`,
     args: [tenantId],
@@ -204,7 +210,7 @@ export async function createDestination(
     args: [id, tenantId, kind, rail, value, label],
   });
   const row = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, registered_at, proven_at
+    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at
           FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
@@ -216,5 +222,94 @@ export async function deleteDestination(tenantId: string, id: string): Promise<v
   await db.execute({
     sql: `DELETE FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
+  });
+}
+
+// ── Phase 3: proof of control (domain attestation) ───────────────────────────
+
+/** Fetch one destination, tenant-scoped. */
+export async function getDestination(tenantId: string, id: string): Promise<Destination | null> {
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at
+          FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
+    args: [id, tenantId],
+  });
+  return res.rows.length ? mapRow(res.rows[0]) : null;
+}
+
+/**
+ * Issue (or return the existing) account-bound challenge for a (tenant, domain).
+ * Idempotent so re-opening the panel shows the same file to publish.
+ */
+export async function issueChallenge(tenantId: string, domain: string): Promise<string> {
+  await ensureVerifyTables();
+  const existing = await db.execute({
+    sql: `SELECT challenge_token FROM verify_domain_proofs WHERE tenant_id = ? AND domain = ? LIMIT 1`,
+    args: [tenantId, domain],
+  });
+  if (existing.rows.length) return String((existing.rows[0] as any).challenge_token);
+  const token = generateChallenge();
+  await db.execute({
+    sql: `INSERT INTO verify_domain_proofs (id, tenant_id, domain, challenge_token, method, status)
+          VALUES (?, ?, ?, ?, 'well_known', 'pending')`,
+    args: [randomUUID(), tenantId, domain, token],
+  });
+  return token;
+}
+
+/** The challenge we issued for a (tenant, domain), or null if none was issued. */
+export async function getChallenge(tenantId: string, domain: string): Promise<string | null> {
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `SELECT challenge_token FROM verify_domain_proofs WHERE tenant_id = ? AND domain = ? LIMIT 1`,
+    args: [tenantId, domain],
+  });
+  return res.rows.length ? String((res.rows[0] as any).challenge_token) : null;
+}
+
+/**
+ * Record a successful proof: mark the (tenant, domain) proof proven and flip every
+ * registered address destination whose value the published file vouches for. Both
+ * sides are normalized for the match. Returns the ids of the destinations flipped.
+ */
+export async function recordProofResult(
+  tenantId: string,
+  domain: string,
+  fileAddresses: string[],
+): Promise<string[]> {
+  await ensureVerifyTables();
+  const now = nowUtc();
+  await db.execute({
+    sql: `UPDATE verify_domain_proofs
+          SET status = 'proven', proven_at = ?, last_checked_at = ?, updated_at = ?
+          WHERE tenant_id = ? AND domain = ?`,
+    args: [now, now, now, tenantId, domain],
+  });
+  const vouched = new Set(fileAddresses.map(normalizeDestinationValue).filter(Boolean));
+  const dests = await listDestinations(tenantId);
+  const flipped: string[] = [];
+  for (const d of dests) {
+    if (d.kind !== 'address') continue;
+    if (!vouched.has(normalizeDestinationValue(d.value))) continue;
+    await db.execute({
+      sql: `UPDATE verify_destinations
+            SET proof_status = 'proven', proof_method = 'well_known', proof_domain = ?, proven_at = ?, updated_at = ?
+            WHERE id = ? AND tenant_id = ?`,
+      args: [domain, now, now, d.id, tenantId],
+    });
+    flipped.push(d.id);
+  }
+  return flipped;
+}
+
+/** Stamp a check that didn't prove the domain (for re-validation/audit later). */
+export async function markProofChecked(tenantId: string, domain: string, status: 'failed' | 'pending'): Promise<void> {
+  await ensureVerifyTables();
+  const now = nowUtc();
+  await db.execute({
+    sql: `UPDATE verify_domain_proofs SET status = ?, last_checked_at = ?, updated_at = ?
+          WHERE tenant_id = ? AND domain = ?`,
+    args: [status, now, now, tenantId, domain],
   });
 }

@@ -75,6 +75,22 @@ export interface VerifyDashboardLocale {
   proofUnreachable: string;
   proofMalformed: string;
   proofInvalidDomain: string;
+  // Proof-status badge labels (localized; the raw status code drives the CSS class).
+  statusUnproven: string;
+  statusProven: string;
+  statusLapsed: string;
+  statusRevoked: string;
+  // "Prove ownership" panel
+  proveBtn: string;
+  proveHint: string;
+  proveDomainPlaceholder: string;
+  proveGetFileBtn: string;
+  proveStep1: string; // "… ({url}) …"
+  proveCopyBtn: string;
+  proveVerifyBtn: string;
+  proveVerifyingBtn: string;
+  proveError: string;
+  provenBy: string; // "… ({domain})"
 }
 
 export const en: VerifyDashboardLocale = {
@@ -130,6 +146,20 @@ export const en: VerifyDashboardLocale = {
   proofUnreachable: '⚠ Couldn’t reach the verification file. Publish it at /.well-known/almstins-verify.json and try again.',
   proofMalformed: '⚠ The verification file was found but couldn’t be read. Check it’s valid JSON in the format we gave you.',
   proofInvalidDomain: '⚠ That doesn’t look like a public domain we can verify.',
+  statusUnproven: 'Unverified',
+  statusProven: 'Verified',
+  statusLapsed: 'Lapsed',
+  statusRevoked: 'Revoked',
+  proveBtn: 'Prove',
+  proveHint: 'Prove you control the domain that publishes this address. Publish a small file on your site and we’ll check it.',
+  proveDomainPlaceholder: 'yourdomain.com',
+  proveGetFileBtn: 'Get file',
+  proveStep1: 'Publish this exact file at {url}, then verify:',
+  proveCopyBtn: 'Copy',
+  proveVerifyBtn: 'Verify now',
+  proveVerifyingBtn: 'Verifying…',
+  proveError: 'Something went wrong. Try again.',
+  provenBy: 'Published by {domain}',
 };
 
 export const es: VerifyDashboardLocale = {
@@ -185,6 +215,20 @@ export const es: VerifyDashboardLocale = {
   proofUnreachable: '⚠ No se pudo acceder al archivo de verificación. Publícalo en /.well-known/almstins-verify.json e inténtalo de nuevo.',
   proofMalformed: '⚠ Se encontró el archivo de verificación pero no se pudo leer. Comprueba que sea JSON válido con el formato que te dimos.',
   proofInvalidDomain: '⚠ Eso no parece un dominio público que podamos verificar.',
+  statusUnproven: 'Sin verificar',
+  statusProven: 'Verificado',
+  statusLapsed: 'Caducado',
+  statusRevoked: 'Revocado',
+  proveBtn: 'Probar',
+  proveHint: 'Demuestra que controlas el dominio que publica esta dirección. Publica un archivo pequeño en tu sitio y lo comprobaremos.',
+  proveDomainPlaceholder: 'tudominio.com',
+  proveGetFileBtn: 'Obtener archivo',
+  proveStep1: 'Publica este archivo exacto en {url} y luego verifica:',
+  proveCopyBtn: 'Copiar',
+  proveVerifyBtn: 'Verificar ahora',
+  proveVerifyingBtn: 'Verificando…',
+  proveError: 'Algo salió mal. Inténtalo de nuevo.',
+  provenBy: 'Publicado por {domain}',
 };
 
 export const fr: VerifyDashboardLocale = {
@@ -240,6 +284,20 @@ export const fr: VerifyDashboardLocale = {
   proofUnreachable: '⚠ Impossible d’accéder au fichier de vérification. Publiez-le à /.well-known/almstins-verify.json et réessayez.',
   proofMalformed: '⚠ Le fichier de vérification a été trouvé mais n’a pas pu être lu. Vérifiez qu’il s’agit d’un JSON valide au format fourni.',
   proofInvalidDomain: '⚠ Cela ne ressemble pas à un domaine public que nous pouvons vérifier.',
+  statusUnproven: 'Non vérifié',
+  statusProven: 'Vérifié',
+  statusLapsed: 'Expiré',
+  statusRevoked: 'Révoqué',
+  proveBtn: 'Prouver',
+  proveHint: 'Prouvez que vous contrôlez le domaine qui publie cette adresse. Publiez un petit fichier sur votre site et nous le vérifierons.',
+  proveDomainPlaceholder: 'votredomaine.com',
+  proveGetFileBtn: 'Obtenir le fichier',
+  proveStep1: 'Publiez ce fichier exact à {url}, puis vérifiez :',
+  proveCopyBtn: 'Copier',
+  proveVerifyBtn: 'Vérifier maintenant',
+  proveVerifyingBtn: 'Vérification…',
+  proveError: 'Une erreur s’est produite. Réessayez.',
+  provenBy: 'Publié par {domain}',
 };
 
 const MAP: Record<Lang, VerifyDashboardLocale> = { en, es, fr };
