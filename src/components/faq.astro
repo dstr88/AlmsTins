@@ -21,7 +21,7 @@ const t = getFaq(lang);
       <div class="modal-overlay welcome-modal" id={it.id}>
         <div class="modal-content">
           <button class="modal-close" onclick="closeWelcomeModal(event)">×</button>
-          <h1>{it.q}</h1>
+          <h2>{it.q}</h2>
           <Fragment set:html={it.a} />
         </div>
       </div>

@@ -5,6 +5,7 @@ export interface LoginPageLocale {
     title: string;
     sub: string;
     heroFree: string;
+    heroCta: string;
     doorsAria: string;
     trustAria: string;
     trust1: string;
@@ -98,13 +99,14 @@ export const en: LoginPageLocale = {
     title: 'Use crypto without the guesswork.',
     sub: 'Check an address before you send, account for everything you own, and verify the QR codes your business publishes — all in one place. Read-only, no wallet connection.',
     heroFree: 'Scanning for security is free for everyone. No account, no sign-in needed.',
+    heroCta: 'Start with the free checker',
     doorsAria: 'Almstins tools',
     trustAria: 'Our trust guarantees',
     trust1: 'Your keys never touch our server',
     trust2: 'No wallet connection, ever',
     checker: { title: 'Wallet Checker', desc: 'Paste or scan any wallet address or website — instant scam, phishing, honeypot, and sanctions check.', free: 'Free · No account · No sign-in', cta: 'Open the checker' },
     verify:  { title: 'Verify', desc: 'Register the receiving addresses you publish and catch a swapped QR before a customer pays the wrong one.', free: 'Free: 1 reusable QR connection. Need more? Upgrade.', cta: 'Go to Verify' },
-    watcher: { title: 'Wallet Watcher', desc: 'Connect wallets, exchanges, and DeFi for cost basis, realized gains, and a year-by-year tax breakdown.', free: 'Free tier · Sign in with email, Google, or GitHub · We only store your email', cta: 'Try the demo' },
+    watcher: { title: 'Wallet Watcher', desc: 'Track wallets, exchanges, and DeFi by address — cost basis, realized gains, and a tax-ready breakdown.', free: 'Free tier · Sign in with email, Google, or GitHub · We only store your email', cta: 'Try the demo' },
   },
   meta: {
     title: 'Almstins — Check, track, and verify your crypto',
@@ -206,13 +208,14 @@ export const es: LoginPageLocale = {
     title: 'Usa cripto sin adivinar.',
     sub: 'Comprueba una dirección antes de enviar, contabiliza todo lo que tienes y verifica los códigos QR que publica tu negocio — todo en un solo lugar. Solo lectura, sin conectar la billetera.',
     heroFree: 'Escanear por seguridad es gratis para todos. Sin cuenta, sin iniciar sesión.',
+    heroCta: 'Empieza con el verificador gratis',
     doorsAria: 'Herramientas de Almstins',
     trustAria: 'Nuestras garantías de confianza',
     trust1: 'Tus llaves nunca tocan nuestro servidor',
     trust2: 'Sin conectar la billetera, nunca',
     checker: { title: 'Wallet Checker', desc: 'Pega o escanea cualquier dirección de billetera o sitio web — comprobación instantánea de estafas, phishing, honeypots y sanciones.', free: 'Gratis · Sin cuenta · Sin iniciar sesión', cta: 'Abrir el verificador' },
     verify:  { title: 'Verify', desc: 'Registra las direcciones de cobro que publicas y detecta un QR cambiado antes de que un cliente pague al equivocado.', free: 'Gratis: 1 conexión QR reutilizable. ¿Necesitas más? Mejora tu plan.', cta: 'Ir a Verify' },
-    watcher: { title: 'Wallet Watcher', desc: 'Conecta billeteras, exchanges y DeFi para ver base de costo, ganancias realizadas y un desglose de impuestos año por año.', free: 'Plan gratis · Inicia sesión con correo, Google o GitHub · Solo guardamos tu correo', cta: 'Probar la demo' },
+    watcher: { title: 'Wallet Watcher', desc: 'Rastrea billeteras, exchanges y DeFi por dirección — base de costo, ganancias realizadas y un desglose listo para impuestos.', free: 'Plan gratis · Inicia sesión con correo, Google o GitHub · Solo guardamos tu correo', cta: 'Probar la demo' },
   },
   meta: {
     title: 'Almstins — Comprueba, rastrea y verifica tu cripto',
@@ -314,13 +317,14 @@ export const fr: LoginPageLocale = {
     title: 'Utilisez la crypto sans deviner.',
     sub: 'Vérifiez une adresse avant d\'envoyer, comptabilisez tout ce que vous possédez et vérifiez les QR codes que votre entreprise publie — le tout au même endroit. Lecture seule, aucune connexion de portefeuille.',
     heroFree: 'L\'analyse de sécurité est gratuite pour tous. Aucun compte, aucune connexion requise.',
+    heroCta: 'Commencez avec le vérificateur gratuit',
     doorsAria: 'Outils Almstins',
     trustAria: 'Nos garanties de confiance',
     trust1: 'Vos clés ne touchent jamais notre serveur',
     trust2: 'Aucune connexion de portefeuille, jamais',
     checker: { title: 'Wallet Checker', desc: 'Collez ou scannez n\'importe quelle adresse de portefeuille ou site web — vérification instantanée des arnaques, du phishing, des honeypots et des sanctions.', free: 'Gratuit · Sans compte · Sans connexion', cta: 'Ouvrir le vérificateur' },
     verify:  { title: 'Verify', desc: 'Enregistrez les adresses de réception que vous publiez et détectez un QR substitué avant qu\'un client ne paie la mauvaise.', free: 'Gratuit : 1 connexion QR réutilisable. Besoin de plus ? Améliorez votre offre.', cta: 'Aller à Verify' },
-    watcher: { title: 'Wallet Watcher', desc: 'Connectez portefeuilles, plateformes d\'échange et DeFi pour le prix de revient, les gains réalisés et un récapitulatif fiscal année par année.', free: 'Offre gratuite · Connectez-vous par e-mail, Google ou GitHub · Nous ne stockons que votre e-mail', cta: 'Essayer la démo' },
+    watcher: { title: 'Wallet Watcher', desc: 'Suivez portefeuilles, plateformes d\'échange et DeFi par adresse — prix de revient, gains réalisés et un récapitulatif prêt pour les impôts.', free: 'Offre gratuite · Connectez-vous par e-mail, Google ou GitHub · Nous ne stockons que votre e-mail', cta: 'Essayer la démo' },
   },
   meta: {
     title: 'Almstins — Contrôlez, suivez et vérifiez votre crypto',

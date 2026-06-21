@@ -151,6 +151,7 @@ const isLockedOut = message === 'LOCKED_OUT';
       <p class="hub-hero__eyebrow">{t.hub.eyebrow}</p>
       <h1 class="hub-hero__title">{t.hub.title}</h1>
       <p class="hub-hero__sub">{t.hub.sub}</p>
+      <a class="hub-hero__cta" href="/wallet-checker">{t.hub.heroCta} →</a>
       <p class="hub-hero__free">{t.hub.heroFree}</p>
     </section>
 
@@ -170,7 +171,7 @@ const isLockedOut = message === 'LOCKED_OUT';
         <span class="door__free">{t.hub.verify.free}</span>
         <span class="door__cta">{t.hub.verify.cta} →</span>
       </a>
-      <a class="door" href="/api/demo/start">
+      <a class="door" href="/api/demo/start" rel="nofollow">
         <span class="door__icon" aria-hidden="true">📊</span>
         <h2 class="door__title">{t.hub.watcher.title}</h2>
         <p class="door__desc">{t.hub.watcher.desc}</p>
@@ -527,6 +528,14 @@ const isLockedOut = message === 'LOCKED_OUT';
       font-size: clamp(1rem, 0.5vw + 0.9rem, 1.15rem); line-height: 1.6;
       color: var(--text-secondary); max-width: 46ch; margin: 0 auto 1.5rem; text-wrap: balance;
     }
+    .hub-hero__cta {
+      display: inline-block; margin: 0 0 1rem;
+      padding: 0.85rem 1.6rem; border-radius: 0.75rem;
+      background: var(--accent); color: var(--surface-bg);
+      font-size: 1rem; font-weight: 700; text-decoration: none;
+      transition: box-shadow 0.15s ease, transform 0.1s ease;
+    }
+    .hub-hero__cta:hover { box-shadow: 0 0 1.5rem var(--accent-glow); transform: translateY(-1px); }
     .hub-hero__free {
       display: inline-block; font-size: 0.85rem; color: var(--accent);
       background: var(--accent-soft); border: 1px solid var(--accent-glow);
