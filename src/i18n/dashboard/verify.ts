@@ -67,6 +67,14 @@ export interface VerifyDashboardLocale {
   safetyUnclear: string;
   safetyDanger: string;
   safetyError: string;
+  // Phase 3 — proof-of-control (domain attestation) outcomes. verifyProof.ts returns
+  // a code; the UI maps it to one of these. Defined locale-first ahead of the panel.
+  proofProven: string;
+  proofChallengeMismatch: string;
+  proofAddressNotListed: string;
+  proofUnreachable: string;
+  proofMalformed: string;
+  proofInvalidDomain: string;
 }
 
 export const en: VerifyDashboardLocale = {
@@ -116,6 +124,12 @@ export const en: VerifyDashboardLocale = {
   safetyUnclear: 'Not enough data to clear it — treat with caution.',
   safetyDanger: '⛔ Scam signals detected — do not pay this.',
   safetyError: 'Could not complete the safety check.',
+  proofProven: '✓ Ownership proven — this domain published your address.',
+  proofChallengeMismatch: '⚠ The verification file is there, but its code doesn’t match. Re-publish the exact file we gave you.',
+  proofAddressNotListed: '⚠ Domain verified, but this address isn’t listed in the file. Add it and check again.',
+  proofUnreachable: '⚠ Couldn’t reach the verification file. Publish it at /.well-known/almstins-verify.json and try again.',
+  proofMalformed: '⚠ The verification file was found but couldn’t be read. Check it’s valid JSON in the format we gave you.',
+  proofInvalidDomain: '⚠ That doesn’t look like a public domain we can verify.',
 };
 
 export const es: VerifyDashboardLocale = {
@@ -165,6 +179,12 @@ export const es: VerifyDashboardLocale = {
   safetyUnclear: 'No hay datos suficientes para descartarlo — trátalo con precaución.',
   safetyDanger: '⛔ Señales de estafa detectadas — no pagues esto.',
   safetyError: 'No se pudo completar el control de seguridad.',
+  proofProven: '✓ Propiedad verificada — este dominio publicó tu dirección.',
+  proofChallengeMismatch: '⚠ El archivo de verificación está, pero su código no coincide. Vuelve a publicar el archivo exacto que te dimos.',
+  proofAddressNotListed: '⚠ Dominio verificado, pero esta dirección no aparece en el archivo. Agrégala y vuelve a comprobar.',
+  proofUnreachable: '⚠ No se pudo acceder al archivo de verificación. Publícalo en /.well-known/almstins-verify.json e inténtalo de nuevo.',
+  proofMalformed: '⚠ Se encontró el archivo de verificación pero no se pudo leer. Comprueba que sea JSON válido con el formato que te dimos.',
+  proofInvalidDomain: '⚠ Eso no parece un dominio público que podamos verificar.',
 };
 
 export const fr: VerifyDashboardLocale = {
@@ -214,6 +234,12 @@ export const fr: VerifyDashboardLocale = {
   safetyUnclear: 'Données insuffisantes pour l’écarter — à traiter avec prudence.',
   safetyDanger: '⛔ Signaux d’arnaque détectés — ne payez pas.',
   safetyError: 'Impossible de terminer le contrôle de sécurité.',
+  proofProven: '✓ Propriété prouvée — ce domaine a publié votre adresse.',
+  proofChallengeMismatch: '⚠ Le fichier de vérification est là, mais son code ne correspond pas. Republiez le fichier exact que nous vous avons fourni.',
+  proofAddressNotListed: '⚠ Domaine vérifié, mais cette adresse ne figure pas dans le fichier. Ajoutez-la et revérifiez.',
+  proofUnreachable: '⚠ Impossible d’accéder au fichier de vérification. Publiez-le à /.well-known/almstins-verify.json et réessayez.',
+  proofMalformed: '⚠ Le fichier de vérification a été trouvé mais n’a pas pu être lu. Vérifiez qu’il s’agit d’un JSON valide au format fourni.',
+  proofInvalidDomain: '⚠ Cela ne ressemble pas à un domaine public que nous pouvons vérifier.',
 };
 
 const MAP: Record<Lang, VerifyDashboardLocale> = { en, es, fr };

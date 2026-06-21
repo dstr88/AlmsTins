@@ -46,6 +46,7 @@ const ENSURE_SQL = `
     label         TEXT,
     proof_method  TEXT NOT NULL DEFAULT 'none',
     proof_status  TEXT NOT NULL DEFAULT 'unproven',
+    proof_domain  TEXT,
     registered_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
     proven_at     TEXT,
     created_at    TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
@@ -55,11 +56,34 @@ const ENSURE_SQL = `
 const ENSURE_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_tenant_value
   ON verify_destinations (tenant_id, kind, value)`;
 
+// Phase 3 — proof of control. One challenge per (tenant, domain); proving the
+// domain flips every destination whose value the published file vouches for.
+// Tenant-scoped, app-enforced isolation. Mirrors migrations-pg/0002_verify_proof.sql.
+const ENSURE_PROOFS_SQL = `
+  CREATE TABLE IF NOT EXISTS verify_domain_proofs (
+    id              TEXT NOT NULL PRIMARY KEY,
+    tenant_id       TEXT NOT NULL,
+    domain          TEXT NOT NULL,
+    challenge_token TEXT NOT NULL,
+    method          TEXT NOT NULL DEFAULT 'well_known',
+    status          TEXT NOT NULL DEFAULT 'pending',
+    issued_at       TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    proven_at       TEXT,
+    last_checked_at TEXT,
+    created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    updated_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+const ENSURE_PROOFS_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_domain_proofs_tenant_domain
+  ON verify_domain_proofs (tenant_id, domain)`;
+
 let ensured = false;
 export async function ensureVerifyTables(): Promise<void> {
   if (ensured) return;
   await db.execute({ sql: ENSURE_SQL, args: [] });
   await db.execute({ sql: ENSURE_IDX, args: [] });
+  await db.execute({ sql: ENSURE_PROOFS_SQL, args: [] });
+  await db.execute({ sql: ENSURE_PROOFS_IDX, args: [] });
   ensured = true;
 }
 
