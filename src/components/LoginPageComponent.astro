@@ -2,7 +2,6 @@
 import type { LoginPageLocale } from '../i18n/loginPage';
 import LoginLayout from '../layouts/LoginLayout.astro';
 import Logo from '../assets/logo.jpeg';
-import Footer from './Footer.astro';
 
 interface Props {
   t: LoginPageLocale;
@@ -187,19 +186,6 @@ const isLockedOut = message === 'LOCKED_OUT';
     </section>
 
   </main>
-
-  <Footer lang={t.lang} />
-
-  <!-- ── Demo invite modal (shown after 30s of no interaction) ──────── -->
-  <div class="hesitation-overlay hidden" id="hesitationOverlay" role="dialog" aria-modal="true" aria-labelledby="hesitationTitle">
-    <div class="hesitation-modal">
-      <button class="hesitation-close" id="hesitationClose" aria-label={t.hesitationModal.closeAriaLabel}>✕</button>
-      <div class="demo-invite-icon">👋</div>
-      <h3 id="hesitationTitle">{t.hesitationModal.title}</h3>
-      <p>{t.hesitationModal.body}</p>
-      <a class="demo-invite-cta" href="/api/demo/start">{t.hesitationModal.cta}</a>
-    </div>
-  </div>
 
   {isLockedOut && (
     <div class="session-overlay" id="session-overlay">
