@@ -3,12 +3,18 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Almstins E2E test config.
  *
- * Local:  BASE_URL defaults to http://localhost:10000 (npm run dev)
- * CI/CD:  BASE_URL=https://almstins.com (set in GitHub Actions secret)
+ * Local:  BASE_URL defaults to https://almstins.com (override for localhost)
+ * CI/CD:  BASE_URL=https://almstins.com (GitHub Actions secret E2E_BASE_URL)
  *
  * Auth credentials (for authenticated tests):
  *   E2E_EMAIL / E2E_PASSWORD — set in .env or GitHub Actions secrets.
+ *
+ * The auth-dependent projects (setup + authenticated) only register when those
+ * credentials are present. Without them the run is PUBLIC-ONLY and passes, instead
+ * of failing the whole suite on a missing login (which used to spam failure emails).
  */
+const hasAuthCreds = !!(process.env.E2E_EMAIL && process.env.E2E_PASSWORD);
+
 export default defineConfig({
 	testDir: './tests/e2e',
 	fullyParallel: false,
@@ -23,29 +29,31 @@ export default defineConfig({
 		video: 'on-first-retry',
 	},
 	projects: [
-		// ── Step 1: log in and save session state ────────────────────────
-		{
-			name: 'setup',
-			testMatch: /auth\.setup\.ts/,
-			use: { ...devices['Desktop Chrome'] },
-		},
-
-		// ── Public pages (no auth needed) ────────────────────────────────
+		// ── Public pages (no auth needed) — always run ───────────────────
 		{
 			name: 'public',
 			testMatch: /public\.spec\.ts/,
 			use: { ...devices['Desktop Chrome'] },
 		},
 
-		// ── Authenticated pages (depend on setup) ────────────────────────
-		{
-			name: 'authenticated',
-			testMatch: /vault\.spec\.ts|bookkeeping\.spec\.ts/,
-			use: {
-				...devices['Desktop Chrome'],
-				storageState: 'tests/e2e/.auth/user.json',
-			},
-			dependencies: ['setup'],
-		},
+		// ── Auth-dependent projects — only when E2E_EMAIL/PASSWORD are set ─
+		...(hasAuthCreds
+			? [
+					{
+						name: 'setup',
+						testMatch: /auth\.setup\.ts/,
+						use: { ...devices['Desktop Chrome'] },
+					},
+					{
+						name: 'authenticated',
+						testMatch: /vault\.spec\.ts|bookkeeping\.spec\.ts/,
+						use: {
+							...devices['Desktop Chrome'],
+							storageState: 'tests/e2e/.auth/user.json',
+						},
+						dependencies: ['setup'],
+					},
+				]
+			: []),
 	],
 });
