@@ -104,6 +104,33 @@ async function ensureTables() {
   ensured = true;
 }
 
+// ── Ownership guards (tenant isolation) ───────────────────────────────────────
+// Child rows (people/bills/assignments/payments) hang off a petro_splits group or a
+// petro_tins budget tin, and their parent ids arrive in the request body. Before any
+// write we confirm the parent belongs to the SESSION tenant — otherwise a caller could
+// read or overwrite another tenant's splits data by guessing its UUIDs.
+const notFound = () => json({ ok: false, error: 'Not found' }, 404);
+async function ownsSplits(tenantId: string, splitsId: unknown): Promise<boolean> {
+  if (!splitsId) return false;
+  const r = await db.execute({ sql: `SELECT 1 FROM petro_splits WHERE id = ? AND tenant_id = ? LIMIT 1`, args: [String(splitsId), tenantId] });
+  return r.rows.length > 0;
+}
+async function ownsBill(tenantId: string, billId: unknown): Promise<boolean> {
+  if (!billId) return false;
+  const r = await db.execute({ sql: `SELECT 1 FROM petro_splits_bills WHERE id = ? AND tenant_id = ? LIMIT 1`, args: [String(billId), tenantId] });
+  return r.rows.length > 0;
+}
+async function ownsPerson(tenantId: string, personId: unknown): Promise<boolean> {
+  if (!personId) return false;
+  const r = await db.execute({ sql: `SELECT 1 FROM petro_splits_people WHERE id = ? AND tenant_id = ? LIMIT 1`, args: [String(personId), tenantId] });
+  return r.rows.length > 0;
+}
+async function ownsBudgetTin(tenantId: string, tinId: unknown): Promise<boolean> {
+  if (!tinId) return false;
+  const r = await db.execute({ sql: `SELECT 1 FROM petro_tins WHERE id = ? AND tenant_id = ? LIMIT 1`, args: [String(tinId), tenantId] });
+  return r.rows.length > 0;
+}
+
 // ── GET ───────────────────────────────────────────────────────────────────────
 
 export const GET: APIRoute = async ({ request }) => {
@@ -126,11 +153,11 @@ export const GET: APIRoute = async ({ request }) => {
     const splitsId = String(s.id);
 
     const [peopleRes, billsRes, assignRes, payRes, carriedRes] = await Promise.all([
-      db.execute({ sql: `SELECT id, name, is_owner, sort_order FROM petro_splits_people WHERE splits_id = ? ORDER BY sort_order ASC, created_at ASC`, args: [splitsId] }),
-      db.execute({ sql: `SELECT id, name, amount, is_default, no_budget, sort_order FROM petro_splits_bills WHERE splits_id = ? ORDER BY sort_order ASC, created_at ASC`, args: [splitsId] }),
+      db.execute({ sql: `SELECT id, name, is_owner, sort_order FROM petro_splits_people WHERE splits_id = ? AND tenant_id = ? ORDER BY sort_order ASC, created_at ASC`, args: [splitsId, tenantId] }),
+      db.execute({ sql: `SELECT id, name, amount, is_default, no_budget, sort_order FROM petro_splits_bills WHERE splits_id = ? AND tenant_id = ? ORDER BY sort_order ASC, created_at ASC`, args: [splitsId, tenantId] }),
       db.execute({ sql: `SELECT id, bill_id, person_id, type, value, breakdown FROM petro_splits_assignments WHERE tenant_id = ?`, args: [tenantId] }),
-      db.execute({ sql: `SELECT id, person_id, bill_id, month, amount, paid_date, budget_entry_id FROM petro_splits_payments WHERE splits_id = ? AND month >= ? ORDER BY paid_date ASC`, args: [splitsId, lastMonth] }),
-      db.execute({ sql: `SELECT person_id, balance FROM petro_splits_carried WHERE splits_id = ? AND month = ?`, args: [splitsId, lastMonth] }),
+      db.execute({ sql: `SELECT id, person_id, bill_id, month, amount, paid_date, budget_entry_id FROM petro_splits_payments WHERE splits_id = ? AND tenant_id = ? AND month >= ? ORDER BY paid_date ASC`, args: [splitsId, tenantId, lastMonth] }),
+      db.execute({ sql: `SELECT person_id, balance FROM petro_splits_carried WHERE splits_id = ? AND tenant_id = ? AND month = ?`, args: [splitsId, tenantId, lastMonth] }),
     ]);
 
     const assignmentsByBill: Record<string, any[]> = {};
@@ -183,7 +210,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
-  if (!session) return json({ ok: false }, 401);
+  if (!session || session.isDemo) return json({ ok: false }, 401);
   const { tenantId } = session;
 
   await ensureTables();
@@ -218,12 +245,13 @@ export const POST: APIRoute = async ({ request }) => {
   // ── Delete splits tin ──────────────────────────────────────────────────────
   if (action === 'delete_splits') {
     const { splitsId } = body;
+    if (!(await ownsSplits(tenantId, splitsId))) return notFound();
     // cascade
     await db.execute({ sql: `DELETE FROM petro_splits_payments WHERE splits_id = ? AND tenant_id = ?`, args: [splitsId, tenantId] });
     await db.execute({ sql: `DELETE FROM petro_splits_carried WHERE splits_id = ? AND tenant_id = ?`, args: [splitsId, tenantId] });
-    const billsRes = await db.execute({ sql: `SELECT id FROM petro_splits_bills WHERE splits_id = ?`, args: [splitsId] });
+    const billsRes = await db.execute({ sql: `SELECT id FROM petro_splits_bills WHERE splits_id = ? AND tenant_id = ?`, args: [splitsId, tenantId] });
     for (const b of billsRes.rows as any[]) {
-      await db.execute({ sql: `DELETE FROM petro_splits_assignments WHERE bill_id = ?`, args: [String(b.id)] });
+      await db.execute({ sql: `DELETE FROM petro_splits_assignments WHERE bill_id = ? AND tenant_id = ?`, args: [String(b.id), tenantId] });
     }
     await db.execute({ sql: `DELETE FROM petro_splits_bills WHERE splits_id = ? AND tenant_id = ?`, args: [splitsId, tenantId] });
     await db.execute({ sql: `DELETE FROM petro_splits_people WHERE splits_id = ? AND tenant_id = ?`, args: [splitsId, tenantId] });
@@ -235,8 +263,9 @@ export const POST: APIRoute = async ({ request }) => {
   if (action === 'add_person') {
     const { splitsId, name, isOwner } = body;
     if (!name?.trim()) return json({ ok: false, error: 'Name required' }, 400);
+    if (!(await ownsSplits(tenantId, splitsId))) return notFound();
     const id = randomUUID();
-    const countRes = await db.execute({ sql: `SELECT COUNT(*) as cnt FROM petro_splits_people WHERE splits_id = ?`, args: [splitsId] });
+    const countRes = await db.execute({ sql: `SELECT COUNT(*) as cnt FROM petro_splits_people WHERE splits_id = ? AND tenant_id = ?`, args: [splitsId, tenantId] });
     const sortOrder = Number((countRes.rows[0] as any)?.cnt ?? 0);
     await db.execute({
       sql: `INSERT INTO petro_splits_people (id, splits_id, tenant_id, name, is_owner, sort_order) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -259,8 +288,9 @@ export const POST: APIRoute = async ({ request }) => {
   if (action === 'add_bill') {
     const { splitsId, name, amount, isDefault, noBudget } = body;
     if (!name?.trim()) return json({ ok: false, error: 'Name required' }, 400);
+    if (!(await ownsSplits(tenantId, splitsId))) return notFound();
     const id = randomUUID();
-    const countRes = await db.execute({ sql: `SELECT COUNT(*) as cnt FROM petro_splits_bills WHERE splits_id = ?`, args: [splitsId] });
+    const countRes = await db.execute({ sql: `SELECT COUNT(*) as cnt FROM petro_splits_bills WHERE splits_id = ? AND tenant_id = ?`, args: [splitsId, tenantId] });
     const sortOrder = Number((countRes.rows[0] as any)?.cnt ?? 0);
     await db.execute({
       sql: `INSERT INTO petro_splits_bills (id, splits_id, tenant_id, name, amount, is_default, no_budget, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -291,6 +321,7 @@ export const POST: APIRoute = async ({ request }) => {
   // ── Set assignment ─────────────────────────────────────────────────────────
   if (action === 'set_assignment') {
     const { billId, personId, type, value, breakdown } = body;
+    if (!(await ownsBill(tenantId, billId)) || !(await ownsPerson(tenantId, personId))) return notFound();
     const id = randomUUID();
     await db.execute({
       sql: `INSERT INTO petro_splits_assignments (id, bill_id, person_id, tenant_id, type, value, breakdown)
@@ -304,18 +335,20 @@ export const POST: APIRoute = async ({ request }) => {
   // ── Record payment ─────────────────────────────────────────────────────────
   if (action === 'add_payment') {
     const { splitsId, personId, billId, amount, paidDate, budgetTinId } = body;
+    if (!(await ownsSplits(tenantId, splitsId)) || !(await ownsBill(tenantId, billId)) || !(await ownsPerson(tenantId, personId))) return notFound();
     const thisMonth = monthStr(0);
     const month = String(paidDate ?? '').slice(0, 7) || thisMonth;
     const id = randomUUID();
 
     // If a budget tin is linked, payer is NOT the owner, and bill is not marked no_budget,
-    // auto-post income entry to the budget tin
-    const billRes = await db.execute({ sql: `SELECT no_budget FROM petro_splits_bills WHERE id = ?`, args: [billId] });
+    // auto-post income entry to the budget tin. The budget tin must also be the tenant's
+    // (it's a body-supplied id) or we'd write the payer's name into another tenant's tin.
+    const billRes = await db.execute({ sql: `SELECT no_budget FROM petro_splits_bills WHERE id = ? AND tenant_id = ?`, args: [billId, tenantId] });
     const billNoBudget = Number((billRes.rows[0] as any)?.no_budget ?? 0) === 1;
 
     let budgetEntryId: string | null = null;
-    if (budgetTinId && !billNoBudget) {
-      const personRes = await db.execute({ sql: `SELECT name, is_owner FROM petro_splits_people WHERE id = ?`, args: [personId] });
+    if (budgetTinId && !billNoBudget && (await ownsBudgetTin(tenantId, budgetTinId))) {
+      const personRes = await db.execute({ sql: `SELECT name, is_owner FROM petro_splits_people WHERE id = ? AND tenant_id = ?`, args: [personId, tenantId] });
       const person = personRes.rows[0] as any;
       if (person && !person.is_owner) {
         budgetEntryId = randomUUID();
@@ -353,6 +386,7 @@ export const POST: APIRoute = async ({ request }) => {
   // ── Carry over balance at month end ───────────────────────────────────────
   if (action === 'save_carried') {
     const { splitsId, personId, month, balance, interestRate } = body;
+    if (!(await ownsSplits(tenantId, splitsId)) || !(await ownsPerson(tenantId, personId))) return notFound();
     const interest = Number(balance ?? 0) * (Number(interestRate ?? 0) / 100);
     const finalBalance = Number(balance ?? 0) + interest;
     const id = randomUUID();
