@@ -69,6 +69,9 @@ export function isPublicPath(pathname: string): boolean {
 		// Wallet + dApp safety checkers — public APIs backing the wallet-checker page
 		pathname === '/api/wallet-check' ||
 		pathname === '/api/dapp-check' ||
+		// Verified-publisher lookup — public, login-free; address → publishing domain
+		// (reads the global mirror, never exposes tenant_id/identity)
+		pathname === '/api/verify/lookup' ||
 		// Deploy probe — public so the live commit SHA can be verified with one curl
 		// (no session). Returns only RENDER_GIT_COMMIT/branch/engine, no secrets.
 		pathname === '/api/version' ||

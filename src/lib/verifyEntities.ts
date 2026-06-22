@@ -17,6 +17,7 @@ import {
   validateEntityEndpoint, pullEntityList, type EntityPullCode,
 } from './verifyProof';
 import { encryptSecret, decryptSecret, encryptionAvailable } from './verifyCrypto';
+import { normalizeDestinationValue } from './verifyRegistry';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -258,4 +259,43 @@ export async function deleteEntity(tenantId: string, id: string): Promise<void> 
     sql: `DELETE FROM verified_entities WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
+}
+
+// ── Phase 4: public address lookup ───────────────────────────────────────────
+
+export interface VerifiedAddressHit {
+  /** The domain that published this address (e.g. "coinbase.com"). The ONLY thing we expose. */
+  domain: string;
+  /** Rail the entity tagged it with, or null when published as a bare address. */
+  chain: string | null;
+}
+
+/**
+ * PUBLIC, GLOBAL, login-free lookup: has a domain-verified entity published this
+ * address as one of its own receiving addresses?
+ *
+ * This is the ONE query in Verify that is intentionally NOT tenant-scoped — the
+ * mirror is the public "verified publisher" projection, keyed by address. It returns
+ * ONLY the publishing domain. It NEVER exposes `tenant_id`, the managing account, or
+ * any legal identity — that would cross the no-attribution boundary. It is the allowed
+ * direction of power: an entity self-disclosing its OWN addresses to the world.
+ *
+ * The mirror stores addresses already canonicalized on ingest (`normalizeEvm`:
+ * EVM → lowercased, non-EVM → trimmed-exact). We canonicalize the query the same way
+ * (`normalizeDestinationValue`), so an exact, index-assisted `address = ?` match is
+ * both correct and fast. Returns null when the address isn't a verified destination.
+ */
+export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedAddressHit | null> {
+  const normalized = normalizeDestinationValue(rawValue);
+  if (!normalized) return null;
+  await ensureEntityTables();
+  const res = await db.execute({
+    sql: `SELECT chain, entity_domain FROM verified_address_mirror
+          WHERE status = 'verified' AND address = ?
+          LIMIT 1`,
+    args: [normalized],
+  });
+  if (!res.rows.length) return null;
+  const r = res.rows[0] as any;
+  return { domain: String(r.entity_domain), chain: r.chain ? String(r.chain) : null };
 }

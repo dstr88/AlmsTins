@@ -57,19 +57,19 @@ export interface VerifyCopy {
 
 const en: VerifyCopy = {
   meta: {
-    tagline: 'Watch your crypto receiving addresses for swaps',
+    tagline: 'Verify your crypto receiving addresses before you trust them',
     description:
-      'Register the crypto addresses and payment QR your business publishes, prove they are yours — no wallet connection — and get an alert the moment one is swapped. Free to start: 3 addresses and 1 QR.',
+      'Register the crypto addresses and payment QR your business publishes, prove they are yours — no wallet connection — then check any sign or invoice against them before you rely on it. Free to start: 3 addresses and 1 QR. Automatic monitoring and swap alerts are coming.',
   },
   jsonld: {
     description:
-      'Register the payment destinations your business publishes, prove you control them, and get alerted if a published address or QR is swapped. No wallet connection, no custody.',
+      'Register the payment destinations your business publishes, prove you control them, and verify any published address or QR on demand before you trust it. No wallet connection, no custody. Automatic monitoring and alerts are coming.',
     featureList: [
       'Register crypto receiving addresses',
       'Register a payment QR',
       'Prove ownership without a wallet connection',
-      'Monitor published destinations for swaps',
-      'Email alerts the moment a destination changes',
+      'Verify published destinations on demand',
+      'Automatic monitoring and email alerts (coming soon)',
       'No custody — funds are never moved',
     ],
   },
@@ -80,8 +80,8 @@ const en: VerifyCopy = {
   },
   hero: {
     eyebrow: 'Early access · Free to start',
-    title: 'The address your customers pay could be swapped. Now you can watch it.',
-    sub: "Register your receiving addresses and payment QR, prove they're yours — no wallet connection, ever — and get an alert the moment one changes. Free to start: 3 addresses and 1 QR.",
+    title: 'The address your customers pay could be swapped. Now you can check it before you trust it.',
+    sub: "Register your receiving addresses and payment QR, prove they're yours — no wallet connection, ever — then verify any sign, invoice, or checkout against them before you rely on it. Free to start: 3 addresses and 1 QR.",
     ctaPrimary: 'Create your free account',
     ctaSecondary: 'How it works ↓',
   },
@@ -89,7 +89,7 @@ const en: VerifyCopy = {
     heading: 'The problem',
     body: [
       'You publish a receiving address — a QR by the register, a wallet on an invoice, a link at checkout. An attacker quietly replaces it with their own. The sticker still looks right. The customer still pays. The money just goes somewhere else — and you find out when someone says they paid and you never got it.',
-      'On-chain there\'s no chargeback and no one to call. The first defense is simple: be the one who notices the moment your address changes.',
+      'On-chain there\'s no chargeback and no one to call. The first defense is simple: check your own published address before you trust it — and before a customer pays it.',
     ],
   },
   how: {
@@ -104,17 +104,17 @@ const en: VerifyCopy = {
         body: 'A quick signature, or a small file on your site. No wallet connection. No keys. Ever.',
       },
       {
-        title: 'We watch',
-        body: 'If a published address or QR stops matching what you registered, you get an alert — so you can pull the bad one before a customer pays it.',
+        title: 'Verify before you trust',
+        body: "Before you rely on a published QR or address, scan or paste it and we'll tell you instantly whether it still matches what you registered. Automatic monitoring and swap alerts are on the way.",
       },
     ],
   },
   free: {
     heading: 'What you get, free',
     items: [
-      '3 receiving addresses monitored',
-      '1 payment QR monitored',
-      'Email alerts the moment something changes',
+      'Register and verify 3 receiving addresses',
+      'Register and verify 1 payment QR',
+      'Automatic monitoring and email alerts (coming soon)',
       'No wallet connection, ever — we read public data you point us to',
       "Your data stays yours — we can't see your customers, and we can't move your funds",
     ],
@@ -133,7 +133,7 @@ const en: VerifyCopy = {
       },
       {
         title: "We can't see your customers.",
-        body: 'We monitor your own published addresses — not the people who pay them. No tracking, by design.',
+        body: 'You check your own published addresses — never the people who pay them. No tracking, by design.',
       },
     ],
   },
@@ -142,9 +142,9 @@ const en: VerifyCopy = {
     body: "This is early. It's free while we learn what merchants actually need. If you take crypto — anywhere in the world — try it, then tell us what would make it genuinely useful. We're building this with you, not at you.",
   },
   finalCta: {
-    heading: 'Be the one who notices first.',
+    heading: 'Check before money moves.',
     button: 'Create your free account',
-    sub: '3 addresses + 1 QR, monitored. No card, no wallet connection.',
+    sub: 'Register + verify 3 addresses + 1 QR. No card, no wallet connection.',
     footerAria: 'Almstins home',
   },
   vendors: {
@@ -154,10 +154,10 @@ const en: VerifyCopy = {
     steps: [
       'Create a free account and add the receiving addresses and payment QR you publish.',
       "Prove they're yours — a quick signature or a small file on your site. No wallet connection, no keys, ever.",
-      'We monitor them and alert you the moment a published address or QR is swapped.',
+      'Verify them on demand before you rely on them — scan a sign and we confirm it still matches. Automatic monitoring is coming.',
     ],
     scaleLabel: 'Publishing many addresses?',
-    scaleBody: 'Exchanges and large platforms can verify everything from their own domain at once: prove your domain, then host a read-only endpoint and issue us an API key. We pull your live list and keep it in sync — no adding addresses one by one.',
+    scaleBody: 'Exchanges and large platforms can verify everything from their own domain at once: prove your domain, then host a read-only endpoint and issue us an API key. We pull your list so it can be verified — no adding addresses one by one. Live monitoring is on the way.',
     contractLabel: 'Your endpoint returns:',
     earlyNote: 'Early access. Any key you give us only reads a list you already publish — it can never move funds or see anything private. To get set up, email <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a>.',
   },
@@ -165,19 +165,19 @@ const en: VerifyCopy = {
 
 const es: VerifyCopy = {
   meta: {
-    tagline: 'Vigila si cambian las direcciones donde recibes cripto',
+    tagline: 'Verifica tus direcciones de cobro antes de confiar en ellas',
     description:
-      'Registra las direcciones cripto y el QR de pago que publica tu negocio, demuestra que son tuyos — sin conectar la billetera — y recibe una alerta en el momento en que alguno se sustituye. Gratis para empezar: 3 direcciones y 1 QR.',
+      'Registra las direcciones cripto y el QR de pago que publica tu negocio, demuestra que son tuyos — sin conectar la billetera — y luego comprueba cualquier letrero o factura contra ellas antes de fiarte. Gratis para empezar: 3 direcciones y 1 QR. La supervisión automática y las alertas de sustitución llegan pronto.',
   },
   jsonld: {
     description:
-      'Registra los destinos de pago que publica tu negocio, demuestra que los controlas y recibe una alerta si una dirección o un QR publicado es sustituido. Sin conexión de billetera, sin custodia.',
+      'Registra los destinos de pago que publica tu negocio, demuestra que los controlas y verifica cualquier dirección o QR publicado a demanda antes de confiar en él. Sin conexión de billetera, sin custodia. La supervisión automática y las alertas llegan pronto.',
     featureList: [
       'Registrar direcciones de recepción de cripto',
       'Registrar un QR de pago',
       'Demostrar la propiedad sin conectar la billetera',
-      'Vigilar los destinos publicados ante sustituciones',
-      'Alertas por correo en el momento en que un destino cambia',
+      'Verificar los destinos publicados a demanda',
+      'Supervisión automática y alertas por correo (próximamente)',
       'Sin custodia — nunca se mueven los fondos',
     ],
   },
@@ -188,8 +188,8 @@ const es: VerifyCopy = {
   },
   hero: {
     eyebrow: 'Acceso anticipado · Gratis para empezar',
-    title: 'La dirección donde te pagan tus clientes podría ser sustituida. Ahora puedes vigilarla.',
-    sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos — sin conectar la billetera, nunca — y recibe una alerta en el momento en que alguno cambie. Gratis para empezar: 3 direcciones y 1 QR.',
+    title: 'La dirección donde te pagan tus clientes podría ser sustituida. Ahora puedes comprobarla antes de confiar.',
+    sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos — sin conectar la billetera, nunca — y luego verifica cualquier letrero, factura o pantalla de pago contra ellas antes de fiarte. Gratis para empezar: 3 direcciones y 1 QR.',
     ctaPrimary: 'Crea tu cuenta gratis',
     ctaSecondary: 'Cómo funciona ↓',
   },
@@ -197,7 +197,7 @@ const es: VerifyCopy = {
     heading: 'El problema',
     body: [
       'Publicas una dirección de recepción — un QR junto a la caja, una billetera en una factura, un enlace en el pago. Un atacante la reemplaza silenciosamente por la suya. La calcomanía sigue pareciendo correcta. El cliente igual paga. El dinero simplemente va a otra parte — y te enteras cuando alguien dice que pagó y tú nunca lo recibiste.',
-      'En la cadena no hay contracargo ni a quién llamar. La primera defensa es simple: sé tú quien se dé cuenta en el momento en que tu dirección cambie.',
+      'En la cadena no hay contracargo ni a quién llamar. La primera defensa es simple: comprueba tú mismo tu dirección publicada antes de confiar en ella — y antes de que un cliente pague.',
     ],
   },
   how: {
@@ -212,17 +212,17 @@ const es: VerifyCopy = {
         body: 'Una firma rápida, o un pequeño archivo en tu sitio. Sin conectar la billetera. Sin claves. Nunca.',
       },
       {
-        title: 'Nosotros vigilamos',
-        body: 'Si una dirección o un QR publicado deja de coincidir con lo que registraste, recibes una alerta — para que retires el incorrecto antes de que un cliente le pague.',
+        title: 'Verifica antes de confiar',
+        body: 'Antes de fiarte de un QR o una dirección publicados, escanéalos o pégalos y te diremos al instante si siguen coincidiendo con lo que registraste. La supervisión automática y las alertas de sustitución están en camino.',
       },
     ],
   },
   free: {
     heading: 'Lo que obtienes, gratis',
     items: [
-      '3 direcciones de recepción monitoreadas',
-      '1 QR de pago monitoreado',
-      'Alertas por correo en el momento en que algo cambia',
+      'Registra y verifica 3 direcciones de recepción',
+      'Registra y verifica 1 QR de pago',
+      'Supervisión automática y alertas por correo (próximamente)',
       'Sin conectar la billetera, nunca — leemos datos públicos que tú nos indicas',
       'Tus datos siguen siendo tuyos — no podemos ver a tus clientes, y no podemos mover tus fondos',
     ],
@@ -241,7 +241,7 @@ const es: VerifyCopy = {
       },
       {
         title: 'No podemos ver a tus clientes.',
-        body: 'Monitoreamos tus propias direcciones publicadas — no a las personas que les pagan. Sin rastreo, por diseño.',
+        body: 'Compruebas tus propias direcciones publicadas — nunca a las personas que les pagan. Sin rastreo, por diseño.',
       },
     ],
   },
@@ -250,9 +250,9 @@ const es: VerifyCopy = {
     body: 'Esto es temprano. Es gratis mientras aprendemos lo que los comercios realmente necesitan. Si aceptas cripto — en cualquier parte del mundo — pruébalo y luego dinos qué lo haría genuinamente útil. Lo estamos construyendo contigo, no a costa tuya.',
   },
   finalCta: {
-    heading: 'Sé el primero en darte cuenta.',
+    heading: 'Comprueba antes de que el dinero se mueva.',
     button: 'Crea tu cuenta gratis',
-    sub: '3 direcciones + 1 QR, monitoreados. Sin tarjeta, sin conexión de billetera.',
+    sub: 'Registra + verifica 3 direcciones + 1 QR. Sin tarjeta, sin conexión de billetera.',
     footerAria: 'Inicio de Almstins',
   },
   vendors: {
@@ -262,10 +262,10 @@ const es: VerifyCopy = {
     steps: [
       'Crea una cuenta gratis y añade las direcciones de cobro y el QR de pago que publicas.',
       'Demuestra que son tuyas — una firma rápida o un pequeño archivo en tu sitio. Sin conectar la wallet, sin claves, nunca.',
-      'Las monitorizamos y te avisamos en cuanto una dirección o QR publicado sea cambiado.',
+      'Verifícalas a demanda antes de fiarte — escanea un letrero y confirmamos que sigue coincidiendo. La supervisión automática llega pronto.',
     ],
     scaleLabel: '¿Publicas muchas direcciones?',
-    scaleBody: 'Los exchanges y las plataformas grandes pueden verificarlo todo desde su propio dominio a la vez: verifica tu dominio, luego aloja un endpoint de solo lectura y emítenos una clave de API. Extraemos tu lista en vivo y la mantenemos sincronizada — sin añadir direcciones una por una.',
+    scaleBody: 'Los exchanges y las plataformas grandes pueden verificarlo todo desde su propio dominio a la vez: verifica tu dominio, luego aloja un endpoint de solo lectura y emítenos una clave de API. Extraemos tu lista para que pueda verificarse — sin añadir direcciones una por una. La supervisión en vivo está en camino.',
     contractLabel: 'Tu endpoint devuelve:',
     earlyNote: 'Acceso anticipado. Cualquier clave que nos des solo lee una lista que ya publicas — nunca puede mover fondos ni ver nada privado. Para configurarlo, escribe a <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a>.',
   },
@@ -273,19 +273,19 @@ const es: VerifyCopy = {
 
 const fr: VerifyCopy = {
   meta: {
-    tagline: 'Surveillez le remplacement de vos adresses de réception crypto',
+    tagline: 'Vérifiez vos adresses de réception crypto avant de leur faire confiance',
     description:
-      'Enregistrez les adresses crypto et le QR de paiement que votre entreprise publie, prouvez qu\'ils sont à vous — sans connexion de portefeuille — et recevez une alerte dès que l\'un d\'eux est remplacé. Gratuit pour commencer : 3 adresses et 1 QR.',
+      'Enregistrez les adresses crypto et le QR de paiement que votre entreprise publie, prouvez qu\'ils sont à vous — sans connexion de portefeuille — puis vérifiez n\'importe quelle pancarte ou facture par rapport à elles avant de vous y fier. Gratuit pour commencer : 3 adresses et 1 QR. La surveillance automatique et les alertes de remplacement arrivent bientôt.',
   },
   jsonld: {
     description:
-      'Enregistrez les destinations de paiement que votre entreprise publie, prouvez que vous les contrôlez et soyez alerté si une adresse ou un QR publié est remplacé. Sans connexion de portefeuille, sans garde des fonds.',
+      'Enregistrez les destinations de paiement que votre entreprise publie, prouvez que vous les contrôlez et vérifiez n\'importe quelle adresse ou QR publié à la demande avant de vous y fier. Sans connexion de portefeuille, sans garde des fonds. La surveillance automatique et les alertes arrivent bientôt.',
     featureList: [
       'Enregistrer des adresses de réception crypto',
       'Enregistrer un QR de paiement',
       'Prouver la propriété sans connexion de portefeuille',
-      'Surveiller le remplacement des destinations publiées',
-      'Alertes par e-mail dès qu\'une destination change',
+      'Vérifier les destinations publiées à la demande',
+      'Surveillance automatique et alertes par e-mail (bientôt)',
       'Sans garde — les fonds ne sont jamais déplacés',
     ],
   },
@@ -296,8 +296,8 @@ const fr: VerifyCopy = {
   },
   hero: {
     eyebrow: 'Accès anticipé · Gratuit pour commencer',
-    title: "L'adresse où vos clients vous paient pourrait être remplacée. Vous pouvez désormais la surveiller.",
-    sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous — sans jamais connecter de portefeuille — et recevez une alerte dès que l'un d'eux change. Gratuit pour commencer : 3 adresses et 1 QR.",
+    title: "L'adresse où vos clients vous paient pourrait être remplacée. Vous pouvez désormais la vérifier avant de vous y fier.",
+    sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous — sans jamais connecter de portefeuille — puis vérifiez n'importe quelle pancarte, facture ou page de paiement par rapport à elles avant de vous y fier. Gratuit pour commencer : 3 adresses et 1 QR.",
     ctaPrimary: 'Créez votre compte gratuit',
     ctaSecondary: 'Comment ça marche ↓',
   },
@@ -305,7 +305,7 @@ const fr: VerifyCopy = {
     heading: 'Le problème',
     body: [
       "Vous publiez une adresse de réception — un QR près de la caisse, un portefeuille sur une facture, un lien au moment du paiement. Un attaquant la remplace discrètement par la sienne. L'autocollant semble toujours correct. Le client paie quand même. L'argent part simplement ailleurs — et vous l'apprenez quand quelqu'un dit avoir payé alors que vous n'avez jamais rien reçu.",
-      "Sur la chaîne, il n'y a ni rétrofacturation ni personne à appeler. La première défense est simple : soyez celui qui remarque l'instant où votre adresse change.",
+      "Sur la chaîne, il n'y a ni rétrofacturation ni personne à appeler. La première défense est simple : vérifiez vous-même votre adresse publiée avant de vous y fier — et avant qu'un client ne la paie.",
     ],
   },
   how: {
@@ -320,17 +320,17 @@ const fr: VerifyCopy = {
         body: 'Une signature rapide, ou un petit fichier sur votre site. Sans connexion de portefeuille. Sans clés. Jamais.',
       },
       {
-        title: 'Nous surveillons',
-        body: "Si une adresse ou un QR publié ne correspond plus à ce que vous avez enregistré, vous recevez une alerte — pour retirer le mauvais avant qu'un client ne le paie.",
+        title: 'Vérifiez avant de faire confiance',
+        body: "Avant de vous fier à un QR ou une adresse publiés, scannez-les ou collez-les et nous vous dirons instantanément s'ils correspondent toujours à ce que vous avez enregistré. La surveillance automatique et les alertes de remplacement arrivent bientôt.",
       },
     ],
   },
   free: {
     heading: 'Ce que vous obtenez, gratuitement',
     items: [
-      '3 adresses de réception surveillées',
-      '1 QR de paiement surveillé',
-      'Alertes par e-mail dès que quelque chose change',
+      'Enregistrez et vérifiez 3 adresses de réception',
+      'Enregistrez et vérifiez 1 QR de paiement',
+      'Surveillance automatique et alertes par e-mail (bientôt)',
       'Sans connexion de portefeuille, jamais — nous lisons les données publiques que vous nous indiquez',
       'Vos données restent les vôtres — nous ne voyons pas vos clients, et nous ne pouvons pas déplacer vos fonds',
     ],
@@ -349,7 +349,7 @@ const fr: VerifyCopy = {
       },
       {
         title: 'Nous ne pouvons pas voir vos clients.',
-        body: 'Nous surveillons vos propres adresses publiées — pas les personnes qui les paient. Aucun pistage, par conception.',
+        body: 'Vous vérifiez vos propres adresses publiées — jamais les personnes qui les paient. Aucun pistage, par conception.',
       },
     ],
   },
@@ -358,9 +358,9 @@ const fr: VerifyCopy = {
     body: "C'est un début. C'est gratuit pendant que nous apprenons ce dont les commerçants ont réellement besoin. Si vous acceptez la crypto — partout dans le monde — essayez, puis dites-nous ce qui le rendrait vraiment utile. Nous le construisons avec vous, pas à vos dépens.",
   },
   finalCta: {
-    heading: 'Soyez le premier à le remarquer.',
+    heading: 'Vérifiez avant que l\'argent ne bouge.',
     button: 'Créez votre compte gratuit',
-    sub: '3 adresses + 1 QR, surveillés. Sans carte, sans connexion de portefeuille.',
+    sub: 'Enregistrez + vérifiez 3 adresses + 1 QR. Sans carte, sans connexion de portefeuille.',
     footerAria: 'Accueil Almstins',
   },
   vendors: {
@@ -370,10 +370,10 @@ const fr: VerifyCopy = {
     steps: [
       'Créez un compte gratuit et ajoutez les adresses de réception et le QR de paiement que vous publiez.',
       'Prouvez qu’elles sont à vous — une signature rapide ou un petit fichier sur votre site. Sans connexion de wallet, sans clés, jamais.',
-      'Nous les surveillons et vous alertons dès qu’une adresse ou un QR publié est remplacé.',
+      'Vérifiez-les à la demande avant de vous y fier — scannez une pancarte et nous confirmons qu’elle correspond toujours. La surveillance automatique arrive bientôt.',
     ],
     scaleLabel: 'Vous publiez de nombreuses adresses ?',
-    scaleBody: 'Les exchanges et les grandes plateformes peuvent tout vérifier depuis leur propre domaine d’un coup : prouvez votre domaine, puis hébergez un endpoint en lecture seule et émettez-nous une clé API. Nous récupérons votre liste en direct et la gardons synchronisée — sans ajouter les adresses une par une.',
+    scaleBody: 'Les exchanges et les grandes plateformes peuvent tout vérifier depuis leur propre domaine d’un coup : prouvez votre domaine, puis hébergez un endpoint en lecture seule et émettez-nous une clé API. Nous récupérons votre liste pour qu’elle puisse être vérifiée — sans ajouter les adresses une par une. La surveillance en direct arrive bientôt.',
     contractLabel: 'Votre endpoint renvoie :',
     earlyNote: 'Accès anticipé. Toute clé que vous nous donnez lit seulement une liste que vous publiez déjà — elle ne peut jamais déplacer de fonds ni voir quoi que ce soit de privé. Pour la mise en place, écrivez à <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a>.',
   },

@@ -387,6 +387,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [result, setResult]       = useState<WalletCheckResult | null>(null);
+  const [verifiedPublisher, setVerifiedPublisher] = useState<{ domain: string } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [cached, setCached]       = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -420,8 +421,23 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
     setLoading(true);
     setError(null);
     setResult(null);
+    setVerifiedPublisher(null);
 
     try {
+      // Independent, non-fatal: is this a domain-verified published address? Runs
+      // concurrently with the safety scan, sets its own state, and never throws into
+      // the main flow — the safety verdict stands on its own if this lookup fails.
+      void fetch(`/api/verify/lookup?address=${encodeURIComponent(addr)}`, {
+        signal: abortRef.current.signal,
+      })
+        .then(r => r.json())
+        .then((d: any) => {
+          if (d?.ok && d.verified && typeof d.domain === 'string') {
+            setVerifiedPublisher({ domain: d.domain });
+          }
+        })
+        .catch(() => { /* non-fatal — includes AbortError when a check is superseded */ });
+
       const res = await fetch('/api/wallet-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -682,6 +698,28 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
       {/* Results */}
       {result && (
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.5rem' }}>
+
+          {/* Verified publisher — a domain-verified entity published this exact address */}
+          {verifiedPublisher && (
+            <div style={{
+              marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
+              background: 'var(--gain-bg)', border: '1px solid var(--gain-border)',
+              display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+            }}>
+              <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>✓</span>
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--gain)', fontSize: '0.95rem' }}>
+                  {c.verifiedTitle}
+                </div>
+                <p style={{ margin: '0.3rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                  {c.verifiedBody.replace('{domain}', verifiedPublisher.domain)}
+                </p>
+                <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
+                  {c.verifiedSub}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Chain + ENS + cache badges */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: result.ensName ? '0.5rem' : '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>

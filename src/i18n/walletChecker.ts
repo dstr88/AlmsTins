@@ -150,6 +150,9 @@ export interface WalletCheckerLocale {
     multisigWhat: string;
     multisigWarning: string;
     multisigEvmOnly: string;
+    verifiedTitle: string;
+    verifiedBody: string;
+    verifiedSub: string;
   };
 }
 
@@ -418,6 +421,9 @@ export const en: WalletCheckerLocale = {
     multisigWhat: ' A multi-sig wallet requires multiple private keys to approve transactions. While legitimate protocols use them, scammers sometimes use multi-sig setups to create the illusion that funds are secure — while they control all the keys.',
     multisigWarning: '⚠️ Legitimate investments never ask you to deposit into their wallet. If someone is asking you to send tokens to any address — multi-sig or not — it is very likely a scam.',
     multisigEvmOnly: 'Multi-sig detection only available for EVM addresses.',
+    verifiedTitle: 'Verified publisher',
+    verifiedBody: '{domain} proved control of its domain and lists this as one of its own receiving addresses.',
+    verifiedSub: 'This confirms who published the address — not that any payment is safe. Still confirm the amount and that you meant to pay this business.',
   },
 };
 
@@ -686,6 +692,9 @@ export const es: WalletCheckerLocale = {
     multisigWhat: ' Una billetera multi-firma requiere varias claves privadas para aprobar transacciones. Aunque los protocolos legítimos las usan, los estafadores a veces usan configuraciones multi-firma para crear la ilusión de que los fondos están seguros — mientras ellos controlan todas las claves.',
     multisigWarning: '⚠️ Las inversiones legítimas nunca te piden depositar en su billetera. Si alguien te pide enviar tokens a cualquier dirección — multi-firma o no — es muy probable que sea una estafa.',
     multisigEvmOnly: 'La detección de multi-firma solo está disponible para direcciones EVM.',
+    verifiedTitle: 'Comercio verificado',
+    verifiedBody: '{domain} demostró el control de su dominio y figura esta como una de sus propias direcciones de cobro.',
+    verifiedSub: 'Esto confirma quién publicó la dirección — no que un pago sea seguro. Confirma igualmente el importe y que querías pagar a este negocio.',
   },
 };
 
@@ -954,5 +963,8 @@ export const fr: WalletCheckerLocale = {
     multisigWhat: ' Un portefeuille multi-signature exige plusieurs clés privées pour approuver les transactions. Bien que les protocoles légitimes les utilisent, les arnaqueurs s’en servent parfois pour donner l’illusion que les fonds sont sécurisés — alors qu’ils contrôlent toutes les clés.',
     multisigWarning: '⚠️ Les investissements légitimes ne vous demandent jamais de déposer dans leur portefeuille. Si quelqu’un vous demande d’envoyer des tokens à une adresse — multi-signature ou non — c’est très probablement une arnaque.',
     multisigEvmOnly: 'La détection multi-signature n’est disponible que pour les adresses EVM.',
+    verifiedTitle: 'Émetteur vérifié',
+    verifiedBody: '{domain} a prouvé le contrôle de son domaine et inscrit celle-ci comme l’une de ses propres adresses de réception.',
+    verifiedSub: 'Cela confirme qui a publié l’adresse — pas qu’un paiement soit sûr. Vérifiez tout de même le montant et que vous vouliez bien payer cette entreprise.',
   },
 };
