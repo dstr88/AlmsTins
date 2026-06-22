@@ -141,3 +141,29 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+
+  # ── Almstins Verify monitor cron (the watchman) ────────────────────────────
+  # Runs every 6 hours (00:30, 06:30, 12:30, 18:30 UTC). More frequent than the
+  # weekly syncs on purpose: it keeps the public "Verified publisher" mirror fresh
+  # well inside the 24h max-stale TTL (so the badge never goes stale-but-shown),
+  # re-validates merchant .well-known proofs for swaps, and emails owners on a
+  # revocation or a proof change. Safe no-op while no entity/merchant is onboarded.
+  #
+  # Required env vars (set in Render dashboard — not inherited from web service):
+  #   CRON_SECRET        — same value as on your web service
+  #   APP_URL            — e.g. https://almstins.com
+  - type: cron
+    name: verify-monitor
+    runtime: image
+    image:
+      url: docker.io/curlimages/curl:latest
+    schedule: "30 */6 * * *"
+    startCommand: >-
+      curl -sf --max-time 1800
+      -H "x-cron-secret: $CRON_SECRET"
+      "$APP_URL/api/cron/verify-monitor"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
