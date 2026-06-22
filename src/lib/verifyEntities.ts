@@ -21,6 +21,18 @@ import { normalizeDestinationValue } from './verifyRegistry';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
+/**
+ * Hard max-stale TTL for a mirrored "verified" row. A row whose `refreshed_at` is
+ * older than this is NOT trusted by the public lookup — fail-safe to *unverified*.
+ * The Phase-5 monitor cron keeps `refreshed_at` advancing on every successful re-pull;
+ * if it stops (entity endpoint down, cron broken), the badge lapses instead of
+ * over-claiming a stale "verified." Under-claim, never over-claim. Same column format
+ * as `nowUtc()` so a lexical `>=` compare is also chronological.
+ */
+const MAX_STALE_MS = 24 * 60 * 60 * 1000;
+const staleCutoffUtc = (): string =>
+  new Date(Date.now() - MAX_STALE_MS).toISOString().replace('T', ' ').slice(0, 19);
+
 export type EntityProofStatus = 'unproven' | 'proven';
 
 export interface VerifiedEntity {
@@ -292,10 +304,75 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   const res = await db.execute({
     sql: `SELECT chain, entity_domain FROM verified_address_mirror
           WHERE status = 'verified' AND address = ?
+            AND refreshed_at IS NOT NULL AND refreshed_at >= ?
           LIMIT 1`,
-    args: [normalized],
+    args: [normalized, staleCutoffUtc()],
   });
   if (!res.rows.length) return null;
   const r = res.rows[0] as any;
   return { domain: String(r.entity_domain), chain: r.chain ? String(r.chain) : null };
+}
+
+// ── Phase 5: monitoring / re-validation (the watchman) ───────────────────────
+
+export interface EntityMonitorTarget {
+  id: string;
+  tenantId: string;
+  domain: string;
+  /** Prior pull status — used to alert only on the ok->fail TRANSITION (no repeat spam). */
+  lastPullStatus: string | null;
+}
+
+/**
+ * Cross-tenant enumeration for the monitor cron — every proven entity that has a
+ * stored endpoint + key. NOT tenant-scoped: this is a privileged maintenance job
+ * (like monthly-digest), so it deliberately spans all tenants. It returns only
+ * management fields, never the key.
+ */
+export async function listEntitiesForMonitor(): Promise<EntityMonitorTarget[]> {
+  await ensureEntityTables();
+  const res = await db.execute({
+    sql: `SELECT id, tenant_id, domain, last_pull_status
+          FROM verified_entities
+          WHERE proof_status = 'proven'
+            AND api_endpoint IS NOT NULL AND api_key_encrypted IS NOT NULL`,
+    args: [],
+  });
+  return (res.rows as any[]).map(r => ({
+    id: String(r.id),
+    tenantId: String(r.tenant_id),
+    domain: String(r.domain),
+    lastPullStatus: r.last_pull_status ? String(r.last_pull_status) : null,
+  }));
+}
+
+export interface EntityMonitorResult {
+  pull: PullResult;
+  /** Addresses that were in the mirror before but not after — revocations. */
+  removed: string[];
+  /** Newly published addresses (informational; no alert). */
+  added: string[];
+}
+
+/**
+ * Re-pull one entity's live list (refreshing its mirror + `refreshed_at`) and report
+ * which addresses were revoked vs added. On a failed pull the mirror is left intact —
+ * the public lookup's max-stale TTL is what fails it safe, not a destructive delete.
+ */
+export async function monitorEntity(tenantId: string, id: string): Promise<EntityMonitorResult> {
+  const before = await db.execute({
+    sql: `SELECT address FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
+    args: [id, tenantId],
+  });
+  const beforeSet = new Set((before.rows as any[]).map(r => String(r.address)));
+  const pull = await pullEntity(tenantId, id);
+  if (!pull.ok) return { pull, removed: [], added: [] };
+  const after = await db.execute({
+    sql: `SELECT address FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
+    args: [id, tenantId],
+  });
+  const afterSet = new Set((after.rows as any[]).map(r => String(r.address)));
+  const removed = [...beforeSet].filter(a => !afterSet.has(a));
+  const added = [...afterSet].filter(a => !beforeSet.has(a));
+  return { pull, removed, added };
 }

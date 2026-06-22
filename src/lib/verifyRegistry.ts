@@ -313,3 +313,83 @@ export async function markProofChecked(tenantId: string, domain: string, status:
     args: [status, now, now, tenantId, domain],
   });
 }
+
+// ── Phase 5: monitoring / re-validation (merchant .well-known watchman) ───────
+
+export interface ProvenDomainTarget {
+  tenantId: string;
+  domain: string;
+  /** The challenge we issued — re-checked against the still-published file. */
+  challenge: string;
+}
+
+/**
+ * Cross-tenant enumeration for the monitor cron — every domain whose proof is
+ * currently 'proven'. NOT tenant-scoped: a privileged maintenance job spanning all
+ * tenants. Only 'proven' rows are returned, so a domain we've already flipped to
+ * 'failed' isn't re-checked (and isn't re-alerted) until the owner re-proves it.
+ */
+export async function listProvenDomainsForMonitor(): Promise<ProvenDomainTarget[]> {
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `SELECT tenant_id, domain, challenge_token FROM verify_domain_proofs WHERE status = 'proven'`,
+    args: [],
+  });
+  return (res.rows as any[]).map(r => ({
+    tenantId: String(r.tenant_id),
+    domain: String(r.domain),
+    challenge: String(r.challenge_token),
+  }));
+}
+
+/** The address destinations a proven domain currently vouches for (tenant-scoped). */
+export async function getProvenAddressDestinations(tenantId: string, domain: string): Promise<Destination[]> {
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at
+          FROM verify_destinations
+          WHERE tenant_id = ? AND proof_domain = ? AND proof_status = 'proven' AND kind = 'address'`,
+    args: [tenantId, domain],
+  });
+  return (res.rows as any[]).map(mapRow);
+}
+
+/**
+ * Flip specific destinations back to 'lapsed' (no longer vouched by the published
+ * file). The dashboard then prompts a re-prove. Flipping them OUT of 'proven' also
+ * dedups the alert — next run they're excluded from the expected set.
+ */
+export async function markDestinationsLapsed(tenantId: string, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await ensureVerifyTables();
+  const now = nowUtc();
+  for (const id of ids) {
+    await db.execute({
+      sql: `UPDATE verify_destinations SET proof_status = 'lapsed', updated_at = ?
+            WHERE id = ? AND tenant_id = ?`,
+      args: [now, id, tenantId],
+    });
+  }
+}
+
+/** Whole-domain failure: flip the proof to 'failed' so it stops being monitored until re-proven. */
+export async function markDomainProofFailed(tenantId: string, domain: string): Promise<void> {
+  await ensureVerifyTables();
+  const now = nowUtc();
+  await db.execute({
+    sql: `UPDATE verify_domain_proofs SET status = 'failed', last_checked_at = ?, updated_at = ?
+          WHERE tenant_id = ? AND domain = ?`,
+    args: [now, now, tenantId, domain],
+  });
+}
+
+/** Stamp a clean (or transiently-unreachable) re-check without changing status. */
+export async function markDomainProofRechecked(tenantId: string, domain: string): Promise<void> {
+  await ensureVerifyTables();
+  const now = nowUtc();
+  await db.execute({
+    sql: `UPDATE verify_domain_proofs SET last_checked_at = ?, updated_at = ?
+          WHERE tenant_id = ? AND domain = ?`,
+    args: [now, now, tenantId, domain],
+  });
+}
