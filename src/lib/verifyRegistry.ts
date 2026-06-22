@@ -25,8 +25,10 @@ export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known';
 /** Rails offered for a receiving address (matches the chains the app already supports). */
 export const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'] as const;
 
-/** Free early-access limits — per the landing page: 3 receiving addresses + 1 payment QR. */
-export const FREE_LIMITS: Record<DestinationKind, number> = { address: 3, qr: 1 };
+/** Free early-access limit: 3 monitored destinations TOTAL, any mix of addresses and QR codes.
+ *  One value = one destination; the same QR displayed in many places is still one row (the
+ *  UNIQUE(tenant_id, kind, value) index dedups it), so placements never count against this. */
+export const FREE_LIMIT_TOTAL = 3;
 
 export interface Destination {
   id: string;
@@ -178,19 +180,17 @@ export async function createDestination(
   }
   const label = input.label ? String(input.label).trim().slice(0, 80) || null : null;
 
-  // Free early-access limit (3 addresses + 1 QR).
-  const limit = FREE_LIMITS[kind];
+  // Free early-access limit: 3 destinations total, any mix. Placements don't count
+  // (the same QR in ten spots is one registered value).
   const countRes = await db.execute({
-    sql: `SELECT COUNT(*) AS cnt FROM verify_destinations WHERE tenant_id = ? AND kind = ?`,
-    args: [tenantId, kind],
+    sql: `SELECT COUNT(*) AS cnt FROM verify_destinations WHERE tenant_id = ?`,
+    args: [tenantId],
   });
-  if (Number((countRes.rows[0] as any)?.cnt ?? 0) >= limit) {
+  if (Number((countRes.rows[0] as any)?.cnt ?? 0) >= FREE_LIMIT_TOTAL) {
     return {
       ok: false,
       error: 'limit_reached',
-      message: kind === 'qr'
-        ? 'Free early access includes 1 payment QR. More capacity is coming.'
-        : 'Free early access includes 3 receiving addresses. More capacity is coming.',
+      message: 'Free early access includes 3 monitored destinations (any mix of addresses and QR codes). Need to watch more? Get in touch.',
     };
   }
 

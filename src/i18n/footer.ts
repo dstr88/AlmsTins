@@ -18,6 +18,8 @@ export interface FooterLocale {
   licenseLine: string;
   aboutLabel: string;
   aboutHref: string;
+  pricingLabel: string;
+  pricingHref: string;
   privacyLabel: string;
   termsLabel: string;
   privacyAria: string;
@@ -30,6 +32,8 @@ export const en: FooterLocale = {
   licenseLine: 'Open-source under the MIT License.',
   aboutLabel: 'about',
   aboutHref: '/about',
+  pricingLabel: 'pricing',
+  pricingHref: '/prices',
   privacyLabel: 'privacy-policy',
   termsLabel: 'user agreement',
   privacyAria: 'Privacy Policy',
@@ -42,6 +46,8 @@ export const es: FooterLocale = {
   licenseLine: 'Código abierto bajo la MIT License.',
   aboutLabel: 'acerca de',
   aboutHref: '/about/es',
+  pricingLabel: 'precios',
+  pricingHref: '/prices',
   privacyLabel: 'política de privacidad',
   termsLabel: 'acuerdo de usuario',
   privacyAria: 'Política de Privacidad',
@@ -54,6 +60,8 @@ export const fr: FooterLocale = {
   licenseLine: 'Open source sous licence MIT.',
   aboutLabel: 'à propos',
   aboutHref: '/about/fr',
+  pricingLabel: 'tarifs',
+  pricingHref: '/prices',
   privacyLabel: 'politique de confidentialité',
   termsLabel: 'accord d’utilisateur',
   privacyAria: 'Politique de Confidentialité',

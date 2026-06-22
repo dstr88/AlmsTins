@@ -1,10 +1,14 @@
 ---
 // prices.astro — canonical public pricing page (DRAFT — not committed).
 // Renders at /prices. Mirrors how about.astro wraps content in the site Layout.
-import Layout from "../layouts/Layout.astro";
-import Prices from "../components/prices.astro";
+import LoginLayout from "../layouts/LoginLayout.astro";
+import PricingCards from "../components/prices.astro";
 ---
 
-<Layout title="Almstins Pricing — Start Free, Pay for More Capacity">
-  <Prices />
-</Layout>
+<LoginLayout
+  title="Almstins Pricing — Start Free, Pay for More Capacity"
+  description="Track your crypto across wallets, exchanges, and DeFi with cost basis and a full tax breakdown — free for up to 3 wallets. Verify protects your published payment addresses, free during early access."
+  noindex={false}
+>
+  <PricingCards />
+</LoginLayout>
