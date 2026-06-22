@@ -246,3 +246,16 @@ export async function connectEntity(
   if (!set.ok) return { ok: false, code: set.code };
   return pullEntity(tenantId, id);
 }
+
+/** Remove an entity and its mirrored addresses. */
+export async function deleteEntity(tenantId: string, id: string): Promise<void> {
+  await ensureEntityTables();
+  await db.execute({
+    sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
+    args: [id, tenantId],
+  });
+  await db.execute({
+    sql: `DELETE FROM verified_entities WHERE id = ? AND tenant_id = ?`,
+    args: [id, tenantId],
+  });
+}

@@ -91,6 +91,27 @@ export interface VerifyDashboardLocale {
   proveVerifyingBtn: string;
   proveError: string;
   provenBy: string; // "… ({domain})"
+  // Verified entities (hosted-API-endpoint variant) — exchanges / large platforms.
+  entHeading: string;
+  entIntro: string;
+  entEmpty: string;
+  entDomainPlaceholder: string;
+  entAddBtn: string;
+  entAddingBtn: string;
+  entConnectPrompt: string;
+  entEndpointPlaceholder: string;
+  entKeyPlaceholder: string;
+  entConnectBtn: string;
+  entConnectingBtn: string;
+  entSynced: string; // "{n} …"
+  entPulled: string; // "… {n} …"
+  entInvalidEndpoint: string;
+  entNotProven: string;
+  entEncUnavailable: string;
+  entUnauthorized: string;
+  entUnreachable: string;
+  entMalformed: string;
+  entError: string;
 }
 
 export const en: VerifyDashboardLocale = {
@@ -160,6 +181,26 @@ export const en: VerifyDashboardLocale = {
   proveVerifyingBtn: 'Verifying…',
   proveError: 'Something went wrong. Try again.',
   provenBy: 'Published by {domain}',
+  entHeading: 'Exchanges & large platforms',
+  entIntro: 'Publish many receiving addresses? Verify them all from your own domain. Prove the domain, then connect a read-only endpoint and we keep your list in sync.',
+  entEmpty: 'No domains yet.',
+  entDomainPlaceholder: 'yourdomain.com',
+  entAddBtn: 'Add domain',
+  entAddingBtn: 'Adding…',
+  entConnectPrompt: 'Domain verified. Connect a read-only endpoint on this domain plus the API key it accepts — we send it as a Bearer token and only read your address list.',
+  entEndpointPlaceholder: 'https://yourdomain.com/addresses',
+  entKeyPlaceholder: 'API key',
+  entConnectBtn: 'Connect & sync',
+  entConnectingBtn: 'Connecting…',
+  entSynced: '{n} addresses synced',
+  entPulled: '✓ Connected — {n} addresses synced.',
+  entInvalidEndpoint: '⚠ The endpoint must be HTTPS on your verified domain (or a subdomain).',
+  entNotProven: '⚠ Prove your domain first.',
+  entEncUnavailable: "⚠ The server can't store keys right now. Please contact support.",
+  entUnauthorized: '⚠ Your endpoint rejected the key (401/403). Check the key.',
+  entUnreachable: "⚠ Couldn't reach your endpoint. Check the URL and that it's live.",
+  entMalformed: "⚠ Your endpoint's response wasn't in the expected format.",
+  entError: 'Something went wrong. Try again.',
 };
 
 export const es: VerifyDashboardLocale = {
@@ -229,6 +270,26 @@ export const es: VerifyDashboardLocale = {
   proveVerifyingBtn: 'Verificando…',
   proveError: 'Algo salió mal. Inténtalo de nuevo.',
   provenBy: 'Publicado por {domain}',
+  entHeading: 'Exchanges y plataformas grandes',
+  entIntro: '¿Publicas muchas direcciones de cobro? Verifícalas todas desde tu propio dominio. Verifica el dominio, luego conecta un endpoint de solo lectura y mantenemos tu lista sincronizada.',
+  entEmpty: 'Ningún dominio todavía.',
+  entDomainPlaceholder: 'tudominio.com',
+  entAddBtn: 'Añadir dominio',
+  entAddingBtn: 'Añadiendo…',
+  entConnectPrompt: 'Dominio verificado. Conecta un endpoint de solo lectura en este dominio y la clave de API que acepta — la enviamos como token Bearer y solo leemos tu lista de direcciones.',
+  entEndpointPlaceholder: 'https://tudominio.com/direcciones',
+  entKeyPlaceholder: 'Clave de API',
+  entConnectBtn: 'Conectar y sincronizar',
+  entConnectingBtn: 'Conectando…',
+  entSynced: '{n} direcciones sincronizadas',
+  entPulled: '✓ Conectado — {n} direcciones sincronizadas.',
+  entInvalidEndpoint: '⚠ El endpoint debe ser HTTPS en tu dominio verificado (o un subdominio).',
+  entNotProven: '⚠ Verifica tu dominio primero.',
+  entEncUnavailable: '⚠ El servidor no puede guardar claves ahora mismo. Contacta con soporte.',
+  entUnauthorized: '⚠ Tu endpoint rechazó la clave (401/403). Revisa la clave.',
+  entUnreachable: '⚠ No se pudo acceder a tu endpoint. Revisa la URL y que esté activo.',
+  entMalformed: '⚠ La respuesta de tu endpoint no tenía el formato esperado.',
+  entError: 'Algo salió mal. Inténtalo de nuevo.',
 };
 
 export const fr: VerifyDashboardLocale = {
@@ -298,6 +359,26 @@ export const fr: VerifyDashboardLocale = {
   proveVerifyingBtn: 'Vérification…',
   proveError: 'Une erreur s’est produite. Réessayez.',
   provenBy: 'Publié par {domain}',
+  entHeading: 'Exchanges et grandes plateformes',
+  entIntro: 'Vous publiez de nombreuses adresses de réception ? Vérifiez-les toutes depuis votre propre domaine. Prouvez le domaine, puis connectez un endpoint en lecture seule et nous gardons votre liste synchronisée.',
+  entEmpty: 'Aucun domaine pour l’instant.',
+  entDomainPlaceholder: 'votredomaine.com',
+  entAddBtn: 'Ajouter un domaine',
+  entAddingBtn: 'Ajout…',
+  entConnectPrompt: 'Domaine vérifié. Connectez un endpoint en lecture seule sur ce domaine et la clé API qu’il accepte — nous l’envoyons comme jeton Bearer et lisons uniquement votre liste d’adresses.',
+  entEndpointPlaceholder: 'https://votredomaine.com/adresses',
+  entKeyPlaceholder: 'Clé API',
+  entConnectBtn: 'Connecter et synchroniser',
+  entConnectingBtn: 'Connexion…',
+  entSynced: '{n} adresses synchronisées',
+  entPulled: '✓ Connecté — {n} adresses synchronisées.',
+  entInvalidEndpoint: '⚠ L’endpoint doit être en HTTPS sur votre domaine vérifié (ou un sous-domaine).',
+  entNotProven: '⚠ Prouvez d’abord votre domaine.',
+  entEncUnavailable: '⚠ Le serveur ne peut pas stocker de clés pour le moment. Contactez le support.',
+  entUnauthorized: '⚠ Votre endpoint a rejeté la clé (401/403). Vérifiez la clé.',
+  entUnreachable: '⚠ Impossible de joindre votre endpoint. Vérifiez l’URL et qu’il est actif.',
+  entMalformed: '⚠ La réponse de votre endpoint n’était pas au format attendu.',
+  entError: 'Une erreur s’est produite. Réessayez.',
 };
 
 const MAP: Record<Lang, VerifyDashboardLocale> = { en, es, fr };

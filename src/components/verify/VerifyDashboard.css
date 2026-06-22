@@ -98,6 +98,20 @@
 .vd-prove__outcome--ok { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
 .vd-prove__outcome--warn { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); }
 
+/* ── Verified entities (exchanges / large platforms) ─────────────────────────── */
+.ve { border-top: 1px solid var(--border-subtle); padding-top: 1.75rem; }
+.ve__intro { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.65; margin: 0 0 1rem; max-width: 62ch; }
+.ve-card {
+  background: var(--surface-card); border: 1px solid var(--border-subtle);
+  border-radius: 12px; padding: 0.85rem 0.95rem; display: flex; flex-direction: column; gap: 0.6rem;
+}
+.ve-card__head { display: flex; align-items: center; gap: 0.6rem; }
+.ve-card__domain { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); word-break: break-all; }
+.ve-card__synced { font-size: 0.78rem; color: var(--gain); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Entity connect inputs stack full-width (direct children of the panel, unlike the
+   merchant prove inputs which sit inside a .vd-prove__row flex container). */
+.vd-prove > .vd-prove__input { display: block; width: 100%; box-sizing: border-box; }
+
 .vd-add { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .vd-add__rail, .vd-add__value, .vd-add__label {
   font-family: inherit; font-size: 0.85rem; padding: 0.5rem 0.65rem;

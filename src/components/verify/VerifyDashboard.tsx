@@ -93,6 +93,183 @@ export default function VerifyDashboard({ t }: { t: VerifyDashboardLocale }) {
         items={addresses} loading={loading} onChange={load} t={t} />
       <DestSection title={t.qrTitle} kind="qr" limit={LIMITS.qr}
         items={qrs} loading={loading} onChange={load} t={t} />
+
+      <EntitiesSection t={t} />
+    </div>
+  );
+}
+
+// ── Verified entities (hosted-API-endpoint variant: exchanges / large platforms) ──
+interface VEntity {
+  id: string;
+  domain: string;
+  proofStatus: 'unproven' | 'proven';
+  challenge: string;
+  hasEndpoint: boolean;
+  hasKey: boolean;
+  apiEndpoint: string | null;
+  lastPullStatus: string | null;
+  lastPullCount: number;
+}
+
+const ENTITY_WK_PATH = '/.well-known/almstins-verify.json';
+// Mirrors buildProofFile(challenge, []) in verifyProof.ts — entity proof is
+// domain-only, so the published file carries the challenge and an empty list.
+function entityProofFile(challenge: string): string {
+  return JSON.stringify({ almstins: { version: 1, challenge, addresses: [] } }, null, 2);
+}
+
+function EntitiesSection({ t }: { t: VerifyDashboardLocale }) {
+  const [entities, setEntities] = useState<VEntity[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/verify/entities');
+      const data = await res.json();
+      if (data.ok) setEntities(data.entities);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  }
+  useEffect(() => { void load(); }, []);
+
+  return (
+    <section className="vd-sec ve">
+      <div className="vd-sec__head"><h2 className="vd-sec__title">{t.entHeading}</h2></div>
+      <p className="ve__intro">{t.entIntro}</p>
+      <div className="vd-list">
+        {entities.map(e => <EntityCard key={e.id} e={e} t={t} onChange={load} />)}
+        {!loading && entities.length === 0 && <p className="vd-sec__empty">{t.entEmpty}</p>}
+        {loading && entities.length === 0 && <p className="vd-sec__empty">{t.loading}</p>}
+      </div>
+      <EntityAddForm t={t} onChange={load} />
+    </section>
+  );
+}
+
+function EntityAddForm({ t, onChange }: { t: VerifyDashboardLocale; onChange: () => void }) {
+  const [domain, setDomain] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function submit() {
+    const d = domain.trim();
+    if (!d) return;
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch('/api/verify/entities', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: d }),
+      });
+      const data = await res.json();
+      if (data.outcome === 'invalid_domain') { setErr(t.proofInvalidDomain); return; }
+      if (data.ok && data.entity) { setDomain(''); onChange(); }
+      else setErr(t.entError);
+    } catch { setErr(t.entError); } finally { setBusy(false); }
+  }
+  return (
+    <form className="vd-add" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+      <input className="vd-add__value" value={domain} onChange={(e) => setDomain(e.target.value)}
+        placeholder={t.entDomainPlaceholder} spellCheck={false} autoComplete="off" />
+      <button className="vd-add__btn" type="submit" disabled={busy || !domain.trim()}>
+        {busy ? t.entAddingBtn : t.entAddBtn}
+      </button>
+      {err && <span className="vd-add__err">{err}</span>}
+    </form>
+  );
+}
+
+function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null);
+  const [endpoint, setEndpoint] = useState(e.apiEndpoint ?? '');
+  const [apiKey, setApiKey] = useState('');
+  const proven = e.proofStatus === 'proven';
+
+  async function del() {
+    if (!window.confirm(t.confirmRemove)) return;
+    setBusy(true);
+    try { await fetch(`/api/verify/entities/${encodeURIComponent(e.id)}`, { method: 'DELETE' }); onChange(); }
+    finally { setBusy(false); }
+  }
+
+  async function prove() {
+    setBusy(true); setOutcome(null);
+    try {
+      const res = await fetch(`/api/verify/entities/${encodeURIComponent(e.id)}/prove`, { method: 'POST' });
+      const data = await res.json();
+      const ok = data.outcome === 'proven';
+      const map: Record<string, string> = {
+        proven: t.proofProven, challenge_mismatch: t.proofChallengeMismatch,
+        unreachable: t.proofUnreachable, malformed: t.proofMalformed, invalid_domain: t.proofInvalidDomain,
+      };
+      setOutcome({ text: data.ok ? (map[data.outcome] ?? t.entError) : t.entError, ok });
+      if (ok) setTimeout(onChange, 1200);
+    } catch { setOutcome({ text: t.entError, ok: false }); } finally { setBusy(false); }
+  }
+
+  async function connect() {
+    if (!endpoint.trim() || !apiKey.trim()) return;
+    setBusy(true); setOutcome(null);
+    try {
+      const res = await fetch(`/api/verify/entities/${encodeURIComponent(e.id)}/connect`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: endpoint.trim(), apiKey: apiKey.trim() }),
+      });
+      const data = await res.json();
+      const ok = data.outcome === 'pulled';
+      const map: Record<string, string> = {
+        invalid_endpoint: t.entInvalidEndpoint, no_endpoint: t.entInvalidEndpoint, invalid_domain: t.entInvalidEndpoint,
+        not_proven: t.entNotProven, encryption_unavailable: t.entEncUnavailable,
+        unauthorized: t.entUnauthorized, unreachable: t.entUnreachable, malformed: t.entMalformed,
+      };
+      const text = ok ? t.entPulled.replace('{n}', String(data.count ?? 0)) : (map[data.outcome] ?? t.entError);
+      setOutcome({ text, ok });
+      if (ok) { setApiKey(''); setTimeout(onChange, 1400); }
+    } catch { setOutcome({ text: t.entError, ok: false }); } finally { setBusy(false); }
+  }
+
+  const file = entityProofFile(e.challenge);
+  const wkUrl = `https://${e.domain}${ENTITY_WK_PATH}`;
+
+  return (
+    <div className="ve-card">
+      <div className="ve-card__head">
+        <span className="ve-card__domain">{e.domain}</span>
+        <span className={`vd-badge vd-badge--${e.proofStatus}`}>{proven ? t.statusProven : t.statusUnproven}</span>
+        {proven && e.hasEndpoint && e.lastPullStatus === 'ok' && (
+          <span className="ve-card__synced">{t.entSynced.replace('{n}', String(e.lastPullCount))}</span>
+        )}
+        <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
+      </div>
+
+      {!proven && (
+        <div className="vd-prove">
+          <p className="vd-prove__steps">{t.proveStep1.replace('{url}', wkUrl)}</p>
+          <pre className="vd-prove__pre">{file}</pre>
+          <div className="vd-prove__row">
+            <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(file); }}>{t.proveCopyBtn}</button>
+            <button className="vd-prove__verify" onClick={prove} disabled={busy}>{busy ? t.proveVerifyingBtn : t.proveVerifyBtn}</button>
+          </div>
+        </div>
+      )}
+
+      {proven && (
+        <div className="vd-prove">
+          <p className="vd-prove__hint">{t.entConnectPrompt}</p>
+          <input className="vd-prove__input" value={endpoint} onChange={(ev) => setEndpoint(ev.target.value)}
+            placeholder={t.entEndpointPlaceholder} spellCheck={false} autoComplete="off" />
+          <input className="vd-prove__input" type="password" value={apiKey} onChange={(ev) => setApiKey(ev.target.value)}
+            placeholder={t.entKeyPlaceholder} autoComplete="off" style={{ marginTop: '0.5rem' }} />
+          <div className="vd-prove__row" style={{ marginTop: '0.5rem' }}>
+            <button className="vd-prove__verify" onClick={connect} disabled={busy || !endpoint.trim() || !apiKey.trim()}>
+              {busy ? t.entConnectingBtn : t.entConnectBtn}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {outcome && (
+        <div className={`vd-prove__outcome ${outcome.ok ? 'vd-prove__outcome--ok' : 'vd-prove__outcome--warn'}`}>{outcome.text}</div>
+      )}
     </div>
   );
 }
