@@ -13,13 +13,13 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# environment variables
+# environment variables — ignore EVERY .env variant in any directory.
+# (.env.local and db/.env.loacl leaked into git history because only the bare
+#  ".env" was listed here; .env.* + the no-slash rule covers nested files too.)
 .env
-.env.production
-
-# backups
-.env.root-backup
-.env.example.root-backup
+.env.*
+*.loacl
+!.env.example
 
 # macOS-specific files
 .DS_Store
