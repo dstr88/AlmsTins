@@ -504,7 +504,7 @@ window.addEventListener('unhandledrejection', function(e) {
 // HTML (with buttons, event handlers) when it runs.
 (function () {
   function escH(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
   var SRC = { coinbase:'Coinbase', crypto_com:'Crypto.com', gemini:'Gemini',
     kraken:'Kraken', exodus:'Exodus', venmo:'Venmo', cashapp:'Cash App', robinhood:'Robinhood' };
@@ -578,6 +578,8 @@ window.addEventListener('unhandledrejection', function(e) {
 </script>
 
 <script>
+import { escapeHtml } from '../../lib/escapeHtml';
+
 // ── i18n ─────────────────────────────────────────────────────────────────────
 // Strings injected by the <script is:inline define:vars> island above.
 // English fallbacks keep the script working if that block ever fails to run.
@@ -2503,12 +2505,12 @@ function renderAddressPanel(data) {
 
   // Copy-button row: [□ address] [□ label] whenever we have a label
   html += `<div class="addr-copy-row">
-    <button class="addr-copy-btn" onclick="navigator.clipboard.writeText('${data.address}')" title="Copy address">
-      ⧉ <span class="addr-copy-text">${data.address.slice(0,10)}…${data.address.slice(-6)}</span>
+    <button class="addr-copy-btn" data-copy="${escapeHtml(data.address)}" title="Copy address">
+      ⧉ <span class="addr-copy-text">${escapeHtml(data.address.slice(0,10))}…${escapeHtml(data.address.slice(-6))}</span>
     </button>`;
   if (resolvedLabel) {
-    html += `<button class="addr-copy-btn" onclick="navigator.clipboard.writeText('${resolvedLabel.replace(/'/g,"\\'")}')" title="Copy label">
-      ⧉ <span class="addr-copy-text">${resolvedLabel}</span>
+    html += `<button class="addr-copy-btn" data-copy="${escapeHtml(resolvedLabel)}" title="Copy label">
+      ⧉ <span class="addr-copy-text">${escapeHtml(resolvedLabel)}</span>
     </button>`;
     if (labelSource === 'community') {
       html += '<span class="addr-community-badge">' + i18n('addrCommunityLabel','community label') + '</span>';
@@ -2519,17 +2521,17 @@ function renderAddressPanel(data) {
   // Chips row
   html += `<div class="addr-info-grid">`;
   if (data.ownWallet) {
-    const lbl = data.ownWallet.label || data.ownWallet.address.slice(0,8) + '…';
+    const lbl = escapeHtml(data.ownWallet.label || data.ownWallet.address.slice(0,8) + '…');
     html += '<span class="addr-info-chip own">' + i18n('addrYourWallet','Your wallet: __L__').replace('__L__',lbl) + '</span>';
   }
   if (data.knownExchange) {
-    html += `<span class="addr-info-chip exchange">${data.knownExchange}</span>`;
+    html += `<span class="addr-info-chip exchange">${escapeHtml(data.knownExchange)}</span>`;
   }
   if (data.addressLabel && !data.ownWallet) {
-    html += `<span class="addr-info-chip label">${data.addressLabel}</span>`;
+    html += `<span class="addr-info-chip label">${escapeHtml(data.addressLabel)}</span>`;
   }
   if (data.globalLabel && !data.addressLabel && !data.ownWallet && !data.knownExchange) {
-    html += `<span class="addr-info-chip label">${data.globalLabel}</span>`;
+    html += `<span class="addr-info-chip label">${escapeHtml(data.globalLabel)}</span>`;
   }
   if (!data.ownWallet && !data.knownExchange && !data.addressLabel && !data.globalLabel) {
     html += '<span class="addr-info-chip unknown">' + i18n('addrUnknown','Unknown address') + '</span>';
@@ -2561,9 +2563,9 @@ function renderAddressPanel(data) {
       const dir    = (t.direction ?? '').toLowerCase();
       const absAmt = Math.abs(Number(t.amount ?? 0));
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
-      const sym    = t.asset_symbol ?? '?';
+      const sym    = escapeHtml(t.asset_symbol ?? '?');
       html += `<div class="addr-tx-row">
-        <span class="addr-tx-dir ${dir}">${dir}</span>
+        <span class="addr-tx-dir ${dir}">${escapeHtml(dir)}</span>
         <span class="addr-tx-sym">${sym}</span>
         <span class="addr-tx-amt">${amt} ${sym}</span>
         <span class="addr-tx-dt">${fmtDate(t.timestamp_utc)}</span>
@@ -2572,6 +2574,12 @@ function renderAddressPanel(data) {
   }
 
   inner.innerHTML = html;
+
+  // Copy buttons via data-copy + attached handler (no inline onclick → a malicious
+  // community/global label can't break out of a JS-string/attribute context).
+  inner.querySelectorAll('.addr-copy-btn[data-copy]').forEach((b) => {
+    b.addEventListener('click', () => { navigator.clipboard?.writeText((b as HTMLElement).getAttribute('data-copy') || ''); });
+  });
 
   // Wire add-wallet buttons after innerHTML is set
   const btnShow = $('btn-show-add-wallet');
