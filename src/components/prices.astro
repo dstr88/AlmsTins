@@ -1,0 +1,131 @@
+---
+/*
+ * prices.astro — public pricing grid (DRAFT — not committed).
+ *
+ * CONFIRMED prices: Starter $7/$70, Pro $19/$200, Unlimited $39/$400.
+ * ⚠️ Stripe needs a Pro-YEARLY price of $200 created + its ID set in
+ *    STRIPE_PRICE_PRO_YEARLY, or the yearly Pro checkout will fail (no price ID = no charge).
+ * ⚠️ Verify paid tiers + exchange pricing are PROPOSED, not final.
+ * Honesty: Verify is EARLY ACCESS / pre-launch — labelled as such, no traction implied.
+ */
+---
+
+<section class="pricing">
+  <header class="pricing__intro">
+    <h1>Start free. Pay only for more capacity.</h1>
+    <p>The safety tools cost nothing — and always will. You only pay when you need to track or monitor more.</p>
+  </header>
+
+  <!-- ─── FREE ─────────────────────────────────────────── -->
+  <h2 class="pricing__group">Free — for everyone</h2>
+  <div class="pricing__grid">
+    <article class="card">
+      <h3 class="card__name">Wallet &amp; Site Checker</h3>
+      <p class="card__price">$0 <span class="card__unit">· no login</span></p>
+      <p class="card__desc">Paste any wallet address or website and check it for scams, honeypots, phishing, and sanctions — before you send a thing.</p>
+      <a class="card__cta" href="https://almstins.com/wallet-checker">Check an address →</a>
+    </article>
+
+    <article class="card">
+      <h3 class="card__name">Wallet tracking</h3>
+      <p class="card__price">$0 <span class="card__unit">· up to 3 wallets</span></p>
+      <p class="card__desc">See everything you own across wallets, exchanges, and DeFi — with cost basis and realized gains. Read-only, no wallet connection.</p>
+      <a class="card__cta" href="/">Start free →</a>
+    </article>
+
+    <article class="card">
+      <h3 class="card__name">Verify for store owners</h3>
+      <p class="card__price">$0 <span class="card__unit">· 2 destinations</span></p>
+      <p class="card__desc">Watch 1 Stripe link + 1 crypto address for tampering, so a swapped address never reaches your customers. <em>Early access.</em></p>
+      <a class="card__cta" href="/verify">Get early access →</a>
+    </article>
+  </div>
+
+  <!-- ─── WALLET TRACKING (paid) ───────────────────────── -->
+  <h2 class="pricing__group">Track more wallets</h2>
+  <div class="pricing__grid">
+    <article class="card">
+      <h3 class="card__name">Starter</h3>
+      <p class="card__price">$7<span class="card__unit">/mo</span></p>
+      <p class="card__yearly">or $70/year — save ~17%</p>
+      <p class="card__desc">Up to 8 wallets. All exchanges, bookkeeping, and tax breakdown.</p>
+      <a class="card__cta" href="/">Choose Starter →</a>
+    </article>
+
+    <article class="card card--featured">
+      <p class="card__badge">Most popular</p>
+      <h3 class="card__name">Pro</h3>
+      <p class="card__price">$19<span class="card__unit">/mo</span></p>
+      <p class="card__yearly">or $200/year — save ~12%</p>
+      <p class="card__desc">Up to 20 wallets. Priority support and early access to new features.</p>
+      <a class="card__cta card__cta--solid" href="/">Choose Pro →</a>
+    </article>
+
+    <article class="card">
+      <h3 class="card__name">Unlimited</h3>
+      <p class="card__price">$39<span class="card__unit">/mo</span></p>
+      <p class="card__yearly">or $400/year — save ~15%</p>
+      <p class="card__desc">Unlimited wallets. Year-Summary PDF export and white-glove onboarding.</p>
+      <a class="card__cta" href="/">Choose Unlimited →</a>
+    </article>
+  </div>
+
+  <!-- ─── VERIFY ───────────────────────────────────────── -->
+  <h2 class="pricing__group">Verify — protect your payment destinations <span class="pricing__tag">early access</span></h2>
+  <div class="pricing__grid">
+    <article class="card">
+      <h3 class="card__name">Store · Free</h3>
+      <p class="card__price">$0 <span class="card__unit">· 2 payment points</span></p>
+      <p class="card__desc">1 Stripe link + 1 crypto address, checked periodically for swaps and tampering, with email alerts.</p>
+      <a class="card__cta" href="/verify">Start free →</a>
+    </article>
+
+    <article class="card">
+      <h3 class="card__name">Store · Pro</h3>
+      <p class="card__price">$19<span class="card__unit">/mo</span></p>
+      <p class="card__yearly">or $200/year</p>
+      <p class="card__desc">Up to 10 payment points (QR codes &amp; addresses), checked hourly, with longer alert history.</p>
+      <a class="card__cta" href="/verify">Get early access →</a>
+    </article>
+
+    <article class="card">
+      <h3 class="card__name">Store · Business</h3>
+      <p class="card__price">$49<span class="card__unit">/mo</span></p>
+      <p class="card__yearly">or $490/year</p>
+      <p class="card__desc">Up to 50 payment points, multi-location alert routing, and continuous 24/7 monitoring (camera-fed QR re-checks) — always-on, best-effort.</p>
+      <a class="card__cta" href="/verify">Get early access →</a>
+    </article>
+
+    <article class="card card--enterprise">
+      <h3 class="card__name">Exchanges</h3>
+      <p class="card__price">Let's talk</p>
+      <p class="card__desc">Connect your API so your users can verify your <em>official</em> deposit addresses before they send — your defense against deposit-address phishing. Annual license + one-time setup.</p>
+      <a class="card__cta" href="mailto:hello@almstins.com?subject=Verify%20for%20Exchanges">Book a call →</a>
+    </article>
+  </div>
+
+  <p class="pricing__foot">Read-only. No wallet connection, ever. We never hold your keys or move your funds.</p>
+</section>
+
+<style>
+  .pricing { color: var(--text-primary); max-width: 1080px; margin: 0 auto; padding: 2rem 1rem; }
+  .pricing__intro { text-align: center; margin-bottom: 2rem; }
+  .pricing__intro h1 { font-size: 1.9rem; margin: 0 0 .5rem; }
+  .pricing__intro p { color: var(--text-secondary); max-width: 46ch; margin: 0 auto; }
+  .pricing__group { font-size: 1.05rem; font-weight: 600; color: var(--text-secondary); margin: 2.25rem 0 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: .5rem; }
+  .pricing__tag, .pricing__grid .card em { color: var(--accent); font-style: normal; }
+  .pricing__tag { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; background: var(--accent-soft); padding: 2px 8px; border-radius: 20px; vertical-align: middle; }
+  .pricing__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.25rem; display: flex; flex-direction: column; }
+  .card--featured { border: 1px solid var(--accent); }
+  .card--enterprise { background: var(--surface-card-2); }
+  .card__badge { color: var(--accent); font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 .4rem; }
+  .card__name { font-size: 1.05rem; margin: 0 0 .4rem; }
+  .card__price { font-size: 1.7rem; font-weight: 600; margin: 0; color: var(--text-primary); }
+  .card__unit { font-size: .9rem; font-weight: 400; color: var(--text-muted); }
+  .card__yearly { font-size: .82rem; color: var(--accent-dim); margin: .2rem 0 0; }
+  .card__desc { font-size: .9rem; line-height: 1.55; color: var(--text-secondary); margin: .75rem 0 1.1rem; flex: 1; }
+  .card__cta { margin-top: auto; font-size: .9rem; color: var(--accent); text-decoration: none; font-weight: 500; }
+  .card__cta--solid { background: var(--accent); color: var(--surface-bg); text-align: center; padding: .6rem; border-radius: 8px; }
+  .pricing__foot { text-align: center; color: var(--text-muted); font-size: .85rem; margin-top: 2rem; }
+</style>
