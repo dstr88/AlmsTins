@@ -32,13 +32,16 @@ export async function getAuthSession(request: Request): Promise<AuthSession | nu
 		cookieCandidates.push(secureCookie ? '__Secure-authjs.session-token' : 'authjs.session-token');
 	}
 
-	console.log('[authSession] env check', {
-		hasSecret: Boolean(secret),
-		secretLen: secret.length,
-		authUrl,
-		forwardedProto: request.headers.get('x-forwarded-proto'),
-		cookieCandidates,
-	});
+	const authDebug = (import.meta.env.AUTH_DEBUG ?? process.env.AUTH_DEBUG) === '1';
+	if (authDebug) {
+		console.log('[authSession] env check', {
+			hasSecret: Boolean(secret),
+			secretLen: secret.length,
+			authUrl,
+			forwardedProto: request.headers.get('x-forwarded-proto'),
+			cookieCandidates,
+		});
+	}
 
 	for (const cookieName of cookieCandidates) {
 		try {
@@ -49,7 +52,7 @@ export async function getAuthSession(request: Request): Promise<AuthSession | nu
 				cookieName,
 				salt: cookieName,
 			});
-			console.log('[authSession] token present', { ok: Boolean(token?.sub), cookieName });
+			if (authDebug) console.log('[authSession] token present', { ok: Boolean(token?.sub), cookieName });
 			if (!token || !token.sub) {
 				continue;
 			}

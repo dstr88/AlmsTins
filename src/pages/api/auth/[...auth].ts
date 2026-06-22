@@ -421,6 +421,7 @@ const buildAuthFailureResponse = (request: Request) => {
 };
 
 const logAuthEnvCheck = () => {
+	if (process.env.AUTH_DEBUG !== '1') return;
 	console.log('[auth] env check', {
 		hasSecret: Boolean(process.env.AUTH_SECRET),
 		secretLen: process.env.AUTH_SECRET?.length ?? 0,
