@@ -13,6 +13,18 @@ const t = copy[lang];
 const title = `${BRAND} — ${t.meta.tagline}`;
 const here = LANGS.find((l) => l.code === lang) ?? LANGS[0];
 const canonical = `https://almstins.com${here.href}`;
+
+// Language-neutral integration contract shown to exchanges (code, not translated).
+const EXCHANGE_CONTRACT = `GET  https://<your-domain>/almstins/addresses
+Authorization: Bearer <your-key>
+
+200 OK
+{
+  "addresses": [
+    { "address": "0xA1b2…", "chain": "ethereum" },
+    { "address": "bc1q…",   "chain": "bitcoin"  }
+  ]
+}`;
 ---
 
 <LoginLayout title={title} description={t.meta.description} noindex={false} lang={lang} canonical={canonical}>
@@ -129,6 +141,24 @@ const canonical = `https://almstins.com${here.href}`;
       <a class="vbtn vbtn--lg" href="/login">{t.finalCta.button}</a>
       <p class="vfinal__sub">{t.finalCta.sub}</p>
       <a class="vfinal__footer" href="https://almstins.com" aria-label={t.finalCta.footerAria}>{ALMSTINS_URL}</a>
+    </section>
+
+    <!-- Section 8 — Verified vendors (how to get verified + the exchange path) -->
+    <section class="vsection vexch" aria-labelledby="vexch-h">
+      <h2 id="vexch-h" class="vsection__heading">{t.vendors.heading}</h2>
+      <p class="vexch__intro">{t.vendors.intro}</p>
+
+      <h3 class="vexch__sub">{t.vendors.howToLabel}</h3>
+      <ol class="vexch__steps">
+        {t.vendors.steps.map((s) => <li class="vexch__step">{s}</li>)}
+      </ol>
+
+      <h3 class="vexch__sub">{t.vendors.scaleLabel}</h3>
+      <p class="vexch__intro">{t.vendors.scaleBody}</p>
+      <p class="vexch__label">{t.vendors.contractLabel}</p>
+      <pre class="vexch__code">{EXCHANGE_CONTRACT}</pre>
+
+      <p class="vexch__note" set:html={t.vendors.earlyNote}></p>
     </section>
 
   </div>
@@ -401,6 +431,30 @@ const canonical = `https://almstins.com${here.href}`;
     transition: color 0.15s ease;
   }
   .vfinal__footer:hover { color: var(--accent); }
+
+  /* ── Section 8: exchanges (integration note) ── */
+  .vexch {
+    margin-top: 3.5rem;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 2.5rem;
+  }
+  .vexch__intro { font-size: 0.97rem; color: var(--text-secondary); line-height: 1.8; margin: 0 0 1.25rem; }
+  .vexch__sub { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin: 1.75rem 0 0.7rem; }
+  .vexch__steps { margin: 0 0 1.5rem; padding-left: 1.2rem; display: grid; gap: 0.6rem; }
+  .vexch__step { font-size: 0.92rem; color: var(--text-secondary); line-height: 1.65; }
+  .vexch__label {
+    font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); margin: 0 0 0.6rem;
+  }
+  .vexch__code {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 0.8rem; line-height: 1.6;
+    background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 12px;
+    padding: 1rem 1.1rem; margin: 0 0 1.25rem; overflow-x: auto; color: var(--text-primary); white-space: pre;
+  }
+  .vexch__note { font-size: 0.875rem; color: var(--text-muted); line-height: 1.7; margin: 0; }
+  .vexch__note a { color: var(--accent); text-decoration: none; }
+  .vexch__note a:hover { text-decoration: underline; }
 
   @media (max-width: 480px) {
     .vpage { padding: 2rem 1rem 4rem; }

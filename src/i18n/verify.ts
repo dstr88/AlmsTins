@@ -42,6 +42,17 @@ export interface VerifyCopy {
   trust: { heading: string; points: Array<{ title: string; body: string }> };
   early: { heading: string; body: string };
   finalCta: { heading: string; button: string; sub: string; footerAria: string };
+  /** Verified-vendors FAQ: how any vendor gets verified, plus the exchange (API-endpoint) path. */
+  vendors: {
+    heading: string;
+    intro: string;
+    howToLabel: string;
+    steps: string[];
+    scaleLabel: string;
+    scaleBody: string;
+    contractLabel: string;
+    earlyNote: string; // developer-controlled; contains a mailto link → rendered with set:html
+  };
 }
 
 const en: VerifyCopy = {
@@ -135,6 +146,20 @@ const en: VerifyCopy = {
     button: 'Create your free account',
     sub: '3 addresses + 1 QR, monitored. No card, no wallet connection.',
     footerAria: 'Almstins home',
+  },
+  vendors: {
+    heading: 'Verified vendors',
+    intro: 'Any business that takes crypto can verify the addresses it publishes — so customers can trust an address is really yours before they send.',
+    howToLabel: 'How to get verified',
+    steps: [
+      'Create a free account and add the receiving addresses and payment QR you publish.',
+      "Prove they're yours — a quick signature or a small file on your site. No wallet connection, no keys, ever.",
+      'We monitor them and alert you the moment a published address or QR is swapped.',
+    ],
+    scaleLabel: 'Publishing many addresses?',
+    scaleBody: 'Exchanges and large platforms can verify everything from their own domain at once: prove your domain, then host a read-only endpoint and issue us an API key. We pull your live list and keep it in sync — no adding addresses one by one.',
+    contractLabel: 'Your endpoint returns:',
+    earlyNote: 'Early access. Any key you give us only reads a list you already publish — it can never move funds or see anything private. To get set up, email <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a>.',
   },
 };
 
@@ -230,6 +255,20 @@ const es: VerifyCopy = {
     sub: '3 direcciones + 1 QR, monitoreados. Sin tarjeta, sin conexión de billetera.',
     footerAria: 'Inicio de Almstins',
   },
+  vendors: {
+    heading: 'Comercios verificados',
+    intro: 'Cualquier negocio que acepte cripto puede verificar las direcciones que publica — para que los clientes confíen en que una dirección es realmente tuya antes de enviar.',
+    howToLabel: 'Cómo verificarte',
+    steps: [
+      'Crea una cuenta gratis y añade las direcciones de cobro y el QR de pago que publicas.',
+      'Demuestra que son tuyas — una firma rápida o un pequeño archivo en tu sitio. Sin conectar la wallet, sin claves, nunca.',
+      'Las monitorizamos y te avisamos en cuanto una dirección o QR publicado sea cambiado.',
+    ],
+    scaleLabel: '¿Publicas muchas direcciones?',
+    scaleBody: 'Los exchanges y las plataformas grandes pueden verificarlo todo desde su propio dominio a la vez: verifica tu dominio, luego aloja un endpoint de solo lectura y emítenos una clave de API. Extraemos tu lista en vivo y la mantenemos sincronizada — sin añadir direcciones una por una.',
+    contractLabel: 'Tu endpoint devuelve:',
+    earlyNote: 'Acceso anticipado. Cualquier clave que nos des solo lee una lista que ya publicas — nunca puede mover fondos ni ver nada privado. Para configurarlo, escribe a <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a>.',
+  },
 };
 
 const fr: VerifyCopy = {
@@ -323,6 +362,20 @@ const fr: VerifyCopy = {
     button: 'Créez votre compte gratuit',
     sub: '3 adresses + 1 QR, surveillés. Sans carte, sans connexion de portefeuille.',
     footerAria: 'Accueil Almstins',
+  },
+  vendors: {
+    heading: 'Commerçants vérifiés',
+    intro: 'Toute entreprise qui accepte la crypto peut vérifier les adresses qu’elle publie — pour que les clients sachent qu’une adresse est bien la vôtre avant d’envoyer.',
+    howToLabel: 'Comment se faire vérifier',
+    steps: [
+      'Créez un compte gratuit et ajoutez les adresses de réception et le QR de paiement que vous publiez.',
+      'Prouvez qu’elles sont à vous — une signature rapide ou un petit fichier sur votre site. Sans connexion de wallet, sans clés, jamais.',
+      'Nous les surveillons et vous alertons dès qu’une adresse ou un QR publié est remplacé.',
+    ],
+    scaleLabel: 'Vous publiez de nombreuses adresses ?',
+    scaleBody: 'Les exchanges et les grandes plateformes peuvent tout vérifier depuis leur propre domaine d’un coup : prouvez votre domaine, puis hébergez un endpoint en lecture seule et émettez-nous une clé API. Nous récupérons votre liste en direct et la gardons synchronisée — sans ajouter les adresses une par une.',
+    contractLabel: 'Votre endpoint renvoie :',
+    earlyNote: 'Accès anticipé. Toute clé que vous nous donnez lit seulement une liste que vous publiez déjà — elle ne peut jamais déplacer de fonds ni voir quoi que ce soit de privé. Pour la mise en place, écrivez à <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a>.',
   },
 };
 
