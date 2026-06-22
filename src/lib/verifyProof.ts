@@ -186,3 +186,93 @@ export async function verifyDomainProof(rawDomain: string, expectedChallenge: st
   const addresses = Array.from(new Set(file.addresses.map((a) => a.trim()).filter(Boolean)));
   return { ok: true, addresses };
 }
+
+// ── Hosted-API-endpoint variant (Verified Entity) ────────────────────────────
+// An exchange hosts a live address list on its OWN domain and gives us an API key.
+// The domain stays the trust anchor: the endpoint must live on the verified domain
+// (or a subdomain), so reachability there proves control. The key is access control
+// + live updates, not the root of trust.
+
+export type EntityPullCode = 'invalid_endpoint' | 'unreachable' | 'unauthorized' | 'malformed';
+export type EntityPullResult =
+  | { ok: true; addresses: Array<{ address: string; chain: string }> }
+  | { ok: false; code: EntityPullCode };
+
+/**
+ * Validate that an endpoint URL is https and lives on the verified domain (or a
+ * subdomain of it). Returns the normalized URL string, or null if it's off-domain,
+ * not https, or an IP literal. This is the anchor check — without it, anyone could
+ * host an endpoint anywhere and claim addresses.
+ */
+export function validateEntityEndpoint(endpoint: string, verifiedDomain: string): string | null {
+  let u: URL;
+  try { u = new URL(endpoint); } catch { return null; }
+  if (u.protocol !== 'https:') return null;
+  const host = u.hostname.toLowerCase();
+  const dom = (verifiedDomain ?? '').trim().toLowerCase();
+  if (!dom || isIP(host)) return null;
+  if (host !== dom && !host.endsWith('.' + dom)) return null; // same domain or subdomain only
+  return u.toString();
+}
+
+function normalizeEvm(a: string): string {
+  const s = a.trim();
+  return /^0x[a-fA-F0-9]{40}$/.test(s) ? s.toLowerCase() : s;
+}
+
+/** Tolerant parser: {addresses:[{address,chain}]} | {addresses:["0x…"]} | ["0x…"]. */
+function parseEntityList(text: string): Array<{ address: string; chain: string }> | null {
+  let data: any;
+  try { data = JSON.parse(text); } catch { return null; }
+  const arr = Array.isArray(data) ? data : Array.isArray(data?.addresses) ? data.addresses : null;
+  if (!arr) return null;
+  const out: Array<{ address: string; chain: string }> = [];
+  for (const item of arr) {
+    if (typeof item === 'string') {
+      const address = normalizeEvm(item);
+      if (address) out.push({ address, chain: '' });
+    } else if (item && typeof item.address === 'string') {
+      const address = normalizeEvm(item.address);
+      if (address) out.push({ address, chain: typeof item.chain === 'string' ? item.chain.trim() : '' });
+    }
+  }
+  // de-dup by address+chain
+  const seen = new Set<string>();
+  return out.filter((e) => { const k = `${e.address}|${e.chain}`; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+/**
+ * Pull a Verified Entity's live address list from its hosted endpoint using the
+ * API key it issued us. Anchored to the verified domain, SSRF-guarded, key sent as
+ * a Bearer token. Returns the published addresses, or a structured failure code.
+ */
+export async function pullEntityList(endpoint: string, apiKey: string, verifiedDomain: string): Promise<EntityPullResult> {
+  const url = validateEntityEndpoint(endpoint, verifiedDomain);
+  if (!url) return { ok: false, code: 'invalid_endpoint' };
+  if (!(await hostResolvesPublic(new URL(url).hostname))) return { ok: false, code: 'invalid_endpoint' };
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: { Accept: 'application/json', Authorization: `Bearer ${apiKey}` },
+    });
+  } catch {
+    return { ok: false, code: 'unreachable' };
+  }
+  if (res.status === 401 || res.status === 403) return { ok: false, code: 'unauthorized' };
+  if (!res.ok) return { ok: false, code: 'unreachable' };
+
+  let text: string;
+  try {
+    const body = await res.text();
+    text = body.length > MAX_BYTES ? body.slice(0, MAX_BYTES) : body;
+  } catch {
+    return { ok: false, code: 'unreachable' };
+  }
+
+  const parsed = parseEntityList(text);
+  if (!parsed) return { ok: false, code: 'malformed' };
+  return { ok: true, addresses: parsed };
+}
