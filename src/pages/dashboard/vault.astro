@@ -19,7 +19,6 @@ import SmartImport from '@/components/dashboard/SmartImport.astro';
 import { getAllActiveWallets } from '@/lib/wallets';
 import { getWalletWithLatestData } from '@/lib/db/puller';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { isDemoRequest } from '@/lib/demo';
 import DemoTutorial from '@/components/dashboard/DemoTutorial.astro';
 import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
@@ -79,12 +78,13 @@ try {
 	// monthly_digests table may not exist yet — migration pending
 }
 
-// In demo mode skip the SSR snapshot fetch entirely.
-// This prevents a race condition where the sendBeacon cleanup fires on
-// manual reload but SSR renders stale wallet data before the DELETE lands.
-// The client-side fetch handles everything — if the wallet was wiped by
-// cleanup it returns 404 and the tin disappears cleanly.
-const isDemo = isDemoRequest(Astro.request);
+// Demo chrome (banner, tutorial, signup prompt) + the demo data path. Derived
+// from the SESSION, not the raw cookie: a logged-in user with a leftover demo
+// cookie must see their real vault, never the demo overlay (requireTenantSession
+// returns isDemo only when there's no authenticated user). In demo mode we also
+// skip the SSR snapshot fetch to avoid a race with the sendBeacon cleanup on
+// reload — the client-side fetch handles it.
+const isDemo = tenant.isDemo === true;
 const demoLang = (() => {
 	if (!isDemo) return 'en';
 	const cookie = Astro.request.headers.get('cookie') ?? '';
@@ -139,14 +139,6 @@ const getChainBadge = (chains: string[]): string => {
 		)}
 
 		{isDemo && <DemoTutorial />}
-
-		{tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1' && (
-			<a href="/dashboard/petro-tins" class="dt-promo-tile">
-				<span class="dt-promo-tile__label">NEW</span>
-				<span class="dt-promo-tile__text">PetroTins — Debt, budget &amp; business P&amp;L</span>
-				<span class="dt-promo-tile__arrow">→</span>
-			</a>
-		)}
 
 		<section class="bk-grid">
 			<SalmonTin label={t.notepad} class="tile tile--r1c1">

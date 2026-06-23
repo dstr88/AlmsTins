@@ -1,6 +1,5 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import { isDemoRequest } from '../../../lib/demo';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { buildAnnualBreakdown } from '../../../lib/annualBreakdown';
 import { db } from '../../../lib/db';
@@ -12,7 +11,6 @@ import './memory-lane.css';
 const lang = getLang(Astro.request);
 const t = getMemoryLane(lang);
 
-const isDemo      = isDemoRequest(Astro.request);
 const defaultYear = new Date().getFullYear() - 1;
 const yearParam   = Astro.url.searchParams.get('year');
 const year        = yearParam ? Number(yearParam) : defaultYear;
@@ -21,6 +19,9 @@ const year        = yearParam ? Number(yearParam) : defaultYear;
 const session = await requireTenantSession(Astro.request).catch(() => null);
 if (!session) return Astro.redirect('/login', 302);
 const { tenantId } = session;
+// Demo chrome from the SESSION, not the cookie — a logged-in user with a stale
+// demo cookie must never see the demo overlay on their real data.
+const isDemo = session.isDemo === true;
 
 let fetchError: string | null = null;
 let byAssetGains: any[]                 = [];
