@@ -633,6 +633,24 @@ const availableYears = bd?.availableYears ?? [priorYear];
             <span class="dl-btn__plan-badge">Paid</span>
           </a>
         )}
+        {isDemo ? (
+          <a href="/signup" class="dl-btn dl-btn--demo" title="Sign up free to export">
+            <span class="dl-btn__icon">🔐</span>
+            <span>Verification bundle</span>
+            <span class="dl-btn__plan-badge">Sign up</span>
+          </a>
+        ) : canDownload ? (
+          <a href={`/api/year-summary/proof-bundle?year=${selectedYear}`} class="dl-btn" download title="Independently-verifiable proof of this report">
+            <span class="dl-btn__icon">🔐</span>
+            <span>Verification bundle</span>
+          </a>
+        ) : (
+          <a href="/dashboard/billing" class="dl-btn dl-btn--paywall" title="Available on any paid plan">
+            <span class="dl-btn__icon">🔐</span>
+            <span>Verification bundle</span>
+            <span class="dl-btn__plan-badge">Paid</span>
+          </a>
+        )}
       </div>
 
       <!-- Admin-only: advanced tax forms (hidden entirely for non-admin) -->

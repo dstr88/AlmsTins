@@ -18,6 +18,8 @@ import PDFDocument from 'pdfkit';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getActivePlan } from '@/lib/subscriptions';
+import { buildRecordProof, type ProofBundle } from '@/lib/recordProof/buildProof';
+import { persistRecordProof, getLatestRoot } from '@/lib/recordProof/store';
 
 export const prerender = false;
 
@@ -66,6 +68,7 @@ function buildPdf(
   bd: Awaited<ReturnType<typeof buildAnnualBreakdown>>,
   year: number,
   tenantLabel: string,
+  proof: ProofBundle,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -400,6 +403,32 @@ function buildPdf(
       });
     }
 
+    // ── Verification appendix ──────────────────────────────────────────────────
+    newPage();
+    sectionTitle('Verification');
+    const m = proof.manifest;
+    doc.moveDown(0.5);
+    const vline = (label: string, value: string) => {
+      doc.fontSize(8.5)
+        .font('Helvetica-Bold').fillColor('#555555').text(label, MARGIN, doc.y, { continued: true })
+        .font('Helvetica').fillColor('#222222').text('  ' + value);
+      doc.moveDown(0.35);
+    };
+    vline('Record ID', m.record_id);
+    vline('Merkle root', m.merkle_root);
+    vline('Entries committed', `${m.leaf_count}  (short ${m.counts.short_term} · long ${m.counts.long_term} · income ${m.counts.income} · held ${m.counts.held} · review ${m.counts.unsettled})`);
+    vline('Data source', m.data_source);
+    vline('Generated', m.generated_at);
+    vline('Signed', proof.signature ? `Yes — Almstins key ${proof.signature.key_id}` : 'No (unsigned — set ALMSTINS_SIGNING_KEY to activate signing)');
+    if (m.prev_root) vline('Links to prior record', `${m.prev_root}  (tamper-evident chain across years)`);
+    doc.moveDown(0.5);
+    doc.fontSize(8.5).font('Helvetica-Bold').fillColor(SALMON).text('How anyone can verify this record', MARGIN, doc.y);
+    doc.moveDown(0.2).fontSize(8).font('Helvetica').fillColor('#333333')
+      .text(`Download the proof bundle (almstins-${year}-proof.json) and upload it at ${m.verify_url}, or run the standalone offline verifier — no account, no trust in Almstins required.`, MARGIN, doc.y, { width: CONTENT_W });
+    doc.moveDown(0.6);
+    doc.fontSize(7.5).font('Helvetica-Oblique').fillColor(MID_GRAY)
+      .text(m.disclaimer, MARGIN, doc.y, { width: CONTENT_W });
+
     doc.end();
   });
 }
@@ -438,7 +467,15 @@ export const GET: APIRoute = async ({ request }) => {
     // lifecycle-events FIFO if the pipeline hasn't run for this year.
     const bd = await buildAnnualBreakdown(tenantId, year, 'fifo', undefined, 'auto' as AnnualBreakdownSource);
     const tenantLabel = `almsTins Account`;
-    const pdfBuffer = await buildPdf(bd, year, tenantLabel);
+
+    // ── Verifiable record: hash the exact breakdown the PDF prints, sign + persist ──
+    // Awaited so the PDF's record_id matches the stored record (powers verify-by-id +
+    // bundle download); persistence failure is non-fatal (the PDF still ships).
+    const prevRoot = await getLatestRoot(tenantId, year).catch(() => null);
+    const proof = buildRecordProof(tenantId, year, bd, prevRoot, new Date().toISOString());
+    await persistRecordProof(tenantId, proof).catch((e) => console.error('[year-summary] proof persist failed', e));
+
+    const pdfBuffer = await buildPdf(bd, year, tenantLabel, proof);
 
     return new Response(pdfBuffer, {
       status: 200,
