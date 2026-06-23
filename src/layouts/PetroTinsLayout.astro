@@ -1,0 +1,32 @@
+---
+// Shared document shell for every public PetroTins surface (landing, docs, legal).
+// One source of truth for the <html> boilerplate, Inter font, favicon, and the
+// dark token set (via petro-tins.css). Page-specific chrome (header/footer) is
+// composed inside the slot by each page or the legal wrapper.
+import '../styles/petro-tins.css';
+
+export interface Props {
+  title: string;
+  description?: string;
+  noindex?: boolean;
+}
+const { title, description = '', noindex = false } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  {description && <meta name="description" content={description} />}
+  {noindex && <meta name="robots" content="noindex, nofollow" />}
+  <link rel="icon" type="image/webp" href="/favicon.webp" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <slot />
+</body>
+</html>

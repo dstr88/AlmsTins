@@ -1,0 +1,19 @@
+---
+// ⛽ PetroTins wordmark with an optional sub-label ("Docs", "by Almstins").
+interface Props {
+  sub?: string;
+  href?: string;
+}
+const { sub, href = '/petro-tins' } = Astro.props;
+---
+<a href={href} class="pt-wordmark">
+  <span class="pt-wordmark__icon" aria-hidden="true">⛽</span>
+  <span class="pt-wordmark__text">PetroTins</span>
+  {sub && <span class="pt-wordmark__sub">{sub}</span>}
+</a>
+<style>
+  .pt-wordmark { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; }
+  .pt-wordmark__icon { width: 36px; height: 36px; background: var(--pt-soft); border: 1px solid var(--pt-glow); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+  .pt-wordmark__text { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; color: var(--pt); }
+  .pt-wordmark__sub { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-left: 0.25rem; align-self: flex-end; padding-bottom: 3px; }
+</style>

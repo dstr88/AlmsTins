@@ -1,0 +1,26 @@
+---
+// Marketing header: PetroTins wordmark + optional nav links. Used by docs (and
+// any future marketing page). The legal pages use their own hero header instead.
+import Wordmark from './Wordmark.astro';
+
+interface NavLink { label: string; href: string; }
+interface Props {
+  sub?: string;
+  nav?: NavLink[];
+}
+const { sub, nav = [] } = Astro.props;
+---
+<header class="pt-site-header">
+  <Wordmark sub={sub} />
+  {nav.length > 0 && (
+    <nav class="pt-site-header__nav">
+      {nav.map((l) => <a href={l.href}>{l.label}</a>)}
+    </nav>
+  )}
+</header>
+<style>
+  .pt-site-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 3rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+  .pt-site-header__nav { display: flex; gap: 1.25rem; font-size: 0.82rem; }
+  .pt-site-header__nav a { color: var(--muted); text-decoration: none; transition: color 0.15s; }
+  .pt-site-header__nav a:hover { color: var(--pt); }
+</style>

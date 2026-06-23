@@ -63,7 +63,7 @@ export function isPublicPath(pathname: string): boolean {
 		// PetroTins standalone login page — must be reachable without a session
 		pathname === '/petro-tins' ||
 		// PetroTins demo — clears session cookie then starts demo, no auth needed
-		pathname === '/petro-tins/demo' ||
+		pathname === '/api/petro-tins/demo' ||
 		// PetroTins docs — public documentation page
 		pathname === '/petro-tins/docs' ||
 		// PetroTins legal pages — public Terms & Privacy

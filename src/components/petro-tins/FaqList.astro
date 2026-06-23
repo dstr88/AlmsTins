@@ -1,0 +1,20 @@
+---
+// Renders a FAQ list from data (lib/petro-tins/faq.ts) so copy edits stay in data.
+import type { FaqItem } from '@/lib/petro-tins/faq';
+
+interface Props { items: FaqItem[]; }
+const { items } = Astro.props;
+---
+<div class="pt-faq">
+  {items.map((f) => (
+    <div class="pt-faq__item">
+      <div class="pt-faq__q">{f.q}</div>
+      <div class="pt-faq__a">{f.a}</div>
+    </div>
+  ))}
+</div>
+<style>
+  .pt-faq { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 0.5rem; }
+  .pt-faq__q { font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 0.3rem; }
+  .pt-faq__a { font-size: 0.84rem; color: var(--sub); line-height: 1.6; }
+</style>
