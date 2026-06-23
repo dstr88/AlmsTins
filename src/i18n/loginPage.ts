@@ -13,6 +13,8 @@ export interface LoginPageLocale {
     checker: { title: string; desc: string; free: string; cta: string };
     verify:  { title: string; desc: string; free: string; cta: string };
     watcher: { title: string; desc: string; free: string; cta: string };
+    plansLink: string;
+    plansHref: string;  // language-aware: /prices · /prices/es · /prices/fr
   };
   meta: { title: string; description: string };
   signin: {
@@ -107,6 +109,8 @@ export const en: LoginPageLocale = {
     checker: { title: 'Wallet Checker', desc: 'Paste or scan any wallet address or website — instant scam, phishing, honeypot, and sanctions check.', free: 'Free · No account · No sign-in', cta: 'Open the checker' },
     verify:  { title: 'Verify', desc: 'Register the receiving addresses you publish and catch a swapped QR before a customer pays the wrong one.', free: 'Free: 1 reusable QR connection. Need more? Upgrade.', cta: 'Go to Verify' },
     watcher: { title: 'Wallet Watcher', desc: 'Track wallets, exchanges, and DeFi by address — cost basis, realized gains, and a tax-ready breakdown.', free: 'Free tier · Sign in with email, Google, or GitHub · We only store your email', cta: 'Try the demo' },
+    plansLink: 'See all plans & pricing',
+    plansHref: '/prices',
   },
   meta: {
     title: 'Almstins — Check, track, and verify your crypto',
@@ -216,6 +220,8 @@ export const es: LoginPageLocale = {
     checker: { title: 'Wallet Checker', desc: 'Pega o escanea cualquier dirección de billetera o sitio web — comprobación instantánea de estafas, phishing, honeypots y sanciones.', free: 'Gratis · Sin cuenta · Sin iniciar sesión', cta: 'Abrir el verificador' },
     verify:  { title: 'Verify', desc: 'Registra las direcciones de cobro que publicas y detecta un QR cambiado antes de que un cliente pague al equivocado.', free: 'Gratis: 1 conexión QR reutilizable. ¿Necesitas más? Mejora tu plan.', cta: 'Ir a Verify' },
     watcher: { title: 'Wallet Watcher', desc: 'Rastrea billeteras, exchanges y DeFi por dirección — base de costo, ganancias realizadas y un desglose listo para impuestos.', free: 'Plan gratis · Inicia sesión con correo, Google o GitHub · Solo guardamos tu correo', cta: 'Probar la demo' },
+    plansLink: 'Ver todos los planes y precios',
+    plansHref: '/prices/es',
   },
   meta: {
     title: 'Almstins — Comprueba, rastrea y verifica tu cripto',
@@ -325,6 +331,8 @@ export const fr: LoginPageLocale = {
     checker: { title: 'Wallet Checker', desc: 'Collez ou scannez n\'importe quelle adresse de portefeuille ou site web — vérification instantanée des arnaques, du phishing, des honeypots et des sanctions.', free: 'Gratuit · Sans compte · Sans connexion', cta: 'Ouvrir le vérificateur' },
     verify:  { title: 'Verify', desc: 'Enregistrez les adresses de réception que vous publiez et détectez un QR substitué avant qu\'un client ne paie la mauvaise.', free: 'Gratuit : 1 connexion QR réutilisable. Besoin de plus ? Améliorez votre offre.', cta: 'Aller à Verify' },
     watcher: { title: 'Wallet Watcher', desc: 'Suivez portefeuilles, plateformes d\'échange et DeFi par adresse — prix de revient, gains réalisés et un récapitulatif prêt pour les impôts.', free: 'Offre gratuite · Connectez-vous par e-mail, Google ou GitHub · Nous ne stockons que votre e-mail', cta: 'Essayer la démo' },
+    plansLink: 'Voir tous les forfaits et tarifs',
+    plansHref: '/prices/fr',
   },
   meta: {
     title: 'Almstins — Contrôlez, suivez et vérifiez votre crypto',

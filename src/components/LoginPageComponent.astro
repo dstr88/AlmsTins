@@ -180,6 +180,11 @@ const isLockedOut = message === 'LOCKED_OUT';
       </a>
     </section>
 
+    <!-- Compare plans: quiet secondary link, sits with the doors where "Need more?" is raised -->
+    <p class="hub-plans">
+      <a class="hub-plans__link" href={t.hub.plansHref}>{t.hub.plansLink} →</a>
+    </p>
+
     <!-- Trust strip -->
     <section class="hub-trust" aria-label={t.hub.trustAria}>
       <p class="hub-trust__item"><span class="hub-trust__icon" aria-hidden="true">🔑</span> {t.hub.trust1}</p>
@@ -560,6 +565,13 @@ const isLockedOut = message === 'LOCKED_OUT';
     .door__free { font-size: 0.78rem; color: var(--accent-dim); line-height: 1.5; margin: 0.6rem 0 0; }
     .door__cta { font-size: 0.9rem; font-weight: 700; color: var(--accent); margin: 0.75rem 0 0; }
     .door:hover .door__cta { text-decoration: underline; text-underline-offset: 3px; }
+    .hub-plans { max-width: 64rem; margin: 1.5rem auto 0; padding: 0 clamp(1.5rem, 4vw, 3rem); text-align: center; }
+    .hub-plans__link {
+      font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);
+      text-decoration: none; border-bottom: 1px solid var(--border-bright);
+      padding-bottom: 2px; transition: color 0.15s, border-color 0.15s;
+    }
+    .hub-plans__link:hover { color: var(--accent); border-color: var(--accent); }
     .hub-trust {
       max-width: 64rem; margin: 0 auto;
       padding: clamp(2.5rem, 5vw, 4rem) clamp(1.5rem, 4vw, 3rem) clamp(2.5rem, 5vw, 4rem);
