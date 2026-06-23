@@ -112,6 +112,17 @@ export interface VerifyDashboardLocale {
   entUnreachable: string;
   entMalformed: string;
   entError: string;
+  // Demo mode (seeded sample vendor account) — banner + how-to guide.
+  demoBanner: string;
+  demoSignupCta: string;
+  demoProveNote: string;
+  howToHeading: string;
+  howToWalletTitle: string;
+  howToWalletSteps: string[];
+  howToStripeTitle: string;
+  howToStripeSteps: string[];
+  howToExchangeTitle: string;
+  howToExchangeSteps: string[];
 }
 
 export const en: VerifyDashboardLocale = {
@@ -201,6 +212,30 @@ export const en: VerifyDashboardLocale = {
   entUnreachable: "⚠ Couldn't reach your endpoint. Check the URL and that it's live.",
   entMalformed: "⚠ Your endpoint's response wasn't in the expected format.",
   entError: 'Something went wrong. Try again.',
+  demoBanner: 'This is a demo vendor account — the destinations below are samples. Try “Verify a sign” to check one, then see how to register your own.',
+  demoSignupCta: 'Sign up free →',
+  demoProveNote: 'In the live app, this walks you through publishing one small file on your domain — then this address shows as Verified to anyone who checks it. Sign up free to prove your own.',
+  howToHeading: 'How to register your own',
+  howToWalletTitle: 'Add a wallet address',
+  howToWalletSteps: [
+    'Pick the chain — Bitcoin, Ethereum, Polygon, Avalanche, Solana, or Litecoin.',
+    'Paste the receiving address your customers actually pay — the same one on your sign, invoice, or checkout.',
+    'Give it a label like “Storefront BTC” so you recognize it later, then Register.',
+    'Prove your domain once and it shows as Verified — so anyone can confirm it’s really yours before they send.',
+  ],
+  howToStripeTitle: 'Add a Stripe payment link',
+  howToStripeSteps: [
+    'In Stripe, create a Payment Link (Product catalog → Payment links) and copy its URL — it looks like https://buy.stripe.com/…',
+    'Here, under Payment QR, paste that Stripe URL as the value — a Stripe link is just a URL, so no Stripe login or keys are ever shared with us.',
+    'Label it “Stripe checkout” and Register it.',
+    'Now scan the QR on your register or invoice any time and we confirm it still points to your real Stripe link — not a swapped one.',
+  ],
+  howToExchangeTitle: 'Publishing many addresses? (exchanges & platforms)',
+  howToExchangeSteps: [
+    'Prove your domain once.',
+    'Connect a read-only endpoint that lists your addresses, plus an API key — we only ever read the list, never move funds.',
+    'We keep them all in sync, so your customers can verify any official address before they send.',
+  ],
 };
 
 export const es: VerifyDashboardLocale = {
@@ -290,6 +325,30 @@ export const es: VerifyDashboardLocale = {
   entUnreachable: '⚠ No se pudo acceder a tu endpoint. Revisa la URL y que esté activo.',
   entMalformed: '⚠ La respuesta de tu endpoint no tenía el formato esperado.',
   entError: 'Algo salió mal. Inténtalo de nuevo.',
+  demoBanner: 'Esta es una cuenta de comercio de demostración — los destinos de abajo son ejemplos. Prueba “Verifica un letrero” para comprobar uno y luego mira cómo registrar los tuyos.',
+  demoSignupCta: 'Regístrate gratis →',
+  demoProveNote: 'En la app real, esto te guía para publicar un pequeño archivo en tu dominio — y entonces esta dirección aparece como Verificada para quien la consulte. Regístrate gratis para demostrar la tuya.',
+  howToHeading: 'Cómo registrar los tuyos',
+  howToWalletTitle: 'Agregar una dirección de billetera',
+  howToWalletSteps: [
+    'Elige la cadena — Bitcoin, Ethereum, Polygon, Avalanche, Solana o Litecoin.',
+    'Pega la dirección de cobro que tus clientes realmente pagan — la misma de tu letrero, factura o checkout.',
+    'Ponle una etiqueta como “BTC tienda” para reconocerla luego, y Regístrala.',
+    'Demuestra tu dominio una vez y aparece como Verificada — así cualquiera confirma que es tuya antes de enviar.',
+  ],
+  howToStripeTitle: 'Agregar un enlace de pago de Stripe',
+  howToStripeSteps: [
+    'En Stripe, crea un Payment Link (Catálogo de productos → Payment links) y copia su URL — se ve como https://buy.stripe.com/…',
+    'Aquí, en QR de pago, pega esa URL de Stripe como valor — un enlace de Stripe es solo una URL, así que nunca compartes con nosotros tu acceso ni claves de Stripe.',
+    'Etiquétalo “Checkout Stripe” y Regístralo.',
+    'Ahora escanea el QR de tu caja o factura cuando quieras y confirmamos que sigue apuntando a tu enlace real de Stripe — no a uno sustituido.',
+  ],
+  howToExchangeTitle: '¿Publicas muchas direcciones? (exchanges y plataformas)',
+  howToExchangeSteps: [
+    'Demuestra tu dominio una vez.',
+    'Conecta un endpoint de solo lectura que liste tus direcciones, más una clave API — solo leemos la lista, nunca movemos fondos.',
+    'Las mantenemos todas sincronizadas, para que tus clientes verifiquen cualquier dirección oficial antes de enviar.',
+  ],
 };
 
 export const fr: VerifyDashboardLocale = {
@@ -379,6 +438,30 @@ export const fr: VerifyDashboardLocale = {
   entUnreachable: '⚠ Impossible de joindre votre endpoint. Vérifiez l’URL et qu’il est actif.',
   entMalformed: '⚠ La réponse de votre endpoint n’était pas au format attendu.',
   entError: 'Une erreur s’est produite. Réessayez.',
+  demoBanner: 'Ceci est un compte marchand de démonstration — les destinations ci-dessous sont des exemples. Essayez « Vérifier un panneau » pour en vérifier une, puis voyez comment enregistrer les vôtres.',
+  demoSignupCta: 'Inscrivez-vous gratuitement →',
+  demoProveNote: 'Dans l’app réelle, ceci vous guide pour publier un petit fichier sur votre domaine — puis cette adresse apparaît comme Vérifiée pour quiconque la consulte. Inscrivez-vous gratuitement pour prouver la vôtre.',
+  howToHeading: 'Comment enregistrer les vôtres',
+  howToWalletTitle: 'Ajouter une adresse de portefeuille',
+  howToWalletSteps: [
+    'Choisissez la chaîne — Bitcoin, Ethereum, Polygon, Avalanche, Solana ou Litecoin.',
+    'Collez l’adresse de réception que vos clients paient réellement — la même que sur votre panneau, facture ou page de paiement.',
+    'Donnez-lui un libellé comme « BTC boutique » pour la reconnaître, puis Enregistrez-la.',
+    'Prouvez votre domaine une fois et elle apparaît comme Vérifiée — pour que chacun confirme qu’elle est bien la vôtre avant d’envoyer.',
+  ],
+  howToStripeTitle: 'Ajouter un lien de paiement Stripe',
+  howToStripeSteps: [
+    'Dans Stripe, créez un Payment Link (Catalogue de produits → Payment links) et copiez son URL — elle ressemble à https://buy.stripe.com/…',
+    'Ici, sous QR de paiement, collez cette URL Stripe comme valeur — un lien Stripe n’est qu’une URL, donc aucun identifiant ni clé Stripe ne nous est jamais transmis.',
+    'Libellez-le « Paiement Stripe » et Enregistrez-le.',
+    'Scannez ensuite le QR de votre caisse ou facture à tout moment et nous confirmons qu’il pointe toujours vers votre vrai lien Stripe — pas un lien substitué.',
+  ],
+  howToExchangeTitle: 'Vous publiez de nombreuses adresses ? (exchanges et plateformes)',
+  howToExchangeSteps: [
+    'Prouvez votre domaine une fois.',
+    'Connectez un point de terminaison en lecture seule qui liste vos adresses, plus une clé API — nous lisons seulement la liste, sans jamais déplacer de fonds.',
+    'Nous les gardons toutes synchronisées, pour que vos clients vérifient n’importe quelle adresse officielle avant d’envoyer.',
+  ],
 };
 
 const MAP: Record<Lang, VerifyDashboardLocale> = { en, es, fr };

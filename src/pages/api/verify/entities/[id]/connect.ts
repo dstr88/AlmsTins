@@ -18,6 +18,7 @@ const json = (body: unknown, status = 200) =>
 export const POST: APIRoute = async ({ request, params }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
+  if (session.isDemo) return json({ ok: false, error: 'demo_readonly' }, 403);
 
   let body: any = {};
   try { body = await request.json(); } catch { /* ignore */ }

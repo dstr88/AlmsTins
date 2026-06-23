@@ -14,6 +14,7 @@ const json = (body: unknown, status = 200) =>
 export const POST: APIRoute = async ({ request, params }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
+  if (session.isDemo) return json({ ok: false, error: 'demo_readonly' }, 403);
 
   const result = await proveEntity(session.tenantId, String(params.id ?? ''));
   if (!result.ok && result.code === 'not_found') return json({ ok: false, error: 'not_found' }, 404);

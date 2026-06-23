@@ -19,6 +19,7 @@ const json = (body: unknown, status = 200) =>
 export const POST: APIRoute = async ({ request, params }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
+  if (session.isDemo) return json({ ok: false, error: 'demo_readonly' }, 403);
 
   const id = String(params.id ?? '');
   const dest = await getDestination(session.tenantId, id);

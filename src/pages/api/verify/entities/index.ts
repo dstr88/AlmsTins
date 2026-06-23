@@ -22,6 +22,7 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
+  if (session.isDemo) return json({ ok: false, error: 'demo_readonly' }, 403);
 
   let body: any = {};
   try { body = await request.json(); } catch { /* ignore */ }

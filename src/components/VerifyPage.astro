@@ -80,6 +80,7 @@ Authorization: Bearer <your-key>
       <p class="vhero__sub">{t.hero.sub}</p>
       <div class="vhero__ctas">
         <a class="vbtn" href="/login">{t.hero.ctaPrimary}</a>
+        <a class="vbtn vbtn--demo" href="/api/demo/start?next=/dashboard/verify" rel="nofollow">{t.hero.ctaDemo}</a>
         <a class="vbtn vbtn--ghost" href="#how">{t.hero.ctaSecondary}</a>
       </div>
     </header>
@@ -244,6 +245,13 @@ Authorization: Bearer <your-key>
     font-weight: 600;
   }
   .vbtn--ghost:hover { color: var(--text-primary); border-color: var(--accent); transform: none; }
+  .vbtn--demo {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid var(--accent-glow);
+    box-shadow: none;
+  }
+  .vbtn--demo:hover { color: var(--text-primary); border-color: var(--accent); }
   .vbtn--lg { padding: 0.95rem 2rem; font-size: 1.05rem; }
 
   /* ── Hero ── */

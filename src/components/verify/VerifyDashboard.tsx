@@ -58,7 +58,7 @@ function classifyScan(raw: string): { kind: 'url' | 'address'; value: string } {
   return { kind: 'address', value: noScheme.split(/[?@\s]/)[0].trim() };
 }
 
-export default function VerifyDashboard({ t }: { t: VerifyDashboardLocale }) {
+export default function VerifyDashboard({ t, isDemo = false }: { t: VerifyDashboardLocale; isDemo?: boolean }) {
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,19 +83,45 @@ export default function VerifyDashboard({ t }: { t: VerifyDashboardLocale }) {
 
   return (
     <div className="vd">
-      <div className="vd__notice">{t.notice}</div>
+      {isDemo
+        ? <div className="vd__demo-banner"><span>{t.demoBanner}</span></div>
+        : <div className="vd__notice">{t.notice}</div>}
 
       {error && <div className="vd__error">{error}</div>}
 
       {!loading && destinations.length > 0 && <VerifySign t={t} />}
 
       <DestSection title={t.addressesTitle} kind="address" limit={LIMITS.address}
-        items={addresses} loading={loading} onChange={load} t={t} />
+        items={addresses} loading={loading} onChange={load} t={t} isDemo={isDemo} />
       <DestSection title={t.qrTitle} kind="qr" limit={LIMITS.qr}
-        items={qrs} loading={loading} onChange={load} t={t} />
+        items={qrs} loading={loading} onChange={load} t={t} isDemo={isDemo} />
 
-      <EntitiesSection t={t} />
+      {isDemo ? <HowToAdd t={t} /> : <EntitiesSection t={t} />}
     </div>
+  );
+}
+
+// Demo-only "how to register your own" guide — wallet address, Stripe link, and the
+// exchange path. Pure explainer (no writes); shown in place of the live tools in demo.
+function HowToAdd({ t }: { t: VerifyDashboardLocale }) {
+  const blocks = [
+    { title: t.howToWalletTitle, steps: t.howToWalletSteps },
+    { title: t.howToStripeTitle, steps: t.howToStripeSteps },
+    { title: t.howToExchangeTitle, steps: t.howToExchangeSteps },
+  ];
+  return (
+    <section className="vd-howto">
+      <h2 className="vd-howto__heading">{t.howToHeading}</h2>
+      {blocks.map((b, i) => (
+        <details className="vd-howto__item" key={i} open={i === 0}>
+          <summary className="vd-howto__summary">{b.title}</summary>
+          <ol className="vd-howto__steps">
+            {b.steps.map((s, j) => <li key={j}>{s}</li>)}
+          </ol>
+        </details>
+      ))}
+      <a className="vd-howto__cta" href="/login">{t.demoSignupCta}</a>
+    </section>
   );
 }
 
@@ -274,9 +300,9 @@ function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; 
   );
 }
 
-function DestSection({ title, kind, limit, items, loading, onChange, t }: {
+function DestSection({ title, kind, limit, items, loading, onChange, t, isDemo }: {
   title: string; kind: 'address' | 'qr'; limit: number;
-  items: Destination[]; loading: boolean; onChange: () => void; t: VerifyDashboardLocale;
+  items: Destination[]; loading: boolean; onChange: () => void; t: VerifyDashboardLocale; isDemo?: boolean;
 }) {
   const atLimit = items.length >= limit;
   return (
@@ -286,18 +312,19 @@ function DestSection({ title, kind, limit, items, loading, onChange, t }: {
         <span className="vd-sec__count">{items.length} / {limit}</span>
       </div>
       <div className="vd-list">
-        {items.map(d => <DestRow key={d.id} d={d} onChange={onChange} t={t} />)}
+        {items.map(d => <DestRow key={d.id} d={d} onChange={onChange} t={t} isDemo={isDemo} />)}
         {!loading && items.length === 0 && <p className="vd-sec__empty">{t.emptyNone}</p>}
         {loading && items.length === 0 && <p className="vd-sec__empty">{t.loading}</p>}
       </div>
-      {atLimit
+      {/* Live add-form is hidden in the demo — registering is a real-account action. */}
+      {!isDemo && (atLimit
         ? <p className="vd-sec__limit">{t.limitReached.replace('{n}', String(limit))}</p>
-        : <AddForm kind={kind} onChange={onChange} t={t} />}
+        : <AddForm kind={kind} onChange={onChange} t={t} />)}
     </section>
   );
 }
 
-function DestRow({ d, onChange, t }: { d: Destination; onChange: () => void; t: VerifyDashboardLocale }) {
+function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => void; t: VerifyDashboardLocale; isDemo?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [proving, setProving] = useState(false);
   // Domain attestation proves a domain vouches for an address — only meaningful for
@@ -326,10 +353,14 @@ function DestRow({ d, onChange, t }: { d: Destination; onChange: () => void; t: 
             {t.proveBtn}
           </button>
         )}
-        <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
+        {!isDemo && (
+          <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
+        )}
       </div>
       {proving && canProve && (
-        <ProvePanel d={d} t={t} onProven={() => { setProving(false); onChange(); }} />
+        isDemo
+          ? <div className="vd-prove"><p className="vd-prove__hint">{t.demoProveNote}</p></div>
+          : <ProvePanel d={d} t={t} onProven={() => { setProving(false); onChange(); }} />
       )}
     </div>
   );

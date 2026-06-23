@@ -619,6 +619,40 @@ ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, revie
 		}
 	})();
 
+	// ── Seed Verify (vendor) sample destinations for demo tenant ────────────
+	// Mirrors the wallet-watcher demo: a populated /dashboard/verify in demo mode.
+	// A proven BTC address + a proven Stripe payment link, plus one unproven ETH
+	// address to show the "prove it" step. Self-contained (own DELETE), fire-and-forget.
+	const VD_DOMAIN = 'demo-coffee.shop';
+	const VD_PROVEN_AT = '2026-05-01 12:00:00';
+	const VD_STRIPE = 'https://buy.stripe.com/demo_vendor_checkout';
+	const VD_ETH = '0x9a000000000000000000000000000000000000a9';
+	await db.batch([
+		{ sql: `CREATE TABLE IF NOT EXISTS verify_destinations (
+			id TEXT NOT NULL PRIMARY KEY, tenant_id TEXT NOT NULL, kind TEXT NOT NULL, rail TEXT NOT NULL,
+			value TEXT NOT NULL, label TEXT, proof_method TEXT NOT NULL DEFAULT 'none',
+			proof_status TEXT NOT NULL DEFAULT 'unproven', proof_domain TEXT,
+			registered_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+			proven_at TEXT,
+			created_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+			updated_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')))`, args: [] },
+		{ sql: `DELETE FROM verify_destinations WHERE tenant_id = ?`, args: [DEMO_TENANT_ID] },
+	]).catch(() => {});
+	await db.batch([
+		{ sql: `INSERT INTO verify_destinations (id, tenant_id, kind, rail, value, label, proof_method, proof_status, proof_domain, proven_at)
+			VALUES (?, ?, 'address', 'bitcoin', ?, 'Storefront BTC', 'well_known', 'proven', ?, ?)`,
+			args: [randomUUID(), DEMO_TENANT_ID, ADDR_BTC, VD_DOMAIN, VD_PROVEN_AT] },
+		// QR/payment-link destinations aren't domain-proven in the live product (proof is
+		// address-only); its value is confirmed by scanning it in "Verify a sign". Seed it
+		// unproven so the demo matches reality — no "Verified" badge it couldn't really earn.
+		{ sql: `INSERT INTO verify_destinations (id, tenant_id, kind, rail, value, label, proof_method, proof_status)
+			VALUES (?, ?, 'qr', 'url', ?, 'Stripe checkout (card)', 'none', 'unproven')`,
+			args: [randomUUID(), DEMO_TENANT_ID, VD_STRIPE] },
+		{ sql: `INSERT INTO verify_destinations (id, tenant_id, kind, rail, value, label, proof_method, proof_status)
+			VALUES (?, ?, 'address', 'ethereum', ?, 'Online ETH wallet', 'none', 'unproven')`,
+			args: [randomUUID(), DEMO_TENANT_ID, VD_ETH] },
+	]).catch(() => {});
+
 	const lang = (request.headers.get('referer') ?? '').includes('/es') ? 'es' : 'en';
 	const langCookie = `almstins-demo-lang=${lang}; Path=/; SameSite=Lax; Max-Age=3600`;
 

@@ -35,6 +35,7 @@ export interface VerifyCopy {
     sub: string;
     ctaPrimary: string;
     ctaSecondary: string;
+    ctaDemo: string;
   };
   problem: { heading: string; body: string[] };
   how: { heading: string; steps: Array<{ title: string; body: string }> };
@@ -84,6 +85,7 @@ const en: VerifyCopy = {
     sub: "Register your receiving addresses and payment QR, prove they're yours — no wallet connection, ever — then verify any sign, invoice, or checkout against them before you rely on it. Free to start: 3 addresses and 1 QR.",
     ctaPrimary: 'Create your free account',
     ctaSecondary: 'How it works ↓',
+    ctaDemo: 'Try the vendor demo →',
   },
   problem: {
     heading: 'The problem',
@@ -192,6 +194,7 @@ const es: VerifyCopy = {
     sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos — sin conectar la billetera, nunca — y luego verifica cualquier letrero, factura o pantalla de pago contra ellas antes de fiarte. Gratis para empezar: 3 direcciones y 1 QR.',
     ctaPrimary: 'Crea tu cuenta gratis',
     ctaSecondary: 'Cómo funciona ↓',
+    ctaDemo: 'Prueba la demo para comercios →',
   },
   problem: {
     heading: 'El problema',
@@ -300,6 +303,7 @@ const fr: VerifyCopy = {
     sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous — sans jamais connecter de portefeuille — puis vérifiez n'importe quelle pancarte, facture ou page de paiement par rapport à elles avant de vous y fier. Gratuit pour commencer : 3 adresses et 1 QR.",
     ctaPrimary: 'Créez votre compte gratuit',
     ctaSecondary: 'Comment ça marche ↓',
+    ctaDemo: 'Essayer la démo commerçant →',
   },
   problem: {
     heading: 'Le problème',

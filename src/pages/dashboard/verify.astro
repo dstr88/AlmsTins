@@ -43,7 +43,7 @@ const heroMobile = await getImage({ src: heroMobileImg, format: 'webp', width: 9
         </div>
       </section>
     </div>
-    <VerifyDashboard client:load t={t} />
+    <VerifyDashboard client:load t={t} isDemo={session.isDemo ?? false} />
   </div>
 </Layout>
 
