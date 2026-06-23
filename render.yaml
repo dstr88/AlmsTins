@@ -167,3 +167,28 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+
+  # ── Onboarding email drip cron ─────────────────────────────────────────────
+  # Hourly. Enrolls newly-SIGNED-UP users (auth_users.created_at) and sends the next due
+  # email in the 4-step welcome series (day 0 / 2 / 5 / 10) via Resend — hourly so the
+  # welcome (day 0) lands within ~an hour of signup, not a day later. Unsubscribe-aware;
+  # one step per user per run. Safe no-op if RESEND_API_KEY isn't set or nobody is due.
+  #
+  # Required env vars (set in Render dashboard — not inherited from web service):
+  #   CRON_SECRET        — same value as on your web service
+  #   APP_URL            — e.g. https://almstins.com
+  - type: cron
+    name: onboarding-drip
+    runtime: image
+    image:
+      url: docker.io/curlimages/curl:latest
+    schedule: "0 * * * *"
+    startCommand: >-
+      curl -sf --max-time 1800
+      -H "x-cron-secret: $CRON_SECRET"
+      "$APP_URL/api/cron/onboarding-drip"
+    envVars:
+      - key: CRON_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false

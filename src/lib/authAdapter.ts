@@ -64,9 +64,26 @@ const mapVerificationToken = (row: Row): VerificationToken => ({
 	expires: new Date(String(row.expires)),
 });
 
+const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+// Ensure auth_users has a created_at column — added lazily, NO default, so existing rows
+// stay NULL and the onboarding drip never retro-enrolls pre-launch users. Runs once per
+// process before the first user insert; idempotent (PG ADD COLUMN IF NOT EXISTS).
+let _createdAtEnsured = false;
+export async function ensureAuthUsersCreatedAt(): Promise<void> {
+	if (_createdAtEnsured) return;
+	try {
+		await db.execute({ sql: 'ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS created_at TEXT', args: [] });
+	} catch (err) {
+		console.warn('[authAdapter] ensure created_at column', err instanceof Error ? err.message : err);
+	}
+	_createdAtEnsured = true;
+}
+
 export const authAdapter = (): Adapter => ({
 	async createUser(user) {
 		console.log('[authAdapter] createUser called', { email: user.email, name: user.name });
+		await ensureAuthUsersCreatedAt();
 		// Auth types require a string email; keep empty string if provider didn't supply one.
 		const email = user.email ?? '';
 		// If a user with this email already exists (e.g. created via credentials),
@@ -87,9 +104,9 @@ export const authAdapter = (): Adapter => ({
 		// Google and GitHub send the user's real name and avatar, which we don't
 		// need and don't want sitting in the database.
 		await db.execute({
-			sql: `INSERT INTO auth_users (id, name, email, email_verified, image)
-        VALUES (?, ?, ?, ?, ?)`,
-			args: [id, null, email, user.emailVerified?.toISOString() ?? null, null],
+			sql: `INSERT INTO auth_users (id, name, email, email_verified, image, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+			args: [id, null, email, user.emailVerified?.toISOString() ?? null, null, nowUtc()],
 		});
 		return { ...user, id, email, name: null, image: null };
 	},

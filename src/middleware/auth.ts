@@ -75,6 +75,8 @@ export function isPublicPath(pathname: string): boolean {
 		// Verified-publisher lookup — public, login-free; address → publishing domain
 		// (reads the global mirror, never exposes tenant_id/identity)
 		pathname === '/api/verify/lookup' ||
+		// Onboarding-email unsubscribe — public one-click opt-out (token-based)
+		pathname === '/api/email/unsubscribe' ||
 		// Deploy probe — public so the live commit SHA can be verified with one curl
 		// (no session). Returns only RENDER_GIT_COMMIT/branch/engine, no secrets.
 		pathname === '/api/version' ||

@@ -8,6 +8,7 @@ import { isEmailDomainBlocked } from '@/lib/blockedEmailDomains';
 import { isLang, type Lang } from '@/lib/i18n/locale';
 import { setUserLang } from '@/lib/i18n/userLang';
 import { getVerifyEmail } from '@/i18n/emails/verifyEmail';
+import { ensureAuthUsersCreatedAt } from '@/lib/authAdapter';
 
 export const prerender = false;
 
@@ -65,8 +66,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	const passwordHash = await hashPassword(password);
 
 	// Store no name — only the email — matching the OAuth path (authAdapter.createUser).
+	await ensureAuthUsersCreatedAt();
 	await db.execute({
-		sql: 'INSERT INTO auth_users (id, name, email, email_verified, image) VALUES (?, NULL, ?, NULL, NULL)',
+		sql: `INSERT INTO auth_users (id, name, email, email_verified, image, created_at)
+		      VALUES (?, NULL, ?, NULL, NULL, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
 		args: [userId, email],
 	});
 	await db.execute({
