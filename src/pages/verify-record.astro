@@ -1,0 +1,26 @@
+---
+// Public record-verification utility. Verifies an Almstins proof bundle entirely
+// in the browser (or against a pasted public key), so a skeptical accountant /
+// auditor can confirm a record WITHOUT trusting almstins.com.
+import '@/styles/tokens.css';
+import VerifyRecordIsland from '@/components/recordProof/VerifyRecord';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verify a record — Almstins</title>
+  <meta name="description" content="Verify an Almstins record proof — integrity, origin, and source-traceability — in your browser, without trusting almstins.com." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/webp" href="/favicon.webp" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  </style>
+</head>
+<body>
+  <VerifyRecordIsland client:load />
+</body>
+</html>
