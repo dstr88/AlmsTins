@@ -14,6 +14,7 @@
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
 import { generateChallenge } from './verifyProof';
+import { detectOutgoingSince } from './verifyDeposit';
 
 /** Timestamp matching the columns' `to_char(now() … 'YYYY-MM-DD HH24:MI:SS')` default. */
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -92,6 +93,26 @@ const ENSURE_PROOFS_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_domain_proof
 const ENSURE_CLAIM_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_proven_claim
   ON verify_destinations (rail, value) WHERE proof_status = 'proven' AND kind = 'address'`;
 
+// Self-send proof: one pending challenge per address destination. Proving needs a
+// NEW outgoing tx from the address after issued_at (see verifyDeposit.ts).
+// Mirrors migrations-pg/0006_verify_deposit.sql.
+const ENSURE_DEPOSIT_SQL = `
+  CREATE TABLE IF NOT EXISTS verify_deposit_challenges (
+    id              TEXT NOT NULL PRIMARY KEY,
+    destination_id  TEXT NOT NULL,
+    tenant_id       TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    issued_at       TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    last_checked_at TEXT,
+    proven_at       TEXT,
+    proof_ref       TEXT,
+    created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    updated_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+const ENSURE_DEPOSIT_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_deposit_challenges_dest
+  ON verify_deposit_challenges (destination_id)`;
+
 let ensured = false;
 export async function ensureVerifyTables(): Promise<void> {
   if (ensured) return;
@@ -99,6 +120,8 @@ export async function ensureVerifyTables(): Promise<void> {
   await db.execute({ sql: ENSURE_IDX, args: [] });
   await db.execute({ sql: ENSURE_PROOFS_SQL, args: [] });
   await db.execute({ sql: ENSURE_PROOFS_IDX, args: [] });
+  await db.execute({ sql: ENSURE_DEPOSIT_SQL, args: [] });
+  await db.execute({ sql: ENSURE_DEPOSIT_IDX, args: [] });
   // Backstop only — never let a pre-existing duplicate-proven row break Verify.
   try { await db.execute({ sql: ENSURE_CLAIM_IDX, args: [] }); }
   catch (e) { console.error('[verify] claim-once index not applied (resolve duplicate proven claims):', e); }
@@ -411,4 +434,99 @@ export async function markDomainProofRechecked(tenantId: string, domain: string)
           WHERE tenant_id = ? AND domain = ?`,
     args: [now, now, tenantId, domain],
   });
+}
+
+// ── Phase 4 (self-send): micro-deposit proof of control ──────────────────────
+
+export type DepositChallengeResult =
+  | { ok: true; rail: string; address: string; issuedAt: string }
+  | { ok: false; error: 'not_found' | 'not_address' | 'already_proven' };
+
+/**
+ * Issue (or return the existing) self-send challenge for an address destination.
+ * Idempotent — the detection window runs from the original issued_at, so re-opening
+ * the panel keeps the same challenge. Tenant-scoped.
+ */
+export async function issueDepositChallenge(tenantId: string, destinationId: string): Promise<DepositChallengeResult> {
+  await ensureVerifyTables();
+  const dest = await getDestination(tenantId, destinationId);
+  if (!dest) return { ok: false, error: 'not_found' };
+  if (dest.kind !== 'address') return { ok: false, error: 'not_address' };
+  if (dest.proofStatus === 'proven') return { ok: false, error: 'already_proven' };
+
+  const existing = await db.execute({
+    sql: `SELECT issued_at FROM verify_deposit_challenges WHERE destination_id = ? AND tenant_id = ? LIMIT 1`,
+    args: [destinationId, tenantId],
+  });
+  if (existing.rows.length) {
+    return { ok: true, rail: dest.rail, address: dest.value, issuedAt: String((existing.rows[0] as any).issued_at) };
+  }
+  const issuedAt = nowUtc();
+  await db.execute({
+    sql: `INSERT INTO verify_deposit_challenges (id, destination_id, tenant_id, status, issued_at)
+          VALUES (?, ?, ?, 'pending', ?)`,
+    args: [randomUUID(), destinationId, tenantId, issuedAt],
+  });
+  return { ok: true, rail: dest.rail, address: dest.value, issuedAt };
+}
+
+export type MicroDepositOutcome =
+  | 'proven' | 'not_yet' | 'no_challenge' | 'not_found' | 'not_address'
+  | 'already_proven' | 'claimed_elsewhere' | 'unsupported_rail' | 'unavailable';
+
+/**
+ * Check the chain for the self-send and, if a new outgoing tx is found, flip the
+ * destination to proven. The flip passes through the claim-once guard (the partial
+ * unique index): if another account already proved this address, we report
+ * 'claimed_elsewhere' rather than taking it. Read-only chain access — no movement.
+ */
+export async function verifyMicroDeposit(
+  tenantId: string,
+  destinationId: string,
+): Promise<{ outcome: MicroDepositOutcome; ref?: string }> {
+  await ensureVerifyTables();
+  const dest = await getDestination(tenantId, destinationId);
+  if (!dest) return { outcome: 'not_found' };
+  if (dest.kind !== 'address') return { outcome: 'not_address' };
+  if (dest.proofStatus === 'proven') return { outcome: 'already_proven' };
+
+  const ch = await db.execute({
+    sql: `SELECT issued_at FROM verify_deposit_challenges WHERE destination_id = ? AND tenant_id = ? LIMIT 1`,
+    args: [destinationId, tenantId],
+  });
+  if (!ch.rows.length) return { outcome: 'no_challenge' };
+  const issuedAt = String((ch.rows[0] as any).issued_at);
+
+  const detected = await detectOutgoingSince(dest.rail, dest.value, issuedAt);
+  const now = nowUtc();
+  await db.execute({
+    sql: `UPDATE verify_deposit_challenges SET last_checked_at = ?, updated_at = ? WHERE destination_id = ? AND tenant_id = ?`,
+    args: [now, now, destinationId, tenantId],
+  });
+
+  if (!detected.found) {
+    if (detected.reason === 'unsupported_rail') return { outcome: 'unsupported_rail' };
+    if (detected.reason === 'unavailable') return { outcome: 'unavailable' };
+    return { outcome: 'not_yet' };
+  }
+
+  // Claim-once: the partial unique index rejects the flip if another account already
+  // proved this (rail, value). Catch and report rather than failing hard.
+  try {
+    await db.execute({
+      sql: `UPDATE verify_destinations
+            SET proof_status = 'proven', proof_method = 'micro_deposit', proven_at = ?, updated_at = ?
+            WHERE id = ? AND tenant_id = ? AND proof_status <> 'proven'`,
+      args: [now, now, destinationId, tenantId],
+    });
+  } catch (e) {
+    console.warn('[verify] micro-deposit flip blocked (claimed elsewhere?):', destinationId, e);
+    return { outcome: 'claimed_elsewhere' };
+  }
+  await db.execute({
+    sql: `UPDATE verify_deposit_challenges SET status = 'proven', proven_at = ?, proof_ref = ?, updated_at = ?
+          WHERE destination_id = ? AND tenant_id = ?`,
+    args: [now, detected.ref, now, destinationId, tenantId],
+  });
+  return { outcome: 'proven', ref: detected.ref };
 }
