@@ -123,6 +123,8 @@ export interface VerifyDashboardLocale {
   howToStripeSteps: string[];
   howToExchangeTitle: string;
   howToExchangeSteps: string[];
+  howToCustomerTitle: string;
+  howToCustomerSteps: string[];
 }
 
 export const en: VerifyDashboardLocale = {
@@ -214,27 +216,35 @@ export const en: VerifyDashboardLocale = {
   entError: 'Something went wrong. Try again.',
   demoBanner: 'This is a demo vendor account — the destinations below are samples. Try “Verify a sign” to check one, then see how to register your own.',
   demoSignupCta: 'Sign up free →',
-  demoProveNote: 'In the live app, this walks you through publishing one small file on your domain — then this address shows as Verified to anyone who checks it. Sign up free to prove your own.',
+  demoProveNote: 'In the live app, you prove this address by sending the tiny amount we show you, from that same wallet — we just watch the chain for it, so we never ask you to connect or sign anything. Once it lands, the address is Verified and locked to your account. Sign up free to prove your own.',
   howToHeading: 'How to register your own',
   howToWalletTitle: 'Add a wallet address',
   howToWalletSteps: [
     'Pick the chain — Bitcoin, Ethereum, Polygon, Avalanche, Solana, or Litecoin.',
-    'Paste the receiving address your customers actually pay — the same one on your sign, invoice, or checkout.',
-    'Give it a label like “Storefront BTC” so you recognize it later, then Register.',
-    'Prove your domain once and it shows as Verified — so anyone can confirm it’s really yours before they send.',
+    'Paste the receiving address your customers actually pay — the same one on your sign, invoice, or checkout — give it a label, and Register.',
+    'Prove you control it: send the tiny amount we show you, from that wallet. We watch the public chain for it — we never ask you to connect a wallet or sign anything.',
+    'Once we see it, the address flips to Verified and is locked to your account — claimed once, so no one else can list it as theirs.',
+    'No keys to that address (a custodial or exchange deposit address)? It still lists under your account as Self-listed — a clearly lower tier than Verified.',
   ],
   howToStripeTitle: 'Add a Stripe payment link',
   howToStripeSteps: [
     'In Stripe, create a Payment Link (Product catalog → Payment links) and copy its URL — it looks like https://buy.stripe.com/…',
-    'Here, under Payment QR, paste that Stripe URL as the value — a Stripe link is just a URL, so no Stripe login or keys are ever shared with us.',
-    'Label it “Stripe checkout” and Register it.',
-    'Now scan the QR on your register or invoice any time and we confirm it still points to your real Stripe link — not a swapped one.',
+    'Here, under Payment QR, paste that URL and Register it. That is the whole “connection” — a payment link is just a public web address your customers already click.',
+    'You never log in to Stripe through us, and we never ask for keys. We never see your balance, payouts, customers, or payment rails — there is nothing connected to expose.',
+    'To monitor it, scan the QR on your register or invoice any time and we confirm it still points to your real Stripe link — not one a scammer swapped in.',
   ],
   howToExchangeTitle: 'Publishing many addresses? (exchanges & platforms)',
   howToExchangeSteps: [
-    'Prove your domain once.',
-    'Connect a read-only endpoint that lists your addresses, plus an API key — we only ever read the list, never move funds.',
-    'We keep them all in sync, so your customers can verify any official address before they send.',
+    'Publish your official address list on your own domain, and prove the domain once by hosting a single Almstins file on it.',
+    'Connect a read-only API endpoint that returns the list, plus a key — we only ever read it, and never move funds.',
+    'We keep the list in sync, so any customer can verify an official address against your domain before they send.',
+  ],
+  howToCustomerTitle: 'What your customers see',
+  howToCustomerSteps: [
+    'Your customer scans the QR or address on your sign, invoice, or checkout.',
+    'If it matches a destination you’ve proven, they see ✓ Verified with your label — confidence it’s really you, before they send a cent.',
+    'If your QR was swapped for someone else’s address, it shows ⚠ Not a verified destination — so they stop before paying a scammer.',
+    'Every scan also runs the free safety screen — known-scam, sanctions, and honeypot lists — flagging a dangerous address even if it isn’t yours.',
   ],
 };
 
@@ -327,27 +337,35 @@ export const es: VerifyDashboardLocale = {
   entError: 'Algo salió mal. Inténtalo de nuevo.',
   demoBanner: 'Esta es una cuenta de comercio de demostración — los destinos de abajo son ejemplos. Prueba “Verifica un letrero” para comprobar uno y luego mira cómo registrar los tuyos.',
   demoSignupCta: 'Regístrate gratis →',
-  demoProveNote: 'En la app real, esto te guía para publicar un pequeño archivo en tu dominio — y entonces esta dirección aparece como Verificada para quien la consulte. Regístrate gratis para demostrar la tuya.',
+  demoProveNote: 'En la app real, demuestras esta dirección enviando el pequeño monto que te mostramos, desde esa misma billetera — solo observamos la cadena, así que nunca te pedimos conectar ni firmar nada. Cuando llega, la dirección queda Verificada y bloqueada a tu cuenta. Regístrate gratis para demostrar la tuya.',
   howToHeading: 'Cómo registrar los tuyos',
   howToWalletTitle: 'Agregar una dirección de billetera',
   howToWalletSteps: [
     'Elige la cadena — Bitcoin, Ethereum, Polygon, Avalanche, Solana o Litecoin.',
-    'Pega la dirección de cobro que tus clientes realmente pagan — la misma de tu letrero, factura o checkout.',
-    'Ponle una etiqueta como “BTC tienda” para reconocerla luego, y Regístrala.',
-    'Demuestra tu dominio una vez y aparece como Verificada — así cualquiera confirma que es tuya antes de enviar.',
+    'Pega la dirección de cobro que tus clientes realmente pagan — la misma de tu letrero, factura o checkout — ponle una etiqueta y Regístrala.',
+    'Demuestra que la controlas: envía el pequeño monto que te mostramos, desde esa billetera. Observamos la cadena pública — nunca te pedimos conectar una billetera ni firmar nada.',
+    'En cuanto lo vemos, la dirección pasa a Verificada y queda bloqueada a tu cuenta — reclamada una sola vez, así nadie más puede listarla como suya.',
+    '¿No tienes las llaves de esa dirección (es de custodia o de un exchange)? Igual aparece en tu cuenta como Autolistada — un nivel claramente menor que Verificada.',
   ],
   howToStripeTitle: 'Agregar un enlace de pago de Stripe',
   howToStripeSteps: [
     'En Stripe, crea un Payment Link (Catálogo de productos → Payment links) y copia su URL — se ve como https://buy.stripe.com/…',
-    'Aquí, en QR de pago, pega esa URL de Stripe como valor — un enlace de Stripe es solo una URL, así que nunca compartes con nosotros tu acceso ni claves de Stripe.',
-    'Etiquétalo “Checkout Stripe” y Regístralo.',
-    'Ahora escanea el QR de tu caja o factura cuando quieras y confirmamos que sigue apuntando a tu enlace real de Stripe — no a uno sustituido.',
+    'Aquí, en QR de pago, pega esa URL y Regístrala. Esa es toda la “conexión” — un enlace de pago es solo una dirección web pública que tus clientes ya usan.',
+    'Nunca inicias sesión en Stripe a través de nosotros y nunca te pedimos claves. Nunca vemos tu saldo, tus pagos, tus clientes ni tus medios de cobro — no hay nada conectado que exponer.',
+    'Para vigilarlo, escanea el QR de tu caja o factura cuando quieras y confirmamos que sigue apuntando a tu enlace real de Stripe — no a uno sustituido por un estafador.',
   ],
   howToExchangeTitle: '¿Publicas muchas direcciones? (exchanges y plataformas)',
   howToExchangeSteps: [
-    'Demuestra tu dominio una vez.',
-    'Conecta un endpoint de solo lectura que liste tus direcciones, más una clave API — solo leemos la lista, nunca movemos fondos.',
-    'Las mantenemos todas sincronizadas, para que tus clientes verifiquen cualquier dirección oficial antes de enviar.',
+    'Publica tu lista oficial de direcciones en tu propio dominio y demuestra el dominio una vez alojando en él un único archivo de Almstins.',
+    'Conecta un endpoint de API de solo lectura que devuelva la lista, más una clave — solo la leemos y nunca movemos fondos.',
+    'Mantenemos la lista sincronizada, para que cualquier cliente verifique una dirección oficial contra tu dominio antes de enviar.',
+  ],
+  howToCustomerTitle: 'Lo que ven tus clientes',
+  howToCustomerSteps: [
+    'Tu cliente escanea el QR o la dirección de tu letrero, factura o checkout.',
+    'Si coincide con un destino que demostraste, ve ✓ Verificada con tu etiqueta — confianza de que eres tú, antes de enviar un centavo.',
+    'Si sustituyeron tu QR por otra dirección, muestra ⚠ Destino no verificado — y se detiene antes de pagarle a un estafador.',
+    'Cada escaneo también corre el chequeo de seguridad gratuito — listas de estafas conocidas, sanciones y honeypots — marcando una dirección peligrosa aunque no sea tuya.',
   ],
 };
 
@@ -440,27 +458,35 @@ export const fr: VerifyDashboardLocale = {
   entError: 'Une erreur s’est produite. Réessayez.',
   demoBanner: 'Ceci est un compte marchand de démonstration — les destinations ci-dessous sont des exemples. Essayez « Vérifier un panneau » pour en vérifier une, puis voyez comment enregistrer les vôtres.',
   demoSignupCta: 'Inscrivez-vous gratuitement →',
-  demoProveNote: 'Dans l’app réelle, ceci vous guide pour publier un petit fichier sur votre domaine — puis cette adresse apparaît comme Vérifiée pour quiconque la consulte. Inscrivez-vous gratuitement pour prouver la vôtre.',
+  demoProveNote: 'Dans l’app réelle, vous prouvez cette adresse en envoyant le petit montant que nous indiquons, depuis ce même portefeuille — nous observons simplement la chaîne, donc nous ne vous demandons jamais de connecter ni de signer quoi que ce soit. Une fois reçu, l’adresse est Vérifiée et verrouillée à votre compte. Inscrivez-vous gratuitement pour prouver la vôtre.',
   howToHeading: 'Comment enregistrer les vôtres',
   howToWalletTitle: 'Ajouter une adresse de portefeuille',
   howToWalletSteps: [
     'Choisissez la chaîne — Bitcoin, Ethereum, Polygon, Avalanche, Solana ou Litecoin.',
-    'Collez l’adresse de réception que vos clients paient réellement — la même que sur votre panneau, facture ou page de paiement.',
-    'Donnez-lui un libellé comme « BTC boutique » pour la reconnaître, puis Enregistrez-la.',
-    'Prouvez votre domaine une fois et elle apparaît comme Vérifiée — pour que chacun confirme qu’elle est bien la vôtre avant d’envoyer.',
+    'Collez l’adresse de réception que vos clients paient réellement — la même que sur votre panneau, facture ou page de paiement — donnez-lui un libellé, puis Enregistrez-la.',
+    'Prouvez que vous la contrôlez : envoyez le petit montant que nous indiquons, depuis ce portefeuille. Nous observons la chaîne publique — nous ne vous demandons jamais de connecter un portefeuille ni de signer quoi que ce soit.',
+    'Dès que nous le voyons, l’adresse passe à Vérifiée et est verrouillée à votre compte — revendiquée une seule fois, donc personne d’autre ne peut la lister comme sienne.',
+    'Pas les clés de cette adresse (une adresse de dépôt en garde ou d’un exchange) ? Elle figure quand même sous votre compte comme Autodéclarée — un niveau clairement inférieur à Vérifiée.',
   ],
   howToStripeTitle: 'Ajouter un lien de paiement Stripe',
   howToStripeSteps: [
     'Dans Stripe, créez un Payment Link (Catalogue de produits → Payment links) et copiez son URL — elle ressemble à https://buy.stripe.com/…',
-    'Ici, sous QR de paiement, collez cette URL Stripe comme valeur — un lien Stripe n’est qu’une URL, donc aucun identifiant ni clé Stripe ne nous est jamais transmis.',
-    'Libellez-le « Paiement Stripe » et Enregistrez-le.',
-    'Scannez ensuite le QR de votre caisse ou facture à tout moment et nous confirmons qu’il pointe toujours vers votre vrai lien Stripe — pas un lien substitué.',
+    'Ici, sous QR de paiement, collez cette URL et Enregistrez-la. C’est toute la « connexion » — un lien de paiement n’est qu’une adresse web publique que vos clients utilisent déjà.',
+    'Vous ne vous connectez jamais à Stripe via nous et nous ne demandons jamais de clés. Nous ne voyons jamais votre solde, vos versements, vos clients ni vos canaux de paiement — il n’y a rien de connecté à exposer.',
+    'Pour le surveiller, scannez le QR de votre caisse ou facture à tout moment et nous confirmons qu’il pointe toujours vers votre vrai lien Stripe — pas un lien substitué par un fraudeur.',
   ],
   howToExchangeTitle: 'Vous publiez de nombreuses adresses ? (exchanges et plateformes)',
   howToExchangeSteps: [
-    'Prouvez votre domaine une fois.',
-    'Connectez un point de terminaison en lecture seule qui liste vos adresses, plus une clé API — nous lisons seulement la liste, sans jamais déplacer de fonds.',
-    'Nous les gardons toutes synchronisées, pour que vos clients vérifient n’importe quelle adresse officielle avant d’envoyer.',
+    'Publiez votre liste officielle d’adresses sur votre propre domaine et prouvez le domaine une fois en y hébergeant un seul fichier Almstins.',
+    'Connectez un point de terminaison d’API en lecture seule qui renvoie la liste, plus une clé — nous la lisons seulement et ne déplaçons jamais de fonds.',
+    'Nous gardons la liste synchronisée, pour que tout client vérifie une adresse officielle par rapport à votre domaine avant d’envoyer.',
+  ],
+  howToCustomerTitle: 'Ce que voient vos clients',
+  howToCustomerSteps: [
+    'Votre client scanne le QR ou l’adresse sur votre panneau, facture ou page de paiement.',
+    'Si cela correspond à une destination que vous avez prouvée, il voit ✓ Vérifiée avec votre libellé — la confiance que c’est bien vous, avant d’envoyer un centime.',
+    'Si votre QR a été remplacé par une autre adresse, il affiche ⚠ Destination non vérifiée — il s’arrête donc avant de payer un fraudeur.',
+    'Chaque scan lance aussi le contrôle de sécurité gratuit — listes d’arnaques connues, sanctions et honeypots — signalant une adresse dangereuse même si elle n’est pas la vôtre.',
   ],
 };
 

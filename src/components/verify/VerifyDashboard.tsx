@@ -108,6 +108,7 @@ function HowToAdd({ t }: { t: VerifyDashboardLocale }) {
     { title: t.howToWalletTitle, steps: t.howToWalletSteps },
     { title: t.howToStripeTitle, steps: t.howToStripeSteps },
     { title: t.howToExchangeTitle, steps: t.howToExchangeSteps },
+    { title: t.howToCustomerTitle, steps: t.howToCustomerSteps },
   ];
   return (
     <section className="vd-howto">
