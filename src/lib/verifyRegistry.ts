@@ -20,7 +20,7 @@ const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0,
 
 export type DestinationKind = 'address' | 'qr';
 export type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
-export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known';
+export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known' | 'micro_deposit';
 
 /** Rails offered for a receiving address (matches the chains the app already supports). */
 export const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'] as const;
@@ -84,6 +84,14 @@ const ENSURE_PROOFS_SQL = `
 const ENSURE_PROOFS_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_domain_proofs_tenant_domain
   ON verify_domain_proofs (tenant_id, domain)`;
 
+// Claim-once: a (rail, address) can be PROVEN by only one account, globally. This
+// partial unique index is the arbiter — a second account proving the same address
+// is rejected at the DB layer regardless of who can see what (RLS-agnostic). The
+// proof paths catch the violation and skip gracefully. Mirrors
+// migrations-pg/0005_verify_claim_once.sql.
+const ENSURE_CLAIM_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_proven_claim
+  ON verify_destinations (rail, value) WHERE proof_status = 'proven' AND kind = 'address'`;
+
 let ensured = false;
 export async function ensureVerifyTables(): Promise<void> {
   if (ensured) return;
@@ -91,6 +99,9 @@ export async function ensureVerifyTables(): Promise<void> {
   await db.execute({ sql: ENSURE_IDX, args: [] });
   await db.execute({ sql: ENSURE_PROOFS_SQL, args: [] });
   await db.execute({ sql: ENSURE_PROOFS_IDX, args: [] });
+  // Backstop only — never let a pre-existing duplicate-proven row break Verify.
+  try { await db.execute({ sql: ENSURE_CLAIM_IDX, args: [] }); }
+  catch (e) { console.error('[verify] claim-once index not applied (resolve duplicate proven claims):', e); }
   ensured = true;
 }
 
@@ -292,13 +303,21 @@ export async function recordProofResult(
   for (const d of dests) {
     if (d.kind !== 'address') continue;
     if (!vouched.has(normalizeDestinationValue(d.value))) continue;
-    await db.execute({
-      sql: `UPDATE verify_destinations
-            SET proof_status = 'proven', proof_method = 'well_known', proof_domain = ?, proven_at = ?, updated_at = ?
-            WHERE id = ? AND tenant_id = ?`,
-      args: [domain, now, now, d.id, tenantId],
-    });
-    flipped.push(d.id);
+    if (d.proofStatus === 'proven') { flipped.push(d.id); continue; } // already ours
+    try {
+      await db.execute({
+        sql: `UPDATE verify_destinations
+              SET proof_status = 'proven', proof_method = 'well_known', proof_domain = ?, proven_at = ?, updated_at = ?
+              WHERE id = ? AND tenant_id = ?`,
+        args: [domain, now, now, d.id, tenantId],
+      });
+      flipped.push(d.id);
+    } catch (e) {
+      // Claim-once: the partial unique index rejects an address another account has
+      // already proven. Leave it unproven for this tenant rather than failing the
+      // whole proof — they can't take ownership of someone else's verified address.
+      console.warn('[verify] destination not flipped (already claimed elsewhere?):', d.id, e);
+    }
   }
   return flipped;
 }
