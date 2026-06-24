@@ -37,6 +37,8 @@ export function isPublicPath(pathname: string): boolean {
 		// Pricing — public marketing page (EN + /prices/es + /prices/fr)
 		pathname === '/prices' ||
 		pathname.startsWith('/prices/') ||
+		// Changelog — public "What's new" page, linked from the login/marketing page
+		pathname === '/changelog' ||
 		pathname === '/signup' ||
 		pathname.startsWith('/signup/') ||
 		// Credentials signup endpoint — must be reachable without a session
