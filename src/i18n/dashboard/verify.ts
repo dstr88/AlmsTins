@@ -90,6 +90,17 @@ export interface VerifyDashboardLocale {
   proveVerifyBtn: string;
   proveVerifyingBtn: string;
   proveError: string;
+  // Self-send proof of control (micro-deposit) — Phase 4.
+  proveMethodSelfSend: string;
+  proveMethodDomain: string;
+  ssHint: string; // "… {address} …"
+  ssCheckBtn: string;
+  ssCheckingBtn: string;
+  ssProven: string;
+  ssNotYet: string;
+  ssClaimedElsewhere: string;
+  ssUnsupported: string;
+  ssUnavailable: string;
   provenBy: string; // "… ({domain})"
   // Verified entities (hosted-API-endpoint variant) — exchanges / large platforms.
   entHeading: string;
@@ -193,6 +204,16 @@ export const en: VerifyDashboardLocale = {
   proveVerifyBtn: 'Verify now',
   proveVerifyingBtn: 'Verifying…',
   proveError: 'Something went wrong. Try again.',
+  proveMethodSelfSend: 'Self-send — no website',
+  proveMethodDomain: 'Domain',
+  ssHint: 'From the wallet that holds {address}, send any tiny amount — even to yourself. We’ll watch the chain and confirm in about a minute. We never ask you to connect or sign anything.',
+  ssCheckBtn: 'I’ve sent it — check now',
+  ssCheckingBtn: 'Checking…',
+  ssProven: '✓ Verified — you control this address.',
+  ssNotYet: 'No outgoing transaction yet. Send one from this address, then check again.',
+  ssClaimedElsewhere: 'This address is already verified by another account.',
+  ssUnsupported: 'Self-send proof isn’t available for this chain yet.',
+  ssUnavailable: 'Couldn’t reach the chain — try again in a moment.',
   provenBy: 'Published by {domain}',
   entHeading: 'Exchanges & large platforms',
   entIntro: 'Publish many receiving addresses? Verify them all from your own domain. Prove the domain, then connect a read-only endpoint and we keep your list in sync.',
@@ -314,6 +335,16 @@ export const es: VerifyDashboardLocale = {
   proveVerifyBtn: 'Verificar ahora',
   proveVerifyingBtn: 'Verificando…',
   proveError: 'Algo salió mal. Inténtalo de nuevo.',
+  proveMethodSelfSend: 'Autoenvío — sin sitio web',
+  proveMethodDomain: 'Dominio',
+  ssHint: 'Desde la billetera que tiene {address}, envía cualquier cantidad mínima — incluso a ti mismo. Observaremos la cadena y lo confirmaremos en aproximadamente un minuto. Nunca te pedimos conectar ni firmar nada.',
+  ssCheckBtn: 'Ya lo envié — comprobar ahora',
+  ssCheckingBtn: 'Comprobando…',
+  ssProven: '✓ Verificada — controlas esta dirección.',
+  ssNotYet: 'Aún no hay transacción saliente. Envía una desde esta dirección y vuelve a comprobar.',
+  ssClaimedElsewhere: 'Esta dirección ya está verificada por otra cuenta.',
+  ssUnsupported: 'La prueba por autoenvío aún no está disponible para esta cadena.',
+  ssUnavailable: 'No se pudo acceder a la cadena — inténtalo de nuevo en un momento.',
   provenBy: 'Publicado por {domain}',
   entHeading: 'Exchanges y plataformas grandes',
   entIntro: '¿Publicas muchas direcciones de cobro? Verifícalas todas desde tu propio dominio. Verifica el dominio, luego conecta un endpoint de solo lectura y mantenemos tu lista sincronizada.',
@@ -435,6 +466,16 @@ export const fr: VerifyDashboardLocale = {
   proveVerifyBtn: 'Vérifier maintenant',
   proveVerifyingBtn: 'Vérification…',
   proveError: 'Une erreur s’est produite. Réessayez.',
+  proveMethodSelfSend: 'Auto-envoi — sans site web',
+  proveMethodDomain: 'Domaine',
+  ssHint: 'Depuis le portefeuille qui détient {address}, envoyez n’importe quel petit montant — même à vous-même. Nous observerons la chaîne et confirmerons en environ une minute. Nous ne vous demandons jamais de connecter ni de signer quoi que ce soit.',
+  ssCheckBtn: 'C’est envoyé — vérifier',
+  ssCheckingBtn: 'Vérification…',
+  ssProven: '✓ Vérifiée — vous contrôlez cette adresse.',
+  ssNotYet: 'Aucune transaction sortante pour l’instant. Envoyez-en une depuis cette adresse, puis revérifiez.',
+  ssClaimedElsewhere: 'Cette adresse est déjà vérifiée par un autre compte.',
+  ssUnsupported: 'La preuve par auto-envoi n’est pas encore disponible pour cette chaîne.',
+  ssUnavailable: 'Impossible d’accéder à la chaîne — réessayez dans un instant.',
   provenBy: 'Publié par {domain}',
   entHeading: 'Exchanges et grandes plateformes',
   entIntro: 'Vous publiez de nombreuses adresses de réception ? Vérifiez-les toutes depuis votre propre domaine. Prouvez le domaine, puis connectez un endpoint en lecture seule et nous gardons votre liste synchronisée.',

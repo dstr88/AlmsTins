@@ -367,11 +367,54 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
   );
 }
 
-// "Prove ownership" — the owner enters the domain that publishes this address, we
-// hand back the exact /.well-known file (listing all their registered addresses),
-// and on Verify we fetch it, match the challenge, and flip every vouched address to
-// proven. Proof is per-domain; one published file covers every address on it.
+// Self-send proof — the merchant sends any outgoing tx FROM the address. We issue a
+// challenge on open (stamps the start), then read the chain for a new outgoing tx
+// after it. Read-only: we never ask them to connect or sign, and never move funds.
+function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null);
+
+  // Issue the challenge on mount so issued_at predates the merchant's send.
+  useEffect(() => {
+    void fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/deposit-challenge`, { method: 'POST' }).catch(() => {});
+  }, [d.id]);
+
+  async function check() {
+    setBusy(true); setOutcome(null);
+    try {
+      const res = await fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/deposit-verify`, { method: 'POST' });
+      const data = await res.json();
+      const ok = data.outcome === 'proven' || data.outcome === 'already_proven';
+      const map: Record<string, string> = {
+        proven: t.ssProven, already_proven: t.ssProven, not_yet: t.ssNotYet, no_challenge: t.ssNotYet,
+        claimed_elsewhere: t.ssClaimedElsewhere, unsupported_rail: t.ssUnsupported, unavailable: t.ssUnavailable,
+      };
+      setOutcome({ text: data.ok ? (map[String(data.outcome)] ?? t.proveError) : t.proveError, ok });
+      if (ok) setTimeout(onProven, 1400);
+    } catch {
+      setOutcome({ text: t.proveError, ok: false });
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <>
+      <p className="vd-prove__hint">{t.ssHint.replace('{address}', d.value)}</p>
+      <div className="vd-prove__row">
+        <button className="vd-prove__verify" onClick={check} disabled={busy}>{busy ? t.ssCheckingBtn : t.ssCheckBtn}</button>
+      </div>
+      {outcome && (
+        <div className={`vd-prove__outcome ${outcome.ok ? 'vd-prove__outcome--ok' : 'vd-prove__outcome--warn'}`}>{outcome.text}</div>
+      )}
+    </>
+  );
+}
+
+// "Prove ownership" — two methods. Self-send (no website): the merchant signs an
+// outgoing tx from the address. Domain: the owner publishes a /.well-known file we
+// fetch and match. Proof is per-address (self-send) or per-domain (the file covers
+// every address it lists).
 function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
+  const [method, setMethod] = useState<'selfsend' | 'domain'>('selfsend');
   const [domain, setDomain] = useState('');
   const [file, setFile] = useState<{ path: string; file: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -423,24 +466,36 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
 
   return (
     <div className="vd-prove">
-      <p className="vd-prove__hint">{t.proveHint}</p>
-      <div className="vd-prove__row">
-        <input className="vd-prove__input" value={domain} onChange={(e) => setDomain(e.target.value)}
-          placeholder={t.proveDomainPlaceholder} spellCheck={false} autoComplete="off" />
-        <button className="vd-prove__get" onClick={getFile} disabled={busy || !domain.trim()}>{t.proveGetFileBtn}</button>
+      <div className="vd-prove__methods">
+        <button type="button" className={`vd-prove__method${method === 'selfsend' ? ' vd-prove__method--on' : ''}`}
+          onClick={() => setMethod('selfsend')}>{t.proveMethodSelfSend}</button>
+        <button type="button" className={`vd-prove__method${method === 'domain' ? ' vd-prove__method--on' : ''}`}
+          onClick={() => setMethod('domain')}>{t.proveMethodDomain}</button>
       </div>
-      {file && (
-        <div className="vd-prove__file">
-          <p className="vd-prove__steps">{t.proveStep1.replace('{url}', url)}</p>
-          <pre className="vd-prove__pre">{file.file}</pre>
+      {method === 'selfsend' ? (
+        <SelfSendProof d={d} t={t} onProven={onProven} />
+      ) : (
+        <>
+          <p className="vd-prove__hint">{t.proveHint}</p>
           <div className="vd-prove__row">
-            <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(file.file); }}>{t.proveCopyBtn}</button>
-            <button className="vd-prove__verify" onClick={prove} disabled={busy}>{busy ? t.proveVerifyingBtn : t.proveVerifyBtn}</button>
+            <input className="vd-prove__input" value={domain} onChange={(e) => setDomain(e.target.value)}
+              placeholder={t.proveDomainPlaceholder} spellCheck={false} autoComplete="off" />
+            <button className="vd-prove__get" onClick={getFile} disabled={busy || !domain.trim()}>{t.proveGetFileBtn}</button>
           </div>
-        </div>
-      )}
-      {outcome && (
-        <div className={`vd-prove__outcome ${outcome.ok ? 'vd-prove__outcome--ok' : 'vd-prove__outcome--warn'}`}>{outcome.text}</div>
+          {file && (
+            <div className="vd-prove__file">
+              <p className="vd-prove__steps">{t.proveStep1.replace('{url}', url)}</p>
+              <pre className="vd-prove__pre">{file.file}</pre>
+              <div className="vd-prove__row">
+                <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(file.file); }}>{t.proveCopyBtn}</button>
+                <button className="vd-prove__verify" onClick={prove} disabled={busy}>{busy ? t.proveVerifyingBtn : t.proveVerifyBtn}</button>
+              </div>
+            </div>
+          )}
+          {outcome && (
+            <div className={`vd-prove__outcome ${outcome.ok ? 'vd-prove__outcome--ok' : 'vd-prove__outcome--warn'}`}>{outcome.text}</div>
+          )}
+        </>
       )}
     </div>
   );
