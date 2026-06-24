@@ -440,9 +440,10 @@ export const GET: APIRoute = async ({ request }) => {
     if (!session) return new Response('Unauthorized', { status: 401 });
     const { tenantId } = session;
 
-    // ── Paywall check ─────────────────────────────────────────────────────────
+    // ── Paywall check (owner bypass — the owner's own tax tool) ───────────────
+    const OWNER_UUID = 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
     const plan = await getActivePlan(tenantId);
-    if (plan.id === 'free') {
+    if (plan.id === 'free' && String(tenantId).toLowerCase() !== OWNER_UUID) {
       return new Response(
         JSON.stringify({
           error: 'The Year Summary PDF is available on any paid plan. Upgrade at almstins.com/dashboard/billing.',

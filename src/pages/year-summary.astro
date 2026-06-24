@@ -32,9 +32,9 @@ const ADMIN_TENANT_IDS = new Set(
 );
 const isAdmin = Boolean(tenantId && ADMIN_TENANT_IDS.has(String(tenantId).toLowerCase()));
 
-// ── Plan check ────────────────────────────────────────────────────────────────
+// ── Plan check (owner always allowed — this page is the owner's own tax tool) ──
 const activePlan = await getActivePlan(tenantId);
-const canDownload = activePlan.id !== 'free';
+const canDownload = activePlan.id !== 'free' || String(tenantId).toLowerCase() === OWNER_UUID.toLowerCase();
 
 const currentYear = new Date().getFullYear();
 const priorYear   = currentYear - 1;
