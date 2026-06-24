@@ -101,6 +101,10 @@ export interface VerifyDashboardLocale {
   ssClaimedElsewhere: string;
   ssUnsupported: string;
   ssUnavailable: string;
+  // Shareable verified-address QR badge.
+  qrBadgeBtn: string;
+  qrBadgeHint: string;
+  qrBadgeDownload: string;
   provenBy: string; // "… ({domain})"
   // Verified entities (hosted-API-endpoint variant) — exchanges / large platforms.
   entHeading: string;
@@ -214,6 +218,9 @@ export const en: VerifyDashboardLocale = {
   ssClaimedElsewhere: 'This address is already verified by another account.',
   ssUnsupported: 'Self-send proof isn’t available for this chain yet.',
   ssUnavailable: 'Couldn’t reach the chain — try again in a moment.',
+  qrBadgeBtn: '📱 QR badge',
+  qrBadgeHint: 'Customers scan this to confirm this address is really yours. Print it or add it to your sign, invoice, or checkout.',
+  qrBadgeDownload: 'Download PNG',
   provenBy: 'Published by {domain}',
   entHeading: 'Exchanges & large platforms',
   entIntro: 'Publish many receiving addresses? Verify them all from your own domain. Prove the domain, then connect a read-only endpoint and we keep your list in sync.',
@@ -345,6 +352,9 @@ export const es: VerifyDashboardLocale = {
   ssClaimedElsewhere: 'Esta dirección ya está verificada por otra cuenta.',
   ssUnsupported: 'La prueba por autoenvío aún no está disponible para esta cadena.',
   ssUnavailable: 'No se pudo acceder a la cadena — inténtalo de nuevo en un momento.',
+  qrBadgeBtn: '📱 Código QR',
+  qrBadgeHint: 'Los clientes lo escanean para confirmar que esta dirección es realmente tuya. Imprímelo o añádelo a tu letrero, factura o pantalla de pago.',
+  qrBadgeDownload: 'Descargar PNG',
   provenBy: 'Publicado por {domain}',
   entHeading: 'Exchanges y plataformas grandes',
   entIntro: '¿Publicas muchas direcciones de cobro? Verifícalas todas desde tu propio dominio. Verifica el dominio, luego conecta un endpoint de solo lectura y mantenemos tu lista sincronizada.',
@@ -476,6 +486,9 @@ export const fr: VerifyDashboardLocale = {
   ssClaimedElsewhere: 'Cette adresse est déjà vérifiée par un autre compte.',
   ssUnsupported: 'La preuve par auto-envoi n’est pas encore disponible pour cette chaîne.',
   ssUnavailable: 'Impossible d’accéder à la chaîne — réessayez dans un instant.',
+  qrBadgeBtn: '📱 Badge QR',
+  qrBadgeHint: 'Les clients le scannent pour confirmer que cette adresse est bien la vôtre. Imprimez-le ou ajoutez-le à votre panneau, facture ou page de paiement.',
+  qrBadgeDownload: 'Télécharger le PNG',
   provenBy: 'Publié par {domain}',
   entHeading: 'Exchanges et grandes plateformes',
   entIntro: 'Vous publiez de nombreuses adresses de réception ? Vérifiez-les toutes depuis votre propre domaine. Prouvez le domaine, puis connectez un endpoint en lecture seule et nous gardons votre liste synchronisée.',

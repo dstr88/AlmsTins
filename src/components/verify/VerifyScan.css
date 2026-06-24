@@ -1,0 +1,29 @@
+/* Public customer-scan page. All colors via design tokens. */
+.vs { max-width: 40rem; margin: 0 auto; padding: clamp(2rem, 6vw, 4rem) 1.25rem 4rem; }
+.vs__title { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 800; letter-spacing: -0.01em; margin: 0 0 0.5rem; color: var(--text-primary); }
+.vs__sub { font-size: 1rem; color: var(--text-secondary); line-height: 1.6; margin: 0 0 1.5rem; }
+
+.vs__row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+.vs__input {
+  flex: 1 1 14rem; min-width: 0; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.92rem;
+  padding: 0.6rem 0.8rem; border-radius: 9px; background: var(--surface-card); color: var(--text-primary);
+  border: 1px solid var(--border-bright);
+}
+.vs__scan, .vs__btn {
+  font-family: inherit; font-size: 0.92rem; font-weight: 700; padding: 0.6rem 1rem;
+  border-radius: 9px; cursor: pointer; border: 1px solid var(--border-bright);
+}
+.vs__scan { background: transparent; color: var(--text-secondary); }
+.vs__btn { background: var(--accent); color: var(--surface-bg); border-color: var(--accent); }
+.vs__btn:disabled, .vs__scan:disabled { opacity: 0.5; cursor: default; }
+
+.vs__card { border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 0.9rem; border: 1px solid var(--border-subtle); background: var(--surface-card); }
+.vs__card--ok { background: var(--gain-bg); border-color: var(--gain-border); }
+.vs__card--warn { background: var(--accent-soft); border-color: var(--accent-glow); }
+.vs__card--err { background: var(--loss-bg); border-color: var(--loss-border); }
+.vs__verdict { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.25rem; color: var(--text-primary); }
+.vs__card--ok .vs__verdict { color: var(--gain); }
+.vs__card--err .vs__verdict { color: var(--loss); }
+.vs__detail { font-size: 0.95rem; color: var(--text-secondary); line-height: 1.55; margin: 0; }
+
+.vs__foot { font-size: 0.82rem; color: var(--text-muted); line-height: 1.6; margin-top: 1.5rem; }

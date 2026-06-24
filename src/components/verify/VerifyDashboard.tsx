@@ -325,12 +325,51 @@ function DestSection({ title, kind, limit, items, loading, onChange, t, isDemo }
   );
 }
 
+// A proven address gets a shareable QR badge. It encodes the public scan URL, so a
+// customer scanning it lands on /verify/scan and sees "✓ Verified". Generated in the
+// browser (qrcode, lazy-loaded) and downloadable as a PNG to print or display.
+function QrBadge({ d, t }: { d: Destination; t: VerifyDashboardLocale }) {
+  const [dataUrl, setDataUrl] = useState('');
+  useEffect(() => {
+    let alive = true;
+    const scanUrl = `https://almstins.com/verify/scan?address=${encodeURIComponent(d.value)}`;
+    (async () => {
+      try {
+        const mod = (await import('qrcode')) as unknown as {
+          toDataURL?: (text: string, opts?: unknown) => Promise<string>;
+          default?: { toDataURL: (text: string, opts?: unknown) => Promise<string> };
+        };
+        const toDataURL = mod.toDataURL ?? mod.default?.toDataURL;
+        if (!toDataURL) return;
+        const url = await toDataURL(scanUrl, { width: 220, margin: 1 });
+        if (alive) setDataUrl(url);
+      } catch { /* ignore — the badge just won't render */ }
+    })();
+    return () => { alive = false; };
+  }, [d.value]);
+
+  return (
+    <div className="vd-qr">
+      {dataUrl
+        ? <img className="vd-qr__img" src={dataUrl} alt="Verification QR" width={220} height={220} />
+        : <div className="vd-qr__img vd-qr__img--loading" />}
+      <p className="vd-qr__hint">{t.qrBadgeHint}</p>
+      {dataUrl && (
+        <a className="vd-qr__dl" href={dataUrl} download={`almstins-verified-${d.rail}.png`}>{t.qrBadgeDownload}</a>
+      )}
+    </div>
+  );
+}
+
 function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => void; t: VerifyDashboardLocale; isDemo?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [proving, setProving] = useState(false);
+  const [showBadge, setShowBadge] = useState(false);
   // Domain attestation proves a domain vouches for an address — only meaningful for
   // address destinations, and only until one is proven.
   const canProve = d.kind === 'address' && d.proofStatus !== 'proven';
+  // A proven address can show its shareable QR badge.
+  const canBadge = d.kind === 'address' && d.proofStatus === 'proven';
   async function del() {
     if (!window.confirm(t.confirmRemove)) return;
     setBusy(true);
@@ -354,6 +393,11 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
             {t.proveBtn}
           </button>
         )}
+        {canBadge && (
+          <button className="vd-row__prove" onClick={() => setShowBadge(s => !s)} aria-expanded={showBadge}>
+            {t.qrBadgeBtn}
+          </button>
+        )}
         {!isDemo && (
           <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
         )}
@@ -363,6 +407,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
           ? <div className="vd-prove"><p className="vd-prove__hint">{t.demoProveNote}</p></div>
           : <ProvePanel d={d} t={t} onProven={() => { setProving(false); onChange(); }} />
       )}
+      {showBadge && canBadge && <QrBadge d={d} t={t} />}
     </div>
   );
 }
