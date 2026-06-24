@@ -18,7 +18,7 @@ import { getCountryForIpHash } from '../lib/analytics/geoip';
 import { hashWithSalt } from '../lib/analytics/hash';
 import { getClientIp } from '../lib/analytics/ip';
 import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } from '../lib/analytics/routes';
-import { isDemoRequest, DEMO_TENANT_ID } from '../lib/demo';
+import { isDemoRequest, DEMO_TENANT_ID, demoCookieClear } from '../lib/demo';
 import { runWithDbContext } from '../lib/dbContext';
 
 /**
@@ -172,13 +172,20 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		// session takes priority over any lingering demo cookie.
 		const session = await getAuthSession(request);
 		const userId = session?.user?.id ? String(session.user.id) : '';
+		// A signed-in user must never carry the demo cookie. Clear any lingering one
+		// (e.g. from an earlier "Try the demo") so a later expired session drops to
+		// /login, never silently back into demo mode.
+		const clearDemoCookie = Boolean(userId) && isDemoRequest(request);
 
 			// Per-request RLS context: the Postgres web role is constrained to this
 			// tenant's rows via app.tenant_id (set transaction-locally by the db shim).
 			// Inert until WEB_DATABASE_URL exists. Background tasks spawned in the
 			// handler inherit this context via AsyncLocalStorage.
-			const proceedWith = async (tenantId: string | null) =>
-				finish(applySecurityHeaders(await runWithDbContext({ tenantId, userId: userId || null }, () => next())));
+			const proceedWith = async (tenantId: string | null) => {
+				const res = applySecurityHeaders(await runWithDbContext({ tenantId, userId: userId || null }, () => next()));
+				if (clearDemoCookie) res.headers.append('Set-Cookie', demoCookieClear());
+				return finish(res);
+			};
 
 			// Admin pages are a cross-tenant "god view" (platform-owner only, guarded by
 			// requireAdminSession inside the handler). They must bypass RLS — run with NO
