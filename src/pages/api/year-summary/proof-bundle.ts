@@ -6,6 +6,7 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getActivePlan } from '@/lib/subscriptions';
+import { isOwner } from '@/lib/owner';
 import { getStoredRecord, getLatestRecordId, getLatestRoot, persistRecordProof } from '@/lib/recordProof/store';
 import { buildRecordProof, PROOF_FORMAT, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
@@ -20,9 +21,8 @@ export const GET: APIRoute = async ({ request }) => {
   if (!session) return new Response('Unauthorized', { status: 401 });
   const { tenantId } = session;
 
-  const OWNER_UUID = 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
   const plan = await getActivePlan(tenantId);
-  if (plan.id === 'free' && String(tenantId).toLowerCase() !== OWNER_UUID) {
+  if (plan.id === 'free' && !isOwner(tenantId)) {
     return json({ error: 'The verification bundle is available on any paid plan.', planRequired: 'paid' }, 403);
   }
 

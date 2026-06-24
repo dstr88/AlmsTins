@@ -17,6 +17,7 @@ import type { APIRoute } from 'astro';
 import PDFDocument from 'pdfkit';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { isOwner } from '@/lib/owner';
 
 export const prerender = false;
 
@@ -411,8 +412,7 @@ export const GET: APIRoute = async ({ request }) => {
     const { tenantId } = session;
 
     // ── Owner-only check ──────────────────────────────────────────────────────
-    const OWNER_UUID = 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
-    if (String(tenantId).toLowerCase() !== OWNER_UUID.toLowerCase()) {
+    if (!isOwner(tenantId)) {
       return new Response('Forbidden', { status: 403 });
     }
 

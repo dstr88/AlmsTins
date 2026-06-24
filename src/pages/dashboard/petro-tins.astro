@@ -4,11 +4,12 @@ import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import PetroTinsGrid from '../../components/petro-tins/PetroTinsGrid';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getPetroSubscription } from '@/lib/petroSubscription';
+import { OWNER_TENANT_ID } from '@/lib/owner';
 
 const session = await requireTenantSession(Astro.request);
 if (!session) return Astro.redirect('/petro-tins');
 // Demo users can view but not write (API endpoints block isDemo mutations)
-const isOwner = session.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
+const isOwner = String(session.tenantId).toLowerCase() === OWNER_TENANT_ID;
 const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.tenantId);
 ---
 

@@ -18,6 +18,7 @@ import PDFDocument from 'pdfkit';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getActivePlan } from '@/lib/subscriptions';
+import { isOwner } from '@/lib/owner';
 import { buildRecordProof, type ProofBundle } from '@/lib/recordProof/buildProof';
 import { persistRecordProof, getLatestRoot } from '@/lib/recordProof/store';
 
@@ -441,9 +442,8 @@ export const GET: APIRoute = async ({ request }) => {
     const { tenantId } = session;
 
     // ── Paywall check (owner bypass — the owner's own tax tool) ───────────────
-    const OWNER_UUID = 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
     const plan = await getActivePlan(tenantId);
-    if (plan.id === 'free' && String(tenantId).toLowerCase() !== OWNER_UUID) {
+    if (plan.id === 'free' && !isOwner(tenantId)) {
       return new Response(
         JSON.stringify({
           error: 'The Year Summary PDF is available on any paid plan. Upgrade at almstins.com/dashboard/billing.',

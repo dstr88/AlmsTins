@@ -12,6 +12,7 @@ import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBr
 import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getAnnualRecords } from '@/i18n/dashboard/annual-records';
+import { isOwner } from '@/lib/owner';
 
 export const prerender = false;
 
@@ -20,8 +21,7 @@ if (!sess) return Astro.redirect('/login', 302);
 const { tenantId, isDemo = false } = sess;
 
 // Gate to owner only
-const OWNER_UUID = 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
-if (String(tenantId).toLowerCase() !== OWNER_UUID.toLowerCase()) {
+if (!isOwner(tenantId)) {
   return Astro.redirect('/dashboard/vault', 302);
 }
 

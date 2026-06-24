@@ -15,6 +15,7 @@ import { getLang } from '@/lib/i18n/locale';
 import { getForm8949 } from '@/i18n/dashboard/yearEnd/form8949';
 
 import { hasTaxAccess } from '@/lib/taxAuth';
+import { isOwner } from '@/lib/owner';
 
 if (!(await hasTaxAccess(Astro.request))) return Astro.redirect('/tax-login', 302);
 
@@ -23,7 +24,7 @@ const t = getForm8949(lang);
 
 const _authSess = await requireTenantSession(Astro.request);
 if (!_authSess) return Astro.redirect('/login');
-const showTurboTax = _authSess.tenantId === 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
+const showTurboTax = isOwner(_authSess.tenantId);
 
 const currentYear = new Date().getFullYear();
 const defaultYear = currentYear - 1;

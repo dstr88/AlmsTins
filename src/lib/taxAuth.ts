@@ -8,6 +8,7 @@
 
 import crypto from 'node:crypto';
 import { requireTenantSession } from './requireTenantSession';
+import { OWNER_TENANT_ID } from './owner';
 
 export const TAX_COOKIE = 'tax_session';
 
@@ -18,7 +19,7 @@ export const TAX_COOKIE = 'tax_session';
  * professional-impression path.
  */
 const ALLOWED_TAX_TENANTS = new Set<string>([
-	'fc236bc3-f032-4064-aea4-1e5e1fa503b1',
+	OWNER_TENANT_ID,
 ]);
 
 function getSecret(): string | null {

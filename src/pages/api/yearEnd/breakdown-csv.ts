@@ -17,6 +17,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 import { getActivePlan } from '../../../lib/subscriptions';
+import { isOwner } from '../../../lib/owner';
 
 const PAGE_SIZE = 50; // rows before repeating the page header
 
@@ -108,8 +109,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     const year    = yearRaw ? Number(yearRaw) : new Date().getFullYear() - 1;
 
     // TurboTax export is restricted to the account owner only
-    const TURBOTAX_TENANT = 'fc236bc3-f032-4064-aea4-1e5e1fa503b1';
-    if (section === 'turbotax' && tenantId !== TURBOTAX_TENANT) {
+    if (section === 'turbotax' && !isOwner(tenantId)) {
       return new Response('Not found', { status: 404 });
     }
 
