@@ -225,7 +225,8 @@ const availableYears = bd?.availableYears ?? [priorYear];
       </div>
     </header>
 
-    <!-- ── Premium sticky note ──────────────────────────────────────────── -->
+    <!-- ── Premium sticky note (only shown when downloads are locked) ───────── -->
+    {!canDownload && (
     <div style="
       background: rgba(45,212,168,0.08);
       border: 1px solid rgba(45,212,168,0.22);
@@ -243,6 +244,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
         Upgrade to unlock PDF export, full multi-year history, and downloadable tax schedules.
       </p>
     </div>
+    )}
 
     <!-- ── Row 1 ──────────────────────────────────────────────────────────── -->
     <div class="tax-row tax-row--1">
