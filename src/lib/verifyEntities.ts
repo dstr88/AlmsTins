@@ -17,7 +17,7 @@ import {
   validateEntityEndpoint, pullEntityList, type EntityPullCode,
 } from './verifyProof';
 import { encryptSecret, decryptSecret, encryptionAvailable } from './verifyCrypto';
-import { normalizeDestinationValue } from './verifyRegistry';
+import { normalizeDestinationValue, ensureVerifyTables } from './verifyRegistry';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -276,9 +276,13 @@ export async function deleteEntity(tenantId: string, id: string): Promise<void> 
 // ── Phase 4: public address lookup ───────────────────────────────────────────
 
 export interface VerifiedAddressHit {
-  /** The domain that published this address (e.g. "coinbase.com"). The ONLY thing we expose. */
-  domain: string;
-  /** Rail the entity tagged it with, or null when published as a bare address. */
+  /** Whether this is an entity's published address or a merchant's proven self-listing. */
+  source: 'entity' | 'merchant';
+  /** Publishing domain (entity path), or null for a merchant self-listing. */
+  domain: string | null;
+  /** The merchant's OWN self-chosen label (merchant path), or null. Never an identity we derived. */
+  label: string | null;
+  /** Rail the address is on, or null. */
   chain: string | null;
 }
 
@@ -301,16 +305,34 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   const normalized = normalizeDestinationValue(rawValue);
   if (!normalized) return null;
   await ensureEntityTables();
-  const res = await db.execute({
+
+  // 1) Entity mirror (exchanges / platforms) — domain-published, fresh.
+  const ent = await db.execute({
     sql: `SELECT chain, entity_domain FROM verified_address_mirror
           WHERE status = 'verified' AND address = ?
             AND refreshed_at IS NOT NULL AND refreshed_at >= ?
           LIMIT 1`,
     args: [normalized, staleCutoffUtc()],
   });
-  if (!res.rows.length) return null;
-  const r = res.rows[0] as any;
-  return { domain: String(r.entity_domain), chain: r.chain ? String(r.chain) : null };
+  if (ent.rows.length) {
+    const r = ent.rows[0] as any;
+    return { source: 'entity', domain: String(r.entity_domain), label: null, chain: r.chain ? String(r.chain) : null };
+  }
+
+  // 2) Proven merchant destinations (self-send / domain proof). Claim-once guarantees at
+  //    most one account can prove a given (rail, value), so the match is unambiguous. We
+  //    expose only the merchant's OWN self-chosen label — never tenant_id or any identity.
+  await ensureVerifyTables();
+  const dest = await db.execute({
+    sql: `SELECT rail, value, label FROM verify_destinations
+          WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)`,
+    args: [normalized, normalized],
+  });
+  const hit = (dest.rows as any[]).find((r) => normalizeDestinationValue(String(r.value)) === normalized);
+  if (hit) {
+    return { source: 'merchant', domain: null, label: hit.label ? String(hit.label) : null, chain: String(hit.rail) };
+  }
+  return null;
 }
 
 // ── Phase 5: monitoring / re-validation (the watchman) ───────────────────────

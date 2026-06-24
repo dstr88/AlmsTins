@@ -44,11 +44,18 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
 
   try {
     const hit = await lookupVerifiedAddress(address);
-    return json({ ok: true, verified: !!hit, domain: hit?.domain ?? null });
+    return json({
+      ok: true,
+      verified: !!hit,
+      source: hit?.source ?? null,
+      domain: hit?.domain ?? null,
+      label: hit?.label ?? null,
+      chain: hit?.chain ?? null,
+    });
   } catch (err) {
     console.error('[verify-lookup] error:', err instanceof Error ? err.message : err);
     // Fail closed: never block the page — just report "not verified" (no badge).
-    return json({ ok: true, verified: false, domain: null });
+    return json({ ok: true, verified: false, source: null, domain: null, label: null, chain: null });
   }
 };
 
