@@ -25,6 +25,15 @@ const t = getChangelog(lang);
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">June 23, 2026</time>
+          <div class="entry-body">
+            <p>The Year Summary export is now a verifiable record, not just a PDF. Alongside the summary you can download a small verification bundle that carries a cryptographic fingerprint of every line in the report, signed by Almstins. Together they turn an annual summary into something you can <em>prove</em> is genuine and unaltered — which matters the moment a number has to stand up to someone else: a tax filing, an audit, an inheritance, a dispute.</p>
+            <p>Anyone you hand the bundle to can check it at <a href="/verify-record">almstins.com/verify-record</a> — drop the file in and it confirms, right there in the browser, whether the record is authentic and whether a single figure has changed since it was generated. The check runs on your own device; nothing is uploaded. An accountant who would rather not take our word for anything can run the very same check offline. Importantly, this proves integrity and origin — that the record is a real Almstins export and hasn't been edited — it does not vouch for the tax math itself.</p>
+            <p>Underneath, every row of the summary is hashed, those hashes are folded into a single fingerprint, and Almstins signs that fingerprint with a private key only it holds. The matching public key is published openly, so the signature can be checked by anyone and forged by no one — change one dollar in the report and the fingerprint no longer lines up. The exact figures behind your numbers are frozen at the moment you generate the export, so a summary you download today will still verify years from now, long after your live balances have moved on.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">June 14, 2026</time>
           <div class="entry-body">
             <p>The wallet checker now has a prominent Scan QR button at the very top of the page. Checking an address with your phone's camera was already possible, but the entry point sat below the fold — and a phone is exactly the device most likely to have a camera ready. The button now sits above everything else, so it's the first thing you see. Tapping it switches to the wallet tab and opens the camera straight away; point it at a wallet QR code and the address is read on your device — nothing is sent until you run the check.</p>
