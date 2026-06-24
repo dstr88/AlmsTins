@@ -104,8 +104,16 @@ const lossAssets: AssetTotal[] = [...lossByAsset.entries()]
   .map(([asset, total]) => ({ asset, total }))
   .sort((a, b) => a.total - b.total);
 
-// Missing cost basis
-const missingBasisCount = bd?.needsAttention?.length ?? 0;
+// Missing cost basis — surface WHICH coins are affected, not just a count
+const missingBasisItems = bd?.needsAttention ?? [];
+const missingBasisCount = missingBasisItems.length;
+const missingBasisBySymbol = new Map<string, number>();
+for (const it of missingBasisItems) {
+  const sym = (it.asset || '—').toUpperCase();
+  missingBasisBySymbol.set(sym, (missingBasisBySymbol.get(sym) ?? 0) + 1);
+}
+// [symbol, lotCount] pairs, most-affected first — drives the card chips.
+const missingBasisSymbols = [...missingBasisBySymbol.entries()].sort((a, b) => b[1] - a[1]);
 
 // Unclassified count
 const unclassCount = Number((unclassRes.rows[0] as { cnt: unknown })?.cnt ?? 0);
@@ -585,7 +593,14 @@ const availableYears = bd?.availableYears ?? [priorYear];
             <div class="basis-warning">
               <p class="basis-warning__count">{missingBasisCount}</p>
               <p class="basis-warning__label">lots with missing cost basis</p>
-              <a href="/dashboard/yearEnd/lots" class="basis-warning__link">Resolve in Lot Manager →</a>
+              {missingBasisSymbols.length > 0 && (
+                <div class="basis-warning__symbols">
+                  {missingBasisSymbols.map(([sym, n]) => (
+                    <span class="basis-warning__chip">{sym}{n > 1 ? ` ×${n}` : ''}</span>
+                  ))}
+                </div>
+              )}
+              <a href={`/dashboard/yearEnd/lots?year=${selectedYear}&method=fifo#missing-basis`} class="basis-warning__link">Resolve in Lot Manager →</a>
             </div>
           )}
         </div>
