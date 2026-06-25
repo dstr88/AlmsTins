@@ -21,6 +21,7 @@
  */
 
 import { db } from './db';
+import { getAaveDepositTax, type AaveDepositTax } from './jurisdictionProfile';
 import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './yearEnd/lotSelection';
 
 // ─── kinds that are taxable ordinary income (not capital events) ──────────────
@@ -116,6 +117,16 @@ export type SectionTotals = {
   heldCostBasis: number;
 };
 
+export type AaveDepositItem = {
+  asset: string;
+  amount: number;              // token quantity supplied to Aave
+  date: string;                // deposit timestamp
+  amountUsd: number | null;    // FMV at deposit (the would-be proceeds)
+  costBasisUsd: number | null; // cost basis of the supplied lots (null if untraced)
+  gainLossUsd: number | null;  // amountUsd − costBasisUsd
+  txHash: string | null;
+};
+
 export type AnnualBreakdown = {
   year: number;
   availableYears: number[];
@@ -127,6 +138,10 @@ export type AnnualBreakdown = {
   /** Card rebates (Crypto.com "Card Rebate" transactions) — non-taxable, shown separately. */
   cardRebates: IncomeItem[];
   nftHoldings: NftHolding[];
+  /** Aave supplies surfaced as POTENTIAL taxable disposals (contested — see aaveDepositTax). */
+  aaveDeposits?: AaveDepositItem[];
+  /** The tenant's district choice governing how the above are treated. */
+  aaveDepositTax?: AaveDepositTax;
   totals: SectionTotals;
   /** Which data source was actually used to compute capital gains/income. */
   dataSource: 'lifecycle' | 'pipeline';
@@ -195,6 +210,9 @@ export async function buildAnnualBreakdown(
   let stillHolding: HeldPosition[]       = [];
   let income: IncomeItem[]               = [];
   let cardRebates: IncomeItem[]          = [];
+  // Aave supplies surfaced for review — populated by the lifecycle FIFO pass below.
+  const aaveDeposits: AaveDepositItem[]  = [];
+  const aaveDepositTax = await getAaveDepositTax(tenantId);
 
   if (resolvedSource === 'pipeline') {
     // ── PIPELINE PATH ────────────────────────────────────────────────────
@@ -558,11 +576,19 @@ export async function buildAnnualBreakdown(
           continue;
         }
 
+        // Aave deposit (collateral_deposit): accumulate the supplied lots' cost basis
+        // so we can surface the would-be gain/loss for review. Additive — does not
+        // change realized gains, lots, or the (still non-taxable) treatment.
+        const isAaveDeposit = txClass === 'collateral_deposit';
+        let aaveCostBasis = 0;
+        let aaveBasisComplete = true;
+
         let remaining = amount;
         const list    = lotsByAsset.get(asset) ?? [];
 
         while (remaining > 0) {
           if (list.length === 0) {
+            if (isAaveDeposit) aaveBasisComplete = false;
             // orphaned — no matching buy found (only flag if it's a real taxable sell)
             if (sellInYear && isTaxable) {
               needsAttentionLifecycle.push({
@@ -587,6 +613,10 @@ export async function buildAnnualBreakdown(
           const take        = Math.min(remaining, lot.amount);
           const costPortion =
             lot.costUsd != null ? (take / lot.amount) * lot.costUsd : null;
+          if (isAaveDeposit) {
+            if (costPortion != null) aaveCostBasis += costPortion;
+            else aaveBasisComplete = false;
+          }
           const sellPortion =
             nativeUsd != null ? (take / amount) * nativeUsd : null;
           const gainLoss =
@@ -625,6 +655,16 @@ export async function buildAnnualBreakdown(
         }
 
         lotsByAsset.set(asset, list);
+
+        if (isAaveDeposit && sellInYear) {
+          aaveDeposits.push({
+            asset, amount, date: timestamp,
+            amountUsd: nativeUsd,
+            costBasisUsd: aaveBasisComplete ? aaveCostBasis : null,
+            gainLossUsd: (nativeUsd != null && aaveBasisComplete) ? nativeUsd - aaveCostBasis : null,
+            txHash: typeof row.tx_hash === 'string' ? row.tx_hash : null,
+          });
+        }
       }
     }
 
@@ -804,6 +844,8 @@ export async function buildAnnualBreakdown(
     income,
     cardRebates,
     nftHoldings,
+    aaveDeposits,
+    aaveDepositTax,
     totals,
     dataSource: resolvedSource,
   };
