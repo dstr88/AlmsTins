@@ -115,6 +115,11 @@ for (const it of missingBasisItems) {
 // [symbol, lotCount] pairs, most-affected first — drives the card chips.
 const missingBasisSymbols = [...missingBasisBySymbol.entries()].sort((a, b) => b[1] - a[1]);
 
+// Aave deposits surfaced as potential (contested) tax events + the district choice.
+const aaveDeposits = bd?.aaveDeposits ?? [];
+const aaveTax = bd?.aaveDepositTax ?? 'undecided';
+const fmtUsd0 = (n: number | null | undefined) => n == null ? '—' : `$${Math.round(n).toLocaleString('en-US')}`;
+
 // Unclassified count
 const unclassCount = Number((unclassRes.rows[0] as { cnt: unknown })?.cnt ?? 0);
 
@@ -606,6 +611,68 @@ const availableYears = bd?.availableYears ?? [priorYear];
         </div>
       </div>
     </div>
+
+    {aaveDeposits.length > 0 && (
+    <!-- ── Aave deposits — potential tax events ──────────────────────────── -->
+    <section class="aave-tax">
+      <div class="aave-tax__head">
+        <span class="aave-tax__icon">🏦</span>
+        <h2 class="aave-tax__title">Aave deposits — potential tax events</h2>
+      </div>
+      <p class="aave-tax__note">
+        Some jurisdictions treat moving an asset into a DeFi contract (like Aave) as a taxable
+        disposal; others treat it as a non-taxable deposit. Below is the gain or loss at each deposit
+        <strong>if your district treats it as one</strong>. This is informational — confirm with your
+        tax advisor. Your choice applies to all your Aave deposits.
+      </p>
+
+      <form class="aave-tax__choice" id="aaveTaxForm">
+        <label class={`aave-tax__opt${aaveTax === 'tax_event' ? ' aave-tax__opt--on' : ''}`}>
+          <input type="radio" name="aaveTax" value="tax_event" checked={aaveTax === 'tax_event'} /> Tax event in my district
+        </label>
+        <label class={`aave-tax__opt${aaveTax === 'undecided' ? ' aave-tax__opt--on' : ''}`}>
+          <input type="radio" name="aaveTax" value="undecided" checked={aaveTax === 'undecided'} /> Undecided
+        </label>
+        <label class={`aave-tax__opt${aaveTax === 'not_tax_event' ? ' aave-tax__opt--on' : ''}`}>
+          <input type="radio" name="aaveTax" value="not_tax_event" checked={aaveTax === 'not_tax_event'} /> Not a tax event
+        </label>
+      </form>
+      <p class="aave-tax__status" id="aaveTaxStatus"></p>
+
+      <div class="aave-tax__list">
+        {aaveDeposits.map((d) => (
+          <div class="aave-tax__row">
+            <span class="aave-tax__asset">{d.asset}</span>
+            <span class="aave-tax__amt">{fmtUsd0(d.amountUsd)} in</span>
+            <span class="aave-tax__basis">cost basis {fmtUsd0(d.costBasisUsd)}</span>
+            <span class={`aave-tax__gl ${(d.gainLossUsd ?? 0) >= 0 ? 'gain' : 'loss'}`}>
+              {d.gainLossUsd == null ? '—' : `${d.gainLossUsd >= 0 ? '+' : ''}${fmtUsd0(d.gainLossUsd)}`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+    )}
+
+    <script>
+      // Persist the district choice; reload so the breakdown reflects it.
+      document.getElementById('aaveTaxForm')?.addEventListener('change', async (e) => {
+        const t = e.target as HTMLInputElement | null;
+        if (!t || t.name !== 'aaveTax') return;
+        const status = document.getElementById('aaveTaxStatus');
+        if (status) status.textContent = 'Saving…';
+        try {
+          const res = await fetch('/api/tax/aave-deposit-treatment', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ treatment: t.value }),
+          });
+          if (!res.ok) throw new Error('save failed');
+          window.location.reload();
+        } catch {
+          if (status) status.textContent = 'Could not save — try again.';
+        }
+      });
+    </script>
 
     <!-- ── Downloads ─────────────────────────────────────────────────────── -->
     <section class="downloads">

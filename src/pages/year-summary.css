@@ -762,3 +762,22 @@
   .tax-hero__inner { padding: 1.5rem 1.25rem 0; }
   .year-bar { padding: .75rem 1.25rem; }
 }
+
+/* ── Aave deposits — potential tax events (review surface) ─────────────────── */
+.aave-tax { margin: 1.5rem 0; padding: 1.25rem; border-radius: 14px; background: var(--surface-card); border: 1px solid var(--border-subtle); }
+.aave-tax__head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.aave-tax__icon { font-size: 1.1rem; }
+.aave-tax__title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+.aave-tax__note { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; margin: 0 0 1rem; }
+.aave-tax__note strong { color: var(--text-primary); }
+.aave-tax__choice { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.aave-tax__opt { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; color: var(--text-secondary); cursor: pointer; padding: 0.4rem 0.7rem; border-radius: 8px; border: 1px solid var(--border-bright); }
+.aave-tax__opt--on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.aave-tax__status { font-size: 0.82rem; color: var(--text-muted); min-height: 1.1em; margin: 0 0 0.8rem; }
+.aave-tax__list { display: flex; flex-direction: column; gap: 0.4rem; }
+.aave-tax__row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 1rem; padding: 0.5rem 0.7rem; border-radius: 8px; background: var(--surface-card-2); font-size: 0.9rem; }
+.aave-tax__asset { font-weight: 700; color: var(--text-primary); min-width: 4ch; }
+.aave-tax__amt, .aave-tax__basis { color: var(--text-secondary); }
+.aave-tax__gl { margin-left: auto; font-weight: 700; }
+.aave-tax__gl.gain { color: var(--gain); }
+.aave-tax__gl.loss { color: var(--loss); }
