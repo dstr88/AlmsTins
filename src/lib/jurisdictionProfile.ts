@@ -123,3 +123,44 @@ export async function setJurisdiction(
     args: [tenantId, jurisdiction],
   });
 }
+
+// ── Aave deposit tax treatment (district-level choice) ─────────────────────────
+//
+// Supplying an asset into a DeFi contract (Aave) is a contested tax event: some
+// districts treat receiving the aToken as a taxable crypto-to-crypto disposal,
+// others as a non-taxable deposit. This is the user's per-district choice; it is
+// NOT advice and Almstins never files — it only organizes the record accordingly.
+//   'undecided'     → flag deposits for review (default; keeps today's non-taxable books)
+//   'tax_event'     → realize the gain/loss on supply, step basis up to FMV
+//   'not_tax_event' → non-taxable pass-through, stop flagging
+
+export type AaveDepositTax = 'tax_event' | 'undecided' | 'not_tax_event';
+
+/** The tenant's Aave-deposit treatment. Fails open to 'undecided' (no books change). */
+export async function getAaveDepositTax(tenantId: string): Promise<AaveDepositTax> {
+  try {
+    const res = await db.execute({
+      sql:  'SELECT aave_deposit_tax FROM tenant_settings WHERE tenant_id = ?',
+      args: [tenantId],
+    });
+    const v = String((res.rows[0] as { aave_deposit_tax?: unknown } | undefined)?.aave_deposit_tax ?? 'undecided');
+    return v === 'tax_event' || v === 'not_tax_event' ? v : 'undecided';
+  } catch {
+    // Column/table may not exist yet (pre-migration) — default to no-change.
+    return 'undecided';
+  }
+}
+
+/** Persist the tenant's Aave-deposit treatment (upsert). */
+export async function setAaveDepositTax(tenantId: string, value: AaveDepositTax): Promise<void> {
+  await db.execute({
+    sql: `
+      INSERT INTO tenant_settings (tenant_id, aave_deposit_tax)
+      VALUES (?, ?)
+      ON CONFLICT(tenant_id) DO UPDATE SET
+        aave_deposit_tax = excluded.aave_deposit_tax,
+        updated_at       = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')
+    `,
+    args: [tenantId, value],
+  });
+}
