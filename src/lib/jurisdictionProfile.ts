@@ -136,6 +136,23 @@ export async function setJurisdiction(
 
 export type AaveDepositTax = 'tax_event' | 'undecided' | 'not_tax_event';
 
+// The aave_deposit_tax column is added by migrations-pg/0007. Self-apply it lazily
+// too (idempotent ALTER, routed to the owner pool) so the setting works on a deploy
+// even before that migration is run manually. Reads fail open, so only writes need it.
+let aaveColEnsured = false;
+async function ensureAaveDepositTaxColumn(): Promise<void> {
+  if (aaveColEnsured) return;
+  try {
+    await db.execute({
+      sql: `ALTER TABLE tenant_settings ADD COLUMN IF NOT EXISTS aave_deposit_tax TEXT NOT NULL DEFAULT 'undecided'`,
+      args: [],
+    });
+    aaveColEnsured = true;
+  } catch (e) {
+    console.error('[jurisdictionProfile] aave_deposit_tax column ensure failed:', e);
+  }
+}
+
 /** The tenant's Aave-deposit treatment. Fails open to 'undecided' (no books change). */
 export async function getAaveDepositTax(tenantId: string): Promise<AaveDepositTax> {
   try {
@@ -153,6 +170,7 @@ export async function getAaveDepositTax(tenantId: string): Promise<AaveDepositTa
 
 /** Persist the tenant's Aave-deposit treatment (upsert). */
 export async function setAaveDepositTax(tenantId: string, value: AaveDepositTax): Promise<void> {
+  await ensureAaveDepositTaxColumn();
   await db.execute({
     sql: `
       INSERT INTO tenant_settings (tenant_id, aave_deposit_tax)
