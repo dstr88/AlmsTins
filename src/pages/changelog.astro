@@ -25,6 +25,16 @@ const t = getChangelog(lang);
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">June 25, 2026</time>
+          <div class="entry-body">
+            <p>A merchant can now prove they control a crypto receiving address — with no website and without connecting a wallet. On the Verify dashboard, register an address, then prove it by sending any tiny amount from that wallet, even to yourself. Almstins watches the public chain for it and marks the address Verified. Nothing is connected and nothing is signed for us; the only thing that proves you control an address is sending <em>from</em> it, and that's all this asks. An address can be claimed by one account only, so no one else can list yours as theirs.</p>
+            <p>Every verified address gets a downloadable QR badge. Print it, or add it to your sign, invoice, or checkout, and a customer can scan it to confirm — on a public page, no account needed — that the address is really yours before they send anything.</p>
+            <p>That check lives at <a href="/verify/scan">almstins.com/verify/scan</a>: paste or scan any address and it answers two questions at once — whether it's a verified Almstins destination, and whether it's flagged by the scam, sanctions, and honeypot screens. It's the moment-before-you-pay check, built for the person doing the paying.</p>
+            <p>Also fixed: if you'd tried the demo and later signed in, a leftover demo session could occasionally still show you the sample dashboard. Your signed-in account now always takes priority, and signing in clears any leftover demo session — so you'll never see sample data in place of your own.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">June 23, 2026</time>
           <div class="entry-body">
             <p>The Year Summary export is now a verifiable record, not just a PDF. Alongside the summary you can download a small verification bundle that carries a cryptographic fingerprint of every line in the report, signed by Almstins. Together they turn an annual summary into something you can <em>prove</em> is genuine and unaltered — which matters the moment a number has to stand up to someone else: a tax filing, an audit, an inheritance, a dispute.</p>
