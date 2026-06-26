@@ -12,6 +12,7 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { isOwner } from '@/lib/owner';
 import {
   ensureReceiptsTable,
   listReceipts,
@@ -41,6 +42,7 @@ function todayIso(): string {
 export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
+  if (!isOwner(session.tenantId)) return json({ ok: false, error: 'not_available' }, 403);
   const { tenantId } = session;
 
   const url  = new URL(request.url);
@@ -54,6 +56,7 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
+  if (!isOwner(session.tenantId)) return json({ ok: false, error: 'not_available' }, 403);
   if (session.isDemo) return json({ ok: false, error: 'demo_readonly' }, 403);
   const { tenantId } = session;
 
@@ -108,6 +111,7 @@ export const POST: APIRoute = async ({ request }) => {
 export const PATCH: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
+  if (!isOwner(session.tenantId)) return json({ ok: false, error: 'not_available' }, 403);
   if (session.isDemo) return json({ ok: false, error: 'demo_readonly' }, 403);
   const { tenantId } = session;
 
@@ -152,6 +156,7 @@ export const PATCH: APIRoute = async ({ request }) => {
 export const DELETE: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false }, 401);
+  if (!isOwner(session.tenantId)) return json({ ok: false, error: 'not_available' }, 403);
   if (session.isDemo) return json({ ok: false, error: 'demo_readonly' }, 403);
   const { tenantId } = session;
 

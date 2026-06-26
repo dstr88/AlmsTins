@@ -11,6 +11,7 @@
 import type { APIRoute } from 'astro';
 import JSZip from 'jszip';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { isOwner } from '@/lib/owner';
 import { getReceiptsForExport } from '@/lib/petroReceipts';
 
 export const prerender = false;
@@ -49,6 +50,7 @@ function slug(s: string | null): string {
 export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return new Response('Unauthorized', { status: 401 });
+  if (!isOwner(session.tenantId)) return new Response('Forbidden', { status: 403 });
   const { tenantId } = session;
 
   const url  = new URL(request.url);

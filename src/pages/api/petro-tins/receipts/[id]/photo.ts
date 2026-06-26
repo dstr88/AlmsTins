@@ -8,6 +8,7 @@
 
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { isOwner } from '@/lib/owner';
 import { getReceiptPhoto } from '@/lib/petroReceipts';
 
 export const prerender = false;
@@ -15,6 +16,7 @@ export const prerender = false;
 export const GET: APIRoute = async ({ request, params }) => {
   const session = await requireTenantSession(request);
   if (!session) return new Response('Unauthorized', { status: 401 });
+  if (!isOwner(session.tenantId)) return new Response('Not found', { status: 404 });
   const { tenantId } = session;
 
   const id = String(params.id ?? '').trim();
