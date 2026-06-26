@@ -1,0 +1,267 @@
+/* Receipt Registry — PetroTins tax-receipt log. Design-tokens only. */
+
+.rcpt {
+  background: var(--surface-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 12px;
+  padding: 1.25rem 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* Header */
+.rcpt__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.rcpt__head-text { flex: 1; min-width: 240px; }
+.rcpt__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.3rem;
+}
+.rcpt__subtitle {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+  max-width: 60ch;
+}
+.rcpt__subtitle strong { color: var(--text-primary); }
+
+.rcpt__export {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-glow);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.83rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.rcpt__export:hover { background: var(--accent-glow); }
+
+/* Add form */
+.rcpt__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  background: var(--surface-card-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+.rcpt__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.rcpt__field--date   { width: 9.5rem; }
+.rcpt__field--amount { width: 7rem; }
+.rcpt__field--desc   { flex: 1 1 14rem; }
+.rcpt__field--cat    { width: 9rem; }
+.rcpt__field--file   { flex: 1 1 12rem; }
+.rcpt__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.rcpt__opt { text-transform: none; letter-spacing: 0; color: var(--text-muted); font-weight: 400; }
+
+.rcpt__input {
+  background: var(--surface-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 7px;
+  padding: 0.45rem 0.6rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  color-scheme: dark;
+}
+.rcpt__input:focus { outline: 2px solid var(--accent-glow); border-color: var(--accent); }
+.rcpt__input::placeholder { color: var(--text-muted); }
+.rcpt__input--amount { text-align: right; font-variant-numeric: tabular-nums; }
+.rcpt__input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+.rcpt__input--file { padding: 0.35rem 0.4rem; font-size: 0.78rem; color: var(--text-secondary); }
+.rcpt__input--file::file-selector-button {
+  background: var(--surface-hover);
+  border: 1px solid var(--border-bright);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.rcpt__add-btn {
+  background: var(--accent);
+  color: var(--surface-bg);
+  border: none;
+  border-radius: 7px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.rcpt__add-btn:hover:not(:disabled) { opacity: 0.9; }
+.rcpt__add-btn:disabled { opacity: 0.55; cursor: default; }
+
+.rcpt__error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--loss);
+  background: var(--loss-bg);
+  border: 1px solid var(--loss-border);
+  border-radius: 7px;
+  padding: 0.5rem 0.75rem;
+}
+.rcpt__demo-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Summary bar */
+.rcpt__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+.rcpt__totals { display: flex; align-items: baseline; gap: 0.75rem; }
+.rcpt__count { font-size: 0.8rem; color: var(--text-muted); }
+.rcpt__total-amt {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.rcpt__year { display: flex; align-items: center; gap: 0.5rem; }
+.rcpt__year-label { font-size: 0.75rem; color: var(--text-muted); }
+.rcpt__select {
+  background: var(--surface-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 7px;
+  padding: 0.35rem 0.6rem;
+  color: var(--text-primary);
+  font-size: 0.83rem;
+  cursor: pointer;
+  color-scheme: dark;
+}
+.rcpt__select:focus { outline: 2px solid var(--accent-glow); border-color: var(--accent); }
+
+.rcpt__loading, .rcpt__empty {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+  margin: 0;
+}
+
+/* Table */
+.rcpt__table-wrap { width: 100%; overflow-x: auto; }
+.rcpt__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.rcpt__table thead tr { border-bottom: 2px solid var(--border-bright); }
+.rcpt__table th {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.rcpt__table th.col-amt { text-align: right; }
+.rcpt__table th.col-photo { text-align: center; }
+.rcpt__table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 0.1s;
+}
+.rcpt__table tbody tr:hover { background: var(--surface-hover); }
+.rcpt__table td {
+  padding: 0.5rem 0.75rem;
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.rcpt__table td.col-date { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rcpt__table td.col-desc { color: var(--text-primary); }
+.rcpt__table td.col-amt {
+  text-align: right;
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.rcpt__table td.col-photo { text-align: center; }
+.rcpt__table td.col-del { text-align: center; width: 32px; }
+.rcpt__muted { color: var(--text-muted); }
+
+.rcpt__thumb {
+  height: 40px;
+  width: 40px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--border-bright);
+  cursor: pointer;
+  display: inline-block;
+  vertical-align: middle;
+}
+.rcpt__pdf {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.rcpt__pdf:hover { text-decoration: underline; }
+
+.rcpt__del {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition: color 0.12s, background 0.12s;
+}
+.rcpt__del:hover { color: var(--loss); background: var(--loss-bg); }
+
+/* Mobile: stack form fields full width */
+@media (max-width: 640px) {
+  .rcpt__field--date,
+  .rcpt__field--amount,
+  .rcpt__field--cat,
+  .rcpt__field--desc,
+  .rcpt__field--file { width: 100%; flex: 1 1 100%; }
+  .rcpt__add-btn { width: 100%; }
+}

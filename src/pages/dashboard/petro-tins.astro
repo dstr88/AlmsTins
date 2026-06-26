@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import PetroTinsGrid from '../../components/petro-tins/PetroTinsGrid';
+import ReceiptRegistry from '../../components/petro-tins/ReceiptRegistry';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getPetroSubscription } from '@/lib/petroSubscription';
 import { OWNER_TENANT_ID } from '@/lib/owner';
@@ -79,6 +80,9 @@ const petroTier = session.isDemo ? 'free' : await getPetroSubscription(session.t
 
       <!-- Tins grid — React component handles layout, fetching, and rendering -->
       <PetroTinsGrid client:load />
+
+      <!-- Receipt registry — tax-receipt log: amount, purpose, photo + ZIP/CSV export -->
+      <ReceiptRegistry client:load isDemo={session.isDemo ?? false} />
 
     </div><!-- /dt-content -->
 
