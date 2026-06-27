@@ -1,5 +1,9 @@
 name: Weekly DeFi Sync
 
+# Backup for the Render `sync-aave` cron: if Render's scheduler fails to fire, this
+# weekly GitHub Actions job hits /api/cron/sync-defi (same logic) so DeFi data still
+# refreshes. Runs Saturdays; the Render cron runs Mondays — the sync logic's 6-day
+# staleness skip keeps them from doing duplicate work.
 on:
   schedule:
     - cron: '0 2 * * 6'
@@ -9,16 +13,15 @@ jobs:
   defi-sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger DeFi sync
+      - name: Trigger DeFi sync (backup for Render sync-aave)
         env:
           SYNC_URL: ${{ secrets.SYNC_URL }}
-          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          if [ -z "$SYNC_URL" ]; then
-            echo "SYNC_URL secret missing."
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
             exit 1
           fi
-          curl -sS -X POST "$SYNC_URL/api/sync/defi" \
-            -H "Content-Type: application/json" \
-            -H "x-sync-token: $SYNC_TOKEN" \
-            -d '{"mode":"full"}'
+          curl -sS --fail \
+            "$SYNC_URL/api/cron/sync-defi?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"
