@@ -68,3 +68,44 @@ describe('verify published-source swap analysis', () => {
     expect(analyzePublishedHtml('address', 'ethereum', EVM, '').outcome).toBe('missing');
   });
 });
+
+describe('verify published-source — hardening / edge cases', () => {
+  const EVM = '0xAbC0000000000000000000000000000000001234';
+  // Real, checksum-valid Bitcoin legacy addresses.
+  const BTC_P2PKH = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa';   // genesis (version 0x00)
+  const BTC_P2SH = '3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy';    // P2SH (version 0x05)
+  const BTC_BAD = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNb';     // genesis w/ corrupted checksum
+
+  it('EVM address inside an href attribute is found (present + swap)', () => {
+    expect(analyzePublishedHtml('address', 'ethereum', EVM, `<a href="ethereum:${EVM}">Pay</a>`).outcome).toBe('present');
+    const evil = '0xdead000000000000000000000000000000009999';
+    expect(analyzePublishedHtml('address', 'ethereum', EVM, `<a href="ethereum:${evil}">Pay</a>`).outcome).toBe('swapped');
+  });
+
+  it('registered address appearing multiple times → present', () => {
+    expect(analyzePublishedHtml('address', 'ethereum', EVM, `${EVM} ... again ${EVM}`).outcome).toBe('present');
+  });
+
+  it('BTC legacy: checksum-validated swap detection', () => {
+    expect(analyzePublishedHtml('address', 'bitcoin', BTC_P2PKH, `pay ${BTC_P2PKH}`).outcome).toBe('present');
+    const r = analyzePublishedHtml('address', 'bitcoin', BTC_P2PKH, `pay ${BTC_P2SH}`);
+    expect(r.outcome).toBe('swapped');
+    expect(r.found).toContain(BTC_P2SH);
+  });
+
+  it('BTC legacy: a checksum-INVALID lookalike is not a conflict → missing (no false alert)', () => {
+    expect(analyzePublishedHtml('address', 'bitcoin', BTC_P2PKH, `pay ${BTC_BAD}`).outcome).toBe('missing');
+  });
+
+  it('cross-chain guard: a BTC legacy address is not treated as a Litecoin conflict', () => {
+    const ltc = 'ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6';
+    expect(analyzePublishedHtml('address', 'litecoin', ltc, `pay ${BTC_P2PKH}`).outcome).toBe('missing');
+  });
+
+  it('Solana: a DIFFERENT valid pubkey is never a conflict (no checksum → presence-only)', () => {
+    const wsol = 'So11111111111111111111111111111111111111112';
+    const usdc = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+    // Both are valid 32-byte pubkeys; registered one absent, other present → still missing.
+    expect(analyzePublishedHtml('address', 'solana', wsol, `pay ${usdc}`).outcome).toBe('missing');
+  });
+});
