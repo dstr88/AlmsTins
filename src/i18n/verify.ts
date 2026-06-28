@@ -103,7 +103,7 @@ const en: VerifyCopy = {
       },
       {
         title: "Prove they're yours",
-        body: 'A quick signature, or a small file on your site. No wallet connection. No keys. Ever.',
+        body: 'For a wallet address, send yourself a tiny amount or host a small file on your site — never a wallet connection, never signing. For a payment link (like Stripe), registering it in your account is the proof. No keys. Ever.',
       },
       {
         title: 'Verify before you trust',
@@ -212,7 +212,7 @@ const es: VerifyCopy = {
       },
       {
         title: 'Demuestra que son tuyas',
-        body: 'Una firma rápida, o un pequeño archivo en tu sitio. Sin conectar la billetera. Sin claves. Nunca.',
+        body: 'Para una dirección de billetera, envíate un pequeño monto o aloja un pequeño archivo en tu sitio — nunca conectas la billetera ni firmas nada. Para un enlace de pago (como Stripe), registrarlo en tu cuenta es la prueba. Sin claves. Nunca.',
       },
       {
         title: 'Verifica antes de confiar',
@@ -321,7 +321,7 @@ const fr: VerifyCopy = {
       },
       {
         title: "Prouvez qu'ils sont à vous",
-        body: 'Une signature rapide, ou un petit fichier sur votre site. Sans connexion de portefeuille. Sans clés. Jamais.',
+        body: 'Pour une adresse de portefeuille, envoyez-vous un petit montant ou hébergez un petit fichier sur votre site — jamais de connexion de portefeuille, jamais de signature. Pour un lien de paiement (comme Stripe), l’enregistrer dans votre compte est la preuve. Sans clés. Jamais.',
       },
       {
         title: 'Vérifiez avant de faire confiance',

@@ -43,6 +43,7 @@ export interface VerifyDashboardLocale {
   addError: string;
   addErrDuplicate: string;
   addErrInvalid: string;
+  addErrClaimed: string;
   // Verify a sign
   verifyTitle: string;
   verifyHint: string;
@@ -168,6 +169,7 @@ export const en: VerifyDashboardLocale = {
   addError: 'Could not add that destination.',
   addErrDuplicate: 'You have already registered this destination.',
   addErrInvalid: 'A destination value is required.',
+  addErrClaimed: 'This payment link is already verified by another Almstins account.',
   verifyTitle: 'Verify a sign',
   verifyHint: 'Scan or paste the QR / address from a sign, invoice, or checkout to confirm it still matches a destination you registered — before anyone pays it.',
   verifyPlaceholder: 'Scan or paste an address or payment link',
@@ -257,9 +259,9 @@ export const en: VerifyDashboardLocale = {
   howToStripeTitle: 'Add a Stripe payment link',
   howToStripeSteps: [
     'In Stripe, create a Payment Link (Product catalog → Payment links) and copy its URL — it looks like https://buy.stripe.com/…',
-    'Here, under Payment QR, paste that URL and Register it. That is the whole “connection” — a payment link is just a public web address your customers already click.',
+    'Here, under Payment QR, paste that URL and Register it. Registering a link while signed in to your own account is the proof it’s yours — so it turns Verified the moment you save it, and is locked to your account (claimed once, no one else can list it).',
     'You never log in to Stripe through us, and we never ask for keys. We never see your balance, payouts, customers, or payment rails — there is nothing connected to expose.',
-    'To monitor it, scan the QR on your register or invoice any time and we confirm it still points to your real Stripe link — not one a scammer swapped in.',
+    'Now a customer who scans that QR sees ✓ Verified with your label. If a scammer swaps your sticker for a different link, their scan shows ⚠ Not a verified destination — so they stop before paying.',
   ],
   howToExchangeTitle: 'Publishing many addresses? (exchanges & platforms)',
   howToExchangeSteps: [
@@ -272,7 +274,7 @@ export const en: VerifyDashboardLocale = {
     'Your customer scans the QR or address on your sign, invoice, or checkout.',
     'If it matches a destination you’ve proven, they see ✓ Verified with your label — confidence it’s really you, before they send a cent.',
     'If your QR was swapped for someone else’s address, it shows ⚠ Not a verified destination — so they stop before paying a scammer.',
-    'Every scan also runs the free safety screen — known-scam, sanctions, and honeypot lists — flagging a dangerous address even if it isn’t yours.',
+    'Every scan also runs a free safety screen — scam, sanctions, and honeypot lists for an address; phishing and scam-site lists for a payment link — flagging a dangerous destination even if it isn’t yours.',
   ],
 };
 
@@ -302,6 +304,7 @@ export const es: VerifyDashboardLocale = {
   addError: 'No se pudo añadir ese destino.',
   addErrDuplicate: 'Ya registraste este destino.',
   addErrInvalid: 'Se requiere un valor de destino.',
+  addErrClaimed: 'Este enlace de pago ya está verificado por otra cuenta de Almstins.',
   verifyTitle: 'Verifica un letrero',
   verifyHint: 'Escanea o pega el QR / la dirección de un letrero, factura o pantalla de pago para confirmar que todavía coincide con un destino que registraste — antes de que alguien pague.',
   verifyPlaceholder: 'Escanea o pega una dirección o un enlace de pago',
@@ -391,9 +394,9 @@ export const es: VerifyDashboardLocale = {
   howToStripeTitle: 'Agregar un enlace de pago de Stripe',
   howToStripeSteps: [
     'En Stripe, crea un Payment Link (Catálogo de productos → Payment links) y copia su URL — se ve como https://buy.stripe.com/…',
-    'Aquí, en QR de pago, pega esa URL y Regístrala. Esa es toda la “conexión” — un enlace de pago es solo una dirección web pública que tus clientes ya usan.',
+    'Aquí, en QR de pago, pega esa URL y Regístrala. Registrar un enlace con tu sesión iniciada en tu propia cuenta es la prueba de que es tuyo — así que queda Verificado en el momento en que lo guardas, y bloqueado a tu cuenta (reclamado una sola vez, nadie más puede listarlo).',
     'Nunca inicias sesión en Stripe a través de nosotros y nunca te pedimos claves. Nunca vemos tu saldo, tus pagos, tus clientes ni tus medios de cobro — no hay nada conectado que exponer.',
-    'Para vigilarlo, escanea el QR de tu caja o factura cuando quieras y confirmamos que sigue apuntando a tu enlace real de Stripe — no a uno sustituido por un estafador.',
+    'Ahora, un cliente que escanea ese QR ve ✓ Verificada con tu etiqueta. Si un estafador sustituye tu calcomanía por otro enlace, su escaneo muestra ⚠ Destino no verificado — y se detiene antes de pagar.',
   ],
   howToExchangeTitle: '¿Publicas muchas direcciones? (exchanges y plataformas)',
   howToExchangeSteps: [
@@ -406,7 +409,7 @@ export const es: VerifyDashboardLocale = {
     'Tu cliente escanea el QR o la dirección de tu letrero, factura o checkout.',
     'Si coincide con un destino que demostraste, ve ✓ Verificada con tu etiqueta — confianza de que eres tú, antes de enviar un centavo.',
     'Si sustituyeron tu QR por otra dirección, muestra ⚠ Destino no verificado — y se detiene antes de pagarle a un estafador.',
-    'Cada escaneo también corre el chequeo de seguridad gratuito — listas de estafas conocidas, sanciones y honeypots — marcando una dirección peligrosa aunque no sea tuya.',
+    'Cada escaneo también corre un chequeo de seguridad gratuito — listas de estafas, sanciones y honeypots para una dirección; listas de phishing y sitios fraudulentos para un enlace de pago — marcando un destino peligroso aunque no sea tuyo.',
   ],
 };
 
@@ -436,6 +439,7 @@ export const fr: VerifyDashboardLocale = {
   addError: 'Impossible d’ajouter cette destination.',
   addErrDuplicate: 'Vous avez déjà enregistré cette destination.',
   addErrInvalid: 'Une valeur de destination est requise.',
+  addErrClaimed: 'Ce lien de paiement est déjà vérifié par un autre compte Almstins.',
   verifyTitle: 'Vérifier une affiche',
   verifyHint: 'Scannez ou collez le QR / l’adresse d’une affiche, d’une facture ou d’une page de paiement pour confirmer qu’il correspond toujours à une destination que vous avez enregistrée — avant tout paiement.',
   verifyPlaceholder: 'Scannez ou collez une adresse ou un lien de paiement',
@@ -525,9 +529,9 @@ export const fr: VerifyDashboardLocale = {
   howToStripeTitle: 'Ajouter un lien de paiement Stripe',
   howToStripeSteps: [
     'Dans Stripe, créez un Payment Link (Catalogue de produits → Payment links) et copiez son URL — elle ressemble à https://buy.stripe.com/…',
-    'Ici, sous QR de paiement, collez cette URL et Enregistrez-la. C’est toute la « connexion » — un lien de paiement n’est qu’une adresse web publique que vos clients utilisent déjà.',
+    'Ici, sous QR de paiement, collez cette URL et Enregistrez-la. Enregistrer un lien en étant connecté à votre propre compte est la preuve qu’il est à vous — il devient donc Vérifié dès que vous l’enregistrez, et verrouillé à votre compte (revendiqué une seule fois, personne d’autre ne peut le lister).',
     'Vous ne vous connectez jamais à Stripe via nous et nous ne demandons jamais de clés. Nous ne voyons jamais votre solde, vos versements, vos clients ni vos canaux de paiement — il n’y a rien de connecté à exposer.',
-    'Pour le surveiller, scannez le QR de votre caisse ou facture à tout moment et nous confirmons qu’il pointe toujours vers votre vrai lien Stripe — pas un lien substitué par un fraudeur.',
+    'Désormais, un client qui scanne ce QR voit ✓ Vérifiée avec votre libellé. Si un fraudeur remplace votre autocollant par un autre lien, son scan affiche ⚠ Destination non vérifiée — il s’arrête donc avant de payer.',
   ],
   howToExchangeTitle: 'Vous publiez de nombreuses adresses ? (exchanges et plateformes)',
   howToExchangeSteps: [
@@ -540,7 +544,7 @@ export const fr: VerifyDashboardLocale = {
     'Votre client scanne le QR ou l’adresse sur votre panneau, facture ou page de paiement.',
     'Si cela correspond à une destination que vous avez prouvée, il voit ✓ Vérifiée avec votre libellé — la confiance que c’est bien vous, avant d’envoyer un centime.',
     'Si votre QR a été remplacé par une autre adresse, il affiche ⚠ Destination non vérifiée — il s’arrête donc avant de payer un fraudeur.',
-    'Chaque scan lance aussi le contrôle de sécurité gratuit — listes d’arnaques connues, sanctions et honeypots — signalant une adresse dangereuse même si elle n’est pas la vôtre.',
+    'Chaque scan lance aussi un contrôle de sécurité gratuit — listes d’arnaques, sanctions et honeypots pour une adresse ; listes de phishing et de sites frauduleux pour un lien de paiement — signalant une destination dangereuse même si elle n’est pas la vôtre.',
   ],
 };
 

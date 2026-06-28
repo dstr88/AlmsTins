@@ -568,6 +568,7 @@ function AddForm({ kind, onChange, t }: { kind: 'address' | 'qr'; onChange: () =
         data.error === 'limit_reached' ? t.limitReached.replace('{n}', String(LIMITS[kind]))
         : data.error === 'duplicate' ? t.addErrDuplicate
         : data.error === 'invalid' ? t.addErrInvalid
+        : data.error === 'claimed_elsewhere' ? t.addErrClaimed
         : (data.message ?? t.addError),
       );
     } catch {
