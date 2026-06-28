@@ -8,6 +8,9 @@
 //                      badge will lapse within the max-stale TTL (fail-safe, not stale).
 //   - proof_changed  : a merchant's .well-known proof no longer validates — its
 //                      addresses have lapsed and need a re-prove.
+//   - destination_swap: the public page a merchant asked us to watch is no longer
+//                      showing the destination they registered — a different value
+//                      has replaced it (a likely QR/address swap on their own page).
 //
 // Same email-i18n pattern as healthAlert.ts: render(args) -> { subject, text };
 // the cron resolves the recipient's stored language via auth_users.lang.
@@ -19,14 +22,14 @@ export interface RenderedEmail {
   text: string;
 }
 
-export type VerifyAlertKind = 'revoked' | 'unreachable' | 'proof_changed';
+export type VerifyAlertKind = 'revoked' | 'unreachable' | 'proof_changed' | 'destination_swap';
 
 export interface VerifyAlertEmailLocale {
   lang: Lang;
   render: (a: {
     kind: VerifyAlertKind;
-    domain: string;       // the verified domain, e.g. "shop.example.com"
-    items: string[];      // affected addresses (may be empty — e.g. for 'unreachable')
+    domain: string;       // the verified domain, or the destination label/page for 'destination_swap'
+    items: string[];      // affected addresses / the conflicting value(s) found on the page
     appBase: string;      // e.g. "https://almstins.com"
   }) => RenderedEmail;
 }
@@ -65,6 +68,24 @@ export const en: VerifyAlertEmailLocale = {
           `Check that your endpoint is reachable and the API key you issued us is still valid.`,
           ``,
           `Manage your verified endpoint:`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'destination_swap') {
+      return {
+        subject: `⚠️ Possible swap on your published page — ${domain}`,
+        text: [
+          `The page you asked us to watch for "${domain}" is no longer showing the`,
+          `destination you registered. A different one has taken its place:`,
+          ...bullets(items),
+          `This is exactly what a QR or address swap looks like. If you changed it`,
+          `yourself, no action is needed. If you didn't, your published page may have`,
+          `been tampered with — check it now, before a customer pays the wrong place.`,
+          ``,
+          `Review your monitored destinations:`,
           `${manage}`,
           ``,
           `— Almstins Verify`,
@@ -127,6 +148,24 @@ export const es: VerifyAlertEmailLocale = {
         ].join('\n'),
       };
     }
+    if (kind === 'destination_swap') {
+      return {
+        subject: `⚠️ Posible sustitución en tu página publicada — ${domain}`,
+        text: [
+          `La página que nos pediste vigilar para "${domain}" ya no muestra el destino`,
+          `que registraste. Otro lo ha reemplazado:`,
+          ...bullets(items),
+          `Esto es exactamente cómo se ve una sustitución de QR o dirección. Si lo`,
+          `cambiaste tú, no hace falta hacer nada. Si no fuiste tú, tu página publicada`,
+          `podría haber sido manipulada — revísala ahora, antes de que un cliente pague al lugar equivocado.`,
+          ``,
+          `Revisa tus destinos monitoreados:`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
     return {
       subject: `⚠️ Tu verificación de direcciones necesita atención — ${domain}`,
       text: [
@@ -177,6 +216,24 @@ export const fr: VerifyAlertEmailLocale = {
           `Vérifiez que votre point d'accès est joignable et que la clé API que vous nous avez fournie est toujours valide.`,
           ``,
           `Gérez votre point d'accès vérifié :`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'destination_swap') {
+      return {
+        subject: `⚠️ Substitution possible sur votre page publiée — ${domain}`,
+        text: [
+          `La page que vous nous avez demandé de surveiller pour « ${domain} » n'affiche`,
+          `plus la destination que vous avez enregistrée. Une autre l'a remplacée :`,
+          ...bullets(items),
+          `C'est exactement à cela que ressemble une substitution de QR ou d'adresse. Si`,
+          `vous l'avez modifiée vous-même, aucune action n'est nécessaire. Sinon, votre`,
+          `page publiée a peut-être été altérée — vérifiez-la maintenant, avant qu'un client ne paie au mauvais endroit.`,
+          ``,
+          `Vérifiez vos destinations surveillées :`,
           `${manage}`,
           ``,
           `— Almstins Verify`,

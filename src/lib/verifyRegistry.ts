@@ -42,6 +42,10 @@ export interface Destination {
   proofDomain: string | null;
   registeredAt: string;
   provenAt: string | null;
+  /** Phase 5 — the public page (if any) we watch for a swap of this destination. */
+  monitorUrl: string | null;
+  monitorStatus: string | null;
+  monitorCheckedAt: string | null;
 }
 
 const ENSURE_SQL = `
@@ -123,6 +127,15 @@ const ENSURE_DEPOSIT_SQL = `
 const ENSURE_DEPOSIT_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_deposit_challenges_dest
   ON verify_deposit_challenges (destination_id)`;
 
+// Phase 5 — published-source swap monitor. A destination can carry an optional public
+// page URL we re-check for a swap of its value. Lazy column adds; mirrors
+// migrations-pg/0010_verify_monitor.sql.
+const ENSURE_MONITOR_COLS = [
+  `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS monitor_url TEXT`,
+  `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS monitor_status TEXT`,
+  `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS monitor_checked_at TEXT`,
+];
+
 let ensured = false;
 export async function ensureVerifyTables(): Promise<void> {
   if (ensured) return;
@@ -132,6 +145,10 @@ export async function ensureVerifyTables(): Promise<void> {
   await db.execute({ sql: ENSURE_PROOFS_IDX, args: [] });
   await db.execute({ sql: ENSURE_DEPOSIT_SQL, args: [] });
   await db.execute({ sql: ENSURE_DEPOSIT_IDX, args: [] });
+  for (const sql of ENSURE_MONITOR_COLS) {
+    try { await db.execute({ sql, args: [] }); }
+    catch (e) { console.error('[verify] monitor column not applied:', e); }
+  }
   // Backstop only — never let a pre-existing duplicate-proven row break Verify.
   try { await db.execute({ sql: ENSURE_CLAIM_IDX, args: [] }); }
   catch (e) { console.error('[verify] claim-once index not applied (resolve duplicate proven claims):', e); }
@@ -152,13 +169,16 @@ function mapRow(r: any): Destination {
     proofDomain: r.proof_domain ? String(r.proof_domain) : null,
     registeredAt: String(r.registered_at),
     provenAt: r.proven_at ? String(r.proven_at) : null,
+    monitorUrl: r.monitor_url ? String(r.monitor_url) : null,
+    monitorStatus: r.monitor_status ? String(r.monitor_status) : null,
+    monitorCheckedAt: r.monitor_checked_at ? String(r.monitor_checked_at) : null,
   };
 }
 
 export async function listDestinations(tenantId: string): Promise<Destination[]> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at
+    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
           FROM verify_destinations WHERE tenant_id = ?
           ORDER BY kind ASC, registered_at ASC`,
     args: [tenantId],
@@ -299,7 +319,7 @@ export async function createDestination(
       : { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
   }
   const row = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at
+    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
           FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
@@ -314,13 +334,96 @@ export async function deleteDestination(tenantId: string, id: string): Promise<v
   });
 }
 
+// ── Phase 5: published-source swap monitor ───────────────────────────────────
+
+export type SetMonitorResult =
+  | { ok: true; destination: Destination }
+  | { ok: false; error: 'not_found' | 'invalid_url'; message: string };
+
+/**
+ * Set (or clear, with null) the public page URL we watch for a swap of this
+ * destination. Tenant-scoped. The URL is validated as a fetchable public https URL by
+ * the monitor's SSRF guard at check time; here we only enforce the basic shape so the
+ * owner gets immediate feedback. Clearing the URL also clears the last status.
+ */
+export async function setMonitorUrl(tenantId: string, id: string, url: string | null): Promise<SetMonitorResult> {
+  await ensureVerifyTables();
+  const dest = await getDestination(tenantId, id);
+  if (!dest) return { ok: false, error: 'not_found', message: 'Destination not found.' };
+
+  let monitorUrl: string | null = null;
+  if (url != null && url.trim() !== '') {
+    const s = url.trim();
+    if (!/^https:\/\//i.test(s) || s.length > 512) {
+      return { ok: false, error: 'invalid_url', message: 'Enter the full https:// address of the page where you publish this.' };
+    }
+    try { new URL(s); } catch { return { ok: false, error: 'invalid_url', message: 'That doesn’t look like a valid URL.' }; }
+    monitorUrl = s;
+  }
+
+  const now = nowUtc();
+  await db.execute({
+    sql: `UPDATE verify_destinations
+          SET monitor_url = ?, monitor_status = NULL, monitor_checked_at = NULL, updated_at = ?
+          WHERE id = ? AND tenant_id = ?`,
+    args: [monitorUrl, now, id, tenantId],
+  });
+  const updated = await getDestination(tenantId, id);
+  return updated ? { ok: true, destination: updated } : { ok: false, error: 'not_found', message: 'Destination not found.' };
+}
+
+export interface MonitorTarget {
+  tenantId: string;
+  id: string;
+  kind: DestinationKind;
+  rail: string;
+  value: string;
+  label: string | null;
+  monitorUrl: string;
+}
+
+/**
+ * Cross-tenant enumeration for the watchman cron — every destination that has a
+ * monitor URL set. NOT tenant-scoped: a privileged maintenance job. Only proven
+ * destinations are returned (an unproven value isn't a confirmed source of truth yet).
+ */
+export async function listMonitoredDestinations(): Promise<MonitorTarget[]> {
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `SELECT tenant_id, id, kind, rail, value, label, monitor_url
+          FROM verify_destinations
+          WHERE monitor_url IS NOT NULL AND proof_status = 'proven'`,
+    args: [],
+  });
+  return (res.rows as any[]).map((r) => ({
+    tenantId: String(r.tenant_id),
+    id: String(r.id),
+    kind: String(r.kind) === 'qr' ? 'qr' : 'address',
+    rail: String(r.rail),
+    value: String(r.value),
+    label: r.label ? String(r.label) : null,
+    monitorUrl: String(r.monitor_url),
+  }));
+}
+
+/** Stamp the latest monitor outcome (tenant-scoped). */
+export async function recordMonitorResult(tenantId: string, id: string, status: string): Promise<void> {
+  await ensureVerifyTables();
+  const now = nowUtc();
+  await db.execute({
+    sql: `UPDATE verify_destinations SET monitor_status = ?, monitor_checked_at = ?, updated_at = ?
+          WHERE id = ? AND tenant_id = ?`,
+    args: [status, now, now, id, tenantId],
+  });
+}
+
 // ── Phase 3: proof of control (domain attestation) ───────────────────────────
 
 /** Fetch one destination, tenant-scoped. */
 export async function getDestination(tenantId: string, id: string): Promise<Destination | null> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at
+    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
           FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
@@ -443,7 +546,7 @@ export async function listProvenDomainsForMonitor(): Promise<ProvenDomainTarget[
 export async function getProvenAddressDestinations(tenantId: string, domain: string): Promise<Destination[]> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at
+    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
           FROM verify_destinations
           WHERE tenant_id = ? AND proof_domain = ? AND proof_status = 'proven' AND kind = 'address'`,
     args: [tenantId, domain],

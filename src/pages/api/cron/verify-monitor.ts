@@ -30,9 +30,10 @@ import { listEntitiesForMonitor, monitorEntity } from '@/lib/verifyEntities';
 import {
   listProvenDomainsForMonitor, getProvenAddressDestinations,
   markDestinationsLapsed, markDomainProofFailed, markDomainProofRechecked,
-  normalizeDestinationValue,
+  normalizeDestinationValue, listMonitoredDestinations, recordMonitorResult,
 } from '@/lib/verifyRegistry';
 import { verifyDomainProof } from '@/lib/verifyProof';
+import { checkPublishedSource } from '@/lib/verifyPublishedSource';
 
 export const prerender = false;
 
@@ -161,9 +162,38 @@ export const GET: APIRoute = async ({ request }) => {
     console.error('[cron/verify-monitor] domain pass failed', err);
   }
 
+  // ── Pass C: Published-source swap monitor ─────────────────────────────────────
+  // For each destination the owner attached a public page to, re-fetch that page and
+  // check the registered value is still the one shown. A definitive 'swapped' (the
+  // value is gone and a conflicting same-kind value is present) alerts the owner. An
+  // ambiguous 'missing' / transient 'unreachable' is recorded but never alerted.
+  const watch = { checked: 0, swapAlerts: 0, errors: 0 };
+  try {
+    const targets = await listMonitoredDestinations();
+    for (const t of targets) {
+      watch.checked++;
+      try {
+        const r = await checkPublishedSource(t.kind, t.rail, t.value, t.monitorUrl);
+        await recordMonitorResult(t.tenantId, t.id, r.outcome);
+        if (r.outcome === 'swapped') {
+          const label = t.label || t.value;
+          if (await alert(t.tenantId, 'destination_swap', label, [t.value, ...r.found])) {
+            watch.swapAlerts++;
+          }
+        }
+      } catch (err) {
+        watch.errors++;
+        console.error(`[cron/verify-monitor] monitor ${t.id} failed`, err);
+      }
+      await sleep(500);
+    }
+  } catch (err) {
+    console.error('[cron/verify-monitor] watch pass failed', err);
+  }
+
   const elapsed_ms = Date.now() - startedAt;
-  console.log(`[cron/verify-monitor] done in ${elapsed_ms}ms — entity:`, entity, 'merchant:', merchant);
-  return json({ ok: true, elapsed_ms, entity, merchant });
+  console.log(`[cron/verify-monitor] done in ${elapsed_ms}ms — entity:`, entity, 'merchant:', merchant, 'watch:', watch);
+  return json({ ok: true, elapsed_ms, entity, merchant, watch });
 };
 
 function json(body: unknown, status = 200) {

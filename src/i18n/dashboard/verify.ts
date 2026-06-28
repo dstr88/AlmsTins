@@ -107,6 +107,19 @@ export interface VerifyDashboardLocale {
   qrBadgeHint: string;
   qrBadgeDownload: string;
   provenBy: string; // "… ({domain})"
+  monitorBtn: string;
+  monitorOnBtn: string;
+  monitorHint: string;
+  monitorPlaceholder: string;
+  monitorSaveBtn: string;
+  monitorSavingBtn: string;
+  monitorStopBtn: string;
+  monitorError: string;
+  monitorDemoNote: string;
+  monitorStatusPresent: string;
+  monitorStatusSwapped: string;
+  monitorStatusMissing: string;
+  monitorStatusUnreachable: string;
   // Verified entities (hosted-API-endpoint variant) — exchanges / large platforms.
   entHeading: string;
   entIntro: string;
@@ -224,6 +237,19 @@ export const en: VerifyDashboardLocale = {
   qrBadgeHint: 'Customers scan this to confirm this address is really yours. Print it or add it to your sign, invoice, or checkout.',
   qrBadgeDownload: 'Download PNG',
   provenBy: 'Published by {domain}',
+  monitorBtn: '👁 Watch page',
+  monitorOnBtn: '👁 Watching',
+  monitorHint: 'Paste the public web page where you publish this — a "pay here" page, donation page, invoice, or checkout. We re-check it regularly and email you if the address or link shown there ever changes from what you registered (a swap). Works best on a normal web page; values drawn by JavaScript may not be readable.',
+  monitorPlaceholder: 'https://yourshop.com/pay',
+  monitorSaveBtn: 'Watch this page',
+  monitorSavingBtn: 'Saving…',
+  monitorStopBtn: 'Stop watching',
+  monitorError: 'Couldn’t save that. Use the full https:// address of the page.',
+  monitorDemoNote: 'In the live app, you can attach the public page where you publish this destination. We re-check it and email you if the address or link shown there is ever swapped. Sign up free to use it.',
+  monitorStatusPresent: '✓ Last check: your destination is still the one shown on that page.',
+  monitorStatusSwapped: '⛔ Last check: the page is showing a DIFFERENT destination — possible swap. We’ve emailed your alert address.',
+  monitorStatusMissing: 'Last check: we couldn’t find your destination on that page (it may have changed, or be drawn by JavaScript). No alert sent.',
+  monitorStatusUnreachable: 'Last check: we couldn’t reach that page. We’ll keep trying; no alert sent.',
   entHeading: 'Exchanges & large platforms',
   entIntro: 'Publish many receiving addresses? Verify them all from your own domain. Prove the domain, then connect a read-only endpoint and we keep your list in sync.',
   entEmpty: 'No domains yet.',
@@ -359,6 +385,19 @@ export const es: VerifyDashboardLocale = {
   qrBadgeHint: 'Los clientes lo escanean para confirmar que esta dirección es realmente tuya. Imprímelo o añádelo a tu letrero, factura o pantalla de pago.',
   qrBadgeDownload: 'Descargar PNG',
   provenBy: 'Publicado por {domain}',
+  monitorBtn: '👁 Vigilar página',
+  monitorOnBtn: '👁 Vigilando',
+  monitorHint: 'Pega la página web pública donde publicas esto — una página de "paga aquí", de donaciones, una factura o un checkout. La revisamos con regularidad y te enviamos un correo si la dirección o el enlace que aparece allí cambia respecto a lo que registraste (una sustitución). Funciona mejor en una página web normal; los valores generados por JavaScript pueden no ser legibles.',
+  monitorPlaceholder: 'https://tutienda.com/pagar',
+  monitorSaveBtn: 'Vigilar esta página',
+  monitorSavingBtn: 'Guardando…',
+  monitorStopBtn: 'Dejar de vigilar',
+  monitorError: 'No se pudo guardar. Usa la dirección https:// completa de la página.',
+  monitorDemoNote: 'En la app real, puedes adjuntar la página pública donde publicas este destino. La revisamos y te enviamos un correo si la dirección o el enlace que aparece allí es sustituido. Regístrate gratis para usarlo.',
+  monitorStatusPresent: '✓ Última revisión: tu destino sigue siendo el que aparece en esa página.',
+  monitorStatusSwapped: '⛔ Última revisión: la página muestra un destino DIFERENTE — posible sustitución. Enviamos un correo a tu dirección de alertas.',
+  monitorStatusMissing: 'Última revisión: no encontramos tu destino en esa página (puede haber cambiado o estar generado por JavaScript). No se envió alerta.',
+  monitorStatusUnreachable: 'Última revisión: no pudimos acceder a esa página. Seguiremos intentándolo; no se envió alerta.',
   entHeading: 'Exchanges y plataformas grandes',
   entIntro: '¿Publicas muchas direcciones de cobro? Verifícalas todas desde tu propio dominio. Verifica el dominio, luego conecta un endpoint de solo lectura y mantenemos tu lista sincronizada.',
   entEmpty: 'Ningún dominio todavía.',
@@ -494,6 +533,19 @@ export const fr: VerifyDashboardLocale = {
   qrBadgeHint: 'Les clients le scannent pour confirmer que cette adresse est bien la vôtre. Imprimez-le ou ajoutez-le à votre panneau, facture ou page de paiement.',
   qrBadgeDownload: 'Télécharger le PNG',
   provenBy: 'Publié par {domain}',
+  monitorBtn: '👁 Surveiller la page',
+  monitorOnBtn: '👁 Surveillance active',
+  monitorHint: 'Collez la page web publique où vous publiez ceci — une page « payez ici », une page de dons, une facture ou une page de paiement. Nous la revérifions régulièrement et vous envoyons un e-mail si l’adresse ou le lien qui y figure change par rapport à ce que vous avez enregistré (une substitution). Fonctionne mieux sur une page web classique ; les valeurs générées par JavaScript peuvent ne pas être lisibles.',
+  monitorPlaceholder: 'https://votreboutique.com/payer',
+  monitorSaveBtn: 'Surveiller cette page',
+  monitorSavingBtn: 'Enregistrement…',
+  monitorStopBtn: 'Arrêter la surveillance',
+  monitorError: 'Enregistrement impossible. Utilisez l’adresse https:// complète de la page.',
+  monitorDemoNote: 'Dans l’app réelle, vous pouvez rattacher la page publique où vous publiez cette destination. Nous la revérifions et vous envoyons un e-mail si l’adresse ou le lien qui y figure est substitué. Inscrivez-vous gratuitement pour l’utiliser.',
+  monitorStatusPresent: '✓ Dernière vérification : votre destination est toujours celle affichée sur cette page.',
+  monitorStatusSwapped: '⛔ Dernière vérification : la page affiche une destination DIFFÉRENTE — substitution possible. Nous avons envoyé un e-mail à votre adresse d’alerte.',
+  monitorStatusMissing: 'Dernière vérification : nous n’avons pas trouvé votre destination sur cette page (elle a peut-être changé ou est générée par JavaScript). Aucune alerte envoyée.',
+  monitorStatusUnreachable: 'Dernière vérification : nous n’avons pas pu joindre cette page. Nous réessaierons ; aucune alerte envoyée.',
   entHeading: 'Exchanges et grandes plateformes',
   entIntro: 'Vous publiez de nombreuses adresses de réception ? Vérifiez-les toutes depuis votre propre domaine. Prouvez le domaine, puis connectez un endpoint en lecture seule et nous gardons votre liste synchronisée.',
   entEmpty: 'Aucun domaine pour l’instant.',

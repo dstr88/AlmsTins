@@ -138,6 +138,48 @@ async function hostResolvesPublic(host: string): Promise<boolean> {
   }
 }
 
+export type SafeFetchResult =
+  | { ok: true; text: string }
+  | { ok: false; code: 'invalid_url' | 'unreachable' };
+
+/**
+ * SSRF-guarded GET of a user-supplied public URL (full URL, may have a path). Same
+ * defense as the proof fetch: https-only, reject IP-literal/localhost hosts, resolve
+ * DNS and block any private result, no redirects, hard timeout, capped body. Used by
+ * the published-source swap monitor to read a merchant's OWN public page server-side.
+ */
+export async function safeFetchPublicUrl(
+  rawUrl: string,
+  opts: { timeoutMs?: number; maxBytes?: number; accept?: string } = {},
+): Promise<SafeFetchResult> {
+  const timeoutMs = opts.timeoutMs ?? FETCH_TIMEOUT_MS;
+  const maxBytes = opts.maxBytes ?? MAX_BYTES;
+  let u: URL;
+  try {
+    const s = (rawUrl ?? '').trim();
+    if (!/^https?:\/\//i.test(s)) return { ok: false, code: 'invalid_url' };
+    u = new URL(s);
+  } catch {
+    return { ok: false, code: 'invalid_url' };
+  }
+  if (u.protocol !== 'https:') return { ok: false, code: 'invalid_url' }; // https only
+  const host = normalizeProofDomain(u.hostname);
+  if (!host) return { ok: false, code: 'invalid_url' };
+  if (!(await hostResolvesPublic(host))) return { ok: false, code: 'invalid_url' };
+  try {
+    const res = await fetch(u.toString(), {
+      redirect: 'error', // a redirect could bounce us to an internal host — refuse it
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { Accept: opts.accept ?? 'text/html,application/xhtml+xml' },
+    });
+    if (!res.ok) return { ok: false, code: 'unreachable' };
+    const body = await res.text();
+    return { ok: true, text: body.length > maxBytes ? body.slice(0, maxBytes) : body };
+  } catch {
+    return { ok: false, code: 'unreachable' };
+  }
+}
+
 interface ProofFile { challenge: string; addresses: string[] }
 
 function parseProofFile(text: string): ProofFile | null {

@@ -13,6 +13,9 @@ interface Destination {
   proofStatus: ProofStatus;
   proofDomain: string | null;
   registeredAt: string;
+  monitorUrl: string | null;
+  monitorStatus: string | null;
+  monitorCheckedAt: string | null;
 }
 
 const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'];
@@ -365,11 +368,14 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
   const [busy, setBusy] = useState(false);
   const [proving, setProving] = useState(false);
   const [showBadge, setShowBadge] = useState(false);
+  const [monitoring, setMonitoring] = useState(false);
   // Domain attestation proves a domain vouches for an address — only meaningful for
   // address destinations, and only until one is proven.
   const canProve = d.kind === 'address' && d.proofStatus !== 'proven';
   // A proven address can show its shareable QR badge.
   const canBadge = d.kind === 'address' && d.proofStatus === 'proven';
+  // Any proven destination can be watched on its published page for a swap.
+  const canMonitor = d.proofStatus === 'proven';
   async function del() {
     if (!window.confirm(t.confirmRemove)) return;
     setBusy(true);
@@ -398,6 +404,11 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
             {t.qrBadgeBtn}
           </button>
         )}
+        {canMonitor && (
+          <button className="vd-row__prove" onClick={() => setMonitoring(m => !m)} aria-expanded={monitoring}>
+            {d.monitorUrl ? t.monitorOnBtn : t.monitorBtn}
+          </button>
+        )}
         {!isDemo && (
           <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
         )}
@@ -408,6 +419,70 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
           : <ProvePanel d={d} t={t} onProven={() => { setProving(false); onChange(); }} />
       )}
       {showBadge && canBadge && <QrBadge d={d} t={t} />}
+      {monitoring && canMonitor && (
+        isDemo
+          ? <div className="vd-prove"><p className="vd-prove__hint">{t.monitorDemoNote}</p></div>
+          : <MonitorPanel d={d} t={t} onSaved={onChange} />
+      )}
+    </div>
+  );
+}
+
+// Published-source swap monitor — the merchant gives the public page where this
+// destination appears; the watchman cron re-fetches it and alerts on a swap.
+function MonitorPanel({ d, t, onSaved }: { d: Destination; t: VerifyDashboardLocale; onSaved: () => void }) {
+  const [url, setUrl] = useState(d.monitorUrl ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save(next: string | null) {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monitorUrl: next }),
+      });
+      const data = await res.json();
+      if (data.ok) onSaved();
+      else setErr(data.message ?? t.monitorError);
+    } catch {
+      setErr(t.monitorError);
+    } finally { setBusy(false); }
+  }
+
+  // Last-check readout: 'swapped' is the only alarm state; the rest are informational.
+  const status = d.monitorStatus;
+  const statusText =
+    status === 'swapped' ? t.monitorStatusSwapped
+    : status === 'present' ? t.monitorStatusPresent
+    : status === 'missing' ? t.monitorStatusMissing
+    : status === 'unreachable' || status === 'invalid_url' ? t.monitorStatusUnreachable
+    : null;
+
+  return (
+    <div className="vd-prove">
+      <p className="vd-prove__hint">{t.monitorHint}</p>
+      <div className="vd-prove__row">
+        <input
+          className="vd-prove__input"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder={t.monitorPlaceholder}
+          spellCheck={false}
+          autoComplete="off"
+        />
+        <button className="vd-prove__verify" onClick={() => save(url.trim() || null)} disabled={busy || !url.trim()}>
+          {busy ? t.monitorSavingBtn : t.monitorSaveBtn}
+        </button>
+        {d.monitorUrl && (
+          <button className="vd-prove__copy" onClick={() => { setUrl(''); void save(null); }} disabled={busy}>
+            {t.monitorStopBtn}
+          </button>
+        )}
+      </div>
+      {statusText && <p className="vd-prove__hint" data-monitor={status ?? ''}>{statusText}</p>}
+      {err && <span className="vd-add__err">{err}</span>}
     </div>
   );
 }
