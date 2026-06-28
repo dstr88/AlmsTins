@@ -20,24 +20,35 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
   const [done, setDone] = useState(false);
   const [lookup, setLookup] = useState<Lookup | null>(null);
   const [safety, setSafety] = useState<Safety>('idle');
+  const [isUrl, setIsUrl] = useState(false);
 
   async function check(override?: string) {
     const q = (override ?? value).trim();
     if (!q) return;
+    const url = /^https?:\/\//i.test(q);
+    setIsUrl(url);
     setBusy(true); setDone(false); setLookup(null); setSafety('checking');
     try {
+      // Safety screen depends on the input: a payment LINK goes to the phishing/site
+      // checker (dapp-check), a crypto ADDRESS goes to the scam/sanctions checker.
       const [lk, sf] = await Promise.all([
         fetch(`/api/verify/lookup?address=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null),
-        fetch('/api/wallet-check', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: q }),
-        }).then((r) => r.json()).catch(() => null),
+        url
+          ? fetch(`/api/dapp-check?url=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null)
+          : fetch('/api/wallet-check', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: q }),
+            }).then((r) => r.json()).catch(() => null),
       ]);
       setLookup(
         lk && lk.ok
           ? { verified: !!lk.verified, source: lk.source ?? null, domain: lk.domain ?? null, label: lk.label ?? null }
           : { verified: false, source: null, domain: null, label: null },
       );
-      if (sf && sf.ok && sf.result) {
+      if (url) {
+        // dapp-check returns verdict: 'red' | 'yellow' | 'green'
+        const v = sf?.verdict;
+        setSafety(v === 'red' ? 'danger' : v === 'green' ? 'clean' : v === 'yellow' ? 'unclear' : 'error');
+      } else if (sf && sf.ok && sf.result) {
         const lvl = sf.result.scamLevel;
         setSafety(lvl === 'danger' ? 'danger' : lvl === 'caution' ? 'caution' : sf.result.partialCoverage ? 'unclear' : 'clean');
       } else setSafety('error');
@@ -65,10 +76,13 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
       try {
         const payload = await decodeQrFromImageFile(file);
         if (!payload) { setSafety('error'); setLookup(null); setDone(true); return; }
-        // Pull a bare address out of a payment URI if present.
-        const addr = (payload.match(/0x[a-fA-F0-9]{40}/)?.[0]) ?? payload.replace(/^[a-zA-Z][\w+.-]*:/, '').split(/[?@\s]/)[0].trim();
-        setValue(addr);
-        await check(addr);
+        // A QR is either a payment LINK (Stripe/checkout — keep it intact) or encodes a
+        // crypto address (possibly inside an ethereum:/EIP-681 URI — pull it out).
+        const scanned = /^https?:\/\//i.test(payload.trim())
+          ? payload.trim()
+          : (payload.match(/0x[a-fA-F0-9]{40}/)?.[0]) ?? payload.replace(/^[a-zA-Z][\w+.-]*:/, '').split(/[?@\s]/)[0].trim();
+        setValue(scanned);
+        await check(scanned);
       } catch {
         setSafety('error'); setDone(true);
       } finally {
@@ -79,12 +93,13 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
   }
 
   const who = lookup?.label || lookup?.domain || '';
+  const noun = isUrl ? 'link' : 'address';
   const safetyText: Record<Safety, string> = {
     idle: '', checking: 'Checking…',
-    clean: 'No scam, sanctions, or honeypot flags.',
-    caution: 'Caution — this address has risk flags. Double-check before sending.',
-    danger: 'Danger — this address is flagged. Do not send.',
-    unclear: 'Not enough data to clear this address. Proceed carefully.',
+    clean: isUrl ? 'No phishing or scam-site flags.' : 'No scam, sanctions, or honeypot flags.',
+    caution: `Caution — this ${noun} has risk flags. Double-check before paying.`,
+    danger: `Danger — this ${noun} is flagged. Do not pay.`,
+    unclear: `Not enough data to clear this ${noun}. Proceed carefully.`,
     error: "Couldn't run the safety check — try again.",
   };
 
@@ -106,7 +121,7 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
           <p className="vs__detail">
             {lookup.verified
               ? (who ? `Registered to ${who}${lookup.source === 'entity' ? ' (published on its domain)' : ''}.` : 'A proven Almstins destination.')
-              : 'No account has proven control of this address with Almstins. That doesn’t mean it’s unsafe — only that it isn’t verified here.'}
+              : `No account has proven control of this ${noun} with Almstins. That doesn’t mean it’s unsafe — only that it isn’t verified here.`}
           </p>
         </div>
       )}

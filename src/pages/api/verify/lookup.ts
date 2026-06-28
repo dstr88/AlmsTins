@@ -1,10 +1,14 @@
 /**
- * GET /api/verify/lookup?address=<addr>
+ * GET /api/verify/lookup?address=<addr-or-url>
  *
- * PUBLIC, login-free. Answers one question: has a domain-verified entity published
- * this address as one of its OWN receiving addresses? Returns ONLY the publishing
- * domain — never tenant_id, the managing account, or any legal identity (the
- * no-attribution boundary). Read-only; the queried address is never written anywhere.
+ * PUBLIC, login-free. Answers one question: has someone proven this destination is
+ * theirs with Almstins? Two inputs share the endpoint:
+ *   - a crypto ADDRESS → an entity's domain-published address, or a merchant's proven
+ *     self-listing (the `address` param name is kept for back-compat)
+ *   - an http(s) URL / payment LINK → a merchant's proven QR (account_claim)
+ * Returns ONLY the publishing domain / the merchant's self-chosen label — never
+ * tenant_id, the managing account, or any legal identity (the no-attribution boundary).
+ * Read-only; the queried value is never written anywhere.
  *
  * Backs the "Verified publisher" badge on the public wallet-checker. Bounded input
  * (format-validated, length-capped) + a per-IP rate limit independent of the
@@ -12,7 +16,7 @@
  */
 import type { APIRoute } from 'astro';
 import { isValidAddress } from '@/lib/walletChecker';
-import { lookupVerifiedAddress } from '@/lib/verifyEntities';
+import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -34,16 +38,23 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
   if (typeof raw !== 'string' || !raw.trim()) {
     return json({ ok: false, error: 'address is required' }, 400);
   }
-  const address = raw.trim();
-  if (address.length > 128) return json({ ok: false, error: 'Address too long' }, 400);
-  if (!isValidAddress(address)) return json({ ok: false, error: 'Invalid address format' }, 400);
+  const query = raw.trim();
+  const isUrl = /^https?:\/\//i.test(query);
+  // URLs can be longer than addresses (payment links); cap to the registry's value
+  // limit. Addresses keep the tight 128 cap + format check.
+  if (isUrl) {
+    if (query.length > 512) return json({ ok: false, error: 'URL too long' }, 400);
+  } else {
+    if (query.length > 128) return json({ ok: false, error: 'Address too long' }, 400);
+    if (!isValidAddress(query)) return json({ ok: false, error: 'Invalid address format' }, 400);
+  }
 
   const ip =
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? clientAddress ?? 'unknown';
   if (rateLimited(ip)) return json({ ok: false, error: 'Too many requests.' }, 429);
 
   try {
-    const hit = await lookupVerifiedAddress(address);
+    const hit = isUrl ? await lookupVerifiedUrl(query) : await lookupVerifiedAddress(query);
     return json({
       ok: true,
       verified: !!hit,

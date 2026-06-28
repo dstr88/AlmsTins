@@ -21,7 +21,7 @@ const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0,
 
 export type DestinationKind = 'address' | 'qr';
 export type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
-export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known' | 'micro_deposit';
+export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known' | 'micro_deposit' | 'account_claim';
 
 /** Rails offered for a receiving address (matches the chains the app already supports). */
 export const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'] as const;
@@ -93,6 +93,16 @@ const ENSURE_PROOFS_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_domain_proof
 const ENSURE_CLAIM_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_proven_claim
   ON verify_destinations (rail, value) WHERE proof_status = 'proven' AND kind = 'address'`;
 
+// Claim-once for QR/payment-link destinations. A proven (rail, value) URL can belong
+// to only one account, globally — the customer-scan match is therefore unambiguous.
+// QR destinations are proven on save (proof_method='account_claim'): an owner
+// registering a payment link while authenticated in their OWN account IS the claim.
+// We normalize the URL before storing (see createDestination), so this index on the
+// canonical value is the real exclusivity arbiter. Mirrors
+// migrations-pg/0009_verify_qr_claim.sql.
+const ENSURE_CLAIM_QR_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_proven_claim_qr
+  ON verify_destinations (rail, value) WHERE proof_status = 'proven' AND kind = 'qr'`;
+
 // Self-send proof: one pending challenge per address destination. Proving needs a
 // NEW outgoing tx from the address after issued_at (see verifyDeposit.ts).
 // Mirrors migrations-pg/0006_verify_deposit.sql.
@@ -125,6 +135,8 @@ export async function ensureVerifyTables(): Promise<void> {
   // Backstop only — never let a pre-existing duplicate-proven row break Verify.
   try { await db.execute({ sql: ENSURE_CLAIM_IDX, args: [] }); }
   catch (e) { console.error('[verify] claim-once index not applied (resolve duplicate proven claims):', e); }
+  try { await db.execute({ sql: ENSURE_CLAIM_QR_IDX, args: [] }); }
+  catch (e) { console.error('[verify] QR claim-once index not applied (resolve duplicate proven URLs):', e); }
   ensured = true;
 }
 
@@ -199,7 +211,7 @@ export async function compareToDestinations(tenantId: string, rawValue: string):
 
 export type CreateResult =
   | { ok: true; destination: Destination }
-  | { ok: false; error: 'limit_reached' | 'duplicate' | 'invalid'; message: string };
+  | { ok: false; error: 'limit_reached' | 'duplicate' | 'invalid' | 'claimed_elsewhere'; message: string };
 
 export async function createDestination(
   tenantId: string,
@@ -208,8 +220,15 @@ export async function createDestination(
   await ensureVerifyTables();
   const kind: DestinationKind = input.kind === 'qr' ? 'qr' : 'address';
   const rail = String(input.rail || (kind === 'qr' ? 'url' : 'ethereum')).slice(0, 32);
-  const value = String(input.value ?? '').trim();
-  if (!value || value.length > 512) {
+  const rawValue = String(input.value ?? '').trim();
+  if (!rawValue || rawValue.length > 512) {
+    return { ok: false, error: 'invalid', message: 'A destination value is required.' };
+  }
+  // QR/payment-link destinations are stored canonicalized so the claim-once index and
+  // the customer-scan match operate on one stable form. Addresses keep the owner's
+  // exact entry (checksum case etc.), as before.
+  const value = kind === 'qr' ? normalizeDestinationValue(rawValue) : rawValue;
+  if (!value) {
     return { ok: false, error: 'invalid', message: 'A destination value is required.' };
   }
   const label = input.label ? String(input.label).trim().slice(0, 80) || null : null;
@@ -237,12 +256,48 @@ export async function createDestination(
     return { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
   }
 
+  // QR/payment links are proven on save (account_claim): registering a link while
+  // authenticated in your own account IS the proof of ownership. Claim-once keeps it
+  // exclusive — if another account already proved this exact URL, we say so rather
+  // than create an ambiguous second "verified" row.
+  const isQr = kind === 'qr';
+  if (isQr) {
+    const claimed = await db.execute({
+      sql: `SELECT 1 FROM verify_destinations
+            WHERE kind = 'qr' AND proof_status = 'proven' AND rail = ? AND value = ? LIMIT 1`,
+      args: [rail, value],
+    });
+    if (claimed.rows.length) {
+      return {
+        ok: false,
+        error: 'claimed_elsewhere',
+        message: 'This payment link is already verified by another Almstins account.',
+      };
+    }
+  }
+
   const id = randomUUID();
-  await db.execute({
-    sql: `INSERT INTO verify_destinations (id, tenant_id, kind, rail, value, label, proof_method, proof_status)
-          VALUES (?, ?, ?, ?, ?, ?, 'none', 'unproven')`,
-    args: [id, tenantId, kind, rail, value, label],
-  });
+  try {
+    await db.execute({
+      sql: `INSERT INTO verify_destinations
+              (id, tenant_id, kind, rail, value, label, proof_method, proof_status, proven_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        id, tenantId, kind, rail, value, label,
+        isQr ? 'account_claim' : 'none',
+        isQr ? 'proven' : 'unproven',
+        isQr ? nowUtc() : null,
+      ],
+    });
+  } catch (e) {
+    // A unique-index violation here is a race the pre-checks didn't catch. For a QR
+    // it's the global claim-once index (another account proved this URL first); for an
+    // address it can only be the per-tenant index (a concurrent same-value insert).
+    console.warn('[verify] destination insert blocked (unique violation?):', e);
+    return isQr
+      ? { ok: false, error: 'claimed_elsewhere', message: 'This payment link is already verified by another Almstins account.' }
+      : { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
+  }
   const row = await db.execute({
     sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at
           FROM verify_destinations WHERE id = ? AND tenant_id = ?`,

@@ -335,6 +335,32 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   return null;
 }
 
+/**
+ * PUBLIC, login-free lookup for a payment LINK / QR (kind='qr'): has a merchant
+ * proven this URL is theirs by registering it in their own account (account_claim)?
+ *
+ * Same no-attribution rules as the address lookup: returns only the merchant's
+ * self-chosen label plus the URL's host for display — never tenant_id or any legal
+ * identity. Claim-once guarantees at most one account owns a proven URL, so the
+ * customer-scan match is unambiguous. The stored value is already normalized on save;
+ * we normalize the query the same way and compare canonical forms.
+ */
+export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddressHit | null> {
+  const normalized = normalizeDestinationValue(rawUrl);
+  if (!normalized) return null;
+  await ensureVerifyTables();
+  const dest = await db.execute({
+    sql: `SELECT rail, value, label FROM verify_destinations
+          WHERE kind = 'qr' AND proof_status = 'proven'`,
+    args: [],
+  });
+  const hit = (dest.rows as any[]).find((r) => normalizeDestinationValue(String(r.value)) === normalized);
+  if (!hit) return null;
+  let host: string | null = null;
+  try { host = new URL(normalized).host || null; } catch { host = null; }
+  return { source: 'merchant', domain: host, label: hit.label ? String(hit.label) : null, chain: 'url' };
+}
+
 // ── Phase 5: monitoring / re-validation (the watchman) ───────────────────────
 
 export interface EntityMonitorTarget {

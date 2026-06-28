@@ -33,6 +33,11 @@ export const POST: APIRoute = async ({ request }) => {
     label: body.label ?? null,
   });
 
-  if (!result.ok) return json(result, result.error === 'limit_reached' ? 403 : 400);
+  if (!result.ok) {
+    const status = result.error === 'limit_reached' ? 403
+      : result.error === 'claimed_elsewhere' ? 409
+      : 400;
+    return json(result, status);
+  }
   return json(result);
 };
