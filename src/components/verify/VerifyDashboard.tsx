@@ -320,7 +320,24 @@ function DestSection({ title, kind, limit, items, loading, onChange, t, isDemo }
       </div>
       <div className="vd-list">
         {items.map(d => <DestRow key={d.id} d={d} onChange={onChange} t={t} isDemo={isDemo} />)}
-        {!loading && items.length === 0 && <p className="vd-sec__empty">{t.emptyNone}</p>}
+        {!loading && items.length === 0 && (
+          <div className="vd-empty">
+            <div className="vd-empty__icon" aria-hidden="true">
+              {kind === 'address' ? (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="6" width="20" height="13" rx="2.5" /><path d="M2 10h13a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
+                </svg>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 14h3v3M21 14v.01M14 21h.01M21 18v3" />
+                </svg>
+              )}
+            </div>
+            <h3 className="vd-empty__title">{t.emptyNone}</h3>
+            <p className="vd-empty__body">{kind === 'address' ? t.emptyAddrBody : t.emptyQrBody}</p>
+            <p className="vd-empty__hint">{t.emptyHint}</p>
+          </div>
+        )}
         {loading && items.length === 0 && <p className="vd-sec__empty">{t.loading}</p>}
       </div>
       {/* Live add-form is hidden in the demo — registering is a real-account action. */}
@@ -419,6 +436,13 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
   const [showBadge, setShowBadge] = useState(false);
   const [showPay, setShowPay] = useState(false);
   const [monitoring, setMonitoring] = useState(false);
+  const [copied, setCopied] = useState(false);
+  function copyValue() {
+    void navigator.clipboard?.writeText(d.value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    }).catch(() => {});
+  }
   // Domain attestation proves a domain vouches for an address — only meaningful for
   // address destinations, and only until one is proven.
   const canProve = d.kind === 'address' && d.proofStatus !== 'proven';
@@ -443,6 +467,14 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
         <span className="vd-row__rail">{railLabel(d.rail, t)}</span>
         <span className="vd-row__value" title={d.value}>{d.displayHint ? short(d.displayHint) : short(d.value)}</span>
         {d.label && <span className="vd-row__label">{d.label}</span>}
+        <button type="button" className="vd-row__copy" onClick={copyValue}
+          aria-label={`${t.copyAria} ${d.label ?? d.value}`} title={copied ? t.copied : t.copyAria}>
+          {copied ? '✓' : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          )}
+        </button>
         <span
           className={`vd-badge vd-badge--${d.proofStatus}`}
           title={d.proofStatus === 'proven' && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}

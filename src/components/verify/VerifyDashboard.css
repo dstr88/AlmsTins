@@ -232,3 +232,21 @@
 .vd-verify__result--warn { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); }
 .vd-verify__result--err  { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
 .vd-verify__mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; word-break: break-all; }
+
+/* Empty-state nudge — Receiving addresses / Payment QR (replaces the one-line "None yet") */
+.vd-empty { display: grid; gap: 0.55rem; padding: 1.75rem 1rem; text-align: center; justify-items: center; }
+.vd-empty__icon {
+  width: 44px; height: 44px; display: grid; place-items: center; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+}
+.vd-empty__title { margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+.vd-empty__body { margin: 0; max-width: 34ch; font-size: 0.875rem; line-height: 1.5; color: var(--text-secondary); }
+.vd-empty__hint { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--text-muted); }
+
+/* Per-row copy button (sits next to the address) */
+.vd-row__copy {
+  flex-shrink: 0; display: grid; place-items: center; width: 30px; height: 30px;
+  border: none; border-radius: 8px; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: background 0.12s ease, color 0.12s ease;
+}
+.vd-row__copy:hover { background: var(--surface-hover); color: var(--text-primary); }

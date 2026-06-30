@@ -11,6 +11,8 @@ export interface Props {
   lang?: string;
   /** Canonical URL override. Defaults to the current path. */
   canonical?: string;
+  /** Favicon URL. Defaults to the site-wide /favicon.webp; pass a per-page override (e.g. /verify). */
+  favicon?: string;
 }
 
 const {
@@ -19,6 +21,7 @@ const {
   noindex = true,
   lang = 'en',
   canonical,
+  favicon = '/favicon.webp',
 } = Astro.props;
 const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
 ---
@@ -45,7 +48,7 @@ const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
 		<link rel="canonical" href={canonicalHref} />
 		<slot name="head" />
 		{noindex && <meta name="robots" content="noindex, nofollow" />}
-		<link rel="icon" type="image/webp" href="/favicon.webp" />
+		<link rel="icon" href={favicon} />
 		<link rel="icon" href="/favicon.ico" sizes="any" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

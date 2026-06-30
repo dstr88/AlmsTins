@@ -28,6 +28,11 @@ export interface VerifyDashboardLocale {
   addressesTitle: string;
   qrTitle: string;
   emptyNone: string;
+  emptyAddrBody: string;
+  emptyQrBody: string;
+  emptyHint: string;
+  copyAria: string;
+  copied: string;
   loading: string;
   limitReached: string; // "… ({n}) …"
   // Row
@@ -181,7 +186,12 @@ export const en: VerifyDashboardLocale = {
   railUrl: 'Link / URL',
   addressesTitle: 'Receiving addresses',
   qrTitle: 'Payment QR',
-  emptyNone: 'None yet.',
+  emptyNone: 'Nothing here yet',
+  emptyAddrBody: 'Add a receiving address to bind it to your QR codes. Customers only ever see addresses you’ve registered here.',
+  emptyQrBody: 'Add a payment QR or link your customers scan — we confirm it’s the one you registered before they pay.',
+  emptyHint: 'Read-only — no wallet connection, ever. We never ask to sign or move funds.',
+  copyAria: 'Copy',
+  copied: 'Copied',
   loading: 'Loading…',
   limitReached: 'Free early-access limit reached ({n}). More capacity is coming.',
   confirmRemove: 'Remove this destination?',
@@ -342,7 +352,12 @@ export const es: VerifyDashboardLocale = {
   railUrl: 'Enlace / URL',
   addressesTitle: 'Direcciones de cobro',
   qrTitle: 'QR de pago',
-  emptyNone: 'Ninguno todavía.',
+  emptyNone: 'Aún no hay nada',
+  emptyAddrBody: 'Añade una dirección de cobro para vincularla a tus códigos QR. Los clientes solo ven direcciones que has registrado aquí.',
+  emptyQrBody: 'Añade un QR o enlace de pago que escaneen tus clientes — confirmamos que es el que registraste antes de que paguen.',
+  emptyHint: 'Solo lectura — nunca se conecta la billetera. Nunca pedimos firmar ni mover fondos.',
+  copyAria: 'Copiar',
+  copied: 'Copiado',
   loading: 'Cargando…',
   limitReached: 'Límite de acceso anticipado gratuito alcanzado ({n}). Pronto habrá más capacidad.',
   confirmRemove: '¿Eliminar este destino?',
@@ -503,7 +518,12 @@ export const fr: VerifyDashboardLocale = {
   railUrl: 'Lien / URL',
   addressesTitle: 'Adresses de réception',
   qrTitle: 'QR de paiement',
-  emptyNone: 'Aucune pour l’instant.',
+  emptyNone: 'Rien pour l’instant',
+  emptyAddrBody: 'Ajoutez une adresse de réception pour la lier à vos QR codes. Les clients ne voient que les adresses que vous avez enregistrées ici.',
+  emptyQrBody: 'Ajoutez un QR ou un lien de paiement que vos clients scannent — nous confirmons que c’est celui que vous avez enregistré avant qu’ils ne paient.',
+  emptyHint: 'Lecture seule — jamais de connexion de portefeuille. Nous ne demandons jamais de signer ni de déplacer des fonds.',
+  copyAria: 'Copier',
+  copied: 'Copié',
   loading: 'Chargement…',
   limitReached: 'Limite d’accès anticipé gratuit atteinte ({n}). Plus de capacité arrive bientôt.',
   confirmRemove: 'Supprimer cette destination ?',
