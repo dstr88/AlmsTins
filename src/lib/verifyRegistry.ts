@@ -26,10 +26,12 @@ export type ProofMethod = 'none' | 'signed_nonce' | 'dns_txt' | 'well_known' | '
 /** Rails offered for a receiving address (matches the chains the app already supports). */
 export const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'] as const;
 
-/** Free early-access limit: 3 monitored destinations TOTAL, any mix of addresses and QR codes.
- *  One value = one destination; the same QR displayed in many places is still one row (the
- *  UNIQUE(tenant_id, kind, value) index dedups it), so placements never count against this. */
-export const FREE_LIMIT_TOTAL = 3;
+/** Free beta limits, per kind: 2 wallet addresses + 1 payment QR (3 destinations total,
+ *  one of which can be a QR). One value = one destination; the same QR displayed in many
+ *  places is still one row (the UNIQUE(tenant_id, kind, value) index dedups it), so
+ *  placements never count against this. */
+export const FREE_LIMIT_ADDRESS = 2;
+export const FREE_LIMIT_QR = 1;
 
 export interface Destination {
   id: string;
@@ -253,17 +255,20 @@ export async function createDestination(
   }
   const label = input.label ? String(input.label).trim().slice(0, 80) || null : null;
 
-  // Free early-access limit: 3 destinations total, any mix. Placements don't count
+  // Free beta limit, per kind: 2 wallet addresses + 1 payment QR. Placements don't count
   // (the same QR in ten spots is one registered value).
+  const kindLimit = kind === 'qr' ? FREE_LIMIT_QR : FREE_LIMIT_ADDRESS;
   const countRes = await db.execute({
-    sql: `SELECT COUNT(*) AS cnt FROM verify_destinations WHERE tenant_id = ?`,
-    args: [tenantId],
+    sql: `SELECT COUNT(*) AS cnt FROM verify_destinations WHERE tenant_id = ? AND kind = ?`,
+    args: [tenantId, kind],
   });
-  if (Number((countRes.rows[0] as any)?.cnt ?? 0) >= FREE_LIMIT_TOTAL) {
+  if (Number((countRes.rows[0] as any)?.cnt ?? 0) >= kindLimit) {
     return {
       ok: false,
       error: 'limit_reached',
-      message: 'Free early access includes 3 monitored destinations (any mix of addresses and QR codes). Need to watch more? Get in touch.',
+      message: kind === 'qr'
+        ? 'Free beta includes 1 payment QR. Need more? Get in touch.'
+        : 'Free beta includes 2 wallet addresses. Need more? Get in touch.',
     };
   }
 

@@ -60,7 +60,7 @@ const en: VerifyCopy = {
   meta: {
     tagline: 'Verify your crypto receiving addresses before you trust them',
     description:
-      'Register the crypto addresses and payment QR your business publishes, prove they are yours — no wallet connection — then check any sign or invoice against them before you rely on it. Free to start: 3 addresses and 1 QR. Automatic monitoring and swap alerts are coming.',
+      'Register the crypto addresses and payment QR your business publishes, prove they are yours — no wallet connection — then check any sign or invoice against them before you rely on it. Free to start: 2 wallets and 1 QR. Automatic monitoring and swap alerts are coming.',
   },
   jsonld: {
     description:
@@ -82,7 +82,7 @@ const en: VerifyCopy = {
   hero: {
     eyebrow: 'Early access · Free to start',
     title: 'The address your customers pay could be swapped. Now you can check it before you trust it.',
-    sub: "Register your receiving addresses and payment QR, prove they're yours — no wallet connection, ever — then verify any sign, invoice, or checkout against them before you rely on it. Free to start: 3 addresses and 1 QR.",
+    sub: "Register your receiving addresses and payment QR, prove they're yours — no wallet connection, ever — then verify any sign, invoice, or checkout against them before you rely on it. Free to start: 2 wallets and 1 QR.",
     ctaPrimary: 'Create your free account',
     ctaSecondary: 'How it works ↓',
     ctaDemo: 'Try the vendor demo →',
@@ -114,7 +114,7 @@ const en: VerifyCopy = {
   free: {
     heading: 'What you get, free',
     items: [
-      'Register and verify 3 receiving addresses',
+      'Register and verify 2 receiving addresses',
       'Register and verify 1 payment QR',
       'Automatic monitoring and email alerts (coming soon)',
       'No wallet connection, ever — we read public data you point us to',
@@ -146,7 +146,7 @@ const en: VerifyCopy = {
   finalCta: {
     heading: 'Check before money moves.',
     button: 'Create your free account',
-    sub: 'Register + verify 3 addresses + 1 QR. No card, no wallet connection.',
+    sub: 'Register + verify 2 wallets + 1 QR. No card, no wallet connection.',
     footerAria: 'Almstins home',
   },
   vendors: {
@@ -169,7 +169,7 @@ const es: VerifyCopy = {
   meta: {
     tagline: 'Verifica tus direcciones de cobro antes de confiar en ellas',
     description:
-      'Registra las direcciones cripto y el QR de pago que publica tu negocio, demuestra que son tuyos — sin conectar la billetera — y luego comprueba cualquier letrero o factura contra ellas antes de fiarte. Gratis para empezar: 3 direcciones y 1 QR. La supervisión automática y las alertas de sustitución llegan pronto.',
+      'Registra las direcciones cripto y el QR de pago que publica tu negocio, demuestra que son tuyos — sin conectar la billetera — y luego comprueba cualquier letrero o factura contra ellas antes de fiarte. Gratis para empezar: 2 direcciones y 1 QR. La supervisión automática y las alertas de sustitución llegan pronto.',
   },
   jsonld: {
     description:
@@ -191,7 +191,7 @@ const es: VerifyCopy = {
   hero: {
     eyebrow: 'Acceso anticipado · Gratis para empezar',
     title: 'La dirección donde te pagan tus clientes podría ser sustituida. Ahora puedes comprobarla antes de confiar.',
-    sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos — sin conectar la billetera, nunca — y luego verifica cualquier letrero, factura o pantalla de pago contra ellas antes de fiarte. Gratis para empezar: 3 direcciones y 1 QR.',
+    sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos — sin conectar la billetera, nunca — y luego verifica cualquier letrero, factura o pantalla de pago contra ellas antes de fiarte. Gratis para empezar: 2 direcciones y 1 QR.',
     ctaPrimary: 'Crea tu cuenta gratis',
     ctaSecondary: 'Cómo funciona ↓',
     ctaDemo: 'Prueba la demo para comercios →',
@@ -223,7 +223,7 @@ const es: VerifyCopy = {
   free: {
     heading: 'Lo que obtienes, gratis',
     items: [
-      'Registra y verifica 3 direcciones de recepción',
+      'Registra y verifica 2 direcciones de recepción',
       'Registra y verifica 1 QR de pago',
       'Supervisión automática y alertas por correo (próximamente)',
       'Sin conectar la billetera, nunca — leemos datos públicos que tú nos indicas',
@@ -255,7 +255,7 @@ const es: VerifyCopy = {
   finalCta: {
     heading: 'Comprueba antes de que el dinero se mueva.',
     button: 'Crea tu cuenta gratis',
-    sub: 'Registra + verifica 3 direcciones + 1 QR. Sin tarjeta, sin conexión de billetera.',
+    sub: 'Registra + verifica 2 direcciones + 1 QR. Sin tarjeta, sin conexión de billetera.',
     footerAria: 'Inicio de Almstins',
   },
   vendors: {
@@ -278,7 +278,7 @@ const fr: VerifyCopy = {
   meta: {
     tagline: 'Vérifiez vos adresses de réception crypto avant de leur faire confiance',
     description:
-      'Enregistrez les adresses crypto et le QR de paiement que votre entreprise publie, prouvez qu\'ils sont à vous — sans connexion de portefeuille — puis vérifiez n\'importe quelle pancarte ou facture par rapport à elles avant de vous y fier. Gratuit pour commencer : 3 adresses et 1 QR. La surveillance automatique et les alertes de remplacement arrivent bientôt.',
+      'Enregistrez les adresses crypto et le QR de paiement que votre entreprise publie, prouvez qu\'ils sont à vous — sans connexion de portefeuille — puis vérifiez n\'importe quelle pancarte ou facture par rapport à elles avant de vous y fier. Gratuit pour commencer : 2 adresses et 1 QR. La surveillance automatique et les alertes de remplacement arrivent bientôt.',
   },
   jsonld: {
     description:
@@ -300,7 +300,7 @@ const fr: VerifyCopy = {
   hero: {
     eyebrow: 'Accès anticipé · Gratuit pour commencer',
     title: "L'adresse où vos clients vous paient pourrait être remplacée. Vous pouvez désormais la vérifier avant de vous y fier.",
-    sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous — sans jamais connecter de portefeuille — puis vérifiez n'importe quelle pancarte, facture ou page de paiement par rapport à elles avant de vous y fier. Gratuit pour commencer : 3 adresses et 1 QR.",
+    sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous — sans jamais connecter de portefeuille — puis vérifiez n'importe quelle pancarte, facture ou page de paiement par rapport à elles avant de vous y fier. Gratuit pour commencer : 2 adresses et 1 QR.",
     ctaPrimary: 'Créez votre compte gratuit',
     ctaSecondary: 'Comment ça marche ↓',
     ctaDemo: 'Essayer la démo commerçant →',
@@ -332,7 +332,7 @@ const fr: VerifyCopy = {
   free: {
     heading: 'Ce que vous obtenez, gratuitement',
     items: [
-      'Enregistrez et vérifiez 3 adresses de réception',
+      'Enregistrez et vérifiez 2 adresses de réception',
       'Enregistrez et vérifiez 1 QR de paiement',
       'Surveillance automatique et alertes par e-mail (bientôt)',
       'Sans connexion de portefeuille, jamais — nous lisons les données publiques que vous nous indiquez',
@@ -364,7 +364,7 @@ const fr: VerifyCopy = {
   finalCta: {
     heading: 'Vérifiez avant que l\'argent ne bouge.',
     button: 'Créez votre compte gratuit',
-    sub: 'Enregistrez + vérifiez 3 adresses + 1 QR. Sans carte, sans connexion de portefeuille.',
+    sub: 'Enregistrez + vérifiez 2 adresses + 1 QR. Sans carte, sans connexion de portefeuille.',
     footerAria: 'Accueil Almstins',
   },
   vendors: {

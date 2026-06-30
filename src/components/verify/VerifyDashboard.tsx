@@ -19,7 +19,7 @@ interface Destination {
 }
 
 const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'];
-const LIMITS = { address: 3, qr: 1 } as const;
+const LIMITS = { address: 2, qr: 1 } as const;
 // Chain names are proper nouns (kept across languages); only the URL rail is localized.
 const CHAIN_LABEL: Record<string, string> = {
   ethereum: 'Ethereum', polygon: 'Polygon', avalanche: 'Avalanche',
