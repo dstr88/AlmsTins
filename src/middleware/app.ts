@@ -238,8 +238,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			// Preserve the intended destination so sign-in returns there (login.astro
 			// sanitizes `next` to an internal path). Otherwise everyone lands on the
 			// default /dashboard/vault — e.g. a Verify visitor never reaches their dashboard.
+			// No `error=` param: a signed-out visitor isn't an error, just needs to sign in
+			// (an "error=missing" in the URL reads as "broken" to a new customer).
 			const next = encodeURIComponent(pathname);
-			return finish(Response.redirect(`https://${canonicalHost}/login?error=missing&next=${next}`, 303));
+			return finish(Response.redirect(`https://${canonicalHost}/login?next=${next}`, 303));
 		}
 
 		const tenantState = await getTenantStateDetails(userId);
