@@ -12,9 +12,16 @@
  * owner registers about their OWN destinations, linked privately to their account.
  */
 import { db } from '@/lib/db';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { generateChallenge } from './verifyProof';
 import { detectOutgoingSince } from './verifyDeposit';
+import { isEmvPayload, parseEmv, parseUpi, paymentFormat } from './paymentQr';
+
+/** SHA-256 hex — used to store a non-URL payment-QR identifier (PIX key / UPI VPA) as a
+ *  hash, never the raw key (it can be a CPF/phone/email — PII we never hold). */
+function sha256hex(s: string): string {
+  return createHash('sha256').update(s).digest('hex');
+}
 
 /** Timestamp matching the columns' `to_char(now() … 'YYYY-MM-DD HH24:MI:SS')` default. */
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -216,6 +223,13 @@ export async function listDestinations(tenantId: string): Promise<Destination[]>
 export function normalizeDestinationValue(raw: string): string {
   const s = (raw ?? '').trim();
   if (!s) return '';
+  // Already-normalized non-URL payment QR (hash form) → return as-is (idempotent, so
+  // re-normalizing a stored value in lookup/compare/monitor still matches).
+  if (/^(emvqr|upi):[0-9a-f]{64}$/.test(s)) return s;
+  // Non-URL payment QR → hash the merchant identifier; we never store the raw key.
+  // An unparseable/dynamic-only payload returns '' (callers treat it as invalid).
+  if (isEmvPayload(s)) { const r = parseEmv(s); return r.ok ? `emvqr:${sha256hex(r.identifier)}` : ''; }
+  if (/^upi:\/\//i.test(s)) { const r = parseUpi(s); return r ? `upi:${sha256hex(r.vpa)}` : ''; }
   if (/^https?:\/\//i.test(s)) {
     try {
       const u = new URL(s);
@@ -347,14 +361,20 @@ export async function createDestination(
 ): Promise<CreateResult> {
   await ensureVerifyTables();
   const kind: DestinationKind = input.kind === 'qr' ? 'qr' : 'address';
-  const rail = String(input.rail || (kind === 'qr' ? 'url' : 'ethereum')).slice(0, 32);
+  let rail = String(input.rail || (kind === 'qr' ? 'url' : 'ethereum')).slice(0, 32);
   const rawValue = String(input.value ?? '').trim();
   if (!rawValue || rawValue.length > 512) {
     return { ok: false, error: 'invalid', message: 'A destination value is required.' };
   }
+  // For a QR, detect the payment format so the rail reflects it (url / pix / emv / upi).
+  // "We don't distinguish TradFi vs crypto QRs" — all are kind='qr', sharing one limit.
+  if (kind === 'qr') {
+    const emv = parseEmv(rawValue);
+    rail = emv.ok ? emv.scheme : /^upi:\/\//i.test(rawValue) ? 'upi' : 'url';
+  }
   // QR/payment-link destinations are stored canonicalized so the claim-once index and
-  // the customer-scan match operate on one stable form. Addresses keep the owner's
-  // exact entry (checksum case etc.), as before.
+  // the customer-scan match operate on one stable form (URLs canonicalized; PIX/UPI
+  // hashed — never the raw key). Addresses keep the owner's exact entry, as before.
   const value = kind === 'qr' ? normalizeDestinationValue(rawValue) : rawValue;
   if (!value) {
     return { ok: false, error: 'invalid', message: 'A destination value is required.' };

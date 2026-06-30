@@ -21,30 +21,39 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
   const [lookup, setLookup] = useState<Lookup | null>(null);
   const [safety, setSafety] = useState<Safety>('idle');
   const [isUrl, setIsUrl] = useState(false);
+  const [isPaymentQr, setIsPaymentQr] = useState(false);
 
   async function check(override?: string) {
     const q = (override ?? value).trim();
     if (!q) return;
     const url = /^https?:\/\//i.test(q);
-    setIsUrl(url);
-    setBusy(true); setDone(false); setLookup(null); setSafety('checking');
+    // EMV/PIX TLV or a UPI intent URI — verification is by exact match; there is no
+    // phishing/sanctions list for these, so the MATCH is the safety (no extra screen).
+    const paymentQr = /^upi:\/\//i.test(q) || /^0002\d{2}/.test(q);
+    setIsUrl(url); setIsPaymentQr(paymentQr);
+    setBusy(true); setDone(false); setLookup(null); setSafety(paymentQr ? 'idle' : 'checking');
     try {
-      // Safety screen depends on the input: a payment LINK goes to the phishing/site
-      // checker (dapp-check), a crypto ADDRESS goes to the scam/sanctions checker.
-      const [lk, sf] = await Promise.all([
-        fetch(`/api/verify/lookup?address=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null),
-        url
+      // Safety screen: a payment LINK → phishing/site checker; a crypto ADDRESS →
+      // scam/sanctions checker; a PIX/UPI QR → none (the match itself is the safety).
+      const safetyFetch = paymentQr
+        ? Promise.resolve(null)
+        : url
           ? fetch(`/api/dapp-check?url=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null)
           : fetch('/api/wallet-check', {
               method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: q }),
-            }).then((r) => r.json()).catch(() => null),
+            }).then((r) => r.json()).catch(() => null);
+      const [lk, sf] = await Promise.all([
+        fetch(`/api/verify/lookup?address=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => null),
+        safetyFetch,
       ]);
       setLookup(
         lk && lk.ok
           ? { verified: !!lk.verified, source: lk.source ?? null, domain: lk.domain ?? null, label: lk.label ?? null }
           : { verified: false, source: null, domain: null, label: null },
       );
-      if (url) {
+      if (paymentQr) {
+        setSafety('idle'); // no safety card — the match is the safety
+      } else if (url) {
         // dapp-check returns verdict: 'red' | 'yellow' | 'green'
         const v = sf?.verdict;
         setSafety(v === 'red' ? 'danger' : v === 'green' ? 'clean' : v === 'yellow' ? 'unclear' : 'error');
@@ -54,7 +63,7 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
       } else setSafety('error');
     } catch {
       setLookup({ verified: false, source: null, domain: null, label: null });
-      setSafety('error');
+      setSafety(paymentQr ? 'idle' : 'error');
     } finally {
       setBusy(false); setDone(true);
     }
@@ -76,11 +85,14 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
       try {
         const payload = await decodeQrFromImageFile(file);
         if (!payload) { setSafety('error'); setLookup(null); setDone(true); return; }
-        // A QR is either a payment LINK (Stripe/checkout — keep it intact) or encodes a
-        // crypto address (possibly inside an ethereum:/EIP-681 URI — pull it out).
-        const scanned = /^https?:\/\//i.test(payload.trim())
-          ? payload.trim()
-          : (payload.match(/0x[a-fA-F0-9]{40}/)?.[0]) ?? payload.replace(/^[a-zA-Z][\w+.-]*:/, '').split(/[?@\s]/)[0].trim();
+        // Keep payment payloads intact — a Stripe/checkout URL, an EMV/PIX TLV string, or
+        // a UPI intent URI. Otherwise it encodes a crypto address (maybe inside an
+        // ethereum:/EIP-681 URI — pull it out).
+        const p = payload.trim();
+        const keepIntact = /^https?:\/\//i.test(p) || /^upi:\/\//i.test(p) || /^0002\d{2}/.test(p);
+        const scanned = keepIntact
+          ? p
+          : (p.match(/0x[a-fA-F0-9]{40}/)?.[0]) ?? p.replace(/^[a-zA-Z][\w+.-]*:/, '').split(/[?@\s]/)[0].trim();
         setValue(scanned);
         await check(scanned);
       } catch {
@@ -93,7 +105,7 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
   }
 
   const who = lookup?.label || lookup?.domain || '';
-  const noun = isUrl ? 'link' : 'address';
+  const noun = isUrl ? 'link' : isPaymentQr ? 'payment code' : 'address';
   const safetyText: Record<Safety, string> = {
     idle: '', checking: 'Checking…',
     clean: isUrl ? 'No phishing or scam-site flags.' : 'No scam, sanctions, or honeypot flags.',

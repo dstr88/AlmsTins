@@ -24,6 +24,7 @@ const LIMITS = { address: 2, qr: 1 } as const;
 const CHAIN_LABEL: Record<string, string> = {
   ethereum: 'Ethereum', polygon: 'Polygon', avalanche: 'Avalanche',
   bitcoin: 'Bitcoin', solana: 'Solana', litecoin: 'Litecoin',
+  pix: 'PIX', emv: 'EMV QR', upi: 'UPI',
 };
 function railLabel(rail: string, t: VerifyDashboardLocale): string {
   return rail === 'url' ? t.railUrl : (CHAIN_LABEL[rail] ?? rail);

@@ -17,6 +17,7 @@
 import type { APIRoute } from 'astro';
 import { isValidAddress } from '@/lib/walletChecker';
 import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
+import { isEmvPayload } from '@/lib/paymentQr';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -39,11 +40,11 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
     return json({ ok: false, error: 'address is required' }, 400);
   }
   const query = raw.trim();
-  const isUrl = /^https?:\/\//i.test(query);
-  // URLs can be longer than addresses (payment links); cap to the registry's value
-  // limit. Addresses keep the tight 128 cap + format check.
-  if (isUrl) {
-    if (query.length > 512) return json({ ok: false, error: 'URL too long' }, 400);
+  // A "QR" value is a URL (Stripe/PayPal), an EMV/PIX TLV string, or a UPI intent URI —
+  // all matched against kind='qr' destinations. Anything else must be a crypto address.
+  const isQrValue = /^https?:\/\//i.test(query) || /^upi:\/\//i.test(query) || isEmvPayload(query);
+  if (isQrValue) {
+    if (query.length > 1024) return json({ ok: false, error: 'Value too long' }, 400);
   } else {
     if (query.length > 128) return json({ ok: false, error: 'Address too long' }, 400);
     if (!isValidAddress(query)) return json({ ok: false, error: 'Invalid address format' }, 400);
@@ -54,7 +55,7 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
   if (rateLimited(ip)) return json({ ok: false, error: 'Too many requests.' }, 429);
 
   try {
-    const hit = isUrl ? await lookupVerifiedUrl(query) : await lookupVerifiedAddress(query);
+    const hit = isQrValue ? await lookupVerifiedUrl(query) : await lookupVerifiedAddress(query);
     return json({
       ok: true,
       verified: !!hit,
