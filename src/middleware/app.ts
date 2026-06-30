@@ -235,7 +235,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			if (pathname.startsWith('/dashboard/petro-tins')) {
 				return finish(Response.redirect(`https://${canonicalHost}/petro-tins`, 303));
 			}
-			return finish(Response.redirect(`https://${canonicalHost}/login?error=missing`, 303));
+			// Preserve the intended destination so sign-in returns there (login.astro
+			// sanitizes `next` to an internal path). Otherwise everyone lands on the
+			// default /dashboard/vault — e.g. a Verify visitor never reaches their dashboard.
+			const next = encodeURIComponent(pathname);
+			return finish(Response.redirect(`https://${canonicalHost}/login?error=missing&next=${next}`, 303));
 		}
 
 		const tenantState = await getTenantStateDetails(userId);

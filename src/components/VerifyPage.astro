@@ -64,7 +64,7 @@ Authorization: Bearer <your-key>
              aria-current={l.code === lang ? 'true' : undefined}>{l.label}</a>
         ))}
       </div>
-      <a class="vnav__login" href="/login">{t.nav.login}</a>
+      <a class="vnav__login" href="/login?next=/dashboard/verify">{t.nav.login}</a>
       <a class="vnav__logo" href="/" aria-label={t.nav.brandAria}>
         <img src={AlmstinsLogo.src} alt="AlmsTins" width="960" height="1104" loading="eager" decoding="async" />
       </a>
@@ -79,7 +79,7 @@ Authorization: Bearer <your-key>
       <h1 class="vhero__title">{t.hero.title}</h1>
       <p class="vhero__sub">{t.hero.sub}</p>
       <div class="vhero__ctas">
-        <a class="vbtn" href="/login">{t.hero.ctaPrimary}</a>
+        <a class="vbtn" href="/login?next=/dashboard/verify">{t.hero.ctaPrimary}</a>
         <a class="vbtn vbtn--demo" href="/api/demo/start?next=/dashboard/verify" rel="nofollow">{t.hero.ctaDemo}</a>
         <a class="vbtn vbtn--ghost" href="#how">{t.hero.ctaSecondary}</a>
       </div>
@@ -139,7 +139,7 @@ Authorization: Bearer <your-key>
     <!-- Section 7 — Final CTA -->
     <section class="vfinal" aria-labelledby="vfinal-h">
       <h2 id="vfinal-h" class="vfinal__heading">{t.finalCta.heading}</h2>
-      <a class="vbtn vbtn--lg" href="/login">{t.finalCta.button}</a>
+      <a class="vbtn vbtn--lg" href="/login?next=/dashboard/verify">{t.finalCta.button}</a>
       <p class="vfinal__sub">{t.finalCta.sub}</p>
       <a class="vfinal__footer" href="https://almstins.com" aria-label={t.finalCta.footerAria}>{ALMSTINS_URL}</a>
     </section>
