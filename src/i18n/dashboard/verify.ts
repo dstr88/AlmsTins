@@ -108,6 +108,8 @@ export interface VerifyDashboardLocale {
   ssUnavailable: string;
   // Shareable verified-address QR badge.
   qrBadgeBtn: string;
+  paymentQrBtn: string;
+  paymentQrHint: string;
   qrBadgeHint: string;
   qrBadgeDownload: string;
   provenBy: string; // "… ({domain})"
@@ -242,6 +244,8 @@ export const en: VerifyDashboardLocale = {
   ssUnsupported: 'Self-send proof isn’t available for this chain yet.',
   ssUnavailable: 'Couldn’t reach the chain — try again in a moment.',
   qrBadgeBtn: '📱 QR badge',
+  paymentQrBtn: '📥 Download QR',
+  paymentQrHint: 'A printable QR of this receiving destination — put it on your counter, invoice, or checkout. Customers scan it to pay, and can check it against Almstins before they send. (Prove the destination so the check shows “verified.”)',
   qrBadgeHint: 'Customers scan this to confirm this address is really yours. Print it or add it to your sign, invoice, or checkout.',
   qrBadgeDownload: 'Download PNG',
   provenBy: 'Published by {domain}',
@@ -394,6 +398,8 @@ export const es: VerifyDashboardLocale = {
   ssUnsupported: 'La prueba por autoenvío aún no está disponible para esta cadena.',
   ssUnavailable: 'No se pudo acceder a la cadena — inténtalo de nuevo en un momento.',
   qrBadgeBtn: '📱 Código QR',
+  paymentQrBtn: '📥 Descargar QR',
+  paymentQrHint: 'Un QR imprimible de este destino de cobro — ponlo en tu mostrador, factura o pantalla de pago. Los clientes lo escanean para pagar, y pueden comprobarlo contra Almstins antes de enviar. (Demuestra el destino para que la comprobación muestre «verificado».)',
   qrBadgeHint: 'Los clientes lo escanean para confirmar que esta dirección es realmente tuya. Imprímelo o añádelo a tu letrero, factura o pantalla de pago.',
   qrBadgeDownload: 'Descargar PNG',
   provenBy: 'Publicado por {domain}',
@@ -546,6 +552,8 @@ export const fr: VerifyDashboardLocale = {
   ssUnsupported: 'La preuve par auto-envoi n’est pas encore disponible pour cette chaîne.',
   ssUnavailable: 'Impossible d’accéder à la chaîne — réessayez dans un instant.',
   qrBadgeBtn: '📱 Badge QR',
+  paymentQrBtn: '📥 Télécharger le QR',
+  paymentQrHint: 'Un QR imprimable de cette destination de réception — mettez-le sur votre comptoir, facture ou page de paiement. Les clients le scannent pour payer, et peuvent le vérifier auprès d’Almstins avant d’envoyer. (Prouvez la destination pour que la vérification affiche « vérifié ».)',
   qrBadgeHint: 'Les clients le scannent pour confirmer que cette adresse est bien la vôtre. Imprimez-le ou ajoutez-le à votre panneau, facture ou page de paiement.',
   qrBadgeDownload: 'Télécharger le PNG',
   provenBy: 'Publié par {domain}',

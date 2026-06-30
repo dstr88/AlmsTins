@@ -366,10 +366,57 @@ function QrBadge({ d, t }: { d: Destination; t: VerifyDashboardLocale }) {
   );
 }
 
+// What a downloadable PAYMENT QR encodes: the bare receiving address (a wallet can pay
+// it; the Almstins checker extracts + verifies it) or a payment-link URL. PIX/UPI store
+// only a hash (the raw key is never kept), so no QR can be regenerated for them.
+function qrPayload(d: Destination): string | null {
+  if (d.kind === 'address') return d.value;
+  if (d.kind === 'qr' && d.rail === 'url' && /^https?:\/\//i.test(d.value)) return d.value;
+  return null;
+}
+
+// A printable QR of the vendor's receiving destination — available the moment it's
+// registered (no proof needed; it's just their own address/link). Same in-browser PNG
+// generation as QrBadge, but it encodes the destination itself, not the verify URL.
+function PaymentQr({ d, t }: { d: Destination; t: VerifyDashboardLocale }) {
+  const [dataUrl, setDataUrl] = useState('');
+  const payload = qrPayload(d);
+  useEffect(() => {
+    if (!payload) return;
+    let alive = true;
+    (async () => {
+      try {
+        const mod = (await import('qrcode')) as unknown as {
+          toDataURL?: (text: string, opts?: unknown) => Promise<string>;
+          default?: { toDataURL: (text: string, opts?: unknown) => Promise<string> };
+        };
+        const toDataURL = mod.toDataURL ?? mod.default?.toDataURL;
+        if (!toDataURL) return;
+        const url = await toDataURL(payload, { width: 220, margin: 1 });
+        if (alive) setDataUrl(url);
+      } catch { /* ignore — the QR just won't render */ }
+    })();
+    return () => { alive = false; };
+  }, [payload]);
+
+  return (
+    <div className="vd-qr">
+      {dataUrl
+        ? <img className="vd-qr__img" src={dataUrl} alt="Payment QR" width={220} height={220} />
+        : <div className="vd-qr__img vd-qr__img--loading" />}
+      <p className="vd-qr__hint">{t.paymentQrHint}</p>
+      {dataUrl && (
+        <a className="vd-qr__dl" href={dataUrl} download={`almstins-payment-${d.rail}.png`}>{t.qrBadgeDownload}</a>
+      )}
+    </div>
+  );
+}
+
 function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => void; t: VerifyDashboardLocale; isDemo?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [proving, setProving] = useState(false);
   const [showBadge, setShowBadge] = useState(false);
+  const [showPay, setShowPay] = useState(false);
   const [monitoring, setMonitoring] = useState(false);
   // Domain attestation proves a domain vouches for an address — only meaningful for
   // address destinations, and only until one is proven.
@@ -378,6 +425,9 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
   const canBadge = d.kind === 'address' && d.proofStatus === 'proven';
   // Any proven destination can be watched on its published page for a swap.
   const canMonitor = d.proofStatus === 'proven';
+  // A printable payment QR is available the moment a destination is registered
+  // (no proof needed — it's the vendor's own address/link). Not for PIX/UPI (hashed).
+  const canPayQr = qrPayload(d) !== null;
   async function del() {
     if (!window.confirm(t.confirmRemove)) return;
     setBusy(true);
@@ -401,6 +451,11 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
             {t.proveBtn}
           </button>
         )}
+        {canPayQr && (
+          <button className="vd-row__prove" onClick={() => setShowPay(s => !s)} aria-expanded={showPay}>
+            {t.paymentQrBtn}
+          </button>
+        )}
         {canBadge && (
           <button className="vd-row__prove" onClick={() => setShowBadge(s => !s)} aria-expanded={showBadge}>
             {t.qrBadgeBtn}
@@ -420,6 +475,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
           ? <div className="vd-prove"><p className="vd-prove__hint">{t.demoProveNote}</p></div>
           : <ProvePanel d={d} t={t} onProven={() => { setProving(false); onChange(); }} />
       )}
+      {showPay && canPayQr && <PaymentQr d={d} t={t} />}
       {showBadge && canBadge && <QrBadge d={d} t={t} />}
       {monitoring && canMonitor && (
         isDemo
