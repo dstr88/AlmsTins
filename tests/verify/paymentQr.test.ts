@@ -35,10 +35,12 @@ describe('EMV / PIX parsing', () => {
     expect(paymentFormat(pix)).toBe('emv');
     const r = parseEmv(pix);
     expect(r.ok).toBe(true);
-    if (r.ok) {
+    if (r.ok && r.kind === 'static') {
       expect(r.scheme).toBe('pix');
       expect(r.identifier).toBe('br.gov.bcb.pix|test@example.com');
       expect(r.merchantName).toBe('Joe Crabshack');
+    } else {
+      throw new Error('expected a static PIX parse');
     }
   });
 
@@ -46,15 +48,23 @@ describe('EMV / PIX parsing', () => {
     expect(parseEmv(pix.slice(0, -1) + (pix.slice(-1) === '0' ? '1' : '0')).ok).toBe(false);
   });
 
-  it('rejects a dynamic-only QR (no static account id)', () => {
-    const dyn = buildEmv(tlv('00', 'BR.GOV.BCB.PIX') + tlv('25', 'https://bank.example/pix/abc'));
-    expect(parseEmv(dyn).ok).toBe(false);
+  it('parses a DYNAMIC PIX QR — extracts the location URL (scheme prepended)', () => {
+    const dyn = buildEmv(tlv('00', 'BR.GOV.BCB.PIX') + tlv('25', 'pix.example.com/qr/v2/abc'));
+    const r = parseEmv(dyn);
+    expect(r.ok).toBe(true);
+    if (r.ok && r.kind === 'dynamic') {
+      expect(r.url).toBe('https://pix.example.com/qr/v2/abc');
+      expect(r.scheme).toBe('pix');
+    } else {
+      throw new Error('expected a dynamic PIX parse');
+    }
   });
 });
 
 describe('UPI parsing', () => {
-  it('extracts and lowercases the VPA', () => {
-    expect(parseUpi('upi://pay?pa=Merchant@OkHdfcBank&pn=Joe&am=10')).toEqual({ vpa: 'merchant@okhdfcbank' });
+  it('extracts and lowercases the VPA, and keeps the payee name', () => {
+    expect(parseUpi('upi://pay?pa=Merchant@OkHdfcBank&pn=Joe%20Shop&am=10'))
+      .toEqual({ vpa: 'merchant@okhdfcbank', name: 'Joe Shop' });
     expect(paymentFormat('upi://pay?pa=x@y')).toBe('upi');
   });
   it('returns null without a pa= VPA', () => {
@@ -89,5 +99,12 @@ describe('normalizeDestinationValue — hashed canonical (registration ↔ scan 
 
   it('an invalid EMV (bad CRC) normalizes to empty → registration rejects it', () => {
     expect(normalizeDestinationValue(pix.slice(0, -1) + 'Z')).toBe('');
+  });
+
+  it('dynamic PIX normalizes to its location URL — and matches that URL pasted directly', () => {
+    const dyn = buildEmv(tlv('00', 'BR.GOV.BCB.PIX') + tlv('25', 'pix.example.com/qr/v2/abc'));
+    const norm = normalizeDestinationValue(dyn);
+    expect(norm).toBe('https://pix.example.com/qr/v2/abc');
+    expect(normalizeDestinationValue('https://pix.example.com/qr/v2/abc/')).toBe(norm); // idempotent w/ trailing slash
   });
 });

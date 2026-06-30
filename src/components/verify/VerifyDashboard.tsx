@@ -10,6 +10,7 @@ interface Destination {
   rail: string;
   value: string;
   label: string | null;
+  displayHint: string | null;
   proofStatus: ProofStatus;
   proofDomain: string | null;
   registeredAt: string;
@@ -389,7 +390,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
     <div className="vd-rowwrap">
       <div className="vd-row">
         <span className="vd-row__rail">{railLabel(d.rail, t)}</span>
-        <span className="vd-row__value" title={d.value}>{short(d.value)}</span>
+        <span className="vd-row__value" title={d.value}>{d.displayHint ? short(d.displayHint) : short(d.value)}</span>
         {d.label && <span className="vd-row__label">{d.label}</span>}
         <span
           className={`vd-badge vd-badge--${d.proofStatus}`}

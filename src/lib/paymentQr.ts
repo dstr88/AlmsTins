@@ -51,18 +51,21 @@ export function isEmvPayload(s: string): boolean {
   return /^0002\d{2}/.test(t) && t.length >= 20 && t.includes('6304');
 }
 
-export interface EmvParse {
+export type EmvParse = {
   ok: true;
-  identifier: string;          // "<gui>|<account-id>" — namespaced, stable per merchant account
   merchantName: string | null; // EMV tag 59 (public display name)
   scheme: 'pix' | 'emv';
-}
+} & (
+  | { kind: 'static'; identifier: string } // "<gui>|<account-id>" — stable per merchant account
+  | { kind: 'dynamic'; url: string }       // the PSP "location" URL (sub-tag 25)
+);
 export type EmvResult = EmvParse | { ok: false };
 
 /**
- * Parse + validate an EMVCo merchant QR. Verifies the CRC, then extracts the first
- * merchant-account-information template (tags 26–51): its GUI (sub-tag 00) + primary
- * account id (sub-tag 01). Rejects dynamic-only QRs (no static id) and bad CRCs.
+ * Parse + validate an EMVCo merchant QR. Verifies the CRC, then reads the first
+ * merchant-account-information template (tags 26–51): GUI (sub-tag 00) + either the
+ * static account id (sub-tag 01) or, for a dynamic QR, the location URL (sub-tag 25).
+ * Rejects bad CRCs and templates with neither.
  */
 export function parseEmv(raw: string): EmvResult {
   const s = (raw ?? '').trim();
@@ -77,20 +80,25 @@ export function parseEmv(raw: string): EmvResult {
   const sub = parseTlv(mai.value);
   const gui = (sub.find((x) => x.tag === '00')?.value ?? '').trim();
   const id = (sub.find((x) => x.tag === '01')?.value ?? '').trim();
-  if (!id) return { ok: false }; // dynamic-only (URL in sub-tag 25) → out of scope v1
+  const dyn = (sub.find((x) => x.tag === '25')?.value ?? '').trim();
   const merchantName = top.find((t) => t.tag === '59')?.value?.trim() || null;
   const scheme: 'pix' | 'emv' = /br\.gov\.bcb\.pix/i.test(gui) ? 'pix' : 'emv';
-  return { ok: true, identifier: `${gui.toLowerCase()}|${id.toLowerCase()}`, merchantName, scheme };
+
+  if (id) return { ok: true, kind: 'static', identifier: `${gui.toLowerCase()}|${id.toLowerCase()}`, merchantName, scheme };
+  // Dynamic PIX: the location URL is published without a scheme — add https://.
+  if (dyn) return { ok: true, kind: 'dynamic', url: /^https?:\/\//i.test(dyn) ? dyn : `https://${dyn}`, merchantName, scheme };
+  return { ok: false };
 }
 
-/** Extract the VPA (`pa`) from a UPI intent URI. Lowercased — VPAs are case-insensitive. */
-export function parseUpi(raw: string): { vpa: string } | null {
+/** Extract the VPA (`pa`) + payee name (`pn`) from a UPI intent URI. VPA lowercased. */
+export function parseUpi(raw: string): { vpa: string; name: string | null } | null {
   const m = (raw ?? '').trim().match(/^upi:\/\/[^?]*\?(.*)$/i);
   if (!m) return null;
-  let vpa: string | null = null;
-  try { vpa = new URLSearchParams(m[1]).get('pa'); } catch { return null; }
+  let params: URLSearchParams;
+  try { params = new URLSearchParams(m[1]); } catch { return null; }
+  const vpa = params.get('pa');
   if (!vpa || !vpa.trim()) return null;
-  return { vpa: vpa.trim().toLowerCase() };
+  return { vpa: vpa.trim().toLowerCase(), name: params.get('pn')?.trim() || null };
 }
 
 /** Format of a raw scanned/pasted payment value. */

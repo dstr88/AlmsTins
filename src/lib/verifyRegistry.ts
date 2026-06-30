@@ -46,6 +46,8 @@ export interface Destination {
   rail: string;
   value: string;
   label: string | null;
+  /** Friendly display for non-URL QR (EMV merchant name / UPI payee) — `value` is a hash. */
+  displayHint: string | null;
   proofMethod: ProofMethod;
   proofStatus: ProofStatus;
   proofDomain: string | null;
@@ -175,6 +177,8 @@ export async function ensureVerifyTables(): Promise<void> {
     try { await db.execute({ sql, args: [] }); }
     catch (e) { console.error('[verify] monitor column not applied:', e); }
   }
+  try { await db.execute({ sql: `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS display_hint TEXT`, args: [] }); }
+  catch (e) { console.error('[verify] display_hint column not applied:', e); }
   // Backstop only — never let a pre-existing duplicate-proven row break Verify.
   try { await db.execute({ sql: ENSURE_CLAIM_IDX, args: [] }); }
   catch (e) { console.error('[verify] claim-once index not applied (resolve duplicate proven claims):', e); }
@@ -190,6 +194,7 @@ function mapRow(r: any): Destination {
     rail: String(r.rail),
     value: String(r.value),
     label: r.label ? String(r.label) : null,
+    displayHint: r.display_hint ? String(r.display_hint) : null,
     proofMethod: String(r.proof_method ?? 'none') as ProofMethod,
     proofStatus: String(r.proof_status ?? 'unproven') as ProofStatus,
     proofDomain: r.proof_domain ? String(r.proof_domain) : null,
@@ -204,7 +209,7 @@ function mapRow(r: any): Destination {
 export async function listDestinations(tenantId: string): Promise<Destination[]> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
+    sql: `SELECT id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
           FROM verify_destinations WHERE tenant_id = ?
           ORDER BY kind ASC, registered_at ASC`,
     args: [tenantId],
@@ -220,22 +225,30 @@ export async function listDestinations(tenantId: string): Promise<Destination[]>
  *  - other chains → strip any URI scheme + trailing params; keep case
  *    (BTC/SOL/LTC base58/bech32 are case-sensitive — never lowercase them)
  */
+/** Canonical http(s) URL: scheme + lowercased host + path, query/hash/trailing-slash dropped. */
+function normalizeUrl(s: string): string {
+  try {
+    const u = new URL(s);
+    return `${u.protocol.toLowerCase()}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}`;
+  } catch { return s.toLowerCase(); }
+}
+
 export function normalizeDestinationValue(raw: string): string {
   const s = (raw ?? '').trim();
   if (!s) return '';
   // Already-normalized non-URL payment QR (hash form) → return as-is (idempotent, so
   // re-normalizing a stored value in lookup/compare/monitor still matches).
   if (/^(emvqr|upi):[0-9a-f]{64}$/.test(s)) return s;
-  // Non-URL payment QR → hash the merchant identifier; we never store the raw key.
-  // An unparseable/dynamic-only payload returns '' (callers treat it as invalid).
-  if (isEmvPayload(s)) { const r = parseEmv(s); return r.ok ? `emvqr:${sha256hex(r.identifier)}` : ''; }
-  if (/^upi:\/\//i.test(s)) { const r = parseUpi(s); return r ? `upi:${sha256hex(r.vpa)}` : ''; }
-  if (/^https?:\/\//i.test(s)) {
-    try {
-      const u = new URL(s);
-      return `${u.protocol.toLowerCase()}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}`;
-    } catch { return s.toLowerCase(); }
+  // Non-URL payment QR → hash the merchant identifier; we never store the raw key. A
+  // dynamic PIX QR carries a PSP location URL instead of a key → match it as a URL.
+  // An unparseable payload returns '' (callers treat it as invalid).
+  if (isEmvPayload(s)) {
+    const r = parseEmv(s);
+    if (!r.ok) return '';
+    return r.kind === 'dynamic' ? normalizeUrl(r.url) : `emvqr:${sha256hex(r.identifier)}`;
   }
+  if (/^upi:\/\//i.test(s)) { const r = parseUpi(s); return r ? `upi:${sha256hex(r.vpa)}` : ''; }
+  if (/^https?:\/\//i.test(s)) return normalizeUrl(s);
   const evm = s.match(/0x[a-fA-F0-9]{40}/);
   if (evm) return evm[0].toLowerCase();
   const noScheme = s.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:/, '');
@@ -366,11 +379,16 @@ export async function createDestination(
   if (!rawValue || rawValue.length > 512) {
     return { ok: false, error: 'invalid', message: 'A destination value is required.' };
   }
-  // For a QR, detect the payment format so the rail reflects it (url / pix / emv / upi).
-  // "We don't distinguish TradFi vs crypto QRs" — all are kind='qr', sharing one limit.
+  // For a QR, detect the payment format so the rail reflects it (url / pix / emv / upi),
+  // and capture a friendly display hint (EMV merchant name / UPI payee) since the stored
+  // value for PIX/UPI is a hash. "We don't distinguish TradFi vs crypto QRs" — all are
+  // kind='qr', sharing one limit.
+  let displayHint: string | null = null;
   if (kind === 'qr') {
     const emv = parseEmv(rawValue);
-    rail = emv.ok ? emv.scheme : /^upi:\/\//i.test(rawValue) ? 'upi' : 'url';
+    if (emv.ok) { rail = emv.scheme; displayHint = emv.merchantName; }
+    else if (/^upi:\/\//i.test(rawValue)) { rail = 'upi'; displayHint = parseUpi(rawValue)?.name ?? null; }
+    else rail = 'url';
   }
   // QR/payment-link destinations are stored canonicalized so the claim-once index and
   // the customer-scan match operate on one stable form (URLs canonicalized; PIX/UPI
@@ -444,10 +462,10 @@ export async function createDestination(
   try {
     await db.execute({
       sql: `INSERT INTO verify_destinations
-              (id, tenant_id, kind, rail, value, label, proof_method, proof_status, proven_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, tenant_id, kind, rail, value, label, display_hint, proof_method, proof_status, proven_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
-        id, tenantId, kind, rail, value, label,
+        id, tenantId, kind, rail, value, label, displayHint,
         isQr ? 'account_claim' : 'none',
         isQr ? 'proven' : 'unproven',
         isQr ? nowUtc() : null,
@@ -463,7 +481,7 @@ export async function createDestination(
       : { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
   }
   const row = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
+    sql: `SELECT id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
           FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
@@ -567,7 +585,7 @@ export async function recordMonitorResult(tenantId: string, id: string, status: 
 export async function getDestination(tenantId: string, id: string): Promise<Destination | null> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
+    sql: `SELECT id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
           FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
@@ -720,7 +738,7 @@ export async function listProvenDomainsForMonitor(): Promise<ProvenDomainTarget[
 export async function getProvenAddressDestinations(tenantId: string, domain: string): Promise<Destination[]> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
+    sql: `SELECT id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
           FROM verify_destinations
           WHERE tenant_id = ? AND proof_domain = ? AND proof_status = 'proven' AND kind = 'address'`,
     args: [tenantId, domain],
