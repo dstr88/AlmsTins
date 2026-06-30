@@ -35,7 +35,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   if (!result.ok) {
     const status = result.error === 'limit_reached' ? 403
-      : result.error === 'claimed_elsewhere' ? 409
+      : result.error === 'claimed_elsewhere' || result.error === 'name_taken' ? 409
       : 400;
     return json(result, status);
   }

@@ -644,6 +644,7 @@ function AddForm({ kind, onChange, t }: { kind: 'address' | 'qr'; onChange: () =
         : data.error === 'duplicate' ? t.addErrDuplicate
         : data.error === 'invalid' ? t.addErrInvalid
         : data.error === 'claimed_elsewhere' ? t.addErrClaimed
+        : data.error === 'name_taken' ? t.addErrNameTaken
         : (data.message ?? t.addError),
       );
     } catch {

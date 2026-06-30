@@ -129,6 +129,19 @@ const ENSURE_DEPOSIT_SQL = `
 const ENSURE_DEPOSIT_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_deposit_challenges_dest
   ON verify_deposit_challenges (destination_id)`;
 
+// Global business-name registry. A business name is claimed like an email handle:
+// the normalized name is the PRIMARY KEY, so it belongs to exactly one tenant —
+// two businesses can never register the same name. A tenant reuses its own name
+// freely across its own destinations. Mirrors migrations-pg/0011_verify_claimed_names.sql.
+const ENSURE_NAMES_SQL = `
+  CREATE TABLE IF NOT EXISTS verify_claimed_names (
+    name_key     TEXT NOT NULL PRIMARY KEY,
+    tenant_id    TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    created_at   TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+
 // Phase 5 — published-source swap monitor. A destination can carry an optional public
 // page URL we re-check for a swap of its value. Lazy column adds; mirrors
 // migrations-pg/0010_verify_monitor.sql.
@@ -147,6 +160,7 @@ export async function ensureVerifyTables(): Promise<void> {
   await db.execute({ sql: ENSURE_PROOFS_IDX, args: [] });
   await db.execute({ sql: ENSURE_DEPOSIT_SQL, args: [] });
   await db.execute({ sql: ENSURE_DEPOSIT_IDX, args: [] });
+  await db.execute({ sql: ENSURE_NAMES_SQL, args: [] });
   for (const sql of ENSURE_MONITOR_COLS) {
     try { await db.execute({ sql, args: [] }); }
     catch (e) { console.error('[verify] monitor column not applied:', e); }
@@ -211,6 +225,15 @@ export function normalizeDestinationValue(raw: string): string {
   return noScheme.split(/[?@\s]/)[0].trim();
 }
 
+/**
+ * Canonical form of a business name for the global-uniqueness check. Like an email,
+ * the name is case-insensitive and whitespace-normalized, so "Joe's Coffee", "joe's
+ * coffee", and "Joe's   Coffee " all collide. Returns '' for an empty/blank name.
+ */
+export function normalizeName(raw: string): string {
+  return (raw ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 export interface CompareResult {
   matched: boolean;
   normalizedQuery: string;
@@ -233,7 +256,7 @@ export async function compareToDestinations(tenantId: string, rawValue: string):
 
 export type CreateResult =
   | { ok: true; destination: Destination }
-  | { ok: false; error: 'limit_reached' | 'duplicate' | 'invalid' | 'claimed_elsewhere'; message: string };
+  | { ok: false; error: 'limit_reached' | 'duplicate' | 'invalid' | 'claimed_elsewhere' | 'name_taken'; message: string };
 
 export async function createDestination(
   tenantId: string,
@@ -279,6 +302,38 @@ export async function createDestination(
   });
   if (dup.rows.length) {
     return { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
+  }
+
+  // Global business-name uniqueness (like an email handle). A given name belongs to one
+  // tenant; another tenant cannot register it. The same tenant reuses its own name freely.
+  // NOTE: uniqueness ≠ authenticity — first-come, no identity check; it prevents duplicate
+  // names, not impersonation. Gate name-claims behind proof later to close squatting.
+  const nameKey = label ? normalizeName(label) : '';
+  if (nameKey) {
+    const owner = await db.execute({
+      sql: `SELECT tenant_id FROM verify_claimed_names WHERE name_key = ? LIMIT 1`,
+      args: [nameKey],
+    });
+    if (owner.rows.length) {
+      if (String((owner.rows[0] as any).tenant_id) !== tenantId) {
+        return { ok: false, error: 'name_taken', message: 'That business name is already taken. Choose a different name.' };
+      }
+    } else {
+      // Claim it for this tenant. The PK on name_key is the race arbiter: if a
+      // concurrent claim beat us, ON CONFLICT DO NOTHING leaves their row and we bail.
+      await db.execute({
+        sql: `INSERT INTO verify_claimed_names (name_key, tenant_id, display_name)
+              VALUES (?, ?, ?) ON CONFLICT (name_key) DO NOTHING`,
+        args: [nameKey, tenantId, label],
+      });
+      const check = await db.execute({
+        sql: `SELECT tenant_id FROM verify_claimed_names WHERE name_key = ? LIMIT 1`,
+        args: [nameKey],
+      });
+      if (!check.rows.length || String((check.rows[0] as any).tenant_id) !== tenantId) {
+        return { ok: false, error: 'name_taken', message: 'That business name is already taken. Choose a different name.' };
+      }
+    }
   }
 
   // QR/payment links are proven on save (account_claim): registering a link while
