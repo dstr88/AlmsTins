@@ -13,6 +13,8 @@ export interface Props {
   canonical?: string;
   /** Favicon URL. Defaults to the site-wide /favicon.webp; pass a per-page override (e.g. /verify). */
   favicon?: string;
+  /** OG/Twitter share image. Defaults to the site-wide /og-default.png; pass a per-page override. */
+  ogImage?: string;
 }
 
 const {
@@ -22,8 +24,10 @@ const {
   lang = 'en',
   canonical,
   favicon = '/favicon.webp',
+  ogImage = '/og-default.png',
 } = Astro.props;
 const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
+const ogImageHref = ogImage.startsWith('http') ? ogImage : `https://almstins.com${ogImage}`;
 ---
 
 <!doctype html>
@@ -38,11 +42,11 @@ const canonicalHref = canonical ?? `https://almstins.com${Astro.url.pathname}`;
 		<meta property="og:description" content={description} />
 		<meta property="og:type" content="website" />
 		<meta property="og:url" content={`https://almstins.com${Astro.url.pathname}`} />
-		<meta property="og:image" content="https://almstins.com/og-default.png" />
+		<meta property="og:image" content={ogImageHref} />
 		<meta name="twitter:card" content="summary_large_image" />
 		<meta name="twitter:title" content={title} />
 		<meta name="twitter:description" content={description} />
-		<meta name="twitter:image" content="https://almstins.com/og-default.png" />
+		<meta name="twitter:image" content={ogImageHref} />
 		<meta name="author" content="AlmsTins" />
 		<meta property="article:author" content="https://www.linkedin.com/company/almstins/" />
 		<link rel="canonical" href={canonicalHref} />
