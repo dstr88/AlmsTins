@@ -387,7 +387,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [result, setResult]       = useState<WalletCheckResult | null>(null);
-  const [verifiedPublisher, setVerifiedPublisher] = useState<{ domain: string } | null>(null);
+  const [verifiedPublisher, setVerifiedPublisher] = useState<{ domain: string | null; label: string | null } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [cached, setCached]       = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -432,8 +432,13 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
       })
         .then(r => r.json())
         .then((d: any) => {
-          if (d?.ok && d.verified && typeof d.domain === 'string') {
-            setVerifiedPublisher({ domain: d.domain });
+          // Show a verified claim whether it's a domain-verified entity (domain) or a
+          // merchant who proved control and named it (label) — or both.
+          if (d?.ok && d.verified && (typeof d.domain === 'string' || typeof d.label === 'string')) {
+            setVerifiedPublisher({
+              domain: typeof d.domain === 'string' ? d.domain : null,
+              label: typeof d.label === 'string' ? d.label : null,
+            });
           }
         })
         .catch(() => { /* non-fatal — includes AbortError when a check is superseded */ });
@@ -699,7 +704,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
       {result && (
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.5rem' }}>
 
-          {/* Verified publisher — a domain-verified entity published this exact address */}
+          {/* Verified claim — a domain-verified entity, or a merchant who proved + named it */}
           {verifiedPublisher && (
             <div style={{
               marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
@@ -712,7 +717,10 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
                   {c.verifiedTitle}
                 </div>
                 <p style={{ margin: '0.3rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                  {c.verifiedBody.replace('{domain}', verifiedPublisher.domain)}
+                  {verifiedPublisher.label
+                    ? c.verifiedMerchant.replace('{name}', verifiedPublisher.label)
+                      + (verifiedPublisher.domain ? c.verifiedVia.replace('{domain}', verifiedPublisher.domain) : '')
+                    : c.verifiedBody.replace('{domain}', verifiedPublisher.domain ?? '')}
                 </p>
                 <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
                   {c.verifiedSub}

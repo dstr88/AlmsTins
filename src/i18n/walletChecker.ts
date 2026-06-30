@@ -152,6 +152,8 @@ export interface WalletCheckerLocale {
     multisigEvmOnly: string;
     verifiedTitle: string;
     verifiedBody: string;
+    verifiedMerchant: string;
+    verifiedVia: string;
     verifiedSub: string;
   };
 }
@@ -423,6 +425,8 @@ export const en: WalletCheckerLocale = {
     multisigEvmOnly: 'Multi-sig detection only available for EVM addresses.',
     verifiedTitle: 'Verified publisher',
     verifiedBody: '{domain} proved control of its domain and lists this as one of its own receiving addresses.',
+    verifiedMerchant: 'A verified Almstins member registered this address as “{name}”.',
+    verifiedVia: ' · verified via {domain}',
     verifiedSub: 'This confirms who published the address — not that any payment is safe. Still confirm the amount and that you meant to pay this business.',
   },
 };
@@ -694,6 +698,8 @@ export const es: WalletCheckerLocale = {
     multisigEvmOnly: 'La detección de multi-firma solo está disponible para direcciones EVM.',
     verifiedTitle: 'Comercio verificado',
     verifiedBody: '{domain} demostró el control de su dominio y figura esta como una de sus propias direcciones de cobro.',
+    verifiedMerchant: 'Un miembro verificado de Almstins registró esta dirección como «{name}».',
+    verifiedVia: ' · verificado vía {domain}',
     verifiedSub: 'Esto confirma quién publicó la dirección — no que un pago sea seguro. Confirma igualmente el importe y que querías pagar a este negocio.',
   },
 };
@@ -965,6 +971,8 @@ export const fr: WalletCheckerLocale = {
     multisigEvmOnly: 'La détection multi-signature n’est disponible que pour les adresses EVM.',
     verifiedTitle: 'Émetteur vérifié',
     verifiedBody: '{domain} a prouvé le contrôle de son domaine et inscrit celle-ci comme l’une de ses propres adresses de réception.',
+    verifiedMerchant: 'Un membre vérifié d’Almstins a enregistré cette adresse sous « {name} ».',
+    verifiedVia: ' · vérifié via {domain}',
     verifiedSub: 'Cela confirme qui a publié l’adresse — pas qu’un paiement soit sûr. Vérifiez tout de même le montant et que vous vouliez bien payer cette entreprise.',
   },
 };
