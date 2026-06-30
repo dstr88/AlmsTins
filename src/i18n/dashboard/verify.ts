@@ -119,6 +119,8 @@ export interface VerifyDashboardLocale {
   qrBadgeDownload: string;
   provenBy: string; // "… ({domain})"
   monitorBtn: string;
+  monitorSoonBtn: string;
+  monitorSoonTitle: string;
   monitorOnBtn: string;
   monitorHint: string;
   monitorPlaceholder: string;
@@ -260,6 +262,8 @@ export const en: VerifyDashboardLocale = {
   qrBadgeDownload: 'Download PNG',
   provenBy: 'Published by {domain}',
   monitorBtn: '👁 Watch page',
+  monitorSoonBtn: '👁 Live monitoring — coming soon',
+  monitorSoonTitle: 'Continuous swap-monitoring with alerts is a paid feature, coming soon. On-demand checks stay free.',
   monitorOnBtn: '👁 Watching',
   monitorHint: 'Paste the public web page where you publish this — a "pay here" page, donation page, invoice, or checkout. We re-check it regularly and email you if the address or link shown there ever changes from what you registered (a swap). Works best on a normal web page; values drawn by JavaScript may not be readable.',
   monitorPlaceholder: 'https://yourshop.com/pay',
@@ -419,6 +423,8 @@ export const es: VerifyDashboardLocale = {
   qrBadgeDownload: 'Descargar PNG',
   provenBy: 'Publicado por {domain}',
   monitorBtn: '👁 Vigilar página',
+  monitorSoonBtn: '👁 Monitoreo en vivo — próximamente',
+  monitorSoonTitle: 'La supervisión continua de sustituciones con alertas es una función de pago, próximamente. Las comprobaciones a demanda siguen siendo gratis.',
   monitorOnBtn: '👁 Vigilando',
   monitorHint: 'Pega la página web pública donde publicas esto — una página de "paga aquí", de donaciones, una factura o un checkout. La revisamos con regularidad y te enviamos un correo si la dirección o el enlace que aparece allí cambia respecto a lo que registraste (una sustitución). Funciona mejor en una página web normal; los valores generados por JavaScript pueden no ser legibles.',
   monitorPlaceholder: 'https://tutienda.com/pagar',
@@ -578,6 +584,8 @@ export const fr: VerifyDashboardLocale = {
   qrBadgeDownload: 'Télécharger le PNG',
   provenBy: 'Publié par {domain}',
   monitorBtn: '👁 Surveiller la page',
+  monitorSoonBtn: '👁 Surveillance en direct — bientôt',
+  monitorSoonTitle: 'La surveillance continue des substitutions avec alertes est une fonction payante, bientôt disponible. Les vérifications à la demande restent gratuites.',
   monitorOnBtn: '👁 Surveillance active',
   monitorHint: 'Collez la page web publique où vous publiez ceci — une page « payez ici », une page de dons, une facture ou une page de paiement. Nous la revérifions régulièrement et vous envoyons un e-mail si l’adresse ou le lien qui y figure change par rapport à ce que vous avez enregistré (une substitution). Fonctionne mieux sur une page web classique ; les valeurs générées par JavaScript peuvent ne pas être lisibles.',
   monitorPlaceholder: 'https://votreboutique.com/payer',

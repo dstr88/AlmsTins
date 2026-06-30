@@ -463,8 +463,11 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
           </button>
         )}
         {canMonitor && (
-          <button className="vd-row__prove" onClick={() => setMonitoring(m => !m)} aria-expanded={monitoring}>
-            {d.monitorUrl ? t.monitorOnBtn : t.monitorBtn}
+          // Live swap-monitoring (the "watchman") is the paid tier — gated until pricing
+          // ships. Disabled + "coming soon"; the panel/backend stay built behind it.
+          <button className="vd-row__prove" disabled title={t.monitorSoonTitle}
+            style={{ opacity: 0.55, cursor: 'not-allowed' }}>
+            {t.monitorSoonBtn}
           </button>
         )}
         {!isDemo && (
