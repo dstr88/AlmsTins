@@ -120,7 +120,7 @@ const en: VerifyCopy = {
       'No wallet connection, ever — we read public data you point us to',
       "Your data stays yours — we can't see your customers, and we can't move your funds",
     ],
-    note: "More options are coming. Right now it's free while we build it with the people who'll use it.",
+    note: "Pricing is coming soon — for now everything here is free while we test it with the people who'll use it.",
   },
   trust: {
     heading: 'Why you can trust it',
@@ -229,7 +229,7 @@ const es: VerifyCopy = {
       'Sin conectar la billetera, nunca — leemos datos públicos que tú nos indicas',
       'Tus datos siguen siendo tuyos — no podemos ver a tus clientes, y no podemos mover tus fondos',
     ],
-    note: 'Vienen más opciones. Por ahora es gratis mientras lo construimos con las personas que lo usarán.',
+    note: 'Los precios llegan pronto — por ahora todo es gratis mientras lo probamos con las personas que lo usarán.',
   },
   trust: {
     heading: 'Por qué puedes confiar',
@@ -338,7 +338,7 @@ const fr: VerifyCopy = {
       'Sans connexion de portefeuille, jamais — nous lisons les données publiques que vous nous indiquez',
       'Vos données restent les vôtres — nous ne voyons pas vos clients, et nous ne pouvons pas déplacer vos fonds',
     ],
-    note: "D'autres options arrivent. Pour l'instant, c'est gratuit pendant que nous le construisons avec celles et ceux qui l'utiliseront.",
+    note: "Les tarifs arrivent bientôt — pour l'instant tout est gratuit pendant que nous le testons avec celles et ceux qui l'utiliseront.",
   },
   trust: {
     heading: 'Pourquoi vous pouvez avoir confiance',
