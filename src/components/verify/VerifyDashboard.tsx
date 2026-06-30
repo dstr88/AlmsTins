@@ -537,12 +537,14 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
   const [method, setMethod] = useState<'selfsend' | 'domain'>('selfsend');
   const [domain, setDomain] = useState('');
   const [file, setFile] = useState<{ path: string; file: string } | null>(null);
+  const [challenge, setChallenge] = useState('');
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null);
 
   // Map a prove-endpoint outcome code → localized copy.
   const proofString = (code: string): string => ({
     proven: t.proofProven,
+    name_attached: t.proofNameAttached,
     challenge_mismatch: t.proofChallengeMismatch,
     address_not_listed: t.proofAddressNotListed,
     unreachable: t.proofUnreachable,
@@ -562,6 +564,7 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
       if (data.outcome === 'invalid_domain') { setFile(null); setOutcome({ text: t.proofInvalidDomain, ok: false }); return; }
       if (!data.ok) { setOutcome({ text: t.proveError, ok: false }); return; }
       setFile({ path: data.path, file: data.file });
+      setChallenge(data.challenge ?? '');
     } catch {
       setOutcome({ text: t.proveError, ok: false });
     } finally { setBusy(false); }
@@ -574,7 +577,7 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: domain.trim() }),
       });
       const data = await res.json();
-      const ok = data.outcome === 'proven';
+      const ok = data.outcome === 'proven' || data.outcome === 'name_attached';
       setOutcome({ text: data.ok ? proofString(data.outcome) : t.proveError, ok });
       if (ok) setTimeout(onProven, 1400); // let the success show, then refresh the list
     } catch {
@@ -608,6 +611,16 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
               <pre className="vd-prove__pre">{file.file}</pre>
               <div className="vd-prove__row">
                 <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(file.file); }}>{t.proveCopyBtn}</button>
+              </div>
+              {challenge && (
+                <>
+                  <p className="vd-prove__steps">{t.proveDnsOr}</p>
+                  <p className="vd-prove__hint">{t.proveDnsStep}</p>
+                  <pre className="vd-prove__pre">{challenge}</pre>
+                  <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(challenge); }}>{t.proveCopyBtn}</button>
+                </>
+              )}
+              <div className="vd-prove__row" style={{ marginTop: '0.5rem' }}>
                 <button className="vd-prove__verify" onClick={prove} disabled={busy}>{busy ? t.proveVerifyingBtn : t.proveVerifyBtn}</button>
               </div>
             </div>

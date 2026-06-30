@@ -634,6 +634,29 @@ export async function recordProofResult(
   return flipped;
 }
 
+/**
+ * DNS-TXT proof: the domain controller published our challenge as a TXT record. This
+ * proves CONTROL — it carries no address list, so (unlike the file) it does NOT vouch
+ * for any address. Its job is to attach the BUSINESS NAME: mark the domain proven and
+ * reserve the domain-anchored name for the tenant's matching labels.
+ */
+export async function recordDomainControlProof(tenantId: string, domain: string): Promise<void> {
+  await ensureVerifyTables();
+  const now = nowUtc();
+  await db.execute({
+    sql: `UPDATE verify_domain_proofs
+          SET status = 'proven', method = 'dns_txt', proven_at = ?, last_checked_at = ?, updated_at = ?
+          WHERE tenant_id = ? AND domain = ?`,
+    args: [now, now, now, tenantId, domain],
+  });
+  const dests = await listDestinations(tenantId);
+  for (const d of dests) {
+    if (d.label && nameMatchesDomain(d.label, domain)) {
+      try { await tryClaimVerifiedName(tenantId, d.label); } catch { /* non-fatal */ }
+    }
+  }
+}
+
 /** Stamp a check that didn't prove the domain (for re-validation/audit later). */
 export async function markProofChecked(tenantId: string, domain: string, status: 'failed' | 'pending'): Promise<void> {
   await ensureVerifyTables();

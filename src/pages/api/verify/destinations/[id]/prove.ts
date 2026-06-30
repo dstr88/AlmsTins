@@ -10,8 +10,8 @@
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { getDestination, getChallenge, recordProofResult, markProofChecked } from '@/lib/verifyRegistry';
-import { normalizeProofDomain, verifyDomainProof } from '@/lib/verifyProof';
+import { getDestination, getChallenge, recordProofResult, recordDomainControlProof, markProofChecked } from '@/lib/verifyRegistry';
+import { normalizeProofDomain, verifyDomainProof, verifyDnsTxt } from '@/lib/verifyProof';
 
 export const prerender = false;
 
@@ -37,18 +37,27 @@ export const POST: APIRoute = async ({ request, params }) => {
   const challenge = await getChallenge(session.tenantId, domain);
   if (!challenge) return json({ ok: true, outcome: 'invalid_domain' });
 
+  // Method 1 — the published file (carries the address list; vouches for addresses).
   const result = await verifyDomainProof(domain, challenge);
-  if (!result.ok) {
-    await markProofChecked(session.tenantId, domain, 'failed');
-    return json({ ok: true, outcome: result.code });
+  if (result.ok) {
+    const flipped = await recordProofResult(session.tenantId, domain, result.addresses);
+    return json({
+      ok: true,
+      outcome: flipped.includes(id) ? 'proven' : 'address_not_listed',
+      flipped: flipped.length,
+    });
   }
 
-  // Challenge matched. Flip every address the file vouches for; report whether the
-  // destination the user is proving was one of them.
-  const flipped = await recordProofResult(session.tenantId, domain, result.addresses);
-  return json({
-    ok: true,
-    outcome: flipped.includes(id) ? 'proven' : 'address_not_listed',
-    flipped: flipped.length,
-  });
+  // Method 2 — DNS TXT record (the easier path for managed-host merchants). It proves
+  // CONTROL but carries no address list, so it attaches the business NAME without
+  // vouching for addresses (those stay self-send/file-proven).
+  const dns = await verifyDnsTxt(domain, challenge);
+  if (dns.ok) {
+    await recordDomainControlProof(session.tenantId, domain);
+    return json({ ok: true, outcome: 'name_attached' });
+  }
+
+  // Neither method passed — surface the file outcome as the primary hint.
+  await markProofChecked(session.tenantId, domain, 'failed');
+  return json({ ok: true, outcome: result.code });
 };

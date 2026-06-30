@@ -20,7 +20,7 @@
  * address→identity map.
  */
 import { randomBytes } from 'node:crypto';
-import { lookup } from 'node:dns/promises';
+import { lookup, resolveTxt } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
 /** Where the owner publishes the proof. The path is fixed; the file is per-domain. */
@@ -227,6 +227,46 @@ export async function verifyDomainProof(rawDomain: string, expectedChallenge: st
   // both sides when matching them to the tenant's registered destinations.
   const addresses = Array.from(new Set(file.addresses.map((a) => a.trim()).filter(Boolean)));
   return { ok: true, addresses };
+}
+
+// ── DNS TXT proof (the easier path for managed-host merchants) ────────────────
+// A merchant who can't drop a /.well-known file (Shopify/Wix/Squarespace) can instead
+// add a TXT record carrying the same account-bound challenge. DNS control proves the
+// same authority a file does. Unlike the file, a TXT record carries NO address list —
+// so DNS proves CONTROL (→ reserve the business name), it does not vouch for addresses.
+
+export type DnsTxtResult = { ok: true } | { ok: false; code: 'invalid_domain' | 'unreachable' | 'challenge_mismatch' };
+
+/** Pure: does any published TXT record carry the challenge token? Exported for tests. */
+export function txtRecordsContainChallenge(records: string[], challenge: string): boolean {
+  if (!challenge) return false;
+  return records.some((r) => r.includes(challenge));
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+}
+
+/**
+ * Verify the challenge is published as a TXT record on the domain (root) or on the
+ * dedicated `_almstins-verify.<domain>` host. Read-only DNS lookup — no HTTP, no SSRF
+ * surface. Returns ok when any record contains the token.
+ */
+export async function verifyDnsTxt(rawDomain: string, expectedChallenge: string): Promise<DnsTxtResult> {
+  const host = normalizeProofDomain(rawDomain);
+  if (!host) return { ok: false, code: 'invalid_domain' };
+  const names = [host, `_almstins-verify.${host}`];
+  const collected: string[] = [];
+  let anyResolved = false;
+  for (const name of names) {
+    try {
+      const recs = await withTimeout(resolveTxt(name), FETCH_TIMEOUT_MS); // string[][]
+      anyResolved = true;
+      for (const chunks of recs) collected.push(chunks.join(''));
+    } catch { /* NXDOMAIN / no TXT / timeout — try the next name */ }
+  }
+  if (!collected.length) return { ok: false, code: anyResolved ? 'challenge_mismatch' : 'unreachable' };
+  return txtRecordsContainChallenge(collected, expectedChallenge) ? { ok: true } : { ok: false, code: 'challenge_mismatch' };
 }
 
 // ── Hosted-API-endpoint variant (Verified Entity) ────────────────────────────

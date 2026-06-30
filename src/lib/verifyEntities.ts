@@ -324,14 +324,21 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   //    expose only the merchant's OWN self-chosen label — never tenant_id or any identity.
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT rail, value, label, proof_domain FROM verify_destinations
+    sql: `SELECT tenant_id, rail, value, label, proof_domain FROM verify_destinations
           WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)`,
     args: [normalized, normalized],
   });
   const hit = (dest.rows as any[]).find((r) => normalizeDestinationValue(String(r.value)) === normalized);
   if (hit) {
-    // proof_domain is the anchor for the verified business name ("name · via domain").
-    return { source: 'merchant', domain: hit.proof_domain ? String(hit.proof_domain) : null, label: hit.label ? String(hit.label) : null, chain: String(hit.rail) };
+    // Prefer the tenant's domain-verified business name (+ its anchor domain) over the
+    // freeform label. We expose only the public name + domain — never tenant_id or any key.
+    const vn = await verifiedNameForTenant(String(hit.tenant_id));
+    return {
+      source: 'merchant',
+      domain: vn?.domain ?? (hit.proof_domain ? String(hit.proof_domain) : null),
+      label: vn?.name ?? (hit.label ? String(hit.label) : null),
+      chain: String(hit.rail),
+    };
   }
   return null;
 }
@@ -351,15 +358,34 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
   if (!normalized) return null;
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT rail, value, label FROM verify_destinations
+    sql: `SELECT tenant_id, rail, value, label FROM verify_destinations
           WHERE kind = 'qr' AND proof_status = 'proven'`,
     args: [],
   });
   const hit = (dest.rows as any[]).find((r) => normalizeDestinationValue(String(r.value)) === normalized);
   if (!hit) return null;
+  const vn = await verifiedNameForTenant(String(hit.tenant_id));
   let host: string | null = null;
   try { host = new URL(normalized).host || null; } catch { host = null; }
-  return { source: 'merchant', domain: host, label: hit.label ? String(hit.label) : null, chain: 'url' };
+  return { source: 'merchant', domain: vn?.domain ?? host, label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url' };
+}
+
+/**
+ * The tenant's domain-verified business name + its anchor domain, or null. Used to show
+ * "Registered to <name> · verified via <domain>" on any of the tenant's proven
+ * destinations, regardless of how the destination itself was proven. Returns ONLY the
+ * public name + domain — never tenant_id or any key.
+ */
+async function verifiedNameForTenant(tenantId: string): Promise<{ name: string; domain: string | null } | null> {
+  try {
+    const vn = await db.execute({
+      sql: `SELECT display_name, domain FROM verify_claimed_names WHERE tenant_id = ? ORDER BY created_at ASC LIMIT 1`,
+      args: [tenantId],
+    });
+    if (!vn.rows.length) return null;
+    const r = vn.rows[0] as any;
+    return { name: String(r.display_name), domain: r.domain ? String(r.domain) : null };
+  } catch { return null; }
 }
 
 // ── Phase 5: monitoring / re-validation (the watchman) ───────────────────────

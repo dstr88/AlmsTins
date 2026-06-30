@@ -72,6 +72,9 @@ export interface VerifyDashboardLocale {
   // Phase 3 — proof-of-control (domain attestation) outcomes. verifyProof.ts returns
   // a code; the UI maps it to one of these. Defined locale-first ahead of the panel.
   proofProven: string;
+  proofNameAttached: string;
+  proveDnsOr: string;
+  proveDnsStep: string;
   proofChallengeMismatch: string;
   proofAddressNotListed: string;
   proofUnreachable: string;
@@ -207,6 +210,9 @@ export const en: VerifyDashboardLocale = {
   safetyDanger: '⛔ Scam signals detected — do not pay this.',
   safetyError: 'Could not complete the safety check.',
   proofProven: '✓ Ownership proven — this domain published your address.',
+  proofNameAttached: '✓ Domain verified — your business name is now attached. (Verify each wallet separately with a self-send if you haven’t.)',
+  proveDnsOr: 'No website to host a file? Use a DNS record instead:',
+  proveDnsStep: 'Add a TXT record to your domain (host “@”, or “_almstins-verify”) with this exact value, then verify:',
   proofChallengeMismatch: '⚠ The verification file is there, but its code doesn’t match. Re-publish the exact file we gave you.',
   proofAddressNotListed: '⚠ Domain verified, but this address isn’t listed in the file. Add it and check again.',
   proofUnreachable: '⚠ Couldn’t reach the verification file. Publish it at /.well-known/almstins-verify.json and try again.',
@@ -217,7 +223,7 @@ export const en: VerifyDashboardLocale = {
   statusLapsed: 'Lapsed',
   statusRevoked: 'Revoked',
   proveBtn: 'Prove',
-  proveHint: 'Prove you control the domain that publishes this address. Publish a small file on your site and we’ll check it.',
+  proveHint: 'Prove you control the domain — that attaches your verified business name. Two ways: publish a small file on your site (best if you also want the domain to vouch for your addresses), or add a DNS TXT record (easiest on Shopify/Wix/Squarespace). Do either.',
   proveDomainPlaceholder: 'yourdomain.com',
   proveGetFileBtn: 'Get file',
   proveStep1: 'Publish this exact file at {url}, then verify:',
@@ -356,6 +362,9 @@ export const es: VerifyDashboardLocale = {
   safetyDanger: '⛔ Señales de estafa detectadas — no pagues esto.',
   safetyError: 'No se pudo completar el control de seguridad.',
   proofProven: '✓ Propiedad verificada — este dominio publicó tu dirección.',
+  proofNameAttached: '✓ Dominio verificado — tu nombre de negocio ya está adjunto. (Verifica cada billetera por separado con un autoenvío si aún no lo has hecho.)',
+  proveDnsOr: '¿Sin sitio web para alojar un archivo? Usa un registro DNS:',
+  proveDnsStep: 'Añade un registro TXT a tu dominio (host «@» o «_almstins-verify») con este valor exacto, y luego verifica:',
   proofChallengeMismatch: '⚠ El archivo de verificación está, pero su código no coincide. Vuelve a publicar el archivo exacto que te dimos.',
   proofAddressNotListed: '⚠ Dominio verificado, pero esta dirección no aparece en el archivo. Agrégala y vuelve a comprobar.',
   proofUnreachable: '⚠ No se pudo acceder al archivo de verificación. Publícalo en /.well-known/almstins-verify.json e inténtalo de nuevo.',
@@ -366,7 +375,7 @@ export const es: VerifyDashboardLocale = {
   statusLapsed: 'Caducado',
   statusRevoked: 'Revocado',
   proveBtn: 'Probar',
-  proveHint: 'Demuestra que controlas el dominio que publica esta dirección. Publica un archivo pequeño en tu sitio y lo comprobaremos.',
+  proveHint: 'Demuestra que controlas el dominio — eso adjunta tu nombre de negocio verificado. Dos formas: publica un archivo pequeño en tu sitio (mejor si además quieres que el dominio respalde tus direcciones), o añade un registro DNS TXT (lo más fácil en Shopify/Wix/Squarespace). Haz cualquiera de las dos.',
   proveDomainPlaceholder: 'tudominio.com',
   proveGetFileBtn: 'Obtener archivo',
   proveStep1: 'Publica este archivo exacto en {url} y luego verifica:',
@@ -505,6 +514,9 @@ export const fr: VerifyDashboardLocale = {
   safetyDanger: '⛔ Signaux d’arnaque détectés — ne payez pas.',
   safetyError: 'Impossible de terminer le contrôle de sécurité.',
   proofProven: '✓ Propriété prouvée — ce domaine a publié votre adresse.',
+  proofNameAttached: '✓ Domaine vérifié — votre nom d’entreprise est maintenant rattaché. (Vérifiez chaque portefeuille séparément par auto-envoi si ce n’est pas déjà fait.)',
+  proveDnsOr: 'Pas de site pour héberger un fichier ? Utilisez un enregistrement DNS :',
+  proveDnsStep: 'Ajoutez un enregistrement TXT à votre domaine (hôte « @ » ou « _almstins-verify ») avec cette valeur exacte, puis vérifiez :',
   proofChallengeMismatch: '⚠ Le fichier de vérification est là, mais son code ne correspond pas. Republiez le fichier exact que nous vous avons fourni.',
   proofAddressNotListed: '⚠ Domaine vérifié, mais cette adresse ne figure pas dans le fichier. Ajoutez-la et revérifiez.',
   proofUnreachable: '⚠ Impossible d’accéder au fichier de vérification. Publiez-le à /.well-known/almstins-verify.json et réessayez.',
@@ -515,7 +527,7 @@ export const fr: VerifyDashboardLocale = {
   statusLapsed: 'Expiré',
   statusRevoked: 'Révoqué',
   proveBtn: 'Prouver',
-  proveHint: 'Prouvez que vous contrôlez le domaine qui publie cette adresse. Publiez un petit fichier sur votre site et nous le vérifierons.',
+  proveHint: 'Prouvez que vous contrôlez le domaine — cela rattache votre nom d’entreprise vérifié. Deux façons : publiez un petit fichier sur votre site (mieux si vous voulez aussi que le domaine atteste vos adresses), ou ajoutez un enregistrement DNS TXT (le plus simple sur Shopify/Wix/Squarespace). Au choix.',
   proveDomainPlaceholder: 'votredomaine.com',
   proveGetFileBtn: 'Obtenir le fichier',
   proveStep1: 'Publiez ce fichier exact à {url}, puis vérifiez :',
