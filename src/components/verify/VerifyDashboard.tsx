@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import jsQR from 'jsqr';
 import { decodeQrFromImageFile } from '../../lib/qrScan';
 import type { VerifyDashboardLocale } from '../../i18n/dashboard/verify';
 import './VerifyDashboard.css';
@@ -764,6 +765,62 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
   const [state, setState] = useState<CheckState>({ status: 'idle' });
   const [safety, setSafety] = useState<SafetyState>({ s: 'idle' });
   const [scanning, setScanning] = useState(false);
+  const [cameraOn, setCameraOn] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  // Live camera QR scan — opens the webcam on desktop (and the camera on mobile), unlike
+  // a file <input capture> which falls back to the file picker on desktop.
+  useEffect(() => {
+    if (!cameraOn) return;
+    let cancelled = false;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const tick = () => {
+      if (cancelled) return;
+      const video = videoRef.current;
+      if (video && ctx && video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        try {
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+          if (code?.data) {
+            cancelled = true;
+            setValue(code.data);
+            setCameraOn(false);
+            void check(code.data);
+            return;
+          }
+        } catch { /* getImageData can throw mid-teardown; ignore */ }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCameraOn(false); };
+    window.addEventListener('keydown', onKey);
+    (async () => {
+      if (!navigator.mediaDevices?.getUserMedia) { setState({ status: 'error', message: t.cameraError }); setCameraOn(false); return; }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (video) { video.srcObject = stream; await video.play().catch(() => {}); rafRef.current = requestAnimationFrame(tick); }
+      } catch { setState({ status: 'error', message: t.cameraError }); setCameraOn(false); }
+    })();
+    return () => {
+      cancelled = true;
+      window.removeEventListener('keydown', onKey);
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      const video = videoRef.current;
+      if (video) video.srcObject = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraOn]);
 
   async function check(override?: string) {
     const q = (override ?? value).trim();
@@ -819,12 +876,12 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
     }
   }
 
-  // Open camera / photo picker, decode on-device, then check the payload.
-  function scan() {
+  // Upload a photo/screenshot of the QR (explicit file path; the camera path is separate).
+  function uploadFile() {
+    setCameraOn(false);
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.setAttribute('capture', 'environment'); // rear camera on mobile
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return; // cancelled — stay silent
@@ -862,13 +919,24 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
           spellCheck={false}
           autoComplete="off"
         />
-        <button type="button" className="vd-verify__scan" onClick={scan} disabled={scanning}>
-          {scanning ? t.scanningBtn : t.scanBtn}
+        <button type="button" className="vd-verify__scan" onClick={() => setCameraOn((o) => !o)}>
+          {cameraOn ? t.cameraStopBtn : t.cameraBtn}
+        </button>
+        <button type="button" className="vd-verify__scan" onClick={uploadFile} disabled={scanning}>
+          {scanning ? t.scanningBtn : t.uploadBtn}
         </button>
         <button type="submit" className="vd-verify__btn" disabled={state.status === 'checking' || !value.trim()}>
           {state.status === 'checking' ? t.checkingBtn : t.checkBtn}
         </button>
       </form>
+
+      {cameraOn && (
+        <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+          <video ref={videoRef} playsInline muted
+            style={{ width: '100%', maxWidth: '360px', borderRadius: '12px', background: '#000' }} />
+          <p className="vd-verify__hint" style={{ marginTop: '0.4rem' }}>{t.cameraHint}</p>
+        </div>
+      )}
 
       {state.status === 'match' && (
         <div className="vd-verify__result vd-verify__result--ok">

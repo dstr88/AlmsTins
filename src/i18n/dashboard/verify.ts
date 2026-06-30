@@ -50,6 +50,11 @@ export interface VerifyDashboardLocale {
   verifyHint: string;
   verifyPlaceholder: string;
   scanBtn: string;
+  cameraBtn: string;
+  cameraStopBtn: string;
+  uploadBtn: string;
+  cameraHint: string;
+  cameraError: string;
   scanningBtn: string;
   checkBtn: string;
   checkingBtn: string;
@@ -194,6 +199,11 @@ export const en: VerifyDashboardLocale = {
   verifyHint: 'Scan or paste the QR / address from a sign, invoice, or checkout to confirm it still matches a destination you registered — before anyone pays it.',
   verifyPlaceholder: 'Scan or paste an address or payment link',
   scanBtn: '📷 Scan',
+  cameraBtn: '📷 Camera',
+  cameraStopBtn: '✕ Stop',
+  uploadBtn: '📁 Upload',
+  cameraHint: 'Point your camera at the QR — it scans automatically. (Esc to cancel.)',
+  cameraError: 'Couldn’t open the camera — allow access, or use Upload instead.',
   scanningBtn: 'Reading…',
   checkBtn: 'Check',
   checkingBtn: 'Checking…',
@@ -348,6 +358,11 @@ export const es: VerifyDashboardLocale = {
   verifyHint: 'Escanea o pega el QR / la dirección de un letrero, factura o pantalla de pago para confirmar que todavía coincide con un destino que registraste — antes de que alguien pague.',
   verifyPlaceholder: 'Escanea o pega una dirección o un enlace de pago',
   scanBtn: '📷 Escanear',
+  cameraBtn: '📷 Cámara',
+  cameraStopBtn: '✕ Detener',
+  uploadBtn: '📁 Subir',
+  cameraHint: 'Apunta la cámara al QR — se escanea automáticamente. (Esc para cancelar.)',
+  cameraError: 'No se pudo abrir la cámara — permite el acceso, o usa Subir.',
   scanningBtn: 'Leyendo…',
   checkBtn: 'Comprobar',
   checkingBtn: 'Comprobando…',
@@ -502,6 +517,11 @@ export const fr: VerifyDashboardLocale = {
   verifyHint: 'Scannez ou collez le QR / l’adresse d’une affiche, d’une facture ou d’une page de paiement pour confirmer qu’il correspond toujours à une destination que vous avez enregistrée — avant tout paiement.',
   verifyPlaceholder: 'Scannez ou collez une adresse ou un lien de paiement',
   scanBtn: '📷 Scanner',
+  cameraBtn: '📷 Caméra',
+  cameraStopBtn: '✕ Arrêter',
+  uploadBtn: '📁 Importer',
+  cameraHint: 'Pointez la caméra vers le QR — il se scanne automatiquement. (Échap pour annuler.)',
+  cameraError: 'Impossible d’ouvrir la caméra — autorisez l’accès, ou utilisez Importer.',
   scanningBtn: 'Lecture…',
   checkBtn: 'Vérifier',
   checkingBtn: 'Vérification…',
