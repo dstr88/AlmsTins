@@ -120,7 +120,9 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
           <div className="vs__verdict">{lookup.verified ? '✓ Verified destination' : '⚠ Not a verified destination'}</div>
           <p className="vs__detail">
             {lookup.verified
-              ? (who ? `Registered to ${who}${lookup.source === 'entity' ? ' (published on its domain)' : ''}.` : 'A proven Almstins destination.')
+              ? (who
+                  ? `Registered to ${who}${lookup.source === 'entity' ? ' (published on its domain)' : lookup.domain ? ` · verified via ${lookup.domain}` : ''}.`
+                  : 'A proven Almstins destination.')
               : `No account has proven control of this ${noun} with Almstins. That doesn’t mean it’s unsafe — only that it isn’t verified here.`}
           </p>
         </div>

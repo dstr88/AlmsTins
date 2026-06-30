@@ -138,6 +138,7 @@ const ENSURE_NAMES_SQL = `
     name_key     TEXT NOT NULL PRIMARY KEY,
     tenant_id    TEXT NOT NULL,
     display_name TEXT NOT NULL,
+    domain       TEXT,
     created_at   TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )
 `;
@@ -161,6 +162,8 @@ export async function ensureVerifyTables(): Promise<void> {
   await db.execute({ sql: ENSURE_DEPOSIT_SQL, args: [] });
   await db.execute({ sql: ENSURE_DEPOSIT_IDX, args: [] });
   await db.execute({ sql: ENSURE_NAMES_SQL, args: [] });
+  try { await db.execute({ sql: `ALTER TABLE verify_claimed_names ADD COLUMN IF NOT EXISTS domain TEXT`, args: [] }); }
+  catch (e) { console.error('[verify] claimed_names.domain column not applied:', e); }
   for (const sql of ENSURE_MONITOR_COLS) {
     try { await db.execute({ sql, args: [] }); }
     catch (e) { console.error('[verify] monitor column not applied:', e); }
@@ -234,6 +237,86 @@ export function normalizeName(raw: string): string {
   return (raw ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+/** Alphanumeric-only slug for matching a name against a domain label. */
+function nameSlug(s: string): string {
+  return (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Common second-level public labels (co.uk, com.br, …) so we can find the brand label
+ *  left of the public suffix without shipping a full Public Suffix List. */
+const CCSLD_2ND = new Set(['co', 'com', 'org', 'net', 'gov', 'edu', 'ac', 'gob', 'go']);
+
+/**
+ * The registrable brand label of a host (the part DNS actually sells), slugified.
+ *   starbucks.com → "starbucks" · shop.starbucks.com → "starbucks" · starbucks.co.uk → "starbucks"
+ * Approximate (no PSL) but safe for the common cases — and safe against squatting: a
+ * lookalike like starbucks-pay.com yields "starbuckspay", not "starbucks".
+ */
+export function registrableLabel(host: string): string {
+  const parts = (host ?? '').toLowerCase().split('.').filter(Boolean);
+  if (!parts.length) return '';
+  if (parts.length === 1) return nameSlug(parts[0]);
+  let suffixStart = parts.length - 1; // index of the TLD
+  if (parts[suffixStart].length === 2 && suffixStart - 1 >= 1 && CCSLD_2ND.has(parts[suffixStart - 1])) {
+    suffixStart -= 1; // .co.uk / .com.br style
+  }
+  return nameSlug(parts[suffixStart - 1] ?? parts[0]);
+}
+
+/**
+ * Does a business name "derive from" a domain — its slug equals the domain's registrable
+ * brand label? This is the anti-squat anchor: only the controller of exactly that domain
+ * can claim the name. We let DNS arbitrate the name; Almstins does no KYC.
+ */
+export function nameMatchesDomain(label: string, domain: string): boolean {
+  const s = nameSlug(normalizeName(label));
+  return !!s && s === registrableLabel(domain);
+}
+
+export type NameClaimOutcome = 'claimed' | 'mine' | 'taken' | 'no_match';
+
+/**
+ * Try to reserve `label` as this tenant's domain-anchored verified business name. A name
+ * is reserved globally only when the tenant has a PROVEN domain it derives from (see
+ * nameMatchesDomain). Outcomes:
+ *   'taken'    — another tenant already verified this name (the caller should block)
+ *   'mine'     — this tenant already owns it
+ *   'claimed'  — newly reserved for this tenant
+ *   'no_match' — no proven domain backs this name; nothing reserved (the label stays freeform)
+ * Never throws.
+ */
+export async function tryClaimVerifiedName(tenantId: string, label: string | null | undefined): Promise<NameClaimOutcome> {
+  const key = label ? normalizeName(label) : '';
+  if (!key) return 'no_match';
+  await ensureVerifyTables();
+  const owner = await db.execute({
+    sql: `SELECT tenant_id FROM verify_claimed_names WHERE name_key = ? LIMIT 1`,
+    args: [key],
+  });
+  if (owner.rows.length) {
+    return String((owner.rows[0] as any).tenant_id) === tenantId ? 'mine' : 'taken';
+  }
+  // Unclaimed — this tenant may reserve it only with a matching PROVEN domain.
+  const proven = await db.execute({
+    sql: `SELECT domain FROM verify_domain_proofs WHERE tenant_id = ? AND status = 'proven'`,
+    args: [tenantId],
+  });
+  const domain = (proven.rows as any[]).map((r) => String(r.domain)).find((d) => nameMatchesDomain(label!, d));
+  if (!domain) return 'no_match';
+  // The PK on name_key is the race arbiter: a concurrent claim leaves their row, we bail.
+  await db.execute({
+    sql: `INSERT INTO verify_claimed_names (name_key, tenant_id, display_name, domain)
+          VALUES (?, ?, ?, ?) ON CONFLICT (name_key) DO NOTHING`,
+    args: [key, tenantId, label!, domain],
+  });
+  const check = await db.execute({
+    sql: `SELECT tenant_id FROM verify_claimed_names WHERE name_key = ? LIMIT 1`,
+    args: [key],
+  });
+  if (check.rows.length && String((check.rows[0] as any).tenant_id) === tenantId) return 'claimed';
+  return 'taken';
+}
+
 export interface CompareResult {
   matched: boolean;
   normalizedQuery: string;
@@ -304,35 +387,16 @@ export async function createDestination(
     return { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
   }
 
-  // Global business-name uniqueness (like an email handle). A given name belongs to one
-  // tenant; another tenant cannot register it. The same tenant reuses its own name freely.
-  // NOTE: uniqueness ≠ authenticity — first-come, no identity check; it prevents duplicate
-  // names, not impersonation. Gate name-claims behind proof later to close squatting.
-  const nameKey = label ? normalizeName(label) : '';
-  if (nameKey) {
-    const owner = await db.execute({
-      sql: `SELECT tenant_id FROM verify_claimed_names WHERE name_key = ? LIMIT 1`,
-      args: [nameKey],
-    });
-    if (owner.rows.length) {
-      if (String((owner.rows[0] as any).tenant_id) !== tenantId) {
-        return { ok: false, error: 'name_taken', message: 'That business name is already taken. Choose a different name.' };
-      }
-    } else {
-      // Claim it for this tenant. The PK on name_key is the race arbiter: if a
-      // concurrent claim beat us, ON CONFLICT DO NOTHING leaves their row and we bail.
-      await db.execute({
-        sql: `INSERT INTO verify_claimed_names (name_key, tenant_id, display_name)
-              VALUES (?, ?, ?) ON CONFLICT (name_key) DO NOTHING`,
-        args: [nameKey, tenantId, label],
-      });
-      const check = await db.execute({
-        sql: `SELECT tenant_id FROM verify_claimed_names WHERE name_key = ? LIMIT 1`,
-        args: [nameKey],
-      });
-      if (!check.rows.length || String((check.rows[0] as any).tenant_id) !== tenantId) {
-        return { ok: false, error: 'name_taken', message: 'That business name is already taken. Choose a different name.' };
-      }
+  // Domain-anchored business name. A name is RESERVED globally only when the tenant has
+  // proven the domain it derives from (DNS arbitrates the name, not us — no KYC). An
+  // unproven label stays freeform and is not reserved. But once another business has
+  // VERIFIED a name, no one else may use it as a label. If the tenant already has a
+  // matching proven domain, registering claims the verified name now; otherwise it's
+  // claimed later when they prove the domain (see recordProofResult).
+  if (label) {
+    const claim = await tryClaimVerifiedName(tenantId, label);
+    if (claim === 'taken') {
+      return { ok: false, error: 'name_taken', message: 'That business name is verified by another business. Choose a different name.' };
     }
   }
 
@@ -558,6 +622,13 @@ export async function recordProofResult(
       // already proven. Leave it unproven for this tenant rather than failing the
       // whole proof — they can't take ownership of someone else's verified address.
       console.warn('[verify] destination not flipped (already claimed elsewhere?):', d.id, e);
+    }
+  }
+  // A proven domain unlocks its matching business name: reserve the domain-anchored name
+  // for any of the tenant's labels that derive from this domain. Best-effort, non-fatal.
+  for (const d of dests) {
+    if (d.label && nameMatchesDomain(d.label, domain)) {
+      try { await tryClaimVerifiedName(tenantId, d.label); } catch { /* non-fatal */ }
     }
   }
   return flipped;

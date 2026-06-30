@@ -324,13 +324,14 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   //    expose only the merchant's OWN self-chosen label — never tenant_id or any identity.
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT rail, value, label FROM verify_destinations
+    sql: `SELECT rail, value, label, proof_domain FROM verify_destinations
           WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)`,
     args: [normalized, normalized],
   });
   const hit = (dest.rows as any[]).find((r) => normalizeDestinationValue(String(r.value)) === normalized);
   if (hit) {
-    return { source: 'merchant', domain: null, label: hit.label ? String(hit.label) : null, chain: String(hit.rail) };
+    // proof_domain is the anchor for the verified business name ("name · via domain").
+    return { source: 'merchant', domain: hit.proof_domain ? String(hit.proof_domain) : null, label: hit.label ? String(hit.label) : null, chain: String(hit.rail) };
   }
   return null;
 }
