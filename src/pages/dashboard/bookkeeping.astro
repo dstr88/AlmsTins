@@ -32,6 +32,11 @@ const selectedYear = yearParam ? Number(yearParam) : defaultYear;
 
 const bd      = await buildAnnualBreakdown(tenantId, selectedYear);
 
+// Cost basis method actually applied on this page (buildAnnualBreakdown default = FIFO).
+const costBasisMethod  = 'FIFO';
+// Non-taxable card rebates total (shown as a $0-tax line so the CPA can confirm it).
+const cardRebatesTotal = bd.cardRebates.reduce((s, i) => s + (i.usdValue ?? 0), 0);
+
 // Hide scam/spam airdrop tokens (Still in Wallet + Needs Attention) and any
 // disposal dated before the 2025 bookkeeping start. The realized short/long-term
 // tax sections, the FIFO cost-basis math, and the yearEnd/PDF exports are left
@@ -613,6 +618,14 @@ const syncRelative = !hasSync ? '' :
         </div>
       )}
 
+      <!-- Cost basis method label — answers the CPA's "what method?" immediately -->
+      <div class="grid-cell grid-cell--full">
+        <p style="margin:0.25rem 0 0.75rem; font-size:0.85rem; color:var(--text-secondary);">
+          {t.costMethodLabel}: <strong style="color:var(--text-primary);">{costBasisMethod}</strong>
+          <span style="opacity:0.6;"> — {t.costMethodNote}</span>
+        </p>
+      </div>
+
       <!-- 5. Income & Fees — full width -->
       <div class="grid-cell grid-cell--full">
         <OrnateTin label={t.tinIncome} class="tin-section tin-section--income">
@@ -641,6 +654,24 @@ const syncRelative = !hasSync ? '' :
                   {item.description && (
                     <span class="tin-row__note">{item.description}</span>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {bd.cardRebates.length > 0 && (
+            <div class="tin-rows tin-rows--income" style="margin-top:0.75rem;">
+              <div class="tin-total">
+                {t.cardRebatesLabel} <strong>{fUsd(cardRebatesTotal)}</strong>
+                <span class="tin-total__note">{t.cardRebatesNote}</span>
+              </div>
+              {bd.cardRebates.map((item) => (
+                <div class="tin-row tin-row--income">
+                  <span class="tin-row__asset">{item.asset}</span>
+                  <span class="tin-row__qty">{fQty(item.amount)}</span>
+                  <span class="tin-row__date">{fDate(item.date)}</span>
+                  <span class="tin-row__usd">{fUsd(item.usdValue)}</span>
+                  <span class="tin-row__kind">{t.cardRebateTag}</span>
                 </div>
               ))}
             </div>
@@ -697,6 +728,37 @@ const syncRelative = !hasSync ? '' :
                 </div>
               ))}
             </div>
+          )}
+        </OrnateTin>
+      </div>
+
+      <!-- 7. NFT Holdings — full width -->
+      <div class="grid-cell grid-cell--full">
+        <OrnateTin label={t.tinNftHoldings} class="tin-section tin-section--hold">
+          <div class="tin-toolbar">
+            <span class="tin-toolbar__count">{t.countItems(bd.nftHoldings.length)}</span>
+          </div>
+          {bd.nftHoldings.length === 0 ? (
+            <p class="tin-empty">{t.noNfts}</p>
+          ) : (
+            <div class="tin-rows">
+              {bd.nftHoldings.map((nft) => (
+                <div class="tin-row">
+                  <span class="tin-row__asset">{nft.name}</span>
+                  <span class="tin-row__kind">{nft.chain}</span>
+                  <span class="tin-row__note">#{nft.tokenId}</span>
+                  {nft.costUsd != null && nft.costUsd > 1 && (
+                    <span class="tin-row__usd">{fUsd(nft.costUsd)}</span>
+                  )}
+                  {nft.url && (
+                    <a class="tin-trace-link" href={nft.url} target="_blank" rel="noopener">view →</a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {bd.nftHoldings.length > 0 && (
+            <p class="tin-empty" style="margin-top:0.5rem; opacity:0.6;">{t.nftCostNote}</p>
           )}
         </OrnateTin>
       </div>

@@ -260,6 +260,7 @@ function buildPdf(
     summaryRow('Long-term realized gain / loss', fUsd(ltGain, true), ltGain >= 0 ? POS : NEG);
     summaryRow('Total received / earned', fUsd(income));
     summaryRow('Net realized gain / loss', fUsd(netGain, true), netGain >= 0 ? POS : NEG);
+    summaryRow('Cost basis method', 'FIFO');
     summaryRow('Open lots — cost basis', fUsd(bd.totals.heldCostBasis));
     summaryRow('Short-term disposal events', String(bd.shortTerm.length));
     summaryRow('Long-term disposal events', String(bd.longTerm.length));
@@ -388,6 +389,34 @@ function buildPdf(
       summaryRow('Total received / earned', fUsd(income));
     }
 
+    // ── Card rebates (non-taxable) ─────────────────────────────────────────────
+    // Shown as a $0-tax line so the preparer can confirm the classification
+    // rather than wonder where the exchange cashback went.
+    if (bd.cardRebates.length > 0) {
+      newPage();
+      sectionTitle('Card Rebates — Non-Taxable');
+      const cols = [
+        { label: 'Date',        width: 150 },
+        { label: 'Asset',       width: 130 },
+        { label: 'Qty',         width: 204, align: 'right' as const },
+        { label: 'Value (USD)', width: 204, align: 'right' as const },
+      ];
+      tableHeaders(cols);
+      const rebateTotal = bd.cardRebates.reduce((s, r) => s + (r.usdValue ?? 0), 0);
+      bd.cardRebates.forEach((r, i) => {
+        tableRow([
+          { label: fDate(r.date),    width: cols[0].width },
+          { label: r.asset,          width: cols[1].width },
+          { label: fQty(r.amount),   width: cols[2].width, align: 'right' },
+          { label: fUsd(r.usdValue), width: cols[3].width, align: 'right' },
+        ], i % 2 === 1);
+      });
+      doc.moveDown(0.3);
+      doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor('#444').lineWidth(0.5).stroke();
+      doc.moveDown(0.3);
+      summaryRow('Total card rebates — $0 taxable', fUsd(rebateTotal));
+    }
+
     // ── Still Holding ─────────────────────────────────────────────────────────
     if (bd.stillHolding.length > 0) {
       newPage();
@@ -414,6 +443,33 @@ function buildPdf(
           { label: term,                 width: cols[5].width, color: term === 'Long' ? POS : SALMON },
         ], i % 2 === 1);
       });
+    }
+
+    // ── NFT holdings ───────────────────────────────────────────────────────────
+    // What the taxpayer holds. Cost basis is not auto-derived for NFTs; a value is
+    // shown only when known and > $1 (no placeholder clutter).
+    if (bd.nftHoldings.length > 0) {
+      newPage();
+      sectionTitle('NFT Holdings');
+      const cols = [
+        { label: 'Name',       width: 240 },
+        { label: 'Chain',      width: 120 },
+        { label: 'Token ID',   width: 160 },
+        { label: 'Cost (USD)', width: 168, align: 'right' as const },
+      ];
+      tableHeaders(cols);
+      bd.nftHoldings.forEach((nft, i) => {
+        const cost = (nft.costUsd != null && nft.costUsd > 1) ? fUsd(nft.costUsd) : '—';
+        tableRow([
+          { label: nft.name || '—',   width: cols[0].width },
+          { label: nft.chain,         width: cols[1].width },
+          { label: `#${nft.tokenId}`, width: cols[2].width },
+          { label: cost,              width: cols[3].width, align: 'right', color: MID_GRAY },
+        ], i % 2 === 1);
+      });
+      doc.moveDown(0.4);
+      doc.fontSize(8).font('Helvetica-Oblique').fillColor(MID_GRAY)
+        .text('Cost basis for NFTs is not auto-tracked. Enter it manually where a taxable event applies.', MARGIN, doc.y, { width: CONTENT_W });
     }
 
     // ── Transaction costs (fees) ───────────────────────────────────────────────

@@ -117,6 +117,20 @@ export interface BookkeepingLocale {
   /** e.g. "priced at 09:03 UTC" */
   fmvPricedAt: (time: string) => string;
   fmvNote: string;
+
+  // Cost basis method label (for the CPA)
+  costMethodLabel: string;
+  costMethodNote: string;
+
+  // Card rebates (non-taxable)
+  cardRebatesLabel: string;
+  cardRebatesNote: string;
+  cardRebateTag: string;
+
+  // NFT holdings
+  tinNftHoldings: string;
+  noNfts: string;
+  nftCostNote: string;
 }
 
 export const en: BookkeepingLocale = {
@@ -196,6 +210,17 @@ export const en: BookkeepingLocale = {
   fmvUnpriced: 'Unpriced',
   fmvPricedAt: (time) => `priced at ${time}`,
   fmvNote: 'FMV source — how each income value was determined (IRS: fair market value at time of receipt).',
+
+  costMethodLabel: 'Cost basis method',
+  costMethodNote: 'applied to all realized gains and losses above',
+
+  cardRebatesLabel: 'Card rebates — non-taxable',
+  cardRebatesNote: '$0 taxable',
+  cardRebateTag: 'rebate',
+
+  tinNftHoldings: 'NFT Holdings',
+  noNfts: 'No NFTs detected in connected wallets.',
+  nftCostNote: 'Cost basis for NFTs is not auto-tracked — enter it manually where a taxable event applies.',
 };
 
 export const es: BookkeepingLocale = {
@@ -275,6 +300,17 @@ export const es: BookkeepingLocale = {
   fmvUnpriced: 'Sin precio',
   fmvPricedAt: (time) => `valorado a las ${time}`,
   fmvNote: 'Fuente del FMV — cómo se determinó cada valor de ingreso (IRS: valor de mercado justo al momento de recepción).',
+
+  costMethodLabel: 'Método de costo base',
+  costMethodNote: 'aplicado a todas las ganancias y pérdidas realizadas anteriores',
+
+  cardRebatesLabel: 'Reembolsos de tarjeta — no gravables',
+  cardRebatesNote: '$0 gravable',
+  cardRebateTag: 'reembolso',
+
+  tinNftHoldings: 'Tenencias de NFT',
+  noNfts: 'No se detectaron NFT en las billeteras conectadas.',
+  nftCostNote: 'El costo base de los NFT no se rastrea automáticamente — ingrésalo manualmente cuando aplique un evento gravable.',
 };
 
 export const fr: BookkeepingLocale = {
@@ -354,6 +390,17 @@ export const fr: BookkeepingLocale = {
   fmvUnpriced: 'Non valorisé',
   fmvPricedAt: (time) => `valorisé à ${time}`,
   fmvNote: 'Source de la FMV — comment chaque valeur de revenu a été déterminée (IRS : juste valeur marchande au moment de la réception).',
+
+  costMethodLabel: 'Méthode de coût de base',
+  costMethodNote: 'appliquée à toutes les plus/moins-values réalisées ci-dessus',
+
+  cardRebatesLabel: 'Remises de carte — non imposables',
+  cardRebatesNote: '0 $ imposable',
+  cardRebateTag: 'remise',
+
+  tinNftHoldings: 'Avoirs NFT',
+  noNfts: 'Aucun NFT détecté dans les portefeuilles connectés.',
+  nftCostNote: 'Le coût de base des NFT n\'est pas suivi automatiquement — saisissez-le manuellement lorsqu\'un événement imposable s\'applique.',
 };
 
 const MAP: Record<Lang, BookkeepingLocale> = { en, es, fr };

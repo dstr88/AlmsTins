@@ -115,6 +115,12 @@ export type NftHolding = {
   tokenId: string;
   url: string | null;
   walletId: string;
+  /**
+   * Acquisition cost basis in USD, when known. NFT cost basis is not derived from
+   * on-chain acquisition transactions yet, so this is usually undefined; the UI
+   * only shows a cost when it is present and > $1 (no placeholder clutter).
+   */
+  costUsd?: number | null;
 };
 
 export type SectionTotals = {
