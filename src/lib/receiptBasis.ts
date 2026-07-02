@@ -24,7 +24,15 @@ export type ReceiptBasis = {
   source: 'import' | 'onchain';
 };
 
+import type { AlchemyChain } from './alchemy';
+
 const getDb = async () => (await import('./db')).db;
+
+// Our chain names → Alchemy networks (only these two are configured today).
+const CHAIN_MAP: Record<string, AlchemyChain> = {
+  ethereum: 'eth-mainnet', eth: 'eth-mainnet', mainnet: 'eth-mainnet',
+  polygon: 'polygon-mainnet', matic: 'polygon-mainnet',
+};
 
 export async function deriveReceiptBasis(
   tenantId: string,
@@ -59,7 +67,59 @@ export async function deriveReceiptBasis(
     } catch { /* non-fatal — fall through */ }
   }
 
-  // 2. On-chain path (Alchemy getAssetTransfers → historical FMV). Next slice.
-  //    Covers on-chain airdrops and NFTs that never touched a CSV import.
-  return null;
+  // 2. On-chain path — the earliest inbound transfer of this token to a wallet the
+  //    tenant controls, priced at that timestamp. Covers on-chain airdrops and NFTs
+  //    that never touched a CSV import. Best-effort and non-fatal.
+  try {
+    const chain = String(token.chain ?? '').toLowerCase();
+    const alchemyChain = CHAIN_MAP[chain];
+    const contract = (token.contract ?? '').toLowerCase();
+    if (!alchemyChain || !contract) return null;
+    if (!process.env.ALCHEMY_API_KEY) return null;
+
+    const db = await getDb();
+    const wres = await db.execute({
+      sql: `SELECT DISTINCT LOWER(address) AS address FROM wallets WHERE tenant_id = ? AND address LIKE '0x%'`,
+      args: [tenantId],
+    });
+    const addresses = (wres.rows as unknown as { address: string }[]).map((r) => r.address).filter(Boolean);
+    if (!addresses.length) return null;
+
+    const isNft = !!token.tokenId;
+    const categories = isNft ? ['erc721', 'erc1155'] : ['erc20'];
+
+    // Earliest inbound transfer to any owned wallet.
+    let best: { ts: string; amount: number } | null = null;
+    for (const addr of addresses.slice(0, 12)) {
+      const { getAssetTransfers } = await import('./alchemy');
+      const res = await getAssetTransfers(alchemyChain, {
+        fromBlock: '0x0', toAddress: addr, contractAddresses: [contract],
+        category: categories, order: 'asc', maxCount: '0x1',
+        withMetadata: true, excludeZeroValue: !isNft,
+      }).catch(() => null);
+      const tx = res?.transfers?.[0];
+      const ts = tx?.metadata?.blockTimestamp;
+      if (!tx || !ts) continue;
+      if (!best || ts < best.ts) best = { ts, amount: isNft ? 1 : Number(tx.value ?? 0) };
+    }
+    if (!best) return null;
+
+    // FMV: fungible → amount × historical unit price (null for unlisted junk, which
+    // is the honest answer — a worthless airdrop is ~$0 income). NFT cost from the
+    // payment leg is a follow-up; date + quantity are captured now.
+    let fmvUsd: number | null = null;
+    if (!isNft && symbol && best.amount > 0) {
+      const { getCoingeckoIdBySymbol, getUsdUnitPriceAtTimestampCoinGecko } = await import('./coingeckoHistorical');
+      const coinId = await getCoingeckoIdBySymbol(symbol).catch(() => null);
+      if (coinId) {
+        const priced = await getUsdUnitPriceAtTimestampCoinGecko({ coinId, timestampUtcIso: best.ts }).catch(() => null);
+        if (priced && Number.isFinite(priced.unitPriceUsd) && priced.unitPriceUsd > 0) {
+          fmvUsd = best.amount * priced.unitPriceUsd;
+        }
+      }
+    }
+    return { acquiredAt: best.ts, amount: best.amount, fmvUsd, source: 'onchain' };
+  } catch {
+    return null;
+  }
 }

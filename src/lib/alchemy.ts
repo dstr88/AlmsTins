@@ -52,6 +52,24 @@ export async function getTokenBalances(chain: AlchemyChain, address: string) {
 	}>;
 }
 
+/** alchemy_getAssetTransfers — used to find a token's acquisition transfer (receipt basis). */
+export async function getAssetTransfers(chain: AlchemyChain, params: Record<string, unknown>) {
+	return alchemyRpc(chain, {
+		jsonrpc: '2.0',
+		id: 1,
+		method: 'alchemy_getAssetTransfers',
+		params: [params],
+	}) as Promise<{
+		transfers: Array<{
+			blockNum: string; hash: string; from: string; to: string;
+			value: number | null; asset: string | null; category: string;
+			rawContract?: { address?: string | null; value?: string | null };
+			tokenId?: string | null;
+			metadata?: { blockTimestamp?: string };
+		}>;
+	}>;
+}
+
 export async function getTokenMetadata(chain: AlchemyChain, contractAddress: string) {
 	return alchemyRpc(chain, {
 		jsonrpc: '2.0',

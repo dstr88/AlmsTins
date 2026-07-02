@@ -12,7 +12,7 @@
  *   - symbol-level    (symbol only)        — for CEX rows with no contract
  * Contract match takes precedence over symbol match.
  */
-import type { TokenClass } from './tokenClassification';
+import { classifyTokenName, type TokenClass } from './tokenClassification';
 
 // Lazy so the pure helpers (effectiveClass, lookupOverride) can be imported and
 // unit-tested without pulling in the DB engine (which needs DATABASE_URL at load).
@@ -84,6 +84,17 @@ export function lookupOverride(
     if (c) return c;
   }
   return maps.bySymbol.get(symbolKey(token.symbol)) ?? null;
+}
+
+/**
+ * Load a tenant's spam filter as a single symbol predicate: true when the token is
+ * filtered (spam) after applying overrides. Drop-in override-aware replacement for
+ * isSpamToken(symbol) in the vault/portfolio/wallet views. Load once per request.
+ */
+export async function loadSpamFilter(tenantId: string): Promise<(symbol: string | null | undefined) => boolean> {
+  const overrides = await getTokenOverrides(tenantId);
+  return (symbol) =>
+    effectiveClass(classifyTokenName({ symbol }).class, lookupOverride(overrides, { symbol })) === 'spam';
 }
 
 /** Combine the heuristic class with any override — the override wins. */

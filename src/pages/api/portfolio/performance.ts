@@ -24,7 +24,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
 import { getCache, setCache } from '@/lib/tursoCache';
 import { getAaveTotalsForWallet } from '@/lib/aave/client';
-import { isSpamToken } from '@/lib/knownContracts';
+import { loadSpamFilter } from '@/lib/tokenOverrides';
 
 export const prerender = false;
 
@@ -68,6 +68,7 @@ export const GET: APIRoute = async ({ request }) => {
 		const session = await requireTenantSession(request);
 		if (!session) return json({ ok: false, error: 'Unauthorized' }, 401);
 		const { tenantId } = session;
+		const isFiltered = await loadSpamFilter(tenantId); // override-aware spam filter
 
 		const cacheKey = `t:${tenantId}:portfolio:performance:v6`;
 		const memKey   = `portfolio:${tenantId}`;
@@ -127,7 +128,7 @@ export const GET: APIRoute = async ({ request }) => {
 			for (const t of tokens) {
 				const sym = (t.symbol ?? '').toString().trim().toUpperCase();
 				if (!sym) continue;
-				if (isSpamToken(sym)) continue;
+				if (isFiltered(sym)) continue;
 				const qty      = Number(t.amount  ?? 0);
 				const valueUsd = Number(t.valueUsd ?? 0);
 				const priceUsd = t.priceUsd != null ? Number(t.priceUsd) : null;

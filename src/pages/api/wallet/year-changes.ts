@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { db } from '@/lib/db';
-import { isSpamToken } from '@/lib/knownContracts';
+import { loadSpamFilter } from '@/lib/tokenOverrides';
 
 export const prerender = false;
 
@@ -23,6 +23,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     if (!session) return new Response('Unauthorized', { status: 401 });
 
     const { tenantId } = session;
+    const isFiltered = await loadSpamFilter(tenantId); // override-aware spam filter
     const walletId = url.searchParams.get('walletId');
     const yearParam = url.searchParams.get('year');
 
@@ -62,7 +63,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       try {
         const tokens = JSON.parse(payload.payload_json) as Array<{ symbol: string; amount: number }>;
         tokens.forEach(t => {
-          if (isSpamToken(t.symbol)) return;
+          if (isFiltered(t.symbol)) return;
           startHoldings.set(t.symbol, (startHoldings.get(t.symbol) ?? 0) + t.amount);
         });
       } catch {}
@@ -84,7 +85,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       try {
         const tokens = JSON.parse(payload.payload_json) as Array<{ symbol: string; amount: number; priceUsd?: number }>;
         tokens.forEach(t => {
-          if (isSpamToken(t.symbol)) return;
+          if (isFiltered(t.symbol)) return;
           const existing = endHoldings.get(t.symbol) || { qty: 0, priceUsd: 0 };
           endHoldings.set(t.symbol, {
             qty: existing.qty + t.amount,
