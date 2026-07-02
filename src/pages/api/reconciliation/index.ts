@@ -38,6 +38,15 @@ const isAaveSymbol = (sym: string): boolean => {
 const cache = new Map<string, { ts: number; data: ReconciliationItem[] }>();
 const CACHE_TTL_MS = 60_000;
 
+/**
+ * Drop a tenant's cached reconciliation so the next load recomputes fresh. Called
+ * from the lifecycle rebuild (the "Sync Tins" path), so a user who wants an override
+ * reflected immediately just hits sync rather than waiting out the cache.
+ */
+export function clearReconciliationCache(tenantId: string): void {
+  for (const k of cache.keys()) if (k.startsWith(`${tenantId}:`)) cache.delete(k);
+}
+
 export const GET: APIRoute = async ({ request }) => {
   try {
     const session = await requireTenantSession(request);
