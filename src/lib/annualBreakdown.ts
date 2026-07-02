@@ -26,6 +26,8 @@ import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './year
 import { getImportTransactionColumns } from './importTransactionsSchema';
 import { INCOME_KINDS } from './incomeKinds';
 import { classifyTokenName } from './tokenClassification';
+import { getIncomeOverrides } from './tokenOverrides';
+import { deriveReceiptBasis } from './receiptBasis';
 
 // Re-export so existing callers importing INCOME_KINDS from here keep working.
 export { INCOME_KINDS };
@@ -785,6 +787,33 @@ export async function buildAnnualBreakdown(
     income      = incomeKindRows.filter((r) => !isCardRebate(r)).map(toIncomeItem);
     cardRebates = incomeKindRows.filter(isCardRebate).map(toIncomeItem);
   } // end source branch
+
+  // ── 3b. Income reclassifications (Junk-drawer "mark as income") ─────────────
+  // Opt-in: only tokens the user explicitly reclassified as income are considered,
+  // and only when a receipt event + FMV is derivable and dated in the selected year.
+  // Undated / not-yet-derivable ones are left for the receipt-basis explorer slice
+  // rather than smeared across years — so existing numbers never change unless the
+  // user acts, and no fabricated values appear.
+  try {
+    const incomeOverrides = await getIncomeOverrides(tenantId);
+    for (const ov of incomeOverrides) {
+      const basis = await deriveReceiptBasis(tenantId, ov);
+      if (!basis || !basis.acquiredAt) continue;
+      if (basis.acquiredAt.slice(0, 4) !== String(year)) continue;
+      income.push({
+        asset:       (ov.symbol ?? '').toUpperCase() || 'AIRDROP',
+        amount:      basis.amount,
+        usdValue:    basis.fmvUsd,
+        date:        basis.acquiredAt,
+        kind:        'reclassified_airdrop',
+        description: 'Reclassified from filtered tokens as income',
+        priceSource: basis.source === 'import' ? 'import' : null,
+        priceAsof:   null,
+      });
+    }
+  } catch (e) {
+    console.warn('[annualBreakdown] income reclassification failed', e);
+  }
 
   // ── 4. NFT holdings — parse wallet_nft_snapshot, filter spam ────────────
   const nftHoldings: NftHolding[] = [];

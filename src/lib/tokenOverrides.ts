@@ -94,6 +94,18 @@ export function effectiveClass(base: TokenClass, override: OverrideDecision | nu
   return base === 'scam' ? 'spam' : base; // scam and spam both mean "filtered"
 }
 
+/** List the tokens a tenant has reclassified as income (for the tax income injection). */
+export async function getIncomeOverrides(tenantId: string): Promise<Array<{ chain: string | null; contract: string | null; symbol: string | null }>> {
+  await ensureTokenOverrideTable();
+  const db = await getDb();
+  const res = await db.execute({
+    sql: `SELECT chain, contract, symbol FROM token_overrides WHERE tenant_id = ? AND decision = 'income'`,
+    args: [tenantId],
+  });
+  return (res.rows as unknown as { chain: string | null; contract: string | null; symbol: string | null }[])
+    .map((r) => ({ chain: r.chain ?? null, contract: r.contract ?? null, symbol: r.symbol ?? null }));
+}
+
 /** Upsert an override. */
 export async function setTokenOverride(tenantId: string, input: {
   chain?: string | null; contract?: string | null; symbol?: string | null;
