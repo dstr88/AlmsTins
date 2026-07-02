@@ -339,27 +339,29 @@ ON CONFLICT DO NOTHING`,
 };
 
 const ensureAbsoluteUrl = (request: Request) => {
-	// Render's internal request.url is http://localhost:10000/... which breaks @auth/core's origin check.
-	// Use the x-forwarded-host header (set by reverse proxy) for the origin when available.
-	// Fall back to AUTH_URL only if the request is from Render's internal localhost.
 	const base = new URL(request.url.startsWith('http') ? request.url : `https://placeholder${request.url}`);
-	const isRenderInternal = base.hostname === 'localhost' || base.hostname === '127.0.0.1';
 
-	let origin: string;
-	if (isRenderInternal) {
-		// Render internal request — use AUTH_URL
-		const authUrl = process.env.AUTH_URL;
-		if (!authUrl) {
-			console.error('[auth] AUTH_URL env var is not set — OAuth callbacks will fail. Set AUTH_URL to your deployed domain.');
-			throw new Error('AUTH_URL is not configured.');
-		}
-		origin = /^https?:\/\//i.test(authUrl) ? authUrl.replace(/\/$/, '') : `https://${authUrl}`;
-	} else {
-		// Real request with a real origin — preserve it
-		origin = `${base.protocol}//${base.host}`;
+	// AUTH_URL is the canonical deployed origin and the source of truth for OAuth
+	// callback URLs. Behind Render's proxy the reconstructed request can carry the
+	// internal http scheme or localhost host — under @astrojs/node 9 it arrived as
+	// http://localhost:10000, under @astrojs/node 10 as http://<host> — either of
+	// which yields an http:// (or localhost) redirect_uri that OAuth providers reject
+	// against their registered https callback. When AUTH_URL is set we use it verbatim
+	// so the scheme/host is never inferred from a proxied request.
+	const authUrl = process.env.AUTH_URL;
+	if (authUrl) {
+		const origin = /^https?:\/\//i.test(authUrl) ? authUrl.replace(/\/$/, '') : `https://${authUrl}`;
+		return `${origin}${base.pathname}${base.search}`;
 	}
 
-	return `${origin}${base.pathname}${base.search}`;
+	// No AUTH_URL configured — fall back to the request's own origin, but never an
+	// internal localhost host (which would produce an unusable callback).
+	const isRenderInternal = base.hostname === 'localhost' || base.hostname === '127.0.0.1';
+	if (isRenderInternal) {
+		console.error('[auth] AUTH_URL env var is not set — OAuth callbacks will fail. Set AUTH_URL to your deployed domain.');
+		throw new Error('AUTH_URL is not configured.');
+	}
+	return `${base.protocol}//${base.host}${base.pathname}${base.search}`;
 };
 
 const buildAuthRequest = (request: Request) => {
