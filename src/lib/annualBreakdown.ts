@@ -25,6 +25,7 @@ import { getAaveDepositTax, type AaveDepositTax } from './jurisdictionProfile';
 import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './yearEnd/lotSelection';
 import { getImportTransactionColumns } from './importTransactionsSchema';
 import { INCOME_KINDS } from './incomeKinds';
+import { classifyTokenName } from './tokenClassification';
 
 // Re-export so existing callers importing INCOME_KINDS from here keep working.
 export { INCOME_KINDS };
@@ -803,25 +804,7 @@ export async function buildAnnualBreakdown(
       ),
     );
 
-    // Heuristic spam filter — names/symbols with URLs, Telegram links, emoji scams
-    const SPAM_PATTERNS = [
-      /https?:\/\//i,
-      /t\.me\//i,
-      /telegram/i,
-      /claim/i,
-      /voucher/i,
-      /reward/i,
-      /prize/i,
-      /visit/i,
-      /\.lat\b/i,
-      /\.org\b.*earn/i,
-      /fli\.so/i,
-    ];
-    const isSpam = (name: string | null, symbol: string | null) => {
-      const text = `${name ?? ''} ${symbol ?? ''}`;
-      return SPAM_PATTERNS.some((p) => p.test(text));
-    };
-
+    // Heuristic spam filter — consolidated in tokenClassification.ts (single source).
     for (const snap of nftSnaps.rows as unknown as { wallet_id: string; payload_json: string }[]) {
       let payload: { items?: unknown[] } = {};
       try { payload = JSON.parse(snap.payload_json); } catch { continue; }
@@ -831,7 +814,7 @@ export async function buildAnnualBreakdown(
         if (hiddenContracts.has(contract)) continue;
         const name   = typeof i.name   === 'string' ? i.name   : null;
         const symbol = typeof i.symbol === 'string' ? i.symbol : null;
-        if (isSpam(name, symbol)) continue;
+        if (classifyTokenName({ symbol, name }).class !== 'clean') continue;
         nftHoldings.push({
           name:     name ?? 'Unknown NFT',
           symbol,
