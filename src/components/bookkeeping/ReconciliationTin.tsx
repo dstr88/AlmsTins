@@ -263,6 +263,12 @@ export default function ReconciliationTin() {
   const flaggedCount   = cleanItems.filter(i => i.existingNote?.flaggedForSupport).length;
   const problemCount   = cleanItems.filter(i => i.status !== 'ok' && i.status !== 'untracked').length;
   const untrackedCount = cleanItems.filter(i => i.status === 'untracked').length;
+  const balancedCount  = cleanItems.filter(i => i.status === 'ok').length;
+
+  // Balanced tokens reconcile cleanly and need no action, so they're hidden from
+  // the table to keep the list focused on discrepancies. The count stays in the
+  // header so the "everything reconciled" signal isn't lost.
+  const displayItems   = cleanItems.filter(i => i.status !== 'ok');
 
   return (
     <div style={{ fontFamily: 'inherit', color: 'var(--text-primary)' }}>
@@ -298,6 +304,11 @@ export default function ReconciliationTin() {
                 {flaggedCount} flagged for support
               </span>
             )}
+            {balancedCount > 0 && displayItems.length > 0 && (
+              <span style={{ background: 'var(--gain-bg)', border: '1px solid var(--gain-border)', borderRadius: 20, padding: '0.2rem 0.7rem', fontSize: '0.75rem', color: 'var(--gain)' }}>
+                {balancedCount} balanced · hidden
+              </span>
+            )}
             {problemCount === 0 && untrackedCount === 0 && flaggedCount === 0 && (
               <span style={{ background: 'var(--gain-bg)', border: '1px solid var(--gain-border)', borderRadius: 20, padding: '0.2rem 0.7rem', fontSize: '0.75rem', color: 'var(--gain)' }}>
                 ✓ All balanced
@@ -326,7 +337,13 @@ export default function ReconciliationTin() {
         </div>
       )}
 
-      {!loading && !error && (cleanItems.length > 0 || scamItems.length > 0) && (
+      {!loading && !error && cleanItems.length > 0 && displayItems.length === 0 && scamItems.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--gain)', fontSize: '0.9rem' }}>
+          ✓ All {balancedCount} holding{balancedCount === 1 ? '' : 's'} reconcile — nothing needs attention.
+        </div>
+      )}
+
+      {!loading && !error && (displayItems.length > 0 || scamItems.length > 0) && (
         <div style={{ overflowX: 'auto' }}>
           {/* Column headers */}
           <div style={{
@@ -347,8 +364,8 @@ export default function ReconciliationTin() {
             <div />
           </div>
 
-          {/* Rows */}
-          {cleanItems.map(item => {
+          {/* Rows (balanced items are hidden — see displayItems) */}
+          {displayItems.map(item => {
             const isExpanded = expanded === item.asset;
             const isFlagged  = item.existingNote?.flaggedForSupport;
             const hasNote    = item.existingNote?.note;
