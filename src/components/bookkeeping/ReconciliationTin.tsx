@@ -44,6 +44,14 @@ const STATUS_PRIORITY: Record<ReconciliationStatus, number> = {
   ok:        5, // hidden from the table anyway
 };
 
+// Plain-English guide shown in the "What is this?" modal — ordered by importance.
+const STATUS_GUIDE: { status: ReconciliationStatus; what: string; fix: string }[] = [
+  { status: 'untracked', what: 'Your wallet holds this coin, but there is no acquisition record — so there is no cost basis to compute a gain against.', fix: 'Add the acquisition: import the source CSV, or trace it in Memory Lane.' },
+  { status: 'over',       what: 'Your wallet holds more than your records show — an inflow (a buy, income, or transfer in) was never imported.', fix: 'Import the missing transaction.' },
+  { status: 'missing',    what: 'Your records show a balance your wallet no longer reports.', fix: 'Sync the wallet, or record the disposal / transfer that emptied it.' },
+  { status: 'under',      what: 'Your wallet holds less than your records show — a sale or transfer out was not recorded.', fix: 'Record the disposal or transfer.' },
+];
+
 // ── Scam token detector (mirrors bookkeeping.astro) ──────────────────────────
 const SCAM_PATTERNS = [
   /https?:\/\//i, /www\./i,
@@ -240,12 +248,64 @@ function NoteModal({
   );
 }
 
+// ── "What is this?" explainer modal ──────────────────────────────────────────
+function InfoModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="What is reconciliation?"
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+    >
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
+      <div style={{
+        position: 'relative', zIndex: 1,
+        background: 'var(--surface-bg)', border: '1px solid var(--border-bright)',
+        borderRadius: 16, padding: '1.75rem',
+        width: '100%', maxWidth: 560, maxHeight: '85vh', overflowY: 'auto',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>What is reconciliation?</div>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '1.25rem', cursor: 'pointer', padding: 4 }}>✕</button>
+        </div>
+
+        <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+          This panel cross-checks two independent sources: what your transaction records say you own
+          (<strong style={{ color: 'var(--text-primary)' }}>Tin says</strong>) versus what your connected wallets and
+          exchanges actually report holding right now (<strong style={{ color: 'var(--text-primary)' }}>Wallet has</strong>).
+          Coins that agree within 1% are hidden — only discrepancies appear, ordered by tax importance.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {STATUS_GUIDE.map(({ status, what, fix }) => (
+            <div key={status} style={{ background: STATUS_BG[status], border: `1px solid ${STATUS_COLOR[status]}33`, borderRadius: 10, padding: '0.75rem 0.9rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_COLOR[status] }} />
+                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: STATUS_COLOR[status] }}>{STATUS_LABEL[status]}</span>
+              </div>
+              <div style={{ fontSize: '0.83rem', lineHeight: 1.55, color: 'var(--text-secondary)' }}>{what}</div>
+              <div style={{ fontSize: '0.8rem', lineHeight: 1.5, color: 'var(--text-muted)', marginTop: '0.3rem' }}>→ {fix}</div>
+            </div>
+          ))}
+        </div>
+
+        <p style={{ margin: '1rem 0 0', fontSize: '0.8rem', lineHeight: 1.55, color: 'var(--text-muted)' }}>
+          <strong style={{ color: 'var(--gain)' }}>Balanced</strong> holdings (within 1%) reconcile cleanly and are
+          hidden to keep the list focused. A clean panel means your records match what your wallets actually hold.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function ReconciliationTin() {
   const [items, setItems]     = useState<ReconciliationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
   const [noteTarget, setNoteTarget] = useState<ReconciliationItem | null>(null);
 
   useEffect(() => {
@@ -300,8 +360,20 @@ export default function ReconciliationTin() {
         marginBottom: '1rem',
       }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             Reconciliation
+            <button
+              onClick={() => setShowInfo(true)}
+              aria-label="What is reconciliation?"
+              title="What is this?"
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 18, height: 18, borderRadius: '50%',
+                border: '1px solid var(--border-bright)', background: 'transparent',
+                color: 'var(--text-secondary)', fontSize: '0.7rem', fontWeight: 700,
+                cursor: 'pointer', lineHeight: 1, padding: 0,
+              }}
+            >i</button>
           </h3>
           <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
             Compares your FIFO "Still in Wallet" lots against live balances from connected wallets and exchanges.
@@ -621,6 +693,9 @@ export default function ReconciliationTin() {
           </div>
         </details>
       )}
+
+      {/* ── Info Modal ─────────────────────────────────────────────────────── */}
+      {showInfo && <InfoModal onClose={() => setShowInfo(false)} />}
 
       {/* ── Note Modal ─────────────────────────────────────────────────────── */}
       {noteTarget && (
