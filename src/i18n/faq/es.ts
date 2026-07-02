@@ -149,7 +149,7 @@ export const items: FaqItem[] = [
             <strong>Página de Research — anotación en lote.</strong> Actualmente anotas una transacción a la vez. El plan es permitir seleccionar varias transacciones y aplicar un tipo de disposición o nota a todas ellas en un solo paso.
           </li>
           <li>
-            <strong>Exportación de reporte de impuestos.</strong> El pipeline de impuestos ahora clasifica cada transacción usando coincidencia de lots FIFO y genera un PDF estilo Form 8949 (corto plazo Box C + largo plazo Box F) listo para adjuntar a tu declaración. La integración completa con Schedule D y los equivalentes internacionales están en camino.
+            <strong>Resumen anual de ganancias/pérdidas.</strong> El motor de contabilidad clasifica cada transacción usando coincidencia de lots FIFO y organiza tus ganancias realizadas a corto y largo plazo en un resumen anual claro para entregar a tu contador. Mayor cobertura y equivalentes internacionales están en camino. Almstins organiza tus registros — no es software para declarar impuestos.
           </li>
           <li>
             <strong>Soporte de cadenas adicionales.</strong> Los wallets de Solana y Sui ya están en vivo. Cardano es el siguiente en la lista. La sincronización del historial de transacciones de Solana (más allá del saldo) está en progreso.
@@ -167,7 +167,7 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
-          El pipeline de impuestos clasifica cada transacción en todos tus exchanges y wallets conectados, ejecuta la coincidencia de lots FIFO para calcular el cost basis y marca todo lo que necesita tu atención (precios faltantes, transferencias sin coincidencia, activos prestados). Genera un <strong>PDF estilo Form 8949</strong> — ganancias a corto plazo en el Box C y ganancias a largo plazo en el Box F — que puedes adjuntar a tu declaración o entregar directamente a tu contador.
+          El motor de contabilidad clasifica cada transacción en todos tus exchanges y wallets conectados, ejecuta la coincidencia de lots FIFO para calcular el cost basis y marca todo lo que necesita tu atención (precios faltantes, transferencias sin coincidencia, activos prestados). Produce un <strong>resumen anual claro</strong> de tus ganancias realizadas a corto y largo plazo, ingresos y posiciones abiertas que puedes entregar directamente a tu contador o a su software de impuestos.
         </p>
 
         <p>

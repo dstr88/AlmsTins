@@ -149,7 +149,7 @@ export const items: FaqItem[] = [
             <strong>Page Research — annotation en lot.</strong> Actuellement vous annotez une transaction à la fois. Le plan est de permettre la sélection de plusieurs transactions et d'appliquer un type de cession ou une note à toutes en une seule étape.
           </li>
           <li>
-            <strong>Export du rapport fiscal.</strong> Le pipeline fiscal classe désormais chaque transaction en utilisant le rapprochement de lots FIFO et génère un PDF de style Form 8949 (court terme Box C + long terme Box F) prêt à joindre à votre déclaration. L'intégration complète de Schedule D et les équivalents internationaux arrivent.
+            <strong>Récapitulatif annuel des gains/pertes.</strong> Le moteur de comptabilité classe chaque transaction en utilisant le rapprochement de lots FIFO et organise vos gains réalisés à court et long terme dans un récapitulatif annuel clair à remettre à votre comptable. Une couverture élargie et des équivalents internationaux arrivent. Almstins organise vos registres — ce n'est pas un logiciel de déclaration fiscale.
           </li>
           <li>
             <strong>Prise en charge de chaînes supplémentaires.</strong> Les wallets Solana et Sui sont maintenant en ligne. Cardano est le suivant sur la liste. La synchronisation de l'historique des transactions Solana (au-delà du solde) est en cours.
@@ -167,7 +167,7 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
-          Le pipeline fiscal classe chaque transaction dans tous vos exchanges et wallets connectés, exécute le rapprochement de lots FIFO pour calculer le cost basis, et signale tout ce qui nécessite votre attention (prix manquants, transferts non rapprochés, actifs empruntés). Il génère un <strong>PDF de style Form 8949</strong> — gains à court terme dans Box C et gains à long terme dans Box F — que vous pouvez joindre à votre déclaration ou remettre directement à votre comptable.
+          Le moteur de comptabilité classe chaque transaction dans tous vos exchanges et wallets connectés, exécute le rapprochement de lots FIFO pour calculer le cost basis, et signale tout ce qui nécessite votre attention (prix manquants, transferts non rapprochés, actifs empruntés). Il produit un <strong>récapitulatif annuel clair</strong> de vos gains réalisés à court et long terme, revenus et positions ouvertes, que vous pouvez remettre directement à votre comptable ou à son logiciel fiscal.
         </p>
 
         <p>

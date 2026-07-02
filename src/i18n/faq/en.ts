@@ -151,7 +151,7 @@ export const items: FaqItem[] = [
             <strong>Research page — bulk annotation.</strong> Currently you annotate one transaction at a time. The plan is to allow selecting multiple transactions and applying a disposal type or note to all of them in one step.
           </li>
           <li>
-            <strong>Tax report export.</strong> The tax pipeline now classifies every transaction using FIFO lot matching and generates a Form 8949-style PDF (short-term Box C + long-term Box F) ready to attach to your return. Full Schedule D integration and international equivalents are coming.
+            <strong>Year-end gain/loss summary.</strong> The bookkeeping engine classifies every transaction using FIFO lot matching and organizes your realized short- and long-term gains into a clear year-end summary to hand your accountant. Broader coverage and international equivalents are coming. Almstins organizes your records — it isn't tax-filing software.
           </li>
           <li>
             <strong>Additional chain support.</strong> Solana and Sui wallets are now live. Cardano is next on the list. Solana transaction history sync (beyond balance) is in progress.
@@ -169,7 +169,7 @@ export const items: FaqItem[] = [
         </p>
 
         <p>
-          The tax pipeline classifies every transaction across all your connected exchanges and wallets, runs FIFO lot matching to calculate cost basis, and flags anything that needs your attention (missing prices, unmatched transfers, borrowed assets). It generates a <strong>Form 8949-style PDF</strong> — short-term gains in Box C and long-term gains in Box F — that you can attach to your return or hand directly to your accountant.
+          The bookkeeping engine classifies every transaction across all your connected exchanges and wallets, runs FIFO lot matching to calculate cost basis, and flags anything that needs your attention (missing prices, unmatched transfers, borrowed assets). It produces a <strong>clear year-end summary</strong> of your realized short- and long-term gains, income, and open positions that you can hand directly to your accountant or their tax software.
         </p>
 
         <p>
