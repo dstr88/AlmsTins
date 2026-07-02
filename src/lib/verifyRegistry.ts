@@ -16,6 +16,12 @@ import { randomUUID, createHash } from 'crypto';
 import { generateChallenge } from './verifyProof';
 import { detectOutgoingSince } from './verifyDeposit';
 import { isEmvPayload, parseEmv, parseUpi, paymentFormat } from './paymentQr';
+import { sendMail } from '@/lib/email';
+import { isOwner } from '@/lib/owner';
+
+// New Verify signups notify the operator here. Same address the vault error
+// reports and tenant alerts use — the deployment owner's inbox.
+const OWNER_NOTIFY_EMAIL = 'donnie@titaniumhut.com';
 
 /** SHA-256 hex — used to store a non-URL payment-QR identifier (PIX key / UPI VPA) as a
  *  hash, never the raw key (it can be a CPF/phone/email — PII we never hold). */
@@ -485,7 +491,64 @@ export async function createDestination(
           FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
+  // Fire-and-forget owner alert — a real business just registered a destination.
+  // Never blocks or fails the signup (own/demo tenants are skipped inside).
+  void notifyOwnerNewDestination(tenantId, { kind, rail, value, label, displayHint, proven: isQr });
   return { ok: true, destination: mapRow(row.rows[0]) };
+}
+
+/**
+ * Email the operator when a business registers a Verify destination. Skips the
+ * owner's own tenant and any demo tenant so seed/test data is silent. Best-effort:
+ * a missing EMAIL_SERVER or a lookup error is swallowed — a notification must never
+ * break (or slow) a signup. Called with `void`.
+ */
+async function notifyOwnerNewDestination(
+  tenantId: string,
+  dest: { kind: DestinationKind; rail: string; value: string; label: string | null; displayHint: string | null; proven: boolean },
+): Promise<void> {
+  try {
+    if (isOwner(tenantId) || tenantId.startsWith('demo-')) return;
+
+    // Who signed up + is this their first destination?
+    const [who, count] = await Promise.all([
+      db.execute({
+        sql: `SELECT u.email FROM tenant_memberships tm JOIN auth_users u ON u.id = tm.user_id
+              WHERE tm.tenant_id = ? ORDER BY tm.created_at ASC NULLS LAST LIMIT 1`,
+        args: [tenantId],
+      }),
+      db.execute({ sql: `SELECT COUNT(*) AS cnt FROM verify_destinations WHERE tenant_id = ?`, args: [tenantId] }),
+    ]);
+    const email = String((who.rows[0] as any)?.email ?? '(unknown account)');
+    const total = Number((count.rows[0] as any)?.cnt ?? 1);
+    const first = total <= 1;
+
+    // Payment QRs store a hash/canonical URL; addresses store the raw value. Show a
+    // short, non-sensitive preview either way.
+    const preview = dest.value.length > 44 ? dest.value.slice(0, 44) + '…' : dest.value;
+    const name = dest.label || dest.displayHint || '(no name given)';
+    const what = dest.kind === 'qr' ? `payment QR (${dest.rail})` : `${dest.rail} address`;
+
+    const subject = first
+      ? `New Almstins Verify signup — ${name}`
+      : `Almstins Verify — ${name} added a destination`;
+    const text = [
+      first ? 'A new business just started using Almstins Verify.' : 'An existing Verify business added another destination.',
+      '',
+      `Business name: ${name}`,
+      `Account email: ${email}`,
+      `Registered:    ${what}`,
+      `Value:         ${preview}`,
+      `Proof status:  ${dest.proven ? 'proven on save (QR/link)' : 'unproven — awaiting self-send'}`,
+      `Destinations:  ${total} total for this business`,
+      '',
+      'Admin dashboard: https://almstins.com/admin',
+    ].join('\n');
+
+    await sendMail({ to: OWNER_NOTIFY_EMAIL, subject, text });
+  } catch (e) {
+    console.warn('[verify] owner signup notification failed (non-fatal):', e);
+  }
 }
 
 export async function deleteDestination(tenantId: string, id: string): Promise<void> {

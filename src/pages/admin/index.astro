@@ -3,6 +3,7 @@ import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
 import { getGA4Summary } from '@/lib/ga4';
 import { countUniqueChecksByKind } from '@/lib/checkLog';
+import { OWNER_TENANT_ID } from '@/lib/owner';
 
 // Guard — redirect non-admin users rather than returning a raw 4xx,
 // since Render's infrastructure renders raw error responses as "file not found".
@@ -145,6 +146,34 @@ const [
 		LIMIT 40
 	`),
 ]);
+
+// ── Almstins Verify — real business signups (excludes owner + demo tenants) ───
+const [verifySignups, verifyProvenCount] = await Promise.all([
+  safeQ(`
+    SELECT
+      d.tenant_id,
+      COALESCE(MIN(u.email), d.tenant_id) AS label,
+      COUNT(*) AS dest_count,
+      SUM(CASE WHEN d.kind = 'address' THEN 1 ELSE 0 END) AS addresses,
+      SUM(CASE WHEN d.kind = 'qr' THEN 1 ELSE 0 END) AS qrs,
+      SUM(CASE WHEN d.proof_status = 'proven' THEN 1 ELSE 0 END) AS proven,
+      MAX(d.label) AS business_name,
+      MIN(d.created_at) AS joined,
+      MAX(d.created_at) AS latest
+    FROM verify_destinations d
+    LEFT JOIN tenant_memberships tm ON tm.tenant_id = d.tenant_id
+    LEFT JOIN auth_users u ON u.id = tm.user_id
+    WHERE d.tenant_id <> ? AND d.tenant_id NOT LIKE 'demo-%'
+    GROUP BY d.tenant_id
+    ORDER BY joined DESC
+    LIMIT 50
+  `, [OWNER_TENANT_ID]),
+  safeScalar(`
+    SELECT COUNT(DISTINCT tenant_id) FROM verify_destinations
+    WHERE proof_status = 'proven' AND tenant_id <> ? AND tenant_id NOT LIKE 'demo-%'
+  `, [OWNER_TENANT_ID]),
+]);
+const verifyBusinessCount = verifySignups.length;
 
 // ── PetroTins visit stats ─────────────────────────────────────────────────────
 const [petroVisitCount, petroAvgDuration, petroRecentVisits] = await Promise.all([
@@ -503,6 +532,60 @@ const fmtDate = (iso: string | null) => {
 					))}
 					{adoptionRows.length === 0 && (
 						<tr><td colspan="5" style="opacity:0.35; text-align:center; padding:1.5rem;">No tenants yet</td></tr>
+					)}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<!-- ── Almstins Verify — business signups ─────────────────────── -->
+	<div class="section">
+		<div class="section-title">Almstins Verify — business signups <span class="inbox-count">{verifyBusinessCount}</span></div>
+		<div class="stat-grid" style="margin-bottom:1rem;">
+			<div class="stat-card highlight">
+				<div class="stat-label">Businesses</div>
+				<div class="stat-value">{verifyBusinessCount}</div>
+				<div class="stat-sub">real accounts (excl. demo &amp; you)</div>
+			</div>
+			<div class="stat-card green">
+				<div class="stat-label">Verified</div>
+				<div class="stat-value">{verifyProvenCount}</div>
+				<div class="stat-sub">with a proven destination</div>
+			</div>
+		</div>
+		<div class="table-wrap">
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Business / account</th>
+						<th style="text-align:right">Addresses</th>
+						<th style="text-align:right">QRs</th>
+						<th style="text-align:right">Proven</th>
+						<th>Joined</th>
+						<th>Last add</th>
+					</tr>
+				</thead>
+				<tbody>
+					{verifySignups.map((row) => (
+						<tr>
+							<td style="font-size:0.8rem; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+								{row.business_name && String(row.business_name) !== String(row.label)
+									? <span><span style="color:#f1f5f9; font-weight:600;">{row.business_name}</span> <span style="opacity:0.5;">· {row.label}</span></span>
+									: <span>{row.label}</span>}
+							</td>
+							<td style="text-align:right;">{Number(row.addresses) > 0 ? row.addresses : <span style="opacity:0.3">0</span>}</td>
+							<td style="text-align:right;">{Number(row.qrs) > 0 ? row.qrs : <span style="opacity:0.3">0</span>}</td>
+							<td style="text-align:right;">
+								{Number(row.proven) > 0
+									? <span style="color:#4ade80; font-weight:600;">{row.proven}</span>
+									: <span style="opacity:0.3">0</span>}
+							</td>
+							<td style="font-size:0.78rem; opacity:0.65;">{fmtDate(String(row.joined))}</td>
+							<td style="font-size:0.78rem; opacity:0.65;">{fmt(String(row.latest))}</td>
+						</tr>
+					))}
+					{verifySignups.length === 0 && (
+						<tr><td colspan="6" style="opacity:0.35; text-align:center; padding:1.5rem;">No business signups yet</td></tr>
 					)}
 				</tbody>
 			</table>
