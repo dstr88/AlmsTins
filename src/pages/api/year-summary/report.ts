@@ -17,6 +17,7 @@ import type { APIRoute } from 'astro';
 import PDFDocument from 'pdfkit';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { buildAnnualBreakdown, fmvSourceCategory, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { getFilteredTokens, type JunkToken } from '@/lib/junkTokens';
 import { getActivePlan } from '@/lib/subscriptions';
 import { isOwner } from '@/lib/owner';
 import { buildRecordProof, type ProofBundle } from '@/lib/recordProof/buildProof';
@@ -71,6 +72,7 @@ function buildPdf(
   tenantLabel: string,
   proof: ProofBundle,
   feesFull: boolean,
+  filteredTokens: JunkToken[] = [],
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -569,6 +571,36 @@ function buildPdf(
       }
     }
 
+    // ── Filtered / ignored tokens (spam & scam airdrops) ───────────────────────
+    // Auditability for the preparer: what was set aside and excluded from every
+    // total above, and why. Dry, professional label (not "junk").
+    if (filteredTokens.length > 0) {
+      newPage();
+      sectionTitle('Filtered / Ignored Tokens  (spam & scam airdrops)');
+      doc.fontSize(8.5).font('Helvetica').fillColor(MID_GRAY)
+        .text('These tokens were classified as spam or scam airdrops and excluded from all holdings, gains, income, and tax totals above. Listed here for completeness.', MARGIN, doc.y, { width: CONTENT_W });
+      doc.moveDown(0.4);
+      const cols = [
+        { label: 'Token',  width: 300 },
+        { label: 'Chain',  width: 130 },
+        { label: 'Reason', width: 258 },
+      ];
+      tableHeaders(cols);
+      filteredTokens.slice(0, 200).forEach((tk, i) => {
+        const label = (tk.name || tk.symbol || '—').slice(0, 46);
+        tableRow([
+          { label,                width: cols[0].width },
+          { label: tk.chain,      width: cols[1].width },
+          { label: tk.reason,     width: cols[2].width, color: MID_GRAY },
+        ], i % 2 === 1);
+      });
+      if (filteredTokens.length > 200) {
+        doc.moveDown(0.3);
+        doc.fontSize(8).font('Helvetica-Oblique').fillColor(MID_GRAY)
+          .text(`… and ${filteredTokens.length - 200} more.`, MARGIN, doc.y);
+      }
+    }
+
     // ── Verification appendix ──────────────────────────────────────────────────
     newPage();
     sectionTitle('Verification');
@@ -636,6 +668,7 @@ export const GET: APIRoute = async ({ request }) => {
     // lifecycle-events FIFO if the pipeline hasn't run for this year.
     const bd = await buildAnnualBreakdown(tenantId, year, 'fifo', undefined, 'auto' as AnnualBreakdownSource);
     const tenantLabel = `almsTins Account`;
+    const filteredTokens = await getFilteredTokens(tenantId).catch(() => [] as JunkToken[]);
 
     // ── Verifiable record: hash the exact breakdown the PDF prints, sign + persist ──
     // Awaited so the PDF's record_id matches the stored record (powers verify-by-id +
@@ -644,7 +677,7 @@ export const GET: APIRoute = async ({ request }) => {
     const proof = buildRecordProof(tenantId, year, bd, prevRoot, new Date().toISOString());
     await persistRecordProof(tenantId, proof).catch((e) => console.error('[year-summary] proof persist failed', e));
 
-    const pdfBuffer = await buildPdf(bd, year, tenantLabel, proof, feesFull);
+    const pdfBuffer = await buildPdf(bd, year, tenantLabel, proof, feesFull, filteredTokens);
 
     return new Response(pdfBuffer, {
       status: 200,
