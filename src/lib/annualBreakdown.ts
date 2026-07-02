@@ -28,6 +28,7 @@ import { INCOME_KINDS } from './incomeKinds';
 import { classifyTokenName } from './tokenClassification';
 import { getIncomeOverrides } from './tokenOverrides';
 import { deriveReceiptBasis } from './receiptBasis';
+import { getNftCosts, lookupNftCost } from './nftCost';
 
 // Re-export so existing callers importing INCOME_KINDS from here keep working.
 export { INCOME_KINDS };
@@ -817,6 +818,7 @@ export async function buildAnnualBreakdown(
 
   // ── 4. NFT holdings — parse wallet_nft_snapshot, filter spam ────────────
   const nftHoldings: NftHolding[] = [];
+  const nftCosts = await getNftCosts(tenantId).catch(() => new Map<string, number>());
   try {
     const nftSnaps = await db.execute({
       sql: `SELECT wallet_id, payload_json FROM wallet_nft_snapshot WHERE tenant_id = ?`,
@@ -852,6 +854,7 @@ export async function buildAnnualBreakdown(
           tokenId:  toStr(i.tokenId),
           url:      typeof i.url === 'string' ? i.url : null,
           walletId: snap.wallet_id,
+          costUsd:  lookupNftCost(nftCosts, { chain: toStr(i.chain), contract: toStr(i.contract), tokenId: toStr(i.tokenId) }),
         });
       }
     }

@@ -753,8 +753,16 @@ const syncRelative = !hasSync ? '' :
                   <span class="tin-row__asset">{nft.name}</span>
                   <span class="tin-row__kind">{nft.chain}</span>
                   <span class="tin-row__note">#{nft.tokenId}</span>
-                  {nft.costUsd != null && nft.costUsd > 1 && (
+                  {nft.costUsd != null && nft.costUsd > 1 ? (
                     <span class="tin-row__usd">{fUsd(nft.costUsd)}</span>
+                  ) : (
+                    <span class="nft-cost-entry" style="display:inline-flex; gap:0.3rem; align-items:center;">
+                      <input class="nft-cost-input" type="number" step="0.01" min="0" placeholder="cost $"
+                        data-chain={nft.chain} data-contract={nft.contract} data-tokenid={nft.tokenId}
+                        style="width:78px; padding:0.15rem 0.35rem; font-size:0.78rem; border:1px solid var(--border-bright); border-radius:6px; background:transparent; color:var(--text-primary);" />
+                      <button class="nft-cost-save" type="button"
+                        style="padding:0.15rem 0.5rem; font-size:0.72rem; border:1px solid var(--accent-dim); border-radius:6px; background:var(--accent-soft); color:var(--accent); cursor:pointer;">save</button>
+                    </span>
                   )}
                   {nft.url && (
                     <a class="tin-trace-link" href={nft.url} target="_blank" rel="noopener">view →</a>
@@ -1497,6 +1505,35 @@ const syncRelative = !hasSync ? '' :
           // silent — the button stays in its current visual state
         }
       });
+    });
+  </script>
+
+  <script>
+    // NFT manual cost basis — save on click, then show the value in place.
+    document.addEventListener('click', async (e) => {
+      const btn = (e.target as HTMLElement)?.closest('.nft-cost-save');
+      if (!btn) return;
+      const wrap = btn.closest('.nft-cost-entry') as HTMLElement | null;
+      const input = wrap?.querySelector('.nft-cost-input') as HTMLInputElement | null;
+      if (!input) return;
+      const costUsd = input.value.trim();
+      if (costUsd === '') return;
+      (btn as HTMLButtonElement).disabled = true;
+      try {
+        const res = await fetch('/api/tokens/nft-cost', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chain: input.dataset.chain, contract: input.dataset.contract,
+            tokenId: input.dataset.tokenid, costUsd,
+          }),
+        });
+        if (!res.ok) throw new Error();
+        const usd = Number(costUsd).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+        if (wrap) wrap.outerHTML = '<span class="tin-row__usd">' + usd + '</span>';
+      } catch {
+        (btn as HTMLButtonElement).disabled = false;
+        btn.textContent = 'retry';
+      }
     });
   </script>
 </Layout>
