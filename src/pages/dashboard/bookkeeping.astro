@@ -4,6 +4,7 @@ import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import OrnateTin from '@/components/OrnatedTin.astro';
 import DrawerHost from '../../components/bookkeeping/DrawerHost';
 import ReconciliationTin from '../../components/bookkeeping/ReconciliationTin';
+import JunkDrawer from '../../components/bookkeeping/JunkDrawer';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { buildAnnualBreakdown, fmvSourceCategory } from '../../lib/annualBreakdown';
 import { isSpamToken } from '../../lib/knownContracts';
@@ -766,6 +767,9 @@ const syncRelative = !hasSync ? '' :
     </div><!-- /breakdown-grid -->
 
     <!-- ══ Reconciliation ══════════════════════════════════════════════════ -->
+    <div style="display:flex; justify-content:flex-end; margin:0.75rem 0 0.25rem;">
+      <JunkDrawer client:load lang={lang} />
+    </div>
     <div class="reconciliation-section">
       <ReconciliationTin client:load />
     </div>
