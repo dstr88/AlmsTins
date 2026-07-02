@@ -16,5 +16,5 @@ export const sampleBreakdown = (): AnnualBreakdown => ({
   feeCoverage: { withFee: 1, total: 5 },
   nftHoldings: [],
   totals: { unsettledProceeds: 50, shortTermGain: 1200, longTermGain: 7000, totalIncome: 300, heldCostBasis: 1000, transactionCostsUsd: 4.5 },
-  dataSource: 'lifecycle',
+  dataSource: 'lifecycle', method: 'fifo',
 });

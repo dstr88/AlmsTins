@@ -16,7 +16,7 @@
 import type { APIRoute } from 'astro';
 import PDFDocument from 'pdfkit';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { buildAnnualBreakdown, fmvSourceCategory, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { buildAnnualBreakdown, fmvSourceCategory, formatCostBasisMethod, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getFilteredTokens, type JunkToken } from '@/lib/junkTokens';
 import { getActivePlan } from '@/lib/subscriptions';
 import { isOwner } from '@/lib/owner';
@@ -262,7 +262,7 @@ function buildPdf(
     summaryRow('Long-term realized gain / loss', fUsd(ltGain, true), ltGain >= 0 ? POS : NEG);
     summaryRow('Total received / earned', fUsd(income));
     summaryRow('Net realized gain / loss', fUsd(netGain, true), netGain >= 0 ? POS : NEG);
-    summaryRow('Cost basis method', 'FIFO');
+    summaryRow('Cost basis method', formatCostBasisMethod(bd.method));
     summaryRow('Open lots — cost basis', fUsd(bd.totals.heldCostBasis));
     summaryRow('Short-term disposal events', String(bd.shortTerm.length));
     summaryRow('Long-term disposal events', String(bd.longTerm.length));

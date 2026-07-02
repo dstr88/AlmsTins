@@ -25,7 +25,7 @@ const bd = (): AnnualBreakdown => ({
   transactionCosts: [], gasByChain: [], feeCoverage: { withFee: 0, total: 0 },
   nftHoldings: [],
   totals: { unsettledProceeds: 50, shortTermGain: 1200, longTermGain: 7000, totalIncome: 300, heldCostBasis: 1000, transactionCostsUsd: 0 },
-  dataSource: 'lifecycle',
+  dataSource: 'lifecycle', method: 'fifo',
 });
 
 describe('buildRecordProof', () => {

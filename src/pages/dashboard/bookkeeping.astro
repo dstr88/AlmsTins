@@ -6,7 +6,7 @@ import DrawerHost from '../../components/bookkeeping/DrawerHost';
 import ReconciliationTin from '../../components/bookkeeping/ReconciliationTin';
 import JunkDrawer from '../../components/bookkeeping/JunkDrawer';
 import { requireTenantSession } from '../../lib/requireTenantSession';
-import { buildAnnualBreakdown, fmvSourceCategory } from '../../lib/annualBreakdown';
+import { buildAnnualBreakdown, fmvSourceCategory, formatCostBasisMethod } from '../../lib/annualBreakdown';
 import { classifyTokenName } from '../../lib/tokenClassification';
 import { getTokenOverrides, lookupOverride, effectiveClass } from '../../lib/tokenOverrides';
 import { getActivePlan } from '../../lib/subscriptions';
@@ -34,8 +34,9 @@ const selectedYear = yearParam ? Number(yearParam) : defaultYear;
 
 const bd      = await buildAnnualBreakdown(tenantId, selectedYear);
 
-// Cost basis method actually applied on this page (buildAnnualBreakdown default = FIFO).
-const costBasisMethod  = 'FIFO';
+// Cost basis method actually applied — read from the breakdown so the label can
+// never drift from the computation.
+const costBasisMethod  = formatCostBasisMethod(bd.method);
 // Non-taxable card rebates total (shown as a $0-tax line so the CPA can confirm it).
 const cardRebatesTotal = bd.cardRebates.reduce((s, i) => s + (i.usdValue ?? 0), 0);
 

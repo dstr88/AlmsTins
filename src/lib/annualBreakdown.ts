@@ -200,10 +200,23 @@ export type AnnualBreakdown = {
   totals: SectionTotals;
   /** Which data source was actually used to compute capital gains/income. */
   dataSource: 'lifecycle' | 'pipeline';
+  /** The cost-basis method actually applied to lot matching (so labels can't drift). */
+  method: CostBasisMethod;
 };
 
 /** Controls which data source buildAnnualBreakdown reads from. */
 export type AnnualBreakdownSource = 'lifecycle' | 'pipeline' | 'auto';
+
+/** Human label for a cost-basis method — the single formatter the UI + PDF use. */
+export function formatCostBasisMethod(method: CostBasisMethod): string {
+  switch (method) {
+    case 'fifo':    return 'FIFO';
+    case 'lifo':    return 'LIFO';
+    case 'hifo':    return 'HIFO';
+    case 'spec_id': return 'Specific ID';
+    default:        return String(method).toUpperCase();
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1007,5 +1020,6 @@ export async function buildAnnualBreakdown(
     aaveDepositTax,
     totals,
     dataSource: resolvedSource,
+    method,
   };
 }
