@@ -680,6 +680,17 @@ const availableYears = bd?.availableYears ?? [priorYear];
 
       <!-- Customer downloads — grayed for demo, paywalled for free users -->
       <div class="downloads__group-label">{isAdmin ? 'For your tax preparer' : 'Exports'}</div>
+      {!isDemo && canDownload && (
+        <fieldset style="border:1px solid var(--border-subtle); border-radius:8px; padding:.4rem .75rem .55rem; margin-bottom:.85rem; display:flex; gap:1.25rem; align-items:center; flex-wrap:wrap;">
+          <legend style="padding:0 .4rem; font-size:.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em;">Transaction costs in PDF</legend>
+          <label style="display:flex; align-items:center; gap:.4rem; font-size:.85rem; color:var(--text-secondary); cursor:pointer;">
+            <input type="radio" name="feeDetail" value="full" checked style="accent-color:var(--accent);" /> Full schedule — every line
+          </label>
+          <label style="display:flex; align-items:center; gap:.4rem; font-size:.85rem; color:var(--text-secondary); cursor:pointer;">
+            <input type="radio" name="feeDetail" value="summary" style="accent-color:var(--accent);" /> Summary only
+          </label>
+        </fieldset>
+      )}
       <div class="downloads__grid">
         {isDemo ? (
           <a href="/signup" class="dl-btn dl-btn--demo" title="Sign up free to export">
@@ -706,7 +717,7 @@ const availableYears = bd?.availableYears ?? [priorYear];
             <span class="dl-btn__plan-badge">Sign up</span>
           </a>
         ) : canDownload ? (
-          <a href={`/api/year-summary/report?year=${selectedYear}`} target="_blank" class="dl-btn">
+          <a id="year-pdf-link" href={`/api/year-summary/report?year=${selectedYear}`} target="_blank" class="dl-btn">
             <span class="dl-btn__icon">📄</span>
             <span>Year Summary PDF</span>
           </a>
@@ -764,6 +775,21 @@ const availableYears = bd?.availableYears ?? [priorYear];
         </>
       )}
     </section>
+
+    <script is:inline>
+      (function () {
+        var link = document.getElementById('year-pdf-link');
+        if (!link) return;
+        var base = link.getAttribute('href');
+        document.querySelectorAll('input[name="feeDetail"]').forEach(function (r) {
+          r.addEventListener('change', function () {
+            if (!r.checked) return;
+            var sep = base.indexOf('?') >= 0 ? '&' : '?';
+            link.setAttribute('href', r.value === 'summary' ? base + sep + 'fees=summary' : base);
+          });
+        });
+      })();
+    </script>
 
     <!-- ── FAQ ───────────────────────────────────────────────────────────── -->
     <section class="faq">

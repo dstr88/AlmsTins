@@ -70,6 +70,7 @@ function buildPdf(
   year: number,
   tenantLabel: string,
   proof: ProofBundle,
+  feesFull: boolean,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -440,6 +441,34 @@ function buildPdf(
         doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor('#444').lineWidth(0.5).stroke();
         doc.moveDown(0.3);
         summaryRow('Total exchange fees (USD)', fUsd(bd.totals.transactionCostsUsd));
+
+        // Full schedule — every fee line (default). 'summary' mode omits this.
+        if (feesFull) {
+          doc.moveDown(0.6);
+          doc.fontSize(8.5).font('Helvetica-Bold').fillColor(MID_GRAY)
+            .text('Itemized fees', MARGIN, doc.y);
+          doc.moveDown(0.2);
+          const icols = [
+            { label: 'Date',   width: 120 },
+            { label: 'Source', width: 150 },
+            { label: 'Asset',  width: 100 },
+            { label: 'Fee',    width: 200, align: 'right' as const },
+          ];
+          tableHeaders(icols);
+          bd.transactionCosts.forEach((f, i) => {
+            const feeLabel = f.feeUsd != null
+              ? fUsd(f.feeUsd)
+              : f.feeNative != null
+                ? `${fQty(f.feeNative)} ${f.feeCurrency ?? ''}`.trim()
+                : '—';
+            tableRow([
+              { label: fDate(f.date), width: icols[0].width },
+              { label: f.source,      width: icols[1].width },
+              { label: f.asset,       width: icols[2].width },
+              { label: feeLabel,      width: icols[3].width, align: 'right' },
+            ], i % 2 === 1);
+          });
+        }
       }
 
       if (bd.gasByChain.length > 0) {
@@ -527,6 +556,9 @@ export const GET: APIRoute = async ({ request }) => {
     const url = new URL(request.url);
     const yearParam = url.searchParams.get('year');
     const year = yearParam ? Number(yearParam) : new Date().getFullYear() - 1;
+    // Fee detail: default 'full' (itemize every fee line — the full schedule some
+    // accountants want); 'summary' collapses to totals + by-source only.
+    const feesFull = url.searchParams.get('fees') !== 'summary';
 
     if (!Number.isFinite(year) || year < 2015 || year > new Date().getFullYear()) {
       return new Response(JSON.stringify({ error: 'Invalid year.' }), { status: 400 });
@@ -545,7 +577,7 @@ export const GET: APIRoute = async ({ request }) => {
     const proof = buildRecordProof(tenantId, year, bd, prevRoot, new Date().toISOString());
     await persistRecordProof(tenantId, proof).catch((e) => console.error('[year-summary] proof persist failed', e));
 
-    const pdfBuffer = await buildPdf(bd, year, tenantLabel, proof);
+    const pdfBuffer = await buildPdf(bd, year, tenantLabel, proof, feesFull);
 
     return new Response(pdfBuffer, {
       status: 200,
