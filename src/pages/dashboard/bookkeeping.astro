@@ -626,6 +626,59 @@ const syncRelative = !hasSync ? '' :
         </OrnateTin>
       </div>
 
+      <!-- 6. Transaction costs (fees) — full width -->
+      <div class="grid-cell grid-cell--full">
+        <OrnateTin label={t.tinTransactionCosts} class="tin-section tin-section--income">
+          <div class="tin-toolbar">
+            <span class="tin-toolbar__count">{t.countItems(bd.transactionCosts.length)}</span>
+            <a href={csvBase('transactionCosts')} download class="tin-csv-btn">↓ CSV</a>
+          </div>
+          <div class="tin-total">
+            {t.totalTransactionCosts} <strong>{fUsd(bd.totals.transactionCostsUsd)}</strong>
+          </div>
+          <p class="tin-empty" style="margin:0.15rem 0 0.6rem; opacity:0.6;">
+            {t.feeTaxNote}
+            {bd.feeCoverage.total > 0 && ` · ${t.feeCoverageNote(bd.feeCoverage.withFee, bd.feeCoverage.total)}`}
+          </p>
+          {bd.transactionCosts.length === 0 ? (
+            <p class="tin-empty">{t.noTransactionCosts(selectedYear)}</p>
+          ) : (
+            <div class="tin-rows tin-rows--income">
+              {bd.transactionCosts.map((item) => (
+                <div class="tin-row tin-row--income">
+                  <span class="tin-row__asset">{item.asset || '—'}</span>
+                  <span class="tin-row__date">{fDate(item.date)}</span>
+                  <span class="tin-row__usd">
+                    {item.feeUsd != null
+                      ? fUsd(item.feeUsd)
+                      : item.feeNative != null
+                        ? `${fQty(item.feeNative)} ${item.feeCurrency ?? ''}`.trim()
+                        : '—'}
+                  </span>
+                  <span class="tin-row__kind">{kindLabel(item.source)}</span>
+                  {item.description && (
+                    <span class="tin-row__note">{item.description}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {bd.gasByChain.length > 0 && (
+            <div class="tin-rows tin-rows--income" style="margin-top:0.75rem;">
+              <div class="tin-total" style="margin-bottom:0.4rem;">{t.gasFeesHeading}</div>
+              {bd.gasByChain.map((g) => (
+                <div class="tin-row tin-row--income">
+                  <span class="tin-row__asset">{g.nativeSymbol}</span>
+                  <span class="tin-row__date">{g.chain}</span>
+                  <span class="tin-row__usd">{fQty(g.totalNative)} {g.nativeSymbol}</span>
+                  <span class="tin-row__kind">{t.countItems(g.txCount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </OrnateTin>
+      </div>
+
     </div><!-- /breakdown-grid -->
 
     <!-- ══ Reconciliation ══════════════════════════════════════════════════ -->

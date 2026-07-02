@@ -404,6 +404,75 @@ function buildPdf(
       });
     }
 
+    // ── Transaction costs (fees) ───────────────────────────────────────────────
+    // Summary for the accountant — total + by-source, not every line (the full
+    // itemized list lives in the bookkeeping view / CSV export). Trading fees are
+    // tax-relevant: they raise cost basis on a buy and reduce proceeds on a sale.
+    if (bd.transactionCosts.length > 0 || bd.gasByChain.length > 0) {
+      newPage();
+      sectionTitle('Transaction Costs');
+
+      if (bd.transactionCosts.length > 0) {
+        const bySource = new Map<string, { usd: number; count: number }>();
+        for (const f of bd.transactionCosts) {
+          const key = f.source || 'unknown';
+          const cur = bySource.get(key) ?? { usd: 0, count: 0 };
+          cur.usd += f.feeUsd ?? 0;
+          cur.count += 1;
+          bySource.set(key, cur);
+        }
+        const cols = [
+          { label: 'Source',       width: 300 },
+          { label: 'Fees (count)', width: 144, align: 'right' as const },
+          { label: 'Fees (USD)',   width: 144, align: 'right' as const },
+        ];
+        tableHeaders(cols);
+        Array.from(bySource.entries())
+          .sort((a, b) => b[1].usd - a[1].usd)
+          .forEach(([src, agg], i) => {
+            tableRow([
+              { label: src,               width: cols[0].width },
+              { label: String(agg.count), width: cols[1].width, align: 'right' },
+              { label: fUsd(agg.usd),     width: cols[2].width, align: 'right' },
+            ], i % 2 === 1);
+          });
+        doc.moveDown(0.3);
+        doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).strokeColor('#444').lineWidth(0.5).stroke();
+        doc.moveDown(0.3);
+        summaryRow('Total exchange fees (USD)', fUsd(bd.totals.transactionCostsUsd));
+      }
+
+      if (bd.gasByChain.length > 0) {
+        doc.moveDown(0.6);
+        doc.fontSize(8.5).font('Helvetica-Bold').fillColor(MID_GRAY)
+          .text('On-chain gas (native units — not USD-priced)', MARGIN, doc.y);
+        doc.moveDown(0.2);
+        const gcols = [
+          { label: 'Chain',        width: 300 },
+          { label: 'Transactions', width: 144, align: 'right' as const },
+          { label: 'Gas (native)', width: 144, align: 'right' as const },
+        ];
+        tableHeaders(gcols);
+        bd.gasByChain.forEach((g, i) => {
+          tableRow([
+            { label: g.chain,                              width: gcols[0].width },
+            { label: String(g.txCount),                    width: gcols[1].width, align: 'right' },
+            { label: `${fQty(g.totalNative)} ${g.nativeSymbol}`, width: gcols[2].width, align: 'right' },
+          ], i % 2 === 1);
+        });
+      }
+
+      if (bd.feeCoverage.total > 0) {
+        doc.moveDown(0.5);
+        doc.fontSize(8).font('Helvetica-Oblique').fillColor(MID_GRAY)
+          .text(
+            `Fee data captured on ${bd.feeCoverage.withFee} of ${bd.feeCoverage.total} imported transactions this year. `
+            + 'Gaps mean a source CSV did not carry a fee column — not that no fee was paid.',
+            MARGIN, doc.y, { width: CONTENT_W },
+          );
+      }
+    }
+
     // ── Verification appendix ──────────────────────────────────────────────────
     newPage();
     sectionTitle('Verification');

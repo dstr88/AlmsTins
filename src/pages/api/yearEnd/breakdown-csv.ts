@@ -197,6 +197,29 @@ export const GET: APIRoute = async ({ request, url }) => {
         csvContent = buildCsv('Income — Interest, Staking & Rewards', year, headers, rows);
         break;
       }
+      case 'transactionCosts': {
+        filename = `almstins-${year}-transaction-costs.csv`;
+        const headers = ['Date', 'Source', 'Asset', 'Fee (USD)', 'Fee (native)', 'Fee currency', 'Description'];
+        const rows: CsvRow[] = bd.transactionCosts.map((i) => [
+          formatDate(i.date),
+          i.source,
+          i.asset,
+          formatUsd(i.feeUsd),
+          i.feeNative ?? '',
+          i.feeCurrency ?? '',
+          i.description ?? '',
+        ]);
+        // On-chain gas summarized per chain (native units — not USD-priced).
+        for (const g of bd.gasByChain) {
+          rows.push([
+            '', `gas:${g.chain}`, g.nativeSymbol, '',
+            g.totalNative, g.nativeSymbol,
+            `${g.txCount} on-chain transactions (native gas, not USD-priced)`,
+          ]);
+        }
+        csvContent = buildCsv('Transaction Costs — Trading & Network Fees', year, headers, rows);
+        break;
+      }
       case 'turbotax': {
         // TurboTax-compatible Form 8949 CSV.
         // Exact column names and plain numeric values TurboTax expects.

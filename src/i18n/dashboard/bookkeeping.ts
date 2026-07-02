@@ -98,6 +98,16 @@ export interface BookkeepingLocale {
   totalOrdinaryIncome: string;
   /** "No income events in {year}" */
   noIncomeEvents: (year: number) => string;
+
+  // Transaction costs (fees) tin
+  tinTransactionCosts: string;
+  totalTransactionCosts: string;
+  /** "No transaction costs recorded in {year}" */
+  noTransactionCosts: (year: number) => string;
+  /** "Fees captured on {withFee} of {total} transactions" */
+  feeCoverageNote: (withFee: number, total: number) => string;
+  gasFeesHeading: string;
+  feeTaxNote: string;
 }
 
 export const en: BookkeepingLocale = {
@@ -163,6 +173,13 @@ export const en: BookkeepingLocale = {
   tinIncome: 'Income — Interest, Staking & Rewards',
   totalOrdinaryIncome: 'Total ordinary income:',
   noIncomeEvents: (year) => `No income events in ${year}`,
+
+  tinTransactionCosts: 'Transaction Costs — Trading & Network Fees',
+  totalTransactionCosts: 'Total exchange fees (USD):',
+  noTransactionCosts: (year) => `No transaction costs recorded in ${year}`,
+  feeCoverageNote: (withFee, total) => `Fees captured on ${withFee} of ${total} transactions this year`,
+  gasFeesHeading: 'On-chain gas (native units — not USD-priced)',
+  feeTaxNote: 'Trading fees add to cost basis on a buy and reduce proceeds on a sale.',
 };
 
 export const es: BookkeepingLocale = {
@@ -228,6 +245,13 @@ export const es: BookkeepingLocale = {
   tinIncome: 'Ingresos — intereses, staking y recompensas',
   totalOrdinaryIncome: 'Total de ingresos ordinarios:',
   noIncomeEvents: (year) => `Sin eventos de ingresos en ${year}`,
+
+  tinTransactionCosts: 'Costos de transacción — comisiones de trading y de red',
+  totalTransactionCosts: 'Total de comisiones de exchange (USD):',
+  noTransactionCosts: (year) => `Sin costos de transacción registrados en ${year}`,
+  feeCoverageNote: (withFee, total) => `Comisiones registradas en ${withFee} de ${total} transacciones este año`,
+  gasFeesHeading: 'Gas on-chain (unidades nativas — sin precio en USD)',
+  feeTaxNote: 'Las comisiones de trading se suman al costo base en una compra y reducen los ingresos en una venta.',
 };
 
 export const fr: BookkeepingLocale = {
@@ -293,6 +317,13 @@ export const fr: BookkeepingLocale = {
   tinIncome: 'Revenus — intérêts, staking et récompenses',
   totalOrdinaryIncome: 'Total des revenus ordinaires :',
   noIncomeEvents: (year) => `Aucun événement de revenu en ${year}`,
+
+  tinTransactionCosts: 'Frais de transaction — frais de trading et de réseau',
+  totalTransactionCosts: 'Total des frais d\'exchange (USD) :',
+  noTransactionCosts: (year) => `Aucun frais de transaction enregistré en ${year}`,
+  feeCoverageNote: (withFee, total) => `Frais enregistrés sur ${withFee} des ${total} transactions cette année`,
+  gasFeesHeading: 'Gas on-chain (unités natives — non converti en USD)',
+  feeTaxNote: 'Les frais de trading s\'ajoutent au coût de base lors d\'un achat et réduisent le produit lors d\'une vente.',
 };
 
 const MAP: Record<Lang, BookkeepingLocale> = { en, es, fr };

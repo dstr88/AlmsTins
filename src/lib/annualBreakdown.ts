@@ -115,6 +115,8 @@ export type SectionTotals = {
   longTermGain: number;
   totalIncome: number;
   heldCostBasis: number;
+  /** Sum of exchange fees in USD for the year (native-only gas is excluded — see gasByChain). */
+  transactionCostsUsd: number;
 };
 
 export type AaveDepositItem = {
@@ -127,6 +129,35 @@ export type AaveDepositItem = {
   txHash: string | null;
 };
 
+/**
+ * One transaction cost (fee) the user paid in the selected year. Trading fees are
+ * tax-relevant: they add to cost basis on an acquisition and reduce proceeds on a
+ * disposal, so a tax pro wants them itemized. Exchange fees arrive already in USD
+ * (fee_usd); a native-only fee keeps its own currency for display.
+ */
+export type TransactionCostItem = {
+  date: string;                 // transaction timestamp
+  source: string;               // exchange / import source (coinbase, kraken, …)
+  asset: string;                // asset the trade was in
+  feeUsd: number | null;        // fee in USD (import_transactions.fee_usd)
+  feeNative: number | null;     // fee in its native currency, when USD is absent
+  feeCurrency: string | null;   // symbol for feeNative
+  description: string | null;
+};
+
+/**
+ * On-chain gas paid, summarized per chain in the chain's native token. Gas is stored
+ * as wei strings per chain (transactions.fee_paid) and is NOT USD-priced here — we
+ * surface it as a native-unit subtotal so the number is honest rather than a fabricated
+ * dollar figure. Kept separate from the itemized exchange-fee list for that reason.
+ */
+export type GasCostByChain = {
+  chain: string;                // ethereum, polygon, avalanche, …
+  nativeSymbol: string;         // ETH, POL, AVAX, …
+  totalNative: number;          // summed gas in native units
+  txCount: number;              // transactions contributing gas
+};
+
 export type AnnualBreakdown = {
   year: number;
   availableYears: number[];
@@ -137,6 +168,12 @@ export type AnnualBreakdown = {
   income: IncomeItem[];
   /** Card rebates (Crypto.com "Card Rebate" transactions) — non-taxable, shown separately. */
   cardRebates: IncomeItem[];
+  /** Itemized exchange/trading fees paid in the selected year (USD where available). */
+  transactionCosts: TransactionCostItem[];
+  /** On-chain gas paid, summarized per chain in native units (not USD-priced). */
+  gasByChain: GasCostByChain[];
+  /** Fee coverage in the year: how many import rows carried a fee vs. total rows. */
+  feeCoverage: { withFee: number; total: number };
   nftHoldings: NftHolding[];
   /** Aave supplies surfaced as POTENTIAL taxable disposals (contested — see aaveDepositTax). */
   aaveDeposits?: AaveDepositItem[];
@@ -822,16 +859,93 @@ export async function buildAnnualBreakdown(
   const resolvedIds = new Set(resolvedRows.rows.map((r) => String(r.sell_source_id)));
   const filteredNeedsAttention = needsAttentionRaw.filter((i) => !resolvedIds.has(i.sourceId));
 
+  // ── 5b. Transaction costs (fees) — exchange fees itemized + gas summarized ──
+  // Orthogonal to the lifecycle/pipeline source: fees come straight from the raw
+  // import + on-chain tables. Best-effort; a failure here must not break the page.
+  let transactionCosts: TransactionCostItem[] = [];
+  let gasByChain: GasCostByChain[] = [];
+  let feeCoverage = { withFee: 0, total: 0 };
+  try {
+    const NATIVE_SYMBOL: Record<string, string> = {
+      ethereum: 'ETH', base: 'ETH', arbitrum: 'ETH', optimism: 'ETH',
+      polygon: 'POL', avalanche: 'AVAX', bsc: 'BNB',
+    };
+    const [feeRes, covRes, gasRes] = await Promise.all([
+      // Itemized exchange/trading fees (already USD, or native when USD is absent).
+      db.execute({
+        sql: `SELECT timestamp_utc, source, asset_symbol, fee_usd, fee_native, fee_currency, description
+              FROM import_transactions
+              WHERE tenant_id = ?
+                AND timestamp_utc >= ? AND timestamp_utc <= ?
+                AND (COALESCE(fee_usd, 0) <> 0 OR COALESCE(fee_native, 0) <> 0)
+              ORDER BY timestamp_utc DESC`,
+        args: [tenantId, yearStart, yearEnd],
+      }),
+      // Coverage — how complete is our fee data for the year?
+      db.execute({
+        sql: `SELECT COUNT(*) AS total,
+                     COUNT(*) FILTER (WHERE COALESCE(fee_usd,0) <> 0 OR COALESCE(fee_native,0) <> 0) AS with_fee
+              FROM import_transactions
+              WHERE tenant_id = ? AND timestamp_utc >= ? AND timestamp_utc <= ?`,
+        args: [tenantId, yearStart, yearEnd],
+      }),
+      // On-chain gas per chain (wei strings → native units), summarized, not USD-priced.
+      db.execute({
+        sql: `SELECT chain, COUNT(*) AS txs, SUM(CAST(fee_paid AS NUMERIC)) AS total_wei
+              FROM transactions
+              WHERE tenant_id = ?
+                AND substr(timestamp, 1, 4) = ?
+                AND fee_paid ~ '^[0-9]+$' AND fee_paid <> '0'
+              GROUP BY chain`,
+        args: [tenantId, String(year)],
+      }),
+    ]);
+
+    type RawFee = { timestamp_utc: unknown; source: unknown; asset_symbol: unknown; fee_usd: unknown; fee_native: unknown; fee_currency: unknown; description: unknown };
+    transactionCosts = (feeRes.rows as unknown as RawFee[]).map((r) => ({
+      date:        toStr(r.timestamp_utc),
+      source:      toStr(r.source) || 'unknown',
+      asset:       toStr(r.asset_symbol).toUpperCase(),
+      feeUsd:      toNum(r.fee_usd),
+      feeNative:   toNum(r.fee_native),
+      feeCurrency: typeof r.fee_currency === 'string' ? r.fee_currency.toUpperCase() : null,
+      description: typeof r.description === 'string' ? r.description : null,
+    }));
+
+    const cov = covRes.rows[0] as Record<string, unknown> | undefined;
+    feeCoverage = {
+      withFee: Number(cov?.with_fee ?? 0),
+      total:   Number(cov?.total ?? 0),
+    };
+
+    type RawGas = { chain: unknown; txs: unknown; total_wei: unknown };
+    gasByChain = (gasRes.rows as unknown as RawGas[])
+      .map((r) => {
+        const chain = toStr(r.chain).toLowerCase();
+        return {
+          chain,
+          nativeSymbol: NATIVE_SYMBOL[chain] ?? chain.toUpperCase().slice(0, 4),
+          totalNative:  Number(r.total_wei ?? 0) / 1e18,
+          txCount:      Number(r.txs ?? 0),
+        };
+      })
+      .filter((g) => g.totalNative > 0)
+      .sort((a, b) => b.totalNative - a.totalNative);
+  } catch (e) {
+    console.warn('[annualBreakdown] transaction-cost fetch failed', e);
+  }
+
   // ── 6. Totals ─────────────────────────────────────────────────────────────
   const sum = (arr: (number | null)[]): number =>
     arr.reduce<number>((acc, v) => acc + (v ?? 0), 0);
 
   const totals: SectionTotals = {
-    unsettledProceeds: sum(filteredNeedsAttention.map((i) => i.proceedsUsd)),
-    shortTermGain:     sum(shortTerm.map((i) => i.gainLossUsd)),
-    longTermGain:      sum(longTerm.map((i) => i.gainLossUsd)),
-    totalIncome:       sum(income.map((i) => i.usdValue)),
-    heldCostBasis:     sum(stillHolding.map((i) => i.costUsd)),
+    unsettledProceeds:   sum(filteredNeedsAttention.map((i) => i.proceedsUsd)),
+    shortTermGain:       sum(shortTerm.map((i) => i.gainLossUsd)),
+    longTermGain:        sum(longTerm.map((i) => i.gainLossUsd)),
+    totalIncome:         sum(income.map((i) => i.usdValue)),
+    heldCostBasis:       sum(stillHolding.map((i) => i.costUsd)),
+    transactionCostsUsd: sum(transactionCosts.map((i) => i.feeUsd)),
   };
 
   return {
@@ -843,6 +957,9 @@ export async function buildAnnualBreakdown(
     longTerm,
     income,
     cardRebates,
+    transactionCosts,
+    gasByChain,
+    feeCoverage,
     nftHoldings,
     aaveDeposits,
     aaveDepositTax,

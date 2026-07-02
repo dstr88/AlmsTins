@@ -10,7 +10,11 @@ export const sampleBreakdown = (): AnnualBreakdown => ({
   shortTerm: [{ asset: 'ETH', amount: 1.5, buyDate: '2023-12-01', sellDate: '2024-03-01', costUsd: 1800, proceedsUsd: 3000, gainLossUsd: 1200, daysHeld: 91, basisSource: 'recorded' }],
   longTerm: [{ asset: 'BTC', amount: 0.2, buyDate: '2022-01-01', sellDate: '2024-06-01', costUsd: 5000, proceedsUsd: 12000, gainLossUsd: 7000, daysHeld: 882, basisSource: 'estimated' }],
   income: [{ asset: 'ETH', amount: 0.1, usdValue: 300, date: '2024-05-01', kind: 'Staking Income', description: 'reward' }],
-  cardRebates: [], nftHoldings: [],
-  totals: { unsettledProceeds: 50, shortTermGain: 1200, longTermGain: 7000, totalIncome: 300, heldCostBasis: 1000 },
+  cardRebates: [],
+  transactionCosts: [{ date: '2024-03-01', source: 'coinbase', asset: 'ETH', feeUsd: 4.5, feeNative: null, feeCurrency: null, description: 'Trade fee' }],
+  gasByChain: [{ chain: 'ethereum', nativeSymbol: 'ETH', totalNative: 0.012, txCount: 3 }],
+  feeCoverage: { withFee: 1, total: 5 },
+  nftHoldings: [],
+  totals: { unsettledProceeds: 50, shortTermGain: 1200, longTermGain: 7000, totalIncome: 300, heldCostBasis: 1000, transactionCostsUsd: 4.5 },
   dataSource: 'lifecycle',
 });
