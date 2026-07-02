@@ -29,7 +29,19 @@ const STATUS_LABEL: Record<ReconciliationStatus, string> = {
   over:      'Over',
   under:     'Under',
   missing:   'Missing',
-  untracked: 'Untracked',
+  untracked: 'No cost basis',
+};
+
+// Row order by tax importance: a holding with no acquisition record (no cost
+// basis) is the most severe — you can't compute a gain without it — then a
+// wallet holding more than the books (untracked inflow), then a recorded
+// holding the wallet no longer shows, then the inverse.
+const STATUS_PRIORITY: Record<ReconciliationStatus, number> = {
+  untracked: 1, // no cost basis
+  over:      2,
+  missing:   3,
+  under:     4,
+  ok:        5, // hidden from the table anyway
 };
 
 // ── Scam token detector (mirrors bookkeeping.astro) ──────────────────────────
@@ -267,8 +279,16 @@ export default function ReconciliationTin() {
 
   // Balanced tokens reconcile cleanly and need no action, so they're hidden from
   // the table to keep the list focused on discrepancies. The count stays in the
-  // header so the "everything reconciled" signal isn't lost.
-  const displayItems   = cleanItems.filter(i => i.status !== 'ok');
+  // header so the "everything reconciled" signal isn't lost. Remaining rows are
+  // ordered by tax importance (no cost basis → over → missing → under), then by
+  // size of the discrepancy within each group.
+  const displayItems   = cleanItems
+    .filter(i => i.status !== 'ok')
+    .sort((a, b) =>
+      (STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status]) ||
+      (Math.abs(b.deltaPercent ?? 0) - Math.abs(a.deltaPercent ?? 0)) ||
+      a.asset.localeCompare(b.asset)
+    );
 
   return (
     <div style={{ fontFamily: 'inherit', color: 'var(--text-primary)' }}>
@@ -296,7 +316,7 @@ export default function ReconciliationTin() {
             )}
             {untrackedCount > 0 && (
               <span style={{ background: 'var(--surface-card-2)', border: '1px solid var(--border-bright)', borderRadius: 20, padding: '0.2rem 0.7rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                {untrackedCount} untracked
+                {untrackedCount} no cost basis
               </span>
             )}
             {flaggedCount > 0 && (
