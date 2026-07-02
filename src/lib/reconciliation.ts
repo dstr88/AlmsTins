@@ -34,6 +34,8 @@ export type ReconciliationItem = {
   lastTxDate: string | null;
   sources: SourceBreakdown[];
   existingNote: ReconciliationNote | null;
+  /** True when this symbol is filtered as spam/scam (override-aware) — hidden from the main view. */
+  filtered: boolean;
 };
 
 export function deriveStatus(tinAmt: number, liveAmt: number): ReconciliationStatus {

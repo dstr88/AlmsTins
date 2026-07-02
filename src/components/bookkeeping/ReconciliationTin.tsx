@@ -52,15 +52,9 @@ const STATUS_GUIDE: { status: ReconciliationStatus; what: string; fix: string }[
   { status: 'under',      what: 'Your wallet holds less than your records show — a sale or transfer out was not recorded.', fix: 'Record the disposal or transfer.' },
 ];
 
-// ── Scam token detector (mirrors bookkeeping.astro) ──────────────────────────
-const SCAM_PATTERNS = [
-  /https?:\/\//i, /www\./i,
-  /\.com/i, /\.net/i, /\.xyz/i, /\.site/i, /\.io/i, /\.fi/i,
-  /\.org/i, /\.info/i, /\.co/i, /\.app/i, /\.gg/i,
-  /t\.me\//i, /claim/i, /visit/i, /reward/i, /airdrop/i, /official.link/i,
-  /check:/i, /\bwpol\b/i,
-];
-const isScamToken = (s: string) => SCAM_PATTERNS.some(p => p.test(s));
+// Spam classification is now server-side (single source of truth), override-aware:
+// the /api/reconciliation endpoint sets item.filtered. This kills the duplicate
+// pattern list that used to live here.
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number, dp = 6): string {
@@ -328,8 +322,8 @@ export default function ReconciliationTin() {
   };
 
   // ── Split scam tokens out of main view ───────────────────────────────────
-  const cleanItems = items.filter(i => !isScamToken(i.asset));
-  const scamItems  = items.filter(i =>  isScamToken(i.asset));
+  const cleanItems = items.filter(i => !i.filtered);
+  const scamItems  = items.filter(i =>  i.filtered);
 
   // ── Counters (based on clean items only) ─────────────────────────────────
   const flaggedCount   = cleanItems.filter(i => i.existingNote?.flaggedForSupport).length;

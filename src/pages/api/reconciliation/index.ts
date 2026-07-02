@@ -7,6 +7,8 @@
 
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
+import { classifyTokenName } from '../../../lib/tokenClassification';
+import { getTokenOverrides, lookupOverride, effectiveClass } from '../../../lib/tokenOverrides';
 import { buildAnnualBreakdown, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 import { computeHoldings, type ImportRow } from '../../../lib/exchangeHoldings';
 import { db } from '../../../lib/db';
@@ -53,6 +55,9 @@ export const GET: APIRoute = async ({ request }) => {
     }
 
     const currentYear = new Date().getFullYear();
+
+    // Override-aware spam classification (symbol-level; reconciliation rows are by symbol).
+    const tokenOverrides = await getTokenOverrides(tenantId);
 
     // ── Parallel data fetch ─────────────────────────────────────────────────
     const [bd, walletRows, exchangeRows, lastTxRows, notesRows] = await Promise.all([
@@ -232,6 +237,10 @@ export const GET: APIRoute = async ({ request }) => {
         existingNote: noteData
           ? { note: noteData.note, flaggedForSupport: noteData.flagged }
           : null,
+        filtered:     effectiveClass(
+                        classifyTokenName({ symbol: sym }).class,
+                        lookupOverride(tokenOverrides, { symbol: sym }),
+                      ) === 'spam',
       });
     }
 

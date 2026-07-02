@@ -18,6 +18,7 @@ export const prerender = false;
 type JunkToken = {
   symbol: string; name: string | null; contract: string | null; chain: string;
   amount: number | null; valueUsd: number | null; reason: string; source: 'wallet' | 'nft';
+  override: 'junk' | null; // 'junk' = user explicitly confirmed; null = heuristic, needs review
 };
 
 const json = (status: number, obj: unknown) =>
@@ -59,11 +60,12 @@ export const GET: APIRoute = async ({ request }) => {
         const valueUsd = Number(tok.valueUsd ?? 0) || null;
         const verdict = contract ? classifyContract(chain, symbol, contract) : undefined;
         const res = classifyToken({ symbol, name, contractVerdict: verdict });
-        if (effectiveClass(res.class, lookupOverride(overrides, { chain, contract, symbol })) !== 'spam') continue;
+        const ov = lookupOverride(overrides, { chain, contract, symbol });
+        if (effectiveClass(res.class, ov) !== 'spam') continue;
         const key = `w|${chain}|${(contract ?? '').toLowerCase()}|${symbol.toUpperCase()}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        out.push({ symbol, name, contract, chain, amount, valueUsd, reason: res.reason, source: 'wallet' });
+        out.push({ symbol, name, contract, chain, amount, valueUsd, reason: res.reason, source: 'wallet', override: ov === 'junk' ? 'junk' : null });
       }
     }
 
@@ -83,11 +85,12 @@ export const GET: APIRoute = async ({ request }) => {
         const contract = typeof i.contract === 'string' ? i.contract : null;
         const res = classifyToken({ symbol, name });
         if (res.class === 'clean') continue;
-        if (effectiveClass(res.class, lookupOverride(overrides, { chain, contract, symbol })) !== 'spam') continue;
+        const ov = lookupOverride(overrides, { chain, contract, symbol });
+        if (effectiveClass(res.class, ov) !== 'spam') continue;
         const key = `n|${chain}|${(contract ?? '').toLowerCase()}|${name ?? symbol}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        out.push({ symbol: symbol || (name ?? 'NFT'), name, contract, chain, amount: null, valueUsd: null, reason: res.reason, source: 'nft' });
+        out.push({ symbol: symbol || (name ?? 'NFT'), name, contract, chain, amount: null, valueUsd: null, reason: res.reason, source: 'nft', override: ov === 'junk' ? 'junk' : null });
       }
     }
 

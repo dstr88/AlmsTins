@@ -7,7 +7,8 @@ import ReconciliationTin from '../../components/bookkeeping/ReconciliationTin';
 import JunkDrawer from '../../components/bookkeeping/JunkDrawer';
 import { requireTenantSession } from '../../lib/requireTenantSession';
 import { buildAnnualBreakdown, fmvSourceCategory } from '../../lib/annualBreakdown';
-import { isSpamToken } from '../../lib/knownContracts';
+import { classifyTokenName } from '../../lib/tokenClassification';
+import { getTokenOverrides, lookupOverride, effectiveClass } from '../../lib/tokenOverrides';
 import { getActivePlan } from '../../lib/subscriptions';
 import { db } from '../../lib/db';
 import { getJurisdictionProfile } from '../../lib/jurisdictionProfile';
@@ -43,7 +44,11 @@ const cardRebatesTotal = bd.cardRebates.reduce((s, i) => s + (i.usdValue ?? 0), 
 // tax sections, the FIFO cost-basis math, and the yearEnd/PDF exports are left
 // untouched — this only cleans the two display lists below + their count/total.
 const BOOKKEEPING_START = '2025-01-01';
-const notScam = (asset: string) => !isSpamToken(asset);
+// Spam filter, override-aware: a token the user marked "include" reappears here,
+// one marked "junk" stays hidden. Symbol-level (bookkeeping rows have no contract).
+const tokenOverrides = await getTokenOverrides(tenantId);
+const notScam = (asset: string) =>
+  effectiveClass(classifyTokenName({ symbol: asset }).class, lookupOverride(tokenOverrides, { symbol: asset })) !== 'spam';
 const needsAttention = bd.needsAttention.filter(
   (i) => notScam(i.asset) && i.sellDate >= BOOKKEEPING_START,
 );
