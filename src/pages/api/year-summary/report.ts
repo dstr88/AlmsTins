@@ -241,14 +241,14 @@ function buildPdf(
 
     // Disclaimer
     doc
-      .fontSize(7)
+      .fontSize(10)
       .fillColor('#555555')
       .font('Helvetica')
       .text(
         'This Year Summary is generated from the transaction data you have provided to almsTins. ' +
         'It is intended to help you organise your records and is not financial or legal advice. ' +
         'almsTins is not a tax preparation service. Please consult a qualified accountant regarding your specific obligations.',
-        MARGIN, doc.page.height - 80,
+        MARGIN, doc.page.height - 100,
         { width: CONTENT_W, align: 'center' },
       );
 
