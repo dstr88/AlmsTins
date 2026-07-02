@@ -25,6 +25,16 @@ const t = getChangelog(lang);
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">June 30, 2026</time>
+          <div class="entry-body">
+            <p>Your bookkeeping now shows what your transactions actually cost you. A new Transaction Costs section on the bookkeeping page lists every exchange fee — date, source, asset, and dollar amount — with a running total for the year, plus the on-chain gas you paid summarized per network. Fees matter for tax: a fee paid to buy adds to your cost basis, and a fee paid to sell reduces your proceeds. They were always in your data; now they're itemized where you can see them, with an honest note on how many transactions actually carried a fee.</p>
+            <p>Income is now valued at its fair market value at the exact moment you received it — the measure used for crypto income. When an exchange recorded the dollar value itself, that figure is used as-is; when it didn't, the value is filled from a historical price at the time of receipt rather than a daily average. Every income line now shows <em>where</em> its value came from — the exchange's own record, an estimate, or a stablecoin — so you and your accountant can see the basis behind every number. Anything that can't be priced is flagged for review instead of quietly counted as zero.</p>
+            <p>The Year Summary PDF carries both through: income shows its value source per line, and a Transaction Costs summary sits alongside your gains. A toggle lets you include the full fee schedule — every line — or just the totals, depending on what your accountant prefers; the full schedule is the default.</p>
+            <p>Also fixed: the "Fill Missing Prices" tool wasn't reliably saving the prices it looked up. It now works, and records the source and time behind every value it fills.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">June 25, 2026</time>
           <div class="entry-body">
             <p>A merchant can now prove they control a crypto receiving address — with no website and without connecting a wallet. On the Verify dashboard, register an address, then prove it by sending any tiny amount from that wallet, even to yourself. Almstins watches the public chain for it and marks the address Verified. Nothing is connected and nothing is signed for us; the only thing that proves you control an address is sending <em>from</em> it, and that's all this asks. An address can be claimed by one account only, so no one else can list yours as theirs.</p>
