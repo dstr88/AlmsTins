@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { getTickersUSD } from '@/lib/coinpaprikaProvider';
+import { isSpamName } from '@/lib/tokenClassification';
 
 const MIN_VALUE_USD = 5;
 const PRICE_STALE_MS = 10 * 60 * 1000;
@@ -86,10 +87,8 @@ const toTrackedAssetRows = (rows: unknown): TrackedAssetRow[] => {
 };
 
 function isSpamToken(symbol: string | null, name: string | null) {
-	const sym = (symbol ?? '').trim().toLowerCase();
-	const nm = (name ?? '').trim().toLowerCase();
-	const haystack = `${sym} ${nm}`;
-	return /(claim|airdrop|reward|bonus|\.com|visit)/.test(haystack);
+	// Delegates the name-pattern check to the single source of truth.
+	return isSpamName(symbol ?? '', name);
 }
 
 function toNumber(value: number | string | null | undefined) {

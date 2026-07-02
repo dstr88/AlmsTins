@@ -7,6 +7,7 @@ import { requireWalletOwnedByTenant } from '@/lib/walletOwnership';
 import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTokentxPaged, getNativeBalanceWei } from '@/lib/etherscan';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
+import { isSpamName } from '@/lib/tokenClassification';
 import { DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '@/lib/demo';
 
 const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
@@ -192,9 +193,10 @@ function normalizeAddress(address: string) {
 function isSpamToken(symbol: string, name: string, decimals: number) {
 	if (!symbol || !name) return true;
 	if (symbol.length > 12 || name.length > 40) return true;
-	const haystack = `${symbol} ${name}`.toLowerCase();
-	if (/(claim|airdrop|reward|bonus|giveaway|visit|voucher|promo|http|https|scam)/.test(haystack)) return true;
-	if (decimals === 0 && /(claim|airdrop|reward|bonus)/.test(haystack)) return true;
+	// Name-pattern check delegated to the single source of truth; length + zero-
+	// decimal heuristics kept as they're specific to this on-chain holdings path.
+	if (isSpamName(symbol, name)) return true;
+	if (decimals === 0 && /(claim|airdrop|reward|bonus)/.test(`${symbol} ${name}`.toLowerCase())) return true;
 	return false;
 }
 
