@@ -104,13 +104,16 @@ async function buildAlchemySnapshot(
 			// Drop tokens whose contract address doesn't match the known-good address for
 			// their symbol on this chain (catches fake AAVE, fake USDC airdrops, etc.)
 			if (classifyContract(chainName, symbol, contract) === 'scam') return null;
-			// Drop phishing airdrop tokens whose name/symbol contains URLs or Telegram links
+			// Name-spam / phishing airdrops: STORE (don't drop) so the Junk drawer can
+			// surface them and the user can override/reclassify. Every read path filters
+			// spam and it's left unpriced (valueUsd null → 0), so it never affects totals,
+			// net worth, reconciliation ($50 threshold), or repricing (symbol unpriceable).
+			// Still harvest any embedded phishing domains for the safety layer.
 			const tokenName = metadata?.name ?? null;
 			const tokenNameStr = typeof tokenName === 'string' ? tokenName : null;
 			if (isSpamToken(symbol, tokenNameStr)) {
 				const domains = extractSpamDomains(symbol, tokenNameStr);
 				if (domains.length) void savePhishingDomains(domains);
-				return null;
 			}
 			return { symbol, amount, priceUsd: null, valueUsd: null, tokenAddress: contract };
 		})
