@@ -108,6 +108,15 @@ export interface BookkeepingLocale {
   feeCoverageNote: (withFee: number, total: number) => string;
   gasFeesHeading: string;
   feeTaxNote: string;
+
+  // FMV (fair market value) provenance for income rows
+  fmvExchange: string;
+  fmvEstimated: string;
+  fmvStablecoin: string;
+  fmvUnpriced: string;
+  /** e.g. "priced at 09:03 UTC" */
+  fmvPricedAt: (time: string) => string;
+  fmvNote: string;
 }
 
 export const en: BookkeepingLocale = {
@@ -180,6 +189,13 @@ export const en: BookkeepingLocale = {
   feeCoverageNote: (withFee, total) => `Fees captured on ${withFee} of ${total} transactions this year`,
   gasFeesHeading: 'On-chain gas (native units — not USD-priced)',
   feeTaxNote: 'Trading fees add to cost basis on a buy and reduce proceeds on a sale.',
+
+  fmvExchange: 'Exchange record',
+  fmvEstimated: 'Estimated (CoinGecko)',
+  fmvStablecoin: 'Stablecoin $1',
+  fmvUnpriced: 'Unpriced',
+  fmvPricedAt: (time) => `priced at ${time}`,
+  fmvNote: 'FMV source — how each income value was determined (IRS: fair market value at time of receipt).',
 };
 
 export const es: BookkeepingLocale = {
@@ -252,6 +268,13 @@ export const es: BookkeepingLocale = {
   feeCoverageNote: (withFee, total) => `Comisiones registradas en ${withFee} de ${total} transacciones este año`,
   gasFeesHeading: 'Gas on-chain (unidades nativas — sin precio en USD)',
   feeTaxNote: 'Las comisiones de trading se suman al costo base en una compra y reducen los ingresos en una venta.',
+
+  fmvExchange: 'Registro del exchange',
+  fmvEstimated: 'Estimado (CoinGecko)',
+  fmvStablecoin: 'Stablecoin $1',
+  fmvUnpriced: 'Sin precio',
+  fmvPricedAt: (time) => `valorado a las ${time}`,
+  fmvNote: 'Fuente del FMV — cómo se determinó cada valor de ingreso (IRS: valor de mercado justo al momento de recepción).',
 };
 
 export const fr: BookkeepingLocale = {
@@ -324,6 +347,13 @@ export const fr: BookkeepingLocale = {
   feeCoverageNote: (withFee, total) => `Frais enregistrés sur ${withFee} des ${total} transactions cette année`,
   gasFeesHeading: 'Gas on-chain (unités natives — non converti en USD)',
   feeTaxNote: 'Les frais de trading s\'ajoutent au coût de base lors d\'un achat et réduisent le produit lors d\'une vente.',
+
+  fmvExchange: 'Relevé de la plateforme',
+  fmvEstimated: 'Estimé (CoinGecko)',
+  fmvStablecoin: 'Stablecoin 1 $',
+  fmvUnpriced: 'Non valorisé',
+  fmvPricedAt: (time) => `valorisé à ${time}`,
+  fmvNote: 'Source de la FMV — comment chaque valeur de revenu a été déterminée (IRS : juste valeur marchande au moment de la réception).',
 };
 
 const MAP: Record<Lang, BookkeepingLocale> = { en, es, fr };

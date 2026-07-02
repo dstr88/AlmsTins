@@ -4,6 +4,11 @@ type ColumnSet = Set<string>;
 
 let cachedColumns: ColumnSet | null = null;
 
+/** Drop the cached column set — call after an ALTER TABLE adds/removes a column. */
+export function resetImportTransactionColumnsCache(): void {
+	cachedColumns = null;
+}
+
 export async function getImportTransactionColumns(): Promise<ColumnSet> {
 	if (cachedColumns) return cachedColumns;
 	const result = await db.execute({ sql: `SELECT column_name AS name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'import_transactions'` });

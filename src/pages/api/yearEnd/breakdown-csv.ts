@@ -15,7 +15,7 @@
 
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
-import { buildAnnualBreakdown, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
+import { buildAnnualBreakdown, fmvSourceCategory, type AnnualBreakdownSource } from '../../../lib/annualBreakdown';
 import { getActivePlan } from '../../../lib/subscriptions';
 import { isOwner } from '../../../lib/owner';
 
@@ -185,13 +185,23 @@ export const GET: APIRoute = async ({ request, url }) => {
       }
       case 'income': {
         filename = `almstins-${year}-income.csv`;
-        const headers = ['Asset', 'Amount', 'USD Value', 'Date', 'Type', 'Description'];
+        const headers = ['Asset', 'Amount', 'USD Value (FMV)', 'Date', 'Type', 'FMV Source', 'Priced At', 'Description'];
+        const fmvLabel = (i: typeof bd.income[number]) => {
+          switch (fmvSourceCategory(i.priceSource, i.usdValue)) {
+            case 'source':     return 'Exchange record';
+            case 'stablecoin': return 'Stablecoin $1';
+            case 'estimated':  return 'CoinGecko (estimated)';
+            default:           return 'Unpriced';
+          }
+        };
         const rows: CsvRow[] = bd.income.map((i) => [
           i.asset,
           i.amount,
           formatUsd(i.usdValue),
           formatDate(i.date),
           i.kind,
+          fmvLabel(i),
+          i.priceAsof ?? '',
           i.description,
         ]);
         csvContent = buildCsv('Income — Interest, Staking & Rewards', year, headers, rows);

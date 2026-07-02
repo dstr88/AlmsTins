@@ -23,22 +23,11 @@
 import { db } from './db';
 import { getAaveDepositTax, type AaveDepositTax } from './jurisdictionProfile';
 import { selectLotIndex, type SelectableLot, type CostBasisMethod } from './yearEnd/lotSelection';
+import { getImportTransactionColumns } from './importTransactionsSchema';
+import { INCOME_KINDS } from './incomeKinds';
 
-// ─── kinds that are taxable ordinary income (not capital events) ──────────────
-const INCOME_KINDS = new Set([
-  'crypto_earn_interest_paid',
-  'Staking Income',
-  'referral_card_cashback',
-  'referral_bonus',
-  'referral_gift',
-  'reward.loyalty_program.trading_rebate.crypto_wallet',
-  'reward.external_cashback.crypto_card.payment',
-  'admin_wallet_credited',
-  'pay_checkout_reward',
-  'dynamic_coin_swap_bonus_earn_deposit',
-  'lockup_swap_rebate',
-  'reimbursement',
-]);
+// Re-export so existing callers importing INCOME_KINDS from here keep working.
+export { INCOME_KINDS };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -97,7 +86,26 @@ export type IncomeItem = {
   date: string;
   kind: string;
   description: string | null;
+  /**
+   * Provenance of the USD FMV — the IRS "FMV at time of receipt" audit trail.
+   * null → the source (exchange CSV) recorded the USD itself (contemporaneous);
+   * 'coingecko:*' → estimated from a historical index; 'inferred:stablecoin-peg' → $1.
+   */
+  priceSource: string | null;
+  /** ISO timestamp of the price actually used (the index tick), when estimated. */
+  priceAsof: string | null;
 };
+
+/** FMV provenance category for an income row — drives the badge/column label. */
+export type FmvSource = 'source' | 'estimated' | 'stablecoin' | 'unpriced';
+
+/** Classify an income row's FMV provenance from its stored price_source + USD value. */
+export function fmvSourceCategory(priceSource: string | null | undefined, usdValue: number | null | undefined): FmvSource {
+  if (usdValue == null || !Number.isFinite(usdValue)) return 'unpriced';
+  if (!priceSource) return 'source'; // exchange/source-recorded USD — contemporaneous
+  if (priceSource.startsWith('inferred:stablecoin')) return 'stablecoin';
+  return 'estimated'; // coingecko:range / coingecko:history / any looked-up price
+}
 
 export type NftHolding = {
   name: string;
@@ -220,6 +228,11 @@ export async function buildAnnualBreakdown(
     year >= now.getUTCFullYear()
       ? now.toISOString()
       : yearEnd;
+
+  // FMV-provenance columns may not exist on older DBs — select them resiliently.
+  const importCols = await getImportTransactionColumns();
+  const priceSrcSel  = (alias = '') => `${importCols.has('price_source') ? alias + 'price_source' : 'NULL'} AS price_source`;
+  const priceAsofSel = (alias = '') => `${importCols.has('price_asof')   ? alias + 'price_asof'   : 'NULL'} AS price_asof`;
 
   // ── Resolve 'auto' → concrete source ────────────────────────────────────
   let resolvedSource: 'lifecycle' | 'pipeline' = 'lifecycle';
@@ -367,7 +380,9 @@ export async function buildAnnualBreakdown(
                             tc.created_at)           AS tx_date,
                    it.kind,
                    it.description,
-                   it.notes                          AS tx_notes
+                   it.notes                          AS tx_notes,
+                   ${priceSrcSel('it.')},
+                   ${priceAsofSel('it.')}
               FROM tax_classifications tc
               LEFT JOIN import_transactions it
                 ON it.id = tc.source_id AND tc.source_type = 'import'
@@ -383,6 +398,7 @@ export async function buildAnnualBreakdown(
       sub_category: unknown; source_id: unknown; source_type: unknown;
       token_amount: unknown; tx_date: unknown; kind: unknown;
       description: unknown; tx_notes: unknown;
+      price_source: unknown; price_asof: unknown;
     };
     const allIncomeRows = (incomeRes.rows as unknown as RawIncome[]).map((r) => {
       const item: IncomeItem = {
@@ -394,6 +410,8 @@ export async function buildAnnualBreakdown(
         description: typeof r.description === 'string' ? r.description
                    : typeof r.tx_notes    === 'string' ? r.tx_notes
                    : null,
+        priceSource: typeof r.price_source === 'string' ? r.price_source : null,
+        priceAsof:   typeof r.price_asof   === 'string' ? r.price_asof   : null,
       };
       return { item, isCardRebate: toStr(r.category) === 'card-rebate' };
     });
@@ -727,7 +745,8 @@ export async function buildAnnualBreakdown(
 
     // ── 3. Income — import_transactions in selected year ───────────────
     const incomeResult = await db.execute({
-      sql: `SELECT asset_symbol, amount, native_usd, timestamp_utc, kind, description, notes
+      sql: `SELECT asset_symbol, amount, native_usd, timestamp_utc, kind, description, notes,
+                   ${priceSrcSel()}, ${priceAsofSel()}
             FROM import_transactions
             WHERE tenant_id = ?
               AND timestamp_utc >= ?
@@ -736,7 +755,7 @@ export async function buildAnnualBreakdown(
       args: [tenantId, yearStart, yearEnd],
     });
 
-    type RawImport = { asset_symbol: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; kind: unknown; description: unknown; notes: unknown };
+    type RawImport = { asset_symbol: unknown; amount: unknown; native_usd: unknown; timestamp_utc: unknown; kind: unknown; description: unknown; notes: unknown; price_source: unknown; price_asof: unknown };
     const isCardRebate = (r: RawImport) =>
       /^card rebate/i.test(toStr(r.description).trimStart());
 
@@ -749,6 +768,8 @@ export async function buildAnnualBreakdown(
       description: typeof r.description === 'string' ? r.description
                  : typeof r.notes === 'string'       ? r.notes
                  : null,
+      priceSource: typeof r.price_source === 'string' ? r.price_source : null,
+      priceAsof:   typeof r.price_asof   === 'string' ? r.price_asof   : null,
     });
 
     const incomeKindRows = (incomeResult.rows as unknown as RawImport[])

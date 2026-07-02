@@ -16,7 +16,7 @@
 import type { APIRoute } from 'astro';
 import PDFDocument from 'pdfkit';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { buildAnnualBreakdown, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
+import { buildAnnualBreakdown, fmvSourceCategory, type AnnualBreakdownSource } from '@/lib/annualBreakdown';
 import { getActivePlan } from '@/lib/subscriptions';
 import { isOwner } from '@/lib/owner';
 import { buildRecordProof, type ProofBundle } from '@/lib/recordProof/buildProof';
@@ -347,14 +347,24 @@ function buildPdf(
       sectionTitle('Received / Earned');
 
       const cols = [
-        { label: 'Date',        width: 100 },
-        { label: 'Asset',       width: 65  },
-        { label: 'Type',        width: 193 },
-        { label: 'Qty',         width: 110, align: 'right' as const },
-        { label: 'Value',       width: 110, align: 'right' as const },
-        { label: 'Description', width: 110 },
+        { label: 'Date',       width: 92 },
+        { label: 'Asset',      width: 55  },
+        { label: 'Type',       width: 150 },
+        { label: 'Qty',        width: 95, align: 'right' as const },
+        { label: 'Value (FMV)',width: 95, align: 'right' as const },
+        { label: 'FMV source', width: 118 },
+        { label: 'Description',width: 83 },
       ];
       tableHeaders(cols);
+
+      const fmvLabel = (item: typeof bd.income[number]) => {
+        switch (fmvSourceCategory(item.priceSource, item.usdValue)) {
+          case 'source':     return 'Exchange';
+          case 'stablecoin': return 'Stablecoin $1';
+          case 'estimated':  return 'CoinGecko';
+          default:           return 'Unpriced';
+        }
+      };
 
       bd.income.forEach((item, i) => {
         const typeLabel = item.kind
@@ -367,7 +377,8 @@ function buildPdf(
           { label: typeLabel,                 width: cols[2].width },
           { label: fQty(item.amount),         width: cols[3].width, align: 'right' },
           { label: fUsd(item.usdValue),       width: cols[4].width, align: 'right' },
-          { label: item.description ?? '—',   width: cols[5].width, color: MID_GRAY },
+          { label: fmvLabel(item),            width: cols[5].width, color: MID_GRAY },
+          { label: item.description ?? '—',   width: cols[6].width, color: MID_GRAY },
         ], i % 2 === 1);
       });
 

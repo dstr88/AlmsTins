@@ -5,7 +5,7 @@ import OrnateTin from '@/components/OrnatedTin.astro';
 import DrawerHost from '../../components/bookkeeping/DrawerHost';
 import ReconciliationTin from '../../components/bookkeeping/ReconciliationTin';
 import { requireTenantSession } from '../../lib/requireTenantSession';
-import { buildAnnualBreakdown } from '../../lib/annualBreakdown';
+import { buildAnnualBreakdown, fmvSourceCategory } from '../../lib/annualBreakdown';
 import { isSpamToken } from '../../lib/knownContracts';
 import { getActivePlan } from '../../lib/subscriptions';
 import { db } from '../../lib/db';
@@ -150,6 +150,24 @@ const kindLabel = (kind: string) =>
     .replace(/\b\w/g, (c) => c.toUpperCase())
     .replace(/Crypto/g, 'Crypto')
     .trim();
+
+// ── FMV (fair market value) provenance label for an income row ────────────────
+const fmvTime = (iso: string) => {
+  try {
+    const d = new Date(iso);
+    return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')} UTC`;
+  } catch { return ''; }
+};
+const fmvLabel = (item: { priceSource: string | null; priceAsof: string | null; usdValue: number | null }) => {
+  const cat = fmvSourceCategory(item.priceSource, item.usdValue);
+  const base = cat === 'source' ? t.fmvExchange
+    : cat === 'stablecoin'      ? t.fmvStablecoin
+    : cat === 'estimated'       ? t.fmvEstimated
+    :                             t.fmvUnpriced;
+  return (cat === 'estimated' && item.priceAsof)
+    ? `${base} · ${t.fmvPricedAt(fmvTime(item.priceAsof))}`
+    : base;
+};
 
 // ── Asset classifiers ────────────────────────────────────────────────────────
 const STABLECOINS = new Set([
@@ -605,6 +623,9 @@ const syncRelative = !hasSync ? '' :
           <div class="tin-total">
             {t.totalOrdinaryIncome} <strong>{fUsd(bd.totals.totalIncome)}</strong>
           </div>
+          {bd.income.length > 0 && (
+            <p class="tin-empty" style="margin:0.15rem 0 0.55rem; opacity:0.6;">{t.fmvNote}</p>
+          )}
           {bd.income.length === 0 ? (
             <p class="tin-empty">{t.noIncomeEvents(selectedYear)}</p>
           ) : (
@@ -616,6 +637,7 @@ const syncRelative = !hasSync ? '' :
                   <span class="tin-row__date">{fDate(item.date)}</span>
                   <span class="tin-row__usd">{fUsd(item.usdValue)}</span>
                   <span class="tin-row__kind">{kindLabel(item.kind)}</span>
+                  <span class="tin-row__note" title={t.fmvNote}>{fmvLabel(item)}</span>
                   {item.description && (
                     <span class="tin-row__note">{item.description}</span>
                   )}
