@@ -8,6 +8,7 @@ import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTokentxPaged, getNativeBalanceWei } from '@/lib/etherscan';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { isSpamName } from '@/lib/tokenClassification';
+import { getTokenOverrides, lookupOverride, type OverrideMaps } from '@/lib/tokenOverrides';
 import { DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '@/lib/demo';
 
 const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
@@ -200,6 +201,15 @@ function isSpamToken(symbol: string, name: string, decimals: number) {
 	return false;
 }
 
+// Override-aware wrapper: an explicit "include" un-hides a token here (even if the
+// heuristic flags it); "junk" always hides it; otherwise fall back to the heuristic.
+function shouldFilterSpam(symbol: string, name: string, decimals: number, overrides: OverrideMaps): boolean {
+	const ov = lookupOverride(overrides, { symbol });
+	if (ov === 'include') return false;
+	if (ov === 'junk') return true;
+	return isSpamToken(symbol, name, decimals);
+}
+
 function isDefiToken(symbol: string, name: string) {
 	const sym = normalizeSymbol(symbol);
 	const lower = String(name ?? '').toLowerCase();
@@ -266,6 +276,7 @@ async function fetchAlchemyTokenAggregates(
 	chainId: number,
 	chain: 'eth-mainnet' | 'polygon-mainnet',
 	address: string,
+	overrides: OverrideMaps,
 	requestId?: string,
 ) {
 	const balancesResult = await getTokenBalances(chain, address);
@@ -358,7 +369,7 @@ async function fetchAlchemyTokenAggregates(
 			if (sampleDrops.badDecimals.length < 10) sampleDrops.badDecimals.push(contract);
 			continue;
 		}
-		if (isSpamToken(symbol, name, decimals)) {
+		if (shouldFilterSpam(symbol, name, decimals, overrides)) {
 			droppedSpam += 1;
 			if (sampleDrops.spam.length < 10) sampleDrops.spam.push(`${symbol}:${contract}`);
 			continue;
@@ -815,6 +826,7 @@ async function buildHoldingsPayload(
 
 	if (!wallet?.address) throw new Error('Wallet not found');
 
+	const overrides = await getTokenOverrides(tenantId); // override-aware spam filter
 	const address = normalizeAddress(wallet.address);
 	const chainLabel =
 		chainId === POLYGON_CHAIN_ID ? 'Polygon' : chainId === ETHEREUM_CHAIN_ID ? 'Ethereum' : 'Avalanche';
@@ -829,6 +841,7 @@ async function buildHoldingsPayload(
 				chainId,
 				alchemyChain,
 				address,
+				overrides,
 				requestId,
 			);
 			alchemyAggregates.forEach((value, key) => aggregates.set(key, value));
@@ -875,7 +888,7 @@ async function buildHoldingsPayload(
 			const decimals = Number(tx.tokenDecimal ?? 0);
 
 			if (!Number.isFinite(decimals) || decimals < 0 || decimals > 36) continue;
-			if (isSpamToken(symbol, name, decimals)) continue;
+			if (shouldFilterSpam(symbol, name, decimals, overrides)) continue;
 			if (isDefiToken(symbol, name)) continue;
 
 			const from = normalizeAddress(tx.from ?? '');
