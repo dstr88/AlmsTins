@@ -17,21 +17,21 @@ type JunkToken = {
 type Decision = 'include' | 'junk' | 'income';
 
 const STR: Record<string, Record<string, string>> = {
-  en: { button: 'Junk drawer', title: 'Filtered tokens', close: 'Close',
+  en: { button: 'Filtered items', title: 'Filtered items', close: 'Close',
     sub: 'Spam and scam-airdrop tokens set aside — never counted in your holdings, gains, or tax totals. Names are shown as plain text and links are inert for your safety.',
     empty: 'Nothing filtered — your token list is clean.', loading: 'Loading…', reason: 'Filtered because',
     nft: 'NFT', wallet: 'Wallet', include: 'Not junk', income: 'Income', junk: 'Confirm junk',
     confirmed: 'Confirmed junk', undo: 'Undo',
     incomeHint: 'Marked as income — enter its fair market value at receipt in your records.',
     includeHint: 'Restored — it will reappear in your holdings.' },
-  es: { button: 'Cajón de basura', title: 'Tokens filtrados', close: 'Cerrar',
+  es: { button: 'Elementos filtrados', title: 'Elementos filtrados', close: 'Cerrar',
     sub: 'Tokens de spam y airdrops fraudulentos apartados — nunca se cuentan en tus tenencias, ganancias ni totales fiscales. Los nombres se muestran como texto y los enlaces están inertes por tu seguridad.',
     empty: 'Nada filtrado — tu lista de tokens está limpia.', loading: 'Cargando…', reason: 'Filtrado porque',
     nft: 'NFT', wallet: 'Billetera', include: 'No es basura', income: 'Ingreso', junk: 'Confirmar basura',
     confirmed: 'Basura confirmada', undo: 'Deshacer',
     incomeHint: 'Marcado como ingreso — registra su valor de mercado al momento de recepción.',
     includeHint: 'Restaurado — reaparecerá en tus tenencias.' },
-  fr: { button: 'Tiroir à déchets', title: 'Tokens filtrés', close: 'Fermer',
+  fr: { button: 'Éléments filtrés', title: 'Éléments filtrés', close: 'Fermer',
     sub: 'Tokens de spam et airdrops frauduleux mis de côté — jamais comptés dans vos avoirs, gains ou totaux fiscaux. Les noms sont affichés en texte brut et les liens sont inertes pour votre sécurité.',
     empty: 'Rien de filtré — votre liste de tokens est propre.', loading: 'Chargement…', reason: 'Filtré car',
     nft: 'NFT', wallet: 'Portefeuille', include: 'Pas un déchet', income: 'Revenu', junk: 'Confirmer déchet',
@@ -106,7 +106,7 @@ export default function JunkDrawer({ lang = 'en' }: { lang?: string }) {
         padding: '0.4rem 0.85rem', borderRadius: 10, border: '1px solid var(--border-bright)',
         background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.82rem', cursor: 'pointer',
       }}>
-        🗑 {t.button}{items ? ` (${items.length})` : ''}
+        {t.button}{items ? ` (${items.length})` : ''}
       </button>
 
       {open && (
