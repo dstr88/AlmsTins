@@ -11,6 +11,16 @@ const AAVE_GRAPHQL_ENDPOINT = AAVE_V3_GRAPHQL_ENDPOINT;
 // Pool addresses sourced from @bgd-labs/aave-address-book — always up to date.
 // No more hardcoded addresses to manually track.
 const ETHEREUM_MARKET_ADDRESS = AaveV3Ethereum.POOL;
+// Ethereum runs 4 separate Aave V3 markets. The API's market-discovery query is
+// broken (it needs a `chainIds` arg it doesn't send), so we query all known ETH
+// markets explicitly. Without this, positions in EtherFi/Lido/Horizon (e.g. wstETH
+// supplied to the Lido market) are silently missed while Core-only wallets look fine.
+const ETHEREUM_MARKET_ADDRESSES: string[] = [
+	AaveV3Ethereum.POOL,                            // Core (proto_mainnet_v3)
+	'0x0AA97c284e98396202b6A04024F5E2c65026F3c0',   // EtherFi (proto_etherfi_v3)
+	'0x4e033931ad43597d96D6bcc25c280717730B58B1',   // Lido (proto_lido_v3)
+	'0xAe05Cd22df81871bc7cC2a04BeCfb516bFe332C8',   // Horizon (proto_horizon_v3)
+];
 const ETHEREUM_CHAIN_ID = 1;
 const POLYGON_MARKET_ADDRESS = AaveV3Polygon.POOL;
 const POLYGON_CHAIN_ID = 137;
@@ -334,6 +344,24 @@ function buildMissingMarketSummary(
 
 const EVM_ADDRESS_RE = /^0x[0-9a-f]{40}$/i;
 
+// Merge several per-market summaries for the same chain into one chain summary
+// (used to combine Ethereum's Core/EtherFi/Lido/Horizon markets).
+function mergeChainSummaries(
+	chain: AaveChainSummary['chain'],
+	summaries: AaveChainSummary[],
+): AaveChainSummary {
+	return {
+		chain,
+		positions: summaries.flatMap((s) => s.positions),
+		suppliedUsd: 0,
+		debtUsd: 0,
+		suppliedUsdTotal: 0,
+		debtUsdTotal: 0,
+		ok: summaries.some((s) => s.ok),
+		error: summaries.every((s) => s.ok) ? undefined : summaries.find((s) => s.error)?.error,
+	};
+}
+
 export async function getAavePositionsForWallet(address: string): Promise<AavePositionsResponse> {
 	if (!EVM_ADDRESS_RE.test(address)) {
 		return { chains: [], ok: true };
@@ -342,9 +370,6 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 	const normalized = address.toLowerCase();
 
 	try {
-		const ethereumMarket = await resolveMarketAddress(ETHEREUM_CHAIN_ID, {
-			fallback: ETHEREUM_MARKET_ADDRESS,
-		});
 		const polygonMarket = await resolveMarketAddress(POLYGON_CHAIN_ID, {
 			fallback: POLYGON_MARKET_ADDRESS,
 		});
@@ -352,14 +377,14 @@ export async function getAavePositionsForWallet(address: string): Promise<AavePo
 			fallback: AVALANCHE_MARKET_ADDRESS,
 		});
 
-		const ethereum = ethereumMarket.address
-			? await fetchUserPositionsForMarket(
-					normalized,
-					ethereumMarket.address,
-					ETHEREUM_CHAIN_ID,
-					'ethereum',
-				)
-			: buildMissingMarketSummary('ethereum', 'Ethereum market not available');
+		// Query ALL known Ethereum Aave markets (Core/EtherFi/Lido/Horizon) and merge,
+		// so a position in a non-Core market (e.g. wstETH supplied to Lido) is not missed.
+		const ethereumSummaries = await Promise.all(
+			ETHEREUM_MARKET_ADDRESSES.map((mkt) =>
+				fetchUserPositionsForMarket(normalized, mkt, ETHEREUM_CHAIN_ID, 'ethereum'),
+			),
+		);
+		const ethereum = mergeChainSummaries('ethereum', ethereumSummaries);
 		const polygon = polygonMarket.address
 			? await fetchUserPositionsForMarket(
 					normalized,

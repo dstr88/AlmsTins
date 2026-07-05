@@ -34,6 +34,21 @@ type AavePositionsResponse = {
 	error?: string;
 };
 
+// Map an Aave API market name to the Aave app URL for that market, so the user can
+// click straight through to the position (falls back to the app root if unknown).
+const AAVE_MARKET_PARAM: Record<string, string> = {
+	AaveV3Ethereum: 'proto_mainnet_v3',
+	AaveV3EthereumLido: 'proto_lido_v3',
+	AaveV3EthereumEtherFi: 'proto_etherfi_v3',
+	AaveV3EthereumHorizon: 'proto_horizon_v3',
+	AaveV3Polygon: 'proto_polygon_v3',
+	AaveV3Avalanche: 'proto_avalanche_v3',
+};
+function aaveMarketUrl(marketName?: string): string {
+	const param = marketName ? AAVE_MARKET_PARAM[marketName] : undefined;
+	return param ? `https://app.aave.com/?marketName=${param}` : 'https://app.aave.com/';
+}
+
 const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress }) => {
 	const t = getAaveWalletCard(getClientLang());
 	const [loading, setLoading] = useState(true);
@@ -164,7 +179,18 @@ const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress 
 						{positions.map((p, idx) => (
 							<tr key={`${p.side}-${p.assetSymbol}-${idx}`}>
 								<td>{p.side === 'supply' ? t.sideSupply : t.sideBorrow}</td>
-								<td>{p.assetSymbol}</td>
+								<td>
+									{p.assetSymbol}
+									<a
+										href={aaveMarketUrl(p.marketName)}
+										target="_blank"
+										rel="noopener noreferrer"
+										title={p.marketName ? `Open ${p.marketName} on Aave` : 'Open on Aave'}
+										style={{ color: 'var(--accent)', textDecoration: 'none', marginLeft: '4px' }}
+									>
+										↗
+									</a>
+								</td>
 								<td>{p.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
 								<td>{(p.apy * 100).toFixed(2)}%</td>
 							</tr>
