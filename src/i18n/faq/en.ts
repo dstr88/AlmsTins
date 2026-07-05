@@ -163,7 +163,8 @@ export const items: FaqItem[] = [
           <li><strong>Add a note so you can find it later.</strong> On that transaction, add a note with the protocol's app link and your wallet address, so you know where the coins actually live.</li>
           <li><strong>Label the destination address as an own wallet.</strong> On the Research page, label the wallet you moved the coins to as one of your own. Future transfers to it then classify themselves automatically via Auto-classify.</li>
         </ol>
-        <p>Two things to expect. The reconciliation panel will show a small gap for that coin — your books say you hold it, but the wallet snapshot can't see it inside the protocol. That is normal and does not affect your cost basis. And the position stays an <em>unrealized</em> gain or loss until you actually withdraw and sell it; at that point, record the sale as a disposal to realize it.</p>`,
+        <p>Two things to expect. The reconciliation panel will show a small gap for that coin — your books say you hold it, but the wallet snapshot can't see it inside the protocol. That is normal and does not affect your cost basis. And the position stays an <em>unrealized</em> gain or loss until you actually withdraw and sell it; at that point, record the sale as a disposal to realize it.</p>
+        <p><strong>Making the change show up:</strong> after you reclassify a transaction, your cost basis updates on the next lifecycle rebuild — which runs automatically when you open the <strong>Bookkeeping</strong> or <strong>Portfolio</strong> page, or when you use <strong>Fill Missing Prices</strong> on the Research page. Note that <em>Re-run matching</em>, <em>Auto-classify</em>, and the Vault's <em>Sync Tins</em> do <em>not</em> trigger the rebuild, so open Bookkeeping (or run Fill Missing Prices) to see the reclassification land.</p>`,
   },
   {
     id: "faq-now",
