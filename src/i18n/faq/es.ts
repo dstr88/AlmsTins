@@ -134,6 +134,24 @@ export const items: FaqItem[] = [
         </ul>`,
   },
   {
+    id: "faq-defi",
+    q: "¿Qué posiciones DeFi admite Almstins?",
+    a: `<p>Almstins lee tus posiciones de préstamo y deuda de DeFi en vivo por dirección (solo lectura, sin conexión de wallet) y las integra en tu patrimonio, portafolio y costo base. Actualmente admite:</p>
+        <p><strong>Aave V3 — préstamos y deuda</strong></p>
+        <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li>Colateral aportado y posiciones de deuda variable (borrow)</li>
+          <li>Factor de salud del préstamo, riesgo de liquidación y tasas de supply/borrow en vivo</li>
+          <li><strong>Ethereum</strong> — los cuatro mercados: Core, Lido, EtherFi y Horizon (una posición en cualquiera de ellos aparece, por ejemplo wstETH aportado al mercado Lido)</li>
+          <li><strong>Polygon</strong></li>
+          <li><strong>Avalanche</strong></li>
+        </ul>
+        <p><strong>Sovryn — DeFi de Bitcoin</strong></p>
+        <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li>Posiciones del protocolo Sovryn en la red Rootstock (RSK)</li>
+        </ul>
+        <p>Cada posición de Aave enlaza directamente a su mercado en la app de Aave, para que llegues a ella en un clic. Las posiciones son de solo lectura y se rastrean solo por dirección: Almstins nunca conecta tu wallet ni solicita permiso de firma. Si una posición DeFi no aparece, lo más probable es que esté en un protocolo o red que todavía no figura aquí.</p>`,
+  },
+  {
     id: "faq-now",
     q: "¿En qué estás trabajando ahora?",
     a: `<p>El rastreador de portafolio principal, el motor de bookkeeping y la página de Research están en vivo. Esto es lo que se está desarrollando activamente o planeando a continuación:</p>

@@ -136,6 +136,24 @@ export const items: FaqItem[] = [
         </ul>`,
   },
   {
+    id: "faq-defi",
+    q: "What DeFi positions does Almstins serve?",
+    a: `<p>Almstins reads your live DeFi lending and borrowing positions by address (read-only, no wallet connection) and folds them into your net worth, portfolio, and cost basis. Currently supported:</p>
+        <p><strong>Aave V3 — lending &amp; borrowing</strong></p>
+        <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li>Supplied collateral and variable-debt (borrow) positions</li>
+          <li>Loan health factor, liquidation risk, and live supply/borrow rates</li>
+          <li><strong>Ethereum</strong> — all four markets: Core, Lido, EtherFi, and Horizon (a position in any of them shows, e.g. wstETH supplied to the Lido market)</li>
+          <li><strong>Polygon</strong></li>
+          <li><strong>Avalanche</strong></li>
+        </ul>
+        <p><strong>Sovryn — Bitcoin DeFi</strong></p>
+        <ul style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li>Sovryn protocol positions on the Rootstock (RSK) network</li>
+        </ul>
+        <p>Each Aave position links straight through to its market on the Aave app, so you can reach it in one click. Positions are read-only and tracked by address only — Almstins never connects your wallet or requests signing permission. If a DeFi position is not showing, it is most likely on a protocol or chain not yet listed here.</p>`,
+  },
+  {
     id: "faq-now",
     q: "What are you working on now?",
     a: `<p>The core portfolio tracker, bookkeeping engine, and Research page are live. Here is what is actively being developed or planned next:</p>
