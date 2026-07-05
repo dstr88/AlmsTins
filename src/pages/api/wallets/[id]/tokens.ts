@@ -559,6 +559,11 @@ export const GET: APIRoute = async ({ params, request }) => {
 		if (refreshMissing && tenantId !== DEMO_TENANT_ID) {
 			const refreshStart = Date.now();
 			console.log('[tokens.refreshMissing] START', { requestId, walletId, tenantId });
+			// Refresh is best-effort: an external-fetch or snapshot-build failure must
+			// never 500 the endpoint. On failure we swallow it and fall through to serve
+			// the wallet's existing (stale) snapshots below. This is what stops the
+			// "Refresh failed (500)" owner-alert emails when a single chain hiccups.
+			try {
 			if (walletAddress) {
 				const isSolana    = walletChains.includes('solana');
 				const isSui       = walletChains.includes('sui');
@@ -576,6 +581,9 @@ export const GET: APIRoute = async ({ params, request }) => {
 						{ chainId: POLYGON_CHAIN_ID },
 					];
 					for (const { chainId } of snapshotChains) {
+						// Per-chain guard: one chain failing (e.g. an Alchemy error on
+						// Ethereum) must not skip the others; Polygon still refreshes.
+						try {
 						const breakdown = await buildAlchemySnapshot(chainId, walletId, tenantId, walletAddress);
 						await insertWalletSnapshotFromValueBreakdown(breakdown);
 						console.log('[tokens.refreshMissing] EVM SNAPSHOT', {
@@ -584,6 +592,13 @@ export const GET: APIRoute = async ({ params, request }) => {
 							totalsUsd: breakdown.totalUsd ?? 0,
 						});
 						await sleep(100);
+						} catch (chainErr: any) {
+							console.error('[tokens.refreshMissing] EVM chain FAILED (non-fatal)', {
+								walletId,
+								chainId,
+								message: chainErr?.message,
+							});
+						}
 					}
 				}
 
@@ -670,6 +685,14 @@ export const GET: APIRoute = async ({ params, request }) => {
 						console.log('[tokens.refreshMissing] SUI SNAPSHOT', { suiBalance, suiPrice });
 					}
 				}
+			}
+			} catch (refreshErr: any) {
+				console.error('[tokens.refreshMissing] FAILED (non-fatal, serving stored snapshots)', {
+					requestId,
+					walletId,
+					message: refreshErr?.message,
+					stack: refreshErr?.stack,
+				});
 			}
 			console.log('[tokens.refreshMissing] END', {
 				requestId,
