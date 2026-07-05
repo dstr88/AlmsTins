@@ -172,7 +172,10 @@ export const GET: APIRoute = async ({ request }) => {
 					for (const pos of chain.positions) {
 						if (pos.side !== 'supply') continue;
 						if (!Number.isFinite(pos.amount) || pos.amount <= 0) continue;
-						if (pos.usdValue < MIN_VALUE_USD) continue;
+						// Keep unpriced Aave collateral visible: usdValue 0 means "missing price"
+						// (e.g. POL/MATIC symbol mismatch), not dust. Only drop genuine priced
+						// dust below the threshold, never a real supply position we couldn't price.
+						if (pos.usdValue > 0 && pos.usdValue < MIN_VALUE_USD) continue;
 
 						const rawSym = pos.assetSymbol.trim().toUpperCase();
 						const sym = AAVE_SYMBOL_NORMALIZE[rawSym] ?? rawSym;
