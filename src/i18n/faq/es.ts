@@ -152,6 +152,18 @@ export const items: FaqItem[] = [
         <p>Cada posición de Aave enlaza directamente a su mercado en la app de Aave, para que llegues a ella en un clic. Las posiciones son de solo lectura y se rastrean solo por dirección: Almstins nunca conecta tu wallet ni solicita permiso de firma. Si una posición DeFi no aparece, lo más probable es que esté en un protocolo o red que todavía no figura aquí.</p>`,
   },
   {
+    id: "faq-defi-untracked",
+    q: "¿Cómo registro cripto que presté o puse en staking en un protocolo que Almstins todavía no admite?",
+    a: `<p>Almstins lee directamente un conjunto creciente de protocolos DeFi (Aave, Sovryn). Si tu posición está en uno que aún no cubrimos (muchos mercados de préstamos de Solana, por ejemplo), las monedas suelen estar <em>dentro</em> del protocolo en lugar de en tu wallet, así que no aparecerán en el snapshot de tu wallet. Aun así puedes mantenerlas correctas en tus libros:</p>
+        <ol style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li><strong>No vuelvas a ingresar la compra.</strong> Si compraste las monedas en un exchange, esa compra ya está importada desde tu CSV; agregarla de nuevo la contaría dos veces.</li>
+          <li><strong>Marca la transferencia como tu propia wallet.</strong> En la página de Research, encuentra el retiro que movió las monedas del exchange al protocolo y márcalo como <em>Mi propia wallet</em>. Esto le dice a Almstins que fue un movimiento entre tus propias cuentas, no una venta, así que las monedas quedan como posición retenida con tu costo base real en lugar de contarse como una disposición.</li>
+          <li><strong>Agrega una nota para encontrarla luego.</strong> En esa transacción, agrega una nota con el enlace de la app del protocolo y la dirección de tu wallet, para saber dónde están realmente las monedas.</li>
+          <li><strong>Etiqueta la dirección de destino como wallet propia.</strong> En la página de Research, etiqueta la wallet a la que moviste las monedas como una de las tuyas. Las transferencias futuras a ella se clasificarán automáticamente con Auto-classify.</li>
+        </ol>
+        <p>Dos cosas a esperar. El panel de reconciliación mostrará una pequeña diferencia para esa moneda: tus libros dicen que la tienes, pero el snapshot de la wallet no puede verla dentro del protocolo. Eso es normal y no afecta tu costo base. Y la posición sigue siendo una ganancia o pérdida <em>no realizada</em> hasta que realmente retires y vendas; en ese momento, registra la venta como una disposición para realizarla.</p>`,
+  },
+  {
     id: "faq-now",
     q: "¿En qué estás trabajando ahora?",
     a: `<p>El rastreador de portafolio principal, el motor de bookkeeping y la página de Research están en vivo. Esto es lo que se está desarrollando activamente o planeando a continuación:</p>

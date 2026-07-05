@@ -152,6 +152,18 @@ export const items: FaqItem[] = [
         <p>Chaque position Aave renvoie directement à son marché sur l'app Aave, pour l'atteindre en un clic. Les positions sont en lecture seule et suivies uniquement par adresse : Almstins ne connecte jamais votre wallet et ne demande jamais d'autorisation de signature. Si une position DeFi ne s'affiche pas, elle se trouve très probablement sur un protocole ou un réseau pas encore listé ici.</p>`,
   },
   {
+    id: "faq-defi-untracked",
+    q: "Comment suivre des cryptos prêtées ou stakées sur un protocole qu'Almstins ne prend pas encore en charge ?",
+    a: `<p>Almstins lit directement un ensemble croissant de protocoles DeFi (Aave, Sovryn). Si votre position est sur un protocole que nous ne couvrons pas encore (de nombreux marchés de prêt Solana, par exemple), les pièces se trouvent généralement <em>à l'intérieur</em> du protocole plutôt que dans votre wallet, elles n'apparaîtront donc pas dans le snapshot de votre wallet. Vous pouvez tout de même les garder correctes dans vos livres :</p>
+        <ol style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li><strong>Ne ressaisissez pas l'achat.</strong> Si vous avez acheté les pièces sur un exchange, cet achat est déjà importé depuis votre CSV ; le rajouter le compterait deux fois.</li>
+          <li><strong>Marquez le transfert comme votre propre wallet.</strong> Sur la page Research, trouvez le retrait qui a déplacé les pièces de l'exchange vers le protocole et marquez-le <em>Mon propre wallet</em>. Cela indique à Almstins qu'il s'agissait d'un mouvement entre vos propres comptes, pas d'une vente, de sorte que les pièces restent une position détenue à votre coût de base réel au lieu d'être comptées comme une cession.</li>
+          <li><strong>Ajoutez une note pour la retrouver plus tard.</strong> Sur cette transaction, ajoutez une note avec le lien de l'app du protocole et l'adresse de votre wallet, pour savoir où se trouvent réellement les pièces.</li>
+          <li><strong>Étiquetez l'adresse de destination comme wallet à vous.</strong> Sur la page Research, étiquetez le wallet vers lequel vous avez déplacé les pièces comme l'un des vôtres. Les transferts futurs vers celui-ci se classeront alors automatiquement via Auto-classify.</li>
+        </ol>
+        <p>Deux choses à prévoir. Le panneau de réconciliation affichera un petit écart pour cette pièce : vos livres disent que vous la détenez, mais le snapshot du wallet ne peut pas la voir à l'intérieur du protocole. C'est normal et cela n'affecte pas votre coût de base. Et la position reste une plus-value ou moins-value <em>latente</em> jusqu'à ce que vous retiriez et vendiez réellement ; à ce moment-là, enregistrez la vente comme une cession pour la réaliser.</p>`,
+  },
+  {
     id: "faq-now",
     q: "Sur quoi travaillez-vous en ce moment ?",
     a: `<p>Le tracker de portefeuille principal, le moteur de bookkeeping et la page Research sont en ligne. Voici ce qui est activement développé ou planifié ensuite :</p>

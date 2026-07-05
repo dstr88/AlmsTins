@@ -154,6 +154,18 @@ export const items: FaqItem[] = [
         <p>Each Aave position links straight through to its market on the Aave app, so you can reach it in one click. Positions are read-only and tracked by address only — Almstins never connects your wallet or requests signing permission. If a DeFi position is not showing, it is most likely on a protocol or chain not yet listed here.</p>`,
   },
   {
+    id: "faq-defi-untracked",
+    q: "How do I track crypto I've lent or staked on a protocol Almstins doesn't support yet?",
+    a: `<p>Almstins reads a growing set of DeFi protocols directly (Aave, Sovryn). If your position is on one we don't cover yet — many Solana lending markets, for example — the coins usually sit <em>inside</em> the protocol rather than in your wallet, so they won't appear in your wallet snapshot. You can still keep them correct on your books:</p>
+        <ol style="line-height: 1.8; margin: 0.5rem 0 1rem 1.25rem;">
+          <li><strong>Don't re-enter the purchase.</strong> If you bought the coins on an exchange, that buy is already imported from your CSV — adding it again would double-count it.</li>
+          <li><strong>Mark the transfer as your own wallet.</strong> On the Research page, find the withdrawal that moved the coins from the exchange to the protocol and mark it <em>My own wallet</em>. This tells Almstins it was a move between your own accounts, not a sale, so the coins stay a held position at your real cost basis instead of being counted as a disposal.</li>
+          <li><strong>Add a note so you can find it later.</strong> On that transaction, add a note with the protocol's app link and your wallet address, so you know where the coins actually live.</li>
+          <li><strong>Label the destination address as an own wallet.</strong> On the Research page, label the wallet you moved the coins to as one of your own. Future transfers to it then classify themselves automatically via Auto-classify.</li>
+        </ol>
+        <p>Two things to expect. The reconciliation panel will show a small gap for that coin — your books say you hold it, but the wallet snapshot can't see it inside the protocol. That is normal and does not affect your cost basis. And the position stays an <em>unrealized</em> gain or loss until you actually withdraw and sell it; at that point, record the sale as a disposal to realize it.</p>`,
+  },
+  {
     id: "faq-now",
     q: "What are you working on now?",
     a: `<p>The core portfolio tracker, bookkeeping engine, and Research page are live. Here is what is actively being developed or planned next:</p>
