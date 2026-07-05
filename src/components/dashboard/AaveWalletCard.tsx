@@ -181,15 +181,17 @@ const AaveWalletCard: React.FC<Props> = ({ walletId, walletLabel, walletAddress 
 								<td>{p.side === 'supply' ? t.sideSupply : t.sideBorrow}</td>
 								<td>
 									{p.assetSymbol}
+									{p.marketName && (
 									<a
 										href={aaveMarketUrl(p.marketName)}
 										target="_blank"
 										rel="noopener noreferrer"
-										title={p.marketName ? `Open ${p.marketName} on Aave` : 'Open on Aave'}
+										title={`Open ${p.marketName} on Aave`}
 										style={{ color: 'var(--accent)', textDecoration: 'none', marginLeft: '4px' }}
 									>
 										↗
 									</a>
+									)}
 								</td>
 								<td>{p.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}</td>
 								<td>{(p.apy * 100).toFixed(2)}%</td>
