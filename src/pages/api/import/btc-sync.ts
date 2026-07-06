@@ -20,6 +20,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
+import { detectAndAlertBounces } from '@/lib/bounceDetector';
 import { logActivity } from '@/lib/activityLog';
 import { db } from '@/lib/db';
 import { syncBtcAddress } from '@/lib/sync/syncBtcAddress';
@@ -83,6 +84,7 @@ export const POST: APIRoute = async ({ request }) => {
 	// Run transfer matching tenant-wide so BTC OUTs/INs can match CEX sends/receives
 	void runTransferMatching(tenantId);
 	void autoClassifyOwnWalletTransfers(tenantId);
+	void detectAndAlertBounces(tenantId);
 	logActivity(tenantId, 'import', `${totalInserted} imported, ${totalSkipped} skipped`, { inserted: totalInserted, skipped: totalSkipped }, { source: 'btc_sync', chain: 'bitcoin' });
 
 	return new Response(JSON.stringify({
