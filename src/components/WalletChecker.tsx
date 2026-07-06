@@ -730,7 +730,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
           )}
 
           {/* Chain + ENS + cache badges */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: result.ensName ? '0.5rem' : '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.06)', padding: '0.3rem 0.75rem', borderRadius: '999px' }}>
               {chainLabel(result.chain, c)}
             </span>
@@ -745,6 +745,13 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
               )}
             </div>
           </div>
+
+          {/* Chain network note */}
+          {c.chainNote[result.chain as keyof typeof c.chainNote] && (
+            <p style={{ margin: '0 0 1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.38)', lineHeight: 1.5 }}>
+              {c.chainNote[result.chain as keyof typeof c.chainNote]}
+            </p>
+          )}
 
           {/* ENS name */}
           {result.ensName && (
