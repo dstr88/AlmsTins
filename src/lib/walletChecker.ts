@@ -35,7 +35,7 @@ const COSMOS_REGEX  = /^cosmos1[a-z0-9]{38}$/;
 export type Chain = 'evm' | 'sui' | 'solana' | 'bitcoin' | 'litecoin' | 'tron' | 'xrp' | 'dogecoin' | 'cardano' | 'cosmos' | 'unknown';
 
 // Chains where safety checks run
-const SUPPORTED_CHAINS = new Set<Chain>(['evm', 'sui', 'solana', 'bitcoin', 'litecoin']);
+const SUPPORTED_CHAINS = new Set<Chain>(['evm', 'sui', 'solana', 'bitcoin', 'litecoin', 'tron']);
 
 export function detectChain(address: string): Chain {
   if (SUI_REGEX.test(address))     return 'sui';       // check before EVM (both start with 0x)
@@ -232,11 +232,14 @@ async function fetchGoPlusFlags(
   const flags: Partial<WalletCheckResult['flags']> = {};
   const chain = detectChain(address);
 
-  if (chain === 'bitcoin' || chain === 'litecoin' || chain === 'sui' || chain === 'unknown') {
+  if (chain === 'bitcoin' || chain === 'litecoin' || chain === 'sui' || chain === 'unknown'
+      || chain === 'xrp' || chain === 'dogecoin' || chain === 'cardano' || chain === 'cosmos') {
     return { flags, errors }; // chain not supported — skip silently
   }
 
-  const chainIds = chain === 'evm' ? GOPLUS_EVM_CHAINS : [{ id: 'solana', label: 'Solana' }];
+  const chainIds = chain === 'evm'    ? GOPLUS_EVM_CHAINS
+                 : chain === 'solana' ? [{ id: 'solana', label: 'Solana' }]
+                 :                     [{ id: 'tron',   label: 'TRON'   }];
 
   const flag = (v: unknown) => String(v) === '1';
 
@@ -796,6 +799,108 @@ async function fetchENSName(address: string): Promise<string | null> {
   }
 }
 
+// ─── TronGrid — wallet age, tx count, TRX balance, TRC-20 holdings ───────────
+// Public API, no key required. https://developers.tron.network/
+
+const TRONGRID_BASE = 'https://api.trongrid.io';
+const SUN_PER_TRX   = 1_000_000;
+
+async function fetchTronActivity(
+  address: string,
+): Promise<{ activity: WalletCheckResult['activity']; errors: string[] }> {
+  const errors: string[] = [];
+  const activity: WalletCheckResult['activity'] = {
+    firstSeen: null, lastActivity: null, txCount: null,
+    totalReceivedEth: null, totalSentEth: null, ethBalance: null,
+  };
+  try {
+    const res = await fetchWithTimeout(`${TRONGRID_BASE}/v1/accounts/${encodeURIComponent(address)}`);
+    if (!res.ok) { errors.push(`TronGrid returned ${res.status}`); return { activity, errors }; }
+    const json = await res.json() as any;
+    const acct = json?.data?.[0];
+    if (!acct) return { activity, errors }; // address exists but has no on-chain history yet
+
+    // create_time is epoch ms
+    if (acct.create_time) {
+      const d = new Date(acct.create_time);
+      activity.firstSeen    = d.toISOString().slice(0, 10);
+      activity.lastActivity = activity.firstSeen; // best available without tx pagination
+    }
+    // latest_opration_time (sic) is also epoch ms
+    if (acct.latest_opration_time) {
+      activity.lastActivity = new Date(acct.latest_opration_time).toISOString().slice(0, 10);
+    }
+    // TRX balance in sun (1 TRX = 1,000,000 sun) — store in ethBalance field (repurposed as native balance)
+    if (typeof acct.balance === 'number') {
+      activity.ethBalance = String((acct.balance / SUN_PER_TRX).toFixed(4));
+    }
+  } catch {
+    errors.push('TronGrid unavailable');
+  }
+  return { activity, errors };
+}
+
+async function fetchTronHoldings(
+  address: string,
+): Promise<{ holdings: WalletCheckResult['holdings']; errors: string[] }> {
+  const errors: string[] = [];
+  const holdings: WalletCheckResult['holdings'] = [];
+  try {
+    // TRC-20 token balances
+    const res = await fetchWithTimeout(
+      `${TRONGRID_BASE}/v1/accounts/${encodeURIComponent(address)}/tokens?token_id=_&limit=20`,
+    );
+    if (!res.ok) { errors.push(`TronGrid tokens returned ${res.status}`); return { holdings, errors }; }
+    const json = await res.json() as any;
+    const tokens: any[] = json?.data ?? [];
+
+    // Fetch TRX price once for USD conversion
+    let trxPriceUsd: number | null = null;
+    try {
+      const p = await fetchWithTimeout(
+        'https://api.coingecko.com/api/v3/simple/price?ids=tron&vs_currencies=usd',
+      );
+      if (p.ok) trxPriceUsd = ((await p.json()) as any)?.tron?.usd ?? null;
+    } catch { /* price optional */ }
+
+    // Also grab TRX balance from account endpoint for the native token row
+    try {
+      const acctRes = await fetchWithTimeout(`${TRONGRID_BASE}/v1/accounts/${encodeURIComponent(address)}`);
+      if (acctRes.ok) {
+        const acctJson = await acctRes.json() as any;
+        const trxSun = acctJson?.data?.[0]?.balance;
+        if (typeof trxSun === 'number' && trxSun > 0) {
+          const trxAmount = (trxSun / SUN_PER_TRX).toFixed(4);
+          holdings.push({
+            symbol: 'TRX',
+            name: 'TRON',
+            balance: trxAmount,
+            usdValue: trxPriceUsd ? Number((Number(trxAmount) * trxPriceUsd).toFixed(2)) : null,
+          });
+        }
+      }
+    } catch { /* skip native row */ }
+
+    for (const t of tokens.slice(0, 12)) {
+      try {
+        const decimals = Number(t.tokenDecimal ?? t.precision ?? 6);
+        const rawBal   = BigInt(String(t.balance ?? '0'));
+        const amount   = (Number(rawBal) / Math.pow(10, decimals)).toFixed(4);
+        if (Number(amount) === 0) continue;
+        holdings.push({
+          symbol:   String(t.tokenAbbr  ?? t.symbol ?? '???').slice(0, 12),
+          name:     String(t.tokenName  ?? t.name   ?? 'Unknown').slice(0, 40),
+          balance:  amount,
+          usdValue: null,
+        });
+      } catch { /* skip */ }
+    }
+  } catch {
+    errors.push('TronGrid holdings unavailable');
+  }
+  return { holdings, errors };
+}
+
 // ─── Chainabuse community reports ─────────────────────────────────────────────
 // Free tier available — set CHAINABUSE_API_KEY env var to enable.
 // https://www.chainabuse.com/
@@ -809,7 +914,8 @@ async function fetchChainavuseReports(address: string): Promise<{ count: number 
     chain === 'evm'      ? 'ethereum' :
     chain === 'solana'   ? 'solana' :
     chain === 'bitcoin'  ? 'bitcoin' :
-    chain === 'litecoin' ? 'litecoin' : null;
+    chain === 'litecoin' ? 'litecoin' :
+    chain === 'tron'     ? 'tron' : null;
   if (!network) return { count: null, errors: [] };
 
   try {
@@ -874,11 +980,13 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   const [goplusResult, activityResult, holdingsResult, honeypotResult, multiSigResult, entityLabelResult, ensResult, chainabuseResult] =
     await Promise.allSettled([
       fetchGoPlusFlags(address),
-      chain === 'evm'                          ? fetchEtherscanActivity(address)
-        : chain === 'sui'                      ? fetchSuiActivity(address)
+      chain === 'evm'    ? fetchEtherscanActivity(address)
+        : chain === 'sui'  ? fetchSuiActivity(address)
+        : chain === 'tron' ? fetchTronActivity(address)
         : Promise.resolve({ activity: noActivity, errors: [`Activity tracking not available for ${chain}`] }),
-      chain === 'evm'                          ? fetchTokenBalances(address)
-        : chain === 'sui'                      ? fetchSuiHoldings(address)
+      chain === 'evm'    ? fetchTokenBalances(address)
+        : chain === 'sui'  ? fetchSuiHoldings(address)
+        : chain === 'tron' ? fetchTronHoldings(address)
         : Promise.resolve({ holdings: [], errors: [`Token balances not available for ${chain}`] }),
       chain === 'evm' ? fetchHoneypotCheck(address) : Promise.resolve({ honeypot: { checked: false, isHoneypot: null, reason: `EVM only` as string | null }, errors: [] }),
       chain === 'evm' ? fetchMultiSigCheck(address) : Promise.resolve({ multiSig: null, errors: [] }),
@@ -913,7 +1021,7 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   // Solana only; honeypot.is is EVM-only; Chainabuse is community/secondary. A
   // "clean" verdict where the primary source could not run must NOT be shown as a
   // confident green (P0/P1 hardening).
-  const goplusSupported   = chain === 'evm' || chain === 'solana';
+  const goplusSupported   = chain === 'evm' || chain === 'solana' || chain === 'tron';
   const goplusErrored     = goplusResult.status     === 'rejected' || (goplus.errors     ?? []).some((e: string) => e.includes('GoPlus'));
   const honeypotErrored   = honeypotResult.status   === 'rejected' || (honeypot.errors   ?? []).some((e: string) => e.includes('Honeypot'));
   const chainabuseErrored = chainabuseResult.status === 'rejected' || (chainabuse.errors ?? []).length > 0;

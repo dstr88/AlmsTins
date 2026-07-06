@@ -224,22 +224,26 @@ function TabContent({ tab, result, c }: { tab: Tab; result: WalletCheckResult; c
 
   if (tab === 'holdings') {
     const h = result.holdings;
-    if (result.chain !== 'evm' && result.chain !== 'sui') return (
+    if (result.chain !== 'evm' && result.chain !== 'sui' && result.chain !== 'tron') return (
       <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
         {c.holdingsEvmSuiOnly}
       </p>
     );
+    const noHoldingsMsg = result.chain === 'sui' ? c.noCoinBalances : result.chain === 'tron' ? c.noTrc20 : c.noErc20;
     if (h.length === 0) return (
       <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem' }}>
-        {result.chain === 'sui' ? c.noCoinBalances : c.noErc20}
+        {noHoldingsMsg}
       </p>
     );
+    const nativeBalanceLabel = result.chain === 'tron' ? c.trxBalanceRow : c.ethBalanceRow;
+    const nativeSymbol = result.chain === 'tron' ? 'TRX' : 'ETH';
+    const sourceNote = result.chain === 'sui' ? c.holdingsSourceSui : result.chain === 'tron' ? c.holdingsSourceTron : c.holdingsSourceEvm;
     return (
       <div>
         {result.activity?.ethBalance && result.chain !== 'sui' && (
           <div style={{ padding: '0.6rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem' }}>{c.ethBalanceRow}</span>
-            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{result.activity.ethBalance} ETH</span>
+            <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.9rem' }}>{nativeBalanceLabel}</span>
+            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{result.activity.ethBalance} {nativeSymbol}</span>
           </div>
         )}
         {h.map((token, i) => (
@@ -252,7 +256,7 @@ function TabContent({ tab, result, c }: { tab: Tab; result: WalletCheckResult; c
           </div>
         ))}
         <p style={{ marginTop: '1rem', fontSize: '0.78rem', color: 'rgba(255,255,255,0.35)' }}>
-          {result.chain === 'sui' ? c.holdingsSourceSui : c.holdingsSourceEvm}
+          {sourceNote}
         </p>
       </div>
     );

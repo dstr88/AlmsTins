@@ -124,9 +124,12 @@ export interface WalletCheckerLocale {
     holdingsEvmSuiOnly: string;
     noCoinBalances: string;
     noErc20: string;
+    noTrc20: string;
     ethBalanceRow: string;
+    trxBalanceRow: string;
     holdingsSourceSui: string;
     holdingsSourceEvm: string;
+    holdingsSourceTron: string;
     firstSeen: string;
     lastActivity: string;
     suiBalance: string;
@@ -363,7 +366,7 @@ export const en: WalletCheckerLocale = {
       solana:   'Solana address. Do not send ETH, BTC, or other non-Solana assets to this address.',
       bitcoin:  'Bitcoin address. Do not send ETH, SOL, or other non-Bitcoin assets to this address.',
       litecoin: 'Litecoin address. Do not send ETH, SOL, or other non-Litecoin assets to this address.',
-      tron:     'TRON address. No safety data yet — checks for EVM, Solana, Bitcoin, and Litecoin only.',
+      tron:     'TRON address. Do not send ETH, BTC, SOL, or other non-TRON assets to this address.',
       xrp:      'XRP address. No safety data yet — checks for EVM, Solana, Bitcoin, and Litecoin only.',
       dogecoin: 'Dogecoin address. No safety data yet — checks for EVM, Solana, Bitcoin, and Litecoin only.',
       cardano:  'Cardano address. No safety data yet — checks for EVM, Solana, Bitcoin, and Litecoin only.',
@@ -408,12 +411,15 @@ export const en: WalletCheckerLocale = {
     chainabuseMany: '🚨 {n} community scam reports on Chainabuse',
     chainabuseNone: '✅ No Chainabuse community reports',
     safetySource: 'Source: GoPlus Security (ETH, BSC, Polygon) + Chainabuse community reports. Results are reported, not legally confirmed.',
-    holdingsEvmSuiOnly: 'Token balance lookup is only available for EVM and Sui addresses.',
+    holdingsEvmSuiOnly: 'Token balance lookup is only available for EVM, Sui, and TRON addresses.',
     noCoinBalances: 'No coin balances found.',
     noErc20: 'No ERC-20 token holdings found.',
+    noTrc20: 'No TRC-20 token holdings found.',
     ethBalanceRow: 'ETH Balance',
+    trxBalanceRow: 'TRX Balance',
     holdingsSourceSui: 'Data via Sui RPC · All coin balances shown · SUI price via CoinGecko',
     holdingsSourceEvm: 'Data via Alchemy · Ethereum Mainnet only · Top 10 tokens shown',
+    holdingsSourceTron: 'Data via TronGrid · Top 20 TRC-20 tokens shown · TRX price via CoinGecko',
     firstSeen: 'First seen',
     lastActivity: 'Last activity',
     suiBalance: 'SUI balance',
@@ -650,7 +656,7 @@ export const es: WalletCheckerLocale = {
       solana:   'Dirección Solana. No envíes ETH, BTC ni otros activos no-Solana a esta dirección.',
       bitcoin:  'Dirección Bitcoin. No envíes ETH, SOL ni otros activos no-Bitcoin a esta dirección.',
       litecoin: 'Dirección Litecoin. No envíes ETH, SOL ni otros activos no-Litecoin a esta dirección.',
-      tron:     'Dirección TRON. Sin datos de seguridad aún — las verificaciones aplican solo a EVM, Solana, Bitcoin y Litecoin.',
+      tron:     'Dirección TRON. No envíes ETH, BTC, SOL ni otros activos no-TRON a esta dirección.',
       xrp:      'Dirección XRP. Sin datos de seguridad aún — las verificaciones aplican solo a EVM, Solana, Bitcoin y Litecoin.',
       dogecoin: 'Dirección Dogecoin. Sin datos de seguridad aún — las verificaciones aplican solo a EVM, Solana, Bitcoin y Litecoin.',
       cardano:  'Dirección Cardano. Sin datos de seguridad aún — las verificaciones aplican solo a EVM, Solana, Bitcoin y Litecoin.',
@@ -695,12 +701,15 @@ export const es: WalletCheckerLocale = {
     chainabuseMany: '🚨 {n} reportes de estafa de la comunidad en Chainabuse',
     chainabuseNone: '✅ Sin reportes de la comunidad en Chainabuse',
     safetySource: 'Fuente: GoPlus Security (ETH, BSC, Polygon) + reportes de la comunidad de Chainabuse. Los resultados son reportados, no confirmados legalmente.',
-    holdingsEvmSuiOnly: 'La consulta de saldo de tokens solo está disponible para direcciones EVM y Sui.',
+    holdingsEvmSuiOnly: 'La consulta de saldo de tokens solo está disponible para direcciones EVM, Sui y TRON.',
     noCoinBalances: 'No se encontraron saldos de monedas.',
     noErc20: 'No se encontraron tenencias de tokens ERC-20.',
+    noTrc20: 'No se encontraron tenencias de tokens TRC-20.',
     ethBalanceRow: 'Saldo de ETH',
+    trxBalanceRow: 'Saldo de TRX',
     holdingsSourceSui: 'Datos vía Sui RPC · Se muestran todos los saldos de monedas · Precio de SUI vía CoinGecko',
     holdingsSourceEvm: 'Datos vía Alchemy · Solo Ethereum Mainnet · Se muestran los 10 tokens principales',
+    holdingsSourceTron: 'Datos vía TronGrid · Se muestran los 20 principales tokens TRC-20 · Precio de TRX vía CoinGecko',
     firstSeen: 'Visto por primera vez',
     lastActivity: 'Última actividad',
     suiBalance: 'Saldo de SUI',
@@ -937,7 +946,7 @@ export const fr: WalletCheckerLocale = {
       solana:   "Adresse Solana. N’envoyez pas d’ETH, BTC ou autres actifs non-Solana à cette adresse.",
       bitcoin:  "Adresse Bitcoin. N’envoyez pas d’ETH, SOL ou autres actifs non-Bitcoin à cette adresse.",
       litecoin: "Adresse Litecoin. N’envoyez pas d’ETH, SOL ou autres actifs non-Litecoin à cette adresse.",
-      tron:     "Adresse TRON. Pas encore de données de sécurité — les vérifications couvrent EVM, Solana, Bitcoin et Litecoin uniquement.",
+      tron:     "Adresse TRON. N'envoyez pas d'ETH, BTC, SOL ou autres actifs non-TRON à cette adresse.",
       xrp:      "Adresse XRP. Pas encore de données de sécurité — les vérifications couvrent EVM, Solana, Bitcoin et Litecoin uniquement.",
       dogecoin: "Adresse Dogecoin. Pas encore de données de sécurité — les vérifications couvrent EVM, Solana, Bitcoin et Litecoin uniquement.",
       cardano:  "Adresse Cardano. Pas encore de données de sécurité — les vérifications couvrent EVM, Solana, Bitcoin et Litecoin uniquement.",
@@ -982,12 +991,15 @@ export const fr: WalletCheckerLocale = {
     chainabuseMany: "🚨 {n} signalements d’arnaque de la communauté sur Chainabuse",
     chainabuseNone: "✅ Aucun signalement de la communauté sur Chainabuse",
     safetySource: "Source : GoPlus Security (ETH, BSC, Polygon) + signalements de la communauté Chainabuse. Les résultats sont rapportés, non confirmés légalement.",
-    holdingsEvmSuiOnly: "La consultation du solde de tokens n’est disponible que pour les adresses EVM et Sui.",
+    holdingsEvmSuiOnly: "La consultation du solde de tokens n’est disponible que pour les adresses EVM, Sui et TRON.",
     noCoinBalances: "Aucun solde de pièce trouvé.",
     noErc20: "Aucun avoir en tokens ERC-20 trouvé.",
+    noTrc20: "Aucun avoir en tokens TRC-20 trouvé.",
     ethBalanceRow: "Solde ETH",
+    trxBalanceRow: "Solde TRX",
     holdingsSourceSui: "Données via Sui RPC · Tous les soldes de pièces affichés · Prix du SUI via CoinGecko",
     holdingsSourceEvm: "Données via Alchemy · Ethereum Mainnet uniquement · 10 principaux tokens affichés",
+    holdingsSourceTron: "Données via TronGrid · 20 principaux tokens TRC-20 affichés · Prix du TRX via CoinGecko",
     firstSeen: "Première apparition",
     lastActivity: "Dernière activité",
     suiBalance: "Solde SUI",
