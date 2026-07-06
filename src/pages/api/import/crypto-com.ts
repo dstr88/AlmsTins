@@ -5,6 +5,7 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { snapshotCexAccount } from '@/lib/cexSnapshot';
 import { runTransferMatching } from '@/lib/transferMatcher';
 import { autoClassifyOwnWalletTransfers } from '@/lib/autoClassify';
+import { detectAndAlertBounces } from '@/lib/bounceDetector';
 import { logActivity } from '@/lib/activityLog';
 
 type CsvRow = Record<string, string>;
@@ -372,6 +373,7 @@ ON CONFLICT DO NOTHING`,
 	void snapshotCexAccount(tenantId, resolvedAccountId, 'crypto_com', 'Crypto.com');
 	void runTransferMatching(tenantId, resolvedAccountId);
 	void autoClassifyOwnWalletTransfers(tenantId);
+	void detectAndAlertBounces(tenantId);
 	logActivity(tenantId, 'import', `${insertedNormalized} imported, ${skippedDuplicates} skipped`, { inserted: insertedNormalized, skipped: skippedDuplicates }, { source: 'crypto_com' });
 
 	return new Response(
