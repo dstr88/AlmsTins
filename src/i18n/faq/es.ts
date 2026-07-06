@@ -891,6 +891,38 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-tron-safety",
+    q: "¿El verificador de wallets funciona para direcciones TRON?",
+    a: `<p>
+          Sí. Las direcciones TRON (que comienzan con <strong>T</strong>, 34 caracteres) reciben verificaciones de seguridad completas:
+        </p>
+        <ul>
+          <li><strong>Lista negra de GoPlus</strong> — cruzada con la base de datos global de GoPlus Security usando la cadena TRON, que cubre direcciones de estafas, phishing y drenadores reportadas en TRON.</li>
+          <li><strong>Reportes comunitarios de Chainabuse</strong> — cualquier reporte de fraude enviado por la comunidad vinculado a la dirección.</li>
+          <li><strong>Antigüedad del wallet</strong> — las direcciones creadas en los últimos 30 días se marcan; los wallets muy nuevos son una señal común en estafas de ingeniería social.</li>
+          <li><strong>Tenencias de tokens TRC-20</strong> — la pestaña Holdings muestra el saldo de TRX y los principales tokens TRC-20 de la dirección (USDT, USDC y otros).</li>
+        </ul>
+        <p>
+          TRON es una de las cadenas más comunes para fraudes cripto y operaciones de estafa, especialmente USDT (TRC-20). Si alguien te da una dirección TRON y te pide enviar USDT, verifícala primero.
+        </p>
+        <p>
+          <strong>Una advertencia importante que el verificador siempre muestra:</strong> una dirección TRON solo puede recibir activos nativos de TRON (TRX, USDT-TRC20, etc.). Enviar ETH, BTC, SOL o cualquier token EVM a una dirección TRON significa que esos fondos se pierden permanentemente. El verificador muestra esta advertencia en cada resultado de TRON.
+        </p>`,
+  },
+  {
+    id: "faq-chain-recognition",
+    q: "El verificador reconoció mi dirección de XRP / Dogecoin / Cardano / Cosmos pero dice que no hay datos — ¿por qué?",
+    a: `<p>
+          El verificador de wallets puede detectar direcciones de varias cadenas más allá de Ethereum, Bitcoin, Solana, Litecoin, Sui y TRON. Cuando pegas una dirección de XRP, Dogecoin, Cardano o Cosmos, identifica a qué cadena pertenece y muestra la insignia de cadena correcta — así al menos sabes que pegaste el tipo correcto de dirección.
+        </p>
+        <p>
+          Las verificaciones completas de bases de datos de seguridad (listas negras, reportes de estafas, antigüedad del wallet, tenencias de tokens) aún no están disponibles para esas cuatro cadenas. Ampliar la cobertura de seguridad a ellas está en el roadmap.
+        </p>
+        <p>
+          Lo más importante que la etiqueta evita: pegar una dirección de Dogecoin y que el verificador reporte "dirección inválida" — lo que podría hacerte pensar que escribiste algo mal cuando la dirección es perfectamente válida. Saber a qué cadena pertenece una dirección también ayuda a evitar el error de envío entre cadenas descrito más abajo.
+        </p>`,
+  },
+  {
     id: "faq-wallet-error",
     q: "Un tin de wallet muestra un error y un ref code — ¿qué significa eso?",
     a: `<p>

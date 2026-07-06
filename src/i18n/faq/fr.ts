@@ -890,6 +890,38 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-tron-safety",
+    q: "Le vérificateur de wallet fonctionne-t-il pour les adresses TRON ?",
+    a: `<p>
+          Oui. Les adresses TRON (commençant par <strong>T</strong>, 34 caractères) bénéficient de vérifications de sécurité complètes :
+        </p>
+        <ul>
+          <li><strong>Liste noire GoPlus</strong> — croisée avec la base de données mondiale de GoPlus Security en utilisant la chaîne TRON, qui couvre les adresses de scams, phishing et draineurs signalées sur TRON.</li>
+          <li><strong>Signalements communautaires Chainabuse</strong> — tout signalement de fraude soumis par la communauté lié à l'adresse.</li>
+          <li><strong>Ancienneté du wallet</strong> — les adresses créées dans les 30 derniers jours sont signalées ; les wallets très récents sont un signal courant dans les arnaques par ingénierie sociale.</li>
+          <li><strong>Avoirs en tokens TRC-20</strong> — l'onglet Holdings affiche le solde TRX et les principaux tokens TRC-20 de l'adresse (USDT, USDC et autres).</li>
+        </ul>
+        <p>
+          TRON est l'une des chaînes les plus courantes pour la fraude crypto et les opérations d'arnaque, notamment l'USDT (TRC-20). Si quelqu'un vous donne une adresse TRON et vous demande d'envoyer des USDT, vérifiez-la d'abord.
+        </p>
+        <p>
+          <strong>Un avertissement important que le vérificateur affiche toujours :</strong> une adresse TRON ne peut recevoir que des actifs natifs TRON (TRX, USDT-TRC20, etc.). Envoyer des ETH, BTC, SOL ou tout token EVM à une adresse TRON signifie que ces fonds sont perdus définitivement. Le vérificateur affiche cet avertissement sur chaque résultat TRON.
+        </p>`,
+  },
+  {
+    id: "faq-chain-recognition",
+    q: "Le vérificateur a reconnu mon adresse XRP / Dogecoin / Cardano / Cosmos mais indique qu'il n'y a pas de données — pourquoi ?",
+    a: `<p>
+          Le vérificateur de wallet peut détecter des adresses de plusieurs chaînes au-delà d'Ethereum, Bitcoin, Solana, Litecoin, Sui et TRON. Quand vous collez une adresse XRP, Dogecoin, Cardano ou Cosmos, il identifie à quelle chaîne elle appartient et affiche le bon badge de chaîne — vous savez ainsi au moins que vous avez collé le bon type d'adresse.
+        </p>
+        <p>
+          Les vérifications complètes des bases de données de sécurité (listes noires, signalements d'arnaques, ancienneté du wallet, avoirs en tokens) ne sont pas encore disponibles pour ces quatre chaînes. L'extension de la couverture de sécurité à celles-ci est prévu dans la roadmap.
+        </p>
+        <p>
+          La chose la plus importante que le label évite : coller une adresse Dogecoin et que le vérificateur signale "adresse invalide" — ce qui pourrait vous faire croire que vous avez mal saisi quelque chose alors que l'adresse est parfaitement valide. Savoir à quelle chaîne appartient une adresse aide également à éviter l'erreur d'envoi entre chaînes décrite ci-dessous.
+        </p>`,
+  },
+  {
     id: "faq-wallet-error",
     q: "Un tin de wallet affiche une erreur et un ref code — qu'est-ce que cela signifie ?",
     a: `<p>

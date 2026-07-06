@@ -893,6 +893,38 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-tron-safety",
+    q: "Does the wallet checker work for TRON addresses?",
+    a: `<p>
+          Yes. TRON addresses (starting with <strong>T</strong>, 34 characters) get full safety checks:
+        </p>
+        <ul>
+          <li><strong>GoPlus blacklist</strong> — cross-referenced against GoPlus Security's global database using the TRON chain, which covers reported scam, phishing, and drainer addresses on TRON.</li>
+          <li><strong>Chainabuse community reports</strong> — any community-submitted fraud reports linked to the address.</li>
+          <li><strong>Wallet age</strong> — addresses created in the last 30 days are flagged; very new wallets are a common signal in social engineering scams.</li>
+          <li><strong>TRC-20 token holdings</strong> — the Holdings tab shows the address's TRX balance and its top TRC-20 tokens (USDT, USDC, and others).</li>
+        </ul>
+        <p>
+          TRON is one of the most common chains for crypto fraud and scam operations, particularly USDT (TRC-20). If someone gives you a TRON address and asks you to send USDT, run it through the checker first.
+        </p>
+        <p>
+          <strong>One important warning the checker always shows:</strong> a TRON address can only receive TRON-native assets (TRX, USDT-TRC20, etc.). Sending ETH, BTC, SOL, or any EVM token to a TRON address means those funds are permanently lost. The checker displays this warning on every TRON result.
+        </p>`,
+  },
+  {
+    id: "faq-chain-recognition",
+    q: "The checker recognised my XRP / Dogecoin / Cardano / Cosmos address but says no safety data — why?",
+    a: `<p>
+          The wallet checker can detect addresses from several chains beyond Ethereum, Bitcoin, Solana, Litecoin, Sui, and TRON. When you paste an XRP, Dogecoin, Cardano, or Cosmos address, it identifies which chain it belongs to and shows the correct chain badge — so you at least know you pasted the right kind of address.
+        </p>
+        <p>
+          Full safety database checks (blacklists, scam reports, wallet age, token holdings) are not yet available for those four chains. Expanding safety coverage to them is on the roadmap.
+        </p>
+        <p>
+          The most important thing the label prevents: pasting a Dogecoin address and having the checker report "invalid address" — which could leave you thinking you typed something wrong when the address is perfectly valid. Knowing which chain an address belongs to also helps avoid the cross-chain sending mistake described below.
+        </p>`,
+  },
+  {
     id: "faq-wallet-error",
     q: "A wallet tin is showing an error and a ref code — what does that mean?",
     a: `<p>
