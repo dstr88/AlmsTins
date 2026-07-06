@@ -893,6 +893,24 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-api-public",
+    q: "Can I call Almstins safety checks from my own script or agent?",
+    a: `<p>
+          Yes. Three endpoints are open to the public with no login required:
+        </p>
+        <ul>
+          <li><strong>GET /api/wallet-check?address=</strong> — checks a crypto address for blacklist hits, sanctions, dark-web links, honeypot tokens, wallet age, and more. Also accepts a POST with a JSON body.</li>
+          <li><strong>GET /api/dapp-check?url=</strong> — checks a URL or dApp domain against MetaMask, ScamSniffer, GoPlus, URLScan, and other phishing databases.</li>
+          <li><strong>GET /api/verify/lookup?address=</strong> — returns whether an address has a verified publisher on Almstins Verify, and which domain published it.</li>
+        </ul>
+        <p>
+          All three return JSON and include CORS headers, so they can be called from a browser, a script, or an AI agent. Unauthenticated callers are limited to 10 requests per minute per IP. To raise that to 60 per minute, generate an API key from the <strong>API Keys</strong> section at the bottom of the <a href="/dashboard/verify">Verify dashboard</a> and pass it as an <code>X-Api-Key</code> header.
+        </p>
+        <p>
+          Full request/response documentation, field definitions, and error codes are at <a href="/api-docs">almstins.com/api-docs</a>.
+        </p>`,
+  },
+  {
     id: "faq-verify-self-send",
     q: "How do I prove I own an address on Almstins Verify?",
     a: `<p>

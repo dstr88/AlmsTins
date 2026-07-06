@@ -890,6 +890,24 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-api-public",
+    q: "Puis-je appeler les vérifications de sécurité d'Almstins depuis mon propre script ou agent ?",
+    a: `<p>
+          Oui. Trois endpoints sont ouverts au public sans connexion requise :
+        </p>
+        <ul>
+          <li><strong>GET /api/wallet-check?address=</strong> — vérifie une adresse crypto contre les listes noires, les sanctions, les liens avec le dark web, les tokens honeypot, l'âge du portefeuille et bien plus. Accepte aussi un POST avec un corps JSON.</li>
+          <li><strong>GET /api/dapp-check?url=</strong> — contrôle une URL ou un domaine de dApp contre MetaMask, ScamSniffer, GoPlus, URLScan et d'autres bases de données de phishing.</li>
+          <li><strong>GET /api/verify/lookup?address=</strong> — indique si une adresse a un éditeur vérifié sur Almstins Verify et quel domaine l'a publiée.</li>
+        </ul>
+        <p>
+          Les trois renvoient du JSON et incluent des en-têtes CORS, donc ils peuvent être appelés depuis un navigateur, un script ou un agent IA. Les appels non authentifiés sont limités à 10 requêtes par minute par IP. Pour passer à 60 par minute, générez une clé d'API depuis la section <strong>Clés d'API</strong> en bas du <a href="/dashboard/verify">tableau de bord Verify</a> et transmettez-la dans l'en-tête <code>X-Api-Key</code>.
+        </p>
+        <p>
+          La documentation complète des requêtes/réponses, les définitions des champs et les codes d'erreur se trouvent sur <a href="/api-docs">almstins.com/api-docs</a>.
+        </p>`,
+  },
+  {
     id: "faq-verify-self-send",
     q: "Comment prouver que je possède une adresse sur Almstins Verify ?",
     a: `<p>

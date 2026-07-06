@@ -891,6 +891,24 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-api-public",
+    q: "¿Puedo llamar a las verificaciones de seguridad de Almstins desde mi propio script o agente?",
+    a: `<p>
+          Sí. Tres endpoints están abiertos al público sin necesidad de iniciar sesión:
+        </p>
+        <ul>
+          <li><strong>GET /api/wallet-check?address=</strong> — verifica una dirección cripto contra listas negras, sanciones, vínculos con la dark web, tokens honeypot, antigüedad de la cartera y más. También acepta POST con cuerpo JSON.</li>
+          <li><strong>GET /api/dapp-check?url=</strong> — comprueba una URL o dominio de dApp contra MetaMask, ScamSniffer, GoPlus, URLScan y otras bases de datos de phishing.</li>
+          <li><strong>GET /api/verify/lookup?address=</strong> — indica si una dirección tiene un publicador verificado en Almstins Verify y qué dominio la publicó.</li>
+        </ul>
+        <p>
+          Los tres devuelven JSON e incluyen cabeceras CORS, por lo que pueden llamarse desde un navegador, un script o un agente de IA. Las llamadas sin autenticación están limitadas a 10 solicitudes por minuto por IP. Para aumentarlo a 60 por minuto, genera una clave de API desde la sección <strong>Claves de API</strong> al final del <a href="/dashboard/verify">panel de Verify</a> y pásala en la cabecera <code>X-Api-Key</code>.
+        </p>
+        <p>
+          La documentación completa de solicitudes/respuestas, definiciones de campos y códigos de error está en <a href="/api-docs">almstins.com/api-docs</a>.
+        </p>`,
+  },
+  {
     id: "faq-verify-self-send",
     q: "¿Cómo demuestro que soy dueño de una dirección en Almstins Verify?",
     a: `<p>
