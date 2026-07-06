@@ -891,6 +891,55 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-verify-self-send",
+    q: "¿Cómo demuestro que soy dueño de una dirección en Almstins Verify?",
+    a: `<p>
+          El método de auto-envío funciona sin un sitio web ni conexión de wallet. En el panel de Verify, registra tu dirección y luego envía cualquier transacción saliente desde ella — incluso una cantidad mínima a ti mismo. Almstins observa la cadena pública y marca la dirección como Verificada una vez que detecta actividad después de emitir el desafío.
+        </p>
+        <p>
+          Nada se conecta a Almstins y nada se firma para nosotros. La única prueba que cuenta es enviar <em>desde</em> la dirección, lo cual solo puede hacer quien tenga la clave privada. Una vez verificada, cada dirección obtiene un código QR descargable que puedes imprimir, agregar a una factura o poner en una página de pago para que los clientes confirmen que la dirección es tuya antes de pagar.
+        </p>
+        <p>
+          Una dirección solo puede ser reclamada por una cuenta. Si intentas reclamar una dirección que ya está verificada por otra cuenta, la verificación falla. El escáner público en <a href="/verify/scan">almstins.com/verify/scan</a> muestra si una dirección está verificada y por quién antes de que se muevan los fondos.
+        </p>
+        <p>
+          La prueba de auto-envío está disponible para direcciones de Ethereum, Polygon, Avalanche, Bitcoin, Litecoin y Solana.
+        </p>`,
+  },
+  {
+    id: "faq-verify-domain",
+    q: "Tengo un sitio web. ¿Puedo verificar mis direcciones usando mi dominio en lugar de enviar una transacción?",
+    a: `<p>
+          Sí. En el panel de Verify, abre el panel Prove para cualquier destino de dirección y cambia a la pestaña Dominio. Ingresa tu dominio y Almstins genera un pequeño archivo JSON con un token de desafío único. Súbelo a tu servidor web en <code>/.well-known/almstins-verify.json</code> y haz clic en Verificar. Almstins obtiene el archivo, verifica que el desafío coincida y adjunta tu dominio como el publicador verificado de esa dirección.
+        </p>
+        <p>
+          Si prefieres DNS en lugar de un archivo, también puedes agregar un registro TXT a tu dominio. El panel muestra ambas opciones una al lado de la otra — usa la que sea más fácil con tu configuración de hosting.
+        </p>
+        <p>
+          Una dirección verificada por dominio muestra "verificada por tudominio.com" en el escáner público en lugar de solo "verificada." Esta es la señal más sólida para empresas — vincula la dirección a un dominio que demuestras controlar.
+        </p>`,
+  },
+  {
+    id: "faq-verify-exchange",
+    q: "Gestiono un exchange o servicio de pagos. ¿Puedo publicar todas nuestras direcciones de depósito como verificadas?",
+    a: `<p>
+          Sí, a través de la ruta de Entidad Verificada en el panel de Verify. Funciona en dos pasos:
+        </p>
+        <ol>
+          <li><strong>Verifica tu dominio.</strong> Sube el archivo de desafío de Almstins a <code>/.well-known/almstins-verify.json</code> en tu dominio (o agrega el registro TXT DNS). Almstins lo obtiene y confirma que controlas el dominio.</li>
+          <li><strong>Conecta un endpoint de dirección en vivo.</strong> Una vez verificado tu dominio, pega un endpoint HTTPS en ese mismo dominio y una API key de solo lectura. Almstins llama al endpoint periódicamente, lee tu lista actual de direcciones y las refleja como "verificadas por tudominio.com" en el escáner público.</li>
+        </ol>
+        <p>
+          Tu endpoint solo necesita devolver un array JSON de objetos de dirección — Almstins se encarga del polling y la replicación. El endpoint debe estar en el mismo dominio (o subdominio) que verificaste, para que la raíz de confianza sea tu dominio, no una afirmación tomada como verdad.
+        </p>
+        <p>
+          Los exchanges no pueden usar el método de auto-envío porque las direcciones de depósito son controladas por la plataforma — el exchange mismo tiene las claves privadas, no el usuario. La ruta de dominio más endpoint existe específicamente para este caso: una institución que avala sus propias direcciones publicándolas desde infraestructura que demuestra controlar.
+        </p>
+        <p>
+          La API key se almacena cifrada y solo se usa para obtener la lista de direcciones. Almstins nunca almacena ni transmite valor en tu nombre. Esta es una integración de solo lectura, consistente con la arquitectura sin custodia.
+        </p>`,
+  },
+  {
     id: "faq-tron-safety",
     q: "¿El verificador de wallets funciona para direcciones TRON?",
     a: `<p>

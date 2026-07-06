@@ -890,6 +890,55 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-verify-self-send",
+    q: "Comment prouver que je possède une adresse sur Almstins Verify ?",
+    a: `<p>
+          La méthode d'auto-envoi fonctionne sans site web ni connexion de wallet. Dans le tableau de bord Verify, enregistrez votre adresse, puis envoyez n'importe quelle transaction sortante depuis celle-ci — même un montant minime à vous-même. Almstins surveille la chaîne publique et marque l'adresse comme Vérifiée dès qu'il détecte une activité après l'émission du défi.
+        </p>
+        <p>
+          Rien n'est connecté à Almstins et rien n'est signé pour nous. La seule preuve qui compte est d'envoyer <em>depuis</em> l'adresse, ce que seule la personne détenant la clé privée peut faire. Une fois prouvée, chaque adresse reçoit un badge QR téléchargeable que vous pouvez imprimer, ajouter à une facture ou placer sur une page de paiement pour que les clients confirment que l'adresse est bien la vôtre avant de payer.
+        </p>
+        <p>
+          Une adresse ne peut être revendiquée que par un seul compte. Si vous tentez de revendiquer une adresse déjà prouvée par un autre compte, la vérification échoue. Le scanner public sur <a href="/verify/scan">almstins.com/verify/scan</a> indique si une adresse est vérifiée et par qui, avant tout mouvement de fonds.
+        </p>
+        <p>
+          La preuve par auto-envoi est disponible pour les adresses Ethereum, Polygon, Avalanche, Bitcoin, Litecoin et Solana.
+        </p>`,
+  },
+  {
+    id: "faq-verify-domain",
+    q: "J'ai un site web. Puis-je prouver mes adresses en utilisant mon domaine plutôt qu'en envoyant une transaction ?",
+    a: `<p>
+          Oui. Dans le tableau de bord Verify, ouvrez le panneau Prove pour n'importe quelle destination d'adresse et passez à l'onglet Domaine. Saisissez votre domaine et Almstins génère un petit fichier JSON avec un token de défi unique. Téléversez-le sur votre serveur web à l'adresse <code>/.well-known/almstins-verify.json</code>, puis cliquez sur Vérifier. Almstins récupère le fichier, vérifie que le défi correspond et attache votre domaine comme éditeur vérifié de cette adresse.
+        </p>
+        <p>
+          Si vous préférez le DNS plutôt qu'un fichier, vous pouvez également ajouter un enregistrement TXT à votre domaine. Le tableau de bord affiche les deux options côte à côte — utilisez celle qui convient le mieux à votre configuration d'hébergement.
+        </p>
+        <p>
+          Une adresse prouvée par domaine affiche "vérifié par votredomaine.com" sur le scanner public plutôt que simplement "vérifié." C'est le signal le plus fort pour les entreprises — il lie l'adresse à un domaine que vous démontrez contrôler.
+        </p>`,
+  },
+  {
+    id: "faq-verify-exchange",
+    q: "Je gère un exchange ou un service de paiement. Puis-je publier toutes nos adresses de dépôt comme vérifiées ?",
+    a: `<p>
+          Oui, via le parcours Entité Vérifiée dans le tableau de bord Verify. Cela fonctionne en deux étapes :
+        </p>
+        <ol>
+          <li><strong>Prouvez votre domaine.</strong> Téléversez le fichier de défi Almstins sur <code>/.well-known/almstins-verify.json</code> sur votre domaine (ou ajoutez l'enregistrement DNS TXT). Almstins le récupère et confirme que vous contrôlez le domaine.</li>
+          <li><strong>Connectez un endpoint d'adresses en direct.</strong> Une fois votre domaine prouvé, collez un endpoint HTTPS sur ce même domaine et une clé API en lecture seule. Almstins appelle l'endpoint régulièrement, lit votre liste actuelle d'adresses et les publie comme "vérifiées par votredomaine.com" sur le scanner public.</li>
+        </ol>
+        <p>
+          Votre endpoint n'a qu'à retourner un tableau JSON d'objets d'adresse — Almstins gère le polling et la mise en miroir. L'endpoint doit se trouver sur le même domaine (ou un sous-domaine) que vous avez prouvé, afin que la racine de confiance soit votre domaine, et non une affirmation prise sur parole.
+        </p>
+        <p>
+          Les exchanges ne peuvent pas utiliser la méthode d'auto-envoi car les adresses de dépôt sont contrôlées par la plateforme — l'exchange lui-même détient les clés privées, pas l'utilisateur. Le parcours domaine-plus-endpoint existe spécifiquement pour ce cas : une institution qui cautionne ses propres adresses en les publiant depuis une infrastructure qu'elle démontre contrôler.
+        </p>
+        <p>
+          La clé API est stockée chiffrée et n'est utilisée que pour récupérer la liste d'adresses. Almstins ne stocke ni ne transmet jamais de valeur en votre nom. Il s'agit d'une intégration en lecture seule, cohérente avec l'architecture sans garde.
+        </p>`,
+  },
+  {
     id: "faq-tron-safety",
     q: "Le vérificateur de wallet fonctionne-t-il pour les adresses TRON ?",
     a: `<p>

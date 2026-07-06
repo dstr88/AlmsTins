@@ -893,6 +893,55 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-verify-self-send",
+    q: "How do I prove I own an address on Almstins Verify?",
+    a: `<p>
+          The self-send method works without a website or wallet connection. On the Verify dashboard, register your address, then send any outgoing transaction from it — even a tiny amount to yourself. Almstins watches the public chain and marks the address Verified once it sees activity after the challenge was issued.
+        </p>
+        <p>
+          Nothing is connected to Almstins and nothing is signed for us. The only proof that counts is sending <em>from</em> the address, which only the person holding the private key can do. Once proven, each address gets a downloadable QR badge you can print, add to an invoice, or put on a checkout page so customers can confirm the address is yours before they pay.
+        </p>
+        <p>
+          An address can be claimed by one account only. If you try to claim an address that is already proven by another account, the check fails. The public scanner at <a href="/verify/scan">almstins.com/verify/scan</a> shows whether an address is verified and by whom before any funds move.
+        </p>
+        <p>
+          Self-send proof is available for Ethereum, Polygon, Avalanche, Bitcoin, Litecoin, and Solana addresses.
+        </p>`,
+  },
+  {
+    id: "faq-verify-domain",
+    q: "I have a website. Can I prove my addresses using my domain instead of sending a transaction?",
+    a: `<p>
+          Yes. On the Verify dashboard, open the Prove panel for any address destination and switch to the Domain tab. Enter your domain, and Almstins generates a small JSON file with a unique challenge token. Upload it to your web server at <code>/.well-known/almstins-verify.json</code>, then click Verify. Almstins fetches the file, checks the challenge matches, and attaches your domain as the verified publisher of that address.
+        </p>
+        <p>
+          If you prefer DNS over a file, you can instead add a TXT record to your domain. The dashboard shows both options side by side — use whichever your hosting setup makes easier.
+        </p>
+        <p>
+          A domain-proven address shows "verified by yourdomain.com" on the public scanner instead of just "verified." This is the stronger signal for businesses — it ties the address to a domain you demonstrably control.
+        </p>`,
+  },
+  {
+    id: "faq-verify-exchange",
+    q: "I run an exchange or payment service. Can I publish all our deposit addresses as verified?",
+    a: `<p>
+          Yes, through the Verified Entity path on the Verify dashboard. It works in two steps:
+        </p>
+        <ol>
+          <li><strong>Prove your domain.</strong> Upload the Almstins challenge file to <code>/.well-known/almstins-verify.json</code> on your domain (or add the DNS TXT record). Almstins fetches it and confirms you control the domain.</li>
+          <li><strong>Connect a live address endpoint.</strong> Once your domain is proven, paste in an HTTPS endpoint on that same domain and a read-only API key. Almstins calls the endpoint on a regular schedule, reads back your current list of addresses, and mirrors them as "verified by yourdomain.com" on the public scanner.</li>
+        </ol>
+        <p>
+          Your endpoint just needs to return a JSON array of address objects — Almstins handles the polling and mirroring. The endpoint must live on the same domain (or a subdomain) that you proved, so the trust root is your domain, not a claim taken on trust.
+        </p>
+        <p>
+          Exchanges cannot use the self-send method because deposit addresses are platform-controlled — the exchange itself holds the private keys, not the user. The domain-plus-endpoint path exists specifically for this case: an institution vouching for its own addresses by publishing them from infrastructure it demonstrably controls.
+        </p>
+        <p>
+          The API key is stored encrypted and is only used to pull the address list. Almstins never stores or transmits value on your behalf. This is a read-only integration, consistent with the no-custody architecture.
+        </p>`,
+  },
+  {
     id: "faq-tron-safety",
     q: "Does the wallet checker work for TRON addresses?",
     a: `<p>
