@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { checkLocalPhishingDb } from '@/lib/phishingDomains';
 import { recordCheck } from '@/lib/checkLog';
+import { validateApiKey, checkKeyRateLimit } from '@/lib/apiKeys';
 
 /**
  * /api/dapp-check?url={url}
@@ -17,11 +18,44 @@ import { recordCheck } from '@/lib/checkLog';
  * Optional (activated by env vars):
  *   6. Google Safe Browsing          — GOOGLE_SAFE_BROWSING_KEY
  *   7. VirusTotal                    — VIRUSTOTAL_API_KEY
+ *
+ * Rate limits: 10 req/min (unauthenticated IP), 60/min (X-Api-Key)
  */
 
 const TIMEOUT_MS      = 12_000;  // per-request API calls (GoPlus, URLScan, etc.)
 const LIST_TIMEOUT_MS = 45_000;  // one-time list downloads — needs to survive cold start + GitHub fetch
 const LIST_TTL_MS     = 4 * 60 * 60 * 1000; // 4 hours
+
+// ── CORS ──────────────────────────────────────────────────────────────────────
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Api-Key',
+};
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...CORS },
+  });
+
+// ── IP rate limiter ───────────────────────────────────────────────────────────
+
+const _ipRateLimiter = new Map<string, { count: number; resetAt: number }>();
+const IP_LIMIT = 10;
+const WINDOW_MS = 60_000;
+
+function checkIpRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = _ipRateLimiter.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    _ipRateLimiter.set(ip, { count: 1, resetAt: now + WINDOW_MS });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= IP_LIMIT;
+}
 
 // ── Static list cache ─────────────────────────────────────────────────────────
 type ListCache = {
@@ -155,9 +189,9 @@ async function checkGoPlus(rawUrl: string): Promise<SourceResult> {
     const endpoint = `https://api.gopluslabs.io/api/v1/phishing_site?url=${encodeURIComponent(rawUrl)}`;
     const res = await fetchWithTimeout(endpoint, TIMEOUT_MS);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    const flagged = json?.result?.phishing_site === 1 || json?.result?.phishing_site === '1';
-    const contracts: unknown[] = json?.result?.website_contract_security ?? [];
+    const data = await res.json();
+    const flagged = data?.result?.phishing_site === 1 || data?.result?.phishing_site === '1';
+    const contracts: unknown[] = data?.result?.website_contract_security ?? [];
     const detail = flagged
       ? 'Reported as a phishing site by GoPlus Security'
       : contracts.length
@@ -175,12 +209,11 @@ async function checkURLScan(domain: string): Promise<SourceResult> {
     const endpoint = `https://urlscan.io/api/v1/search/?q=page.domain:${encodeURIComponent(domain)}&size=5`;
     const res = await fetchWithTimeout(endpoint, TIMEOUT_MS);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    const results: any[] = json?.results ?? [];
+    const data = await res.json();
+    const results: any[] = data?.results ?? [];
     if (!results.length)
       return { name: src, verdict: 'unscanned', detail: 'No prior scans found — domain is unverified', icon: '🔬' };
 
-    // Check if any scan verdicts flag it as malicious
     const malicious = results.some(
       (r) => r?.verdicts?.overall?.malicious === true || r?.verdicts?.overall?.score > 50,
     );
@@ -215,8 +248,8 @@ async function checkGoogleSafeBrowsing(rawUrl: string, key: string): Promise<Sou
       },
     );
     if (!postRes.ok) throw new Error(`HTTP ${postRes.status}`);
-    const json = await postRes.json();
-    const matches: unknown[] = json?.matches ?? [];
+    const data = await postRes.json();
+    const matches: unknown[] = data?.matches ?? [];
     if (matches.length)
       return { name: src, verdict: 'flagged', detail: `Google flagged as ${(matches[0] as any)?.threatType ?? 'threat'}`, icon: '🔍' };
     return { name: src, verdict: 'clean', detail: 'No threats found by Google Safe Browsing', icon: '🔍' };
@@ -228,7 +261,6 @@ async function checkGoogleSafeBrowsing(rawUrl: string, key: string): Promise<Sou
 async function checkVirusTotal(rawUrl: string, key: string): Promise<SourceResult> {
   const src = 'VirusTotal';
   try {
-    // Try to get existing analysis by URL ID first (no submission quota used)
     const urlId = Buffer.from(rawUrl).toString('base64url').replace(/=/g, '');
     const res = await fetch(`https://www.virustotal.com/api/v3/urls/${urlId}`, {
       headers: { 'x-apikey': key },
@@ -236,7 +268,6 @@ async function checkVirusTotal(rawUrl: string, key: string): Promise<SourceResul
     });
 
     if (res.status === 404) {
-      // Submit for scanning
       const submitRes = await fetch('https://www.virustotal.com/api/v3/urls', {
         method: 'POST',
         headers: { 'x-apikey': key, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -248,8 +279,8 @@ async function checkVirusTotal(rawUrl: string, key: string): Promise<SourceResul
     }
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    const stats = json?.data?.attributes?.last_analysis_stats ?? {};
+    const data = await res.json();
+    const stats = data?.data?.attributes?.last_analysis_stats ?? {};
     const malicious  = (stats.malicious ?? 0) + (stats.suspicious ?? 0);
     const total      = Object.values(stats).reduce((s: number, v) => s + Number(v), 0);
     if (malicious > 0)
@@ -260,9 +291,12 @@ async function checkVirusTotal(rawUrl: string, key: string): Promise<SourceResul
   }
 }
 
-// ── Route handler ─────────────────────────────────────────────────────────────
+// ── Route exports ─────────────────────────────────────────────────────────────
 
-export const GET: APIRoute = async ({ url, request }) => {
+export const OPTIONS: APIRoute = () =>
+  new Response(null, { status: 204, headers: CORS });
+
+export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   const rawInput = url.searchParams.get('url')?.trim() ?? '';
   if (!rawInput) {
     return json({ error: true, message: 'url parameter is required' }, 400);
@@ -270,12 +304,28 @@ export const GET: APIRoute = async ({ url, request }) => {
 
   const phase = url.searchParams.get('phase') ?? 'all';
 
+  // Rate limiting
+  const apiKeyHeader = request.headers.get('x-api-key');
+  if (apiKeyHeader) {
+    const keyData = await validateApiKey(apiKeyHeader);
+    if (!keyData) return json({ ok: false, error: 'Invalid API key.' }, 401);
+    if (!checkKeyRateLimit(keyData.keyId, keyData.rateLimitPerMin)) {
+      return json({ ok: false, error: 'Too many requests.' }, 429);
+    }
+  } else {
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      clientAddress ??
+      'unknown';
+    if (!checkIpRateLimit(ip)) {
+      return json({ ok: false, error: 'Too many requests.' }, 429);
+    }
+  }
+
   // Normalize
   const fullUrl = rawInput.startsWith('http') ? rawInput : `https://${rawInput}`;
   const domain  = extractDomain(fullUrl);
 
-  // Trigger background list refresh (non-blocking — lists may still be loading
-  // on first cold-start request; static checkers return "warming up" if so)
   refreshLists();
 
   // Fast phase: only static in-memory list checks (~instant, no network calls)
@@ -292,10 +342,7 @@ export const GET: APIRoute = async ({ url, request }) => {
       anyFlagged  ? 'red'   :
       sources.some((s) => s.verdict === 'unscanned') ? 'yellow' :
       'green';
-    return new Response(
-      JSON.stringify({ url: fullUrl, domain, verdict, sources, vtPending: false }),
-      { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
-    );
+    return json({ url: fullUrl, domain, verdict, sources, vtPending: false });
   }
 
   // Count this as one site check — the full 'all' pass ('fast' is just an instant
@@ -306,7 +353,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   const gsb  = (process.env as any).GOOGLE_SAFE_BROWSING_KEY ?? import.meta.env.GOOGLE_SAFE_BROWSING_KEY ?? '';
   const vt   = (process.env as any).VIRUSTOTAL_API_KEY       ?? import.meta.env.VIRUSTOTAL_API_KEY       ?? '';
 
-  // Local phishing DB — runs in parallel with external APIs; short-circuit if hit
+  // Local phishing DB — runs in parallel with external APIs
   const localDbPromise = checkLocalPhishingDb(domain);
 
   // Run all checks in parallel
@@ -326,10 +373,7 @@ export const GET: APIRoute = async ({ url, request }) => {
       detail:  'Flagged via community-reported phishing airdrop token',
       icon:    '🚨',
     };
-    return new Response(
-      JSON.stringify({ url: fullUrl, domain, verdict: 'red', sources: [localResult], vtPending: false }),
-      { status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
-    );
+    return json({ url: fullUrl, domain, verdict: 'red', sources: [localResult], vtPending: false });
   }
 
   const sources: SourceResult[] = [
@@ -342,12 +386,10 @@ export const GET: APIRoute = async ({ url, request }) => {
     vtResult,
   ];
 
-  // Overall verdict
   const anyFlagged  = sources.some((s) => s.verdict === 'flagged');
   const anyError    = sources.every((s) => s.verdict === 'error' || s.verdict === 'skipped');
   const isKnownSafe = sources.find((s) => s.name === 'MetaMask Blocklist')?.verdict === 'whitelisted';
 
-  // VT "unscanned" means it was just submitted — not a security signal, don't penalise the verdict
   const vtPending = vtResult.verdict === 'unscanned';
   const unscanned = !anyFlagged && sources.some((s) => s.verdict === 'unscanned' && s.name !== 'VirusTotal');
 
@@ -357,18 +399,5 @@ export const GET: APIRoute = async ({ url, request }) => {
     anyError || unscanned ? 'yellow' :
     'green';
 
-  return new Response(
-    JSON.stringify({ url: fullUrl, domain, verdict, sources, vtPending }),
-    {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-    },
-  );
+  return json({ url: fullUrl, domain, verdict, sources, vtPending });
 };
-
-function json(body: unknown, status: number) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}

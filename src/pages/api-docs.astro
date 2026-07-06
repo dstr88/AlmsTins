@@ -1,0 +1,489 @@
+---
+import Layout from '@/layouts/LoginLayout.astro';
+---
+
+<Layout
+  title="Almstins API Docs"
+  description="Public API reference for wallet safety, dApp safety, and verified address lookups."
+  lang="en"
+  noindex={false}
+>
+  <div class="docs-page">
+    <header class="docs-header">
+      <a href="/login" class="back-link">← Almstins</a>
+      <h1 class="docs-title">Almstins Public API</h1>
+      <p class="docs-sub">Three free endpoints for wallet safety, site safety, and verified address lookups. No login required for unauthenticated use. Add an <code>X-Api-Key</code> header for higher rate limits.</p>
+    </header>
+
+    <main class="docs-content">
+
+      <!-- Authentication -->
+      <section class="docs-section">
+        <h2 class="section-title">Authentication</h2>
+        <p class="section-intro">All endpoints work without authentication at 10 req/min per IP. To increase your rate limit to 60 req/min, include an API key in every request:</p>
+        <div class="code-block">
+          <pre><code>X-Api-Key: alm_your_key_here</code></pre>
+        </div>
+        <p class="section-note">API keys are available from <a href="/dashboard/verify" class="link">Settings → API Keys</a> once logged in.</p>
+      </section>
+
+      <!-- Wallet Check -->
+      <section class="docs-section">
+        <div class="endpoint-header">
+          <span class="method-badge method-get">GET</span>
+          <span class="method-badge method-post">POST</span>
+          <span class="endpoint-path">/api/wallet-check</span>
+          <span class="rate-limit-pill">10 req/min · 60/min with key</span>
+        </div>
+
+        <p class="endpoint-desc">Check a crypto wallet address for scam signals, sanctions, dark-web activity, honeypot tokens, and more. Supports EVM, Bitcoin, Solana, Litecoin, TRON, XRP, Dogecoin, Cardano, and Cosmos addresses.</p>
+
+        <h3 class="sub-heading">GET Request</h3>
+        <div class="code-block">
+          <pre><code>GET /api/wallet-check?address=0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+X-Api-Key: alm_your_key_here</code></pre>
+        </div>
+
+        <h3 class="sub-heading">POST Request</h3>
+        <div class="code-block">
+          <pre><code>POST /api/wallet-check
+Content-Type: application/json
+X-Api-Key: alm_your_key_here
+
+&#123;
+  "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+&#125;</code></pre>
+        </div>
+
+        <h3 class="sub-heading">Response</h3>
+        <div class="code-block">
+          <pre><code>&#123;
+  "ok": true,
+  "cached": false,
+  "result": &#123;
+    "chain": "evm",
+    "scamLevel": "safe",
+    "partialCoverage": false,
+    "coverage": &#123;
+      "goplus": true,
+      "chainabuse": true,
+      "etherscan": true,
+      "honeypot": true,
+      "multisig": false
+    &#125;,
+    "goplusFlags": [],
+    "chainalysisFlags": [],
+    "walletAge": &#123;
+      "firstTx": "2020-01-01",
+      "ageDays": 2012,
+      "isNew": false
+    &#125;,
+    "holdings": [
+      &#123; "symbol": "ETH", "balance": "1.23", "valueUsd": 4500 &#125;
+    ]
+  &#125;
+&#125;</code></pre>
+        </div>
+
+        <div class="field-table-wrap">
+          <table class="field-table">
+            <thead>
+              <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>result.scamLevel</code></td><td>string</td><td><span class="tag tag-green">safe</span> <span class="tag tag-yellow">warning</span> <span class="tag tag-red">danger</span></td></tr>
+              <tr><td><code>result.chain</code></td><td>string</td><td>Detected chain: <code>evm</code>, <code>bitcoin</code>, <code>solana</code>, etc.</td></tr>
+              <tr><td><code>result.goplusFlags</code></td><td>string[]</td><td>Flags from GoPlus Security global blacklist</td></tr>
+              <tr><td><code>result.walletAge.isNew</code></td><td>boolean</td><td>true if wallet is under 30 days old</td></tr>
+              <tr><td><code>cached</code></td><td>boolean</td><td>Result served from 5-minute in-memory cache</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- dApp Check -->
+      <section class="docs-section">
+        <div class="endpoint-header">
+          <span class="method-badge method-get">GET</span>
+          <span class="endpoint-path">/api/dapp-check</span>
+          <span class="rate-limit-pill">10 req/min · 60/min with key</span>
+        </div>
+
+        <p class="endpoint-desc">Check a URL or domain against 7 phishing and scam databases before connecting your wallet to it. Covers MetaMask, ScamSniffer, GoPlus, URLScan, OpenPhish, and optionally Google Safe Browsing and VirusTotal.</p>
+
+        <h3 class="sub-heading">Request</h3>
+        <div class="code-block">
+          <pre><code>GET /api/dapp-check?url=https://uniswap.org
+X-Api-Key: alm_your_key_here</code></pre>
+        </div>
+
+        <h3 class="sub-heading">Response</h3>
+        <div class="code-block">
+          <pre><code>&#123;
+  "url": "https://uniswap.org",
+  "domain": "uniswap.org",
+  "verdict": "green",
+  "vtPending": false,
+  "sources": [
+    &#123;
+      "name": "MetaMask Blocklist",
+      "verdict": "clean",
+      "detail": "Not in MetaMask phishing list",
+      "icon": "🦊"
+    &#125;
+  ]
+&#125;</code></pre>
+        </div>
+
+        <div class="field-table-wrap">
+          <table class="field-table">
+            <thead>
+              <tr><th>Field</th><th>Values</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>verdict</code></td><td><span class="tag tag-green">green</span> <span class="tag tag-yellow">yellow</span> <span class="tag tag-red">red</span></td><td>Overall safety verdict</td></tr>
+              <tr><td><code>sources[].verdict</code></td><td>string</td><td><code>clean</code> · <code>flagged</code> · <code>whitelisted</code> · <code>unscanned</code> · <code>error</code> · <code>skipped</code></td></tr>
+              <tr><td><code>vtPending</code></td><td>boolean</td><td>true when the URL was just submitted to VirusTotal — recheck shortly</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="section-note">Pass <code>?phase=fast</code> to get an instant result from in-memory lists only (no network calls). Useful for pre-flight checks before showing a confirmation dialog.</p>
+      </section>
+
+      <!-- Verify Lookup -->
+      <section class="docs-section">
+        <div class="endpoint-header">
+          <span class="method-badge method-get">GET</span>
+          <span class="endpoint-path">/api/verify/lookup</span>
+          <span class="rate-limit-pill">30 req/min · 60/min with key</span>
+        </div>
+
+        <p class="endpoint-desc">Check whether a crypto address has been verified by its owner through Almstins Verify. Returns the publishing domain only — never a tenant ID or legal identity.</p>
+
+        <h3 class="sub-heading">Request</h3>
+        <div class="code-block">
+          <pre><code>GET /api/verify/lookup?address=0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
+X-Api-Key: alm_your_key_here</code></pre>
+        </div>
+
+        <h3 class="sub-heading">Response — verified address</h3>
+        <div class="code-block">
+          <pre><code>&#123;
+  "ok": true,
+  "verified": true,
+  "source": "entity",
+  "domain": "exchange.com",
+  "label": null,
+  "chain": "ethereum"
+&#125;</code></pre>
+        </div>
+
+        <h3 class="sub-heading">Response — unverified address</h3>
+        <div class="code-block">
+          <pre><code>&#123;
+  "ok": true,
+  "verified": false,
+  "source": null,
+  "domain": null,
+  "label": null,
+  "chain": null
+&#125;</code></pre>
+        </div>
+
+        <div class="field-table-wrap">
+          <table class="field-table">
+            <thead>
+              <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>verified</code></td><td>boolean</td><td>Whether this address is in the Almstins registry</td></tr>
+              <tr><td><code>domain</code></td><td>string | null</td><td>The domain that published this address</td></tr>
+              <tr><td><code>source</code></td><td>string | null</td><td><code>entity</code> (domain-published) or <code>merchant</code> (QR-proven)</td></tr>
+              <tr><td><code>chain</code></td><td>string | null</td><td>Chain the address was registered on</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Error responses -->
+      <section class="docs-section">
+        <h2 class="section-title">Error Responses</h2>
+        <div class="field-table-wrap">
+          <table class="field-table">
+            <thead>
+              <tr><th>Status</th><th>Cause</th><th>Body</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="status-code status-4xx">400</span></td><td>Missing or invalid parameter</td><td><code>&#123; "ok": false, "error": "address is required" &#125;</code></td></tr>
+              <tr><td><span class="status-code status-4xx">401</span></td><td>X-Api-Key header present but invalid</td><td><code>&#123; "ok": false, "error": "Invalid API key." &#125;</code></td></tr>
+              <tr><td><span class="status-code status-4xx">429</span></td><td>Rate limit exceeded</td><td><code>&#123; "ok": false, "error": "Too many requests." &#125;</code></td></tr>
+              <tr><td><span class="status-code status-5xx">500</span></td><td>Upstream check failed</td><td><code>&#123; "ok": false, "error": "Check failed. Please try again." &#125;</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Get an API key -->
+      <section class="docs-section docs-section--cta">
+        <h2 class="section-title">Get an API Key</h2>
+        <p>API keys are free. Log in to Almstins and go to <strong>Settings → API Keys</strong> to create one. Each key increases your rate limit to 60 req/min across all three endpoints.</p>
+        <a href="/dashboard/verify" class="cta-btn">Open Dashboard →</a>
+      </section>
+
+    </main>
+  </div>
+</Layout>
+
+<style>
+  .docs-page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    color: var(--text-primary);
+  }
+
+  .docs-header {
+    margin-bottom: 3rem;
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: 1.25rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: var(--accent); }
+
+  .docs-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 0.75rem;
+    color: var(--text-primary);
+  }
+
+  .docs-sub {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    max-width: 640px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .docs-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  /* Sections */
+  .docs-section {
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 1.75rem;
+  }
+
+  .docs-section--cta {
+    background: var(--accent-soft);
+    border-color: var(--accent-glow);
+  }
+
+  .section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 0.85rem;
+  }
+
+  .section-intro {
+    color: var(--text-secondary);
+    margin: 0 0 1rem;
+    line-height: 1.6;
+  }
+
+  .section-note {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin: 0.75rem 0 0;
+    line-height: 1.5;
+  }
+
+  /* Endpoint header */
+  .endpoint-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+
+  .method-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .method-get  { background: var(--accent-soft); color: var(--accent); }
+  .method-post { background: var(--gain-bg);    color: var(--gain);   }
+
+  .endpoint-path {
+    font-family: monospace;
+    font-size: 1rem;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .rate-limit-pill {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--surface-card-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: 99px;
+    padding: 0.2rem 0.65rem;
+  }
+
+  .endpoint-desc {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0 0 1.25rem;
+  }
+
+  /* Sub headings */
+  .sub-heading {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 1.25rem 0 0.5rem;
+  }
+  .sub-heading:first-of-type { margin-top: 0; }
+
+  /* Code blocks */
+  .code-block {
+    background: var(--surface-card-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    overflow-x: auto;
+  }
+
+  .code-block pre {
+    margin: 0;
+    padding: 1rem 1.25rem;
+  }
+
+  .code-block code {
+    font-family: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    white-space: pre;
+  }
+
+  /* Tables */
+  .field-table-wrap {
+    overflow-x: auto;
+    margin-top: 1rem;
+  }
+
+  .field-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .field-table th {
+    text-align: left;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .field-table td {
+    padding: 0.6rem 0.75rem;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: top;
+  }
+
+  .field-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .field-table code {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    color: var(--accent-dim);
+    background: var(--accent-soft);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+  }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 4px;
+    font-weight: 600;
+    margin-right: 0.25rem;
+  }
+  .tag-green  { background: var(--gain-bg);    color: var(--gain);  border: 1px solid var(--gain-border);  }
+  .tag-yellow { background: var(--loss-bg);    color: #f59e0b;      border: 1px solid rgba(245,158,11,0.3); }
+  .tag-red    { background: var(--loss-bg);    color: var(--loss);  border: 1px solid var(--loss-border);  }
+
+  /* Status codes */
+  .status-code {
+    font-family: monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+  }
+  .status-4xx { background: var(--loss-bg); color: var(--loss); }
+  .status-5xx { background: var(--loss-bg); color: var(--loss); }
+
+  /* Links */
+  .link {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .link:hover { text-decoration: underline; }
+
+  /* CTA */
+  .docs-section--cta p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0 0 1.25rem;
+  }
+
+  .cta-btn {
+    display: inline-block;
+    background: var(--accent);
+    color: var(--surface-bg);
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.65rem 1.5rem;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .cta-btn:hover { opacity: 0.88; }
+
+  @media (max-width: 600px) {
+    .docs-page { padding: 1.25rem 1rem 3rem; }
+    .docs-title { font-size: 1.5rem; }
+    .rate-limit-pill { margin-left: 0; }
+  }
+</style>

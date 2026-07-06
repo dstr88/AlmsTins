@@ -13,14 +13,23 @@
  * Backs the "Verified publisher" badge on the public wallet-checker. Bounded input
  * (format-validated, length-capped) + a per-IP rate limit independent of the
  * wallet-check budget. Makes no upstream fetch (no SSRF surface).
+ *
+ * Rate limits: 30 req/min (unauthenticated IP), 60/min (X-Api-Key)
  */
 import type { APIRoute } from 'astro';
 import { isValidAddress } from '@/lib/walletChecker';
 import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
 import { isEmvPayload } from '@/lib/paymentQr';
+import { validateApiKey, checkKeyRateLimit } from '@/lib/apiKeys';
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Api-Key',
+};
 
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...CORS } });
 
 // Lightweight per-IP limiter, separate from /api/wallet-check's budget. 30 req/min.
 const HITS = new Map<string, { count: number; resetAt: number }>();
@@ -33,6 +42,9 @@ function rateLimited(ip: string): boolean {
   e.count += 1;
   return e.count > MAX_PER_WINDOW;
 }
+
+export const OPTIONS: APIRoute = () =>
+  new Response(null, { status: 204, headers: CORS });
 
 export const GET: APIRoute = async ({ request, url, clientAddress }) => {
   const raw = url.searchParams.get('address');
@@ -50,9 +62,19 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
     if (!isValidAddress(query)) return json({ ok: false, error: 'Invalid address format' }, 400);
   }
 
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? clientAddress ?? 'unknown';
-  if (rateLimited(ip)) return json({ ok: false, error: 'Too many requests.' }, 429);
+  // Rate limiting — API key takes precedence over IP
+  const apiKeyHeader = request.headers.get('x-api-key');
+  if (apiKeyHeader) {
+    const keyData = await validateApiKey(apiKeyHeader);
+    if (!keyData) return json({ ok: false, error: 'Invalid API key.' }, 401);
+    if (!checkKeyRateLimit(keyData.keyId, keyData.rateLimitPerMin)) {
+      return json({ ok: false, error: 'Too many requests.' }, 429);
+    }
+  } else {
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? clientAddress ?? 'unknown';
+    if (rateLimited(ip)) return json({ ok: false, error: 'Too many requests.' }, 429);
+  }
 
   try {
     const hit = isQrValue ? await lookupVerifiedUrl(query) : await lookupVerifiedAddress(query);
