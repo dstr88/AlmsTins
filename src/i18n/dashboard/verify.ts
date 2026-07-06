@@ -159,6 +159,26 @@ export interface VerifyDashboardLocale {
   entUnreachable: string;
   entMalformed: string;
   entError: string;
+  // API keys — programmatic access to the three public endpoints.
+  apiKeysHeading: string;
+  apiKeysIntro: string;
+  apiKeysEmpty: string;
+  apiKeysLabelPlaceholder: string;
+  apiKeysGenerateBtn: string;
+  apiKeysGeneratingBtn: string;
+  apiKeysRevokeBtn: string;
+  apiKeysRevokingBtn: string;
+  apiKeysConfirmRevoke: string;
+  apiKeysCopyBtn: string;
+  apiKeysCopied: string;
+  apiKeysCreatedAt: string;   // "Created {date}"
+  apiKeysLastUsed: string;    // "Last used {date}"
+  apiKeysNeverUsed: string;
+  apiKeysNewKey: string;      // one-time reveal heading
+  apiKeysNewHint: string;
+  apiKeysDocsLink: string;
+  apiKeysError: string;
+  apiKeysMaxReached: string;  // "Max {n} keys"
   // Demo mode (seeded sample vendor account) — banner + how-to guide.
   demoBanner: string;
   demoSignupCta: string;
@@ -306,6 +326,25 @@ export const en: VerifyDashboardLocale = {
   entUnreachable: "⚠ Couldn't reach your endpoint. Check the URL and that it's live.",
   entMalformed: "⚠ Your endpoint's response wasn't in the expected format.",
   entError: 'Something went wrong. Try again.',
+  apiKeysHeading: 'API Keys',
+  apiKeysIntro: 'Use an API key to call the three public endpoints from scripts or agents — 60 req/min vs 10/min unauthenticated. Keys are scoped to your account and never expire until you revoke them.',
+  apiKeysEmpty: 'No keys yet. Generate one to get started.',
+  apiKeysLabelPlaceholder: 'Key label (e.g. my-script)',
+  apiKeysGenerateBtn: 'Generate key',
+  apiKeysGeneratingBtn: 'Generating…',
+  apiKeysRevokeBtn: 'Revoke',
+  apiKeysRevokingBtn: 'Revoking…',
+  apiKeysConfirmRevoke: 'Revoke this key? Any code using it will stop working immediately.',
+  apiKeysCopyBtn: 'Copy',
+  apiKeysCopied: 'Copied!',
+  apiKeysCreatedAt: 'Created {date}',
+  apiKeysLastUsed: 'Last used {date}',
+  apiKeysNeverUsed: 'Never used',
+  apiKeysNewKey: 'Your new API key',
+  apiKeysNewHint: 'Copy it now — it will not be shown again.',
+  apiKeysDocsLink: 'API documentation →',
+  apiKeysError: 'Something went wrong. Try again.',
+  apiKeysMaxReached: 'Max {n} keys per account.',
   demoBanner: 'This is a demo vendor account — the destinations below are samples. Try “Verify a sign” to check one, then see how to register your own.',
   demoSignupCta: 'Sign up free →',
   demoProveNote: 'In the live app, you prove this address by sending the tiny amount we show you, from that same wallet — we just watch the chain for it, so we never ask you to connect or sign anything. Once it lands, the address is Verified and locked to your account. Sign up free to prove your own.',
@@ -472,6 +511,25 @@ export const es: VerifyDashboardLocale = {
   entUnreachable: '⚠ No se pudo acceder a tu endpoint. Revisa la URL y que esté activo.',
   entMalformed: '⚠ La respuesta de tu endpoint no tenía el formato esperado.',
   entError: 'Algo salió mal. Inténtalo de nuevo.',
+  apiKeysHeading: 'Claves de API',
+  apiKeysIntro: 'Usa una clave de API para llamar a los tres endpoints públicos desde scripts o agentes — 60 req/min vs 10/min sin autenticación. Las claves están vinculadas a tu cuenta y no caducan hasta que las revoques.',
+  apiKeysEmpty: 'Aún no hay claves. Genera una para empezar.',
+  apiKeysLabelPlaceholder: 'Etiqueta de la clave (ej. mi-script)',
+  apiKeysGenerateBtn: 'Generar clave',
+  apiKeysGeneratingBtn: 'Generando…',
+  apiKeysRevokeBtn: 'Revocar',
+  apiKeysRevokingBtn: 'Revocando…',
+  apiKeysConfirmRevoke: '¿Revocar esta clave? Cualquier código que la use dejará de funcionar de inmediato.',
+  apiKeysCopyBtn: 'Copiar',
+  apiKeysCopied: '¡Copiado!',
+  apiKeysCreatedAt: 'Creada {date}',
+  apiKeysLastUsed: 'Último uso {date}',
+  apiKeysNeverUsed: 'Nunca usada',
+  apiKeysNewKey: 'Tu nueva clave de API',
+  apiKeysNewHint: 'Cópiala ahora — no se mostrará de nuevo.',
+  apiKeysDocsLink: 'Documentación de la API →',
+  apiKeysError: 'Algo salió mal. Inténtalo de nuevo.',
+  apiKeysMaxReached: 'Máximo {n} claves por cuenta.',
   demoBanner: 'Esta es una cuenta de comercio de demostración — los destinos de abajo son ejemplos. Prueba “Verifica un letrero” para comprobar uno y luego mira cómo registrar los tuyos.',
   demoSignupCta: 'Regístrate gratis →',
   demoProveNote: 'En la app real, demuestras esta dirección enviando el pequeño monto que te mostramos, desde esa misma billetera — solo observamos la cadena, así que nunca te pedimos conectar ni firmar nada. Cuando llega, la dirección queda Verificada y bloqueada a tu cuenta. Regístrate gratis para demostrar la tuya.',
@@ -637,8 +695,27 @@ export const fr: VerifyDashboardLocale = {
   entUnauthorized: '⚠ Votre endpoint a rejeté la clé (401/403). Vérifiez la clé.',
   entUnreachable: '⚠ Impossible de joindre votre endpoint. Vérifiez l’URL et qu’il est actif.',
   entMalformed: '⚠ La réponse de votre endpoint n’était pas au format attendu.',
-  entError: 'Une erreur s’est produite. Réessayez.',
-  demoBanner: 'Ceci est un compte marchand de démonstration — les destinations ci-dessous sont des exemples. Essayez « Vérifier un panneau » pour en vérifier une, puis voyez comment enregistrer les vôtres.',
+  entError: "Une erreur s’est produite. Réessayez.",
+  apiKeysHeading: "Clés d’API",
+  apiKeysIntro: "Utilisez une clé d’API pour appeler les trois endpoints publics depuis des scripts ou des agents — 60 req/min contre 10/min sans authentification. Les clés sont liées à votre compte et n’expirent pas jusqu’à révocation.",
+  apiKeysEmpty: "Aucune clé pour l’instant. Générez-en une pour commencer.",
+  apiKeysLabelPlaceholder: "Libellé de la clé (ex. mon-script)",
+  apiKeysGenerateBtn: "Générer une clé",
+  apiKeysGeneratingBtn: "Génération…",
+  apiKeysRevokeBtn: "Révoquer",
+  apiKeysRevokingBtn: "Révocation…",
+  apiKeysConfirmRevoke: "Révoquer cette clé ? Tout code l’utilisant cessera de fonctionner immédiatement.",
+  apiKeysCopyBtn: "Copier",
+  apiKeysCopied: "Copié !",
+  apiKeysCreatedAt: "Créée {date}",
+  apiKeysLastUsed: "Dernière utilisation {date}",
+  apiKeysNeverUsed: "Jamais utilisée",
+  apiKeysNewKey: "Votre nouvelle clé d’API",
+  apiKeysNewHint: "Copiez-la maintenant — elle ne sera plus affichée.",
+  apiKeysDocsLink: "Documentation de l’API →",
+  apiKeysError: "Une erreur s’est produite. Réessayez.",
+  apiKeysMaxReached: "Maximum {n} clés par compte.",
+  demoBanner: "Ceci est un compte marchand de démonstration — les destinations ci-dessous sont des exemples. Essayez « Vérifier un panneau » pour en vérifier une, puis voyez comment enregistrer les vôtres.",
   demoSignupCta: 'Inscrivez-vous gratuitement →',
   demoProveNote: 'Dans l’app réelle, vous prouvez cette adresse en envoyant le petit montant que nous indiquons, depuis ce même portefeuille — nous observons simplement la chaîne, donc nous ne vous demandons jamais de connecter ni de signer quoi que ce soit. Une fois reçu, l’adresse est Vérifiée et verrouillée à votre compte. Inscrivez-vous gratuitement pour prouver la vôtre.',
   howToHeading: 'Comment enregistrer les vôtres',

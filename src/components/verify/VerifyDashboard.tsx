@@ -103,6 +103,7 @@ export default function VerifyDashboard({ t, isDemo = false }: { t: VerifyDashbo
         items={qrs} loading={loading} onChange={load} t={t} isDemo={isDemo} />
 
       {isDemo ? <HowToAdd t={t} /> : <EntitiesSection t={t} />}
+      {!isDemo && <ApiKeysSection t={t} />}
     </div>
   );
 }
@@ -1003,6 +1004,144 @@ function VerifySign({ t }: { t: VerifyDashboardLocale }) {
           }
         </div>
       )}
+    </section>
+  );
+}
+
+// ── API Keys ──────────────────────────────────────────────────────────────────
+
+interface ApiKeyRow {
+  id: string;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  active: boolean;
+}
+
+function ApiKeysSection({ t }: { t: VerifyDashboardLocale }) {
+  const [keys, setKeys] = useState<ApiKeyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [label, setLabel] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [newKey, setNewKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/account/api-keys');
+      const data = await res.json();
+      if (data.ok) setKeys(data.keys);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  }
+  useEffect(() => { void load(); }, []);
+
+  async function generate() {
+    const lbl = label.trim();
+    if (!lbl) return;
+    setBusy(true); setErr(null); setNewKey(null);
+    try {
+      const res = await fetch('/api/account/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: lbl }),
+      });
+      const data = await res.json();
+      if (data.ok && data.key) {
+        setNewKey(data.key);
+        setLabel('');
+        void load();
+      } else if (data.error === 'max_keys') {
+        setErr(t.apiKeysMaxReached.replace('{n}', '5'));
+      } else {
+        setErr(t.apiKeysError);
+      }
+    } catch { setErr(t.apiKeysError); } finally { setBusy(false); }
+  }
+
+  async function revoke(id: string) {
+    if (!window.confirm(t.apiKeysConfirmRevoke)) return;
+    try {
+      await fetch(`/api/account/api-keys?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      void load();
+    } catch { /* ignore */ }
+  }
+
+  function copyNewKey() {
+    if (!newKey) return;
+    void navigator.clipboard?.writeText(newKey).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  function fmtDate(iso: string): string {
+    try { return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
+    catch { return iso; }
+  }
+
+  const atMax = keys.filter(k => k.active).length >= 5;
+
+  return (
+    <section className="vd-sec vd-apikeys">
+      <div className="vd-sec__head">
+        <h2 className="vd-sec__title">{t.apiKeysHeading}</h2>
+      </div>
+      <p className="ve__intro">{t.apiKeysIntro}</p>
+      <a className="vd-apikeys__docs" href="/api-docs" target="_blank" rel="noopener noreferrer">
+        {t.apiKeysDocsLink}
+      </a>
+
+      {newKey && (
+        <div className="vd-apikeys__reveal">
+          <p className="vd-apikeys__reveal-heading">{t.apiKeysNewKey}</p>
+          <p className="vd-apikeys__reveal-hint">{t.apiKeysNewHint}</p>
+          <div className="vd-apikeys__reveal-row">
+            <code className="vd-apikeys__key-val">{newKey}</code>
+            <button className="vd-prove__copy" onClick={copyNewKey}>
+              {copied ? t.apiKeysCopied : t.apiKeysCopyBtn}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="vd-list" style={{ marginTop: '0.75rem' }}>
+        {loading && keys.length === 0 && <p className="vd-sec__empty">{t.loading}</p>}
+        {!loading && keys.length === 0 && <p className="vd-sec__empty">{t.apiKeysEmpty}</p>}
+        {keys.map(k => (
+          <div key={k.id} className="vd-apikeys__row">
+            <span className="vd-apikeys__label">{k.label || '—'}</span>
+            <span className="vd-apikeys__meta">
+              {t.apiKeysCreatedAt.replace('{date}', fmtDate(k.createdAt))}
+              {' · '}
+              {k.lastUsedAt ? t.apiKeysLastUsed.replace('{date}', fmtDate(k.lastUsedAt)) : t.apiKeysNeverUsed}
+            </span>
+            <button className="vd-row__del" onClick={() => revoke(k.id)} aria-label={t.apiKeysRevokeBtn}>
+              {t.apiKeysRevokeBtn}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {!atMax && (
+        <form className="vd-add" style={{ marginTop: '0.75rem' }} onSubmit={(e) => { e.preventDefault(); void generate(); }}>
+          <input
+            className="vd-add__value"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={t.apiKeysLabelPlaceholder}
+            maxLength={80}
+            spellCheck={false}
+            autoComplete="off"
+          />
+          <button className="vd-add__btn" type="submit" disabled={busy || !label.trim()}>
+            {busy ? t.apiKeysGeneratingBtn : t.apiKeysGenerateBtn}
+          </button>
+          {err && <span className="vd-add__err">{err}</span>}
+        </form>
+      )}
+      {atMax && <p className="vd-sec__limit">{t.apiKeysMaxReached.replace('{n}', '5')}</p>}
     </section>
   );
 }

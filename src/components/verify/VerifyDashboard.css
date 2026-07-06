@@ -250,3 +250,31 @@
   cursor: pointer; transition: background 0.12s ease, color 0.12s ease;
 }
 .vd-row__copy:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+/* API Keys section */
+.vd-apikeys__docs {
+  display: inline-block; font-size: 0.825rem; color: var(--accent);
+  text-decoration: none; margin-bottom: 0.5rem;
+}
+.vd-apikeys__docs:hover { text-decoration: underline; }
+.vd-apikeys__reveal {
+  margin-top: 0.75rem; padding: 1rem 1.1rem; border-radius: 10px;
+  background: var(--gain-bg); border: 1px solid var(--gain-border);
+}
+.vd-apikeys__reveal-heading { margin: 0 0 0.2rem; font-size: 0.875rem; font-weight: 600; color: var(--gain); }
+.vd-apikeys__reveal-hint { margin: 0 0 0.65rem; font-size: 0.8rem; color: var(--text-secondary); }
+.vd-apikeys__reveal-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.vd-apikeys__key-val {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.8rem; word-break: break-all; color: var(--text-primary);
+  background: var(--surface-card-2); border-radius: 6px; padding: 0.35rem 0.6rem;
+  flex: 1; user-select: all;
+}
+.vd-apikeys__row {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  padding: 0.65rem 0.9rem; border-radius: 10px;
+  background: var(--surface-card); border: 1px solid var(--border-subtle);
+  margin-bottom: 0.4rem;
+}
+.vd-apikeys__label { font-size: 0.875rem; font-weight: 500; color: var(--text-primary); flex: 1; }
+.vd-apikeys__meta { font-size: 0.775rem; color: var(--text-muted); white-space: nowrap; }
