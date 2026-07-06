@@ -89,8 +89,8 @@ export interface WalletCheckerLocale {
     scanDenied: string;
     scanNoCamera: string;
     scanGeneric: string;
-    chains: { evm: string; sui: string; solana: string; bitcoin: string; litecoin: string; unknown: string };
-    chainNote: { evm: string; sui: string; solana: string; bitcoin: string; litecoin: string; unknown: string };
+    chains: { evm: string; sui: string; solana: string; bitcoin: string; litecoin: string; tron: string; xrp: string; dogecoin: string; cardano: string; cosmos: string; unknown: string };
+    chainNote: { evm: string; sui: string; solana: string; bitcoin: string; litecoin: string; tron: string; xrp: string; dogecoin: string; cardano: string; cosmos: string; unknown: string };
     ens: string;
     cached: string;
     reportBadgeOne: string;
@@ -356,13 +356,18 @@ export const en: WalletCheckerLocale = {
     scanDenied: 'Camera permission was denied. Allow camera access and try again.',
     scanNoCamera: 'No camera was found on this device.',
     scanGeneric: 'Couldn’t start the camera. The page must be served over HTTPS.',
-    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', unknown: 'Unknown chain' },
+    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', tron: 'TRON', xrp: 'XRP', dogecoin: 'Dogecoin', cardano: 'Cardano', cosmos: 'Cosmos', unknown: 'Unknown chain' },
     chainNote: {
       evm:      'Valid on Ethereum, Polygon, Avalanche, and other EVM chains. Confirm you and the recipient are on the same network before sending.',
       sui:      'Sui address. Do not send ETH, BTC, SOL, or other non-Sui assets to this address.',
       solana:   'Solana address. Do not send ETH, BTC, or other non-Solana assets to this address.',
       bitcoin:  'Bitcoin address. Do not send ETH, SOL, or other non-Bitcoin assets to this address.',
       litecoin: 'Litecoin address. Do not send ETH, SOL, or other non-Litecoin assets to this address.',
+      tron:     'TRON address. No safety data yet — checks for EVM, Solana, Bitcoin, and Litecoin only.',
+      xrp:      'XRP address. No safety data yet — checks for EVM, Solana, Bitcoin, and Litecoin only.',
+      dogecoin: 'Dogecoin address. No safety data yet — checks for EVM, Solana, Bitcoin, and Litecoin only.',
+      cardano:  'Cardano address. No safety data yet — checks for EVM, Solana, Bitcoin, and Litecoin only.',
+      cosmos:   'Cosmos address. No safety data yet — checks for EVM, Solana, Bitcoin, and Litecoin only.',
       unknown:  '',
     },
     ens: 'ENS',
@@ -638,13 +643,18 @@ export const es: WalletCheckerLocale = {
     scanDenied: 'Se denegó el permiso de cámara. Permite el acceso a la cámara e inténtalo de nuevo.',
     scanNoCamera: 'No se encontró ninguna cámara en este dispositivo.',
     scanGeneric: 'No se pudo iniciar la cámara. La página debe servirse por HTTPS.',
-    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', unknown: 'Cadena desconocida' },
+    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', tron: 'TRON', xrp: 'XRP', dogecoin: 'Dogecoin', cardano: 'Cardano', cosmos: 'Cosmos', unknown: 'Cadena desconocida' },
     chainNote: {
       evm:      'Válida en Ethereum, Polygon, Avalanche y otras cadenas EVM. Confirma que tú y el destinatario estén en la misma red antes de enviar.',
       sui:      'Dirección Sui. No envíes ETH, BTC, SOL ni otros activos no-Sui a esta dirección.',
       solana:   'Dirección Solana. No envíes ETH, BTC ni otros activos no-Solana a esta dirección.',
       bitcoin:  'Dirección Bitcoin. No envíes ETH, SOL ni otros activos no-Bitcoin a esta dirección.',
       litecoin: 'Dirección Litecoin. No envíes ETH, SOL ni otros activos no-Litecoin a esta dirección.',
+      tron:     'Dirección TRON. Sin datos de seguridad aún — las verificaciones aplican solo a EVM, Solana, Bitcoin y Litecoin.',
+      xrp:      'Dirección XRP. Sin datos de seguridad aún — las verificaciones aplican solo a EVM, Solana, Bitcoin y Litecoin.',
+      dogecoin: 'Dirección Dogecoin. Sin datos de seguridad aún — las verificaciones aplican solo a EVM, Solana, Bitcoin y Litecoin.',
+      cardano:  'Dirección Cardano. Sin datos de seguridad aún — las verificaciones aplican solo a EVM, Solana, Bitcoin y Litecoin.',
+      cosmos:   'Dirección Cosmos. Sin datos de seguridad aún — las verificaciones aplican solo a EVM, Solana, Bitcoin y Litecoin.',
       unknown:  '',
     },
     ens: 'ENS',
@@ -920,13 +930,18 @@ export const fr: WalletCheckerLocale = {
     scanDenied: "L’autorisation de la caméra a été refusée. Autorisez l’accès à la caméra et réessayez.",
     scanNoCamera: "Aucune caméra n’a été trouvée sur cet appareil.",
     scanGeneric: "Impossible de démarrer la caméra. La page doit être servie en HTTPS.",
-    chains: { evm: "Ethereum / EVM", sui: "Sui", solana: "Solana", bitcoin: "Bitcoin", litecoin: "Litecoin", unknown: "Chaîne inconnue" },
+    chains: { evm: "Ethereum / EVM", sui: "Sui", solana: "Solana", bitcoin: "Bitcoin", litecoin: "Litecoin", tron: "TRON", xrp: "XRP", dogecoin: "Dogecoin", cardano: "Cardano", cosmos: "Cosmos", unknown: "Chaîne inconnue" },
     chainNote: {
       evm:      "Valide sur Ethereum, Polygon, Avalanche et autres chaînes EVM. Confirmez que vous et le destinataire êtes sur le même réseau avant d’envoyer.",
       sui:      "Adresse Sui. N’envoyez pas d’ETH, BTC, SOL ou autres actifs non-Sui à cette adresse.",
       solana:   "Adresse Solana. N’envoyez pas d’ETH, BTC ou autres actifs non-Solana à cette adresse.",
       bitcoin:  "Adresse Bitcoin. N’envoyez pas d’ETH, SOL ou autres actifs non-Bitcoin à cette adresse.",
       litecoin: "Adresse Litecoin. N’envoyez pas d’ETH, SOL ou autres actifs non-Litecoin à cette adresse.",
+      tron:     "Adresse TRON. Pas encore de données de sécurité — les vérifications couvrent EVM, Solana, Bitcoin et Litecoin uniquement.",
+      xrp:      "Adresse XRP. Pas encore de données de sécurité — les vérifications couvrent EVM, Solana, Bitcoin et Litecoin uniquement.",
+      dogecoin: "Adresse Dogecoin. Pas encore de données de sécurité — les vérifications couvrent EVM, Solana, Bitcoin et Litecoin uniquement.",
+      cardano:  "Adresse Cardano. Pas encore de données de sécurité — les vérifications couvrent EVM, Solana, Bitcoin et Litecoin uniquement.",
+      cosmos:   "Adresse Cosmos. Pas encore de données de sécurité — les vérifications couvrent EVM, Solana, Bitcoin et Litecoin uniquement.",
       unknown:  "",
     },
     ens: "ENS",

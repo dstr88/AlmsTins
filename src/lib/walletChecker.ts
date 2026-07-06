@@ -21,12 +21,30 @@ const SOLANA_REGEX  = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const BTC_REGEX     = /^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-zA-HJ-NP-Z0-9]{6,87})$/;
 // Litecoin: Legacy (L/M...), P2SH (3...), Bech32 (ltc1...)
 const LTC_REGEX     = /^([LM][a-km-zA-HJ-NP-Z1-9]{26,33}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|ltc1[a-zA-HJ-NP-Z0-9]{6,87})$/;
+// TRON: T + 33 base58 chars
+const TRON_REGEX    = /^T[a-km-zA-HJ-NP-Z1-9]{33}$/;
+// XRP: r + 24–33 base58 chars (no 0, O, I, l)
+const XRP_REGEX     = /^r[a-km-zA-HJ-NP-Z1-9]{24,33}$/;
+// Dogecoin: D + 33 base58 chars
+const DOGE_REGEX    = /^D[a-km-zA-HJ-NP-Z1-9]{33}$/;
+// Cardano: mainnet Shelley (addr1...) or Byron (Ae2... / DdzFF...)
+const CARDANO_REGEX = /^(addr1[a-z0-9]{50,100}|Ae2[a-km-zA-HJ-NP-Z1-9]{54,}|DdzFF[a-km-zA-HJ-NP-Z1-9]{90,})$/;
+// Cosmos Hub: cosmos1 + 38 bech32 chars
+const COSMOS_REGEX  = /^cosmos1[a-z0-9]{38}$/;
 
-export type Chain = 'evm' | 'sui' | 'solana' | 'bitcoin' | 'litecoin' | 'unknown';
+export type Chain = 'evm' | 'sui' | 'solana' | 'bitcoin' | 'litecoin' | 'tron' | 'xrp' | 'dogecoin' | 'cardano' | 'cosmos' | 'unknown';
+
+// Chains where safety checks run
+const SUPPORTED_CHAINS = new Set<Chain>(['evm', 'sui', 'solana', 'bitcoin', 'litecoin']);
 
 export function detectChain(address: string): Chain {
   if (SUI_REGEX.test(address))     return 'sui';       // check before EVM (both start with 0x)
   if (EVM_REGEX.test(address))     return 'evm';
+  if (TRON_REGEX.test(address))    return 'tron';      // check before Solana (base58 overlap)
+  if (XRP_REGEX.test(address))     return 'xrp';       // r-prefix, before Solana
+  if (DOGE_REGEX.test(address))    return 'dogecoin';  // D-prefix, before Solana
+  if (CARDANO_REGEX.test(address)) return 'cardano';
+  if (COSMOS_REGEX.test(address))  return 'cosmos';
   if (SOLANA_REGEX.test(address))  return 'solana';
   if (LTC_REGEX.test(address))     return 'litecoin';  // check before BTC (some overlap on 3...)
   if (BTC_REGEX.test(address))     return 'bitcoin';
@@ -127,7 +145,7 @@ export interface WalletCheckResult {
   coverage: {
     goplus: 'ran' | 'skipped' | 'error';
     honeypot: 'ran' | 'skipped' | 'error';
-    chainabuse: 'ran' | 'error';
+    chainabuse: 'ran' | 'skipped' | 'error';
   };
   /** True when no PRIMARY scam source ran for this chain — a "clean" must NOT read as a confident green. */
   partialCoverage: boolean;
@@ -813,6 +831,35 @@ async function fetchChainavuseReports(address: string): Promise<{ count: number 
 export async function checkWallet(address: string): Promise<WalletCheckResult> {
   const chain = detectChain(address);
   const allErrors: string[] = [];
+
+  // Recognised chain but no safety data yet — return a stub result immediately
+  if (!SUPPORTED_CHAINS.has(chain) && chain !== 'unknown') {
+    const emptyF: WalletCheckResult['flags'] = {
+      blacklisted: false, phishing: false, honeypotRelated: false,
+      stealingAttack: false, darkwebTransactions: false, cybercrime: false,
+      moneyLaundering: false, financialCrime: false, blackmail: false,
+      mixer: false, sanctioned: false,
+    };
+    return {
+      address,
+      chain,
+      checkedAt: new Date().toISOString(),
+      scamScore: 0,
+      scamLevel: 'caution',
+      flags: emptyF,
+      ensName: null,
+      chainabuseReports: null,
+      multiSig: null,
+      holdings: [],
+      activity: { firstSeen: null, lastActivity: null, txCount: null, totalReceivedEth: null, totalSentEth: null, ethBalance: null },
+      honeypot: { checked: false, isHoneypot: null, reason: null },
+      fundingSource: { fromMixer: null, fromExchange: null, label: null },
+      entityLabel: null,
+      errors: [],
+      coverage: { goplus: 'skipped', honeypot: 'skipped', chainabuse: 'skipped' },
+      partialCoverage: true,
+    };
+  }
 
   const emptyFlags: WalletCheckResult['flags'] = {
     blacklisted: false, phishing: false, honeypotRelated: false,

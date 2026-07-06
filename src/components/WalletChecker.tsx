@@ -26,6 +26,11 @@ function chainLabel(chain: string, c: CheckerStrings): string {
     solana:   c.chains.solana,
     bitcoin:  c.chains.bitcoin,
     litecoin: c.chains.litecoin,
+    tron:     c.chains.tron,
+    xrp:      c.chains.xrp,
+    dogecoin: c.chains.dogecoin,
+    cardano:  c.chains.cardano,
+    cosmos:   c.chains.cosmos,
   }[chain] ?? c.chains.unknown;
 }
 
