@@ -369,3 +369,34 @@ td.col-del  { text-align: right; width: 52px; white-space: nowrap; }
 .pt-surplus-opt__icon  { font-size: 1.4rem; margin-bottom: 0.2rem; }
 .pt-surplus-opt__label { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
 .pt-surplus-opt__desc  { font-size: 0.75rem; color: var(--text-muted); }
+
+/* ── Quick calculator row ── */
+.pt-reg-calc-row td {
+  background: var(--surface-card);
+  border-top: 1px solid var(--border-bright);
+  border-bottom: 1px solid var(--border-bright);
+  padding: 0.55rem 0.75rem;
+}
+.pt-reg-calc-row td:not(:last-child) {
+  border-right: 1px solid var(--border-subtle);
+}
+.pt-calc-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+.pt-calc-input {
+  width: 100%;
+  max-width: 130px;
+}
+.pt-calc-value {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.pt-calc-empty {
+  color: var(--text-muted);
+}

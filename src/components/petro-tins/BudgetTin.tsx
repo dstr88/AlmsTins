@@ -31,18 +31,20 @@ interface BlankRow { date: string; desc: string; payment: string; deposit: strin
 
 interface Props {
   tin: PetroTin;
+  debtTins?: PetroTin[];
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onRefresh: () => void;
 }
 
-export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
+export default function BudgetTin({ tin, debtTins = [], onEdit, onDelete, onRefresh }: Props) {
   const isSample   = tin.notes === '__sample__';
   const curMonth  = thisMonth();
   const nxtMonth  = nextMonth();
 
   const allPaidKey = `petro_allpaid_${tin.id}_${curMonth}`;
 
+  const [calcAmount,    setCalcAmount]    = useState('');
   const [saving,        setSaving]        = useState<Record<number, boolean>>({});
   const [showDefaults,  setShowDefaults]  = useState(false);
   const [showSurplus,   setShowSurplus]   = useState(false);
@@ -178,6 +180,22 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tinId: tin.id, kind, amount, entryDate: row.date, description: row.desc.trim() }),
     });
+
+    // If this is an expense whose description matches a debt tin, post a payment to that tin too
+    if (kind === 'expense' && debtTins.length > 0) {
+      const needle = row.desc.trim().toLowerCase();
+      const matched = debtTins.find(dt =>
+        needle.includes(dt.name.toLowerCase()) || dt.name.toLowerCase().includes(needle)
+      );
+      if (matched) {
+        await fetch('/api/petro-tins/entries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tinId: matched.id, kind: 'payment', amount, entryDate: row.date, description: `Payment from ${tin.name}` }),
+        });
+      }
+    }
+
     setSaving(prev => ({ ...prev, [i]: false }));
     setRows(prev => {
       const next = [...prev];
@@ -185,7 +203,7 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
       return next;
     });
     onRefresh();
-  }, [rows, tin.id, onRefresh]);
+  }, [rows, tin.id, tin.name, debtTins, onRefresh]);
 
   const saveSurplusMode = useCallback(async (mode: 'none' | 'slush') => {
     await fetch(`/api/petro-tins/${tin.id}`, {
@@ -373,6 +391,36 @@ export default function BudgetTin({ tin, onEdit, onDelete, onRefresh }: Props) {
                 {nxtBills.map(e => renderRow(e))}
               </>
             )}
+
+            {/* ── Quick calculator ── */}
+            <tr className="pt-reg-calc-row">
+              <td colSpan={2}>
+                <span className="pt-calc-label">I have</span>
+                <input
+                  className="pt-reg-input col-amt pt-calc-input"
+                  type="text"
+                  placeholder={fmt(totalIncome)}
+                  value={calcAmount}
+                  onChange={e => setCalcAmount(e.target.value)}
+                />
+              </td>
+              <td colSpan={2}>
+                <span className="pt-calc-label">Expenses total</span>
+                <span className="pt-calc-value loss">{fmt(totalExpenses)}</span>
+              </td>
+              <td colSpan={2}>
+                <span className="pt-calc-label">Left over</span>
+                {(() => {
+                  const base = calcAmount.trim() ? evalFormula(calcAmount) : totalIncome;
+                  const rem = isNaN(base) ? NaN : base - totalExpenses;
+                  return (
+                    <span className={`pt-calc-value${isNaN(rem) ? ' pt-calc-empty' : rem >= 0 ? ' gain' : ' loss'}`}>
+                      {isNaN(rem) ? '—' : fmt(rem)}
+                    </span>
+                  );
+                })()}
+              </td>
+            </tr>
 
             {/* ── Blank input rows ── */}
             <tr className="pt-reg-section-header">

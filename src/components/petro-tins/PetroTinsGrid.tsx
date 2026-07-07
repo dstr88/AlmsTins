@@ -99,6 +99,7 @@ export default function PetroTinsGrid() {
               <BudgetTin
                 key={tin.id}
                 tin={tin}
+                debtTins={debtTins}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onRefresh={load}
