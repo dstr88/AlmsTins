@@ -17,11 +17,15 @@ export const prerender = false;
 
 const OWNER_EMAIL = 'donnie@titaniumhut.com';
 
-// In-memory rate limit: one email per wallet per hour.
-// Resets on server restart, which is fine — the goal is preventing floods,
-// not perfect deduplication.
+// Per-wallet rate limit: one email per wallet per hour.
 const rateLimitMap = new Map<string, number>();
 const RATE_LIMIT_MS = 60 * 60 * 1000;
+
+// Per-tenant burst limit: at most one email per 10 minutes across ALL wallets
+// for the same tenant. Prevents cold-start floods where every wallet fires
+// simultaneously and each one would otherwise send its own email.
+const tenantBurstMap = new Map<string, number>();
+const TENANT_BURST_MS = 10 * 60 * 1000;
 
 export const POST: APIRoute = async ({ request }) => {
 	const lang = getLang(request);
@@ -40,12 +44,20 @@ export const POST: APIRoute = async ({ request }) => {
 		return json({ ok: true, reported: false, reason: 'missing_fields' });
 	}
 
+	// Tenant-level burst check first — if another wallet already fired an email
+	// for this tenant in the last 10 minutes, skip entirely.
+	const lastTenantSent = tenantBurstMap.get(tenantId) ?? 0;
+	if (Date.now() - lastTenantSent < TENANT_BURST_MS) {
+		return json({ ok: true, reported: false, reason: 'tenant_burst_limited' });
+	}
+
 	const rateKey = `${tenantId}:${walletId}`;
 	const lastSent = rateLimitMap.get(rateKey) ?? 0;
 	if (Date.now() - lastSent < RATE_LIMIT_MS) {
 		return json({ ok: true, reported: false, reason: 'rate_limited' });
 	}
 	rateLimitMap.set(rateKey, Date.now());
+	tenantBurstMap.set(tenantId, Date.now());
 
 	const now = new Date().toISOString();
 
