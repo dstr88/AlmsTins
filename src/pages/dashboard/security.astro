@@ -1,0 +1,275 @@
+---
+/**
+ * /dashboard/security  — owner-only security event log.
+ * Shows injection attempts and other flagged activity from the AI chat endpoint.
+ */
+import Layout from '@/layouts/Layout.astro';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { isOwner } from '@/lib/owner';
+import { db } from '@/lib/db';
+
+export const prerender = false;
+
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/login', 302);
+if (!isOwner(sess.tenantId)) return Astro.redirect('/dashboard/vault', 302);
+
+const limitParam = Number(Astro.url.searchParams.get('limit') ?? 100);
+const typeFilter = Astro.url.searchParams.get('type') ?? '';
+
+const eventsRes = await db.execute({
+  sql: `SELECT id, tenant_id, event_type, payload, created_at
+        FROM security_events
+        ${typeFilter ? `WHERE event_type = $2` : ''}
+        ORDER BY created_at DESC
+        LIMIT $1`,
+  args: typeFilter ? [limitParam, typeFilter] : [limitParam],
+});
+
+const events = (eventsRes.rows as Record<string, unknown>[]).map(r => {
+  let parsed: Record<string, unknown> = {};
+  try { parsed = JSON.parse(String(r.payload ?? '{}')); } catch { /* ignore */ }
+  return {
+    id: r.id,
+    tenantId: String(r.tenant_id ?? ''),
+    eventType: String(r.event_type ?? ''),
+    patterns: Array.isArray(parsed.patterns) ? (parsed.patterns as string[]) : [],
+    questionPreview: String(parsed.question_preview ?? ''),
+    questionLength: Number(parsed.question_length ?? 0),
+    createdAt: String(r.created_at ?? ''),
+  };
+});
+
+const countRes = await db.execute({
+  sql: `SELECT event_type, COUNT(*) AS cnt FROM security_events GROUP BY event_type ORDER BY cnt DESC`,
+  args: [],
+});
+const counts = countRes.rows as Record<string, unknown>[];
+---
+
+<Layout title="Security Log — Almstins">
+  <main class="sec-page">
+    <header class="sec-header">
+      <h1 class="sec-title">Security Log</h1>
+      <p class="sec-sub">Flagged activity from the AI chat endpoint. Owner-only.</p>
+    </header>
+
+    <section class="sec-summary">
+      {counts.length === 0
+        ? <p class="sec-empty">No security events recorded yet.</p>
+        : counts.map(c => (
+            <div class="sec-count-pill">
+              <span class="sec-count-type">{String(c.event_type)}</span>
+              <span class="sec-count-n">{String(c.cnt)}</span>
+            </div>
+          ))
+      }
+    </section>
+
+    <section class="sec-filters">
+      <form method="get" class="sec-filter-form">
+        <label class="sec-filter-label">
+          Type
+          <input name="type" class="sec-filter-input" value={typeFilter} placeholder="injection_attempt" />
+        </label>
+        <label class="sec-filter-label">
+          Limit
+          <input name="limit" type="number" class="sec-filter-input sec-filter-input--short" value={limitParam} min="10" max="500" />
+        </label>
+        <button type="submit" class="sec-filter-btn">Filter</button>
+        {(typeFilter) && <a href="/dashboard/security" class="sec-filter-clear">Clear</a>}
+      </form>
+    </section>
+
+    {events.length === 0
+      ? <p class="sec-empty">No events match this filter.</p>
+      : (
+        <div class="sec-table-wrap">
+          <table class="sec-table">
+            <thead>
+              <tr>
+                <th>Time (UTC)</th>
+                <th>Tenant</th>
+                <th>Type</th>
+                <th>Patterns matched</th>
+                <th>Question preview</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map(e => (
+                <tr class={e.eventType === 'injection_attempt' ? 'sec-row--warn' : ''}>
+                  <td class="sec-cell sec-cell--time">{e.createdAt.slice(0, 19).replace('T', ' ')}</td>
+                  <td class="sec-cell sec-cell--tenant" title={e.tenantId}>{e.tenantId.slice(0, 8)}…</td>
+                  <td class="sec-cell"><span class="sec-type-badge">{e.eventType}</span></td>
+                  <td class="sec-cell sec-cell--patterns">{e.patterns.join(', ') || '—'}</td>
+                  <td class="sec-cell sec-cell--preview">
+                    <span class="sec-preview-text">{e.questionPreview}</span>
+                    {e.questionLength > e.questionPreview.length && (
+                      <span class="sec-preview-len"> … ({e.questionLength} chars)</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+  </main>
+</Layout>
+
+<style>
+  .sec-page {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 5rem;
+  }
+
+  .sec-header { margin-bottom: 1.5rem; }
+  .sec-title {
+    margin: 0 0 0.35rem;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+  }
+  .sec-sub {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+  }
+
+  /* Summary pills */
+  .sec-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+  }
+  .sec-count-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 99px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.82rem;
+  }
+  .sec-count-type { color: var(--text-secondary); }
+  .sec-count-n {
+    font-weight: 700;
+    color: var(--loss);
+  }
+
+  /* Filters */
+  .sec-filters { margin-bottom: 1.25rem; }
+  .sec-filter-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .sec-filter-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+  .sec-filter-input {
+    background: var(--surface-card);
+    border: 1px solid var(--border-bright);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    padding: 0.4rem 0.65rem;
+    outline: none;
+    width: 16rem;
+  }
+  .sec-filter-input--short { width: 5rem; }
+  .sec-filter-input:focus { border-color: var(--accent); }
+  .sec-filter-btn {
+    background: var(--accent);
+    color: var(--surface-bg);
+    border: none;
+    border-radius: 8px;
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .sec-filter-clear {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 0.45rem 0;
+  }
+  .sec-filter-clear:hover { color: var(--text-secondary); }
+
+  /* Table */
+  .sec-table-wrap { overflow-x: auto; }
+  .sec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+  }
+  .sec-table th {
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+  }
+  .sec-cell {
+    padding: 0.55rem 0.75rem;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: top;
+  }
+  .sec-row--warn .sec-cell { background: var(--loss-bg); }
+
+  .sec-cell--time {
+    white-space: nowrap;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .sec-cell--tenant {
+    font-family: monospace;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+  .sec-type-badge {
+    background: var(--loss-bg);
+    border: 1px solid var(--loss-border);
+    color: var(--loss);
+    border-radius: 6px;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  .sec-cell--patterns {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    max-width: 16rem;
+  }
+  .sec-cell--preview { max-width: 28rem; }
+  .sec-preview-text {
+    word-break: break-word;
+    font-style: italic;
+    color: var(--text-secondary);
+  }
+  .sec-preview-len {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .sec-empty {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    padding: 1rem 0;
+  }
+</style>
