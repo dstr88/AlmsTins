@@ -1014,4 +1014,39 @@ export const items: FaqItem[] = [
           <strong>Remarque :</strong> Le ref code est sélectionnable en un clic — appuyez dessus ou cliquez une fois pour surligner l'intégralité du code, puis copiez-le avant de nous contacter.
         </p>`,
   },
+  {
+    id: "faq-ai-chat",
+    q: "Qu'est-ce que l'Assistant Portefeuille et que puis-je lui demander ?",
+    a: `<p>
+          L'Assistant Portefeuille est un bouton de chat flottant (intitule <strong>&#10022; Ask AI</strong>) sur les pages Research et Bookkeeping. Il vous permet de poser des questions en langage naturel sur les donnees de votre portefeuille -- vos avoirs, transactions recentes, cout de base et plus -- sans avoir a fouiller manuellement dans le grand livre.
+        </p>
+
+        <p><strong>Exemples de questions :</strong></p>
+        <ul>
+          <li>"Quel est mon avoir le plus important en valeur ?"</li>
+          <li>"Combien d'ETH ai-je recu cette annee ?"</li>
+          <li>"Quelles transactions sont encore non classifiees ?"</li>
+          <li>"Quel prix moyen ai-je paye pour SOL ?"</li>
+        </ul>
+
+        <p>
+          <strong>Ce qu'il ne peut pas faire :</strong> L'assistant ne donne pas de conseils financiers ou fiscaux, ne peut pas modifier vos donnees et n'a pas acces au compte d'un autre utilisateur. Il repond a des questions sur ce que montrent les donnees -- les decisions vous appartiennent.
+        </p>
+
+        <p><strong>Limites mensuelles de questions par abonnement :</strong></p>
+        <ul>
+          <li><strong>Free</strong> -- 5 questions par mois</li>
+          <li><strong>Starter</strong> -- 30 questions par mois</li>
+          <li><strong>Pro</strong> -- 150 questions par mois</li>
+          <li><strong>Unlimited</strong> -- sans limite</li>
+        </ul>
+
+        <p>
+          Les limites se reinitalisent automatiquement le premier de chaque mois. Le badge sur le bouton Ask AI indique combien de questions il vous reste ce mois-ci. Si vous atteignez la limite, le champ de saisie est remplace par un lien de mise a niveau.
+        </p>
+
+        <p>
+          <strong>Confidentialite :</strong> Chaque question envoie un apercu de votre historique de transactions et de vos avoirs actuels a Anthropic (Claude Haiku) pour generer la reponse. L'apercu est limite a votre compte uniquement -- les donnees d'aucun autre utilisateur ne sont incluses. Anthropic ne conserve pas les entrees de l'API au-dela de la requete immediate. Les questions ne sont pas stockees ni examinees par Almstins.
+        </p>`,
+  },
 ];

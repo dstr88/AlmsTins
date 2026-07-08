@@ -1015,4 +1015,39 @@ export const items: FaqItem[] = [
           <strong>Nota:</strong> El ref code es de seleccionar con un clic — tócalo o haz clic en él una vez para resaltar todo el código, luego cópialo antes de contactarnos.
         </p>`,
   },
+  {
+    id: "faq-ai-chat",
+    q: "¿Qué es el Asistente de Portafolio y qué puedo preguntarle?",
+    a: `<p>
+          El Asistente de Portafolio es un botón de chat flotante (etiquetado como <strong>✦ Ask AI</strong>) en las páginas de Research y Bookkeeping. Te permite hacer preguntas en lenguaje natural sobre los datos de tu propio portafolio — tus tenencias, transacciones recientes, costo base y más — sin tener que buscar manualmente en el libro mayor.
+        </p>
+
+        <p><strong>Preguntas de ejemplo:</strong></p>
+        <ul>
+          <li>"¿Cuál es mi mayor tenencia por valor?"</li>
+          <li>"¿Cuánto ETH he recibido este año?"</li>
+          <li>"¿Qué transacciones siguen sin clasificar?"</li>
+          <li>"¿Cuánto pagué en promedio por SOL?"</li>
+        </ul>
+
+        <p>
+          <strong>Lo que no puede hacer:</strong> El asistente no da consejos financieros ni fiscales, no puede hacer cambios en tus datos y no tiene acceso a la cuenta de ningún otro usuario. Responde preguntas sobre lo que muestran los datos — las decisiones son tuyas.
+        </p>
+
+        <p><strong>Límites mensuales de preguntas por plan:</strong></p>
+        <ul>
+          <li><strong>Free</strong> — 5 preguntas por mes</li>
+          <li><strong>Starter</strong> — 30 preguntas por mes</li>
+          <li><strong>Pro</strong> — 150 preguntas por mes</li>
+          <li><strong>Unlimited</strong> — sin límite</li>
+        </ul>
+
+        <p>
+          Los límites se reinician automáticamente el primero de cada mes. El indicador en el botón Ask AI muestra cuántas preguntas te quedan este mes. Si alcanzas el límite, el campo de entrada es reemplazado por un enlace de actualización.
+        </p>
+
+        <p>
+          <strong>Privacidad:</strong> Cada pregunta envía un resumen de tu historial de transacciones y tenencias actuales a Anthropic (Claude Haiku) para generar la respuesta. El resumen está limitado únicamente a tu cuenta — los datos de ningún otro usuario son incluidos. Anthropic no conserva las entradas de la API más allá de la solicitud inmediata. Las preguntas no son almacenadas ni revisadas por Almstins.
+        </p>`,
+  },
 ];

@@ -120,7 +120,11 @@ export const en: PrivacyLocale = {
 </ul>
 
 <h2>8. AI Features</h2>
-<p>Optional AI features (transaction triage and receipt validation) send the relevant transaction data or uploaded receipt to our AI provider, <strong>Anthropic (Claude)</strong>, to generate suggestions you review and confirm. Outputs are not authoritative.</p>
+<p>Optional AI features (transaction triage, receipt validation, and portfolio chat) send the relevant data to our AI provider, <strong>Anthropic (Claude Haiku)</strong>, to generate responses you review and confirm. Outputs are not authoritative and do not constitute financial or tax advice.</p>
+<ul>
+  <li><strong>Transaction triage and receipt validation</strong> (paid feature): sends transaction records or an uploaded receipt image to Anthropic to classify or validate the item.</li>
+  <li><strong>Portfolio Assistant chat</strong> (available on all plans with monthly question limits): sends a snapshot of your transaction history and current holdings to Anthropic along with your question. The snapshot is scoped to your account only — no other user's data is included. Anthropic does not retain API inputs beyond the immediate request.</li>
+</ul>
 
 <h2>9. Cookies &amp; Analytics</h2>
 <p>We use cookies and similar technologies for essential functionality and for aggregated analytics via <strong>Google Analytics</strong>. Where required, we present a consent mechanism and honor your choices.</p>
@@ -259,7 +263,11 @@ export const es: PrivacyLocale = {
 </ul>
 
 <h2>8. Funciones de IA</h2>
-<p>Las funciones opcionales de IA (clasificación de transacciones y validación de recibos) envían los datos de transacción relevantes o el recibo cargado a nuestro proveedor de IA, <strong>Anthropic (Claude)</strong>, para generar sugerencias que usted revisa y confirma. Los resultados no son vinculantes.</p>
+<p>Las funciones opcionales de IA (clasificación de transacciones, validación de recibos y chat de portafolio) envían los datos relevantes a nuestro proveedor de IA, <strong>Anthropic (Claude Haiku)</strong>, para generar respuestas que usted revisa y confirma. Los resultados no son vinculantes y no constituyen asesoramiento financiero ni fiscal.</p>
+<ul>
+  <li><strong>Clasificación de transacciones y validación de recibos</strong> (función de pago): envía registros de transacciones o una imagen de recibo cargada a Anthropic para clasificar o validar el elemento.</li>
+  <li><strong>Chat del Asistente de Portafolio</strong> (disponible en todos los planes con límites mensuales de preguntas): envía un resumen de su historial de transacciones y tenencias actuales a Anthropic junto con su pregunta. El resumen está limitado únicamente a su cuenta. Anthropic no conserva las entradas de la API más allá de la solicitud inmediata.</li>
+</ul>
 
 <h2>9. Cookies y Analytics</h2>
 <p>Utilizamos cookies y tecnologías similares para la funcionalidad esencial y para las analíticas agregadas a través de <strong>Google Analytics</strong>. Cuando sea requerido, presentamos un mecanismo de consentimiento y respetamos sus elecciones.</p>
@@ -398,7 +406,11 @@ export const fr: PrivacyLocale = {
 </ul>
 
 <h2>8. Fonctionnalités d'IA</h2>
-<p>Les fonctionnalités d'IA optionnelles (classification des transactions et validation des reçus) transmettent les données de transaction pertinentes ou le reçu téléversé à notre fournisseur d'IA, <strong>Anthropic (Claude)</strong>, afin de générer des suggestions que vous examinez et confirmez. Les résultats ne sont pas définitifs.</p>
+<p>Les fonctionnalités d'IA optionnelles (classification des transactions, validation des reçus et chat de portefeuille) transmettent les données pertinentes à notre fournisseur d'IA, <strong>Anthropic (Claude Haiku)</strong>, afin de générer des réponses que vous examinez et confirmez. Les résultats ne sont pas définitifs et ne constituent pas des conseils financiers ou fiscaux.</p>
+<ul>
+  <li><strong>Classification des transactions et validation des reçus</strong> (fonctionnalité payante) : transmet des enregistrements de transactions ou une image de reçu téléversée à Anthropic pour les classifier ou valider.</li>
+  <li><strong>Chat de l'Assistant Portefeuille</strong> (disponible sur tous les abonnements avec des limites mensuelles de questions) : transmet un aperçu de votre historique de transactions et de vos avoirs actuels à Anthropic avec votre question. L'aperçu est limité à votre compte uniquement. Anthropic ne conserve pas les entrées de l'API au-delà de la requête immédiate.</li>
+</ul>
 
 <h2>9. Cookies et Analytics</h2>
 <p>Nous utilisons des cookies et des technologies similaires pour les fonctionnalités essentielles et pour les analyses agrégées via <strong>Google Analytics</strong>. Lorsque cela est requis, nous présentons un mécanisme de consentement et respectons vos choix.</p>

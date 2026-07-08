@@ -1017,4 +1017,39 @@ export const items: FaqItem[] = [
           <strong>Note:</strong> The ref code is click-to-select — tap or click it once to highlight the whole code, then copy it before reaching out.
         </p>`,
   },
+  {
+    id: "faq-ai-chat",
+    q: "What is the Portfolio Assistant and what can I ask it?",
+    a: `<p>
+          The Portfolio Assistant is a floating chat button (labeled <strong>✦ Ask AI</strong>) on the Research and Bookkeeping pages. It lets you ask plain-English questions about your own portfolio data — your holdings, recent transactions, cost basis, and more — without having to dig through the ledger manually.
+        </p>
+
+        <p><strong>Example questions:</strong></p>
+        <ul>
+          <li>"What is my largest holding by value?"</li>
+          <li>"How much ETH have I received this year?"</li>
+          <li>"Which transactions are still unclassified?"</li>
+          <li>"What did I pay on average for SOL?"</li>
+        </ul>
+
+        <p>
+          <strong>What it can't do:</strong> The assistant does not give financial or tax advice, cannot make changes to your data, and has no access to any other user's account. It answers questions about what the data shows — judgment calls are yours.
+        </p>
+
+        <p><strong>Monthly question limits by plan:</strong></p>
+        <ul>
+          <li><strong>Free</strong> — 5 questions per month</li>
+          <li><strong>Starter</strong> — 30 questions per month</li>
+          <li><strong>Pro</strong> — 150 questions per month</li>
+          <li><strong>Unlimited</strong> — no limit</li>
+        </ul>
+
+        <p>
+          Limits reset automatically on the first of each month. The badge on the Ask AI button shows how many questions you have left this month. If you reach the limit, the input is replaced with an upgrade link.
+        </p>
+
+        <p>
+          <strong>Privacy:</strong> Each question sends a snapshot of your transaction history and current holdings to Anthropic (Claude Haiku) to generate the answer. The snapshot is scoped to your account only — no other user's data is ever included. Anthropic does not retain API inputs beyond the immediate request. Questions are not stored or reviewed by Almstins.
+        </p>`,
+  },
 ];
