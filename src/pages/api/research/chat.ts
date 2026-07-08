@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getActivePlan } from '@/lib/subscriptions';
 import { askPortfolioChat, getChatUsage, CHAT_LIMITS } from '@/lib/aiChat';
+import { auditChatQuestion } from '@/lib/securityEvents';
 
 export const prerender = false;
 
@@ -15,6 +16,9 @@ export const POST: APIRoute = async ({ request }) => {
 
   const question = String(body.question ?? '').trim().slice(0, 1000);
   if (!question) return json({ ok: false, error: 'Question is required' }, 400);
+
+  // Audit for injection attempts — fire-and-forget, never blocks
+  void auditChatQuestion(tenantId, question);
 
   const plan = await getActivePlan(tenantId);
   const planId = plan.id;
