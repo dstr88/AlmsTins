@@ -35,7 +35,12 @@ const SUBJECT_MAX    = 512;
 /** Normalize subject before storage so variants don't create duplicate rows. */
 function normalizeSubject(kind: string, subject: string): string {
   const s = subject.trim();
-  if (kind === 'wallet') return s.toLowerCase();
+  if (kind === 'wallet') {
+    // EVM addresses are hex — the protocol is case-insensitive, EIP-55 mixed case
+    // is only a checksum convention. Safe to canonicalize to lowercase.
+    // Bitcoin/Solana/TRON/Litecoin use Base58, which IS case-sensitive — leave as-is.
+    return /^0x[0-9a-fA-F]{40}$/.test(s) ? s.toLowerCase() : s;
+  }
   // For dApp URLs: lowercase domain only; strip trailing slash
   try {
     const u = new URL(s.startsWith('http') ? s : `https://${s}`);
