@@ -195,6 +195,92 @@ const DEMO_CHECK_ADDR = mirrorAddrs[0]?.address ?? '0xce000000000000000000000000
       font-size: 0.78rem;
     }
 
+    /* Tech block */
+    .vd-tech-block {
+      margin-top: 1.25rem;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+    }
+    .vd-tech-block__label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent-dim);
+      margin-bottom: 0.4rem;
+    }
+    .vd-tech-block__desc {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      margin: 0 0 0.75rem;
+      line-height: 1.5;
+    }
+    .vd-code {
+      background: var(--surface-bg);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 0.85rem 1rem;
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      overflow-x: auto;
+      white-space: pre;
+      margin: 0 0 0.75rem;
+      line-height: 1.6;
+    }
+    .vd-tech-block__note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+    .vd-tech-block__note code {
+      font-family: monospace;
+      color: var(--accent-dim);
+      background: var(--accent-soft);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+    }
+
+    /* Alert triggers */
+    .vd-alert-triggers {
+      margin-top: 1.1rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .vd-alert-triggers__label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0.55rem 0.9rem;
+      background: var(--surface-card-2);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .vd-trigger-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-subtle);
+      line-height: 1.5;
+    }
+    .vd-trigger-row:last-child { border-bottom: none; }
+    .vd-trigger__icon {
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .vd-trigger__icon--warn { color: #f59e0b; }
+    .vd-trigger__icon--loss { color: var(--loss); }
+    .vd-trigger-row strong { color: var(--text-primary); }
+
     /* Exchange sync row */
     .vd-sync-row {
       display: flex;
@@ -381,6 +467,25 @@ const DEMO_CHECK_ADDR = mirrorAddrs[0]?.address ?? '0xce000000000000000000000000
           <div class="vd-step__text">Every 6 hours Almstins re-pulls, re-verifies, and alerts on any unexpected change</div>
         </div>
       </div>
+
+      <div class="vd-tech-block">
+        <div class="vd-tech-block__label">What your endpoint needs to return</div>
+        <p class="vd-tech-block__desc">Your endpoint must be on your verified domain and respond to a Bearer token with JSON. Three formats are accepted — use whichever fits your stack:</p>
+        <pre class="vd-code">{`// Option A — objects with chain label (recommended)
+{
+  "addresses": [
+    { "address": "0xce000000000000000000000000000000000000ce", "chain": "ethereum" },
+    { "address": "bc1qdemoexchange00000000000000000000000000", "chain": "bitcoin" }
+  ]
+}
+
+// Option B — plain address strings
+{ "addresses": ["0xce000…", "bc1qdem…"] }
+
+// Option C — bare array
+["0xce000…", "bc1qdem…"]`}</pre>
+        <p class="vd-tech-block__note">Almstins sends: <code>Authorization: Bearer &lt;your-key&gt;</code> &nbsp;·&nbsp; Accepts: <code>application/json</code> &nbsp;·&nbsp; 8s timeout &nbsp;·&nbsp; 64KB max response</p>
+      </div>
     </div>
 
     <!-- Panel 3: What Almstins mirrors -->
@@ -397,6 +502,13 @@ const DEMO_CHECK_ADDR = mirrorAddrs[0]?.address ?? '0xce000000000000000000000000
           <span>Last synced: {lastPulledAt.slice(0, 16).replace('T', ' ')} UTC &nbsp;&middot;&nbsp; {mirrorAddrs.length} addresses mirrored &nbsp;&middot;&nbsp; Next sync in &lt;6 hours</span>
         </div>
       )}
+      <div class="vd-alert-triggers">
+        <div class="vd-alert-triggers__label">What triggers an email alert to the VASP</div>
+        <div class="vd-trigger-row"><span class="vd-trigger__icon vd-trigger__icon--warn">⚠</span><div><strong>Address swap</strong> — an address on the published list is replaced with a different one</div></div>
+        <div class="vd-trigger-row"><span class="vd-trigger__icon vd-trigger__icon--warn">⚠</span><div><strong>Address removed</strong> — an address disappears from the list without explanation</div></div>
+        <div class="vd-trigger-row"><span class="vd-trigger__icon vd-trigger__icon--loss">✕</span><div><strong>Sanctions flag</strong> — a mirrored address appears on OFAC, GoPlus, or Tornado Cash lists on re-verification</div></div>
+        <div class="vd-trigger-row"><span class="vd-trigger__icon vd-trigger__icon--warn">⚠</span><div><strong>Endpoint unreachable</strong> — your hosted list cannot be pulled; verified badge lapses after 24 hours</div></div>
+      </div>
       <div class="vd-addr-list">
         {mirrorAddrs.map(a => (
           <div class="vd-addr-row">
