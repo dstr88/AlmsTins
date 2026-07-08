@@ -653,6 +653,45 @@ ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, revie
 			args: [randomUUID(), DEMO_TENANT_ID, VD_ETH] },
 	]).catch(() => {});
 
+	// ── Seed Verify (VASP/exchange entity) for the public demo page ──────────
+	// Simulates a licensed exchange (demo-exchange.io) that has proven its domain
+	// and published its canonical receiving addresses. The mirror rows get a fresh
+	// refreshed_at so they pass the 24h stale-TTL check in lookupVerifiedAddress.
+	const VE_ID      = 'demo-entity-00000000000000000001';
+	const VE_DOMAIN  = 'demo-exchange.io';
+	const VE_ADDRS   = [
+		{ addr: '0xce000000000000000000000000000000000000ce', chain: 'ethereum', label: 'ETH deposits' },
+		{ addr: '0xcb000000000000000000000000000000000000cb', chain: 'ethereum', label: 'USDC deposits' },
+		{ addr: 'bc1qdemoexchange00000000000000000000000000', chain: 'bitcoin',  label: 'BTC deposits' },
+	];
+	const VE_NOW = new Date().toISOString().replace('T', ' ').slice(0, 19);
+	await db.batch([
+		{ sql: `CREATE TABLE IF NOT EXISTS verified_entities (
+			id TEXT NOT NULL PRIMARY KEY, tenant_id TEXT NOT NULL, domain TEXT NOT NULL,
+			challenge_token TEXT NOT NULL, proof_status TEXT NOT NULL DEFAULT 'unproven',
+			api_endpoint TEXT, api_key_encrypted TEXT, last_pulled_at TEXT,
+			last_pull_status TEXT, last_pull_count INTEGER NOT NULL DEFAULT 0,
+			proven_at TEXT,
+			created_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+			updated_at TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')))`, args: [] },
+		{ sql: `CREATE TABLE IF NOT EXISTS verified_address_mirror (
+			id TEXT NOT NULL PRIMARY KEY, entity_id TEXT NOT NULL, tenant_id TEXT NOT NULL,
+			address TEXT NOT NULL, chain TEXT NOT NULL DEFAULT '', entity_domain TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'verified', source TEXT NOT NULL DEFAULT 'api_endpoint',
+			refreshed_at TEXT)`, args: [] },
+		{ sql: `DELETE FROM verified_entities        WHERE id = ?`,          args: [VE_ID] },
+		{ sql: `DELETE FROM verified_address_mirror  WHERE entity_id = ?`,   args: [VE_ID] },
+		{ sql: `INSERT INTO verified_entities (id, tenant_id, domain, challenge_token, proof_status, api_endpoint, last_pulled_at, last_pull_status, last_pull_count, proven_at)
+			VALUES (?, ?, ?, 'demo-challenge-token', 'proven', 'https://demo-exchange.io/.well-known/almstins-addresses.json', ?, 'ok', ?, ?)`,
+			args: [VE_ID, DEMO_TENANT_ID, VE_DOMAIN, VE_NOW, VE_ADDRS.length, VE_NOW] },
+		...VE_ADDRS.map(({ addr, chain }) => ({
+			sql: `INSERT INTO verified_address_mirror (id, entity_id, tenant_id, address, chain, entity_domain, status, source, refreshed_at)
+				VALUES (?, ?, ?, ?, ?, ?, 'verified', 'api_endpoint', ?)
+				ON CONFLICT (entity_id, address, chain) DO UPDATE SET refreshed_at = excluded.refreshed_at`,
+			args: [randomUUID(), VE_ID, DEMO_TENANT_ID, addr, chain, VE_DOMAIN, VE_NOW],
+		})),
+	]).catch(() => {});
+
 	const lang = (request.headers.get('referer') ?? '').includes('/es') ? 'es' : 'en';
 	const langCookie = `almstins-demo-lang=${lang}; Path=/; SameSite=Lax; Max-Age=3600`;
 

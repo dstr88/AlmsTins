@@ -1,0 +1,405 @@
+---
+export const prerender = false;
+
+import LoginLayout from '../../layouts/LoginLayout.astro';
+import { DEMO_TENANT_ID } from '../../lib/demo';
+import { db } from '../../lib/db';
+
+// ── Read vendor destinations (DEMO_TENANT_ID) ─────────────────────────────
+let destinations: Array<{ kind: string; rail: string; value: string; label: string | null; proof_status: string; proof_domain: string | null }> = [];
+try {
+  const r = await db.execute({
+    sql: `SELECT kind, rail, value, label, proof_status, proof_domain
+          FROM verify_destinations WHERE tenant_id = ? ORDER BY proof_status DESC, kind`,
+    args: [DEMO_TENANT_ID],
+  });
+  destinations = (r.rows as typeof destinations);
+} catch { /* table may not exist yet on first visit before demo/start fires — show empty */ }
+
+// ── Read exchange entity + mirror addresses ───────────────────────────────
+const VE_DOMAIN  = 'demo-exchange.io';
+let mirrorAddrs: Array<{ address: string; chain: string }> = [];
+let lastPulledAt: string | null = null;
+try {
+  const er = await db.execute({
+    sql: `SELECT last_pulled_at FROM verified_entities WHERE domain = ? LIMIT 1`,
+    args: [VE_DOMAIN],
+  });
+  if (er.rows[0]) lastPulledAt = String((er.rows[0] as { last_pulled_at: string | null }).last_pulled_at ?? '');
+  const mr = await db.execute({
+    sql: `SELECT address, chain FROM verified_address_mirror WHERE entity_domain = ? ORDER BY chain`,
+    args: [VE_DOMAIN],
+  });
+  mirrorAddrs = mr.rows as typeof mirrorAddrs;
+} catch { /* silent */ }
+
+const DEMO_CHECK_ADDR = mirrorAddrs[0]?.address ?? '0xce000000000000000000000000000000000000ce';
+---
+
+<LoginLayout title="Almstins Verify — Demo" description="See how Almstins Verify works for vendors, exchanges, and investors. No login required.">
+  <style>
+    .vd-demo {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+      font-family: inherit;
+      color: var(--text-primary);
+    }
+    .vd-demo__hero {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .vd-demo__hero h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0 0 0.5rem;
+    }
+    .vd-demo__hero p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin: 0 0 1.25rem;
+    }
+    .vd-demo__hero a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+    }
+    .vd-demo__hero a:hover { text-decoration: underline; }
+
+    .vd-panel {
+      background: var(--surface-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .vd-panel__label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.35rem;
+    }
+    .vd-panel__title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0 0 0.5rem;
+    }
+    .vd-panel__desc {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      line-height: 1.6;
+      margin: 0 0 1.25rem;
+    }
+
+    /* Address rows */
+    .vd-addr-list { display: flex; flex-direction: column; gap: 0.6rem; }
+    .vd-addr-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.8rem;
+    }
+    .vd-addr-row__badge {
+      flex-shrink: 0;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+    }
+    .vd-addr-row__badge--proven {
+      background: var(--gain-bg);
+      color: var(--gain);
+      border: 1px solid var(--gain-border);
+    }
+    .vd-addr-row__badge--unproven {
+      background: var(--surface-hover);
+      color: var(--text-muted);
+      border: 1px solid var(--border-bright);
+    }
+    .vd-addr-row__info { flex: 1; min-width: 0; }
+    .vd-addr-row__label { color: var(--text-primary); font-weight: 500; }
+    .vd-addr-row__value {
+      color: var(--text-muted);
+      font-family: monospace;
+      font-size: 0.72rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .vd-addr-row__chain {
+      font-size: 0.65rem;
+      color: var(--accent-dim);
+      flex-shrink: 0;
+      text-transform: capitalize;
+    }
+
+    /* Exchange sync row */
+    .vd-sync-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+      padding: 0.6rem 0.9rem;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+    }
+    .vd-sync-row__dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--gain);
+      flex-shrink: 0;
+    }
+
+    /* Consumer check panel */
+    .vd-check-form {
+      display: flex;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .vd-check-form input {
+      flex: 1;
+      min-width: 0;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 8px;
+      padding: 0.65rem 0.9rem;
+      color: var(--text-primary);
+      font-size: 0.875rem;
+      outline: none;
+    }
+    .vd-check-form input:focus { border-color: var(--accent); }
+    .vd-check-form button {
+      background: var(--accent);
+      color: var(--surface-bg);
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .vd-check-form button:hover { opacity: 0.88; }
+
+    .vd-check-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+    .vd-check-hint code {
+      font-family: monospace;
+      color: var(--accent-dim);
+      background: var(--accent-soft);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.72rem;
+    }
+
+    #vd-result { margin-top: 0.75rem; font-size: 0.85rem; }
+    .vd-result--verified {
+      background: var(--gain-bg);
+      border: 1px solid var(--gain-border);
+      color: var(--gain);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+    }
+    .vd-result--clean {
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+    }
+    .vd-result--flagged {
+      background: var(--loss-bg);
+      border: 1px solid var(--loss-border);
+      color: var(--loss);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+    }
+    .vd-result--loading { color: var(--text-muted); padding: 0.5rem 0; }
+
+    .vd-cta {
+      text-align: center;
+      margin-top: 2.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .vd-cta p { color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 1rem; }
+    .vd-cta a {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--surface-bg);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.875rem;
+      padding: 0.75rem 1.75rem;
+      border-radius: 8px;
+    }
+    .vd-cta a:hover { opacity: 0.88; }
+  </style>
+
+  <div class="vd-demo">
+    <div class="vd-demo__hero">
+      <h1>Almstins Verify — Live Demo</h1>
+      <p>Three perspectives on the same verification problem. No account required.</p>
+      <a href="/verify">Learn more about Almstins Verify &rarr;</a>
+    </div>
+
+    <!-- Panel 1: Vendor -->
+    <div class="vd-panel">
+      <div class="vd-panel__label">Perspective 1 — The Business</div>
+      <div class="vd-panel__title">demo-coffee.shop registered and proved their receiving addresses</div>
+      <p class="vd-panel__desc">
+        A vendor registers the addresses and payment links they publish to customers.
+        They prove ownership by placing a short file on their web server or adding a verification
+        code to their DNS record. Once proven, those addresses appear in the public registry.
+        Any customer can check an invoice against them before sending.
+      </p>
+      <div class="vd-addr-list">
+        {destinations.length === 0 && (
+          <div class="vd-addr-row">
+            <span class="vd-addr-row__badge vd-addr-row__badge--unproven">No data</span>
+            <div class="vd-addr-row__info">
+              <div class="vd-addr-row__label">Visit <a href="/api/demo/start?next=/verify/demo" style="color:var(--accent)">this link</a> to seed the demo</div>
+            </div>
+          </div>
+        )}
+        {destinations.map(d => (
+          <div class="vd-addr-row">
+            <span class={`vd-addr-row__badge vd-addr-row__badge--${d.proof_status === 'proven' ? 'proven' : 'unproven'}`}>
+              {d.proof_status === 'proven' ? '✓ Verified' : 'Unproven'}
+            </span>
+            <div class="vd-addr-row__info">
+              <div class="vd-addr-row__label">{d.label ?? d.kind}</div>
+              <div class="vd-addr-row__value">{d.value}</div>
+            </div>
+            <span class="vd-addr-row__chain">{d.rail}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Panel 2: VASP / Exchange -->
+    <div class="vd-panel">
+      <div class="vd-panel__label">Perspective 2 — The Licensed Exchange</div>
+      <div class="vd-panel__title">demo-exchange.io publishes its canonical address list</div>
+      <p class="vd-panel__desc">
+        A licensed exchange proves control of its domain, then hosts its receiving addresses
+        at an endpoint on that domain. Almstins pulls that list and mirrors it. Every six hours,
+        Almstins re-syncs. If the published addresses change without notice, Almstins alerts
+        the exchange and the verified badge lapses within twenty-four hours.
+        The exchange holds the canonical list. Almstins holds a timestamped copy.
+      </p>
+      {lastPulledAt && (
+        <div class="vd-sync-row">
+          <div class="vd-sync-row__dot"></div>
+          <span>Last synced: {lastPulledAt.slice(0, 16).replace('T', ' ')} UTC &nbsp;&middot;&nbsp; {mirrorAddrs.length} addresses mirrored &nbsp;&middot;&nbsp; Next sync in &lt;6 hours</span>
+        </div>
+      )}
+      <div class="vd-addr-list">
+        {mirrorAddrs.map(a => (
+          <div class="vd-addr-row">
+            <span class="vd-addr-row__badge vd-addr-row__badge--proven">✓ Live</span>
+            <div class="vd-addr-row__info">
+              <div class="vd-addr-row__value">{a.address}</div>
+            </div>
+            <span class="vd-addr-row__chain">{a.chain}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Panel 3: Consumer / Investor -->
+    <div class="vd-panel">
+      <div class="vd-panel__label">Perspective 3 — The Investor</div>
+      <div class="vd-panel__title">Check any address before you send</div>
+      <p class="vd-panel__desc">
+        Before sending funds, paste the address from the invoice or payment screen.
+        The checker runs it against scam blacklists, sanctions lists, mixer activity,
+        honeypot token patterns, and the verified publisher registry — in seconds.
+      </p>
+      <p class="vd-check-hint">
+        Try a demo exchange address: <code>{DEMO_CHECK_ADDR}</code>
+      </p>
+      <div class="vd-check-form">
+        <input id="vd-addr-input" type="text" placeholder="Paste any wallet address…" autocomplete="off" spellcheck="false" />
+        <button id="vd-check-btn">Check address</button>
+      </div>
+      <div id="vd-result"></div>
+    </div>
+
+    <div class="vd-cta">
+      <p>Ready to register your own addresses?</p>
+      <a href="/login">Create a free account &rarr;</a>
+    </div>
+  </div>
+
+  <script define:vars={{ DEMO_CHECK_ADDR }}>
+    const input  = document.getElementById('vd-addr-input');
+    const btn    = document.getElementById('vd-check-btn');
+    const result = document.getElementById('vd-result');
+
+    btn.addEventListener('click', runCheck);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') runCheck(); });
+
+    async function runCheck() {
+      const addr = input.value.trim();
+      if (!addr) return;
+      result.innerHTML = '<div class="vd-result--loading">Checking…</div>';
+      btn.disabled = true;
+
+      try {
+        const [safetyRes, lookupRes] = await Promise.all([
+          fetch(`/api/wallet-check?address=${encodeURIComponent(addr)}`).then(r => r.json()).catch(() => null),
+          fetch(`/api/verify/lookup?address=${encodeURIComponent(addr)}`).then(r => r.json()).catch(() => null),
+        ]);
+
+        const isVerified = lookupRes?.verified === true;
+        const domain     = lookupRes?.domain ?? '';
+        const isFlagged  = safetyRes?.flagged === true || safetyRes?.sanctioned === true;
+
+        if (isVerified) {
+          result.innerHTML = `<div class="vd-result--verified">
+            ✓ <strong>Verified publisher</strong> — this address was published by <strong>${escHtml(domain)}</strong>.
+            The domain proved control of this address through Almstins Verify.
+          </div>`;
+        } else if (isFlagged) {
+          const reasons = [
+            safetyRes?.sanctioned && 'OFAC sanctioned',
+            safetyRes?.darkweb    && 'mixer/darkweb activity',
+            safetyRes?.blacklisted && 'scam blacklist',
+          ].filter(Boolean).join(', ');
+          result.innerHTML = `<div class="vd-result--flagged">
+            ⚠ <strong>Flagged</strong>${reasons ? ' — ' + escHtml(reasons) : ''}. Do not send.
+          </div>`;
+        } else {
+          result.innerHTML = `<div class="vd-result--clean">
+            No flags found for this address. It is not in the verified publisher registry.
+          </div>`;
+        }
+      } catch {
+        result.innerHTML = '<div class="vd-result--clean">Check unavailable — try again.</div>';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+  </script>
+</LoginLayout>
