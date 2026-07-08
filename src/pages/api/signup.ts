@@ -13,6 +13,7 @@ import { ensureAuthUsersCreatedAt } from '@/lib/authAdapter';
 export const prerender = false;
 
 const MIN_PASSWORD_LENGTH = 10;
+const TERMS_VERSION = '1.0';
 
 function normalizeEmail(input: FormDataEntryValue | null) {
 	if (typeof input !== 'string') return null;
@@ -42,8 +43,12 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	const password = form.get('password');
 	const langRaw = String(form.get('lang') ?? '');
 	const lang: Lang = isLang(langRaw) ? langRaw : 'en';
+	const termsAccepted = form.get('terms_accepted') === 'on';
 	const signupPath = lang === 'es' ? '/signup/es' : lang === 'fr' ? '/signup/fr' : '/signup';
 
+	if (!termsAccepted) {
+		return redirect(`${signupPath}?error=terms_not_accepted`, 303);
+	}
 	if (!email) {
 		return redirect(`${signupPath}?error=email`, 303);
 	}
@@ -68,9 +73,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	// Store no name — only the email — matching the OAuth path (authAdapter.createUser).
 	await ensureAuthUsersCreatedAt();
 	await db.execute({
-		sql: `INSERT INTO auth_users (id, name, email, email_verified, image, created_at)
-		      VALUES (?, NULL, ?, NULL, NULL, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,
-		args: [userId, email],
+		sql: `INSERT INTO auth_users (id, name, email, email_verified, image, created_at, terms_accepted_at, terms_version)
+		      VALUES (?, NULL, ?, NULL, NULL, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), now(), ?)`,
+		args: [userId, email, TERMS_VERSION],
 	});
 	await db.execute({
 		sql: `INSERT INTO auth_credentials (user_id, password_hash, created_at, updated_at) VALUES (?, ?, to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'), to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))`,

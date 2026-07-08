@@ -1,0 +1,20 @@
+---
+// Public, crawlable Terms of Service page. Renders the same source as the footer
+// "terms-of-service" modal so there is exactly one document. Public via isPublicPath.
+import Layout from "../layouts/Layout.astro";
+import TermsOfService from "../components/terms-of-service.astro";
+---
+
+<Layout title="Terms of Service — Almstins">
+  <main class="terms-page">
+    <TermsOfService variant="modal" lang="en" />
+  </main>
+</Layout>
+
+<style>
+  .terms-page {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+</style>

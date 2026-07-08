@@ -25,6 +25,11 @@ export interface SignupLocale {
   submit: string;
   haveAccount: string;
   signIn: string;
+  terms: {
+    /** Full label — may contain HTML for the links; rendered with set:html */
+    label: string;
+    error: string;
+  };
 }
 
 export const en: SignupLocale = {
@@ -49,6 +54,10 @@ export const en: SignupLocale = {
   submit: 'Create account',
   haveAccount: 'Already have an account?',
   signIn: 'Sign in',
+  terms: {
+    label: 'I agree to the <a href="/terms" target="_blank">Terms of Service</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.',
+    error: 'You must agree to the Terms of Service and Privacy Policy to create an account.',
+  },
 };
 
 export const es: SignupLocale = {
@@ -73,6 +82,10 @@ export const es: SignupLocale = {
   submit: 'Crear cuenta',
   haveAccount: '¿Ya tienes una cuenta?',
   signIn: 'Inicia sesión',
+  terms: {
+    label: 'Acepto los <a href="/terms" target="_blank">Términos de Servicio</a> y la <a href="/privacy" target="_blank">Política de Privacidad</a>.',
+    error: 'Debes aceptar los Términos de Servicio y la Política de Privacidad para crear una cuenta.',
+  },
 };
 
 export const fr: SignupLocale = {
@@ -97,4 +110,8 @@ export const fr: SignupLocale = {
   submit: 'Créer un compte',
   haveAccount: 'Vous avez déjà un compte ?',
   signIn: 'Connectez-vous',
+  terms: {
+    label: "J'accepte les <a href=\"/terms\" target=\"_blank\">Conditions d'utilisation</a> et la <a href=\"/privacy\" target=\"_blank\">Politique de confidentialite</a>.",
+    error: "Vous devez accepter les Conditions d'utilisation et la Politique de confidentialite pour creer un compte.",
+  },
 };
