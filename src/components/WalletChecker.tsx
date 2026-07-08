@@ -494,6 +494,13 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   // Keep a live ref to handleCheck so the scanner loop always calls the latest version
   useEffect(() => { handleCheckRef.current = handleCheck; }, [handleCheck]);
 
+  // Notify the page when a result arrives so the community ratings panel can update
+  useEffect(() => {
+    if (result) {
+      window.dispatchEvent(new CustomEvent('almstins:wallet-checked', { detail: { address: address.trim() } }));
+    }
+  }, [result]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Allow an external trigger (e.g. the prominent button at the top of the page) to open the scanner
   useEffect(() => {
     const open = () => { setScanError(null); setScanning(true); };

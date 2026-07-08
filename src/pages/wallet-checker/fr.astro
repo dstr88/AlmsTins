@@ -1,7 +1,15 @@
 ---
 import { fr } from '../../i18n/walletChecker';
 import WalletCheckerPage from '../../components/WalletCheckerPage.astro';
+import { requireTenantSession } from '../../lib/requireTenantSession';
+import { getActivePlan } from '../../lib/subscriptions';
+
+export const prerender = false;
 
 const prefilledAddress = Astro.url.searchParams.get('address') ?? '';
+
+const sess = await requireTenantSession(Astro.request);
+const isLoggedIn = Boolean(sess);
+const isPaid = isLoggedIn ? (await getActivePlan(sess!.tenantId)).id !== 'free' : false;
 ---
-<WalletCheckerPage t={fr} prefilledAddress={prefilledAddress} />
+<WalletCheckerPage t={fr} prefilledAddress={prefilledAddress} isLoggedIn={isLoggedIn} isPaid={isPaid} />

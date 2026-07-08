@@ -10,7 +10,8 @@
  *   5. In-memory result cache: 5-min TTL, 500 entry max
  *   6. 8-second upstream timeouts
  *   7. Sanitized error responses — no stack traces, no env var names
- *   8. Checked addresses are NEVER written to the database
+ *   8. Checked addresses are logged only as irreversible one-way hashes — the raw
+ *      address is never stored and the log cannot be reversed to identify what was checked
  */
 
 import type { APIRoute } from 'astro';

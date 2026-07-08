@@ -6,9 +6,11 @@ import WalletChecker from './WalletChecker';
 interface Props {
   t: WalletCheckerLocale;
   prefilledAddress: string;
+  isLoggedIn?: boolean;
+  isPaid?: boolean;
 }
 
-const { t, prefilledAddress } = Astro.props;
+const { t, prefilledAddress, isLoggedIn = false, isPaid = false } = Astro.props;
 ---
 
 <LoginLayout title={t.meta.title} description={t.meta.description} noindex={false}>
@@ -223,6 +225,13 @@ const { t, prefilledAddress } = Astro.props;
 
       <div id="dapp-error" class="dapp-error" hidden></div>
     </div>
+
+    <!-- Community ratings panel (appears after a check result) -->
+    <div id="cr-session" style="display:none"
+      data-logged-in={isLoggedIn ? '1' : '0'}
+      data-paid={isPaid ? '1' : '0'}
+    ></div>
+    <div id="cr-panel" class="cr-panel" hidden></div>
 
     <!-- Almstins CTA -->
     <section class="cta-banner" aria-label={t.cta.ariaLabel}>
@@ -614,6 +623,87 @@ const { t, prefilledAddress } = Astro.props;
   .faq__item[open] .faq__chevron { transform: rotate(90deg); }
   .faq__a { font-size: 0.875rem; color: rgba(255,255,255,0.5); line-height: 1.75; margin: 0 0 0 0.25rem; padding-right: 2rem; }
 
+  /* ── Community ratings panel ── */
+  .cr-panel {
+    margin: 0 0 2.5rem;
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem;
+  }
+  .cr-title {
+    font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-muted); margin: 0 0 1rem;
+  }
+  .cr-counts {
+    display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;
+  }
+  .cr-count {
+    display: flex; align-items: center; gap: 0.4rem;
+    background: var(--surface-card-2); border: 1px solid var(--border-subtle);
+    border-radius: 99px; padding: 0.3rem 0.75rem;
+    font-size: 0.82rem;
+  }
+  .cr-count--safe       { border-color: var(--gain-border); }
+  .cr-count--suspicious { border-color: rgba(245,158,11,0.3); }
+  .cr-count--scam       { border-color: var(--loss-border); }
+  .cr-count-n { font-weight: 700; color: var(--text-primary); }
+  .cr-count-label--safe       { color: var(--gain); }
+  .cr-count-label--suspicious { color: #f59e0b; }
+  .cr-count-label--scam       { color: var(--loss); }
+  .cr-notes { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .cr-note {
+    font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface-card-2); border-radius: 8px;
+    border-left: 3px solid var(--border-bright);
+  }
+  .cr-note--safe       { border-left-color: var(--gain-border); }
+  .cr-note--suspicious { border-left-color: rgba(245,158,11,0.4); }
+  .cr-note--scam       { border-left-color: var(--loss-border); }
+  .cr-note-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem; }
+  .cr-action { margin-top: 0.75rem; }
+  .cr-rate-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+  .cr-rate-btn {
+    font-size: 0.82rem; font-weight: 600; padding: 0.35rem 0.85rem;
+    border-radius: 8px; cursor: pointer; border: 1px solid var(--border-bright);
+    background: var(--surface-card-2); color: var(--text-secondary);
+    font-family: inherit; transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .cr-rate-btn:hover           { background: var(--surface-hover); color: var(--text-primary); }
+  .cr-rate-btn--safe:hover     { border-color: var(--gain-border); color: var(--gain); }
+  .cr-rate-btn--suspicious:hover { border-color: rgba(245,158,11,0.4); color: #f59e0b; }
+  .cr-rate-btn--scam:hover     { border-color: var(--loss-border); color: var(--loss); }
+  .cr-rate-btn--active-safe       { border-color: var(--gain-border); color: var(--gain); background: var(--gain-bg); }
+  .cr-rate-btn--active-suspicious { border-color: rgba(245,158,11,0.4); color: #f59e0b; background: rgba(245,158,11,0.08); }
+  .cr-rate-btn--active-scam       { border-color: var(--loss-border); color: var(--loss); background: var(--loss-bg); }
+  .cr-note-input {
+    margin-top: 0.65rem; width: 100%; box-sizing: border-box;
+    background: var(--surface-card-2); border: 1px solid var(--border-bright);
+    border-radius: 8px; color: var(--text-primary); font-size: 0.82rem;
+    padding: 0.45rem 0.65rem; font-family: inherit; outline: none; resize: vertical;
+  }
+  .cr-note-input:focus { border-color: var(--accent); }
+  .cr-submit-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center; }
+  .cr-submit-btn {
+    background: var(--accent); color: var(--surface-bg); border: none;
+    border-radius: 8px; padding: 0.4rem 1rem; font-size: 0.82rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .cr-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cr-remove-btn {
+    font-size: 0.78rem; color: var(--text-muted); background: none; border: none;
+    cursor: pointer; font-family: inherit; padding: 0.4rem 0;
+    text-decoration: underline; text-underline-offset: 2px;
+  }
+  .cr-remove-btn:hover { color: var(--loss); }
+  .cr-cta {
+    font-size: 0.82rem; color: var(--text-muted);
+  }
+  .cr-cta a { color: var(--accent); text-decoration: none; }
+  .cr-cta a:hover { text-decoration: underline; }
+  .cr-saved { font-size: 0.8rem; color: var(--gain); }
+
   /* Disclaimer */
   .disclaimer { font-size: 0.75rem; color: rgba(255,255,255,0.25); line-height: 1.7; text-align: center; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 2rem; }
   .disclaimer__link { color: rgba(165,180,252,0.5); text-decoration: none; display: inline-block; margin-top: 0.4rem; transition: color 0.15s ease; }
@@ -894,4 +984,172 @@ const { t, prefilledAddress } = Astro.props;
     const url = (e as CustomEvent).detail?.url as string | undefined;
     if (url) activateDappCheck(url);
   });
+
+  // ── Community ratings ──────────────────────────────────────────────────────
+
+  function escapeHtml(s: string): string {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  const crPanel     = document.getElementById('cr-panel') as HTMLElement;
+  const crSessionEl = document.getElementById('cr-session') as HTMLElement;
+  const crIsLoggedIn = crSessionEl?.dataset.loggedIn === '1';
+  const crIsPaid     = crSessionEl?.dataset.paid === '1';
+
+  let crCurrentKind    = 'wallet';
+  let crCurrentSubject = '';
+  let crPendingRating  = '';
+  let crOwnRating      = '';
+
+  function crRatingLabel(r: string): string {
+    return r === 'safe' ? '✅ Safe' : r === 'suspicious' ? '⚠️ Suspicious' : '🚨 Scam';
+  }
+
+  async function loadCommunityRatings(kind: string, subject: string) {
+    if (!subject) return;
+    crCurrentKind    = kind;
+    crCurrentSubject = subject;
+    crPendingRating  = '';
+
+    crPanel.hidden = false;
+    crPanel.innerHTML = `<p class="cr-title">Community ratings</p><p style="font-size:0.82rem;color:var(--text-muted)">Loading…</p>`;
+
+    try {
+      const qs  = new URLSearchParams({ kind, subject });
+      const res = await fetch(`/api/community-rating?${qs}`);
+      const data = await res.json();
+
+      if (!data.ok) { crPanel.hidden = true; return; }
+
+      const { counts, notes, total } = data as {
+        counts: Record<string, number>;
+        notes: Array<{ rating: string; note: string; date: string }>;
+        total: number;
+      };
+
+      const countsHtml = `
+        <div class="cr-counts">
+          <div class="cr-count cr-count--safe">
+            <span class="cr-count-n">${counts.safe}</span>
+            <span class="cr-count-label--safe">safe</span>
+          </div>
+          <div class="cr-count cr-count--suspicious">
+            <span class="cr-count-n">${counts.suspicious}</span>
+            <span class="cr-count-label--suspicious">suspicious</span>
+          </div>
+          <div class="cr-count cr-count--scam">
+            <span class="cr-count-n">${counts.scam}</span>
+            <span class="cr-count-label--scam">scam</span>
+          </div>
+          ${total === 0 ? '<span style="font-size:0.78rem;color:var(--text-muted)">No community ratings yet.</span>' : ''}
+        </div>`;
+
+      const notesHtml = notes.length > 0
+        ? `<div class="cr-notes">${notes.map(n => `
+            <div class="cr-note cr-note--${n.rating}">
+              ${escapeHtml(n.note)}
+              <div class="cr-note-meta">${crRatingLabel(n.rating)} · ${n.date}</div>
+            </div>`).join('')}</div>`
+        : '';
+
+      let actionHtml = '';
+      if (!crIsLoggedIn) {
+        actionHtml = `<p class="cr-cta">Have experience with this address? <a href="/login">Sign in</a> to rate it (paid plans).</p>`;
+      } else if (!crIsPaid) {
+        actionHtml = `<p class="cr-cta">Ratings are available on paid plans. <a href="/dashboard/billing">Upgrade</a> to contribute.</p>`;
+      } else {
+        actionHtml = `
+          <div class="cr-action" id="cr-action">
+            <div class="cr-rate-row">
+              <span style="font-size:0.8rem;color:var(--text-muted);margin-right:0.25rem">Rate:</span>
+              <button class="cr-rate-btn cr-rate-btn--safe"       data-r="safe">✅ Safe</button>
+              <button class="cr-rate-btn cr-rate-btn--suspicious" data-r="suspicious">⚠️ Suspicious</button>
+              <button class="cr-rate-btn cr-rate-btn--scam"       data-r="scam">🚨 Scam</button>
+            </div>
+            <textarea id="cr-note-input" class="cr-note-input" rows="2" maxlength="280" placeholder="Optional note (280 chars)" hidden></textarea>
+            <div class="cr-submit-row" id="cr-submit-row" hidden>
+              <button class="cr-submit-btn" id="cr-submit-btn">Submit</button>
+              <button class="cr-remove-btn" id="cr-remove-btn">Remove my rating</button>
+              <span class="cr-saved" id="cr-saved" hidden>Saved</span>
+            </div>
+          </div>`;
+      }
+
+      crPanel.innerHTML = `<p class="cr-title">Community ratings</p>${countsHtml}${notesHtml}${actionHtml}`;
+
+      // Wire up rating buttons
+      if (crIsPaid) {
+        crPanel.querySelectorAll<HTMLButtonElement>('.cr-rate-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            crPendingRating = btn.dataset.r ?? '';
+            crPanel.querySelectorAll('.cr-rate-btn').forEach(b => {
+              b.className = b.className.replace(/\s*cr-rate-btn--active-\w+/, '');
+            });
+            btn.className += ` cr-rate-btn--active-${crPendingRating}`;
+            const noteInput  = document.getElementById('cr-note-input')  as HTMLTextAreaElement;
+            const submitRow  = document.getElementById('cr-submit-row');
+            if (noteInput)  noteInput.hidden  = false;
+            if (submitRow)  submitRow.hidden  = false;
+          });
+        });
+
+        document.getElementById('cr-submit-btn')?.addEventListener('click', async () => {
+          const note = (document.getElementById('cr-note-input') as HTMLTextAreaElement)?.value ?? '';
+          const btn  = document.getElementById('cr-submit-btn') as HTMLButtonElement;
+          const saved = document.getElementById('cr-saved');
+          if (!crPendingRating) return;
+          btn.disabled = true;
+          try {
+            await fetch('/api/community-rating', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ kind: crCurrentKind, subject: crCurrentSubject, rating: crPendingRating, note }),
+            });
+            crOwnRating = crPendingRating;
+            if (saved) { saved.hidden = false; setTimeout(() => { if (saved) saved.hidden = true; }, 2500); }
+            // Reload fresh counts
+            await loadCommunityRatings(crCurrentKind, crCurrentSubject);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+        document.getElementById('cr-remove-btn')?.addEventListener('click', async () => {
+          const qs = new URLSearchParams({ kind: crCurrentKind, subject: crCurrentSubject });
+          await fetch(`/api/community-rating?${qs}`, { method: 'DELETE' });
+          crOwnRating = '';
+          await loadCommunityRatings(crCurrentKind, crCurrentSubject);
+        });
+      }
+    } catch {
+      crPanel.hidden = true;
+    }
+  }
+
+  // Triggered by WalletChecker.tsx after a result renders
+  window.addEventListener('almstins:wallet-checked', (e) => {
+    const addr = (e as CustomEvent).detail?.address as string | undefined;
+    if (addr) loadCommunityRatings('wallet', addr);
+  });
+
+  // Triggered after a dApp check completes — patch into the existing runCheck closure
+  const _origRunCheck = (window as any).__dappRunCheck;
+  // Attach to the existing result render: watch for verdict-banner appearing
+  const dappObserver = new MutationObserver(() => {
+    const urlEl = document.getElementById('verdict-url');
+    const domain = urlEl?.textContent?.trim();
+    if (domain && !document.getElementById('dapp-result')?.hidden) {
+      dappObserver.disconnect();
+      loadCommunityRatings('dapp', domain);
+      // Reconnect when result is hidden again (new check)
+      const resultEl = document.getElementById('dapp-result');
+      if (resultEl) {
+        new MutationObserver(() => {
+          if (resultEl.hidden) loadCommunityRatings('dapp', '');
+        }).observe(resultEl, { attributes: true, attributeFilter: ['hidden'] });
+      }
+    }
+  });
+  const dappResultEl = document.getElementById('dapp-result');
+  if (dappResultEl) dappObserver.observe(dappResultEl, { attributes: true, attributeFilter: ['hidden'] });
 </script>
