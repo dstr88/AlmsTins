@@ -63,20 +63,22 @@ const priceIds = {
     <!-- Current plan status -->
     <section class="billing-current">
       <div class="billing-current__card">
-        <div class="billing-current__label">{t.currentPlanLabel}</div>
-        <div class="billing-current__plan">{currentPlan.label}</div>
-        <div class="billing-current__limits">
-          {currentPlan.walletLimit === 0
-            ? t.unlimitedTins
-            : t.upToTins(currentPlan.walletLimit)}
-        </div>
-        {periodEnd && (
-          <div class="billing-current__renewal">
-            {cancelAtEnd
-              ? t.cancelsOn(new Date(periodEnd).toLocaleDateString(dateLocale))
-              : t.renews(new Date(periodEnd).toLocaleDateString(dateLocale))}
+        <div class="billing-current__info">
+          <div class="billing-current__label">{t.currentPlanLabel}</div>
+          <div class="billing-current__plan">{currentPlan.label}</div>
+          <div class="billing-current__limits">
+            {currentPlan.walletLimit === 0
+              ? t.unlimitedTins
+              : t.upToTins(currentPlan.walletLimit)}
           </div>
-        )}
+          {periodEnd && (
+            <div class="billing-current__renewal">
+              {cancelAtEnd
+                ? t.cancelsOn(new Date(periodEnd).toLocaleDateString(dateLocale))
+                : t.renews(new Date(periodEnd).toLocaleDateString(dateLocale))}
+            </div>
+          )}
+        </div>
         {hasStripeSubscription && (
           <button class="billing-portal-btn" id="portal-btn">
             {t.manageSubscription}

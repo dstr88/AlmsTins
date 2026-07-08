@@ -29,28 +29,36 @@
   background: var(--surface-card);
   border: 1px solid var(--border-bright);
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 1.5rem 1.75rem;
   display: flex;
   align-items: center;
-  gap: 2rem;
+  justify-content: space-between;
+  gap: 1.5rem;
   flex-wrap: wrap;
 }
-.billing-current__label   { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
-.billing-current__plan    { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); }
+.billing-current__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.billing-current__label   { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); }
+.billing-current__plan    { font-size: 1.5rem; font-weight: 800; color: var(--text-primary); line-height: 1.1; }
 .billing-current__limits  { color: var(--text-secondary); font-size: 0.875rem; }
-.billing-current__renewal { font-size: 0.8rem; color: var(--text-muted); }
+.billing-current__renewal { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
 .billing-portal-btn {
-  margin-left: auto;
+  flex-shrink: 0;
   background: transparent;
   border: 1px solid var(--border-bright);
   color: var(--text-secondary);
-  padding: 0.5rem 1rem;
+  padding: 0.55rem 1.1rem;
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.875rem;
-  transition: border-color 0.15s, color 0.15s;
+  font-weight: 500;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
 }
-.billing-portal-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
+.billing-portal-btn:hover { border-color: var(--accent-glow); color: var(--accent); background: var(--accent-soft); }
 
 /* Interval toggle */
 .billing-toggle {
@@ -86,9 +94,12 @@
 /* Plan cards */
 .billing-plans {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.25rem;
   margin-bottom: 2rem;
+}
+@media (max-width: 680px) {
+  .billing-plans { grid-template-columns: 1fr; }
 }
 
 .billing-plan {

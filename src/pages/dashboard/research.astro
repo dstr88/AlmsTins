@@ -1,6 +1,7 @@
 ---
 import './research.css';
 import Layout from '../../layouts/Layout.astro';
+import AiChat from '../../components/AiChat';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import AddTransactionModal from '../../components/dashboard/AddTransactionModal.astro';
 import ResearchTour from '../../components/tours/ResearchTour.astro';
@@ -312,6 +313,7 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       </div>
     </>
   )}
+  <AiChat client:load />
 </Layout>
 
 <!-- ── Suggested match confirmation modal ──────────────────────────────────── -->

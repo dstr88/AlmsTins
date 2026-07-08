@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import AiChat from '../../components/AiChat';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import OrnateTin from '@/components/OrnatedTin.astro';
 import DrawerHost from '../../components/bookkeeping/DrawerHost';
@@ -1537,4 +1538,5 @@ const syncRelative = !hasSync ? '' :
       }
     });
   </script>
+  <AiChat client:load />
 </Layout>
