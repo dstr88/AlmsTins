@@ -142,6 +142,41 @@ const DEMO_CHECK_ADDR = mirrorAddrs[0]?.address ?? '0xce000000000000000000000000
       text-transform: capitalize;
     }
 
+    /* Steps */
+    .vd-steps { display: flex; flex-direction: column; gap: 0.6rem; }
+    .vd-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      background: var(--surface-card-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 0.7rem 0.9rem;
+      font-size: 0.85rem;
+    }
+    .vd-step__num {
+      flex-shrink: 0;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 0.7rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+    .vd-step__text { color: var(--text-secondary); line-height: 1.5; }
+    .vd-step__text code {
+      font-family: monospace;
+      color: var(--accent-dim);
+      background: var(--accent-soft);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-size: 0.78rem;
+    }
+
     /* Exchange sync row */
     .vd-sync-row {
       display: flex;
@@ -255,13 +290,13 @@ const DEMO_CHECK_ADDR = mirrorAddrs[0]?.address ?? '0xce000000000000000000000000
   <div class="vd-demo">
     <div class="vd-demo__hero">
       <h1>Almstins Verify — Live Demo</h1>
-      <p>Three perspectives on the same verification problem. No account required.</p>
+      <p>Two ways to register. One way to check. No account required.</p>
       <a href="/verify">Learn more about Almstins Verify &rarr;</a>
     </div>
 
     <!-- Panel 1: Vendor -->
     <div class="vd-panel">
-      <div class="vd-panel__label">Perspective 1 — The Business</div>
+      <div class="vd-panel__label">Option 1 — Small or Medium Business</div>
       <div class="vd-panel__title">demo-coffee.shop registered and proved their receiving addresses</div>
       <p class="vd-panel__desc">
         A vendor registers the addresses and payment links they publish to customers.
@@ -293,16 +328,47 @@ const DEMO_CHECK_ADDR = mirrorAddrs[0]?.address ?? '0xce000000000000000000000000
       </div>
     </div>
 
-    <!-- Panel 2: VASP / Exchange -->
+    <!-- Panel 2: Institution / API key path -->
     <div class="vd-panel">
-      <div class="vd-panel__label">Perspective 2 — The Licensed Exchange</div>
-      <div class="vd-panel__title">demo-exchange.io publishes its canonical address list</div>
+      <div class="vd-panel__label">Option 2 — Institution or Exchange</div>
+      <div class="vd-panel__title">Host your own address list. Almstins pulls and verifies it.</div>
       <p class="vd-panel__desc">
-        A licensed exchange proves control of its domain, then hosts its receiving addresses
-        at an endpoint on that domain. Almstins pulls that list and mirrors it. Every six hours,
-        Almstins re-syncs. If the published addresses change without notice, Almstins alerts
-        the exchange and the verified badge lapses within twenty-four hours.
-        The exchange holds the canonical list. Almstins holds a timestamped copy.
+        Large institutions — exchanges, payment processors, licensed VASPs — often manage hundreds
+        of receiving addresses across multiple chains. Instead of registering them one by one,
+        they host a canonical list at an endpoint on their own domain and provide Almstins
+        a read-only API key. Almstins uses that key to pull the list, hashes and verifies
+        each address, and mirrors them in the public registry under the institution's domain name.
+        The key is stored encrypted and is never exposed. Every six hours Almstins re-pulls,
+        re-hashes, and compares. If any address appears, disappears, or changes without notice,
+        Almstins alerts the institution and the affected badges lapse within twenty-four hours.
+      </p>
+      <div class="vd-steps">
+        <div class="vd-step">
+          <div class="vd-step__num">1</div>
+          <div class="vd-step__text">Institution proves control of their domain via <code>.well-known</code> file or DNS TXT record</div>
+        </div>
+        <div class="vd-step">
+          <div class="vd-step__num">2</div>
+          <div class="vd-step__text">Institution hosts their address list at an endpoint on that domain and provides Almstins a read-only API key</div>
+        </div>
+        <div class="vd-step">
+          <div class="vd-step__num">3</div>
+          <div class="vd-step__text">Almstins pulls the list, hashes each address, and mirrors them as "published by &lt;domain&gt;"</div>
+        </div>
+        <div class="vd-step">
+          <div class="vd-step__num">4</div>
+          <div class="vd-step__text">Every 6 hours Almstins re-pulls, re-verifies, and alerts on any unexpected change</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 3: What Almstins mirrors -->
+    <div class="vd-panel">
+      <div class="vd-panel__label">Result — What Almstins mirrors for demo-exchange.io</div>
+      <div class="vd-panel__title">Live addresses synced from the exchange's own endpoint</div>
+      <p class="vd-panel__desc">
+        These addresses were pulled from demo-exchange.io's hosted list, hashed, verified,
+        and added to the public registry. Any investor can check one before sending.
       </p>
       {lastPulledAt && (
         <div class="vd-sync-row">
@@ -323,9 +389,9 @@ const DEMO_CHECK_ADDR = mirrorAddrs[0]?.address ?? '0xce000000000000000000000000
       </div>
     </div>
 
-    <!-- Panel 3: Consumer / Investor -->
+    <!-- Panel 4: Consumer / Investor -->
     <div class="vd-panel">
-      <div class="vd-panel__label">Perspective 3 — The Investor</div>
+      <div class="vd-panel__label">Perspective 4 — The Investor</div>
       <div class="vd-panel__title">Check any address before you send</div>
       <p class="vd-panel__desc">
         Before sending funds, paste the address from the invoice or payment screen.
