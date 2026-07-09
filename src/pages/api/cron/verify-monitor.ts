@@ -27,6 +27,7 @@ import { isLang, type Lang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
 import { getVerifyAlert, type VerifyAlertKind } from '@/i18n/emails/verifyAlert';
 import { listEntitiesForMonitor, monitorEntity } from '@/lib/verifyEntities';
+import { checkWallet } from '@/lib/walletChecker';
 import {
   listProvenDomainsForMonitor, getProvenAddressDestinations,
   markDestinationsLapsed, markDomainProofFailed, markDomainProofRechecked,
@@ -93,8 +94,20 @@ export const GET: APIRoute = async ({ request }) => {
     }
   }
 
+  // Chains GoPlus supports — only check addresses on these chains for sanctions/blacklist flags.
+  const GOPLUS_CHAINS = new Set(['ethereum', 'polygon', 'avalanche', 'solana', 'tron']);
+  // Max addresses to safety-check per entity per run (API cost guard).
+  const SAFETY_CHECK_LIMIT = 50;
+  // Flag fields that warrant an alert.
+  const SAFETY_FLAGS: Array<[string, string]> = [
+    ['sanctioned',       'OFAC sanctioned'],
+    ['blacklisted',      'on global blacklist'],
+    ['moneyLaundering',  'money laundering activity'],
+    ['mixer',            'mixer/Tornado Cash connections'],
+  ];
+
   // ── Pass A: Verified Entity mirror re-validation ──────────────────────────────
-  const entity = { checked: 0, revokedAlerts: 0, unreachableAlerts: 0, errors: 0 };
+  const entity = { checked: 0, revokedAlerts: 0, unreachableAlerts: 0, sanctionAlerts: 0, errors: 0 };
   try {
     const targets = await listEntitiesForMonitor();
     for (const t of targets) {
@@ -106,8 +119,44 @@ export const GET: APIRoute = async ({ request }) => {
           if (t.lastPullStatus === 'ok' && (await alert(t.tenantId, 'unreachable', t.domain, []))) {
             entity.unreachableAlerts++;
           }
-        } else if (r.removed.length) {
-          if (await alert(t.tenantId, 'revoked', t.domain, r.removed)) entity.revokedAlerts++;
+        } else {
+          if (r.removed.length) {
+            if (await alert(t.tenantId, 'revoked', t.domain, r.removed)) entity.revokedAlerts++;
+          }
+          // Safety check: run GoPlus/OFAC/blacklist on each mirrored address.
+          // Only GoPlus-supported chains; capped to avoid API cost overrun on large lists.
+          try {
+            const mirrorRes = await db.execute({
+              sql: `SELECT address, chain FROM verified_address_mirror
+                    WHERE entity_id = $1 AND tenant_id = $2
+                    LIMIT ${SAFETY_CHECK_LIMIT}`,
+              args: [t.id, t.tenantId],
+            });
+            const checkTargets = (mirrorRes.rows as unknown as Array<{ address: string; chain: string }>)
+              .filter(row => GOPLUS_CHAINS.has(String(row.chain)))
+              .map(row => String(row.address));
+
+            const flaggedItems: string[] = [];
+            for (const addr of checkTargets) {
+              try {
+                const wc = await checkWallet(addr);
+                const triggered = SAFETY_FLAGS
+                  .filter(([field]) => (wc.flags as Record<string, boolean>)[field])
+                  .map(([, label]) => label);
+                if (triggered.length) {
+                  flaggedItems.push(`${addr} — ${triggered.join(', ')}`);
+                }
+              } catch { /* non-fatal per-address */ }
+              await sleep(300);
+            }
+            if (flaggedItems.length) {
+              if (await alert(t.tenantId, 'sanctions_flag', t.domain, flaggedItems)) {
+                entity.sanctionAlerts++;
+              }
+            }
+          } catch (err) {
+            console.error(`[cron/verify-monitor] safety check for entity ${t.id} failed`, err);
+          }
         }
       } catch (err) {
         entity.errors++;

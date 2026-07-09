@@ -22,7 +22,7 @@ export interface RenderedEmail {
   text: string;
 }
 
-export type VerifyAlertKind = 'revoked' | 'unreachable' | 'proof_changed' | 'destination_swap';
+export type VerifyAlertKind = 'revoked' | 'unreachable' | 'proof_changed' | 'destination_swap' | 'sanctions_flag';
 
 export interface VerifyAlertEmailLocale {
   lang: Lang;
@@ -68,6 +68,25 @@ export const en: VerifyAlertEmailLocale = {
           `Check that your endpoint is reachable and the API key you issued us is still valid.`,
           ``,
           `Manage your verified endpoint:`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'sanctions_flag') {
+      return {
+        subject: `🚨 Sanctions or blacklist flag on a verified address — ${domain}`,
+        text: [
+          `One or more addresses in your verified list for ${domain} have been flagged`,
+          `by safety databases (OFAC sanctions, GoPlus global blacklist, or mixer activity):`,
+          ...bullets(items),
+          `You should remove any flagged address from your published list immediately.`,
+          `An address that is sanctioned or blacklisted appearing in a verified list is a`,
+          `serious compliance risk. This alert repeats every monitoring cycle until the`,
+          `address is removed.`,
+          ``,
+          `Manage your verified addresses:`,
           `${manage}`,
           ``,
           `— Almstins Verify`,
@@ -123,6 +142,25 @@ export const es: VerifyAlertEmailLocale = {
           ...bullets(items),
           `Si las eliminaste tú, no hace falta hacer nada. Si no fuiste tú, revisa si tu`,
           `lista publicada se cambió sin tu conocimiento.`,
+          ``,
+          `Gestiona tus direcciones verificadas:`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'sanctions_flag') {
+      return {
+        subject: `🚨 Alerta de sanciones o lista negra en una dirección verificada — ${domain}`,
+        text: [
+          `Una o más direcciones en tu lista verificada de ${domain} han sido marcadas`,
+          `por bases de datos de seguridad (sanciones OFAC, lista negra global de GoPlus, o actividad de mixer):`,
+          ...bullets(items),
+          `Debes eliminar cualquier dirección marcada de tu lista publicada de inmediato.`,
+          `Una dirección sancionada o en lista negra que aparece en una lista verificada supone`,
+          `un serio riesgo de cumplimiento normativo. Esta alerta se repite en cada ciclo de`,
+          `monitoreo hasta que se elimine la dirección.`,
           ``,
           `Gestiona tus direcciones verificadas:`,
           `${manage}`,
@@ -197,6 +235,25 @@ export const fr: VerifyAlertEmailLocale = {
           ...bullets(items),
           `Si vous les avez retirées, aucune action n'est nécessaire. Sinon, vérifiez si votre`,
           `liste publiée a été modifiée à votre insu.`,
+          ``,
+          `Gérez vos adresses vérifiées :`,
+          `${manage}`,
+          ``,
+          `— Almstins Verify`,
+        ].join('\n'),
+      };
+    }
+    if (kind === 'sanctions_flag') {
+      return {
+        subject: `🚨 Alerte sanctions ou liste noire sur une adresse vérifiée — ${domain}`,
+        text: [
+          `Une ou plusieurs adresses de votre liste vérifiée pour ${domain} ont été signalées`,
+          `par des bases de données de sécurité (sanctions OFAC, liste noire mondiale GoPlus, ou activité de mixer) :`,
+          ...bullets(items),
+          `Vous devez retirer immédiatement toute adresse signalée de votre liste publiée.`,
+          `Une adresse sanctionnée ou inscrite sur liste noire figurant dans une liste vérifiée`,
+          `représente un risque de conformité sérieux. Cette alerte se répète à chaque cycle`,
+          `de surveillance jusqu'à la suppression de l'adresse.`,
           ``,
           `Gérez vos adresses vérifiées :`,
           `${manage}`,
