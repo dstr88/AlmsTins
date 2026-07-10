@@ -25,6 +25,15 @@ const t = getChangelog(lang);
       <div class="entries">
 
         <article class="entry">
+          <time class="entry-date">July 10, 2026</time>
+          <div class="entry-body">
+            <p>The website and dApp safety checker is faster and no longer leans on outside rate limits for its core data. The three largest phishing databases — MetaMask's blocklist (198,000+ domains), ScamSniffer's (345,000+), and Google Safe Browsing — now run from Almstins' own continuously-refreshed copy instead of being downloaded or queried on every check. Repeated checks of the same site return from a short-lived cache rather than calling the outside services again, and that cache is keyed by a one-way fingerprint of the address or URL — never the address or URL itself, so nothing you check is ever stored in readable form.</p>
+            <p>Google Safe Browsing is now matched entirely against a local copy of its hash list, with a single confirmation call to Google only when there's a possible match — so it no longer counts against a daily quota. The checker verifies its own URL-matching against Google's official test cases on every refresh, and if Google ever changes those rules it disables the local match, falls back to the live lookup, and alerts the maintainer, so it can't quietly go wrong. The remaining live sources (GoPlus, URLScan, VirusTotal) are cached and capped so a burst of traffic can't exhaust their limits for everyone.</p>
+            <p>Several privacy and abuse protections were hardened as well. The public checkers now identify a caller by their true network address, so a request can no longer spoof a header to slip past the per-minute rate limit. Internal diagnostic and analytics endpoints are now locked to the site owner. And everywhere the dashboard shows on-chain text — token names, transaction notes, wallet labels — that text is now escaped, so a maliciously-named token can't run code in your browser. None of these were known to have been exploited; they close the door before anyone tries.</p>
+          </div>
+        </article>
+
+        <article class="entry">
           <time class="entry-date">July 7, 2026</time>
           <div class="entry-body">
             <p>A Portfolio Assistant is now available on the Research and Bookkeeping pages. Click the <strong>✦ Ask AI</strong> button in the bottom-right corner to ask plain-English questions about your portfolio — your holdings, transaction history, cost basis, and unclassified items. The assistant answers from your data only; it has no access to any other account and does not give financial or tax advice. Free accounts get 5 questions per month, Starter 30, Pro 150, and Unlimited plans have no cap. Limits reset on the first of each month, and the badge on the button shows how many questions remain.</p>
