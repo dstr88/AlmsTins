@@ -1,7 +1,6 @@
 ---
 import './research.css';
 import Layout from '../../layouts/Layout.astro';
-import AiChat from '../../components/AiChat';
 import NetWorthHero from '../../components/dashboard/NetWorthHero.astro';
 import AddTransactionModal from '../../components/dashboard/AddTransactionModal.astro';
 import ResearchTour from '../../components/tours/ResearchTour.astro';
@@ -313,7 +312,6 @@ Astro.response.headers.set('Cache-Control', 'no-store');
       </div>
     </>
   )}
-  <AiChat client:load />
 </Layout>
 
 <!-- ── Suggested match confirmation modal ──────────────────────────────────── -->
@@ -506,7 +504,7 @@ window.addEventListener('unhandledrejection', function(e) {
 // HTML (with buttons, event handlers) when it runs.
 (function () {
   function escH(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
   var SRC = { coinbase:'Coinbase', crypto_com:'Crypto.com', gemini:'Gemini',
     kraken:'Kraken', exodus:'Exodus', venmo:'Venmo', cashapp:'Cash App', robinhood:'Robinhood' };
@@ -581,7 +579,6 @@ window.addEventListener('unhandledrejection', function(e) {
 
 <script>
 import { escapeHtml } from '../../lib/escapeHtml';
-
 // ── i18n ─────────────────────────────────────────────────────────────────────
 // Strings injected by the <script is:inline define:vars> island above.
 // English fallbacks keep the script working if that block ever fails to run.
@@ -753,10 +750,10 @@ function renderNeedsAttention(data) {
       const safeM = JSON.stringify(m).replace(/'/g,"&#39;");
       html += `<div class="suggest-item" data-match-id="${m.match_id}" data-match='${safeM}'>
         <div class="suggest-top">
-          <span class="suggest-sym">${m.asset_symbol}</span>
+          <span class="suggest-sym">${escapeHtml(m.asset_symbol)}</span>
           <span class="suggest-score">confidence ${m.confidence_score}</span>
         </div>
-        <div class="suggest-flow">${srcName(m.out_source)}${m.out_account_name ? ' · ' + m.out_account_name : ''} → ${srcName(m.in_source)}${m.in_account_name ? ' · ' + m.in_account_name : ''}</div>
+        <div class="suggest-flow">${escapeHtml(srcName(m.out_source))}${m.out_account_name ? ' · ' + escapeHtml(m.out_account_name) : ''} → ${escapeHtml(srcName(m.in_source))}${m.in_account_name ? ' · ' + escapeHtml(m.in_account_name) : ''}</div>
         <div class="suggest-dates">${fmtDate(m.out_ts)} → ${fmtDate(m.in_ts)}</div>
         <div class="suggest-amt">Sent ${fmt(m.out_amount)} · Received ${fmt(m.in_amount)}${m.fee_amount ? ' · Fee ' + fmt(m.fee_amount) : ''}</div>
       </div>`;
@@ -774,9 +771,9 @@ function renderNeedsAttention(data) {
       const absAmt = Math.abs(Number(t.amount));
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
       const hint    = dir === 'out' ? i18n('clickToFindLanded', 'Click to find where this landed →') : i18n('clickToFindSource', 'Click to find where this came from →');
-      const src     = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
-      const catLabel = t.category ? `<span class="category-badge">${t.category}</span>` : '';
-      const noteText = t.notes   ? `<span class="tx-note-text">${t.notes}</span>` : '';
+      const src     = `${escapeHtml(srcName(t.source))}${t.account_name ? ' · ' + escapeHtml(t.account_name) : ''}`;
+      const catLabel = t.category ? `<span class="category-badge">${escapeHtml(t.category)}</span>` : '';
+      const noteText = t.notes   ? `<span class="tx-note-text">${escapeHtml(t.notes)}</span>` : '';
       const hasAnnotation = !!(t.category || t.notes);
       const reasonTag = naReasonTag(t, dir);
       html += `<div class="tx-card na-item dir-${dirClass}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-id="${t.id}" data-ts="${t.timestamp_utc}" data-src="${src}" data-amount="${Math.abs(Number(t.amount))}" data-usd="${t.native_usd ?? ''}">
@@ -786,8 +783,8 @@ function renderNeedsAttention(data) {
         </div>
         <div class="tx-body">
           <div class="tx-row-1">
-            <span class="tx-sym">${t.asset_symbol}</span>
-            <span class="tx-amt">${amt} ${t.asset_symbol}</span>
+            <span class="tx-sym">${escapeHtml(t.asset_symbol)}</span>
+            <span class="tx-amt">${amt} ${escapeHtml(t.asset_symbol)}</span>
           </div>
           <div class="tx-row-2">
             <span class="tx-src-badge">${src}</span>
@@ -835,7 +832,7 @@ function renderNeedsAttention(data) {
                     title="${i18n('aboutTxHistory', 'About my transaction history')}"></button>
             <button class="btn-help"
                     data-tx-id="${t.id}"
-                    onclick="openHelpPanel(event,'${t.id}','${(t.kind??'').replace(/'/g,'')}','${dir}','${t.asset_symbol}','${(t.description??'').replace(/'/g,'').replace(/"/g,'').slice(0,80)}','${(srcName(t.source)??'').replace(/'/g,'')}')">
+                    onclick="openHelpPanel(event,'${t.id}','${escapeHtml((t.kind??'').replace(/'/g,'&#39;'))}','${dir}','${escapeHtml(t.asset_symbol)}','${escapeHtml((t.description??'').slice(0,80).replace(/'/g,'&#39;').replace(/"/g,'&quot;'))}','${escapeHtml((srcName(t.source)??'').replace(/'/g,'&#39;'))}')">
               ${i18n('helpBtn', '? Help')}
             </button>
           </div>
@@ -1087,7 +1084,7 @@ function renderResults(data) {
   let lastSym = null;
   for (const t of rows) {
     if (t.asset_symbol !== lastSym) {
-      html += `<div class="results-group-header">${t.asset_symbol ?? '—'}</div>`;
+      html += `<div class="results-group-header">${escapeHtml(t.asset_symbol ?? '—')}</div>`;
       lastSym = t.asset_symbol;
     }
     const dir         = (t.direction ?? '').toLowerCase();
@@ -1110,24 +1107,24 @@ function renderResults(data) {
       ? `−${fmt(Math.abs(qty ?? 0))}`
       : `+${fmt(qty ?? 0)}`;
 
-    const srcLine      = `${srcName(t.source)}${t.account_name ? ' · ' + t.account_name : ''}`;
+    const srcLine      = `${escapeHtml(srcName(t.source))}${t.account_name ? ' · ' + escapeHtml(t.account_name) : ''}`;
     const hasAnnotation = !!(t.category || t.notes);
-    const catLabel      = t.category ? `<span class="category-badge">${t.category}</span>` : '';
-    const noteText      = t.notes    ? `<span class="tx-note-text">${t.notes}</span>` : '';
+    const catLabel      = t.category ? `<span class="category-badge">${escapeHtml(t.category)}</span>` : '';
+    const noteText      = t.notes    ? `<span class="tx-note-text">${escapeHtml(t.notes)}</span>` : '';
 
     html += `<div class="tx-card result-card dir-${dirClass}" data-id="${t.id}" data-sym="${t.asset_symbol}" data-dir="${dir}" data-ts="${t.timestamp_utc}" data-amount="${Math.abs(Number(t.amount))}" data-usd="${t.native_usd ?? ''}">
       <div class="tx-badge-col"><span class="tx-dir ${dirClass}">${dirLabel}</span></div>
       <div class="tx-body">
         <div class="tx-row-1">
-          <span class="tx-sym">${t.asset_symbol ?? '?'}</span>${matchBadge}
-          <span class="tx-amt">${amtDisplay} ${t.asset_symbol ?? ''}</span>
+          <span class="tx-sym">${escapeHtml(t.asset_symbol ?? '?')}</span>${matchBadge}
+          <span class="tx-amt">${amtDisplay} ${escapeHtml(t.asset_symbol ?? '')}</span>
         </div>
         <div class="tx-row-2">
           <span class="tx-src">${srcLine}${label}</span>
           ${t.native_usd ? `<span class="tx-usd">${fmtUsd(t.native_usd)}</span>` : ''}
         </div>
         <div class="tx-row-3">
-          <span class="tx-desc">${t.description ?? ''}</span>
+          <span class="tx-desc">${escapeHtml(t.description ?? '')}</span>
           <span class="tx-dt">${fmtDT(t.timestamp_utc)}</span>
         </div>
         ${hasAnnotation ? `<div style="margin-top:0.3rem">${catLabel}${noteText}</div>` : ''}
@@ -1398,9 +1395,9 @@ $('btn-backfill').addEventListener('click', async () => {
 function openMatchModal(match) {
   pendingMatch = match;
   $('match-modal-body').innerHTML = `<div class="match-detail">
-    <strong>${match.asset_symbol}</strong> transfer<br>
-    <strong>${i18n('fromLabel','From:')}</strong> ${srcName(match.out_source)}${match.out_account_name ? ' · ' + match.out_account_name : ''}<br>
-    <strong>To:</strong> ${srcName(match.in_source)}${match.in_account_name ? ' · ' + match.in_account_name : ''}<br>
+    <strong>${escapeHtml(match.asset_symbol)}</strong> transfer<br>
+    <strong>${i18n('fromLabel','From:')}</strong> ${escapeHtml(srcName(match.out_source))}${match.out_account_name ? ' · ' + escapeHtml(match.out_account_name) : ''}<br>
+    <strong>To:</strong> ${escapeHtml(srcName(match.in_source))}${match.in_account_name ? ' · ' + escapeHtml(match.in_account_name) : ''}<br>
     <strong>${i18n('sent','Sent')}:</strong> ${fmtDT(match.out_ts)}<br>
     <strong>${i18n('received','Received')}:</strong> ${fmtDT(match.in_ts)}<br>
     <strong>${i18n('sent','Sent')}:</strong> ${fmt(match.out_amount)} &nbsp; <strong>Amount in:</strong> ${fmt(match.in_amount)}${match.fee_amount ? `&nbsp; <strong>Fee:</strong> ${fmt(match.fee_amount)}` : ''}<br>
@@ -1547,8 +1544,8 @@ function renderNaActionPanel({ txId, sym, dir, src, cat, note, amt }) {
   ).join('');
 
   panel.innerHTML = `
-    <div class="nap-from">${i18n('fromLabel','From:')} ${src}</div>
-    <div class="nap-tx">${dir === 'out' ? '↑' : '↓'} ${amt} &nbsp;·&nbsp; ${sym}</div>
+    <div class="nap-from">${i18n('fromLabel','From:')} ${escapeHtml(src)}</div>
+    <div class="nap-tx">${dir === 'out' ? '↑' : '↓'} ${escapeHtml(amt)} &nbsp;·&nbsp; ${escapeHtml(sym)}</div>
     ${dir === 'out' ? `
     <div class="nap-actions">
       <button class="nap-btn-dispose" onclick="napShowDispose('${txId}')">${i18n('dispose','Dispose')}</button>
@@ -1663,7 +1660,7 @@ function openDisposeForm(e, btn) {
   ).join('');
 
   formEl.innerHTML = `
-    <div class="af-source-label">${i18n('fromLabel','From:')} ${srcName}</div>
+    <div class="af-source-label">${i18n('fromLabel','From:')} ${escapeHtml(srcName)}</div>
     <select id="af-cat-${txId}">${options}</select>
     <div class="annotate-form-row">
       <input id="af-note-${txId}" type="text" placeholder="${i18n('addNoteEllipsis','Add a note…')}" value="${curNote}" />
@@ -1691,7 +1688,7 @@ function openForwardForm(e, btn) {
   }).join('');
 
   formEl.innerHTML = `
-    <div class="af-source-label">${i18n('fromLabel','From:')} ${srcTin}</div>
+    <div class="af-source-label">${i18n('fromLabel','From:')} ${escapeHtml(srcTin)}</div>
     <div class="form-hint-mb">${i18n('forwardedTo','Forwarded to…')}</div>
     ${walletOptions ? `<select id="af-twallet-${txId}">
       <option value="">${i18n('pickTrackedWallet','— pick a tracked wallet —')}</option>
@@ -1793,7 +1790,7 @@ const KIND_EXPLANATIONS = {
 // ── Receipt attachment & validation ──────────────────────────────────────────
 function renderAttPanel(panel, attId, filename, validation, overrideNote) {
   if (!panel) return;
-  const fname = `${filename}`;
+  const fname = escapeHtml(`${filename}`);
   if (!validation || validation.status === 'skipped') {
     panel.innerHTML = `<span class="att-badge">${fname}</span>`;
     return;
@@ -1803,12 +1800,12 @@ function renderAttPanel(panel, attId, filename, validation, overrideNote) {
     return;
   }
   if (validation.status === 'overridden') {
-    const noteText = overrideNote ? ` · <em>${overrideNote}</em>` : '';
+    const noteText = overrideNote ? ` · <em>${escapeHtml(overrideNote)}</em>` : '';
     panel.innerHTML = '<span class="att-badge att-badge--warn">' + i18n('overrideAccepted','Override accepted · __F__').replace('__F__',fname) + noteText + '</span>';
     return;
   }
   // rejected
-  const missList = (validation.mismatches ?? []).map(m => `<li>${m}</li>`).join('');
+  const missList = (validation.mismatches ?? []).map(m => `<li>${escapeHtml(m)}</li>`).join('');
   panel.innerHTML = `
     <div class="att-rejected">
       <span class="att-badge att-badge--err">${i18n('receiptMismatch','Receipt mismatch · __F__').replace('__F__',fname)}</span>
@@ -1914,7 +1911,7 @@ function openHelpPanel(e, txId, kind, dir, sym, desc, src) {
   if (el.style.display !== 'none') { el.style.display = 'none'; return; }
 
   const explanation = KIND_EXPLANATIONS[kind] || (kind
-    ? `Transaction type: "${kind}"`
+    ? `Transaction type: &quot;${escapeHtml(kind)}&quot;`
     : `No transaction type recorded.`);
 
   const quickBtns = dir === 'out' ? `
@@ -1929,7 +1926,7 @@ function openHelpPanel(e, txId, kind, dir, sym, desc, src) {
   el.innerHTML = `
     <div class="help-panel-title">${i18n('helpTitle','Help me understand this')}</div>
     <div class="help-kind-line">${explanation}</div>
-    ${desc ? `<div class="help-desc">"${desc}"</div>` : ''}
+    ${desc ? `<div class="help-desc">&quot;${escapeHtml(desc)}&quot;</div>` : ''}
     <div class="help-quick-label">${i18n('whatDoesRepresent','What does this represent?')}</div>
     <div class="help-quick-row">${quickBtns}</div>
     <div class="help-note-row">
@@ -2002,7 +1999,7 @@ function renderHealthCheck(d) {
     const years = sources.map(r => {
       const e = String(r.earliest ?? '').slice(0, 4);
       const l = String(r.latest   ?? '').slice(0, 4);
-      return `${r.source}: ${e}–${l}`;
+      return `${escapeHtml(r.source)}: ${escapeHtml(e)}–${escapeHtml(l)}`;
     });
     cards.push({
       title:   i18n('hcImportCoverage','Import Coverage'),
@@ -2028,7 +2025,7 @@ function renderHealthCheck(d) {
   const nonEvm = (d.nonEvm ?? []).filter(r => Number(r.cnt) > 0);
   if (nonEvm.length) {
     const total = nonEvm.reduce((s, r) => s + Number(r.value_usd ?? 0), 0);
-    const top   = nonEvm.slice(0, 3).map(r => `${r.asset_symbol} (${r.cnt})`).join(', ');
+    const top   = nonEvm.slice(0, 3).map(r => `${escapeHtml(r.asset_symbol)} (${r.cnt})`).join(', ');
     cards.push({
       title:  i18n('hcNonEvm','Non-EVM Unresolved'),
       body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',nonEvm.length).replace('__S__',nonEvm.length !== 1 ? 's' : ''),
@@ -2054,7 +2051,7 @@ function renderHealthCheck(d) {
     cards.push({
       title:  i18n('hcMissingPrices','Missing Prices'),
       body:   i18n('hcTransactions','__N__ transactions').replace('__N__',total),
-      detail: gaps.map(r => `${r.source}: ${r.cnt}`).slice(0, 4).join('<br>'),
+      detail: gaps.map(r => `${escapeHtml(r.source)}: ${r.cnt}`).slice(0, 4).join('<br>'),
       status: 'warn',
     });
   }
@@ -2066,7 +2063,7 @@ function renderHealthCheck(d) {
     cards.push({
       title:  i18n('hcOrphanedIns','Unexplained Receipts'),
       body:   i18n('hcAssets','__N__ asset__S__').replace('__N__',orphans.length).replace('__S__',orphans.length !== 1 ? 's' : '') + ' · ' + fmtV(total),
-      detail: orphans.slice(0, 4).map(r => `${r.asset_symbol} ${fmtV(Number(r.value_usd))}`).join('<br>'),
+      detail: orphans.slice(0, 4).map(r => `${escapeHtml(r.asset_symbol)} ${fmtV(Number(r.value_usd))}`).join('<br>'),
       status: 'warn',
     });
   }
@@ -2075,7 +2072,7 @@ function renderHealthCheck(d) {
   if (d.failedExchanges?.length) {
     cards.push({
       title:  i18n('hcFailedExchange','Failed Exchange Data'),
-      body:   d.failedExchanges.map(ex => ex.name).join(', '),
+      body:   d.failedExchanges.map(ex => escapeHtml(ex.name)).join(', '),
       detail: i18n('hcFailedExchangeDetail','Records imported from failed platforms — verify loss claims and write-offs'),
       status: 'warn',
     });
@@ -2088,7 +2085,7 @@ function renderHealthCheck(d) {
       const implied = Number(r.implied_price ?? 0);
       const max     = Number(r.max_price ?? 0);
       const ratio   = max > 0 ? Math.round(max / implied) : 0;
-      return `${r.asset_symbol} · ${fmtUsd(r.native_usd)} (${ratio > 0 ? i18n('hcBelowMax','__R__× below max').replace('__R__',String(ratio)) : i18n('hcSuspect','suspect')})`;
+      return `${escapeHtml(r.asset_symbol)} · ${fmtUsd(r.native_usd)} (${ratio > 0 ? i18n('hcBelowMax','__R__× below max').replace('__R__',String(ratio)) : i18n('hcSuspect','suspect')})`;
     }).join('<br>');
     cards.push({
       title:  i18n('hcSuspectPrice','Suspect Price Data'),
@@ -2105,7 +2102,7 @@ function renderHealthCheck(d) {
     const rows = missingBasis.slice(0, 6).map(r => {
       const val   = fmtUsd(r.snapValueUsd);
       const qty   = Number(r.snapQty ?? 0);
-      let line = '<strong>' + r.symbol + '</strong> · ' + val + ' ' + i18n('hcCurrentBalance','current balance');
+      let line = '<strong>' + escapeHtml(r.symbol) + '</strong> · ' + val + ' ' + i18n('hcCurrentBalance','current balance');
       if (r.estimatedPrice != null) {
         const estTotal = fmtUsd(r.estimatedTotal ?? r.estimatedPrice * qty);
         const estPer   = fmtUsd(r.estimatedPrice);
@@ -2156,10 +2153,10 @@ function renderHealthCheck(d) {
       const amt = dir === 'out' ? `−${fmt(Math.abs(Number(t.amount)))}` : `+${fmt(Number(t.amount))}`;
       return `<div class="health-tx-row">
         <span class="tx-dir ${dir}">${dir}</span>
-        <span class="health-tx-sym">${t.asset_symbol}</span>
+        <span class="health-tx-sym">${escapeHtml(t.asset_symbol)}</span>
         <span class="health-tx-amt">${amt}</span>
         <span class="health-tx-usd">${t.native_usd ? fmtUsd(t.native_usd) : ''}</span>
-        <span class="health-tx-src">${srcName(t.source)}</span>
+        <span class="health-tx-src">${escapeHtml(srcName(t.source))}</span>
         <span class="health-tx-dt">${fmtDate(t.timestamp_utc)}</span>
       </div>`;
     }).join('');
@@ -2507,12 +2504,12 @@ function renderAddressPanel(data) {
 
   // Copy-button row: [□ address] [□ label] whenever we have a label
   html += `<div class="addr-copy-row">
-    <button class="addr-copy-btn" data-copy="${escapeHtml(data.address)}" title="Copy address">
-      ⧉ <span class="addr-copy-text">${escapeHtml(data.address.slice(0,10))}…${escapeHtml(data.address.slice(-6))}</span>
+    <button class="addr-copy-btn" onclick="navigator.clipboard.writeText('${data.address}')" title="Copy address">
+      ⧉ <span class="addr-copy-text">${data.address.slice(0,10)}…${data.address.slice(-6)}</span>
     </button>`;
   if (resolvedLabel) {
-    html += `<button class="addr-copy-btn" data-copy="${escapeHtml(resolvedLabel)}" title="Copy label">
-      ⧉ <span class="addr-copy-text">${escapeHtml(resolvedLabel)}</span>
+    html += `<button class="addr-copy-btn" onclick="navigator.clipboard.writeText('${resolvedLabel.replace(/'/g,"\\'")}')" title="Copy label">
+      ⧉ <span class="addr-copy-text">${resolvedLabel}</span>
     </button>`;
     if (labelSource === 'community') {
       html += '<span class="addr-community-badge">' + i18n('addrCommunityLabel','community label') + '</span>';
@@ -2523,17 +2520,17 @@ function renderAddressPanel(data) {
   // Chips row
   html += `<div class="addr-info-grid">`;
   if (data.ownWallet) {
-    const lbl = escapeHtml(data.ownWallet.label || data.ownWallet.address.slice(0,8) + '…');
+    const lbl = data.ownWallet.label || data.ownWallet.address.slice(0,8) + '…';
     html += '<span class="addr-info-chip own">' + i18n('addrYourWallet','Your wallet: __L__').replace('__L__',lbl) + '</span>';
   }
   if (data.knownExchange) {
-    html += `<span class="addr-info-chip exchange">${escapeHtml(data.knownExchange)}</span>`;
+    html += `<span class="addr-info-chip exchange">${data.knownExchange}</span>`;
   }
   if (data.addressLabel && !data.ownWallet) {
-    html += `<span class="addr-info-chip label">${escapeHtml(data.addressLabel)}</span>`;
+    html += `<span class="addr-info-chip label">${data.addressLabel}</span>`;
   }
   if (data.globalLabel && !data.addressLabel && !data.ownWallet && !data.knownExchange) {
-    html += `<span class="addr-info-chip label">${escapeHtml(data.globalLabel)}</span>`;
+    html += `<span class="addr-info-chip label">${data.globalLabel}</span>`;
   }
   if (!data.ownWallet && !data.knownExchange && !data.addressLabel && !data.globalLabel) {
     html += '<span class="addr-info-chip unknown">' + i18n('addrUnknown','Unknown address') + '</span>';
@@ -2565,9 +2562,9 @@ function renderAddressPanel(data) {
       const dir    = (t.direction ?? '').toLowerCase();
       const absAmt = Math.abs(Number(t.amount ?? 0));
       const amt    = dir === 'out' ? `−${fmt(absAmt)}` : `+${fmt(absAmt)}`;
-      const sym    = escapeHtml(t.asset_symbol ?? '?');
+      const sym    = t.asset_symbol ?? '?';
       html += `<div class="addr-tx-row">
-        <span class="addr-tx-dir ${dir}">${escapeHtml(dir)}</span>
+        <span class="addr-tx-dir ${dir}">${dir}</span>
         <span class="addr-tx-sym">${sym}</span>
         <span class="addr-tx-amt">${amt} ${sym}</span>
         <span class="addr-tx-dt">${fmtDate(t.timestamp_utc)}</span>
@@ -2576,12 +2573,6 @@ function renderAddressPanel(data) {
   }
 
   inner.innerHTML = html;
-
-  // Copy buttons via data-copy + attached handler (no inline onclick → a malicious
-  // community/global label can't break out of a JS-string/attribute context).
-  inner.querySelectorAll('.addr-copy-btn[data-copy]').forEach((b) => {
-    b.addEventListener('click', () => { navigator.clipboard?.writeText((b as HTMLElement).getAttribute('data-copy') || ''); });
-  });
 
   // Wire add-wallet buttons after innerHTML is set
   const btnShow = $('btn-show-add-wallet');

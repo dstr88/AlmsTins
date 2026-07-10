@@ -1,12 +1,16 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { fetchAccountData } from '@/lib/scanSync';
+import { requireAdminSession } from '@/lib/adminGuard';
 
 export const prerender = false;
 
 type Status = 'ok' | 'fail' | 'warn';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+	try { await requireAdminSession(request); }
+	catch (e) { return e instanceof Response ? e : new Response('Unauthorized', { status: 401 }); }
+
 	const startedAt = Date.now();
 
 	const envVars = {

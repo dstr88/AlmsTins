@@ -84,11 +84,23 @@ const t = getSmartImport(lang);
   // Toasts are fixed to the bottom-right corner so they're visible no matter
   // where the user is scrolled on the page.
 
+  // Escape any value that flows into innerHTML. Filenames and server/error
+  // messages are attacker-influenced (a CSV named `<img src=x onerror=…>.csv`
+  // would otherwise execute when dragged in), so escape before interpolating.
+  function escH(v) {
+    return String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function showToast(state, message, autoDismissMs) {
     if (!toastEl) return;
     const item = document.createElement('div');
     item.className = `si-toast-item ${state}`;
-    item.innerHTML = `<span class="si-toast-msg">${message}</span>
+    item.innerHTML = `<span class="si-toast-msg">${escH(message)}</span>
       <button class="si-toast-close" onclick="this.parentElement.remove()">✕</button>`;
     toastEl.appendChild(item);
     if (autoDismissMs) {
@@ -204,7 +216,7 @@ const t = getSmartImport(lang);
     const icon = state === 'processing'
       ? '<div class="si-spinner"></div>'
       : `<span class="si-icon" style="color:${state === 'success' ? 'var(--gain)' : 'var(--loss)'}">${state === 'success' ? '✓' : '✕'}</span>`;
-    return `${icon}<div class="si-text"><div>${message}</div><div class="si-file">${filename}</div></div>`;
+    return `${icon}<div class="si-text"><div>${escH(message)}</div><div class="si-file">${escH(filename)}</div></div>`;
   }
 })();
 </script>

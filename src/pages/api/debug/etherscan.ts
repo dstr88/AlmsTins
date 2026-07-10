@@ -1,12 +1,16 @@
 import type { APIRoute } from 'astro';
 import { buildScanUrl, fetchEthereumScan } from '@/lib/scanSync';
+import { requireAdminSession } from '@/lib/adminGuard';
 
 export const prerender = false;
 
 const USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
 const USDT = '0xdac17f958d2ee523a2206206994597c13d831ec7';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+	try { await requireAdminSession(request); }
+	catch (e) { return e instanceof Response ? e : new Response('Unauthorized', { status: 401 }); }
+
 	const address = '0x0000000000000000000000000000000000000000'; // replace in queries if you want a real wallet
 
 	try {

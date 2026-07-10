@@ -2,6 +2,7 @@
 import './WalletDashboard.css';
 import { db } from '../lib/db';
 import { requireTenantSession } from '../lib/requireTenantSession';
+import { jsonForScript } from '../lib/jsonForScript';
 
 const { tenantId } = await requireTenantSession(Astro.request);
 
@@ -254,7 +255,7 @@ function parseChains(payload: unknown) {
 			<p class="form-status" data-profile-status></p>
 		</form>
 	</section>
-	<script type="application/json" id="wallet-data" set:html={JSON.stringify(wallets)}></script>
+	<script type="application/json" id="wallet-data" set:html={jsonForScript(wallets)}></script>
 </section>
 
 <script type="module">

@@ -1,9 +1,13 @@
 import type { APIRoute } from 'astro';
 import { getAavePositionsForWallet } from '@/lib/aave/client';
+import { requireAdminSession } from '@/lib/adminGuard';
 
 export const prerender = false;
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, request }) => {
+	try { await requireAdminSession(request); }
+	catch (e) { return e instanceof Response ? e : new Response('Unauthorized', { status: 401 }); }
+
 	const address = params.address ?? '';
 	console.log('[debug.aave] Request for address', address);
 

@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import type { Row } from '@libsql/client';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAssetLifecycleCache, refreshLifecycleCacheIfStale } from '@/lib/lifecycle';
+import { jsonForScript } from '@/lib/jsonForScript';
 import {
 	getImportTransactionColumns,
 	selectImportColumn,
@@ -535,7 +536,7 @@ const exportUrl = walletId
 		type="application/json"
 		id="lifecycle-data"
 		data-cache-key={lifecycleCacheKey}
-		set:html={JSON.stringify({ groups: lifecycleGroups, events: lifecycleEvents })}
+		set:html={jsonForScript({ groups: lifecycleGroups, events: lifecycleEvents })}
 	></script>
 </article>
 <Tin0AllTransactionsClient client:load />

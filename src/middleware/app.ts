@@ -199,25 +199,37 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		// with their own addresses. All other mutations remain blocked.
 		// Skipped entirely when a real auth session exists.
 		if (!userId && isDemoRequest(request)) {
-			const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method.toUpperCase());
-			if (isMutation && pathname.startsWith('/api/')) {
-				const isDemoAllowed = DEMO_ALLOWED_MUTATION_PATTERNS.some((re) => re.test(pathname));
-				if (!isDemoAllowed) {
-					return finish(
-						applySecurityHeaders(
-							new Response(
-								JSON.stringify({
-									error: 'Sign up free to unlock all features.',
-									demo: true,
-								}),
-								{ status: 403, headers: { 'Content-Type': 'application/json' } },
+			// Internal/admin/debug/dev endpoints must NEVER be reachable via the demo
+			// cookie. The demo bypass exists so visitors can explore the product with
+			// the demo tenant — not to open the internal API surface (analytics,
+			// debug probes, dev tools) to anyone who fetches /api/demo/start. Let these
+			// fall through to the standard unauthenticated 401 below.
+			const isSensitiveApi =
+				pathname.startsWith('/api/debug') ||
+				pathname.startsWith('/api/dev') ||
+				pathname.startsWith('/api/admin') ||
+				pathname === '/api/analytics.json';
+			if (!isSensitiveApi) {
+				const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method.toUpperCase());
+				if (isMutation && pathname.startsWith('/api/')) {
+					const isDemoAllowed = DEMO_ALLOWED_MUTATION_PATTERNS.some((re) => re.test(pathname));
+					if (!isDemoAllowed) {
+						return finish(
+							applySecurityHeaders(
+								new Response(
+									JSON.stringify({
+										error: 'Sign up free to unlock all features.',
+										demo: true,
+									}),
+									{ status: 403, headers: { 'Content-Type': 'application/json' } },
+								),
 							),
-						),
-					);
+						);
+					}
 				}
+				// Let the route handler render with the demo tenant.
+				return proceedWith(DEMO_TENANT_ID);
 			}
-			// Let the route handler render with the demo tenant.
-			return proceedWith(DEMO_TENANT_ID);
 		}
 		// ── End demo mode ────────────────────────────────────────────────────────
 		if (!userId) {

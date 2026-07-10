@@ -163,6 +163,7 @@ const walletPayload = JSON.stringify(wallets);
 	} }}>window.__txI18n = i18n;</script>
 
 	<script type="module">
+		import { escapeHtml } from '../../lib/escapeHtml';
 		const walletDataEl = document.getElementById('wallet-data');
 		const walletSelect = document.getElementById('wallet-select');
 		const chainSelect = document.getElementById('chain-select');
@@ -297,7 +298,7 @@ const walletPayload = JSON.stringify(wallets);
           <td>${tx.chain}</td>
           <td><code>${shorten(tx.from_address || tx.from)}</code></td>
           <td><code>${shorten(tx.to_address || tx.to)}</code></td>
-          <td>${tx.token_symbol || 'native'}</td>
+          <td>${escapeHtml(tx.token_symbol || 'native')}</td>
           <td>${formatAmount(tx.value, tx.token_decimals)}</td>
           <td>
             <select data-annotation-category>
@@ -307,7 +308,7 @@ const walletPayload = JSON.stringify(wallets);
             </select>
           </td>
           <td>
-            <input type="text" data-annotation-note value="${tx.note ?? ''}" placeholder="${_s('notePlaceholder')}" />
+            <input type="text" data-annotation-note value="${escapeHtml(tx.note ?? '')}" placeholder="${_s('notePlaceholder')}" />
           </td>
           <td>
             <button type="button" class="ghost shot-btn" data-hash="${tx.hash}" data-chain="${tx.chain}" title="${_s('shotsTitle')}">

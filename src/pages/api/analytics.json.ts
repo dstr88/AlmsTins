@@ -1,9 +1,13 @@
 import type { APIRoute } from 'astro';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
+import { requireAdminSession } from '@/lib/adminGuard';
 
 export const prerender = false;
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
+  try { await requireAdminSession(request); }
+  catch (e) { return e instanceof Response ? e : new Response('Unauthorized', { status: 401 }); }
+
   try {
     const propertyId = import.meta.env.GA_PROPERTY_ID;
     const clientEmail = import.meta.env.GA_CLIENT_EMAIL;

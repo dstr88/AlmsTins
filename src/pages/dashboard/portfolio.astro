@@ -164,6 +164,7 @@ if (!_authSess) return Astro.redirect('/login');
 } }}>window.__pfI18n = pfI18n;</script>
 
 <script>
+import { escapeHtml } from '../../lib/escapeHtml';
 // ── Formatters ──────────────────────────────────────────────────────────── //
 const USD = new Intl.NumberFormat('en-US', {
 	style: 'currency', currency: 'USD',
@@ -397,9 +398,9 @@ async function loadPortfolio() {
 					<div class="pf-ticker">
 						<div class="pf-ticker__badge">${tickerLabel(a.symbol)}</div>
 						<div class="pf-ticker__info">
-							<div class="pf-ticker__name">${a.symbol}</div>
+							<div class="pf-ticker__name">${escapeHtml(a.symbol)}</div>
 							${a.lastAcquiredAt
-								? `<div class="pf-ticker__sub">${interpolate(I18N.lastAcquired, a.lastAcquiredAt)}</div>`
+								? `<div class="pf-ticker__sub">${interpolate(I18N.lastAcquired, escapeHtml(a.lastAcquiredAt))}</div>`
 								: ''}
 							${a.isCollateral
 								? `<span class="pf-collateral-badge">${I18N.aaveCollateral}</span>`
