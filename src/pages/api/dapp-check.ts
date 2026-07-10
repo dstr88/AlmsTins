@@ -2,6 +2,19 @@ import type { APIRoute } from 'astro';
 import { checkLocalPhishingDb } from '@/lib/phishingDomains';
 import { recordCheck } from '@/lib/checkLog';
 import { getClientIp } from '@/lib/analytics/ip';
+import { getCachedScan, putCachedScan } from '@/lib/scanCache';
+import { tryConsumeDailyQuota } from '@/lib/upstreamQuota';
+
+// Freshness for cached dApp verdicts. Flagged domains stay flagged, so cache
+// them longer; clean results expire sooner so a newly-compromised site gets
+// re-checked. Yellow/pending/error results are never cached.
+const DAPP_TTL_RED_MS   = 24 * 60 * 60 * 1000;
+const DAPP_TTL_GREEN_MS = 6 * 60 * 60 * 1000;
+
+// Daily ceilings for paid sources — set below the provider's real limit so there
+// is always headroom (VirusTotal free tier ≈ 500/day; GSB is more generous).
+const VT_DAILY_MAX  = 450;
+const GSB_DAILY_MAX = 9000;
 import { validateApiKey, checkKeyRateLimit } from '@/lib/apiKeys';
 
 /**
@@ -343,6 +356,20 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
     return json({ url: fullUrl, domain, verdict, sources, vtPending: false });
   }
 
+  // Cache lookup (keyed on hashed domain) — a hit skips ALL external calls
+  // (GoPlus, URLScan, GSB, VT), which is the main quota saver. Verdict returned
+  // fresh from the current request; only the verdict/sources come from cache, so
+  // no raw domain is ever read back from storage.
+  const cached = await getCachedScan('dapp', domain);
+  if (cached) {
+    const color = cached.value?.verdict;
+    const ttl = color === 'red' ? DAPP_TTL_RED_MS : color === 'green' ? DAPP_TTL_GREEN_MS : 0;
+    if (ttl > 0 && cached.ageMs <= ttl) {
+      recordCheck({ kind: 'dapp', subject: domain, request, cacheHit: true });
+      return json({ url: fullUrl, domain, ...cached.value });
+    }
+  }
+
   // Count this as one site check — the full 'all' pass ('fast' is just an instant
   // preview, so it isn't counted). Fire-and-forget via the shared counter.
   recordCheck({ kind: 'dapp', subject: domain, request });
@@ -354,13 +381,24 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   // Local phishing DB — runs in parallel with external APIs
   const localDbPromise = checkLocalPhishingDb(domain);
 
+  // Paid sources also pass a daily-quota gate. If the gate is closed (cache-miss
+  // storm), skip the call gracefully — the other sources still return a verdict.
+  const gsbCall: Promise<SourceResult> =
+    gsb && tryConsumeDailyQuota('gsb', GSB_DAILY_MAX)
+      ? checkGoogleSafeBrowsing(fullUrl, gsb)
+      : Promise.resolve<SourceResult>({ name: 'Google Safe Browsing', verdict: 'skipped', detail: gsb ? 'Daily check limit reached — try again tomorrow' : 'API key not configured (GOOGLE_SAFE_BROWSING_KEY)', icon: '🔍' });
+  const vtCall: Promise<SourceResult> =
+    vt && tryConsumeDailyQuota('vt', VT_DAILY_MAX)
+      ? checkVirusTotal(fullUrl, vt)
+      : Promise.resolve<SourceResult>({ name: 'VirusTotal', verdict: 'skipped', detail: vt ? 'Daily check limit reached — try again tomorrow' : 'API key not configured (VIRUSTOTAL_API_KEY)', icon: '🦠' });
+
   // Run all checks in parallel
   const [localDbHit, goplusResult, urlscanResult, gsbResult, vtResult] = await Promise.all([
     localDbPromise,
     checkGoPlus(fullUrl),
     checkURLScan(domain),
-    gsb  ? checkGoogleSafeBrowsing(fullUrl, gsb) : Promise.resolve<SourceResult>({ name: 'Google Safe Browsing', verdict: 'skipped', detail: 'API key not configured (GOOGLE_SAFE_BROWSING_KEY)', icon: '🔍' }),
-    vt   ? checkVirusTotal(fullUrl, vt)           : Promise.resolve<SourceResult>({ name: 'VirusTotal',           verdict: 'skipped', detail: 'API key not configured (VIRUSTOTAL_API_KEY)',       icon: '🦠' }),
+    gsbCall,
+    vtCall,
   ]);
 
   // Short-circuit: community-confirmed phishing domain
@@ -371,6 +409,7 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
       detail:  'Flagged via community-reported phishing airdrop token',
       icon:    '🚨',
     };
+    void putCachedScan('dapp', domain, { verdict: 'red', sources: [localResult], vtPending: false });
     return json({ url: fullUrl, domain, verdict: 'red', sources: [localResult], vtPending: false });
   }
 
@@ -396,6 +435,12 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
     anyFlagged  ? 'red'   :
     anyError || unscanned ? 'yellow' :
     'green';
+
+  // Cache only settled verdicts. Never cache a pending VT scan or a yellow
+  // (error/unscanned) result — those should be retried on the next check.
+  if (!vtPending && (verdict === 'red' || verdict === 'green')) {
+    void putCachedScan('dapp', domain, { verdict, sources, vtPending: false });
+  }
 
   return json({ url: fullUrl, domain, verdict, sources, vtPending });
 };
