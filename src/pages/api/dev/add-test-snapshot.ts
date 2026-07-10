@@ -4,6 +4,12 @@ import { getAuthSession } from '@/lib/authSession';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 
 export const GET: APIRoute = async ({ request }) => {
+	// Dev-only test utility — must never be reachable in production. It writes a
+	// fake wallet + snapshot, and being a GET it bypasses the demo mutation filter,
+	// so a prefetch/CSRF could pollute a tenant's data.
+	if (process.env.NODE_ENV === 'production') {
+		return new Response('Not found', { status: 404 });
+	}
 	try {
 		const tenant = await requireTenantSession(request);
 		if (!tenant) return new Response('Unauthorized', { status: 401 });

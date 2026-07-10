@@ -48,6 +48,10 @@ export function isPublicPath(pathname: string): boolean {
 		pathname.startsWith('/wallet/') ||
 		pathname === '/wallet-checker' ||
 		pathname.startsWith('/wallet-checker/') ||
+		// Community ratings — GET is a public aggregate shown on the wallet-checker.
+		// POST/DELETE self-enforce requireTenantSession (+ paid plan), so exposing
+		// the path is safe; the write methods stay gated inside the handler.
+		pathname === '/api/community-rating' ||
 		// Almstins Verify — public merchant landing (canonical /verify; /verify/es, /verify/fr;
 		// /marchand is the Francophone-Africa promo URL that redirects to /verify/fr)
 		pathname === '/verify' ||

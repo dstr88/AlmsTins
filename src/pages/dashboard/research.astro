@@ -832,7 +832,7 @@ function renderNeedsAttention(data) {
                     title="${i18n('aboutTxHistory', 'About my transaction history')}"></button>
             <button class="btn-help"
                     data-tx-id="${t.id}"
-                    onclick="openHelpPanel(event,'${t.id}','${escapeHtml((t.kind??'').replace(/'/g,'&#39;'))}','${dir}','${escapeHtml(t.asset_symbol)}','${escapeHtml((t.description??'').slice(0,80).replace(/'/g,'&#39;').replace(/"/g,'&quot;'))}','${escapeHtml((srcName(t.source)??'').replace(/'/g,'&#39;'))}')">
+                    onclick="openHelpPanel(event,'${t.id}','${escapeHtml(t.kind??'')}','${dir}','${escapeHtml(t.asset_symbol)}','${escapeHtml((t.description??'').slice(0,80))}','${escapeHtml(srcName(t.source)??'')}')">
               ${i18n('helpBtn', '? Help')}
             </button>
           </div>

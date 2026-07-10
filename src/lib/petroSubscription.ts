@@ -136,20 +136,26 @@ export async function redeemPromoCode(tenantId: string, code: string): Promise<R
   }
   // free_life: expiresAt stays null
 
-  await db.batch([
-    {
-      sql: `INSERT INTO petro_subscriptions (tenant_id, tier, expires_at, promo_code)
-            VALUES (?, 'paid', ?, ?)
-            ON CONFLICT(tenant_id) DO UPDATE SET
-              tier = 'paid', expires_at = excluded.expires_at,
-              promo_code = excluded.promo_code, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')`,
-      args: [tenantId, expiresAt, upper],
-    },
-    {
-      sql: `UPDATE petro_promo_codes SET uses = uses + 1 WHERE code = ?`,
-      args: [upper],
-    },
-  ]);
+  // Atomically claim one use — the conditional WHERE means a concurrent burst of
+  // redemptions can't push `uses` past `max_uses` (the earlier read-then-write
+  // check was race-prone). Only activate if this request actually claimed a use.
+  const claim = await db.execute({
+    sql: `UPDATE petro_promo_codes SET uses = uses + 1
+          WHERE code = ? AND (max_uses IS NULL OR uses < max_uses)`,
+    args: [upper],
+  });
+  if (Number(claim.rowsAffected ?? 0) < 1) {
+    return { ok: false, error: 'This code has reached its maximum number of uses.' };
+  }
+
+  await db.execute({
+    sql: `INSERT INTO petro_subscriptions (tenant_id, tier, expires_at, promo_code)
+          VALUES (?, 'paid', ?, ?)
+          ON CONFLICT(tenant_id) DO UPDATE SET
+            tier = 'paid', expires_at = excluded.expires_at,
+            promo_code = excluded.promo_code, updated_at = to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')`,
+    args: [tenantId, expiresAt, upper],
+  });
 
   return { ok: true, tier: 'paid', expiresAt, discount: promo.discount };
 }

@@ -1061,10 +1061,10 @@ const { t, prefilledAddress, isLoggedIn = false, isPaid = false } = Astro.props;
       );
       document.getElementById('source-list')!.innerHTML = sortedSources.map((s) => `
         <li class="source-item ${sourceClass(s.verdict)}">
-          <span class="source-badge">${s.icon}</span>
+          <span class="source-badge">${escapeHtml(String(s.icon ?? ''))}</span>
           <div>
-            <p class="source-name">${s.name}</p>
-            <p class="source-detail">${s.detail}</p>
+            <p class="source-name">${escapeHtml(String(s.name ?? ''))}</p>
+            <p class="source-detail">${escapeHtml(String(s.detail ?? ''))}</p>
           </div>
           <span class="source-verdict-dot ${verdictDot(s.verdict)}"></span>
         </li>`).join('');
