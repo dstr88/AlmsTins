@@ -4,6 +4,7 @@ import { recordCheck } from '@/lib/checkLog';
 import { getClientIp } from '@/lib/analytics/ip';
 import { getCachedScan, putCachedScan } from '@/lib/scanCache';
 import { tryConsumeDailyQuota } from '@/lib/upstreamQuota';
+import { lookupDomainThreats, refreshThreatListsIfStale, type DomainThreatLookup } from '@/lib/threatLists';
 
 // Freshness for cached dApp verdicts. Flagged domains stay flagged, so cache
 // them longer; clean results expire sooner so a newly-compromised site gets
@@ -72,18 +73,17 @@ function checkIpRateLimit(ip: string): boolean {
 }
 
 // ── Static list cache ─────────────────────────────────────────────────────────
+// Only OpenPhish stays in-memory: its feed is small and its match is a substring
+// test (not exact-domain), so it doesn't fit the indexed DB lookup that backs
+// MetaMask/ScamSniffer (see src/lib/threatLists.ts).
 type ListCache = {
-  metamask:    { blacklist: Set<string>; whitelist: Set<string> } | null;
-  scamsniffer: Set<string> | null;
-  openphish:   string[] | null;
-  loadedAt:    number;
+  openphish: string[] | null;
+  loadedAt:  number;
 };
 
 const lists: ListCache = {
-  metamask:    null,
-  scamsniffer: null,
-  openphish:   null,
-  loadedAt:    0,
+  openphish: null,
+  loadedAt:  0,
 };
 
 // Track whether a background load is already in flight so we don't double-fetch
@@ -95,30 +95,13 @@ async function loadListsInBackground(): Promise<void> {
   listsLoading = true;
 
   try {
-    const [mm, ss, op] = await Promise.allSettled([
-      fetchWithTimeout(
-        'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/main/src/config.json',
-        LIST_TIMEOUT_MS,
-      ).then((r) => r.json()),
-      fetchWithTimeout(
-        'https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/domains.json',
-        LIST_TIMEOUT_MS,
-      ).then((r) => r.json()),
+    const [op] = await Promise.allSettled([
       fetchWithTimeout(
         'https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt',
         LIST_TIMEOUT_MS,
       ).then((r) => r.text()),
     ]);
 
-    if (mm.status === 'fulfilled' && mm.value?.blacklist) {
-      lists.metamask = {
-        blacklist: new Set((mm.value.blacklist as string[]).map((d) => d.toLowerCase())),
-        whitelist: new Set((mm.value.whitelist as string[]).map((d) => d.toLowerCase())),
-      };
-    }
-    if (ss.status === 'fulfilled' && Array.isArray(ss.value)) {
-      lists.scamsniffer = new Set((ss.value as string[]).map((d) => d.toLowerCase()));
-    }
     if (op.status === 'fulfilled' && typeof op.value === 'string') {
       lists.openphish = op.value.trim().split('\n').filter(Boolean);
     }
@@ -170,20 +153,20 @@ type SourceResult = {
   icon:    string;
 };
 
-function checkMetaMask(domain: string): SourceResult {
+function checkMetaMask(threats: DomainThreatLookup): SourceResult {
   const src = 'MetaMask Blocklist';
-  if (!lists.metamask) return { name: src, verdict: 'unscanned', detail: 'List is warming up — try again in a moment', icon: '🦊' };
-  if (lists.metamask.whitelist.has(domain))
+  if (!threats.ready) return { name: src, verdict: 'unscanned', detail: 'List is warming up — try again in a moment', icon: '🦊' };
+  if (threats.metamaskWhitelist)
     return { name: src, verdict: 'whitelisted', detail: 'On MetaMask verified-safe list', icon: '🦊' };
-  if (lists.metamask.blacklist.has(domain))
+  if (threats.metamaskBlacklist)
     return { name: src, verdict: 'flagged', detail: 'In MetaMask crypto phishing blocklist (198K+ domains)', icon: '🦊' };
   return { name: src, verdict: 'clean', detail: 'Not in MetaMask phishing list', icon: '🦊' };
 }
 
-function checkScamSniffer(domain: string): SourceResult {
+function checkScamSniffer(threats: DomainThreatLookup): SourceResult {
   const src = 'ScamSniffer';
-  if (!lists.scamsniffer) return { name: src, verdict: 'unscanned', detail: 'List is warming up — try again in a moment', icon: '🕵️' };
-  if (lists.scamsniffer.has(domain))
+  if (!threats.ready) return { name: src, verdict: 'unscanned', detail: 'List is warming up — try again in a moment', icon: '🕵️' };
+  if (threats.scamsniffer)
     return { name: src, verdict: 'flagged', detail: 'In ScamSniffer crypto phishing blocklist (345K+ domains)', icon: '🕵️' };
   return { name: src, verdict: 'clean', detail: 'Not in ScamSniffer phishing list', icon: '🕵️' };
 }
@@ -338,12 +321,17 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   const domain  = extractDomain(fullUrl);
 
   refreshLists();
+  refreshThreatListsIfStale();
 
-  // Fast phase: only static in-memory list checks (~instant, no network calls)
+  // Local blocklist lookup: one indexed query against the DB-mirrored MetaMask /
+  // ScamSniffer lists. No external network call.
+  const threats = await lookupDomainThreats(domain);
+
+  // Fast phase: only local list checks (no external API calls)
   if (phase === 'fast') {
     const sources: SourceResult[] = [
-      checkMetaMask(domain),
-      checkScamSniffer(domain),
+      checkMetaMask(threats),
+      checkScamSniffer(threats),
       checkOpenPhish(fullUrl),
     ];
     const anyFlagged  = sources.some((s) => s.verdict === 'flagged');
@@ -414,8 +402,8 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   }
 
   const sources: SourceResult[] = [
-    checkMetaMask(domain),
-    checkScamSniffer(domain),
+    checkMetaMask(threats),
+    checkScamSniffer(threats),
     goplusResult,
     urlscanResult,
     checkOpenPhish(fullUrl),
