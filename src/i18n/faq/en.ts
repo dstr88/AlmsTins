@@ -91,6 +91,29 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-safety-checker",
+    q: "What is the wallet & website safety checker?",
+    a: `<p>
+          A free public tool — no account, no wallet connection — for checking an
+          address or a website <em>before</em> you send funds or connect. Paste a
+          wallet address and it runs safety checks (GoPlus blacklist, OFAC
+          sanctions, mixer / Tornado Cash activity, honeypot detection, wallet
+          age, multi-sig). Paste a URL and it checks 7 independent phishing and
+          malware databases — MetaMask, ScamSniffer, GoPlus, URLScan.io,
+          OpenPhish, Google Safe Browsing, and VirusTotal — and returns red,
+          yellow, or green. Almstins never makes its own determination; it
+          surfaces what the security community has already flagged.
+        </p>
+        <p>
+          Nothing you check is stored in readable form. Repeat checks come from a
+          short-lived cache keyed to an irreversible one-way hash of what you
+          entered, and the usage counter records only that same hash — so there
+          is no way to work backward to what you looked up. This keeps the tool
+          consistent with the rule that Almstins never links an address to a
+          person.
+        </p>`,
+  },
+  {
     id: "faq-support",
     q: "What does the project currently support?",
     a: `<p><strong>Self-custody wallets (live blockchain data)</strong></p>

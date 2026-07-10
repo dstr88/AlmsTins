@@ -89,6 +89,31 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-safety-checker",
+    q: "¿Qué es el verificador de seguridad de billeteras y sitios web?",
+    a: `<p>
+          Una herramienta pública y gratuita — sin cuenta, sin conexión de
+          billetera — para verificar una dirección o un sitio web <em>antes</em>
+          de enviar fondos o conectarte. Pega una dirección de billetera y ejecuta
+          verificaciones de seguridad (lista de bloqueo de GoPlus, sanciones OFAC,
+          actividad de mezcladores / Tornado Cash, detección de honeypot, edad de
+          la billetera, multi-firma). Pega una URL y la verifica contra 7 bases de
+          datos independientes de phishing y malware — MetaMask, ScamSniffer,
+          GoPlus, URLScan.io, OpenPhish, Google Safe Browsing y VirusTotal — y
+          devuelve rojo, amarillo o verde. Almstins nunca hace su propia
+          determinación; muestra lo que la comunidad de seguridad ya ha señalado.
+        </p>
+        <p>
+          Nada de lo que verificas se almacena en forma legible. Las verificaciones
+          repetidas se sirven desde una caché de corta duración indexada mediante
+          una huella unidireccional e irreversible de lo que ingresaste, y el
+          contador de uso registra solo esa misma huella — por lo que no hay forma
+          de retroceder hasta lo que consultaste. Esto mantiene la herramienta
+          coherente con la regla de que Almstins nunca vincula una dirección a una
+          persona.
+        </p>`,
+  },
+  {
     id: "faq-support",
     q: "¿Qué soporta el proyecto actualmente?",
     a: `<p><strong>Wallets de self-custody (datos de blockchain en vivo)</strong></p>

@@ -89,6 +89,32 @@ export const items: FaqItem[] = [
         </p>`,
   },
   {
+    id: "faq-safety-checker",
+    q: "Qu’est-ce que le vérificateur de sécurité de portefeuilles et de sites web ?",
+    a: `<p>
+          Un outil public et gratuit — sans compte, sans connexion de portefeuille
+          — pour vérifier une adresse ou un site web <em>avant</em> d’envoyer des
+          fonds ou de vous connecter. Collez une adresse de portefeuille et il
+          exécute des vérifications de sécurité (liste de blocage GoPlus, sanctions
+          OFAC, activité de mélangeurs / Tornado Cash, détection de honeypot, âge
+          du portefeuille, multi-signature). Collez une URL et il la vérifie auprès
+          de 7 bases de données indépendantes de phishing et de logiciels
+          malveillants — MetaMask, ScamSniffer, GoPlus, URLScan.io, OpenPhish,
+          Google Safe Browsing et VirusTotal — et renvoie rouge, jaune ou vert.
+          Almstins ne porte jamais son propre jugement ; il fait remonter ce que la
+          communauté de la sécurité a déjà signalé.
+        </p>
+        <p>
+          Rien de ce que vous vérifiez n’est stocké sous une forme lisible. Les
+          vérifications répétées proviennent d’un cache de courte durée indexé par
+          une empreinte unidirectionnelle et irréversible de ce que vous avez
+          saisi, et le compteur d’utilisation n’enregistre que cette même empreinte
+          — il n’existe donc aucun moyen de remonter vers ce que vous avez
+          consulté. Cela garde l’outil conforme à la règle selon laquelle Almstins
+          ne relie jamais une adresse à une personne.
+        </p>`,
+  },
+  {
     id: "faq-support",
     q: "Que prend en charge le projet actuellement ?",
     a: `<p><strong>Wallets en self-custody (données blockchain en direct)</strong></p>
