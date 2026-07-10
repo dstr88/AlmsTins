@@ -136,7 +136,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		if (isWordpressProbe(pathname)) {
 			const ip = request.headers.get('x-forwarded-for') ?? context.clientAddress ?? 'unknown';
 			const ua = request.headers.get('user-agent') ?? 'unknown';
-			console.log('[probe-blocked] path=%s ip=%s ua=%s', pathname, ip, ua);
+			// TEMP: confirm which trusted-IP header Cloudflare/Render provide, so the
+			// public rate limiters can key on the un-spoofable client IP. Remove once done.
+			console.log('[probe-blocked] path=%s ip=%s cf=%s realip=%s peer=%s ua=%s',
+				pathname, ip,
+				request.headers.get('cf-connecting-ip') ?? '-',
+				request.headers.get('x-real-ip') ?? '-',
+				context.clientAddress ?? '-',
+				ua);
 			return finish(
 				applySecurityHeaders(
 					new Response('Not Found', {
