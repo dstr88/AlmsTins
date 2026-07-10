@@ -5,6 +5,7 @@ import { getClientIp } from '@/lib/analytics/ip';
 import { getCachedScan, putCachedScan } from '@/lib/scanCache';
 import { tryConsumeDailyQuota } from '@/lib/upstreamQuota';
 import { lookupDomainThreats, refreshThreatListsIfStale, type DomainThreatLookup } from '@/lib/threatLists';
+import { gsbLookup, refreshGsbIfStale } from '@/lib/gsb';
 
 // Freshness for cached dApp verdicts. Flagged domains stay flagged, so cache
 // them longer; clean results expire sooner so a newly-compromised site gets
@@ -369,12 +370,22 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   // Local phishing DB — runs in parallel with external APIs
   const localDbPromise = checkLocalPhishingDb(domain);
 
-  // Paid sources also pass a daily-quota gate. If the gate is closed (cache-miss
-  // storm), skip the call gracefully — the other sources still return a verdict.
-  const gsbCall: Promise<SourceResult> =
-    gsb && tryConsumeDailyQuota('gsb', GSB_DAILY_MAX)
-      ? checkGoogleSafeBrowsing(fullUrl, gsb)
-      : Promise.resolve<SourceResult>({ name: 'Google Safe Browsing', verdict: 'skipped', detail: gsb ? 'Daily check limit reached — try again tomorrow' : 'API key not configured (GOOGLE_SAFE_BROWSING_KEY)', icon: '🔍' });
+  // Google Safe Browsing: prefer the LOCAL mirror (a hashed-prefix lookup, no
+  // quota). Only if the mirror isn't ready/trustworthy (returns null) do we fall
+  // back to the per-call Lookup API, still behind the daily-quota gate.
+  if (gsb) refreshGsbIfStale(gsb);
+  const gsbCall: Promise<SourceResult> = (async (): Promise<SourceResult> => {
+    if (!gsb) return { name: 'Google Safe Browsing', verdict: 'skipped', detail: 'API key not configured (GOOGLE_SAFE_BROWSING_KEY)', icon: '🔍' };
+    const local = await gsbLookup(fullUrl, gsb);
+    if (local !== null) {
+      return local.flagged
+        ? { name: 'Google Safe Browsing', verdict: 'flagged', detail: 'Flagged by Google Safe Browsing', icon: '🔍' }
+        : { name: 'Google Safe Browsing', verdict: 'clean', detail: 'No threats found by Google Safe Browsing', icon: '🔍' };
+    }
+    // Mirror warming up — fall back to the quota-gated per-call Lookup API.
+    if (tryConsumeDailyQuota('gsb', GSB_DAILY_MAX)) return checkGoogleSafeBrowsing(fullUrl, gsb);
+    return { name: 'Google Safe Browsing', verdict: 'skipped', detail: 'Daily check limit reached — try again tomorrow', icon: '🔍' };
+  })();
   const vtCall: Promise<SourceResult> =
     vt && tryConsumeDailyQuota('vt', VT_DAILY_MAX)
       ? checkVirusTotal(fullUrl, vt)

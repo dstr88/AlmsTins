@@ -10,6 +10,7 @@
  */
 import type { APIRoute } from 'astro';
 import { refreshThreatLists } from '@/lib/threatLists';
+import { refreshGsb } from '@/lib/gsb';
 
 export const prerender = false;
 
@@ -26,11 +27,15 @@ export const GET: APIRoute = async ({ request }) => {
 	}
 
 	const force = new URL(request.url).searchParams.get('force') === '1';
+	const gsbKey = (process.env as any).GOOGLE_SAFE_BROWSING_KEY ?? import.meta.env.GOOGLE_SAFE_BROWSING_KEY ?? '';
 	const startedAt = Date.now();
 	try {
-		const result = await refreshThreatLists({ force });
-		console.log('[cron/refresh-threat-lists] done', result);
-		return json({ ok: true, elapsed_ms: Date.now() - startedAt, result });
+		const [lists, gsb] = await Promise.all([
+			refreshThreatLists({ force }),
+			gsbKey ? refreshGsb(gsbKey) : Promise.resolve({ error: 'no_key' } as const),
+		]);
+		console.log('[cron/refresh-threat-lists] done', { lists, gsb });
+		return json({ ok: true, elapsed_ms: Date.now() - startedAt, result: { ...lists, gsb } });
 	} catch (e) {
 		console.error('[cron/refresh-threat-lists] failed', e instanceof Error ? e.message : e);
 		return json({ ok: false, error: 'refresh failed' }, 500);
