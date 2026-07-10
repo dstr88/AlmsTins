@@ -34,7 +34,8 @@ export const POST: APIRoute = async ({ request }) => {
     });
     return json(200, { ok: true });
   } catch (err) {
-    return json(500, { ok: false, error: String(err) });
+    console.error('[tokens/override:POST]', err);
+    return json(500, { ok: false, error: 'Server error' });
   }
 };
 
@@ -52,6 +53,7 @@ export const DELETE: APIRoute = async ({ request }) => {
     });
     return json(200, { ok: true });
   } catch (err) {
-    return json(500, { ok: false, error: String(err) });
+    console.error('[tokens/override:DELETE]', err);
+    return json(500, { ok: false, error: 'Server error' });
   }
 };

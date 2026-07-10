@@ -58,6 +58,7 @@ export const GET: APIRoute = async ({ request }) => {
 			{ status: 200, headers: { 'Content-Type': 'application/json' } },
 		);
 	} catch (err: unknown) {
-		return new Response(JSON.stringify({ error: String(err) }), { status: 500 });
+		console.error('[demo/debug]', err);
+		return new Response(JSON.stringify({ error: 'Server error' }), { status: 500 });
 	}
 };

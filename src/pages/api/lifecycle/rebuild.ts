@@ -42,7 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
 	} catch (error) {
 		console.error('[lifecycle/rebuild]', error);
 		return new Response(
-			JSON.stringify({ ok: false, error: String(error) }),
+			JSON.stringify({ ok: false, error: 'Server error' }),
 			{ status: 500, headers: { 'Content-Type': 'application/json' } },
 		);
 	}

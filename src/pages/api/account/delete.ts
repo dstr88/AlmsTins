@@ -38,6 +38,18 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return json({ ok: false, error: 'No account found.' }, 404);
   }
 
+  // Safety: this handler wipes ALL data for the tenant (and every member's
+  // membership). If the tenant has more than one member, a single member must
+  // not be able to destroy shared data — refuse and route to support. Solo
+  // tenants (the current model) are unaffected.
+  const memberCount = await db
+    .execute({ sql: `SELECT COUNT(*) AS n FROM tenant_memberships WHERE tenant_id = ?`, args: [tenantId] })
+    .then((r) => Number((r.rows?.[0] as any)?.n ?? 0))
+    .catch(() => 0);
+  if (memberCount > 1) {
+    return json({ ok: false, error: 'This account is shared. Please contact support to delete it.' }, 409);
+  }
+
   try {
     // Delete all tenant data — PetroTins
     await db.execute({ sql: `DELETE FROM petro_tin_entries WHERE tin_id IN (SELECT id FROM petro_tins WHERE tenant_id = ?)`, args: [tenantId] }).catch(() => {});

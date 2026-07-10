@@ -18,6 +18,7 @@ export const GET: APIRoute = async ({ request }) => {
     const items = await getFilteredTokens(session.tenantId);
     return json(200, { ok: true, items });
   } catch (err) {
-    return json(500, { ok: false, error: String(err) });
+    console.error('[tokens/junk]', err);
+    return json(500, { ok: false, error: 'Server error' });
   }
 };

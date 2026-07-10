@@ -57,10 +57,10 @@ export const POST: APIRoute = async ({ request }) => {
 
   // Look up tenantId for the user
   const userRow = await db.execute({
-    sql: 'SELECT id FROM tenant_memberships WHERE user_id = ? LIMIT 1',
+    sql: 'SELECT tenant_id FROM tenant_memberships WHERE user_id = ? LIMIT 1',
     args: [userId],
   });
-  const tenantId = (userRow.rows[0] as any)?.id ?? '';
+  const tenantId = (userRow.rows[0] as any)?.tenant_id ?? '';
 
   const id = randomUUID();
   await db.execute({

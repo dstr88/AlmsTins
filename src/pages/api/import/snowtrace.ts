@@ -360,6 +360,7 @@ ON CONFLICT DO NOTHING`,
 	void runTransferMatching(tenantId);
 	void autoClassifyOwnWalletTransfers(tenantId);
 	void detectAndAlertBounces(tenantId);
+	const skippedDuplicates = rawStatements.length - insertedRaw;
 	logActivity(tenantId, 'import', `${insertedNormalized} imported, ${skippedDuplicates} skipped`, { inserted: insertedNormalized, skipped: skippedDuplicates }, { source: 'snowtrace', chain: 'avalanche' });
 
 	return new Response(

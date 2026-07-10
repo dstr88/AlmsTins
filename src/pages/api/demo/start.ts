@@ -697,7 +697,7 @@ ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, revie
 
 	// Respect ?next= param for PetroTins demo link; whitelist internal paths only
 	const nextParam = url.searchParams.get('next') ?? '';
-	const destination = nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/dashboard/vault';
+	const destination = nextParam.startsWith('/') && !nextParam.startsWith('//') && !nextParam.startsWith('/\\') ? nextParam : '/dashboard/vault';
 
 	const headers = new Headers();
 	headers.append('Location', destination);

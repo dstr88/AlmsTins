@@ -171,6 +171,6 @@ export const GET: APIRoute = async ({ request, url }) => {
     });
   } catch (error) {
     console.error('[wallet/year-changes]', error);
-    return new Response(JSON.stringify({ ok: false, error: String(error) }), { status: 500 });
+    return new Response(JSON.stringify({ ok: false, error: 'Server error' }), { status: 500 });
   }
 };

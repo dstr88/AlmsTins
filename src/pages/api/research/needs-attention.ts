@@ -103,7 +103,7 @@ export const GET: APIRoute = async ({ request }) => {
 	} catch (err) {
 		console.error(`[needs-attention] db error after ${Date.now() - t2}ms:`, err);
 		return new Response(
-			JSON.stringify({ error: String(err), unmatched: [], suggested: [], resolved: [], symbols: [], total: 0, unmatchedCapped: false }),
+			JSON.stringify({ error: 'Server error', unmatched: [], suggested: [], resolved: [], symbols: [], total: 0, unmatchedCapped: false }),
 			{ status: 200, headers: { 'Content-Type': 'application/json' } },
 		);
 	}

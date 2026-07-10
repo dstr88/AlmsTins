@@ -6,7 +6,9 @@ function normalizeNextPath(nextValue: FormDataEntryValue | string | null | undef
 		return null;
 	}
 
-	if (nextValue.startsWith('/') && !nextValue.startsWith('//')) {
+	// Reject `//host` and `/\host` — both are treated as protocol-relative
+	// external URLs by browsers (Chrome normalizes `\` to `/`).
+	if (nextValue.startsWith('/') && !nextValue.startsWith('//') && !nextValue.startsWith('/\\')) {
 		// Never treat API endpoints as post-login destinations.
 		if (nextValue.startsWith('/api/')) {
 			return '/onboarding/tenant-setup';

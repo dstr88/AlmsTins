@@ -136,8 +136,11 @@ export async function getTransactionsForWallet(tenantId: string, walletId: strin
 		args.push(options.to.toISOString());
 	}
 
-	const limit = options.limit ?? 50;
-	const offset = options.offset ?? 0;
+	// Clamp before interpolation — LIMIT/OFFSET can't be bound params in this
+	// query builder, so keep them provably integer to prevent SQL injection or
+	// a NaN-triggered 500 regardless of what the caller passes.
+	const limit = Math.min(Math.max(Math.trunc(Number(options.limit)) || 50, 1), 500);
+	const offset = Math.max(Math.trunc(Number(options.offset)) || 0, 0);
 
 	const query = `SELECT t.*, a.direction, a.category, a.note
     FROM transactions t
@@ -183,8 +186,8 @@ export async function getTransactionsForWalletDashboard(
 		params.push(new Date(opts.toDate).toISOString());
 	}
 
-	const limit = opts.limit ?? 50;
-	const offset = opts.offset ?? 0;
+	const limit = Math.min(Math.max(Math.trunc(Number(opts.limit)) || 50, 1), 500);
+	const offset = Math.max(Math.trunc(Number(opts.offset)) || 0, 0);
 
 	const query = `SELECT t.*, a.category, a.note
 		FROM transactions t

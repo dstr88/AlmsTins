@@ -29,6 +29,7 @@ export const POST: APIRoute = async ({ request }) => {
     await setNftCost(session.tenantId, { chain, contract, tokenId, costUsd });
     return json(200, { ok: true });
   } catch (err) {
-    return json(500, { ok: false, error: String(err) });
+    console.error('[tokens/nft-cost]', err);
+    return json(500, { ok: false, error: 'Server error' });
   }
 };

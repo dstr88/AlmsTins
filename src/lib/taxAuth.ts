@@ -53,7 +53,7 @@ export async function hasTaxAccess(request: Request): Promise<boolean> {
 
 /** Set-Cookie header value to grant access (30 days) */
 export function grantCookie(token: string): string {
-	return `${TAX_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${60 * 60 * 24 * 30}`;
+	return `${TAX_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${60 * 60 * 24 * 30}`;
 }
 
 /** Set-Cookie header value to revoke access */
