@@ -23,6 +23,7 @@ import {
   checkWallet,
 } from '@/lib/walletChecker';
 import { recordCheck } from '@/lib/checkLog';
+import { getClientIp } from '@/lib/analytics/ip';
 import { validateApiKey, checkKeyRateLimit } from '@/lib/apiKeys';
 
 const CORS = {
@@ -104,10 +105,7 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
   const raw = url.searchParams.get('address')?.trim() ?? '';
   if (!raw) return json({ ok: false, error: 'address is required' }, 400);
 
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    clientAddress ??
-    'unknown';
+  const ip = getClientIp(request) ?? clientAddress ?? 'unknown';
   const apiKeyHeader = request.headers.get('x-api-key');
 
   return handleCheck(raw, ip, apiKeyHeader, request);
@@ -126,10 +124,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return json({ ok: false, error: 'address is required' }, 400);
   }
 
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    clientAddress ??
-    'unknown';
+  const ip = getClientIp(request) ?? clientAddress ?? 'unknown';
   const apiKeyHeader = request.headers.get('x-api-key');
 
   return handleCheck(raw.trim(), ip, apiKeyHeader, request);

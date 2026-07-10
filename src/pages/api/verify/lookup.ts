@@ -19,6 +19,7 @@
 import type { APIRoute } from 'astro';
 import { isValidAddress } from '@/lib/walletChecker';
 import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
+import { getClientIp } from '@/lib/analytics/ip';
 import { isEmvPayload } from '@/lib/paymentQr';
 import { validateApiKey, checkKeyRateLimit } from '@/lib/apiKeys';
 
@@ -71,8 +72,7 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
       return json({ ok: false, error: 'Too many requests.' }, 429);
     }
   } else {
-    const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? clientAddress ?? 'unknown';
+    const ip = getClientIp(request) ?? clientAddress ?? 'unknown';
     if (rateLimited(ip)) return json({ ok: false, error: 'Too many requests.' }, 429);
   }
 

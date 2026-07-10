@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { checkLocalPhishingDb } from '@/lib/phishingDomains';
 import { recordCheck } from '@/lib/checkLog';
+import { getClientIp } from '@/lib/analytics/ip';
 import { validateApiKey, checkKeyRateLimit } from '@/lib/apiKeys';
 
 /**
@@ -313,10 +314,7 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
       return json({ ok: false, error: 'Too many requests.' }, 429);
     }
   } else {
-    const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-      clientAddress ??
-      'unknown';
+    const ip = getClientIp(request) ?? clientAddress ?? 'unknown';
     if (!checkIpRateLimit(ip)) {
       return json({ ok: false, error: 'Too many requests.' }, 429);
     }
