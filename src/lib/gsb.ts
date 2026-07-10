@@ -17,6 +17,24 @@
 import crypto from 'node:crypto';
 import { db } from '@/lib/db';
 import { generateExpressions, fullHash, hashPrefix, runSelfTest } from '@/lib/gsbCanon';
+import { sendMail } from '@/lib/email';
+
+const OWNER_EMAIL = 'donnie@titaniumhut.com';
+
+// Operator alert: a prominent [gsb][ALERT] log line (always) + a one-time owner
+// email (deduped per-process so a hot path can't spam). Fire-and-forget — an
+// alert failure must never affect a check.
+const alerted = new Set<string>();
+function alertOwner(key: string, subject: string, body: string): void {
+	console.error(`[gsb][ALERT] ${subject} — ${body}`);
+	if (alerted.has(key)) return;
+	alerted.add(key);
+	void sendMail({
+		to: OWNER_EMAIL,
+		subject: `[Almstins] GSB alert: ${subject}`,
+		text: `${body}\n\nThis is a one-time alert per process. Time: ${new Date().toISOString()}`,
+	}).catch((e) => console.warn('[gsb] alert email failed:', e instanceof Error ? e.message : e));
+}
 
 const GSB_BASE = 'https://safebrowsing.googleapis.com/v4';
 const CLIENT = { clientId: 'almstins', clientVersion: '1.0' };
@@ -109,6 +127,15 @@ export async function refreshGsb(key: string): Promise<GsbRefreshResult> {
 	if (!key) return { error: 'no_key' };
 	try {
 		await ensureTable();
+		// Canary: surface a canonicalization regression on every refresh (the cron
+		// runs even with no dApp traffic), independent of the per-request check.
+		if (!runSelfTest()) {
+			alertOwner(
+				'selftest',
+				'Safe Browsing canonicalization self-test FAILED (refresh canary)',
+				'gsbCanon.runSelfTest() did not match Google\'s official vectors during a mirror refresh. Local GSB lookups are disabled until src/lib/gsbCanon.ts is fixed.',
+			);
+		}
 		const body = {
 			client: CLIENT,
 			listUpdateRequests: THREAT_TYPES.map((threatType) => ({
@@ -131,7 +158,14 @@ export async function refreshGsb(key: string): Promise<GsbRefreshResult> {
 			}
 			const csum = resp.checksum?.sha256;
 			if (csum && !checksumOk(listPrefixes, csum)) {
-				console.warn('[gsb] checksum mismatch for', resp.threatType, '- skipping list');
+				// The prefixes we assembled don't match Google's checksum — a
+				// Google-side format/integrity issue (or a decode bug). Skip the
+				// list (don't store unverified data) and alert.
+				alertOwner(
+					`checksum:${resp.threatType}`,
+					`Safe Browsing checksum mismatch (${resp.threatType})`,
+					`The GSB ${resp.threatType} list failed checksum verification during refresh, so it was NOT stored. This usually means Google changed the Update-API response format or a transient decode issue. If it persists, review src/lib/gsb.ts against the current v4 spec.`,
+				);
 				continue;
 			}
 			for (const p of listPrefixes) all.add(p);
@@ -183,7 +217,16 @@ export type GsbVerdict = { flagged: boolean } | null; // null → unavailable / 
  * source to 'skipped' rather than reporting a wrong verdict.
  */
 export async function gsbLookup(rawUrl: string, key: string): Promise<GsbVerdict> {
-	if (!runSelfTest()) return null; // canonicalization unverified → do not trust
+	if (!runSelfTest()) {
+		// Our canonicalization no longer reproduces Google's official vectors — a
+		// code regression. Local GSB is disabled (fail-safe); alert so it's fixed.
+		alertOwner(
+			'selftest',
+			'Safe Browsing canonicalization self-test FAILED',
+			'gsbCanon.runSelfTest() did not match Google\'s official test vectors, so local GSB lookups are disabled and the checker fell back to the per-call Lookup API. This means the URL-hashing code regressed (see the [gsbCanon] self-test MISMATCH log lines). Fix src/lib/gsbCanon.ts.',
+		);
+		return null; // canonicalization unverified → do not trust
+	}
 	try {
 		await ensureTable();
 		if (gsbPopulated === null) {
