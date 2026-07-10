@@ -172,6 +172,7 @@ export async function refreshGsb(key: string): Promise<GsbRefreshResult> {
 		}
 		await replaceGsbPrefixes([...all]);
 		gsbPopulated = all.size > 0;
+		void gsbCanary(key); // behavioral drift check — fire-and-forget
 		return { prefixes: all.size };
 	} catch (e) {
 		console.error('[gsb] refresh failed:', e instanceof Error ? e.message : e);
@@ -257,6 +258,52 @@ export async function gsbLookup(rawUrl: string, key: string): Promise<GsbVerdict
 	} catch (e) {
 		console.warn('[gsb] lookup failed:', e instanceof Error ? e.message : e);
 		return null;
+	}
+}
+
+// Google's permanent Safe Browsing test URLs — guaranteed to be in the lists.
+// If NONE of these verify against our locally-computed hashes, our
+// canonicalization no longer agrees with Google's (i.e. Google changed the
+// rules — the drift the static self-test cannot see).
+const GSB_TEST_URLS = [
+	'https://testsafebrowsing.appspot.com/s/malware.html',
+	'https://testsafebrowsing.appspot.com/s/phishing.html',
+	'https://testsafebrowsing.appspot.com/s/unwanted.html',
+];
+
+/**
+ * Behavioral drift canary. For each known-malicious test URL: canonicalize it
+ * OUR way, compute prefixes + full hashes, and ask Google (fullHashes:find)
+ * whether our prefix is flagged. A verify = one of Google's returned full hashes
+ * equals one of OURS. If not a single test URL verifies, alert — Google's
+ * canonicalization has diverged from ours (or the test URLs were retired).
+ */
+async function gsbCanary(key: string): Promise<void> {
+	if (!key) return;
+	try {
+		for (const url of GSB_TEST_URLS) {
+			const byExpr = generateExpressions(url).map((e) => ({ prefix: hashPrefix(e, PREFIX_BYTES), full: fullHash(e) }));
+			const prefixes = [...new Set(byExpr.map((p) => p.prefix))];
+			const returned = await confirmFullHashes(prefixes, key);
+			const ours = new Set(byExpr.map((p) => p.full));
+			if (returned.some((fh) => ours.has(fh))) return; // verified — canonicalization still matches Google
+		}
+		alertOwner(
+			'canary',
+			'Safe Browsing behavioral canary FAILED — Google likely changed URL canonicalization',
+			[
+				"Google's own permanent test URLs (testsafebrowsing.appspot.com) no longer match the hashes our code computes for them, checked via fullHashes:find.",
+				'',
+				'What this means: Almstins computes a URL\'s Safe Browsing hash by canonicalizing the URL to Google\'s v4 spec. That behavioral check just failed, which means Google has changed their URL-canonicalization rules (the static self-test cannot detect this, because it only validates our code against our stored copy of Google\'s vectors). Local GSB matching may now produce false negatives until the code is updated. The checker still falls back to the per-call Lookup API, so live checks are not broken.',
+				'',
+				'How to fix: re-read https://developers.google.com/safe-browsing/v4/urls-hashing , diff the canonicalization rules AND the official test vectors against src/lib/gsbCanon.ts, and update the algorithm + the CANON_VECTORS array to match. Then redeploy.',
+				'',
+				'Forward this whole email to Claude to make the fix.',
+			].join('\n'),
+		);
+	} catch (e) {
+		// A transient API error is not drift — just log, don't alert.
+		console.warn('[gsb] canary check errored (not alerting):', e instanceof Error ? e.message : e);
 	}
 }
 
