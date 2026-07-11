@@ -86,6 +86,7 @@ const EXCHANGE = 'mailto:hello@almstins.com?subject=Verify%20for%20Exchanges';
         </article>
       ))}
     </div>
+    <p class="pricing__taxnote">{t.plans.taxNote}</p>
 
     <!-- ─── VERIFY — early access ─────────────────────────── -->
     <h2 class="pricing__group">{t.verify.heading} <span class="pricing__tag">{t.verify.tag}</span></h2>
@@ -135,6 +136,7 @@ const EXCHANGE = 'mailto:hello@almstins.com?subject=Verify%20for%20Exchanges';
   .pricing__group { font-size: 1.05rem; font-weight: 600; color: var(--text-secondary); margin: 2.25rem 0 1rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: .5rem; }
   .pricing__sub { color: var(--text-secondary); font-size: .9rem; line-height: 1.55; margin: -.4rem 0 1rem; max-width: 70ch; }
   .pricing__sub--lead { color: var(--text-primary); font-size: .95rem; }
+  .pricing__taxnote { color: var(--text-muted); font-size: .78rem; line-height: 1.5; margin: .6rem 0 0; max-width: 70ch; }
   .pricing__tag { color: var(--accent); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; background: var(--accent-soft); padding: 2px 8px; border-radius: 20px; vertical-align: middle; }
   .pricing__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
   .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.25rem; display: flex; flex-direction: column; }
