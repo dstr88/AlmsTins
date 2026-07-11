@@ -8,9 +8,12 @@
 // country AND region, which lets us block the sanctioned *regions* of Ukraine
 // (Crimea / Sevastopol / Donetsk / Luhansk) without blocking the whole country.
 //
-// FAIL-OPEN BY DESIGN: any error (lookup throws, unknown/empty country) lets the
-// request through — a geo failure must never take the site or login offline.
-// (Confirm fail-open vs. fail-closed with counsel.)
+// FAIL-CLOSED for public IPs: if a public client IP cannot be resolved to a
+// country, or the lookup throws, the request is REFUSED (451) rather than let
+// through — the conservative sanctions posture. Internal/private IPs (health
+// checks, backend calls) are exempt so infra traffic is never blocked. geoip-lite
+// resolves the vast majority of public IPv4/IPv6, so this rarely turns away a
+// legitimate visitor; when it does, it is the deliberate compliance tradeoff.
 //
 // BEST-EFFORT for the UA regions: many occupied-region IPs route through Russian
 // networks and geolocate to RU, so this catches only the subset that still
@@ -55,19 +58,23 @@ const BLOCKED_PAGE = `<!doctype html>
   <p class="muted">If you believe this is an error, contact support@titaniumhut.com.</p>
 </main></body></html>`;
 
-/**
- * Returns a 451 Response if the request's location is sanctioned, else null.
- * May throw; callers MUST wrap in try/catch and fail open.
- */
-export async function getGeoblockResponse(request: Request): Promise<Response | null> {
-	const ip = getClientIp(request);
-	if (!ip) return null;
+/** Internal / private / loopback IPs — infra traffic (health checks, backend
+ * calls), never a foreign visitor. Exempt from geo-blocking. */
+function isPrivateIp(ip: string): boolean {
+	return (
+		ip === '127.0.0.1' || ip === '::1' ||
+		ip.startsWith('10.') ||
+		ip.startsWith('192.168.') ||
+		/^172\.(1[6-9]|2\d|3[01])\./.test(ip) ||       // 172.16.0.0/12
+		ip.startsWith('169.254.') ||                    // link-local
+		/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(ip) || // 100.64.0.0/10 CGNAT
+		/^f[cd]/i.test(ip) || ip.toLowerCase().startsWith('fe80') // IPv6 ULA / link-local
+	);
+}
 
-	const geo = geoip.lookup(ip);
-	if (!geo || !geo.country) return null;
-
-	if (!isBlockedLocation(geo.country, geo.region)) return null;
-
+/** The 451 block page. Exported so the middleware can fail closed if the geo
+ * check itself errors (e.g. the module can't load). */
+export function geoblockedResponse(): Response {
 	return new Response(BLOCKED_PAGE, {
 		status: 451,
 		headers: {
@@ -75,4 +82,28 @@ export async function getGeoblockResponse(request: Request): Promise<Response | 
 			'Cache-Control': 'no-store',
 		},
 	});
+}
+
+/**
+ * Returns a 451 Response if the request's location is sanctioned OR cannot be
+ * verified (fail-closed for public IPs), else null. Does not throw — internal
+ * lookup errors resolve to a block.
+ */
+export async function getGeoblockResponse(request: Request): Promise<Response | null> {
+	const ip = getClientIp(request);
+	// No IP, or an internal/private IP → not a foreign visitor; allow.
+	if (!ip || isPrivateIp(ip)) return null;
+
+	let geo: ReturnType<typeof geoip.lookup>;
+	try {
+		geo = geoip.lookup(ip);
+	} catch {
+		return geoblockedResponse(); // FAIL-CLOSED: public IP we couldn't check
+	}
+
+	// FAIL-CLOSED: a public IP with no country data is treated as unverified.
+	if (!geo || !geo.country) return geoblockedResponse();
+
+	if (isBlockedLocation(geo.country, geo.region)) return geoblockedResponse();
+	return null;
 }
