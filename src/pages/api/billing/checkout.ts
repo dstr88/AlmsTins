@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import type Stripe from 'stripe';
 import { stripe } from '../../../lib/stripe';
 import { db } from '../../../lib/db';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
@@ -37,9 +38,13 @@ export const POST: APIRoute = async ({ request }) => {
 		const existingCustomerId = (subResult.rows[0] as Record<string, unknown> | undefined)
 			?.stripe_customer_id as string | undefined;
 
-		const session = await stripe.checkout.sessions.create({
+		// Managed Payments: Stripe (via Link) is the merchant of record — requires
+		// API version 2025-03-31.basil+ (client pins 2026-02-25.clover). Unsupported
+		// params (payment_method_types, automatic_tax, etc.) must be omitted; Stripe
+		// handles payment methods and tax itself. `managed_payments` is not yet in
+		// the SDK's types (stripe 20.4.1), hence the cast.
+		const params: Stripe.Checkout.SessionCreateParams = {
 			mode: 'subscription',
-			payment_method_types: ['card'],
 			// Surface the "Add promotion code" box at checkout. Codes (e.g. CYNIDA26)
 			// and their restrictions (yearly-only, % off) are defined as coupons /
 			// promotion codes in the Stripe Dashboard, not here.
@@ -53,7 +58,9 @@ export const POST: APIRoute = async ({ request }) => {
 			subscription_data: {
 				metadata: { tenant_id: tenantId },
 			},
-		});
+		};
+		(params as Record<string, unknown>).managed_payments = { enabled: true };
+		const session = await stripe.checkout.sessions.create(params);
 
 		return new Response(JSON.stringify({ url: session.url }), {
 			status: 200,
