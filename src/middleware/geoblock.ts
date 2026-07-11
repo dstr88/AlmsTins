@@ -24,10 +24,13 @@ import { getClientIp } from '../lib/analytics/ip';
 //   CU Cuba · IR Iran · KP North Korea · SY Syria
 export const BLOCKED_COUNTRIES = new Set<string>(['CU', 'IR', 'KP', 'SY']);
 
-// Sanctioned regions within Ukraine (UA) — ISO-3166-2 subdivision codes.
-//   43 Crimea · 40 Sevastopol · 14 Donetsk · 09 Luhansk
-// (Codes confirmed against geoip-lite output, e.g. a Sevastopol IP → UA/"40".)
-export const BLOCKED_UA_REGIONS = new Set<string>(['43', '40', '14', '09']);
+// OFAC "Covered Regions" of Ukraine — ISO-3166-2 subdivision codes.
+//   43 Crimea · 40 Sevastopol · 14 Donetsk · 09 Luhansk · 65 Kherson · 23 Zaporizhzhia
+// (Original four confirmed against geoip-lite output, e.g. a Sevastopol IP → UA/"40";
+//  Kherson/Zaporizhzhia added to match OFAC's late-2022 extension of the covered
+//  regions. As with Donetsk/Luhansk, geoip can't distinguish occupied from
+//  Ukrainian-controlled areas within an oblast, so the whole oblast is blocked.)
+export const BLOCKED_UA_REGIONS = new Set<string>(['43', '40', '14', '09', '65', '23']);
 
 export function isBlockedLocation(country: string, region: string): boolean {
 	if (BLOCKED_COUNTRIES.has(country)) return true;
