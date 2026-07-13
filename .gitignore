@@ -54,3 +54,6 @@ MARKETING-READINESS-PLAN.md
 
 # Claude Code config/plans (any depth)
 .claude/
+
+# Obsidian editor workspace files — never track (workspace.json can leak local file paths)
+.obsidian/
