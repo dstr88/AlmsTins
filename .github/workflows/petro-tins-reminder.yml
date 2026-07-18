@@ -1,0 +1,23 @@
+name: PetroTins Reminder
+
+on:
+  schedule:
+    - cron: '0 9 25 * *'
+  workflow_dispatch:
+
+jobs:
+  petro-tins-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger petro-tins-reminder
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
+            exit 1
+          fi
+          curl -sS --fail --max-time 300 \
+            "$SYNC_URL/api/cron/petro-tins-reminder?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"
