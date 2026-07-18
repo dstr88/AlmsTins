@@ -23,7 +23,10 @@ export default defineConfig({
 	workers: 1,
 	reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
 	use: {
-		baseURL: process.env.BASE_URL ?? process.env.E2E_BASE_URL ?? 'https://almstins.com',
+		// `||` (not `??`) so an EMPTY-string env var — e.g. an unset `E2E_BASE_URL`
+		// secret, which resolves to "" not undefined — falls through to the default
+		// instead of becoming an invalid empty baseURL.
+		baseURL: process.env.BASE_URL || process.env.E2E_BASE_URL || 'https://almstins.com',
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
 		video: 'on-first-retry',
