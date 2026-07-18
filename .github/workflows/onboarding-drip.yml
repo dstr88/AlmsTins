@@ -1,0 +1,23 @@
+name: Onboarding Drip
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  onboarding-drip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger onboarding-drip
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
+            exit 1
+          fi
+          curl -sS --fail --max-time 300 \
+            "$SYNC_URL/api/cron/onboarding-drip?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"

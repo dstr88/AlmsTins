@@ -1,0 +1,23 @@
+name: Monthly Digest
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+jobs:
+  monthly-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger monthly-digest
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
+            exit 1
+          fi
+          curl -sS --fail --max-time 900 \
+            "$SYNC_URL/api/cron/monthly-digest?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"
