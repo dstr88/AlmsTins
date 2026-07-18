@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Pre-push leak gate. Git passes the pushed ref ranges on stdin; the scanner reads them
+# and blocks the push (exit 1) if any private pattern matches the added lines.
+# Enable once per clone:  git config core.hooksPath .githooks
+exec "$(git rev-parse --show-toplevel)/scripts/scan-leak.sh"

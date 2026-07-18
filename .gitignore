@@ -54,3 +54,7 @@ MARKETING-READINESS-PLAN.md
 
 # Claude Code config/plans (any depth)
 .claude/
+
+# leak-scan private patterns — real names, NEVER commit
+.scan-patterns
+.scan-patterns.local
