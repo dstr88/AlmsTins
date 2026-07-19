@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Almstins Verify">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5ff0c4"/>
+      <stop offset="1" stop-color="#12a07d"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="#0a0f1a"/>
+  <g transform="translate(256 258) scale(3.35) translate(-48 -49.5)">
+    <path fill="url(#g)" d="M48 8 L82 20 V47 C82 66 68 80.5 48 91 C28 80.5 14 66 14 47 V20 Z"/>
+    <path d="M34.5 50 l9 9 l19.5 -22.5" fill="none" stroke="#ffffff" stroke-width="6.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

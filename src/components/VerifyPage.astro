@@ -1,6 +1,7 @@
 ---
 import LoginLayout from '../layouts/LoginLayout.astro';
 import AlmstinsLogo from '../assets/logo.jpeg';
+import VerifyLogo from '../assets/verify-logo.svg?url';
 import { copy, LANGS, BRAND, BRAND_QUOTE, ALMSTINS_URL, type Lang } from '../i18n/verify';
 
 interface Props {
@@ -75,6 +76,7 @@ Authorization: Bearer <your-key>
 
     <!-- Section 1 — Hero -->
     <header class="vhero">
+      <img class="vhero__mark" src={VerifyLogo} width="150" height="150" alt="Almstins Verify" loading="eager" decoding="async" />
       <div class="vhero__eyebrow">{t.hero.eyebrow}</div>
       <h1 class="vhero__title">{t.hero.title}</h1>
       <p class="vhero__sub">{t.hero.sub}</p>
@@ -260,6 +262,13 @@ Authorization: Bearer <your-key>
     padding: 2.5rem 0 3rem;
     border-bottom: 1px solid var(--border-subtle);
     margin-bottom: 3rem;
+  }
+  .vhero__mark {
+    display: block;
+    width: 132px;
+    height: 132px;
+    margin: 0 auto 1.5rem;
+    filter: drop-shadow(0 8px 26px var(--accent-glow));
   }
   .vhero__eyebrow {
     display: inline-block;
