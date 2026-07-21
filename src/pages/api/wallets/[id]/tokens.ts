@@ -553,7 +553,40 @@ export const GET: APIRoute = async ({ params, request }) => {
 			}
 		}
 
+		// Staleness gate. `refreshMissing=1` triggers a live Alchemy rebuild (Ethereum +
+		// Polygon) that takes 13-20s per wallet. The vault tin sends it on EVERY load,
+		// so with several wallets the page timed out against its own refresh work, the
+		// tin rendered its error panel, and every failure emailed the owner. The name
+		// says "refresh what's MISSING" but it refreshed everything, every time.
+		//
+		// So only rebuild when the newest snapshot is actually older than this window.
+		// Inside it, serve the stored snapshot instantly — that is what the vault reads
+		// from anyway. A user who wants fresher data has Sync Tins, which is unthrottled.
+		const REFRESH_MIN_AGE_MS = 15 * 60 * 1000;
+		let refreshFresh = false;
 		if (refreshMissing && tenantId !== DEMO_TENANT_ID) {
+			try {
+				const ageRes = await db.execute({
+					sql: `SELECT MAX(captured_at) AS captured_at
+					        FROM wallet_snapshots
+					       WHERE tenant_id = ? AND wallet_id = ?`,
+					args: [tenantId, walletId],
+				});
+				const capturedAt = (ageRes.rows?.[0] as any)?.captured_at ?? null;
+				if (capturedAt) {
+					const ageMs = Date.now() - new Date(String(capturedAt)).getTime();
+					refreshFresh = Number.isFinite(ageMs) && ageMs < REFRESH_MIN_AGE_MS;
+				}
+			} catch (ageErr: any) {
+				// If the age check itself fails, fall through and refresh — the old
+				// behavior. Never let this gate be the thing that breaks a load.
+				console.error('[tokens.refreshMissing] age check failed (refreshing anyway)', {
+					walletId, message: ageErr?.message,
+				});
+			}
+		}
+
+		if (refreshMissing && !refreshFresh && tenantId !== DEMO_TENANT_ID) {
 			const refreshStart = Date.now();
 			console.log('[tokens.refreshMissing] START', { requestId, walletId, tenantId });
 			if (walletAddress) {

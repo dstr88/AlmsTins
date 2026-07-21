@@ -17,11 +17,83 @@ export const prerender = false;
 
 const OWNER_EMAIL = 'donnie@titaniumhut.com';
 
-// In-memory rate limit: one email per wallet per hour.
-// Resets on server restart, which is fine — the goal is preventing floods,
-// not perfect deduplication.
+// Rate limit: one email per wallet per hour.
+//
+// This used to be in-memory only, and that was the bug behind the flood. Render's
+// free tier sleeps and cold-starts constantly, wiping the Map, so "once per hour"
+// silently became "once per login". The durable floor now lives in a tiny table
+// that survives restarts; the Map stays as a zero-latency fast path in front of it.
 const rateLimitMap = new Map<string, number>();
 const RATE_LIMIT_MS = 60 * 60 * 1000;
+
+let tableReady: Promise<void> | null = null;
+function ensureTable(): Promise<void> {
+	if (!tableReady) {
+		tableReady = db
+			.execute({
+				sql: `CREATE TABLE IF NOT EXISTS vault_error_alerts (
+				        tenant_id    TEXT        NOT NULL,
+				        wallet_id    TEXT        NOT NULL,
+				        last_sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+				        PRIMARY KEY (tenant_id, wallet_id)
+				      )`,
+				args: [],
+			})
+			.then(() => undefined)
+			.catch((err) => {
+				// Reset so a later call retries; never throw out of the limiter.
+				tableReady = null;
+				console.error('[vault/report-error] ensureTable failed', err?.message);
+			});
+	}
+	return tableReady;
+}
+
+/**
+ * True if an alert for this wallet is still within the cooldown. Durable across
+ * restarts. On any DB error it falls back to the in-memory decision only, so a
+ * database hiccup can neither block a genuine alert nor open the floodgates beyond
+ * what the Map already allows.
+ */
+async function isRateLimited(tenantId: string, walletId: string): Promise<boolean> {
+	const key = `${tenantId}:${walletId}`;
+	const memLast = rateLimitMap.get(key) ?? 0;
+	if (Date.now() - memLast < RATE_LIMIT_MS) return true;
+
+	try {
+		await ensureTable();
+		const res = await db.execute({
+			sql: `SELECT last_sent_at FROM vault_error_alerts
+			       WHERE tenant_id = ? AND wallet_id = ?`,
+			args: [tenantId, walletId],
+		});
+		const last = (res.rows?.[0] as any)?.last_sent_at ?? null;
+		if (last) {
+			const ageMs = Date.now() - new Date(String(last)).getTime();
+			if (Number.isFinite(ageMs) && ageMs < RATE_LIMIT_MS) {
+				rateLimitMap.set(key, Date.now() - ageMs); // mirror into the fast path
+				return true;
+			}
+		}
+	} catch {
+		// fall through — memory fast-path already said "not limited"
+	}
+	return false;
+}
+
+async function markSent(tenantId: string, walletId: string): Promise<void> {
+	rateLimitMap.set(`${tenantId}:${walletId}`, Date.now());
+	try {
+		await ensureTable();
+		await db.execute({
+			sql: `INSERT INTO vault_error_alerts (tenant_id, wallet_id, last_sent_at)
+			      VALUES (?, ?, now())
+			      ON CONFLICT (tenant_id, wallet_id)
+			        DO UPDATE SET last_sent_at = now()`,
+			args: [tenantId, walletId],
+		});
+	} catch { /* the Map still holds the limit for this process */ }
+}
 
 export const POST: APIRoute = async ({ request }) => {
 	const lang = getLang(request);
@@ -40,12 +112,10 @@ export const POST: APIRoute = async ({ request }) => {
 		return json({ ok: true, reported: false, reason: 'missing_fields' });
 	}
 
-	const rateKey = `${tenantId}:${walletId}`;
-	const lastSent = rateLimitMap.get(rateKey) ?? 0;
-	if (Date.now() - lastSent < RATE_LIMIT_MS) {
+	if (await isRateLimited(tenantId, walletId)) {
 		return json({ ok: true, reported: false, reason: 'rate_limited' });
 	}
-	rateLimitMap.set(rateKey, Date.now());
+	await markSent(tenantId, walletId);
 
 	const now = new Date().toISOString();
 
