@@ -443,6 +443,9 @@ const fmtDate = (iso: string | null) => {
 
 <div class="page">
 
+	<!-- ── Mailbox (donnie@almstins.com) — first thing on the page ────── -->
+	<MailboxWindows adminEmail={adminEmail} adminUserId={adminUserId} />
+
 	<!-- ── Adoption ─────────────────────────────────────────────── -->
 	<div class="section">
 		<div class="section-title">Adoption — wallets &amp; exchanges plugged in</div>
@@ -801,9 +804,6 @@ const fmtDate = (iso: string | null) => {
 	</div>
 
 	<p class="refresh-note">Data is live — refresh the page for updated stats.</p>
-
-	<!-- ── Mailbox (donnie@almstins.com) ─────────────────────────────── -->
-	<MailboxWindows adminEmail={adminEmail} adminUserId={adminUserId} />
 
 	<!-- ── Question Inbox ─────────────────────────────────────────────── -->
 	<div class="section" id="inbox-section">
