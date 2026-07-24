@@ -1,0 +1,219 @@
+---
+/**
+ * MailboxWindows.astro — the mail hero at the top of /admin.
+ *
+ * One panel per mailbox the signed-in admin owns, stacked. The operator's personal
+ * mailbox sits first, the shared address below it. Each panel is a 30px bar by default
+ * and is dragged open by its bottom grip; the height persists per mailbox so it stays
+ * where it was put.
+ *
+ * ── Rendering split ─────────────────────────────────────────────────────────
+ * The server renders only the bars: label, unread count, folder tabs. Messages are
+ * fetched by the client when a panel is opened. That keeps /admin fast when the panels
+ * are closed (the common case), and means there is exactly ONE renderer for message
+ * cards instead of a server copy and a client copy drifting apart.
+ *
+ * ── Escaping ────────────────────────────────────────────────────────────────
+ * Subject, sender name and body are written by whoever emailed you. Every interpolated
+ * value in the client renderer goes through escapeHtml, in text and attribute position
+ * alike. One unescaped subject line is stored XSS in the admin panel, which is the
+ * worst place in the app to have it.
+ */
+import { getMailboxesForAdmin, mailConfigStatus } from '@/lib/mailboxes';
+import { db } from '@/lib/db';
+import { isHiddenFolder } from '@/lib/mailSync';
+import './MailboxWindows.css';
+
+interface Props { adminEmail: string; adminUserId?: string }
+const { adminEmail, adminUserId } = Astro.props;
+
+const status = mailConfigStatus();
+const all = getMailboxesForAdmin({ userId: adminUserId, email: adminEmail });
+
+// Personal first, shared second. A mailbox with an owner list is somebody's own; one
+// without is the company address everybody sees. That ordering is what puts "his
+// personal email" in the top viewport without hard-coding an address.
+const boxes = [...all].sort((a, b) => (b.owners.length ? 1 : 0) - (a.owners.length ? 1 : 0));
+
+const safeQ = async (sql: string, args: any[] = []): Promise<Record<string, any>[]> => {
+	try { return (await db.execute({ sql, args })).rows as Record<string, any>[]; }
+	catch { return []; }
+};
+
+const panels = await Promise.all(
+	boxes.map(async (box) => {
+		const [unreadRows, folderRows, draftRows] = await Promise.all([
+			safeQ(
+				`SELECT COUNT(*) AS n FROM mail_messages
+				 WHERE mailbox = ? AND direction = 'in' AND read_at IS NULL`,
+				[box.address],
+			),
+			safeQ(
+				`SELECT s.folder, s.special_use,
+				        (SELECT COUNT(*) FROM mail_messages m
+				          WHERE m.mailbox = s.mailbox AND m.folder = s.folder
+				            AND m.direction = 'in' AND m.read_at IS NULL) AS unread
+				 FROM mail_folder_state s WHERE s.mailbox = ?`,
+				[box.address],
+			),
+			safeQ(`SELECT COUNT(*) AS n FROM mail_drafts WHERE mailbox = ?`, [box.address]),
+		]);
+
+		// The real IMAP Drafts folder is deliberately NOT a tab. Drafts written here
+		// sync to it, so it would list the same messages a second time — and the polled
+		// copies are read-only, with no draft id, so Edit could not work from them. The
+		// synthetic Drafts tab below is the editable one, and the only one.
+		const folders = folderRows
+			.map((f) => ({
+				path: String(f.folder),
+				specialUse: f.special_use ? String(f.special_use) : null,
+				unread: Number(f.unread ?? 0),
+			}))
+			.filter((f) => !isHiddenFolder(f.path, f.specialUse))
+			.filter((f) => f.specialUse !== '\\Drafts' && !/^(inbox[./])?drafts?$/i.test(f.path));
+
+		// Friendly tab labels. The raw IMAP path ('INBOX.Sent') is not something to put
+		// in front of a person.
+		const label = (f: { path: string; specialUse: string | null }) =>
+			f.path.toUpperCase() === 'INBOX' ? 'Inbox'
+			: f.specialUse === '\\Sent' ? 'Sent'
+			: f.specialUse === '\\Drafts' ? 'Drafts'
+			: f.specialUse === '\\Archive' ? 'Archive'
+			: f.specialUse === '\\Junk' ? 'Spam'
+			: f.specialUse === '\\Trash' ? 'Trash'
+			: f.path.split(/[./]/).pop() || f.path;
+
+		return {
+			box,
+			unread: Number(unreadRows[0]?.n ?? 0),
+			drafts: Number(draftRows[0]?.n ?? 0),
+			tabs: folders.map((f) => ({ ...f, label: label(f) })),
+		};
+	}),
+);
+---
+
+<section class="mailhero" id="mailhero">
+	{!status.configured && (
+		<p class="mailhero__note">Mail is not configured — {status.reason}</p>
+	)}
+	{status.configured && panels.length === 0 && (
+		<p class="mailhero__note">No mailboxes are assigned to this account.</p>
+	)}
+
+	{panels.map(({ box, unread, drafts, tabs }) => (
+		<article class="mh" data-mailbox={box.address} data-cansend={String(box.canSend)}>
+			<header class="mh__bar" role="button" tabindex="0" aria-expanded="false">
+				<span class="mh__chev" aria-hidden="true">▸</span>
+				<span class="mh__label">{box.label}</span>
+				<span class="mh__addr">{box.address}</span>
+				{unread > 0 && <span class="mh__badge">{unread}</span>}
+				{!box.canSend && <span class="mh__ro">read-only</span>}
+				<span class="mh__spacer"></span>
+				<span class="mh__status" aria-live="polite"></span>
+				{box.canSend && (
+					<button class="mh__btn mh__compose" type="button" title="New message">New</button>
+				)}
+				<button class="mh__btn mh__check" type="button" title="Check for new mail">Check</button>
+			</header>
+
+			<div class="mh__body">
+				<div class="mh__main">
+
+					{/* Selection toolbar. Always present so its position never shifts;
+					    the actions appear once something is selected. */}
+					<div class="mh__bulk">
+						<label class="mh__bulklabel">
+							<input class="mh__bulkall" type="checkbox" aria-label="Select all" />
+							<span>All</span>
+						</label>
+						<span class="mh__bulkcount"></span>
+						{/* A button, not a select. The folder names stay out of sight until
+						    asked for — a permanently open list of folders is the clutter the
+						    rail already carries once. */}
+						<div class="mh__movewrap">
+							<button class="mh__btn mh__movebtn" type="button" aria-haspopup="true" aria-expanded="false">
+								Move to ▾
+							</button>
+							<div class="mh__movemenu" hidden role="menu"></div>
+						</div>
+						<button class="mh__btn mh__bulkunread" type="button">Mark unread</button>
+						<button class="mh__btn mh__bulkdel" type="button">Delete selected</button>
+						<button class="mh__btn mh__bulkdestroy" type="button" hidden>Destroy selected</button>
+						<span class="mh__bulkhint">⌘/Ctrl+Shift+Delete</span>
+					</div>
+
+					<div class="mh__ruleoffer" hidden></div>
+					<div class="mh__list" aria-busy="false"></div>
+				</div>
+
+				{/* Folder rail on the right, the way a mail client puts it. Vertical so
+				    long folder names stay readable instead of wrapping into a tab row. */}
+				<nav class="mh__rail">
+					{/* An unread count per folder. Replies can now file themselves into a
+					    folder, so the rail has to say when something arrived there — mail
+					    that lands silently is worse than mail in the wrong place. */}
+					{tabs.map((t, i) => (
+						<button
+							class:list={['mh__rf', { 'mh__rf--on': i === 0 }]}
+							type="button"
+							data-folder={t.path}
+						>
+							<span class="mh__rfname">{t.label}</span>
+							{t.unread > 0 && <span class="mh__rfcount">{t.unread}</span>}
+						</button>
+					))}
+					{box.canSend && (
+						<button class="mh__rf mh__rf--drafts" type="button" data-folder="__drafts__">
+							Drafts{drafts > 0 ? ` (${drafts})` : ''}
+						</button>
+					)}
+					<button class="mh__rf mh__newfolder" type="button">+ New folder</button>
+				</nav>
+			</div>
+
+			{/* Compose lives in a modal rather than inline: it is an occasional action,
+			    and inline it permanently ate the top half of a panel whose whole job is
+			    showing mail. Full screen on a phone, half the viewport on a laptop. */}
+			<dialog class="mh__dlg">
+				<form class="mh__form">
+					<div class="mh__dlghead">
+						<span class="mh__dlgtitle">New message</span>
+						<span class="mh__dlgfrom">from {box.address}</span>
+					</div>
+					{/* Completions come from this mailbox's own correspondence — see
+					    /api/admin/mail/contacts. A native datalist rather than a custom
+					    dropdown: the browser handles matching, keyboard and screen readers,
+					    and it degrades to a plain text field if the fetch fails. */}
+					<input class="mh__in mh__to" type="text" placeholder="To" autocomplete="off" list={`mh-contacts-${box.address}`} />
+					<input class="mh__in mh__cc" type="text" placeholder="Cc (optional)" autocomplete="off" list={`mh-contacts-${box.address}`} />
+					<datalist id={`mh-contacts-${box.address}`}></datalist>
+					<input class="mh__in mh__subj" type="text" placeholder="Subject" autocomplete="off" />
+					<textarea class="mh__in mh__text" placeholder="Message"></textarea>
+					<input type="hidden" class="mh__replyto" />
+					<input type="hidden" class="mh__draftid" />
+					<div class="mh__formrow">
+						<button type="submit" class="mh__btn mh__send">Send</button>
+						<button type="button" class="mh__btn mh__savedraft">Save draft</button>
+						<button type="button" class="mh__btn mh__cancel">Cancel</button>
+						<span class="mh__formstatus"></span>
+					</div>
+				</form>
+			</dialog>
+
+			{/* Drag down to grow, up to shrink. Keyboard-resizable too, since a grip that
+			    only responds to a mouse is unusable for anyone who does not use one. */}
+			<div
+				class="mh__grip"
+				role="separator"
+				tabindex="0"
+				aria-orientation="horizontal"
+				aria-label="Resize mailbox"
+			></div>
+		</article>
+	))}
+</section>
+
+<script>
+	import './mailboxWindows.client.ts';
+</script>

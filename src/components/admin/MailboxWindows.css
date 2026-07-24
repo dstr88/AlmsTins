@@ -1,0 +1,523 @@
+/* MailboxWindows — presentation only.
+   Markup lives in MailboxWindows.astro, behavior in mailboxWindows.client.ts.
+   Nothing here should encode logic: if a rule depends on state, the state is a
+   class the client script toggles, never a style the script writes inline. */
+
+.mailhero {
+	width: 80%;
+	margin: 0 auto 1.5rem;
+	display: flex;
+	flex-direction: column;
+	/* The gap between the personal mailbox and the shared one. */
+	gap: 16px;
+}
+@media (max-width: 900px) {
+	.mailhero { width: 100%; }
+}
+.mailhero__note {
+	font-size: 13px;
+	color: var(--text-muted);
+}
+
+.mh {
+	border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+	border-radius: 10px;
+	background: var(--surface-card, rgba(255,255,255,0.02));
+	overflow: hidden;
+}
+
+/* The default state: a 30px strip. */
+.mh__bar {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	height: 36px;
+	padding: 0 0.7rem;
+	cursor: pointer;
+	user-select: none;
+	font-size: 15px;
+}
+.mh__bar:focus-visible { outline: 2px solid var(--accent, #6366f1); outline-offset: -2px; }
+.mh__chev { font-size: 12px; opacity: 0.5; transition: transform 0.15s; }
+.mh--open .mh__chev { transform: rotate(90deg); }
+.mh__label { font-weight: 600; }
+.mh__addr { color: var(--text-muted); font-size: 14px; }
+.mh__badge {
+	background: var(--accent, #6366f1);
+	color: #fff;
+	border-radius: 999px;
+	padding: 0 0.4rem;
+	font-size: 12px;
+	line-height: 1.55;
+}
+.mh__ro {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
+	border-radius: 999px;
+	padding: 0 0.35rem;
+	color: var(--text-muted);
+}
+.mh__spacer { flex: 1; }
+.mh__status { font-size: 13px; color: var(--text-muted); }
+
+.mh__btn {
+	font: inherit;
+	font-size: 13px;
+	padding: 0.22rem 0.6rem;
+	border-radius: 6px;
+	border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
+	background: transparent;
+	color: var(--text-secondary, inherit);
+	cursor: pointer;
+}
+.mh__btn:hover:not(:disabled) { background: var(--surface-hover, rgba(255,255,255,0.07)); }
+.mh__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Closed by default; height is set inline by the drag handler when opened. */
+.mh__body { display: none; border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06)); }
+/* Row, not column: message list on the left, folder rail on the right. */
+.mh--open .mh__body { display: flex; flex-direction: row; }
+
+.mh__main {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+}
+
+.mh__rail {
+	flex: 0 0 132px;
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+	padding: 0.45rem 0.4rem;
+	border-left: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+	overflow-y: auto;
+}
+.mh__rf {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	font: inherit;
+	font-size: 14px;
+	text-align: left;
+	padding: 0.28rem 0.5rem;
+	border-radius: 6px;
+	border: 1px solid transparent;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.mh__rf:hover { color: var(--text-primary, inherit); background: var(--surface-hover, rgba(255,255,255,0.05)); }
+.mh__rf--on {
+	color: var(--text-primary, inherit);
+	background: var(--surface-card-2, rgba(255,255,255,0.06));
+	border-color: var(--border-subtle, rgba(255,255,255,0.1));
+}
+@media (max-width: 700px) {
+	.mh__rail { flex-basis: 96px; }
+}
+
+/* The scrolling region — this is what the drag handle resizes. */
+.mh__list {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	/* The inbox is its own object: a visible border, and an interior darker than the
+	   panel around it so the boundary reads without needing a heavy rule. */
+	margin: 0.5rem 0.6rem 0.6rem;
+	border: 2px solid var(--border-bright, rgba(255,255,255,0.18));
+	border-radius: 9px;
+	background: var(--surface-bg, #0a0f1a);
+}
+
+/* ── Compose modal ──────────────────────────────────────────────────────────
+   Half the viewport on a laptop, the whole screen on a phone. Sized in vw/dvh so
+   it tracks the window rather than a breakpoint guess; dvh (not vh) because on
+   mobile Safari vh includes the collapsing address bar and cuts off the buttons. */
+.mh__dlg {
+	width: 50vw;
+	max-width: 720px;
+	max-height: 82dvh;
+	padding: 0;
+	border: 1px solid var(--border-bright, rgba(255,255,255,0.16));
+	border-radius: 12px;
+	background: var(--surface-bg, #0a0f1a);
+	color: var(--text-primary, inherit);
+}
+.mh__dlg::backdrop { background: rgba(0,0,0,0.6); }
+
+@media (max-width: 700px) {
+	.mh__dlg {
+		width: 100vw;
+		max-width: none;
+		height: 100dvh;
+		max-height: none;
+		border-radius: 0;
+		border: none;
+	}
+}
+
+.mh__form {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	padding: 0.75rem 0.85rem 0.85rem;
+	height: 100%;
+	box-sizing: border-box;
+}
+.mh__dlghead {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	margin-bottom: 0.15rem;
+}
+.mh__dlgtitle { font-weight: 600; font-size: 14px; }
+.mh__dlgfrom { font-size: 12px; color: var(--text-muted); }
+
+.mh__in {
+	width: 100%;
+	padding: 0.4rem 0.55rem;
+	border-radius: 7px;
+	border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
+	background: var(--surface-card, rgba(255,255,255,0.03));
+	color: var(--text-primary, inherit);
+	font: inherit;
+	font-size: 14px;
+	box-sizing: border-box;
+}
+/* The message field takes whatever height is left, so the modal fills its space
+   instead of leaving a gap under a fixed-row textarea. */
+textarea.mh__in {
+	flex: 1 1 auto;
+	min-height: 8rem;
+	resize: none;
+}
+.mh__formrow { display: flex; align-items: center; gap: 0.4rem; flex: 0 0 auto; }
+.mh__formstatus { font-size: 12px; color: var(--text-muted); }
+
+.mh__grip {
+	height: 8px;
+	cursor: ns-resize;
+	background: linear-gradient(transparent, var(--border-subtle, rgba(255,255,255,0.07)));
+	display: none;
+}
+.mh--open .mh__grip { display: block; }
+.mh__grip:focus-visible { outline: 2px solid var(--accent, #6366f1); outline-offset: -2px; }
+
+/* ── Inbox rows ────────────────────────────────────────────────────────
+   One line per message the way a mail client shows it: sender, subject,
+   date. The body is hidden until the row is clicked, so a full screen of
+   mail is scannable instead of three messages filling the panel. */
+.mhc {
+	border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+	border-left: 3px solid transparent;
+	padding: 0.5rem 0.7rem;
+	cursor: pointer;
+	background: var(--surface-card, rgba(255,255,255,0.03));
+}
+.mhc:hover { background: var(--surface-hover, rgba(255,255,255,0.035)); }
+.mhc--unread { border-left-color: var(--accent, #6366f1); }
+.mhc--unread .mhc__subj { font-weight: 700; }
+.mhc--out { opacity: 0.82; }
+
+.mhc__row {
+	display: flex;
+	align-items: baseline;
+	gap: 0.6rem;
+	font-size: 14px;
+	min-width: 0;
+}
+.mhc__who {
+	flex: 0 0 30%;
+	max-width: 30%;
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.mhc__subj {
+	flex: 1 1 auto;
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.mhc__snip { color: var(--text-muted); font-weight: 400; }
+.mhc__when {
+	flex: 0 0 auto;
+	font-size: 13px;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+.mhc__clip { flex: 0 0 auto; font-size: 12px; opacity: 0.7; }
+
+/* Expanded reading pane for the selected row. */
+.mhc__open { display: none; padding: 0.4rem 0 0.2rem; }
+.mhc--sel .mhc__open { display: block; }
+.mhc--sel { background: var(--surface-card-2, rgba(255,255,255,0.04)); cursor: default; }
+.mhc__body {
+	font-size: 15px;
+	line-height: 1.6;
+	white-space: pre-wrap;
+	margin: 0 0 0.35rem;
+	max-height: 22rem;
+	overflow-y: auto;
+}
+.mhc__err { font-size: 12px; color: var(--loss, #f87171); margin: 0 0 0.3rem; }
+.mhc__acts { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.mhc__atts { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0 0 0.35rem; }
+.mhc__att {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	font-size: 12px;
+	padding: 0.15rem 0.45rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
+	color: var(--text-secondary, inherit);
+	text-decoration: none;
+}
+.mhc__att:hover { background: var(--surface-hover, rgba(255,255,255,0.06)); }
+.mhc__att--skip { opacity: 0.55; }
+.mh__empty { font-size: 14px; color: var(--text-muted); padding: 0.6rem; }
+
+/* ── Server spam verdict ────────────────────────────────────────────────────
+   Not our judgment — SpamAssassin's, carried through from the headers. Loud on
+   purpose: for the operator who reaches his mail only here, this panel is the
+   only screen where the warning can appear. */
+.mhc--spam {
+	border-left-color: var(--loss, #ef4444);
+	background: var(--loss-bg, rgba(239,68,68,0.08));
+}
+.mhc--spam .mhc__subj,
+.mhc--spam .mhc__who { color: var(--loss, #ef4444); }
+.mhc__scam {
+	flex: 0 0 auto;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	padding: 0.1rem 0.4rem;
+	border-radius: 5px;
+	color: var(--loss, #ef4444);
+	background: var(--loss-bg, rgba(239,68,68,0.14));
+	border: 1px solid var(--loss-border, rgba(239,68,68,0.35));
+	white-space: nowrap;
+}
+
+/* ── Wallet-checker findings ────────────────────────────────────────────────
+   Addresses and links inside a message, run through the same lists the public
+   checker uses. The row is marked, and the expanded view names exactly WHAT was
+   flagged — a warning that will not say what it is warning about teaches the
+   reader to dismiss warnings. */
+.mhc--caution { border-left-color: var(--warning, #f59e0b); }
+.mhc__caution {
+	flex: 0 0 auto;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	padding: 0.1rem 0.4rem;
+	border-radius: 5px;
+	color: var(--warning, #f59e0b);
+	background: var(--warning-bg, rgba(245,158,11,0.14));
+	border: 1px solid var(--warning-border, rgba(245,158,11,0.35));
+	white-space: nowrap;
+}
+.mhc__threats {
+	margin: 0 0 0.5rem;
+	padding: 0.5rem 0.6rem;
+	border-radius: 7px;
+	border: 1px solid var(--loss-border, rgba(239,68,68,0.35));
+	background: var(--loss-bg, rgba(239,68,68,0.08));
+}
+.mhc__threathead {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--loss, #ef4444);
+	margin-bottom: 0.3rem;
+}
+.mhc__threat {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	align-items: baseline;
+	font-size: 13px;
+	padding: 0.15rem 0;
+}
+.mhc__threat code {
+	/* Break anywhere: a wallet address has no spaces and would otherwise force the
+	   whole panel to scroll sideways. */
+	word-break: break-all;
+	font-size: 13px;
+	color: var(--text-primary, inherit);
+}
+.mhc__threat span { color: var(--text-secondary, inherit); }
+.mhc__threat--warning code, .mhc__threat--warning span { color: var(--warning, #f59e0b); }
+
+/* A findings box containing only positive results is not a warning. Green, quiet,
+   and stated as fact — the contrast is what makes the red ones mean something. */
+.mhc__threats--ok {
+	border-color: var(--gain-border, rgba(52,211,153,0.3));
+	background: var(--gain-bg, rgba(52,211,153,0.08));
+}
+.mhc__threats--ok .mhc__threathead { color: var(--gain, #34d399); }
+.mhc__threat--known code, .mhc__threat--known span { color: var(--gain, #34d399); }
+
+/* Move control sits in the row's action strip and matches the buttons beside it,
+   so filing a message reads as one of the ordinary actions rather than a setting. */
+select.mhc__move {
+	font: inherit;
+	font-size: 12px;
+	padding: 0.22rem 0.4rem;
+	max-width: 130px;
+}
+.mh__newfolder {
+	margin-top: 0.3rem;
+	border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+	padding-top: 0.4rem;
+	color: var(--text-muted);
+}
+
+/* Destroy is the only irreversible action in the panel and is styled to say so.
+   It appears solely on messages already in Trash, so it never sits beside Delete. */
+.mhc__destroy {
+	color: var(--loss, #ef4444);
+	border-color: var(--loss-border, rgba(239,68,68,0.35));
+}
+.mhc__destroy:hover:not(:disabled) { background: var(--loss-bg, rgba(239,68,68,0.14)); }
+
+/* ── Selection toolbar ──────────────────────────────────────────────────────
+   Always rendered so the list never jumps when a selection starts; the actions
+   themselves stay hidden until something is checked. */
+.mh__bulk {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.35rem 0.7rem 0;
+	font-size: 12px;
+	color: var(--text-muted);
+	flex: 0 0 auto;
+}
+.mh__bulklabel { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+.mh__bulkcount { color: var(--text-secondary, inherit); }
+/* The move control stays visible at all times. Hiding it until something was
+   selected meant the only way to discover "Move to…" was to first guess that
+   checking a box would reveal it — a control nobody finds is a control that does
+   not exist. The destructive ones still wait for a selection, since those have
+   nothing useful to say without one. */
+.mh__bulk .mh__bulkdel,
+.mh__bulk .mh__bulkdestroy,
+.mh__bulk .mh__bulkunread { visibility: hidden; }
+.mh__bulk--on .mh__bulkdel,
+.mh__bulk--on .mh__bulkdestroy,
+.mh__bulk--on .mh__bulkunread { visibility: visible; }
+.mh__bulkdestroy {
+	color: var(--loss, #ef4444);
+	border-color: var(--loss-border, rgba(239,68,68,0.35));
+}
+.mh__bulkhint { margin-left: auto; opacity: 0.55; }
+@media (max-width: 700px) { .mh__bulkhint { display: none; } }
+
+/* The checkbox sits at the head of the row and must not be squeezed out by a long
+   subject; it is also excluded from the click target that opens the message. */
+.mhc__chk { flex: 0 0 auto; margin: 0 0.15rem 0 0; cursor: pointer; }
+
+/* Move-to menu. Anchored to its button and floated above the list, so opening it
+   never pushes the messages around. */
+.mh__movewrap { position: relative; display: inline-block; }
+.mh__movemenu {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	z-index: 20;
+	min-width: 160px;
+	max-height: 240px;
+	overflow-y: auto;
+	padding: 0.25rem;
+	border-radius: 8px;
+	border: 1px solid var(--border-bright, rgba(255,255,255,0.18));
+	background: var(--surface-bg, #0a0f1a);
+	box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+.mh__moveitem {
+	display: block;
+	width: 100%;
+	text-align: left;
+	font: inherit;
+	font-size: 13px;
+	padding: 0.35rem 0.5rem;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--text-primary, inherit);
+	cursor: pointer;
+	white-space: nowrap;
+}
+.mh__moveitem:hover { background: var(--surface-hover, rgba(255,255,255,0.08)); }
+.mh__movehint { padding: 0.35rem 0.5rem; font-size: 12px; color: var(--text-muted); }
+
+/* ── Dragging messages onto a folder ────────────────────────────────────────
+   The dragged rows fade; the folder under the cursor lights up. A folder that
+   cannot take the drop (the one you are already in) never highlights, so the
+   refusal is visible before the mouse is released. */
+.mhc--dragging { opacity: 0.4; }
+.mh__rf--over {
+	background: var(--accent-soft, rgba(99,102,241,0.2));
+	border-color: var(--accent, #6366f1);
+	color: var(--text-primary, inherit);
+}
+.mhc { cursor: grab; }
+.mhc:active { cursor: grabbing; }
+.mhc--sel { cursor: default; }
+
+.mh__rfname { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+/* Unread count per folder. Quiet until it is not zero — a badge that is always
+   there stops being a signal. */
+.mh__rfcount {
+	flex: 0 0 auto;
+	font-size: 11px;
+	line-height: 1.6;
+	padding: 0 0.35rem;
+	border-radius: 999px;
+	background: var(--accent, #6366f1);
+	color: #fff;
+}
+
+/* Offered right after a move, where the intent is fresh — not parked in a settings
+   screen the operator would have to go looking for. */
+.mh__ruleoffer {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	flex-wrap: wrap;
+	margin: 0.4rem 0.6rem 0;
+	padding: 0.4rem 0.55rem;
+	border-radius: 7px;
+	border: 1px solid var(--accent-glow, rgba(99,102,241,0.35));
+	background: var(--accent-soft, rgba(99,102,241,0.12));
+	font-size: 13px;
+	flex: 0 0 auto;
+}
+
+/* Said plainly rather than left as an empty box: a message with no visible body
+   reads as a broken panel, not as a message that needs a click. */
+.mhc__nobody {
+	font-size: 14px;
+	line-height: 1.55;
+	margin: 0 0 0.4rem;
+	padding: 0.4rem 0.55rem;
+	border-radius: 7px;
+	border: 1px dashed var(--border-bright, rgba(255,255,255,0.18));
+	color: var(--text-secondary, inherit);
+}
+.mhc__htmlrow { margin: 0 0 0.4rem; }
+.mhc__htmlrow a { display: inline-block; text-decoration: none; }

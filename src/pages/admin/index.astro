@@ -3,13 +3,16 @@ import { requireAdminSession } from '@/lib/adminGuard';
 import { db } from '@/lib/db';
 import { getGA4Summary } from '@/lib/ga4';
 import { countUniqueChecksByKind } from '@/lib/checkLog';
+import MailboxWindows from '@/components/admin/MailboxWindows.astro';
 
 // Guard — redirect non-admin users rather than returning a raw 4xx,
 // since Render's infrastructure renders raw error responses as "file not found".
 let adminEmail = '';
+let adminUserId = '';
 try {
 	const admin = await requireAdminSession(Astro.request);
 	adminEmail = admin.email;
+	adminUserId = admin.userId;
 } catch (resp) {
 	if (resp instanceof Response) {
 		if (resp.status === 401) return Astro.redirect('/login', 303);
@@ -798,6 +801,9 @@ const fmtDate = (iso: string | null) => {
 	</div>
 
 	<p class="refresh-note">Data is live — refresh the page for updated stats.</p>
+
+	<!-- ── Mailbox (donnie@almstins.com) ─────────────────────────────── -->
+	<MailboxWindows adminEmail={adminEmail} adminUserId={adminUserId} />
 
 	<!-- ── Question Inbox ─────────────────────────────────────────────── -->
 	<div class="section" id="inbox-section">
