@@ -120,9 +120,6 @@
 	background: var(--surface-card-2, rgba(255,255,255,0.06));
 	border-color: var(--border-subtle, rgba(255,255,255,0.1));
 }
-@media (max-width: 700px) {
-	.mh__rail { flex-basis: 96px; }
-}
 
 /* The scrolling region — this is what the drag handle resizes. */
 .mh__list {
@@ -521,3 +518,43 @@ select.mhc__move {
 }
 .mhc__htmlrow { margin: 0 0 0.4rem; }
 .mhc__htmlrow a { display: inline-block; text-decoration: none; }
+
+/* ── Phone layout ────────────────────────────────────────────────────────────
+   This panel is the first thing on /admin, so it has to work one-handed. Three
+   things break on a narrow screen and are fixed here: the header's full email
+   address shoving New/Check off the edge, the folder rail eating width beside
+   the message list, and the bulk toolbar running past the viewport. */
+@media (max-width: 700px) {
+	/* Let the address surrender space (ellipsis) so the buttons never leave the
+	   screen. The label still names which mailbox this is. */
+	.mh__bar { gap: 0.35rem; padding: 0 0.5rem; }
+	.mh__addr {
+		flex: 0 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* Rail moves on top as a horizontal, scrollable strip of folder chips, so the
+	   message list gets the full width instead of sharing it with a fixed column.
+	   The drag height stays on .mh__body, so the list still flexes to fill it. */
+	.mh--open .mh__body { flex-direction: column; }
+	.mh__rail {
+		order: -1;
+		flex: 0 0 auto;
+		flex-direction: row;
+		gap: 0.3rem;
+		padding: 0.4rem;
+		overflow-x: auto;
+		overflow-y: hidden;
+		border-left: none;
+		border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+	}
+	.mh__rf { flex: 0 0 auto; }
+	/* The "+ New folder" divider was drawn for a vertical rail; flatten it in a row. */
+	.mh__newfolder { margin-top: 0; padding-top: 0.28rem; border-top: none; }
+
+	/* The toolbar wraps to a second line instead of overflowing sideways. */
+	.mh__bulk { flex-wrap: wrap; row-gap: 0.35rem; }
+}
