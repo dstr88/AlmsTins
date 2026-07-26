@@ -95,6 +95,10 @@ export interface VerifyDashboardLocale {
   statusProven: string;
   statusLapsed: string;
   statusRevoked: string;
+  // Three-tier destination labels: Registered (asserted, no proof) → Claimed (control
+  // proven, no domain) → Verified (control + published on a proven domain).
+  statusRegistered: string;
+  statusClaimed: string;
   // "Prove ownership" panel
   proveBtn: string;
   proveHint: string;
@@ -246,6 +250,8 @@ export const en: VerifyDashboardLocale = {
   statusProven: 'Verified',
   statusLapsed: 'Lapsed',
   statusRevoked: 'Revoked',
+  statusRegistered: 'Registered',
+  statusClaimed: 'Claimed',
   proveBtn: 'Prove',
   proveHint: 'Prove you control the domain — that attaches your verified business name. Two ways: publish a small file on your site (best if you also want the domain to vouch for your addresses), or add a DNS TXT record (easiest on Shopify/Wix/Squarespace). Do either.',
   proveDomainPlaceholder: 'yourdomain.com',
@@ -412,6 +418,8 @@ export const es: VerifyDashboardLocale = {
   statusProven: 'Verificado',
   statusLapsed: 'Caducado',
   statusRevoked: 'Revocado',
+  statusRegistered: 'Registrado',
+  statusClaimed: 'Control confirmado',
   proveBtn: 'Probar',
   proveHint: 'Demuestra que controlas el dominio — eso adjunta tu nombre de negocio verificado. Dos formas: publica un archivo pequeño en tu sitio (mejor si además quieres que el dominio respalde tus direcciones), o añade un registro DNS TXT (lo más fácil en Shopify/Wix/Squarespace). Haz cualquiera de las dos.',
   proveDomainPlaceholder: 'tudominio.com',
@@ -578,6 +586,8 @@ export const fr: VerifyDashboardLocale = {
   statusProven: 'Vérifié',
   statusLapsed: 'Expiré',
   statusRevoked: 'Révoqué',
+  statusRegistered: 'Enregistré',
+  statusClaimed: 'Contrôle confirmé',
   proveBtn: 'Prouver',
   proveHint: 'Prouvez que vous contrôlez le domaine — cela rattache votre nom d’entreprise vérifié. Deux façons : publiez un petit fichier sur votre site (mieux si vous voulez aussi que le domaine atteste vos adresses), ou ajoutez un enregistrement DNS TXT (le plus simple sur Shopify/Wix/Squarespace). Au choix.',
   proveDomainPlaceholder: 'votredomaine.com',

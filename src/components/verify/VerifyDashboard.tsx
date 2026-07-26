@@ -36,12 +36,13 @@ function short(v: string): string {
   return v.length <= 24 ? v : `${v.slice(0, 12)}…${v.slice(-8)}`;
 }
 
-// Localized proof-status badge label. The raw status still drives the CSS class.
-function statusLabel(s: ProofStatus, t: VerifyDashboardLocale): string {
-  return s === 'proven' ? t.statusProven
-    : s === 'lapsed' ? t.statusLapsed
-    : s === 'revoked' ? t.statusRevoked
-    : t.statusUnproven;
+// Localized three-tier badge label. The raw status still drives the CSS class.
+// Registered (unproven) → Claimed (proven, control only) → Verified (proven + domain).
+function statusLabel(s: ProofStatus, proofDomain: string | null, t: VerifyDashboardLocale): string {
+  if (s === 'lapsed') return t.statusLapsed;
+  if (s === 'revoked') return t.statusRevoked;
+  if (s === 'proven') return proofDomain ? t.statusProven : t.statusClaimed;
+  return t.statusRegistered; // unproven = asserted, no proof yet
 }
 
 // Name-service handles (vitalik.eth, foo.sol …) resolve to an address — they take
@@ -478,7 +479,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
         <span
           className={`vd-badge vd-badge--${d.proofStatus}`}
           title={d.proofStatus === 'proven' && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
-        >{statusLabel(d.proofStatus, t)}</span>
+        >{statusLabel(d.proofStatus, d.proofDomain, t)}</span>
         {canProve && (
           <button className="vd-row__prove" onClick={() => setProving(p => !p)} aria-expanded={proving}>
             {t.proveBtn}

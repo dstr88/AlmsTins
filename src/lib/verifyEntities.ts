@@ -278,6 +278,16 @@ export async function deleteEntity(tenantId: string, id: string): Promise<void> 
 export interface VerifiedAddressHit {
   /** Whether this is an entity's published address or a merchant's proven self-listing. */
   source: 'entity' | 'merchant';
+  /**
+   * Assurance level (the customer-facing grade):
+   *  - 'verified' — the destination is anchored to a PROVEN DOMAIN that would catch a
+   *    swap: an entity's domain-published mirror, or a merchant address proven via its
+   *    own domain (proof_domain). This is the strong signal.
+   *  - 'claimed' — CONTROL was proven (e.g. micro-deposit) but the address is NOT tied
+   *    to an accountable domain. Control alone is not a safety signal — a scammer can
+   *    prove control of their own address — so this is shown as caution, not endorsement.
+   */
+  level: 'claimed' | 'verified';
   /** Publishing domain (entity path), or null for a merchant self-listing. */
   domain: string | null;
   /** The merchant's OWN self-chosen label (merchant path), or null. Never an identity we derived. */
@@ -316,7 +326,8 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   });
   if (ent.rows.length) {
     const r = ent.rows[0] as any;
-    return { source: 'entity', domain: String(r.entity_domain), label: null, chain: r.chain ? String(r.chain) : null };
+    // Entity mirror = domain-published by definition → Verified.
+    return { source: 'entity', level: 'verified', domain: String(r.entity_domain), label: null, chain: r.chain ? String(r.chain) : null };
   }
 
   // 2) Proven merchant destinations (self-send / domain proof). Claim-once guarantees at
@@ -333,9 +344,15 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     // Prefer the tenant's domain-verified business name (+ its anchor domain) over the
     // freeform label. We expose only the public name + domain — never tenant_id or any key.
     const vn = await verifiedNameForTenant(String(hit.tenant_id));
+    // Verified iff THIS address is anchored to a proven domain (proof_domain set) — a
+    // swapped address on a spoofed page would then fail the comparison. Control-only
+    // proof (micro-deposit, no proof_domain) is Claimed, even if the operating business
+    // is otherwise domain-known: the address itself isn't published anywhere to swap-check.
+    const publishedDomain = hit.proof_domain ? String(hit.proof_domain) : null;
     return {
       source: 'merchant',
-      domain: vn?.domain ?? (hit.proof_domain ? String(hit.proof_domain) : null),
+      level: publishedDomain ? 'verified' : 'claimed',
+      domain: vn?.domain ?? publishedDomain,
       label: vn?.name ?? (hit.label ? String(hit.label) : null),
       chain: String(hit.rail),
     };
@@ -367,7 +384,9 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
   const vn = await verifiedNameForTenant(String(hit.tenant_id));
   let host: string | null = null;
   try { host = new URL(normalized).host || null; } catch { host = null; }
-  return { source: 'merchant', domain: vn?.domain ?? host, label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url' };
+  // A claimed link is control-proven (account_claim). Verified only when the operating
+  // merchant is itself domain-verified (an accountable anchor); otherwise Claimed.
+  return { source: 'merchant', level: vn?.domain ? 'verified' : 'claimed', domain: vn?.domain ?? host, label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url' };
 }
 
 /**

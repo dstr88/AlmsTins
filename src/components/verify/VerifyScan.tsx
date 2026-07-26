@@ -11,7 +11,7 @@ import './VerifyScan.css';
  *  2. Safety — is the address itself flagged? (scam/OFAC/honeypot, via /api/wallet-check)
  * Read-only: the scanned value is checked, never stored.
  */
-type Lookup = { verified: boolean; source: 'entity' | 'merchant' | null; domain: string | null; label: string | null };
+type Lookup = { verified: boolean; level: 'claimed' | 'verified' | null; source: 'entity' | 'merchant' | null; domain: string | null; label: string | null };
 type Safety = 'idle' | 'checking' | 'clean' | 'caution' | 'danger' | 'unclear' | 'error';
 
 /** Pull the value to check out of a decoded QR payload: keep a URL / EMV-PIX / UPI
@@ -140,8 +140,8 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
       ]);
       setLookup(
         lk && lk.ok
-          ? { verified: !!lk.verified, source: lk.source ?? null, domain: lk.domain ?? null, label: lk.label ?? null }
-          : { verified: false, source: null, domain: null, label: null },
+          ? { verified: !!lk.verified, level: lk.level ?? null, source: lk.source ?? null, domain: lk.domain ?? null, label: lk.label ?? null }
+          : { verified: false, level: null, source: null, domain: null, label: null },
       );
       if (paymentQr) {
         setSafety('idle'); // no safety card — the match is the safety
@@ -154,7 +154,7 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
         setSafety(lvl === 'danger' ? 'danger' : lvl === 'caution' ? 'caution' : sf.result.partialCoverage ? 'unclear' : 'clean');
       } else setSafety('error');
     } catch {
-      setLookup({ verified: false, source: null, domain: null, label: null });
+      setLookup({ verified: false, level: null, source: null, domain: null, label: null });
       setSafety(paymentQr ? 'idle' : 'error');
     } finally {
       setBusy(false); setDone(true);
@@ -229,16 +229,30 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
       {scanError && <p className="vs__foot" style={{ color: 'var(--loss)' }}>{scanError}</p>}
 
       {done && lookup && (
-        <div className={`vs__card ${lookup.verified ? 'vs__card--ok' : 'vs__card--warn'}`}>
-          <div className="vs__verdict">{lookup.verified ? '✓ Verified destination' : '⚠ Not a verified destination'}</div>
-          <p className="vs__detail">
-            {lookup.verified
-              ? (who
-                  ? `Registered to ${who}${lookup.source === 'entity' ? ' (published on its domain)' : lookup.domain ? ` · verified via ${lookup.domain}` : ''}.`
-                  : 'A proven Almstins destination.')
-              : `No account has proven control of this ${noun} with Almstins. That doesn’t mean it’s unsafe — only that it isn’t verified here.`}
-          </p>
-        </div>
+        lookup.level === 'verified' ? (
+          <div className="vs__card vs__card--ok">
+            <div className="vs__verdict">✓ Verified destination</div>
+            <p className="vs__detail">
+              {who
+                ? `Published by ${who}${lookup.source === 'entity' ? ' on its own domain' : lookup.domain ? ` · anchored to ${lookup.domain}` : ''}. A swapped address on a spoofed page would fail this check.`
+                : 'Anchored to a proven domain — a swapped address on a spoofed page would fail this check.'}
+            </p>
+          </div>
+        ) : lookup.level === 'claimed' ? (
+          <div className="vs__card vs__card--warn">
+            <div className="vs__verdict">◑ Control confirmed — not domain-verified</div>
+            <p className="vs__detail">
+              {`${who ? `${who} proved` : 'Someone proved'} control of this ${noun}, but it isn’t published on an accountable domain. Control alone isn’t proof it’s safe — a scammer can prove control of their own ${noun}. Confirm the recipient another way before you send.`}
+            </p>
+          </div>
+        ) : (
+          <div className="vs__card vs__card--warn">
+            <div className="vs__verdict">⚠ Not a verified destination</div>
+            <p className="vs__detail">
+              {`No account has proven control of this ${noun} with Almstins. That doesn’t mean it’s unsafe — only that it isn’t verified here.`}
+            </p>
+          </div>
+        )
       )}
 
       {done && safety !== 'idle' && (
