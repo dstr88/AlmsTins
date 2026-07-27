@@ -387,7 +387,8 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
   const [result, setResult]       = useState<WalletCheckResult | null>(null);
-  const [verifiedPublisher, setVerifiedPublisher] = useState<{ domain: string | null; label: string | null } | null>(null);
+  // Holds a Verify hit — either 'verified' (domain-anchored) or 'claimed' (control only).
+  const [verifiedPublisher, setVerifiedPublisher] = useState<{ level: 'claimed' | 'verified'; domain: string | null; label: string | null } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [cached, setCached]       = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -432,10 +433,11 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
       })
         .then(r => r.json())
         .then((d: any) => {
-          // Show a verified claim whether it's a domain-verified entity (domain) or a
-          // merchant who proved control and named it (label) — or both.
-          if (d?.ok && d.verified && (typeof d.domain === 'string' || typeof d.label === 'string')) {
+          // Surface the assurance level: 'verified' (domain-anchored) or 'claimed'
+          // (control only). Registered/unproven returns no hit and shows nothing.
+          if (d?.ok && (d.level === 'verified' || d.level === 'claimed')) {
             setVerifiedPublisher({
+              level: d.level,
               domain: typeof d.domain === 'string' ? d.domain : null,
               label: typeof d.label === 'string' ? d.label : null,
             });
@@ -704,8 +706,8 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
       {result && (
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.5rem' }}>
 
-          {/* Verified claim — a domain-verified entity, or a merchant who proved + named it */}
-          {verifiedPublisher && (
+          {/* Verify tier — VERIFIED (domain-anchored → green, strong signal) */}
+          {verifiedPublisher && verifiedPublisher.level === 'verified' && (
             <div style={{
               marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
               background: 'var(--gain-bg)', border: '1px solid var(--gain-border)',
@@ -724,6 +726,30 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
                 </p>
                 <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
                   {c.verifiedSub}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Verify tier — CLAIMED (control only, no domain → caution, NEVER a green badge) */}
+          {verifiedPublisher && verifiedPublisher.level === 'claimed' && (
+            <div style={{
+              marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
+              background: 'var(--warning-bg)', border: '1px solid var(--warning-border)',
+              display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+            }}>
+              <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>◑</span>
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--warning)', fontSize: '0.95rem' }}>
+                  {c.claimedTitle}
+                </div>
+                <p style={{ margin: '0.3rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                  {verifiedPublisher.label
+                    ? c.verifiedMerchant.replace('{name}', verifiedPublisher.label) + ' ' + c.claimedBody
+                    : c.claimedBody}
+                </p>
+                <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
+                  {c.claimedSub}
                 </p>
               </div>
             </div>
