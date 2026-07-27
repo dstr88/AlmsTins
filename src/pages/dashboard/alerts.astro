@@ -70,7 +70,7 @@ if (userId) {
 						<p class="dash-notice__title">{t.noEmailTitle}</p>
 						<p class="dash-notice__text">
 							{t.noEmailTextBefore}
-							<a href="/dashboard/account" class="dash-notice__link">{t.noEmailLink}</a>{t.noEmailTextAfter}
+							<a href="#" class="dash-notice__link js-edit-alert-email">{t.noEmailLink}</a>{t.noEmailTextAfter}
 						</p>
 					</div>
 				</div>
@@ -80,7 +80,7 @@ if (userId) {
 			{alertEmail && (
 				<p class="alerts__email-line">
 					{t.emailLineBefore}<span class="alerts__email-value">{alertEmail}</span>{t.emailLineAfter}
-					<a href="/dashboard/account" class="alerts__email-change">{t.emailChange}</a>
+					<a href="#" class="alerts__email-change js-edit-alert-email">{t.emailChange}</a>
 				</p>
 			)}
 
@@ -167,6 +167,19 @@ const I18N: AlertsI18n = (window as unknown as { __alertsI18n?: AlertsI18n }).__
 	deleteBefore: 'Delete alert for ', deleteSuffix: '?',
 	saving: 'Saving…', added: '✓ Alert added!', failed: 'Failed', networkError: 'Network error',
 };
+
+// The alert-email editor lives in the account dropdown (top-right, in Layout) — there is
+// no /dashboard/account page. These links open that dropdown and trigger its edit button.
+document.querySelectorAll('.js-edit-alert-email').forEach((el) => {
+	el.addEventListener('click', (e) => {
+		e.preventDefault();
+		const menu = document.querySelector('.account-menu') as HTMLDetailsElement | null;
+		if (menu) menu.open = true;
+		const editBtn = document.getElementById('alert-email-edit-btn') as HTMLButtonElement | null;
+		editBtn?.scrollIntoView({ block: 'center' });
+		editBtn?.click();
+	});
+});
 
 interface Alert {
 	id: string;
