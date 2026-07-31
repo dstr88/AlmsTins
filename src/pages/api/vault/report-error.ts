@@ -12,6 +12,7 @@ import { sendMail } from '@/lib/email';
 import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getWalletErrorAlert } from '@/i18n/emails/walletErrorAlert';
+import { isOwner } from '@/lib/owner';
 
 export const prerender = false;
 
@@ -50,49 +51,42 @@ function ensureTable(): Promise<void> {
 }
 
 /**
- * True if an alert for this wallet is still within the cooldown. Durable across
- * restarts. On any DB error it falls back to the in-memory decision only, so a
- * database hiccup can neither block a genuine alert nor open the floodgates beyond
- * what the Map already allows.
+ * Atomically claim the one-email-per-wallet-per-hour slot. Returns true only for the
+ * caller that wins the slot; concurrent duplicates return false, so a burst yields
+ * exactly one email.
+ *
+ * This replaced a SELECT-then-INSERT pair. The check and the write were separate steps,
+ * so a burst (a cold-start loading every tin at once, all failing together) let every
+ * request pass the check before any write landed — turning one failure into four emails.
+ * The claim is now a single statement: a fresh row wins, an existing row wins only if it
+ * is older than the cooldown, and RETURNING is empty for everyone else. On any DB error
+ * it falls back to an in-memory check-and-set, so a database hiccup can neither block a
+ * genuine alert nor open the floodgates beyond one process.
  */
-async function isRateLimited(tenantId: string, walletId: string): Promise<boolean> {
+async function claimAlertSlot(tenantId: string, walletId: string): Promise<boolean> {
 	const key = `${tenantId}:${walletId}`;
 	const memLast = rateLimitMap.get(key) ?? 0;
-	if (Date.now() - memLast < RATE_LIMIT_MS) return true;
+	if (Date.now() - memLast < RATE_LIMIT_MS) return false; // this process already sent recently
 
 	try {
 		await ensureTable();
 		const res = await db.execute({
-			sql: `SELECT last_sent_at FROM vault_error_alerts
-			       WHERE tenant_id = ? AND wallet_id = ?`,
-			args: [tenantId, walletId],
-		});
-		const last = (res.rows?.[0] as any)?.last_sent_at ?? null;
-		if (last) {
-			const ageMs = Date.now() - new Date(String(last)).getTime();
-			if (Number.isFinite(ageMs) && ageMs < RATE_LIMIT_MS) {
-				rateLimitMap.set(key, Date.now() - ageMs); // mirror into the fast path
-				return true;
-			}
-		}
-	} catch {
-		// fall through — memory fast-path already said "not limited"
-	}
-	return false;
-}
-
-async function markSent(tenantId: string, walletId: string): Promise<void> {
-	rateLimitMap.set(`${tenantId}:${walletId}`, Date.now());
-	try {
-		await ensureTable();
-		await db.execute({
 			sql: `INSERT INTO vault_error_alerts (tenant_id, wallet_id, last_sent_at)
 			      VALUES (?, ?, now())
-			      ON CONFLICT (tenant_id, wallet_id)
-			        DO UPDATE SET last_sent_at = now()`,
+			      ON CONFLICT (tenant_id, wallet_id) DO UPDATE
+			        SET last_sent_at = now()
+			        WHERE vault_error_alerts.last_sent_at < now() - INTERVAL '1 hour'
+			      RETURNING wallet_id`,
 			args: [tenantId, walletId],
 		});
-	} catch { /* the Map still holds the limit for this process */ }
+		const won = (res.rows?.length ?? 0) > 0;
+		if (won) rateLimitMap.set(key, Date.now());
+		return won;
+	} catch {
+		// DB unavailable — best-effort in-memory claim so one alert still gets through.
+		rateLimitMap.set(key, Date.now());
+		return true;
+	}
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -112,10 +106,9 @@ export const POST: APIRoute = async ({ request }) => {
 		return json({ ok: true, reported: false, reason: 'missing_fields' });
 	}
 
-	if (await isRateLimited(tenantId, walletId)) {
+	if (!(await claimAlertSlot(tenantId, walletId))) {
 		return json({ ok: true, reported: false, reason: 'rate_limited' });
 	}
-	await markSent(tenantId, walletId);
 
 	const now = new Date().toISOString();
 
@@ -148,7 +141,15 @@ export const POST: APIRoute = async ({ request }) => {
 
 	void sendMail({ to: OWNER_EMAIL, subject: adminSubject, text: adminText }).catch(() => {});
 
-	if (userAlertEmail && userAlertEmail.toLowerCase() !== OWNER_EMAIL.toLowerCase()) {
+	// Send the separate user-facing alert only when the user is NOT the owner's own
+	// tenant. On the owner's own vault the admin email above already covers it, so this
+	// guard is what turns the owner's "two emails" into one. Real users still get their
+	// copy while the owner gets the admin alert.
+	if (
+		userAlertEmail &&
+		userAlertEmail.toLowerCase() !== OWNER_EMAIL.toLowerCase() &&
+		!isOwner(tenantId)
+	) {
 		const { subject: userSubject, text: userText } = getWalletErrorAlert(lang).render({ refCode });
 		void sendMail({ to: userAlertEmail, subject: userSubject, text: userText }).catch(() => {});
 	}
