@@ -10,9 +10,6 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { sendMail } from '@/lib/email';
 import { db } from '@/lib/db';
-import { getLang } from '@/lib/i18n/locale';
-import { getWalletErrorAlert } from '@/i18n/emails/walletErrorAlert';
-import { isOwner } from '@/lib/owner';
 
 export const prerender = false;
 
@@ -90,7 +87,6 @@ async function claimAlertSlot(tenantId: string, walletId: string): Promise<boole
 }
 
 export const POST: APIRoute = async ({ request }) => {
-	const lang = getLang(request);
 	const session = await requireTenantSession(request);
 	if (!session) return json({ ok: false }, 401);
 	const { tenantId } = session;
@@ -112,21 +108,12 @@ export const POST: APIRoute = async ({ request }) => {
 
 	const now = new Date().toISOString();
 
-	// Look up the user's alert email via tenant membership
-	let userAlertEmail: string | null = null;
-	try {
-		const res = await db.execute({
-			sql: `SELECT au.alert_email
-			      FROM tenant_memberships tm
-			      JOIN auth_users au ON au.id = tm.user_id
-			      WHERE tm.tenant_id = ?
-			      LIMIT 1`,
-			args: [tenantId],
-		});
-		const row = res.rows[0] as Record<string, unknown> | undefined;
-		userAlertEmail = typeof row?.alert_email === 'string' ? row.alert_email : null;
-	} catch { /* non-fatal */ }
-
+	// Owner-only, by design. We do NOT email customers that a tin failed to load.
+	// The panel retries and falls back to stale data, so most of these self-heal, and an
+	// unsolicited "Almstins couldn't load your wallet" email costs more trust than it
+	// saves. This is the owner's monitoring channel, not a customer-facing notice. (The
+	// user's in-app error panel with its ref code + Try again still handles the rare
+	// case where a tin genuinely can't load.)
 	const adminSubject = `[Almstins] Vault load error — wallet …${walletId.slice(-5)}`;
 	const adminText = [
 		`Ref:    ${refCode}`,
@@ -141,20 +128,7 @@ export const POST: APIRoute = async ({ request }) => {
 
 	void sendMail({ to: OWNER_EMAIL, subject: adminSubject, text: adminText }).catch(() => {});
 
-	// Send the separate user-facing alert only when the user is NOT the owner's own
-	// tenant. On the owner's own vault the admin email above already covers it, so this
-	// guard is what turns the owner's "two emails" into one. Real users still get their
-	// copy while the owner gets the admin alert.
-	if (
-		userAlertEmail &&
-		userAlertEmail.toLowerCase() !== OWNER_EMAIL.toLowerCase() &&
-		!isOwner(tenantId)
-	) {
-		const { subject: userSubject, text: userText } = getWalletErrorAlert(lang).render({ refCode });
-		void sendMail({ to: userAlertEmail, subject: userSubject, text: userText }).catch(() => {});
-	}
-
-	console.log(`[vault/report-error] sent for wallet …${walletId.slice(-5)}, ref ${refCode}`);
+	console.log(`[vault/report-error] owner alert for wallet …${walletId.slice(-5)}, ref ${refCode}`);
 	return json({ ok: true, reported: true, refCode });
 };
 
