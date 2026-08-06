@@ -134,7 +134,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			);
 		}
 		if (isWordpressProbe(pathname)) {
-			const ip = request.headers.get('x-forwarded-for') ?? context.clientAddress ?? 'unknown';
+			const ip = getClientIp(request) ?? context.clientAddress ?? 'unknown';
 			const ua = request.headers.get('user-agent') ?? 'unknown';
 			console.log('[probe-blocked] path=%s ip=%s ua=%s', pathname, ip, ua);
 			return finish(

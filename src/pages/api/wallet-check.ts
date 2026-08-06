@@ -14,6 +14,7 @@
  */
 
 import type { APIRoute } from 'astro';
+import { getClientIp } from '@/lib/analytics/ip';
 import {
   isValidAddress,
   checkRateLimit,
@@ -54,10 +55,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   }
 
   // ── Rate limit ───────────────────────────────────────────────────────────────
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    clientAddress ??
-    'unknown';
+  const ip = getClientIp(request) ?? clientAddress ?? 'unknown';
 
   if (!checkRateLimit(ip)) {
     return json(
