@@ -18,6 +18,6 @@ jobs:
             echo "SYNC_URL or CRON_SECRET secret missing."
             exit 1
           fi
-          curl -sS --fail --max-time 1800 \
+          curl -sS --fail --retry 4 --retry-all-errors --retry-delay 15 --retry-max-time 120 --connect-timeout 20 --max-time 1800 \
             "$SYNC_URL/api/cron/sync-btc?secret=$CRON_SECRET" \
             -H "x-cron-secret: $CRON_SECRET"
