@@ -62,6 +62,8 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
       // Three-tier grade: 'verified' (domain-anchored) or 'claimed' (control only).
       // null when there's no hit (registered/unproven is never surfaced as positive).
       level: hit?.level ?? null,
+      // Date the destination/entity was proven ("verified/claimed since"), as YYYY-MM-DD.
+      since: hit?.since ? String(hit.since).slice(0, 10) : null,
       source: hit?.source ?? null,
       domain: hit?.domain ?? null,
       label: hit?.label ?? null,
@@ -70,7 +72,7 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
   } catch (err) {
     console.error('[verify-lookup] error:', err instanceof Error ? err.message : err);
     // Fail closed: never block the page — just report "not verified" (no badge).
-    return json({ ok: true, verified: false, level: null, source: null, domain: null, label: null, chain: null });
+    return json({ ok: true, verified: false, level: null, since: null, source: null, domain: null, label: null, chain: null });
   }
 };
 

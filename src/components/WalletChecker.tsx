@@ -390,7 +390,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const [error, setError]         = useState<string | null>(null);
   const [result, setResult]       = useState<WalletCheckResult | null>(null);
   // Holds a Verify hit — either 'verified' (domain-anchored) or 'claimed' (control only).
-  const [verifiedPublisher, setVerifiedPublisher] = useState<{ level: 'claimed' | 'verified'; domain: string | null; label: string | null } | null>(null);
+  const [verifiedPublisher, setVerifiedPublisher] = useState<{ level: 'claimed' | 'verified'; since: string | null; domain: string | null; label: string | null } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [cached, setCached]       = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -440,6 +440,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
           if (d?.ok && (d.level === 'verified' || d.level === 'claimed')) {
             setVerifiedPublisher({
               level: d.level,
+              since: typeof d.since === 'string' ? d.since : null,
               domain: typeof d.domain === 'string' ? d.domain : null,
               label: typeof d.label === 'string' ? d.label : null,
             });
@@ -729,6 +730,11 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
                 <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
                   {c.verifiedSub}
                 </p>
+                {verifiedPublisher.since && (
+                  <p style={{ margin: '0.35rem 0 0', color: 'var(--gain)', fontSize: '0.8rem', fontWeight: 600 }}>
+                    {c.verifiedSince.replace('{date}', verifiedPublisher.since)}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -753,6 +759,11 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
                 <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
                   {c.claimedSub}
                 </p>
+                {verifiedPublisher.since && (
+                  <p style={{ margin: '0.35rem 0 0', color: 'var(--warning)', fontSize: '0.8rem', fontWeight: 600 }}>
+                    {c.claimedSince.replace('{date}', verifiedPublisher.since)}
+                  </p>
+                )}
               </div>
             </div>
           )}

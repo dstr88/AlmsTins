@@ -160,6 +160,8 @@ export interface WalletCheckerLocale {
     claimedTitle: string;
     claimedBody: string;
     claimedSub: string;
+    verifiedSince: string;
+    claimedSince: string;
   };
 }
 
@@ -436,6 +438,8 @@ export const en: WalletCheckerLocale = {
     claimedTitle: 'Control confirmed — not domain-verified',
     claimedBody: 'Control of this address was proven, but it isn’t published on an accountable domain — so a swapped address couldn’t be caught here.',
     claimedSub: 'Control alone isn’t proof it’s safe — anyone can prove control of their own address. Confirm the recipient another way before you pay.',
+    verifiedSince: 'Verified since {date}',
+    claimedSince: 'Claimed since {date}',
   },
 };
 
@@ -712,6 +716,8 @@ export const es: WalletCheckerLocale = {
     claimedTitle: 'Control confirmado — sin verificación de dominio',
     claimedBody: 'Se demostró el control de esta dirección, pero no está publicada en un dominio responsable — así que aquí no podría detectarse una dirección sustituida.',
     claimedSub: 'El control por sí solo no prueba que sea seguro — cualquiera puede demostrar el control de su propia dirección. Confirma al destinatario por otra vía antes de pagar.',
+    verifiedSince: 'Verificado desde {date}',
+    claimedSince: 'Reclamado desde {date}',
   },
 };
 
@@ -988,5 +994,7 @@ export const fr: WalletCheckerLocale = {
     claimedTitle: 'Contrôle confirmé — sans vérification de domaine',
     claimedBody: 'Le contrôle de cette adresse a été prouvé, mais elle n’est pas publiée sur un domaine responsable — une adresse substituée ne serait donc pas détectée ici.',
     claimedSub: 'Le contrôle seul ne prouve pas qu’elle est sûre — n’importe qui peut prouver le contrôle de sa propre adresse. Confirmez le destinataire autrement avant de payer.',
+    verifiedSince: 'Vérifié depuis {date}',
+    claimedSince: 'Revendiqué depuis {date}',
   },
 };
