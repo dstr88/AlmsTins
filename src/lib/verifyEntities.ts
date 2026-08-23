@@ -288,6 +288,8 @@ export interface VerifiedAddressHit {
    *    prove control of their own address — so this is shown as caution, not endorsement.
    */
   level: 'claimed' | 'verified';
+  /** ISO datetime (UTC) the destination/entity was proven — the "verified/claimed since" date. Null if unknown. */
+  since: string | null;
   /** Publishing domain (entity path), or null for a merchant self-listing. */
   domain: string | null;
   /** The merchant's OWN self-chosen label (merchant path), or null. Never an identity we derived. */
@@ -318,16 +320,22 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
 
   // 1) Entity mirror (exchanges / platforms) — domain-published, fresh.
   const ent = await db.execute({
-    sql: `SELECT chain, entity_domain FROM verified_address_mirror
-          WHERE status = 'verified' AND address = ?
-            AND refreshed_at IS NOT NULL AND refreshed_at >= ?
+    sql: `SELECT m.chain AS chain, m.entity_domain AS entity_domain, e.proven_at AS proven_at
+          FROM verified_address_mirror m
+          JOIN verified_entities e ON e.id = m.entity_id
+          WHERE m.status = 'verified' AND m.address = ?
+            AND m.refreshed_at IS NOT NULL AND m.refreshed_at >= ?
           LIMIT 1`,
     args: [normalized, staleCutoffUtc()],
   });
   if (ent.rows.length) {
     const r = ent.rows[0] as any;
-    // Entity mirror = domain-published by definition → Verified.
-    return { source: 'entity', level: 'verified', domain: String(r.entity_domain), label: null, chain: r.chain ? String(r.chain) : null };
+    // Entity mirror = domain-published by definition → Verified. "Since" = when the
+    // entity proved its domain (verified_entities.proven_at).
+    return {
+      source: 'entity', level: 'verified', since: r.proven_at ? String(r.proven_at) : null,
+      domain: String(r.entity_domain), label: null, chain: r.chain ? String(r.chain) : null,
+    };
   }
 
   // 2) Proven merchant destinations (self-send / domain proof). Claim-once guarantees at
@@ -335,7 +343,7 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   //    expose only the merchant's OWN self-chosen label — never tenant_id or any identity.
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT tenant_id, rail, value, label, proof_domain FROM verify_destinations
+    sql: `SELECT tenant_id, rail, value, label, proof_domain, proven_at FROM verify_destinations
           WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)`,
     args: [normalized, normalized],
   });
@@ -352,6 +360,7 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     return {
       source: 'merchant',
       level: publishedDomain ? 'verified' : 'claimed',
+      since: hit.proven_at ? String(hit.proven_at) : null,
       domain: vn?.domain ?? publishedDomain,
       label: vn?.name ?? (hit.label ? String(hit.label) : null),
       chain: String(hit.rail),
@@ -375,7 +384,7 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
   if (!normalized) return null;
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT tenant_id, rail, value, label FROM verify_destinations
+    sql: `SELECT tenant_id, rail, value, label, proven_at FROM verify_destinations
           WHERE kind = 'qr' AND proof_status = 'proven'`,
     args: [],
   });
@@ -386,7 +395,11 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
   try { host = new URL(normalized).host || null; } catch { host = null; }
   // A claimed link is control-proven (account_claim). Verified only when the operating
   // merchant is itself domain-verified (an accountable anchor); otherwise Claimed.
-  return { source: 'merchant', level: vn?.domain ? 'verified' : 'claimed', domain: vn?.domain ?? host, label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url' };
+  return {
+    source: 'merchant', level: vn?.domain ? 'verified' : 'claimed',
+    since: hit.proven_at ? String(hit.proven_at) : null,
+    domain: vn?.domain ?? host, label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url',
+  };
 }
 
 /**

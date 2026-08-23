@@ -11,7 +11,7 @@ import './VerifyScan.css';
  *  2. Safety — is the address itself flagged? (scam/OFAC/honeypot, via /api/wallet-check)
  * Read-only: the scanned value is checked, never stored.
  */
-type Lookup = { verified: boolean; level: 'claimed' | 'verified' | null; source: 'entity' | 'merchant' | null; domain: string | null; label: string | null };
+type Lookup = { verified: boolean; level: 'claimed' | 'verified' | null; since: string | null; source: 'entity' | 'merchant' | null; domain: string | null; label: string | null };
 type Safety = 'idle' | 'checking' | 'clean' | 'caution' | 'danger' | 'unclear' | 'error';
 
 /** Pull the value to check out of a decoded QR payload: keep a URL / EMV-PIX / UPI
@@ -140,8 +140,8 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
       ]);
       setLookup(
         lk && lk.ok
-          ? { verified: !!lk.verified, level: lk.level ?? null, source: lk.source ?? null, domain: lk.domain ?? null, label: lk.label ?? null }
-          : { verified: false, level: null, source: null, domain: null, label: null },
+          ? { verified: !!lk.verified, level: lk.level ?? null, since: lk.since ?? null, source: lk.source ?? null, domain: lk.domain ?? null, label: lk.label ?? null }
+          : { verified: false, level: null, since: null, source: null, domain: null, label: null },
       );
       if (paymentQr) {
         setSafety('idle'); // no safety card — the match is the safety
@@ -154,7 +154,7 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
         setSafety(lvl === 'danger' ? 'danger' : lvl === 'caution' ? 'caution' : sf.result.partialCoverage ? 'unclear' : 'clean');
       } else setSafety('error');
     } catch {
-      setLookup({ verified: false, level: null, source: null, domain: null, label: null });
+      setLookup({ verified: false, level: null, since: null, source: null, domain: null, label: null });
       setSafety(paymentQr ? 'idle' : 'error');
     } finally {
       setBusy(false); setDone(true);
@@ -237,6 +237,9 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
                 ? `Published by ${who}${lookup.source === 'entity' ? ' on its own domain' : lookup.domain ? ` · anchored to ${lookup.domain}` : ''}. A swapped address on a spoofed page would fail this check.`
                 : 'Anchored to a proven domain — a swapped address on a spoofed page would fail this check.'}
             </p>
+            {lookup.since && (
+              <p className="vs__detail" style={{ marginTop: '0.35rem', opacity: 0.75 }}>Verified since {lookup.since}.</p>
+            )}
           </div>
         ) : lookup.level === 'claimed' ? (
           <div className="vs__card vs__card--warn">
@@ -244,6 +247,9 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
             <p className="vs__detail">
               {`${who ? `${who} proved` : 'Someone proved'} control of this ${noun}, but it isn’t published on an accountable domain. Control alone isn’t proof it’s safe — a scammer can prove control of their own ${noun}. Confirm the recipient another way before you send.`}
             </p>
+            {lookup.since && (
+              <p className="vs__detail" style={{ marginTop: '0.35rem', opacity: 0.75 }}>Claimed since {lookup.since}.</p>
+            )}
           </div>
         ) : (
           <div className="vs__card vs__card--warn">
