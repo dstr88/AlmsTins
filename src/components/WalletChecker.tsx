@@ -741,9 +741,14 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
 
           {/* Verify tier — CLAIMED (control only, no domain → caution, NEVER a green badge) */}
           {verifiedPublisher && verifiedPublisher.level === 'claimed' && (
+            // Caution-tape frame: a green/amber crosswalk stripe reads as "proceed with
+            // awareness," not the solid-amber "danger" the old fill looked like.
             <div style={{
-              marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
-              background: 'var(--warning-bg)', border: '1px solid var(--warning-border)',
+              marginBottom: '1.25rem', borderRadius: '12px', padding: '3px',
+              background: 'repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px)',
+            }}>
+            <div style={{
+              padding: '0.85rem 1rem', borderRadius: '9px', background: 'var(--surface-card)',
               display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
             }}>
               <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>◑</span>
@@ -760,11 +765,12 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
                   {c.claimedSub}
                 </p>
                 {verifiedPublisher.since && (
-                  <p style={{ margin: '0.35rem 0 0', color: 'var(--warning)', fontSize: '0.8rem', fontWeight: 600 }}>
+                  <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>
                     {c.claimedSince.replace('{date}', verifiedPublisher.since)}
                   </p>
                 )}
               </div>
+            </div>
             </div>
           )}
 
