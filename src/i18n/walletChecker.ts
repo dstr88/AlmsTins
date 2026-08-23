@@ -160,6 +160,7 @@ export interface WalletCheckerLocale {
     claimedTitle: string;
     claimedBody: string;
     claimedSub: string;
+    accountableDomainTip: string;
     verifiedSince: string;
     claimedSince: string;
   };
@@ -435,9 +436,10 @@ export const en: WalletCheckerLocale = {
     verifiedMerchant: 'A verified Almstins member registered this address as “{name}”.',
     verifiedVia: ' · verified via {domain}',
     verifiedSub: 'This confirms who published the address — not that any payment is safe. Still confirm the amount and that you meant to pay this business.',
-    claimedTitle: 'Control confirmed — not domain-verified',
-    claimedBody: 'Control of this address was proven, but it isn’t published on an accountable domain — so a swapped address couldn’t be caught here.',
+    claimedTitle: 'Control confirmed',
+    claimedBody: 'Control of this address was proven, but it isn’t published on an [[accountable domain]] — so a swapped address couldn’t be caught here.',
     claimedSub: 'Control alone isn’t proof it’s safe — anyone can prove control of their own address. Confirm the recipient another way before you pay.',
+    accountableDomainTip: 'A domain the owner proved they control via a DNS record. It ties the address to a public, accountable website, so a swapped address on a fake page would fail the check. Claimed addresses skip this step.',
     verifiedSince: 'Verified since {date}',
     claimedSince: 'Claimed since {date}',
   },
@@ -713,9 +715,10 @@ export const es: WalletCheckerLocale = {
     verifiedMerchant: 'Un miembro verificado de Almstins registró esta dirección como «{name}».',
     verifiedVia: ' · verificado vía {domain}',
     verifiedSub: 'Esto confirma quién publicó la dirección — no que un pago sea seguro. Confirma igualmente el importe y que querías pagar a este negocio.',
-    claimedTitle: 'Control confirmado — sin verificación de dominio',
-    claimedBody: 'Se demostró el control de esta dirección, pero no está publicada en un dominio responsable — así que aquí no podría detectarse una dirección sustituida.',
+    claimedTitle: 'Control confirmado',
+    claimedBody: 'Se demostró el control de esta dirección, pero no está publicada en un [[dominio responsable]] — así que aquí no podría detectarse una dirección sustituida.',
     claimedSub: 'El control por sí solo no prueba que sea seguro — cualquiera puede demostrar el control de su propia dirección. Confirma al destinatario por otra vía antes de pagar.',
+    accountableDomainTip: 'Un dominio que el propietario demostró controlar mediante un registro DNS. Vincula la dirección a un sitio web público y responsable, de modo que una dirección sustituida en una página falsa no pasaría la comprobación. Las direcciones reclamadas omiten este paso.',
     verifiedSince: 'Verificado desde {date}',
     claimedSince: 'Reclamado desde {date}',
   },
@@ -991,9 +994,10 @@ export const fr: WalletCheckerLocale = {
     verifiedMerchant: 'Un membre vérifié d’Almstins a enregistré cette adresse sous « {name} ».',
     verifiedVia: ' · vérifié via {domain}',
     verifiedSub: 'Cela confirme qui a publié l’adresse — pas qu’un paiement soit sûr. Vérifiez tout de même le montant et que vous vouliez bien payer cette entreprise.',
-    claimedTitle: 'Contrôle confirmé — sans vérification de domaine',
-    claimedBody: 'Le contrôle de cette adresse a été prouvé, mais elle n’est pas publiée sur un domaine responsable — une adresse substituée ne serait donc pas détectée ici.',
+    claimedTitle: 'Contrôle confirmé',
+    claimedBody: 'Le contrôle de cette adresse a été prouvé, mais elle n’est pas publiée sur un [[domaine responsable]] — une adresse substituée ne serait donc pas détectée ici.',
     claimedSub: 'Le contrôle seul ne prouve pas qu’elle est sûre — n’importe qui peut prouver le contrôle de sa propre adresse. Confirmez le destinataire autrement avant de payer.',
+    accountableDomainTip: 'Un domaine dont le propriétaire a prouvé le contrôle via un enregistrement DNS. Il relie l’adresse à un site web public et responsable, de sorte qu’une adresse remplacée sur une fausse page échouerait à la vérification. Les adresses revendiquées sautent cette étape.',
     verifiedSince: 'Vérifié depuis {date}',
     claimedSince: 'Revendiqué depuis {date}',
   },

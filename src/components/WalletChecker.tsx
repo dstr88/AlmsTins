@@ -35,6 +35,20 @@ function isNewWallet(firstSeen: string | null): boolean {
   return days < 30;
 }
 
+// Renders a string that marks a term with [[double brackets]], turning that term into a
+// hover-explained span (dotted underline + native tooltip). No marker → the plain string.
+function withTip(text: string, tip: string) {
+  const m = text.match(/^([\s\S]*?)\[\[([\s\S]+?)\]\]([\s\S]*)$/);
+  if (!m) return text;
+  return (
+    <>
+      {m[1]}
+      <span title={tip} style={{ textDecoration: 'underline dotted', textUnderlineOffset: '2px', cursor: 'help' }}>{m[2]}</span>
+      {m[3]}
+    </>
+  );
+}
+
 // Extracts a blockchain address from a scanned QR payload.
 // Handles raw addresses and URI forms like "ethereum:0x..@1?value=..", "bitcoin:bc1..?amount=..".
 function parseAddressFromQR(raw: string): string {
@@ -741,9 +755,14 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
 
           {/* Verify tier — CLAIMED (control only, no domain → caution, NEVER a green badge) */}
           {verifiedPublisher && verifiedPublisher.level === 'claimed' && (
+            // Caution-tape frame: a green/amber crosswalk stripe reads as "proceed with
+            // awareness," not the solid-amber "danger" the old fill looked like.
             <div style={{
-              marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
-              background: 'var(--warning-bg)', border: '1px solid var(--warning-border)',
+              marginBottom: '1.25rem', borderRadius: '12px', padding: '3px',
+              background: 'repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px)',
+            }}>
+            <div style={{
+              padding: '0.85rem 1rem', borderRadius: '9px', background: 'var(--surface-card)',
               display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
             }}>
               <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>◑</span>
@@ -752,19 +771,21 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
                   {c.claimedTitle}
                 </div>
                 <p style={{ margin: '0.3rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                  {verifiedPublisher.label
-                    ? c.verifiedMerchant.replace('{name}', verifiedPublisher.label) + ' ' + c.claimedBody
-                    : c.claimedBody}
+                  {withTip(
+                    (verifiedPublisher.label ? c.verifiedMerchant.replace('{name}', verifiedPublisher.label) + ' ' : '') + c.claimedBody,
+                    c.accountableDomainTip,
+                  )}
                 </p>
                 <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
                   {c.claimedSub}
                 </p>
                 {verifiedPublisher.since && (
-                  <p style={{ margin: '0.35rem 0 0', color: 'var(--warning)', fontSize: '0.8rem', fontWeight: 600 }}>
+                  <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>
                     {c.claimedSince.replace('{date}', verifiedPublisher.since)}
                   </p>
                 )}
               </div>
+            </div>
             </div>
           )}
 
