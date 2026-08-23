@@ -35,6 +35,20 @@ function isNewWallet(firstSeen: string | null): boolean {
   return days < 30;
 }
 
+// Renders a string that marks a term with [[double brackets]], turning that term into a
+// hover-explained span (dotted underline + native tooltip). No marker → the plain string.
+function withTip(text: string, tip: string) {
+  const m = text.match(/^([\s\S]*?)\[\[([\s\S]+?)\]\]([\s\S]*)$/);
+  if (!m) return text;
+  return (
+    <>
+      {m[1]}
+      <span title={tip} style={{ textDecoration: 'underline dotted', textUnderlineOffset: '2px', cursor: 'help' }}>{m[2]}</span>
+      {m[3]}
+    </>
+  );
+}
+
 // Extracts a blockchain address from a scanned QR payload.
 // Handles raw addresses and URI forms like "ethereum:0x..@1?value=..", "bitcoin:bc1..?amount=..".
 function parseAddressFromQR(raw: string): string {
@@ -757,9 +771,10 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
                   {c.claimedTitle}
                 </div>
                 <p style={{ margin: '0.3rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                  {verifiedPublisher.label
-                    ? c.verifiedMerchant.replace('{name}', verifiedPublisher.label) + ' ' + c.claimedBody
-                    : c.claimedBody}
+                  {withTip(
+                    (verifiedPublisher.label ? c.verifiedMerchant.replace('{name}', verifiedPublisher.label) + ' ' : '') + c.claimedBody,
+                    c.accountableDomainTip,
+                  )}
                 </p>
                 <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
                   {c.claimedSub}

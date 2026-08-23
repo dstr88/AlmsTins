@@ -245,9 +245,14 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
           // Caution-tape frame — "proceed with awareness," not a solid danger box.
           <div style={{ borderRadius: '14px', padding: '3px', marginBottom: '0.9rem', background: 'repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px)' }}>
           <div className="vs__card" style={{ margin: 0, borderRadius: '11px', border: 'none' }}>
-            <div className="vs__verdict">◑ Control confirmed — not domain-verified</div>
+            <div className="vs__verdict">◑ Control confirmed</div>
             <p className="vs__detail">
-              {`${who ? `${who} proved` : 'Someone proved'} control of this ${noun}, but it isn’t published on an accountable domain. Control alone isn’t proof it’s safe — a scammer can prove control of their own ${noun}. Confirm the recipient another way before you send.`}
+              {`${who ? `${who} proved` : 'Someone proved'} control of this ${noun}, but it isn’t published on an `}
+              <span
+                title="A domain the owner proved they control via a DNS record. It ties the address to a public, accountable website, so a swapped address on a fake page would fail the check. Claimed addresses skip this step."
+                style={{ textDecoration: 'underline dotted', textUnderlineOffset: '2px', cursor: 'help' }}
+              >accountable domain</span>
+              {`. Control alone isn’t proof it’s safe — a scammer can prove control of their own ${noun}. Confirm the recipient another way before you send.`}
             </p>
             {lookup.since && (
               <p className="vs__detail" style={{ marginTop: '0.35rem', opacity: 0.75 }}>Claimed since {lookup.since}.</p>
