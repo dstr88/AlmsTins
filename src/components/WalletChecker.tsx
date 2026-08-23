@@ -181,6 +181,22 @@ function TabContent({ tab, result, c }: { tab: Tab; result: WalletCheckResult; c
             </div>
           </div>
         )}
+        {/* New-wallet caution — floors the verdict at yellow; shows the first-seen date as the basis */}
+        {result.newWallet && (
+          <div style={{
+            marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '10px',
+            background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)',
+          }}>
+            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#f59e0b' }}>
+              🚩 {c.newWallet}{c.newWalletRest}
+            </p>
+            {result.activity.firstSeen && (
+              <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: 'rgba(255,255,255,0.6)' }}>
+                {c.firstSeen}: {fmt(result.activity.firstSeen, c.dateLocale)}
+              </p>
+            )}
+          </div>
+        )}
         {[
           { label: c.flags.blacklisted,     active: f.blacklisted },
           { label: c.flags.phishing,        active: f.phishing },

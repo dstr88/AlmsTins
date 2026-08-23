@@ -5,6 +5,7 @@ import {
   isCompromisedEntity,
   isMixerAddress,
   isMixerName,
+  isNewWallet,
   KNOWN_MIXER_ADDRESSES,
 } from '../../src/lib/walletChecker';
 
@@ -104,6 +105,28 @@ describe('known-compromised entities feed the verdict', () => {
   it('does not flag a normal bridge', () => {
     expect(isCompromisedEntity(label('Wormhole', 'Token Bridge (ETH)'))).toBe(false);
     expect(isCompromisedEntity(null)).toBe(false);
+  });
+});
+
+describe('brand-new wallet is a caution signal (< 30 days)', () => {
+  const NOW = Date.parse('2026-08-22T00:00:00Z');
+  const daysAgo = (n: number) => new Date(NOW - n * 86_400_000).toISOString();
+
+  it('a wallet first seen 5 days ago is new', () => {
+    expect(isNewWallet(daysAgo(5), NOW)).toBe(true);
+  });
+
+  it('a wallet first seen 45 days ago is not new', () => {
+    expect(isNewWallet(daysAgo(45), NOW)).toBe(false);
+  });
+
+  it('exactly 30 days is not new (boundary)', () => {
+    expect(isNewWallet(daysAgo(30), NOW)).toBe(false);
+  });
+
+  it('missing or invalid first-seen is treated as not-new, never a false caution', () => {
+    expect(isNewWallet(null, NOW)).toBe(false);
+    expect(isNewWallet('not-a-date', NOW)).toBe(false);
   });
 });
 

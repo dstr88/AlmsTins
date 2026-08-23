@@ -149,6 +149,8 @@ export interface WalletCheckResult {
   };
   /** True when no PRIMARY scam source ran for this chain — a "clean" must NOT read as a confident green. */
   partialCoverage: boolean;
+  /** True when the wallet's first on-chain activity is under 30 days ago — a common scam signal. */
+  newWallet: boolean;
 }
 
 // ─── In-memory LRU cache ──────────────────────────────────────────────────────
@@ -266,8 +268,21 @@ export function isCompromisedEntity(label: WalletCheckResult['entityLabel']): bo
  * read as a confident all-clear. Chainabuse is community/secondary — it does not gate
  * a verdict on its own. "No positive hit" is not "safe".
  */
+/**
+ * True when a wallet is brand-new — first on-chain activity under 30 days ago. Fresh
+ * addresses with no history are a common scam signal, so this floors the verdict at
+ * caution (see checkWallet). Absent first-seen data is treated as not-new (unknown, not
+ * risky), never a false caution.
+ */
+export function isNewWallet(firstSeen: string | null, now: number = Date.now()): boolean {
+  if (!firstSeen) return false;
+  const t = new Date(firstSeen).getTime();
+  if (!Number.isFinite(t)) return false;
+  return (now - t) / 86_400_000 < 30;
+}
+
 export function computePartialCoverage(chain: string, coverage: WalletCheckResult['coverage']): boolean {
-  const goplusSupported = chain === 'evm' || chain === 'solana';
+  const goplusSupported = chain === 'evm' || chain === 'solana' || chain === 'tron';
   const primary: Array<'ran' | 'skipped' | 'error'> = [];
   if (goplusSupported) primary.push(coverage.goplus);
   if (chain === 'evm') primary.push(coverage.honeypot);
@@ -1035,6 +1050,7 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
       errors: [],
       coverage: { goplus: 'skipped', honeypot: 'skipped', chainabuse: 'skipped' },
       partialCoverage: true,
+      newWallet: false,
     };
   }
 
@@ -1102,7 +1118,15 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   // a confirmed high-risk destination — route it into the verdict, never leave it green.
   if (isCompromisedEntity(entityLabel)) flags.blacklisted = true;
 
-  const { score, level } = calculateScamScore(flags);
+  const { score, level: baseLevel } = calculateScamScore(flags);
+
+  // A brand-new wallet (first seen < 30 days ago) is a common scam signal: a fresh
+  // address with no track record. It floors the verdict at caution (yellow) so a new
+  // wallet never reads as a confident green — the first-seen date is surfaced in the
+  // result as the basis. It never downgrades a real danger/caution hit.
+  const newWallet = isNewWallet(activity.activity.firstSeen);
+  const level: WalletCheckResult['scamLevel'] =
+    newWallet && baseLevel === 'clean' ? 'caution' : baseLevel;
 
   // Present a mixer as a caution in the entity card, not a reassuring "verified contract".
   const finalEntityLabel: WalletCheckResult['entityLabel'] = knownMixer
@@ -1155,6 +1179,7 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
     honeypot:      honeypot.honeypot,
     fundingSource,
     entityLabel: finalEntityLabel,
+    newWallet,
     errors: allErrors,
     coverage,
     partialCoverage,
