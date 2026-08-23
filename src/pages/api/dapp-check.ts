@@ -427,7 +427,10 @@ export const GET: APIRoute = async ({ url, request, clientAddress }) => {
   const isKnownSafe = sources.find((s) => s.name === 'MetaMask Blocklist')?.verdict === 'whitelisted';
 
   const vtPending = vtResult.verdict === 'unscanned';
-  const unscanned = !anyFlagged && sources.some((s) => s.verdict === 'unscanned' && s.name !== 'VirusTotal');
+  // Fail-safe: a source that ERRORED couldn't clear the URL, so treat it like 'unscanned'
+  // (reduced coverage → yellow, never a confident green). VirusTotal is excluded as it
+  // rate-limits often and would otherwise force most verdicts yellow.
+  const unscanned = !anyFlagged && sources.some((s) => (s.verdict === 'unscanned' || s.verdict === 'error') && s.name !== 'VirusTotal');
 
   const verdict: 'red' | 'yellow' | 'green' =
     isKnownSafe ? 'green' :
