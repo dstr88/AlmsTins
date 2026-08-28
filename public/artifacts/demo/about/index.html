@@ -1,0 +1,139 @@
+<title>Almstins Verify — About this page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Dark only — presented in Almstins' dark palette on any host, no toggle. */
+  :root, :root[data-theme="light"], :root[data-theme="dark"]{
+    color-scheme: dark;
+    --bg:#0a0f1a; --surface:#0d131f; --surface-2:#121a28; --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.15);
+    --ink:#f5f8ff; --ink-2:rgba(245,248,255,.68); --ink-3:rgba(245,248,255,.42);
+    --accent:#2dd4a8; --accent-soft:rgba(45,212,168,.14);
+    --good:#34d399; --good-bg:rgba(52,211,153,.12); --good-line:rgba(52,211,153,.34);
+    --bad:#f87171; --bad-bg:rgba(239,68,68,.13); --bad-line:rgba(239,68,68,.36);
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 22px 48px -26px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:clamp(1.1rem,3.5vw,2.2rem) clamp(1rem,4vw,1.6rem) 3.5rem}
+
+  /* header */
+  .top{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.5rem}
+  .brand{display:flex;align-items:center;gap:.6rem}
+  .brand .mark{width:30px;height:30px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:var(--bg);flex:none}
+  .brand .mark svg{width:17px;height:17px;display:block}
+  .brand .name{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:1.15rem;letter-spacing:-.01em;line-height:1}
+  .brand .sub{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-top:.2rem}
+  .backlink{font:inherit;font-size:.8rem;color:var(--ink-2);background:transparent;border:1px solid var(--line-2);border-radius:999px;padding:.32rem .8rem;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap}
+  .backlink:hover{background:var(--surface-2);color:var(--ink)}
+  .backlink svg{width:13px;height:13px}
+
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(1.5rem,4.5vw,1.9rem);letter-spacing:-.015em;margin:0 0 .3rem;line-height:1.15}
+  .tagline{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 1.3rem}
+  .lede{font-size:1.02rem;color:var(--ink-2);margin:0 0 1.7rem;text-wrap:pretty}
+  .lede b{color:var(--ink);font-weight:600}
+
+  h2{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin:2rem 0 .7rem;padding-top:1.4rem;border-top:1px solid var(--line);font-weight:600}
+  h2:first-of-type{border-top:0;padding-top:0;margin-top:1.6rem}
+  p{margin:0 0 .9rem;color:var(--ink-2)}
+  p b, li b{color:var(--ink);font-weight:600}
+  strong{color:var(--ink);font-weight:600}
+
+  ul{margin:0 0 .9rem;padding-left:0;list-style:none}
+  ul li{position:relative;padding-left:1.35rem;margin-bottom:.6rem;color:var(--ink-2)}
+  ul li::before{content:"";position:absolute;left:.15rem;top:.62em;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+
+  ol.moves{margin:0 0 .9rem;padding-left:0;list-style:none;counter-reset:move}
+  ol.moves li{position:relative;padding:.15rem 0 .15rem 2.4rem;margin-bottom:.85rem;color:var(--ink-2);counter-increment:move}
+  ol.moves li::before{
+    content:counter(move);position:absolute;left:0;top:.05rem;
+    width:1.7rem;height:1.7rem;border-radius:8px;background:var(--accent-soft);color:var(--accent);
+    font-family:"IBM Plex Mono",monospace;font-size:.85rem;font-weight:600;display:grid;place-items:center;
+  }
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:1.1rem 1.25rem;margin:1.4rem 0}
+  .card.good{border-color:var(--good-line);background:var(--good-bg)}
+
+  code{font-family:"IBM Plex Mono",monospace;font-size:.86em;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:.08rem .35rem}
+  .redword{color:var(--bad);font-weight:600}
+  .greenword{color:var(--good);font-weight:600}
+
+  .cta{margin-top:2.2rem;padding-top:1.5rem;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:.7rem;align-items:center}
+  .btn{font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;border-radius:10px;padding:.6rem 1.05rem;text-decoration:none;display:inline-flex;align-items:center;gap:.5rem;background:var(--accent);border:1px solid var(--accent);color:var(--bg)}
+  .btn:hover{filter:brightness(1.06)}
+  .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line-2)}
+  .btn.ghost:hover{background:var(--surface-2)}
+  .btn svg{width:15px;height:15px}
+
+  .foot{margin-top:2rem;font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.06em;color:var(--ink-3);text-align:center}
+  .foot .dot{margin:0 .5rem;opacity:.5}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" fill="currentColor" opacity=".22"/><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" stroke="currentColor" stroke-width="1.4"/><path d="M8.5 12l2.4 2.4L15.8 9.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <div>
+        <div class="name">Almstins Verify</div>
+        <div class="sub">Provable, not promised</div>
+      </div>
+    </div>
+    <a class="backlink" href="/artifacts/demo">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Back to the demo
+    </a>
+  </div>
+
+  <h1>About this page</h1>
+  <p class="tagline">Demo guide — how to read the live proof</p>
+
+  <p class="lede">Almstins Verify turns a claim into a <b>proof you can check yourself</b>. This demo runs that proof live in your browser: edit the underlying data or change the date, and watch the proof reject the change the instant you do. It never asks a server to vouch for anything, so you are not trusting Almstins. You are checking the proof on your own machine.</p>
+
+  <h2>What this is</h2>
+  <p>You are looking at the real thing in miniature. Nothing to install, no account, no login. Your internet connection only loads the fonts. The proof logic itself runs entirely on your device. Close the tab and nothing was sent anywhere.</p>
+
+  <h2>What you are looking at</h2>
+  <ul>
+    <li><b>The claim.</b> States exactly what the proof asserts (control of a receiving address) and, just as importantly, what it does not (not legal ownership of any asset, not that the address is safe). A proof here is never a blanket "verified."</li>
+    <li><b>The records.</b> The events the proof covers. Every field is editable.</li>
+    <li><b>Merkle root.</b> A single fingerprint of all the records together. Change any one record and it changes.</li>
+    <li><b>Signed manifest digest.</b> A fingerprint of the whole proof (claim, issuer, date, records), which is what gets signed and anchored.</li>
+    <li><b>Anchor.</b> The digest pinned to an independent timestamp, so the date cannot be moved after the fact.</li>
+    <li><b>The banner.</b> <span class="greenword">Verified</span> (green) or <span class="redword">Tampered</span> (red). It updates live as you edit.</li>
+  </ul>
+
+  <h2>Try it — three moves</h2>
+  <ol class="moves">
+    <li>Change an amount in any record (or click <b>"Tamper a record"</b>). The banner turns red: the Merkle root shifted, so the signed digest no longer matches what was anchored. Any change to the data is caught.</li>
+    <li>Click <b>"Backdate the date."</b> Red again: the "verified since" date cannot be moved without breaking the anchor. The date is pinned to independent time, not merely asserted.</li>
+    <li>Click <b>"Reset"</b> to return to Verified. ("Re-issue proof" makes a fresh, honest proof of whatever the current state is. You can always make a true new proof; you simply cannot forge the old one.)</li>
+  </ol>
+
+  <h2>Why it matters</h2>
+  <div class="card">
+    <p style="margin-bottom:.7rem"><b>You check it yourself.</b> Verification runs in the reader's browser, so trust does not route through Almstins. A counterparty confirms the proof independently, without taking anyone's word.</p>
+    <p style="margin:0"><b>It never overclaims.</b> The proof states its exact scope, which is precisely why "verified" can be relied on: the system withholds the word when it must.</p>
+  </div>
+
+  <h2>What is real, and what production adds</h2>
+  <p>This demo uses <b>real SHA-256 hashing</b> and your browser's <b>Ed25519 signatures</b>. In production, Almstins signs the manifest with its own Ed25519 key and anchors the digest to <b>Bitcoin through OpenTimestamps</b>, so "verified since" is provable against a public blockchain rather than against anyone's word.</p>
+  <p>That is the whole idea: <code>the plumbing hides, the proof never does</code>.</p>
+
+  <div class="cta">
+    <a class="btn" href="/artifacts/demo">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Open the live demo
+    </a>
+    <a class="btn ghost" href="https://almstins.com">Visit Almstins</a>
+  </div>
+
+  <p class="foot">Runs in any modern browser<span class="dot">·</span>no login<span class="dot">·</span>no data leaves your device</p>
+</div>
