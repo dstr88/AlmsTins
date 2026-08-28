@@ -52,6 +52,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/verify' ||
 		pathname.startsWith('/verify/') ||
 		pathname === '/marchand' ||
+		// Artifacts — public static demos served from public/artifacts (e.g. /artifacts/demo)
+		pathname === '/artifacts' ||
+		pathname.startsWith('/artifacts/') ||
 		// All @auth/core routes — callbacks, CSRF, providers, sessions, etc.
 		pathname === '/api/auth' ||
 		pathname.startsWith('/api/auth/') ||
