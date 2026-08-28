@@ -1,0 +1,404 @@
+<title>Almstins Verify</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Dark only — presented in Almstins' dark palette on any host, no toggle. */
+  :root, :root[data-theme="light"], :root[data-theme="dark"]{
+    color-scheme: dark;
+    --bg:#0a0f1a; --surface:#0d131f; --surface-2:#121a28; --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.15);
+    --ink:#f5f8ff; --ink-2:rgba(245,248,255,.68); --ink-3:rgba(245,248,255,.42);
+    --accent:#2dd4a8; --accent-soft:rgba(45,212,168,.14);
+    --good:#34d399; --good-bg:rgba(52,211,153,.12); --good-line:rgba(52,211,153,.34);
+    --bad:#f87171; --bad-bg:rgba(239,68,68,.13); --bad-line:rgba(239,68,68,.36);
+    --mono-dim:rgba(245,248,255,.40);
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 22px 48px -26px rgba(0,0,0,.8);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:clamp(1.1rem,3.5vw,2.2rem) clamp(1rem,4vw,1.6rem) 3rem}
+
+  /* header */
+  .top{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.4rem}
+  .brand{display:flex;align-items:center;gap:.6rem}
+  .brand .mark{width:30px;height:30px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:var(--bg);flex:none}
+  .brand .mark svg{width:17px;height:17px;display:block}
+  .brand .name{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:1.15rem;letter-spacing:-.01em;line-height:1}
+  .brand .sub{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-top:.2rem}
+  .theme-btn{font:inherit;font-size:.8rem;color:var(--ink-2);background:transparent;border:1px solid var(--line-2);border-radius:999px;padding:.32rem .7rem;cursor:pointer;display:flex;align-items:center;gap:.4rem}
+  .theme-btn:hover{background:var(--surface-2)}
+  .theme-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .lede{font-size:1.02rem;color:var(--ink-2);margin:0 0 1.3rem;text-wrap:pretty;max-width:60ch}
+  .lede b{color:var(--ink);font-weight:600}
+
+  /* status banner — the hero */
+  .status{
+    border-radius:14px;padding:1.05rem 1.2rem;display:flex;gap:.85rem;align-items:flex-start;
+    border:1px solid var(--good-line);background:var(--good-bg);box-shadow:var(--shadow);
+    transition:background .25s ease,border-color .25s ease;
+  }
+  .status[data-state="bad"]{border-color:var(--bad-line);background:var(--bad-bg)}
+  .status .dot{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;color:var(--surface)}
+  .status[data-state="good"] .dot{background:var(--good)}
+  .status[data-state="bad"] .dot{background:var(--bad)}
+  .status .dot svg{width:18px;height:18px}
+  .status h2{margin:.05rem 0 .15rem;font-family:"IBM Plex Sans";font-size:1.02rem;font-weight:700;letter-spacing:.01em}
+  .status[data-state="good"] h2{color:var(--good)}
+  .status[data-state="bad"] h2{color:var(--bad)}
+  .status p{margin:0;font-size:.9rem;color:var(--ink-2);line-height:1.45}
+  @media (prefers-reduced-motion:no-preference){
+    .status.shake{animation:shake .4s ease}
+    @keyframes shake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}
+  }
+
+  /* proof card */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);margin-top:1.1rem;overflow:hidden}
+  .card > section{padding:1rem 1.15rem;border-top:1px solid var(--line)}
+  .card > section:first-child{border-top:0}
+  .label{font-family:"IBM Plex Mono",monospace;font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin:0 0 .5rem;display:flex;align-items:center;gap:.5rem}
+  .label .hint{font-family:"IBM Plex Sans";letter-spacing:0;text-transform:none;color:var(--ink-3);font-size:.72rem;font-weight:400}
+
+  .claim h3{margin:0 0 .3rem;font-size:1rem;font-weight:600}
+  .claim p{margin:.15rem 0 0;font-size:.86rem;color:var(--ink-2)}
+  .claim .neg{color:var(--ink-3)}
+  .claim .neg b{color:var(--ink-2);font-weight:600}
+
+  /* editable meta rows */
+  .field{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+  .field label{font-size:.82rem;color:var(--ink-2);min-width:112px}
+  input[type=text],input[type=datetime-local]{
+    font-family:"IBM Plex Mono",monospace;font-size:.82rem;color:var(--ink);
+    background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:.34rem .5rem;flex:1;min-width:0;
+  }
+  input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+  .edited{border-color:var(--bad-line) !important;background:var(--bad-bg) !important}
+
+  /* records table */
+  .rec-wrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:.82rem;min-width:440px}
+  th{font-family:"IBM Plex Mono",monospace;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);text-align:left;font-weight:500;padding:.3rem .45rem}
+  td{padding:.22rem .35rem;vertical-align:middle}
+  td input{width:100%;font-size:.8rem;padding:.3rem .45rem}
+  td.amt input{text-align:right;font-variant-numeric:tabular-nums}
+
+  /* hash readouts */
+  .hashrow{display:flex;flex-direction:column;gap:.55rem}
+  .kv{display:flex;flex-direction:column;gap:.22rem}
+  .kv .k{font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .hash{font-family:"IBM Plex Mono",monospace;font-size:.78rem;word-break:break-all;line-height:1.5;color:var(--ink-2)}
+  .hash .live{color:var(--ink)}
+  .pill{display:inline-flex;align-items:center;gap:.35rem;font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.04em;padding:.14rem .5rem;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2)}
+  .pill.match{color:var(--good);border-color:var(--good-line);background:var(--good-bg)}
+  .pill.nomatch{color:var(--bad);border-color:var(--bad-line);background:var(--bad-bg)}
+  .anchor-note{font-size:.78rem;color:var(--ink-3);margin:.5rem 0 0}
+
+  /* controls */
+  .controls{display:flex;flex-wrap:wrap;gap:.55rem;margin-top:1.1rem}
+  button.act{font:inherit;font-size:.85rem;font-weight:500;cursor:pointer;border-radius:9px;padding:.5rem .9rem;border:1px solid var(--line-2);background:var(--surface);color:var(--ink)}
+  button.act:hover{background:var(--surface-2)}
+  button.act:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  button.act.primary{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+  button.act.danger{border-color:var(--bad-line);color:var(--bad)}
+  button.act.danger:hover{background:var(--bad-bg)}
+
+  .foot{margin-top:1.6rem;font-size:.76rem;color:var(--ink-3);line-height:1.55;border-top:1px solid var(--line);padding-top:1rem}
+  .foot code{font-family:"IBM Plex Mono",monospace;font-size:.72rem;color:var(--ink-2)}
+  .foot b{color:var(--ink-2);font-weight:600}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" fill="currentColor" opacity=".22"/><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" stroke="currentColor" stroke-width="1.4"/><path d="M8.5 12l2.4 2.4L15.8 9.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <div>
+        <div class="name">Almstins Verify</div>
+        <div class="sub">Provable, not promised</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="lede">A verification proof states <b>exactly what was checked</b>, signs it, and pins the date to an independent anchor. Edit any record below, or backdate the date, and watch the proof break. It re-verifies <b>live in your browser</b> with real SHA-256 — no server is asked to vouch for anything.</p>
+
+  <div class="status" id="status" data-state="good" role="status" aria-live="polite">
+    <span class="dot" id="statusDot" aria-hidden="true"></span>
+    <div>
+      <h2 id="statusTitle">Verified</h2>
+      <p id="statusMsg">The records are intact and the date matches what was anchored.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <section class="claim">
+      <p class="label">The claim <span class="hint">what this proof does and does not assert</span></p>
+      <h3>Control of a receiving address</h3>
+      <p>The holder proved control of <span style="font-family:'IBM Plex Mono',monospace;font-size:.82rem">0x39A2…baaA6</span> by completing a self-send only the controller could.</p>
+      <p class="neg"><b>Not asserted:</b> legal ownership of any underlying asset, that the address is safe to send to, or anything beyond control at this date.</p>
+    </section>
+
+    <section>
+      <p class="label">Issued</p>
+      <div class="hashrow">
+        <div class="field">
+          <label for="issuer">Issuer</label>
+          <input type="text" id="issuer" value="Almstins" spellcheck="false" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="proven">Verified since</label>
+          <input type="datetime-local" id="proven" value="2026-08-23T14:00">
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="label">The records this proof covers <span class="hint">try changing an amount</span></p>
+      <div class="rec-wrap">
+        <table id="recTable">
+          <thead><tr><th>Event</th><th>Asset</th><th style="text-align:right">Amount</th><th>Tx hash</th><th>Date</th></tr></thead>
+          <tbody id="recBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <p class="label">Tamper-evidence</p>
+      <div class="hashrow">
+        <div class="kv">
+          <span class="k">Merkle root of the records</span>
+          <div class="hash live" id="rootOut">…</div>
+        </div>
+        <div class="kv">
+          <span class="k">Signed manifest digest</span>
+          <div class="hash"><span class="live" id="digestOut">…</span></div>
+        </div>
+        <div>
+          <span class="pill" id="anchorPill">checking…</span>
+        </div>
+        <p class="anchor-note" id="anchorNote"></p>
+      </div>
+    </section>
+
+    <section>
+      <p class="label">Signature</p>
+      <div class="kv">
+        <span class="k" id="sigAlg">Ed25519 over the manifest</span>
+        <div class="hash"><span class="live" id="sigOut">…</span></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="controls">
+    <button class="act danger" id="btnTamper" type="button">Tamper a record</button>
+    <button class="act danger" id="btnBackdate" type="button">Backdate the date</button>
+    <button class="act" id="btnReissue" type="button">Re-issue proof</button>
+    <button class="act primary" id="btnReset" type="button">Reset</button>
+  </div>
+
+  <p class="foot">
+    This page runs the real thing in miniature: a domain-separated <b>SHA-256 Merkle tree</b> over the records, a canonical manifest, and a digest an anchor pins to a time it doesn't control. Signature uses your browser's <b>Ed25519</b> where available.
+    In production, Almstins signs the manifest with its own Ed25519 key and anchors the digest to <b>Bitcoin via OpenTimestamps</b> — so "verified since" is provable against a public chain, not against our word. Change the date and the anchored digest stops matching. That is the whole idea: <code>the plumbing hides, the proof never does</code>.
+  </p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = (id)=>document.getElementById(id);
+  const te = new TextEncoder();
+
+  // ---------- crypto helpers (real, in-browser) ----------
+  function hex(buf){ return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+  function hexToBytes(h){ const a=new Uint8Array(h.length/2); for(let i=0;i<a.length;i++) a[i]=parseInt(h.substr(i*2,2),16); return a; }
+  async function sha256(bytes){ return hex(await crypto.subtle.digest('SHA-256', bytes)); }
+  function concat(...arrs){ let n=0; arrs.forEach(a=>n+=a.length); const o=new Uint8Array(n); let k=0; arrs.forEach(a=>{o.set(a,k);k+=a.length;}); return o; }
+
+  // stable, sorted-key JSON (RFC-8785-ish for the demo)
+  function canon(v){
+    if (Array.isArray(v)) return '['+v.map(canon).join(',')+']';
+    if (v && typeof v==='object') return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}';
+    return JSON.stringify(v);
+  }
+
+  // domain-separated Merkle: leaf=sha256(0x00||x), node=sha256(0x01||L||R), lone node promoted
+  async function hashLeaf(bytes){ return sha256(concat(Uint8Array.of(0), bytes)); }
+  async function hashNode(l,r){ return sha256(concat(Uint8Array.of(1), hexToBytes(l), hexToBytes(r))); }
+  async function merkleRoot(records){
+    if(!records.length) return hashLeaf(new Uint8Array(0));
+    let level = await Promise.all(records.map(r=>hashLeaf(te.encode(canon(r)))));
+    while(level.length>1){
+      const nxt=[];
+      for(let i=0;i<level.length;i+=2){ nxt.push(i+1<level.length ? await hashNode(level[i],level[i+1]) : level[i]); }
+      level=nxt;
+    }
+    return level[0];
+  }
+
+  // Ed25519 if the browser supports SubtleCrypto Ed25519; else a labeled SHA-256 seal
+  let edKey=null, edOK=false;
+  async function initSigner(){
+    try{ edKey = await crypto.subtle.generateKey({name:'Ed25519'}, true, ['sign','verify']); edOK=true; }
+    catch(e){ edOK=false; }
+    $('sigAlg').textContent = edOK ? 'Ed25519 over the manifest (your browser)' : 'SHA-256 seal (Ed25519 in production)';
+  }
+  async function sign(bytes){
+    if(edOK) return hex(await crypto.subtle.sign({name:'Ed25519'}, edKey.privateKey, bytes));
+    return sha256(concat(te.encode('almstins-demo-seal:'), bytes));
+  }
+  async function verifySig(bytes, sigHex){
+    if(edOK){ try{ return await crypto.subtle.verify({name:'Ed25519'}, edKey.publicKey, hexToBytes(sigHex), bytes); }catch(e){ return false; } }
+    return (await sha256(concat(te.encode('almstins-demo-seal:'), bytes))) === sigHex;
+  }
+
+  // ---------- state ----------
+  const ORIGINAL = {
+    issuer:'Almstins',
+    proven:'2026-08-23T14:00',
+    records:[
+      {event:'self-send', asset:'USDC', amount:'1.00', txHash:'0xa1f…9e17', date:'2026-08-20'},
+      {event:'self-send', asset:'USDC', amount:'1.00', txHash:'0xb2c…7d41', date:'2026-08-21'},
+      {event:'self-send', asset:'USDC', amount:'1.00', txHash:'0xc3d…2a88', date:'2026-08-23'},
+    ],
+  };
+  let records = clone(ORIGINAL.records);
+  let anchored = null; // { digest, proven, sigHex } captured at issue time
+  function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+  const claim = {
+    kind:'control',
+    subject:'0x39A2…baaA6',
+    statement:'Control proved via self-send. Not legal ownership, not safety, control only.',
+  };
+
+  // ---------- build manifest + digest ----------
+  async function computeDigest(){
+    const root = await merkleRoot(records);
+    const manifest = {
+      v:1, claim,
+      issuer: $('issuer').value,
+      provenAt: $('proven').value,
+      merkleRoot: root,
+      alg: edOK ? 'Ed25519' : 'sha256-seal',
+    };
+    const bytes = te.encode(canon(manifest));
+    const digest = await sha256(bytes);
+    return { root, bytes, digest };
+  }
+
+  async function issue(){
+    const { root, bytes, digest } = await computeDigest();
+    const sigHex = await sign(bytes);
+    anchored = { digest, proven: $('proven').value, sigHex };
+    $('rootOut').textContent = root;
+    $('sigOut').textContent = sigHex;
+    await verify(false);
+    markEdits();
+  }
+
+  // ---------- verify (runs on every edit) ----------
+  let firstBad = true;
+  async function verify(animate){
+    if(!anchored) return;
+    const { root, bytes, digest } = await computeDigest();
+    $('rootOut').textContent = root;
+    $('digestOut').textContent = digest;
+
+    const digestMatch = digest === anchored.digest;
+    const sigValid = await verifySig(bytes, anchored.sigHex);
+    const dateChanged = $('proven').value !== anchored.proven;
+
+    const pill = $('anchorPill');
+    if(digestMatch){ pill.className='pill match'; pill.textContent='digest matches anchor'; }
+    else { pill.className='pill nomatch'; pill.textContent='digest ≠ anchored'; }
+    $('anchorNote').textContent = 'Anchored digest  ' + anchored.digest.slice(0,24) + '…';
+
+    const el = $('status');
+    const ok = digestMatch && sigValid;
+    if(ok){
+      el.dataset.state='good';
+      setDot(true);
+      $('statusTitle').textContent='Verified';
+      $('statusMsg').textContent='The records are intact and the date matches what was anchored. Checked in your browser, no server call.';
+      firstBad = true;
+    } else {
+      el.dataset.state='bad';
+      setDot(false);
+      $('statusTitle').textContent='Tampered — proof rejected';
+      let why;
+      if(!sigValid) why='The signature no longer matches the manifest. The record set or the issued fields were changed after signing.';
+      else if(dateChanged) why='Backdated. The "verified since" date was changed, so the digest no longer matches the one pinned to the anchor. You cannot move the date without breaking the anchor.';
+      else why='A record was changed. The Merkle root shifted, so the signed digest no longer matches what was anchored.';
+      $('statusMsg').textContent=why;
+      if(animate && firstBad){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); firstBad=false; }
+    }
+    markEdits();
+  }
+
+  function setDot(good){
+    $('statusDot').innerHTML = good
+      ? '<svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+  }
+
+  function markEdits(){
+    if(!anchored) return;
+    $('proven').classList.toggle('edited', $('proven').value !== anchored.proven);
+    // record edits are flagged against ORIGINAL for a clear visual
+    document.querySelectorAll('#recBody input').forEach(inp=>{
+      const r=+inp.dataset.r, f=inp.dataset.f;
+      inp.classList.toggle('edited', String(records[r][f]) !== String(ORIGINAL.records[r][f]));
+    });
+  }
+
+  // ---------- render records ----------
+  function renderRecords(){
+    const body=$('recBody'); body.innerHTML='';
+    records.forEach((r,i)=>{
+      const tr=document.createElement('tr');
+      [['event',''],['asset',''],['amount','amt'],['txHash',''],['date','']].forEach(([f,cls])=>{
+        const td=document.createElement('td'); if(cls) td.className=cls;
+        const inp=document.createElement('input'); inp.type='text'; inp.value=r[f];
+        inp.dataset.r=i; inp.dataset.f=f; inp.spellcheck=false; inp.autocomplete='off';
+        inp.addEventListener('input', ()=>{ records[i][f]=inp.value; verify(true); });
+        td.appendChild(inp); tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+  }
+
+  // ---------- controls ----------
+  $('btnTamper').addEventListener('click', ()=>{
+    // bump the middle amount to something obviously off
+    records[1].amount = (records[1].amount === '1.00') ? '9.00' : '1.00';
+    renderRecords(); verify(true);
+  });
+  $('btnBackdate').addEventListener('click', ()=>{
+    $('proven').value = ($('proven').value.startsWith('2026-08-23')) ? '2026-01-01T09:00' : '2026-08-23T14:00';
+    verify(true);
+  });
+  $('btnReissue').addEventListener('click', async ()=>{ await issue(); });
+  $('btnReset').addEventListener('click', async ()=>{
+    records = clone(ORIGINAL.records);
+    $('issuer').value = ORIGINAL.issuer;
+    $('proven').value = ORIGINAL.proven;
+    renderRecords();
+    await issue();
+  });
+  $('issuer').addEventListener('input', ()=>verify(true));
+  $('proven').addEventListener('input', ()=>verify(true));
+
+  // ---------- boot ----------
+  (async function(){
+    await initSigner();
+    renderRecords();
+    await issue();
+  })();
+})();
+</script>
