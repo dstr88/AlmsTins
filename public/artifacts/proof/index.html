@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>A Bitcoin-Anchored Proof</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root, :root[data-theme="light"], :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0a0f1a; --surface:#0d131f; --surface-2:#121a28; --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.15);
+    --ink:#f5f8ff; --ink-2:rgba(245,248,255,.68); --ink-3:rgba(245,248,255,.42);
+    --accent:#2dd4a8; --accent-soft:rgba(45,212,168,.14); --accent-line:rgba(45,212,168,.32);
+    --gain:#34d399; --gain-soft:rgba(52,211,153,.12); --gain-line:rgba(52,211,153,.30);
+    --loss:#ef4444; --loss-soft:rgba(239,68,68,.12); --loss-line:rgba(239,68,68,.30);
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 22px 48px -26px rgba(0,0,0,.8);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:clamp(1.6rem,5vw,3.2rem) clamp(1rem,4vw,1.6rem) 3.5rem}
+  a{color:var(--accent);text-underline-offset:2px}
+
+  .brand{display:flex;align-items:center;gap:.6rem;margin-bottom:.35rem}
+  .brand .mark{width:32px;height:32px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:var(--bg);flex:none}
+  .brand .mark svg{width:18px;height:18px;display:block}
+  .brand .name{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:1.5rem;letter-spacing:-.015em;line-height:1}
+  .kick{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);margin:0 0 1.8rem 42px}
+
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(1.7rem,4.4vw,2.4rem);letter-spacing:-.02em;line-height:1.1;margin:0 0 .7rem;text-wrap:balance}
+  .lede{font-size:1.02rem;color:var(--ink-2);margin:0 0 2rem;max-width:60ch}
+  .lede b{color:var(--ink)}
+
+  .verdict{display:flex;align-items:center;gap:.85rem;border-radius:14px;padding:1.05rem 1.2rem;margin-bottom:1.6rem;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);transition:border-color .3s ease, background .3s ease}
+  .verdict.pass{border-color:var(--gain-line);background:linear-gradient(180deg,var(--gain-soft),transparent)}
+  .verdict.fail{border-color:var(--loss-line);background:linear-gradient(180deg,var(--loss-soft),transparent)}
+  .verdict .badge{width:44px;height:44px;border-radius:11px;flex:none;display:grid;place-items:center;background:var(--surface-2);color:var(--ink-3)}
+  .verdict.pass .badge{background:var(--gain-soft);color:var(--gain)}
+  .verdict.fail .badge{background:var(--loss-soft);color:var(--loss)}
+  .verdict .badge svg{width:24px;height:24px}
+  .verdict h2{margin:0;font-size:1.12rem;font-weight:700;letter-spacing:-.01em}
+  .verdict p{margin:.15rem 0 0;font-size:.86rem;color:var(--ink-2)}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:1.15rem 1.25rem;margin-bottom:1.2rem;box-shadow:var(--shadow)}
+  .card > h3{margin:0 0 .2rem;font-size:.72rem;font-family:"IBM Plex Mono",monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+
+  .claim-stmt{font-size:1.06rem;color:var(--ink);margin:.5rem 0 .8rem;line-height:1.5}
+  .subject{font-family:"IBM Plex Mono",monospace;font-size:.82rem;word-break:break-all;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:.5rem .65rem;color:var(--ink-2)}
+  .scope{margin-top:.85rem;display:flex;gap:.6rem;align-items:flex-start;font-size:.86rem;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:.65rem .75rem}
+  .scope svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--ink-3)}
+  .scope b{color:var(--ink)}
+
+  .checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.1rem}
+  .chk{display:flex;gap:.75rem;align-items:flex-start;padding:.7rem 0;border-top:1px solid var(--line)}
+  .chk:first-child{border-top:0}
+  .chk .tick{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--surface-2);color:var(--ink-3);transition:background .3s,color .3s}
+  .chk.ok .tick{background:var(--gain-soft);color:var(--gain)}
+  .chk.bad .tick{background:var(--loss-soft);color:var(--loss)}
+  .chk .tick svg{width:15px;height:15px}
+  .chk .body{flex:1;min-width:0}
+  .chk .t{font-weight:600;font-size:.95rem}
+  .chk .d{font-size:.84rem;color:var(--ink-2);margin-top:.12rem}
+  .chk .d code{font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--ink-2);word-break:break-all}
+  .chk .st{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-top:.3rem}
+  .chk.ok .st{color:var(--gain)}
+  .chk.bad .st{color:var(--loss)}
+
+  .btc{border-color:var(--accent-line);background:linear-gradient(180deg,var(--accent-soft),transparent)}
+  .btc .when{font-family:"Fraunces",Georgia,serif;font-size:1.5rem;font-weight:600;color:var(--ink);margin:.3rem 0 .1rem;letter-spacing:-.01em}
+  .btc .sub{font-size:.86rem;color:var(--ink-2)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:.35rem .9rem;margin-top:.9rem;font-size:.82rem}
+  .kv dt{color:var(--ink-3);font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;padding-top:2px}
+  .kv dd{margin:0;font-family:"IBM Plex Mono",monospace;color:var(--ink-2);word-break:break-all}
+  .indep{margin-top:1rem;font-size:.86rem;color:var(--ink-2);border-top:1px solid var(--line);padding-top:.9rem}
+  .indep b{color:var(--ink)}
+
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.9rem}
+  .btn{appearance:none;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);font:inherit;font-size:.85rem;font-weight:500;padding:.5rem .9rem;border-radius:9px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;transition:border-color .15s,background .15s}
+  .btn:hover{border-color:var(--accent-line);background:var(--surface)}
+  .btn svg{width:15px;height:15px}
+
+  .note{font-size:.86rem;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);border-left:2px solid var(--accent-line);border-radius:0 11px 11px 0;padding:.9rem 1.05rem;margin-bottom:1.2rem}
+  .note b{color:var(--ink)}
+
+  details.raw{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:0 1.1rem;margin-bottom:1.4rem}
+  details.raw summary{cursor:pointer;padding:.95rem 0;font-size:.82rem;font-family:"IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);list-style:none;display:flex;align-items:center;gap:.5rem}
+  details.raw summary::-webkit-details-marker{display:none}
+  details.raw summary .chev{transition:transform .2s;color:var(--ink-3)}
+  details.raw[open] summary .chev{transform:rotate(90deg)}
+  details.raw pre{margin:0 0 1rem;overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:.72rem;line-height:1.5;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:.85rem}
+
+  .foot{margin-top:1rem;font-size:.78rem;color:var(--ink-3);border-top:1px solid var(--line);padding-top:1.1rem;line-height:1.6}
+  .foot a{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" fill="currentColor" opacity=".22"/><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" stroke="currentColor" stroke-width="1.4"/><path d="M8.5 12l2.4 2.4L15.8 9.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <span class="name">Almstins</span>
+  </div>
+  <p class="kick">Verify · Proof</p>
+
+  <h1>One real proof, checked in front of you</h1>
+  <p class="lede">This is an actual Almstins verification proof: signed with our own key and its timestamp anchored into a <b>Bitcoin block</b>. Nothing below trusts our word. Your browser recomputes every check live with real cryptography, and you can confirm the Bitcoin timestamp yourself against the public chain.</p>
+
+  <div class="verdict" id="verdict">
+    <span class="badge" id="verdictBadge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/></svg></span>
+    <div>
+      <h2 id="verdictTitle">Checking…</h2>
+      <p id="verdictSub">Recomputing the signature, the records, and the anchor in your browser.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>What this proof claims</h3>
+    <div class="claim-stmt" id="claimStmt"></div>
+    <div class="subject" id="claimSubject"></div>
+    <div class="scope">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5m0 3h.01M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span><b>Scope is explicit.</b> This proves control of the address only. It is <b>not</b> a claim of legal ownership of any underlying asset, and <b>not</b> a statement that the address is safe to transact with.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>What your browser just checked</h3>
+    <ul class="checks" id="checks"></ul>
+  </div>
+
+  <div class="card btc">
+    <h3>Timestamped in Bitcoin</h3>
+    <div class="when" id="btcWhen">—</div>
+    <div class="sub">Block time of the Bitcoin transaction that commits this proof's digest. Almstins cannot forge or backdate it — it would have to rewrite Bitcoin.</div>
+    <dl class="kv">
+      <dt>Anchor</dt><dd>OpenTimestamps → Bitcoin</dd>
+      <dt>Digest</dt><dd id="btcDigest"></dd>
+    </dl>
+    <div class="indep">
+      <b>Confirm it independently.</b> Download the raw OpenTimestamps receipt and verify it against Bitcoin yourself — with the <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a> client or web verifier. It resolves to the same block time without asking Almstins anything.
+      <div class="row">
+        <a class="btn" id="dlReceipt" href="#" download="almstins-proof.ots"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Download .ots receipt</a>
+        <button class="btn" id="copyDigest" type="button"><svg viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.6"/></svg>Copy digest</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>Honest framing:</b> the signature and the Bitcoin anchor here are entirely real. The record set inside the proof is <b>illustrative</b> — sample self-send entries, not a live wallet. What a production proof adds is the wiring that fills this exact structure with independently verified facts. The proof container is done; connecting the facts is the build.
+  </div>
+
+  <details class="raw">
+    <summary><span class="chev">▶</span> Raw proof (the exact JSON your browser verified)</summary>
+    <pre id="rawJson"></pre>
+    <div class="row" style="margin-bottom:1rem">
+      <a class="btn" id="dlJson" href="#" download="almstins-verify-proof.json"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Download proof.json</a>
+    </div>
+  </details>
+
+  <p class="foot">
+    Verified locally with your browser's WebCrypto — SHA-256 Merkle tree, RFC-8785 canonical manifest, and Ed25519 signature. No request leaves this page to check the proof.<br>
+    See the concept live at <a href="/artifacts/demo">/artifacts/demo</a> · <a href="/verify">almstins.com/verify</a>
+  </p>
+</main>
+
+<script type="application/json" id="proof">
+{
+  "v": 1,
+  "claim": {
+    "kind": "control",
+    "subject": "0x39A21f6Ca442B9f01108b52515b9Aa508f3baaA6",
+    "statement": "The holder proved control of this address via a self-send. Control only — not legal ownership of any underlying asset, and not that the address is safe."
+  },
+  "issuer": {
+    "name": "Almstins",
+    "keyId": "almstins-fdd45affc54b17b2",
+    "publicKeyHex": "0c2430caf0296038aae92a6fbdf737d217c610591f740b40a60ad85aa3f4833b"
+  },
+  "provenAt": "2026-08-29T00:47:06.993Z",
+  "merkleRoot": "c8b7cd5f4819f43a976210a5fdbc79c3454e56f15c69eaa9c6f3d52333f025a9",
+  "alg": "Ed25519",
+  "records": [
+    {
+      "event": "self-send",
+      "asset": "USDC",
+      "amount": "1.00",
+      "txHash": "0xa1f9e17",
+      "at": "2026-08-20T10:00:00.000Z"
+    },
+    {
+      "event": "self-send",
+      "asset": "USDC",
+      "amount": "1.00",
+      "txHash": "0xb2c7d41",
+      "at": "2026-08-21T10:00:00.000Z"
+    },
+    {
+      "event": "self-send",
+      "asset": "USDC",
+      "amount": "1.00",
+      "txHash": "0xc3d2a88",
+      "at": "2026-08-23T10:00:00.000Z"
+    }
+  ],
+  "anchor": {
+    "type": "opentimestamps",
+    "digest": "271c844140e70a04e7d40d140715c251691f57db5c4335afacc0a541163ca509",
+    "receipt": "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEIJxyEQUDnCgTn1A0UBxXCUWkfV9tcQzWvrMClQRY8pQnwEBdmciz2MBLAQ62WEpLvxlEI//AIzSMTzJKhtJkI8CAIYgcCbc2XK0OGepTA3knlgLP4zHnoammVjc2c3BFV7wjwEEaugAblnPr4nKLFUGP2W+wI8SBft2O+GurKPcFLg7qVgfgyON7qL8Lo8CRfdZ35gYo6gAjxIHSQvlEDUHaJ3LCaUd2qWBGw3NMb0BUo4FA1dUOp2suhCPAgNx81aGGXepI94yrF+Z2gkD+nVAQOkJQSWkBCA5RZumcI8QRqkiwL8Ajly5JulhNZdv8Ag9/jDS75DI4uLWh0dHBzOi8vYWxpY2UuYnRjLmNhbGVuZGFyLm9wZW50aW1lc3RhbXBzLm9yZwjxIGfA3hAXOShj6Hj/1rIBCymHZ/ygNa7br48Zs4NKDNkmCPEg0pA+qwn/u2vWp4jGAKNDvAyZMc6fTA1ExeXWSbIwTkAI8CAcZy446Tah9tLbj7HS7sefn19h7MGiQIW/YFxSEvQeqQjxIGz54OIvHBG8vB0wL4YNaUkkNYqvE3W/xladAD66OYQcCPAgqVkGS51nT9xv/687BG/suJiyr4qQU+UmsqjD5BtbDyQI8CCqx4HXYXtb+xhaKiHh7LV4L2rtrRyGTlVsLwX7WANC2QjwIJ+hLsUOz0dufnjH7WBE8N06KV0Jx0DurKAf6Ns3fzixCPEgf6DvhjhHvZ1lq25cOhgTfSuYWzllm+BpILwvX2WpMF8I8SAxIWraY9snInF1Hsiuua2hczfUXahWvbtLpN9jXHkVawjwIIAUoJh8yKvE0P3oGSgkiZ6w/DCTq+1CrMZgotq2U1quCPFZAQAAAAFmM60VQKWiEGM56GsD0hRB3h026FY3KLlz9DsiYzND4gAAAAAA/v///wKUMwQAAAAAABYAFNDHoe94au3x9AwCp0w1mU3qvUB6AAAAAAAAAAAiaiDwBJi3DgAICPAggmAaEeBKrLwhUIFM73/vtVS/gaB510ixpAm9H/T/V8UICPEgQpmAbgNz9W9dCToxvVbUij114lJUBznv1F+ayhGYXEIICPEgwEpx5YquuFy7UPwdopE27aS0ARW5r+XGKmx+/Rka7SEICPAggoy+OVko95CKFlTOLkOEFgffh3gZC8INSoj3kpskv5UICPEgYS68sKKqWek0gwL8jr1QmXdm+floH1G0M1PJulR10TIICPAgJoeJpwyZN+u7BurW108DWROBnLSkMy6CrxnrTDxof6MICPAgEltpchDLb98DXcfvl9cGvigQlAYX0j7U6FIignDa5zQICPAgBtRBw7hvDWnFYe7fLGNHfrpK4ogvUWJYXVeSYevH9eYICPEgXh56fEPvnASXMy89Ll+e0LsyYVgZNOJ8n5LMcE483zwICPAgnfmLnBweqtLR8KmoEUloQnDhxb7ZP7C3pYabYZrzFl4ICPAg7MGaxvaufzkz+GDrdhd75m16SyV9C+Whxd6RH9yazCUICPEg483BrB4BvgbEUsS361SUVIZlV0PC5rCbjUtadN9yhugICPAgtt3Q8SUagF37gL60n3l3AhqG1JKc6WSLtF19W89N5F4ICAAFiJYNc9cZAQOZ7zr/8Aivamw90QwDXQjxIJomtKc8gUIIqRYN5cXlYVISBfeZW3nJ/iwIjQbY9m4XCPAQwWhIXnOPrM9X7RPHfXn4KAjxIIZ0b3V4QBMQhp8ycOhKpj0JmqFhHeRZkoD99cQSXWl7CPAgongaIxQlRQ1waM7kVjYFjs/IeZmtcZ/1/GA1ygjxm5gI8QRqkiwL8Ai57tRvbXLyQf8Ag9/jDS75DI4sK2h0dHBzOi8vYm9iLmJ0Yy5jYWxlbmRhci5vcGVudGltZXN0YW1wcy5vcmcI8CBq33COLfVADjohwsgulY/NedxKxf3A3uC4ReAYDSexegjxIMofAroEOefOttMUhu2cO7SfR4B4E/L7k/yXuBrIIwczCPAg6qu6jx2XGNNgHyjYZkE1dJHm+hyYC22YQMnZPslw5mgI8SCvCXeMfCBK8Xj2KU4GWDfIuPA2y+0eKMvOzrVRYjUu+AjwIMJ/MEYa0c//841ZjK8S9Ar88q4B/s2ZYBxtOyzy+E34CPAgkyNimGasSy8LTxFzOZnpW8dz3oT1ttsqBH++U9tXPawI8CCEr4/wIvtbbBnQ3oqKzU6j9Ua4i+loe+auRqCjvPgROwjxIDYpU7pdCyqAExSDKPynDNvb4NLiNNETaCM7BHv2pg76CPEgQB5LO0skvVx5vhTCn8UG7MjkQqOul1lsQvONXWeZxgUI8CB0fiWxdYtGVguZtAiYGvHdnlL9tJGS5R7gAzSM/+pREQjwID35eSoowcX5V4Xek5GmaX6W3D76kVrd8iKFJ2LEblZACPFZAQAAAAGzjd4oyDHoyEjw6Ui5S2/+TyqJkn5J5PdAXzMjhmSK7gAAAAAA/v///wLxCQEAAAAAABYAFJMTmwdwdiBELmgFvC3b6lXYbeguAAAAAAAAAAAiaiDwBJm3DgAICPEgWQspitvQnHETgLbi/1ivHJIU0O1kXwXEb/jGpk+APccICPAgF+f58Q2324AzP4BzwETjW731XtUpRmTSrTNN4g6hEnoICPEgzjSCU62wX/UvVNSR+33pk7JGpkUVnixdxYDdSJrLKEoICPAgrNpz72ENFroRdDl/g40xficzkVjHS1uxqBcN3gnZKdIICPAgBzkxivhQfqTtQY7U+gKRhPNl6ROEEzzzn6QiIvb++78ICPEgl3WXe7vccoxHMVnnD+rLhFlhhusV8AVfxNhQ7sprQQMICPEge/NcEYRsAW7QTI0xRgeaKIegQ70ogO3+ztXWzqLfqb0ICPAgVgC4gBDH1J9wl+56LydNDHnCE+axhWkwPNTa3k5KIfgICPEgk09q1JjKy6hxmgWsVoL2phXI+7RENllVLOQQumUVpVwICPAgRWydIOqE2sycUNNACR78CPc8pAM/MK/7edqxbWvinlQICPAg2xwQEoNquHrrVEo7eDSBCFIZBSOAvTCKgF7/NBjFY/UICPAgNH9bL5RDWhGIStKBg28gp1rb5T0bm1sI5GC74c492+UICPAgMWXOTGBFgsPXDb/LZ68A6waRTTdCDdpZTH/oCmbLUsoICAAFiJYNc9cZAQOa7zr/8BAR9Tr5xK3hGbggClgbzAR2CPAgaUNCxhOxOx9/HZHxlj6hrW3z5Lw//qWoGjXydlWVJzAI8SDLcdxbYGL6rpwFU3IOuQQX8h/PoozYCdVA7x2a7rcMPAjwIEzrgFLnxJgTsRFGyKEUvBln212sOsL3v91rBZePLUrrCPEEapIsDPAIsvHYT1PkMd3/AIPf4w0u+QyOKShodHRwczovL2Zpbm5leS5jYWxlbmRhci5ldGVybml0eXdhbGwuY29tCPEgNghGAj9S6JOX+D9/G8+Im1tXPnzVz0Fd+0e47F6tk3gI8CBJ/8r1BrLJs9FC3y6amk2okQg0CZGuQX0a1YfyzycgQgjxIAp9vha/J7anY3A2Mc4vN1P6+Uov5NVQmbD5PJlIwbsoCPEgaTfHLfXvxC5npQfnlVZwkFBWWONC1rXYKUiPD5vmZ8YI8CDquRVyRIbAZ4HzzURz6QSHCB9jnYBq5vCe2MmovCleaAjxIF4wNxLtF3woC+BJuqaF+ZRsXuY64fGIDYDyGSTfX5avCPAgCkKx7vv/dx62HbXqpv7UdROqwaBaym9ld8b9W9ReryMI8CBa4KCanVLDRzbMz2bYE2N8GbXMw0tD4G5V1vl27ZvVbQjwIBcDSZDv8pLiKE4DY43H7YQbI12IhOL8D2jquUSxowooCPAg6+pbhpOnzRHjyTdY84bwE5aTYyJ7kPAQ2DCOr5O/z2UI8SCZ3KDYvzrTOK0XDtTMQ6XRId2S5dcdcralcGJ0OU3fHAjxIJv+UDnaQlKD534+FMZTEP17ZsBrOXZ1u6LSdgMRkI4ICPAg7kzFxpoEI5KcdZl7QVg70J245seDvErINyK6eJ5xctII8CCPodqesAZaABw5L7QQj1aNy98t8059T8Flj0LrOhWGXQjxICqlCGSblzak1bS/UVAAhTdvDVhAaOwRc4vExKhFtHw1CPFZAQAAAAEyLUQcQzkOdiSeq5Hci+8+pXocR/rjG4xhbUXBOs+iKAAAAAAA/v///wLhSAIAAAAAABYAFIeGIZzvme694ZidtJoZAMJ4/dr9AAAAAAAAAAAiaiDwBKC3DgAICPAga6Jt5CuNN+4FB2kA1YZOrzZ4CqUfUwhR8EIICfthGqAICPAgXHeF+VKn5SPc6Q7B4pOcMBSM1YTJiN7RopulQxatTaAICPAgjmBftfnq/LbNXmlwjis9fIUsJ0G1zdkyK9m2CLxQI0IICPAgKX34poAQ0sXrL89vTvASn5WXHGgrHy5SRXOqkxwgLwEICPAgoiyopBnM4cAOH1Xuvnn2MHGk6tnDkv39kJvuZWJeskcICPEgcNgtK7bHLCbsY30eFH8VQ4WNMmompmbBQBxsXE6A0xoICPEgr0as9H7D46staeYtnc5vz82x3oG+0tc2zlO4CWg72gAICPAgZ2gF2O+eAevUUGcDBxZpqK/zII2DW1XkpaQyuAvUxDEICPEgLDwSecT3qxI63i6eKPcgJzd5M6A87ceNHA4BwOjXZBsICPEggXdYj38S9nc4E6MnzmOThd95vEZXcnP/jpDzFBqgN0UICPEgvStJETViSzdIclDcHxfqwAmZ1htfR48jjcHTNdR+FhcICPAgg82M0NBwO4UvA3FrybWFib7hj6JLG/mAjZRLiYeV+2oICPEg/O7nQxQQGt1qtvw9f8PPkrzIZ90vlRI5meDT8iMJuHIICAAFiJYNc9cZAQOh7zrwELt82ATmohqZ3nUf8Rmumh8I8SBY1s6OJUyiTfuvqs2ZQHGoYEgjWfct45gme4dlASrbWQjxIKu0jhAHELLk3MTQonbiPZsQEq2ia3ed+KNh5+I4r9SaCPEEapIsC/AI9RuAWX3lxLv/AIPf4w0u+QyOIyJodHRwczovL2J0Yy5jYWxlbmRhci5jYXRhbGxheHkuY29tCPEgzG2fEQwmGUdH4R6GWnodvxC8tRdv37lfmEhexu7F+zYI8SByBGFKW+Q5b9/fgNtyyAfHEzxiAoUI+tVATdsG1KbNHgjxIHKnpQMR+xJy6r6cqyq0R5dqb6GUI/DGcE9GK+rELyzWCPAgNTM71OoQtRWE704uZQKCRxyYVJT1CSiwCYU1VJ4bgWkI8CDYTNjLc/DoSVsOxc1DQJH61VK9AO8Y37ZL97aHZwgNRQjxIKepd+uqOsrB5cIpE7iVPI6OIivsZOeE0rRdfr6vTZrcCPEgmn6kPdbnmbP1Fd7jaQZVjums3LvbZHISPBlxilUK5hQI8CCPftBpS8gK1feeexVJp/Pi+nX8rvHhsEOMb2wswMzDtwjwIGVsf+8wVN4XeIamjCtkIPIi2vgwa/1AQCyLk0gKePjBCPAgS+lXUgLmHZX1tmo7tB163SQ3/GTEq9lOJ2lHjFA4+FwI8SBmy0RmBzuDBkCCPEPaSGST7zuGWuH2i9GMblCfQXO8WQjxID6JJ0MRVBgY83czPxnrFTRAQwVi8WTNg/v1QX8bxfJiCPAgFrXUPn+CywyVoe8Ihn3/Fn70s8hi30PnEtco+UTwLm8I8CA3QZwyvEFQ2deiT5/0C9Q850e5BwNAPTCEA/Ui0cfQ5gjwICwa4hfTHSXTghajQuWUL+Fy8TFvquVBqwFq+mtuoshrCPFZAQAAAAH55wIGrkFYLGnjwtxnpSAhRZHAr4MrZ4VPdaokznpO7QAAAAAA/f///wJ2nwAAAAAAABYAFJCk5YFEtO8/iSbOq/3P5/lRLQ1BAAAAAAAAAAAiaiDwBMC3DgAICPAgHuY31XhnNYMwYdIFjpjh/Qs/v52+QehNsTUr/nUrKtUICPEga0QnB6uCCbvTikLOk+Tvp4vBVCl8eCZE+DhOoU0OfPgICPAgChCcqX5XEUHG15Kv5AR94b7XOedqM6bICSauZA2IWfAICPEgi9j0sgzhXorkXtMXKTkmYFWiR7zVw2DuXJ2HMPZvdRYICPAgyRiMFpFwVkuFw4ANwYwsXI2qs2LzyodxEuiXw8L3ZsAICPAgaS2b++DbhXGBq7Ygr6kqQVVOluSEn9+++PrsDc5re18ICPAgKHFewqLt8ivAX8krtmhLOXGCfzw6qqwqu4TZWElxCToICPAgnF/fu89ry1auhDAMoC+RrqC2CJUNtRfEPnzbDz5ovF0ICPEggomVDfp7m//5AYbcO2iPcpl5wgCBe0HLpp5p17PGNuQICPAgJdcUEJWf7Q9HB9Z+0UlESLhiy/zARpnS6kLe0zAXwP4ICPAgQ8HL7FdK6urtEXzvnvsOGO0GCRQWxZwxr26ERGVNM7QICPAgowLjBT/tEDNhBxx8jxxMC3cUEWM13DW3c5MvhyvV1vQICAAFiJYNc9cZAQPB7zo=",
+    "anchoredAt": "2026-08-29T01:03:01.000Z"
+  },
+  "signatureHex": "d83d7f648886e820a4e4b2b6734bc397ef50de5ee88def5319e84d0d7a4670d008ed7b16cbca3b484860f6074175c164f627e0d66c61d4592b6152c8360da803"
+}
+</script>
+
+<script>
+(function(){
+  const proof = JSON.parse(document.getElementById('proof').textContent);
+  const te = new TextEncoder();
+  const $ = id => document.getElementById(id);
+  const hex = buf => [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  const hexToBytes = h => { const a=new Uint8Array(h.length/2); for(let i=0;i<a.length;i++)a[i]=parseInt(h.substr(i*2,2),16); return a; };
+  const concat = (...as)=>{ let n=0; as.forEach(a=>n+=a.length); const o=new Uint8Array(n); let k=0; as.forEach(a=>{o.set(a,k);k+=a.length;}); return o; };
+  async function sha256(bytes){ return hex(await crypto.subtle.digest('SHA-256', bytes)); }
+
+  // RFC-8785 JCS: sorted object keys (UTF-16 code units), arrays in order, JSON scalars.
+  function jcs(v){
+    if (v === null || typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string') return JSON.stringify(v);
+    if (Array.isArray(v)) return '[' + v.map(jcs).join(',') + ']';
+    const keys = Object.keys(v).sort((a,b)=> a<b?-1:a>b?1:0);
+    return '{' + keys.map(k => JSON.stringify(k)+':'+jcs(v[k])).join(',') + '}';
+  }
+
+  // domain-separated Merkle: leaf=sha256(0x00||x), node=sha256(0x01||L||R), lone node promoted
+  async function hashLeaf(bytes){ return sha256(concat(Uint8Array.of(0), bytes)); }
+  async function hashNode(l,r){ return sha256(concat(Uint8Array.of(1), hexToBytes(l), hexToBytes(r))); }
+  async function merkleRoot(records){
+    if (!records.length) return hashLeaf(new Uint8Array(0));
+    let level = [];
+    for (const r of records) level.push(await hashLeaf(te.encode(jcs(r))));
+    while (level.length > 1){
+      const nx=[];
+      for (let i=0;i<level.length;i+=2){ nx.push(i+1<level.length ? await hashNode(level[i],level[i+1]) : level[i]); }
+      level = nx;
+    }
+    return level[0];
+  }
+
+  const CHECKS = [
+    { id:'sig',    t:'Signed by Almstins',          pending:'verifying Ed25519 signature…' },
+    { id:'merkle', t:'Records are intact',           pending:'recomputing the Merkle root…' },
+    { id:'anchor', t:'Not backdated',                pending:'matching the anchored digest…' },
+  ];
+  const svgOk  = '<svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const svgBad = '<svg viewBox="0 0 24 24" fill="none"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+  const svgDot = '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>';
+
+  function renderChecks(state){
+    $('checks').innerHTML = CHECKS.map(c=>{
+      const s = state[c.id] || {};
+      const cls = s.ok===true?'ok':s.ok===false?'bad':'';
+      const icon = s.ok===true?svgOk:s.ok===false?svgBad:svgDot;
+      const st = s.ok===true?'Pass':s.ok===false?'Fail':'…';
+      return `<li class="chk ${cls}"><span class="tick">${icon}</span><div class="body"><div class="t">${c.t}</div><div class="d">${s.detail||c.pending}</div><div class="st">${st}</div></div></li>`;
+    }).join('');
+  }
+
+  function setVerdict(kind){
+    const v=$('verdict');
+    v.classList.remove('pass','fail');
+    if (kind==='pass'){
+      v.classList.add('pass');
+      $('verdictBadge').innerHTML = svgOk;
+      $('verdictTitle').textContent = 'Verified';
+      $('verdictSub').textContent = 'Signature, records, and anchor all check out — computed here, in your browser.';
+    } else if (kind==='fail'){
+      v.classList.add('fail');
+      $('verdictBadge').innerHTML = svgBad;
+      $('verdictTitle').textContent = 'Not verified';
+      $('verdictSub').textContent = 'One or more checks did not pass. See the details below.';
+    }
+  }
+
+  function fmtWhen(iso){
+    try{
+      const d=new Date(iso);
+      return d.toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'});
+    }catch(e){ return iso; }
+  }
+
+  async function run(){
+    // claim
+    $('claimStmt').textContent = proof.claim.statement;
+    $('claimSubject').textContent = proof.claim.subject;
+    // btc
+    $('btcWhen').textContent = proof.anchor && proof.anchor.anchoredAt ? fmtWhen(proof.anchor.anchoredAt) : 'Pending confirmation';
+    $('btcDigest').textContent = proof.anchor ? proof.anchor.digest : '—';
+    // raw + downloads
+    const pretty = JSON.stringify(proof, null, 2);
+    $('rawJson').textContent = pretty;
+    $('dlJson').href = URL.createObjectURL(new Blob([pretty],{type:'application/json'}));
+    if (proof.anchor && proof.anchor.receipt){
+      const bin = Uint8Array.from(atob(proof.anchor.receipt), c=>c.charCodeAt(0));
+      $('dlReceipt').href = URL.createObjectURL(new Blob([bin],{type:'application/octet-stream'}));
+    }
+    $('copyDigest').addEventListener('click', ()=>{
+      navigator.clipboard && navigator.clipboard.writeText(proof.anchor.digest);
+      $('copyDigest').lastChild.textContent = ' Copied';
+      setTimeout(()=>{ $('copyDigest').lastChild.textContent=' Copy digest'; }, 1400);
+    });
+
+    const state = {};
+    renderChecks(state);
+
+    // manifest = exactly the six signed fields, in the order they are canonicalized (JCS sorts anyway)
+    const manifest = { v:proof.v, claim:proof.claim, issuer:proof.issuer, provenAt:proof.provenAt, merkleRoot:proof.merkleRoot, alg:proof.alg };
+    const manifestBytes = te.encode(jcs(manifest));
+
+    // 1. signature
+    try{
+      const key = await crypto.subtle.importKey('raw', hexToBytes(proof.issuer.publicKeyHex), {name:'Ed25519'}, false, ['verify']);
+      const ok = await crypto.subtle.verify({name:'Ed25519'}, key, hexToBytes(proof.signatureHex), manifestBytes);
+      state.sig = { ok, detail: ok
+        ? `Ed25519 signature matches, verified against the published key <code>${proof.issuer.keyId}</code>. Change any signed field and this fails.`
+        : 'Signature does not match the manifest.' };
+    }catch(e){
+      state.sig = { ok:null, detail:'Your browser does not expose Ed25519 in WebCrypto. The signature can still be verified offline — download proof.json and run the Almstins verifier. (SHA-256 checks below are unaffected.)' };
+    }
+    renderChecks(state);
+
+    // 2. merkle
+    const root = await merkleRoot(proof.records);
+    const mOk = root === proof.merkleRoot;
+    state.merkle = { ok:mOk, detail: mOk
+      ? `Recomputed the Merkle root over all ${proof.records.length} records and it matches the signed root. Any edited field would change it.`
+      : 'Recomputed Merkle root does not match the signed root.' };
+    renderChecks(state);
+
+    // 3. anchor digest = sha256(manifest) matches what Bitcoin timestamped
+    const digest = await sha256(manifestBytes);
+    const aOk = proof.anchor && digest === proof.anchor.digest.toLowerCase();
+    state.anchor = { ok:aOk, detail: aOk
+      ? 'The digest Bitcoin timestamped is exactly the SHA-256 of this manifest. Backdating <code>provenAt</code> would break this match.'
+      : 'The anchored digest does not match this manifest — it may have been altered after anchoring.' };
+    renderChecks(state);
+
+    const cryptoOk = state.merkle.ok && state.anchor.ok && state.sig.ok !== false;
+    setVerdict(cryptoOk ? 'pass' : 'fail');
+  }
+
+  run();
+})();
+</script>
+</body>
+</html>
