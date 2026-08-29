@@ -93,6 +93,13 @@
   details.raw[open] summary .chev{transform:rotate(90deg)}
   details.raw pre{margin:0 0 1rem;overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:.72rem;line-height:1.5;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:.85rem}
 
+  .cta{display:flex;gap:1.2rem;align-items:center;justify-content:space-between;flex-wrap:wrap;background:linear-gradient(180deg,var(--accent-soft),transparent);border:1px solid var(--accent-line);border-radius:14px;padding:1.2rem 1.3rem;margin-bottom:1.4rem}
+  .cta-t{font-family:"Fraunces",Georgia,serif;font-size:1.2rem;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+  .cta-d{font-size:.88rem;color:var(--ink-2);margin-top:.25rem;max-width:46ch}
+  .cta-actions{display:flex;gap:.6rem;flex-wrap:wrap}
+  .cta-primary{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+  .cta-primary:hover{border-color:var(--accent);background:var(--accent);filter:brightness(1.07)}
+
   .foot{margin-top:1rem;font-size:.78rem;color:var(--ink-3);border-top:1px solid var(--line);padding-top:1.1rem;line-height:1.6}
   .foot a{color:var(--ink-2)}
 </style>
@@ -178,9 +185,20 @@
     </div>
   </details>
 
+  <div class="cta">
+    <div>
+      <div class="cta-t">Make one yourself</div>
+      <div class="cta-d">This proof was made by Almstins Verify. Claim and prove control of your own address — no wallet connection, no private keys.</div>
+    </div>
+    <div class="cta-actions">
+      <a class="btn cta-primary" href="/verify">Try Almstins Verify</a>
+      <a class="btn" href="/">almstins.com</a>
+    </div>
+  </div>
+
   <p class="foot">
     Verified locally with your browser's WebCrypto — SHA-256 Merkle tree, RFC-8785 canonical manifest, and Ed25519 signature. No request leaves this page to check the proof.<br>
-    See the concept live at <a href="/artifacts/demo">/artifacts/demo</a> · <a href="/verify">almstins.com/verify</a>
+    See the interactive concept at <a href="/artifacts/demo">/artifacts/demo</a>.
   </p>
 </main>
 
