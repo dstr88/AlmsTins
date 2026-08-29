@@ -58,6 +58,8 @@
   .chk .tick{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--surface-2);color:var(--ink-3);transition:background .3s,color .3s}
   .chk.ok .tick{background:var(--gain-soft);color:var(--gain)}
   .chk.bad .tick{background:var(--loss-soft);color:var(--loss)}
+  .chk.info .tick{background:var(--accent-soft);color:var(--accent)}
+  .chk.off .tick{background:var(--surface-2);color:var(--ink-3)}
   .chk .tick svg{width:15px;height:15px}
   .chk .body{flex:1;min-width:0}
   .chk .t{font-weight:600;font-size:.95rem}
@@ -122,6 +124,24 @@
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5m0 3h.01M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span><b>Scope is explicit.</b> This proves control of the address only. It is <b>not</b> a claim of legal ownership of any underlying asset, and <b>not</b> a statement that the address is safe to transact with.</span>
     </div>
+  </div>
+
+  <div class="card">
+    <h3>What "Verified" means here — and what it never claims</h3>
+    <ul class="checks">
+      <li class="chk ok"><span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="body">
+        <div class="t">Genuine and dated</div>
+        <div class="d">A real, unaltered Almstins proof, timestamped in Bitcoin. This part is fully checked below — it vouches for the document, and for when it existed.</div>
+      </div></li>
+      <li class="chk info"><span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div class="body">
+        <div class="t">Control of the address — not who holds it</div>
+        <div class="d">It attests that whoever controls this address proved it with an action only the key-holder can take. When the claim is an on-chain action, the record can carry a transaction hash so you pull it off the chain yourself — the hash and the status are <b>optional</b>, since not every claim is on-chain. In this demo the self-send entries are illustrative.</div>
+      </div></li>
+      <li class="chk off"><span class="tick"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 6.5l11 11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><div class="body">
+        <div class="t">Never a person</div>
+        <div class="d">Almstins does not link an address to a legal identity. It proves control, never ownership by a named party. That refusal is the design, not a gap.</div>
+      </div></li>
+    </ul>
   </div>
 
   <div class="card">
@@ -272,7 +292,7 @@
       v.classList.add('pass');
       $('verdictBadge').innerHTML = svgOk;
       $('verdictTitle').textContent = 'Verified';
-      $('verdictSub').textContent = 'Signature, records, and anchor all check out — computed here, in your browser.';
+      $('verdictSub').textContent = 'A genuine, unaltered Almstins proof, dated to Bitcoin. It attests control of the address — not who holds it. Checked here, in your browser.';
     } else if (kind==='fail'){
       v.classList.add('fail');
       $('verdictBadge').innerHTML = svgBad;
