@@ -108,7 +108,7 @@
 
   <div class="sandbox-note">
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5m0 3h.01M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span><b>This is a sandbox.</b> The cryptography is real, but signing uses a <b>throwaway key generated in your browser</b> — not the Almstins production key. In production the manifest is signed with Almstins' <b>published</b> key after control is actually verified, and the digest is anchored to <b>Bitcoin</b>. Here you get the format and the math, end to end, to integrate against.</span>
+    <span><b>This is a sandbox.</b> The cryptography and the <b>Bitcoin anchor are real</b> — but signing uses a <b>throwaway key generated in your browser</b>, not the Almstins production key. In production the manifest is signed with Almstins' <b>published</b> key after control is actually verified. Here you get the format, the math, and a real Bitcoin timestamp, end to end, to integrate against.</span>
   </div>
 
   <div class="card">
@@ -164,6 +164,15 @@
     <div class="card">
       <h3>What your browser did</h3>
       <ul class="checks" id="outChecks"></ul>
+    </div>
+
+    <div class="card" id="anchorCard">
+      <h3>Bitcoin anchor</h3>
+      <p style="margin:0 0 .9rem;font-size:.88rem;color:var(--ink-2)">Timestamp this proof's digest into a Bitcoin block via OpenTimestamps. The digest — nothing else — is sent to public calendar servers. It comes back <b style="color:var(--ink)">pending</b> and confirms in Bitcoin within ~1–2h; re-check then, or verify the <code style="font-family:'IBM Plex Mono',monospace;font-size:.8rem">.ots</code> yourself with the standard client.</p>
+      <div class="row" id="anchorActions">
+        <button class="btn btn-primary" id="anchorBtn" type="button"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v14m0 0l-4-3m4 3l4-3M12 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM5 12h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Anchor to Bitcoin</button>
+      </div>
+      <div id="anchorStatus" style="display:none;margin-top:.9rem"></div>
     </div>
 
     <div class="card">
@@ -268,6 +277,68 @@
 
   const svgOk = '<svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+  let current = null; // { proof, digest } of the last-built proof
+
+  function refreshProofView(){
+    const pretty = JSON.stringify(current.proof, null, 2);
+    $('proofJson').textContent = pretty;
+    $('dlJson').href = URL.createObjectURL(new Blob([pretty],{type:'application/json'}));
+    $('copyJson').onclick = ()=>{ navigator.clipboard && navigator.clipboard.writeText(pretty); $('copyJson').lastChild.textContent=' Copied'; setTimeout(()=>{$('copyJson').lastChild.textContent=' Copy';},1400); };
+  }
+
+  function resetAnchorCard(){
+    $('anchorActions').innerHTML = '<button class="btn btn-primary" id="anchorBtn" type="button"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v14m0 0l-4-3m4 3l4-3M12 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM5 12h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Anchor to Bitcoin</button>';
+    $('anchorStatus').style.display = 'none';
+    $('anchorStatus').innerHTML = '';
+    $('anchorBtn').addEventListener('click', doAnchor);
+  }
+
+  function fmtWhen(iso){ try{ return new Date(iso).toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}); }catch(e){ return iso; } }
+
+  function renderAnchorReceipt(){
+    const a = current.proof.anchor;
+    const confirmed = a && a.anchoredAt;
+    const bin = a && a.receipt ? Uint8Array.from(atob(a.receipt), c=>c.charCodeAt(0)) : null;
+    const otsUrl = bin ? URL.createObjectURL(new Blob([bin],{type:'application/octet-stream'})) : '#';
+    $('anchorActions').innerHTML =
+      `<a class="btn" href="${otsUrl}" download="almstins-sandbox-proof.ots"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Download .ots receipt</a>` +
+      (confirmed ? '' : `<button class="btn" id="recheckBtn" type="button"><svg viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 4v3h-3M6 20v-3h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Re-check Bitcoin</button>`);
+    $('anchorStatus').style.display = 'block';
+    $('anchorStatus').innerHTML = confirmed
+      ? `<div class="chk info" style="border:0;padding:.2rem 0"><span class="tick">${svgOk}</span><div><div class="t">Confirmed in Bitcoin</div><div class="d">Block time <b style="color:var(--ink)">${fmtWhen(a.anchoredAt)}</b>. This timestamp cannot be forged or backdated without rewriting Bitcoin.</div></div></div>`
+      : `<div style="font-size:.86rem;color:var(--ink-2)"><b style="color:var(--accent)">Pending</b> — submitted to the OpenTimestamps calendars and waiting on a Bitcoin block (~1–2h). Come back and press <b style="color:var(--ink)">Re-check</b>, or verify the <code style="font-family:'IBM Plex Mono',monospace">.ots</code> yourself later.</div>`;
+    if (!confirmed) $('recheckBtn')?.addEventListener('click', doRecheck);
+    refreshProofView();
+  }
+
+  async function doAnchor(){
+    const btn = $('anchorBtn'); btn.disabled = true; btn.style.opacity = '.6';
+    btn.lastChild.textContent = ' Anchoring…';
+    try{
+      const r = await fetch('/api/verify/anchor', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ digest: current.digest }) });
+      const j = await r.json();
+      if (!j.ok || !j.anchor) throw new Error(j.error || 'anchor failed');
+      current.proof.anchor = j.anchor;
+      renderAnchorReceipt();
+    }catch(e){
+      btn.disabled = false; btn.style.opacity = '1'; btn.lastChild.textContent = ' Anchor to Bitcoin';
+      $('anchorStatus').style.display = 'block';
+      $('anchorStatus').innerHTML = `<div style="font-size:.86rem;color:var(--loss)">Couldn't reach the anchor service (${esc(String(e.message||e))}). The signed proof above is unaffected — try anchoring again in a moment.</div>`;
+    }
+  }
+
+  async function doRecheck(){
+    const btn = $('recheckBtn'); if(btn){ btn.disabled = true; btn.style.opacity = '.6'; btn.lastChild.textContent = ' Checking…'; }
+    try{
+      const r = await fetch('/api/verify/anchor', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ upgrade:true, receipt: current.proof.anchor }) });
+      const j = await r.json();
+      if (j.ok && j.anchor) current.proof.anchor = j.anchor;
+      renderAnchorReceipt();
+    }catch(e){
+      if(btn){ btn.disabled = false; btn.style.opacity = '1'; btn.lastChild.textContent = ' Re-check Bitcoin'; }
+    }
+  }
+
   $('generate').addEventListener('click', async ()=>{
     const records = recs.map(cleanRecord).filter(r=>Object.keys(r).length);
     const claim = { kind: $('kind').value, subject: $('subject').value.trim(), statement: $('statement').value.trim() };
@@ -308,10 +379,10 @@
       { t:'Scope explicit', d:`The proof states its own claim (<code>${esc(claim.kind)}</code>) and what it does not assert.` },
     ].map(c=>`<li class="chk info"><span class="tick">${svgOk}</span><div><div class="t">${c.t}</div><div class="d">${c.d}</div></div></li>`).join('');
 
-    const pretty = JSON.stringify(proof, null, 2);
-    $('proofJson').textContent = pretty;
-    $('dlJson').href = URL.createObjectURL(new Blob([pretty],{type:'application/json'}));
-    $('copyJson').onclick = ()=>{ navigator.clipboard && navigator.clipboard.writeText(pretty); $('copyJson').lastChild.textContent=' Copied'; setTimeout(()=>{$('copyJson').lastChild.textContent=' Copy';},1400); };
+    const digest = await sha256(manifestBytes); // the value the Bitcoin anchor pins
+    current = { proof, digest };
+    refreshProofView();
+    resetAnchorCard();
 
     $('output').classList.add('show');
     $('output').scrollIntoView({behavior:'smooth', block:'start'});
