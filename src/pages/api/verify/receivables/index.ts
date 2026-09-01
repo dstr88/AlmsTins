@@ -8,7 +8,7 @@
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { createReceivable, listReceivables } from '@/lib/receivablesRegistry';
+import { createReceivable, listReceivables, deleteReceivable } from '@/lib/receivablesRegistry';
 
 export const prerender = false;
 
@@ -40,7 +40,22 @@ export const POST: APIRoute = async ({ request }) => {
     terms: body.terms ?? null,
     dueDate: body.dueDate ?? null,
     acknowledgedAt: body.acknowledgedAt ?? null,
+    rtype: body.rtype ?? null,
+    paymentMethod: body.paymentMethod ?? null,
   });
 
   return result.ok ? json(result) : json(result, 400);
+};
+
+// Delete a receivable this tenant created (cascades its claims + attestations).
+export const DELETE: APIRoute = async ({ request, url }) => {
+  const session = await requireTenantSession(request);
+  if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
+  if (session.isDemo) return json({ ok: false, error: 'demo_readonly' }, 403);
+
+  let id = url.searchParams.get('id') ?? '';
+  if (!id) { try { id = String((await request.json())?.id ?? ''); } catch { /* ignore */ } }
+
+  const removed = await deleteReceivable(session.tenantId, id);
+  return removed ? json({ ok: true }) : json({ ok: false, error: 'not_found' }, 404);
 };

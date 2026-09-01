@@ -57,6 +57,9 @@ export interface ReceivableInput {
   terms?: string | null;
   dueDate?: string | null;
   acknowledgedAt?: string | null;
+  /** invoice | purchase_order | contract | milestone | other (his #3) */
+  rtype?: string | null;
+  paymentMethod?: string | null;
 }
 
 export interface Signature {
@@ -104,6 +107,8 @@ export interface ReceivableStatus {
   terms: string | null;
   dueDate: string | null;
   acknowledgedAt: string | null;
+  rtype: string | null;
+  paymentMethod: string | null;
   createdAt: string;
   signed: boolean;
   anchored: boolean;
@@ -141,6 +146,8 @@ const ENSURE_RECEIVABLES_SQL = `
     terms          TEXT,
     due_date       TEXT,
     acknowledged_at TEXT,
+    rtype          TEXT,
+    payment_method TEXT,
     manifest_json  TEXT NOT NULL,
     signature_json TEXT,
     digest         TEXT NOT NULL,
@@ -202,6 +209,8 @@ const ENSURE_CLAIMS_RCV_IDX =
 // Stage 4 (settlement) columns — lazy adds so a table created by an earlier version of
 // this file gains them without a migration. IF NOT EXISTS makes each idempotent.
 const ENSURE_SETTLEMENT_COLS = [
+  `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS rtype TEXT`,
+  `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS payment_method TEXT`,
   `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS anchor_json TEXT`,
   `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS settled_at TEXT`,
   `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS settlement_json TEXT`,
@@ -266,6 +275,8 @@ export async function createReceivable(
   const terms = input.terms != null ? clampStr(input.terms, 80) || null : null;
   const dueDate = isYmd(input.dueDate) ? input.dueDate : null;
   const acknowledgedAt = isYmd(input.acknowledgedAt) ? input.acknowledgedAt : null;
+  const rtype = input.rtype != null ? clampStr(input.rtype, 40) || null : null;
+  const paymentMethod = input.paymentMethod != null ? clampStr(input.paymentMethod, 40) || null : null;
 
   if (!supplier || !buyer || !invoiceNo) {
     return { ok: false, error: 'invalid', message: 'Supplier, buyer, and invoice number are required.' };
@@ -274,7 +285,7 @@ export async function createReceivable(
     return { ok: false, error: 'invalid', message: 'Face value must be a positive number.' };
   }
 
-  const receivable = { supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt };
+  const receivable = { supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt, rtype, paymentMethod };
   const manifest = { v: 1, kind: 'receivable', receivable };
   const { signature, digest } = sign(manifest);
   const id = sha256hex(canonicalManifestBytes(manifest));
@@ -284,10 +295,10 @@ export async function createReceivable(
   if (!existing.rows.length) {
     await db.execute({
       sql: `INSERT INTO receivables
-              (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, manifest_json, signature_json, digest)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, manifest_json, signature_json, digest)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
-        id, tenantId, supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt,
+        id, tenantId, supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt, rtype, paymentMethod,
         JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
       ],
     });
@@ -299,12 +310,13 @@ interface ReceivableRow {
   id: string; tenant_id: string; supplier: string; buyer: string; invoice_no: string;
   face: number; currency: string; terms: string | null;
   due_date: string | null; acknowledged_at: string | null;
+  rtype: string | null; payment_method: string | null;
   signature_json: string | null; anchor_json: string | null; settled_at: string | null; created_at: string;
 }
 
 async function getReceivableRow(id: string): Promise<ReceivableRow | null> {
   const r = await db.execute({
-    sql: `SELECT id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, signature_json, anchor_json, settled_at, created_at
+    sql: `SELECT id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, signature_json, anchor_json, settled_at, created_at
           FROM receivables WHERE id = ? LIMIT 1`,
     args: [id],
   });
@@ -317,6 +329,8 @@ async function getReceivableRow(id: string): Promise<ReceivableRow | null> {
     terms: row.terms != null ? String(row.terms) : null,
     due_date: row.due_date != null ? String(row.due_date) : null,
     acknowledged_at: row.acknowledged_at != null ? String(row.acknowledged_at) : null,
+    rtype: row.rtype != null ? String(row.rtype) : null,
+    payment_method: row.payment_method != null ? String(row.payment_method) : null,
     signature_json: row.signature_json != null ? String(row.signature_json) : null,
     anchor_json: row.anchor_json != null ? String(row.anchor_json) : null,
     settled_at: row.settled_at != null ? String(row.settled_at) : null,
@@ -457,6 +471,7 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     supplier: rcv.supplier, buyer: rcv.buyer, invoiceNo: rcv.invoice_no,
     face: rcv.face, currency: rcv.currency, terms: rcv.terms,
     dueDate: rcv.due_date, acknowledgedAt: rcv.acknowledged_at,
+    rtype: rcv.rtype, paymentMethod: rcv.payment_method,
     createdAt: rcv.created_at, signed: !!rcv.signature_json,
     anchored: !!rcv.anchor_json, anchoredAt: anchoredAtOf(rcv.anchor_json),
     settled, settledAt: rcv.settled_at,
@@ -570,6 +585,27 @@ export async function listReceivables(tenantId: string): Promise<ReceivableSumma
     invoiceNo: String(row.invoice_no), face: Number(row.face), currency: String(row.currency),
     settled: row.settled_at != null, createdAt: String(row.created_at),
   }));
+}
+
+/**
+ * Delete a receivable this tenant created, cascading its claims and attestations.
+ * Tenant-scoped: only the creator can delete, and only their own rows are touched.
+ * Returns false when no such receivable belongs to the tenant.
+ */
+export async function deleteReceivable(tenantId: string, receivableId: string): Promise<boolean> {
+  await ensureReceivablesTables();
+  const id = String(receivableId || '').trim();
+  const owned = await db.execute({
+    sql: `SELECT id FROM receivables WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [id, tenantId],
+  });
+  if (!owned.rows.length) return false;
+  // Claims/attestations are keyed by receivable_id; scope the deletes by tenant too so a
+  // tenant can never remove another tenant's claim against a shared receivable.
+  await db.execute({ sql: `DELETE FROM receivable_claims WHERE receivable_id = ? AND tenant_id = ?`, args: [id, tenantId] });
+  await db.execute({ sql: `DELETE FROM receivable_attestations WHERE receivable_id = ? AND tenant_id = ?`, args: [id, tenantId] });
+  await db.execute({ sql: `DELETE FROM receivables WHERE id = ? AND tenant_id = ?`, args: [id, tenantId] });
+  return true;
 }
 
 // ── #2: Stage 2 buyer/party attestation ──────────────────────────────────────
