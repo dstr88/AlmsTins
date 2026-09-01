@@ -136,6 +136,21 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .seal.unsigned { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
     .seal.off { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
 
+    /* FAQ */
+    .faq { margin-top: 2.4rem; }
+    .faq h2 { font-size: .95rem; margin-bottom: .3rem; }
+    .faq .faq-sub { font-size: .84rem; color: var(--text-muted); margin-bottom: .9rem; }
+    details.faq-item { border-top: 1px solid var(--border-subtle); }
+    details.faq-item:last-of-type { border-bottom: 1px solid var(--border-subtle); }
+    details.faq-item summary { cursor: pointer; padding: .85rem 0; font-weight: 600; font-size: .9rem; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    details.faq-item summary::-webkit-details-marker { display: none; }
+    details.faq-item summary::after { content: '+'; color: var(--text-muted); font-size: 1.15rem; line-height: 1; flex: none; }
+    details.faq-item[open] summary::after { content: '\2212'; }
+    details.faq-item summary:hover { color: var(--accent); }
+    .faq-item .a { padding: 0 0 1rem; font-size: .86rem; color: var(--text-secondary); line-height: 1.65; max-width: 62ch; }
+    .faq-item .a b { color: var(--text-primary); }
+    .faq-item .a code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .8rem; color: var(--accent); }
+
     .foot { margin-top: 1.6rem; font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; }
     .foot a { color: var(--text-secondary); }
   </style>
@@ -250,6 +265,51 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <div class="field"><label for="a-statement">Statement</label><input id="a-statement" type="text" placeholder="I owe ₦100,000,000 for invoice INV-4471, due 2026-09-30." maxlength="600" /></div>
       <button class="btn btn-primary btn-full" id="a-btn" type="button">Sign attestation</button>
       <div class="out" id="a-out"></div>
+    </section>
+
+    <section class="faq">
+      <h2>FAQ</h2>
+      <p class="faq-sub">What this is and how to use it.</p>
+
+      <details class="faq-item">
+        <summary>What is this?</summary>
+        <div class="a">A shared registry for receivables finance. It answers the one question a lender needs before advancing money: <b>is this receivable already financed, and by how much?</b> Every entry is a signed, dated record, so you check the facts instead of taking someone's word for them.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary>How do I check a receivable?</summary>
+        <div class="a">Paste the <b>receivable ID</b> (a 64-character code the counterparty gives you) into <b>Check a receivable</b> and press Query. No account needed. You'll see the face value, how much is already financed, what's still unencumbered, and every claim standing against it.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary>What do the colors and states mean?</summary>
+        <div class="a">The status pill shows the position at a glance: <b>green</b> available to finance, <b>amber</b> partially encumbered, <b>red</b> fully encumbered, <b>teal</b> settled/paid. Each record also shows where it sits on the trust ladder: <b>Recorded → Signed → Attested → Verified → Disputed</b>. That ladder is deliberate: "recorded" is not "verified."</div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Do I need an account?</summary>
+        <div class="a">Only to add data. <b>Checking</b> a receivable is public and login-free. <b>Creating</b> a receivable, <b>registering</b> a financing claim, <b>attesting</b>, releasing, or settling requires a free sign-in (Google, GitHub, or email). Nothing about you is pre-loaded, you enter your own data, and it stays yours.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary>How do I create a receivable?</summary>
+        <div class="a">Sign in, fill in <b>Create a receivable</b> (supplier, buyer, invoice, amount, terms), and press Create &amp; sign. You get a <b>receivable ID</b> to share with financiers. That ID is the key: only people you hand it to can look the receivable up, so nobody can browse the registry.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary>How do I register a financing claim?</summary>
+        <div class="a">In <b>Register a financing claim</b>, paste the receivable ID, enter your name as financier and the amount, and Sign &amp; register. If your amount exceeds what's still unencumbered, the registry <b>refuses it</b> and tells you what's left, that's the duplicate-financing guard doing its job.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary>What do "signed" and "anchored to Bitcoin" mean?</summary>
+        <div class="a"><b>Signed</b> means the record carries a cryptographic seal anyone can verify. <b>Anchored</b> means its fingerprint is timestamped into a public Bitcoin block, so its date can't be forged or backdated. Anchoring is <b>free</b> and moves no money, it only pins a date.</div>
+      </details>
+
+      <details class="faq-item">
+        <summary>What does it NOT do?</summary>
+        <div class="a">It <b>records and proves</b> what parties assert; it does not judge whether the underlying transaction is economically true. It never holds funds, never moves money, and never reveals who owns an account, only the names people choose to attach. Almstins organizes and proves the record; the financing decision stays with you.</div>
+      </details>
     </section>
 
     <p class="foot">
