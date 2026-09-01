@@ -133,6 +133,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .mine-face { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .mine-del { appearance: none; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-muted); width: 24px; height: 24px; border-radius: 6px; cursor: pointer; line-height: 1; display: grid; place-items: center; font-size: .85rem; flex: none; transition: border-color .15s, color .15s; }
     .mine-del:hover { border-color: var(--loss-border); color: var(--loss); }
+    .watch-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .7rem; color: var(--text-muted); margin-left: .3rem; }
+    .watch-save { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--border-subtle); }
+    .watch-save input { flex: 1; min-width: 180px; }
+    .watch-save .btn { flex: none; }
+    .watch-note { font-size: .82rem; color: var(--gain); }
+    .watch-note b { color: var(--text-primary); }
     .seal { font-size: .64rem; color: var(--gain); border: 1px solid var(--gain-border); background: var(--gain-bg); border-radius: 999px; padding: .1rem .4rem; margin-left: .4rem; }
     .seal.unsigned { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
     .seal.off { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
@@ -172,6 +178,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </div>
       <button class="btn btn-primary btn-full" id="q-btn" type="button">Query the registry</button>
       <div class="out" id="q-out"></div>
+    </section>
+
+    <!-- Watchlist (client-side; saved in this browser) -->
+    <section class="card" id="watch-card" style="display:none">
+      <h2>Watchlist</h2>
+      <p class="sub">Receivables you've saved in this browser for quick checking. Click one to re-check it.</p>
+      <div id="watch-list"></div>
     </section>
 
     <!-- Your receivables (authed; hidden when signed out) -->
@@ -356,6 +369,52 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       return `<button class="btn btn-xs" data-anchor="${kind}:${esc(rec.id)}" type="button">Anchor to Bitcoin</button>`;
     }
 
+    // ---- Watchlist: name + save receivable IDs in this browser for quick re-check ----
+    const WATCH_KEY = 'almstins_receivables_watchlist_v1';
+    function watchLoad(): any[] {
+      try { const v = JSON.parse(localStorage.getItem(WATCH_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+      catch { return []; }
+    }
+    function watchStore(list: any[]) { try { localStorage.setItem(WATCH_KEY, JSON.stringify(list)); } catch { /* private mode */ } }
+    function watchGet(id: string) { return watchLoad().find((w) => w.id === id) || null; }
+    function watchAdd(id: string, name: string) {
+      const list = watchLoad().filter((w) => w.id !== id);
+      list.unshift({ id, name: (name || (id.slice(0, 12) + '…')).slice(0, 120), ts: Date.now() });
+      watchStore(list); renderWatch();
+    }
+    function watchRemove(id: string) { watchStore(watchLoad().filter((w) => w.id !== id)); renderWatch(); }
+
+    function renderWatch() {
+      const list = watchLoad();
+      const card = $('watch-card');
+      if (!list.length) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      $('watch-list').innerHTML = list.map((w) => `
+        <div class="mine-row">
+          <div class="mine-main" data-watchcheck="${esc(w.id)}"><b>${esc(w.name)}</b><span class="watch-id">${esc(String(w.id).slice(0, 10))}…</span></div>
+          <div class="mine-right"><button class="btn btn-xs" data-watchcheck="${esc(w.id)}" type="button">Check</button><button class="mine-del" data-watchdel="${esc(w.id)}" type="button" title="Remove from watchlist" aria-label="Remove">✕</button></div>
+        </div>`).join('');
+      $('watch-list').querySelectorAll('[data-watchcheck]').forEach((el) =>
+        el.addEventListener('click', () => {
+          const id = (el as HTMLElement).dataset.watchcheck!;
+          ($('q-id') as HTMLInputElement).value = id;
+          query(id);
+          $('q-out').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }));
+      $('watch-list').querySelectorAll('[data-watchdel]').forEach((el) =>
+        el.addEventListener('click', (e) => { e.stopPropagation(); watchRemove((el as HTMLElement).dataset.watchdel!); }));
+    }
+
+    // The save/remove control shown at the bottom of a receivable's status.
+    function renderSaveRow(rcv: any) {
+      const saved = watchGet(rcv.id);
+      if (saved) {
+        return `<div class="watch-save"><span class="watch-note">★ Saved to your watchlist as <b>${esc(saved.name)}</b></span><button class="btn btn-xs" data-watchremove="${esc(rcv.id)}" type="button">Remove</button></div>`;
+      }
+      const def = `${rcv.supplier} → ${rcv.buyer} · ${rcv.invoiceNo}`;
+      return `<div class="watch-save"><input id="watch-name" type="text" placeholder="Name this receivable" value="${esc(def)}" maxlength="120" /><button class="btn btn-xs" id="watch-add" type="button">★ Save for quick check</button></div>`;
+    }
+
     // 🟢🟡🔴🔵 status a financier reads in a glance (his #2).
     function rag(rcv: any) {
       if (rcv.disputed) return { cls: 'rag-disputed', label: '⚠ Disputed' };
@@ -428,8 +487,18 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <ul class="claims">${claims}</ul>
         ${attBlock}
         ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
-        ${settleBtn}`);
+        ${settleBtn}
+        ${renderSaveRow(rcv)}`);
       out.querySelector('[data-refresh]')?.addEventListener('click', () => query(rcv.id));
+      out.querySelector('#watch-add')?.addEventListener('click', () => {
+        const name = (($('watch-name') as HTMLInputElement)?.value || '').trim();
+        watchAdd(rcv.id, name);
+        renderStatus(out, rcv); // re-render to show the saved state
+      });
+      out.querySelector('[data-watchremove]')?.addEventListener('click', () => {
+        watchRemove(rcv.id);
+        renderStatus(out, rcv);
+      });
       out.querySelectorAll('[data-discharge]').forEach((b) =>
         b.addEventListener('click', () => dischargeReq((b as HTMLElement).dataset.discharge!, rcv.id, out)));
       out.querySelectorAll('[data-settle]').forEach((b) =>
@@ -617,6 +686,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       } catch (e) { /* silent */ }
     }
     loadMine();
+    renderWatch();
   </script>
 </body>
 </html>
