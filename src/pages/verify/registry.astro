@@ -1,0 +1,463 @@
+---
+// Almstins Verify — Receivables financing-status registry (public page).
+//
+// Three tools on one page:
+//   1. Check a receivable (PUBLIC) — paste a receivable ID, see its financing status
+//      and every claim standing against it. The second financier's duplicate-financing
+//      check. Works with no account.
+//   2. Create a receivable (authed) — mints the SHA-256 receivable ID to share.
+//   3. Register a claim (authed) — records a financing claim; the write is rejected if
+//      it exceeds the unencumbered headroom (the duplicate-financing guard).
+//
+// /verify/* is public (isPublicPath). The create/claim actions call the authenticated
+// write endpoints; when the visitor isn't signed in they get a clear prompt. No
+// tenant_id or identity is ever shown — only self-chosen financier labels.
+import '@/styles/tokens.css';
+const prefillId = Astro.url.searchParams.get('id') ?? '';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Receivables registry — Almstins Verify</title>
+  <meta name="description" content="Check whether a receivable is already financed before you lend against it. Paste a receivable ID to see its financing status and every claim standing against it." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.55; -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 780px; margin: 0 auto; padding: clamp(1.6rem, 5vw, 3rem) clamp(1rem, 4vw, 1.5rem) 4rem; }
+    a { color: var(--accent); }
+
+    .kick { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--text-muted); margin-bottom: .5rem; }
+    h1 { font-size: clamp(1.6rem, 4vw, 2.1rem); letter-spacing: -.02em; line-height: 1.12; margin-bottom: .6rem; text-wrap: balance; }
+    .lede { color: var(--text-secondary); max-width: 60ch; margin-bottom: 2rem; }
+    .lede b { color: var(--text-primary); }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.2rem 1.25rem; margin-bottom: 1.2rem; }
+    .card.hero { border-color: var(--accent-glow); }
+    .card > h2 { font-size: .95rem; letter-spacing: -.01em; margin-bottom: .25rem; display: flex; align-items: center; gap: .5rem; }
+    .card > .sub { font-size: .84rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .badge-num { width: 22px; height: 22px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: .78rem; font-weight: 700; display: inline-grid; place-items: center; }
+
+    label { display: block; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); margin-bottom: .3rem; }
+    input, select {
+      width: 100%; background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); font: inherit; font-size: .92rem; padding: .55rem .7rem; transition: border-color .15s;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--border-bright); }
+    input::placeholder { color: var(--text-muted); }
+    .field { margin-bottom: .85rem; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .85rem; }
+    @media (max-width: 560px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+    .btn {
+      appearance: none; border: 1px solid var(--border-bright); background: var(--surface-card-2); color: var(--text-primary);
+      font: inherit; font-size: .9rem; font-weight: 600; padding: .6rem 1rem; border-radius: 9px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: .4rem; transition: border-color .15s, background .15s;
+    }
+    .btn:hover { border-color: var(--accent-glow); background: var(--surface-hover); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--surface-bg); }
+    .btn-primary:hover { background: var(--accent); filter: brightness(1.07); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-full { width: 100%; justify-content: center; }
+    .row { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .3rem; }
+
+    .note { font-size: .82rem; padding: .7rem .85rem; border-radius: 9px; margin-top: .9rem; }
+    .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); color: var(--text-secondary); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-secondary); }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); color: var(--text-secondary); }
+    .note b { color: var(--text-primary); }
+    .idcode { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem; color: var(--accent); word-break: break-all; user-select: all; }
+
+    .out { display: none; margin-top: 1rem; }
+    .out.show { display: block; }
+    .status-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .55rem; }
+    .status-lead { font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; }
+    .tag { font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; padding: .26rem .6rem; border-radius: 999px; font-weight: 700; }
+    .tag.partial { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-glow); }
+    .tag.full, .tag.over { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .tag.open { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .bar { height: 15px; border-radius: 8px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); overflow: hidden; }
+    .bar .fill { height: 100%; background: var(--accent); }
+    .bar .fill.full { background: var(--loss); }
+    .legend { display: flex; justify-content: space-between; margin-top: .5rem; font-size: .82rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+    .legend b { color: var(--text-primary); }
+    .legend .avail b { color: var(--gain); }
+    .rcv-meta { font-size: .8rem; color: var(--text-muted); margin-top: .6rem; }
+    .rcv-meta b { color: var(--text-secondary); }
+
+    .claims { list-style: none; margin-top: .9rem; }
+    .claim { display: flex; justify-content: space-between; gap: .8rem; align-items: baseline; padding: .7rem .8rem; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-card-2); margin-bottom: .55rem; }
+    .claim .who { font-weight: 600; font-size: .92rem; }
+    .claim .cmeta { font-size: .72rem; color: var(--text-muted); margin-top: .12rem; }
+    .claim .amt { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .claim-right { display: flex; align-items: center; gap: .6rem; }
+    .claim-off { opacity: .55; }
+    .claim-off .amt { text-decoration: line-through; }
+    .btn-sm { padding: .32rem .6rem; font-size: .76rem; font-weight: 600; }
+    .btn-xs { padding: .18rem .5rem; font-size: .68rem; font-weight: 600; }
+    .role { font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); border: 1px solid var(--accent-glow); background: var(--accent-soft); border-radius: 999px; padding: .08rem .4rem; margin-left: .4rem; }
+    .att-head { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); margin: 1rem 0 .4rem; }
+    .mine-row { display: flex; justify-content: space-between; gap: .8rem; align-items: center; padding: .6rem .75rem; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--surface-card-2); margin-bottom: .5rem; cursor: pointer; font-size: .86rem; transition: border-color .15s; }
+    .mine-row:hover { border-color: var(--accent-glow); }
+    .mine-row .mine-face { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .seal { font-size: .64rem; color: var(--gain); border: 1px solid var(--gain-border); background: var(--gain-bg); border-radius: 999px; padding: .1rem .4rem; margin-left: .4rem; }
+    .seal.unsigned { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
+    .seal.off { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
+
+    .foot { margin-top: 1.6rem; font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; }
+    .foot a { color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="kick">Almstins Verify · Receivables</p>
+    <h1>Is this receivable already financed?</h1>
+    <p class="lede">Duplicate financing happens when a second lender never sees that a first lender already advanced against the same receivable. Paste a receivable ID to see its financing status and every claim standing against it. Each claim is a signed proof; the check runs against the claims, <b>not</b> against anyone's private word.</p>
+
+    <!-- 1. CHECK (public) -->
+    <section class="card hero">
+      <h2><span class="badge-num">1</span> Check a receivable</h2>
+      <p class="sub">Public. Paste an ID a counterparty gave you. No account needed.</p>
+      <div class="field">
+        <label for="q-id">Receivable ID</label>
+        <input id="q-id" type="text" placeholder="64-character receivable ID" spellcheck="false" value={prefillId} />
+      </div>
+      <button class="btn btn-primary btn-full" id="q-btn" type="button">Query the registry</button>
+      <div class="out" id="q-out"></div>
+    </section>
+
+    <!-- Your receivables (authed; hidden when signed out) -->
+    <section class="card" id="mine-card" style="display:none">
+      <h2>Your receivables</h2>
+      <p class="sub">Receivables you created. Click one to check its status.</p>
+      <div id="mine-list"></div>
+    </section>
+
+    <!-- 2. CREATE (authed) -->
+    <section class="card">
+      <h2><span class="badge-num">2</span> Create a receivable</h2>
+      <p class="sub">Mints the receivable ID you share with financiers. Requires sign-in.</p>
+      <div class="grid2">
+        <div class="field"><label for="c-supplier">Supplier</label><input id="c-supplier" type="text" placeholder="Lagos Foods Ltd" /></div>
+        <div class="field"><label for="c-buyer">Buyer (obligor)</label><input id="c-buyer" type="text" placeholder="MegaRetail Nigeria PLC" /></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label for="c-invoice">Invoice #</label><input id="c-invoice" type="text" placeholder="INV-4471" /></div>
+        <div class="field"><label for="c-face">Face value</label><input id="c-face" type="number" min="0" step="any" placeholder="100000000" inputmode="decimal" /></div>
+        <div class="field"><label for="c-currency">Currency</label><input id="c-currency" type="text" value="NGN" maxlength="8" /></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label for="c-terms">Terms</label><input id="c-terms" type="text" placeholder="Net 60" /></div>
+        <div class="field"><label for="c-due">Due date</label><input id="c-due" type="date" /></div>
+        <div class="field"><label for="c-ack">Acknowledged</label><input id="c-ack" type="date" /></div>
+      </div>
+      <button class="btn btn-primary btn-full" id="c-btn" type="button">Create &amp; sign</button>
+      <div class="out" id="c-out"></div>
+    </section>
+
+    <!-- 3. CLAIM (authed) -->
+    <section class="card">
+      <h2><span class="badge-num">3</span> Register a financing claim</h2>
+      <p class="sub">Records "I financed X against this receivable." Rejected if it exceeds the unencumbered headroom. Requires sign-in.</p>
+      <div class="field"><label for="k-id">Receivable ID</label><input id="k-id" type="text" placeholder="64-character receivable ID" spellcheck="false" /></div>
+      <div class="grid3">
+        <div class="field"><label for="k-financier">Financier</label><input id="k-financier" type="text" placeholder="Sahel Capital" /></div>
+        <div class="field"><label for="k-amount">Amount</label><input id="k-amount" type="number" min="0" step="any" placeholder="80000000" inputmode="decimal" /></div>
+        <div class="field"><label for="k-date">Date</label><input id="k-date" type="date" /></div>
+      </div>
+      <button class="btn btn-primary btn-full" id="k-btn" type="button">Sign &amp; register</button>
+      <div class="out" id="k-out"></div>
+    </section>
+
+    <!-- 4. ATTEST (authed) — Stage 2 -->
+    <section class="card">
+      <h2><span class="badge-num">4</span> Attest to a receivable</h2>
+      <p class="sub">The buyer acknowledging the debt is the load-bearing attestation — the obligor signing against their own interest. Requires sign-in.</p>
+      <div class="field"><label for="a-id">Receivable ID</label><input id="a-id" type="text" placeholder="64-character receivable ID" spellcheck="false" /></div>
+      <div class="grid3">
+        <div class="field"><label for="a-role">Role</label>
+          <select id="a-role">
+            <option value="buyer">buyer (obligor)</option>
+            <option value="supplier">supplier</option>
+            <option value="inspector">inspector</option>
+            <option value="other">other</option>
+          </select>
+        </div>
+        <div class="field"><label for="a-label">Attester name</label><input id="a-label" type="text" placeholder="MegaRetail Nigeria PLC" /></div>
+        <div class="field"><label for="a-date">Date</label><input id="a-date" type="date" /></div>
+      </div>
+      <div class="field"><label for="a-statement">Statement</label><input id="a-statement" type="text" placeholder="I owe ₦100,000,000 for invoice INV-4471, due 2026-09-30." maxlength="600" /></div>
+      <button class="btn btn-primary btn-full" id="a-btn" type="button">Sign attestation</button>
+      <div class="out" id="a-out"></div>
+    </section>
+
+    <p class="foot">
+      Almstins records and proves state; it never makes the financing decision. Each claim is a voluntary self-disclosure — a financier shows their own claim the way a wallet holder shows their own wallet. Signatures use the Almstins published key; digests are Bitcoin-anchorable. No account, wallet, or identity is ever shown — only self-chosen labels.<br>
+      <a href="/verify">almstins.com/verify</a> · <a href="/artifacts/registry">see the concept demo</a>
+    </p>
+  </main>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as HTMLElement;
+    const val = (id: string) => ($(id) as HTMLInputElement).value.trim();
+    const esc = (s: unknown) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const fmtNum = (n: number, ccy: string) =>
+      `${ccy} ${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+    function show(el: HTMLElement, html: string) { el.innerHTML = html; el.classList.add('show'); }
+
+    // ---- 1. CHECK (public) ----
+    async function query(id: string) {
+      const out = $('q-out');
+      if (!/^[0-9a-fA-F]{64}$/.test(id)) {
+        show(out, `<div class="note note-loss">Enter a full 64-character receivable ID.</div>`);
+        return;
+      }
+      show(out, `<div class="note note-info">Querying…</div>`);
+      try {
+        const r = await fetch(`/api/verify/receivables/lookup?id=${encodeURIComponent(id)}`);
+        const j = await r.json();
+        if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.error || 'Lookup failed.')}</div>`); return; }
+        if (!j.found) { show(out, `<div class="note note-info">No receivable is registered under that ID. It may be private to a registry you don't share, or the ID is mistyped.</div>`); return; }
+        renderStatus(out, j.receivable);
+      } catch (e) {
+        show(out, `<div class="note note-loss">Couldn't reach the registry. Try again in a moment.</div>`);
+      }
+    }
+
+    // A record's Bitcoin-anchor control: a confirmed block-date badge, a pending re-check,
+    // or an "Anchor" button. `rec` needs { id, anchored, anchoredAt }.
+    function anchorPill(kind: string, rec: any) {
+      if (rec.anchoredAt) return `<span class="seal">⛓ Bitcoin ${esc(String(rec.anchoredAt).slice(0, 10))}</span>`;
+      if (rec.anchored) return `<button class="btn btn-xs" data-anchor="${kind}:${esc(rec.id)}" data-up="1" type="button">⏳ pending · re-check</button>`;
+      return `<button class="btn btn-xs" data-anchor="${kind}:${esc(rec.id)}" type="button">Anchor to Bitcoin</button>`;
+    }
+
+    function renderStatus(out: HTMLElement, rcv: any) {
+      const ccy = rcv.currency;
+      const pct = Math.min(100, rcv.face > 0 ? (rcv.claimed / rcv.face) * 100 : 0);
+      const over = rcv.status === 'over_financed';
+      const tagClass = rcv.settled ? 'open'
+        : rcv.status === 'fully_financed' ? 'full'
+        : rcv.status === 'over_financed' ? 'over'
+        : rcv.status === 'partially_financed' ? 'partial' : 'open';
+      const tagLabel = rcv.settled ? 'settled' : rcv.status.replace(/_/g, ' ');
+      const claims = (rcv.claims || []).map((c: any) => {
+        const discharged = c.status === 'discharged';
+        const release = (!discharged && !rcv.settled)
+          ? `<button class="btn btn-sm" data-discharge="${esc(c.id)}" type="button">Release</button>` : '';
+        const anchor = discharged ? '' : anchorPill('claim', c);
+        return `
+        <li class="claim${discharged ? ' claim-off' : ''}">
+          <div>
+            <div class="who">${esc(c.financier)}<span class="seal ${c.signed ? '' : 'unsigned'}">${c.signed ? '✓ signed' : 'unsigned'}</span>${discharged ? '<span class="seal off">released</span>' : ''}</div>
+            <div class="cmeta">${esc(c.date)}${discharged && c.dischargedAt ? ` · released ${esc(c.dischargedAt)}` : ''}</div>
+            ${anchor ? `<div class="row" style="margin-top:.35rem">${anchor}</div>` : ''}
+          </div>
+          <div class="claim-right">
+            <div class="amt">${esc(fmtNum(c.amount, c.currency || ccy))}</div>
+            ${release}
+          </div>
+        </li>`;
+      }).join('') || `<li class="claim"><div class="who">No claims yet</div><div class="cmeta">Unfinanced</div></li>`;
+      const atts = (rcv.attestations || []).map((a: any) => `
+        <li class="claim">
+          <div>
+            <div class="who">${esc(a.label)}<span class="role">${esc(a.role)}</span><span class="seal ${a.signed ? '' : 'unsigned'}">${a.signed ? '✓ signed' : 'unsigned'}</span></div>
+            <div class="cmeta">“${esc(a.statement)}” · ${esc(a.date)}</div>
+            <div class="row" style="margin-top:.35rem">${anchorPill('attestation', a)}</div>
+          </div>
+        </li>`).join('');
+      const attBlock = atts ? `<div class="att-head">Attestations</div><ul class="claims">${atts}</ul>` : '';
+      const settleBtn = rcv.settled
+        ? `<div class="note note-gain"><b>Settled${rcv.settledAt ? ` ${esc(rcv.settledAt)}` : ''}.</b> The buyer paid — the receivable's lifecycle is closed.</div>`
+        : `<div class="row"><button class="btn btn-sm" data-settle="${esc(rcv.id)}" type="button">Mark settled (buyer paid)</button></div>`;
+      show(out, `
+        <div class="status-head">
+          <span class="status-lead">${esc(fmtNum(rcv.claimed, ccy))} of ${esc(fmtNum(rcv.face, ccy))} financed</span>
+          <span class="tag ${tagClass}">${esc(tagLabel)}</span>
+        </div>
+        <div class="bar"><div class="fill ${rcv.claimed >= rcv.face ? 'full' : ''}" style="width:${pct}%"></div></div>
+        <div class="legend">
+          <span>Claimed <b>${esc(fmtNum(rcv.claimed, ccy))}</b></span>
+          <span class="avail">Unencumbered <b>${esc(fmtNum(Math.max(0, rcv.available), ccy))}</b></span>
+        </div>
+        <div class="rcv-meta"><b>${esc(rcv.supplier)}</b> → <b>${esc(rcv.buyer)}</b> · invoice ${esc(rcv.invoiceNo)}${rcv.dueDate ? ` · due ${esc(rcv.dueDate)}` : ''} · lifecycle ${esc(rcv.lifecycle)}${rcv.signed ? ' · receivable signed' : ''}</div>
+        <div class="row" style="margin-top:.5rem">${anchorPill('receivable', { id: rcv.id, anchored: rcv.anchored, anchoredAt: rcv.anchoredAt })}</div>
+        <ul class="claims">${claims}</ul>
+        ${attBlock}
+        ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
+        ${settleBtn}`);
+      out.querySelectorAll('[data-discharge]').forEach((b) =>
+        b.addEventListener('click', () => dischargeReq((b as HTMLElement).dataset.discharge!, rcv.id, out)));
+      out.querySelectorAll('[data-settle]').forEach((b) =>
+        b.addEventListener('click', () => settleReq((b as HTMLElement).dataset.settle!, out)));
+      out.querySelectorAll('[data-anchor]').forEach((b) => {
+        const el = b as HTMLElement;
+        const [kind, id] = (el.dataset.anchor as string).split(':');
+        el.addEventListener('click', () => anchorReq(kind, id, rcv.id, el.dataset.up === '1', out));
+      });
+    }
+
+    // ---- Stage 4: settlement (authed) ----
+    async function dischargeReq(claimId: string, receivableId: string, out: HTMLElement) {
+      const j = await authedPost('/api/verify/receivables/discharge', { claimId }, out);
+      if (!j) return; // 401/403/network already surfaced
+      if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not release the claim.')}</div>`); return; }
+      query(receivableId);
+    }
+    async function settleReq(receivableId: string, out: HTMLElement) {
+      const j = await authedPost('/api/verify/receivables/settle', { receivableId }, out);
+      if (!j) return;
+      if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not settle the receivable.')}</div>`); return; }
+      query(receivableId);
+    }
+
+    // ---- #1: Bitcoin anchor a record (authed), then refresh the status ----
+    async function anchorReq(kind: string, id: string, receivableId: string, upgrade: boolean, out: HTMLElement) {
+      const j = await authedPost('/api/verify/receivables/anchor', { kind, id, upgrade }, out);
+      if (!j) return;
+      if (!j.ok) { show(out, `<div class="note note-loss">Couldn't reach the Bitcoin anchor service. The signed record is unaffected — try again shortly.</div>`); return; }
+      query(receivableId);
+    }
+
+    $('q-btn').addEventListener('click', () => query(val('q-id')));
+    ($('q-id') as HTMLInputElement).addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Enter') query(val('q-id')); });
+    if (val('q-id')) query(val('q-id'));
+
+    // ---- shared auth-aware POST ----
+    async function authedPost(url: string, body: any, out: HTMLElement): Promise<any | null> {
+      try {
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (r.status === 401) {
+          show(out, `<div class="note note-info">Sign in to your Almstins account to do this. <a href="/login">Sign in</a>, then come back to this page.</div>`);
+          return null;
+        }
+        if (r.status === 403) { show(out, `<div class="note note-loss">Demo accounts are read-only for this action.</div>`); return null; }
+        return await r.json();
+      } catch (e) {
+        show(out, `<div class="note note-loss">Network error. Try again in a moment.</div>`);
+        return null;
+      }
+    }
+
+    // ---- 2. CREATE (authed) ----
+    $('c-btn').addEventListener('click', async () => {
+      const out = $('c-out'); const btn = $('c-btn') as HTMLButtonElement;
+      const supplier = val('c-supplier'), buyer = val('c-buyer'), invoiceNo = val('c-invoice');
+      const face = Number(val('c-face')), currency = val('c-currency') || 'NGN';
+      if (!supplier || !buyer || !invoiceNo || !(face > 0)) {
+        show(out, `<div class="note note-loss">Supplier, buyer, invoice #, and a positive face value are required.</div>`);
+        return;
+      }
+      btn.disabled = true;
+      const j = await authedPost('/api/verify/receivables', {
+        supplier, buyer, invoiceNo, face, currency,
+        terms: val('c-terms') || null, dueDate: val('c-due') || null, acknowledgedAt: val('c-ack') || null,
+      }, out);
+      btn.disabled = false;
+      if (!j) return;
+      if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not create the receivable.')}</div>`); return; }
+      show(out, `
+        <div class="note note-gain"><b>Receivable created${j.signed ? ' and signed' : ' (unsigned — signing key not configured)'}.</b> Share this ID with the financiers who need to check status:</div>
+        <div class="field" style="margin-top:.7rem"><div class="idcode">${esc(j.id)}</div></div>
+        <div class="row">
+          <button class="btn" id="c-copy" type="button">Copy ID</button>
+          <button class="btn" id="c-useclaim" type="button">Use in claim form</button>
+          <button class="btn" id="c-usecheck" type="button">Check it now</button>
+        </div>`);
+      $('c-copy').addEventListener('click', () => { navigator.clipboard?.writeText(j.id); ($('c-copy') as HTMLElement).textContent = 'Copied'; });
+      $('c-useclaim').addEventListener('click', () => { ($('k-id') as HTMLInputElement).value = j.id; $('k-id').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+      $('c-usecheck').addEventListener('click', () => { ($('q-id') as HTMLInputElement).value = j.id; query(j.id); $('q-out').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+    });
+
+    // ---- 3. CLAIM (authed) ----
+    async function registerClaim(force: boolean) {
+      const out = $('k-out'); const btn = $('k-btn') as HTMLButtonElement;
+      const receivableId = val('k-id'), financier = val('k-financier'), amount = Number(val('k-amount'));
+      if (!/^[0-9a-fA-F]{64}$/.test(receivableId) || !financier || !(amount > 0)) {
+        show(out, `<div class="note note-loss">A valid receivable ID, a financier name, and a positive amount are required.</div>`);
+        return;
+      }
+      btn.disabled = true;
+      const j = await authedPost('/api/verify/receivables/claim', {
+        receivableId, financier, amount, date: val('k-date') || undefined, force,
+      }, out);
+      btn.disabled = false;
+      if (!j) return;
+      if (j.ok) {
+        show(out, `<div class="note note-gain"><b>${esc(financier)}'s claim registered${j.signed ? ' and signed' : ''}.</b> Now ${esc(fmtNum(j.claimed, val('c-currency') || 'NGN'))} claimed · ${esc(fmtNum(Math.max(0, j.available), val('c-currency') || 'NGN'))} unencumbered. Anchor the digest to Bitcoin from your dashboard, or check the receivable above.</div>`);
+        if (val('q-id') === receivableId) query(receivableId);
+        return;
+      }
+      if (j.error === 'exceeds_headroom') {
+        show(out, `
+          <div class="note note-loss"><b>Duplicate-financing risk.</b> Only ${esc(String(j.available))} is unencumbered but ${esc(String(amount))} was requested. ${esc(String(j.claimed))} is already claimed against this receivable. Financing the full amount would double-pledge it.</div>
+          <div class="row">
+            <button class="btn" id="k-avail" type="button">Register only the available ${esc(String(j.available))}</button>
+            <button class="btn" id="k-force" type="button">Record it anyway (acknowledged over-claim)</button>
+          </div>`);
+        $('k-avail').addEventListener('click', () => { ($('k-amount') as HTMLInputElement).value = String(j.available); registerClaim(false); });
+        $('k-force').addEventListener('click', () => registerClaim(true));
+        return;
+      }
+      show(out, `<div class="note note-loss">${esc(j.message || 'Could not register the claim.')}</div>`);
+    }
+    $('k-btn').addEventListener('click', () => registerClaim(false));
+
+    // ---- 4. ATTEST (authed) ----
+    $('a-btn').addEventListener('click', async () => {
+      const out = $('a-out'); const btn = $('a-btn') as HTMLButtonElement;
+      const receivableId = val('a-id'), label = val('a-label'), statement = val('a-statement');
+      const role = ($('a-role') as HTMLSelectElement).value || 'buyer';
+      if (!/^[0-9a-fA-F]{64}$/.test(receivableId) || !label || !statement) {
+        show(out, `<div class="note note-loss">A valid receivable ID, an attester name, and a statement are required.</div>`);
+        return;
+      }
+      btn.disabled = true;
+      const j = await authedPost('/api/verify/receivables/attest', { receivableId, role, label, statement, date: val('a-date') || undefined }, out);
+      btn.disabled = false;
+      if (!j) return;
+      if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not record the attestation.')}</div>`); return; }
+      show(out, `<div class="note note-gain"><b>Attestation recorded${j.signed ? ' and signed' : ''}.</b> It now shows on the receivable's status above. Anchor it to Bitcoin from there.</div>`);
+      if (val('q-id') === receivableId) query(receivableId);
+    });
+
+    // ---- 3. Your receivables (authed; silent when signed out) ----
+    async function loadMine() {
+      try {
+        const r = await fetch('/api/verify/receivables');
+        if (r.status !== 200) return; // not signed in — leave the card hidden
+        const j = await r.json();
+        if (!j.ok || !Array.isArray(j.receivables) || !j.receivables.length) return;
+        const rows = j.receivables.map((rc: any) => `
+          <div class="mine-row" data-mid="${esc(rc.id)}">
+            <div><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}</div>
+            <div class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</div>
+          </div>`).join('');
+        $('mine-list').innerHTML = rows;
+        $('mine-card').style.display = '';
+        $('mine-list').querySelectorAll('[data-mid]').forEach((el) =>
+          el.addEventListener('click', () => {
+            const id = (el as HTMLElement).dataset.mid!;
+            ($('q-id') as HTMLInputElement).value = id;
+            ($('k-id') as HTMLInputElement).value = id;
+            ($('a-id') as HTMLInputElement).value = id;
+            query(id);
+            $('q-out').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }));
+      } catch (e) { /* silent */ }
+    }
+    loadMine();
+  </script>
+</body>
+</html>
