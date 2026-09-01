@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Receivables Registry</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root, :root[data-theme="light"], :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0a0f1a; --surface:#0d131f; --surface-2:#121a28; --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.15);
+    --ink:#f5f8ff; --ink-2:rgba(245,248,255,.68); --ink-3:rgba(245,248,255,.42);
+    --accent:#2dd4a8; --accent-soft:rgba(45,212,168,.14); --accent-line:rgba(45,212,168,.32);
+    --gain:#34d399; --gain-soft:rgba(52,211,153,.12); --gain-line:rgba(52,211,153,.30);
+    --warn:#f59e0b; --warn-soft:rgba(245,158,11,.13); --warn-line:rgba(245,158,11,.34);
+    --loss:#ef4444; --loss-soft:rgba(239,68,68,.12); --loss-line:rgba(239,68,68,.30);
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 22px 48px -26px rgba(0,0,0,.8);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:clamp(1.6rem,5vw,3.2rem) clamp(1rem,4vw,1.6rem) 3.5rem}
+  a{color:var(--accent);text-underline-offset:2px}
+
+  .brand{display:flex;align-items:center;gap:.6rem;margin-bottom:.35rem}
+  .brand .mark{width:32px;height:32px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:var(--bg);flex:none}
+  .brand .mark svg{width:18px;height:18px;display:block}
+  .brand .name{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:1.5rem;letter-spacing:-.015em;line-height:1}
+  .kick{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);margin:0 0 1.8rem 42px}
+
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:clamp(1.7rem,4.4vw,2.4rem);letter-spacing:-.02em;line-height:1.1;margin:0 0 .7rem;text-wrap:balance}
+  .lede{font-size:1.02rem;color:var(--ink-2);margin:0 0 1.4rem;max-width:64ch}
+  .lede b{color:var(--ink)}
+
+  .sandbox-note{display:flex;gap:.65rem;align-items:flex-start;font-size:.85rem;color:var(--ink-2);background:var(--surface);border:1px solid var(--accent-line);border-left:2px solid var(--accent);border-radius:0 11px 11px 0;padding:.85rem 1rem;margin-bottom:1.8rem}
+  .sandbox-note svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--accent)}
+  .sandbox-note b{color:var(--ink)}
+
+  .step-eyebrow{display:flex;align-items:center;gap:.6rem;margin:2.1rem 0 .9rem}
+  .step-eyebrow .n{width:24px;height:24px;border-radius:6px;background:var(--accent-soft);border:1px solid var(--accent-line);color:var(--accent);font-family:"IBM Plex Mono",monospace;font-size:.78rem;font-weight:600;display:grid;place-items:center;flex:none}
+  .step-eyebrow .t{font-family:"IBM Plex Mono",monospace;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:1.2rem 1.25rem;margin-bottom:1.1rem;box-shadow:var(--shadow)}
+
+  .rcv{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem .8rem}
+  @media (max-width:560px){ .rcv{grid-template-columns:1fr 1fr} }
+  .rcv .cell .k{font-size:.64rem;font-family:"IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:.15rem}
+  .rcv .cell .v{font-size:.95rem;color:var(--ink);font-weight:500}
+  .rcv .cell .v.big{font-family:"Fraunces",Georgia,serif;font-size:1.35rem;font-weight:600;letter-spacing:-.01em}
+  .idline{margin-top:1rem;padding-top:.9rem;border-top:1px solid var(--line);font-size:.78rem;color:var(--ink-2)}
+  .idline code{font-family:"IBM Plex Mono",monospace;font-size:.74rem;color:var(--accent);word-break:break-all}
+  .idline b{color:var(--ink)}
+
+  /* status bar */
+  .status-wrap{margin:.2rem 0 0}
+  .status-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.55rem;gap:1rem;flex-wrap:wrap}
+  .status-head .lead{font-family:"Fraunces",Georgia,serif;font-size:1.25rem;font-weight:600;letter-spacing:-.01em}
+  .status-head .tag{font-size:.68rem;font-family:"IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;padding:.28rem .6rem;border-radius:999px;font-weight:600}
+  .tag.partial{color:var(--warn);background:var(--warn-soft);border:1px solid var(--warn-line)}
+  .tag.full{color:var(--loss);background:var(--loss-soft);border:1px solid var(--loss-line)}
+  .tag.open{color:var(--gain);background:var(--gain-soft);border:1px solid var(--gain-line)}
+  .bar{height:16px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden;display:flex}
+  .bar .fill{height:100%;background:var(--warn)}
+  .bar .fill.full{background:var(--loss)}
+  .bar-legend{display:flex;justify-content:space-between;margin-top:.5rem;font-size:.78rem;color:var(--ink-2)}
+  .bar-legend b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .bar-legend .avail b{color:var(--gain)}
+
+  /* claims */
+  .claims{list-style:none;margin:.9rem 0 0;padding:0}
+  .claim{display:flex;gap:.8rem;align-items:flex-start;padding:.8rem;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);margin-bottom:.65rem}
+  .claim:last-child{margin-bottom:0}
+  .claim .dot{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;background:var(--warn-soft);color:var(--warn);font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:.8rem}
+  .claim.mine .dot{background:var(--accent-soft);color:var(--accent)}
+  .claim .body{flex:1;min-width:0}
+  .claim .row1{display:flex;justify-content:space-between;gap:.8rem;align-items:baseline}
+  .claim .who{font-weight:600;font-size:.95rem}
+  .claim .amt{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:1.05rem;white-space:nowrap}
+  .claim .meta{font-size:.76rem;color:var(--ink-3);margin-top:.15rem;font-family:"IBM Plex Mono",monospace;word-break:break-all}
+  .claim .proofline{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem}
+  .pill{font-size:.66rem;font-family:"IBM Plex Mono",monospace;letter-spacing:.03em;padding:.2rem .5rem;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-2);display:inline-flex;align-items:center;gap:.3rem}
+  .pill svg{width:11px;height:11px}
+  .pill.ok{color:var(--gain);border-color:var(--gain-line);background:var(--gain-soft)}
+  .pill.pend{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+  .pill.anchor{cursor:pointer}
+  .pill.anchor:hover{border-color:var(--accent-line)}
+
+  label{display:block;font-size:.74rem;font-family:"IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0 0 .35rem}
+  input, select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;color:var(--ink);font:inherit;font-size:.9rem;padding:.55rem .7rem;transition:border-color .15s}
+  input:focus, select:focus{outline:none;border-color:var(--accent-line)}
+  .amount-field{display:flex;align-items:stretch;gap:0}
+  .amount-field .pre{display:grid;place-items:center;padding:0 .7rem;background:var(--surface-2);border:1px solid var(--line);border-right:0;border-radius:9px 0 0 9px;color:var(--ink-2);font-family:"Fraunces",Georgia,serif;font-size:1.05rem}
+  .amount-field input{border-radius:0 9px 9px 0}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;align-items:end}
+  @media (max-width:560px){ .two{grid-template-columns:1fr} }
+
+  .btn{appearance:none;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);font:inherit;font-size:.85rem;font-weight:500;padding:.55rem .95rem;border-radius:9px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:.4rem;transition:border-color .15s,background .15s}
+  .btn:hover{border-color:var(--accent-line);background:var(--surface)}
+  .btn svg{width:15px;height:15px}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+  .btn-primary:hover{border-color:var(--accent);background:var(--accent);filter:brightness(1.07)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .check-btn{width:100%;justify-content:center;padding:.75rem;font-size:.92rem;margin-top:.2rem}
+
+  #verdict{display:none;margin-top:1.1rem}
+  #verdict.show{display:block}
+  .verdict{display:flex;align-items:flex-start;gap:.85rem;border-radius:13px;padding:1rem 1.15rem;border:1px solid var(--line)}
+  .verdict.clear{border-color:var(--gain-line);background:linear-gradient(180deg,var(--gain-soft),transparent)}
+  .verdict.risk{border-color:var(--loss-line);background:linear-gradient(180deg,var(--loss-soft),transparent)}
+  .verdict .badge{width:40px;height:40px;border-radius:10px;flex:none;display:grid;place-items:center}
+  .verdict.clear .badge{background:var(--gain-soft);color:var(--gain)}
+  .verdict.risk .badge{background:var(--loss-soft);color:var(--loss)}
+  .verdict .badge svg{width:22px;height:22px}
+  .verdict h2{margin:0;font-size:1.05rem;font-weight:700;letter-spacing:-.01em}
+  .verdict.clear h2{color:var(--gain)}
+  .verdict.risk h2{color:var(--loss)}
+  .verdict p{margin:.25rem 0 0;font-size:.87rem;color:var(--ink-2)}
+  .verdict p b{color:var(--ink)}
+  .verdict-actions{margin-top:.9rem;display:flex;gap:.6rem;flex-wrap:wrap}
+
+  .arch{background:var(--surface);border:1px solid var(--accent-line);border-radius:14px;padding:1.2rem 1.3rem;margin-top:2rem}
+  .arch h3{margin:0 0 .7rem;font-family:"Fraunces",Georgia,serif;font-size:1.15rem;font-weight:600;letter-spacing:-.01em}
+  .arch p{margin:0 0 .8rem;font-size:.9rem;color:var(--ink-2)}
+  .arch p:last-child{margin-bottom:0}
+  .arch b{color:var(--ink)}
+  .arch .open-q{margin:.9rem 0 0;padding:.9rem 1rem;background:var(--surface-2);border:1px solid var(--line);border-radius:10px}
+  .arch .open-q .h{font-size:.66rem;font-family:"IBM Plex Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:.5rem;font-weight:600}
+  .arch .open-q ul{margin:0;padding-left:1.1rem;font-size:.86rem;color:var(--ink-2)}
+  .arch .open-q li{margin-bottom:.4rem}
+  .arch .open-q li:last-child{margin-bottom:0}
+  .arch .open-q b{color:var(--ink)}
+
+  .foot{margin-top:1.6rem;font-size:.78rem;color:var(--ink-3);border-top:1px solid var(--line);padding-top:1.1rem;line-height:1.6}
+  .foot a{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" fill="currentColor" opacity=".22"/><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" stroke="currentColor" stroke-width="1.4"/><path d="M8.5 12l2.4 2.4L15.8 9.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <span class="name">Almstins</span>
+  </div>
+  <p class="kick">Verify · Receivables Registry</p>
+
+  <h1>Can two lenders finance the same invoice?</h1>
+  <p class="lede">Duplicate financing happens when a second lender never sees that a first lender already advanced against the same receivable. This walks one receivable end to end: a <b>&#8358;100m</b> invoice, an <b>&#8358;80m</b> advance already claimed against it, and a second financier who checks <b>before</b> lending. Each claim is a real signed proof; the check runs against the claims, not against anyone's private word.</p>
+
+  <div class="sandbox-note">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5m0 3h.01M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span><b>This is a demo of the mechanism, not the production registry.</b> The cryptography is real &mdash; each claim is signed with <b>Ed25519</b> in your browser and can be <b>timestamped into Bitcoin</b>. What a production system decides &mdash; where the claims live, who may write, who may read &mdash; is the design work below the demo. The point here is to show the <b>check</b> working.</span>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step-eyebrow"><span class="n">1</span><span class="t">The receivable &mdash; the thing every claim points at</span></div>
+  <div class="card">
+    <div class="rcv">
+      <div class="cell"><div class="k">Supplier</div><div class="v">Lagos Foods Ltd</div></div>
+      <div class="cell"><div class="k">Buyer (obligor)</div><div class="v">MegaRetail Nigeria PLC</div></div>
+      <div class="cell"><div class="k">Invoice</div><div class="v">INV-4471</div></div>
+      <div class="cell"><div class="k">Face value</div><div class="v big">&#8358;100m</div></div>
+      <div class="cell"><div class="k">Terms</div><div class="v">Net 60</div></div>
+      <div class="cell"><div class="k">Due</div><div class="v">2026-09-30</div></div>
+    </div>
+    <div class="idline">
+      <b>Receivable ID</b> &mdash; the SHA-256 of the creation record from Stage&nbsp;1. Every financing claim references this exact hash, so a claim can't be quietly moved to a different invoice or amount:<br>
+      <code id="rcvId">computing&hellip;</code>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step-eyebrow"><span class="n">2</span><span class="t">The registry &mdash; every claim standing against this receivable</span></div>
+  <div class="card">
+    <div class="status-wrap">
+      <div class="status-head">
+        <span class="lead" id="statusLead">&hellip;</span>
+        <span class="tag" id="statusTag">&hellip;</span>
+      </div>
+      <div class="bar"><div class="fill" id="statusFill" style="width:0%"></div></div>
+      <div class="bar-legend">
+        <span>Claimed <b id="legClaimed">&#8358;0m</b></span>
+        <span class="avail">Unencumbered <b id="legAvail">&#8358;0m</b></span>
+      </div>
+    </div>
+    <ul class="claims" id="claimsList"></ul>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step-eyebrow"><span class="n">3</span><span class="t">Second financier &mdash; check before you lend</span></div>
+  <div class="card">
+    <div class="two">
+      <div>
+        <label for="who2">Financier</label>
+        <input id="who2" type="text" value="Sahel Capital" spellcheck="false">
+      </div>
+      <div>
+        <label for="amt2">Advance you're considering</label>
+        <div class="amount-field">
+          <span class="pre">&#8358;</span>
+          <input id="amt2" type="number" min="0" step="1" value="30" inputmode="numeric">
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary check-btn" id="checkBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.2-3.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      Query the registry
+    </button>
+
+    <div id="verdict"></div>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <div class="arch">
+    <h3>Why this isn't just another intermediary's database</h3>
+    <p>The obvious way to build this is a private table that only one operator can read. That rebuilds the middleman the whole idea is meant to remove, and it asks every lender to trust that operator's book. So it isn't built that way.</p>
+    <p><b>It's the model Verify already runs, applied to claims.</b> Verify lets a wallet holder show their own wallet to the world. This lets a financier show their own claim to the world &mdash; the same direction of power: a party voluntarily disclosing <b>their own</b> position. The second financier reading it isn't surveilling anyone and isn't reaching across any private boundary, because the claim was published by the party who made it, exactly like a shown wallet. Nothing here touches data a party didn't choose to publish, and the anchor sits on a public chain regardless.</p>
+    <p>So <b>each claim is a public, signed, Bitcoin-anchored proof bound to the receivable's hash.</b> "Querying the registry" means resolving every claim-proof that points at a given receivable and adding them up. Nobody trusts Almstins' word for the total &mdash; they check the proofs. That is what makes it a <b>neutral shared layer</b> rather than a new gatekeeper. Almstins records and proves state; it never makes the financing decision.</p>
+    <div class="open-q">
+      <div class="h">Open design questions &mdash; the ones worth deciding together</div>
+      <ul>
+        <li><b>Where do the claims live</b> so both lenders can resolve them &mdash; a public chain index, a neutral shared store, or anchors plus a lookup service?</li>
+        <li><b>Who may write a claim,</b> and how is a claim's face amount tied to an authoritative creation record so it can't be inflated?</li>
+        <li><b>Who may read,</b> and how much &mdash; the full claim, or only "&#8358;X already encumbered, &#8358;Y free" without exposing counterparties?</li>
+        <li><b>How is a claim discharged</b> at settlement so headroom is released honestly?</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="foot">
+    Real SHA-256 + Ed25519, run entirely in your browser; the Bitcoin anchor is the same one used by <a href="/artifacts/sandbox">/artifacts/sandbox</a> and <a href="/artifacts/proof">/artifacts/proof</a>.<br>
+    <a href="/verify">almstins.com/verify</a> &middot; <a href="/">almstins.com</a>
+  </p>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const te = new TextEncoder();
+  const hex = buf => [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  const hexToBytes = h => { const a=new Uint8Array(h.length/2); for(let i=0;i<a.length;i++)a[i]=parseInt(h.substr(i*2,2),16); return a; };
+  async function sha256(bytes){ return hex(await crypto.subtle.digest('SHA-256', bytes)); }
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // RFC-8785 JCS
+  function jcs(v){
+    if (v === null || typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string') return JSON.stringify(v);
+    if (Array.isArray(v)) return '[' + v.map(jcs).join(',') + ']';
+    const keys = Object.keys(v).sort((a,b)=> a<b?-1:a>b?1:0);
+    return '{' + keys.map(k => JSON.stringify(k)+':'+jcs(v[k])).join(',') + '}';
+  }
+
+  const fmt = m => '&#8358;' + (Number(m).toLocaleString(undefined,{maximumFractionDigits:2})) + 'm';
+  const initials = s => (String(s).trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2) || '?').toUpperCase();
+
+  const svgSeal = '<svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4L19 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const svgClock = '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  const svgBtc = '<svg viewBox="0 0 24 24" fill="none"><path d="M12 7v10m0-10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM7 12h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+
+  // ---- the receivable (Stage 1 creation record) ----
+  const receivable = {
+    v:1, kind:'receivable',
+    supplier:'Lagos Foods Ltd', buyer:'MegaRetail Nigeria PLC',
+    invoiceNo:'INV-4471', face:100, currency:'NGN',
+    terms:'Net 60', dueDate:'2026-09-30', acknowledgedAt:'2026-07-10',
+  };
+  let receivableId = '';
+
+  // ---- claims (the registry) ----
+  // each: { financier, amount, currency, date, keyId, publicKeyHex, signatureHex, anchor, mine }
+  let claims = [];
+  let keyCache = {}; // financier name -> {key, pubHex, keyId}
+
+  async function makeParty(name){
+    if (keyCache[name]) return keyCache[name];
+    const key = await crypto.subtle.generateKey({name:'Ed25519'}, true, ['sign','verify']);
+    const pubHex = hex(await crypto.subtle.exportKey('raw', key.publicKey));
+    const keyId = 'party-' + (await sha256(hexToBytes(pubHex))).slice(0,12);
+    return (keyCache[name] = { key, pubHex, keyId });
+  }
+
+  async function signClaim(financier, amount, date){
+    const party = await makeParty(financier);
+    const manifest = {
+      v:1, kind:'financing_claim',
+      receivableId, financier, amount:Number(amount), currency:'NGN', date,
+      issuer:{ name:financier, keyId:party.keyId, publicKeyHex:party.pubHex },
+    };
+    const bytes = te.encode(jcs(manifest));
+    const signatureHex = hex(await crypto.subtle.sign({name:'Ed25519'}, party.key.privateKey, bytes));
+    const digest = await sha256(bytes);
+    return { ...manifest, signatureHex, digest, anchor:null };
+  }
+
+  function derive(){
+    const claimed = claims.reduce((s,c)=>s+Number(c.amount),0);
+    const face = receivable.face;
+    const avail = Math.max(0, face - claimed);
+    const pct = Math.min(100, (claimed/face)*100);
+    const status = claimed<=0 ? 'Unfinanced' : claimed>=face ? 'Fully financed' : 'Partially financed';
+    return { claimed, face, avail, pct, status };
+  }
+
+  function renderStatus(){
+    const d = derive();
+    $('statusLead').innerHTML = fmt(d.claimed) + ' of ' + fmt(d.face) + ' financed';
+    const tag = $('statusTag');
+    tag.textContent = d.status;
+    tag.className = 'tag ' + (d.status==='Fully financed'?'full':d.status==='Unfinanced'?'open':'partial');
+    const fill = $('statusFill');
+    fill.style.width = d.pct + '%';
+    fill.className = 'fill' + (d.claimed>=d.face?' full':'');
+    $('legClaimed').innerHTML = fmt(d.claimed);
+    $('legAvail').innerHTML = fmt(d.avail);
+  }
+
+  function renderClaims(){
+    $('claimsList').innerHTML = claims.map((c,i)=>{
+      const anchored = c.anchor && c.anchor.anchoredAt;
+      const pending = c.anchor && !c.anchor.anchoredAt;
+      const anchorPill = anchored
+        ? `<span class="pill ok">${svgBtc}Bitcoin ${esc(new Date(c.anchor.anchoredAt).toLocaleDateString())}</span>`
+        : pending
+          ? `<span class="pill pend anchor" data-recheck="${i}">${svgClock}Anchor pending &middot; re-check</span>`
+          : `<span class="pill anchor" data-anchor="${i}">${svgBtc}Anchor to Bitcoin</span>`;
+      return `
+      <li class="claim ${c.mine?'mine':''}">
+        <span class="dot">${esc(initials(c.financier))}</span>
+        <div class="body">
+          <div class="row1"><span class="who">${esc(c.financier)}${c.mine?' &middot; you':''}</span><span class="amt">${fmt(c.amount)}</span></div>
+          <div class="meta">claim &#8594; receivable ${esc(receivableId.slice(0,10))}&hellip; &middot; ${esc(c.date)}</div>
+          <div class="proofline">
+            <span class="pill ok">${svgSeal}Signed &middot; ${esc(c.keyId||(keyCache[c.financier]&&keyCache[c.financier].keyId)||'')}</span>
+            ${anchorPill}
+          </div>
+        </div>
+      </li>`;
+    }).join('');
+    $('claimsList').querySelectorAll('[data-anchor]').forEach(el=>el.addEventListener('click',()=>doAnchor(+el.dataset.anchor)));
+    $('claimsList').querySelectorAll('[data-recheck]').forEach(el=>el.addEventListener('click',()=>doRecheck(+el.dataset.recheck)));
+  }
+
+  async function doAnchor(i){
+    const c = claims[i]; if(!c) return;
+    const el = $('claimsList').querySelector(`[data-anchor="${i}"]`);
+    if(el){ el.style.pointerEvents='none'; el.innerHTML = svgClock+'Anchoring&hellip;'; }
+    try{
+      const r = await fetch('/api/verify/anchor', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ digest: c.digest }) });
+      const j = await r.json();
+      if(!j.ok || !j.anchor) throw new Error(j.error||'anchor failed');
+      c.anchor = j.anchor;
+    }catch(e){
+      c.anchor = null;
+    }
+    renderClaims();
+  }
+  async function doRecheck(i){
+    const c = claims[i]; if(!c||!c.anchor) return;
+    try{
+      const r = await fetch('/api/verify/anchor', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ upgrade:true, receipt:c.anchor }) });
+      const j = await r.json();
+      if(j.ok && j.anchor) c.anchor = j.anchor;
+    }catch(e){}
+    renderClaims();
+  }
+
+  // ---- the check ----
+  $('checkBtn').addEventListener('click', ()=>{
+    const who = ($('who2').value.trim()||'Second financier');
+    const amt = Number($('amt2').value);
+    const d = derive();
+    const box = $('verdict');
+    if (!(amt>0)){ box.className='show'; box.innerHTML = `<div class="verdict risk"><span class="badge"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div><h2>Enter an amount</h2><p>Type the advance this financier is considering.</p></div></div>`; return; }
+
+    const existing = claims.map(c=>`${esc(c.financier)} (${fmt(c.amount)})`).join(', ') || 'none';
+    let html;
+    if (amt <= d.avail){
+      html = `<div class="verdict clear">
+        <span class="badge">${svgSeal}</span>
+        <div>
+          <h2>Clear to finance ${fmt(amt)}</h2>
+          <p><b>${fmt(d.avail)}</b> of this receivable is unencumbered. Existing claims: ${existing}. After a ${fmt(amt)} advance, <b>${fmt(d.avail-amt)}</b> would remain.</p>
+          <div class="verdict-actions">
+            <button class="btn btn-primary" id="registerBtn" type="button"><svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Sign &amp; register this ${fmt(amt)} claim</button>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      const over = amt - d.avail;
+      html = `<div class="verdict risk">
+        <span class="badge"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3h.01M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div>
+          <h2>Duplicate-financing risk</h2>
+          <p>Only <b>${fmt(d.avail)}</b> is unencumbered, but ${fmt(amt)} was requested &mdash; <b>${fmt(over)}</b> over. ${fmt(d.claimed)} is already claimed against this exact receivable by: ${existing}. Financing the full ${fmt(amt)} would double-pledge the same invoice.</p>
+          <div class="verdict-actions">
+            <button class="btn" id="registerSafe" type="button">Register only the available ${fmt(d.avail)}</button>
+          </div>
+        </div>
+      </div>`;
+    }
+    box.className='show'; box.innerHTML = html;
+    const reg = $('registerBtn'); if(reg) reg.addEventListener('click', ()=>registerClaim(who, amt));
+    const regSafe = $('registerSafe'); if(regSafe) regSafe.addEventListener('click', ()=>registerClaim(who, d.avail));
+    box.scrollIntoView({behavior:'smooth', block:'nearest'});
+  });
+
+  async function registerClaim(who, amt){
+    if(!(amt>0)) return;
+    const btn = $('registerBtn')||$('registerSafe');
+    if(btn){ btn.disabled=true; btn.style.opacity='.6'; }
+    const date = new Date().toISOString().slice(0,10);
+    const claim = await signClaim(who, amt, date);
+    claim.keyId = (keyCache[who]&&keyCache[who].keyId)||claim.issuer.keyId;
+    claim.mine = true;
+    claims.push(claim);
+    renderStatus(); renderClaims();
+    // collapse verdict into a confirmation
+    const d = derive();
+    $('verdict').innerHTML = `<div class="verdict clear"><span class="badge">${svgSeal}</span><div><h2>${esc(who)}'s ${fmt(amt)} claim registered</h2><p>Signed with ${esc(who)}'s own key and added to the registry. The next lender who queries this receivable now sees <b>${fmt(d.claimed)}</b> claimed, <b>${fmt(d.avail)}</b> free. Anchor it to Bitcoin from its row above to make the date unforgeable.</p></div></div>`;
+    $('amt2').value = Math.max(0, d.avail);
+  }
+
+  // ---- boot: build receivable id + seed the first claim ----
+  (async function boot(){
+    receivableId = await sha256(te.encode(jcs(receivable)));
+    $('rcvId').textContent = receivableId;
+    const seed = await signClaim('Meridian Trade Finance', 80, '2026-07-15');
+    seed.keyId = keyCache['Meridian Trade Finance'].keyId;
+    seed.mine = false;
+    claims.push(seed);
+    renderStatus();
+    renderClaims();
+  })();
+})();
+</script>
+</body>
+</html>
