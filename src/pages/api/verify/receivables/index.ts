@@ -8,12 +8,20 @@
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { createReceivable } from '@/lib/receivablesRegistry';
+import { createReceivable, listReceivables } from '@/lib/receivablesRegistry';
 
 export const prerender = false;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+// List the receivables this tenant created (so they don't have to keep the IDs).
+export const GET: APIRoute = async ({ request }) => {
+  const session = await requireTenantSession(request);
+  if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
+  const receivables = await listReceivables(session.tenantId);
+  return json({ ok: true, receivables });
+};
 
 export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);

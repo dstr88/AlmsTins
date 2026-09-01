@@ -46,11 +46,11 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .badge-num { width: 22px; height: 22px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: .78rem; font-weight: 700; display: inline-grid; place-items: center; }
 
     label { display: block; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); margin-bottom: .3rem; }
-    input {
+    input, select {
       width: 100%; background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
       color: var(--text-primary); font: inherit; font-size: .92rem; padding: .55rem .7rem; transition: border-color .15s;
     }
-    input:focus { outline: none; border-color: var(--border-bright); }
+    input:focus, select:focus { outline: none; border-color: var(--border-bright); }
     input::placeholder { color: var(--text-muted); }
     .field { margin-bottom: .85rem; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; }
@@ -102,6 +102,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .claim-off { opacity: .55; }
     .claim-off .amt { text-decoration: line-through; }
     .btn-sm { padding: .32rem .6rem; font-size: .76rem; font-weight: 600; }
+    .btn-xs { padding: .18rem .5rem; font-size: .68rem; font-weight: 600; }
+    .role { font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); border: 1px solid var(--accent-glow); background: var(--accent-soft); border-radius: 999px; padding: .08rem .4rem; margin-left: .4rem; }
+    .att-head { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); margin: 1rem 0 .4rem; }
+    .mine-row { display: flex; justify-content: space-between; gap: .8rem; align-items: center; padding: .6rem .75rem; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--surface-card-2); margin-bottom: .5rem; cursor: pointer; font-size: .86rem; transition: border-color .15s; }
+    .mine-row:hover { border-color: var(--accent-glow); }
+    .mine-row .mine-face { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .seal { font-size: .64rem; color: var(--gain); border: 1px solid var(--gain-border); background: var(--gain-bg); border-radius: 999px; padding: .1rem .4rem; margin-left: .4rem; }
     .seal.unsigned { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
     .seal.off { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
@@ -126,6 +132,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </div>
       <button class="btn btn-primary btn-full" id="q-btn" type="button">Query the registry</button>
       <div class="out" id="q-out"></div>
+    </section>
+
+    <!-- Your receivables (authed; hidden when signed out) -->
+    <section class="card" id="mine-card" style="display:none">
+      <h2>Your receivables</h2>
+      <p class="sub">Receivables you created. Click one to check its status.</p>
+      <div id="mine-list"></div>
     </section>
 
     <!-- 2. CREATE (authed) -->
@@ -164,6 +177,28 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <div class="out" id="k-out"></div>
     </section>
 
+    <!-- 4. ATTEST (authed) — Stage 2 -->
+    <section class="card">
+      <h2><span class="badge-num">4</span> Attest to a receivable</h2>
+      <p class="sub">The buyer acknowledging the debt is the load-bearing attestation — the obligor signing against their own interest. Requires sign-in.</p>
+      <div class="field"><label for="a-id">Receivable ID</label><input id="a-id" type="text" placeholder="64-character receivable ID" spellcheck="false" /></div>
+      <div class="grid3">
+        <div class="field"><label for="a-role">Role</label>
+          <select id="a-role">
+            <option value="buyer">buyer (obligor)</option>
+            <option value="supplier">supplier</option>
+            <option value="inspector">inspector</option>
+            <option value="other">other</option>
+          </select>
+        </div>
+        <div class="field"><label for="a-label">Attester name</label><input id="a-label" type="text" placeholder="MegaRetail Nigeria PLC" /></div>
+        <div class="field"><label for="a-date">Date</label><input id="a-date" type="date" /></div>
+      </div>
+      <div class="field"><label for="a-statement">Statement</label><input id="a-statement" type="text" placeholder="I owe ₦100,000,000 for invoice INV-4471, due 2026-09-30." maxlength="600" /></div>
+      <button class="btn btn-primary btn-full" id="a-btn" type="button">Sign attestation</button>
+      <div class="out" id="a-out"></div>
+    </section>
+
     <p class="foot">
       Almstins records and proves state; it never makes the financing decision. Each claim is a voluntary self-disclosure — a financier shows their own claim the way a wallet holder shows their own wallet. Signatures use the Almstins published key; digests are Bitcoin-anchorable. No account, wallet, or identity is ever shown — only self-chosen labels.<br>
       <a href="/verify">almstins.com/verify</a> · <a href="/artifacts/registry">see the concept demo</a>
@@ -199,6 +234,14 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       }
     }
 
+    // A record's Bitcoin-anchor control: a confirmed block-date badge, a pending re-check,
+    // or an "Anchor" button. `rec` needs { id, anchored, anchoredAt }.
+    function anchorPill(kind: string, rec: any) {
+      if (rec.anchoredAt) return `<span class="seal">⛓ Bitcoin ${esc(String(rec.anchoredAt).slice(0, 10))}</span>`;
+      if (rec.anchored) return `<button class="btn btn-xs" data-anchor="${kind}:${esc(rec.id)}" data-up="1" type="button">⏳ pending · re-check</button>`;
+      return `<button class="btn btn-xs" data-anchor="${kind}:${esc(rec.id)}" type="button">Anchor to Bitcoin</button>`;
+    }
+
     function renderStatus(out: HTMLElement, rcv: any) {
       const ccy = rcv.currency;
       const pct = Math.min(100, rcv.face > 0 ? (rcv.claimed / rcv.face) * 100 : 0);
@@ -212,11 +255,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         const discharged = c.status === 'discharged';
         const release = (!discharged && !rcv.settled)
           ? `<button class="btn btn-sm" data-discharge="${esc(c.id)}" type="button">Release</button>` : '';
+        const anchor = discharged ? '' : anchorPill('claim', c);
         return `
         <li class="claim${discharged ? ' claim-off' : ''}">
           <div>
-            <div class="who">${esc(c.financier)}<span class="seal ${c.signed ? '' : 'unsigned'}">${c.signed ? '✓ signed' : 'unsigned'}</span>${c.anchored ? '<span class="seal">⛓ anchored</span>' : ''}${discharged ? '<span class="seal off">released</span>' : ''}</div>
+            <div class="who">${esc(c.financier)}<span class="seal ${c.signed ? '' : 'unsigned'}">${c.signed ? '✓ signed' : 'unsigned'}</span>${discharged ? '<span class="seal off">released</span>' : ''}</div>
             <div class="cmeta">${esc(c.date)}${discharged && c.dischargedAt ? ` · released ${esc(c.dischargedAt)}` : ''}</div>
+            ${anchor ? `<div class="row" style="margin-top:.35rem">${anchor}</div>` : ''}
           </div>
           <div class="claim-right">
             <div class="amt">${esc(fmtNum(c.amount, c.currency || ccy))}</div>
@@ -224,6 +269,15 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           </div>
         </li>`;
       }).join('') || `<li class="claim"><div class="who">No claims yet</div><div class="cmeta">Unfinanced</div></li>`;
+      const atts = (rcv.attestations || []).map((a: any) => `
+        <li class="claim">
+          <div>
+            <div class="who">${esc(a.label)}<span class="role">${esc(a.role)}</span><span class="seal ${a.signed ? '' : 'unsigned'}">${a.signed ? '✓ signed' : 'unsigned'}</span></div>
+            <div class="cmeta">“${esc(a.statement)}” · ${esc(a.date)}</div>
+            <div class="row" style="margin-top:.35rem">${anchorPill('attestation', a)}</div>
+          </div>
+        </li>`).join('');
+      const attBlock = atts ? `<div class="att-head">Attestations</div><ul class="claims">${atts}</ul>` : '';
       const settleBtn = rcv.settled
         ? `<div class="note note-gain"><b>Settled${rcv.settledAt ? ` ${esc(rcv.settledAt)}` : ''}.</b> The buyer paid — the receivable's lifecycle is closed.</div>`
         : `<div class="row"><button class="btn btn-sm" data-settle="${esc(rcv.id)}" type="button">Mark settled (buyer paid)</button></div>`;
@@ -238,13 +292,20 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <span class="avail">Unencumbered <b>${esc(fmtNum(Math.max(0, rcv.available), ccy))}</b></span>
         </div>
         <div class="rcv-meta"><b>${esc(rcv.supplier)}</b> → <b>${esc(rcv.buyer)}</b> · invoice ${esc(rcv.invoiceNo)}${rcv.dueDate ? ` · due ${esc(rcv.dueDate)}` : ''} · lifecycle ${esc(rcv.lifecycle)}${rcv.signed ? ' · receivable signed' : ''}</div>
+        <div class="row" style="margin-top:.5rem">${anchorPill('receivable', { id: rcv.id, anchored: rcv.anchored, anchoredAt: rcv.anchoredAt })}</div>
         <ul class="claims">${claims}</ul>
+        ${attBlock}
         ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
         ${settleBtn}`);
       out.querySelectorAll('[data-discharge]').forEach((b) =>
         b.addEventListener('click', () => dischargeReq((b as HTMLElement).dataset.discharge!, rcv.id, out)));
       out.querySelectorAll('[data-settle]').forEach((b) =>
         b.addEventListener('click', () => settleReq((b as HTMLElement).dataset.settle!, out)));
+      out.querySelectorAll('[data-anchor]').forEach((b) => {
+        const el = b as HTMLElement;
+        const [kind, id] = (el.dataset.anchor as string).split(':');
+        el.addEventListener('click', () => anchorReq(kind, id, rcv.id, el.dataset.up === '1', out));
+      });
     }
 
     // ---- Stage 4: settlement (authed) ----
@@ -258,6 +319,14 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const j = await authedPost('/api/verify/receivables/settle', { receivableId }, out);
       if (!j) return;
       if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not settle the receivable.')}</div>`); return; }
+      query(receivableId);
+    }
+
+    // ---- #1: Bitcoin anchor a record (authed), then refresh the status ----
+    async function anchorReq(kind: string, id: string, receivableId: string, upgrade: boolean, out: HTMLElement) {
+      const j = await authedPost('/api/verify/receivables/anchor', { kind, id, upgrade }, out);
+      if (!j) return;
+      if (!j.ok) { show(out, `<div class="note note-loss">Couldn't reach the Bitcoin anchor service. The signed record is unaffected — try again shortly.</div>`); return; }
       query(receivableId);
     }
 
@@ -344,6 +413,51 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       show(out, `<div class="note note-loss">${esc(j.message || 'Could not register the claim.')}</div>`);
     }
     $('k-btn').addEventListener('click', () => registerClaim(false));
+
+    // ---- 4. ATTEST (authed) ----
+    $('a-btn').addEventListener('click', async () => {
+      const out = $('a-out'); const btn = $('a-btn') as HTMLButtonElement;
+      const receivableId = val('a-id'), label = val('a-label'), statement = val('a-statement');
+      const role = ($('a-role') as HTMLSelectElement).value || 'buyer';
+      if (!/^[0-9a-fA-F]{64}$/.test(receivableId) || !label || !statement) {
+        show(out, `<div class="note note-loss">A valid receivable ID, an attester name, and a statement are required.</div>`);
+        return;
+      }
+      btn.disabled = true;
+      const j = await authedPost('/api/verify/receivables/attest', { receivableId, role, label, statement, date: val('a-date') || undefined }, out);
+      btn.disabled = false;
+      if (!j) return;
+      if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not record the attestation.')}</div>`); return; }
+      show(out, `<div class="note note-gain"><b>Attestation recorded${j.signed ? ' and signed' : ''}.</b> It now shows on the receivable's status above. Anchor it to Bitcoin from there.</div>`);
+      if (val('q-id') === receivableId) query(receivableId);
+    });
+
+    // ---- 3. Your receivables (authed; silent when signed out) ----
+    async function loadMine() {
+      try {
+        const r = await fetch('/api/verify/receivables');
+        if (r.status !== 200) return; // not signed in — leave the card hidden
+        const j = await r.json();
+        if (!j.ok || !Array.isArray(j.receivables) || !j.receivables.length) return;
+        const rows = j.receivables.map((rc: any) => `
+          <div class="mine-row" data-mid="${esc(rc.id)}">
+            <div><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}</div>
+            <div class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</div>
+          </div>`).join('');
+        $('mine-list').innerHTML = rows;
+        $('mine-card').style.display = '';
+        $('mine-list').querySelectorAll('[data-mid]').forEach((el) =>
+          el.addEventListener('click', () => {
+            const id = (el as HTMLElement).dataset.mid!;
+            ($('q-id') as HTMLInputElement).value = id;
+            ($('k-id') as HTMLInputElement).value = id;
+            ($('a-id') as HTMLInputElement).value = id;
+            query(id);
+            $('q-out').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }));
+      } catch (e) { /* silent */ }
+    }
+    loadMine();
   </script>
 </body>
 </html>

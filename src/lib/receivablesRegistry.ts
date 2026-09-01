@@ -76,7 +76,22 @@ export interface PublicClaim {
   dischargedAt: string | null;
   signed: boolean;
   anchored: boolean;
+  /** Bitcoin block time once the anchor confirms; null while pending or unanchored. */
+  anchoredAt: string | null;
   registeredAt: string;
+}
+
+export type AttesterRole = 'buyer' | 'supplier' | 'inspector' | 'other';
+
+export interface PublicAttestation {
+  id: string;
+  role: AttesterRole;
+  label: string;
+  statement: string;
+  date: string;
+  signed: boolean;
+  anchored: boolean;
+  anchoredAt: string | null;
 }
 
 export interface ReceivableStatus {
@@ -91,14 +106,27 @@ export interface ReceivableStatus {
   acknowledgedAt: string | null;
   createdAt: string;
   signed: boolean;
+  anchored: boolean;
+  anchoredAt: string | null;
   settled: boolean;
   settledAt: string | null;
+  attestations: PublicAttestation[];
   claims: PublicClaim[];
   claimed: number;
   available: number;
   status: 'unfinanced' | 'partially_financed' | 'fully_financed' | 'over_financed';
   /** Lifecycle stage: created → financed → settled (released = all claims discharged). */
   lifecycle: 'created' | 'financed' | 'released' | 'settled';
+}
+
+/** Bitcoin block time from a stored anchor receipt (rwaProof AnchorReceipt), or null
+ *  when unanchored / still pending. */
+function anchoredAtOf(anchorJson: string | null | undefined): string | null {
+  if (!anchorJson) return null;
+  try {
+    const a = JSON.parse(anchorJson);
+    return a && typeof a.anchoredAt === 'string' ? a.anchoredAt : null;
+  } catch { return null; }
 }
 
 const ENSURE_RECEIVABLES_SQL = `
@@ -116,6 +144,7 @@ const ENSURE_RECEIVABLES_SQL = `
     manifest_json  TEXT NOT NULL,
     signature_json TEXT,
     digest         TEXT NOT NULL,
+    anchor_json       TEXT,
     settled_at        TEXT,
     settlement_json   TEXT,
     settlement_digest TEXT,
@@ -124,6 +153,28 @@ const ENSURE_RECEIVABLES_SQL = `
 `;
 const ENSURE_RECEIVABLES_TENANT_IDX =
   `CREATE INDEX IF NOT EXISTS receivables_tenant ON receivables (tenant_id)`;
+
+// Stage 2 — party attestations bound to a receivable (the buyer acknowledging the debt
+// is the load-bearing one). One row = one signed statement by one party. Public reads
+// expose only the self-chosen label + statement, never tenant_id/identity.
+const ENSURE_ATTESTATIONS_SQL = `
+  CREATE TABLE IF NOT EXISTS receivable_attestations (
+    id             TEXT NOT NULL PRIMARY KEY,
+    receivable_id  TEXT NOT NULL,
+    tenant_id      TEXT NOT NULL,
+    role           TEXT NOT NULL,
+    label          TEXT NOT NULL,
+    statement      TEXT NOT NULL,
+    attested_at    TEXT NOT NULL,
+    manifest_json  TEXT NOT NULL,
+    signature_json TEXT,
+    digest         TEXT NOT NULL,
+    anchor_json    TEXT,
+    created_at     TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+const ENSURE_ATTESTATIONS_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_attestations_rcv ON receivable_attestations (receivable_id)`;
 
 const ENSURE_CLAIMS_SQL = `
   CREATE TABLE IF NOT EXISTS receivable_claims (
@@ -151,6 +202,7 @@ const ENSURE_CLAIMS_RCV_IDX =
 // Stage 4 (settlement) columns — lazy adds so a table created by an earlier version of
 // this file gains them without a migration. IF NOT EXISTS makes each idempotent.
 const ENSURE_SETTLEMENT_COLS = [
+  `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS anchor_json TEXT`,
   `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS settled_at TEXT`,
   `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS settlement_json TEXT`,
   `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS settlement_digest TEXT`,
@@ -166,6 +218,8 @@ export async function ensureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_RECEIVABLES_TENANT_IDX, args: [] });
   await db.execute({ sql: ENSURE_CLAIMS_SQL, args: [] });
   await db.execute({ sql: ENSURE_CLAIMS_RCV_IDX, args: [] });
+  await db.execute({ sql: ENSURE_ATTESTATIONS_SQL, args: [] });
+  await db.execute({ sql: ENSURE_ATTESTATIONS_IDX, args: [] });
   for (const sql of ENSURE_SETTLEMENT_COLS) {
     try { await db.execute({ sql, args: [] }); }
     catch (e) { console.error('[receivables] settlement column not applied:', e); }
@@ -245,12 +299,12 @@ interface ReceivableRow {
   id: string; tenant_id: string; supplier: string; buyer: string; invoice_no: string;
   face: number; currency: string; terms: string | null;
   due_date: string | null; acknowledged_at: string | null;
-  signature_json: string | null; settled_at: string | null; created_at: string;
+  signature_json: string | null; anchor_json: string | null; settled_at: string | null; created_at: string;
 }
 
 async function getReceivableRow(id: string): Promise<ReceivableRow | null> {
   const r = await db.execute({
-    sql: `SELECT id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, signature_json, settled_at, created_at
+    sql: `SELECT id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, signature_json, anchor_json, settled_at, created_at
           FROM receivables WHERE id = ? LIMIT 1`,
     args: [id],
   });
@@ -264,6 +318,7 @@ async function getReceivableRow(id: string): Promise<ReceivableRow | null> {
     due_date: row.due_date != null ? String(row.due_date) : null,
     acknowledged_at: row.acknowledged_at != null ? String(row.acknowledged_at) : null,
     signature_json: row.signature_json != null ? String(row.signature_json) : null,
+    anchor_json: row.anchor_json != null ? String(row.anchor_json) : null,
     settled_at: row.settled_at != null ? String(row.settled_at) : null,
     created_at: String(row.created_at),
   };
@@ -361,7 +416,24 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     dischargedAt: r.discharged_at != null ? String(r.discharged_at) : null,
     signed: !!r.signature_json,
     anchored: !!r.anchor_json,
+    anchoredAt: anchoredAtOf(r.anchor_json),
     registeredAt: String(r.created_at),
+  }));
+
+  const ar = await db.execute({
+    sql: `SELECT id, role, label, statement, attested_at, signature_json, anchor_json
+          FROM receivable_attestations WHERE receivable_id = ? ORDER BY created_at ASC`,
+    args: [rcv.id],
+  });
+  const attestations: PublicAttestation[] = (ar.rows as any[]).map((r) => ({
+    id: String(r.id),
+    role: (['buyer', 'supplier', 'inspector'].includes(String(r.role)) ? String(r.role) : 'other') as AttesterRole,
+    label: String(r.label),
+    statement: String(r.statement),
+    date: String(r.attested_at),
+    signed: !!r.signature_json,
+    anchored: !!r.anchor_json,
+    anchoredAt: anchoredAtOf(r.anchor_json),
   }));
 
   const claimed = claims.filter((c) => c.status === 'active').reduce((s, c) => s + c.amount, 0);
@@ -386,7 +458,9 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     face: rcv.face, currency: rcv.currency, terms: rcv.terms,
     dueDate: rcv.due_date, acknowledgedAt: rcv.acknowledged_at,
     createdAt: rcv.created_at, signed: !!rcv.signature_json,
+    anchored: !!rcv.anchor_json, anchoredAt: anchoredAtOf(rcv.anchor_json),
     settled, settledAt: rcv.settled_at,
+    attestations,
     claims, claimed, available, status, lifecycle,
   };
 }
@@ -474,4 +548,116 @@ export async function settleReceivable(tenantId: string, receivableId: string): 
     args: [settledAt, JSON.stringify(manifest), digest, row.id, tenantId],
   });
   return { ok: true, digest, signed: !!signature, settledAt };
+}
+
+// ── #3: list a tenant's own receivables ──────────────────────────────────────
+
+export interface ReceivableSummary {
+  id: string; supplier: string; buyer: string; invoiceNo: string;
+  face: number; currency: string; settled: boolean; createdAt: string;
+}
+
+/** The receivables this tenant created (so they don't have to hoard IDs). Tenant-scoped. */
+export async function listReceivables(tenantId: string): Promise<ReceivableSummary[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT id, supplier, buyer, invoice_no, face, currency, settled_at, created_at
+          FROM receivables WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 200`,
+    args: [tenantId],
+  });
+  return (r.rows as any[]).map((row) => ({
+    id: String(row.id), supplier: String(row.supplier), buyer: String(row.buyer),
+    invoiceNo: String(row.invoice_no), face: Number(row.face), currency: String(row.currency),
+    settled: row.settled_at != null, createdAt: String(row.created_at),
+  }));
+}
+
+// ── #2: Stage 2 buyer/party attestation ──────────────────────────────────────
+
+export type AddAttestationResult =
+  | { ok: true; attestationId: string; digest: string; signed: boolean }
+  | { ok: false; error: 'not_found'; message: string }
+  | { ok: false; error: 'invalid'; message: string };
+
+/**
+ * Record a party's signed attestation about a receivable. The load-bearing one is the
+ * BUYER acknowledging the debt ("I owe ₦100m for invoice X, due Y") — the obligor
+ * attesting against their own interest, which is what makes a claim trustworthy. Bound
+ * to the receivable hash; signed; the digest is Bitcoin-anchorable. tenant_id is private
+ * provenance, never surfaced — only the self-chosen label is public.
+ *
+ * v1: signed with the Almstins key on the attester's authenticated self-disclosure. v2:
+ * the attester proves control of their own address and signs with their own key.
+ */
+export async function addAttestation(
+  tenantId: string,
+  receivableId: string,
+  input: { role: AttesterRole; label: string; statement: string; date?: string },
+): Promise<AddAttestationResult> {
+  await ensureReceivablesTables();
+  const rcv = await getReceivableRow(String(receivableId || '').trim());
+  if (!rcv) return { ok: false, error: 'not_found', message: 'No receivable found for that ID.' };
+
+  const role: AttesterRole = (['buyer', 'supplier', 'inspector'].includes(input.role) ? input.role : 'other');
+  const label = clampStr(input.label, 120);
+  const statement = clampStr(input.statement, 600);
+  const date = isYmd(input.date) ? input.date! : nowUtc().slice(0, 10);
+  if (!label || !statement) {
+    return { ok: false, error: 'invalid', message: 'An attester name and a statement are required.' };
+  }
+
+  const manifest = { v: 1, kind: 'attestation', receivableId: rcv.id, role, label, statement, date };
+  const { signature, digest } = sign(manifest);
+  const attestationId = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO receivable_attestations
+            (id, receivable_id, tenant_id, role, label, statement, attested_at, manifest_json, signature_json, digest)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [attestationId, rcv.id, tenantId, role, label, statement, date, JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest],
+  });
+  return { ok: true, attestationId, digest, signed: !!signature };
+}
+
+// ── #1: Bitcoin anchoring — attach a receipt to a registry record ─────────────
+
+export type AnchorRecordKind = 'receivable' | 'claim' | 'attestation';
+
+const ANCHOR_TABLE: Record<AnchorRecordKind, string> = {
+  receivable: 'receivables',
+  claim: 'receivable_claims',
+  attestation: 'receivable_attestations',
+};
+
+/**
+ * A record's digest + current anchor receipt, scoped to the tenant that owns it. The
+ * digest is what gets stamped into Bitcoin; the anchor endpoint orchestrates the
+ * stamp/upgrade and calls setRecordAnchor to persist the receipt. Returns null when the
+ * record isn't found or isn't this tenant's.
+ */
+export async function getRecordForAnchor(
+  tenantId: string, kind: AnchorRecordKind, id: string,
+): Promise<{ digest: string; anchorJson: string | null } | null> {
+  await ensureReceivablesTables();
+  const table = ANCHOR_TABLE[kind];
+  if (!table) return null;
+  const r = await db.execute({
+    sql: `SELECT digest, anchor_json FROM ${table} WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(id || '').trim(), tenantId],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  return { digest: String(row.digest), anchorJson: row.anchor_json != null ? String(row.anchor_json) : null };
+}
+
+/** Persist an anchor receipt (JSON) onto a record. Tenant-scoped. */
+export async function setRecordAnchor(
+  tenantId: string, kind: AnchorRecordKind, id: string, anchorJson: string,
+): Promise<void> {
+  await ensureReceivablesTables();
+  const table = ANCHOR_TABLE[kind];
+  if (!table) return;
+  await db.execute({
+    sql: `UPDATE ${table} SET anchor_json = ? WHERE id = ? AND tenant_id = ?`,
+    args: [anchorJson, String(id || '').trim(), tenantId],
+  });
 }
