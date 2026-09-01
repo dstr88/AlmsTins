@@ -347,8 +347,9 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
         </div>
       )}
 
-      {/* Person summary list */}
+      {/* Person summary list (left) + persistent numbers table (right) */}
       {tin.people.length > 0 && (
+        <div className="pt-splits-body">
         <div className="pt-splits-summary">
           {tin.people.map(person => {
             const totals = personTotals.find(t => t.personId === person.id);
@@ -380,6 +381,73 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           {tin.bills.length === 0 && (
             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', padding: '0.25rem 0' }}>Add a bill below to start splitting.</div>
           )}
+        </div>
+
+        {/* Persistent per-person numbers table — shows the math behind one son's figure */}
+        {tin.bills.length > 0 && (() => {
+          const activeId = personPanelId ?? tin.people[0]?.id;
+          const person = tin.people.find(p => p.id === activeId);
+          if (!person) return null;
+          const assignedBills = tin.bills.filter(b => b.assignments.some(a => a.personId === person.id));
+          const totals = personTotals.find(t => t.personId === person.id);
+          const carried = tin.carriedBalances[person.id] ?? 0;
+          return (
+            <div className="pt-splits-numbers">
+              <div className="pt-splits-numbers__head">{person.name}{person.isOwner ? ' 👑' : ''} — the numbers</div>
+              <div className="pt-splits-numbers__scroll">
+                <table className="pt-splits-numbers__table">
+                  <thead>
+                    <tr><th>Bill</th><th>Owed</th><th>Paid</th><th>Left</th></tr>
+                  </thead>
+                  <tbody>
+                    {assignedBills.length === 0 ? (
+                      <tr><td className="pt-splits-numbers__empty" colSpan={4}>No bills assigned to {person.name} yet.</td></tr>
+                    ) : assignedBills.map(bill => {
+                      const owed = owedMap[person.id]?.[bill.id] ?? 0;
+                      const paid = paidMap[person.id]?.[bill.id] ?? 0;
+                      const left = owed - paid;
+                      const assign = bill.assignments.find(a => a.personId === person.id);
+                      let lines: { label: string; value: number }[] = [];
+                      if (assign?.breakdown) { try { lines = JSON.parse(assign.breakdown); } catch { lines = []; } }
+                      return (
+                        <React.Fragment key={bill.id}>
+                          <tr className={left <= 0 ? 'done' : ''}>
+                            <td>{bill.name}{assign?.type === 'pct' ? ` (${assign.value}% of ${fmt(bill.amount)})` : ''}</td>
+                            <td>{fmt(owed)}</td>
+                            <td className="gain">{fmt(paid)}</td>
+                            <td className={left <= 0 ? 'gain' : 'loss'}>{left <= 0 ? '✓' : fmt(left)}</td>
+                          </tr>
+                          {lines.length > 1 && lines.map((l, i) => (
+                            <tr key={`${bill.id}-sub-${i}`} className="pt-splits-numbers__sub">
+                              <td colSpan={4}>{l.label} = {fmt(l.value)}</td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                    {carried > 0 && (
+                      <tr className="pt-splits-numbers__sub">
+                        <td colSpan={3}>Carried from a previous month</td>
+                        <td className="loss">{fmt(carried)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {totals && assignedBills.length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <td>Total</td>
+                        <td>{fmt(totals.owed)}</td>
+                        <td className="gain">{fmt(totals.paid)}</td>
+                        <td className={totals.balance <= 0 ? 'gain' : 'loss'}>{totals.balance <= 0 ? '✓ Paid' : fmt(totals.balance)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+              <div className="pt-splits-numbers__hint">Tap a name on the left to see their numbers.</div>
+            </div>
+          );
+        })()}
         </div>
       )}
 

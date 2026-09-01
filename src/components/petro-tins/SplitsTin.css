@@ -260,6 +260,118 @@
 }
 .pt-splits-history-del:hover { opacity: 1; color: var(--loss); }
 
+/* ── Body: summary (left) + numbers table (right) ──────────────────────────── */
+
+.pt-splits-body {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  padding: 0.5rem 1.25rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pt-splits-body .pt-splits-summary {
+  flex: 0 0 auto;
+  min-width: 190px;
+  max-width: 44%;
+  padding: 0;
+  border-bottom: none;
+}
+@media (max-width: 700px) {
+  .pt-splits-body { flex-direction: column; gap: 0.85rem; }
+  .pt-splits-body .pt-splits-summary { max-width: none; width: 100%; }
+}
+
+/* ── Numbers table (the math behind one son's figure) ──────────────────────── */
+
+.pt-splits-numbers {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-left: 1px solid var(--border-subtle);
+  padding-left: 1.25rem;
+}
+@media (max-width: 700px) {
+  .pt-splits-numbers {
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+    padding-left: 0;
+    padding-top: 0.75rem;
+  }
+}
+
+.pt-splits-numbers__head {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.55rem;
+}
+
+.pt-splits-numbers__scroll { overflow-x: auto; }
+
+.pt-splits-numbers__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.pt-splits-numbers__table th {
+  text-align: right;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+.pt-splits-numbers__table th:first-child { text-align: left; }
+.pt-splits-numbers__table td {
+  padding: 0.32rem 0.55rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pt-splits-numbers__table td:first-child {
+  text-align: left;
+  color: var(--text-primary);
+  white-space: normal;
+}
+.pt-splits-numbers__table tr.done td { opacity: 0.5; }
+.pt-splits-numbers__table .gain { color: var(--gain); font-weight: 600; }
+.pt-splits-numbers__table .loss { color: var(--loss); font-weight: 700; }
+
+.pt-splits-numbers__sub td {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: left;
+  padding-left: 1.35rem;
+  border-bottom: none;
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+}
+.pt-splits-numbers__sub td:last-child { text-align: right; }
+
+.pt-splits-numbers__table tfoot td {
+  font-weight: 700;
+  color: var(--text-primary);
+  border-top: 1px solid var(--border-bright);
+  border-bottom: none;
+  padding-top: 0.45rem;
+}
+
+.pt-splits-numbers__empty {
+  text-align: center !important;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.pt-splits-numbers__hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
 /* ── Person summary list ───────────────────────────────────────────────────── */
 
 .pt-splits-summary {
