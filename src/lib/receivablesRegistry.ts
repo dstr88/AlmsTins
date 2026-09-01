@@ -67,11 +67,13 @@ export interface Signature {
 }
 
 export interface PublicClaim {
+  id: string;
   financier: string;
   amount: number;
   currency: string;
   date: string;
   status: ClaimStatus;
+  dischargedAt: string | null;
   signed: boolean;
   anchored: boolean;
   registeredAt: string;
@@ -89,10 +91,14 @@ export interface ReceivableStatus {
   acknowledgedAt: string | null;
   createdAt: string;
   signed: boolean;
+  settled: boolean;
+  settledAt: string | null;
   claims: PublicClaim[];
   claimed: number;
   available: number;
   status: 'unfinanced' | 'partially_financed' | 'fully_financed' | 'over_financed';
+  /** Lifecycle stage: created → financed → settled (released = all claims discharged). */
+  lifecycle: 'created' | 'financed' | 'released' | 'settled';
 }
 
 const ENSURE_RECEIVABLES_SQL = `
@@ -110,6 +116,9 @@ const ENSURE_RECEIVABLES_SQL = `
     manifest_json  TEXT NOT NULL,
     signature_json TEXT,
     digest         TEXT NOT NULL,
+    settled_at        TEXT,
+    settlement_json   TEXT,
+    settlement_digest TEXT,
     created_at     TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )
 `;
@@ -130,11 +139,25 @@ const ENSURE_CLAIMS_SQL = `
     signature_json TEXT,
     digest         TEXT NOT NULL,
     anchor_json    TEXT,
+    discharged_at    TEXT,
+    discharge_json   TEXT,
+    discharge_digest TEXT,
     created_at     TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
   )
 `;
 const ENSURE_CLAIMS_RCV_IDX =
   `CREATE INDEX IF NOT EXISTS receivable_claims_rcv ON receivable_claims (receivable_id)`;
+
+// Stage 4 (settlement) columns — lazy adds so a table created by an earlier version of
+// this file gains them without a migration. IF NOT EXISTS makes each idempotent.
+const ENSURE_SETTLEMENT_COLS = [
+  `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS settled_at TEXT`,
+  `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS settlement_json TEXT`,
+  `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS settlement_digest TEXT`,
+  `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharged_at TEXT`,
+  `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_json TEXT`,
+  `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_digest TEXT`,
+];
 
 let ensured = false;
 export async function ensureReceivablesTables(): Promise<void> {
@@ -143,6 +166,10 @@ export async function ensureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_RECEIVABLES_TENANT_IDX, args: [] });
   await db.execute({ sql: ENSURE_CLAIMS_SQL, args: [] });
   await db.execute({ sql: ENSURE_CLAIMS_RCV_IDX, args: [] });
+  for (const sql of ENSURE_SETTLEMENT_COLS) {
+    try { await db.execute({ sql, args: [] }); }
+    catch (e) { console.error('[receivables] settlement column not applied:', e); }
+  }
   ensured = true;
 }
 
@@ -215,27 +242,29 @@ export async function createReceivable(
 }
 
 interface ReceivableRow {
-  id: string; supplier: string; buyer: string; invoice_no: string;
+  id: string; tenant_id: string; supplier: string; buyer: string; invoice_no: string;
   face: number; currency: string; terms: string | null;
   due_date: string | null; acknowledged_at: string | null;
-  signature_json: string | null; created_at: string;
+  signature_json: string | null; settled_at: string | null; created_at: string;
 }
 
 async function getReceivableRow(id: string): Promise<ReceivableRow | null> {
   const r = await db.execute({
-    sql: `SELECT id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, signature_json, created_at
+    sql: `SELECT id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, signature_json, settled_at, created_at
           FROM receivables WHERE id = ? LIMIT 1`,
     args: [id],
   });
   if (!r.rows.length) return null;
   const row = r.rows[0] as any;
   return {
-    id: String(row.id), supplier: String(row.supplier), buyer: String(row.buyer),
+    id: String(row.id), tenant_id: String(row.tenant_id),
+    supplier: String(row.supplier), buyer: String(row.buyer),
     invoice_no: String(row.invoice_no), face: Number(row.face), currency: String(row.currency),
     terms: row.terms != null ? String(row.terms) : null,
     due_date: row.due_date != null ? String(row.due_date) : null,
     acknowledged_at: row.acknowledged_at != null ? String(row.acknowledged_at) : null,
     signature_json: row.signature_json != null ? String(row.signature_json) : null,
+    settled_at: row.settled_at != null ? String(row.settled_at) : null,
     created_at: String(row.created_at),
   };
 }
@@ -318,16 +347,18 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
   if (!rcv) return null;
 
   const cr = await db.execute({
-    sql: `SELECT financier, amount, currency, claim_date, status, signature_json, anchor_json, created_at
+    sql: `SELECT id, financier, amount, currency, claim_date, status, discharged_at, signature_json, anchor_json, created_at
           FROM receivable_claims WHERE receivable_id = ? ORDER BY created_at ASC`,
     args: [rcv.id],
   });
   const claims: PublicClaim[] = (cr.rows as any[]).map((r) => ({
+    id: String(r.id),
     financier: String(r.financier),
     amount: Number(r.amount),
     currency: String(r.currency),
     date: String(r.claim_date),
     status: (String(r.status) === 'discharged' ? 'discharged' : 'active') as ClaimStatus,
+    dischargedAt: r.discharged_at != null ? String(r.discharged_at) : null,
     signed: !!r.signature_json,
     anchored: !!r.anchor_json,
     registeredAt: String(r.created_at),
@@ -341,12 +372,106 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     : claimed === rcv.face ? 'fully_financed'
     : 'over_financed';
 
+  const settled = !!rcv.settled_at;
+  const hadClaims = claims.length > 0;
+  const lifecycle: ReceivableStatus['lifecycle'] =
+    settled ? 'settled'
+    : claimed > 0 ? 'financed'
+    : hadClaims ? 'released' // all claims discharged, not yet marked settled
+    : 'created';
+
   return {
     id: rcv.id,
     supplier: rcv.supplier, buyer: rcv.buyer, invoiceNo: rcv.invoice_no,
     face: rcv.face, currency: rcv.currency, terms: rcv.terms,
     dueDate: rcv.due_date, acknowledgedAt: rcv.acknowledged_at,
     createdAt: rcv.created_at, signed: !!rcv.signature_json,
-    claims, claimed, available, status,
+    settled, settledAt: rcv.settled_at,
+    claims, claimed, available, status, lifecycle,
   };
+}
+
+// ── Stage 4: settlement ──────────────────────────────────────────────────────
+
+export type DischargeClaimResult =
+  | { ok: true; digest: string; signed: boolean; claimed: number; available: number; face: number }
+  | { ok: false; error: 'not_found'; message: string }
+  | { ok: false; error: 'already_discharged'; message: string };
+
+/**
+ * Discharge a financing claim — the financing was repaid/released, so the claim no
+ * longer encumbers the receivable and its amount returns to the unencumbered headroom.
+ * Tenant-scoped to the claim's OWNER (the financier releases their OWN claim). Signs a
+ * dated discharge event; the digest is Bitcoin-anchorable. Idempotent-safe: a claim
+ * already discharged returns 'already_discharged' rather than double-signing.
+ */
+export async function dischargeClaim(tenantId: string, claimId: string): Promise<DischargeClaimResult> {
+  await ensureReceivablesTables();
+  const cr = await db.execute({
+    sql: `SELECT id, receivable_id, financier, amount, currency, status FROM receivable_claims
+          WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(claimId || '').trim(), tenantId],
+  });
+  if (!cr.rows.length) return { ok: false, error: 'not_found', message: 'No claim of yours found for that ID.' };
+  const claim = cr.rows[0] as any;
+  if (String(claim.status) === 'discharged') {
+    return { ok: false, error: 'already_discharged', message: 'That claim is already discharged.' };
+  }
+
+  const dischargedAt = nowUtc().slice(0, 10);
+  const manifest = {
+    v: 1, kind: 'claim_discharge',
+    receivableId: String(claim.receivable_id), claimId: String(claim.id),
+    financier: String(claim.financier), amount: Number(claim.amount),
+    currency: String(claim.currency), dischargedAt,
+  };
+  const { signature, digest } = sign(manifest);
+  await db.execute({
+    sql: `UPDATE receivable_claims
+          SET status = 'discharged', discharged_at = ?, discharge_json = ?, discharge_digest = ?
+          WHERE id = ? AND tenant_id = ? AND status <> 'discharged'`,
+    args: [dischargedAt, JSON.stringify(manifest), digest, claim.id, tenantId],
+  });
+
+  const rcv = await getReceivableRow(String(claim.receivable_id));
+  const claimed = rcv ? await sumActiveClaims(rcv.id) : 0;
+  const face = rcv?.face ?? 0;
+  return { ok: true, digest, signed: !!signature, claimed, available: face - claimed, face };
+}
+
+export type SettleReceivableResult =
+  | { ok: true; digest: string; signed: boolean; settledAt: string }
+  | { ok: false; error: 'not_found'; message: string }
+  | { ok: false; error: 'already_settled'; message: string };
+
+/**
+ * Mark a receivable settled — the buyer paid, closing the lifecycle. Tenant-scoped to
+ * the receivable's CREATOR (the supplier/originator confirms payment arrived). Signs a
+ * dated settlement event. Does not itself discharge outstanding claims — a financier
+ * releases their own claim via dischargeClaim — but records that the obligation is paid.
+ */
+export async function settleReceivable(tenantId: string, receivableId: string): Promise<SettleReceivableResult> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT id, supplier, buyer, invoice_no, face, currency, settled_at FROM receivables
+          WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(receivableId || '').trim(), tenantId],
+  });
+  if (!r.rows.length) return { ok: false, error: 'not_found', message: 'No receivable of yours found for that ID.' };
+  const row = r.rows[0] as any;
+  if (row.settled_at != null) return { ok: false, error: 'already_settled', message: 'That receivable is already settled.' };
+
+  const settledAt = nowUtc().slice(0, 10);
+  const manifest = {
+    v: 1, kind: 'receivable_settlement',
+    receivableId: String(row.id), invoiceNo: String(row.invoice_no),
+    face: Number(row.face), currency: String(row.currency), settledAt,
+  };
+  const { signature, digest } = sign(manifest);
+  await db.execute({
+    sql: `UPDATE receivables SET settled_at = ?, settlement_json = ?, settlement_digest = ?
+          WHERE id = ? AND tenant_id = ? AND settled_at IS NULL`,
+    args: [settledAt, JSON.stringify(manifest), digest, row.id, tenantId],
+  });
+  return { ok: true, digest, signed: !!signature, settledAt };
 }

@@ -98,8 +98,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .claim .who { font-weight: 600; font-size: .92rem; }
     .claim .cmeta { font-size: .72rem; color: var(--text-muted); margin-top: .12rem; }
     .claim .amt { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .claim-right { display: flex; align-items: center; gap: .6rem; }
+    .claim-off { opacity: .55; }
+    .claim-off .amt { text-decoration: line-through; }
+    .btn-sm { padding: .32rem .6rem; font-size: .76rem; font-weight: 600; }
     .seal { font-size: .64rem; color: var(--gain); border: 1px solid var(--gain-border); background: var(--gain-bg); border-radius: 999px; padding: .1rem .4rem; margin-left: .4rem; }
     .seal.unsigned { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
+    .seal.off { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
 
     .foot { margin-top: 1.6rem; font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; }
     .foot a { color: var(--text-secondary); }
@@ -198,18 +203,30 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const ccy = rcv.currency;
       const pct = Math.min(100, rcv.face > 0 ? (rcv.claimed / rcv.face) * 100 : 0);
       const over = rcv.status === 'over_financed';
-      const tagClass = rcv.status === 'fully_financed' ? 'full'
+      const tagClass = rcv.settled ? 'open'
+        : rcv.status === 'fully_financed' ? 'full'
         : rcv.status === 'over_financed' ? 'over'
         : rcv.status === 'partially_financed' ? 'partial' : 'open';
-      const tagLabel = rcv.status.replace(/_/g, ' ');
-      const claims = (rcv.claims || []).map((c: any) => `
-        <li class="claim">
+      const tagLabel = rcv.settled ? 'settled' : rcv.status.replace(/_/g, ' ');
+      const claims = (rcv.claims || []).map((c: any) => {
+        const discharged = c.status === 'discharged';
+        const release = (!discharged && !rcv.settled)
+          ? `<button class="btn btn-sm" data-discharge="${esc(c.id)}" type="button">Release</button>` : '';
+        return `
+        <li class="claim${discharged ? ' claim-off' : ''}">
           <div>
-            <div class="who">${esc(c.financier)}<span class="seal ${c.signed ? '' : 'unsigned'}">${c.signed ? '✓ signed' : 'unsigned'}</span>${c.anchored ? '<span class="seal">⛓ anchored</span>' : ''}</div>
-            <div class="cmeta">${esc(c.date)}${c.status === 'discharged' ? ' · discharged' : ''}</div>
+            <div class="who">${esc(c.financier)}<span class="seal ${c.signed ? '' : 'unsigned'}">${c.signed ? '✓ signed' : 'unsigned'}</span>${c.anchored ? '<span class="seal">⛓ anchored</span>' : ''}${discharged ? '<span class="seal off">released</span>' : ''}</div>
+            <div class="cmeta">${esc(c.date)}${discharged && c.dischargedAt ? ` · released ${esc(c.dischargedAt)}` : ''}</div>
           </div>
-          <div class="amt">${esc(fmtNum(c.amount, c.currency || ccy))}</div>
-        </li>`).join('') || `<li class="claim"><div class="who">No claims yet</div><div class="cmeta">Unfinanced</div></li>`;
+          <div class="claim-right">
+            <div class="amt">${esc(fmtNum(c.amount, c.currency || ccy))}</div>
+            ${release}
+          </div>
+        </li>`;
+      }).join('') || `<li class="claim"><div class="who">No claims yet</div><div class="cmeta">Unfinanced</div></li>`;
+      const settleBtn = rcv.settled
+        ? `<div class="note note-gain"><b>Settled${rcv.settledAt ? ` ${esc(rcv.settledAt)}` : ''}.</b> The buyer paid — the receivable's lifecycle is closed.</div>`
+        : `<div class="row"><button class="btn btn-sm" data-settle="${esc(rcv.id)}" type="button">Mark settled (buyer paid)</button></div>`;
       show(out, `
         <div class="status-head">
           <span class="status-lead">${esc(fmtNum(rcv.claimed, ccy))} of ${esc(fmtNum(rcv.face, ccy))} financed</span>
@@ -220,9 +237,28 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <span>Claimed <b>${esc(fmtNum(rcv.claimed, ccy))}</b></span>
           <span class="avail">Unencumbered <b>${esc(fmtNum(Math.max(0, rcv.available), ccy))}</b></span>
         </div>
-        <div class="rcv-meta"><b>${esc(rcv.supplier)}</b> → <b>${esc(rcv.buyer)}</b> · invoice ${esc(rcv.invoiceNo)}${rcv.dueDate ? ` · due ${esc(rcv.dueDate)}` : ''}${rcv.signed ? ' · receivable signed' : ''}</div>
+        <div class="rcv-meta"><b>${esc(rcv.supplier)}</b> → <b>${esc(rcv.buyer)}</b> · invoice ${esc(rcv.invoiceNo)}${rcv.dueDate ? ` · due ${esc(rcv.dueDate)}` : ''} · lifecycle ${esc(rcv.lifecycle)}${rcv.signed ? ' · receivable signed' : ''}</div>
         <ul class="claims">${claims}</ul>
-        ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}`);
+        ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
+        ${settleBtn}`);
+      out.querySelectorAll('[data-discharge]').forEach((b) =>
+        b.addEventListener('click', () => dischargeReq((b as HTMLElement).dataset.discharge!, rcv.id, out)));
+      out.querySelectorAll('[data-settle]').forEach((b) =>
+        b.addEventListener('click', () => settleReq((b as HTMLElement).dataset.settle!, out)));
+    }
+
+    // ---- Stage 4: settlement (authed) ----
+    async function dischargeReq(claimId: string, receivableId: string, out: HTMLElement) {
+      const j = await authedPost('/api/verify/receivables/discharge', { claimId }, out);
+      if (!j) return; // 401/403/network already surfaced
+      if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not release the claim.')}</div>`); return; }
+      query(receivableId);
+    }
+    async function settleReq(receivableId: string, out: HTMLElement) {
+      const j = await authedPost('/api/verify/receivables/settle', { receivableId }, out);
+      if (!j) return;
+      if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not settle the receivable.')}</div>`); return; }
+      query(receivableId);
     }
 
     $('q-btn').addEventListener('click', () => query(val('q-id')));
