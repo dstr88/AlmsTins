@@ -79,6 +79,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .out { display: none; margin-top: 1rem; }
     .out.show { display: block; }
     .status-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .55rem; }
+    .status-head-right { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
     .status-lead { font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; }
     /* RAG status indicator — reads in a glance for a financier */
     .rag { display: inline-flex; align-items: center; gap: .5rem; font-size: .7rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; padding: .34rem .78rem; border-radius: 999px; border: 1px solid var(--border-subtle); white-space: nowrap; }
@@ -411,7 +412,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       show(out, `
         <div class="status-head">
           <span class="status-lead">${esc(fmtNum(rcv.claimed, ccy))} of ${esc(fmtNum(rcv.face, ccy))} financed</span>
-          <span class="rag ${r.cls}"><span class="dot"></span>${esc(r.label)}</span>
+          <span class="status-head-right">
+            <span class="rag ${r.cls}"><span class="dot"></span>${esc(r.label)}</span>
+            <button class="btn btn-xs" data-refresh="1" type="button" title="Re-check this receivable">⟳ Refresh</button>
+          </span>
         </div>
         <div class="bar"><div class="fill ${rcv.claimed >= rcv.face ? 'full' : ''}" style="width:${pct}%"></div></div>
         <div class="legend">
@@ -425,6 +429,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         ${attBlock}
         ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
         ${settleBtn}`);
+      out.querySelector('[data-refresh]')?.addEventListener('click', () => query(rcv.id));
       out.querySelectorAll('[data-discharge]').forEach((b) =>
         b.addEventListener('click', () => dischargeReq((b as HTMLElement).dataset.discharge!, rcv.id, out)));
       out.querySelectorAll('[data-settle]').forEach((b) =>
