@@ -83,6 +83,10 @@ export function isPublicPath(pathname: string): boolean {
 		// Bitcoin-anchor endpoint — public; anchors a caller-supplied SHA-256 digest to
 		// Bitcoin via OpenTimestamps (no key, no identity, no signing). Backs /artifacts/sandbox.
 		pathname === '/api/verify/anchor' ||
+		// Receivables financing-status check — public, login-free; receivable ID → its
+		// financing status + claims (self-chosen labels only, never tenant_id/identity).
+		// The write endpoints (/api/verify/receivables, …/claim) stay behind the auth gate.
+		pathname === '/api/verify/receivables/lookup' ||
 		// Onboarding-email unsubscribe — public one-click opt-out (token-based)
 		pathname === '/api/email/unsubscribe' ||
 		// Record-proof signing public key — published so anyone can verify a record proof
