@@ -125,9 +125,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .btn-xs { padding: .18rem .5rem; font-size: .68rem; font-weight: 600; }
     .role { font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); border: 1px solid var(--accent-glow); background: var(--accent-soft); border-radius: 999px; padding: .08rem .4rem; margin-left: .4rem; }
     .att-head { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); margin: 1rem 0 .4rem; }
-    .mine-row { display: flex; justify-content: space-between; gap: .8rem; align-items: center; padding: .6rem .75rem; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--surface-card-2); margin-bottom: .5rem; cursor: pointer; font-size: .86rem; transition: border-color .15s; }
+    .mine-row { display: flex; justify-content: space-between; gap: .8rem; align-items: center; padding: .6rem .75rem; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--surface-card-2); margin-bottom: .5rem; font-size: .86rem; transition: border-color .15s; }
     .mine-row:hover { border-color: var(--accent-glow); }
-    .mine-row .mine-face { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .mine-main { flex: 1; min-width: 0; cursor: pointer; }
+    .mine-right { display: flex; align-items: center; gap: .6rem; }
+    .mine-face { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .mine-del { appearance: none; border: 1px solid var(--border-subtle); background: transparent; color: var(--text-muted); width: 24px; height: 24px; border-radius: 6px; cursor: pointer; line-height: 1; display: grid; place-items: center; font-size: .85rem; flex: none; transition: border-color .15s, color .15s; }
+    .mine-del:hover { border-color: var(--loss-border); color: var(--loss); }
     .seal { font-size: .64rem; color: var(--gain); border: 1px solid var(--gain-border); background: var(--gain-bg); border-radius: 999px; padding: .1rem .4rem; margin-left: .4rem; }
     .seal.unsigned { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
     .seal.off { color: var(--text-muted); border-color: var(--border-subtle); background: transparent; }
@@ -172,12 +176,41 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <div class="grid3">
         <div class="field"><label for="c-invoice">Invoice #</label><input id="c-invoice" type="text" placeholder="INV-4471" /></div>
         <div class="field"><label for="c-face">Face value</label><input id="c-face" type="number" min="0" step="any" placeholder="100000000" inputmode="decimal" /></div>
-        <div class="field"><label for="c-currency">Currency</label><input id="c-currency" type="text" value="NGN" maxlength="8" /></div>
+        <div class="field"><label for="c-currency">Currency</label>
+          <select id="c-currency">
+            <option value="NGN">NGN</option><option value="USD">USD</option>
+            <option value="EUR">EUR</option><option value="GBP">GBP</option>
+            <option value="__other">Other…</option>
+          </select>
+          <input id="c-currency-other" type="text" placeholder="Currency code" maxlength="8" style="display:none;margin-top:.4rem" />
+        </div>
       </div>
       <div class="grid3">
-        <div class="field"><label for="c-terms">Terms</label><input id="c-terms" type="text" placeholder="Net 60" /></div>
+        <div class="field"><label for="c-terms">Terms</label>
+          <select id="c-terms">
+            <option value="Net 30">Net 30</option><option value="Net 45">Net 45</option>
+            <option value="Net 60" selected>Net 60</option><option value="Net 90">Net 90</option>
+            <option value="__other">Other…</option>
+          </select>
+          <input id="c-terms-other" type="text" placeholder="e.g. Net 120" style="display:none;margin-top:.4rem" />
+        </div>
         <div class="field"><label for="c-due">Due date</label><input id="c-due" type="date" /></div>
         <div class="field"><label for="c-ack">Acknowledged</label><input id="c-ack" type="date" /></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label for="c-rtype">Receivable type</label>
+          <select id="c-rtype">
+            <option value="invoice">Invoice</option><option value="purchase_order">Purchase order</option>
+            <option value="contract">Contract receivable</option><option value="milestone">Milestone receivable</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field"><label for="c-payment">Payment method</label>
+          <select id="c-payment">
+            <option value="">Not specified</option><option value="bank_transfer">Bank transfer</option>
+            <option value="direct_debit">Direct debit</option><option value="other">Other</option>
+          </select>
+        </div>
       </div>
       <button class="btn btn-primary btn-full" id="c-btn" type="button">Create &amp; sign</button>
       <div class="out" id="c-out"></div>
@@ -325,7 +358,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <span>Claimed <b>${esc(fmtNum(rcv.claimed, ccy))}</b></span>
           <span class="avail">Unencumbered <b>${esc(fmtNum(Math.max(0, rcv.available), ccy))}</b></span>
         </div>
-        <div class="rcv-meta"><b>${esc(rcv.supplier)}</b> → <b>${esc(rcv.buyer)}</b> · invoice ${esc(rcv.invoiceNo)}${rcv.dueDate ? ` · due ${esc(rcv.dueDate)}` : ''} · lifecycle ${esc(rcv.lifecycle)}</div>
+        <div class="rcv-meta"><b>${esc(rcv.supplier)}</b> → <b>${esc(rcv.buyer)}</b> · invoice ${esc(rcv.invoiceNo)}${rcv.rtype ? ` · ${esc(String(rcv.rtype).replace(/_/g, ' '))}` : ''}${rcv.dueDate ? ` · due ${esc(rcv.dueDate)}` : ''} · lifecycle ${esc(rcv.lifecycle)}</div>
         ${STATE_LEGEND}
         <div class="row" style="margin-top:.55rem; align-items:center">${rcv.signed ? stateChip('signed') : stateChip('recorded')}${anchorPill('receivable', { id: rcv.id, anchored: rcv.anchored, anchoredAt: rcv.anchoredAt })}</div>
         <ul class="claims">${claims}</ul>
@@ -386,10 +419,25 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     }
 
     // ---- 2. CREATE (authed) ----
+    // "Other…" in a select reveals its free-text companion input.
+    function wireOther(selId: string, otherId: string) {
+      const sel = $(selId) as HTMLSelectElement;
+      sel.addEventListener('change', () => {
+        ($(otherId) as HTMLElement).style.display = sel.value === '__other' ? 'block' : 'none';
+      });
+    }
+    wireOther('c-currency', 'c-currency-other');
+    wireOther('c-terms', 'c-terms-other');
+    // Resolve a select that may be set to "__other" → its companion text value.
+    const pick = (selId: string, otherId: string) => {
+      const v = val(selId);
+      return v === '__other' ? val(otherId) : v;
+    };
+
     $('c-btn').addEventListener('click', async () => {
       const out = $('c-out'); const btn = $('c-btn') as HTMLButtonElement;
       const supplier = val('c-supplier'), buyer = val('c-buyer'), invoiceNo = val('c-invoice');
-      const face = Number(val('c-face')), currency = val('c-currency') || 'NGN';
+      const face = Number(val('c-face')), currency = pick('c-currency', 'c-currency-other') || 'NGN';
       if (!supplier || !buyer || !invoiceNo || !(face > 0)) {
         show(out, `<div class="note note-loss">Supplier, buyer, invoice #, and a positive face value are required.</div>`);
         return;
@@ -397,7 +445,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       btn.disabled = true;
       const j = await authedPost('/api/verify/receivables', {
         supplier, buyer, invoiceNo, face, currency,
-        terms: val('c-terms') || null, dueDate: val('c-due') || null, acknowledgedAt: val('c-ack') || null,
+        terms: pick('c-terms', 'c-terms-other') || null, dueDate: val('c-due') || null, acknowledgedAt: val('c-ack') || null,
+        rtype: val('c-rtype') || null, paymentMethod: val('c-payment') || null,
       }, out);
       btn.disabled = false;
       if (!j) return;
@@ -476,19 +525,29 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         if (!j.ok || !Array.isArray(j.receivables) || !j.receivables.length) return;
         const rows = j.receivables.map((rc: any) => `
           <div class="mine-row" data-mid="${esc(rc.id)}">
-            <div><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}</div>
-            <div class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</div>
+            <div class="mine-main"><b>${esc(rc.supplier)}</b> → ${esc(rc.buyer)} · ${esc(rc.invoiceNo)}${rc.settled ? ' · settled' : ''}</div>
+            <div class="mine-right"><span class="mine-face">${esc(fmtNum(rc.face, rc.currency))}</span><button class="mine-del" data-del="${esc(rc.id)}" type="button" title="Delete receivable" aria-label="Delete receivable">✕</button></div>
           </div>`).join('');
         $('mine-list').innerHTML = rows;
         $('mine-card').style.display = '';
-        $('mine-list').querySelectorAll('[data-mid]').forEach((el) =>
+        $('mine-list').querySelectorAll('.mine-main').forEach((el) =>
           el.addEventListener('click', () => {
-            const id = (el as HTMLElement).dataset.mid!;
+            const id = (el.closest('[data-mid]') as HTMLElement).dataset.mid!;
             ($('q-id') as HTMLInputElement).value = id;
             ($('k-id') as HTMLInputElement).value = id;
             ($('a-id') as HTMLInputElement).value = id;
             query(id);
             $('q-out').scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }));
+        $('mine-list').querySelectorAll('[data-del]').forEach((el) =>
+          el.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = (el as HTMLElement).dataset.del!;
+            if (!confirm('Delete this receivable and all its claims and attestations? This cannot be undone.')) return;
+            try {
+              const rr = await fetch('/api/verify/receivables?id=' + encodeURIComponent(id), { method: 'DELETE' });
+              if (rr.ok) loadMine();
+            } catch (err) { /* silent */ }
           }));
       } catch (e) { /* silent */ }
     }
