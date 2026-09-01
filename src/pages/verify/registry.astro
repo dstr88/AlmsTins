@@ -80,10 +80,30 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .out.show { display: block; }
     .status-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .55rem; }
     .status-lead { font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; }
-    .tag { font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; padding: .26rem .6rem; border-radius: 999px; font-weight: 700; }
-    .tag.partial { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-glow); }
-    .tag.full, .tag.over { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
-    .tag.open { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    /* RAG status indicator — reads in a glance for a financier */
+    .rag { display: inline-flex; align-items: center; gap: .5rem; font-size: .7rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; padding: .34rem .78rem; border-radius: 999px; border: 1px solid var(--border-subtle); white-space: nowrap; }
+    .rag .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+    .rag-open { color: var(--gain); background: var(--gain-bg); border-color: var(--gain-border); }
+    .rag-open .dot { background: var(--gain); box-shadow: 0 0 0 3px var(--gain-bg); }
+    .rag-partial { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
+    .rag-partial .dot { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-bg); }
+    .rag-full { color: var(--loss); background: var(--loss-bg); border-color: var(--loss-border); }
+    .rag-full .dot { background: var(--loss); box-shadow: 0 0 0 3px var(--loss-bg); }
+    .rag-settled { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
+    .rag-settled .dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .rag-disputed { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
+    .rag-disputed .dot { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-bg); }
+
+    /* State ladder — recorded → signed → attested → verified → disputed */
+    .state-legend { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; margin: .8rem 0 .1rem; font-size: .62rem; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
+    .state-legend .lbl { color: var(--text-secondary); font-weight: 700; margin-right: .25rem; }
+    .state-legend .arrow { opacity: .45; }
+    .state-chip { display: inline-flex; align-items: center; gap: .32rem; font-size: .6rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: .16rem .48rem; border-radius: 5px; border: 1px solid var(--border-subtle); }
+    .state-chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+    .sc-signed { color: var(--gain); background: var(--gain-bg); border-color: var(--gain-border); }
+    .sc-attested { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
+    .sc-recorded { color: var(--text-muted); }
+    .sc-disputed { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
     .bar { height: 15px; border-radius: 8px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); overflow: hidden; }
     .bar .fill { height: 100%; background: var(--accent); }
     .bar .fill.full { background: var(--loss); }
@@ -242,15 +262,29 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       return `<button class="btn btn-xs" data-anchor="${kind}:${esc(rec.id)}" type="button">Anchor to Bitcoin</button>`;
     }
 
+    // 🟢🟡🔴🔵 status a financier reads in a glance (his #2).
+    function rag(rcv: any) {
+      if (rcv.disputed) return { cls: 'rag-disputed', label: '⚠ Disputed' };
+      if (rcv.settled) return { cls: 'rag-settled', label: 'Settled / paid' };
+      if (rcv.status === 'partially_financed') return { cls: 'rag-partial', label: 'Partially encumbered' };
+      if (rcv.status === 'fully_financed' || rcv.status === 'over_financed') return { cls: 'rag-full', label: 'Fully encumbered' };
+      return { cls: 'rag-open', label: 'Available to finance' };
+    }
+    // recorded → signed → attested → verified → disputed (his #13).
+    function stateChip(state: string) {
+      const cls: any = { signed: 'sc-signed', attested: 'sc-attested', recorded: 'sc-recorded', disputed: 'sc-disputed' };
+      return `<span class="state-chip ${cls[state] || 'sc-recorded'}">${state.charAt(0).toUpperCase() + state.slice(1)}</span>`;
+    }
+    const STATE_LEGEND = `<div class="state-legend"><span class="lbl">State</span>`
+      + ['Recorded', 'Signed', 'Attested', 'Verified', 'Disputed']
+          .map((s, i) => (i ? '<span class="arrow">›</span>' : '') + `<span>${s}</span>`).join('')
+      + `</div>`;
+
     function renderStatus(out: HTMLElement, rcv: any) {
       const ccy = rcv.currency;
       const pct = Math.min(100, rcv.face > 0 ? (rcv.claimed / rcv.face) * 100 : 0);
       const over = rcv.status === 'over_financed';
-      const tagClass = rcv.settled ? 'open'
-        : rcv.status === 'fully_financed' ? 'full'
-        : rcv.status === 'over_financed' ? 'over'
-        : rcv.status === 'partially_financed' ? 'partial' : 'open';
-      const tagLabel = rcv.settled ? 'settled' : rcv.status.replace(/_/g, ' ');
+      const r = rag(rcv);
       const claims = (rcv.claims || []).map((c: any) => {
         const discharged = c.status === 'discharged';
         const release = (!discharged && !rcv.settled)
@@ -259,7 +293,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         return `
         <li class="claim${discharged ? ' claim-off' : ''}">
           <div>
-            <div class="who">${esc(c.financier)}<span class="seal ${c.signed ? '' : 'unsigned'}">${c.signed ? '✓ signed' : 'unsigned'}</span>${discharged ? '<span class="seal off">released</span>' : ''}</div>
+            <div class="who">${esc(c.financier)} ${c.signed ? stateChip('signed') : stateChip('recorded')}${discharged ? '<span class="seal off">released</span>' : ''}</div>
             <div class="cmeta">${esc(c.date)}${discharged && c.dischargedAt ? ` · released ${esc(c.dischargedAt)}` : ''}</div>
             ${anchor ? `<div class="row" style="margin-top:.35rem">${anchor}</div>` : ''}
           </div>
@@ -272,7 +306,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const atts = (rcv.attestations || []).map((a: any) => `
         <li class="claim">
           <div>
-            <div class="who">${esc(a.label)}<span class="role">${esc(a.role)}</span><span class="seal ${a.signed ? '' : 'unsigned'}">${a.signed ? '✓ signed' : 'unsigned'}</span></div>
+            <div class="who">${esc(a.label)}<span class="role">${esc(a.role)}</span> ${stateChip('attested')}</div>
             <div class="cmeta">“${esc(a.statement)}” · ${esc(a.date)}</div>
             <div class="row" style="margin-top:.35rem">${anchorPill('attestation', a)}</div>
           </div>
@@ -284,15 +318,16 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       show(out, `
         <div class="status-head">
           <span class="status-lead">${esc(fmtNum(rcv.claimed, ccy))} of ${esc(fmtNum(rcv.face, ccy))} financed</span>
-          <span class="tag ${tagClass}">${esc(tagLabel)}</span>
+          <span class="rag ${r.cls}"><span class="dot"></span>${esc(r.label)}</span>
         </div>
         <div class="bar"><div class="fill ${rcv.claimed >= rcv.face ? 'full' : ''}" style="width:${pct}%"></div></div>
         <div class="legend">
           <span>Claimed <b>${esc(fmtNum(rcv.claimed, ccy))}</b></span>
           <span class="avail">Unencumbered <b>${esc(fmtNum(Math.max(0, rcv.available), ccy))}</b></span>
         </div>
-        <div class="rcv-meta"><b>${esc(rcv.supplier)}</b> → <b>${esc(rcv.buyer)}</b> · invoice ${esc(rcv.invoiceNo)}${rcv.dueDate ? ` · due ${esc(rcv.dueDate)}` : ''} · lifecycle ${esc(rcv.lifecycle)}${rcv.signed ? ' · receivable signed' : ''}</div>
-        <div class="row" style="margin-top:.5rem">${anchorPill('receivable', { id: rcv.id, anchored: rcv.anchored, anchoredAt: rcv.anchoredAt })}</div>
+        <div class="rcv-meta"><b>${esc(rcv.supplier)}</b> → <b>${esc(rcv.buyer)}</b> · invoice ${esc(rcv.invoiceNo)}${rcv.dueDate ? ` · due ${esc(rcv.dueDate)}` : ''} · lifecycle ${esc(rcv.lifecycle)}</div>
+        ${STATE_LEGEND}
+        <div class="row" style="margin-top:.55rem; align-items:center">${rcv.signed ? stateChip('signed') : stateChip('recorded')}${anchorPill('receivable', { id: rcv.id, anchored: rcv.anchored, anchoredAt: rcv.anchoredAt })}</div>
         <ul class="claims">${claims}</ul>
         ${attBlock}
         ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
