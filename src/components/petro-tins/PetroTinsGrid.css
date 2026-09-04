@@ -145,7 +145,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  max-width: 780px;
+  /* Wide enough to seat three expense grids abreast (3 x 16rem + gaps). */
+  max-width: 1080px;
   margin: 0 auto;
   width: 100%;
 }

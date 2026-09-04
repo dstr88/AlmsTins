@@ -8,10 +8,11 @@
 }
 .sh__x:hover { color: var(--loss); }
 
+/* Three abreast on a normal screen; drops to two then one as it narrows. */
 .sh__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  align-items: start;
   gap: 1.25rem;
 }
-.sh__row > .xg { flex: 1 1 18rem; min-width: 0; }
+.sh__row > .xg { min-width: 0; }
