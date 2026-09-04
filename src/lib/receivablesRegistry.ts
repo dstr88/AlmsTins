@@ -697,3 +697,34 @@ export async function setRecordAnchor(
     args: [anchorJson, String(id || '').trim(), tenantId],
   });
 }
+
+/**
+ * Every still-pending anchor across all three registry tables (cross-tenant maintenance).
+ * "Pending" = a receipt is stored but Bitcoin has not confirmed it yet (no anchoredAt).
+ * OpenTimestamps sends no push, so the upgrade-anchors cron uses this to find receipts
+ * that are ready to be pulled down and persisted, without anyone opening the page.
+ * Returns tenant_id per row so the caller persists via the tenant-scoped setRecordAnchor.
+ */
+export async function listPendingAnchors(
+  limit = 100,
+): Promise<Array<{ kind: AnchorRecordKind; id: string; tenantId: string; anchorJson: string }>> {
+  await ensureReceivablesTables();
+  const out: Array<{ kind: AnchorRecordKind; id: string; tenantId: string; anchorJson: string }> = [];
+  const scan = async (kind: AnchorRecordKind) => {
+    const table = ANCHOR_TABLE[kind];
+    const r = await db.execute({
+      sql: `SELECT id, tenant_id, anchor_json FROM ${table}
+            WHERE anchor_json IS NOT NULL ORDER BY created_at DESC LIMIT 500`,
+      args: [],
+    });
+    for (const row of r.rows as any[]) {
+      const aj = String(row.anchor_json);
+      if (anchoredAtOf(aj)) continue; // already confirmed — nothing to pull
+      out.push({ kind, id: String(row.id), tenantId: String(row.tenant_id), anchorJson: aj });
+    }
+  };
+  await scan('receivable');
+  await scan('claim');
+  await scan('attestation');
+  return out.slice(0, limit);
+}

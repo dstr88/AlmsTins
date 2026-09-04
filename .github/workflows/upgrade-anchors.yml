@@ -1,0 +1,25 @@
+name: Upgrade Anchors
+
+# Hourly: pull down any Bitcoin confirmations that landed and record them, so a
+# receivable's timestamp becomes permanent without anyone opening the page.
+on:
+  schedule:
+    - cron: '15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  upgrade-anchors:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger upgrade-anchors
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
+            exit 1
+          fi
+          curl -sS --fail --max-time 600 \
+            "$SYNC_URL/api/cron/upgrade-anchors?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"
