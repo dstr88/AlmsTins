@@ -1,0 +1,325 @@
+---
+// Almstins Verify — Financing Desk (financier-facing view).
+//
+// A role-scoped console over the same endpoints as /verify/registry. Where the registry
+// page is a workbench showing every tool at once, this presents one job: decide whether
+// to advance against a receivable, and record the claim if you do.
+//
+// The headline figure is the unencumbered headroom, because that is the number the
+// financing decision turns on. The buyer's acknowledgment is surfaced as its own
+// evidence row: it is the keystone a lender leans on, so its absence should be loud.
+//
+// Read-only against everything except this tenant's own claims. No tenant_id or identity
+// is ever rendered — only self-chosen financier labels. Signed-in only: unauthenticated
+// visitors are redirected to /login and returned here.
+import '@/styles/tokens.css';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+export const prerender = false;
+
+// Both role desks require a signed-in account. The no-account public check still lives
+// at /verify/registry; these are the working desks for named parties, so they sign in.
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/login?next=/verify/desk', 302);
+
+const prefillId = Astro.url.searchParams.get('id') ?? '';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Financing Desk — Almstins Verify</title>
+  <meta name="description" content="Check what is already claimed against a receivable before you advance against it." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2rem 1.1rem 5rem;
+    }
+    .wrap { max-width: 60rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
+
+    header { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .35rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); line-height: 1.15; font-weight: 700; }
+    .lede { color: var(--text-secondary); font-size: .95rem; max-width: 40rem; }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.15rem 1.3rem; }
+    .card h2 { font-size: 1.02rem; font-weight: 700; margin-bottom: .25rem; }
+    .card .hint { font-size: .82rem; color: var(--text-muted); margin-bottom: .9rem; }
+
+    .row { display: flex; gap: .6rem; flex-wrap: wrap; }
+    input, select {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .6rem .75rem; font-size: .9rem; font-family: inherit; min-width: 0;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    input::placeholder { color: var(--text-muted); }
+    .grow { flex: 1 1 16rem; }
+    button {
+      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 9px;
+      padding: .6rem 1.05rem; font-size: .88rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.ghost { background: transparent; border: 1px solid var(--border-bright); color: var(--text-secondary); font-weight: 600; }
+    button.ghost:hover { background: var(--surface-hover); filter: none; }
+    button.small { padding: .34rem .7rem; font-size: .78rem; }
+
+    /* ── Decision banner: the number the call turns on ── */
+    .verdict { border-radius: 13px; padding: 1.1rem 1.25rem; border: 1px solid; display: flex; flex-wrap: wrap; gap: 1rem; align-items: baseline; justify-content: space-between; }
+    .verdict.clear { background: var(--gain-bg); border-color: var(--gain-border); }
+    .verdict.partial { background: var(--warn-bg, var(--accent-soft)); border-color: var(--warn-border, var(--accent-glow)); }
+    .verdict.blocked { background: var(--loss-bg); border-color: var(--loss-border); }
+    .verdict__label { font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
+    .verdict.clear .verdict__label { color: var(--gain); }
+    .verdict.partial .verdict__label { color: var(--warning, var(--accent)); }
+    .verdict.blocked .verdict__label { color: var(--loss); }
+    .verdict__num { font-size: clamp(1.5rem, 4vw, 2.05rem); font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .verdict__sub { font-size: .84rem; color: var(--text-secondary); }
+
+    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .85rem 1.1rem; margin-top: 1rem; }
+    .fact__k { font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
+    .fact__v { font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums; word-break: break-word; }
+
+    /* Evidence rows — the buyer ack is the keystone, so absence is loud */
+    .evidence { margin-top: 1.05rem; display: flex; flex-direction: column; gap: .5rem; }
+    .ev { display: flex; gap: .7rem; align-items: flex-start; padding: .65rem .8rem; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--surface-card-2); }
+    .ev.good { border-color: var(--gain-border); background: var(--gain-bg); }
+    .ev.missing { border-color: var(--loss-border); background: var(--loss-bg); }
+    .ev__icon { flex: 0 0 auto; font-size: .95rem; line-height: 1.5; }
+    .ev__t { font-size: .88rem; font-weight: 700; }
+    .ev__d { font-size: .8rem; color: var(--text-secondary); }
+
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; margin-top: .3rem; }
+    th { text-align: right; font-size: .66rem; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); font-weight: 700; padding: .3rem .55rem; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
+    th:first-child { text-align: left; }
+    td { padding: .5rem .55rem; border-bottom: 1px solid var(--border-subtle); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td:first-child { text-align: left; white-space: normal; }
+    tr.discharged td { opacity: .5; }
+    .tag { font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: .1rem .45rem; border-radius: 99px; border: 1px solid; }
+    .tag.active { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
+    .tag.off { color: var(--text-muted); border-color: var(--border-subtle); background: var(--surface-card); }
+
+    .note { border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; margin-top: .8rem; display: none; }
+    .note.show { display: block; }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); color: var(--text-primary); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-primary); }
+    .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); color: var(--text-primary); }
+    .muted { color: var(--text-muted); font-size: .8rem; }
+    .foot { margin-top: 1.4rem; font-size: .77rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; }
+    .foot a { color: var(--accent); }
+    #panel { display: none; }
+    #panel.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <header>
+      <div class="eyebrow">Almstins Verify</div>
+      <h1>Financing Desk</h1>
+      <p class="lede">Before you advance, see everything already standing against a receivable. Paste the ID your client gave you.</p>
+    </header>
+
+    <div class="card">
+      <h2>Check a receivable</h2>
+      <p class="hint">Nothing here reveals who holds the record, only what stands against it.</p>
+      <div class="row">
+        <input id="q-id" class="grow" placeholder="Receivable ID" value={prefillId} spellcheck="false" autocomplete="off" />
+        <button id="q-go">Check</button>
+      </div>
+      <div id="q-out" class="note"></div>
+    </div>
+
+    <div id="panel">
+      <div id="verdict"></div>
+
+      <div class="card" style="margin-top:1.15rem">
+        <h2>The record</h2>
+        <p class="hint">What the parties have put their name to.</p>
+        <div id="facts" class="facts"></div>
+        <div id="evidence" class="evidence"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem">
+        <h2>Claims standing against it</h2>
+        <p class="hint">Every advance registered by any financier holding this ID.</p>
+        <div id="claims"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem">
+        <h2>Register your claim</h2>
+        <p class="hint">Signed and timestamped to Bitcoin. A claim over the remaining headroom is refused.</p>
+        <div class="row">
+          <input id="c-fin" class="grow" placeholder="Your firm" autocomplete="off" />
+          <input id="c-amt" type="number" step="0.01" min="0" placeholder="Amount advanced" style="flex:0 1 12rem" />
+          <input id="c-date" type="date" style="flex:0 1 11rem" />
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <button id="c-go">Sign, register &amp; timestamp</button>
+        </div>
+        <div id="c-out" class="note"></div>
+      </div>
+    </div>
+
+    <p class="foot">
+      This desk records and proves. It does not confirm that goods shipped or money moved, and it never says who anyone is.
+      Full workbench at <a href="/verify/registry">/verify/registry</a>.
+    </p>
+  </div>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const val = (id: string) => ($(id)?.value ?? '').trim();
+    function esc(s: unknown) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>
+      )[c]!);
+    }
+    function money(n: number, ccy: string) {
+      const v = Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return `${ccy} ${v}`;
+    }
+    function show(el: HTMLElement, html: string, cls = 'note-info') {
+      el.className = `note show ${cls}`; el.innerHTML = html;
+    }
+    function hide(el: HTMLElement) { el.className = 'note'; el.innerHTML = ''; }
+
+    let current: any = null;
+
+    async function check(id?: string) {
+      const rid = (id ?? val('q-id')).trim();
+      const out = $('q-out') as unknown as HTMLElement;
+      const panel = document.getElementById('panel')!;
+      if (!rid) { show(out, 'Paste a receivable ID first.', 'note-loss'); return; }
+      show(out, 'Checking…');
+      try {
+        const r = await fetch('/api/verify/receivables/lookup?id=' + encodeURIComponent(rid));
+        const j = await r.json();
+        if (!j.ok || !j.found) {
+          hide(out); show(out, 'No receivable found for that ID. Check it with whoever sent it.', 'note-loss');
+          panel.classList.remove('show'); current = null; return;
+        }
+        hide(out);
+        current = j.receivable;
+        render(current);
+        panel.classList.add('show');
+      } catch (e) {
+        show(out, 'Could not reach the registry. Try again.', 'note-loss');
+      }
+    }
+
+    function render(r: any) {
+      const ccy = r.currency || 'NGN';
+      const avail = Number(r.available || 0);
+      const claimed = Number(r.claimed || 0);
+
+      // ── Decision banner ──
+      let cls = 'clear', label = 'Unfinanced', sub = 'Nothing is claimed against this receivable.';
+      if (r.settled) { cls = 'blocked'; label = 'Settled'; sub = 'This receivable is closed.'; }
+      else if (r.status === 'over_financed') { cls = 'blocked'; label = 'Over-financed'; sub = 'Claims exceed the face value. Do not advance.'; }
+      else if (avail <= 0) { cls = 'blocked'; label = 'Fully financed'; sub = 'No headroom remains. A further advance would be a duplicate.'; }
+      else if (claimed > 0) { cls = 'partial'; label = 'Partially financed'; sub = `${money(claimed, ccy)} is already claimed by another financier.`; }
+      document.getElementById('verdict')!.innerHTML = `
+        <div class="verdict ${cls}">
+          <div>
+            <div class="verdict__label">${esc(label)} &middot; unencumbered headroom</div>
+            <div class="verdict__num">${esc(money(Math.max(0, avail), ccy))}</div>
+            <div class="verdict__sub">${esc(sub)}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="verdict__label">Face value</div>
+            <div class="verdict__num" style="font-size:1.15rem">${esc(money(r.face, ccy))}</div>
+          </div>
+        </div>`;
+
+      // ── Facts ──
+      const f = (k: string, v: string) => `<div><div class="fact__k">${esc(k)}</div><div class="fact__v">${esc(v)}</div></div>`;
+      document.getElementById('facts')!.innerHTML =
+        f('Supplier', r.supplier) + f('Buyer', r.buyer) + f('Invoice', r.invoiceNo) +
+        f('Terms', r.terms || 'not stated') + f('Due', r.dueDate || 'not stated') +
+        f('Recorded', String(r.createdAt || '').slice(0, 10));
+
+      // ── Evidence: the buyer's acknowledgment is the keystone ──
+      const buyerAck = (r.attestations || []).find((a: any) => a.role === 'buyer') || null;
+      const acked = !!buyerAck || !!r.acknowledgedAt;
+      const ackWhen = buyerAck?.attestedAt || r.acknowledgedAt || '';
+      const ev: string[] = [];
+      ev.push(acked
+        ? `<div class="ev good"><div class="ev__icon">&#10003;</div><div><div class="ev__t">Buyer acknowledged the debt</div><div class="ev__d">${esc(buyerAck ? buyerAck.label : r.buyer)} confirmed this obligation${ackWhen ? ' on ' + esc(String(ackWhen).slice(0, 10)) : ''}. This is the evidence that does not come from the seller.</div></div></div>`
+        : `<div class="ev missing"><div class="ev__icon">!</div><div><div class="ev__t">No buyer acknowledgment</div><div class="ev__d">Nobody on the paying side has confirmed this debt. You are relying on the seller's paperwork alone.</div></div></div>`);
+      ev.push(r.anchored
+        ? `<div class="ev good"><div class="ev__icon">&#9939;</div><div><div class="ev__t">Timestamped to Bitcoin</div><div class="ev__d">${r.anchoredAt ? 'Confirmed in a block on ' + esc(String(r.anchoredAt).slice(0, 10)) + '. The record\'s date cannot be forged or backdated.' : 'Submitted, pending a block. Once confirmed the date cannot be moved.'}</div></div></div>`
+        : `<div class="ev"><div class="ev__icon">&middot;</div><div><div class="ev__t">Not yet timestamped</div><div class="ev__d">The record is signed but its date is not yet anchored publicly.</div></div></div>`);
+      document.getElementById('evidence')!.innerHTML = ev.join('');
+
+      // ── Claims ──
+      const claims = r.claims || [];
+      document.getElementById('claims')!.innerHTML = claims.length === 0
+        ? `<p class="muted">No claims registered. The full face value is unencumbered.</p>`
+        : `<table><thead><tr><th>Financier</th><th>Amount</th><th>Registered</th><th>Status</th></tr></thead><tbody>` +
+          claims.map((c: any) => `
+            <tr class="${c.status === 'discharged' ? 'discharged' : ''}">
+              <td>${esc(c.financier)}${c.anchored ? ' <span class="muted">&#9939;</span>' : ''}</td>
+              <td>${esc(money(c.amount, c.currency || ccy))}</td>
+              <td>${esc(String(c.registeredAt || '').slice(0, 10))}</td>
+              <td><span class="tag ${c.status === 'discharged' ? 'off' : 'active'}">${esc(c.status === 'discharged' ? 'discharged' : 'active')}</span></td>
+            </tr>`).join('') + `</tbody></table>`;
+
+      // Prefill the claim amount with the remaining headroom
+      const amt = $('c-amt'); if (amt && !amt.value && avail > 0) amt.value = String(avail);
+      const d = $('c-date'); if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+    }
+
+    async function registerClaim() {
+      const out = $('c-out') as unknown as HTMLElement;
+      if (!current) { show(out, 'Check a receivable first.', 'note-loss'); return; }
+      const financier = val('c-fin'), amount = Number(val('c-amt'));
+      if (!financier) { show(out, 'Enter your firm name.', 'note-loss'); return; }
+      if (!amount || amount <= 0) { show(out, 'Enter the amount you are advancing.', 'note-loss'); return; }
+      show(out, 'Signing and registering…');
+      try {
+        const r = await fetch('/api/verify/receivables/claim', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ receivableId: current.id, financier, amount, date: val('c-date') || undefined }),
+        });
+        const j = await r.json();
+        if (r.status === 401) { show(out, 'Your session ended. <a href="/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a> to register the claim.', 'note-loss'); return; }
+        if (!j.ok) {
+          if (j.error === 'exceeds_available') {
+            show(out, `<b>Refused. This would be a duplicate.</b><br>Only ${esc(money(Number(j.available || 0), current.currency || 'NGN'))} is unencumbered, and you tried to claim ${esc(money(amount, current.currency || 'NGN'))}. The write was rejected before any money moved.`, 'note-loss');
+          } else {
+            show(out, 'Could not register that claim: ' + esc(j.error || 'unknown error'), 'note-loss');
+          }
+          await check(current.id);
+          return;
+        }
+        show(out, `<b>Claim registered and signed.</b> Now ${esc(money(Number(j.claimed || 0), current.currency || 'NGN'))} claimed, ${esc(money(Math.max(0, Number(j.available || 0)), current.currency || 'NGN'))} unencumbered.<br><span id="k-anchor">&#9203; Timestamping to Bitcoin…</span>`, 'note-gain');
+        try {
+          const a = await (await fetch('/api/verify/receivables/anchor', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind: 'claim', id: j.claimId }),
+          })).json();
+          const el = document.getElementById('k-anchor');
+          if (el) el.textContent = a && a.ok
+            ? '⏳ Timestamp submitted to Bitcoin, pending a block (~1-2h). Its date can no longer be forged or backdated.'
+            : 'Signed. The Bitcoin timestamp did not submit; you can anchor it from the workbench.';
+        } catch { /* non-fatal */ }
+        await check(current.id);
+      } catch (e) {
+        show(out, 'Could not reach the registry. Try again.', 'note-loss');
+      }
+    }
+
+    document.getElementById('q-go')?.addEventListener('click', () => check());
+    $('q-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') check(); });
+    document.getElementById('c-go')?.addEventListener('click', registerClaim);
+
+    if (val('q-id')) check();
+  </script>
+</body>
+</html>

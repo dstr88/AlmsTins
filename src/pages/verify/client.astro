@@ -1,0 +1,341 @@
+---
+// Almstins Verify — Client Portal (supplier-facing view).
+//
+// The counterpart to /verify/desk. Where the desk is built for the decision to advance,
+// this is built for the party who owns the receivable: record it, hand the ID to a
+// financier, and watch what gets claimed against it.
+//
+// The ID handoff is the hero moment. The receivable ID is the capability: whoever holds
+// it can check the record, and nobody can enumerate it. So copying and sending it is the
+// act that grants access, and the page treats it that way.
+//
+// Signed-in only: unauthenticated visitors are redirected to /login and returned here.
+// No tenant_id or identity is ever rendered.
+import '@/styles/tokens.css';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+export const prerender = false;
+
+// Signed-in only, same as the financing desk. The public no-account check remains at
+// /verify/registry.
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/login?next=/verify/client', 302);
+
+const prefillId = Astro.url.searchParams.get('id') ?? '';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Client Portal — Almstins Verify</title>
+  <meta name="description" content="Record a receivable, hand the ID to your financier, and see what is claimed against it." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2rem 1.1rem 5rem;
+    }
+    .wrap { max-width: 56rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
+
+    header { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .35rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); line-height: 1.15; font-weight: 700; }
+    .lede { color: var(--text-secondary); font-size: .95rem; max-width: 40rem; }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.15rem 1.3rem; }
+    .card h2 { font-size: 1.02rem; font-weight: 700; margin-bottom: .25rem; }
+    .card .hint { font-size: .82rem; color: var(--text-muted); margin-bottom: .9rem; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .65rem; }
+    label { display: flex; flex-direction: column; gap: .28rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+    input, select {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .58rem .72rem; font-size: .9rem; font-family: inherit;
+      font-weight: 400; letter-spacing: normal; text-transform: none; min-width: 0;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    input::placeholder { color: var(--text-muted); }
+    .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+    .grow { flex: 1 1 16rem; }
+    button {
+      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 9px;
+      padding: .6rem 1.05rem; font-size: .88rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.ghost { background: transparent; border: 1px solid var(--border-bright); color: var(--text-secondary); font-weight: 600; }
+    button.ghost:hover { background: var(--surface-hover); filter: none; }
+    button.small { padding: .34rem .7rem; font-size: .78rem; }
+
+    /* ── The handoff: the ID is the capability ── */
+    .handoff { background: var(--accent-soft); border: 1px solid var(--accent-glow); border-radius: 14px; padding: 1.2rem 1.3rem; display: none; }
+    .handoff.show { display: block; }
+    .handoff__label { font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+    .handoff__id {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; word-break: break-all;
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      padding: .6rem .7rem; margin: .55rem 0 .7rem; user-select: all; line-height: 1.5;
+    }
+    .handoff__why { font-size: .84rem; color: var(--text-secondary); margin-top: .6rem; }
+
+    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .85rem 1.1rem; }
+    .fact__k { font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
+    .fact__v { font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums; word-break: break-word; }
+
+    .bar { height: 9px; border-radius: 99px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); overflow: hidden; margin: .5rem 0 .35rem; }
+    .bar__fill { height: 100%; background: var(--accent); }
+    .split { display: flex; justify-content: space-between; font-size: .82rem; color: var(--text-secondary); }
+
+    .ev { display: flex; gap: .7rem; align-items: flex-start; padding: .65rem .8rem; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--surface-card-2); margin-top: .5rem; }
+    .ev.good { border-color: var(--gain-border); background: var(--gain-bg); }
+    .ev.missing { border-color: var(--loss-border); background: var(--loss-bg); }
+    .ev__t { font-size: .88rem; font-weight: 700; }
+    .ev__d { font-size: .8rem; color: var(--text-secondary); }
+
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+    th { text-align: right; font-size: .66rem; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); font-weight: 700; padding: .3rem .55rem; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
+    th:first-child { text-align: left; }
+    td { padding: .5rem .55rem; border-bottom: 1px solid var(--border-subtle); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td:first-child { text-align: left; white-space: normal; }
+    tr.discharged td { opacity: .5; }
+
+    .note { border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; margin-top: .8rem; display: none; }
+    .note.show { display: block; }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); }
+    .muted { color: var(--text-muted); font-size: .8rem; }
+    .mine { display: flex; flex-direction: column; gap: .4rem; }
+    .mine__row { display: flex; gap: .6rem; align-items: center; justify-content: space-between; padding: .5rem .6rem; border: 1px solid var(--border-subtle); border-radius: 9px; background: var(--surface-card-2); font-size: .86rem; }
+    .mine__row b { font-weight: 700; }
+    .foot { margin-top: 1.4rem; font-size: .77rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; }
+    .foot a { color: var(--accent); }
+    #track { display: none; }
+    #track.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <header>
+      <div class="eyebrow">Almstins Verify</div>
+      <h1>Client Portal</h1>
+      <p class="lede">Record what you are owed, hand the ID to your financier, and see exactly what gets claimed against it.</p>
+    </header>
+
+    <div class="card">
+      <h2>Record a receivable</h2>
+      <p class="hint">Your half of the record. Your financier fills in theirs.</p>
+      <div class="grid">
+        <label>Supplier (you)<input id="f-sup" placeholder="Your company" autocomplete="off" /></label>
+        <label>Buyer (owes you)<input id="f-buy" placeholder="Their company" autocomplete="off" /></label>
+        <label>Invoice number<input id="f-inv" placeholder="INV-2093" autocomplete="off" /></label>
+        <label>Face value<input id="f-face" type="number" step="0.01" min="0" placeholder="50000000" /></label>
+        <label>Currency
+          <select id="f-ccy">
+            <option value="NGN">NGN</option><option value="USD">USD</option>
+            <option value="EUR">EUR</option><option value="GBP">GBP</option>
+            <option value="GHS">GHS</option><option value="KES">KES</option><option value="ZAR">ZAR</option>
+          </select>
+        </label>
+        <label>Payment terms
+          <select id="f-terms">
+            <option value="">Not stated</option>
+            <option value="net 30">Net 30</option><option value="net 60">Net 60</option>
+            <option value="net 90">Net 90</option><option value="on delivery">On delivery</option>
+          </select>
+        </label>
+        <label>Due date<input id="f-due" type="date" /></label>
+      </div>
+      <div class="row" style="margin-top:.85rem">
+        <button id="f-go">Sign &amp; record</button>
+        <span class="muted">Signed with the Almstins key and hashed into an ID you control.</span>
+      </div>
+      <div id="f-out" class="note"></div>
+    </div>
+
+    <div id="handoff" class="handoff">
+      <div class="handoff__label">Send this to your financier</div>
+      <div id="handoff-id" class="handoff__id"></div>
+      <div class="row">
+        <button id="copy-id" class="small">Copy ID</button>
+        <button id="copy-link" class="small ghost">Copy financier link</button>
+        <button id="go-track" class="small ghost">Track it</button>
+      </div>
+      <p class="handoff__why">This ID is the key. Anyone holding it can check the record, and nobody can find it without it. Handing it over is how you grant access, so send it only to the people financing this invoice.</p>
+    </div>
+
+    <div class="card">
+      <h2>Track a receivable</h2>
+      <p class="hint">See what is claimed against it and whether your buyer has confirmed.</p>
+      <div class="row">
+        <input id="t-id" class="grow" placeholder="Receivable ID" value={prefillId} spellcheck="false" autocomplete="off" />
+        <button id="t-go">Check</button>
+      </div>
+      <div id="t-out" class="note"></div>
+    </div>
+
+    <div id="track">
+      <div class="card">
+        <h2>Where it stands</h2>
+        <div id="t-facts" class="facts"></div>
+        <div style="margin-top:1rem">
+          <div class="bar"><div id="t-bar" class="bar__fill" style="width:0%"></div></div>
+          <div class="split"><span id="t-claimed"></span><span id="t-avail"></span></div>
+        </div>
+        <div id="t-ev"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem">
+        <h2>Claimed against it</h2>
+        <div id="t-claims"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Your receivables</h2>
+      <p class="hint">Everything you have recorded.</p>
+      <div id="mine" class="mine"><p class="muted">Loading…</p></div>
+    </div>
+
+    <p class="foot">
+      Almstins records and proves. It never holds your money, never moves it, and never says who anyone is.
+      Financier view at <a href="/verify/desk">/verify/desk</a>.
+    </p>
+  </div>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const val = (id: string) => ($(id)?.value ?? '').trim();
+    function esc(s: unknown) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>
+      )[c]!);
+    }
+    function money(n: number, ccy: string) {
+      return `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    function show(el: HTMLElement, html: string, cls = 'note-info') { el.className = `note show ${cls}`; el.innerHTML = html; }
+    function hide(el: HTMLElement) { el.className = 'note'; el.innerHTML = ''; }
+
+    let lastId = '';
+
+    async function createReceivable() {
+      const out = $('f-out') as unknown as HTMLElement;
+      const supplier = val('f-sup'), buyer = val('f-buy'), invoiceNo = val('f-inv');
+      const face = Number(val('f-face'));
+      if (!supplier || !buyer || !invoiceNo) { show(out, 'Supplier, buyer, and invoice number are all required.', 'note-loss'); return; }
+      if (!face || face <= 0) { show(out, 'Enter the face value of the invoice.', 'note-loss'); return; }
+      show(out, 'Signing and recording…');
+      try {
+        const r = await fetch('/api/verify/receivables', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            supplier, buyer, invoiceNo, face,
+            currency: val('f-ccy') || 'NGN',
+            terms: val('f-terms') || null,
+            dueDate: val('f-due') || null,
+          }),
+        });
+        const j = await r.json();
+        if (r.status === 401) { show(out, 'Your session ended. <a href="/login?next=/verify/client" style="color:var(--accent)">Sign in again</a> to record it.', 'note-loss'); return; }
+        if (!j.ok) { show(out, esc(j.message || j.error || 'Could not record that.'), 'note-loss'); return; }
+        hide(out);
+        lastId = j.id;
+        $('t-id').value = j.id;
+        document.getElementById('handoff-id')!.textContent = j.id;
+        document.getElementById('handoff')!.classList.add('show');
+        document.getElementById('handoff')!.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        loadMine();
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    async function track(id?: string) {
+      const rid = (id ?? val('t-id')).trim();
+      const out = $('t-out') as unknown as HTMLElement;
+      const panel = document.getElementById('track')!;
+      if (!rid) { show(out, 'Paste a receivable ID first.', 'note-loss'); return; }
+      show(out, 'Checking…');
+      try {
+        const j = await (await fetch('/api/verify/receivables/lookup?id=' + encodeURIComponent(rid))).json();
+        if (!j.ok || !j.found) { show(out, 'No receivable found for that ID.', 'note-loss'); panel.classList.remove('show'); return; }
+        hide(out);
+        renderTrack(j.receivable);
+        panel.classList.add('show');
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    function renderTrack(r: any) {
+      const ccy = r.currency || 'NGN';
+      const claimed = Number(r.claimed || 0), avail = Number(r.available || 0), face = Number(r.face || 0);
+      const f = (k: string, v: string) => `<div><div class="fact__k">${esc(k)}</div><div class="fact__v">${esc(v)}</div></div>`;
+      document.getElementById('t-facts')!.innerHTML =
+        f('Buyer', r.buyer) + f('Invoice', r.invoiceNo) + f('Face value', money(face, ccy)) +
+        f('Terms', r.terms || 'not stated') + f('Due', r.dueDate || 'not stated') +
+        f('Status', String(r.lifecycle || '').replace(/_/g, ' ') || 'created');
+
+      const pct = face > 0 ? Math.min(100, Math.max(0, (claimed / face) * 100)) : 0;
+      (document.getElementById('t-bar') as HTMLElement).style.width = pct + '%';
+      document.getElementById('t-claimed')!.textContent = `${money(claimed, ccy)} claimed`;
+      document.getElementById('t-avail')!.textContent = `${money(Math.max(0, avail), ccy)} unencumbered`;
+
+      const buyerAck = (r.attestations || []).find((a: any) => a.role === 'buyer') || null;
+      const acked = !!buyerAck || !!r.acknowledgedAt;
+      const when = buyerAck?.attestedAt || r.acknowledgedAt || '';
+      document.getElementById('t-ev')!.innerHTML = acked
+        ? `<div class="ev good"><div>&#10003;</div><div><div class="ev__t">Your buyer confirmed the debt</div><div class="ev__d">${esc(buyerAck ? buyerAck.label : r.buyer)} acknowledged this${when ? ' on ' + esc(String(when).slice(0, 10)) : ''}. This is what a financier leans on hardest.</div></div></div>`
+        : `<div class="ev missing"><div>!</div><div><div class="ev__t">Your buyer has not confirmed yet</div><div class="ev__d">Until they acknowledge it, a financier is trusting your paperwork alone. Send them the ID and ask them to confirm.</div></div></div>`;
+
+      const claims = r.claims || [];
+      document.getElementById('t-claims')!.innerHTML = claims.length === 0
+        ? `<p class="muted">Nothing claimed yet. The full face value is unencumbered.</p>`
+        : `<table><thead><tr><th>Financier</th><th>Amount</th><th>Registered</th><th>Status</th></tr></thead><tbody>` +
+          claims.map((c: any) => `<tr class="${c.status === 'discharged' ? 'discharged' : ''}">
+            <td>${esc(c.financier)}</td><td>${esc(money(c.amount, c.currency || ccy))}</td>
+            <td>${esc(String(c.registeredAt || '').slice(0, 10))}</td>
+            <td>${esc(c.status === 'discharged' ? 'discharged' : 'active')}</td></tr>`).join('') + `</tbody></table>`;
+    }
+
+    async function loadMine() {
+      const box = document.getElementById('mine')!;
+      try {
+        const r = await fetch('/api/verify/receivables');
+        if (r.status === 401) { box.innerHTML = `<p class="muted">Your session ended. <a href="/login?next=/verify/client" style="color:var(--accent)">Sign in again</a>.</p>`; return; }
+        const j = await r.json();
+        const list = j.receivables || [];
+        if (!list.length) { box.innerHTML = `<p class="muted">Nothing recorded yet.</p>`; return; }
+        box.innerHTML = list.map((x: any) => `
+          <div class="mine__row">
+            <span><b>${esc(x.invoiceNo)}</b> &middot; ${esc(x.buyer)} &middot; ${esc(money(x.face, x.currency))}</span>
+            <button class="small ghost" data-track="${esc(x.id)}">Track</button>
+          </div>`).join('');
+        box.querySelectorAll('[data-track]').forEach((b) => {
+          b.addEventListener('click', () => {
+            const id = (b as HTMLElement).dataset.track as string;
+            $('t-id').value = id; track(id);
+            document.getElementById('track')!.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        });
+      } catch { box.innerHTML = `<p class="muted">Could not load your receivables.</p>`; }
+    }
+
+    async function copy(text: string, btn: HTMLElement, done: string) {
+      try { await navigator.clipboard.writeText(text); const t = btn.textContent; btn.textContent = done; setTimeout(() => { btn.textContent = t; }, 1400); } catch { /* ignore */ }
+    }
+
+    document.getElementById('f-go')?.addEventListener('click', createReceivable);
+    document.getElementById('t-go')?.addEventListener('click', () => track());
+    $('t-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') track(); });
+    document.getElementById('copy-id')?.addEventListener('click', (e) => copy(lastId, e.currentTarget as HTMLElement, 'Copied'));
+    document.getElementById('copy-link')?.addEventListener('click', (e) =>
+      copy(`${location.origin}/verify/desk?id=${encodeURIComponent(lastId)}`, e.currentTarget as HTMLElement, 'Copied'));
+    document.getElementById('go-track')?.addEventListener('click', () => { $('t-id').value = lastId; track(lastId); });
+
+    loadMine();
+    if (val('t-id')) track();
+  </script>
+</body>
+</html>
