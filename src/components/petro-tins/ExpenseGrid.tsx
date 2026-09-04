@@ -49,6 +49,8 @@ export interface ExpenseGridProps {
   onAddRow?: (name: string, raw: string) => void;
   onRemoveRow?: (rowId: string, name: string) => void;
   locked?: boolean;
+  /** Shown greyed on the spare grid, so its shape is visible before it exists. */
+  templateRows?: string[];
 }
 
 /**
@@ -61,6 +63,7 @@ export interface ExpenseGridProps {
 export default function ExpenseGrid({
   title, rows, carried = 0, namePlaceholder, budgetEntries = [],
   onRename, onRemove, onItemName, onAmount, onAddRow, onRemoveRow, locked,
+  templateRows = [],
 }: ExpenseGridProps) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [newName, setNewName] = useState('');
@@ -163,6 +166,14 @@ export default function ExpenseGrid({
             <td className="xg__amount xg__muted">{money(carried)}</td>
           </tr>
         )}
+
+        {templateRows.map(label => (
+          <tr key={`tpl:${label}`} className="xg__row">
+            <td className="xg__item"><input value={label} disabled readOnly /></td>
+            <td className="xg__formula"></td>
+            <td className="xg__amount"><input value="" disabled readOnly /></td>
+          </tr>
+        ))}
 
         <tr className="xg__row">
           <td className="xg__item">

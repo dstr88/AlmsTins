@@ -126,7 +126,21 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
           rows={[]}
           budgetEntries={budgetEntries}
           locked
-          onRename={async next => { await api({ action: 'add_person', splitsId: tin.id, name: next, isOwner: false }); onRefresh(); }}
+          templateRows={['deposit']}
+          onRename={async next => {
+            const person = await api({ action: 'add_person', splitsId: tin.id, name: next, isOwner: false });
+            // Seed the deposit line so a new grid arrives with somewhere to record payments.
+            if (person?.id) {
+              const bill = await api({ action: 'add_bill', splitsId: tin.id, name: 'deposit', amount: 0, isDefault: false });
+              if (bill?.id) {
+                await api({
+                  action: 'set_assignment', billId: bill.id, personId: person.id, type: 'flat', value: 0,
+                  breakdown: JSON.stringify([{ label: '0', value: 0 }]),
+                });
+              }
+            }
+            onRefresh();
+          }}
         />
       </div>
     </div>
