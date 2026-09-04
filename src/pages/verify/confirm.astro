@@ -1,0 +1,269 @@
+---
+// Almstins Verify — Buyer confirmation (the obligor's view).
+//
+// The third desk. The supplier records what they are owed, the financier decides whether
+// to advance, and this is where the party who actually has to pay says so in their own
+// name. That acknowledgment is the keystone: it is the one piece of evidence that does
+// not come from the seller, so a lender stops trusting the seller's paperwork and starts
+// trusting the obligor.
+//
+// Deliberately single-purpose. The buyer sees one plain sentence about what is claimed
+// against them and one button. Everything else is out of the way, because this person is
+// not an Almstins user, they are a busy company doing a thirty-second favour.
+//
+// Signed-in only, same as the other desks. Uses the existing attest endpoint.
+import '@/styles/tokens.css';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getAuthSession } from '@/lib/authSession';
+import AccountMenu from '@/components/verify/AccountMenu.astro';
+
+export const prerender = false;
+
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/verify/login?next=/verify/confirm', 302);
+
+const authSession = await getAuthSession(Astro.request);
+const email = authSession?.user?.email ?? null;
+
+const prefillId = Astro.url.searchParams.get('id') ?? '';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confirm what you owe — Almstins Verify</title>
+  <meta name="description" content="Confirm a debt a supplier has recorded against your company." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2rem 1.1rem 5rem;
+    }
+    .wrap { max-width: 44rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
+
+    header { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .35rem; }
+    .head-top { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); line-height: 1.15; font-weight: 700; }
+    .lede { color: var(--text-secondary); font-size: .95rem; max-width: 36rem; }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.15rem 1.3rem; }
+    .card h2 { font-size: 1.02rem; font-weight: 700; margin-bottom: .25rem; }
+    .card .hint { font-size: .82rem; color: var(--text-muted); margin-bottom: .9rem; }
+
+    .row { display: flex; gap: .6rem; flex-wrap: wrap; }
+    .grow { flex: 1 1 16rem; }
+    input {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .6rem .75rem; font-size: .9rem; font-family: inherit; min-width: 0;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+    input::placeholder { color: var(--text-muted); }
+    button {
+      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 9px;
+      padding: .6rem 1.05rem; font-size: .88rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    button:hover:not(:disabled) { filter: brightness(1.08); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.ghost { background: transparent; border: 1px solid var(--border-bright); color: var(--text-secondary); font-weight: 600; }
+
+    /* ── The claim, stated plainly. This is the whole page. ── */
+    .claim {
+      background: var(--surface-card-2); border: 1px solid var(--border-bright); border-radius: 14px;
+      padding: 1.5rem 1.6rem;
+    }
+    .claim__lead { font-size: clamp(1.05rem, 2.6vw, 1.3rem); line-height: 1.5; font-weight: 600; }
+    .claim__lead b { color: var(--accent); }
+    .claim__amount { font-size: clamp(1.7rem, 5vw, 2.4rem); font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: .5rem 0 .35rem; }
+    .claim__meta { display: flex; flex-wrap: wrap; gap: .55rem 1.4rem; margin-top: .9rem; }
+    .m__k { font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
+    .m__v { font-size: .92rem; font-weight: 600; }
+
+    .confirmed {
+      background: var(--gain-bg); border: 1px solid var(--gain-border); border-radius: 13px;
+      padding: 1.1rem 1.25rem; display: flex; gap: .8rem; align-items: flex-start;
+    }
+    .confirmed__t { font-weight: 700; }
+    .confirmed__d { font-size: .87rem; color: var(--text-secondary); }
+
+    .warn { font-size: .84rem; color: var(--text-secondary); border-left: 3px solid var(--border-bright); padding-left: .8rem; margin-top: 1rem; }
+
+    .note { border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; margin-top: .8rem; display: none; }
+    .note.show { display: block; }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); }
+    .foot { margin-top: 1.4rem; font-size: .77rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; }
+    .foot a { color: var(--accent); }
+    #panel { display: none; }
+    #panel.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <header>
+      <div class="head-top">
+        <div>
+          <div class="eyebrow">Almstins Verify</div>
+          <h1>Confirm what you owe</h1>
+        </div>
+        <AccountMenu tenantId={sess.tenantId} email={email} current="confirm" />
+      </div>
+      <p class="lede">A supplier has recorded an invoice against your company. Confirming it in your own name is what lets them finance it.</p>
+    </header>
+
+    <div class="card">
+      <h2>Open the record</h2>
+      <p class="hint">Paste the ID the supplier sent you.</p>
+      <div class="row">
+        <input id="q-id" class="grow" placeholder="Receivable ID" value={prefillId} spellcheck="false" autocomplete="off" />
+        <button id="q-go">Open</button>
+      </div>
+      <div id="q-out" class="note"></div>
+    </div>
+
+    <div id="panel">
+      <div id="claim"></div>
+
+      <div id="already" style="display:none; margin-top:1.15rem"></div>
+
+      <div id="act" class="card" style="margin-top:1.15rem">
+        <h2>Do you owe this?</h2>
+        <p class="hint">Confirming signs a statement in your name and timestamps it. Only confirm if the amount and date are right.</p>
+        <div class="row">
+          <input id="c-label" class="grow" placeholder="Your company name" autocomplete="organization" />
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <button id="c-go">Yes, we owe this &mdash; confirm &amp; sign</button>
+        </div>
+        <div id="c-out" class="note"></div>
+        <p class="warn">
+          If any of it is wrong, do not confirm. Tell the supplier and ask them to correct the record.
+          There is no dispute process here yet, and confirming something inaccurate is worse than confirming nothing.
+        </p>
+      </div>
+    </div>
+
+    <p class="foot">
+      Almstins records and proves. It never holds money, never moves it, and never says who anyone is.
+      Confirming states that this debt is real, nothing more.
+    </p>
+  </div>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const val = (id: string) => ($(id)?.value ?? '').trim();
+    function esc(s: unknown) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>
+      )[c]!);
+    }
+    function money(n: number, ccy: string) {
+      return `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    function show(el: HTMLElement, html: string, cls = 'note-info') { el.className = `note show ${cls}`; el.innerHTML = html; }
+    function hide(el: HTMLElement) { el.className = 'note'; el.innerHTML = ''; }
+
+    let current: any = null;
+
+    async function open_(id?: string) {
+      const rid = (id ?? val('q-id')).trim();
+      const out = $('q-out') as unknown as HTMLElement;
+      const panel = document.getElementById('panel')!;
+      if (!rid) { show(out, 'Paste the ID the supplier sent you.', 'note-loss'); return; }
+      show(out, 'Opening…');
+      try {
+        const j = await (await fetch('/api/verify/receivables/lookup?id=' + encodeURIComponent(rid))).json();
+        if (!j.ok || !j.found) { show(out, 'No record found for that ID. Check it with the supplier.', 'note-loss'); panel.classList.remove('show'); return; }
+        hide(out);
+        current = j.receivable;
+        render(current);
+        panel.classList.add('show');
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    function render(r: any) {
+      const ccy = r.currency || 'NGN';
+      document.getElementById('claim')!.innerHTML = `
+        <div class="claim">
+          <div class="claim__lead"><b>${esc(r.supplier)}</b> has recorded that <b>${esc(r.buyer)}</b> owes</div>
+          <div class="claim__amount">${esc(money(r.face, ccy))}</div>
+          <div class="claim__lead" style="font-size:1rem;font-weight:500;color:var(--text-secondary)">
+            on invoice ${esc(r.invoiceNo)}${r.dueDate ? ', due ' + esc(r.dueDate) : ''}.
+          </div>
+          <div class="claim__meta">
+            <div><div class="m__k">Invoice</div><div class="m__v">${esc(r.invoiceNo)}</div></div>
+            <div><div class="m__k">Terms</div><div class="m__v">${esc(r.terms || 'not stated')}</div></div>
+            <div><div class="m__k">Due</div><div class="m__v">${esc(r.dueDate || 'not stated')}</div></div>
+            <div><div class="m__k">Recorded</div><div class="m__v">${esc(String(r.createdAt || '').slice(0, 10))}</div></div>
+          </div>
+        </div>`;
+
+      const ack = (r.attestations || []).find((a: any) => a.role === 'buyer') || null;
+      const already = document.getElementById('already')!;
+      const act = document.getElementById('act')!;
+      if (ack) {
+        already.style.display = 'block';
+        already.innerHTML = `
+          <div class="confirmed">
+            <div style="font-size:1.1rem">&#10003;</div>
+            <div>
+              <div class="confirmed__t">Already confirmed by ${esc(ack.label)}</div>
+              <div class="confirmed__d">
+                Acknowledged${ack.date ? ' on ' + esc(String(ack.date).slice(0, 10)) : ''}${ack.signed ? ', signed' : ''}${ack.anchored ? (ack.anchoredAt ? ', and timestamped in Bitcoin on ' + esc(String(ack.anchoredAt).slice(0, 10)) : ', timestamp pending a Bitcoin block') : ''}.
+                Nothing further is needed from you.
+              </div>
+            </div>
+          </div>`;
+        act.style.display = 'none';
+      } else {
+        already.style.display = 'none';
+        act.style.display = 'block';
+        const lbl = $('c-label'); if (lbl && !lbl.value) lbl.value = r.buyer || '';
+      }
+    }
+
+    async function confirm_() {
+      const out = $('c-out') as unknown as HTMLElement;
+      if (!current) { show(out, 'Open a record first.', 'note-loss'); return; }
+      const label = val('c-label');
+      if (!label) { show(out, 'Enter your company name so the confirmation is in your name.', 'note-loss'); return; }
+      const ccy = current.currency || 'NGN';
+      const statement = `${label} confirms owing ${money(current.face, ccy)} to ${current.supplier} on invoice ${current.invoiceNo}${current.dueDate ? ', due ' + current.dueDate : ''}.`;
+      show(out, 'Signing your confirmation…');
+      try {
+        const r = await fetch('/api/verify/receivables/attest', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ receivableId: current.id, role: 'buyer', label, statement }),
+        });
+        const j = await r.json();
+        if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/confirm" style="color:var(--accent)">Sign in again</a> to confirm.', 'note-loss'); return; }
+        if (!j.ok) { show(out, 'Could not record that: ' + esc(j.message || j.error || 'unknown error'), 'note-loss'); return; }
+        show(out, `<b>Confirmed and signed.</b> Your acknowledgment is now part of the record.<br><span id="k-anchor">&#9203; Timestamping to Bitcoin…</span>`, 'note-gain');
+        try {
+          const a = await (await fetch('/api/verify/receivables/anchor', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind: 'attestation', id: j.attestationId }),
+          })).json();
+          const el = document.getElementById('k-anchor');
+          if (el) el.textContent = a && a.ok
+            ? '⏳ Timestamp submitted to Bitcoin, pending a block (~1-2h). Its date can no longer be forged or backdated.'
+            : 'Signed. The Bitcoin timestamp did not submit; it can be anchored later.';
+        } catch { /* non-fatal */ }
+        await open_(current.id);
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    document.getElementById('q-go')?.addEventListener('click', () => open_());
+    $('q-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') open_(); });
+    document.getElementById('c-go')?.addEventListener('click', confirm_);
+
+    if (val('q-id')) open_();
+  </script>
+</body>
+</html>

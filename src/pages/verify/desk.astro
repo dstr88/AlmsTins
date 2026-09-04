@@ -258,7 +258,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       // ── Evidence: the buyer's acknowledgment is the keystone ──
       const buyerAck = (r.attestations || []).find((a: any) => a.role === 'buyer') || null;
       const acked = !!buyerAck || !!r.acknowledgedAt;
-      const ackWhen = buyerAck?.attestedAt || r.acknowledgedAt || '';
+      const ackWhen = buyerAck?.date || r.acknowledgedAt || '';
       const ev: string[] = [];
       ev.push(acked
         ? `<div class="ev good"><div class="ev__icon">&#10003;</div><div><div class="ev__t">Buyer acknowledged the debt</div><div class="ev__d">${esc(buyerAck ? buyerAck.label : r.buyer)} confirmed this obligation${ackWhen ? ' on ' + esc(String(ackWhen).slice(0, 10)) : ''}. This is the evidence that does not come from the seller.</div></div></div>`
