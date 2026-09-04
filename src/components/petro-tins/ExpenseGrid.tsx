@@ -73,8 +73,12 @@ export default function ExpenseGrid({
   const set = (k: string, v: string) => setDraft(d => ({ ...d, [k]: v }));
   const drop = (k: string) => setDraft(d => { const n = { ...d }; delete n[k]; return n; });
 
-  const lookup = rows.map(r => ({ name: r.name, amount: r.amount }));
-  const calc = (raw: string) => evalFormula(raw, lookup, budgetEntries);
+  /** A row never resolves a name against itself, or =[rent]/4 on the row called "rent"
+   *  quietly divides its own figure and shrinks every time it recomputes. */
+  const lookupFor = (excludeId?: string) =>
+    rows.filter(r => r.id !== excludeId).map(r => ({ name: r.name, amount: r.amount }));
+  const calc = (raw: string, excludeId?: string) =>
+    evalFormula(raw, lookupFor(excludeId), budgetEntries);
   // Expenses draw the balance down, deposits build it back up.
   const expenses = rows.reduce((s, r) => s + r.amount, 0) + carried;
   const deposits = rows.reduce((s, r) => s + r.deposit, 0);
@@ -84,7 +88,11 @@ export default function ExpenseGrid({
     if (locked || !onAddRow) return;
     const name = newName.trim();
     const raw = (newFormula.trim() || newAmt.trim());
-    if (!name || !raw || isNaN(calc(raw))) return;
+    // Keep a formula that cannot resolve yet, same as an existing row. Refusing it here
+    // is why nothing could be added below the last saved line.
+    const looksLikeFormula = raw.startsWith('=') || /\[[^\]]+\]/.test(raw);
+    if (!name || !raw) return;
+    if (!looksLikeFormula && isNaN(calc(raw))) return;
     onAddRow(name, raw);
     setNewName(''); setNewFormula(''); setNewAmt('');
   }
@@ -119,7 +127,7 @@ export default function ExpenseGrid({
         {rows.map(row => {
           const iKey = `i:${row.id}`, fKey = `f:${row.id}`, aKey = `a:${row.id}`, dKey = `d:${row.id}`;
           const shownFormula = draft[fKey] ?? (isFormula(row.raw) ? row.raw : '');
-          const badFormula = shownFormula.trim() !== '' && isNaN(calc(shownFormula));
+          const badFormula = shownFormula.trim() !== '' && isNaN(calc(shownFormula, row.id));
           return (
             <tr key={row.id} className="xg__row">
               <td className="xg__item">

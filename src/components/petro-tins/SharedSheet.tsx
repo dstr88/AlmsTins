@@ -67,10 +67,10 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
       });
   }
 
-  async function saveAmount(personId: string, billId: string, raw: string, lookup: Array<{ name: string; amount: number }>) {
+  async function saveAmount(personId: string, billId: string, raw: string, lookup: Array<{ id: string; name: string; amount: number }>) {
     const entry = raw.trim();
     const looksLikeFormula = entry.startsWith('=') || /\[[^\]]+\]/.test(entry);
-    const parsed = evalFormula(entry, lookup, budgetEntries);
+    const parsed = evalFormula(entry, lookup.filter(r => r.id !== billId), budgetEntries);
     // Reject only outright junk. A formula waiting on a name it cannot see yet is kept,
     // holding the amount it already had, so it recomputes the moment that name exists.
     if (entry !== '' && !looksLikeFormula && isNaN(parsed)) return;
@@ -100,7 +100,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
     onRefresh();
   }
 
-  async function addRow(personId: string, name: string, raw: string, lookup: Array<{ name: string; amount: number }>) {
+  async function addRow(personId: string, name: string, raw: string, lookup: Array<{ id: string; name: string; amount: number }>) {
     const value = evalFormula(raw, lookup, budgetEntries);
     if (isNaN(value)) return;
     const res = await api({ action: 'add_bill', splitsId: tin.id, name, amount: value, isDefault: false });
@@ -123,7 +123,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
       <div className="sh__row">
         {tin.people.map(person => {
           const rows = rowsFor(person.id);
-          const lookup = rows.map(r => ({ name: r.name, amount: r.amount }));
+          const lookup = rows.map(r => ({ id: r.id, name: r.name, amount: r.amount }));
           return (
             <ExpenseGrid
               key={person.id}
