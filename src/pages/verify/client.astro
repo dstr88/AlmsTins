@@ -162,7 +162,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <label>Due date<input id="f-due" type="date" /></label>
       </div>
       <div class="row" style="margin-top:.85rem">
-        <button id="f-go">Sign &amp; record</button>
+        <button id="f-go">Sign, record &amp; timestamp</button>
         <span class="muted">Signed with the Almstins key and hashed into an ID you control.</span>
       </div>
       <div id="f-out" class="note"></div>
@@ -176,6 +176,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <button id="copy-link" class="small ghost">Copy financier link</button>
         <button id="go-track" class="small ghost">Track it</button>
       </div>
+      <p class="handoff__why" id="anchor-status">&#9203; Timestamping the promise to Bitcoin&hellip;</p>
       <p class="handoff__why">This ID is the key. Anyone holding it can check the record, and nobody can find it without it. Handing it over is how you grant access, so send it only to the people financing this invoice.</p>
     </div>
 
@@ -260,6 +261,23 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         document.getElementById('handoff-id')!.textContent = j.id;
         document.getElementById('handoff')!.classList.add('show');
         document.getElementById('handoff')!.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Stamp the promise itself. This is the record a priority claim rests on, so its
+        // date is anchored the moment it is made rather than waiting for someone to ask.
+        try {
+          const a = await (await fetch('/api/verify/receivables/anchor', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind: 'receivable', id: j.id }),
+          })).json();
+          const el = document.getElementById('anchor-status');
+          if (el) el.textContent = a && a.ok
+            ? '\u23F3 Timestamp submitted to Bitcoin, pending a block (~1-2h). From now on this promise date cannot be forged or backdated.'
+            : 'Signed and recorded. The Bitcoin timestamp did not submit; it can be anchored later.';
+        } catch {
+          const el = document.getElementById('anchor-status');
+          if (el) el.textContent = 'Signed and recorded. The Bitcoin timestamp can be added later.';
+        }
+
         loadMine();
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
