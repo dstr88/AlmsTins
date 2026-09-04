@@ -255,7 +255,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div class="field"><label for="k-amount">Amount</label><input id="k-amount" type="number" min="0" step="any" placeholder="80000000" inputmode="decimal" /></div>
         <div class="field"><label for="k-date">Date</label><input id="k-date" type="date" /></div>
       </div>
-      <button class="btn btn-primary btn-full" id="k-btn" type="button">Sign &amp; register</button>
+      <button class="btn btn-primary btn-full" id="k-btn" type="button">Sign, register &amp; timestamp</button>
       <div class="out" id="k-out"></div>
     </section>
 
@@ -613,7 +613,22 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       btn.disabled = false;
       if (!j) return;
       if (j.ok) {
-        show(out, `<div class="note note-gain"><b>${esc(financier)}'s claim registered${j.signed ? ' and signed' : ''}.</b> Now ${esc(fmtNum(j.claimed, val('c-currency') || 'NGN'))} claimed · ${esc(fmtNum(Math.max(0, j.available), val('c-currency') || 'NGN'))} unencumbered. Anchor the digest to Bitcoin from your dashboard, or check the receivable above.</div>`);
+        const ccy = val('c-currency') || 'NGN';
+        show(out, `<div class="note note-gain"><b>${esc(financier)}'s claim registered${j.signed ? ' and signed' : ''}.</b> Now ${esc(fmtNum(j.claimed, ccy))} claimed · ${esc(fmtNum(Math.max(0, j.available), ccy))} unencumbered.<br><span id="k-anchor-status">⏳ Timestamping to Bitcoin…</span></div>`);
+        // Auto-timestamp the claim. Best-effort follow-on: the claim is already registered and
+        // signed regardless, so a calendar hiccup never blocks it. A plain fetch (not authedPost)
+        // so an anchor failure can't clobber the success note above.
+        try {
+          const r = await fetch('/api/verify/receivables/anchor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'claim', id: j.claimId }) });
+          const a = await r.json();
+          const el = document.getElementById('k-anchor-status');
+          if (el) el.textContent = (a && a.ok)
+            ? '⏳ Timestamp submitted to Bitcoin, pending a block (~1-2h). Its date can no longer be forged or backdated.'
+            : 'Signed. The Bitcoin timestamp did not submit; you can anchor it from the status view.';
+        } catch (e) {
+          const el = document.getElementById('k-anchor-status');
+          if (el) el.textContent = 'Signed. Anchor to Bitcoin from the status view when ready.';
+        }
         if (val('q-id') === receivableId) query(receivableId);
         return;
       }
