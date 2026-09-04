@@ -44,9 +44,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
   const [adding, setAdding] = useState(false);
   const [newPerson, setNewPerson] = useState('');
 
-  const month = new Date().toISOString().slice(0, 7);
-
-  // Amount each person owes on each bill, and what they have paid this month.
+  // What each person owes on each row.
   const owed = useMemo(() => {
     const map: Record<string, Record<string, number>> = {};
     for (const p of tin.people) {
@@ -58,15 +56,6 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
     }
     return map;
   }, [tin.people, tin.bills]);
-
-  const paid = useMemo(() => {
-    const map: Record<string, Record<string, number>> = {};
-    for (const pmt of tin.payments.filter(p => p.month === month)) {
-      if (!map[pmt.personId]) map[pmt.personId] = {};
-      map[pmt.personId][pmt.billId] = (map[pmt.personId][pmt.billId] ?? 0) + pmt.amount;
-    }
-    return map;
-  }, [tin.payments, month]);
 
   async function api(body: Record<string, unknown>) {
     const res = await fetch('/api/petro-tins/splits', {
@@ -157,23 +146,6 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
   }
 
   /** Typing in Paid records the difference as a payment, so the column is editable too. */
-  async function savePaid(billId: string, personId: string, already: number, key: string) {
-    const next = (draft[key] ?? '').trim();
-    dropCell(key);
-    if (next === '') return;
-    const target = Number(next.replace(/[$,\s]/g, ''));
-    if (!Number.isFinite(target)) return;
-    const delta = target - already;
-    if (Math.abs(delta) < 0.005 || delta <= 0) return; // only additions; clear by deleting the row
-    setBusy(true);
-    await api({
-      action: 'add_payment', splitsId: tin.id, personId, billId,
-      amount: delta, paidDate: new Date().toISOString().slice(0, 10),
-      budgetTinId: tin.budgetTinId,
-    });
-    setBusy(false);
-    onRefresh();
-  }
 
   async function removeRow(billId: string, name: string) {
     if (!confirm(`Remove "${name}" and any payments against it?`)) return;
@@ -218,8 +190,6 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
           const rows = rowsFor(person.id);
           const carried = tin.carriedBalances[person.id] ?? 0;
           const totalCost = rows.reduce((s, r) => s + r.amount, 0) + carried;
-          const totalPaid = rows.reduce((s, r) => s + (paid[person.id]?.[r.id] ?? 0), 0);
-          const totalLeft = Math.max(0, totalCost - totalPaid);
           const nameKey = `p:${person.id}`;
           const newName = draft[`n:${person.id}`] ?? '';
           const newAmt = draft[`a:${person.id}`] ?? '';
@@ -245,19 +215,14 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
                     <th>Item</th>
                     <th>Formula or amount</th>
                     <th className="sh__num">Cost</th>
-                    <th className="sh__num">Paid</th>
-                    <th className="sh__num">Left</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(row => {
                     const raw = rawOf(row.id, person.id);
-                    const rowPaid = paid[person.id]?.[row.id] ?? 0;
-                    const left = row.amount - rowPaid;
                     const iKey = `i:${row.id}`;
                     const aKey = `v:${row.id}:${person.id}`;
-                    const pKey = `d:${row.id}:${person.id}`;
                     const shown = draft[aKey] ?? raw;
                     const bad = shown.trim() !== '' && isNaN(evalFormula(shown, rows, budgetEntries));
                     return (
@@ -280,19 +245,6 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
                           />
                         </td>
                         <td className="sh__num">{money(row.amount)}</td>
-                        <td className="sh__num">
-                          <input
-                            className="sh__paidcell"
-                            placeholder="—"
-                            value={draft[pKey] ?? (rowPaid > 0 ? String(rowPaid) : '')}
-                            onChange={e => setCell(pKey, e.target.value)}
-                            onBlur={() => savePaid(row.id, person.id, rowPaid, pKey)}
-                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                          />
-                        </td>
-                        <td className={`sh__num ${left <= 0 ? 'sh__ok' : 'sh__due'}`}>
-                          {left <= 0 ? '✓' : money(left)}
-                        </td>
                         <td>
                           <button className="sh__x" title="Remove row"
                             onClick={() => removeRow(row.id, row.name)}>✕</button>
@@ -315,15 +267,13 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
                     <td className="sh__num">
                       {newAmt.trim() && !isNaN(preview) ? money(preview) : ''}
                     </td>
-                    <td></td><td></td><td></td>
+                    <td></td>
                   </tr>
 
                   {carried > 0 && (
                     <tr>
                       <td colSpan={2} className="sh__muted">Carried from last month</td>
                       <td className="sh__num">{money(carried)}</td>
-                      <td className="sh__num">—</td>
-                      <td className="sh__num sh__due">{money(carried)}</td>
                       <td></td>
                     </tr>
                   )}
@@ -331,9 +281,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
                 <tfoot>
                   <tr className="sh__foot">
                     <td colSpan={2}>Total</td>
-                    <td className="sh__num sh__bold">{money(totalCost)}</td>
-                    <td className="sh__num sh__ok">{money(totalPaid)}</td>
-                    <td className="sh__num sh__total">{money(totalLeft)}</td>
+                    <td className="sh__num sh__total">{money(totalCost)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
