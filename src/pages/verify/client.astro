@@ -162,7 +162,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <label>Due date<input id="f-due" type="date" /></label>
       </div>
       <div class="row" style="margin-top:.85rem">
-        <button id="f-go">Sign &amp; record</button>
+        <button id="f-go">Sign, record &amp; timestamp</button>
         <span class="muted">Signed with the Almstins key and hashed into an ID you control.</span>
       </div>
       <div id="f-out" class="note"></div>
@@ -174,8 +174,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <div class="row">
         <button id="copy-id" class="small">Copy ID</button>
         <button id="copy-link" class="small ghost">Copy financier link</button>
+        <button id="copy-buyer" class="small ghost">Copy buyer link</button>
         <button id="go-track" class="small ghost">Track it</button>
       </div>
+      <p class="handoff__why" id="anchor-status">&#9203; Timestamping the promise to Bitcoin&hellip;</p>
       <p class="handoff__why">This ID is the key. Anyone holding it can check the record, and nobody can find it without it. Handing it over is how you grant access, so send it only to the people financing this invoice.</p>
     </div>
 
@@ -203,6 +205,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <div class="card" style="margin-top:1.15rem">
         <h2>Claimed against it</h2>
         <div id="t-claims"></div>
+        <div class="row" style="margin-top:.9rem">
+          <button id="t-settle" class="ghost">Mark settled &mdash; the buyer has paid</button>
+        </div>
+        <div id="s-out" class="note"></div>
       </div>
     </div>
 
@@ -260,6 +266,23 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         document.getElementById('handoff-id')!.textContent = j.id;
         document.getElementById('handoff')!.classList.add('show');
         document.getElementById('handoff')!.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Stamp the promise itself. This is the record a priority claim rests on, so its
+        // date is anchored the moment it is made rather than waiting for someone to ask.
+        try {
+          const a = await (await fetch('/api/verify/receivables/anchor', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind: 'receivable', id: j.id }),
+          })).json();
+          const el = document.getElementById('anchor-status');
+          if (el) el.textContent = a && a.ok
+            ? '\u23F3 Timestamp submitted to Bitcoin, pending a block (~1-2h). From now on this promise date cannot be forged or backdated.'
+            : 'Signed and recorded. The Bitcoin timestamp did not submit; it can be anchored later.';
+        } catch {
+          const el = document.getElementById('anchor-status');
+          if (el) el.textContent = 'Signed and recorded. The Bitcoin timestamp can be added later.';
+        }
+
         loadMine();
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
@@ -337,12 +360,42 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       try { await navigator.clipboard.writeText(text); const t = btn.textContent; btn.textContent = done; setTimeout(() => { btn.textContent = t; }, 1400); } catch { /* ignore */ }
     }
 
+    // Closing the receivable once the buyer has paid. Only the party that recorded it can
+    // settle it; the API scopes that to the owning tenant.
+    async function settle() {
+      const out = $('s-out') as unknown as HTMLElement;
+      const rid = val('t-id');
+      if (!rid) { show(out, 'Open a receivable first.', 'note-loss'); return; }
+      if (!confirm('Mark this receivable settled? Do this once the buyer has actually paid.')) return;
+      show(out, 'Settling…');
+      try {
+        const r = await fetch('/api/verify/receivables/settle', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ receivableId: rid }),
+        });
+        const j = await r.json();
+        if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/client" style="color:var(--accent)">Sign in again</a>.', 'note-loss'); return; }
+        if (!j.ok) {
+          show(out, j.error === 'not_found'
+            ? 'Only the party who recorded this receivable can settle it.'
+            : 'Could not settle: ' + esc(j.error || 'unknown error'), 'note-loss');
+          return;
+        }
+        show(out, '<b>Settled.</b> The record is closed and its history stays checkable.', 'note-gain');
+        await track(rid);
+        loadMine();
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    document.getElementById('t-settle')?.addEventListener('click', settle);
     document.getElementById('f-go')?.addEventListener('click', createReceivable);
     document.getElementById('t-go')?.addEventListener('click', () => track());
     $('t-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') track(); });
     document.getElementById('copy-id')?.addEventListener('click', (e) => copy(lastId, e.currentTarget as HTMLElement, 'Copied'));
     document.getElementById('copy-link')?.addEventListener('click', (e) =>
       copy(`${location.origin}/verify/desk?id=${encodeURIComponent(lastId)}`, e.currentTarget as HTMLElement, 'Copied'));
+    document.getElementById('copy-buyer')?.addEventListener('click', (e) =>
+      copy(`${location.origin}/verify/confirm?id=${encodeURIComponent(lastId)}`, e.currentTarget as HTMLElement, 'Copied'));
     document.getElementById('go-track')?.addEventListener('click', () => { $('t-id').value = lastId; track(lastId); });
 
     loadMine();
