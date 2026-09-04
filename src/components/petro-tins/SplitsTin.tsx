@@ -34,6 +34,24 @@ function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
+/** A breakdown line is a plain amount (e.g. "300") whose label just restates the value —
+ *  it adds nothing, so a lone one is hidden. */
+function isPlainNumberLabel(label: string, value: number): boolean {
+  const s = String(label ?? '').trim().replace(/^=/, '').replace(/[$,\s]/g, '');
+  return s !== '' && /^-?\d*\.?\d+$/.test(s) && Math.abs(parseFloat(s) - value) < 0.005;
+}
+
+/** Show a source line when it explains where the figure comes from: a formula/label,
+ *  or one of several lines that sum to the total. Hide a lone bare-number line. */
+function sourceIsInformative(line: { label: string; value: number }, lineCount: number): boolean {
+  return lineCount > 1 || !isPlainNumberLabel(line.label, line.value);
+}
+
+/** Readable source: drop the leading "=" and show × for * so a parent can read the math. */
+function formatSourceLabel(line: { label: string; value: number }): string {
+  return String(line.label ?? '').trim().replace(/^=/, '').replace(/\s*\*\s*/g, ' × ').trim() || '—';
+}
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -383,7 +401,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           )}
         </div>
 
-        {/* Persistent per-person numbers table — shows the math behind one son's figure */}
+        {/* Persistent per-person numbers table — the math behind one son's figure, with sources */}
         {tin.bills.length > 0 && (() => {
           const activeId = personPanelId ?? tin.people[0]?.id;
           const person = tin.people.find(p => p.id === activeId);
@@ -409,6 +427,8 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                       const assign = bill.assignments.find(a => a.personId === person.id);
                       let lines: { label: string; value: number }[] = [];
                       if (assign?.breakdown) { try { lines = JSON.parse(assign.breakdown); } catch { lines = []; } }
+                      // Show where the figure comes from — a formula/label, or several lines that sum to the total
+                      const infoLines = lines.filter(l => sourceIsInformative(l, lines.length));
                       return (
                         <React.Fragment key={bill.id}>
                           <tr className={left <= 0 ? 'done' : ''}>
@@ -417,9 +437,10 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                             <td className="gain">{fmt(paid)}</td>
                             <td className={left <= 0 ? 'gain' : 'loss'}>{left <= 0 ? '✓' : fmt(left)}</td>
                           </tr>
-                          {lines.length > 1 && lines.map((l, i) => (
+                          {infoLines.map((l, i) => (
                             <tr key={`${bill.id}-sub-${i}`} className="pt-splits-numbers__sub">
-                              <td colSpan={4}>{l.label} = {fmt(l.value)}</td>
+                              <td colSpan={3}>↳ {formatSourceLabel(l)}</td>
+                              <td>{fmt(l.value)}</td>
                             </tr>
                           ))}
                         </React.Fragment>
