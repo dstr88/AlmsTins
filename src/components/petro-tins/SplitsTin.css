@@ -305,6 +305,31 @@
   margin-bottom: 0.55rem;
 }
 
+/* Per-boy toggle — switch whose breakdown the panel shows */
+.pt-splits-numbers__toggle {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.pt-splits-numbers__toggle-btn {
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-bright);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.pt-splits-numbers__toggle-btn:hover { background: var(--surface-hover); }
+.pt-splits-numbers__toggle-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .pt-splits-numbers__scroll { overflow-x: auto; }
 
 .pt-splits-numbers__table {
