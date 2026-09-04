@@ -1,0 +1,28 @@
+/* Plain grid. Colors from the design tokens; nothing else styled. */
+
+.xg { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.xg th, .xg td { border: 1px solid var(--border-bright); padding: 0; }
+.xg th { font-weight: 600; color: var(--text-secondary); text-align: left; padding: 0.25rem 0.4rem; }
+.xg td { color: var(--text-primary); }
+.xg__num, .xg th.xg__num { text-align: right; }
+
+.xg input {
+  width: 100%; box-sizing: border-box; background: transparent; border: none;
+  color: var(--text-primary); font: inherit; padding: 0.3rem 0.4rem;
+}
+.xg__num input { text-align: right; }
+.xg input:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
+.xg__bad { color: var(--loss); }
+
+.xg__titlecell { padding: 0.25rem 0.4rem; }
+.xg__name { font-weight: 700; }
+.xg__muted { color: var(--text-muted); padding: 0.3rem 0.4rem; }
+
+.xg__x {
+  background: transparent; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 0.8rem; padding: 0.15rem 0.35rem;
+}
+.xg__x:hover { color: var(--loss); }
+
+.xg td.xg__foot { font-weight: 700; padding: 0.3rem 0.4rem; }
+.xg td.xg__total { font-weight: 700; color: var(--loss); }
