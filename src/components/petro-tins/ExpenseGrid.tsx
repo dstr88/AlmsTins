@@ -31,7 +31,7 @@ export const money = (n: number) =>
   Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** `raw` is what was typed: a formula like "=[Rent]*0.25", or just a number. */
-export type GridRow = { id: string; name: string; amount: number; raw: string };
+export type GridRow = { id: string; name: string; amount: number; raw: string; deposit: number };
 
 const isFormula = (raw: string) => raw.trim().startsWith('=') || /\[[^\]]+\]/.test(raw);
 
@@ -48,9 +48,9 @@ export interface ExpenseGridProps {
   onAmount?: (rowId: string, raw: string) => void;
   onAddRow?: (name: string, raw: string) => void;
   onRemoveRow?: (rowId: string, name: string) => void;
+  /** Sets the deposit recorded against a row, replacing whatever was there. */
+  onDeposit?: (rowId: string, amount: number) => void;
   locked?: boolean;
-  /** Shown greyed on the spare grid, so its shape is visible before it exists. */
-  templateRows?: string[];
 }
 
 /**
@@ -62,13 +62,13 @@ export interface ExpenseGridProps {
  */
 export default function ExpenseGrid({
   title, rows, carried = 0, namePlaceholder, budgetEntries = [],
-  onRename, onRemove, onItemName, onAmount, onAddRow, onRemoveRow, locked,
-  templateRows = [],
+  onRename, onRemove, onItemName, onAmount, onAddRow, onRemoveRow, onDeposit, locked,
 }: ExpenseGridProps) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [newName, setNewName] = useState('');
   const [newFormula, setNewFormula] = useState('');
   const [newAmt, setNewAmt] = useState('');
+  const [extraBlanks, setExtraBlanks] = useState(0);
 
   const set = (k: string, v: string) => setDraft(d => ({ ...d, [k]: v }));
   const drop = (k: string) => setDraft(d => { const n = { ...d }; delete n[k]; return n; });
@@ -76,6 +76,7 @@ export default function ExpenseGrid({
   const lookup = rows.map(r => ({ name: r.name, amount: r.amount }));
   const calc = (raw: string) => evalFormula(raw, lookup, budgetEntries);
   const total = rows.reduce((s, r) => s + r.amount, 0) + carried;
+  const deposits = rows.reduce((s, r) => s + r.deposit, 0);
 
   function commitNew() {
     if (locked || !onAddRow) return;
@@ -92,7 +93,7 @@ export default function ExpenseGrid({
         {/* Name sits in the middle column, as in a sheet */}
         <tr className="xg__namerow">
           <td></td>
-          <td>
+          <td colSpan={2}>
             <input
               className="xg__name"
               placeholder={namePlaceholder ?? 'Name'}
@@ -107,8 +108,14 @@ export default function ExpenseGrid({
           </td>
         </tr>
 
+        <tr className="xg__labels">
+          <td></td><td></td>
+          <td className="xg__amount">amount</td>
+          <td className="xg__amount">deposit</td>
+        </tr>
+
         {rows.map(row => {
-          const iKey = `i:${row.id}`, fKey = `f:${row.id}`, aKey = `a:${row.id}`;
+          const iKey = `i:${row.id}`, fKey = `f:${row.id}`, aKey = `a:${row.id}`, dKey = `d:${row.id}`;
           const shownFormula = draft[fKey] ?? (isFormula(row.raw) ? row.raw : '');
           const badFormula = shownFormula.trim() !== '' && isNaN(calc(shownFormula));
           return (
@@ -155,6 +162,21 @@ export default function ExpenseGrid({
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 />
               </td>
+
+              <td className="xg__amount">
+                <input
+                  value={draft[dKey] ?? (row.deposit ? money(row.deposit) : '')}
+                  onFocus={() => set(dKey, row.deposit ? String(row.deposit) : '')}
+                  onChange={e => set(dKey, e.target.value)}
+                  onBlur={() => {
+                    const v = (draft[dKey] ?? '').trim();
+                    drop(dKey);
+                    const n = v === '' ? 0 : Number(v.replace(/[$,\s]/g, ''));
+                    if (Number.isFinite(n) && Math.abs(n - row.deposit) > 0.005) onDeposit?.(row.id, n);
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                />
+              </td>
             </tr>
           );
         })}
@@ -164,16 +186,9 @@ export default function ExpenseGrid({
             <td className="xg__item xg__muted">Carried</td>
             <td className="xg__formula"></td>
             <td className="xg__amount xg__muted">{money(carried)}</td>
+            <td className="xg__amount"></td>
           </tr>
         )}
-
-        {templateRows.map(label => (
-          <tr key={`tpl:${label}`} className="xg__row">
-            <td className="xg__item"><input value={label} disabled readOnly /></td>
-            <td className="xg__formula"></td>
-            <td className="xg__amount"><input value="" disabled readOnly /></td>
-          </tr>
-        ))}
 
         <tr className="xg__row">
           <td className="xg__item">
@@ -192,12 +207,31 @@ export default function ExpenseGrid({
               onKeyDown={e => { if (e.key === 'Enter') commitNew(); }}
               onBlur={commitNew} />
           </td>
+          <td className="xg__amount"></td>
+        </tr>
+
+        {/* Spare lines, one per press of + */}
+        {Array.from({ length: extraBlanks }).map((_, i) => (
+          <tr key={`blank:${i}`} className="xg__row">
+            <td className="xg__item"><input placeholder="item" disabled={locked} readOnly /></td>
+            <td className="xg__formula"><input placeholder="formula" disabled={locked} readOnly /></td>
+            <td className="xg__amount"><input placeholder="0" disabled={locked} readOnly /></td>
+            <td className="xg__amount"></td>
+          </tr>
+        ))}
+
+        <tr className="xg__addrow">
+          <td colSpan={4}>
+            <button className="xg__add" title="Add a row" disabled={locked}
+              onClick={() => setExtraBlanks(n => n + 1)}>+</button>
+          </td>
         </tr>
 
         <tr className="xg__totalrow">
           <td className="xg__item">Total</td>
           <td className="xg__formula"></td>
           <td className="xg__amount xg__total">{money(total)}</td>
+          <td className="xg__amount xg__deposittotal">{deposits ? money(deposits) : ''}</td>
         </tr>
       </tbody>
     </table>

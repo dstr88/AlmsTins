@@ -18,17 +18,17 @@
 .xg__name { font-size: 0.95rem; font-weight: 600; }
 
 /* Item: the big left column */
-.xg__item { position: relative; width: 38%; }
+.xg__item { position: relative; width: 30%; }
 .xg__item input { font-size: 1.05rem; }
 .xg__item.xg__muted { padding: 0.3rem 0.4rem; font-size: 0.95rem; }
 
 /* Formula: small and quiet, like working shown beside the figure */
-.xg__formula { width: 30%; }
+.xg__formula { width: 26%; }
 .xg__formula input { font-size: 0.78rem; color: var(--text-secondary); }
 .xg__bad { color: var(--loss); }
 
 /* Amount: the big right column */
-.xg__amount { width: 32%; }
+.xg__amount { width: 22%; }
 .xg__amount input { font-size: 1.05rem; text-align: right; font-variant-numeric: tabular-nums; }
 .xg__amount.xg__muted { padding: 0.3rem 0.4rem; text-align: right; font-size: 0.95rem; }
 
@@ -50,4 +50,26 @@
 .xg td.xg__total {
   text-align: right; font-size: 1.05rem; font-weight: 700;
   color: var(--loss); font-variant-numeric: tabular-nums;
+}
+
+/* Column labels above the two number columns */
+.xg__labels td {
+  font-size: 0.68rem; color: var(--text-muted); padding: 0.15rem 0.4rem;
+  border-bottom: 1px solid var(--border-bright);
+}
+.xg__labels td:nth-child(1), .xg__labels td:nth-child(2) { border: none; }
+
+/* Add-a-row control */
+.xg__addrow td { border: none; padding: 0.15rem 0; }
+.xg__add {
+  width: 100%; background: transparent; border: 1px dashed var(--border-bright);
+  border-radius: 4px; color: var(--text-muted); cursor: pointer;
+  font-size: 0.9rem; line-height: 1; padding: 0.2rem 0;
+}
+.xg__add:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.xg__add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.xg td.xg__deposittotal {
+  text-align: right; font-weight: 700; color: var(--gain);
+  font-variant-numeric: tabular-nums;
 }
