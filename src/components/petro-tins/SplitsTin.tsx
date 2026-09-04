@@ -352,6 +352,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   }
 
   return (
+    <div className="pt-splits-layout">
     <div className="pt-splits-tin">
       {/* Header */}
       <div className="pt-splits-tin__header">
@@ -402,84 +403,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           )}
         </div>
 
-        {/* Persistent per-person numbers table — the math behind one son's figure, with sources */}
-        {tin.bills.length > 0 && (() => {
-          const activeId = numbersId ?? tin.people[0]?.id;
-          const person = tin.people.find(p => p.id === activeId);
-          if (!person) return null;
-          const assignedBills = tin.bills.filter(b => b.assignments.some(a => a.personId === person.id));
-          const totals = personTotals.find(t => t.personId === person.id);
-          const carried = tin.carriedBalances[person.id] ?? 0;
-          return (
-            <div className="pt-splits-numbers">
-              <div className="pt-splits-numbers__head">{person.name}{person.isOwner ? ' 👑' : ''} — the numbers</div>
-              {tin.people.length > 1 && (
-                <div className="pt-splits-numbers__toggle">
-                  {tin.people.map(p => (
-                    <button key={p.id} type="button"
-                      className={`pt-splits-numbers__toggle-btn${p.id === activeId ? ' active' : ''}`}
-                      onClick={() => setNumbersId(p.id)}>
-                      {p.name}{p.isOwner ? ' 👑' : ''}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="pt-splits-numbers__scroll">
-                <table className="pt-splits-numbers__table">
-                  <thead>
-                    <tr><th>Bill</th><th>Owed</th><th>Paid</th><th>Left</th></tr>
-                  </thead>
-                  <tbody>
-                    {assignedBills.length === 0 ? (
-                      <tr><td className="pt-splits-numbers__empty" colSpan={4}>No bills assigned to {person.name} yet.</td></tr>
-                    ) : assignedBills.map(bill => {
-                      const owed = owedMap[person.id]?.[bill.id] ?? 0;
-                      const paid = paidMap[person.id]?.[bill.id] ?? 0;
-                      const left = owed - paid;
-                      const assign = bill.assignments.find(a => a.personId === person.id);
-                      let lines: { label: string; value: number }[] = [];
-                      if (assign?.breakdown) { try { lines = JSON.parse(assign.breakdown); } catch { lines = []; } }
-                      // Show where the figure comes from — a formula/label, or several lines that sum to the total
-                      const infoLines = lines.filter(l => sourceIsInformative(l, lines.length));
-                      return (
-                        <React.Fragment key={bill.id}>
-                          <tr className={left <= 0 ? 'done' : ''}>
-                            <td>{bill.name}{assign?.type === 'pct' ? ` (${assign.value}% of ${fmt(bill.amount)})` : ''}</td>
-                            <td>{fmt(owed)}</td>
-                            <td className="gain">{fmt(paid)}</td>
-                            <td className={left <= 0 ? 'gain' : 'loss'}>{left <= 0 ? '✓' : fmt(left)}</td>
-                          </tr>
-                          {infoLines.map((l, i) => (
-                            <tr key={`${bill.id}-sub-${i}`} className="pt-splits-numbers__sub">
-                              <td colSpan={3}>↳ {formatSourceLabel(l)}</td>
-                              <td>{fmt(l.value)}</td>
-                            </tr>
-                          ))}
-                        </React.Fragment>
-                      );
-                    })}
-                    {carried > 0 && (
-                      <tr className="pt-splits-numbers__sub">
-                        <td colSpan={3}>Carried from a previous month</td>
-                        <td className="loss">{fmt(carried)}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                  {totals && assignedBills.length > 0 && (
-                    <tfoot>
-                      <tr>
-                        <td>Total</td>
-                        <td>{fmt(totals.owed)}</td>
-                        <td className="gain">{fmt(totals.paid)}</td>
-                        <td className={totals.balance <= 0 ? 'gain' : 'loss'}>{totals.balance <= 0 ? '✓ Paid' : fmt(totals.balance)}</td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-            </div>
-          );
-        })()}
+        {/* The breakdown table renders as a separate panel to the side of the card — see .pt-splits-side below. */}
         </div>
       )}
 
@@ -1013,6 +937,90 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           <button className="pt-splits-add-btn" onClick={openBillForm}>+ Add bill</button>
         )}
       </div>
+    </div>
+
+    {/* Separate breakdown table — sits to the side of the card, with its own room */}
+    {tin.people.length > 0 && tin.bills.length > 0 && (
+      <aside className="pt-splits-side">
+        {(() => {
+          const activeId = numbersId ?? tin.people[0]?.id;
+          const person = tin.people.find(p => p.id === activeId);
+          if (!person) return null;
+          const assignedBills = tin.bills.filter(b => b.assignments.some(a => a.personId === person.id));
+          const totals = personTotals.find(t => t.personId === person.id);
+          const carried = tin.carriedBalances[person.id] ?? 0;
+          return (
+            <div className="pt-splits-numbers">
+              <div className="pt-splits-numbers__head">{person.name}{person.isOwner ? ' 👑' : ''} — the numbers</div>
+              {tin.people.length > 1 && (
+                <div className="pt-splits-numbers__toggle">
+                  {tin.people.map(p => (
+                    <button key={p.id} type="button"
+                      className={`pt-splits-numbers__toggle-btn${p.id === activeId ? ' active' : ''}`}
+                      onClick={() => setNumbersId(p.id)}>
+                      {p.name}{p.isOwner ? ' 👑' : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="pt-splits-numbers__scroll">
+                <table className="pt-splits-numbers__table">
+                  <thead>
+                    <tr><th>Bill</th><th>Owed</th><th>Paid</th><th>Left</th></tr>
+                  </thead>
+                  <tbody>
+                    {assignedBills.length === 0 ? (
+                      <tr><td className="pt-splits-numbers__empty" colSpan={4}>No bills assigned to {person.name} yet.</td></tr>
+                    ) : assignedBills.map(bill => {
+                      const owed = owedMap[person.id]?.[bill.id] ?? 0;
+                      const paid = paidMap[person.id]?.[bill.id] ?? 0;
+                      const left = owed - paid;
+                      const assign = bill.assignments.find(a => a.personId === person.id);
+                      let lines: { label: string; value: number }[] = [];
+                      if (assign?.breakdown) { try { lines = JSON.parse(assign.breakdown); } catch { lines = []; } }
+                      // Show where the figure comes from — a formula/label, or several lines that sum to the total
+                      const infoLines = lines.filter(l => sourceIsInformative(l, lines.length));
+                      return (
+                        <React.Fragment key={bill.id}>
+                          <tr className={left <= 0 ? 'done' : ''}>
+                            <td>{bill.name}{assign?.type === 'pct' ? ` (${assign.value}% of ${fmt(bill.amount)})` : ''}</td>
+                            <td>{fmt(owed)}</td>
+                            <td className="gain">{fmt(paid)}</td>
+                            <td className={left <= 0 ? 'gain' : 'loss'}>{left <= 0 ? '✓' : fmt(left)}</td>
+                          </tr>
+                          {infoLines.map((l, i) => (
+                            <tr key={`${bill.id}-sub-${i}`} className="pt-splits-numbers__sub">
+                              <td colSpan={3}>↳ {formatSourceLabel(l)}</td>
+                              <td>{fmt(l.value)}</td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                    {carried > 0 && (
+                      <tr className="pt-splits-numbers__sub">
+                        <td colSpan={3}>Carried from a previous month</td>
+                        <td className="loss">{fmt(carried)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {totals && assignedBills.length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <td>Total</td>
+                        <td>{fmt(totals.owed)}</td>
+                        <td className="gain">{fmt(totals.paid)}</td>
+                        <td className={totals.balance <= 0 ? 'gain' : 'loss'}>{totals.balance <= 0 ? '✓ Paid' : fmt(totals.balance)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+          );
+        })()}
+      </aside>
+    )}
     </div>
   );
 }
