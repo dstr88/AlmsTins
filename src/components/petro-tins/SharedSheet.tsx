@@ -50,9 +50,17 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
     return res.json();
   }
 
-  /** The raw entry is stored as the breakdown label, so a formula survives a reload. */
+  /**
+   * Rows for one person, with formulas recalculated from current data.
+   *
+   * The stored amount is only what a formula came to when it was last saved, so a bill
+   * changing in the budget register would otherwise leave every sheet quietly stale. Any
+   * row holding a formula is worked out again here against today's figures; rows holding
+   * a plain number keep it. A row never sees itself, so =[Rent]/4 on the row called
+   * "rent" reaches the register rather than dividing its own total.
+   */
   function rowsFor(personId: string): GridRow[] {
-    return tin.bills
+    const base = tin.bills
       .filter(b => b.assignments.some(a => a.personId === personId))
       .map(b => {
         const a = b.assignments.find(x => x.personId === personId);
@@ -60,11 +68,25 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
         if (a?.breakdown) {
           try {
             const parsed = JSON.parse(a.breakdown);
-            if (parsed?.[0]?.label) raw = String(parsed[0].label);
+            if (parsed?.[0]?.label != null) raw = String(parsed[0].label);
           } catch { /* keep the plain number */ }
         }
-        return { id: b.id, name: b.name, amount: owed[personId]?.[b.id] ?? 0, raw, deposit: deposits[personId]?.[b.id] ?? 0 };
+        return { id: b.id, name: b.name, raw, stored: owed[personId]?.[b.id] ?? 0 };
       });
+
+    return base.map(r => {
+      const entry = r.raw.trim();
+      const isFormula = entry.startsWith('=') || /\[[^\]]+\]/.test(entry);
+      const others = base.filter(o => o.id !== r.id).map(o => ({ name: o.name, amount: o.stored }));
+      const live = isFormula ? evalFormula(entry, others, budgetEntries) : NaN;
+      return {
+        id: r.id,
+        name: r.name,
+        raw: r.raw,
+        amount: isNaN(live) ? r.stored : live,
+        deposit: deposits[personId]?.[r.id] ?? 0,
+      };
+    });
   }
 
   async function saveAmount(personId: string, billId: string, raw: string, lookup: Array<{ id: string; name: string; amount: number }>) {
