@@ -94,6 +94,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   const [andForm, setAndForm]             = useState<{ personId: string; name: string; amount: string; noBudget: boolean } | null>(null);
   const [focusedPersonId, setFocusedPersonId] = useState<string | null>(null);
   const [personPanelId, setPersonPanelId]     = useState<string | null>(null);
+  const [numbersId, setNumbersId]             = useState<string | null>(null); // which boy the breakdown panel shows
   const billFormRef = useRef<HTMLDivElement>(null);
 
   const curMonth = thisMonth();
@@ -403,7 +404,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
 
         {/* Persistent per-person numbers table — the math behind one son's figure, with sources */}
         {tin.bills.length > 0 && (() => {
-          const activeId = personPanelId ?? tin.people[0]?.id;
+          const activeId = numbersId ?? tin.people[0]?.id;
           const person = tin.people.find(p => p.id === activeId);
           if (!person) return null;
           const assignedBills = tin.bills.filter(b => b.assignments.some(a => a.personId === person.id));
@@ -412,6 +413,17 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           return (
             <div className="pt-splits-numbers">
               <div className="pt-splits-numbers__head">{person.name}{person.isOwner ? ' 👑' : ''} — the numbers</div>
+              {tin.people.length > 1 && (
+                <div className="pt-splits-numbers__toggle">
+                  {tin.people.map(p => (
+                    <button key={p.id} type="button"
+                      className={`pt-splits-numbers__toggle-btn${p.id === activeId ? ' active' : ''}`}
+                      onClick={() => setNumbersId(p.id)}>
+                      {p.name}{p.isOwner ? ' 👑' : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="pt-splits-numbers__scroll">
                 <table className="pt-splits-numbers__table">
                   <thead>
@@ -465,7 +477,6 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                   )}
                 </table>
               </div>
-              <div className="pt-splits-numbers__hint">Tap a name on the left to see their numbers.</div>
             </div>
           );
         })()}
