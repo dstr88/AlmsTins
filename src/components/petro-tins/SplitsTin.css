@@ -270,11 +270,37 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 .pt-splits-body .pt-splits-summary {
-  flex: 0 0 auto;
-  min-width: 190px;
-  max-width: 44%;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
   padding: 0;
   border-bottom: none;
+}
+
+/* Side-by-side: the card on the left, a separate breakdown table on the right */
+.pt-splits-layout {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.pt-splits-layout > .pt-splits-tin {
+  flex: 1 1 360px;
+  min-width: 0;
+  margin: 0;
+}
+.pt-splits-side {
+  flex: 1 1 340px;
+  min-width: 0;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 1.1rem 1.25rem;
+}
+.pt-splits-side .pt-splits-numbers {
+  border-left: none;
+  padding-left: 0;
 }
 @media (max-width: 700px) {
   .pt-splits-body { flex-direction: column; gap: 0.85rem; }
