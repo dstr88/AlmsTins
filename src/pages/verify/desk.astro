@@ -272,14 +272,19 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const claims = r.claims || [];
       document.getElementById('claims')!.innerHTML = claims.length === 0
         ? `<p class="muted">No claims registered. The full face value is unencumbered.</p>`
-        : `<table><thead><tr><th>Financier</th><th>Amount</th><th>Registered</th><th>Status</th></tr></thead><tbody>` +
+        : `<table><thead><tr><th>Financier</th><th>Amount</th><th>Registered</th><th>Status</th><th></th></tr></thead><tbody>` +
           claims.map((c: any) => `
             <tr class="${c.status === 'discharged' ? 'discharged' : ''}">
               <td>${esc(c.financier)}${c.anchored ? ' <span class="muted">&#9939;</span>' : ''}</td>
               <td>${esc(money(c.amount, c.currency || ccy))}</td>
               <td>${esc(String(c.registeredAt || '').slice(0, 10))}</td>
               <td><span class="tag ${c.status === 'discharged' ? 'off' : 'active'}">${esc(c.status === 'discharged' ? 'discharged' : 'active')}</span></td>
+              <td>${c.status === 'discharged' ? '' : `<button class="small ghost" data-discharge="${esc(c.id)}">Mark repaid</button>`}</td>
             </tr>`).join('') + `</tbody></table>`;
+
+      document.getElementById('claims')!.querySelectorAll('[data-discharge]').forEach((b) => {
+        b.addEventListener('click', () => discharge((b as HTMLElement).dataset.discharge as string));
+      });
 
       // Prefill the claim amount with the remaining headroom
       const amt = $('c-amt'); if (amt && !amt.value && avail > 0) amt.value = String(avail);
@@ -324,6 +329,31 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       } catch (e) {
         show(out, 'Could not reach the registry. Try again.', 'note-loss');
       }
+    }
+
+    // Releasing a claim once the buyer has paid frees the headroom again, so no phantom
+    // lien outlives the payment. Only the financier who registered it can discharge it —
+    // the API enforces that, since the public record never says whose claim is whose.
+    async function discharge(claimId: string) {
+      const out = $('c-out') as unknown as HTMLElement;
+      if (!confirm('Mark this claim repaid? That releases it and frees the headroom.')) return;
+      show(out, 'Releasing…');
+      try {
+        const r = await fetch('/api/verify/receivables/discharge', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ claimId }),
+        });
+        const j = await r.json();
+        if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a>.', 'note-loss'); return; }
+        if (!j.ok) {
+          show(out, j.error === 'not_found'
+            ? 'That claim was registered by another financier, so only they can release it.'
+            : 'Could not release that claim: ' + esc(j.error || 'unknown error'), 'note-loss');
+          return;
+        }
+        show(out, `<b>Claim released.</b> ${esc(money(Math.max(0, Number(j.available || 0)), current?.currency || 'NGN'))} is unencumbered again.`, 'note-gain');
+        if (current) await check(current.id);
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
 
     document.getElementById('q-go')?.addEventListener('click', () => check());
