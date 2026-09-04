@@ -655,6 +655,8 @@
 }
 .pt-splits-add-input:focus { border-color: var(--accent); }
 .pt-splits-add-input--amt { max-width: 90px; flex: 0 0 90px; }
+/* Name of one part of a bill ("Rent"), sitting left of its amount. */
+.pt-splits-add-input--label { flex: 1 1 6rem; min-width: 0; }
 
 .pt-splits-owner-label {
   font-size: 0.8rem; color: var(--text-muted);
