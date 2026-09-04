@@ -60,6 +60,9 @@ function thisMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
+/** One named part of a person's share of a bill: "Rent" + "400", or a formula. */
+type BillLine = { name: string; amount: string };
+
 interface Props {
   tin: SplitsTin;
   budgetTinOptions: { id: string; name: string }[];
@@ -77,7 +80,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   const [billForm, setBillForm] = useState<{
     name: string;
     total: string;
-    perPerson: Record<string, string[]>;
+    perPerson: Record<string, BillLine[]>;
     noBudget: boolean;
     editingBillId?: string; // set when editing an existing bill
   } | null>(null);
@@ -183,7 +186,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     setBillForm({
       name: '',
       total: '',
-      perPerson: Object.fromEntries(tin.people.map(p => [p.id, ['']])),
+      perPerson: Object.fromEntries(tin.people.map(p => [p.id, [{ name: '', amount: '' }]])),
       noBudget: false,
     });
   }
@@ -193,23 +196,23 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     const total = evalFormula(billForm.total, tin.bills, budgetEntries);
     if (isNaN(total) || tin.people.length === 0) return;
     const share = (total / tin.people.length).toFixed(2);
-    setBillForm(f => f ? { ...f, perPerson: Object.fromEntries(tin.people.map(p => [p.id, [share]])) } : f);
+    setBillForm(f => f ? { ...f, perPerson: Object.fromEntries(tin.people.map(p => [p.id, [{ name: '', amount: share }]])) } : f);
   }
 
   function copyToAll(fromId: string) {
     if (!billForm) return;
-    const lines = billForm.perPerson[fromId];
-    setBillForm(f => f ? { ...f, perPerson: Object.fromEntries(tin.people.map(p => [p.id, [...lines]])) } : f);
+    const lines = billForm.perPerson[fromId] ?? [];
+    setBillForm(f => f ? { ...f, perPerson: Object.fromEntries(tin.people.map(p => [p.id, lines.map(l => ({ ...l }))])) } : f);
   }
 
   function personLineTotal(personId: string): number {
     if (!billForm) return NaN;
-    const lines = billForm.perPerson[personId] ?? [''];
+    const lines = billForm.perPerson[personId] ?? [];
     const sum = lines.reduce((s, line) => {
-      const v = evalFormula(line, tin.bills, budgetEntries);
+      const v = evalFormula(line.amount, tin.bills, budgetEntries);
       return s + (isNaN(v) ? 0 : v);
     }, 0);
-    return lines.some(l => l.trim()) ? sum : NaN;
+    return lines.some(l => l.amount.trim()) ? sum : NaN;
   }
 
   async function doSaveBillForm(andAnother: boolean) {
@@ -248,10 +251,12 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
           return !isNaN(v) && v > 0;
         })
         .map(p => {
-          const lines = (billForm.perPerson[p.id] ?? ['']).filter(l => l.trim());
+          const lines = (billForm.perPerson[p.id] ?? []).filter(l => l.amount.trim());
           const breakdown = JSON.stringify(lines.map(l => ({
-            label: l,
-            value: evalFormula(l, tin.bills, budgetEntries),
+            // A typed name is what the breakdown shows ("Rent"). With no name we fall back to
+            // the raw entry, so a formula still explains itself.
+            label: l.name.trim() || l.amount,
+            value: evalFormula(l.amount, tin.bills, budgetEntries),
           })).filter(item => !isNaN(item.value)));
           return api({ action: 'set_assignment', billId: billId!, personId: p.id, type: 'flat', value: personLineTotal(p.id), breakdown });
         });
@@ -259,7 +264,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     }
 
     if (andAnother) {
-      setBillForm({ name: '', total: '', perPerson: Object.fromEntries(tin.people.map(p => [p.id, ['']])), noBudget: false });
+      setBillForm({ name: '', total: '', perPerson: Object.fromEntries(tin.people.map(p => [p.id, [{ name: '', amount: '' }]])), noBudget: false });
     } else {
       setBillForm(null);
     }
@@ -681,10 +686,24 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                         <button className="pt-splits-bill-edit-btn"
                           title="Edit amounts"
                           onClick={() => {
-                            const perPerson: Record<string, string[]> = Object.fromEntries(
+                            const perPerson: Record<string, BillLine[]> = Object.fromEntries(
                               tin.people.map(p => {
                                 const assign = bill.assignments.find(a => a.personId === p.id);
-                                return [p.id, assign ? [String(assign.value)] : ['']];
+                                if (!assign) return [p.id, [{ name: '', amount: '' }]];
+                                // Rebuild the named parts from the stored breakdown, so editing a
+                                // bill doesn't silently flatten it back into one lump.
+                                let saved: { label: string; value: number }[] = [];
+                                if (assign.breakdown) { try { saved = JSON.parse(assign.breakdown); } catch { saved = []; } }
+                                if (saved.length) {
+                                  return [p.id, saved.map(l => {
+                                    const lab = String(l.label ?? '');
+                                    const isFormula = lab.trim().startsWith('=') || /\[[^\]]+\]/.test(lab);
+                                    return isFormula || isPlainNumberLabel(lab, l.value)
+                                      ? { name: '', amount: lab }
+                                      : { name: lab, amount: String(l.value) };
+                                  })];
+                                }
+                                return [p.id, [{ name: '', amount: String(assign.value) }]];
                               })
                             );
                             setBillNameError(false);
@@ -813,7 +832,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
             {tin.people.length > 0 && (
               <div className="pt-splits-bill-form__people">
                 {tin.people.map((person, i) => {
-                  const lines = billForm.perPerson[person.id] ?? [''];
+                  const lines = billForm.perPerson[person.id] ?? [];
                   const lineTotal = personLineTotal(person.id);
                   return (
                     <div key={person.id} className={`pt-splits-bill-form__person-block${focusedPersonId === person.id ? ' pt-splits-bill-form__person-block--focused' : ''}`}>
@@ -829,23 +848,30 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                         )}
                       </div>
                       {lines.map((line, li) => {
-                        const resolved = evalFormula(line, tin.bills, budgetEntries);
-                        const hasRef = /\[([^\]]+)\]/.test(line);
+                        const resolved = evalFormula(line.amount, tin.bills, budgetEntries);
+                        const hasRef = /\[([^\]]+)\]/.test(line.amount);
                         const unresolved = hasRef && isNaN(resolved);
+                        const setLine = (patch: Partial<BillLine>) => setBillForm(f => {
+                          if (!f) return f;
+                          const next = [...(f.perPerson[person.id] ?? [])];
+                          next[li] = { ...next[li], ...patch };
+                          return { ...f, perPerson: { ...f.perPerson, [person.id]: next } };
+                        });
                         return (
                           <div key={li} className="pt-splits-bill-form__line-row">
                             <input
+                              className="pt-splits-add-input pt-splits-add-input--label"
+                              placeholder="Rent"
+                              value={line.name}
+                              onFocus={() => { setFocusedPersonId(person.id); }}
+                              onChange={e => setLine({ name: e.target.value })} />
+                            <input
                               className={`pt-splits-add-input pt-splits-add-input--amt${unresolved ? ' pt-splits-input--warn' : ''}`}
                               placeholder="$ or =[Rent]*0.5"
-                              value={line}
+                              value={line.amount}
                               onFocus={() => { setFocusedPersonId(person.id); }}
-                              onChange={e => setBillForm(f => {
-                                if (!f) return f;
-                                const next = [...(f.perPerson[person.id] ?? [''])];
-                                next[li] = e.target.value;
-                                return { ...f, perPerson: { ...f.perPerson, [person.id]: next } };
-                              })} />
-                            {!isNaN(resolved) && line.trim() && (
+                              onChange={e => setLine({ amount: e.target.value })} />
+                            {!isNaN(resolved) && line.amount.trim() && (
                               <span className="pt-splits-formula-result">{fmt(resolved)}</span>
                             )}
                             {unresolved && (
@@ -855,8 +881,8 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                               <button className="pt-splits-line-del" title="Remove line"
                                 onClick={() => setBillForm(f => {
                                   if (!f) return f;
-                                  const next = (f.perPerson[person.id] ?? ['']).filter((_, idx) => idx !== li);
-                                  return { ...f, perPerson: { ...f.perPerson, [person.id]: next.length ? next : [''] } };
+                                  const next = (f.perPerson[person.id] ?? []).filter((_, idx) => idx !== li);
+                                  return { ...f, perPerson: { ...f.perPerson, [person.id]: next.length ? next : [{ name: '', amount: '' }] } };
                                 })}>✕</button>
                             )}
                           </div>
@@ -865,7 +891,7 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                       <button className="pt-splits-add-line-btn"
                         onClick={() => setBillForm(f => {
                           if (!f) return f;
-                          const next = [...(f.perPerson[person.id] ?? ['']), ''];
+                          const next = [...(f.perPerson[person.id] ?? []), { name: '', amount: '' }];
                           return { ...f, perPerson: { ...f.perPerson, [person.id]: next } };
                         })}>
                         + add line
@@ -895,12 +921,13 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                       if (!targetId) return;
                       setBillForm(f => {
                         if (!f) return f;
-                        const lines = f.perPerson[targetId] ?? [''];
-                        // Fill the last empty line, or append a new one
-                        const lastEmpty = lines.map((l, i) => ({ l, i })).reverse().find(x => !x.l.trim());
+                        const lines = f.perPerson[targetId] ?? [];
+                        // Fill the last empty line, or append a new one. The chip names the part
+                        // as well as filling the amount, so the breakdown reads properly.
+                        const lastEmpty = lines.map((l, i) => ({ l, i })).reverse().find(x => !x.l.amount.trim());
                         const next = [...lines];
-                        if (lastEmpty != null) next[lastEmpty.i] = `=[${e.description}]`;
-                        else next.push(`=[${e.description}]`);
+                        if (lastEmpty != null) next[lastEmpty.i] = { name: next[lastEmpty.i].name || e.description, amount: `=[${e.description}]` };
+                        else next.push({ name: e.description, amount: `=[${e.description}]` });
                         return { ...f, perPerson: { ...f.perPerson, [targetId]: next } };
                       });
                     }}
