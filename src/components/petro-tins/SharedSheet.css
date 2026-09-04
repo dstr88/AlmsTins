@@ -1,101 +1,34 @@
-/* ── Shared expense sheet ──────────────────────────────────────────────────────
-   Plain ruled grid, one per person. Every cell is typed in place. */
+/* Plain grids. Colors come from the design tokens; everything else is left alone. */
 
-.sh {
-  background: var(--surface-card-2);
-  border: 1px solid var(--border-bright);
-  border-radius: 12px;
-  overflow: hidden;
-}
+.sh__head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.sh__title { flex: 1 1 auto; font-weight: 700; color: var(--text-primary); }
 
-.sh__head {
-  display: flex; align-items: center; gap: 0.6rem;
-  padding: 0.8rem 1.1rem;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.sh__title { flex: 1 1 auto; font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+.sh__grids { display: flex; flex-direction: column; gap: 1.5rem; }
 
-.sh__x {
-  flex: 0 0 auto; background: transparent; border: none; color: var(--text-muted);
-  font-size: 0.78rem; line-height: 1; cursor: pointer; padding: 0.15rem 0.25rem; border-radius: 4px;
-}
-.sh__x:hover { color: var(--loss); background: var(--loss-bg); }
+.grid { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.grid th, .grid td { border: 1px solid var(--border-bright); padding: 0; }
+.grid th { font-weight: 600; color: var(--text-secondary); text-align: left; padding: 0.25rem 0.4rem; }
+.grid td { color: var(--text-primary); }
+.grid__num, .grid th.grid__num { text-align: right; }
 
-.sh__empty { padding: 1rem 1.1rem; font-size: 0.85rem; color: var(--text-muted); }
+.grid input {
+  width: 100%; box-sizing: border-box; background: transparent; border: none;
+  color: var(--text-primary); font: inherit; padding: 0.3rem 0.4rem;
+}
+.grid__num input { text-align: right; }
+.grid input:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
+.grid input:disabled { background: transparent; }
+.grid__bad { color: var(--loss); }
 
-.sh__sheets { display: flex; flex-direction: column; gap: 1.4rem; padding: 1rem 1.1rem; }
-.sh__sheet { min-width: 0; }
+.grid__title { padding: 0.25rem 0.4rem; }
+.grid__name { font-weight: 700; }
+.grid__muted { color: var(--text-muted); padding: 0.3rem 0.4rem; }
 
-/* Name sits above its grid, like a sheet tab */
-.sh__person { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
-.sh__name {
-  flex: 1 1 auto; min-width: 0;
-  background: transparent; border: none;
-  color: var(--text-primary); font-family: inherit; font-size: 0.95rem; font-weight: 700;
-  padding: 0.15rem 0.1rem;
+.grid__x {
+  background: transparent; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 0.8rem; padding: 0.15rem 0.35rem;
 }
-.sh__name:focus { outline: none; background: var(--surface-card); border-radius: 4px; }
+.grid__x:hover { color: var(--loss); }
 
-/* The grid: every cell ruled, like a spreadsheet */
-.sh__table {
-  width: 100%; border-collapse: collapse; font-size: 0.84rem;
-  table-layout: fixed; border: 1px solid var(--border-subtle);
-}
-.sh__table th:nth-child(1), .sh__table td:nth-child(1) { width: 34%; }
-.sh__table th:nth-child(2), .sh__table td:nth-child(2) { width: 36%; }
-.sh__table th:nth-child(3), .sh__table td:nth-child(3) { width: 24%; }
-.sh__table th:nth-child(4), .sh__table td:nth-child(4) { width: 6%; }
-
-.sh__table th {
-  text-align: left; font-size: 0.63rem; font-weight: 700; letter-spacing: 0.05em;
-  text-transform: uppercase; color: var(--text-muted); background: var(--surface-card);
-  padding: 0.3rem 0.45rem; white-space: nowrap;
-  border-right: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-}
-.sh__table td {
-  padding: 0; border-right: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-}
-.sh__table th:last-child, .sh__table td:last-child { border-right: none; }
-
-.sh__table input {
-  width: 100%; min-width: 0; background: transparent; border: none;
-  color: var(--text-primary); font-family: inherit; font-size: 0.84rem;
-  padding: 0.4rem 0.45rem;
-}
-.sh__table input:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--surface-card); }
-.sh__table input::placeholder { color: var(--text-muted); }
-.sh__bad { color: var(--loss); }
-
-.sh__num {
-  text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;
-  color: var(--text-secondary); padding: 0.4rem 0.45rem;
-}
-.sh__muted { color: var(--text-muted); font-size: 0.78rem; padding: 0.4rem 0.45rem; }
-
-/* Bottom line */
-.sh__foot td {
-  border-top: 1px solid var(--border-bright);
-  border-bottom: none;
-  padding: 0.45rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.sh__total { font-weight: 800; font-size: 0.98rem; color: var(--loss); }
-
-.sh__add { display: flex; align-items: center; gap: 0.5rem; padding: 0 1.1rem 1rem; }
-.sh__addbtn, .sh__save, .sh__cancel {
-  background: transparent; border: 1px dashed var(--border-bright); border-radius: 8px;
-  color: var(--text-secondary); font-family: inherit; font-size: 0.82rem;
-  padding: 0.45rem 0.8rem; cursor: pointer; width: 100%;
-}
-.sh__addbtn:hover { background: var(--surface-hover); color: var(--text-primary); }
-.sh__addinput {
-  flex: 1 1 auto; background: var(--surface-card); border: 1px solid var(--border-subtle);
-  border-radius: 8px; color: var(--text-primary); font-family: inherit;
-  font-size: 0.85rem; padding: 0.45rem 0.6rem;
-}
-.sh__addinput:focus { outline: none; border-color: var(--accent); }
-.sh__save { width: auto; border-style: solid; border-color: var(--accent); color: var(--accent); }
-.sh__cancel { width: auto; border-style: solid; }
+.grid td.grid__foot { font-weight: 700; padding: 0.3rem 0.4rem; }
+.grid td.grid__total { font-weight: 700; color: var(--loss); }
