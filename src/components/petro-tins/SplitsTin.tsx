@@ -454,7 +454,13 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
 
                 <table className="pt-sheet__table">
                   <thead>
-                    <tr><th>Item</th><th>Formula or amount</th><th className="pt-sheet__cost">Cost</th><th></th></tr>
+                    <tr>
+                      <th>Item</th><th>Formula or amount</th>
+                      <th className="pt-sheet__cost">Cost</th>
+                      <th className="pt-sheet__cost">Paid</th>
+                      <th className="pt-sheet__cost">Left</th>
+                      <th></th>
+                    </tr>
                   </thead>
                   <tbody>
                     {rows.map(bill => {
@@ -468,6 +474,8 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                         } catch { /* fall back to the number */ }
                       }
                       const owed = owedMap[person.id]?.[bill.id] ?? 0;
+                      const paid = paidMap[person.id]?.[bill.id] ?? 0;
+                      const left = owed - paid;
                       const lk = `b:${bill.id}`;
                       const ak = `a:${bill.id}:${person.id}`;
                       const shown = draft[ak] ?? raw;
@@ -488,6 +496,8 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                               onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
                           </td>
                           <td className="pt-sheet__cost">{fmt(owed)}</td>
+                          <td className="pt-sheet__cost pt-sheet__paid">{paid > 0 ? fmt(paid) : '—'}</td>
+                          <td className={`pt-sheet__cost ${left <= 0 ? 'pt-sheet__done' : 'pt-sheet__owed'}`}>{left <= 0 ? '✓' : fmt(left)}</td>
                           <td><button className="pt-sheet__del" title="Remove" onClick={() => deleteBill(bill.id)}>✕</button></td>
                         </tr>
                       );
@@ -506,13 +516,15 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                           onBlur={() => addRow(person.id)} />
                       </td>
                       <td className="pt-sheet__cost">{!isNaN(newVal) && newAmt.trim() ? fmt(newVal) : ''}</td>
-                      <td></td>
+                      <td></td><td></td><td></td>
                     </tr>
 
                     {carried > 0 && (
                       <tr>
                         <td colSpan={2} className="pt-sheet__muted">Carried from last month</td>
                         <td className="pt-sheet__cost">{fmt(carried)}</td>
+                        <td className="pt-sheet__cost">—</td>
+                        <td className="pt-sheet__cost pt-sheet__owed">{fmt(carried)}</td>
                         <td></td>
                       </tr>
                     )}
@@ -520,7 +532,9 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
                   <tfoot>
                     <tr className="pt-sheet__foot">
                       <td colSpan={2}>Total</td>
-                      <td className="pt-sheet__total">{fmt(totals?.owed ?? 0)}</td>
+                      <td className="pt-sheet__cost pt-sheet__totalcost">{fmt(totals?.owed ?? 0)}</td>
+                      <td className="pt-sheet__cost pt-sheet__paid">{fmt(totals?.paid ?? 0)}</td>
+                      <td className="pt-sheet__total">{fmt(Math.max(0, totals?.balance ?? 0))}</td>
                       <td></td>
                     </tr>
                   </tfoot>

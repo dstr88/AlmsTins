@@ -975,7 +975,7 @@
    One plain sheet per person: item, how it was worked out, what it costs. */
 .pt-splits-sheets {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  grid-template-columns: 1fr;
   gap: 1rem;
   padding: 0.75rem 1.25rem 1rem;
   border-bottom: 1px solid var(--border-subtle);
@@ -1009,9 +1009,11 @@
 
 .pt-sheet__table { width: 100%; border-collapse: collapse; font-size: 0.82rem; table-layout: fixed; }
 /* Fixed columns so a long item name doesn't get squeezed to nothing. */
-.pt-sheet__table th:nth-child(1), .pt-sheet__table td:nth-child(1) { width: 36%; }
-.pt-sheet__table th:nth-child(2), .pt-sheet__table td:nth-child(2) { width: 34%; }
-.pt-sheet__table th:nth-child(3), .pt-sheet__table td:nth-child(3) { width: 30%; }
+.pt-sheet__table th:nth-child(1), .pt-sheet__table td:nth-child(1) { width: 26%; }
+.pt-sheet__table th:nth-child(2), .pt-sheet__table td:nth-child(2) { width: 28%; }
+.pt-sheet__table th:nth-child(3), .pt-sheet__table td:nth-child(3),
+.pt-sheet__table th:nth-child(4), .pt-sheet__table td:nth-child(4),
+.pt-sheet__table th:nth-child(5), .pt-sheet__table td:nth-child(5) { width: 14%; }
 .pt-sheet__table th {
   text-align: left; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--text-muted);
@@ -1042,3 +1044,8 @@
 @media (max-width: 700px) {
   .pt-splits-sheets { grid-template-columns: 1fr; padding: 0.65rem 0.9rem 0.9rem; }
 }
+
+.pt-sheet__paid { color: var(--gain); }
+.pt-sheet__owed { color: var(--loss); }
+.pt-sheet__done { color: var(--gain); font-weight: 700; }
+.pt-sheet__totalcost { font-weight: 700; color: var(--text-primary); }
