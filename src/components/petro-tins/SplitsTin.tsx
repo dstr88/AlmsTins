@@ -100,6 +100,8 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
   const [numbersId, setNumbersId]             = useState<string | null>(null); // which boy the breakdown panel shows
   const billFormRef = useRef<HTMLDivElement>(null);
 
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
   const curMonth = thisMonth();
 
   // ── Compute owed per person per bill this month ───────────────────────────
@@ -173,6 +175,59 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
     await api({ action: 'add_person', splitsId: tin.id, name: newPersonName.trim(), isOwner: newPersonOwner });
     setNewPersonName(''); setAddingPerson(false); setNewPersonOwner(false);
     setSaving(false); onRefresh();
+  }
+
+  // ── Spreadsheet edits ─────────────────────────────────────────────────────
+  // Each row is a bill plus this person's share of it. The raw entry (a number or a
+  // formula) is kept as the breakdown label so it survives a reload and stays editable.
+  function clearDraft(key: string) { setDraft(d => { const n = { ...d }; delete n[key]; return n; }); }
+
+  async function commitPerson(personId: string, current: string, key: string) {
+    const next = (draft[key] ?? '').trim();
+    clearDraft(key);
+    if (!next || next === current) return;
+    await api({ action: 'update_person', personId, name: next });
+    onRefresh();
+  }
+
+  async function commitBill(billId: string, current: string, amount: number, key: string) {
+    const next = (draft[key] ?? '').trim();
+    clearDraft(key);
+    if (!next || next === current) return;
+    await api({ action: 'update_bill', billId, name: next, amount });
+    onRefresh();
+  }
+
+  async function commitAmount(billId: string, personId: string, current: string, key: string) {
+    const next = (draft[key] ?? '').trim();
+    clearDraft(key);
+    if (!next || next === current) return;
+    const v = evalFormula(next, tin.bills, budgetEntries);
+    if (isNaN(v)) return; // unresolved reference — leave the stored value alone
+    await api({
+      action: 'set_assignment', billId, personId, type: 'flat', value: v,
+      breakdown: JSON.stringify([{ label: next, value: v }]),
+    });
+    onRefresh();
+  }
+
+  async function addRow(personId: string) {
+    const lk = `new:${personId}:label`, ak = `new:${personId}:amt`;
+    const label = (draft[lk] ?? '').trim();
+    const raw = (draft[ak] ?? '').trim();
+    if (!label || !raw) return;
+    const v = evalFormula(raw, tin.bills, budgetEntries);
+    if (isNaN(v)) return;
+    setDraft(d => { const n = { ...d }; delete n[lk]; delete n[ak]; return n; });
+    // isDefault false = this line belongs to one person, not the whole household
+    const res = await api({ action: 'add_bill', splitsId: tin.id, name: label, amount: v, isDefault: false });
+    if (res?.id) {
+      await api({
+        action: 'set_assignment', billId: res.id, personId, type: 'flat', value: v,
+        breakdown: JSON.stringify([{ label: raw, value: v }]),
+      });
+    }
+    onRefresh();
   }
 
   async function deletePerson(personId: string) {
@@ -372,43 +427,107 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
         </div>
       )}
 
-      {/* Person summary list (left) + persistent numbers table (right) */}
+      {/* One plain spreadsheet per person: what they owe, how it was worked out, what it costs. */}
       {tin.people.length > 0 && (
-        <div className="pt-splits-body">
-        <div className="pt-splits-summary">
+        <div className="pt-splits-sheets">
           {tin.people.map(person => {
+            const rows = tin.bills.filter(b => b.assignments.some(a => a.personId === person.id));
             const totals = personTotals.find(t => t.personId === person.id);
-            const isPaid = tin.bills.length > 0 && (totals?.balance ?? 0) <= 0;
+            const carried = tin.carriedBalances[person.id] ?? 0;
+            const nk = `p:${person.id}`;
+            const newLabel = draft[`new:${person.id}:label`] ?? '';
+            const newAmt = draft[`new:${person.id}:amt`] ?? '';
+            const newVal = evalFormula(newAmt, tin.bills, budgetEntries);
             return (
-              <div key={person.id} className="pt-splits-person-row">
-                <input type="checkbox" className="pt-splits-person-chk"
-                  checked={isPaid} readOnly
-                  onClick={() => tin.bills.length > 0 && setPersonPanelId(id => id === person.id ? null : person.id)} />
-                <button className="pt-splits-person-name-btn"
-                  onClick={() => setPersonPanelId(id => id === person.id ? null : person.id)}>
-                  {person.name}{person.isOwner ? ' 👑' : ''}
-                </button>
-                {tin.bills.length > 0 && (
-                  <span className={`pt-splits-person-bal ${isPaid ? 'paid' : 'owed'}`}>
-                    {isPaid ? '✓ Paid' : fmt(totals?.balance ?? 0)}
-                  </span>
-                )}
-                <button className="pt-splits-remove-person" onClick={() => deletePerson(person.id)} title="Remove">✕</button>
+              <div key={person.id} className="pt-sheet">
+                <div className="pt-sheet__head">
+                  <input className="pt-sheet__name"
+                    value={draft[nk] ?? person.name}
+                    onChange={e => setDraft(d => ({ ...d, [nk]: e.target.value }))}
+                    onBlur={() => commitPerson(person.id, person.name, nk)}
+                    onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                  <button className="pt-sheet__pay"
+                    onClick={() => setPersonPanelId(id => id === person.id ? null : person.id)}>Payments</button>
+                  <button className="pt-sheet__del" title="Remove person"
+                    onClick={() => deletePerson(person.id)}>✕</button>
+                </div>
+
+                <table className="pt-sheet__table">
+                  <thead>
+                    <tr><th>Item</th><th>Formula or amount</th><th className="pt-sheet__cost">Cost</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(bill => {
+                      const assign = bill.assignments.find(a => a.personId === person.id);
+                      // The raw entry lives in the breakdown label, so a formula stays a formula.
+                      let raw = String(assign?.value ?? '');
+                      if (assign?.breakdown) {
+                        try {
+                          const ls = JSON.parse(assign.breakdown);
+                          if (ls?.[0]?.label) raw = String(ls[0].label);
+                        } catch { /* fall back to the number */ }
+                      }
+                      const owed = owedMap[person.id]?.[bill.id] ?? 0;
+                      const lk = `b:${bill.id}`;
+                      const ak = `a:${bill.id}:${person.id}`;
+                      const shown = draft[ak] ?? raw;
+                      const bad = shown.trim() !== '' && isNaN(evalFormula(shown, tin.bills, budgetEntries));
+                      return (
+                        <tr key={bill.id}>
+                          <td>
+                            <input value={draft[lk] ?? bill.name}
+                              onChange={e => setDraft(d => ({ ...d, [lk]: e.target.value }))}
+                              onBlur={() => commitBill(bill.id, bill.name, bill.amount, lk)}
+                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                          </td>
+                          <td>
+                            <input className={bad ? 'pt-sheet__bad' : ''}
+                              value={shown}
+                              onChange={e => setDraft(d => ({ ...d, [ak]: e.target.value }))}
+                              onBlur={() => commitAmount(bill.id, person.id, raw, ak)}
+                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                          </td>
+                          <td className="pt-sheet__cost">{fmt(owed)}</td>
+                          <td><button className="pt-sheet__del" title="Remove" onClick={() => deleteBill(bill.id)}>✕</button></td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Blank row — type a name and an amount to add a line */}
+                    <tr>
+                      <td>
+                        <input placeholder="Rent" value={newLabel}
+                          onChange={e => setDraft(d => ({ ...d, [`new:${person.id}:label`]: e.target.value }))} />
+                      </td>
+                      <td>
+                        <input placeholder="=[Rent]*0.25 or 300" value={newAmt}
+                          onChange={e => setDraft(d => ({ ...d, [`new:${person.id}:amt`]: e.target.value }))}
+                          onKeyDown={e => { if (e.key === 'Enter') addRow(person.id); }}
+                          onBlur={() => addRow(person.id)} />
+                      </td>
+                      <td className="pt-sheet__cost">{!isNaN(newVal) && newAmt.trim() ? fmt(newVal) : ''}</td>
+                      <td></td>
+                    </tr>
+
+                    {carried > 0 && (
+                      <tr>
+                        <td colSpan={2} className="pt-sheet__muted">Carried from last month</td>
+                        <td className="pt-sheet__cost">{fmt(carried)}</td>
+                        <td></td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="pt-sheet__foot">
+                      <td colSpan={2}>Total</td>
+                      <td className="pt-sheet__total">{fmt(totals?.owed ?? 0)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             );
           })}
-          {tin.bills.length > 0 && (
-            <div className="pt-splits-total-row">
-              <span>Total</span>
-              <span className="loss">{fmt(personTotals.reduce((s, t) => s + Math.max(0, t.balance), 0))}</span>
-            </div>
-          )}
-          {tin.bills.length === 0 && (
-            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', padding: '0.25rem 0' }}>Add a bill below to start splitting.</div>
-          )}
-        </div>
-
-        {/* The breakdown table renders as a separate panel to the side of the card — see .pt-splits-side below. */}
         </div>
       )}
 
@@ -966,88 +1085,6 @@ export default function SplitsTin({ tin, budgetTinOptions, budgetEntries, onRefr
       </div>
     </div>
 
-    {/* Separate breakdown table — sits to the side of the card, with its own room */}
-    {tin.people.length > 0 && tin.bills.length > 0 && (
-      <aside className="pt-splits-side">
-        {(() => {
-          const activeId = numbersId ?? tin.people[0]?.id;
-          const person = tin.people.find(p => p.id === activeId);
-          if (!person) return null;
-          const assignedBills = tin.bills.filter(b => b.assignments.some(a => a.personId === person.id));
-          const totals = personTotals.find(t => t.personId === person.id);
-          const carried = tin.carriedBalances[person.id] ?? 0;
-          return (
-            <div className="pt-splits-numbers">
-              <div className="pt-splits-numbers__head">{person.name}{person.isOwner ? ' 👑' : ''} — the numbers</div>
-              {tin.people.length > 1 && (
-                <div className="pt-splits-numbers__toggle">
-                  {tin.people.map(p => (
-                    <button key={p.id} type="button"
-                      className={`pt-splits-numbers__toggle-btn${p.id === activeId ? ' active' : ''}`}
-                      onClick={() => setNumbersId(p.id)}>
-                      {p.name}{p.isOwner ? ' 👑' : ''}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="pt-splits-numbers__scroll">
-                <table className="pt-splits-numbers__table">
-                  <thead>
-                    <tr><th>Bill</th><th>Owed</th><th>Paid</th><th>Left</th></tr>
-                  </thead>
-                  <tbody>
-                    {assignedBills.length === 0 ? (
-                      <tr><td className="pt-splits-numbers__empty" colSpan={4}>No bills assigned to {person.name} yet.</td></tr>
-                    ) : assignedBills.map(bill => {
-                      const owed = owedMap[person.id]?.[bill.id] ?? 0;
-                      const paid = paidMap[person.id]?.[bill.id] ?? 0;
-                      const left = owed - paid;
-                      const assign = bill.assignments.find(a => a.personId === person.id);
-                      let lines: { label: string; value: number }[] = [];
-                      if (assign?.breakdown) { try { lines = JSON.parse(assign.breakdown); } catch { lines = []; } }
-                      // Show where the figure comes from — a formula/label, or several lines that sum to the total
-                      const infoLines = lines.filter(l => sourceIsInformative(l, lines.length));
-                      return (
-                        <React.Fragment key={bill.id}>
-                          <tr className={left <= 0 ? 'done' : ''}>
-                            <td>{bill.name}{assign?.type === 'pct' ? ` (${assign.value}% of ${fmt(bill.amount)})` : ''}</td>
-                            <td>{fmt(owed)}</td>
-                            <td className="gain">{fmt(paid)}</td>
-                            <td className={left <= 0 ? 'gain' : 'loss'}>{left <= 0 ? '✓' : fmt(left)}</td>
-                          </tr>
-                          {infoLines.map((l, i) => (
-                            <tr key={`${bill.id}-sub-${i}`} className="pt-splits-numbers__sub">
-                              <td colSpan={3}>↳ {formatSourceLabel(l)}</td>
-                              <td>{fmt(l.value)}</td>
-                            </tr>
-                          ))}
-                        </React.Fragment>
-                      );
-                    })}
-                    {carried > 0 && (
-                      <tr className="pt-splits-numbers__sub">
-                        <td colSpan={3}>Carried from a previous month</td>
-                        <td className="loss">{fmt(carried)}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                  {totals && assignedBills.length > 0 && (
-                    <tfoot>
-                      <tr>
-                        <td>Total</td>
-                        <td>{fmt(totals.owed)}</td>
-                        <td className="gain">{fmt(totals.paid)}</td>
-                        <td className={totals.balance <= 0 ? 'gain' : 'loss'}>{totals.balance <= 0 ? '✓ Paid' : fmt(totals.balance)}</td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-            </div>
-          );
-        })()}
-      </aside>
-    )}
     </div>
   );
 }

@@ -300,6 +300,16 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   // ── Update bill ────────────────────────────────────────────────────────────
+  if (action === 'update_person') {
+    const { personId, name } = body;
+    if (!name?.trim()) return json({ ok: false, error: 'Name required' }, 400);
+    await db.execute({
+      sql: `UPDATE petro_splits_people SET name = ? WHERE id = ? AND tenant_id = ?`,
+      args: [String(name).trim(), personId, tenantId],
+    });
+    return json({ ok: true });
+  }
+
   if (action === 'update_bill') {
     const { billId, name, amount } = body;
     await db.execute({
