@@ -158,6 +158,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .faq-item .a b { color: var(--text-primary); }
     .faq-item .a code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .8rem; color: var(--accent); }
 
+    .toast { position: fixed; left: 50%; bottom: 1.3rem; transform: translateX(-50%) translateY(180%); background: var(--surface-card-2); color: var(--text-primary); border: 1px solid var(--gain-border); border-radius: 11px; padding: .75rem 1.15rem; font-size: .88rem; font-weight: 600; box-shadow: 0 10px 34px -8px rgba(0,0,0,.55); transition: transform .3s ease; z-index: 100; max-width: 90vw; text-align: center; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
     .foot { margin-top: 1.6rem; font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; }
     .foot a { color: var(--text-secondary); }
   </style>
@@ -342,6 +345,79 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     function show(el: HTMLElement, html: string) { el.innerHTML = html; el.classList.add('show'); }
 
+    // ---- Toast (transient notice) ----
+    let toastTimer: any;
+    function toast(msg: string, ms = 6000) {
+      let t = document.getElementById('toast');
+      if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+      t.textContent = msg; t.classList.add('show');
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => t!.classList.remove('show'), ms);
+    }
+
+    // ---- Anchor confirmation watch ----
+    // A Bitcoin anchor submits as "pending" and confirms in a block ~1-2h later. The timestamp
+    // network sends no push, so we poll: while a receivable on screen has a pending anchor, we
+    // periodically upgrade it and alert when it confirms. Client-side only; runs while the page is open.
+    let anchorWatch: { rcvId: string; timer: any; started: number; notified: Set<string> } | null = null;
+    const ANCHOR_POLL_MS = 240000;                    // check every 4 minutes
+    const ANCHOR_WATCH_MAX_MS = 3 * 60 * 60 * 1000;   // give up after 3 hours
+
+    function collectPendingAnchors(rcv: any): Array<{ kind: string; id: string }> {
+      const out: Array<{ kind: string; id: string }> = [];
+      if (rcv.anchored && !rcv.anchoredAt) out.push({ kind: 'receivable', id: rcv.id });
+      (rcv.claims || []).forEach((c: any) => { if (c.anchored && !c.anchoredAt) out.push({ kind: 'claim', id: c.id }); });
+      (rcv.attestations || []).forEach((a: any) => { if (a.anchored && !a.anchoredAt) out.push({ kind: 'attestation', id: a.id }); });
+      return out;
+    }
+
+    function stopAnchorWatch() { if (anchorWatch) { clearInterval(anchorWatch.timer); anchorWatch = null; } }
+
+    function startAnchorWatch(rcv: any) {
+      const pending = collectPendingAnchors(rcv);
+      if (!pending.length) { if (anchorWatch && anchorWatch.rcvId === rcv.id) stopAnchorWatch(); return; }
+      if (anchorWatch && anchorWatch.rcvId === rcv.id) return; // already watching this one
+      stopAnchorWatch();
+      // Ask once (non-blocking) so a confirmation can reach you even on another tab.
+      try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch (e) { /* ignore */ }
+      anchorWatch = { rcvId: rcv.id, timer: setInterval(() => pollAnchors(rcv.id), ANCHOR_POLL_MS), started: Date.now(), notified: new Set() };
+      pollAnchors(rcv.id); // check immediately, so reopening the page surfaces a confirmation that landed while it was closed
+    }
+
+    async function pollAnchors(rcvId: string) {
+      if (!anchorWatch || anchorWatch.rcvId !== rcvId) return;
+      if (Date.now() - anchorWatch.started > ANCHOR_WATCH_MAX_MS) { stopAnchorWatch(); return; }
+      try {
+        const cur = await (await fetch('/api/verify/receivables/lookup?id=' + encodeURIComponent(rcvId))).json();
+        if (!cur.ok || !cur.found) { stopAnchorWatch(); return; }
+        for (const p of collectPendingAnchors(cur.receivable)) {
+          try { await fetch('/api/verify/receivables/anchor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: p.kind, id: p.id, upgrade: true }) }); } catch (e) { /* ignore */ }
+        }
+        const after = await (await fetch('/api/verify/receivables/lookup?id=' + encodeURIComponent(rcvId))).json();
+        const rcv2 = (after.ok && after.found) ? after.receivable : cur.receivable;
+        const confirmedNow: Array<{ label: string; when: string }> = [];
+        const mark = (id: string, label: string, anchoredAt: string | null) => {
+          if (anchoredAt && anchorWatch && !anchorWatch.notified.has(id)) { anchorWatch.notified.add(id); confirmedNow.push({ label, when: String(anchoredAt).slice(0, 10) }); }
+        };
+        mark(rcv2.id, 'The receivable', rcv2.anchoredAt);
+        (rcv2.claims || []).forEach((c: any) => mark(c.id, `${c.financier}'s claim`, c.anchoredAt));
+        (rcv2.attestations || []).forEach((a: any) => mark(a.id, `${a.label}'s attestation`, a.anchoredAt));
+        if (confirmedNow.length) {
+          confirmedNow.forEach((c) => notifyConfirmed(c.label, c.when));
+          if (val('q-id') === rcvId) query(rcvId); // refresh the badge to the confirmed date
+        }
+        if (!collectPendingAnchors(rcv2).length) stopAnchorWatch();
+      } catch (e) { /* transient, keep watching */ }
+    }
+
+    function notifyConfirmed(label: string, when: string) {
+      toast(`⛓ ${label} confirmed in Bitcoin (${when}). The date is now permanent.`, 9000);
+      try {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Confirmed in Bitcoin', { body: `${label} is now Bitcoin-dated ${when}. Its date can no longer be forged or backdated.` });
+        }
+      } catch (e) { /* ignore */ }
+    }
+
     // ---- 1. CHECK (public) ----
     async function query(id: string) {
       const out = $('q-out');
@@ -508,6 +584,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         const [kind, id] = (el.dataset.anchor as string).split(':');
         el.addEventListener('click', () => anchorReq(kind, id, rcv.id, el.dataset.up === '1', out));
       });
+      // If any record is anchored-but-not-yet-confirmed, watch for its Bitcoin confirmation.
+      startAnchorWatch(rcv);
     }
 
     // ---- Stage 4: settlement (authed) ----
