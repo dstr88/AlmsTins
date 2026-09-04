@@ -22,6 +22,11 @@ const DESKS = [
   { key: 'confirm', href: '/verify/confirm', label: 'Confirm a debt', who: 'buyer' },
 ];
 const others = DESKS.filter((d) => d.key !== current);
+
+// Sign out returns to the sign-in page for the desk they were on, so signing back in as
+// the other party is one step instead of landing on the site root and navigating back.
+const backTo = `/verify/login?next=/verify/${current}`;
+const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent(backTo)}`;
 ---
 
 <details class="acct">
@@ -54,7 +59,7 @@ const others = DESKS.filter((d) => d.key !== current);
 
     <hr class="acct__hr" />
 
-    <a class="acct__signout" href="/api/auth/signout">Sign out</a>
+    <a class="acct__signout" href={signOutHref}>Sign out</a>
   </div>
 </details>
 
