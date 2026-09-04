@@ -5,7 +5,7 @@ import CreditCardChargesGrid from './CreditCardChargesGrid';
 import SharedCCGrid from './SharedCCGrid';
 import BudgetTin from './BudgetTin';
 import SlushTin from './SlushTin';
-import SplitsTinComponent from './SplitsTin';
+import SharedSheet from './SharedSheet';
 import QuickCalcTable from './QuickCalcTable';
 import './PetroTinsGrid.css';
 
@@ -192,10 +192,9 @@ export default function PetroTinsGrid() {
           <SharedCCGrid debtTins={debtTins} />
           <div className="pt-grid__splits-grid">
             {splitsTins.map(tin => (
-              <SplitsTinComponent
+              <SharedSheet
                 key={tin.id}
                 tin={tin}
-                budgetTinOptions={tins.filter(t => t.type === 'budget' && !t.isSlush).map(t => ({ id: t.id, name: t.name }))}
                 budgetEntries={tins.filter(t => t.type === 'budget' && !t.isSlush).flatMap(t => t.entries ?? [])}
                 onRefresh={load}
                 onDelete={async (id) => {
