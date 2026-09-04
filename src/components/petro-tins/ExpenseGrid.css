@@ -73,3 +73,10 @@
   text-align: right; font-weight: 700; color: var(--gain);
   font-variant-numeric: tabular-nums;
 }
+
+/* Ledger foot: column sums, then the balance they come to */
+.xg__balancerow td { font-weight: 700; padding: 0.3rem 0.4rem; border-top: 2px solid var(--border-bright); }
+.xg__balancerow .xg__item { font-size: 1.05rem; }
+.xg td.xg__balance { text-align: right; font-size: 1.1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.xg td.xg__neg { color: var(--loss); }
+.xg td.xg__pos { color: var(--gain); }

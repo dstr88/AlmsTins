@@ -75,8 +75,10 @@ export default function ExpenseGrid({
 
   const lookup = rows.map(r => ({ name: r.name, amount: r.amount }));
   const calc = (raw: string) => evalFormula(raw, lookup, budgetEntries);
-  const total = rows.reduce((s, r) => s + r.amount, 0) + carried;
+  // Expenses draw the balance down, deposits build it back up.
+  const expenses = rows.reduce((s, r) => s + r.amount, 0) + carried;
   const deposits = rows.reduce((s, r) => s + r.deposit, 0);
+  const balance = deposits - expenses;
 
   function commitNew() {
     if (locked || !onAddRow) return;
@@ -110,8 +112,8 @@ export default function ExpenseGrid({
 
         <tr className="xg__labels">
           <td></td><td></td>
-          <td className="xg__amount">amount</td>
-          <td className="xg__amount">deposit</td>
+          <td className="xg__amount">Expense (&minus;)</td>
+          <td className="xg__amount">Deposit (+)</td>
         </tr>
 
         {rows.map(row => {
@@ -230,8 +232,17 @@ export default function ExpenseGrid({
         <tr className="xg__totalrow">
           <td className="xg__item">Total</td>
           <td className="xg__formula"></td>
-          <td className="xg__amount xg__total">{money(total)}</td>
+          <td className="xg__amount xg__total">{money(expenses)}</td>
           <td className="xg__amount xg__deposittotal">{deposits ? money(deposits) : ''}</td>
+        </tr>
+
+        <tr className="xg__balancerow">
+          <td className="xg__item">Balance</td>
+          <td className="xg__formula"></td>
+          <td className="xg__amount"></td>
+          <td className={`xg__amount xg__balance ${balance < 0 ? 'xg__neg' : 'xg__pos'}`}>
+            {money(balance)}
+          </td>
         </tr>
       </tbody>
     </table>
