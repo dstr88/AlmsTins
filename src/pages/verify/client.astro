@@ -295,7 +295,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
       const buyerAck = (r.attestations || []).find((a: any) => a.role === 'buyer') || null;
       const acked = !!buyerAck || !!r.acknowledgedAt;
-      const when = buyerAck?.attestedAt || r.acknowledgedAt || '';
+      const when = buyerAck?.date || r.acknowledgedAt || '';
       document.getElementById('t-ev')!.innerHTML = acked
         ? `<div class="ev good"><div>&#10003;</div><div><div class="ev__t">Your buyer confirmed the debt</div><div class="ev__d">${esc(buyerAck ? buyerAck.label : r.buyer)} acknowledged this${when ? ' on ' + esc(String(when).slice(0, 10)) : ''}. This is what a financier leans on hardest.</div></div></div>`
         : `<div class="ev missing"><div>!</div><div><div class="ev__t">Your buyer has not confirmed yet</div><div class="ev__d">Until they acknowledge it, a financier is trusting your paperwork alone. Send them the ID and ask them to confirm.</div></div></div>`;

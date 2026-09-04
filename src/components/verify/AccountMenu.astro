@@ -11,13 +11,17 @@
 interface Props {
   tenantId: string;
   email?: string | null;
-  /** Which desk is showing, so the switch link points at the other one. */
-  current: 'client' | 'desk';
+  /** Which desk is showing, so the menu links to the other two. */
+  current: 'client' | 'desk' | 'confirm';
 }
 const { tenantId, email = null, current } = Astro.props;
-const other = current === 'client'
-  ? { href: '/verify/desk', label: 'Financing Desk' }
-  : { href: '/verify/client', label: 'Client Portal' };
+
+const DESKS = [
+  { key: 'client',  href: '/verify/client',  label: 'Client Portal',  who: 'supplier' },
+  { key: 'desk',    href: '/verify/desk',    label: 'Financing Desk', who: 'financier' },
+  { key: 'confirm', href: '/verify/confirm', label: 'Confirm a debt', who: 'buyer' },
+];
+const others = DESKS.filter((d) => d.key !== current);
 ---
 
 <details class="acct">
@@ -43,7 +47,9 @@ const other = current === 'client'
 
     <hr class="acct__hr" />
 
-    <a class="acct__link" href={other.href}>Switch to {other.label}</a>
+    {others.map((d) => (
+      <a class="acct__link" href={d.href}>{d.label} <span class="acct__who-tag">{d.who}</span></a>
+    ))}
     <a class="acct__link" href="/verify/registry">Public receivable check</a>
 
     <hr class="acct__hr" />
@@ -85,6 +91,7 @@ const other = current === 'client'
   .acct__hr { border: none; border-top: 1px solid var(--border-subtle); margin: .15rem 0; }
   .acct__link { font-size: .85rem; color: var(--accent); text-decoration: none; }
   .acct__link:hover { text-decoration: underline; }
+  .acct__who-tag { color: var(--text-muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; }
   .acct__signout {
     font-size: .85rem; font-weight: 700; color: var(--loss); text-decoration: none;
     border: 1px solid var(--loss-border); background: var(--loss-bg);
