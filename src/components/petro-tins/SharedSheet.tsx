@@ -30,6 +30,18 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
     return map;
   }, [tin.people, tin.bills]);
 
+  const month = new Date().toISOString().slice(0, 7);
+
+  /** Deposits are payments recorded against a row this month. */
+  const deposits = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {};
+    for (const pmt of tin.payments.filter(p => p.month === month)) {
+      if (!map[pmt.personId]) map[pmt.personId] = {};
+      map[pmt.personId][pmt.billId] = (map[pmt.personId][pmt.billId] ?? 0) + pmt.amount;
+    }
+    return map;
+  }, [tin.payments, month]);
+
   async function api(body: Record<string, unknown>) {
     const res = await fetch('/api/petro-tins/splits', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -51,7 +63,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
             if (parsed?.[0]?.label) raw = String(parsed[0].label);
           } catch { /* keep the plain number */ }
         }
-        return { id: b.id, name: b.name, amount: owed[personId]?.[b.id] ?? 0, raw };
+        return { id: b.id, name: b.name, amount: owed[personId]?.[b.id] ?? 0, raw, deposit: deposits[personId]?.[b.id] ?? 0 };
       });
   }
 
@@ -62,6 +74,23 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
       action: 'set_assignment', billId, personId, type: 'flat', value,
       breakdown: JSON.stringify([{ label: raw, value }]),
     });
+    onRefresh();
+  }
+
+  async function setDeposit(personId: string, billId: string, amount: number) {
+    // Clear this month's payments for the row, then record the new figure. The cell is
+    // the source of truth, so typing over it corrects rather than accumulates.
+    const existing = tin.payments.filter(
+      p => p.month === month && p.personId === personId && p.billId === billId,
+    );
+    for (const p of existing) await api({ action: 'delete_payment', paymentId: p.id });
+    if (amount > 0) {
+      await api({
+        action: 'add_payment', splitsId: tin.id, personId, billId,
+        amount, paidDate: new Date().toISOString().slice(0, 10),
+        budgetTinId: tin.budgetTinId,
+      });
+    }
     onRefresh();
   }
 
@@ -108,6 +137,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
                 onRefresh();
               }}
               onAmount={(billId, raw) => saveAmount(person.id, billId, raw, lookup)}
+              onDeposit={(billId, amount) => setDeposit(person.id, billId, amount)}
               onAddRow={(name, raw) => addRow(person.id, name, raw, lookup)}
               onRemoveRow={async (billId, name) => {
                 if (!confirm(`Remove "${name}"?`)) return;
