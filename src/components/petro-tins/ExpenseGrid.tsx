@@ -144,8 +144,11 @@ export default function ExpenseGrid({
                   onBlur={() => {
                     const v = (draft[fKey] ?? '').trim();
                     drop(fKey);
-                    if (v && v !== row.raw && !isNaN(calc(v))) onAmount?.(row.id, v);
+                    // Save it even when it does not resolve yet. Discarding what someone
+                    // typed is worse than holding a formula that is waiting on a name.
+                    if (v !== (isFormula(row.raw) ? row.raw : '')) onAmount?.(row.id, v);
                   }}
+                  title={badFormula ? "This name does not match a row on this grid or an entry in the budget register, so the amount is unchanged." : undefined}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 />
               </td>
@@ -159,7 +162,7 @@ export default function ExpenseGrid({
                     const v = (draft[aKey] ?? '').trim();
                     drop(aKey);
                     // Typing a number here replaces the row's working with that number.
-                    if (v && !isNaN(calc(v)) && v !== row.raw) onAmount?.(row.id, v);
+                    if (v && v !== row.raw) onAmount?.(row.id, v);
                   }}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 />

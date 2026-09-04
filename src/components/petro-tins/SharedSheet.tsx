@@ -68,11 +68,17 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
   }
 
   async function saveAmount(personId: string, billId: string, raw: string, lookup: Array<{ name: string; amount: number }>) {
-    const value = evalFormula(raw, lookup, budgetEntries);
-    if (isNaN(value)) return; // unresolved name — keep what is stored
+    const entry = raw.trim();
+    const looksLikeFormula = entry.startsWith('=') || /\[[^\]]+\]/.test(entry);
+    const parsed = evalFormula(entry, lookup, budgetEntries);
+    // Reject only outright junk. A formula waiting on a name it cannot see yet is kept,
+    // holding the amount it already had, so it recomputes the moment that name exists.
+    if (entry !== '' && !looksLikeFormula && isNaN(parsed)) return;
+    const current = owed[personId]?.[billId] ?? 0;
+    const value = isNaN(parsed) ? current : parsed;
     await api({
       action: 'set_assignment', billId, personId, type: 'flat', value,
-      breakdown: JSON.stringify([{ label: raw, value }]),
+      breakdown: JSON.stringify([{ label: entry, value }]),
     });
     onRefresh();
   }
