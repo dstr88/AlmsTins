@@ -20,7 +20,7 @@ export const prerender = false;
 // Both role desks require a signed-in account. The no-account public check still lives
 // at /verify/registry; these are the working desks for named parties, so they sign in.
 const sess = await requireTenantSession(Astro.request);
-if (!sess) return Astro.redirect('/login?next=/verify/desk', 302);
+if (!sess) return Astro.redirect('/verify/login?next=/verify/desk', 302);
 
 const prefillId = Astro.url.searchParams.get('id') ?? '';
 ---
@@ -288,7 +288,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           body: JSON.stringify({ receivableId: current.id, financier, amount, date: val('c-date') || undefined }),
         });
         const j = await r.json();
-        if (r.status === 401) { show(out, 'Your session ended. <a href="/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a> to register the claim.', 'note-loss'); return; }
+        if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a> to register the claim.', 'note-loss'); return; }
         if (!j.ok) {
           if (j.error === 'exceeds_available') {
             show(out, `<b>Refused. This would be a duplicate.</b><br>Only ${esc(money(Number(j.available || 0), current.currency || 'NGN'))} is unencumbered, and you tried to claim ${esc(money(amount, current.currency || 'NGN'))}. The write was rejected before any money moved.`, 'note-loss');

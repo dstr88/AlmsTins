@@ -19,7 +19,7 @@ export const prerender = false;
 // Signed-in only, same as the financing desk. The public no-account check remains at
 // /verify/registry.
 const sess = await requireTenantSession(Astro.request);
-if (!sess) return Astro.redirect('/login?next=/verify/client', 302);
+if (!sess) return Astro.redirect('/verify/login?next=/verify/client', 302);
 
 const prefillId = Astro.url.searchParams.get('id') ?? '';
 ---
@@ -241,7 +241,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           }),
         });
         const j = await r.json();
-        if (r.status === 401) { show(out, 'Your session ended. <a href="/login?next=/verify/client" style="color:var(--accent)">Sign in again</a> to record it.', 'note-loss'); return; }
+        if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/client" style="color:var(--accent)">Sign in again</a> to record it.', 'note-loss'); return; }
         if (!j.ok) { show(out, esc(j.message || j.error || 'Could not record that.'), 'note-loss'); return; }
         hide(out);
         lastId = j.id;
@@ -303,7 +303,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const box = document.getElementById('mine')!;
       try {
         const r = await fetch('/api/verify/receivables');
-        if (r.status === 401) { box.innerHTML = `<p class="muted">Your session ended. <a href="/login?next=/verify/client" style="color:var(--accent)">Sign in again</a>.</p>`; return; }
+        if (r.status === 401) { box.innerHTML = `<p class="muted">Your session ended. <a href="/verify/login?next=/verify/client" style="color:var(--accent)">Sign in again</a>.</p>`; return; }
         const j = await r.json();
         const list = j.receivables || [];
         if (!list.length) { box.innerHTML = `<p class="muted">Nothing recorded yet.</p>`; return; }
