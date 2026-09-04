@@ -13,6 +13,8 @@
 // No tenant_id or identity is ever rendered.
 import '@/styles/tokens.css';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getAuthSession } from '@/lib/authSession';
+import AccountMenu from '@/components/verify/AccountMenu.astro';
 
 export const prerender = false;
 
@@ -20,6 +22,9 @@ export const prerender = false;
 // /verify/registry.
 const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/verify/login?next=/verify/client', 302);
+
+const authSession = await getAuthSession(Astro.request);
+const email = authSession?.user?.email ?? null;
 
 const prefillId = Astro.url.searchParams.get('id') ?? '';
 ---
@@ -42,6 +47,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .wrap { max-width: 56rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
 
     header { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .35rem; }
+    .head-top { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
     .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
     h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); line-height: 1.15; font-weight: 700; }
     .lede { color: var(--text-secondary); font-size: .95rem; max-width: 40rem; }
@@ -121,8 +127,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
   <div class="wrap">
 
     <header>
-      <div class="eyebrow">Almstins Verify</div>
-      <h1>Client Portal</h1>
+      <div class="head-top">
+        <div>
+          <div class="eyebrow">Almstins Verify</div>
+          <h1>Client Portal</h1>
+        </div>
+        <AccountMenu tenantId={sess.tenantId} email={email} current="client" />
+      </div>
       <p class="lede">Record what you are owed, hand the ID to your financier, and see exactly what gets claimed against it.</p>
     </header>
 

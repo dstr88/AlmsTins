@@ -14,6 +14,8 @@
 // visitors are redirected to /login and returned here.
 import '@/styles/tokens.css';
 import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getAuthSession } from '@/lib/authSession';
+import AccountMenu from '@/components/verify/AccountMenu.astro';
 
 export const prerender = false;
 
@@ -21,6 +23,9 @@ export const prerender = false;
 // at /verify/registry; these are the working desks for named parties, so they sign in.
 const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/verify/login?next=/verify/desk', 302);
+
+const authSession = await getAuthSession(Astro.request);
+const email = authSession?.user?.email ?? null;
 
 const prefillId = Astro.url.searchParams.get('id') ?? '';
 ---
@@ -43,6 +48,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .wrap { max-width: 60rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
 
     header { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .35rem; }
+    .head-top { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
     .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
     h1 { font-size: clamp(1.6rem, 3.6vw, 2.1rem); line-height: 1.15; font-weight: 700; }
     .lede { color: var(--text-secondary); font-size: .95rem; max-width: 40rem; }
@@ -120,8 +126,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
   <div class="wrap">
 
     <header>
-      <div class="eyebrow">Almstins Verify</div>
-      <h1>Financing Desk</h1>
+      <div class="head-top">
+        <div>
+          <div class="eyebrow">Almstins Verify</div>
+          <h1>Financing Desk</h1>
+        </div>
+        <AccountMenu tenantId={sess.tenantId} email={email} current="desk" />
+      </div>
       <p class="lede">Before you advance, see everything already standing against a receivable. Paste the ID your client gave you.</p>
     </header>
 
