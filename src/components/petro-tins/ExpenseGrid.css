@@ -1,28 +1,53 @@
-/* Plain grid. Colors from the design tokens; nothing else styled. */
+/* Plain sheet: item, the formula behind it, and the amount.
+   Colors from the design tokens; sizing mirrors a spreadsheet. */
 
-.xg { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
-.xg th, .xg td { border: 1px solid var(--border-bright); padding: 0; }
-.xg th { font-weight: 600; color: var(--text-secondary); text-align: left; padding: 0.25rem 0.4rem; }
-.xg td { color: var(--text-primary); }
-.xg__num, .xg th.xg__num { text-align: right; }
+.xg { border-collapse: collapse; width: 100%; }
+.xg td { border: 1px solid var(--border-bright); padding: 0; vertical-align: middle; }
 
 .xg input {
   width: 100%; box-sizing: border-box; background: transparent; border: none;
-  color: var(--text-primary); font: inherit; padding: 0.3rem 0.4rem;
+  color: var(--text-primary); font-family: inherit; padding: 0.25rem 0.4rem;
 }
-.xg__num input { text-align: right; }
 .xg input:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
+.xg input:disabled { background: transparent; }
+.xg input::placeholder { color: var(--text-muted); }
+
+/* Name row — the name sits in the middle column */
+.xg__namerow td { border: none; }
+.xg__namerow td:first-child { border-right: 1px solid var(--border-bright); }
+.xg__name { font-size: 0.95rem; font-weight: 600; }
+
+/* Item: the big left column */
+.xg__item { position: relative; width: 38%; }
+.xg__item input { font-size: 1.05rem; }
+.xg__item.xg__muted { padding: 0.3rem 0.4rem; font-size: 0.95rem; }
+
+/* Formula: small and quiet, like working shown beside the figure */
+.xg__formula { width: 30%; }
+.xg__formula input { font-size: 0.78rem; color: var(--text-secondary); }
 .xg__bad { color: var(--loss); }
 
-.xg__titlecell { padding: 0.25rem 0.4rem; }
-.xg__name { font-weight: 700; }
-.xg__muted { color: var(--text-muted); padding: 0.3rem 0.4rem; }
+/* Amount: the big right column */
+.xg__amount { width: 32%; }
+.xg__amount input { font-size: 1.05rem; text-align: right; font-variant-numeric: tabular-nums; }
+.xg__amount.xg__muted { padding: 0.3rem 0.4rem; text-align: right; font-size: 0.95rem; }
 
+.xg__muted { color: var(--text-muted); }
+.xg__right { text-align: right; }
+
+/* Row delete stays out of the way until you are on the row */
 .xg__x {
   background: transparent; border: none; color: var(--text-muted);
-  cursor: pointer; font-size: 0.8rem; padding: 0.15rem 0.35rem;
+  cursor: pointer; font-size: 0.75rem; padding: 0 0.3rem; line-height: 1;
 }
 .xg__x:hover { color: var(--loss); }
+.xg__rowx { position: absolute; right: 0.15rem; top: 50%; transform: translateY(-50%); opacity: 0; }
+.xg__row:hover .xg__rowx { opacity: 1; }
 
-.xg td.xg__foot { font-weight: 700; padding: 0.3rem 0.4rem; }
-.xg td.xg__total { font-weight: 700; color: var(--loss); }
+/* Bottom line */
+.xg__totalrow td { font-weight: 700; padding: 0.3rem 0.4rem; }
+.xg__totalrow .xg__item { font-size: 1.05rem; }
+.xg td.xg__total {
+  text-align: right; font-size: 1.05rem; font-weight: 700;
+  color: var(--loss); font-variant-numeric: tabular-nums;
+}

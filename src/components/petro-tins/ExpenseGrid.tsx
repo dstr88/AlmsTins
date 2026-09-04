@@ -28,12 +28,14 @@ export function evalFormula(
 }
 
 export const money = (n: number) =>
-  Number(n || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** `raw` is what was typed: a formula like "=[Rent]*0.25", or just a number. */
 export type GridRow = { id: string; name: string; amount: number; raw: string };
 
+const isFormula = (raw: string) => raw.trim().startsWith('=') || /\[[^\]]+\]/.test(raw);
+
 export interface ExpenseGridProps {
-  /** Blank for the spare grid. */
   title: string;
   rows: GridRow[];
   carried?: number;
@@ -42,19 +44,19 @@ export interface ExpenseGridProps {
   onRename: (next: string) => void;
   onRemove?: () => void;
   onItemName?: (rowId: string, next: string) => void;
+  /** Saves whatever was typed — a formula or a plain number. */
   onAmount?: (rowId: string, raw: string) => void;
   onAddRow?: (name: string, raw: string) => void;
   onRemoveRow?: (rowId: string, name: string) => void;
-  /** Rows stay disabled until the grid has a name (used by the spare). */
   locked?: boolean;
 }
 
 /**
- * One expense grid: a name, rows of item + amount, and a total.
+ * One expense grid: item, the formula behind it, and the amount it comes to.
  *
- * The amount cell shows the money value and swaps to the underlying formula when you
- * click into it, the way a spreadsheet cell behaves. Import this once per person, plus
- * one spare — the row grows as more are needed.
+ * The formula column holds the working (e.g. =[Rent]*0.25) and stays blank when a row is
+ * just a number. Editing either the formula or the amount updates the row; typing a plain
+ * number into the amount clears the formula.
  */
 export default function ExpenseGrid({
   title, rows, carried = 0, namePlaceholder, budgetEntries = [],
@@ -62,6 +64,7 @@ export default function ExpenseGrid({
 }: ExpenseGridProps) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [newName, setNewName] = useState('');
+  const [newFormula, setNewFormula] = useState('');
   const [newAmt, setNewAmt] = useState('');
 
   const set = (k: string, v: string) => setDraft(d => ({ ...d, [k]: v }));
@@ -69,22 +72,24 @@ export default function ExpenseGrid({
 
   const lookup = rows.map(r => ({ name: r.name, amount: r.amount }));
   const calc = (raw: string) => evalFormula(raw, lookup, budgetEntries);
-
   const total = rows.reduce((s, r) => s + r.amount, 0) + carried;
-  const preview = calc(newAmt);
 
   function commitNew() {
     if (locked || !onAddRow) return;
-    if (!newName.trim() || !newAmt.trim() || isNaN(preview)) return;
-    onAddRow(newName.trim(), newAmt.trim());
-    setNewName(''); setNewAmt('');
+    const name = newName.trim();
+    const raw = (newFormula.trim() || newAmt.trim());
+    if (!name || !raw || isNaN(calc(raw))) return;
+    onAddRow(name, raw);
+    setNewName(''); setNewFormula(''); setNewAmt('');
   }
 
   return (
     <table className="xg">
-      <thead>
-        <tr>
-          <th colSpan={3} className="xg__titlecell">
+      <tbody>
+        {/* Name sits in the middle column, as in a sheet */}
+        <tr className="xg__namerow">
+          <td></td>
+          <td>
             <input
               className="xg__name"
               placeholder={namePlaceholder ?? 'Name'}
@@ -93,81 +98,97 @@ export default function ExpenseGrid({
               onBlur={() => { const v = (draft.__n ?? '').trim(); drop('__n'); if (v && v !== title) onRename(v); }}
               onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
             />
+          </td>
+          <td className="xg__right">
             {onRemove && <button className="xg__x" title="Remove" onClick={onRemove}>✕</button>}
-          </th>
+          </td>
         </tr>
-        <tr>
-          <th>Item</th>
-          <th className="xg__num">Amount</th>
-          <th></th>
-        </tr>
-      </thead>
 
-      <tbody>
         {rows.map(row => {
-          const aKey = `a:${row.id}`, iKey = `i:${row.id}`;
-          const editing = draft[aKey] !== undefined;
-          const bad = editing && draft[aKey].trim() !== '' && isNaN(calc(draft[aKey]));
+          const iKey = `i:${row.id}`, fKey = `f:${row.id}`, aKey = `a:${row.id}`;
+          const shownFormula = draft[fKey] ?? (isFormula(row.raw) ? row.raw : '');
+          const badFormula = shownFormula.trim() !== '' && isNaN(calc(shownFormula));
           return (
-            <tr key={row.id}>
-              <td>
+            <tr key={row.id} className="xg__row">
+              <td className="xg__item">
                 <input
                   value={draft[iKey] ?? row.name}
                   onChange={e => set(iKey, e.target.value)}
                   onBlur={() => { const v = (draft[iKey] ?? '').trim(); drop(iKey); if (v && v !== row.name) onItemName?.(row.id, v); }}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 />
+                {onRemoveRow && (
+                  <button className="xg__x xg__rowx" title="Remove row"
+                    onClick={() => onRemoveRow(row.id, row.name)}>✕</button>
+                )}
               </td>
-              <td className="xg__num">
+
+              <td className="xg__formula">
                 <input
-                  className={bad ? 'xg__bad' : ''}
-                  value={editing ? draft[aKey] : money(row.amount)}
-                  onFocus={() => set(aKey, row.raw)}
-                  onChange={e => set(aKey, e.target.value)}
-                  onBlur={() => { const v = (draft[aKey] ?? '').trim(); drop(aKey); if (v && v !== row.raw) onAmount?.(row.id, v); }}
+                  className={badFormula ? 'xg__bad' : ''}
+                  placeholder="formula"
+                  value={shownFormula}
+                  onChange={e => set(fKey, e.target.value)}
+                  onBlur={() => {
+                    const v = (draft[fKey] ?? '').trim();
+                    drop(fKey);
+                    if (v && v !== row.raw && !isNaN(calc(v))) onAmount?.(row.id, v);
+                  }}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 />
               </td>
-              <td>
-                {onRemoveRow && (
-                  <button className="xg__x" title="Remove row"
-                    onClick={() => onRemoveRow(row.id, row.name)}>✕</button>
-                )}
+
+              <td className="xg__amount">
+                <input
+                  value={draft[aKey] ?? money(row.amount)}
+                  onFocus={() => set(aKey, isFormula(row.raw) ? String(row.amount) : row.raw)}
+                  onChange={e => set(aKey, e.target.value)}
+                  onBlur={() => {
+                    const v = (draft[aKey] ?? '').trim();
+                    drop(aKey);
+                    // Typing a number here replaces the row's working with that number.
+                    if (v && !isNaN(calc(v)) && v !== row.raw) onAmount?.(row.id, v);
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                />
               </td>
             </tr>
           );
         })}
 
         {carried > 0 && (
-          <tr>
-            <td className="xg__muted">Carried from last month</td>
-            <td className="xg__num xg__muted">{money(carried)}</td>
-            <td></td>
+          <tr className="xg__row">
+            <td className="xg__item xg__muted">Carried</td>
+            <td className="xg__formula"></td>
+            <td className="xg__amount xg__muted">{money(carried)}</td>
           </tr>
         )}
 
-        <tr>
-          <td>
-            <input placeholder={locked ? '' : 'Rent'} value={newName} disabled={locked}
+        <tr className="xg__row">
+          <td className="xg__item">
+            <input placeholder={locked ? '' : 'item'} value={newName} disabled={locked}
               onChange={e => setNewName(e.target.value)} />
           </td>
-          <td className="xg__num">
-            <input placeholder={locked ? '' : '=[Rent]*0.25'} value={newAmt} disabled={locked}
+          <td className="xg__formula">
+            <input placeholder={locked ? '' : 'formula'} value={newFormula} disabled={locked}
+              onChange={e => setNewFormula(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') commitNew(); }}
+              onBlur={commitNew} />
+          </td>
+          <td className="xg__amount">
+            <input placeholder={locked ? '' : '0'} value={newAmt} disabled={locked}
               onChange={e => setNewAmt(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') commitNew(); }}
               onBlur={commitNew} />
           </td>
-          <td></td>
+        </tr>
+
+        <tr className="xg__totalrow">
+          <td className="xg__item">Total</td>
+          <td className="xg__formula"></td>
+          <td className="xg__amount xg__total">{money(total)}</td>
         </tr>
       </tbody>
-
-      <tfoot>
-        <tr>
-          <td className="xg__foot">Total</td>
-          <td className="xg__foot xg__num xg__total">{money(total)}</td>
-          <td className="xg__foot"></td>
-        </tr>
-      </tfoot>
     </table>
   );
 }
