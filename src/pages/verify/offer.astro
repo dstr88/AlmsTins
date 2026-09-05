@@ -107,6 +107,9 @@ const ERRORS: Record<string, string> = {
     .t--key { border-left-color: var(--accent); background: var(--surface-card-2); border-radius: 0 8px 8px 0; padding: .7rem .85rem; }
     .t__ini { margin-top: .7rem; max-width: 14rem; }
     .t__ini input { text-transform: uppercase; letter-spacing: .12em; font-weight: 700; }
+    .blocked { display: none; font-size: .84rem; color: var(--text-muted); cursor: pointer; }
+    .blocked.show { display: block; }
+    .blocked:hover { color: var(--accent); }
     .t__k { font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
     .t__v { font-size: .93rem; color: var(--text-primary); margin-top: .1rem; }
   </style>
@@ -194,6 +197,7 @@ const ERRORS: Record<string, string> = {
         </div>
 
         <div class="actions">
+          <div id="blocked" class="blocked"></div>
           <button class="yes" id="ok" data-token={token} disabled>Accept this offer</button>
           <button class="no" id="no" data-token={token}>Do not accept</button>
         </div>
@@ -224,16 +228,30 @@ const ERRORS: Record<string, string> = {
     function show(text: string, cls: string) {
       const el = out(); el.className = `note show ${cls}`; el.textContent = text;
     }
+    // A disabled button that will not say why is its own trap. List what is outstanding.
     function refresh() {
       const btn = $('ok'); if (!btn) return;
-      const named = ($('by')?.value ?? '').trim().length > 0;
-      const initialled = ($('ini')?.value ?? '').trim().length > 0;
-      (btn as unknown as HTMLButtonElement).disabled =
-        !(named && initialled && $('c1')?.checked && $('c2')?.checked);
+      const missing: string[] = [];
+      if (!($('ini')?.value ?? '').trim()) missing.push('initial the recourse clause above');
+      if (!$('c1')?.checked || !$('c2')?.checked) missing.push('tick both boxes');
+      if (!($('by')?.value ?? '').trim()) missing.push('add your name');
+
+      (btn as unknown as HTMLButtonElement).disabled = missing.length > 0;
+      const box = document.getElementById('blocked')!;
+      if (!missing.length) { box.textContent = ''; box.classList.remove('show'); return; }
+      box.classList.add('show');
+      box.textContent = `Before you can accept: ${missing.join(', ')}.`;
     }
     ['c1', 'c2'].forEach((c) => $(c)?.addEventListener('change', refresh));
     $('by')?.addEventListener('input', refresh);
     $('ini')?.addEventListener('input', refresh);
+    document.getElementById('blocked')?.addEventListener('click', () => {
+      const ini = $('ini');
+      if (ini && !ini.value.trim()) {
+        ini.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        ini.focus();
+      }
+    });
 
     async function send(outcome: string, token: string, reason?: string) {
       const by = ($('by')?.value ?? '').trim();
