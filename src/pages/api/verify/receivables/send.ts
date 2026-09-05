@@ -79,9 +79,17 @@ export const POST: APIRoute = async ({ request }) => {
     lead = `${who} has invited you onto the Almstins receivables registry.`;
     ask = 'Accepting creates your own account, where you can see what you are owed and what any financier has claimed against it. Your records stay yours: whoever invited you cannot see inside your account, and you cannot see inside theirs.';
   } else if (req.kind === 'offer') {
+    // The terms go in the email as well as behind the link, so a client who never opens
+    // the page has still been told what was offered. Stated as the financier wrote them.
+    // What is agreed between him and his client is theirs; we record it, we do not advise
+    // on it.
+    const who = req.buyerName || 'the debtor';
+    const recourseLine = req.recourse === 'non_recourse'
+      ? `The offer is non-recourse: the financier carries the loss if ${who} does not pay.`
+      : `The offer is with recourse: the advance is repaid to the financier if ${who} does not pay.`;
     subject = `A financing offer of ${amount} against invoice ${req.invoiceNo}`;
     lead = `You have been offered ${amount} against invoice ${req.invoiceNo} to ${req.buyer}.`;
-    ask = 'The offer page states what it costs you, what happens if your customer does not pay, and how it is repaid. Read those before you accept. Accepting is recorded in your name, signed and timestamped, before any money moves, which is how both sides can later prove what was agreed.';
+    ask = `${recourseLine}${req.price ? ` The charge is ${req.price}.` : ''} The full terms are on the offer page. Your answer is recorded in your name, signed and timestamped, before any money moves.`;
   } else if (req.kind === 'client_record') {
     subject = `Confirm your invoice ${req.invoiceNo} as recorded`;
     lead = `Your financier has recorded that ${req.supplier} is owed ${amount} by ${req.buyer} on invoice ${req.invoiceNo}, from the paperwork you brought in.`;

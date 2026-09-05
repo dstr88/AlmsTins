@@ -104,6 +104,9 @@ const ERRORS: Record<string, string> = {
 
     .terms { display: flex; flex-direction: column; gap: .8rem; }
     .t { border-left: 2px solid var(--border-bright); padding-left: .85rem; }
+    .t--key { border-left-color: var(--accent); background: var(--surface-card-2); border-radius: 0 8px 8px 0; padding: .7rem .85rem; }
+    .t__ini { margin-top: .7rem; max-width: 14rem; }
+    .t__ini input { text-transform: uppercase; letter-spacing: .12em; font-weight: 700; }
     .t__k { font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
     .t__v { font-size: .93rem; color: var(--text-primary); margin-top: .1rem; }
   </style>
@@ -137,16 +140,21 @@ const ERRORS: Record<string, string> = {
 
         <div class="card">
           <h2>The terms</h2>
-          <p class="hint">Read these before you accept. They are what you are agreeing to.</p>
+          <p class="hint">What your financier has offered. These are between you and him; Almstins records them and nothing more.</p>
           <div class="terms">
             <div class="t"><div class="t__k">What it costs you</div>
-              <div class="t__v">{req.offer.price || 'Not stated. Ask your financier before accepting.'}</div></div>
-            <div class="t"><div class="t__k">If the debtor does not pay</div>
+              <div class="t__v">{req.offer.price || 'Not stated in this offer.'}</div></div>
+            <div class="t t--key"><div class="t__k">If {req.buyer} does not pay</div>
               <div class="t__v">{req.offer.recourse === 'non_recourse'
-                ? `${req.offer.financier} carries the loss. You do not repay this advance.`
-                : `You repay this advance. The risk that ${req.buyer} does not pay stays with you.`}</div></div>
+                ? `Non-recourse: ${req.offer.financier} carries the loss.`
+                : `With recourse: the advance is repaid to ${req.offer.financier}.`}</div>
+              <div class="t__ini">
+                <label class="f">Initial here
+                  <input type="text" id="ini" placeholder="e.g. JA" maxlength="8" autocomplete="off" />
+                </label>
+              </div></div>
             <div class="t"><div class="t__k">How it is repaid</div>
-              <div class="t__v">{req.offer.repayment || 'Not stated. Ask your financier before accepting.'}</div></div>
+              <div class="t__v">{req.offer.repayment || 'Not stated in this offer.'}</div></div>
           </div>
         </div>
 
@@ -168,15 +176,15 @@ const ERRORS: Record<string, string> = {
         )}
 
         <div class="relied">
-          Accepting is recorded in your name, signed and timestamped, before any money moves.
-          It is how both of you can later prove what was agreed. If anything above is not what
-          you discussed, do not accept: say so instead.
+          Your answer is recorded in your name, signed and timestamped, before any money moves.
+          It is how both of you can later prove what was agreed. If anything above is not what you
+          discussed, take it up with your financier rather than accepting.
         </div>
 
         <div class="card">
           <h2>Accept these terms</h2>
           <div class="checks">
-            <label class="chk"><input type="checkbox" id="c1" /><span>I have read the terms above, including what happens if my customer does not pay.</span></label>
+            <label class="chk"><input type="checkbox" id="c1" /><span>I have read the terms above, including who repays if my customer does not pay.</span></label>
             <label class="chk"><input type="checkbox" id="c2" /><span>The amount and the invoice are right.</span></label>
           </div>
           <div class="two" style="margin-top:1rem">
@@ -219,11 +227,13 @@ const ERRORS: Record<string, string> = {
     function refresh() {
       const btn = $('ok'); if (!btn) return;
       const named = ($('by')?.value ?? '').trim().length > 0;
+      const initialled = ($('ini')?.value ?? '').trim().length > 0;
       (btn as unknown as HTMLButtonElement).disabled =
-        !(named && $('c1')?.checked && $('c2')?.checked);
+        !(named && initialled && $('c1')?.checked && $('c2')?.checked);
     }
     ['c1', 'c2'].forEach((c) => $(c)?.addEventListener('change', refresh));
     $('by')?.addEventListener('input', refresh);
+    $('ini')?.addEventListener('input', refresh);
 
     async function send(outcome: string, token: string, reason?: string) {
       const by = ($('by')?.value ?? '').trim();
@@ -232,13 +242,19 @@ const ERRORS: Record<string, string> = {
       try {
         const r = await fetch('/api/verify/receivables/offer-respond', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, outcome, by, title: ($('title')?.value ?? '').trim() || null, reason: reason ?? null }),
+          body: JSON.stringify({
+            token, outcome, by,
+            title: ($('title')?.value ?? '').trim() || null,
+            reason: reason ?? null,
+            initials: ($('ini')?.value ?? '').trim() || null,
+          }),
         });
         const j = await r.json();
         if (!j.ok) {
           show(j.error === 'used' ? 'This offer has already been answered.'
             : j.error === 'offer_expired' ? 'This offer has expired. Ask your financier whether it still stands.'
             : j.error === 'expired' ? 'This link has expired. Ask your financier for a new one.'
+            : j.error === 'initials_required' ? 'Please initial the recourse clause above.'
             : 'Could not record that. Try again.', 'note-loss');
           return;
         }

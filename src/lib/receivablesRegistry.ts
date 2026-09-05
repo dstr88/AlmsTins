@@ -1784,6 +1784,11 @@ export interface SendableRequest {
   expiresAt:  string;
   /** What the sender called themselves when minting it. Shown to the invitee. */
   label:      string | null;
+  /** Offer terms, so the email can state them rather than only linking to them. Stated as
+   *  the financier wrote them: what is agreed between him and his client is theirs. */
+  recourse:   Recourse | null;
+  price:      string | null;
+  buyerName:  string | null;
 }
 
 /**
@@ -1799,7 +1804,8 @@ export async function getSendableRequest(
     sql: `SELECT i.token, i.role, i.email, i.label, i.claim_id, i.offer_id, i.expires_at,
                  i.accepted_at, i.revoked_at,
                  i.receivable_id, c.amount AS claim_amount, c.currency AS claim_currency,
-                 o.amount AS offer_amount, o.currency AS offer_currency
+                 o.amount AS offer_amount, o.currency AS offer_currency,
+                 o.recourse AS offer_recourse, o.price AS offer_price
             FROM receivable_invites i
        LEFT JOIN receivable_claims c ON c.id = i.claim_id
        LEFT JOIN receivable_offers o ON o.id = i.offer_id
@@ -1819,7 +1825,7 @@ export async function getSendableRequest(
     return {
       token: String(row.token), kind: 'invitation', sentTo: String(row.email),
       supplier: '', buyer: '', invoiceNo: '', amount: 0, currency: '',
-      expiresAt: String(row.expires_at), label,
+      expiresAt: String(row.expires_at), label, recourse: null, price: null, buyerName: null,
     };
   }
 
@@ -1845,7 +1851,7 @@ export async function getSendableRequest(
     return {
       token: String(row.token), kind, sentTo: String(row.email),
       supplier: '', buyer: '', invoiceNo: '', amount: 0, currency: '',
-      expiresAt: String(row.expires_at), label,
+      expiresAt: String(row.expires_at), label, recourse: null, price: null, buyerName: null,
     };
   }
 
@@ -1860,6 +1866,9 @@ export async function getSendableRequest(
     currency: String((row.offer_id ? row.offer_currency : isClaim ? row.claim_currency : null) || rcv.currency),
     expiresAt: String(row.expires_at),
     label,
+    recourse: row.offer_recourse ? (String(row.offer_recourse) === 'non_recourse' ? 'non_recourse' : 'recourse') : null,
+    price: row.offer_price != null ? String(row.offer_price) : null,
+    buyerName: String(rcv.buyer),
   };
 }
 
@@ -2293,7 +2302,7 @@ export async function readOfferRequest(token: string): Promise<
 export async function respondToOffer(
   token: string,
   outcome: 'accept' | 'decline',
-  answers: { by: string; title?: string | null; reason?: string | null },
+  answers: { by: string; title?: string | null; reason?: string | null; initials?: string | null },
 ): Promise<{ ok: true; attestationId: string; receivableId: string; offerId: string } | { ok: false; error: string }> {
   await ensureReceivablesTables();
 
@@ -2321,13 +2330,17 @@ export async function respondToOffer(
   const title = answers.title ? ` (${clampStr(answers.title, 60)})` : '';
   const amt = `${o.currency} ${o.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
   const rec = o.recourse === 'non_recourse'
-    ? 'non-recourse: the financier carries the loss if the debtor does not pay'
-    : 'with recourse: the client repays if the debtor does not pay';
+    ? 'non-recourse'
+    : 'with recourse';
 
   let statement: string;
   let role: AttesterRole;
   if (outcome === 'accept') {
-    statement = `Accepts financing of ${amt} from ${o.financier} against invoice ${req.invoiceNo}. ${o.price ? `Charge: ${o.price}. ` : ''}Terms: ${rec}.${o.repayment ? ` Repayment: ${o.repayment}.` : ''} Accepted by ${who}${title} via a single-use link, before funds were advanced.`;
+    // Initials are taken against the recourse clause specifically, because that is the term
+    // people sign without reading and the one they later say they never saw.
+    const ini = clampStr(answers.initials ?? '', 8);
+    if (!ini) return { ok: false, error: 'initials_required' };
+    statement = `Accepts financing of ${amt} from ${o.financier} against invoice ${req.invoiceNo}. ${o.price ? `Charge: ${o.price}. ` : ''}Terms: ${rec}, initialled "${ini}".${o.repayment ? ` Repayment: ${o.repayment}.` : ''} Accepted by ${who}${title} via a single-use link, before funds were advanced.`;
     role = 'supplier';
     await db.execute({
       sql: `UPDATE receivable_offers SET accepted_at = ?, accepted_by = ? WHERE id = ? AND accepted_at IS NULL`,
