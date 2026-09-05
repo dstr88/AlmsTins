@@ -844,6 +844,20 @@ export interface InviteRow {
 const INVITE_ROLES: InviteRole[] = ['borrower', 'buyer', 'financier'];
 const INVITE_TTL_DAYS = 7;
 
+/**
+ * How long a document lingers after the last confirmation request closes.
+ *
+ * Answered: the paperwork has done its job, so it goes the next day. The day is not
+ * slack, it is the window in which whoever just vouched for it can still save their own
+ * copy — the copy they need if they ever have to check it against the fingerprint.
+ *
+ * Never answered: that is a stalled deal, not a finished one. The banker will likely
+ * re-send, and purging on the hour the link expired would make him re-upload at exactly
+ * the moment things are already going wrong. Hold it a week past expiry instead.
+ */
+const PURGE_GRACE_ANSWERED_H = 24;
+const PURGE_GRACE_UNANSWERED_D = 7;
+
 /** 32 bytes of randomness, url-safe. Same reasoning as the receivable ID: unguessable. */
 function inviteToken(): string {
   return randomBytes(32).toString('base64url');
@@ -1271,27 +1285,48 @@ export async function purgeDocuments(receivableId: string): Promise<number> {
  */
 export async function listPurgeableReceivables(limit = 200): Promise<string[]> {
   await ensureReceivablesTables();
-  const cutoff = new Date(Date.now() - INVITE_TTL_DAYS * 86400_000)
-    .toISOString().replace('T', ' ').slice(0, 19);
+  const ago = (ms: number) =>
+    new Date(Date.now() - ms).toISOString().replace('T', ' ').slice(0, 19);
+
   const r = await db.execute({
-    sql: `SELECT DISTINCT d.receivable_id AS rid
-            FROM receivable_documents d
-           WHERE d.data IS NOT NULL
-             AND NOT EXISTS (
-                   SELECT 1 FROM receivable_invites i
-                    WHERE i.receivable_id = d.receivable_id
-                      AND i.role = 'buyer'
-                      AND i.accepted_at IS NULL
-                      AND i.revoked_at IS NULL
-                      AND i.expires_at > ?
-                 )
-             AND (
-                   EXISTS (SELECT 1 FROM receivable_invites i2
-                            WHERE i2.receivable_id = d.receivable_id AND i2.role = 'buyer')
-                   OR d.uploaded_at <= ?
-                 )
-           LIMIT ?`,
-    args: [nowUtc(), cutoff, limit],
+    sql: `
+      WITH held AS (
+        SELECT receivable_id, MIN(uploaded_at) AS first_upload
+          FROM receivable_documents
+         WHERE data IS NOT NULL
+         GROUP BY receivable_id
+      ),
+      asked AS (
+        SELECT receivable_id,
+               MAX(accepted_at) AS last_answered,
+               MAX(expires_at)  AS last_expiry,
+               COUNT(*) FILTER (
+                 WHERE accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?
+               ) AS still_open
+          FROM receivable_invites
+         WHERE role = 'buyer'
+         GROUP BY receivable_id
+      )
+      SELECT h.receivable_id AS rid
+        FROM held h
+        LEFT JOIN asked a ON a.receivable_id = h.receivable_id
+       WHERE COALESCE(a.still_open, 0) = 0
+         AND (
+               -- never sent to anyone
+               (a.receivable_id IS NULL AND h.first_upload <= ?)
+               -- somebody answered
+               OR (a.last_answered IS NOT NULL AND a.last_answered <= ?)
+               -- asked, nobody ever answered, and the last link is long expired
+               OR (a.receivable_id IS NOT NULL AND a.last_answered IS NULL AND a.last_expiry <= ?)
+             )
+       LIMIT ?`,
+    args: [
+      nowUtc(),
+      ago(INVITE_TTL_DAYS * 86400_000),
+      ago(PURGE_GRACE_ANSWERED_H * 3600_000),
+      ago(PURGE_GRACE_UNANSWERED_D * 86400_000),
+      limit,
+    ],
   });
   return r.rows.map((x: any) => String(x.rid));
 }
