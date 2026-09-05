@@ -1,0 +1,246 @@
+---
+// Almstins Verify — the supplier's counter-signature page.
+//
+// Registering a financing claim is one firm typing its own name into a box. Nothing in
+// that act proves money changed hands, so a lender who saw the receivable and passed can
+// register an advance he never made, consume the headroom, and poison the invoice for
+// everyone behind him. This page is the check on that: the money is not confirmed until
+// the man who was supposed to receive it says he received it.
+//
+// Reached from a link, no account. Same reasoning as the buyer confirmation — and the
+// same shape, because the party with nothing to gain from the lie is the one worth asking.
+import '@/styles/tokens.css';
+import { readCountersignRequest } from '@/lib/receivablesRegistry';
+
+export const prerender = false;
+
+const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
+const req = token ? await readCountersignRequest(token) : { ok: false as const, error: 'not_found' };
+
+const money = (n: number, ccy: string) =>
+  `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const ERRORS: Record<string, string> = {
+  not_found: 'This link is not valid. Ask whoever sent it for a new one.',
+  expired: 'This link has expired. Ask whoever sent it for a new one.',
+  revoked: 'This request was withdrawn.',
+  used: 'This request has already been answered. If that was not you, contact the sender.',
+};
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confirm you received the money — Almstins Verify</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 40rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.5rem, 3.6vw, 1.9rem); line-height: 1.2; font-weight: 700; }
+    .lede { color: var(--text-secondary); font-size: .95rem; }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.2rem 1.35rem; }
+    .card h2 { font-size: .98rem; font-weight: 700; margin-bottom: .2rem; }
+    .card .hint { font-size: .82rem; color: var(--text-muted); margin-bottom: .95rem; }
+
+    /* The claim, stated plainly */
+    .claim { background: var(--surface-card-2); border: 1px solid var(--border-bright); border-radius: 13px; padding: 1.3rem 1.4rem; }
+    .claim__lead { font-size: 1.02rem; line-height: 1.5; font-weight: 600; }
+    .claim__lead b { color: var(--accent); }
+    .claim__amount { font-size: clamp(1.6rem, 5vw, 2.2rem); font-weight: 800; letter-spacing: -.02em; margin: .45rem 0 .3rem; font-variant-numeric: tabular-nums; }
+    .claim__meta { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-top: .9rem; }
+    .m__k { font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
+    .m__v { font-size: .9rem; font-weight: 600; }
+
+    .relied { border-left: 3px solid var(--warn-border, var(--accent-glow)); background: var(--accent-soft); border-radius: 8px; padding: .75rem .9rem; font-size: .88rem; }
+
+    .doclist { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
+    .doclist li { border: 1px solid var(--border-subtle); border-radius: 9px; padding: .6rem .75rem; background: var(--surface-card-2); }
+    a.doc { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; text-decoration: none; }
+    .doc__name { color: var(--accent); font-weight: 600; font-size: .95rem; word-break: break-all; }
+    .doc__meta { color: var(--text-muted); font-size: .74rem; white-space: nowrap; }
+    a.doc:hover .doc__name { text-decoration: underline; }
+    .doc__hash { margin-top: .4rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .64rem; color: var(--text-muted); word-break: break-all; }
+
+    label.f { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+    input[type=text] {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .6rem .75rem; font-size: .95rem; font-family: inherit;
+      font-weight: 400; letter-spacing: normal; text-transform: none;
+    }
+    input[type=text]:focus { outline: none; border-color: var(--accent); }
+    .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .7rem; }
+
+    .checks { display: flex; flex-direction: column; gap: .55rem; margin-top: .3rem; }
+    .chk { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; cursor: pointer; }
+    .chk input { margin-top: .28rem; width: 1rem; height: 1rem; accent-color: var(--accent); flex: 0 0 auto; }
+
+    .actions { display: flex; flex-direction: column; gap: .6rem; margin-top: .3rem; }
+    button {
+      border-radius: 10px; padding: .8rem 1rem; font-size: .95rem; font-weight: 700;
+      cursor: pointer; font-family: inherit; border: 1px solid transparent; width: 100%;
+    }
+    .yes { background: var(--accent); color: var(--surface-bg); }
+    .yes:hover:not(:disabled) { filter: brightness(1.08); }
+    .yes:disabled { opacity: .45; cursor: not-allowed; }
+    .no { background: transparent; border-color: var(--loss-border); color: var(--loss); font-weight: 600; }
+    .no:hover { background: var(--loss-bg); }
+
+    .note { border-radius: 10px; padding: .8rem .9rem; font-size: .9rem; display: none; }
+    .note.show { display: block; }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .foot { font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; margin-top: .5rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Almstins Verify</div>
+      <h1>Did this money reach you?</h1>
+    </div>
+
+    {!req.ok && (
+      <div class="note note-loss show">{ERRORS[req.error] ?? ERRORS.not_found}</div>
+    )}
+
+    {req.ok && (
+      <>
+        <div class="claim">
+          <div class="claim__lead"><b>{req.financier}</b> has registered an advance to you of</div>
+          <div class="claim__amount">{money(req.amount, req.currency)}</div>
+          <div class="claim__lead" style="font-size:.98rem;font-weight:500;color:var(--text-secondary)">
+            against invoice {req.invoiceNo} to {req.buyer}, registered {req.claimDate}.
+          </div>
+          <div class="claim__meta">
+            <div><div class="m__k">Invoice</div><div class="m__v">{req.invoiceNo}</div></div>
+            <div><div class="m__k">Registered</div><div class="m__v">{req.claimDate}</div></div>
+            <div><div class="m__k">Lender</div><div class="m__v">{req.financier}</div></div>
+          </div>
+        </div>
+
+        <div class="relied">
+          Until you answer, this is one firm's word that it paid you. Your answer is what makes it
+          evidence. Registering an advance costs a lender nothing, so if this money never arrived,
+          say so here.
+          {req.sentTo && <> This request was sent to <b>{req.sentTo}</b>.</>}
+        </div>
+
+        <div class="card">
+          <h2>Check it against your account</h2>
+          <p class="hint">The amount above should match what actually landed, on or about that date.</p>
+
+          <div class="checks">
+            <label class="chk"><input type="checkbox" id="c1" /><span>This money reached my account.</span></label>
+            <label class="chk"><input type="checkbox" id="c2" /><span>The amount above is what I received.</span></label>
+            <label class="chk"><input type="checkbox" id="c3" /><span>It was for this invoice, not a different one.</span></label>
+          </div>
+
+          <div class="two" style="margin-top:1rem">
+            <label class="f">Your name<input type="text" id="by" placeholder="John Adeyemi" autocomplete="name" /></label>
+            <label class="f">Your role<input type="text" id="title" placeholder="Owner" autocomplete="organization-title" /></label>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="yes" id="confirm" data-token={token} disabled>Confirm I received this money</button>
+          <button class="no" id="none" data-token={token}>I never received this money</button>
+          <button class="no" id="diff" data-token={token}>I received a different amount</button>
+        </div>
+
+        <div id="amtbox" class="card" style="display:none">
+          <h2>What did you actually receive?</h2>
+          <p class="hint">Enter the amount that reached you, in {req.currency}.</p>
+          <div class="two">
+            <label class="f">Amount received<input type="text" id="amt" placeholder="0.00" inputmode="decimal" /></label>
+          </div>
+          <div class="actions" style="margin-top:.9rem">
+            <button class="no" id="diffgo" data-token={token}>Record this</button>
+          </div>
+        </div>
+
+        <div id="out" class="note"></div>
+
+        <p class="foot">
+          Almstins records and proves. It does not hold or move money, and it never says who anyone is.
+          Your answer is signed and timestamped, and whoever asked will see it.
+        </p>
+      </>
+    )}
+  </div>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const out = () => document.getElementById('out')!;
+    const checks = ['c1', 'c2', 'c3'];
+
+    function show(html: string, cls: string) {
+      const el = out(); el.className = `note show ${cls}`; el.textContent = html;
+    }
+
+    function refresh() {
+      const btn = $('confirm'); if (!btn) return;
+      const named = ($('by')?.value ?? '').trim().length > 0;
+      const all = checks.every((c) => $(c)?.checked);
+      (btn as unknown as HTMLButtonElement).disabled = !(named && all);
+    }
+    checks.forEach((c) => $(c)?.addEventListener('change', refresh));
+    $('by')?.addEventListener('input', refresh);
+
+    async function send(outcome: string, token: string, amountReceived?: number) {
+      const by = ($('by')?.value ?? '').trim();
+      if (!by) { show('Please put your name to this answer.', 'note-loss'); return; }
+      show('Recording…', 'note-gain');
+      try {
+        const r = await fetch('/api/verify/receivables/countersign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token, outcome, by,
+            title: ($('title')?.value ?? '').trim() || null,
+            amountReceived: amountReceived ?? null,
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          const why = j.error === 'used' ? 'This request has already been answered.'
+            : j.error === 'expired' ? 'This link has expired. Ask whoever sent it for a new one.'
+            : j.error === 'name_required' ? 'Please put your name to this answer.'
+            : 'Could not record that. Try again.';
+          show(why, 'note-loss'); return;
+        }
+        document.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+        show(
+          outcome === 'received'
+            ? 'Recorded. Your confirmation is signed and timestamped, and the lender can see it.'
+            : 'Recorded as a dispute. It is signed and timestamped, and the lender can see it.',
+          outcome === 'received' ? 'note-gain' : 'note-loss',
+        );
+      } catch { show('Could not reach Almstins. Try again.', 'note-loss'); }
+    }
+
+    const tok = (id: string) => ($(id) as unknown as HTMLElement)?.dataset.token ?? '';
+    $('confirm')?.addEventListener('click', () => send('received', tok('confirm')));
+    $('none')?.addEventListener('click', () => send('not_received', tok('none')));
+    $('diff')?.addEventListener('click', () => {
+      const box = document.getElementById('amtbox')!;
+      box.style.display = 'block';
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    $('diffgo')?.addEventListener('click', () => {
+      const raw = ($('amt')?.value ?? '').replace(/[^0-9.]/g, '');
+      send('amount_wrong', tok('diffgo'), raw ? Number(raw) : undefined);
+    });
+
+    refresh();
+  </script>
+</body>
+</html>

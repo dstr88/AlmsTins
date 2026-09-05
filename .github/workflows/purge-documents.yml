@@ -1,0 +1,26 @@
+name: Purge Documents
+
+# Hourly: drop the stored bytes of any receivable document nobody still needs to read.
+# The sha256 tombstone stays behind, so the record still proves which document was shown.
+# Offset from upgrade-anchors so the two hourly jobs do not hit the service together.
+on:
+  schedule:
+    - cron: '35 * * * *'
+  workflow_dispatch:
+
+jobs:
+  purge-documents:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger purge-documents
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
+            exit 1
+          fi
+          curl -sS --fail --max-time 600 \
+            "$SYNC_URL/api/cron/purge-documents?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"

@@ -1,0 +1,278 @@
+---
+// Almstins Verify — the obligor's confirmation page.
+//
+// Reached from an emailed link and nothing else. No account: this person acts once, gains
+// nothing, and asking them to sign up is how the step quietly never happens.
+//
+// The design fights a thoughtless yes in four ways, and only the first actually forces the
+// check — the rest make carelessness harder and, failing that, attributable:
+//   1. Their own reference must be typed from their records, so they have to look.
+//   2. Four separate affirmations rather than one button to sweep past.
+//   3. It says plainly that a lender will advance money on the answer.
+//   4. Disagreeing is exactly as easy as agreeing.
+import '@/styles/tokens.css';
+import { readConfirmRequest } from '@/lib/receivablesRegistry';
+
+export const prerender = false;
+
+// Accept both spellings: links have been handed out with ?token= and ?t=.
+const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
+const req = token ? await readConfirmRequest(token) : { ok: false as const, error: 'not_found' };
+
+const money = (n: number, ccy: string) =>
+  `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const ERRORS: Record<string, string> = {
+  not_found: 'This link is not valid. Ask whoever sent it for a new one.',
+  expired: 'This link has expired. Ask whoever sent it for a new one.',
+  revoked: 'This request was withdrawn.',
+  used: 'This request has already been answered. If that was not you, contact the sender.',
+  wrong_role: 'This link is not a confirmation request.',
+};
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confirm an invoice — Almstins Verify</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 40rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.5rem, 3.6vw, 1.9rem); line-height: 1.2; font-weight: 700; }
+    .lede { color: var(--text-secondary); font-size: .95rem; }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.2rem 1.35rem; }
+    .card h2 { font-size: .98rem; font-weight: 700; margin-bottom: .2rem; }
+    .card .hint { font-size: .82rem; color: var(--text-muted); margin-bottom: .95rem; }
+
+    /* The claim, stated plainly */
+    .claim { background: var(--surface-card-2); border: 1px solid var(--border-bright); border-radius: 13px; padding: 1.3rem 1.4rem; }
+    .claim__lead { font-size: 1.02rem; line-height: 1.5; font-weight: 600; }
+    .claim__lead b { color: var(--accent); }
+    .claim__amount { font-size: clamp(1.6rem, 5vw, 2.2rem); font-weight: 800; letter-spacing: -.02em; margin: .45rem 0 .3rem; font-variant-numeric: tabular-nums; }
+    .claim__meta { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-top: .9rem; }
+    .m__k { font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
+    .m__v { font-size: .9rem; font-weight: 600; }
+
+    .relied { border-left: 3px solid var(--warn-border, var(--accent-glow)); background: var(--accent-soft); border-radius: 8px; padding: .75rem .9rem; font-size: .88rem; }
+
+    .doclist { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
+    .doclist li { border: 1px solid var(--border-subtle); border-radius: 9px; padding: .6rem .75rem; background: var(--surface-card-2); }
+    a.doc { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; text-decoration: none; }
+    .doc__name { color: var(--accent); font-weight: 600; font-size: .95rem; word-break: break-all; }
+    .doc__meta { color: var(--text-muted); font-size: .74rem; white-space: nowrap; }
+    a.doc:hover .doc__name { text-decoration: underline; }
+    .doc__hash { margin-top: .4rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .64rem; color: var(--text-muted); word-break: break-all; }
+
+    label.f { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+    input[type=text] {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .6rem .75rem; font-size: .95rem; font-family: inherit;
+      font-weight: 400; letter-spacing: normal; text-transform: none;
+    }
+    input[type=text]:focus { outline: none; border-color: var(--accent); }
+    .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .7rem; }
+
+    .checks { display: flex; flex-direction: column; gap: .55rem; margin-top: .3rem; }
+    .chk { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; cursor: pointer; }
+    .chk input { margin-top: .28rem; width: 1rem; height: 1rem; accent-color: var(--accent); flex: 0 0 auto; }
+
+    .actions { display: flex; flex-direction: column; gap: .6rem; margin-top: .3rem; }
+    button {
+      border-radius: 10px; padding: .8rem 1rem; font-size: .95rem; font-weight: 700;
+      cursor: pointer; font-family: inherit; border: 1px solid transparent; width: 100%;
+    }
+    .yes { background: var(--accent); color: var(--surface-bg); }
+    .yes:hover:not(:disabled) { filter: brightness(1.08); }
+    .yes:disabled { opacity: .45; cursor: not-allowed; }
+    .no { background: transparent; border-color: var(--loss-border); color: var(--loss); font-weight: 600; }
+    .no:hover { background: var(--loss-bg); }
+
+    .note { border-radius: 10px; padding: .8rem .9rem; font-size: .9rem; display: none; }
+    .note.show { display: block; }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .foot { font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; margin-top: .5rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Almstins Verify</div>
+      <h1>Is this paperwork from your office, and is it accurate?</h1>
+    </div>
+
+    {!req.ok && (
+      <div class="note note-loss show">{ERRORS[req.error] ?? ERRORS.not_found}</div>
+    )}
+
+    {req.ok && (
+      <>
+        <div class="claim">
+          <div class="claim__lead"><b>{req.supplier}</b> has recorded that <b>{req.buyer}</b> owes</div>
+          <div class="claim__amount">{money(req.face, req.currency)}</div>
+          <div class="claim__lead" style="font-size:.98rem;font-weight:500;color:var(--text-secondary)">
+            on invoice {req.invoiceNo}{req.dueDate ? `, due ${req.dueDate}` : ''}.
+          </div>
+          <div class="claim__meta">
+            <div><div class="m__k">Invoice</div><div class="m__v">{req.invoiceNo}</div></div>
+            <div><div class="m__k">Terms</div><div class="m__v">{req.terms || 'not stated'}</div></div>
+            <div><div class="m__k">Due</div><div class="m__v">{req.dueDate || 'not stated'}</div></div>
+          </div>
+        </div>
+
+        {req.documents.length > 0 && (
+          <div class="card docs">
+            <h2>The paperwork</h2>
+            <p class="hint">
+              This is what you are being asked to vouch for. Open it and read it before you answer.
+              Keep a copy: it is removed from this page once everyone asked has replied, and your copy
+              is how you check it later against the fingerprint below.
+            </p>
+            <ul class="doclist">
+              {req.documents.map((d) => (
+                <li>
+                  <a class="doc" href={`/api/verify/receivables/document?t=${encodeURIComponent(token!)}&id=${encodeURIComponent(d.id)}`} target="_blank" rel="noopener">
+                    <span class="doc__name">{d.filename}</span>
+                    <span class="doc__meta">{(d.fileSize / 1024).toFixed(0)} KB · open</span>
+                  </a>
+                  <div class="doc__hash" title="SHA-256 of this file">{d.sha256}</div>
+                </li>
+              ))}
+            </ul>
+            <p class="hint" style="margin-top:.7rem">
+              Your answer records these fingerprints. If the document is changed afterwards, the
+              fingerprint no longer matches and the change is provable.
+            </p>
+          </div>
+        )}
+
+        <div class="relied">
+          A lender will advance money against this answer. Please check it against your own records before replying.
+          {req.sentTo && <> This request was sent to <b>{req.sentTo}</b>.</>}
+        </div>
+
+        <div class="card">
+          <h2>Check it against your records</h2>
+          <p class="hint">Your own purchase order or reference for this invoice — not the number above.</p>
+          <label class="f">Your reference
+            <input type="text" id="ref" placeholder="PO-77" autocomplete="off" />
+          </label>
+
+          <div class="checks">
+            <label class="chk"><input type="checkbox" id="c1" /><span>The goods or services were received.</span></label>
+            <label class="chk"><input type="checkbox" id="c2" /><span>The amount is correct.</span></label>
+            <label class="chk"><input type="checkbox" id="c3" /><span>There are no offsets, credits or disputes against it.</span></label>
+            <label class="chk"><input type="checkbox" id="c4" /><span>It has not already been paid.</span></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Who is answering</h2>
+          <p class="hint">So the record shows who confirmed it.</p>
+          <div class="two">
+            <label class="f">Your name<input type="text" id="by" placeholder="Jane Okafor" autocomplete="name" /></label>
+            <label class="f">Your role<input type="text" id="title" placeholder="Accounts Payable" autocomplete="organization-title" /></label>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="yes" id="confirm" data-token={token} disabled>Confirm this is accurate</button>
+          <button class="no" id="notours" data-token={token}>This invoice is not ours</button>
+          <button class="no" id="wrong" data-token={token}>The amount is wrong</button>
+        </div>
+
+        <div id="out" class="note"></div>
+
+        <p class="foot">
+          Almstins records and proves. It never holds money, never moves it, and never says who anyone is.
+          Your answer is recorded with your name and the address this link was sent to.
+        </p>
+      </>
+    )}
+  </div>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const out = document.getElementById('out');
+    const yes = document.getElementById('confirm') as HTMLButtonElement | null;
+
+    // Confirming stays disabled until every box is ticked and a reference and name are
+    // given. Disputing never is: the lazy path must not be the agreeable one.
+    function refresh() {
+      if (!yes) return;
+      const ready = !!$('ref')?.value.trim() && !!$('by')?.value.trim()
+        && $('c1')?.checked && $('c2')?.checked && $('c3')?.checked && $('c4')?.checked;
+      yes.disabled = !ready;
+    }
+    ['ref', 'by', 'c1', 'c2', 'c3', 'c4'].forEach((id) => {
+      const el = document.getElementById(id);
+      el?.addEventListener('input', refresh);
+      el?.addEventListener('change', refresh);
+    });
+
+    async function send(outcome: string, btn: HTMLButtonElement) {
+      const box = out!;
+      const token = btn.dataset.token;
+      if (outcome !== 'confirmed' && !$('by')?.value.trim()) {
+        box.className = 'note note-loss show';
+        box.textContent = 'Please put your name in before replying, so the record shows who answered.';
+        return;
+      }
+      document.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+      box.className = 'note show';
+      box.textContent = 'Recording your answer…';
+      try {
+        const r = await fetch('/api/verify/receivables/confirm', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token, outcome,
+            theirReference: $('ref')?.value ?? '',
+            by: $('by')?.value ?? '',
+            title: $('title')?.value ?? '',
+            goodsReceived: !!$('c1')?.checked,
+            amountCorrect: !!$('c2')?.checked,
+            noOffsets: !!$('c3')?.checked,
+            notAlreadyPaid: !!$('c4')?.checked,
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          box.className = 'note note-loss show';
+          box.textContent = j.error === 'used'
+            ? 'This request has already been answered.'
+            : 'Could not record that: ' + (j.error ?? 'unknown error');
+          document.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = false));
+          refresh();
+          return;
+        }
+        box.className = 'note note-gain show';
+        box.textContent = outcome === 'confirmed'
+          ? 'Thank you. Your confirmation has been recorded and timestamped. Nothing further is needed from you.'
+          : 'Thank you. Your reply has been recorded and the lender will see it. Nothing further is needed from you.';
+        document.querySelectorAll('.actions').forEach((el) => ((el as HTMLElement).style.display = 'none'));
+      } catch {
+        box.className = 'note note-loss show';
+        box.textContent = 'Could not reach the registry. Please try again.';
+        document.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = false));
+        refresh();
+      }
+    }
+
+    yes?.addEventListener('click', () => send('confirmed', yes));
+    const notours = document.getElementById('notours') as HTMLButtonElement | null;
+    const wrong = document.getElementById('wrong') as HTMLButtonElement | null;
+    notours?.addEventListener('click', () => send('not_ours', notours));
+    wrong?.addEventListener('click', () => send('amount_wrong', wrong));
+  </script>
+</body>
+</html>
