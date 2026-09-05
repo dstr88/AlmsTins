@@ -259,6 +259,9 @@ const ENSURE_SETTLEMENT_COLS = [
   // The extended paperwork fields. Also inside manifest_json (so they are signed and
   // hashed); this column exists so reads do not have to parse the manifest.
   `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS details_json TEXT`,
+  // Chasing an unanswered request, and recording that it went unanswered.
+  `ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS reminded_at TEXT`,
+  `ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS lapse_recorded_at TEXT`,
 ];
 
 // ── Invitations and access grants ─────────────────────────────────────────────
@@ -1947,4 +1950,141 @@ export async function confirmRecordByToken(
   if (!result.ok) return { ok: false, error: result.error };
 
   return { ok: true, attestationId: result.attestationId, receivableId: req.receivableId };
+}
+
+// ── Requests that nobody answers ──────────────────────────────────────────────
+//
+// A client who takes the money and goes quiet, or a debtor who never replies, used to
+// leave nothing behind at all. The link expired and the record simply had a hole in it,
+// with no evidence that anyone had ever asked.
+//
+// That is backwards here. We cannot make anyone answer. We can prove the asking happened,
+// and an unanswered request is itself a fact worth signing: it shows the financier did the
+// diligence, and it lets a second financier weigh silence instead of guessing at it.
+
+export interface OpenRequest {
+  token: string; receivableId: string; role: string; claimId: string | null;
+  email: string | null; expiresAt: string; createdAt: string; remindedAt: string | null;
+}
+
+function openRequestRow(x: any): OpenRequest {
+  return {
+    token: String(x.token),
+    receivableId: String(x.receivable_id),
+    role: String(x.role),
+    claimId: x.claim_id != null ? String(x.claim_id) : null,
+    email: x.email != null ? String(x.email) : null,
+    expiresAt: String(x.expires_at),
+    createdAt: String(x.created_at),
+    remindedAt: x.reminded_at != null ? String(x.reminded_at) : null,
+  };
+}
+
+/** Live requests closing within `hours` that have not been chased yet. */
+export async function listRequestsToRemind(hours = 48, limit = 200): Promise<OpenRequest[]> {
+  await ensureReceivablesTables();
+  const soon = new Date(Date.now() + hours * 3600_000).toISOString().replace('T', ' ').slice(0, 19);
+  const r = await db.execute({
+    sql: `SELECT token, receivable_id, role, claim_id, email, expires_at, created_at, reminded_at
+            FROM receivable_invites
+           WHERE accepted_at IS NULL AND revoked_at IS NULL AND reminded_at IS NULL
+             AND email IS NOT NULL AND receivable_id IS NOT NULL
+             AND expires_at > ? AND expires_at <= ?
+           LIMIT ?`,
+    args: [nowUtc(), soon, limit],
+  });
+  return r.rows.map(openRequestRow);
+}
+
+export async function markReminded(token: string): Promise<void> {
+  await db.execute({
+    sql: `UPDATE receivable_invites SET reminded_at = ? WHERE token = ? AND reminded_at IS NULL`,
+    args: [nowUtc(), String(token).trim()],
+  });
+}
+
+/** Expired, never answered, and the fact of that not yet written down. */
+export async function listLapsedRequests(limit = 200): Promise<OpenRequest[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT token, receivable_id, role, claim_id, email, expires_at, created_at, reminded_at
+            FROM receivable_invites
+           WHERE accepted_at IS NULL AND revoked_at IS NULL AND lapse_recorded_at IS NULL
+             AND receivable_id IS NOT NULL AND expires_at <= ?
+           LIMIT ?`,
+    args: [nowUtc(), limit],
+  });
+  return r.rows.map(openRequestRow);
+}
+
+/**
+ * Write the silence down. Signed and anchorable like any other record, and filed under
+ * role 'other' so it can never be mistaken for somebody's answer.
+ *
+ * Deliberately does NOT name the address. The public lookup promises no identities, and
+ * the person who did not reply consented to even less than the person who did. How many
+ * times, and to which address, stays on the financier's own roster.
+ */
+export async function recordLapse(req: OpenRequest): Promise<boolean> {
+  await ensureReceivablesTables();
+
+  const claimed = await db.execute({
+    sql: `UPDATE receivable_invites SET lapse_recorded_at = ?
+           WHERE token = ? AND lapse_recorded_at IS NULL`,
+    args: [nowUtc(), req.token],
+  });
+  if (!claimed.rowsAffected) return false;
+
+  const owner = await db.execute({
+    sql: `SELECT from_tenant FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [req.token],
+  });
+  const fromTenant = String((owner.rows[0] as any)?.from_tenant ?? '');
+  if (!fromTenant) return false;
+
+  const asked = req.role === 'buyer' ? 'the debtor'
+    : req.claimId ? 'the client, to confirm the advance reached him'
+    : 'the client, to confirm the record';
+  const chased = req.remindedAt ? ' A reminder was sent.' : '';
+
+  const rcv = await getReceivableRow(req.receivableId);
+  const label = rcv ? String(rcv.buyer) : 'Unanswered request';
+
+  const result = await addAttestation(fromTenant, req.receivableId, {
+    role: 'other',
+    label: req.role === 'buyer' ? label : (rcv ? String(rcv.supplier) : label),
+    statement: `UNANSWERED — a confirmation was requested from ${asked} on ${req.createdAt.slice(0, 10)} and expired without a reply on ${req.expiresAt.slice(0, 10)}.${chased} This records the request, not an answer.`,
+    date: req.expiresAt.slice(0, 10),
+  });
+  return result.ok;
+}
+
+/** Outstanding and lapsed requests across a financier's whole book, so nothing rots unseen. */
+export async function listOutstandingForTenant(tenantId: string, limit = 200): Promise<Array<{
+  receivableId: string; supplier: string; buyer: string; invoiceNo: string;
+  role: string; claimId: string | null; email: string | null;
+  expiresAt: string; state: 'pending' | 'lapsed';
+}>> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT i.receivable_id, i.role, i.claim_id, i.email, i.expires_at,
+                 r.supplier, r.buyer, r.invoice_no
+            FROM receivable_invites i
+            JOIN receivables r ON r.id = i.receivable_id
+           WHERE i.from_tenant = ? AND i.accepted_at IS NULL AND i.revoked_at IS NULL
+             AND r.settled_at IS NULL
+           ORDER BY i.expires_at ASC
+           LIMIT ?`,
+    args: [tenantId, limit],
+  });
+  const now = nowUtc();
+  return r.rows.map((x: any) => ({
+    receivableId: String(x.receivable_id),
+    supplier: String(x.supplier), buyer: String(x.buyer), invoiceNo: String(x.invoice_no),
+    role: String(x.role),
+    claimId: x.claim_id != null ? String(x.claim_id) : null,
+    email: x.email != null ? String(x.email) : null,
+    expiresAt: String(x.expires_at),
+    state: String(x.expires_at) < now ? 'lapsed' : 'pending',
+  }));
 }

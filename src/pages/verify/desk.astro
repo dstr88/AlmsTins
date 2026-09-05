@@ -254,6 +254,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <p class="lede">Record a client's deal, attach the paperwork, and see everything already standing against it before you advance.</p>
     </header>
 
+    <div class="card" id="waiting-card" style="display:none">
+      <h2>Waiting on someone</h2>
+      <p class="hint">Requests nobody has answered yet, across every deal. Lapsed ones are recorded as unanswered on the record itself.</p>
+      <div id="waiting-list"></div>
+    </div>
+
     <div class="card">
       <h2>Your book</h2>
       <p class="hint">
@@ -1275,6 +1281,35 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     $('book-q')?.addEventListener('input', renderBook);
     loadBook();
+
+    // Nothing rots unseen: what is still outstanding, and what already lapsed.
+    async function loadWaiting() {
+      const card = document.getElementById('waiting-card')!;
+      const box = document.getElementById('waiting-list')!;
+      try {
+        const j = await (await fetch('/api/verify/receivables/invite?outstanding=1')).json();
+        const rows = j.outstanding ?? [];
+        if (!j.ok || !rows.length) { card.style.display = 'none'; return; }
+        card.style.display = 'block';
+        const who = (v: any) => v.role === 'buyer' ? 'Debtor' : v.claimId ? 'Client, receipt' : 'Client, record';
+        box.innerHTML = '<table style="margin-top:.6rem"><thead><tr><th>Waiting on</th><th>Deal</th><th>Sent to</th><th>State</th></tr></thead><tbody>' +
+          rows.map((v: any) => `<tr class="book-row" data-id="${esc(v.receivableId)}" style="cursor:pointer">
+              <td>${esc(who(v))}</td>
+              <td>${esc(v.supplier)} &rarr; ${esc(v.buyer)}<div class="muted" style="font-size:.74rem">${esc(v.invoiceNo)}</div></td>
+              <td>${esc(v.email || 'no address')}</td>
+              <td>${v.state === 'lapsed'
+                ? `<span style="color:var(--loss)">lapsed ${esc(String(v.expiresAt).slice(0, 10))}</span>`
+                : `<span class="muted">expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`}</td>
+            </tr>`).join('') + '</tbody></table>';
+        box.querySelectorAll('.book-row').forEach((tr) => tr.addEventListener('click', () => {
+          const id = (tr as HTMLElement).dataset.id as string;
+          ($('q-id') as HTMLInputElement).value = id;
+          check(id);
+          document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }));
+      } catch { card.style.display = 'none'; }
+    }
+    loadWaiting();
 
     document.getElementById('q-go')?.addEventListener('click', () => check());
     $('q-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') check(); });
