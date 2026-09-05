@@ -183,6 +183,29 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     details.more[open] > summary .more__i { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
     details.more[open] > summary .more__i::after { content: ''; }
     .sep { border-top: 1px solid var(--border-subtle); margin: 1.1rem 0 .9rem; }
+    /* Practice mode. Amber is the app's warning token, not a new colour. */
+    .modes { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .mode { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; font-weight: 600; cursor: pointer; }
+    .mode input { accent-color: var(--accent); }
+    .mode--test input { accent-color: var(--warning); }
+    .modes__d { font-size: .8rem; color: var(--text-muted); }
+
+    .card.tin.is-test, #panel.is-test .card, #panel.is-test .verdict {
+      border-color: var(--warning-border);
+      box-shadow: inset 0 0 0 1px var(--warning-border);
+    }
+    .card.tin.is-test { background: var(--warning-bg); }
+    .card.tin.is-test > h2::after, #panel.is-test .card > h2::after {
+      content: 'TEST'; margin-left: .6rem; font-size: .58rem; font-weight: 800; letter-spacing: .12em;
+      color: var(--warning); border: 1px solid var(--warning-border); background: var(--warning-bg);
+      border-radius: 99px; padding: .12rem .4rem; vertical-align: middle;
+    }
+    .tpill {
+      font-size: .58rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--warning); border: 1px solid var(--warning-border); background: var(--warning-bg);
+      border-radius: 99px; padding: .1rem .38rem;
+    }
+
     .next {
       display: flex; gap: 1rem; align-items: center; justify-content: space-between;
       flex-wrap: wrap; margin-top: 1.15rem; padding: 1rem 1.2rem; border-radius: 12px;
@@ -319,6 +342,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         He is across the desk with his paperwork. Two steps, both on this card. Only the four
         marked fields are required; fill in whatever the contract in front of you says.
       </p>
+
+      <div class="modes" id="modes">
+        <label class="mode"><input type="radio" name="dealmode" value="real" checked /><span>Real world</span></label>
+        <label class="mode mode--test"><input type="radio" name="dealmode" value="test" /><span>Test</span></label>
+        <span class="modes__d" id="mode-note">A real deal. Everything recorded counts.</span>
+      </div>
 
       <div class="step__h" style="margin-bottom:.9rem">
         <span class="step__n">1</span>
@@ -655,6 +684,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       tw('tw-claim', 'claim');
       tw('tw-conf', 'receipt-confirmation');
 
+      document.getElementById('panel')!.classList.toggle('is-test', !!r.isTest);
       renderNext(r, ccy);
       renderCreditView(r, ccy, claimed, avail);
 
@@ -1040,6 +1070,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           body: JSON.stringify({
             supplier, buyer, invoiceNo, face,
             currency: val('n-ccy') || 'NGN',
+            isTest: (document.querySelector('input[name=dealmode]:checked') as HTMLInputElement)?.value === 'test',
             terms: val('n-terms') || null,
             dueDate: val('n-due') || null,
             details: {
@@ -1135,6 +1166,18 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const i = d.querySelector('.more__i');
       if (i) i.textContent = d.open ? '\u2212' : '+';
     });
+
+    // Practice mode. The tin itself turns amber so there is no way to be halfway through
+    // a rehearsal and think it is real, and the flag travels with the record from there.
+    function syncMode() {
+      const test = (document.querySelector('input[name=dealmode]:checked') as HTMLInputElement)?.value === 'test';
+      document.querySelector('.card.tin')?.classList.toggle('is-test', test);
+      document.getElementById('mode-note')!.textContent = test
+        ? 'A practice run. Marked TEST on this desk, on the public check, and on every page you send.'
+        : 'A real deal. Everything recorded counts.';
+    }
+    document.querySelectorAll('input[name=dealmode]').forEach((r) => r.addEventListener('change', syncMode));
+    syncMode();
 
     document.getElementById('n-add')?.addEventListener('click', () => addExtraRow());
     // Step 2 of the tin: live only once there is a record for it to be about.
@@ -1576,7 +1619,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           const short = `${id.slice(0, 10)}\u2026${id.slice(-6)}`;
           return `<tr class="book-row">
             <td class="dt">${esc(String(v.createdAt || '').slice(0, 10))}</td>
-            <td><b>${esc(v.supplier)}</b></td>
+            <td><b>${esc(v.supplier)}</b>${v.isTest ? ' <span class="tpill">test</span>' : ''}</td>
             <td>${esc(v.buyer)}</td>
             <td>${esc(v.invoiceNo)}</td>
             <td>${esc(money(Number(v.face), v.currency || 'NGN'))}</td>

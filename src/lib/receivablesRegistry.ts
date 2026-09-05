@@ -62,6 +62,8 @@ export interface ReceivableInput {
   paymentMethod?: string | null;
   /** Everything a real contract needs that the seven original fields did not carry. */
   details?: ReceivableDetails | null;
+  /** A practice run. Everyone who sees this record is told, including the public check. */
+  isTest?: boolean;
 }
 
 /**
@@ -145,6 +147,9 @@ export interface ReceivableStatus {
    *  separates "nobody has answered" from "nobody has been asked", which are not the same
    *  fact and should not read the same on screen. */
   requestCount: number;
+  /** A practice run. Carried on the PUBLIC read too: a second financier must never mistake
+   *  a rehearsal for an encumbrance, and a debtor must never confirm a debt that is not one. */
+  isTest: boolean;
   createdAt: string;
   signed: boolean;
   anchored: boolean;
@@ -268,6 +273,9 @@ const ENSURE_SETTLEMENT_COLS = [
   `ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS lapse_recorded_at TEXT`,
   // A request can be about one offer, the way it can be about one claim.
   `ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS offer_id TEXT`,
+  // Practice runs. Marked on the record itself and inside its signed manifest, so the flag
+  // travels with every read and cannot be quietly dropped later.
+  `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE`,
 ];
 
 /**
@@ -492,9 +500,13 @@ export async function createReceivable(
   // details object never changes the hash of an otherwise identical record.
   const details = normalizeDetails(input.details);
 
+  const isTest = input.isTest === true;
   const receivable: Record<string, unknown> =
     { supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt, rtype, paymentMethod };
   if (details) receivable.details = details;
+  // In the manifest, so the ID differs from the same deal recorded for real and the flag
+  // is covered by the signature. A test record cannot be laundered into a real one.
+  if (isTest) receivable.isTest = true;
   const manifest = { v: 1, kind: 'receivable', receivable };
   const { signature, digest } = sign(manifest);
   const id = sha256hex(canonicalManifestBytes(manifest));
@@ -504,11 +516,11 @@ export async function createReceivable(
   if (!existing.rows.length) {
     await db.execute({
       sql: `INSERT INTO receivables
-              (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, details_json, manifest_json, signature_json, digest)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, details_json, is_test, manifest_json, signature_json, digest)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, tenantId, supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt, rtype, paymentMethod,
-        details ? JSON.stringify(details) : null,
+        details ? JSON.stringify(details) : null, isTest,
         JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
       ],
     });
@@ -520,14 +532,14 @@ interface ReceivableRow {
   id: string; tenant_id: string; supplier: string; buyer: string; invoice_no: string;
   face: number; currency: string; terms: string | null;
   due_date: string | null; acknowledged_at: string | null;
-  rtype: string | null; payment_method: string | null; details_json: string | null;
+  rtype: string | null; payment_method: string | null; details_json: string | null; is_test: boolean;
   signature_json: string | null; anchor_json: string | null; settled_at: string | null; created_at: string;
 }
 
 async function getReceivableRow(id: string): Promise<ReceivableRow | null> {
   const r = await db.execute({
     sql: `SELECT id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date,
-                 acknowledged_at, rtype, payment_method, details_json, signature_json, anchor_json, settled_at, created_at
+                 acknowledged_at, rtype, payment_method, details_json, is_test, signature_json, anchor_json, settled_at, created_at
           FROM receivables WHERE id = ? LIMIT 1`,
     args: [id],
   });
@@ -541,6 +553,7 @@ async function getReceivableRow(id: string): Promise<ReceivableRow | null> {
     due_date: row.due_date != null ? String(row.due_date) : null,
     acknowledged_at: row.acknowledged_at != null ? String(row.acknowledged_at) : null,
     details_json: row.details_json != null ? String(row.details_json) : null,
+    is_test: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
     rtype: row.rtype != null ? String(row.rtype) : null,
     payment_method: row.payment_method != null ? String(row.payment_method) : null,
     signature_json: row.signature_json != null ? String(row.signature_json) : null,
@@ -703,6 +716,7 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     details: parseDetails(rcv.details_json),
     documentCount: docCount,
     requestCount: reqCount,
+    isTest: rcv.is_test === true,
     createdAt: rcv.created_at, signed: !!rcv.signature_json,
     anchored: !!rcv.anchor_json, anchoredAt: anchoredAtOf(rcv.anchor_json),
     settled, settledAt: rcv.settled_at,
@@ -800,14 +814,14 @@ export async function settleReceivable(tenantId: string, receivableId: string): 
 
 export interface ReceivableSummary {
   id: string; supplier: string; buyer: string; invoiceNo: string;
-  face: number; currency: string; settled: boolean; createdAt: string;
+  face: number; currency: string; settled: boolean; createdAt: string; isTest: boolean;
 }
 
 /** The receivables this tenant created (so they don't have to hoard IDs). Tenant-scoped. */
 export async function listReceivables(tenantId: string): Promise<ReceivableSummary[]> {
   await ensureReceivablesTables();
   const r = await db.execute({
-    sql: `SELECT id, supplier, buyer, invoice_no, face, currency, settled_at, created_at
+    sql: `SELECT id, supplier, buyer, invoice_no, face, currency, settled_at, created_at, is_test
           FROM receivables WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 200`,
     args: [tenantId],
   });
@@ -815,6 +829,7 @@ export async function listReceivables(tenantId: string): Promise<ReceivableSumma
     id: String(row.id), supplier: String(row.supplier), buyer: String(row.buyer),
     invoiceNo: String(row.invoice_no), face: Number(row.face), currency: String(row.currency),
     settled: row.settled_at != null, createdAt: String(row.created_at),
+    isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
   }));
 }
 
@@ -1324,7 +1339,7 @@ export async function confirmByToken(
 export async function readConfirmRequest(token: string): Promise<
   | { ok: true; supplier: string; buyer: string; invoiceNo: string; face: number; currency: string;
       terms: string | null; dueDate: string | null; receivableId: string;
-      sentTo: string | null; documents: DocumentMeta[] }
+      sentTo: string | null; documents: DocumentMeta[]; isTest: boolean }
   | { ok: false; error: string }
 > {
   await ensureReceivablesTables();
@@ -1346,7 +1361,7 @@ export async function readConfirmRequest(token: string): Promise<
     face: Number(rcv.face), currency: String(rcv.currency),
     terms: rcv.terms != null ? String(rcv.terms) : null,
     dueDate: rcv.due_date != null ? String(rcv.due_date) : null,
-    receivableId: String(rcv.id), sentTo, documents,
+    receivableId: String(rcv.id), sentTo, documents, isTest: rcv.is_test === true,
   };
 }
 
@@ -1639,7 +1654,7 @@ export interface CountersignAnswers {
 export async function readCountersignRequest(token: string): Promise<
   | { ok: true; receivableId: string; claimId: string; financier: string; amount: number;
       currency: string; claimDate: string; invoiceNo: string; buyer: string;
-      sentTo: string | null; alreadyAffirmed: boolean }
+      sentTo: string | null; alreadyAffirmed: boolean; isTest: boolean }
   | { ok: false; error: string }
 > {
   await ensureReceivablesTables();
@@ -1672,6 +1687,7 @@ export async function readCountersignRequest(token: string): Promise<
     buyer: String(rcv.buyer),
     sentTo: row.email != null ? String(row.email) : null,
     alreadyAffirmed: !!row.affirmed_at,
+    isTest: rcv.is_test === true,
   };
 }
 
@@ -1947,7 +1963,8 @@ export interface RecordAnswers {
 export async function readRecordRequest(token: string): Promise<
   | { ok: true; receivableId: string; supplier: string; buyer: string; invoiceNo: string;
       face: number; currency: string; terms: string | null; dueDate: string | null;
-      details: ReceivableDetails | null; documents: DocumentMeta[]; sentTo: string | null }
+      details: ReceivableDetails | null; documents: DocumentMeta[]; sentTo: string | null;
+      isTest: boolean }
   | { ok: false; error: string }
 > {
   await ensureReceivablesTables();
@@ -1978,6 +1995,7 @@ export async function readRecordRequest(token: string): Promise<
     details: parseDetails(rcv.details_json),
     documents: (await listDocuments(String(rcv.id))).filter((d) => !d.purgedAt),
     sentTo: row.email != null ? String(row.email) : null,
+    isTest: rcv.is_test === true,
   };
 }
 
@@ -2269,7 +2287,8 @@ export async function listOffers(receivableId: string): Promise<PublicOffer[]> {
 /** What the client sees. No account: he is being offered money, not signing up for software. */
 export async function readOfferRequest(token: string): Promise<
   | { ok: true; offer: PublicOffer; supplier: string; buyer: string; invoiceNo: string;
-      face: number; currency: string; dueDate: string | null; documents: DocumentMeta[] }
+      face: number; currency: string; dueDate: string | null; documents: DocumentMeta[];
+      isTest: boolean }
   | { ok: false; error: string }
 > {
   await ensureReceivablesTables();
@@ -2303,6 +2322,7 @@ export async function readOfferRequest(token: string): Promise<
     face: Number(rcv.face), currency: String(rcv.currency),
     dueDate: rcv.due_date != null ? String(rcv.due_date) : null,
     documents: (await listDocuments(String(rcv.id))).filter((d) => !d.purgedAt),
+    isTest: rcv.is_test === true,
   };
 }
 

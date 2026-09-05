@@ -93,6 +93,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .rag-settled { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
     .rag-settled .dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
     .rag-disputed { color: var(--warning); background: var(--warning-bg); border-color: var(--warning-border); }
+    .rag-test { color: var(--warning); border-color: var(--warning-border); background: var(--warning-bg); }
     .rag-disputed .dot { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-bg); }
 
     /* State ladder — recorded → signed → attested → verified → disputed */
@@ -493,6 +494,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     // 🟢🟡🔴🔵 status a financier reads in a glance (his #2).
     function rag(rcv: any) {
+      // Ahead of everything else. A second financier must never weigh a rehearsal as an
+      // encumbrance, and must never dismiss a real claim because he expected a test.
+      if (rcv.isTest) return { cls: 'rag-test', label: 'TEST RECORD — not a real receivable' };
       if (rcv.disputed) return { cls: 'rag-disputed', label: '⚠ Disputed' };
       if (rcv.settled) return { cls: 'rag-settled', label: 'Settled / paid' };
       if (rcv.status === 'partially_financed') return { cls: 'rag-partial', label: 'Partially encumbered' };

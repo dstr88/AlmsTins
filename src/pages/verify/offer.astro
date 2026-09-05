@@ -112,6 +112,11 @@ const ERRORS: Record<string, string> = {
     .blocked:hover { color: var(--accent); }
     .t__k { font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
     .t__v { font-size: .93rem; color: var(--text-primary); margin-top: .1rem; }
+    .testbar {
+      border: 1px solid var(--warning-border); background: var(--warning-bg); color: var(--text-primary);
+      border-left: 3px solid var(--warning); border-radius: 8px; padding: .8rem .95rem; font-size: .9rem;
+    }
+    .testbar b { color: var(--warning); }
   </style>
 </head>
 <body>
@@ -127,6 +132,12 @@ const ERRORS: Record<string, string> = {
 
     {req.ok && (
       <>
+        {req.isTest && (
+          <div class="testbar">
+            <b>This is a test.</b> Your financier is practising with the software. Nothing here is a
+            real debt, no money is involved, and your answer will not commit you to anything.
+          </div>
+        )}
         <div class="claim">
           <div class="claim__lead"><b>{req.offer.financier}</b> offers to advance you</div>
           <div class="claim__amount">{money(req.offer.amount, req.offer.currency)}</div>
