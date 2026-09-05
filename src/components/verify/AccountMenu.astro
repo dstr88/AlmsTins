@@ -1,13 +1,16 @@
 ---
 // Account menu for the Verify role desks.
 //
-// The desks are standalone pages outside the dashboard chrome, so they had no way to see
-// who you are signed in as and no way to sign out — which makes it impossible to switch
-// between the client and financier accounts on one machine.
+// Mirrors the dropdown in Layout.astro so the desks feel like the same product: the same
+// pill trigger, the same card, the same identity block, meta rows and sign-out. The desks
+// are standalone pages outside the dashboard chrome, so the markup and the account-*
+// styles are reproduced here rather than inherited.
 //
-// Mirrors the main site's account dropdown: signed-in email, tenant UUID with a copy
-// button, and sign out. Adds a switch link between the two desks, since the same account
-// can open either.
+// It carries less than the main one by necessity — no avatar upload, alert email, plan or
+// last-login are in scope on these pages — and adds links to the other two desks.
+import kingSolomon from '@/assets/KingSolomon.png';
+import minerva from '@/assets/Minerva.png';
+
 interface Props {
   tenantId: string;
   email?: string | null;
@@ -16,6 +19,9 @@ interface Props {
 }
 const { tenantId, email = null, current } = Astro.props;
 
+const avatars = [kingSolomon, minerva];
+const avatar = avatars[Math.floor(Math.random() * avatars.length)];
+
 const DESKS = [
   { key: 'client',  href: '/verify/client',  label: 'Client Portal',  who: 'supplier' },
   { key: 'desk',    href: '/verify/desk',    label: 'Financing Desk', who: 'financier' },
@@ -23,105 +29,173 @@ const DESKS = [
 ];
 const others = DESKS.filter((d) => d.key !== current);
 
-// Sign out returns to the sign-in page for the desk they were on, so signing back in as
-// the other party is one step instead of landing on the site root and navigating back.
+// Sign out returns to the sign-in page for the desk they were on.
 const backTo = `/verify/login?next=/verify/${current}`;
 const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent(backTo)}`;
 ---
 
-<details class="acct">
-  <summary class="acct__trigger">
-    <span class="acct__dot" aria-hidden="true"></span>
-    <span class="acct__who">{email ?? 'Account'}</span>
-    <span class="acct__caret" aria-hidden="true">▾</span>
+<details class="account-menu">
+  <summary class="account-trigger">
+    <img class="account-avatar account-avatar--default" src={avatar.src} alt="Account" />
+    <span class="account-label">Account</span>
+    <span class="account-caret" aria-hidden="true">▾</span>
   </summary>
 
-  <div class="acct__menu">
-    <div class="acct__row">
-      <span class="acct__k">Signed in as</span>
-      <span class="acct__v">{email ?? '—'}</span>
+  <div class="account-dropdown">
+    <div class="account-identity">
+      <img class="account-avatar account-avatar--lg account-avatar--default" src={avatar.src} alt="" />
+      <div class="account-info">
+        <p class="account-email">{email ?? '—'}</p>
+      </div>
     </div>
 
-    <div class="acct__row">
-      <span class="acct__k">Account ID</span>
-      <span class="acct__v acct__v--mono">
-        <code>{tenantId.slice(0, 8)}&hellip;</code>
-        <button type="button" class="acct__copy" data-copy={tenantId} title="Copy full account ID">Copy</button>
-      </span>
+    <hr class="account-divider" />
+
+    <div class="account-meta-block">
+      <div class="account-meta-row">
+        <span class="account-meta-label">Account email</span>
+        <span class="account-meta-value account-meta-email">{email ?? '—'}</span>
+      </div>
+      <div class="account-meta-row">
+        <span class="account-meta-label">Account ID</span>
+        <span class="account-meta-value">
+          <code>{tenantId.slice(0, 8)}&hellip;</code>
+          <button class="copy-btn" type="button" data-copy={tenantId}
+            aria-label="Copy account ID" title="Copy account ID">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          </button>
+        </span>
+      </div>
     </div>
 
-    <hr class="acct__hr" />
+    <hr class="account-divider" />
 
     {others.map((d) => (
-      <a class="acct__link" href={d.href}>{d.label} <span class="acct__who-tag">{d.who}</span></a>
+      <a href={d.href} class="account-billing-link">{d.label} <span class="account-desk-who">{d.who}</span></a>
     ))}
-    <a class="acct__link" href="/verify/registry">Public receivable check</a>
+    <a href="/verify/registry" class="account-billing-link">Public receivable check</a>
 
-    <hr class="acct__hr" />
+    <hr class="account-divider" />
 
-    <a class="acct__signout" href={signOutHref}>Sign out</a>
+    <a href={signOutHref} class="account-logout">Log out</a>
   </div>
 </details>
 
 <style>
-  .acct { position: relative; }
-  .acct__trigger {
-    list-style: none; cursor: pointer; display: flex; align-items: center; gap: .45rem;
-    background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 99px;
-    padding: .38rem .75rem; font-size: .82rem; color: var(--text-secondary); max-width: 15rem;
-  }
-  .acct__trigger::-webkit-details-marker { display: none; }
-  .acct__trigger:hover { background: var(--surface-hover); }
-  .acct__dot { width: .48rem; height: .48rem; border-radius: 50%; background: var(--gain); flex: 0 0 auto; }
-  .acct__who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .acct__caret { color: var(--text-muted); font-size: .7rem; }
+  /* Reproduced from Layout.css so the desks match the site chrome. */
+  .account-menu { position: relative; }
+  .account-menu > summary { list-style: none; }
+  .account-menu > summary::-webkit-details-marker { display: none; }
 
-  .acct__menu {
-    position: absolute; right: 0; top: calc(100% + .4rem); z-index: 40; width: 17rem;
-    background: var(--surface-card); border: 1px solid var(--border-bright); border-radius: 12px;
-    padding: .8rem .9rem; display: flex; flex-direction: column; gap: .5rem;
-    box-shadow: 0 18px 44px -18px rgba(0,0,0,.65);
+  .account-trigger {
+    display: flex; align-items: center; gap: 0.45rem;
+    background: var(--border-subtle);
+    border: 1px solid var(--border-bright);
+    color: var(--text-secondary);
+    padding: 0.35rem 0.75rem 0.35rem 0.45rem;
+    border-radius: 999px;
+    cursor: pointer; font: inherit; font-size: 0.9rem;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    user-select: none;
   }
-  .acct__row { display: flex; flex-direction: column; gap: .12rem; }
-  .acct__k { font-size: .64rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
-  .acct__v { font-size: .84rem; color: var(--text-primary); word-break: break-word; }
-  .acct__v--mono { display: flex; align-items: center; gap: .45rem; }
-  .acct__v--mono code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
-  .acct__copy {
-    background: transparent; border: 1px solid var(--border-bright); border-radius: 6px;
-    color: var(--text-secondary); font-size: .68rem; font-weight: 600; padding: .12rem .4rem;
-    cursor: pointer; font-family: inherit;
+  .account-trigger:hover,
+  .account-menu[open] .account-trigger {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: var(--border-bright);
+    color: var(--text-primary);
   }
-  .acct__copy:hover { background: var(--surface-hover); }
-  .acct__hr { border: none; border-top: 1px solid var(--border-subtle); margin: .15rem 0; }
-  .acct__link { font-size: .85rem; color: var(--accent); text-decoration: none; }
-  .acct__link:hover { text-decoration: underline; }
-  .acct__who-tag { color: var(--text-muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; }
-  .acct__signout {
-    font-size: .85rem; font-weight: 700; color: var(--loss); text-decoration: none;
-    border: 1px solid var(--loss-border); background: var(--loss-bg);
-    border-radius: 8px; padding: .42rem .7rem; text-align: center;
+
+  .account-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+  .account-avatar--default { object-position: top center; border-radius: 50%; border: 1px solid var(--border-bright); }
+  .account-avatar--lg { width: 44px; height: 44px; flex-shrink: 0; }
+
+  .account-label { font-weight: 500; }
+  .account-caret { font-size: 0.7rem; opacity: 0.6; transition: transform 0.2s; }
+  .account-menu[open] .account-caret { transform: rotate(180deg); }
+
+  .account-dropdown {
+    position: absolute; top: calc(100% + 0.6rem); right: 0;
+    min-width: 260px;
+    background: var(--surface-card);
+    border: 1px solid var(--border-bright);
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(16px);
+    z-index: 100;
+    animation: dropdown-in 0.15s ease;
   }
-  .acct__signout:hover { filter: brightness(1.1); }
+  @keyframes dropdown-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .account-identity { display: flex; align-items: center; gap: 0.85rem; }
+  .account-info { min-width: 0; }
+  .account-email {
+    margin: 0; font-size: 0.78rem; color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .account-divider { border: none; border-top: 1px solid var(--border-subtle); margin: 0.75rem 0; }
+
+  .account-meta-block { display: flex; flex-direction: column; gap: 0.35rem; }
+  .account-meta-row {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 0.5rem; font-size: 0.72rem;
+  }
+  .account-meta-label { color: var(--text-muted); white-space: nowrap; }
+  .account-meta-value {
+    color: var(--text-secondary); display: flex; align-items: center; gap: 0.3rem;
+    min-width: 0;
+  }
+  .account-meta-value code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; }
+  .account-meta-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .copy-btn {
+    background: transparent; border: none; color: var(--text-muted);
+    cursor: pointer; padding: 0; display: inline-flex; align-items: center;
+  }
+  .copy-btn:hover { color: var(--accent); }
+
+  .account-billing-link {
+    display: flex; align-items: baseline; gap: 0.4rem;
+    padding: 0.4rem 0; font-size: 0.85rem;
+    color: var(--text-secondary); text-decoration: none;
+  }
+  .account-billing-link:hover { color: var(--accent); }
+  .account-desk-who {
+    font-size: 0.68rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+
+  .account-logout {
+    display: block; width: 100%;
+    padding: 0.55rem 0.9rem;
+    background: var(--loss-bg);
+    border: 1px solid var(--loss-border);
+    color: var(--loss);
+    border-radius: 8px;
+    font: inherit; font-size: 0.875rem; font-weight: 500;
+    cursor: pointer; text-align: center; text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+  }
 </style>
 
 <script>
-  document.querySelectorAll('.acct__copy').forEach((btn) => {
+  document.querySelectorAll('.copy-btn').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       const el = e.currentTarget as HTMLElement;
-      const text = el.dataset.copy ?? '';
       try {
-        await navigator.clipboard.writeText(text);
-        const prev = el.textContent;
-        el.textContent = 'Copied';
-        setTimeout(() => { el.textContent = prev; }, 1400);
+        await navigator.clipboard.writeText(el.dataset.copy ?? '');
+        el.style.color = 'var(--accent)';
+        setTimeout(() => { el.style.color = ''; }, 1200);
       } catch { /* clipboard unavailable — the code stays selectable */ }
     });
   });
 
-  // Close the menu when clicking outside it.
   document.addEventListener('click', (e) => {
-    document.querySelectorAll('details.acct[open]').forEach((d) => {
+    document.querySelectorAll('details.account-menu[open]').forEach((d) => {
       if (!d.contains(e.target as Node)) (d as HTMLDetailsElement).open = false;
     });
   });
