@@ -386,8 +386,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           </div>
         </div>
         <div class="row" style="margin-top:.7rem">
-          <input id="n-cemail" type="email" placeholder="him@his-company.com" autocomplete="off" disabled />
+          <input id="n-cemail" class="grow" type="email" placeholder="him@his-company.com" autocomplete="off" disabled />
           <button id="n-csend" disabled>Create &amp; email</button>
+          <button id="n-clink" class="ghost" disabled>Create link only</button>
         </div>
         <div id="n-cout" class="note"></div>
       </div>
@@ -1021,31 +1022,53 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       document.getElementById('n-client')!.classList.remove('step--off');
       ($('n-cemail') as HTMLInputElement).disabled = false;
       ($('n-csend') as unknown as HTMLButtonElement).disabled = false;
+      ($('n-clink') as unknown as HTMLButtonElement).disabled = false;
       document.getElementById('n-client-why')!.textContent =
         'He confirms you recorded his deal correctly. Until he does, everything on the record is your word for what he told you.';
     }
 
-    document.getElementById('n-csend')?.addEventListener('click', async () => {
+    // A clipboard write nobody asked for is a clipboard write nobody knows about, and it
+    // can fail silently on top of that. Offer the link as a button the banker clicks.
+    function copyButton(link: string, label = 'Copy the link') {
+      return `<button class="small ghost" data-copylink="${esc(link)}" style="margin-top:.5rem">${esc(label)}</button>`;
+    }
+    document.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement)?.closest?.('[data-copylink]') as HTMLElement | null;
+      if (!b) return;
+      navigator.clipboard?.writeText(b.dataset.copylink || '')
+        .then(() => { b.textContent = 'Copied'; })
+        .catch(() => { b.textContent = 'Could not copy — select the link and copy it'; });
+    });
+
+    async function createClientRequest(alsoEmail: boolean) {
       const out = $('n-cout') as unknown as HTMLElement;
       const email = val('n-cemail');
       if (!clientStepFor) { show(out, 'Record the deal above first.', 'note-loss'); return; }
-      if (!email) { show(out, 'An address is needed to email it.', 'note-loss'); return; }
+      if (alsoEmail && !email) { show(out, 'An address is needed to email it. Use "Create link only" otherwise.', 'note-loss'); return; }
       show(out, 'Creating…');
       try {
         const ir = await (await fetch('/api/verify/receivables/invite', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'borrower', receivableId: clientStepFor, email }),
+          body: JSON.stringify({ role: 'borrower', receivableId: clientStepFor, email: email || null }),
         })).json();
         if (!ir.ok) { show(out, 'Could not create that request.', 'note-loss'); return; }
         const link = `${location.origin}/verify/attest?token=${encodeURIComponent(ir.token)}`;
-        await navigator.clipboard?.writeText(link).catch(() => {});
+
+        if (!alsoEmail) {
+          show(out, `<b>Request created.</b> It works once and expires in seven days.<br><code style="word-break:break-all;font-size:.76rem">${esc(link)}</code><br>${copyButton(link)}`, 'note-gain');
+          return;
+        }
         if (await emailRequest(ir.token, out, 'your client')) {
           ($('n-cemail') as HTMLInputElement).value = '';
         } else {
-          show(out, `Link copied instead. Send it to ${esc(email)} yourself.`, 'note-loss');
+          // emailRequest already said why. Add the way out rather than replacing it.
+          out.innerHTML += `<br>The request exists. Send it to ${esc(email)} yourself:<br>${copyButton(link, 'Copy the link to send')}`;
         }
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
-    });
+    }
+
+    document.getElementById('n-csend')?.addEventListener('click', () => createClientRequest(true));
+    document.getElementById('n-clink')?.addEventListener('click', () => createClientRequest(false));
 
     document.getElementById('n-go')?.addEventListener('click', createDeal);
 
@@ -1158,10 +1181,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         const j = await r.json();
         if (!j.ok) { show(out, 'Could not create that link.', 'note-loss'); return; }
         const link = `${location.origin}/verify/authenticate?token=${encodeURIComponent(j.token)}`;
-        await navigator.clipboard?.writeText(link).catch(() => {});
         ($('k-email') as HTMLInputElement).value = '';
         ($('k-label') as HTMLInputElement).value = '';
-        show(out, `Link copied. Send it to ${esc(email)}. It works once and expires in 7 days.`, 'note-gain');
+        show(out, `<b>Request created.</b> Send it to ${esc(email)}. It works once and expires in 7 days.<br>${copyButton(link)}`, 'note-gain');
         loadConfirms();
         return j.token as string;
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
@@ -1244,8 +1266,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         if (!ir.ok) { show(out, 'Offer signed, but the link could not be created.', 'note-loss'); return null; }
 
         const link = `${location.origin}/verify/offer?token=${encodeURIComponent(ir.token)}`;
-        await navigator.clipboard?.writeText(link).catch(() => {});
-        show(out, `<b>Offer signed and link copied.</b> He sees the amount, the charge, the recourse terms and how it is repaid.`, 'note-gain');
+        show(out, `<b>Offer signed.</b> He sees the amount, the charge, the recourse terms and how it is repaid.<br>${copyButton(link)}`, 'note-gain');
         loadOffers();
         return ir.token as string;
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
@@ -1342,9 +1363,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         const j = await r.json();
         if (!j.ok) { show(out, 'Could not create that link.', 'note-loss'); return; }
         const link = `${location.origin}/verify/countersign?token=${encodeURIComponent(j.token)}`;
-        await navigator.clipboard?.writeText(link).catch(() => {});
         ($('cs-email') as HTMLInputElement).value = '';
-        show(out, `Link copied. Send it to ${esc(email)} from your own email. The claim shows as confirmed once he answers.`, 'note-gain');
+        show(out, `<b>Request created.</b> Send it to ${esc(email)} from your own email. The claim shows as confirmed once he answers.<br>${copyButton(link)}`, 'note-gain');
         loadCountersigns();
         return j.token as string;
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
