@@ -15,6 +15,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import {
   createInvite, readInvite, acceptInvite, revokeInvite, listInvitesFrom,
+  listConfirmRequests,
   type InviteRole,
 } from '@/lib/receivablesRegistry';
 
@@ -32,6 +33,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
+
+  // The roster for one receivable: everyone asked to confirm it, and what came back.
+  const receivableId = url.searchParams.get('receivableId');
+  if (receivableId) {
+    return json({ ok: true, requests: await listConfirmRequests(session.tenantId, receivableId) });
+  }
+
   return json({ ok: true, invites: await listInvitesFrom(session.tenantId) });
 };
 

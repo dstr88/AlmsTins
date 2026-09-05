@@ -264,6 +264,35 @@ const ENSURE_ACCESS_TENANT_IDX =
 const ENSURE_ACCESS_RCV_IDX =
   `CREATE INDEX IF NOT EXISTS receivable_access_rcv ON receivable_access (receivable_id)`;
 
+
+// ── Documents — the paperwork, held only as long as someone still needs to read it ──
+//
+// The promissory note or contract the banker takes in at his office. Bytes live base64
+// in Postgres (same approach as transaction_screenshots and petro_receipts — there is no
+// object store in this app, and Render's filesystem is ephemeral).
+//
+// They are NOT kept. The moment the last outstanding confirmation request closes, the
+// bytes are nulled and the row becomes a tombstone: filename, size, and sha256 survive so
+// the record still proves WHICH document was shown, while the document itself is gone.
+// Almstins witnesses the paperwork; it never becomes its custodian. Every party to the
+// deal already holds a copy, and a hash is useless to anyone who does not.
+const ENSURE_DOCS_SQL = `
+  CREATE TABLE IF NOT EXISTS receivable_documents (
+    id             TEXT NOT NULL PRIMARY KEY,
+    receivable_id  TEXT NOT NULL,
+    tenant_id      TEXT NOT NULL,
+    filename       TEXT NOT NULL,
+    mime_type      TEXT NOT NULL,
+    file_size      INTEGER NOT NULL DEFAULT 0,
+    sha256         TEXT NOT NULL,
+    data           TEXT,
+    uploaded_at    TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    purged_at      TEXT
+  )
+`;
+const ENSURE_DOCS_RCV_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_documents_rcv ON receivable_documents (receivable_id)`;
+
 let ensured = false;
 export async function ensureReceivablesTables(): Promise<void> {
   if (ensured) return;
@@ -278,6 +307,8 @@ export async function ensureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_ACCESS_SQL, args: [] });
   await db.execute({ sql: ENSURE_ACCESS_TENANT_IDX, args: [] });
   await db.execute({ sql: ENSURE_ACCESS_RCV_IDX, args: [] });
+  await db.execute({ sql: ENSURE_DOCS_SQL, args: [] });
+  await db.execute({ sql: ENSURE_DOCS_RCV_IDX, args: [] });
   for (const sql of ENSURE_SETTLEMENT_COLS) {
     try { await db.execute({ sql, args: [] }); }
     catch (e) { console.error('[receivables] settlement column not applied:', e); }
@@ -677,7 +708,8 @@ export type AddAttestationResult =
 export async function addAttestation(
   tenantId: string,
   receivableId: string,
-  input: { role: AttesterRole; label: string; statement: string; date?: string },
+  input: { role: AttesterRole; label: string; statement: string; date?: string;
+           docs?: Array<{ sha256: string; filename: string }> },
 ): Promise<AddAttestationResult> {
   await ensureReceivablesTables();
   const rcv = await getReceivableRow(String(receivableId || '').trim());
@@ -691,7 +723,15 @@ export async function addAttestation(
     return { ok: false, error: 'invalid', message: 'An attester name and a statement are required.' };
   }
 
-  const manifest = { v: 1, kind: 'attestation', receivableId: rcv.id, role, label, statement, date };
+  // Bind the exact paperwork the attester was looking at. Without this the file could be
+  // swapped after the answer and the attestation would still read as valid. `docs` is
+  // omitted entirely when absent so manifests written before this existed stay byte-identical.
+  const manifest: Record<string, unknown> = { v: 1, kind: 'attestation', receivableId: rcv.id, role, label, statement, date };
+  if (input.docs && input.docs.length) {
+    manifest.docs = input.docs
+      .map((d) => ({ sha256: String(d.sha256), filename: clampStr(d.filename, 200) }))
+      .sort((a, b) => (a.sha256 < b.sha256 ? -1 : a.sha256 > b.sha256 ? 1 : 0));
+  }
   const { signature, digest } = sign(manifest);
   const attestationId = randomUUID();
   await db.execute({
@@ -1061,7 +1101,14 @@ export async function confirmByToken(
   // Recorded under the tenant that asked, since the answerer has no account. The
   // statement names who answered and where the link was sent, so the path is on the face
   // of the record rather than implied by which tenant holds it.
-  const result = await addAttestation(fromTenant, invite.receivableId, { role, label: rcv.buyer, statement });
+  // Bind the paperwork that was on screen. If the file is swapped afterwards, the digest
+  // in this attestation no longer matches, and the swap is provable rather than deniable.
+  const docs = (await listDocuments(invite.receivableId))
+    .map((d) => ({ sha256: d.sha256, filename: d.filename }));
+
+  const result = await addAttestation(fromTenant, invite.receivableId, {
+    role, label: rcv.buyer, statement, docs,
+  });
   if (!result.ok) return { ok: false, error: result.error };
 
   return { ok: true, attestationId: result.attestationId, receivableId: invite.receivableId };
@@ -1070,7 +1117,8 @@ export async function confirmByToken(
 /** What the answerer sees before answering. No account, so no session to read it from. */
 export async function readConfirmRequest(token: string): Promise<
   | { ok: true; supplier: string; buyer: string; invoiceNo: string; face: number; currency: string;
-      terms: string | null; dueDate: string | null }
+      terms: string | null; dueDate: string | null; receivableId: string;
+      sentTo: string | null; documents: DocumentMeta[] }
   | { ok: false; error: string }
 > {
   await ensureReceivablesTables();
@@ -1079,11 +1127,263 @@ export async function readConfirmRequest(token: string): Promise<
   if (invite.role !== 'buyer' || !invite.receivableId) return { ok: false, error: 'wrong_role' };
   const rcv = await getReceivableRow(invite.receivableId);
   if (!rcv) return { ok: false, error: 'not_found' };
+
+  const addressed = await db.execute({
+    sql: `SELECT email FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token).trim()],
+  });
+  const sentTo = (addressed.rows[0] as any)?.email ? String((addressed.rows[0] as any).email) : null;
+  const documents = (await listDocuments(invite.receivableId)).filter((d) => !d.purgedAt);
   return {
     ok: true,
     supplier: String(rcv.supplier), buyer: String(rcv.buyer), invoiceNo: String(rcv.invoice_no),
     face: Number(rcv.face), currency: String(rcv.currency),
     terms: rcv.terms != null ? String(rcv.terms) : null,
     dueDate: rcv.due_date != null ? String(rcv.due_date) : null,
+    receivableId: String(rcv.id), sentTo, documents,
   };
+}
+
+// ── Documents ─────────────────────────────────────────────────────────────────
+
+export const DOC_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB per file, same as the other two registries
+export const DOC_ALLOWED_TYPES = [
+  'application/pdf',
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+];
+
+/** Document metadata — never carries the bytes. */
+export interface DocumentMeta {
+  id:         string;
+  filename:   string;
+  mimeType:   string;
+  fileSize:   number;
+  sha256:     string;
+  uploadedAt: string;
+  purgedAt:   string | null;
+}
+
+function docRow(r: any): DocumentMeta {
+  return {
+    id: String(r.id),
+    filename: String(r.filename),
+    mimeType: String(r.mime_type),
+    fileSize: Number(r.file_size || 0),
+    sha256: String(r.sha256),
+    uploadedAt: String(r.uploaded_at),
+    purgedAt: r.purged_at != null ? String(r.purged_at) : null,
+  };
+}
+
+/**
+ * Attach a document to a receivable. Only the tenant that owns the receivable may.
+ * There is no limit on the number of files: a scanned note runs to several pages and
+ * being unable to attach page four is not a boundary worth enforcing.
+ */
+export async function addDocument(
+  tenantId: string,
+  receivableId: string,
+  input: { filename: string; mimeType: string; bytes: Buffer },
+): Promise<{ ok: true; doc: DocumentMeta } | { ok: false; error: string }> {
+  await ensureReceivablesTables();
+
+  const owns = await db.execute({
+    sql: `SELECT 1 FROM receivables WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(receivableId || '').trim(), tenantId],
+  });
+  if (!owns.rows.length) return { ok: false, error: 'not_found' };
+
+  const mime = String(input.mimeType || '').toLowerCase().split(';')[0].trim();
+  if (!DOC_ALLOWED_TYPES.includes(mime)) return { ok: false, error: 'unsupported_type' };
+  if (!input.bytes?.length) return { ok: false, error: 'empty' };
+  if (input.bytes.length > DOC_MAX_SIZE_BYTES) return { ok: false, error: 'too_large' };
+
+  const filename = clampStr(input.filename, 200) || 'document';
+  const sha256 = createHash('sha256').update(input.bytes).digest('hex');
+  const id = randomUUID();
+
+  await db.execute({
+    sql: `INSERT INTO receivable_documents
+            (id, receivable_id, tenant_id, filename, mime_type, file_size, sha256, data)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, String(receivableId).trim(), tenantId, filename, mime,
+           input.bytes.length, sha256, input.bytes.toString('base64')],
+  });
+
+  const r = await db.execute({
+    sql: `SELECT id, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+            FROM receivable_documents WHERE id = ? LIMIT 1`,
+    args: [id],
+  });
+  return { ok: true, doc: docRow(r.rows[0]) };
+}
+
+/** Metadata for every document on a receivable, purged ones included (the tombstones). */
+export async function listDocuments(receivableId: string): Promise<DocumentMeta[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT id, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+            FROM receivable_documents WHERE receivable_id = ? ORDER BY uploaded_at ASC`,
+    args: [String(receivableId || '').trim()],
+  });
+  return r.rows.map(docRow);
+}
+
+/** The bytes. Returns null once purged — the tombstone has no document to give. */
+export async function readDocument(
+  documentId: string,
+  receivableId: string,
+): Promise<{ meta: DocumentMeta; data: Buffer } | null> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT id, filename, mime_type, file_size, sha256, uploaded_at, purged_at, data
+            FROM receivable_documents WHERE id = ? AND receivable_id = ? LIMIT 1`,
+    args: [String(documentId || '').trim(), String(receivableId || '').trim()],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  if (!row.data) return null;
+  return { meta: docRow(row), data: Buffer.from(String(row.data), 'base64') };
+}
+
+/**
+ * Drop the bytes, keep the proof. Called when the last outstanding confirmation request
+ * on a receivable closes — not on the first answer, because a second recipient must still
+ * be able to read what they are being asked to vouch for.
+ */
+export async function purgeDocuments(receivableId: string): Promise<number> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `UPDATE receivable_documents
+             SET data = NULL, purged_at = ?
+           WHERE receivable_id = ? AND data IS NOT NULL`,
+    args: [nowUtc(), String(receivableId || '').trim()],
+  });
+  return Number(r.rowsAffected || 0);
+}
+
+/**
+ * Receivables holding document bytes with no confirmation request still open against
+ * them — every buyer invite answered, revoked, or expired. An invite that has not been
+ * sent yet cannot hold the paperwork open, so a receivable with no buyer invite at all
+ * is only purgeable once its documents are older than the invite TTL; otherwise a banker
+ * who uploads on Monday and sends the link on Tuesday would find the file already gone.
+ */
+export async function listPurgeableReceivables(limit = 200): Promise<string[]> {
+  await ensureReceivablesTables();
+  const cutoff = new Date(Date.now() - INVITE_TTL_DAYS * 86400_000)
+    .toISOString().replace('T', ' ').slice(0, 19);
+  const r = await db.execute({
+    sql: `SELECT DISTINCT d.receivable_id AS rid
+            FROM receivable_documents d
+           WHERE d.data IS NOT NULL
+             AND NOT EXISTS (
+                   SELECT 1 FROM receivable_invites i
+                    WHERE i.receivable_id = d.receivable_id
+                      AND i.role = 'buyer'
+                      AND i.accepted_at IS NULL
+                      AND i.revoked_at IS NULL
+                      AND i.expires_at > ?
+                 )
+             AND (
+                   EXISTS (SELECT 1 FROM receivable_invites i2
+                            WHERE i2.receivable_id = d.receivable_id AND i2.role = 'buyer')
+                   OR d.uploaded_at <= ?
+                 )
+           LIMIT ?`,
+    args: [nowUtc(), cutoff, limit],
+  });
+  return r.rows.map((x: any) => String(x.rid));
+}
+
+// ── Confirmation requests — one receivable, many askees ───────────────────────
+
+export interface ConfirmRequestRow {
+  token:      string;
+  sentTo:     string | null;   // the address the banker typed. This is the provenance.
+  label:      string | null;   // who he says it went to
+  status:     'pending' | 'answered' | 'revoked' | 'expired';
+  answeredBy: string | null;   // the name typed by whoever answered
+  answeredAt: string | null;
+  expiresAt:  string;
+  createdAt:  string;
+}
+
+/**
+ * Every confirmation request on one receivable, in the order they were sent.
+ *
+ * Asking two people is the point: one answer from an address the supplier controls proves
+ * very little, and the disagreement between two answers is itself evidence. So the desk
+ * shows the whole roster — who was asked, at which address, and what came back — rather
+ * than a single confirmed/unconfirmed flag.
+ */
+export async function listConfirmRequests(
+  tenantId: string,
+  receivableId: string,
+): Promise<ConfirmRequestRow[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT token, email, label, expires_at, accepted_at, accepted_by, revoked_at, created_at
+            FROM receivable_invites
+           WHERE receivable_id = ? AND from_tenant = ? AND role = 'buyer'
+           ORDER BY created_at ASC`,
+    args: [String(receivableId || '').trim(), tenantId],
+  });
+  const now = nowUtc();
+  return r.rows.map((x: any) => {
+    const status: ConfirmRequestRow['status'] =
+      x.revoked_at ? 'revoked'
+      : x.accepted_at ? 'answered'
+      : String(x.expires_at) < now ? 'expired'
+      : 'pending';
+    return {
+      token: String(x.token),
+      sentTo: x.email != null ? String(x.email) : null,
+      label: x.label != null ? String(x.label) : null,
+      status,
+      answeredBy: x.accepted_by != null ? String(x.accepted_by) : null,
+      answeredAt: x.accepted_at != null ? String(x.accepted_at) : null,
+      expiresAt: String(x.expires_at),
+      createdAt: String(x.created_at),
+    };
+  });
+}
+
+/**
+ * A document, fetched with a confirmation token instead of a session. The person being
+ * asked to vouch for paperwork has no account, so the link has to carry read access to
+ * the thing it is asking about. Scoped hard: only an open buyer token, only documents on
+ * that token's own receivable.
+ */
+export async function readDocumentByToken(
+  token: string,
+  documentId: string,
+): Promise<{ meta: DocumentMeta; data: Buffer } | null> {
+  await ensureReceivablesTables();
+  // Deliberately NOT readInvite: that reports a token 'used' the moment it is answered,
+  // and someone who just vouched for a document should still be able to save the copy
+  // they will need to check against the fingerprint later. Answering spends the right to
+  // answer, not the right to read. Revoked and expired still close it, and the purge
+  // closes it for everyone.
+  const r = await db.execute({
+    sql: `SELECT receivable_id, role, expires_at, revoked_at
+            FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token || '').trim()],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  if (row.revoked_at) return null;
+  if (String(row.expires_at) < nowUtc()) return null;
+  if (String(row.role) !== 'buyer' || !row.receivable_id) return null;
+  return readDocument(documentId, String(row.receivable_id));
+}
+
+/** Does this tenant own this receivable? The gate on every owner-only read. */
+export async function ownsReceivable(tenantId: string, receivableId: string): Promise<boolean> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT 1 FROM receivables WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(receivableId || '').trim(), tenantId],
+  });
+  return r.rows.length > 0;
 }

@@ -116,6 +116,16 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-primary); }
     .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); color: var(--text-primary); }
     .muted { color: var(--text-muted); font-size: .8rem; }
+    .ok { color: var(--gain); font-weight: 600; }
+    input[type=file] {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-secondary); padding: .5rem .6rem; font-size: .85rem; font-family: inherit;
+    }
+    input[type=file]::file-selector-button {
+      background: transparent; border: 1px solid var(--border-bright); border-radius: 7px;
+      color: var(--text-secondary); padding: .3rem .6rem; margin-right: .6rem;
+      font-family: inherit; font-size: .8rem; font-weight: 600; cursor: pointer;
+    }
     .foot { margin-top: 1.4rem; font-size: .77rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; }
     .foot a { color: var(--accent); }
     #panel { display: none; }
@@ -171,6 +181,36 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <h2>Claims standing against it</h2>
         <p class="hint">Every advance registered by any financier holding this ID.</p>
         <div id="claims"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem">
+        <h2>The paperwork</h2>
+        <p class="hint">
+          The promissory note or contract your client brought in. PDF or photo, 5 MB each, as many as you need.
+          It is shown to whoever you ask to confirm, then removed once they have all replied. The fingerprint stays.
+        </p>
+        <div class="row">
+          <input id="d-file" type="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" class="grow" />
+          <button id="d-go">Attach</button>
+        </div>
+        <div id="d-list"></div>
+        <div id="d-out" class="note"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem">
+        <h2>Ask the debtor to confirm</h2>
+        <p class="hint">
+          Each request is its own single-use link. Ask more than one person if the amount warrants it:
+          one reply from an address your client supplied proves less than two that agree, and two that
+          disagree is the most useful answer you can get. They need no account.
+        </p>
+        <div class="row">
+          <input id="k-email" class="grow" type="email" placeholder="accounts@feed-n-seed.com" autocomplete="off" />
+          <input id="k-label" placeholder="Who this is (optional)" style="flex:0 1 14rem" autocomplete="off" />
+          <button id="k-go">Create link</button>
+        </div>
+        <div id="k-list"></div>
+        <div id="k-out" class="note"></div>
       </div>
 
       <div class="card" style="margin-top:1.15rem">
@@ -230,6 +270,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         current = j.receivable;
         render(current);
         panel.classList.add('show');
+        loadDocs();
+        loadConfirms();
       } catch (e) {
         show(out, 'Could not reach the registry. Try again.', 'note-loss');
       }
@@ -441,6 +483,121 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     document.getElementById('inv-go')?.addEventListener('click', createInvite);
     loadInvites();
+
+    // ── Documents ───────────────────────────────────────────────────────────
+    async function loadDocs() {
+      const box = document.getElementById('d-list')!;
+      if (!current?.id) { box.innerHTML = ''; return; }
+      try {
+        const r = await fetch('/api/verify/receivables/document?receivableId=' + encodeURIComponent(current.id));
+        const j = await r.json();
+        const docs = j.documents ?? [];
+        if (!j.ok || !docs.length) {
+          box.innerHTML = '<p class="hint" style="margin-top:.7rem">Nothing attached yet.</p>';
+          return;
+        }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>File</th><th>Size</th><th>Fingerprint</th><th>State</th></tr></thead><tbody>' +
+          docs.map((d: any) => `<tr>
+              <td>${esc(d.filename)}</td>
+              <td>${(Number(d.fileSize) / 1024).toFixed(0)} KB</td>
+              <td style="font-family:ui-monospace,Menlo,monospace;font-size:.66rem;word-break:break-all">${esc(String(d.sha256).slice(0, 24))}…</td>
+              <td>${d.purgedAt ? `<span class="muted">removed ${esc(d.purgedAt)}</span>` : 'held'}</td>
+            </tr>`).join('') +
+          '</tbody></table>';
+      } catch { box.innerHTML = ''; }
+    }
+
+    async function uploadDoc() {
+      const out = $('d-out') as unknown as HTMLElement;
+      const input = $('d-file') as HTMLInputElement;
+      const file = input?.files?.[0];
+      if (!current?.id) { show(out, 'Look up a receivable first.', 'note-loss'); return; }
+      if (!file) { show(out, 'Choose a file first.', 'note-loss'); return; }
+      show(out, 'Attaching…');
+      try {
+        const fd = new FormData();
+        fd.append('receivableId', current.id);
+        fd.append('file', file);
+        const r = await fetch('/api/verify/receivables/document', { method: 'POST', body: fd });
+        const j = await r.json();
+        if (!j.ok) {
+          const why = j.error === 'too_large' ? 'That file is over 5 MB.'
+            : j.error === 'unsupported_type' ? 'PDF or image only.'
+            : j.error === 'not_found' ? 'That receivable is not yours to attach to.'
+            : 'Could not attach that file.';
+          show(out, why, 'note-loss'); return;
+        }
+        input.value = '';
+        show(out, `Attached. Fingerprint ${esc(String(j.doc.sha256).slice(0, 16))}…`, 'note-gain');
+        loadDocs();
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    // ── Confirmation requests ───────────────────────────────────────────────
+    async function loadConfirms() {
+      const box = document.getElementById('k-list')!;
+      if (!current?.id) { box.innerHTML = ''; return; }
+      try {
+        const r = await fetch('/api/verify/receivables/invite?receivableId=' + encodeURIComponent(current.id));
+        const j = await r.json();
+        const reqs = j.requests ?? [];
+        if (!j.ok || !reqs.length) {
+          box.innerHTML = '<p class="hint" style="margin-top:.7rem">Nobody asked yet.</p>';
+          return;
+        }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>Sent to</th><th>Status</th><th>Answered by</th><th></th></tr></thead><tbody>' +
+          reqs.map((v: any) => {
+            const link = `${location.origin}/verify/authenticate?t=${encodeURIComponent(v.token)}`;
+            const who = v.sentTo || v.label || 'no address recorded';
+            const state = v.status === 'answered' ? `<span class="ok">answered ${esc(String(v.answeredAt || '').slice(0, 10))}</span>`
+              : v.status === 'expired' ? '<span class="muted">expired</span>'
+              : v.status === 'revoked' ? '<span class="muted">revoked</span>'
+              : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
+            const action = v.status === 'pending'
+              ? `<button class="ghost" data-copy="${esc(link)}">Copy link</button>`
+              : '';
+            return `<tr>
+              <td>${esc(who)}${v.label && v.sentTo ? `<div class="muted" style="font-size:.72rem">${esc(v.label)}</div>` : ''}</td>
+              <td>${state}</td>
+              <td>${esc(v.answeredBy || '—')}</td>
+              <td>${action}</td>
+            </tr>`;
+          }).join('') +
+          '</tbody></table>';
+        box.querySelectorAll('button[data-copy]').forEach((b) => {
+          b.addEventListener('click', () => {
+            navigator.clipboard?.writeText((b as HTMLElement).dataset.copy || '');
+            (b as HTMLElement).textContent = 'Copied';
+          });
+        });
+      } catch { box.innerHTML = ''; }
+    }
+
+    async function createConfirmRequest() {
+      const out = $('k-out') as unknown as HTMLElement;
+      if (!current?.id) { show(out, 'Look up a receivable first.', 'note-loss'); return; }
+      const email = val('k-email');
+      if (!email) { show(out, 'An address is what records where the answer came from. Add one.', 'note-loss'); return; }
+      show(out, 'Creating…');
+      try {
+        const r = await fetch('/api/verify/receivables/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'buyer', receivableId: current.id, email, label: val('k-label') || null }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out, 'Could not create that link.', 'note-loss'); return; }
+        const link = `${location.origin}/verify/authenticate?t=${encodeURIComponent(j.token)}`;
+        await navigator.clipboard?.writeText(link).catch(() => {});
+        ($('k-email') as HTMLInputElement).value = '';
+        ($('k-label') as HTMLInputElement).value = '';
+        show(out, `Link copied. Send it to ${esc(email)}. It works once and expires in 7 days.`, 'note-gain');
+        loadConfirms();
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    document.getElementById('d-go')?.addEventListener('click', uploadDoc);
+    document.getElementById('k-go')?.addEventListener('click', createConfirmRequest);
 
     document.getElementById('q-go')?.addEventListener('click', () => check());
     $('q-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') check(); });

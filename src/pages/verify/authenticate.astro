@@ -64,6 +64,14 @@ const ERRORS: Record<string, string> = {
 
     .relied { border-left: 3px solid var(--warn-border, var(--accent-glow)); background: var(--accent-soft); border-radius: 8px; padding: .75rem .9rem; font-size: .88rem; }
 
+    .doclist { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
+    .doclist li { border: 1px solid var(--border-subtle); border-radius: 9px; padding: .6rem .75rem; background: var(--surface-card-2); }
+    a.doc { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; text-decoration: none; }
+    .doc__name { color: var(--accent); font-weight: 600; font-size: .95rem; word-break: break-all; }
+    .doc__meta { color: var(--text-muted); font-size: .74rem; white-space: nowrap; }
+    a.doc:hover .doc__name { text-decoration: underline; }
+    .doc__hash { margin-top: .4rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .64rem; color: var(--text-muted); word-break: break-all; }
+
     label.f { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
     input[type=text] {
       background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
@@ -121,8 +129,35 @@ const ERRORS: Record<string, string> = {
           </div>
         </div>
 
+        {req.documents.length > 0 && (
+          <div class="card docs">
+            <h2>The paperwork</h2>
+            <p class="hint">
+              This is what you are being asked to vouch for. Open it and read it before you answer.
+              Keep a copy: it is removed from this page once everyone asked has replied, and your copy
+              is how you check it later against the fingerprint below.
+            </p>
+            <ul class="doclist">
+              {req.documents.map((d) => (
+                <li>
+                  <a class="doc" href={`/api/verify/receivables/document?t=${encodeURIComponent(token!)}&id=${encodeURIComponent(d.id)}`} target="_blank" rel="noopener">
+                    <span class="doc__name">{d.filename}</span>
+                    <span class="doc__meta">{(d.fileSize / 1024).toFixed(0)} KB · open</span>
+                  </a>
+                  <div class="doc__hash" title="SHA-256 of this file">{d.sha256}</div>
+                </li>
+              ))}
+            </ul>
+            <p class="hint" style="margin-top:.7rem">
+              Your answer records these fingerprints. If the document is changed afterwards, the
+              fingerprint no longer matches and the change is provable.
+            </p>
+          </div>
+        )}
+
         <div class="relied">
           A lender will advance money against this answer. Please check it against your own records before replying.
+          {req.sentTo && <> This request was sent to <b>{req.sentTo}</b>.</>}
         </div>
 
         <div class="card">
