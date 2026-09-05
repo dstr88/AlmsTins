@@ -390,6 +390,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <button id="n-csend" disabled>Create &amp; email</button>
           <button id="n-clink" class="ghost" disabled>Create link only</button>
         </div>
+        <div id="n-clist"></div>
         <div id="n-cout" class="note"></div>
       </div>
     </div>
@@ -1025,6 +1026,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       ($('n-clink') as unknown as HTMLButtonElement).disabled = false;
       document.getElementById('n-client-why')!.textContent =
         'He confirms you recorded his deal correctly. Until he does, everything on the record is your word for what he told you.';
+      loadClientRequests(receivableId);
     }
 
     // A clipboard write nobody asked for is a clipboard write nobody knows about, and it
@@ -1055,16 +1057,46 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         const link = `${location.origin}/verify/attest?token=${encodeURIComponent(ir.token)}`;
 
         if (!alsoEmail) {
-          show(out, `<b>Request created.</b> It works once and expires in seven days.<br><code style="word-break:break-all;font-size:.76rem">${esc(link)}</code><br>${copyButton(link)}`, 'note-gain');
+          show(out, `<b>Request created.</b> It works once and expires in seven days. The link is in the list below, for email, WhatsApp or however you reach him.`, 'note-gain');
+          loadClientRequests(clientStepFor);
           return;
         }
         if (await emailRequest(ir.token, out, 'your client')) {
           ($('n-cemail') as HTMLInputElement).value = '';
         } else {
           // emailRequest already said why. Add the way out rather than replacing it.
-          out.innerHTML += `<br>The request exists. Send it to ${esc(email)} yourself:<br>${copyButton(link, 'Copy the link to send')}`;
+          out.innerHTML += `<br>The request exists. Copy its link from the list below and send it yourself.`;
         }
+        loadClientRequests(clientStepFor);
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    // The roster is where the link lives permanently. A copy button inside a status
+    // message dies with the next action, and the banker may well be sending this over
+    // WhatsApp an hour later rather than by email now.
+    async function loadClientRequests(receivableId: string) {
+      const box = document.getElementById('n-clist')!;
+      if (!receivableId) { box.innerHTML = ''; return; }
+      try {
+        const j = await (await fetch('/api/verify/receivables/invite?recordFor=' + encodeURIComponent(receivableId))).json();
+        const rows = j.requests ?? [];
+        if (!j.ok || !rows.length) { box.innerHTML = ''; return; }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>Sent to</th><th>Status</th><th>Answered by</th><th></th></tr></thead><tbody>' +
+          rows.map((v: any) => {
+            const link = `${location.origin}/verify/attest?token=${encodeURIComponent(v.token)}`;
+            const state = v.status === 'answered' ? `<span class="ok">answered ${esc(String(v.answeredAt || '').slice(0, 10))}</span>`
+              : v.status === 'expired' ? '<span class="muted">expired</span>'
+              : v.status === 'revoked' ? '<span class="muted">withdrawn</span>'
+              : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
+            const act = v.status === 'pending'
+              ? `<button class="small ghost" data-copylink="${esc(link)}">Copy link</button>`
+                + (v.sentTo ? ` <button class="small ghost" data-resend="${esc(v.token)}">Resend</button>` : '')
+              : '';
+            return `<tr><td>${esc(v.sentTo || 'link only')}</td><td>${state}</td><td>${esc(v.answeredBy || '\u2014')}</td><td>${act}</td></tr>`;
+          }).join('') + '</tbody></table>';
+        box.querySelectorAll('[data-resend]').forEach((b) => b.addEventListener('click', () =>
+          emailRequest((b as HTMLElement).dataset.resend as string, $('n-cout') as unknown as HTMLElement, 'your client')));
+      } catch { box.innerHTML = ''; }
     }
 
     document.getElementById('n-csend')?.addEventListener('click', () => createClientRequest(true));
@@ -1142,7 +1174,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
               : v.status === 'revoked' ? '<span class="muted">revoked</span>'
               : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
             const action = v.status === 'pending'
-              ? `<button class="ghost small" data-copy="${esc(link)}">Copy link</button>`
+              ? `<button class="ghost small" data-copylink="${esc(link)}">Copy link</button>`
                 + ` <button class="ghost small" data-resend="${esc(v.token)}">Resend</button>`
               : '';
             return `<tr>
@@ -1153,12 +1185,6 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             </tr>`;
           }).join('') +
           '</tbody></table>';
-        box.querySelectorAll('button[data-copy]').forEach((b) => {
-          b.addEventListener('click', () => {
-            navigator.clipboard?.writeText((b as HTMLElement).dataset.copy || '');
-            (b as HTMLElement).textContent = 'Copied';
-          });
-        });
         box.querySelectorAll('button[data-resend]').forEach((b) => {
           b.addEventListener('click', () =>
             emailRequest((b as HTMLElement).dataset.resend as string, $('k-out') as unknown as HTMLElement, 'the debtor'));
@@ -1330,17 +1356,11 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
               : v.status === 'revoked' ? '<span class="muted">revoked</span>'
               : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
             const action = v.status === 'pending'
-              ? `<button class="ghost small" data-copy="${esc(link)}">Copy link</button>`
+              ? `<button class="ghost small" data-copylink="${esc(link)}">Copy link</button>`
                 + ` <button class="ghost small" data-resend="${esc(v.token)}">Resend</button>`
               : '';
             return `<tr><td>${esc(v.sentTo || 'no address recorded')}</td><td>${state}</td><td>${esc(v.answeredBy || '\u2014')}</td><td>${action}</td></tr>`;
           }).join('') + '</tbody></table>';
-        box.querySelectorAll('button[data-copy]').forEach((b) => {
-          b.addEventListener('click', () => {
-            navigator.clipboard?.writeText((b as HTMLElement).dataset.copy || '');
-            (b as HTMLElement).textContent = 'Copied';
-          });
-        });
         box.querySelectorAll('button[data-resend]').forEach((b) => {
           b.addEventListener('click', () =>
             emailRequest((b as HTMLElement).dataset.resend as string, $('cs-out') as unknown as HTMLElement, 'your client'));

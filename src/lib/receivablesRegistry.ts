@@ -2362,3 +2362,37 @@ export async function respondToOffer(
   if (!result.ok) return { ok: false, error: result.error };
   return { ok: true, attestationId: result.attestationId, receivableId, offerId: o.id };
 }
+
+/**
+ * Record-confirmation requests on one receivable: role 'borrower', no claim, no offer.
+ * Separate from listConfirmRequests (the debtor's) and listCountersignRequests (an
+ * advance's), because the three ask different questions of different people.
+ */
+export async function listRecordRequests(
+  tenantId: string,
+  receivableId: string,
+): Promise<ConfirmRequestRow[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT token, email, label, expires_at, accepted_at, accepted_by, revoked_at, created_at
+            FROM receivable_invites
+           WHERE receivable_id = ? AND from_tenant = ? AND role = 'borrower'
+             AND claim_id IS NULL AND offer_id IS NULL
+           ORDER BY created_at ASC`,
+    args: [String(receivableId || '').trim(), tenantId],
+  });
+  const now = nowUtc();
+  return r.rows.map((x: any) => ({
+    token: String(x.token),
+    sentTo: x.email != null ? String(x.email) : null,
+    label: x.label != null ? String(x.label) : null,
+    status: (x.revoked_at ? 'revoked'
+      : x.accepted_at ? 'answered'
+      : String(x.expires_at) < now ? 'expired'
+      : 'pending') as ConfirmRequestRow['status'],
+    answeredBy: x.accepted_by != null ? String(x.accepted_by) : null,
+    answeredAt: x.accepted_at != null ? String(x.accepted_at) : null,
+    expiresAt: String(x.expires_at),
+    createdAt: String(x.created_at),
+  }));
+}
