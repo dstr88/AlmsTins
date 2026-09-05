@@ -97,6 +97,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/verify/receivables/attest-record' ||
 		// The client accepting or declining a financing offer, before money moves.
 		pathname === '/api/verify/receivables/offer-respond' ||
+		// Reading an offer with its token. The handler still requires a session for the
+		// financier's own listing; only the ?t= branch is reachable without one.
+		pathname === '/api/verify/receivables/offer' ||
 		// Onboarding-email unsubscribe — public one-click opt-out (token-based)
 		pathname === '/api/email/unsubscribe' ||
 		// Record-proof signing public key — published so anyone can verify a record proof
