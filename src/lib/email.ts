@@ -24,11 +24,14 @@ export async function sendMail({
   subject,
   text,
   html,
+  replyTo,
 }: {
   to: string | string[];
   subject: string;
   text: string;
   html?: string;
+  /** Where a reply goes. Mail sent on a user's behalf should reach the user, not no-reply. */
+  replyTo?: string | null;
 }): Promise<void> {
   if (!EMAIL_SERVER) {
     console.warn('[email] EMAIL_SERVER not set — skipping send');
@@ -38,6 +41,7 @@ export async function sendMail({
   await transport.sendMail({
     from: EMAIL_FROM,
     to: Array.isArray(to) ? to.join(', ') : to,
+    ...(replyTo ? { replyTo } : {}),
     subject,
     text,
     html: html ?? text.replace(/\n/g, '<br>'),

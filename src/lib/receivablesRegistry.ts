@@ -1689,3 +1689,75 @@ export async function listCountersignRequests(
     createdAt: String(x.created_at),
   }));
 }
+
+// ── Sending the request ───────────────────────────────────────────────────────
+//
+// A confirmation email is a cold message asking a stranger to click a link and vouch for
+// a debt. That is also, precisely, what a phishing email looks like — so the message
+// carries enough specifics for a real recipient to check it against their own records
+// before clicking anything: their company, the amount, the invoice number, and who is
+// asking. Reply-to is the financier's own address, never a no-reply, because the sane
+// first move for a cautious accounts clerk is to reply and ask.
+
+export interface SendableRequest {
+  token:      string;
+  kind:       'debtor' | 'client';
+  sentTo:     string;
+  supplier:   string;
+  buyer:      string;
+  invoiceNo:  string;
+  amount:     number;
+  currency:   string;
+  expiresAt:  string;
+}
+
+/**
+ * The facts behind one outstanding request, for the tenant that created it. Returns null
+ * for anyone else's token, an already-answered one, or one with no address to send to.
+ */
+export async function getSendableRequest(
+  tenantId: string,
+  token: string,
+): Promise<SendableRequest | null> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT i.token, i.role, i.email, i.claim_id, i.expires_at, i.accepted_at, i.revoked_at,
+                 i.receivable_id, c.amount AS claim_amount, c.currency AS claim_currency
+            FROM receivable_invites i
+       LEFT JOIN receivable_claims c ON c.id = i.claim_id
+           WHERE i.token = ? AND i.from_tenant = ? LIMIT 1`,
+    args: [String(token || '').trim(), tenantId],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  if (row.revoked_at || row.accepted_at) return null;
+  if (String(row.expires_at) < nowUtc()) return null;
+  if (!row.email || !row.receivable_id) return null;
+
+  const rcv = await getReceivableRow(String(row.receivable_id));
+  if (!rcv) return null;
+
+  const isClaim = !!row.claim_id;
+  return {
+    token: String(row.token),
+    kind: isClaim ? 'client' : 'debtor',
+    sentTo: String(row.email),
+    supplier: String(rcv.supplier),
+    buyer: String(rcv.buyer),
+    invoiceNo: String(rcv.invoice_no),
+    amount: isClaim ? Number(row.claim_amount) : Number(rcv.face),
+    currency: isClaim ? String(row.claim_currency || rcv.currency) : String(rcv.currency),
+    expiresAt: String(row.expires_at),
+  };
+}
+
+/** How many requests this tenant has created in the last hour. The spam ceiling. */
+export async function countRecentInvites(tenantId: string): Promise<number> {
+  await ensureReceivablesTables();
+  const since = new Date(Date.now() - 3600_000).toISOString().replace('T', ' ').slice(0, 19);
+  const r = await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM receivable_invites WHERE from_tenant = ? AND created_at >= ?`,
+    args: [tenantId, since],
+  });
+  return Number((r.rows[0] as any)?.n ?? 0);
+}
