@@ -183,6 +183,18 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     details.more[open] > summary .more__i { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
     details.more[open] > summary .more__i::after { content: ''; }
     .sep { border-top: 1px solid var(--border-subtle); margin: 1.1rem 0 .9rem; }
+    .step__h { display: flex; gap: .7rem; align-items: flex-start; }
+    .step__n {
+      flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 99px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .72rem; font-weight: 800; font-variant-numeric: tabular-nums;
+      color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-glow);
+    }
+    .step__t { font-size: .93rem; font-weight: 700; }
+    .step__d { font-size: .82rem; color: var(--text-secondary); }
+    .step--off { opacity: .5; }
+    .step--off .step__n { color: var(--text-muted); background: var(--surface-card); border-color: var(--border-subtle); }
+    .step input:disabled, .step button:disabled { cursor: not-allowed; }
 
     .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .7rem; }
     .fld {
@@ -343,22 +355,34 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         people you ask, then deleted once they have answered.
       </p>
 
-      <div class="grid2" style="margin-top:.9rem">
-        <label class="fld">Email the debtor <span class="req">to confirm the debt</span>
-          <input id="n-demail" type="email" placeholder="accounts@their-company.com" autocomplete="off" />
-        </label>
-        <label class="fld">Email the client <span class="req">to confirm the record</span>
-          <input id="n-cemail" type="email" placeholder="him@his-company.com" autocomplete="off" />
-        </label>
-      </div>
-      <p class="hint" style="margin:.4rem 0 0">
-        Leave either blank to skip it. You can always send it later from the record.
-      </p>
+      <label class="fld" style="margin-top:.9rem">Email the debtor <span class="req">to confirm the debt</span>
+        <input id="n-demail" type="email" placeholder="accounts@their-company.com" autocomplete="off" />
+      </label>
+      <p class="hint" style="margin:.4rem 0 0">Leave it blank to skip. You can always send it later from the record.</p>
 
       <div class="row" style="margin-top:1rem">
         <button id="n-go">Record, sign &amp; send</button>
       </div>
       <div id="n-out" class="note"></div>
+
+      <!-- The client step stays on screen while it is still out of reach. A control that
+           appears only once it is usable is invisible exactly when someone is learning
+           what the tool does, which is how three features got reported as missing. -->
+      <div class="sep"></div>
+      <div id="n-client" class="step step--off">
+        <div class="step__h">
+          <span class="step__n">2</span>
+          <div>
+            <div class="step__t">Ask your client to confirm the record</div>
+            <div class="step__d" id="n-client-why">Record the deal above first. Then this asks him to confirm you took it down correctly.</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:.7rem">
+          <input id="n-cemail" type="email" placeholder="him@his-company.com" autocomplete="off" disabled />
+          <button id="n-csend" disabled>Create &amp; email</button>
+        </div>
+        <div id="n-cout" class="note"></div>
+      </div>
     </div>
 
     <div class="card">
@@ -953,7 +977,6 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           } catch { failed.push(`could not send the ${label} request`); }
         };
         await ask('buyer', val('n-demail'), 'debtor');
-        await ask('borrower', val('n-cemail'), 'client');
 
         show(out,
           `<b>Done.</b> ${esc(done.join(', '))}.` +
@@ -962,7 +985,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           failed.length ? 'note-loss' : 'note-gain');
         anchorNote();
 
-        ['n-sup','n-buy','n-inv','n-face','n-ref','n-goods','n-pay','n-demail','n-cemail'].forEach((id) => {
+        enableClientStep(j.id);
+
+        ['n-sup','n-buy','n-inv','n-face','n-ref','n-goods','n-pay','n-demail'].forEach((id) => {
           const el = $(id) as HTMLInputElement; if (el) el.value = '';
         });
         const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = '';
@@ -981,6 +1006,39 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     });
 
     document.getElementById('n-add')?.addEventListener('click', () => addExtraRow());
+    // Step 2 of the tin: live only once there is a record for it to be about.
+    let clientStepFor: string | null = null;
+    function enableClientStep(receivableId: string) {
+      clientStepFor = receivableId;
+      document.getElementById('n-client')!.classList.remove('step--off');
+      ($('n-cemail') as HTMLInputElement).disabled = false;
+      ($('n-csend') as unknown as HTMLButtonElement).disabled = false;
+      document.getElementById('n-client-why')!.textContent =
+        'He confirms you recorded his deal correctly. Until he does, everything on the record is your word for what he told you.';
+    }
+
+    document.getElementById('n-csend')?.addEventListener('click', async () => {
+      const out = $('n-cout') as unknown as HTMLElement;
+      const email = val('n-cemail');
+      if (!clientStepFor) { show(out, 'Record the deal above first.', 'note-loss'); return; }
+      if (!email) { show(out, 'An address is needed to email it.', 'note-loss'); return; }
+      show(out, 'Creating…');
+      try {
+        const ir = await (await fetch('/api/verify/receivables/invite', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'borrower', receivableId: clientStepFor, email }),
+        })).json();
+        if (!ir.ok) { show(out, 'Could not create that request.', 'note-loss'); return; }
+        const link = `${location.origin}/verify/attest?token=${encodeURIComponent(ir.token)}`;
+        await navigator.clipboard?.writeText(link).catch(() => {});
+        if (await emailRequest(ir.token, out, 'your client')) {
+          ($('n-cemail') as HTMLInputElement).value = '';
+        } else {
+          show(out, `Link copied instead. Send it to ${esc(email)} yourself.`, 'note-loss');
+        }
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    });
+
     document.getElementById('n-go')?.addEventListener('click', createDeal);
 
     // ── Documents ───────────────────────────────────────────────────────────
