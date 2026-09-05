@@ -140,6 +140,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       border-radius: 8px; padding: .4rem .6rem; font-size: .85rem; line-height: 1; cursor: pointer;
     }
     .ok { color: var(--gain); font-weight: 600; }
+    tr.book-row:hover td { background: var(--surface-hover); }
     input[type=file] {
       background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
       color: var(--text-secondary); padding: .5rem .6rem; font-size: .85rem; font-family: inherit;
@@ -240,6 +241,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <button id="n-go">Sign, record &amp; timestamp</button>
       </div>
       <div id="n-out" class="note"></div>
+    </div>
+
+    <div class="card">
+      <h2>Your book</h2>
+      <p class="hint">Every deal you have recorded. Click one to open it.</p>
+      <div id="book-list"></div>
     </div>
 
     <div class="card">
@@ -684,6 +691,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         // Straight into the panel: attach the papers, then ask the debtor.
         ($('q-id') as HTMLInputElement).value = j.id;
         await check(j.id);
+        loadBook();
         document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
@@ -935,6 +943,39 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const token = await createConfirmRequest();
       if (token) await emailRequest(token, $('k-out') as unknown as HTMLElement, 'the debtor');
     });
+
+    // A financier with twenty deals should not have to hoard 64-character IDs to reach his
+    // own records. "Check a receivable" stays, because it is how he opens somebody else's.
+    async function loadBook() {
+      const box = document.getElementById('book-list')!;
+      try {
+        const r = await fetch('/api/verify/receivables');
+        const j = await r.json();
+        const rows = j.receivables ?? [];
+        if (!j.ok || !rows.length) {
+          box.innerHTML = '<p class="muted" style="margin-top:.6rem">Nothing recorded yet. Start with New deal above.</p>';
+          return;
+        }
+        box.innerHTML = '<table style="margin-top:.6rem"><thead><tr><th>Client</th><th>Debtor</th><th>Invoice</th><th>Face</th><th>Recorded</th><th>State</th></tr></thead><tbody>' +
+          rows.map((v: any) => `<tr class="book-row" data-id="${esc(v.id)}" style="cursor:pointer">
+              <td>${esc(v.supplier)}</td>
+              <td>${esc(v.buyer)}</td>
+              <td>${esc(v.invoiceNo)}</td>
+              <td>${esc(money(Number(v.face), v.currency || 'NGN'))}</td>
+              <td>${esc(String(v.createdAt || '').slice(0, 10))}</td>
+              <td>${v.settled ? '<span class="muted">settled</span>' : '<span class="ok">open</span>'}</td>
+            </tr>`).join('') + '</tbody></table>';
+        box.querySelectorAll('.book-row').forEach((tr) => {
+          tr.addEventListener('click', () => {
+            const id = (tr as HTMLElement).dataset.id as string;
+            ($('q-id') as HTMLInputElement).value = id;
+            check(id);
+            document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        });
+      } catch { box.innerHTML = ''; }
+    }
+    loadBook();
 
     document.getElementById('q-go')?.addEventListener('click', () => check());
     $('q-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') check(); });
