@@ -524,6 +524,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <div>
             <div class="who">${esc(c.financier)} ${c.signed ? stateChip('signed') : stateChip('recorded')}${discharged ? '<span class="seal off">released</span>' : ''}</div>
             <div class="cmeta">${esc(c.date)}${discharged && c.dischargedAt ? ` · released ${esc(c.dischargedAt)}` : ''}</div>
+            <div class="cmeta">${c.affirmed
+              ? `<span style="color:var(--gain)">Supplier confirmed receipt${c.affirmedAt ? ' ' + esc(String(c.affirmedAt).slice(0, 10)) : ''}</span>`
+              : discharged ? ''
+              : `<span style="color:var(--loss)">Receipt not confirmed by the supplier</span>`}</div>
             ${anchor ? `<div class="row" style="margin-top:.35rem">${anchor}</div>` : ''}
           </div>
           <div class="claim-right">
