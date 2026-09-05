@@ -972,3 +972,118 @@ export async function revokeInvite(tenantId: string, token: string): Promise<boo
   });
   return !!r.rowsAffected;
 }
+
+// ── Buyer confirmation by link ────────────────────────────────────────────────
+//
+// The obligor acts once and gains nothing, so asking them to create an account is how
+// this step quietly never happens. The emailed link is the capability instead: open it,
+// answer, done.
+//
+// What that buys is attribution rather than verified identity — the same footing as the
+// verification email a factor sends today, plus a timestamp and the record it is bound
+// to. The confirmation names who answered, at which address, and what they affirmed.
+
+export interface ConfirmAnswers {
+  /** Their own reference, read off their records. The point is that it forces a look. */
+  theirReference: string;
+  by: string;
+  title?: string | null;
+  goodsReceived: boolean;
+  amountCorrect: boolean;
+  noOffsets: boolean;
+  notAlreadyPaid: boolean;
+}
+
+export type ConfirmOutcome = 'confirmed' | 'not_ours' | 'amount_wrong';
+
+/**
+ * Spend a buyer link and record what they said.
+ *
+ * A dispute is filed under the 'other' role so it can never be mistaken for an
+ * acknowledgment: the desk treats a buyer attestation as the keystone, and a "this isn't
+ * ours" reply landing in that slot would be exactly backwards.
+ */
+export async function confirmByToken(
+  token: string,
+  outcome: ConfirmOutcome,
+  answers: ConfirmAnswers,
+): Promise<{ ok: true; attestationId: string; receivableId: string } | { ok: false; error: string }> {
+  await ensureReceivablesTables();
+
+  const invite = await readInvite(token);
+  if (!invite.ok) return { ok: false, error: invite.error };
+  if (invite.role !== 'buyer') return { ok: false, error: 'wrong_role' };
+  if (!invite.receivableId) return { ok: false, error: 'no_receivable' };
+
+  const who = clampStr(answers.by, 100);
+  if (!who) return { ok: false, error: 'name_required' };
+  const ref = clampStr(answers.theirReference, 60);
+  if (outcome === 'confirmed' && !ref) return { ok: false, error: 'reference_required' };
+
+  const row = await db.execute({
+    sql: `SELECT from_tenant, email FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token).trim()],
+  });
+  const fromTenant = String((row.rows[0] as any)?.from_tenant ?? '');
+  const sentTo = (row.rows[0] as any)?.email ? String((row.rows[0] as any).email) : null;
+
+  const rcv = await getReceivableRow(invite.receivableId);
+  if (!rcv) return { ok: false, error: 'not_found' };
+
+  const title = answers.title ? ` (${clampStr(answers.title, 60)})` : '';
+  const via = sentTo ? ` via a single-use link sent to ${sentTo}` : ' via a single-use link';
+
+  let statement: string;
+  let role: AttesterRole;
+  if (outcome === 'confirmed') {
+    const affirm = [
+      answers.goodsReceived ? 'goods/services received' : 'receipt NOT affirmed',
+      answers.amountCorrect ? 'amount correct' : 'amount NOT affirmed',
+      answers.noOffsets ? 'no offsets or disputes' : 'offsets/disputes NOT ruled out',
+      answers.notAlreadyPaid ? 'not already paid' : 'prior payment NOT ruled out',
+    ].join('; ');
+    statement = `Confirms invoice ${rcv.invoice_no} for ${rcv.currency} ${Number(rcv.face).toLocaleString('en-US', { minimumFractionDigits: 2 })}. Their reference: ${ref}. Affirms: ${affirm}. Answered by ${who}${title}${via}.`;
+    role = 'buyer';
+  } else {
+    const why = outcome === 'not_ours' ? 'states this invoice is not theirs' : 'states the amount is wrong';
+    statement = `DISPUTED — ${why}. Invoice ${rcv.invoice_no}${ref ? `, their reference: ${ref}` : ''}. Answered by ${who}${title}${via}.`;
+    role = 'other';
+  }
+
+  // Claim the token first: a forwarded link must not be answerable twice.
+  const claimed = await db.execute({
+    sql: `UPDATE receivable_invites SET accepted_at = ?, accepted_by = ?
+           WHERE token = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    args: [nowUtc(), who, String(token).trim()],
+  });
+  if (!claimed.rowsAffected) return { ok: false, error: 'used' };
+
+  // Recorded under the tenant that asked, since the answerer has no account. The
+  // statement names who answered and where the link was sent, so the path is on the face
+  // of the record rather than implied by which tenant holds it.
+  const result = await addAttestation(fromTenant, invite.receivableId, { role, label: rcv.buyer, statement });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  return { ok: true, attestationId: result.attestationId, receivableId: invite.receivableId };
+}
+
+/** What the answerer sees before answering. No account, so no session to read it from. */
+export async function readConfirmRequest(token: string): Promise<
+  | { ok: true; supplier: string; buyer: string; invoiceNo: string; face: number; currency: string;
+      terms: string | null; dueDate: string | null }
+  | { ok: false; error: string }
+> {
+  await ensureReceivablesTables();
+  const invite = await readInvite(token);
+  if (!invite.ok) return { ok: false, error: invite.error };
+  if (invite.role !== 'buyer' || !invite.receivableId) return { ok: false, error: 'wrong_role' };
+  const rcv = await getReceivableRow(invite.receivableId);
+  if (!rcv) return { ok: false, error: 'not_found' };
+  return {
+    ok: true,
+    supplier: String(rcv.supplier), buyer: String(rcv.buyer), invoiceNo: String(rcv.invoice_no),
+    face: Number(rcv.face), currency: String(rcv.currency),
+    terms: rcv.terms != null ? String(rcv.terms) : null,
+    dueDate: rcv.due_date != null ? String(rcv.due_date) : null,
+  };
+}

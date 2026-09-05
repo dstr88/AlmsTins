@@ -274,6 +274,13 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       ev.push(acked
         ? `<div class="ev good"><div class="ev__icon">&#10003;</div><div><div class="ev__t">Buyer acknowledged the debt</div><div class="ev__d">${esc(buyerAck ? buyerAck.label : r.buyer)} confirmed this obligation${ackWhen ? ' on ' + esc(String(ackWhen).slice(0, 10)) : ''}. This is the evidence that does not come from the seller.</div></div></div>`
         : `<div class="ev missing"><div class="ev__icon">!</div><div><div class="ev__t">No buyer acknowledgment</div><div class="ev__d">Nobody on the paying side has confirmed this debt. You are relying on the seller's paperwork alone.</div></div></div>`);
+      // A dispute is filed under the 'other' role so it can never sit in the buyer slot.
+      // It still has to be the loudest thing on the page.
+      const disputes = (r.attestations || []).filter((a: any) => String(a.statement || '').startsWith('DISPUTED'));
+      disputes.forEach((d: any) => {
+        ev.push(`<div class="ev missing"><div class="ev__icon">!</div><div><div class="ev__t">Disputed by ${esc(d.label)}</div><div class="ev__d">${esc(d.statement)}</div></div></div>`);
+      });
+
       ev.push(r.anchored
         ? `<div class="ev good"><div class="ev__icon">&#9939;</div><div><div class="ev__t">Timestamped to Bitcoin</div><div class="ev__d">${r.anchoredAt ? 'Confirmed in a block on ' + esc(String(r.anchoredAt).slice(0, 10)) + '. The record\'s date cannot be forged or backdated.' : 'Submitted, pending a block. Once confirmed the date cannot be moved.'}</div></div></div>`
         : `<div class="ev"><div class="ev__icon">&middot;</div><div><div class="ev__t">Not yet timestamped</div><div class="ev__d">The record is signed but its date is not yet anchored publicly.</div></div></div>`);

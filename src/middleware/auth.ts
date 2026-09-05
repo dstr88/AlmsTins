@@ -87,6 +87,9 @@ export function isPublicPath(pathname: string): boolean {
 		// financing status + claims (self-chosen labels only, never tenant_id/identity).
 		// The write endpoints (/api/verify/receivables, …/claim) stay behind the auth gate.
 		pathname === '/api/verify/receivables/lookup' ||
+		// Buyer confirmation — public, login-free. The single-use token IS the capability:
+		// the debtor being asked to confirm has no account and must never need one.
+		pathname === '/api/verify/receivables/confirm' ||
 		// Onboarding-email unsubscribe — public one-click opt-out (token-based)
 		pathname === '/api/email/unsubscribe' ||
 		// Record-proof signing public key — published so anyone can verify a record proof
