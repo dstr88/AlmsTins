@@ -10,12 +10,17 @@
 // Reached from a link, no account. Same reasoning as the buyer confirmation — and the
 // same shape, because the party with nothing to gain from the lie is the one worth asking.
 import '@/styles/tokens.css';
-import { readCountersignRequest } from '@/lib/receivablesRegistry';
+import { readCountersignRequest, pathForToken } from '@/lib/receivablesRegistry';
 
 export const prerender = false;
 
 const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
 const req = token ? await readCountersignRequest(token) : { ok: false as const, error: 'not_found' };
+
+// Same as the debtor page: a live token that belongs elsewhere gets sent on, not stopped.
+const elsewhere = (!req.ok && req.error === 'not_found' && token)
+  ? await pathForToken(token)
+  : null;
 
 const money = (n: number, ccy: string) =>
   `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -109,7 +114,14 @@ const ERRORS: Record<string, string> = {
     </div>
 
     {!req.ok && (
-      <div class="note note-loss show">{ERRORS[req.error] ?? ERRORS.not_found}</div>
+      <div class="note note-loss show">
+        {elsewhere ? 'This link is for a different step.' : (ERRORS[req.error] ?? ERRORS.not_found)}
+        {elsewhere && (
+          <div style="margin-top:.7rem">
+            <a href={elsewhere} style="color:var(--accent);font-weight:700">Continue to the right page</a>
+          </div>
+        )}
+      </div>
     )}
 
     {req.ok && (

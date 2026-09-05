@@ -1757,10 +1757,30 @@ export async function getSendableRequest(
   const rcv = await getReceivableRow(String(row.receivable_id));
   if (!rcv) return null;
 
+  // Key off the ROLE, not on which columns happen to be filled. The first version
+  // inferred "has a receivable and no claim, therefore debtor", which sent every
+  // non-buyer invite to the debtor confirmation page, where it was correctly refused as
+  // "not a confirmation request". Each page expects a specific role, so the mapping has
+  // to be the role.
   const isClaim = !!row.claim_id;
+  const role = String(row.role || '');
+  const kind: SendableRequest['kind'] =
+    isClaim ? 'client'
+    : role === 'buyer' ? 'debtor'
+    : 'invitation';
+
+  // An invitation carries no deal to describe even when it names a receivable.
+  if (kind === 'invitation') {
+    return {
+      token: String(row.token), kind, sentTo: String(row.email),
+      supplier: '', buyer: '', invoiceNo: '', amount: 0, currency: '',
+      expiresAt: String(row.expires_at), label,
+    };
+  }
+
   return {
     token: String(row.token),
-    kind: isClaim ? 'client' : 'debtor',
+    kind,
     sentTo: String(row.email),
     supplier: String(rcv.supplier),
     buyer: String(rcv.buyer),
@@ -1781,4 +1801,28 @@ export async function countRecentInvites(tenantId: string): Promise<number> {
     args: [tenantId, since],
   });
   return Number((r.rows[0] as any)?.n ?? 0);
+}
+
+/**
+ * Which page a token actually belongs to, for a link that landed on the wrong one.
+ *
+ * A person holding a link cannot be told "wrong page" and left there. They did not choose
+ * the URL, they clicked what they were sent, and a dead end reads as a broken product
+ * rather than a misrouted link.
+ */
+export async function pathForToken(token: string): Promise<string | null> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT role, claim_id, receivable_id, expires_at, revoked_at
+            FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token || '').trim()],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  if (row.revoked_at || String(row.expires_at) < nowUtc()) return null;
+
+  const t = encodeURIComponent(String(token).trim());
+  if (row.claim_id) return `/verify/countersign?token=${t}`;
+  if (String(row.role) === 'buyer' && row.receivable_id) return `/verify/authenticate?token=${t}`;
+  return `/verify/invite?token=${t}`;
 }
