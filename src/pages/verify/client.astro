@@ -141,8 +141,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <h2>Record a receivable</h2>
       <p class="hint">Your half of the record. Your financier fills in theirs.</p>
       <div class="grid">
-        <label>Supplier (you)<input id="f-sup" placeholder="Your company" autocomplete="off" /></label>
-        <label>Buyer (owes you)<input id="f-buy" placeholder="Their company" autocomplete="off" /></label>
+        <label>Your company<input id="f-sup" placeholder="Your company" autocomplete="off" /></label>
+        <label>Debtor (owes you)<input id="f-buy" placeholder="Their company" autocomplete="off" /></label>
         <label>Invoice number<input id="f-inv" placeholder="INV-2093" autocomplete="off" /></label>
         <label>Face value<input id="f-face" type="number" step="0.01" min="0" placeholder="50000000" /></label>
         <label>Currency
@@ -174,7 +174,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <div class="row">
         <button id="copy-id" class="small">Copy ID</button>
         <button id="copy-link" class="small ghost">Copy financier link</button>
-        <button id="copy-buyer" class="small ghost">Copy buyer link</button>
+        <button id="copy-buyer" class="small ghost">Copy debtor link</button>
         <button id="go-track" class="small ghost">Track it</button>
       </div>
       <p class="handoff__why" id="anchor-status">&#9203; Timestamping the promise to Bitcoin&hellip;</p>
@@ -183,7 +183,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     <div class="card">
       <h2>Track a receivable</h2>
-      <p class="hint">See what is claimed against it and whether your buyer has confirmed.</p>
+      <p class="hint">See what is claimed against it and whether your debtor has confirmed.</p>
       <div class="row">
         <input id="t-id" class="grow" placeholder="Receivable ID" value={prefillId} spellcheck="false" autocomplete="off" />
         <button id="t-go">Check</button>
@@ -206,7 +206,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <h2>Claimed against it</h2>
         <div id="t-claims"></div>
         <div class="row" style="margin-top:.9rem">
-          <button id="t-settle" class="ghost">Mark settled &mdash; the buyer has paid</button>
+          <button id="t-settle" class="ghost">Mark settled &mdash; the debtor has paid</button>
         </div>
         <div id="s-out" class="note"></div>
       </div>
@@ -244,7 +244,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const out = $('f-out') as unknown as HTMLElement;
       const supplier = val('f-sup'), buyer = val('f-buy'), invoiceNo = val('f-inv');
       const face = Number(val('f-face'));
-      if (!supplier || !buyer || !invoiceNo) { show(out, 'Supplier, buyer, and invoice number are all required.', 'note-loss'); return; }
+      if (!supplier || !buyer || !invoiceNo) { show(out, 'Your company, the debtor, and the invoice number are all required.', 'note-loss'); return; }
       if (!face || face <= 0) { show(out, 'Enter the face value of the invoice.', 'note-loss'); return; }
       show(out, 'Signing and recording…');
       try {
@@ -307,7 +307,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const claimed = Number(r.claimed || 0), avail = Number(r.available || 0), face = Number(r.face || 0);
       const f = (k: string, v: string) => `<div><div class="fact__k">${esc(k)}</div><div class="fact__v">${esc(v)}</div></div>`;
       document.getElementById('t-facts')!.innerHTML =
-        f('Buyer', r.buyer) + f('Invoice', r.invoiceNo) + f('Face value', money(face, ccy)) +
+        f('Debtor', r.buyer) + f('Invoice', r.invoiceNo) + f('Face value', money(face, ccy)) +
         f('Terms', r.terms || 'not stated') + f('Due', r.dueDate || 'not stated') +
         f('Status', String(r.lifecycle || '').replace(/_/g, ' ') || 'created');
 

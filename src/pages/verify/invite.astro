@@ -19,7 +19,7 @@ const session = await requireTenantSession(Astro.request);
 
 const ROLE_COPY: Record<string, { title: string; blurb: string; desk: string }> = {
   borrower: {
-    title: 'You have been invited as the supplier',
+    title: 'You have been invited as the client',
     blurb: 'Record what you are owed, hand the ID to your financier, and watch what is claimed against it.',
     desk: '/verify/client',
   },
