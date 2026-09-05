@@ -116,6 +116,11 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-primary); }
     .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); color: var(--text-primary); }
     .muted { color: var(--text-muted); font-size: .8rem; }
+    select#cs-claim {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .55rem .7rem; font-size: .9rem; font-family: inherit;
+    }
+    select#cs-claim:focus { outline: none; border-color: var(--accent); }
     .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .7rem; }
     .fld {
       display: flex; flex-direction: column; gap: .28rem;
@@ -293,6 +298,24 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div id="k-out" class="note"></div>
       </div>
 
+      <div class="card" id="cs-card" style="margin-top:1.15rem; display:none">
+        <h2>Ask your client to confirm receipt</h2>
+        <p class="hint">
+          Registering a claim is your own word that you advanced the money. Your client confirming he
+          received it is what makes it evidence, and it is what stops anyone registering an advance
+          they never made. He needs no account.
+        </p>
+        <div class="row">
+          <select id="cs-claim" style="flex:1 1 14rem"></select>
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <input id="cs-email" class="grow" type="email" placeholder="john@123trucking.com" autocomplete="off" />
+          <button id="cs-go">Create link</button>
+        </div>
+        <div id="cs-list"></div>
+        <div id="cs-out" class="note"></div>
+      </div>
+
       <div class="card" style="margin-top:1.15rem">
         <h2>Register your claim</h2>
         <p class="hint">Signed and timestamped to Bitcoin. A claim over the remaining headroom is refused.</p>
@@ -446,6 +469,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       document.getElementById('claims')!.querySelectorAll('[data-ask]').forEach((b) => {
         b.addEventListener('click', () => askClient((b as HTMLElement).dataset.ask as string));
       });
+      renderCountersignCard(claims, ccy);
 
       // Prefill the claim amount with the remaining headroom
       const amt = $('c-amt'); if (amt && !amt.value && avail > 0) amt.value = String(avail);
@@ -778,24 +802,87 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     }
 
     // ── Counter-signature ───────────────────────────────────────────────────
-    async function askClient(claimId: string) {
-      const out = $('c-out') as unknown as HTMLElement;
-      const email = prompt('Your client\u2019s email address. The link records where the answer came from.');
-      if (email === null) return;
-      if (!email.trim()) { show(out, 'An address is needed. It is what records where the answer came from.', 'note-loss'); return; }
+    // The card only makes sense while an unconfirmed advance exists, so it is hidden
+    // otherwise. Its select lists exactly those, which also keeps the banker from asking
+    // about a claim his client has already answered.
+    function renderCountersignCard(claims: any[], ccy: string) {
+      const card = document.getElementById('cs-card')!;
+      const open = claims.filter((c: any) => !c.affirmed && c.status !== 'discharged');
+      if (!open.length) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+      const sel = $('cs-claim') as unknown as HTMLSelectElement;
+      const keep = sel.value;
+      sel.innerHTML = open.map((c: any) =>
+        `<option value="${esc(c.id)}">${esc(money(c.amount, c.currency || ccy))} to ${esc(c.financier)}, registered ${esc(String(c.registeredAt || '').slice(0, 10))}</option>`
+      ).join('');
+      if (keep && open.some((c: any) => c.id === keep)) sel.value = keep;
+      loadCountersigns();
+    }
+
+    async function loadCountersigns() {
+      const box = document.getElementById('cs-list')!;
+      const claimId = (($('cs-claim') as unknown as HTMLSelectElement)?.value ?? '').trim();
+      if (!claimId) { box.innerHTML = ''; return; }
+      try {
+        const r = await fetch('/api/verify/receivables/invite?claimId=' + encodeURIComponent(claimId));
+        const j = await r.json();
+        const reqs = j.requests ?? [];
+        if (!j.ok || !reqs.length) {
+          box.innerHTML = '<p class="hint" style="margin-top:.7rem">Not asked yet for this advance.</p>';
+          return;
+        }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>Sent to</th><th>Status</th><th>Answered by</th><th></th></tr></thead><tbody>' +
+          reqs.map((v: any) => {
+            const link = `${location.origin}/verify/countersign?token=${encodeURIComponent(v.token)}`;
+            const state = v.status === 'answered' ? `<span class="ok">answered ${esc(String(v.answeredAt || '').slice(0, 10))}</span>`
+              : v.status === 'expired' ? '<span class="muted">expired</span>'
+              : v.status === 'revoked' ? '<span class="muted">revoked</span>'
+              : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
+            const action = v.status === 'pending' ? `<button class="ghost small" data-copy="${esc(link)}">Copy link</button>` : '';
+            return `<tr><td>${esc(v.sentTo || 'no address recorded')}</td><td>${state}</td><td>${esc(v.answeredBy || '\u2014')}</td><td>${action}</td></tr>`;
+          }).join('') + '</tbody></table>';
+        box.querySelectorAll('button[data-copy]').forEach((b) => {
+          b.addEventListener('click', () => {
+            navigator.clipboard?.writeText((b as HTMLElement).dataset.copy || '');
+            (b as HTMLElement).textContent = 'Copied';
+          });
+        });
+      } catch { box.innerHTML = ''; }
+    }
+
+    async function createCountersignRequest() {
+      const out = $('cs-out') as unknown as HTMLElement;
+      const claimId = (($('cs-claim') as unknown as HTMLSelectElement)?.value ?? '').trim();
+      const email = val('cs-email');
+      if (!claimId) { show(out, 'No unconfirmed advance to ask about.', 'note-loss'); return; }
+      if (!email) { show(out, 'An address is needed. It is what records where the answer came from.', 'note-loss'); return; }
       show(out, 'Creating\u2026');
       try {
         const r = await fetch('/api/verify/receivables/invite', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'borrower', receivableId: current.id, claimId, email: email.trim() }),
+          body: JSON.stringify({ role: 'borrower', receivableId: current.id, claimId, email }),
         });
         const j = await r.json();
         if (!j.ok) { show(out, 'Could not create that link.', 'note-loss'); return; }
         const link = `${location.origin}/verify/countersign?token=${encodeURIComponent(j.token)}`;
         await navigator.clipboard?.writeText(link).catch(() => {});
-        show(out, `Link copied. Send it to ${esc(email.trim())}. Your claim shows as confirmed once he answers.`, 'note-gain');
+        ($('cs-email') as HTMLInputElement).value = '';
+        show(out, `Link copied. Send it to ${esc(email)} from your own email. The claim shows as confirmed once he answers.`, 'note-gain');
+        loadCountersigns();
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
+
+    // The row button is a shortcut into the card, not a second way of doing it.
+    function askClient(claimId: string) {
+      const card = document.getElementById('cs-card')!;
+      const sel = $('cs-claim') as unknown as HTMLSelectElement;
+      if (sel) { sel.value = claimId; loadCountersigns(); }
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      ($('cs-email') as HTMLInputElement)?.focus();
+    }
+
+    document.getElementById('cs-go')?.addEventListener('click', createCountersignRequest);
+    $('cs-claim')?.addEventListener('change', loadCountersigns);
 
     document.getElementById('d-go')?.addEventListener('click', uploadDoc);
     document.getElementById('k-go')?.addEventListener('click', createConfirmRequest);

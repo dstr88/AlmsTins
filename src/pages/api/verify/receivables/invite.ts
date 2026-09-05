@@ -15,7 +15,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import {
   createInvite, readInvite, acceptInvite, revokeInvite, listInvitesFrom,
-  listConfirmRequests,
+  listConfirmRequests, listCountersignRequests,
   type InviteRole,
 } from '@/lib/receivablesRegistry';
 
@@ -33,6 +33,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
+
+  // The roster for one claim: everyone asked to counter-sign that advance.
+  const claimId = url.searchParams.get('claimId');
+  if (claimId) {
+    return json({ ok: true, requests: await listCountersignRequests(session.tenantId, claimId) });
+  }
 
   // The roster for one receivable: everyone asked to confirm it, and what came back.
   const receivableId = url.searchParams.get('receivableId');
