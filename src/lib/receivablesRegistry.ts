@@ -1707,7 +1707,8 @@ export async function listCountersignRequests(
 
 export interface SendableRequest {
   token:      string;
-  kind:       'debtor' | 'client';
+  /** 'invitation' carries no receivable: it onboards a client rather than asking about a deal. */
+  kind:       'debtor' | 'client' | 'invitation';
   sentTo:     string;
   supplier:   string;
   buyer:      string;
@@ -1715,6 +1716,8 @@ export interface SendableRequest {
   amount:     number;
   currency:   string;
   expiresAt:  string;
+  /** What the sender called themselves when minting it. Shown to the invitee. */
+  label:      string | null;
 }
 
 /**
@@ -1727,7 +1730,7 @@ export async function getSendableRequest(
 ): Promise<SendableRequest | null> {
   await ensureReceivablesTables();
   const r = await db.execute({
-    sql: `SELECT i.token, i.role, i.email, i.claim_id, i.expires_at, i.accepted_at, i.revoked_at,
+    sql: `SELECT i.token, i.role, i.email, i.label, i.claim_id, i.expires_at, i.accepted_at, i.revoked_at,
                  i.receivable_id, c.amount AS claim_amount, c.currency AS claim_currency
             FROM receivable_invites i
        LEFT JOIN receivable_claims c ON c.id = i.claim_id
@@ -1738,7 +1741,18 @@ export async function getSendableRequest(
   const row = r.rows[0] as any;
   if (row.revoked_at || row.accepted_at) return null;
   if (String(row.expires_at) < nowUtc()) return null;
-  if (!row.email || !row.receivable_id) return null;
+  if (!row.email) return null;
+
+  const label = row.label != null ? String(row.label) : null;
+
+  // A bare invitation onboards someone; there is no deal to describe yet.
+  if (!row.receivable_id) {
+    return {
+      token: String(row.token), kind: 'invitation', sentTo: String(row.email),
+      supplier: '', buyer: '', invoiceNo: '', amount: 0, currency: '',
+      expiresAt: String(row.expires_at), label,
+    };
+  }
 
   const rcv = await getReceivableRow(String(row.receivable_id));
   if (!rcv) return null;
@@ -1754,6 +1768,7 @@ export async function getSendableRequest(
     amount: isClaim ? Number(row.claim_amount) : Number(rcv.face),
     currency: isClaim ? String(row.claim_currency || rcv.currency) : String(rcv.currency),
     expiresAt: String(row.expires_at),
+    label,
   };
 }
 
