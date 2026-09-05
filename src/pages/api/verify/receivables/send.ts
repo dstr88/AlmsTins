@@ -64,6 +64,7 @@ export const POST: APIRoute = async ({ request }) => {
   const page = req.kind === 'debtor' ? 'authenticate'
              : req.kind === 'client' ? 'countersign'
              : req.kind === 'client_record' ? 'attest'
+             : req.kind === 'offer' ? 'offer'
              : 'invite';
   const link = `${origin}/verify/${page}?token=${encodeURIComponent(req.token)}`;
   const expires = req.expiresAt.slice(0, 10);
@@ -77,6 +78,10 @@ export const POST: APIRoute = async ({ request }) => {
     subject = 'You have been invited onto the Almstins receivables registry';
     lead = `${who} has invited you onto the Almstins receivables registry.`;
     ask = 'Accepting creates your own account, where you can see what you are owed and what any financier has claimed against it. Your records stay yours: whoever invited you cannot see inside your account, and you cannot see inside theirs.';
+  } else if (req.kind === 'offer') {
+    subject = `A financing offer of ${amount} against invoice ${req.invoiceNo}`;
+    lead = `You have been offered ${amount} against invoice ${req.invoiceNo} to ${req.buyer}.`;
+    ask = 'The offer page states what it costs you, what happens if your customer does not pay, and how it is repaid. Read those before you accept. Accepting is recorded in your name, signed and timestamped, before any money moves, which is how both sides can later prove what was agreed.';
   } else if (req.kind === 'client_record') {
     subject = `Confirm your invoice ${req.invoiceNo} as recorded`;
     lead = `Your financier has recorded that ${req.supplier} is owed ${amount} by ${req.buyer} on invoice ${req.invoiceNo}, from the paperwork you brought in.`;

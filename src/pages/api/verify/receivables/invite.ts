@@ -79,6 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
   const result = await createInvite(session.tenantId, {
     role,
     receivableId: body.receivableId ?? null,
+    offerId: body.offerId ?? null,
     label: body.label ?? null,
     email: body.email ?? null,
   });

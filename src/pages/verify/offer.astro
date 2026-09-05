@@ -1,0 +1,265 @@
+---
+// Almstins Verify — the client accepts or declines a financing offer.
+//
+// Taken BEFORE the money moves, deliberately. His signature is worth most at the moment he
+// wants something: he accepts because that is how he gets funded. Once the cash has landed
+// he has nothing left to gain and every reason to go quiet, which is why a confirmation
+// taken afterwards is the weaker artifact.
+//
+// The page shows what an offer has to show to be one: the amount, the price, whether it is
+// recourse, and how it is repaid. Recourse is stated in a sentence rather than a word,
+// because it is the term clients get hurt by and the word alone means nothing to them.
+import '@/styles/tokens.css';
+import { readOfferRequest } from '@/lib/receivablesRegistry';
+
+export const prerender = false;
+
+const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
+const req = token ? await readOfferRequest(token) : { ok: false as const, error: 'not_found' };
+
+const money = (n: number, ccy: string) =>
+  `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const ERRORS: Record<string, string> = {
+  not_found: 'This link is not valid. Ask whoever sent it for a new one.',
+  expired: 'This link has expired. Ask your financier for a new one.',
+  offer_expired: 'This offer has expired. Ask your financier whether it still stands.',
+  revoked: 'This offer was withdrawn.',
+  used: 'This offer has already been answered. If that was not you, contact your financier.',
+  wrong_kind: 'This link is for a different step.',
+};
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>A financing offer — Almstins Verify</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 40rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.5rem, 3.6vw, 1.9rem); line-height: 1.2; font-weight: 700; }
+    .lede { color: var(--text-secondary); font-size: .95rem; }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.2rem 1.35rem; }
+    .card h2 { font-size: .98rem; font-weight: 700; margin-bottom: .2rem; }
+    .card .hint { font-size: .82rem; color: var(--text-muted); margin-bottom: .95rem; }
+
+    /* The claim, stated plainly */
+    .claim { background: var(--surface-card-2); border: 1px solid var(--border-bright); border-radius: 13px; padding: 1.3rem 1.4rem; }
+    .claim__lead { font-size: 1.02rem; line-height: 1.5; font-weight: 600; }
+    .claim__lead b { color: var(--accent); }
+    .claim__amount { font-size: clamp(1.6rem, 5vw, 2.2rem); font-weight: 800; letter-spacing: -.02em; margin: .45rem 0 .3rem; font-variant-numeric: tabular-nums; }
+    .claim__meta { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-top: .9rem; }
+    .m__k { font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
+    .m__v { font-size: .9rem; font-weight: 600; }
+
+    .relied { border-left: 3px solid var(--warn-border, var(--accent-glow)); background: var(--accent-soft); border-radius: 8px; padding: .75rem .9rem; font-size: .88rem; }
+
+    .doclist { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
+    .doclist li { border: 1px solid var(--border-subtle); border-radius: 9px; padding: .6rem .75rem; background: var(--surface-card-2); }
+    a.doc { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; text-decoration: none; }
+    .doc__name { color: var(--accent); font-weight: 600; font-size: .95rem; word-break: break-all; }
+    .doc__meta { color: var(--text-muted); font-size: .74rem; white-space: nowrap; }
+    a.doc:hover .doc__name { text-decoration: underline; }
+    .doc__hash { margin-top: .4rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .64rem; color: var(--text-muted); word-break: break-all; }
+
+    label.f { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+    input[type=text] {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .6rem .75rem; font-size: .95rem; font-family: inherit;
+      font-weight: 400; letter-spacing: normal; text-transform: none;
+    }
+    input[type=text]:focus { outline: none; border-color: var(--accent); }
+    .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .7rem; }
+
+    .checks { display: flex; flex-direction: column; gap: .55rem; margin-top: .3rem; }
+    .chk { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; cursor: pointer; }
+    .chk input { margin-top: .28rem; width: 1rem; height: 1rem; accent-color: var(--accent); flex: 0 0 auto; }
+
+    .actions { display: flex; flex-direction: column; gap: .6rem; margin-top: .3rem; }
+    button {
+      border-radius: 10px; padding: .8rem 1rem; font-size: .95rem; font-weight: 700;
+      cursor: pointer; font-family: inherit; border: 1px solid transparent; width: 100%;
+    }
+    .yes { background: var(--accent); color: var(--surface-bg); }
+    .yes:hover:not(:disabled) { filter: brightness(1.08); }
+    .yes:disabled { opacity: .45; cursor: not-allowed; }
+    .no { background: transparent; border-color: var(--loss-border); color: var(--loss); font-weight: 600; }
+    .no:hover { background: var(--loss-bg); }
+
+    .note { border-radius: 10px; padding: .8rem .9rem; font-size: .9rem; display: none; }
+    .note.show { display: block; }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .foot { font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; margin-top: .5rem; }
+
+    .terms { display: flex; flex-direction: column; gap: .8rem; }
+    .t { border-left: 2px solid var(--border-bright); padding-left: .85rem; }
+    .t__k { font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
+    .t__v { font-size: .93rem; color: var(--text-primary); margin-top: .1rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Almstins Verify</div>
+      <h1>You have been offered financing</h1>
+    </div>
+
+    {!req.ok && (
+      <div class="note note-loss show">{ERRORS[req.error] ?? ERRORS.not_found}</div>
+    )}
+
+    {req.ok && (
+      <>
+        <div class="claim">
+          <div class="claim__lead"><b>{req.offer.financier}</b> offers to advance you</div>
+          <div class="claim__amount">{money(req.offer.amount, req.offer.currency)}</div>
+          <div class="claim__lead" style="font-size:.98rem;font-weight:500;color:var(--text-secondary)">
+            against invoice {req.invoiceNo} to {req.buyer}, worth {money(req.face, req.currency)}
+            {req.dueDate ? `, due ${req.dueDate}` : ''}.
+          </div>
+          <div class="claim__meta">
+            <div><div class="m__k">You receive</div><div class="m__v">{money(req.offer.amount, req.offer.currency)}</div></div>
+            <div><div class="m__k">Invoice value</div><div class="m__v">{money(req.face, req.currency)}</div></div>
+            <div><div class="m__k">Offer open until</div><div class="m__v">{req.offer.expiresAt.slice(0, 10)}</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>The terms</h2>
+          <p class="hint">Read these before you accept. They are what you are agreeing to.</p>
+          <div class="terms">
+            <div class="t"><div class="t__k">What it costs you</div>
+              <div class="t__v">{req.offer.price || 'Not stated. Ask your financier before accepting.'}</div></div>
+            <div class="t"><div class="t__k">If the debtor does not pay</div>
+              <div class="t__v">{req.offer.recourse === 'non_recourse'
+                ? `${req.offer.financier} carries the loss. You do not repay this advance.`
+                : `You repay this advance. The risk that ${req.buyer} does not pay stays with you.`}</div></div>
+            <div class="t"><div class="t__k">How it is repaid</div>
+              <div class="t__v">{req.offer.repayment || 'Not stated. Ask your financier before accepting.'}</div></div>
+          </div>
+        </div>
+
+        {req.documents.length > 0 && (
+          <div class="card">
+            <h2>The paperwork on file</h2>
+            <p class="hint">What your financier scanned in. Check it is what you handed over.</p>
+            <ul class="doclist">
+              {req.documents.map((d) => (
+                <li>
+                  <a class="doc" href={`/api/verify/receivables/document?t=${encodeURIComponent(token)}&id=${encodeURIComponent(d.id)}`} target="_blank" rel="noopener">
+                    <span class="doc__name">{d.filename}</span>
+                    <span class="doc__meta">{(d.fileSize / 1024).toFixed(0)} KB · open</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div class="relied">
+          Accepting is recorded in your name, signed and timestamped, before any money moves.
+          It is how both of you can later prove what was agreed. If anything above is not what
+          you discussed, do not accept: say so instead.
+        </div>
+
+        <div class="card">
+          <h2>Accept these terms</h2>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" id="c1" /><span>I have read the terms above, including what happens if my customer does not pay.</span></label>
+            <label class="chk"><input type="checkbox" id="c2" /><span>The amount and the invoice are right.</span></label>
+          </div>
+          <div class="two" style="margin-top:1rem">
+            <label class="f">Your name<input type="text" id="by" placeholder="John Adeyemi" autocomplete="name" /></label>
+            <label class="f">Your role<input type="text" id="title" placeholder="Owner" autocomplete="organization-title" /></label>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="yes" id="ok" data-token={token} disabled>Accept this offer</button>
+          <button class="no" id="no" data-token={token}>Do not accept</button>
+        </div>
+
+        <div id="whybox" class="card" style="display:none">
+          <h2>Why not?</h2>
+          <p class="hint">Optional. Your financier will see it.</p>
+          <label class="f">Reason<input type="text" id="why" placeholder="The charge is higher than we discussed" /></label>
+          <div class="actions" style="margin-top:.9rem">
+            <button class="no" id="nogo" data-token={token}>Record this</button>
+          </div>
+        </div>
+
+        <div id="out" class="note"></div>
+
+        <p class="foot">
+          Almstins records and proves. It never holds money and never moves it. Accepting here
+          records your agreement; it does not itself transfer any funds.
+        </p>
+      </>
+    )}
+  </div>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const out = () => document.getElementById('out')!;
+
+    function show(text: string, cls: string) {
+      const el = out(); el.className = `note show ${cls}`; el.textContent = text;
+    }
+    function refresh() {
+      const btn = $('ok'); if (!btn) return;
+      const named = ($('by')?.value ?? '').trim().length > 0;
+      (btn as unknown as HTMLButtonElement).disabled =
+        !(named && $('c1')?.checked && $('c2')?.checked);
+    }
+    ['c1', 'c2'].forEach((c) => $(c)?.addEventListener('change', refresh));
+    $('by')?.addEventListener('input', refresh);
+
+    async function send(outcome: string, token: string, reason?: string) {
+      const by = ($('by')?.value ?? '').trim();
+      if (!by) { show('Please put your name to this answer.', 'note-loss'); return; }
+      show('Recording…', 'note-gain');
+      try {
+        const r = await fetch('/api/verify/receivables/offer-respond', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, outcome, by, title: ($('title')?.value ?? '').trim() || null, reason: reason ?? null }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          show(j.error === 'used' ? 'This offer has already been answered.'
+            : j.error === 'offer_expired' ? 'This offer has expired. Ask your financier whether it still stands.'
+            : j.error === 'expired' ? 'This link has expired. Ask your financier for a new one.'
+            : 'Could not record that. Try again.', 'note-loss');
+          return;
+        }
+        document.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+        show(outcome === 'accept'
+          ? 'Accepted. Your agreement is signed and timestamped. Your financier can see it.'
+          : 'Recorded. Your financier can see that you did not accept, and why.',
+          outcome === 'accept' ? 'note-gain' : 'note-loss');
+      } catch { show('Could not reach Almstins. Try again.', 'note-loss'); }
+    }
+
+    const tok = (id: string) => ($(id) as unknown as HTMLElement)?.dataset.token ?? '';
+    $('ok')?.addEventListener('click', () => send('accept', tok('ok')));
+    $('no')?.addEventListener('click', () => {
+      const box = document.getElementById('whybox')!;
+      box.style.display = 'block';
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    $('nogo')?.addEventListener('click', () => send('decline', tok('nogo'), ($('why')?.value ?? '').trim() || undefined));
+
+    refresh();
+  </script>
+</body>
+</html>

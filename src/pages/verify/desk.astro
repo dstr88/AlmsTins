@@ -431,6 +431,37 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </div>
 
       <div class="card" style="margin-top:1.15rem">
+        <h2>Offer terms to your client</h2>
+        <p class="hint">
+          Sent once the debtor has confirmed. His acceptance is signed and timestamped before any
+          money moves, which is when his signature is worth most: he accepts because that is how he
+          gets funded. Nothing here moves money or stops you advancing when you judge it right.
+        </p>
+        <div class="row">
+          <input id="o-fin" class="grow" placeholder="Your firm" autocomplete="off" />
+          <input id="o-amt" type="number" step="0.01" min="0" placeholder="Amount he receives" style="flex:0 1 13rem" />
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <input id="o-price" class="grow" placeholder="What it costs him, e.g. 3% of face deducted upfront" autocomplete="off" />
+          <select id="o-rec" style="flex:0 1 15rem">
+            <option value="recourse">With recourse — he repays if the debtor does not</option>
+            <option value="non_recourse">Non-recourse — you carry the loss</option>
+          </select>
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <input id="o-repay" class="grow" placeholder="How it is repaid, e.g. the debtor pays us direct on the due date" autocomplete="off" />
+          <input id="o-days" type="number" min="1" max="90" placeholder="Open for (days)" style="flex:0 1 11rem" />
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <input id="o-email" class="grow" type="email" placeholder="him@his-company.com" autocomplete="off" />
+          <button id="o-send">Create &amp; email</button>
+          <button id="o-go" class="ghost">Create link only</button>
+        </div>
+        <div id="o-list"></div>
+        <div id="o-out" class="note"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem">
         <h2>Register your claim</h2>
         <p class="hint">Signed and timestamped to Bitcoin. A claim over the remaining headroom is refused.</p>
         <div class="row">
@@ -514,6 +545,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         panel.classList.add('show');
         loadDocs();
         loadConfirms();
+        loadOffers();
       } catch (e) {
         show(out, 'Could not reach the registry. Try again.', 'note-loss');
       }
@@ -1092,6 +1124,74 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         return true;
       } catch { show(out, 'Could not reach the registry. Copy the link and send it yourself.', 'note-loss'); return false; }
     }
+
+    // ── Offers ──────────────────────────────────────────────────────────────
+    async function loadOffers() {
+      const box = document.getElementById('o-list')!;
+      if (!current?.id) { box.innerHTML = ''; return; }
+      try {
+        const j = await (await fetch('/api/verify/receivables/offer?receivableId=' + encodeURIComponent(current.id))).json();
+        const rows = j.offers ?? [];
+        if (!j.ok || !rows.length) { box.innerHTML = '<p class="hint" style="margin-top:.7rem">No terms offered yet.</p>'; return; }
+        box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>Offered</th><th>Amount</th><th>Terms</th><th>State</th></tr></thead><tbody>' +
+          rows.map((o: any) => {
+            const state = o.acceptedAt ? `<span class="ok">accepted ${esc(String(o.acceptedAt).slice(0, 10))} by ${esc(o.acceptedBy || '')}</span>`
+              : o.declinedAt ? `<span style="color:var(--loss)">declined ${esc(String(o.declinedAt).slice(0, 10))}</span>`
+              : String(o.expiresAt) < new Date().toISOString().replace('T', ' ').slice(0, 19) ? '<span class="muted">expired</span>'
+              : `<span>open until ${esc(String(o.expiresAt).slice(0, 10))}</span>`;
+            return `<tr>
+              <td>${esc(String(o.createdAt).slice(0, 10))}</td>
+              <td>${esc(money(Number(o.amount), o.currency || ccyOf()))}</td>
+              <td>${esc(o.recourse === 'non_recourse' ? 'non-recourse' : 'with recourse')}${o.price ? `<div class="muted" style="font-size:.74rem">${esc(o.price)}</div>` : ''}</td>
+              <td>${state}</td>
+            </tr>`;
+          }).join('') + '</tbody></table>';
+      } catch { box.innerHTML = ''; }
+    }
+    const ccyOf = () => current?.currency || 'NGN';
+
+    async function createOffer(): Promise<string | null> {
+      const out = $('o-out') as unknown as HTMLElement;
+      if (!current?.id) { show(out, 'Look up a receivable first.', 'note-loss'); return null; }
+      const financier = val('o-fin'), amount = Number(val('o-amt'));
+      if (!financier) { show(out, 'Enter your firm name.', 'note-loss'); return null; }
+      if (!amount || amount <= 0) { show(out, 'Enter the amount he receives.', 'note-loss'); return null; }
+      show(out, 'Signing…');
+      try {
+        const j = await (await fetch('/api/verify/receivables/offer', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            receivableId: current.id, financier, amount,
+            price: val('o-price') || null,
+            recourse: val('o-rec') || 'recourse',
+            repayment: val('o-repay') || null,
+            validDays: val('o-days') ? Number(val('o-days')) : undefined,
+          }),
+        })).json();
+        if (!j.ok) { show(out, esc(j.message || 'Could not create that offer.'), 'note-loss'); return null; }
+
+        const ir = await (await fetch('/api/verify/receivables/invite', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'borrower', receivableId: current.id, offerId: j.offerId, email: val('o-email') || null }),
+        })).json();
+        if (!ir.ok) { show(out, 'Offer signed, but the link could not be created.', 'note-loss'); return null; }
+
+        const link = `${location.origin}/verify/offer?token=${encodeURIComponent(ir.token)}`;
+        await navigator.clipboard?.writeText(link).catch(() => {});
+        show(out, `<b>Offer signed and link copied.</b> He sees the amount, the charge, the recourse terms and how it is repaid.`, 'note-gain');
+        loadOffers();
+        return ir.token as string;
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+      return null;
+    }
+
+    document.getElementById('o-go')?.addEventListener('click', createOffer);
+    document.getElementById('o-send')?.addEventListener('click', async () => {
+      const out = $('o-out') as unknown as HTMLElement;
+      if (!val('o-email')) { show(out, 'An address is needed to email it. Use "Create link only" otherwise.', 'note-loss'); return; }
+      const token = await createOffer();
+      if (token) await emailRequest(token, out, 'your client');
+    });
 
     // ── Counter-signature ───────────────────────────────────────────────────
     // The card only makes sense while an unconfirmed advance exists, so it is hidden
