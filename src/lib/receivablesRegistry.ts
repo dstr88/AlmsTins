@@ -141,6 +141,10 @@ export interface ReceivableStatus {
   /** How many documents are attached and still held. A count, never the files or names:
    *  a second financier needs to know whether paperwork exists, not what it says. */
   documentCount: number;
+  /** How many confirmations have been requested. A count, never the addresses. It is what
+   *  separates "nobody has answered" from "nobody has been asked", which are not the same
+   *  fact and should not read the same on screen. */
+  requestCount: number;
   createdAt: string;
   signed: boolean;
   anchored: boolean;
@@ -668,6 +672,12 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
   });
   const docCount = Number((dr.rows[0] as any)?.n ?? 0);
 
+  const qr = await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM receivable_invites WHERE receivable_id = ? AND revoked_at IS NULL`,
+    args: [rcv.id],
+  });
+  const reqCount = Number((qr.rows[0] as any)?.n ?? 0);
+
   const claimed = claims.filter((c) => c.status === 'active').reduce((s, c) => s + c.amount, 0);
   const available = rcv.face - claimed;
   const status: ReceivableStatus['status'] =
@@ -692,6 +702,7 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     rtype: rcv.rtype, paymentMethod: rcv.payment_method,
     details: parseDetails(rcv.details_json),
     documentCount: docCount,
+    requestCount: reqCount,
     createdAt: rcv.created_at, signed: !!rcv.signature_json,
     anchored: !!rcv.anchor_json, anchoredAt: anchoredAtOf(rcv.anchor_json),
     settled, settledAt: rcv.settled_at,

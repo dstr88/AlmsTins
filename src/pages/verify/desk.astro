@@ -183,6 +183,35 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     details.more[open] > summary .more__i { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
     details.more[open] > summary .more__i::after { content: ''; }
     .sep { border-top: 1px solid var(--border-subtle); margin: 1.1rem 0 .9rem; }
+    .next {
+      display: flex; gap: 1rem; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; margin-top: 1.15rem; padding: 1rem 1.2rem; border-radius: 12px;
+      background: var(--accent-soft); border: 1px solid var(--accent-glow);
+    }
+    .next--warn { background: var(--loss-bg); border-color: var(--loss-border); }
+    .next__k { font-size: .62rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; color: var(--accent); }
+    .next--warn .next__k { color: var(--loss); }
+    .next__t { font-size: 1.02rem; font-weight: 700; margin-top: .1rem; }
+    .next__d { font-size: .85rem; color: var(--text-secondary); }
+    .next__go {
+      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 9px;
+      padding: .55rem 1rem; font-size: .86rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .next--warn .next__go { background: var(--loss); color: var(--text-primary); }
+    @keyframes flash { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 2px var(--accent-glow); } }
+    .flash { animation: flash 1.6s ease-in-out; }
+
+    #credit-fold > summary { cursor: pointer; list-style: none; display: flex; gap: .7rem; align-items: flex-start; }
+    #credit-fold > summary::-webkit-details-marker { display: none; }
+    .fold__i {
+      flex: 0 0 auto; width: 1.35rem; height: 1.35rem; border-radius: 7px; display: flex;
+      align-items: center; justify-content: center; font-weight: 700; font-size: .9rem;
+      border: 1px solid var(--border-bright); color: var(--text-secondary);
+    }
+    #credit-fold[open] .fold__i { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
+    .fold__t { display: block; font-size: 1rem; font-weight: 700; }
+    .fold__d { display: block; font-size: .82rem; color: var(--text-muted); }
+
     .step__h { display: flex; gap: .7rem; align-items: flex-start; }
     .step__n {
       flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 99px;
@@ -410,14 +439,23 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <div id="panel">
       <div id="verdict"></div>
 
+      <div id="next"></div>
+
       <div class="card" id="credit" style="margin-top:1.15rem">
-        <h2>Before you advance</h2>
-        <p class="hint">
-          Everything the decision turns on, and what none of it proves.
-          Any underlined word explains itself: <span class="tw" id="tw-head"></span>,
-          <span class="tw" id="tw-claim"></span>, <span class="tw" id="tw-conf"></span>.
-        </p>
-        <div id="credit-body"></div>
+        <details id="credit-fold">
+          <summary>
+            <span class="fold__i">+</span>
+            <span>
+              <span class="fold__t">Before you advance</span>
+              <span class="fold__d" id="credit-sum">Everything the decision turns on, and what none of it proves.</span>
+            </span>
+          </summary>
+          <p class="hint" style="margin-top:.9rem">
+            Any underlined word explains itself: <span class="tw" id="tw-head"></span>,
+            <span class="tw" id="tw-claim"></span>, <span class="tw" id="tw-conf"></span>.
+          </p>
+          <div id="credit-body"></div>
+        </details>
       </div>
 
       <div class="card" style="margin-top:1.15rem">
@@ -433,7 +471,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div id="claims"></div>
       </div>
 
-      <div class="card" style="margin-top:1.15rem">
+      <div class="card" style="margin-top:1.15rem" id="card-paper">
         <h2>The paperwork</h2>
         <p class="hint">
           The promissory note or contract your client brought in. PDF or photo, 5 MB each, as many as you need.
@@ -447,7 +485,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div id="d-out" class="note"></div>
       </div>
 
-      <div class="card" style="margin-top:1.15rem">
+      <div class="card" style="margin-top:1.15rem" id="card-debtor">
         <h2>Ask the debtor to confirm</h2>
         <p class="hint">
           Each request is its own single-use link. Ask more than one person if the amount warrants it:
@@ -464,7 +502,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div id="k-out" class="note"></div>
       </div>
 
-      <div class="card" style="margin-top:1.15rem">
+      <div class="card" style="margin-top:1.15rem" id="card-offer">
         <h2>Offer terms to your client</h2>
         <p class="hint">
           Sent once the debtor has confirmed. His acceptance is signed and timestamped before any
@@ -495,7 +533,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div id="o-out" class="note"></div>
       </div>
 
-      <div class="card" style="margin-top:1.15rem">
+      <div class="card" style="margin-top:1.15rem" id="card-claim">
         <h2>Register your claim</h2>
         <p class="hint">Signed and timestamped to Bitcoin. A claim over the remaining headroom is refused.</p>
         <div class="row">
@@ -617,6 +655,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       tw('tw-claim', 'claim');
       tw('tw-conf', 'receipt-confirmation');
 
+      renderNext(r, ccy);
       renderCreditView(r, ccy, claimed, avail);
 
       // ── Facts ──
@@ -783,6 +822,53 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       b.parentElement?.appendChild(d);
     });
 
+    // ── What to do next ─────────────────────────────────────────────────────
+    //
+    // One action, named, at the top of the panel. The pilot review asked for a progress
+    // bar; this is the same thing without pretending the work is linear, because it is
+    // not: he can advance without a confirmation, ask two debtors, or never attach
+    // anything. Naming the next step is honest where a bar would have to lie.
+    function renderNext(r: any, ccy: string) {
+      const box = document.getElementById('next')!;
+      const atts = r.attestations || [];
+      const claims = (r.claims || []).filter((c: any) => c.status !== 'discharged');
+      const acked = atts.some((a: any) => a.role === 'buyer') || !!r.acknowledgedAt;
+      const disputed = atts.some((a: any) => String(a.statement || '').startsWith('DISPUTED'));
+      const docs = Number(r.documentCount || 0);
+      const asked = Number(r.requestCount || 0);
+      const unconfirmed = claims.filter((c: any) => !c.affirmed);
+
+      let step: { t: string; d: string; go?: string; tone?: string } | null = null;
+      if (r.settled) step = null;
+      else if (disputed) step = { t: 'Read the dispute before you go further', d: 'Someone you asked has contradicted this record. It is in the evidence below.', go: 'credit', tone: 'warn' };
+      else if (docs === 0) step = { t: 'Attach the paperwork', d: 'The note or contract he brought in. Whoever you ask to confirm will be shown it.', go: 'card-paper' };
+      else if (asked === 0) step = { t: 'Ask the debtor to confirm the debt', d: 'The evidence that does not come from your client, and the one worth the most.', go: 'card-debtor' };
+      else if (!acked) step = { t: 'Waiting on the debtor', d: 'Nothing has come back yet. You can chase, or ask a second person there.', go: 'card-debtor' };
+      else if (!claims.length) step = { t: 'Offer terms to your client', d: 'The debtor has confirmed. His acceptance is signed before any money moves.', go: 'card-offer' };
+      else if (unconfirmed.length) step = { t: 'Ask your client to confirm the money arrived', d: 'Until he does, your claim is your own word that you paid him.', go: 'cs-card' };
+      else step = { t: 'Mark the claim repaid when the debtor pays', d: 'That frees the headroom, so no dead claim outlives the payment.', go: 'card-claim' };
+
+      if (!step) { box.innerHTML = ''; return; }
+      box.innerHTML = `
+        <div class="next ${step.tone === 'warn' ? 'next--warn' : ''}">
+          <div>
+            <div class="next__k">Next</div>
+            <div class="next__t">${esc(step.t)}</div>
+            <div class="next__d">${esc(step.d)}</div>
+          </div>
+          ${step.go ? `<button class="next__go" data-goto="${esc(step.go)}">Take me there</button>` : ''}
+        </div>`;
+      box.querySelector('[data-goto]')?.addEventListener('click', (e) => {
+        const id = (e.currentTarget as HTMLElement).dataset.goto as string;
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (id === 'credit') { (document.getElementById('credit-fold') as HTMLDetailsElement).open = true; }
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('flash');
+        setTimeout(() => el.classList.remove('flash'), 1600);
+      });
+    }
+
     // ── The credit view ─────────────────────────────────────────────────────
     //
     // One screen to decide from, per the pilot financier's review: the money split
@@ -812,32 +898,57 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         ? `${money(avail, ccy)} is still available to finance. ${money(claimed, ccy)} is already claimed by a financier holding this ID.`
         : `The full ${money(face, ccy)} is available to finance. Nobody has registered a claim against it.`;
 
-      const row = (ok: boolean | null, label: string, detail: string) => `
+      // Three states, not two. Red is reserved for something that went wrong or is now
+      // overdue; a step nobody has reached yet reads neutral. Showing a warning five
+      // seconds after a record is created tells the banker he has failed at something he
+      // has not had the chance to do.
+      const row = (state: 'yes' | 'no' | 'na', label: string, detail: string) => `
         <div class="ck">
-          <span class="ck__i ${ok === true ? 'yes' : ok === false ? 'no' : 'na'}">${ok === true ? '&#10003;' : ok === false ? '&#9888;' : '&middot;'}</span>
+          <span class="ck__i ${state}">${state === 'yes' ? '&#10003;' : state === 'no' ? '&#9888;' : '&middot;'}</span>
           <div><div class="ck__l">${esc(label)}</div><div class="ck__d">${esc(detail)}</div></div>
         </div>`;
 
+      // "Overdue" means the step is now load-bearing: an advance has been registered, or
+      // somebody has been asked and the paperwork they were meant to read is missing.
+      const advanced = active.length > 0;
+      const askedAnyone = (r.requestCount ?? 0) > 0;
+
+      const ackState: 'yes' | 'no' | 'na' = acked ? 'yes' : advanced ? 'no' : 'na';
+      const ackLabel = acked ? 'Debtor acknowledged the debt'
+        : askedAnyone ? 'Waiting on the debtor'
+        : 'Debtor not asked yet';
+      const ackDetail = acked
+        ? `${ack ? ack.label : r.buyer} confirmed it${ack?.date ? ' on ' + String(ack.date).slice(0, 10) : ''}.`
+        : advanced ? 'An advance is registered and nobody on the paying side has confirmed the debt.'
+        : askedAnyone ? 'A request has gone out. Nothing has come back yet.'
+        : 'Ask them below. This is the evidence that does not come from your client.';
+
       const proven = [
-        row(acked, acked ? 'Debtor acknowledged the debt' : 'Debtor has not acknowledged',
-            acked
-              ? `${ack ? ack.label : r.buyer} confirmed it${ack?.date ? ' on ' + String(ack.date).slice(0, 10) : ''}.`
-              : 'Nobody on the paying side has confirmed. You have the client\u2019s paperwork only.'),
-        row(disputes.length === 0, disputes.length === 0 ? 'No disputes recorded' : `${disputes.length} dispute${disputes.length > 1 ? 's' : ''} recorded`,
-            disputes.length === 0 ? 'Nobody asked has contradicted the record.' : 'Someone asked has contradicted this record. Read it before advancing.'),
-        row(active.length > 0 ? true : null, active.length ? `${active.length} financing claim${active.length > 1 ? 's' : ''} registered` : 'No financing claims registered',
-            active.length ? `${money(claimed, ccy)} claimed of ${money(face, ccy)}.` : 'The full face value is unencumbered.'),
-        row(unconfirmed.length === 0 ? (active.length ? true : null) : false,
-            unconfirmed.length === 0 ? (active.length ? 'Every advance confirmed received' : 'No advance to confirm yet') : `${unconfirmed.length} advance${unconfirmed.length > 1 ? 's' : ''} not confirmed received`,
-            unconfirmed.length === 0
-              ? (active.length ? 'Each lender\u2019s client has confirmed the money arrived.' : 'Nothing has been advanced against this yet.')
+        row(ackState, ackLabel, ackDetail),
+        row(disputes.length === 0 ? (askedAnyone ? 'yes' : 'na') : 'no',
+            disputes.length === 0 ? 'No disputes recorded' : `${disputes.length} dispute${disputes.length > 1 ? 's' : ''} recorded`,
+            disputes.length
+              ? 'Someone asked has contradicted this record. Read it before advancing.'
+              : askedAnyone ? 'Nobody asked has contradicted the record.' : 'Nobody has been asked yet.'),
+        row(advanced ? 'yes' : 'na',
+            advanced ? `${active.length} financing claim${active.length > 1 ? 's' : ''} registered` : 'No financing claims registered',
+            advanced ? `${money(claimed, ccy)} claimed of ${money(face, ccy)}.` : 'The full face value is unencumbered.'),
+        row(!advanced ? 'na' : unconfirmed.length === 0 ? 'yes' : 'no',
+            !advanced ? 'No advance to confirm yet'
+              : unconfirmed.length === 0 ? 'Every advance confirmed received'
+              : `${unconfirmed.length} advance${unconfirmed.length > 1 ? 's' : ''} not confirmed received`,
+            !advanced ? 'Nothing has been advanced against this yet.'
+              : unconfirmed.length === 0 ? 'The client has confirmed the money arrived.'
               : 'A registered claim is one firm\u2019s word until the client confirms the money reached him.'),
-        row(!!r.anchored, r.anchored ? 'Timestamped to Bitcoin' : 'Not yet timestamped',
+        row(r.anchored ? 'yes' : 'na', r.anchored ? 'Timestamped to Bitcoin' : 'Timestamp pending',
             r.anchored
               ? (r.anchoredAt ? `Confirmed in a block on ${String(r.anchoredAt).slice(0, 10)}. The date cannot be moved.` : 'Submitted, pending a block. Once confirmed the date cannot be moved.')
-              : 'The record is signed but its date is not anchored publicly.'),
-        row(docs > 0, docs > 0 ? `${docs} document${docs > 1 ? 's' : ''} on file` : 'No supporting document attached',
-            docs > 0 ? 'Fingerprinted, and named in any confirmation given while it was visible.' : 'Nothing was attached, so nobody confirming has seen the paperwork.'),
+              : 'Submitted on creation. It confirms into a block within an hour or two on its own.'),
+        row(docs > 0 ? 'yes' : askedAnyone ? 'no' : 'na',
+            docs > 0 ? `${docs} document${docs > 1 ? 's' : ''} on file` : 'No paperwork attached',
+            docs > 0 ? 'Fingerprinted, and named in any confirmation given while it was visible.'
+              : askedAnyone ? 'Somebody has been asked to confirm a deal with no paperwork to look at.'
+              : 'Attach the note or contract below before you ask anyone to confirm it.'),
       ].join('');
 
       // Stated as flatly as the evidence. These are the questions a lender must answer
@@ -850,6 +961,16 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         ['Legal priority', 'Priority is set by law, filing and notice. An anchored date is evidence in that contest, not the thing that decides it.'],
         ['That the invoice is not a near-duplicate', 'Change any field and you get a separate record with separate headroom. Nothing yet matches two records describing one obligation.'],
       ].map(([t, d]) => `<div class="nk"><div class="nk__l">${esc(t)}</div><div class="nk__d">${esc(d)}</div></div>`).join('');
+
+      // Open by default only when there is something to weigh. On a record created ten
+      // seconds ago every line says "not yet", which is a wall of text answering a question
+      // nobody asked.
+      const worthReading = acked || disputes.length > 0 || active.length > 0;
+      const fold = document.getElementById('credit-fold') as HTMLDetailsElement;
+      if (!fold.dataset.touched) fold.open = worthReading;
+      document.getElementById('credit-sum')!.textContent = worthReading
+        ? 'The evidence so far, and what none of it proves.'
+        : 'Nothing to weigh yet. Opens as evidence arrives.';
 
       document.getElementById('credit-body')!.innerHTML = `
         <p class="lead">${esc(headline)}</p>
@@ -1407,6 +1528,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       if (token) await emailRequest(token, $('cs-out') as unknown as HTMLElement, 'your client');
     });
     $('cs-claim')?.addEventListener('change', loadCountersigns);
+    document.getElementById('credit-fold')?.addEventListener('toggle', (e) => {
+      const d = e.currentTarget as HTMLDetailsElement;
+      d.dataset.touched = '1';                       // once he decides, stop deciding for him
+      const i = d.querySelector('.fold__i');
+      if (i) i.textContent = d.open ? '\u2212' : '+';
+    });
 
     document.getElementById('d-go')?.addEventListener('click', uploadDoc);
     document.getElementById('k-go')?.addEventListener('click', createConfirmRequest);
