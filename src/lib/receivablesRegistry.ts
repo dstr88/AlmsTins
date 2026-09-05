@@ -60,6 +60,29 @@ export interface ReceivableInput {
   /** invoice | purchase_order | contract | milestone | other (his #3) */
   rtype?: string | null;
   paymentMethod?: string | null;
+  /** Everything a real contract needs that the seven original fields did not carry. */
+  details?: ReceivableDetails | null;
+}
+
+/**
+ * The rest of the paperwork.
+ *
+ * The rule this exists for: the banker should never need a field and not have it. Five
+ * are named because they recur on every deal; `extra` is the escape hatch for the one
+ * that does not, so an unusual contract never dead-ends him mid-intake.
+ *
+ * `buyerRef` is the one to watch. It is the debtor's OWN reference for the obligation —
+ * their PO or contract number — and it is the only candidate for a canonical key, because
+ * it is the only identifier here that the supplier does not control. Nothing keys off it
+ * yet; capturing it is the prerequisite for ever closing the near-duplicate hole.
+ */
+export interface ReceivableDetails {
+  invoiceDate?: string | null;
+  deliveryDate?: string | null;
+  buyerRef?: string | null;
+  goods?: string | null;
+  paymentInstructions?: string | null;
+  extra?: Array<{ label: string; value: string }>;
 }
 
 export interface Signature {
@@ -113,6 +136,8 @@ export interface ReceivableStatus {
   acknowledgedAt: string | null;
   rtype: string | null;
   paymentMethod: string | null;
+  /** The extended paperwork fields, when the record carries them. */
+  details: ReceivableDetails | null;
   createdAt: string;
   signed: boolean;
   anchored: boolean;
@@ -228,6 +253,9 @@ const ENSURE_SETTLEMENT_COLS = [
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS affirmed_by TEXT`,
   // A confirmation link can be bound to one claim rather than the whole receivable.
   `ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS claim_id TEXT`,
+  // The extended paperwork fields. Also inside manifest_json (so they are signed and
+  // hashed); this column exists so reads do not have to parse the manifest.
+  `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS details_json TEXT`,
 ];
 
 // ── Invitations and access grants ─────────────────────────────────────────────
@@ -352,6 +380,39 @@ export type CreateReceivableResult =
  * so identical inputs are deterministic but a real invoice+date+parties tuple is
  * effectively unique. tenant_id is recorded as private provenance and NEVER surfaced.
  */
+/** details_json, defensively. A malformed blob must not take the whole lookup down. */
+function parseDetails(raw: unknown): ReceivableDetails | null {
+  if (!raw) return null;
+  try {
+    const d = JSON.parse(String(raw));
+    return d && typeof d === 'object' ? (d as ReceivableDetails) : null;
+  } catch { return null; }
+}
+
+/** Trim, drop empties, cap lengths, and return null when nothing was filled in. */
+function normalizeDetails(d?: ReceivableDetails | null): ReceivableDetails | null {
+  if (!d) return null;
+  const out: ReceivableDetails = {};
+  if (isYmd(d.invoiceDate)) out.invoiceDate = d.invoiceDate!;
+  if (isYmd(d.deliveryDate)) out.deliveryDate = d.deliveryDate!;
+  const buyerRef = clampStr(d.buyerRef ?? '', 80);
+  if (buyerRef) out.buyerRef = buyerRef;
+  const goods = clampStr(d.goods ?? '', 500);
+  if (goods) out.goods = goods;
+  const pay = clampStr(d.paymentInstructions ?? '', 300);
+  if (pay) out.paymentInstructions = pay;
+
+  const extra = (Array.isArray(d.extra) ? d.extra : [])
+    .map((e) => ({ label: clampStr(e?.label ?? '', 80), value: clampStr(e?.value ?? '', 300) }))
+    .filter((e) => e.label && e.value)
+    .slice(0, 20)
+    // Sorted so the same fields entered in a different order hash to the same ID.
+    .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
+  if (extra.length) out.extra = extra;
+
+  return Object.keys(out).length ? out : null;
+}
+
 export async function createReceivable(
   tenantId: string,
   input: ReceivableInput,
@@ -375,7 +436,13 @@ export async function createReceivable(
     return { ok: false, error: 'invalid', message: 'Face value must be a positive number.' };
   }
 
-  const receivable = { supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt, rtype, paymentMethod };
+  // Normalized so two intakes typing the same thing produce the same ID, and so an empty
+  // details object never changes the hash of an otherwise identical record.
+  const details = normalizeDetails(input.details);
+
+  const receivable: Record<string, unknown> =
+    { supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt, rtype, paymentMethod };
+  if (details) receivable.details = details;
   const manifest = { v: 1, kind: 'receivable', receivable };
   const { signature, digest } = sign(manifest);
   const id = sha256hex(canonicalManifestBytes(manifest));
@@ -385,10 +452,11 @@ export async function createReceivable(
   if (!existing.rows.length) {
     await db.execute({
       sql: `INSERT INTO receivables
-              (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, manifest_json, signature_json, digest)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, details_json, manifest_json, signature_json, digest)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, tenantId, supplier, buyer, invoiceNo, face, currency, terms, dueDate, acknowledgedAt, rtype, paymentMethod,
+        details ? JSON.stringify(details) : null,
         JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
       ],
     });
@@ -400,13 +468,14 @@ interface ReceivableRow {
   id: string; tenant_id: string; supplier: string; buyer: string; invoice_no: string;
   face: number; currency: string; terms: string | null;
   due_date: string | null; acknowledged_at: string | null;
-  rtype: string | null; payment_method: string | null;
+  rtype: string | null; payment_method: string | null; details_json: string | null;
   signature_json: string | null; anchor_json: string | null; settled_at: string | null; created_at: string;
 }
 
 async function getReceivableRow(id: string): Promise<ReceivableRow | null> {
   const r = await db.execute({
-    sql: `SELECT id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date, acknowledged_at, rtype, payment_method, signature_json, anchor_json, settled_at, created_at
+    sql: `SELECT id, tenant_id, supplier, buyer, invoice_no, face, currency, terms, due_date,
+                 acknowledged_at, rtype, payment_method, details_json, signature_json, anchor_json, settled_at, created_at
           FROM receivables WHERE id = ? LIMIT 1`,
     args: [id],
   });
@@ -419,6 +488,7 @@ async function getReceivableRow(id: string): Promise<ReceivableRow | null> {
     terms: row.terms != null ? String(row.terms) : null,
     due_date: row.due_date != null ? String(row.due_date) : null,
     acknowledged_at: row.acknowledged_at != null ? String(row.acknowledged_at) : null,
+    details_json: row.details_json != null ? String(row.details_json) : null,
     rtype: row.rtype != null ? String(row.rtype) : null,
     payment_method: row.payment_method != null ? String(row.payment_method) : null,
     signature_json: row.signature_json != null ? String(row.signature_json) : null,
@@ -566,6 +636,7 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     face: rcv.face, currency: rcv.currency, terms: rcv.terms,
     dueDate: rcv.due_date, acknowledgedAt: rcv.acknowledged_at,
     rtype: rcv.rtype, paymentMethod: rcv.payment_method,
+    details: parseDetails(rcv.details_json),
     createdAt: rcv.created_at, signed: !!rcv.signature_json,
     anchored: !!rcv.anchor_json, anchoredAt: anchoredAtOf(rcv.anchor_json),
     settled, settledAt: rcv.settled_at,
