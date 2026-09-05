@@ -16,6 +16,7 @@ import '@/styles/tokens.css';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
 import AccountMenu from '@/components/verify/AccountMenu.astro';
+import { TERMS } from '@/lib/verifyTerms';
 
 export const prerender = false;
 
@@ -116,6 +117,18 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-primary); }
     .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); color: var(--text-primary); }
     .muted { color: var(--text-muted); font-size: .8rem; }
+    button.term {
+      background: none; border: none; padding: 0; cursor: help; font: inherit;
+      color: var(--text-secondary); text-decoration: underline dotted; text-underline-offset: .18em;
+    }
+    button.term:hover { color: var(--accent); filter: none; }
+    .tw { display: inline; }
+    .termdef {
+      display: block; margin-top: .5rem; padding: .6rem .75rem; font-size: .82rem;
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle);
+      border-left: 2px solid var(--accent); border-radius: 8px; color: var(--text-secondary);
+    }
+    .termdef b { color: var(--text-primary); }
 
     /* Credit view */
     #credit .lead { font-size: .96rem; color: var(--text-primary); margin-bottom: 1rem; }
@@ -317,12 +330,18 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <div id="q-out" class="note"></div>
     </div>
 
+    <script type="application/json" id="terms-data" set:html={JSON.stringify(TERMS)}></script>
+
     <div id="panel">
       <div id="verdict"></div>
 
       <div class="card" id="credit" style="margin-top:1.15rem">
         <h2>Before you advance</h2>
-        <p class="hint">Everything the decision turns on, and what none of it proves.</p>
+        <p class="hint">
+          Everything the decision turns on, and what none of it proves.
+          Any underlined word explains itself: <span class="tw" id="tw-head"></span>,
+          <span class="tw" id="tw-claim"></span>, <span class="tw" id="tw-conf"></span>.
+        </p>
         <div id="credit-body"></div>
       </div>
 
@@ -411,7 +430,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     <p class="foot">
       This desk records and proves. It does not confirm that goods shipped or money moved, and it never says who anyone is.
-      New here? Read the <a href="/verify/guide">user's guide</a>. Full workbench at <a href="/verify/registry">/verify/registry</a>.
+      New here? Read the <a href="/verify/guide">user's guide</a>. See <a href="/verify/changelog">what changed</a>. Full workbench at <a href="/verify/registry">/verify/registry</a>.
     </p>
   </div>
 
@@ -482,6 +501,14 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             <div class="verdict__num" style="font-size:1.15rem">${esc(money(r.face, ccy))}</div>
           </div>
         </div>`;
+
+      const tw = (id: string, key: string) => {
+        const el = document.getElementById(id);
+        if (el && !el.innerHTML) el.innerHTML = termSpan(key);
+      };
+      tw('tw-head', 'headroom');
+      tw('tw-claim', 'claim');
+      tw('tw-conf', 'receipt-confirmation');
 
       renderCreditView(r, ccy, claimed, avail);
 
@@ -708,6 +735,33 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       }
     });
     loadInvites();
+
+    // ── Vocabulary, in place ────────────────────────────────────────────────
+    //
+    // The pilot financier had not read the guide and said he would not have. So the words
+    // explain themselves where they appear: a dotted term opens its definition underneath,
+    // from the same source the guide uses. Nobody has to leave the screen holding money.
+    const TERMS: Array<{ key: string; term: string; def: string }> =
+      JSON.parse(document.getElementById('terms-data')?.textContent || '[]');
+
+    function termSpan(key: string, text?: string) {
+      const t = TERMS.find((x) => x.key === key);
+      if (!t) return esc(text ?? key);
+      return `<button class="term" data-term="${esc(key)}" title="What this means">${esc(text ?? t.term)}</button>`;
+    }
+
+    document.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement)?.closest?.('button.term') as HTMLElement | null;
+      if (!b) return;
+      const t = TERMS.find((x) => x.key === b.dataset.term);
+      if (!t) return;
+      const existing = b.parentElement?.querySelector('.termdef');
+      if (existing) { existing.remove(); return; }
+      const d = document.createElement('div');
+      d.className = 'termdef';
+      d.innerHTML = `<b>${esc(t.term)}</b> ${esc(t.def)}`;
+      b.parentElement?.appendChild(d);
+    });
 
     // ── The credit view ─────────────────────────────────────────────────────
     //

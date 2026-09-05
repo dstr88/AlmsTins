@@ -1,0 +1,141 @@
+---
+// What changed, dated, in public.
+//
+// Written for the financier, not for a repository. Every entry says what it does for him,
+// and the fixes say plainly what was broken rather than hiding behind "improvements".
+// A registry that asks people to trust its records should be willing to show its own.
+import '@/styles/tokens.css';
+
+export const prerender = false;
+
+type Kind = 'new' | 'fix' | 'change';
+interface Entry { kind: Kind; what: string; why?: string }
+
+const DAYS: Array<{ date: string; label: string; entries: Entry[] }> = [
+  {
+    date: '2026-09-05',
+    label: 'Friday',
+    entries: [
+      { kind: 'new', what: 'A credit view above the record.',
+        why: 'The financing position as a bar, every piece of evidence as present or absent, and beside it an explicit list of what none of it proves. From the first pilot review: decide from one screen, not by assembling four.' },
+      { kind: 'new', what: 'Your book, on the desk.',
+        why: 'Every deal you have recorded, newest first, with the receivable ID copyable or clickable. Before this the desk could only reach a record by pasted ID, and nobody can hoard twenty 64-character hashes.' },
+      { kind: 'new', what: 'Requests can be emailed, not just copied.',
+        why: 'Create and email a confirmation request, an invitation, or a receipt request. Replies come back to your own address. Create link only still copies it if you would rather send it yourself.' },
+      { kind: 'fix', what: 'Emailed links pointed at the wrong page, and before that at localhost.',
+        why: 'Two separate faults, both ours, both caught by a real person clicking a real link. Every link already sent now redirects itself to the right page rather than dead-ending.' },
+      { kind: 'fix', what: 'Confirmation records no longer publish the answerer’s email address.',
+        why: 'The public check promises no identities, and the statement included the address the request went to. The name stays, because an attestation exists to say who asserted something. The address does not.' },
+      { kind: 'fix', what: 'The client-confirmation step no longer hides itself.',
+        why: 'It appeared only once an advance existed, which taught people it had never been built. It now shows what it is for before you can use it.' },
+    ],
+  },
+  {
+    date: '2026-09-04',
+    label: 'Thursday',
+    entries: [
+      { kind: 'new', what: 'Deals are recorded from the financing desk.',
+        why: 'With the fields a real contract carries: invoice and delivery dates, goods, payment instructions, the debtor’s own reference, and free fields for anything else. You should never need a field and not have it.' },
+      { kind: 'new', what: 'The debtor confirms by link, with no account.',
+        why: 'They type their own reference from their own records, tick four separate statements, and can disagree as easily as agree. Asking a supplier to make his customer sign up for software is how the step quietly never happens.' },
+      { kind: 'new', what: 'The client counter-signs that your money arrived.',
+        why: 'Registering a claim costs nothing and anyone with the ID can do it. Until the man who was supposed to receive the money says he received it, a claim is one firm’s word.' },
+      { kind: 'new', what: 'Paperwork can be attached, and deletes itself.',
+        why: 'Fingerprinted on upload and named in any confirmation given while it was visible, so a swap afterwards is provable. The file is dropped once everyone asked has answered. We witness the paperwork; we never become its custodian.' },
+      { kind: 'new', what: 'A user’s guide, and a plain-English glossary.',
+        why: 'Including a section on what the platform does not prove, which is the part worth reading twice.' },
+      { kind: 'change', what: 'One name per party: client, debtor, financier.',
+        why: 'The same company had been called a supplier, a seller, a borrower and a client on one screen.' },
+    ],
+  },
+  {
+    date: '2026-09-03',
+    label: 'Wednesday',
+    entries: [
+      { kind: 'new', what: 'Invitations that bind a party to a role.',
+        why: 'So "who is my client" has an answer, without either side seeing into the other’s account.' },
+      { kind: 'new', what: 'Bitcoin timestamps confirm themselves.',
+        why: 'An hourly job records each confirmation as it lands, so a record’s date becomes permanent without anyone reopening the page.' },
+    ],
+  },
+];
+
+const KIND_LABEL: Record<Kind, string> = { new: 'New', fix: 'Fixed', change: 'Changed' };
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>What changed — Almstins Verify</title>
+  <meta name="description" content="Dated record of what changed in Almstins Verify, including what was broken." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.65; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 44rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.7rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.7rem, 4.2vw, 2.1rem); line-height: 1.15; font-weight: 800; letter-spacing: -.022em; margin-top: .25rem; }
+    .lede { color: var(--text-secondary); font-size: .97rem; margin-top: .5rem; }
+
+    section { border-top: 1px solid var(--border-subtle); padding-top: 1.3rem; }
+    .day { display: flex; align-items: baseline; gap: .7rem; margin-bottom: 1rem; }
+    .day h2 { font-size: 1.02rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .day span { font-size: .8rem; color: var(--text-muted); }
+
+    .e { display: grid; grid-template-columns: 4.6rem 1fr; gap: .9rem; padding: .6rem 0; align-items: start; }
+    .e + .e { border-top: 1px solid var(--border-subtle); }
+    .k {
+      font-size: .6rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+      padding: .18rem .45rem; border-radius: 99px; border: 1px solid; text-align: center; margin-top: .2rem;
+    }
+    .k.new { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
+    .k.fix { color: var(--loss); border-color: var(--loss-border); background: var(--loss-bg); }
+    .k.change { color: var(--text-muted); border-color: var(--border-subtle); background: var(--surface-card); }
+    .e__w { font-size: .94rem; font-weight: 650; }
+    .e__y { font-size: .86rem; color: var(--text-secondary); margin-top: .12rem; }
+
+    .foot { border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; font-size: .8rem; color: var(--text-muted); }
+    .foot a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    @media print { body { background: #fff; color: #111; padding: 0; } section { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Almstins Verify</div>
+      <h1>What changed</h1>
+      <p class="lede">
+        Dated, and including what was broken. A registry that asks people to trust its records
+        should be willing to show its own.
+      </p>
+    </header>
+
+    {DAYS.map((d) => (
+      <section>
+        <div class="day"><h2>{d.date}</h2><span>{d.label}</span></div>
+        {d.entries.map((e) => (
+          <div class="e">
+            <div class={`k ${e.kind}`}>{KIND_LABEL[e.kind]}</div>
+            <div>
+              <div class="e__w">{e.what}</div>
+              {e.why && <div class="e__y">{e.why}</div>}
+            </div>
+          </div>
+        ))}
+      </section>
+    ))}
+
+    <p class="foot">
+      Beta. <a href="/verify/guide">User's guide</a> &middot; <a href="/verify/desk">Financing desk</a> &middot;
+      <a href="/verify/registry">Public check</a>.
+      Almstins records and proves. It never holds money, never moves it, and never says who anyone is.
+    </p>
+  </div>
+</body>
+</html>
