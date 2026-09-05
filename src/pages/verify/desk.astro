@@ -1015,8 +1015,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         const j = await r.json();
         if (!j.ok) {
           const why = j.error === 'rate_limited' ? 'Too many requests in the last hour. Try again shortly.'
-            : j.error === 'not_found' ? 'That request is no longer open.'
-            : j.error === 'send_failed' ? 'The mail server refused it. Copy the link and send it yourself.'
+            : j.error === 'not_found' ? 'That request is not yours to send, or is no longer open. Requests can only be emailed from the account that created them.'
+            : j.error === 'email_not_configured' ? 'Email is not configured on this server. Use Create link only and send it yourself.'
+            : j.error === 'send_failed' ? `The mail server refused it. Copy the link and send it yourself.${j.detail ? `<br><span class="muted">${esc(j.code ? j.code + ': ' : '')}${esc(j.detail)}</span>` : ''}`
             : 'Could not send that.';
           show(out, why, 'note-loss'); return false;
         }

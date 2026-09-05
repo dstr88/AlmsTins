@@ -54,6 +54,10 @@ export const POST: APIRoute = async ({ request }) => {
   const req = await getSendableRequest(session.tenantId, token);
   if (!req) return json({ ok: false, error: 'not_found' }, 404);
 
+  if (!process.env.EMAIL_SERVER) {
+    return json({ ok: false, error: 'email_not_configured' }, 503);
+  }
+
   const auth = await getAuthSession(request);
   const from = auth?.user?.email ?? null;
 
@@ -127,8 +131,19 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     await sendMail({ to: req.sentTo, subject, text, html, replyTo: from });
   } catch (err) {
-    console.error('[receivables/send] failed:', err);
-    return json({ ok: false, error: 'send_failed' }, 502);
+    // Return the reason, not just the fact. This endpoint is authenticated and the caller
+    // is the person who has to act on the failure: a rejected recipient, a throttle, and a
+    // dead transport all look identical otherwise, and diagnosing a live one by asking the
+    // user to describe the message costs more than showing it to them.
+    const e = err as any;
+    const detail = String(e?.response ?? e?.message ?? e ?? '').split('\n')[0].slice(0, 300);
+    console.error('[receivables/send] failed:', { to: req.sentTo, code: e?.code, detail });
+    return json({
+      ok: false,
+      error: 'send_failed',
+      code: e?.code ? String(e.code).slice(0, 40) : null,
+      detail: detail || null,
+    }, 502);
   }
 
   return json({ ok: true, sentTo: req.sentTo });
