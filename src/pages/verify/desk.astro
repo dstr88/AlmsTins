@@ -206,6 +206,40 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       border-radius: 99px; padding: .1rem .38rem;
     }
 
+    /* The journey. Scrolls sideways on a narrow screen rather than wrapping into a
+       shape that stops reading as a sequence. */
+    .rail {
+      display: flex; align-items: center; gap: .35rem; margin-top: 1.15rem;
+      overflow-x: auto; padding-bottom: .3rem; -webkit-overflow-scrolling: touch;
+    }
+    .rl {
+      display: flex; align-items: center; gap: .45rem; flex: 0 0 auto; cursor: pointer;
+      background: transparent; border: 1px solid var(--border-subtle); border-radius: 99px;
+      padding: .32rem .7rem .32rem .35rem; font-family: inherit; white-space: nowrap;
+    }
+    .rl:disabled { cursor: default; }
+    .rl__n {
+      width: 1.3rem; height: 1.3rem; border-radius: 99px; display: flex;
+      align-items: center; justify-content: center; font-size: .68rem; font-weight: 800;
+      font-variant-numeric: tabular-nums; flex: 0 0 auto;
+    }
+    .rl__l { font-size: .78rem; font-weight: 600; }
+    .rl__j { flex: 0 0 auto; width: .7rem; height: 1px; background: var(--border-subtle); }
+
+    .rl--done { border-color: var(--gain-border); }
+    .rl--done .rl__n { color: var(--gain); background: var(--gain-bg); }
+    .rl--done .rl__l { color: var(--text-secondary); }
+
+    .rl--now { border-color: var(--accent); background: var(--accent-soft); }
+    .rl--now .rl__n { color: var(--surface-bg); background: var(--accent); }
+    .rl--now .rl__l { color: var(--text-primary); font-weight: 700; }
+
+    .rl--todo { opacity: .55; }
+    .rl--todo .rl__n { color: var(--text-muted); background: var(--surface-card-2); border: 1px solid var(--border-subtle); }
+    .rl--todo .rl__l { color: var(--text-muted); }
+
+    .rl:hover:not(:disabled) { border-color: var(--border-bright); filter: none; }
+
     .next {
       display: flex; gap: 1rem; align-items: center; justify-content: space-between;
       flex-wrap: wrap; margin-top: 1.15rem; padding: 1rem 1.2rem; border-radius: 12px;
@@ -468,6 +502,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <div id="panel">
       <div id="verdict"></div>
 
+      <div id="rail"></div>
       <div id="next"></div>
 
       <div class="card" id="credit" style="margin-top:1.15rem">
@@ -685,6 +720,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       tw('tw-conf', 'receipt-confirmation');
 
       document.getElementById('panel')!.classList.toggle('is-test', !!r.isTest);
+      renderRail(r);
       renderNext(r, ccy);
       renderCreditView(r, ccy, claimed, avail);
 
@@ -858,6 +894,62 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     // bar; this is the same thing without pretending the work is linear, because it is
     // not: he can advance without a confirmation, ask two debtors, or never attach
     // anything. Naming the next step is honest where a bar would have to lie.
+    // ── Where this deal has got to ──────────────────────────────────────────
+    //
+    // The map, not a percentage. The pilot review asked for a progress bar; a bar has to
+    // claim the work is linear, and it is not — a financier can advance without a
+    // confirmation, ask two debtors, or never attach anything. Marking each stage done,
+    // now, or not yet is honest about that and still answers "where am I".
+    //
+    // "Now" is whichever stage the next-step strip is pointing at, so the two never
+    // disagree: they read the same state.
+    function renderRail(r: any) {
+      const box = document.getElementById('rail')!;
+      const atts = r.attestations || [];
+      const claims = (r.claims || []).filter((c: any) => c.status !== 'discharged');
+      const allClaims = r.claims || [];
+      const acked = atts.some((a: any) => a.role === 'buyer') || !!r.acknowledgedAt;
+      const docs = Number(r.documentCount || 0);
+      const unconfirmed = claims.filter((c: any) => !c.affirmed);
+      const offerAccepted = atts.some((a: any) => String(a.statement || '').startsWith('Accepts financing'));
+      const discharged = allClaims.length > 0 && allClaims.every((c: any) => c.status === 'discharged');
+
+      type St = 'done' | 'now' | 'todo';
+      const stages: Array<{ n: string; label: string; st: St; go?: string }> = [
+        { n: '1', label: 'Recorded', st: 'done' },
+        { n: '2', label: 'Paperwork', st: docs > 0 ? 'done' : 'now', go: 'card-paper' },
+        { n: '3', label: 'Debtor confirmed', st: acked ? 'done' : docs > 0 ? 'now' : 'todo', go: 'card-debtor' },
+        { n: '4', label: 'Terms accepted', st: offerAccepted ? 'done' : acked ? 'now' : 'todo', go: 'card-offer' },
+        { n: '5', label: 'Advance registered', st: claims.length ? 'done' : offerAccepted ? 'now' : 'todo', go: 'card-claim' },
+        { n: '6', label: 'Receipt confirmed', st: claims.length && !unconfirmed.length ? 'done' : claims.length ? 'now' : 'todo', go: 'cs-card' },
+        { n: '7', label: r.settled ? 'Settled' : 'Repaid', st: (r.settled || discharged) ? 'done' : (claims.length && !unconfirmed.length) ? 'now' : 'todo', go: 'card-claim' },
+      ];
+
+      // Only the earliest 'now' is the live one; the rest are still ahead.
+      let seen = false;
+      for (const st of stages) {
+        if (st.st !== 'now') continue;
+        if (seen) st.st = 'todo'; else seen = true;
+      }
+
+      box.innerHTML = `<div class="rail">` + stages.map((x) => `
+        <button class="rl rl--${x.st}" ${x.go ? `data-goto="${esc(x.go)}"` : ''} ${x.go ? '' : 'disabled'}>
+          <span class="rl__n">${x.st === 'done' ? '&#10003;' : esc(x.n)}</span>
+          <span class="rl__l">${esc(x.label)}</span>
+        </button>`).join('<span class="rl__j"></span>') + `</div>`;
+
+      box.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => goTo((b as HTMLElement).dataset.goto as string)));
+    }
+
+    function goTo(id: string) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (id === 'credit') (document.getElementById('credit-fold') as HTMLDetailsElement).open = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 1600);
+    }
+
     function renderNext(r: any, ccy: string) {
       const box = document.getElementById('next')!;
       const atts = r.attestations || [];
@@ -888,15 +980,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           </div>
           ${step.go ? `<button class="next__go" data-goto="${esc(step.go)}">Take me there</button>` : ''}
         </div>`;
-      box.querySelector('[data-goto]')?.addEventListener('click', (e) => {
-        const id = (e.currentTarget as HTMLElement).dataset.goto as string;
-        const el = document.getElementById(id);
-        if (!el) return;
-        if (id === 'credit') { (document.getElementById('credit-fold') as HTMLDetailsElement).open = true; }
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('flash');
-        setTimeout(() => el.classList.remove('flash'), 1600);
-      });
+      box.querySelector('[data-goto]')?.addEventListener('click', (e) =>
+        goTo((e.currentTarget as HTMLElement).dataset.goto as string));
     }
 
     // ── The credit view ─────────────────────────────────────────────────────
