@@ -137,6 +137,17 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     </header>
 
     <div class="card">
+      <h2>Your clients</h2>
+      <p class="hint">Invite a supplier onto the registry. Accepting creates their own account and records them as your client. Nothing of theirs lives in your account.</p>
+      <div class="row">
+        <input id="inv-label" class="grow" placeholder="Your firm's name (shown to them)" autocomplete="organization" />
+        <button id="inv-go">Create invitation</button>
+      </div>
+      <div id="inv-out" class="note"></div>
+      <div id="inv-list" style="margin-top:.9rem"></div>
+    </div>
+
+    <div class="card">
       <h2>Check a receivable</h2>
       <p class="hint">Nothing here reveals who holds the record, only what stands against it.</p>
       <div class="row">
@@ -355,6 +366,74 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         if (current) await check(current.id);
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
+
+    // ── Invitations ────────────────────────────────────────────────────────
+    // The link is the capability: single use, seven days, and spent on acceptance.
+    async function loadInvites() {
+      const box = document.getElementById('inv-list')!;
+      try {
+        const r = await fetch('/api/verify/receivables/invite');
+        if (r.status === 401) { box.innerHTML = ''; return; }
+        const j = await r.json();
+        const list = j.invites ?? [];
+        if (!list.length) { box.innerHTML = '<p class="muted">No invitations sent yet.</p>'; return; }
+        box.innerHTML = `<table><thead><tr><th>Invited</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>` +
+          list.map((v: any) => {
+            const status = v.revokedAt ? 'withdrawn'
+              : v.acceptedAt ? 'accepted'
+              : (v.expiresAt < new Date().toISOString().replace('T', ' ').slice(0, 19) ? 'expired' : 'waiting');
+            const link = `${location.origin}/verify/invite?token=${encodeURIComponent(v.token)}`;
+            return `<tr>
+              <td>${esc(v.label || '—')}<br><span class="muted">${esc(String(v.createdAt).slice(0, 10))}</span></td>
+              <td>${esc(v.role)}</td>
+              <td><span class="tag ${status === 'accepted' ? 'active' : 'off'}">${esc(status)}</span></td>
+              <td>${status === 'waiting'
+                ? `<button class="small ghost" data-copy="${esc(link)}">Copy link</button>
+                   <button class="small ghost" data-revoke="${esc(v.token)}">Withdraw</button>`
+                : ''}</td>
+            </tr>`;
+          }).join('') + `</tbody></table>`;
+
+        box.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async (e) => {
+          const el = e.currentTarget as HTMLElement;
+          try {
+            await navigator.clipboard.writeText(el.dataset.copy as string);
+            const t = el.textContent; el.textContent = 'Copied';
+            setTimeout(() => { el.textContent = t; }, 1400);
+          } catch { /* clipboard unavailable */ }
+        }));
+        box.querySelectorAll('[data-revoke]').forEach((b) => b.addEventListener('click', async (e) => {
+          const el = e.currentTarget as HTMLElement;
+          if (!confirm('Withdraw this invitation? The link stops working.')) return;
+          await fetch('/api/verify/receivables/invite', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'revoke', token: el.dataset.revoke }),
+          });
+          loadInvites();
+        }));
+      } catch { box.innerHTML = ''; }
+    }
+
+    async function createInvite() {
+      const out = $('inv-out') as unknown as HTMLElement;
+      const label = val('inv-label');
+      show(out, 'Creating…');
+      try {
+        const r = await fetch('/api/verify/receivables/invite', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'borrower', label: label || null }),
+        });
+        const j = await r.json();
+        if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a>.', 'note-loss'); return; }
+        if (!j.ok) { show(out, 'Could not create that invitation: ' + esc(j.error || 'unknown error'), 'note-loss'); return; }
+        const link = `${location.origin}/verify/invite?token=${encodeURIComponent(j.token)}`;
+        show(out, `<b>Invitation ready.</b> Send this to your client. It works once and expires in seven days.<br><code style="word-break:break-all;font-size:.78rem">${esc(link)}</code>`, 'note-gain');
+        loadInvites();
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    document.getElementById('inv-go')?.addEventListener('click', createInvite);
+    loadInvites();
 
     document.getElementById('q-go')?.addEventListener('click', () => check());
     $('q-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') check(); });

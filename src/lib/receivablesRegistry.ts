@@ -31,7 +31,7 @@
  * Lazy ensureTables() + app-enforced tenant isolation, mirroring verifyRegistry.ts.
  */
 import { db } from '@/lib/db';
-import { randomUUID, createHash } from 'crypto';
+import { randomUUID, randomBytes, createHash } from 'crypto';
 import {
   canonicalManifestBytes,
   signManifest,
@@ -220,6 +220,50 @@ const ENSURE_SETTLEMENT_COLS = [
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_digest TEXT`,
 ];
 
+// ── Invitations and access grants ─────────────────────────────────────────────
+//
+// Handing someone a receivable ID left no trace, so nothing could answer "who is my
+// client?" or "who can see this record?". An invitation binds one account to one role on
+// one receivable, and accepting it writes an access grant.
+//
+// A grant is a disclosure, not ownership: the record stays in the tenant that created it.
+// A financier's list is built from grants made TO them, never from a scan of the table,
+// so a thousand tenants never see each other.
+const ENSURE_INVITES_SQL = `
+  CREATE TABLE IF NOT EXISTS receivable_invites (
+    token          TEXT NOT NULL PRIMARY KEY,
+    receivable_id  TEXT,
+    from_tenant    TEXT NOT NULL,
+    role           TEXT NOT NULL,
+    label          TEXT,
+    email          TEXT,
+    expires_at     TEXT NOT NULL,
+    accepted_at    TEXT,
+    accepted_by    TEXT,
+    revoked_at     TEXT,
+    created_at     TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+const ENSURE_INVITES_FROM_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_invites_from ON receivable_invites (from_tenant)`;
+
+const ENSURE_ACCESS_SQL = `
+  CREATE TABLE IF NOT EXISTS receivable_access (
+    id             TEXT NOT NULL PRIMARY KEY,
+    receivable_id  TEXT,
+    tenant_id      TEXT NOT NULL,
+    counterparty   TEXT,
+    role           TEXT NOT NULL,
+    granted_by     TEXT NOT NULL,
+    granted_at     TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    revoked_at     TEXT
+  )
+`;
+const ENSURE_ACCESS_TENANT_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_access_tenant ON receivable_access (tenant_id)`;
+const ENSURE_ACCESS_RCV_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_access_rcv ON receivable_access (receivable_id)`;
+
 let ensured = false;
 export async function ensureReceivablesTables(): Promise<void> {
   if (ensured) return;
@@ -229,6 +273,11 @@ export async function ensureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_CLAIMS_RCV_IDX, args: [] });
   await db.execute({ sql: ENSURE_ATTESTATIONS_SQL, args: [] });
   await db.execute({ sql: ENSURE_ATTESTATIONS_IDX, args: [] });
+  await db.execute({ sql: ENSURE_INVITES_SQL, args: [] });
+  await db.execute({ sql: ENSURE_INVITES_FROM_IDX, args: [] });
+  await db.execute({ sql: ENSURE_ACCESS_SQL, args: [] });
+  await db.execute({ sql: ENSURE_ACCESS_TENANT_IDX, args: [] });
+  await db.execute({ sql: ENSURE_ACCESS_RCV_IDX, args: [] });
   for (const sql of ENSURE_SETTLEMENT_COLS) {
     try { await db.execute({ sql, args: [] }); }
     catch (e) { console.error('[receivables] settlement column not applied:', e); }
@@ -727,4 +776,199 @@ export async function listPendingAnchors(
   await scan('claim');
   await scan('attestation');
   return out.slice(0, limit);
+}
+
+// ── Invitations ───────────────────────────────────────────────────────────────
+//
+// An invitation binds one account to one role on one record. It is the answer to two
+// gaps: nothing recorded who a financier's clients were, and anyone holding a receivable
+// ID could sign as the buyer.
+//
+// Tokens are random and single-use. A predictable invite would be a standing key anyone
+// who ever saw it could reuse, which is the opposite of what a capability should be.
+
+export type InviteRole = 'borrower' | 'buyer' | 'financier';
+
+export interface InviteRow {
+  token: string;
+  receivableId: string | null;
+  role: InviteRole;
+  label: string | null;
+  email: string | null;
+  expiresAt: string;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+const INVITE_ROLES: InviteRole[] = ['borrower', 'buyer', 'financier'];
+const INVITE_TTL_DAYS = 7;
+
+/** 32 bytes of randomness, url-safe. Same reasoning as the receivable ID: unguessable. */
+function inviteToken(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+export async function createInvite(
+  fromTenant: string,
+  input: { role: InviteRole; receivableId?: string | null; label?: string | null; email?: string | null },
+): Promise<{ ok: true; token: string; expiresAt: string } | { ok: false; error: string }> {
+  await ensureReceivablesTables();
+  if (!INVITE_ROLES.includes(input.role)) return { ok: false, error: 'invalid_role' };
+
+  // Only the tenant that owns a receivable may invite someone onto it.
+  const receivableId = input.receivableId ? String(input.receivableId).trim() : null;
+  if (receivableId) {
+    const owns = await db.execute({
+      sql: `SELECT 1 FROM receivables WHERE id = ? AND tenant_id = ? LIMIT 1`,
+      args: [receivableId, fromTenant],
+    });
+    if (!owns.rows.length) return { ok: false, error: 'not_found' };
+  }
+
+  const token = inviteToken();
+  const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400_000)
+    .toISOString().replace('T', ' ').slice(0, 19);
+
+  await db.execute({
+    sql: `INSERT INTO receivable_invites
+            (token, receivable_id, from_tenant, role, label, email, expires_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      token, receivableId, fromTenant, input.role,
+      input.label ? String(input.label).slice(0, 160) : null,
+      input.email ? String(input.email).slice(0, 200) : null,
+      expiresAt,
+    ],
+  });
+  return { ok: true, token, expiresAt };
+}
+
+/** What an invitee sees before signing in — never exposes the sender's tenant. */
+export async function readInvite(token: string): Promise<
+  | { ok: true; role: InviteRole; label: string | null; receivableId: string | null; expiresAt: string }
+  | { ok: false; error: 'not_found' | 'expired' | 'revoked' | 'used' }
+> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT receivable_id, role, label, expires_at, accepted_at, revoked_at
+          FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token || '').trim()],
+  });
+  if (!r.rows.length) return { ok: false, error: 'not_found' };
+  const row = r.rows[0] as any;
+  if (row.revoked_at) return { ok: false, error: 'revoked' };
+  if (row.accepted_at) return { ok: false, error: 'used' };
+  if (String(row.expires_at) < nowUtc()) return { ok: false, error: 'expired' };
+  return {
+    ok: true,
+    role: String(row.role) as InviteRole,
+    label: row.label != null ? String(row.label) : null,
+    receivableId: row.receivable_id != null ? String(row.receivable_id) : null,
+    expiresAt: String(row.expires_at),
+  };
+}
+
+/**
+ * Spend an invitation. Writes the access grant that makes "who is my client" answerable,
+ * and marks the token used so a forwarded link cannot be redeemed twice.
+ */
+export async function acceptInvite(
+  token: string,
+  tenantId: string,
+): Promise<{ ok: true; role: InviteRole; receivableId: string | null } | { ok: false; error: string }> {
+  await ensureReceivablesTables();
+  const invite = await readInvite(token);
+  if (!invite.ok) return { ok: false, error: invite.error };
+
+  const claimed = await db.execute({
+    sql: `UPDATE receivable_invites
+             SET accepted_at = ?, accepted_by = ?
+           WHERE token = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    args: [nowUtc(), tenantId, String(token).trim()],
+  });
+  // Two people opening the same link race here; only the update that lands may proceed.
+  if (!claimed.rowsAffected) return { ok: false, error: 'used' };
+
+  const sender = await db.execute({
+    sql: `SELECT from_tenant FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token).trim()],
+  });
+  const grantedBy = String((sender.rows[0] as any)?.from_tenant ?? '');
+
+  // The grant is a disclosure, recorded in both directions: the invitee gains access to
+  // the record, and the sender gains a named counterparty to list.
+  await db.execute({
+    sql: `INSERT INTO receivable_access (id, receivable_id, tenant_id, counterparty, role, granted_by)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [randomUUID(), invite.receivableId, tenantId, grantedBy, invite.role, grantedBy],
+  });
+  await db.execute({
+    sql: `INSERT INTO receivable_access (id, receivable_id, tenant_id, counterparty, role, granted_by)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [randomUUID(), invite.receivableId, grantedBy, tenantId, 'counterparty', grantedBy],
+  });
+
+  return { ok: true, role: invite.role, receivableId: invite.receivableId };
+}
+
+export interface AccessRow {
+  receivableId: string | null;
+  role: string;
+  grantedAt: string;
+}
+
+/**
+ * Everything disclosed TO this tenant. A desk list is built from these grants, never from
+ * a scan of the receivables table, so a thousand tenants never see each other's clients.
+ */
+export async function listAccessFor(tenantId: string, limit = 200): Promise<AccessRow[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT receivable_id, role, granted_at
+            FROM receivable_access
+           WHERE tenant_id = ? AND revoked_at IS NULL
+           ORDER BY granted_at DESC
+           LIMIT ?`,
+    args: [tenantId, limit],
+  });
+  return (r.rows as any[]).map((row) => ({
+    receivableId: row.receivable_id != null ? String(row.receivable_id) : null,
+    role: String(row.role),
+    grantedAt: String(row.granted_at),
+  }));
+}
+
+/** Invitations this tenant has sent, so they can be chased or revoked. */
+export async function listInvitesFrom(tenantId: string, limit = 100): Promise<InviteRow[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT token, receivable_id, role, label, email, expires_at, accepted_at, revoked_at, created_at
+            FROM receivable_invites
+           WHERE from_tenant = ?
+           ORDER BY created_at DESC
+           LIMIT ?`,
+    args: [tenantId, limit],
+  });
+  return (r.rows as any[]).map((row) => ({
+    token: String(row.token),
+    receivableId: row.receivable_id != null ? String(row.receivable_id) : null,
+    role: String(row.role) as InviteRole,
+    label: row.label != null ? String(row.label) : null,
+    email: row.email != null ? String(row.email) : null,
+    expiresAt: String(row.expires_at),
+    acceptedAt: row.accepted_at != null ? String(row.accepted_at) : null,
+    revokedAt: row.revoked_at != null ? String(row.revoked_at) : null,
+    createdAt: String(row.created_at),
+  }));
+}
+
+export async function revokeInvite(tenantId: string, token: string): Promise<boolean> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `UPDATE receivable_invites SET revoked_at = ?
+           WHERE token = ? AND from_tenant = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    args: [nowUtc(), String(token || '').trim(), tenantId],
+  });
+  return !!r.rowsAffected;
 }
