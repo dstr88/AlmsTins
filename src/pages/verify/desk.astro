@@ -287,9 +287,17 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <div class="card tin">
       <h2>New client</h2>
       <p class="hint">
-        He is across the desk with his paperwork. Record what he is owed, scan the papers in, and
-        send both confirmations without leaving this card. Only the four marked fields are required.
+        He is across the desk with his paperwork. Two steps, both on this card. Only the four
+        marked fields are required; fill in whatever the contract in front of you says.
       </p>
+
+      <div class="step__h" style="margin-bottom:.9rem">
+        <span class="step__n">1</span>
+        <div>
+          <div class="step__t">Record the deal and ask the debtor</div>
+          <div class="step__d">Signed and timestamped to Bitcoin the moment you submit.</div>
+        </div>
+      </div>
 
       <div class="grid2">
         <label class="fld">Client <span class="req">required</span>
