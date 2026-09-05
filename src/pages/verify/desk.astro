@@ -332,18 +332,32 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const claims = r.claims || [];
       document.getElementById('claims')!.innerHTML = claims.length === 0
         ? `<p class="muted">No claims registered. The full face value is unencumbered.</p>`
-        : `<table><thead><tr><th>Financier</th><th>Amount</th><th>Registered</th><th>Status</th><th></th></tr></thead><tbody>` +
-          claims.map((c: any) => `
+        : `<table><thead><tr><th>Financier</th><th>Amount</th><th>Registered</th><th>Receipt</th><th>Status</th><th></th></tr></thead><tbody>` +
+          claims.map((c: any) => {
+            // "Claimed" has never meant "funded". Until the supplier counter-signs, this
+            // row is one firm's word, and the desk says so rather than implying otherwise.
+            const receipt = c.affirmed
+              ? `<span class="ok">confirmed by ${esc(c.affirmedBy || 'the supplier')}</span>`
+              : `<span class="muted">not confirmed</span>`;
+            const ask = c.affirmed || c.status === 'discharged'
+              ? ''
+              : `<button class="small ghost" data-ask="${esc(c.id)}">Ask client</button>`;
+            return `
             <tr class="${c.status === 'discharged' ? 'discharged' : ''}">
               <td>${esc(c.financier)}${c.anchored ? ' <span class="muted">&#9939;</span>' : ''}</td>
               <td>${esc(money(c.amount, c.currency || ccy))}</td>
               <td>${esc(String(c.registeredAt || '').slice(0, 10))}</td>
+              <td>${receipt}</td>
               <td><span class="tag ${c.status === 'discharged' ? 'off' : 'active'}">${esc(c.status === 'discharged' ? 'discharged' : 'active')}</span></td>
-              <td>${c.status === 'discharged' ? '' : `<button class="small ghost" data-discharge="${esc(c.id)}">Mark repaid</button>`}</td>
-            </tr>`).join('') + `</tbody></table>`;
+              <td>${ask}${c.status === 'discharged' ? '' : ` <button class="small ghost" data-discharge="${esc(c.id)}">Mark repaid</button>`}</td>
+            </tr>`;
+          }).join('') + `</tbody></table>`;
 
       document.getElementById('claims')!.querySelectorAll('[data-discharge]').forEach((b) => {
         b.addEventListener('click', () => discharge((b as HTMLElement).dataset.discharge as string));
+      });
+      document.getElementById('claims')!.querySelectorAll('[data-ask]').forEach((b) => {
+        b.addEventListener('click', () => askClient((b as HTMLElement).dataset.ask as string));
       });
 
       // Prefill the claim amount with the remaining headroom
@@ -547,7 +561,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         }
         box.innerHTML = '<table style="margin-top:.8rem"><thead><tr><th>Sent to</th><th>Status</th><th>Answered by</th><th></th></tr></thead><tbody>' +
           reqs.map((v: any) => {
-            const link = `${location.origin}/verify/authenticate?t=${encodeURIComponent(v.token)}`;
+            const link = `${location.origin}/verify/authenticate?token=${encodeURIComponent(v.token)}`;
             const who = v.sentTo || v.label || 'no address recorded';
             const state = v.status === 'answered' ? `<span class="ok">answered ${esc(String(v.answeredAt || '').slice(0, 10))}</span>`
               : v.status === 'expired' ? '<span class="muted">expired</span>'
@@ -587,12 +601,32 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         });
         const j = await r.json();
         if (!j.ok) { show(out, 'Could not create that link.', 'note-loss'); return; }
-        const link = `${location.origin}/verify/authenticate?t=${encodeURIComponent(j.token)}`;
+        const link = `${location.origin}/verify/authenticate?token=${encodeURIComponent(j.token)}`;
         await navigator.clipboard?.writeText(link).catch(() => {});
         ($('k-email') as HTMLInputElement).value = '';
         ($('k-label') as HTMLInputElement).value = '';
         show(out, `Link copied. Send it to ${esc(email)}. It works once and expires in 7 days.`, 'note-gain');
         loadConfirms();
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    // ── Counter-signature ───────────────────────────────────────────────────
+    async function askClient(claimId: string) {
+      const out = $('c-out') as unknown as HTMLElement;
+      const email = prompt('Your client\u2019s email address. The link records where the answer came from.');
+      if (email === null) return;
+      if (!email.trim()) { show(out, 'An address is needed. It is what records where the answer came from.', 'note-loss'); return; }
+      show(out, 'Creating\u2026');
+      try {
+        const r = await fetch('/api/verify/receivables/invite', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'borrower', receivableId: current.id, claimId, email: email.trim() }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out, 'Could not create that link.', 'note-loss'); return; }
+        const link = `${location.origin}/verify/countersign?token=${encodeURIComponent(j.token)}`;
+        await navigator.clipboard?.writeText(link).catch(() => {});
+        show(out, `Link copied. Send it to ${esc(email.trim())}. Your claim shows as confirmed once he answers.`, 'note-gain');
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
 

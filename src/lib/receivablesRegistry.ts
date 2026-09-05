@@ -77,6 +77,10 @@ export interface PublicClaim {
   date: string;
   status: ClaimStatus;
   dischargedAt: string | null;
+  /** The supplier confirmed the money arrived. Until then the claim is one firm's word. */
+  affirmed: boolean;
+  affirmedAt: string | null;
+  affirmedBy: string | null;
   signed: boolean;
   anchored: boolean;
   /** Bitcoin block time once the anchor confirms; null while pending or unanchored. */
@@ -218,6 +222,12 @@ const ENSURE_SETTLEMENT_COLS = [
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharged_at TEXT`,
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_json TEXT`,
   `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS discharge_digest TEXT`,
+  // Counter-signature: the supplier's confirmation that the money actually arrived.
+  // A claim is an assertion by the lender until this is set. See affirmClaimByToken.
+  `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS affirmed_at TEXT`,
+  `ALTER TABLE receivable_claims ADD COLUMN IF NOT EXISTS affirmed_by TEXT`,
+  // A confirmation link can be bound to one claim rather than the whole receivable.
+  `ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS claim_id TEXT`,
 ];
 
 // ── Invitations and access grants ─────────────────────────────────────────────
@@ -496,7 +506,8 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
   if (!rcv) return null;
 
   const cr = await db.execute({
-    sql: `SELECT id, financier, amount, currency, claim_date, status, discharged_at, signature_json, anchor_json, created_at
+    sql: `SELECT id, financier, amount, currency, claim_date, status, discharged_at,
+                 affirmed_at, affirmed_by, signature_json, anchor_json, created_at
           FROM receivable_claims WHERE receivable_id = ? ORDER BY created_at ASC`,
     args: [rcv.id],
   });
@@ -508,6 +519,9 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     date: String(r.claim_date),
     status: (String(r.status) === 'discharged' ? 'discharged' : 'active') as ClaimStatus,
     dischargedAt: r.discharged_at != null ? String(r.discharged_at) : null,
+    affirmed: !!r.affirmed_at,
+    affirmedAt: r.affirmed_at != null ? String(r.affirmed_at) : null,
+    affirmedBy: r.affirmed_by != null ? String(r.affirmed_by) : null,
     signed: !!r.signature_json,
     anchored: !!r.anchor_json,
     anchoredAt: anchoredAtOf(r.anchor_json),
@@ -865,7 +879,8 @@ function inviteToken(): string {
 
 export async function createInvite(
   fromTenant: string,
-  input: { role: InviteRole; receivableId?: string | null; label?: string | null; email?: string | null },
+  input: { role: InviteRole; receivableId?: string | null; label?: string | null;
+           email?: string | null; claimId?: string | null },
 ): Promise<{ ok: true; token: string; expiresAt: string } | { ok: false; error: string }> {
   await ensureReceivablesTables();
   if (!INVITE_ROLES.includes(input.role)) return { ok: false, error: 'invalid_role' };
@@ -880,19 +895,30 @@ export async function createInvite(
     if (!owns.rows.length) return { ok: false, error: 'not_found' };
   }
 
+  // A claim-bound invite asks one question about one advance: did this money arrive?
+  // It is not an onboarding link, and acceptInvite refuses to spend it as one.
+  const claimId = input.claimId ? String(input.claimId).trim() : null;
+  if (claimId) {
+    const owns = await db.execute({
+      sql: `SELECT 1 FROM receivable_claims WHERE id = ? AND tenant_id = ? LIMIT 1`,
+      args: [claimId, fromTenant],
+    });
+    if (!owns.rows.length) return { ok: false, error: 'claim_not_found' };
+  }
+
   const token = inviteToken();
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400_000)
     .toISOString().replace('T', ' ').slice(0, 19);
 
   await db.execute({
     sql: `INSERT INTO receivable_invites
-            (token, receivable_id, from_tenant, role, label, email, expires_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            (token, receivable_id, from_tenant, role, label, email, expires_at, claim_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       token, receivableId, fromTenant, input.role,
       input.label ? String(input.label).slice(0, 160) : null,
       input.email ? String(input.email).slice(0, 200) : null,
-      expiresAt,
+      expiresAt, claimId,
     ],
   });
   return { ok: true, token, expiresAt };
@@ -934,6 +960,14 @@ export async function acceptInvite(
   await ensureReceivablesTables();
   const invite = await readInvite(token);
   if (!invite.ok) return { ok: false, error: invite.error };
+
+  // A counter-signature link answers one question; it does not hand out an account or an
+  // access grant. Redeeming one here would turn a question into a permission.
+  const bound = await db.execute({
+    sql: `SELECT claim_id FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token).trim()],
+  });
+  if ((bound.rows[0] as any)?.claim_id) return { ok: false, error: 'not_an_invitation' };
 
   const claimed = await db.execute({
     sql: `UPDATE receivable_invites
@@ -997,9 +1031,13 @@ export async function listAccessFor(tenantId: string, limit = 200): Promise<Acce
 export async function listInvitesFrom(tenantId: string, limit = 100): Promise<InviteRow[]> {
   await ensureReceivablesTables();
   const r = await db.execute({
+    // Claim-bound and buyer tokens are questions, not invitations: they never create an
+    // account or a client relationship, so they do not belong in the client list.
     sql: `SELECT token, receivable_id, role, label, email, expires_at, accepted_at, revoked_at, created_at
             FROM receivable_invites
            WHERE from_tenant = ?
+             AND claim_id IS NULL
+             AND role <> 'buyer'
            ORDER BY created_at DESC
            LIMIT ?`,
     args: [tenantId, limit],
@@ -1421,4 +1459,162 @@ export async function ownsReceivable(tenantId: string, receivableId: string): Pr
     args: [String(receivableId || '').trim(), tenantId],
   });
   return r.rows.length > 0;
+}
+
+// ── Counter-signature — the supplier confirms the money arrived ───────────────
+//
+// Registering a claim is one firm typing its own name into a box. A lender who was shown
+// the receivable and declined can register an advance they never made, eat the headroom,
+// and poison the invoice for everyone behind them. "Claimed" has never meant "funded".
+//
+// So the supplier counter-signs: the money is not confirmed until the person who was
+// supposed to receive it says he received it. Symmetric with the buyer confirmation, and
+// for the same reason — the party with nothing to gain from the lie is the one worth
+// asking. He needs no account either; the link is the authority.
+
+export type CountersignOutcome = 'received' | 'not_received' | 'amount_wrong';
+
+export interface CountersignAnswers {
+  by: string;
+  title?: string | null;
+  /** What they actually received, when it differs from what the lender registered. */
+  amountReceived?: number | null;
+}
+
+/** What the supplier sees before answering. */
+export async function readCountersignRequest(token: string): Promise<
+  | { ok: true; receivableId: string; claimId: string; financier: string; amount: number;
+      currency: string; claimDate: string; invoiceNo: string; buyer: string;
+      sentTo: string | null; alreadyAffirmed: boolean }
+  | { ok: false; error: string }
+> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT i.claim_id, i.email, i.expires_at, i.accepted_at, i.revoked_at,
+                 c.receivable_id, c.financier, c.amount, c.currency, c.claim_date, c.affirmed_at
+            FROM receivable_invites i
+            JOIN receivable_claims c ON c.id = i.claim_id
+           WHERE i.token = ? LIMIT 1`,
+    args: [String(token || '').trim()],
+  });
+  if (!r.rows.length) return { ok: false, error: 'not_found' };
+  const row = r.rows[0] as any;
+  if (row.revoked_at) return { ok: false, error: 'revoked' };
+  if (row.accepted_at) return { ok: false, error: 'used' };
+  if (String(row.expires_at) < nowUtc()) return { ok: false, error: 'expired' };
+
+  const rcv = await getReceivableRow(String(row.receivable_id));
+  if (!rcv) return { ok: false, error: 'not_found' };
+
+  return {
+    ok: true,
+    receivableId: String(row.receivable_id),
+    claimId: String(row.claim_id),
+    financier: String(row.financier),
+    amount: Number(row.amount),
+    currency: String(row.currency),
+    claimDate: String(row.claim_date),
+    invoiceNo: String(rcv.invoice_no),
+    buyer: String(rcv.buyer),
+    sentTo: row.email != null ? String(row.email) : null,
+    alreadyAffirmed: !!row.affirmed_at,
+  };
+}
+
+/**
+ * Answer a counter-signature request. 'received' marks the claim affirmed; the two
+ * disagreements do NOT, and file under role 'other' with a DISPUTED prefix so a denial
+ * can never be read downstream as a confirmation. Same shape as confirmByToken.
+ */
+export async function affirmClaimByToken(
+  token: string,
+  outcome: CountersignOutcome,
+  answers: CountersignAnswers,
+): Promise<{ ok: true; attestationId: string; claimId: string; receivableId: string } | { ok: false; error: string }> {
+  await ensureReceivablesTables();
+
+  const req = await readCountersignRequest(token);
+  if (!req.ok) return { ok: false, error: req.error };
+
+  const who = clampStr(answers.by, 100);
+  if (!who) return { ok: false, error: 'name_required' };
+
+  const sender = await db.execute({
+    sql: `SELECT from_tenant, email FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token).trim()],
+  });
+  const fromTenant = String((sender.rows[0] as any)?.from_tenant ?? '');
+
+  const title = answers.title ? ` (${clampStr(answers.title, 60)})` : '';
+  const via = req.sentTo ? ` via a single-use link sent to ${req.sentTo}` : ' via a single-use link';
+  const registered = `${req.currency} ${req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+  let statement: string;
+  let role: AttesterRole;
+  if (outcome === 'received') {
+    statement = `Confirms receipt of ${registered} advanced by ${req.financier} against invoice ${req.invoiceNo}, registered ${req.claimDate}. Answered by ${who}${title}${via}.`;
+    role = 'supplier';
+  } else if (outcome === 'not_received') {
+    statement = `DISPUTED — states no money was received from ${req.financier} against invoice ${req.invoiceNo}. Claim registered ${req.claimDate} for ${registered}. Answered by ${who}${title}${via}.`;
+    role = 'other';
+  } else {
+    const got = Number(answers.amountReceived);
+    const gotStr = Number.isFinite(got) && got > 0
+      ? `${req.currency} ${got.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+      : 'a different amount';
+    statement = `DISPUTED — states the amount received was ${gotStr}, not the ${registered} registered by ${req.financier} against invoice ${req.invoiceNo}. Answered by ${who}${title}${via}.`;
+    role = 'other';
+  }
+
+  // Claim the token before writing anything, so a forwarded link cannot answer twice.
+  const claimed = await db.execute({
+    sql: `UPDATE receivable_invites SET accepted_at = ?, accepted_by = ?
+           WHERE token = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    args: [nowUtc(), who, String(token).trim()],
+  });
+  if (!claimed.rowsAffected) return { ok: false, error: 'used' };
+
+  const result = await addAttestation(fromTenant, req.receivableId, {
+    role, label: `${req.financier} advance`, statement,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  if (outcome === 'received') {
+    await db.execute({
+      sql: `UPDATE receivable_claims SET affirmed_at = ?, affirmed_by = ?
+             WHERE id = ? AND affirmed_at IS NULL`,
+      args: [nowUtc(), who, req.claimId],
+    });
+  }
+
+  return { ok: true, attestationId: result.attestationId, claimId: req.claimId, receivableId: req.receivableId };
+}
+
+/** Counter-signature requests sent on one claim, and what came back. */
+export async function listCountersignRequests(
+  tenantId: string,
+  claimId: string,
+): Promise<ConfirmRequestRow[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT token, email, label, expires_at, accepted_at, accepted_by, revoked_at, created_at
+            FROM receivable_invites
+           WHERE claim_id = ? AND from_tenant = ?
+           ORDER BY created_at ASC`,
+    args: [String(claimId || '').trim(), tenantId],
+  });
+  const now = nowUtc();
+  return r.rows.map((x: any) => ({
+    token: String(x.token),
+    sentTo: x.email != null ? String(x.email) : null,
+    label: x.label != null ? String(x.label) : null,
+    status: (x.revoked_at ? 'revoked'
+      : x.accepted_at ? 'answered'
+      : String(x.expires_at) < now ? 'expired'
+      : 'pending') as ConfirmRequestRow['status'],
+    answeredBy: x.accepted_by != null ? String(x.accepted_by) : null,
+    answeredAt: x.accepted_at != null ? String(x.accepted_at) : null,
+    expiresAt: String(x.expires_at),
+    createdAt: String(x.created_at),
+  }));
 }

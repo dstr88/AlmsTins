@@ -15,7 +15,8 @@ import { readConfirmRequest } from '@/lib/receivablesRegistry';
 
 export const prerender = false;
 
-const token = Astro.url.searchParams.get('token') ?? '';
+// Accept both spellings: links have been handed out with ?token= and ?t=.
+const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
 const req = token ? await readConfirmRequest(token) : { ok: false as const, error: 'not_found' };
 
 const money = (n: number, ccy: string) =>

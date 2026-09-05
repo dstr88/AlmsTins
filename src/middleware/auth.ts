@@ -90,6 +90,9 @@ export function isPublicPath(pathname: string): boolean {
 		// Buyer confirmation — public, login-free. The single-use token IS the capability:
 		// the debtor being asked to confirm has no account and must never need one.
 		pathname === '/api/verify/receivables/confirm' ||
+		// Supplier counter-signature — same reasoning: the client confirming that a
+		// lender's advance actually reached him need not hold an account to say so.
+		pathname === '/api/verify/receivables/countersign' ||
 		// Onboarding-email unsubscribe — public one-click opt-out (token-based)
 		pathname === '/api/email/unsubscribe' ||
 		// Record-proof signing public key — published so anyone can verify a record proof
