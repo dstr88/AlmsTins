@@ -1718,7 +1718,7 @@ export async function listCountersignRequests(
 export interface SendableRequest {
   token:      string;
   /** 'invitation' carries no receivable: it onboards a client rather than asking about a deal. */
-  kind:       'debtor' | 'client' | 'invitation';
+  kind:       'debtor' | 'client' | 'client_record' | 'invitation';
   sentTo:     string;
   supplier:   string;
   buyer:      string;
@@ -1775,9 +1775,10 @@ export async function getSendableRequest(
   const isClaim = !!row.claim_id;
   const role = String(row.role || '');
   const kind: SendableRequest['kind'] =
-    isClaim ? 'client'
-    : role === 'buyer' ? 'debtor'
-    : 'invitation';
+    isClaim ? 'client'                                          // receipt of an advance
+    : role === 'buyer' ? 'debtor'                               // the debt is real
+    : role === 'borrower' && row.receivable_id ? 'client_record' // the record is correct
+    : 'invitation';                                             // onboarding, no deal yet
 
   // An invitation carries no deal to describe even when it names a receivable.
   if (kind === 'invitation') {
@@ -1834,5 +1835,116 @@ export async function pathForToken(token: string): Promise<string | null> {
   const t = encodeURIComponent(String(token).trim());
   if (row.claim_id) return `/verify/countersign?token=${t}`;
   if (String(row.role) === 'buyer' && row.receivable_id) return `/verify/authenticate?token=${t}`;
+  if (String(row.role) === 'borrower' && row.receivable_id) return `/verify/attest?token=${t}`;
   return `/verify/invite?token=${t}`;
+}
+
+// ── The client confirms the record ────────────────────────────────────────────
+//
+// The third assertion, and the one that was missing. In the banker-led flow the financier
+// types everything: the client's name, the amount, the terms, the goods. The client never
+// puts his name to any of it. So if the deal goes wrong he can say "I never told him that"
+// and nothing on the record contradicts him.
+//
+// This asks him, at intake, before any money moves: did we record your deal correctly, and
+// is the paperwork we scanned the paperwork you brought? Same shape as the debtor's
+// confirmation, and for the same reason — the party who would know is the one worth asking.
+//
+// A request of this kind is an invite with role 'borrower' and a receivable but no claim.
+// The receipt counter-signature is the one WITH a claim; it asks a different question and
+// cannot be answered before an advance exists.
+
+export type RecordOutcome = 'accurate' | 'wrong';
+
+export interface RecordAnswers {
+  by: string;
+  title?: string | null;
+  /** What they say is wrong, when they say something is. */
+  correction?: string | null;
+}
+
+export async function readRecordRequest(token: string): Promise<
+  | { ok: true; receivableId: string; supplier: string; buyer: string; invoiceNo: string;
+      face: number; currency: string; terms: string | null; dueDate: string | null;
+      details: ReceivableDetails | null; documents: DocumentMeta[]; sentTo: string | null }
+  | { ok: false; error: string }
+> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT receivable_id, role, claim_id, email, expires_at, accepted_at, revoked_at
+            FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token || '').trim()],
+  });
+  if (!r.rows.length) return { ok: false, error: 'not_found' };
+  const row = r.rows[0] as any;
+  if (row.revoked_at) return { ok: false, error: 'revoked' };
+  if (row.accepted_at) return { ok: false, error: 'used' };
+  if (String(row.expires_at) < nowUtc()) return { ok: false, error: 'expired' };
+  if (row.claim_id || !row.receivable_id || String(row.role) !== 'borrower') {
+    return { ok: false, error: 'wrong_kind' };
+  }
+
+  const rcv = await getReceivableRow(String(row.receivable_id));
+  if (!rcv) return { ok: false, error: 'not_found' };
+
+  return {
+    ok: true,
+    receivableId: String(rcv.id),
+    supplier: String(rcv.supplier), buyer: String(rcv.buyer), invoiceNo: String(rcv.invoice_no),
+    face: Number(rcv.face), currency: String(rcv.currency),
+    terms: rcv.terms != null ? String(rcv.terms) : null,
+    dueDate: rcv.due_date != null ? String(rcv.due_date) : null,
+    details: parseDetails(rcv.details_json),
+    documents: (await listDocuments(String(rcv.id))).filter((d) => !d.purgedAt),
+    sentTo: row.email != null ? String(row.email) : null,
+  };
+}
+
+export async function confirmRecordByToken(
+  token: string,
+  outcome: RecordOutcome,
+  answers: RecordAnswers,
+): Promise<{ ok: true; attestationId: string; receivableId: string } | { ok: false; error: string }> {
+  await ensureReceivablesTables();
+
+  const req = await readRecordRequest(token);
+  if (!req.ok) return { ok: false, error: req.error };
+
+  const who = clampStr(answers.by, 100);
+  if (!who) return { ok: false, error: 'name_required' };
+
+  const sender = await db.execute({
+    sql: `SELECT from_tenant FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token).trim()],
+  });
+  const fromTenant = String((sender.rows[0] as any)?.from_tenant ?? '');
+
+  const title = answers.title ? ` (${clampStr(answers.title, 60)})` : '';
+  const amount = `${req.currency} ${req.face.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+  let statement: string;
+  let role: AttesterRole;
+  if (outcome === 'accurate') {
+    statement = `Confirms this is their receivable: invoice ${req.invoiceNo} to ${req.buyer} for ${amount}, and that the attached paperwork is what they provided. Answered by ${who}${title} via a single-use link.`;
+    role = 'supplier';
+  } else {
+    const what = clampStr(answers.correction ?? '', 300);
+    statement = `DISPUTED — states the record is wrong. Invoice ${req.invoiceNo} to ${req.buyer} for ${amount}.${what ? ` They say: ${what}` : ''} Answered by ${who}${title} via a single-use link.`;
+    role = 'other';
+  }
+
+  const claimed = await db.execute({
+    sql: `UPDATE receivable_invites SET accepted_at = ?, accepted_by = ?
+           WHERE token = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    args: [nowUtc(), who, String(token).trim()],
+  });
+  if (!claimed.rowsAffected) return { ok: false, error: 'used' };
+
+  const docs = req.documents.map((d) => ({ sha256: d.sha256, filename: d.filename }));
+  const result = await addAttestation(fromTenant, req.receivableId, {
+    role, label: req.supplier, statement, docs,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  return { ok: true, attestationId: result.attestationId, receivableId: req.receivableId };
 }

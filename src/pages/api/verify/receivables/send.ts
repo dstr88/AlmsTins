@@ -63,6 +63,7 @@ export const POST: APIRoute = async ({ request }) => {
   const origin = (process.env.AUTH_URL ?? 'https://almstins.com').replace(/\/+$/, '');
   const page = req.kind === 'debtor' ? 'authenticate'
              : req.kind === 'client' ? 'countersign'
+             : req.kind === 'client_record' ? 'attest'
              : 'invite';
   const link = `${origin}/verify/${page}?token=${encodeURIComponent(req.token)}`;
   const expires = req.expiresAt.slice(0, 10);
@@ -76,6 +77,10 @@ export const POST: APIRoute = async ({ request }) => {
     subject = 'You have been invited onto the Almstins receivables registry';
     lead = `${who} has invited you onto the Almstins receivables registry.`;
     ask = 'Accepting creates your own account, where you can see what you are owed and what any financier has claimed against it. Your records stay yours: whoever invited you cannot see inside your account, and you cannot see inside theirs.';
+  } else if (req.kind === 'client_record') {
+    subject = `Confirm your invoice ${req.invoiceNo} as recorded`;
+    lead = `Your financier has recorded that ${req.supplier} is owed ${amount} by ${req.buyer} on invoice ${req.invoiceNo}, from the paperwork you brought in.`;
+    ask = 'You are being asked to confirm it was recorded correctly, and that the paperwork on file is the document you provided. Putting your name to it now is what prevents any later argument about what you asked to be financed. If anything is wrong, say so on the same page.';
   } else if (req.kind === 'debtor') {
     subject = `Confirm invoice ${req.invoiceNo} from ${req.supplier}`;
     lead = `${req.supplier} has recorded that ${req.buyer} owes ${amount} on invoice ${req.invoiceNo}, and is using it to raise finance.`;

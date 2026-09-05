@@ -163,6 +163,27 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       color: var(--text-primary); padding: .55rem .7rem; font-size: .9rem; font-family: inherit;
     }
     select#cs-claim:focus { outline: none; border-color: var(--accent); }
+    /* The intake tin. Wider than the reading cards because it is a form, capped so it does
+       not stretch to 2000px on a desktop monitor. */
+    .card.tin { width: 100%; max-width: 62rem; padding: 1.5rem 1.65rem; }
+    @media (min-width: 1100px) { .card.tin { width: 80%; } }
+
+    details.more { margin-top: .9rem; border-top: 1px solid var(--border-subtle); padding-top: .8rem; }
+    details.more > summary {
+      cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: .5rem;
+      font-size: .8rem; font-weight: 650; color: var(--text-secondary); user-select: none;
+    }
+    details.more > summary::-webkit-details-marker { display: none; }
+    details.more > summary:hover { color: var(--accent); }
+    .more__i {
+      width: 1.25rem; height: 1.25rem; border-radius: 6px; display: inline-flex;
+      align-items: center; justify-content: center; font-weight: 700;
+      border: 1px solid var(--border-bright); color: var(--text-secondary); font-size: .9rem;
+    }
+    details.more[open] > summary .more__i { color: var(--accent); border-color: var(--accent-glow); background: var(--accent-soft); }
+    details.more[open] > summary .more__i::after { content: ''; }
+    .sep { border-top: 1px solid var(--border-subtle); margin: 1.1rem 0 .9rem; }
+
     .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .7rem; }
     .fld {
       display: flex; flex-direction: column; gap: .28rem;
@@ -234,24 +255,22 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     </header>
 
     <div class="card">
-      <h2>Your clients</h2>
-      <p class="hint">Invite a client onto the registry. Accepting creates their own account and records them as your client. Nothing of theirs lives in your account.</p>
-      <div class="row">
-        <input id="inv-email" class="grow" type="email" placeholder="jack@jackspizza.com" autocomplete="off" />
-        <input id="inv-label" placeholder="Their company" style="flex:0 1 14rem" autocomplete="organization" />
-        <button id="inv-send">Create &amp; email</button>
-        <button id="inv-go" class="ghost">Create link only</button>
+      <h2>Your book</h2>
+      <p class="hint">
+        Every deal you have recorded, newest first. Click a row to open it, click an ID to check
+        its status, or copy the ID to hand to another financier.
+      </p>
+      <div class="row" style="margin-bottom:.6rem">
+        <input id="book-q" class="grow" placeholder="Filter by client, debtor or invoice number" autocomplete="off" />
       </div>
-      <div id="inv-out" class="note"></div>
-      <div id="inv-list" style="margin-top:.9rem"></div>
+      <div id="book-list" class="inbox"></div>
     </div>
 
-    <div class="card">
-      <h2>New deal</h2>
+    <div class="card tin">
+      <h2>New client</h2>
       <p class="hint">
-        Your client is sitting across the desk with his paperwork. Record what he is owed, then attach
-        the papers and ask the debtor to confirm. Only the first four are required; fill in whatever
-        the contract in front of you actually says.
+        He is across the desk with his paperwork. Record what he is owed, scan the papers in, and
+        send both confirmations without leaving this card. Only the four marked fields are required.
       </p>
 
       <div class="grid2">
@@ -275,6 +294,11 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             <option value="ZAR">ZAR</option>
           </select>
         </label>
+      </div>
+
+      <details class="more">
+        <summary><span class="more__i">+</span> More from the contract</summary>
+        <div class="grid2" style="margin-top:.8rem">
         <label class="fld">Debtor's own reference
           <input id="n-ref" placeholder="Their PO or contract no." autocomplete="off" />
         </label>
@@ -297,27 +321,38 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <input id="n-pay" placeholder="Where the debtor is to pay" autocomplete="off" />
       </label>
 
-      <div id="n-extra" style="margin-top:.9rem"></div>
-      <div class="row" style="margin-top:.6rem">
-        <button class="small ghost" id="n-add" type="button">+ Add a field</button>
-      </div>
+        <div id="n-extra" style="margin-top:.9rem"></div>
+        <div class="row" style="margin-top:.6rem">
+          <button class="small ghost" id="n-add" type="button">+ Add a field</button>
+        </div>
+      </details>
 
-      <div class="row" style="margin-top:.9rem">
-        <button id="n-go">Sign, record &amp; timestamp</button>
+      <div class="sep"></div>
+
+      <label class="fld">The paperwork
+        <input id="n-file" type="file" multiple accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" />
+      </label>
+      <p class="hint" style="margin:.4rem 0 0">
+        Scan the promissory note or contract he brought in. Fingerprinted on upload, shown to both
+        people you ask, then deleted once they have answered.
+      </p>
+
+      <div class="grid2" style="margin-top:.9rem">
+        <label class="fld">Email the debtor <span class="req">to confirm the debt</span>
+          <input id="n-demail" type="email" placeholder="accounts@their-company.com" autocomplete="off" />
+        </label>
+        <label class="fld">Email the client <span class="req">to confirm the record</span>
+          <input id="n-cemail" type="email" placeholder="him@his-company.com" autocomplete="off" />
+        </label>
+      </div>
+      <p class="hint" style="margin:.4rem 0 0">
+        Leave either blank to skip it. You can always send it later from the record.
+      </p>
+
+      <div class="row" style="margin-top:1rem">
+        <button id="n-go">Record, sign &amp; send</button>
       </div>
       <div id="n-out" class="note"></div>
-    </div>
-
-    <div class="card">
-      <h2>Your book</h2>
-      <p class="hint">
-        Every deal you have recorded, newest first. Click a row to open it, click an ID to check
-        its status, or copy the ID to hand to another financier.
-      </p>
-      <div class="row" style="margin-bottom:.6rem">
-        <input id="book-q" class="grow" placeholder="Filter by client, debtor or invoice number" autocomplete="off" />
-      </div>
-      <div id="book-list" class="inbox"></div>
     </div>
 
     <div class="card">
@@ -649,93 +684,6 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
 
-    // ── Invitations ────────────────────────────────────────────────────────
-    // The link is the capability: single use, seven days, and spent on acceptance.
-    async function loadInvites() {
-      const box = document.getElementById('inv-list')!;
-      try {
-        const r = await fetch('/api/verify/receivables/invite');
-        if (r.status === 401) { box.innerHTML = ''; return; }
-        const j = await r.json();
-        const list = j.invites ?? [];
-        if (!list.length) { box.innerHTML = '<p class="muted">No invitations sent yet.</p>'; return; }
-        box.innerHTML = `<table><thead><tr><th>Invited</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>` +
-          list.map((v: any) => {
-            const status = v.revokedAt ? 'withdrawn'
-              : v.acceptedAt ? 'accepted'
-              : (v.expiresAt < new Date().toISOString().replace('T', ' ').slice(0, 19) ? 'expired' : 'waiting');
-            const link = `${location.origin}/verify/invite?token=${encodeURIComponent(v.token)}`;
-            return `<tr>
-              <td>${esc(v.label || v.email || '—')}<br><span class="muted">${esc(v.label && v.email ? v.email + ' · ' : '')}${esc(String(v.createdAt).slice(0, 10))}</span></td>
-              <td>${esc(v.role === 'borrower' ? 'client' : v.role)}</td>
-              <td><span class="tag ${status === 'accepted' ? 'active' : 'off'}">${esc(status)}</span></td>
-              <td>${status === 'waiting'
-                ? `<button class="small ghost" data-copy="${esc(link)}">Copy link</button>
-                   ${v.email ? `<button class="small ghost" data-resend="${esc(v.token)}">Resend</button>` : ''}
-                   <button class="small ghost" data-revoke="${esc(v.token)}">Withdraw</button>`
-                : ''}</td>
-            </tr>`;
-          }).join('') + `</tbody></table>`;
-
-        box.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async (e) => {
-          const el = e.currentTarget as HTMLElement;
-          try {
-            await navigator.clipboard.writeText(el.dataset.copy as string);
-            const t = el.textContent; el.textContent = 'Copied';
-            setTimeout(() => { el.textContent = t; }, 1400);
-          } catch { /* clipboard unavailable */ }
-        }));
-        box.querySelectorAll('[data-resend]').forEach((b) => {
-          b.addEventListener('click', () =>
-            emailRequest((b as HTMLElement).dataset.resend as string, $('inv-out') as unknown as HTMLElement, 'your client'));
-        });
-        box.querySelectorAll('[data-revoke]').forEach((b) => b.addEventListener('click', async (e) => {
-          const el = e.currentTarget as HTMLElement;
-          if (!confirm('Withdraw this invitation? The link stops working.')) return;
-          await fetch('/api/verify/receivables/invite', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'revoke', token: el.dataset.revoke }),
-          });
-          loadInvites();
-        }));
-      } catch { box.innerHTML = ''; }
-    }
-
-    async function createInvite() {
-      const out = $('inv-out') as unknown as HTMLElement;
-      const label = val('inv-label');
-      show(out, 'Creating…');
-      try {
-        const r = await fetch('/api/verify/receivables/invite', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'borrower', label: label || null, email: val('inv-email') || null }),
-        });
-        const j = await r.json();
-        if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a>.', 'note-loss'); return; }
-        if (!j.ok) { show(out, 'Could not create that invitation: ' + esc(j.error || 'unknown error'), 'note-loss'); return; }
-        const link = `${location.origin}/verify/invite?token=${encodeURIComponent(j.token)}`;
-        await navigator.clipboard?.writeText(link).catch(() => {});
-        show(out, `<b>Invitation ready and copied.</b> It works once and expires in seven days.<br><code style="word-break:break-all;font-size:.78rem">${esc(link)}</code>`, 'note-gain');
-        loadInvites();
-        return j.token as string;
-      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
-      return null;
-    }
-
-    document.getElementById('inv-go')?.addEventListener('click', createInvite);
-    document.getElementById('inv-send')?.addEventListener('click', async () => {
-      const out = $('inv-out') as unknown as HTMLElement;
-      if (!val('inv-email')) { show(out, 'An address is needed to email it. Use "Create link only" otherwise.', 'note-loss'); return; }
-      const token = await createInvite();
-      if (token) {
-        await emailRequest(token, out, 'your client');
-        ($('inv-email') as HTMLInputElement).value = '';
-        ($('inv-label') as HTMLInputElement).value = '';
-        loadInvites();
-      }
-    });
-    loadInvites();
-
     // ── Vocabulary, in place ────────────────────────────────────────────────
     //
     // The pilot financier had not read the guide and said he would not have. So the words
@@ -914,25 +862,85 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         const j = await r.json();
         if (!j.ok) { show(out, esc(j.message || 'Could not record that.'), 'note-loss'); return; }
 
-        show(out, `<b>Recorded and signed.</b> Receivable ID <code>${esc(j.id)}</code><br><span id="n-anchor">&#9203; Timestamping to Bitcoin…</span>`, 'note-gain');
-        try {
-          const a = await (await fetch('/api/verify/receivables/anchor', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ kind: 'receivable', id: j.id }),
-          })).json();
-          const el = document.getElementById('n-anchor');
-          if (el) el.textContent = a && a.ok
-            ? '⏳ Timestamp submitted to Bitcoin, pending a block (~1-2h). Its date can no longer be forged or backdated.'
-            : 'Signed. The Bitcoin timestamp did not submit; you can anchor it from the workbench.';
-        } catch { /* non-fatal */ }
+        show(out, 'Recording…', 'note-gain');
+        const anchorNote = () => { void (async () => {
+          try {
+            const a = await (await fetch('/api/verify/receivables/anchor', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ kind: 'receivable', id: j.id }),
+            })).json();
+            const el = document.getElementById('n-anchor');
+            if (el) el.textContent = a && a.ok
+              ? '⏳ Timestamp submitted to Bitcoin, pending a block (~1-2h). Its date can no longer be forged or backdated.'
+              : 'Signed. The Bitcoin timestamp did not submit; you can anchor it from the workbench.';
+          } catch { /* non-fatal */ }
+        })(); };
 
-        // Straight into the panel: attach the papers, then ask the debtor.
+        // Everything the banker has in the room, in one submission: the papers he just
+        // scanned and the two people he already knows how to reach. Making him come back
+        // for those is how they quietly never happen.
+        const done: string[] = ['recorded and signed'];
+        const failed: string[] = [];
+
+        const files = ($('n-file') as HTMLInputElement)?.files;
+        if (files && files.length) {
+          for (const f of Array.from(files)) {
+            try {
+              const fd = new FormData();
+              fd.append('receivableId', j.id);
+              fd.append('file', f);
+              const dr = await (await fetch('/api/verify/receivables/document', { method: 'POST', body: fd })).json();
+              if (!dr.ok) failed.push(`could not attach ${f.name}`);
+            } catch { failed.push(`could not attach ${f.name}`); }
+          }
+          const n = files.length - failed.length;
+          if (n > 0) done.push(`${n} document${n > 1 ? 's' : ''} attached`);
+        }
+
+        // Both requests, minted then sent. Role decides which page the link opens.
+        const ask = async (role: string, email: string, label: string) => {
+          if (!email) return;
+          try {
+            const ir = await (await fetch('/api/verify/receivables/invite', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role, receivableId: j.id, email }),
+            })).json();
+            if (!ir.ok) { failed.push(`could not create the ${label} request`); return; }
+            const sr = await (await fetch('/api/verify/receivables/send', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: ir.token }),
+            })).json();
+            done.push(sr.ok ? `${label} emailed` : `${label} request created, but the email did not send`);
+            if (!sr.ok && sr.detail) failed.push(String(sr.detail));
+          } catch { failed.push(`could not send the ${label} request`); }
+        };
+        await ask('buyer', val('n-demail'), 'debtor');
+        await ask('borrower', val('n-cemail'), 'client');
+
+        show(out,
+          `<b>Done.</b> ${esc(done.join(', '))}.` +
+          (failed.length ? `<br><span class="muted">${esc(failed.join('; '))}</span>` : '') +
+          `<br><span id="n-anchor">&#9203; Timestamping to Bitcoin…</span>`,
+          failed.length ? 'note-loss' : 'note-gain');
+        anchorNote();
+
+        ['n-sup','n-buy','n-inv','n-face','n-ref','n-goods','n-pay','n-demail','n-cemail'].forEach((id) => {
+          const el = $(id) as HTMLInputElement; if (el) el.value = '';
+        });
+        const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = '';
+
         ($('q-id') as HTMLInputElement).value = j.id;
         await check(j.id);
         loadBook();
         document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
+
+    document.querySelector('details.more')?.addEventListener('toggle', (e) => {
+      const d = e.currentTarget as HTMLDetailsElement;
+      const i = d.querySelector('.more__i');
+      if (i) i.textContent = d.open ? '\u2212' : '+';
+    });
 
     document.getElementById('n-add')?.addEventListener('click', () => addExtraRow());
     document.getElementById('n-go')?.addEventListener('click', createDeal);
