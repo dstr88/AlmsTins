@@ -108,6 +108,11 @@ const ERRORS: Record<string, string> = {
     .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
     .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
     .foot { font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; margin-top: .5rem; }
+    .testbar {
+      border: 1px solid var(--warning-border); background: var(--warning-bg); color: var(--text-primary);
+      border-left: 3px solid var(--warning); border-radius: 8px; padding: .8rem .95rem; font-size: .9rem;
+    }
+    .testbar b { color: var(--warning); }
   </style>
 </head>
 <body>
@@ -130,6 +135,12 @@ const ERRORS: Record<string, string> = {
 
     {req.ok && (
       <>
+        {req.isTest && (
+          <div class="testbar">
+            <b>This is a test.</b> Your financier is practising with the software. Nothing here is a
+            real debt, no money is involved, and your answer will not commit you to anything.
+          </div>
+        )}
         <div class="claim">
           <div class="claim__lead"><b>{req.supplier}</b> has recorded that <b>{req.buyer}</b> owes</div>
           <div class="claim__amount">{money(req.face, req.currency)}</div>

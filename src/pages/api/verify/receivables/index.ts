@@ -43,6 +43,7 @@ export const POST: APIRoute = async ({ request }) => {
     rtype: body.rtype ?? null,
     paymentMethod: body.paymentMethod ?? null,
     details: body.details ?? null,
+    isTest: body.isTest === true,
   });
 
   return result.ok ? json(result) : json(result, 400);
