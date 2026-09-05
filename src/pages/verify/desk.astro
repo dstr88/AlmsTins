@@ -116,6 +116,35 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-primary); }
     .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); color: var(--text-primary); }
     .muted { color: var(--text-muted); font-size: .8rem; }
+
+    /* Credit view */
+    #credit .lead { font-size: .96rem; color: var(--text-primary); margin-bottom: 1rem; }
+    .alloc { margin-bottom: 1.3rem; }
+    .alloc__bar { display: flex; height: .85rem; border-radius: 99px; overflow: hidden; background: var(--surface-card-2); border: 1px solid var(--border-subtle); }
+    .alloc__used { background: var(--loss); }
+    .alloc__free { background: var(--gain); }
+    .alloc__keys { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; margin-top: .55rem; font-size: .82rem; color: var(--text-secondary); }
+    .alloc__keys b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .alloc__keys .used b { color: var(--loss); }
+    .alloc__keys .free b { color: var(--gain); }
+
+    .two-col { display: grid; grid-template-columns: 1fr; gap: 1.4rem; }
+    @media (min-width: 860px) { .two-col { grid-template-columns: 1.15fr 1fr; gap: 2rem; } }
+    .col-h { font-size: .66rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--gain); margin-bottom: .7rem; }
+    .col-h--warn { color: var(--text-muted); }
+
+    .ck { display: flex; gap: .6rem; align-items: flex-start; padding: .45rem 0; }
+    .ck__i { flex: 0 0 auto; width: 1.15rem; height: 1.15rem; border-radius: 99px; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; margin-top: .12rem; }
+    .ck__i.yes { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .ck__i.no  { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .ck__i.na  { color: var(--text-muted); background: var(--surface-card-2); border: 1px solid var(--border-subtle); }
+    .ck__l { font-size: .88rem; font-weight: 650; }
+    .ck__d { font-size: .8rem; color: var(--text-secondary); }
+
+    .nk { padding: .45rem 0; border-bottom: 1px solid var(--border-subtle); }
+    .nk:last-child { border-bottom: none; }
+    .nk__l { font-size: .85rem; font-weight: 650; color: var(--text-secondary); }
+    .nk__d { font-size: .78rem; color: var(--text-muted); }
     select#cs-claim {
       background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
       color: var(--text-primary); padding: .55rem .7rem; font-size: .9rem; font-family: inherit;
@@ -291,6 +320,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <div id="panel">
       <div id="verdict"></div>
 
+      <div class="card" id="credit" style="margin-top:1.15rem">
+        <h2>Before you advance</h2>
+        <p class="hint">Everything the decision turns on, and what none of it proves.</p>
+        <div id="credit-body"></div>
+      </div>
+
       <div class="card" style="margin-top:1.15rem">
         <h2>The record</h2>
         <p class="hint">What the parties have put their name to.</p>
@@ -447,6 +482,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             <div class="verdict__num" style="font-size:1.15rem">${esc(money(r.face, ccy))}</div>
           </div>
         </div>`;
+
+      renderCreditView(r, ccy, claimed, avail);
 
       // ── Facts ──
       const f = (k: string, v: string) => `<div><div class="fact__k">${esc(k)}</div><div class="fact__v">${esc(v)}</div></div>`;
@@ -671,6 +708,99 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       }
     });
     loadInvites();
+
+    // ── The credit view ─────────────────────────────────────────────────────
+    //
+    // One screen to decide from, per the pilot financier's review: the money split
+    // visually, every piece of evidence as present or absent, and an explicit list of what
+    // the platform does NOT prove sitting beside it. That last column is the point. A
+    // lender who discovers the limits himself, after advancing, stops trusting the rest.
+    function renderCreditView(r: any, ccy: string, claimed: number, avail: number) {
+      const face = Number(r.face || 0);
+      const atts = r.attestations || [];
+      const claims = r.claims || [];
+
+      const ack = atts.find((a: any) => a.role === 'buyer') || null;
+      const acked = !!ack || !!r.acknowledgedAt;
+      const disputes = atts.filter((a: any) => String(a.statement || '').startsWith('DISPUTED'));
+      const active = claims.filter((c: any) => c.status !== 'discharged');
+      const unconfirmed = active.filter((c: any) => !c.affirmed);
+      const docs = Number(r.documentCount || 0);
+
+      const pct = (n: number) => face > 0 ? Math.max(0, Math.min(100, (n / face) * 100)) : 0;
+
+      // Plain English, not a label. "Headroom" means nothing to a first-time user.
+      const headline = r.settled
+        ? `This receivable is settled. Nothing further can be financed against it.`
+        : avail <= 0
+        ? `Nothing is available. The full ${money(face, ccy)} is already claimed, so a further advance would duplicate an existing one.`
+        : claimed > 0
+        ? `${money(avail, ccy)} is still available to finance. ${money(claimed, ccy)} is already claimed by a financier holding this ID.`
+        : `The full ${money(face, ccy)} is available to finance. Nobody has registered a claim against it.`;
+
+      const row = (ok: boolean | null, label: string, detail: string) => `
+        <div class="ck">
+          <span class="ck__i ${ok === true ? 'yes' : ok === false ? 'no' : 'na'}">${ok === true ? '&#10003;' : ok === false ? '&#9888;' : '&middot;'}</span>
+          <div><div class="ck__l">${esc(label)}</div><div class="ck__d">${esc(detail)}</div></div>
+        </div>`;
+
+      const proven = [
+        row(acked, acked ? 'Debtor acknowledged the debt' : 'Debtor has not acknowledged',
+            acked
+              ? `${ack ? ack.label : r.buyer} confirmed it${ack?.date ? ' on ' + String(ack.date).slice(0, 10) : ''}.`
+              : 'Nobody on the paying side has confirmed. You have the client\u2019s paperwork only.'),
+        row(disputes.length === 0, disputes.length === 0 ? 'No disputes recorded' : `${disputes.length} dispute${disputes.length > 1 ? 's' : ''} recorded`,
+            disputes.length === 0 ? 'Nobody asked has contradicted the record.' : 'Someone asked has contradicted this record. Read it before advancing.'),
+        row(active.length > 0 ? true : null, active.length ? `${active.length} financing claim${active.length > 1 ? 's' : ''} registered` : 'No financing claims registered',
+            active.length ? `${money(claimed, ccy)} claimed of ${money(face, ccy)}.` : 'The full face value is unencumbered.'),
+        row(unconfirmed.length === 0 ? (active.length ? true : null) : false,
+            unconfirmed.length === 0 ? (active.length ? 'Every advance confirmed received' : 'No advance to confirm yet') : `${unconfirmed.length} advance${unconfirmed.length > 1 ? 's' : ''} not confirmed received`,
+            unconfirmed.length === 0
+              ? (active.length ? 'Each lender\u2019s client has confirmed the money arrived.' : 'Nothing has been advanced against this yet.')
+              : 'A registered claim is one firm\u2019s word until the client confirms the money reached him.'),
+        row(!!r.anchored, r.anchored ? 'Timestamped to Bitcoin' : 'Not yet timestamped',
+            r.anchored
+              ? (r.anchoredAt ? `Confirmed in a block on ${String(r.anchoredAt).slice(0, 10)}. The date cannot be moved.` : 'Submitted, pending a block. Once confirmed the date cannot be moved.')
+              : 'The record is signed but its date is not anchored publicly.'),
+        row(docs > 0, docs > 0 ? `${docs} document${docs > 1 ? 's' : ''} on file` : 'No supporting document attached',
+            docs > 0 ? 'Fingerprinted, and named in any confirmation given while it was visible.' : 'Nothing was attached, so nobody confirming has seen the paperwork.'),
+      ].join('');
+
+      // Stated as flatly as the evidence. These are the questions a lender must answer
+      // from outside this system, and pretending otherwise is how a registry gets trusted
+      // for something it never claimed.
+      const notProven = [
+        ['Who actually answered', 'A confirmation proves someone holding the link answered. It does not prove which officer of that company, or that they had authority to bind it.'],
+        ['That the goods were delivered', 'Nothing here inspects a warehouse. The debtor\u2019s acknowledgment is the closest evidence, and it is their word.'],
+        ['Claims made outside this registry', 'A prior assignment recorded elsewhere, or a floating charge over all receivables, is invisible here.'],
+        ['Legal priority', 'Priority is set by law, filing and notice. An anchored date is evidence in that contest, not the thing that decides it.'],
+        ['That the invoice is not a near-duplicate', 'Change any field and you get a separate record with separate headroom. Nothing yet matches two records describing one obligation.'],
+      ].map(([t, d]) => `<div class="nk"><div class="nk__l">${esc(t)}</div><div class="nk__d">${esc(d)}</div></div>`).join('');
+
+      document.getElementById('credit-body')!.innerHTML = `
+        <p class="lead">${esc(headline)}</p>
+        <div class="alloc">
+          <div class="alloc__bar">
+            <span class="alloc__used" style="width:${pct(claimed)}%"></span>
+            <span class="alloc__free" style="width:${pct(Math.max(0, avail))}%"></span>
+          </div>
+          <div class="alloc__keys">
+            <span><b>${esc(money(face, ccy))}</b> face value</span>
+            <span class="used"><b>${esc(money(claimed, ccy))}</b> financed</span>
+            <span class="free"><b>${esc(money(Math.max(0, avail), ccy))}</b> available</span>
+          </div>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="col-h">What this platform proves</div>
+            ${proven}
+          </div>
+          <div>
+            <div class="col-h col-h--warn">What it does not prove</div>
+            ${notProven}
+          </div>
+        </div>`;
+    }
 
     // ── Intake: record a new deal ───────────────────────────────────────────
     //
