@@ -195,8 +195,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <h2>Your clients</h2>
       <p class="hint">Invite a client onto the registry. Accepting creates their own account and records them as your client. Nothing of theirs lives in your account.</p>
       <div class="row">
-        <input id="inv-label" class="grow" placeholder="Your firm's name (shown to them)" autocomplete="organization" />
-        <button id="inv-go">Create invitation</button>
+        <input id="inv-email" class="grow" type="email" placeholder="jack@jackspizza.com" autocomplete="off" />
+        <input id="inv-label" placeholder="Their company" style="flex:0 1 14rem" autocomplete="organization" />
+        <button id="inv-send">Create &amp; email</button>
+        <button id="inv-go" class="ghost">Create link only</button>
       </div>
       <div id="inv-out" class="note"></div>
       <div id="inv-list" style="margin-top:.9rem"></div>
@@ -333,25 +335,6 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div id="k-out" class="note"></div>
       </div>
 
-      <div class="card" id="cs-card" style="margin-top:1.15rem; display:none">
-        <h2>Ask your client to confirm receipt</h2>
-        <p class="hint">
-          Registering a claim is your own word that you advanced the money. Your client confirming he
-          received it is what makes it evidence, and it is what stops anyone registering an advance
-          they never made. He needs no account.
-        </p>
-        <div class="row">
-          <select id="cs-claim" style="flex:1 1 14rem"></select>
-        </div>
-        <div class="row" style="margin-top:.6rem">
-          <input id="cs-email" class="grow" type="email" placeholder="john@123trucking.com" autocomplete="off" />
-          <button id="cs-send">Create &amp; email</button>
-          <button id="cs-go" class="ghost">Create link only</button>
-        </div>
-        <div id="cs-list"></div>
-        <div id="cs-out" class="note"></div>
-      </div>
-
       <div class="card" style="margin-top:1.15rem">
         <h2>Register your claim</h2>
         <p class="hint">Signed and timestamped to Bitcoin. A claim over the remaining headroom is refused.</p>
@@ -364,6 +347,30 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <button id="c-go">Sign, register &amp; timestamp</button>
         </div>
         <div id="c-out" class="note"></div>
+      </div>
+
+      <div class="card" id="cs-card" style="margin-top:1.15rem">
+        <h2>Ask your client to confirm receipt</h2>
+        <p class="hint">
+          Registering a claim is your own word that you advanced the money. Your client confirming he
+          received it is what makes it evidence, and it is what stops anyone registering an advance
+          they never made. He needs no account.
+        </p>
+        <p class="hint" id="cs-none" style="display:none">
+          Register your claim above first. This asks your client to confirm he received that money.
+        </p>
+        <div id="cs-controls" style="display:none">
+          <div class="row">
+            <select id="cs-claim" style="flex:1 1 14rem"></select>
+          </div>
+          <div class="row" style="margin-top:.6rem">
+            <input id="cs-email" class="grow" type="email" placeholder="john@123trucking.com" autocomplete="off" />
+            <button id="cs-send">Create &amp; email</button>
+            <button id="cs-go" class="ghost">Create link only</button>
+          </div>
+          <div id="cs-list"></div>
+        </div>
+        <div id="cs-out" class="note"></div>
       </div>
     </div>
 
@@ -595,11 +602,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
               : (v.expiresAt < new Date().toISOString().replace('T', ' ').slice(0, 19) ? 'expired' : 'waiting');
             const link = `${location.origin}/verify/invite?token=${encodeURIComponent(v.token)}`;
             return `<tr>
-              <td>${esc(v.label || '—')}<br><span class="muted">${esc(String(v.createdAt).slice(0, 10))}</span></td>
-              <td>${esc(v.role)}</td>
+              <td>${esc(v.label || v.email || '—')}<br><span class="muted">${esc(v.label && v.email ? v.email + ' · ' : '')}${esc(String(v.createdAt).slice(0, 10))}</span></td>
+              <td>${esc(v.role === 'borrower' ? 'client' : v.role)}</td>
               <td><span class="tag ${status === 'accepted' ? 'active' : 'off'}">${esc(status)}</span></td>
               <td>${status === 'waiting'
                 ? `<button class="small ghost" data-copy="${esc(link)}">Copy link</button>
+                   ${v.email ? `<button class="small ghost" data-resend="${esc(v.token)}">Resend</button>` : ''}
                    <button class="small ghost" data-revoke="${esc(v.token)}">Withdraw</button>`
                 : ''}</td>
             </tr>`;
@@ -613,6 +621,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             setTimeout(() => { el.textContent = t; }, 1400);
           } catch { /* clipboard unavailable */ }
         }));
+        box.querySelectorAll('[data-resend]').forEach((b) => {
+          b.addEventListener('click', () =>
+            emailRequest((b as HTMLElement).dataset.resend as string, $('inv-out') as unknown as HTMLElement, 'your client'));
+        });
         box.querySelectorAll('[data-revoke]').forEach((b) => b.addEventListener('click', async (e) => {
           const el = e.currentTarget as HTMLElement;
           if (!confirm('Withdraw this invitation? The link stops working.')) return;
@@ -632,18 +644,32 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       try {
         const r = await fetch('/api/verify/receivables/invite', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'borrower', label: label || null }),
+          body: JSON.stringify({ role: 'borrower', label: label || null, email: val('inv-email') || null }),
         });
         const j = await r.json();
         if (r.status === 401) { show(out, 'Your session ended. <a href="/verify/login?next=/verify/desk" style="color:var(--accent)">Sign in again</a>.', 'note-loss'); return; }
         if (!j.ok) { show(out, 'Could not create that invitation: ' + esc(j.error || 'unknown error'), 'note-loss'); return; }
         const link = `${location.origin}/verify/invite?token=${encodeURIComponent(j.token)}`;
-        show(out, `<b>Invitation ready.</b> Send this to your client. It works once and expires in seven days.<br><code style="word-break:break-all;font-size:.78rem">${esc(link)}</code>`, 'note-gain');
+        await navigator.clipboard?.writeText(link).catch(() => {});
+        show(out, `<b>Invitation ready and copied.</b> It works once and expires in seven days.<br><code style="word-break:break-all;font-size:.78rem">${esc(link)}</code>`, 'note-gain');
         loadInvites();
+        return j.token as string;
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+      return null;
     }
 
     document.getElementById('inv-go')?.addEventListener('click', createInvite);
+    document.getElementById('inv-send')?.addEventListener('click', async () => {
+      const out = $('inv-out') as unknown as HTMLElement;
+      if (!val('inv-email')) { show(out, 'An address is needed to email it. Use "Create link only" otherwise.', 'note-loss'); return; }
+      const token = await createInvite();
+      if (token) {
+        await emailRequest(token, out, 'your client');
+        ($('inv-email') as HTMLInputElement).value = '';
+        ($('inv-label') as HTMLInputElement).value = '';
+        loadInvites();
+      }
+    });
     loadInvites();
 
     // ── Intake: record a new deal ───────────────────────────────────────────
@@ -874,10 +900,21 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     // otherwise. Its select lists exactly those, which also keeps the banker from asking
     // about a claim his client has already answered.
     function renderCountersignCard(claims: any[], ccy: string) {
-      const card = document.getElementById('cs-card')!;
+      const controls = document.getElementById('cs-controls')!;
+      const none = document.getElementById('cs-none')!;
       const open = claims.filter((c: any) => !c.affirmed && c.status !== 'discharged');
-      if (!open.length) { card.style.display = 'none'; return; }
-      card.style.display = 'block';
+      // The card always shows. Only the controls come and go, so the step is visible
+      // before it is usable rather than appearing out of nowhere once a claim exists.
+      if (!open.length) {
+        controls.style.display = 'none';
+        none.style.display = 'block';
+        none.textContent = claims.length
+          ? 'Every advance on this receivable has been confirmed by your client.'
+          : 'Register your claim above first. This asks your client to confirm he received that money.';
+        return;
+      }
+      none.style.display = 'none';
+      controls.style.display = 'block';
       const sel = $('cs-claim') as unknown as HTMLSelectElement;
       const keep = sel.value;
       sel.innerHTML = open.map((c: any) =>
@@ -952,6 +989,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     // The row button is a shortcut into the card, not a second way of doing it.
     function askClient(claimId: string) {
       const card = document.getElementById('cs-card')!;
+      document.getElementById('cs-controls')!.style.display = 'block';
       const sel = $('cs-claim') as unknown as HTMLSelectElement;
       if (sel) { sel.value = claimId; loadCountersigns(); }
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });

@@ -61,7 +61,9 @@ export const POST: APIRoute = async ({ request }) => {
   // https://localhost, and every emailed link went out pointing at the recipient's own
   // machine. AUTH_URL is what the rest of the app's mail already uses.
   const origin = (process.env.AUTH_URL ?? 'https://almstins.com').replace(/\/+$/, '');
-  const page = req.kind === 'debtor' ? 'authenticate' : 'countersign';
+  const page = req.kind === 'debtor' ? 'authenticate'
+             : req.kind === 'client' ? 'countersign'
+             : 'invite';
   const link = `${origin}/verify/${page}?token=${encodeURIComponent(req.token)}`;
   const expires = req.expiresAt.slice(0, 10);
   const amount = money(req.amount, req.currency);
@@ -69,7 +71,12 @@ export const POST: APIRoute = async ({ request }) => {
   let subject: string;
   let lead: string;
   let ask: string;
-  if (req.kind === 'debtor') {
+  if (req.kind === 'invitation') {
+    const who = req.label ? req.label : 'A financier';
+    subject = 'You have been invited onto the Almstins receivables registry';
+    lead = `${who} has invited you onto the Almstins receivables registry.`;
+    ask = 'Accepting creates your own account, where you can see what you are owed and what any financier has claimed against it. Your records stay yours: whoever invited you cannot see inside your account, and you cannot see inside theirs.';
+  } else if (req.kind === 'debtor') {
     subject = `Confirm invoice ${req.invoiceNo} from ${req.supplier}`;
     lead = `${req.supplier} has recorded that ${req.buyer} owes ${amount} on invoice ${req.invoiceNo}, and is using it to raise finance.`;
     ask = 'You are being asked to confirm that this debt is real and the amount is right. A lender will advance money against your answer, so please check it against your own records first. If it is wrong, or the invoice is not yours, say so on the same page.';
@@ -88,7 +95,7 @@ export const POST: APIRoute = async ({ request }) => {
     '',
     ask,
     '',
-    `Open the request: ${link}`,
+    `${req.kind === 'invitation' ? 'Accept it here' : 'Open the request'}: ${link}`,
     `The link works once and expires on ${expires}. You do not need an account.`,
     '',
     replyLine,
@@ -100,14 +107,14 @@ export const POST: APIRoute = async ({ request }) => {
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.6;color:#111;max-width:34rem">
       <p style="margin:0 0 1rem">${esc(lead)}</p>
       <p style="margin:0 0 1rem">${esc(ask)}</p>
-      <table style="border-collapse:collapse;margin:0 0 1.25rem;font-size:14px">
+      ${req.kind === 'invitation' ? '' : `<table style="border-collapse:collapse;margin:0 0 1.25rem;font-size:14px">
         <tr><td style="padding:2px 14px 2px 0;color:#666">Invoice</td><td style="padding:2px 0"><b>${esc(req.invoiceNo)}</b></td></tr>
         <tr><td style="padding:2px 14px 2px 0;color:#666">Amount</td><td style="padding:2px 0"><b>${esc(amount)}</b></td></tr>
         <tr><td style="padding:2px 14px 2px 0;color:#666">Supplier</td><td style="padding:2px 0">${esc(req.supplier)}</td></tr>
         <tr><td style="padding:2px 14px 2px 0;color:#666">Debtor</td><td style="padding:2px 0">${esc(req.buyer)}</td></tr>
-      </table>
+      </table>`}
       <p style="margin:0 0 1.25rem">
-        <a href="${esc(link)}" style="background:#0a7f62;color:#fff;text-decoration:none;padding:.7rem 1.1rem;border-radius:8px;font-weight:600;display:inline-block">Open the request</a>
+        <a href="${esc(link)}" style="background:#0a7f62;color:#fff;text-decoration:none;padding:.7rem 1.1rem;border-radius:8px;font-weight:600;display:inline-block">${req.kind === 'invitation' ? 'Accept the invitation' : 'Open the request'}</a>
       </p>
       <p style="margin:0 0 1rem;font-size:13px;color:#555">
         The link works once and expires on ${esc(expires)}. You do not need an account.<br>${esc(replyLine)}
