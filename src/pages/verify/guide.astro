@@ -8,6 +8,7 @@
 // Public and noindex, like the run sheet — he may want to forward it to a colleague, and
 // nobody should need an account to read the manual.
 import '@/styles/tokens.css';
+import { TERMS } from '@/lib/verifyTerms';
 
 export const prerender = false;
 
@@ -134,6 +135,9 @@ const LIMITS = [
     .ev b { font-size: .89rem; }
     .ev span { display: block; font-size: .85rem; color: var(--text-secondary); }
 
+    dl.terms { display: flex; flex-direction: column; gap: .85rem; }
+    dl.terms dt { font-weight: 700; font-size: .93rem; color: var(--accent); }
+    dl.terms dd { font-size: .88rem; color: var(--text-secondary); margin-top: .1rem; }
     dl.limits { display: flex; flex-direction: column; gap: .9rem; }
     dl.limits dt { font-weight: 700; font-size: .91rem; }
     dl.limits dd { font-size: .86rem; color: var(--text-secondary); margin-top: .1rem; }
@@ -160,6 +164,7 @@ const LIMITS = [
 
     <nav class="toc">
       <a href="#what">What this is</a>
+      <a href="#terms">What the words mean</a>
       <a href="#flow">The flow</a>
       <a href="#cards">The desk</a>
       <a href="#links">The two links</a>
@@ -187,6 +192,14 @@ const LIMITS = [
         is fixed in a block, and after that <b>nobody can move it, including us</b>. That is the
         point: if you ever end up in a contest over who has first claim, you can prove your date.
       </div>
+    </section>
+
+    <section id="terms">
+      <h2>What the words mean</h2>
+      <p class="sub">In the order you meet them, not alphabetically. Each one is a thing you do or a thing you are shown.</p>
+      <dl class="terms">
+        {TERMS.map((t) => (<><dt>{t.term}</dt><dd>{t.def}</dd></>))}
+      </dl>
     </section>
 
     <section id="flow">
@@ -288,7 +301,8 @@ const LIMITS = [
     </section>
 
     <p class="foot">
-      Beta. Back to the <a class="inline" href="/verify/desk">financing desk</a>, or check any
+      Beta. See <a class="inline" href="/verify/changelog">what changed</a>, back to the
+      <a class="inline" href="/verify/desk">financing desk</a>, or check any
       receivable without an account at <a class="inline" href="/verify/registry">/verify/registry</a>.
       Almstins records and proves. It never holds money, never moves it, never says who anyone is,
       and never certifies that the underlying deal is real.
