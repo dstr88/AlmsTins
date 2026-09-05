@@ -292,7 +292,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div class="row">
           <input id="k-email" class="grow" type="email" placeholder="accounts@feed-n-seed.com" autocomplete="off" />
           <input id="k-label" placeholder="Who this is (optional)" style="flex:0 1 14rem" autocomplete="off" />
-          <button id="k-go">Create link</button>
+          <button id="k-send">Create &amp; email</button>
+          <button id="k-go" class="ghost">Create link only</button>
         </div>
         <div id="k-list"></div>
         <div id="k-out" class="note"></div>
@@ -310,7 +311,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         </div>
         <div class="row" style="margin-top:.6rem">
           <input id="cs-email" class="grow" type="email" placeholder="john@123trucking.com" autocomplete="off" />
-          <button id="cs-go">Create link</button>
+          <button id="cs-send">Create &amp; email</button>
+          <button id="cs-go" class="ghost">Create link only</button>
         </div>
         <div id="cs-list"></div>
         <div id="cs-out" class="note"></div>
@@ -759,7 +761,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
               : v.status === 'revoked' ? '<span class="muted">revoked</span>'
               : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
             const action = v.status === 'pending'
-              ? `<button class="ghost" data-copy="${esc(link)}">Copy link</button>`
+              ? `<button class="ghost small" data-copy="${esc(link)}">Copy link</button>`
+                + ` <button class="ghost small" data-resend="${esc(v.token)}">Resend</button>`
               : '';
             return `<tr>
               <td>${esc(who)}${v.label && v.sentTo ? `<div class="muted" style="font-size:.72rem">${esc(v.label)}</div>` : ''}</td>
@@ -774,6 +777,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             navigator.clipboard?.writeText((b as HTMLElement).dataset.copy || '');
             (b as HTMLElement).textContent = 'Copied';
           });
+        });
+        box.querySelectorAll('button[data-resend]').forEach((b) => {
+          b.addEventListener('click', () =>
+            emailRequest((b as HTMLElement).dataset.resend as string, $('k-out') as unknown as HTMLElement, 'the debtor'));
         });
       } catch { box.innerHTML = ''; }
     }
@@ -798,7 +805,32 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         ($('k-label') as HTMLInputElement).value = '';
         show(out, `Link copied. Send it to ${esc(email)}. It works once and expires in 7 days.`, 'note-gain');
         loadConfirms();
+        return j.token as string;
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+      return null;
+    }
+
+    // Sending is a separate, explicit act from minting the link. That keeps "resend the
+    // reminder" possible without issuing a second token, and keeps a financier who would
+    // rather send from his own mail client able to just copy.
+    async function emailRequest(token: string, out: HTMLElement, who: string) {
+      show(out, 'Sending\u2026');
+      try {
+        const r = await fetch('/api/verify/receivables/send', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          const why = j.error === 'rate_limited' ? 'Too many requests in the last hour. Try again shortly.'
+            : j.error === 'not_found' ? 'That request is no longer open.'
+            : j.error === 'send_failed' ? 'The mail server refused it. Copy the link and send it yourself.'
+            : 'Could not send that.';
+          show(out, why, 'note-loss'); return false;
+        }
+        show(out, `Sent to ${esc(j.sentTo)}. Replies come back to you, not to Almstins.`, 'note-gain');
+        return true;
+      } catch { show(out, 'Could not reach the registry. Copy the link and send it yourself.', 'note-loss'); return false; }
     }
 
     // ── Counter-signature ───────────────────────────────────────────────────
@@ -838,7 +870,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
               : v.status === 'expired' ? '<span class="muted">expired</span>'
               : v.status === 'revoked' ? '<span class="muted">revoked</span>'
               : `<span>pending, expires ${esc(String(v.expiresAt).slice(0, 10))}</span>`;
-            const action = v.status === 'pending' ? `<button class="ghost small" data-copy="${esc(link)}">Copy link</button>` : '';
+            const action = v.status === 'pending'
+              ? `<button class="ghost small" data-copy="${esc(link)}">Copy link</button>`
+                + ` <button class="ghost small" data-resend="${esc(v.token)}">Resend</button>`
+              : '';
             return `<tr><td>${esc(v.sentTo || 'no address recorded')}</td><td>${state}</td><td>${esc(v.answeredBy || '\u2014')}</td><td>${action}</td></tr>`;
           }).join('') + '</tbody></table>';
         box.querySelectorAll('button[data-copy]').forEach((b) => {
@@ -846,6 +881,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             navigator.clipboard?.writeText((b as HTMLElement).dataset.copy || '');
             (b as HTMLElement).textContent = 'Copied';
           });
+        });
+        box.querySelectorAll('button[data-resend]').forEach((b) => {
+          b.addEventListener('click', () =>
+            emailRequest((b as HTMLElement).dataset.resend as string, $('cs-out') as unknown as HTMLElement, 'your client'));
         });
       } catch { box.innerHTML = ''; }
     }
@@ -869,7 +908,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         ($('cs-email') as HTMLInputElement).value = '';
         show(out, `Link copied. Send it to ${esc(email)} from your own email. The claim shows as confirmed once he answers.`, 'note-gain');
         loadCountersigns();
+        return j.token as string;
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+      return null;
     }
 
     // The row button is a shortcut into the card, not a second way of doing it.
@@ -882,10 +923,18 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     }
 
     document.getElementById('cs-go')?.addEventListener('click', createCountersignRequest);
+    document.getElementById('cs-send')?.addEventListener('click', async () => {
+      const token = await createCountersignRequest();
+      if (token) await emailRequest(token, $('cs-out') as unknown as HTMLElement, 'your client');
+    });
     $('cs-claim')?.addEventListener('change', loadCountersigns);
 
     document.getElementById('d-go')?.addEventListener('click', uploadDoc);
     document.getElementById('k-go')?.addEventListener('click', createConfirmRequest);
+    document.getElementById('k-send')?.addEventListener('click', async () => {
+      const token = await createConfirmRequest();
+      if (token) await emailRequest(token, $('k-out') as unknown as HTMLElement, 'the debtor');
+    });
 
     document.getElementById('q-go')?.addEventListener('click', () => check());
     $('q-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') check(); });
