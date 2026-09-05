@@ -116,6 +116,24 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-primary); }
     .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); color: var(--text-primary); }
     .muted { color: var(--text-muted); font-size: .8rem; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .7rem; }
+    .fld {
+      display: flex; flex-direction: column; gap: .28rem;
+      font-size: .68rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted);
+    }
+    .fld input, .fld select {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 8px;
+      color: var(--text-primary); padding: .5rem .6rem; font-size: .9rem; font-family: inherit;
+      font-weight: 400; letter-spacing: normal; text-transform: none; width: 100%;
+    }
+    .fld input:focus, .fld select:focus { outline: none; border-color: var(--accent); }
+    .req { color: var(--accent); font-size: .58rem; letter-spacing: .06em; }
+    .xrow { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+    .xrow input { flex: 1 1 0; min-width: 0; }
+    .xrow button {
+      background: transparent; border: 1px solid var(--border-subtle); color: var(--text-muted);
+      border-radius: 8px; padding: .4rem .6rem; font-size: .85rem; line-height: 1; cursor: pointer;
+    }
     .ok { color: var(--gain); font-weight: 600; }
     input[type=file] {
       background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
@@ -155,6 +173,68 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </div>
       <div id="inv-out" class="note"></div>
       <div id="inv-list" style="margin-top:.9rem"></div>
+    </div>
+
+    <div class="card">
+      <h2>New deal</h2>
+      <p class="hint">
+        Your client is sitting across the desk with his paperwork. Record what he is owed, then attach
+        the papers and ask the debtor to confirm. Only the first four are required; fill in whatever
+        the contract in front of you actually says.
+      </p>
+
+      <div class="grid2">
+        <label class="fld">Client <span class="req">required</span>
+          <input id="n-sup" placeholder="Who you are financing" autocomplete="off" />
+        </label>
+        <label class="fld">Debtor <span class="req">required</span>
+          <input id="n-buy" placeholder="Who owes him the money" autocomplete="off" />
+        </label>
+        <label class="fld">Invoice number <span class="req">required</span>
+          <input id="n-inv" placeholder="INV-2093" autocomplete="off" />
+        </label>
+        <label class="fld">Face value <span class="req">required</span>
+          <input id="n-face" type="number" step="0.01" min="0" placeholder="50000000" />
+        </label>
+        <label class="fld">Currency
+          <select id="n-ccy">
+            <option value="NGN">NGN</option><option value="USD">USD</option>
+            <option value="GBP">GBP</option><option value="EUR">EUR</option>
+            <option value="GHS">GHS</option><option value="KES">KES</option>
+            <option value="ZAR">ZAR</option>
+          </select>
+        </label>
+        <label class="fld">Debtor's own reference
+          <input id="n-ref" placeholder="Their PO or contract no." autocomplete="off" />
+        </label>
+        <label class="fld">Invoice date<input id="n-idate" type="date" /></label>
+        <label class="fld">Delivery date<input id="n-ddate" type="date" /></label>
+        <label class="fld">Due date<input id="n-due" type="date" /></label>
+        <label class="fld">Terms
+          <select id="n-terms">
+            <option value="">not stated</option>
+            <option>Net 30</option><option>Net 45</option><option>Net 60</option>
+            <option>Net 90</option><option>Due on receipt</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="fld" style="margin-top:.7rem">Goods or services
+        <input id="n-goods" placeholder="What was supplied" autocomplete="off" />
+      </label>
+      <label class="fld" style="margin-top:.7rem">Payment instructions
+        <input id="n-pay" placeholder="Where the debtor is to pay" autocomplete="off" />
+      </label>
+
+      <div id="n-extra" style="margin-top:.9rem"></div>
+      <div class="row" style="margin-top:.6rem">
+        <button class="small ghost" id="n-add" type="button">+ Add a field</button>
+      </div>
+
+      <div class="row" style="margin-top:.9rem">
+        <button id="n-go">Sign, record &amp; timestamp</button>
+      </div>
+      <div id="n-out" class="note"></div>
     </div>
 
     <div class="card">
@@ -303,10 +383,17 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
       // ── Facts ──
       const f = (k: string, v: string) => `<div><div class="fact__k">${esc(k)}</div><div class="fact__v">${esc(v)}</div></div>`;
+      const det = r.details || {};
       document.getElementById('facts')!.innerHTML =
-        f('Supplier', r.supplier) + f('Buyer', r.buyer) + f('Invoice', r.invoiceNo) +
+        f('Client', r.supplier) + f('Debtor', r.buyer) + f('Invoice', r.invoiceNo) +
+        (det.buyerRef ? f("Debtor's ref", det.buyerRef) : '') +
+        (det.invoiceDate ? f('Invoiced', det.invoiceDate) : '') +
+        (det.deliveryDate ? f('Delivered', det.deliveryDate) : '') +
         f('Terms', r.terms || 'not stated') + f('Due', r.dueDate || 'not stated') +
-        f('Recorded', String(r.createdAt || '').slice(0, 10));
+        f('Recorded', String(r.createdAt || '').slice(0, 10)) +
+        (det.goods ? f('Goods or services', det.goods) : '') +
+        (det.paymentInstructions ? f('Payment instructions', det.paymentInstructions) : '') +
+        (Array.isArray(det.extra) ? det.extra.map((e: any) => f(e.label, e.value)).join('') : '');
 
       // ── Evidence: the buyer's acknowledgment is the keystone ──
       const buyerAck = (r.attestations || []).find((a: any) => a.role === 'buyer') || null;
@@ -497,6 +584,86 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     document.getElementById('inv-go')?.addEventListener('click', createInvite);
     loadInvites();
+
+    // ── Intake: record a new deal ───────────────────────────────────────────
+    //
+    // The banker-led flow: the client is across the desk with his paperwork, so the record
+    // is created here rather than on a page written in the supplier's voice. On success it
+    // loads straight into the panel below, so attaching papers and asking the debtor are
+    // the next two clicks and nobody has to re-paste an ID.
+    function addExtraRow(label = '', value = '') {
+      const box = document.getElementById('n-extra')!;
+      const row = document.createElement('div');
+      row.className = 'xrow';
+      const l = document.createElement('input'); l.placeholder = 'Field name'; l.value = label;
+      const v = document.createElement('input'); v.placeholder = 'Value'; v.value = value;
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = '\u2715';
+      x.setAttribute('aria-label', 'Remove this field');
+      x.addEventListener('click', () => row.remove());
+      row.append(l, v, x);
+      box.appendChild(row);
+      l.focus();
+    }
+
+    function readExtras(): Array<{ label: string; value: string }> {
+      return Array.from(document.querySelectorAll('#n-extra .xrow')).map((r) => {
+        const [l, v] = Array.from(r.querySelectorAll('input')) as HTMLInputElement[];
+        return { label: (l?.value ?? '').trim(), value: (v?.value ?? '').trim() };
+      }).filter((e) => e.label && e.value);
+    }
+
+    async function createDeal() {
+      const out = $('n-out') as unknown as HTMLElement;
+      const supplier = val('n-sup'), buyer = val('n-buy'), invoiceNo = val('n-inv');
+      const face = Number(val('n-face'));
+      if (!supplier || !buyer || !invoiceNo) {
+        show(out, 'Client, debtor and invoice number are all needed.', 'note-loss'); return;
+      }
+      if (!face || face <= 0) { show(out, 'Enter the face value of the invoice.', 'note-loss'); return; }
+
+      show(out, 'Signing and recording…');
+      try {
+        const r = await fetch('/api/verify/receivables', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            supplier, buyer, invoiceNo, face,
+            currency: val('n-ccy') || 'NGN',
+            terms: val('n-terms') || null,
+            dueDate: val('n-due') || null,
+            details: {
+              invoiceDate: val('n-idate') || null,
+              deliveryDate: val('n-ddate') || null,
+              buyerRef: val('n-ref') || null,
+              goods: val('n-goods') || null,
+              paymentInstructions: val('n-pay') || null,
+              extra: readExtras(),
+            },
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out, esc(j.message || 'Could not record that.'), 'note-loss'); return; }
+
+        show(out, `<b>Recorded and signed.</b> Receivable ID <code>${esc(j.id)}</code><br><span id="n-anchor">&#9203; Timestamping to Bitcoin…</span>`, 'note-gain');
+        try {
+          const a = await (await fetch('/api/verify/receivables/anchor', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind: 'receivable', id: j.id }),
+          })).json();
+          const el = document.getElementById('n-anchor');
+          if (el) el.textContent = a && a.ok
+            ? '⏳ Timestamp submitted to Bitcoin, pending a block (~1-2h). Its date can no longer be forged or backdated.'
+            : 'Signed. The Bitcoin timestamp did not submit; you can anchor it from the workbench.';
+        } catch { /* non-fatal */ }
+
+        // Straight into the panel: attach the papers, then ask the debtor.
+        ($('q-id') as HTMLInputElement).value = j.id;
+        await check(j.id);
+        document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    document.getElementById('n-add')?.addEventListener('click', () => addExtraRow());
+    document.getElementById('n-go')?.addEventListener('click', createDeal);
 
     // ── Documents ───────────────────────────────────────────────────────────
     async function loadDocs() {
