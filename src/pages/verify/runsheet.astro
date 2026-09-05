@@ -1,0 +1,195 @@
+---
+// The pilot run sheet — the page you keep open during the call.
+//
+// noindex, no login. It is meant to be handed out by link, not found. A page beats a
+// shared document here because it lives on the domain the product lives on, it updates
+// when the product does, and nobody has to grant anyone permission to read it.
+import '@/styles/tokens.css';
+
+export const prerender = false;
+
+const STEPS = [
+  { n: '1', what: 'Sign in', where: '/verify/login', note: 'Role-aware. Choose "financier".' },
+  { n: '2', what: 'Record the deal', where: '/verify/desk', note: 'First card. Client, debtor, invoice no, amount are required. Everything else is whatever the contract says. "+ Add a field" for anything we did not anticipate.' },
+  { n: '3', what: 'Attach the papers', where: '/verify/desk', note: 'PDF or photo, 5 MB each, as many as needed. Fingerprinted the moment they land.' },
+  { n: '4', what: 'Ask the debtor to confirm', where: '/verify/desk', note: 'Creates a single-use link and copies it. Send it to the debtor. Send a second one to a different person there if the amount warrants it.' },
+  { n: '5', what: 'Debtor answers', where: '/verify/authenticate', note: 'No account. They read the papers, type their own reference from their records, tick four separate boxes, and confirm — or say it is not theirs.' },
+  { n: '6', what: 'Advance, and register the claim', where: '/verify/desk', note: 'The headroom banner and the debtor confirmation are both on screen before the decision.' },
+  { n: '7', what: 'Ask the client to confirm receipt', where: '/verify/desk', note: '"Ask client" on the claim row. Until he answers, the claim reads "not confirmed".' },
+  { n: '8', what: 'Client confirms the money arrived', where: '/verify/countersign', note: 'No account. This is what stops a lender registering an advance he never made.' },
+  { n: '9', what: 'A second lender checks the ID', where: '/verify/registry', note: 'No account. Headroom is gone, so a second advance is refused. This is the demo moment.' },
+  { n: '10', what: 'Debtor pays; mark the claim repaid', where: '/verify/desk', note: 'Headroom returns. No phantom lien outlives the payment.' },
+];
+
+const LINKS = [
+  { label: 'Sign in', url: '/verify/login', who: 'The financier' },
+  { label: 'Financing desk', url: '/verify/desk', who: 'The financier — everything happens here' },
+  { label: 'Debtor confirmation', url: '/verify/authenticate', who: 'The debtor — link only, no account' },
+  { label: 'Client counter-signature', url: '/verify/countersign', who: 'The client — link only, no account' },
+  { label: 'Public check', url: '/verify/registry', who: 'Anyone — no account' },
+];
+
+const STUBS = [
+  ['Signing is the platform key, not each party.', 'A confirmation proves "someone holding this link asserted it", not "the debtor asserted it". Party-level keys are not built.'],
+  ['Any signed-in account can look up any receivable by ID.', 'The ID is unguessable and never enumerable, but there is no authorized-financier list.'],
+  ['An unconfirmed claim still consumes headroom.', 'So a lender could register an advance he never made and block others until someone notices. The desk now shows "not confirmed" — but the number does not move.'],
+  ['Nothing detects two records describing the same invoice.', 'Change any field and you get a fresh record with fresh headroom. The debtor’s reference field now exists to fix this; nothing keys off it yet.'],
+  ['The terms of the advance are not recorded.', 'The claim captures an amount, not the rate, fee, or what it costs the client.'],
+  ['The registry only sees claims registered in it.', 'A prior undisclosed assignment, or a floating charge over all receivables, is invisible.'],
+];
+
+const QUESTIONS = [
+  ['What is your standard of proof?', 'What evidence clears your bar to advance against this?'],
+  ['Would you advance against this one?', 'At what amount, and what would stop you or reprice it?'],
+  ['Do you buy the invoice, or lend against it?', 'This settles our vocabulary, and it decides whether "repaid" is even the right event.'],
+  ['Do you issue a written offer the client signs?', 'Or is the advance agreed in person and recorded after? This decides whether the desk needs an offer step, and where the interest lives.'],
+  ['Do you take a director’s guarantee?', 'If a guarantee is what makes deals fundable, it belongs in the core evidence set, not as a bolt-on.'],
+  ['Are your promissory notes witnessed as a matter of course?', 'If they already are, recording the witness is capturing a field you have, not a new feature.'],
+  ['What canonical reference identifies one obligation?', 'Would the debtor give you their PO number and confirm the assignment against it?'],
+  ['How do you protect against a prior undisclosed assignment today?', ''],
+  ['How do you handle an adverse or disputed claim today?', ''],
+  ['Does the National Collateral Registry already cover receivables per-invoice?', 'Searchable and timely enough to rely on when advancing? Are we a complement or filling a gap?'],
+  ['Would your firm register every claim if checking required it?', 'Contribute-to-search, the way credit bureaus solved coverage.'],
+  ['What should the barrier to entry be for a financier account?', ''],
+];
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Receivables pilot run sheet — Almstins Verify</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 52rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.6rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.6rem, 4vw, 2.1rem); line-height: 1.15; font-weight: 800; letter-spacing: -.02em; margin-top: .2rem; }
+    .when { color: var(--text-muted); font-size: .9rem; margin-top: .35rem; }
+    .lede { color: var(--text-secondary); font-size: .97rem; }
+
+    section { border-top: 1px solid var(--border-subtle); padding-top: 1.35rem; }
+    h2 { font-size: 1.02rem; font-weight: 700; margin-bottom: .2rem; }
+    h2 .num { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: .5rem; }
+    .sub { font-size: .85rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+    .goal { background: var(--accent-soft); border: 1px solid var(--accent-glow); border-radius: 12px; padding: 1.05rem 1.2rem; font-size: .95rem; }
+
+    ol.steps { list-style: none; display: flex; flex-direction: column; gap: .7rem; }
+    ol.steps li { display: grid; grid-template-columns: 1.9rem 1fr; gap: .8rem; align-items: start; }
+    .sn {
+      font-size: .72rem; font-weight: 800; color: var(--accent); background: var(--accent-soft);
+      border: 1px solid var(--accent-glow); border-radius: 99px; width: 1.9rem; height: 1.9rem;
+      display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums;
+    }
+    .st { font-weight: 700; font-size: .95rem; }
+    .st code { font-size: .78rem; color: var(--accent); font-family: ui-monospace, Menlo, monospace; font-weight: 600; margin-left: .5rem; }
+    .sd { font-size: .87rem; color: var(--text-secondary); }
+
+    table { width: 100%; border-collapse: collapse; font-size: .87rem; }
+    th { text-align: left; font-size: .64rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); font-weight: 700; padding: .35rem .5rem; border-bottom: 1px solid var(--border-subtle); }
+    td { padding: .55rem .5rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+    td a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    td a:hover { text-decoration: underline; }
+    .who { color: var(--text-muted); font-size: .82rem; }
+
+    dl { display: flex; flex-direction: column; gap: .85rem; }
+    dt { font-weight: 700; font-size: .93rem; }
+    dd { font-size: .87rem; color: var(--text-secondary); margin-top: .12rem; }
+    dl.stubs dt { color: var(--loss); }
+
+    .foot { border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; font-size: .8rem; color: var(--text-muted); }
+    @media print {
+      body { background: #fff; color: #111; padding: 0; }
+      section { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Receivables pilot</div>
+      <h1>Run sheet</h1>
+      <div class="when">About 60 minutes</div>
+    </header>
+
+    <div class="goal">
+      The goal is not to show that the software works. It is to find out what evidence a financing
+      decision actually requires, and where this falls short of it. The most valuable thing to leave
+      with is his answers in section 4, not a clean demo.
+    </div>
+
+    <section>
+      <h2><span class="num">1</span>The desks</h2>
+      <p class="sub">Only the financing desk needs an account. The two confirmation pages are reached by link, by people who will never sign up for anything.</p>
+      <table>
+        <thead><tr><th>Page</th><th>Who opens it</th></tr></thead>
+        <tbody>
+          {LINKS.map((l) => (
+            <tr>
+              <td><a href={l.url}>{l.url}</a></td>
+              <td class="who">{l.who}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2><span class="num">2</span>The run</h2>
+      <p class="sub">Everything below happens on the financing desk except the two confirmations, which happen in somebody else's inbox.</p>
+      <ol class="steps">
+        {STEPS.map((s) => (
+          <li>
+            <div class="sn">{s.n}</div>
+            <div>
+              <div class="st">{s.what}<code>{s.where}</code></div>
+              <div class="sd">{s.note}</div>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <section>
+      <h2><span class="num">3</span>Say these before he finds them</h2>
+      <p class="sub">Naming the gaps first is what earned the co-design in the first place. Do it again.</p>
+      <dl class="stubs">
+        {STUBS.map(([t, d]) => (<><dt>{t}</dt><dd>{d}</dd></>))}
+      </dl>
+    </section>
+
+    <section>
+      <h2><span class="num">4</span>Questions for him</h2>
+      <p class="sub">This is the payload. If the call runs short, cut the demo, not these.</p>
+      <dl>
+        {QUESTIONS.map(([q, d]) => (<><dt>{q}</dt>{d && <dd>{d}</dd>}</>))}
+      </dl>
+    </section>
+
+    <section>
+      <h2><span class="num">5</span>What to capture</h2>
+      <dl>
+        <dt>Time per step, against how he does the same receivable today.</dt>
+        <dd>Calls, emails, a buyer confirmation letter. That comparison is the business case.</dd>
+        <dt>What a second financier can verify independently.</dt>
+        <dd>Without taking anyone's word for anything, including ours.</dd>
+        <dt>Where it misses his bar.</dt>
+        <dd>That list is the actual output of the session, and it sets the build order.</dd>
+      </dl>
+    </section>
+
+    <p class="foot">
+      Almstins records and proves. It never holds money, never moves it, never says who anyone is,
+      and never certifies that the underlying deal is real. Every record here is signed and
+      timestamped to Bitcoin; the paperwork itself is deleted once everyone asked has answered.
+    </p>
+  </div>
+</body>
+</html>
