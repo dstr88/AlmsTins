@@ -140,7 +140,28 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       border-radius: 8px; padding: .4rem .6rem; font-size: .85rem; line-height: 1; cursor: pointer;
     }
     .ok { color: var(--gain); font-weight: 600; }
+    /* The book reads as an inbox: a scrolling pane with a sticky header, so twenty deals
+       do not push the rest of the desk off the screen. */
+    .inbox { max-height: 22rem; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: 10px; }
+    .inbox table { margin-top: 0; }
+    .inbox thead th { position: sticky; top: 0; background: var(--surface-card); z-index: 1; padding: .5rem .55rem; }
+    .inbox td { padding: .45rem .55rem; }
+    tr.book-row { cursor: pointer; }
     tr.book-row:hover td { background: var(--surface-hover); }
+    td.dt { color: var(--text-muted); font-size: .8rem; }
+    td.idcell { white-space: nowrap; text-align: right; }
+    button.idlink {
+      background: transparent; border: none; padding: 0 .3rem 0 0; cursor: pointer;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .76rem;
+      color: var(--accent); font-weight: 600;
+    }
+    button.idlink:hover { text-decoration: underline; filter: none; }
+    button.idcopy {
+      background: transparent; border: 1px solid var(--border-subtle); border-radius: 6px;
+      color: var(--text-muted); cursor: pointer; font-size: .8rem; line-height: 1;
+      padding: .2rem .35rem;
+    }
+    button.idcopy:hover { color: var(--accent); border-color: var(--accent-glow); background: var(--surface-hover); filter: none; }
     input[type=file] {
       background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
       color: var(--text-secondary); padding: .5rem .6rem; font-size: .85rem; font-family: inherit;
@@ -245,8 +266,14 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     <div class="card">
       <h2>Your book</h2>
-      <p class="hint">Every deal you have recorded. Click one to open it.</p>
-      <div id="book-list"></div>
+      <p class="hint">
+        Every deal you have recorded, newest first. Click a row to open it, click an ID to check
+        its status, or copy the ID to hand to another financier.
+      </p>
+      <div class="row" style="margin-bottom:.6rem">
+        <input id="book-q" class="grow" placeholder="Filter by client, debtor or invoice number" autocomplete="off" />
+      </div>
+      <div id="book-list" class="inbox"></div>
     </div>
 
     <div class="card">
@@ -364,6 +391,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     function hide(el: HTMLElement) { el.className = 'note'; el.innerHTML = ''; }
 
     let current: any = null;
+    let book: any[] = [];
 
     async function check(id?: string) {
       const rid = (id ?? val('q-id')).trim();
@@ -956,25 +984,66 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           box.innerHTML = '<p class="muted" style="margin-top:.6rem">Nothing recorded yet. Start with New deal above.</p>';
           return;
         }
-        box.innerHTML = '<table style="margin-top:.6rem"><thead><tr><th>Client</th><th>Debtor</th><th>Invoice</th><th>Face</th><th>Recorded</th><th>State</th></tr></thead><tbody>' +
-          rows.map((v: any) => `<tr class="book-row" data-id="${esc(v.id)}" style="cursor:pointer">
-              <td>${esc(v.supplier)}</td>
-              <td>${esc(v.buyer)}</td>
-              <td>${esc(v.invoiceNo)}</td>
-              <td>${esc(money(Number(v.face), v.currency || 'NGN'))}</td>
-              <td>${esc(String(v.createdAt || '').slice(0, 10))}</td>
-              <td>${v.settled ? '<span class="muted">settled</span>' : '<span class="ok">open</span>'}</td>
-            </tr>`).join('') + '</tbody></table>';
-        box.querySelectorAll('.book-row').forEach((tr) => {
-          tr.addEventListener('click', () => {
-            const id = (tr as HTMLElement).dataset.id as string;
-            ($('q-id') as HTMLInputElement).value = id;
-            check(id);
-            document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          });
-        });
+        book = rows;
+        renderBook();
       } catch { box.innerHTML = ''; }
     }
+
+    function renderBook() {
+      const box = document.getElementById('book-list')!;
+      const q = (val('book-q') || '').toLowerCase();
+      const rows = !q ? book : book.filter((v: any) =>
+        [v.supplier, v.buyer, v.invoiceNo].some((f: any) => String(f || '').toLowerCase().includes(q)));
+
+      if (!rows.length) {
+        box.innerHTML = `<p class="muted" style="margin-top:.6rem">${q ? 'Nothing matches that.' : 'Nothing recorded yet. Start with New deal above.'}</p>`;
+        return;
+      }
+
+      box.innerHTML = '<table><thead><tr><th>Recorded</th><th>Client</th><th>Debtor</th><th>Invoice</th><th>Face</th><th>Receivable ID</th><th>State</th></tr></thead><tbody>' +
+        rows.map((v: any) => {
+          const id = String(v.id);
+          const short = `${id.slice(0, 10)}\u2026${id.slice(-6)}`;
+          return `<tr class="book-row">
+            <td class="dt">${esc(String(v.createdAt || '').slice(0, 10))}</td>
+            <td><b>${esc(v.supplier)}</b></td>
+            <td>${esc(v.buyer)}</td>
+            <td>${esc(v.invoiceNo)}</td>
+            <td>${esc(money(Number(v.face), v.currency || 'NGN'))}</td>
+            <td class="idcell">
+              <button class="idlink" data-open="${esc(id)}" title="Check this receivable">${esc(short)}</button>
+              <button class="idcopy" data-copyid="${esc(id)}" title="Copy the full ID" aria-label="Copy receivable ID">&#10697;</button>
+            </td>
+            <td>${v.settled ? '<span class="muted">settled</span>' : '<span class="ok">open</span>'}</td>
+          </tr>`;
+        }).join('') + '</tbody></table>';
+
+      const open = (id: string) => {
+        ($('q-id') as HTMLInputElement).value = id;
+        check(id);
+        document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      box.querySelectorAll('[data-open]').forEach((b) =>
+        b.addEventListener('click', () => open((b as HTMLElement).dataset.open as string)));
+      box.querySelectorAll('.book-row').forEach((tr) => {
+        tr.addEventListener('click', (e) => {
+          if ((e.target as HTMLElement).closest('button')) return;
+          const id = tr.querySelector('[data-open]') as HTMLElement;
+          if (id) open(id.dataset.open as string);
+        });
+      });
+      box.querySelectorAll('[data-copyid]').forEach((b) => {
+        b.addEventListener('click', () => {
+          navigator.clipboard?.writeText((b as HTMLElement).dataset.copyid || '');
+          const el = b as HTMLElement;
+          const was = el.innerHTML;
+          el.innerHTML = '&#10003;';
+          setTimeout(() => { el.innerHTML = was; }, 1200);
+        });
+      });
+    }
+
+    $('book-q')?.addEventListener('input', renderBook);
     loadBook();
 
     document.getElementById('q-go')?.addEventListener('click', () => check());
