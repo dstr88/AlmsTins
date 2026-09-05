@@ -57,7 +57,10 @@ export const POST: APIRoute = async ({ request }) => {
   const auth = await getAuthSession(request);
   const from = auth?.user?.email ?? null;
 
-  const origin = new URL(request.url).origin;
+  // NOT new URL(request.url).origin. Behind Render's proxy that resolves to
+  // https://localhost, and every emailed link went out pointing at the recipient's own
+  // machine. AUTH_URL is what the rest of the app's mail already uses.
+  const origin = (process.env.AUTH_URL ?? 'https://almstins.com').replace(/\/+$/, '');
   const page = req.kind === 'debtor' ? 'authenticate' : 'countersign';
   const link = `${origin}/verify/${page}?token=${encodeURIComponent(req.token)}`;
   const expires = req.expiresAt.slice(0, 10);
