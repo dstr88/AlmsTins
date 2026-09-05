@@ -2323,6 +2323,13 @@ export async function respondToOffer(
   const who = clampStr(answers.by, 100);
   if (!who) return { ok: false, error: 'name_required' };
 
+  // Validate BEFORE claiming the token. The initials check used to sit after it, so an
+  // accept with no initials burned the link: nothing was recorded, and the client came
+  // back to "this offer has already been answered" with no way to finish. A rejected
+  // answer must leave the request exactly as it found it.
+  const initials = outcome === 'accept' ? clampStr(answers.initials ?? '', 8) : '';
+  if (outcome === 'accept' && !initials) return { ok: false, error: 'initials_required' };
+
   const sender = await db.execute({
     sql: `SELECT from_tenant, receivable_id FROM receivable_invites WHERE token = ? LIMIT 1`,
     args: [String(token).trim()],
@@ -2348,10 +2355,9 @@ export async function respondToOffer(
   let role: AttesterRole;
   if (outcome === 'accept') {
     // Initials are taken against the recourse clause specifically, because that is the term
-    // people sign without reading and the one they later say they never saw.
-    const ini = clampStr(answers.initials ?? '', 8);
-    if (!ini) return { ok: false, error: 'initials_required' };
-    statement = `Accepts financing of ${amt} from ${o.financier} against invoice ${req.invoiceNo}. ${o.price ? `Charge: ${o.price}. ` : ''}Terms: ${rec}, initialled "${ini}".${o.repayment ? ` Repayment: ${o.repayment}.` : ''} Accepted by ${who}${title} via a single-use link, before funds were advanced.`;
+    // people sign without reading and the one they later say they never saw. Checked above,
+    // before the token is spent.
+    statement = `Accepts financing of ${amt} from ${o.financier} against invoice ${req.invoiceNo}. ${o.price ? `Charge: ${o.price}. ` : ''}Terms: ${rec}, initialled "${initials}".${o.repayment ? ` Repayment: ${o.repayment}.` : ''} Accepted by ${who}${title} via a single-use link, before funds were advanced.`;
     role = 'supplier';
     await db.execute({
       sql: `UPDATE receivable_offers SET accepted_at = ?, accepted_by = ? WHERE id = ? AND accepted_at IS NULL`,
