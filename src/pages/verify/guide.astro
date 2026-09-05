@@ -1,0 +1,288 @@
+---
+// The user's guide for the financing desk.
+//
+// Written for the financier, in his seat, about his decision. Not a feature tour: every
+// section answers a question he would actually ask, and the last one answers the question
+// a careful lender asks last, which is what this does NOT prove.
+//
+// Public and noindex, like the run sheet — he may want to forward it to a colleague, and
+// nobody should need an account to read the manual.
+import '@/styles/tokens.css';
+
+export const prerender = false;
+
+const CARDS = [
+  {
+    h: 'Your clients',
+    p: 'Invitations. A client who accepts gets their own account and is recorded as yours. Nothing of theirs is visible in your account, and nothing of yours in theirs.',
+    note: 'Optional. Nobody needs an account for the confirmations below.',
+  },
+  {
+    h: 'New deal',
+    p: 'Where a deal starts. Client, debtor, invoice number and face value are required; everything else is whatever the contract in front of you says. "+ Add a field" takes anything we did not anticipate.',
+    note: 'On save the record is signed, given an ID, timestamped to Bitcoin, and loaded below.',
+  },
+  {
+    h: 'Check a receivable',
+    p: 'Paste any receivable ID to see what stands against it. This is also what a second financier does before advancing, except they can do it without an account.',
+    note: null,
+  },
+  {
+    h: 'The headroom banner',
+    p: 'The number you actually decide on: face value minus every active claim. Green when nothing is claimed, amber when partly financed, red when there is nothing left.',
+    note: 'A claim over the remaining headroom is refused, not warned about.',
+  },
+  {
+    h: 'The record',
+    p: 'The facts, and beneath them the evidence rows. Those say what has been proved and, more usefully, what has not.',
+    note: null,
+  },
+  {
+    h: 'Claims standing against it',
+    p: 'Every advance registered against this receivable by anyone holding the ID. The Receipt column says whether the client has confirmed the money reached him.',
+    note: '"Ask client" on any row creates the counter-signature link.',
+  },
+  {
+    h: 'The paperwork',
+    p: 'The promissory note or contract your client brought in. PDF or photo, 5 MB each, as many as you need. Fingerprinted the moment it lands.',
+    note: 'Shown to whoever you ask to confirm, then deleted. See below.',
+  },
+  {
+    h: 'Ask the debtor to confirm',
+    p: 'Creates a single-use link and copies it. Send it yourself. Ask more than one person if the amount warrants it.',
+    note: 'The address you type is what the record shows as the answer’s origin.',
+  },
+  {
+    h: 'Register your claim',
+    p: 'Records the advance, signed and timestamped. Prefilled with the remaining headroom.',
+    note: 'Registering does not prove you paid. The next step does.',
+  },
+];
+
+const EVIDENCE = [
+  ['Debtor acknowledged the debt', 'The company that has to pay has confirmed it owes this. This is the evidence that does not come from your client, and it is the one worth the most.', 'good'],
+  ['No debtor acknowledgment', 'Nobody on the paying side has confirmed. You are relying on your client’s paperwork alone.', 'bad'],
+  ['Disputed by …', 'Someone you asked said the invoice is not theirs, or the amount is wrong. A dispute is never recorded as an acknowledgment.', 'bad'],
+  ['Timestamped to Bitcoin', 'Submitted, then confirmed in a block within an hour or two. After that the record’s date cannot be moved by anyone, including us.', 'good'],
+  ['Receipt: confirmed by …', 'Your client has confirmed your money reached him. Until then a claim is one firm’s word.', 'good'],
+];
+
+const LIMITS = [
+  ['It does not prove the goods shipped.', 'It proves what the parties put their name to, and when.'],
+  ['A confirmation proves someone holding the link answered.', 'Not that a particular officer of that company did. Signing uses the Almstins key, not each party’s own.'],
+  ['An unconfirmed claim still consumes headroom.', 'So a lender could register an advance he never made and block others until somebody notices. The desk shows you which claims are unconfirmed.'],
+  ['Nothing detects two records of the same invoice.', 'Change any field and you get a fresh record with fresh headroom. Recording the debtor’s own reference is the groundwork for fixing this.'],
+  ['The registry only sees claims registered in it.', 'A prior undisclosed assignment, or a floating charge over all receivables, is invisible here.'],
+  ['A Bitcoin anchor proves a record existed by a given block.', 'That is an upper bound on its age. Legal priority is set by law, filing and notice; the anchor is evidence in that contest, not the thing that decides it.'],
+];
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Using the financing desk — Almstins Verify</title>
+  <meta name="description" content="How to record a deal, get it confirmed, and read the evidence before you advance." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.65; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.7rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.7rem, 4.2vw, 2.2rem); line-height: 1.12; font-weight: 800; letter-spacing: -.022em; margin-top: .25rem; }
+    .lede { color: var(--text-secondary); font-size: 1rem; margin-top: .5rem; }
+
+    nav.toc { display: flex; flex-wrap: wrap; gap: .4rem; }
+    nav.toc a {
+      font-size: .78rem; font-weight: 600; color: var(--text-secondary); text-decoration: none;
+      border: 1px solid var(--border-subtle); border-radius: 99px; padding: .3rem .7rem;
+    }
+    nav.toc a:hover { border-color: var(--accent-glow); color: var(--accent); background: var(--accent-soft); }
+
+    section { border-top: 1px solid var(--border-subtle); padding-top: 1.4rem; scroll-margin-top: 1rem; }
+    h2 { font-size: 1.08rem; font-weight: 700; }
+    .sub { font-size: .86rem; color: var(--text-muted); margin: .15rem 0 1rem; }
+    p.body { font-size: .93rem; color: var(--text-secondary); margin-bottom: .8rem; }
+    p.body strong { color: var(--text-primary); font-weight: 650; }
+
+    ol.flow { list-style: none; display: flex; flex-direction: column; gap: .75rem; }
+    ol.flow li { display: grid; grid-template-columns: 1.75rem 1fr; gap: .75rem; align-items: start; }
+    .fn {
+      font-size: .7rem; font-weight: 800; color: var(--accent); background: var(--accent-soft);
+      border: 1px solid var(--accent-glow); border-radius: 99px; width: 1.75rem; height: 1.75rem;
+      display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums;
+    }
+    ol.flow b { font-size: .93rem; }
+    ol.flow span { display: block; font-size: .86rem; color: var(--text-secondary); }
+
+    .cards { display: flex; flex-direction: column; gap: 1rem; }
+    .c { border-left: 2px solid var(--border-bright); padding-left: .95rem; }
+    .c h3 { font-size: .93rem; font-weight: 700; }
+    .c p { font-size: .87rem; color: var(--text-secondary); margin-top: .12rem; }
+    .c .n { font-size: .8rem; color: var(--text-muted); margin-top: .3rem; font-style: italic; }
+
+    .ev { display: flex; gap: .7rem; align-items: flex-start; padding: .6rem 0; border-bottom: 1px solid var(--border-subtle); }
+    .ev:last-child { border-bottom: none; }
+    .ev .dot { width: .55rem; height: .55rem; border-radius: 99px; margin-top: .5rem; flex: 0 0 auto; }
+    .ev.good .dot { background: var(--gain); }
+    .ev.bad .dot { background: var(--loss); }
+    .ev b { font-size: .89rem; }
+    .ev span { display: block; font-size: .85rem; color: var(--text-secondary); }
+
+    dl.limits { display: flex; flex-direction: column; gap: .9rem; }
+    dl.limits dt { font-weight: 700; font-size: .91rem; }
+    dl.limits dd { font-size: .86rem; color: var(--text-secondary); margin-top: .1rem; }
+
+    .callout { background: var(--accent-soft); border: 1px solid var(--accent-glow); border-radius: 12px; padding: 1rem 1.15rem; font-size: .92rem; }
+    .callout b { color: var(--text-primary); }
+
+    a.inline { color: var(--accent); text-decoration: none; font-weight: 600; }
+    a.inline:hover { text-decoration: underline; }
+    .foot { border-top: 1px solid var(--border-subtle); padding-top: 1.15rem; font-size: .8rem; color: var(--text-muted); }
+    @media print { body { background: #fff; color: #111; padding: 0; } section { break-inside: avoid; } nav.toc { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Almstins Verify</div>
+      <h1>Using the financing desk</h1>
+      <p class="lede">
+        How to record a deal, get it confirmed by the people who would know, and read what the
+        evidence is actually telling you before you advance.
+      </p>
+    </header>
+
+    <nav class="toc">
+      <a href="#what">What this is</a>
+      <a href="#flow">The flow</a>
+      <a href="#cards">The desk</a>
+      <a href="#links">The two links</a>
+      <a href="#evidence">Reading the evidence</a>
+      <a href="#paperwork">The paperwork</a>
+      <a href="#limits">What it does not prove</a>
+    </nav>
+
+    <section id="what">
+      <h2>What this is</h2>
+      <p class="sub">And, more importantly, what it is not.</p>
+      <p class="body">
+        A register of receivables and the advances made against them. You record what your client
+        is owed, get the company that has to pay to confirm it, and see everything already claimed
+        against that invoice before you commit money to it.
+      </p>
+      <p class="body">
+        <strong>It never holds money and never moves it.</strong> It does not decide whether a deal
+        is good, does not verify anyone's identity, and does not tell anyone who you are or who your
+        clients are. Another financier checking the same receivable sees what is claimed against it
+        and nothing about the people involved.
+      </p>
+      <div class="callout">
+        Everything you record is signed and timestamped to Bitcoin. Within an hour or two the date
+        is fixed in a block, and after that <b>nobody can move it, including us</b>. That is the
+        point: if you ever end up in a contest over who has first claim, you can prove your date.
+      </div>
+    </section>
+
+    <section id="flow">
+      <h2>The flow, start to finish</h2>
+      <p class="sub">Your client is across the desk with his paperwork. Everything below happens on one page.</p>
+      <ol class="flow">
+        <li><div class="fn">1</div><div><b>Record the deal</b><span>New deal. Four required fields, then whatever else the contract says.</span></div></li>
+        <li><div class="fn">2</div><div><b>Attach the papers</b><span>The promissory note or contract. Fingerprinted on upload.</span></div></li>
+        <li><div class="fn">3</div><div><b>Ask the debtor to confirm</b><span>Creates a link. Send it. They read the papers and answer. No account.</span></div></li>
+        <li><div class="fn">4</div><div><b>Decide</b><span>Headroom, the debtor's answer, and the paperwork are all on screen together.</span></div></li>
+        <li><div class="fn">5</div><div><b>Advance, and register the claim</b><span>This consumes the headroom, so the next lender to check sees it.</span></div></li>
+        <li><div class="fn">6</div><div><b>Ask your client to confirm receipt</b><span>"Ask client" on the claim row. Until he answers, the claim is your word alone.</span></div></li>
+        <li><div class="fn">7</div><div><b>When the debtor pays, mark the claim repaid</b><span>The headroom returns, so no dead claim outlives the payment.</span></div></li>
+      </ol>
+    </section>
+
+    <section id="cards">
+      <h2>The desk, card by card</h2>
+      <p class="sub">Most of the page stays hidden until a receivable is loaded. Record one or paste an ID and the rest appears.</p>
+      <div class="cards">
+        {CARDS.map((c) => (
+          <div class="c">
+            <h3>{c.h}</h3>
+            <p>{c.p}</p>
+            {c.note && <div class="n">{c.note}</div>}
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section id="links">
+      <h2>The two links you send</h2>
+      <p class="sub">Neither person needs an account. Asking someone to register for software is how a step quietly never happens.</p>
+      <p class="body">
+        <strong>To the debtor.</strong> They see the amount, the invoice, and the papers. To confirm,
+        they have to type their own reference for the invoice from their own records, and tick four
+        separate statements: goods received, amount correct, no offsets, not already paid. "This
+        invoice is not ours" and "The amount is wrong" sit beside the confirm button and are never
+        greyed out. Disagreeing is exactly as easy as agreeing.
+      </p>
+      <p class="body">
+        <strong>To your client.</strong> He confirms your money reached him. This is what stops a
+        lender registering an advance he never made: a claim nobody has confirmed shows on the desk
+        as <em>not confirmed</em>, and your client is the one person harmed by a false claim, so he
+        is the one who will say so.
+      </p>
+      <p class="body">
+        Each link works once and expires in seven days. The address you type is recorded as where
+        the answer came from, so the record shows who was asked, at what address, and what came back.
+      </p>
+    </section>
+
+    <section id="evidence">
+      <h2>Reading the evidence</h2>
+      <p class="sub">The rows under the record. Absence is stated as loudly as presence.</p>
+      {EVIDENCE.map(([t, d, k]) => (
+        <div class={`ev ${k}`}><div class="dot"></div><div><b>{t}</b><span>{d}</span></div></div>
+      ))}
+    </section>
+
+    <section id="paperwork">
+      <h2>The paperwork, and why it disappears</h2>
+      <p class="body">
+        The papers are fingerprinted when you upload them, and that fingerprint goes into the
+        confirmation. So when the debtor confirms, they are confirming <strong>that exact
+        document</strong> — change the file afterwards and the fingerprint no longer matches, which
+        makes the change provable rather than deniable.
+      </p>
+      <p class="body">
+        Then the file is deleted. A day after everyone you asked has answered, or a week after the
+        last request expires unanswered, the bytes are dropped and only the fingerprint remains.
+        <strong>Almstins witnesses the paperwork; it does not become its custodian.</strong> You hold
+        your copy, your client holds his, the debtor holds theirs, and there is nothing left on our
+        server to lose or leak. A fingerprint is useless to anyone who does not already have the
+        document.
+      </p>
+      <p class="body">
+        Tell the people you ask to save their copy while the link is open. It is how they check the
+        document against the fingerprint later.
+      </p>
+    </section>
+
+    <section id="limits">
+      <h2>What this does not prove</h2>
+      <p class="sub">Read this part twice. It is more useful than the rest.</p>
+      <dl class="limits">
+        {LIMITS.map(([t, d]) => (<><dt>{t}</dt><dd>{d}</dd></>))}
+      </dl>
+    </section>
+
+    <p class="foot">
+      Beta. Back to the <a class="inline" href="/verify/desk">financing desk</a>, or check any
+      receivable without an account at <a class="inline" href="/verify/registry">/verify/registry</a>.
+      Almstins records and proves. It never holds money, never moves it, never says who anyone is,
+      and never certifies that the underlying deal is real.
+    </p>
+  </div>
+</body>
+</html>
