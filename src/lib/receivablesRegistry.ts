@@ -1194,7 +1194,13 @@ export async function confirmByToken(
   if (!rcv) return { ok: false, error: 'not_found' };
 
   const title = answers.title ? ` (${clampStr(answers.title, 60)})` : '';
-  const via = sentTo ? ` via a single-use link sent to ${sentTo}` : ' via a single-use link';
+  // NOT the address. The statement is published by the public lookup to anyone holding the
+  // receivable ID, and that endpoint promises no legal identity. A name is the substance of
+  // an attestation and belongs here; a third party's email address is contact information
+  // that nobody consented to publish. The address stays on the sender's own roster, which
+  // is tenant-scoped, so the financier can still prove where he sent it.
+  const via = ' via a single-use link';
+  void sentTo;
 
   let statement: string;
   let role: AttesterRole;
@@ -1617,7 +1623,7 @@ export async function affirmClaimByToken(
   const fromTenant = String((sender.rows[0] as any)?.from_tenant ?? '');
 
   const title = answers.title ? ` (${clampStr(answers.title, 60)})` : '';
-  const via = req.sentTo ? ` via a single-use link sent to ${req.sentTo}` : ' via a single-use link';
+  const via = ' via a single-use link';  // see confirmByToken: never the address
   const registered = `${req.currency} ${req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
   let statement: string;
