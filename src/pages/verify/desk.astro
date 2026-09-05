@@ -335,25 +335,6 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <div id="k-out" class="note"></div>
       </div>
 
-      <div class="card" id="cs-card" style="margin-top:1.15rem; display:none">
-        <h2>Ask your client to confirm receipt</h2>
-        <p class="hint">
-          Registering a claim is your own word that you advanced the money. Your client confirming he
-          received it is what makes it evidence, and it is what stops anyone registering an advance
-          they never made. He needs no account.
-        </p>
-        <div class="row">
-          <select id="cs-claim" style="flex:1 1 14rem"></select>
-        </div>
-        <div class="row" style="margin-top:.6rem">
-          <input id="cs-email" class="grow" type="email" placeholder="john@123trucking.com" autocomplete="off" />
-          <button id="cs-send">Create &amp; email</button>
-          <button id="cs-go" class="ghost">Create link only</button>
-        </div>
-        <div id="cs-list"></div>
-        <div id="cs-out" class="note"></div>
-      </div>
-
       <div class="card" style="margin-top:1.15rem">
         <h2>Register your claim</h2>
         <p class="hint">Signed and timestamped to Bitcoin. A claim over the remaining headroom is refused.</p>
@@ -366,6 +347,30 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <button id="c-go">Sign, register &amp; timestamp</button>
         </div>
         <div id="c-out" class="note"></div>
+      </div>
+
+      <div class="card" id="cs-card" style="margin-top:1.15rem">
+        <h2>Ask your client to confirm receipt</h2>
+        <p class="hint">
+          Registering a claim is your own word that you advanced the money. Your client confirming he
+          received it is what makes it evidence, and it is what stops anyone registering an advance
+          they never made. He needs no account.
+        </p>
+        <p class="hint" id="cs-none" style="display:none">
+          Register your claim above first. This asks your client to confirm he received that money.
+        </p>
+        <div id="cs-controls" style="display:none">
+          <div class="row">
+            <select id="cs-claim" style="flex:1 1 14rem"></select>
+          </div>
+          <div class="row" style="margin-top:.6rem">
+            <input id="cs-email" class="grow" type="email" placeholder="john@123trucking.com" autocomplete="off" />
+            <button id="cs-send">Create &amp; email</button>
+            <button id="cs-go" class="ghost">Create link only</button>
+          </div>
+          <div id="cs-list"></div>
+        </div>
+        <div id="cs-out" class="note"></div>
       </div>
     </div>
 
@@ -895,10 +900,21 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     // otherwise. Its select lists exactly those, which also keeps the banker from asking
     // about a claim his client has already answered.
     function renderCountersignCard(claims: any[], ccy: string) {
-      const card = document.getElementById('cs-card')!;
+      const controls = document.getElementById('cs-controls')!;
+      const none = document.getElementById('cs-none')!;
       const open = claims.filter((c: any) => !c.affirmed && c.status !== 'discharged');
-      if (!open.length) { card.style.display = 'none'; return; }
-      card.style.display = 'block';
+      // The card always shows. Only the controls come and go, so the step is visible
+      // before it is usable rather than appearing out of nowhere once a claim exists.
+      if (!open.length) {
+        controls.style.display = 'none';
+        none.style.display = 'block';
+        none.textContent = claims.length
+          ? 'Every advance on this receivable has been confirmed by your client.'
+          : 'Register your claim above first. This asks your client to confirm he received that money.';
+        return;
+      }
+      none.style.display = 'none';
+      controls.style.display = 'block';
       const sel = $('cs-claim') as unknown as HTMLSelectElement;
       const keep = sel.value;
       sel.innerHTML = open.map((c: any) =>
@@ -973,6 +989,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     // The row button is a shortcut into the card, not a second way of doing it.
     function askClient(claimId: string) {
       const card = document.getElementById('cs-card')!;
+      document.getElementById('cs-controls')!.style.display = 'block';
       const sel = $('cs-claim') as unknown as HTMLSelectElement;
       if (sel) { sel.value = claimId; loadCountersigns(); }
       card.scrollIntoView({ behavior: 'smooth', block: 'center' });
