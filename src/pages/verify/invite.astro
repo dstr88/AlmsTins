@@ -1,0 +1,165 @@
+---
+// Almstins Verify — accepting an invitation.
+//
+// An invited party lands here from a link. They see who they are being asked to be and on
+// what, sign in if they need to, and accept. Accepting spends the token and writes the
+// access grant, which is what binds this account to that role.
+//
+// Deliberately readable signed out: someone deciding whether to make an account should be
+// able to see what they are agreeing to first.
+import '@/styles/tokens.css';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { readInvite } from '@/lib/receivablesRegistry';
+
+export const prerender = false;
+
+const token = Astro.url.searchParams.get('token') ?? '';
+const invite = token ? await readInvite(token) : { ok: false as const, error: 'not_found' as const };
+const session = await requireTenantSession(Astro.request);
+
+const ROLE_COPY: Record<string, { title: string; blurb: string; desk: string }> = {
+  borrower: {
+    title: 'You have been invited as the supplier',
+    blurb: 'Record what you are owed, hand the ID to your financier, and watch what is claimed against it.',
+    desk: '/verify/client',
+  },
+  buyer: {
+    title: 'You have been asked to confirm a debt',
+    blurb: 'A supplier has recorded an invoice against your company. Confirming it in your own name is what lets them finance it.',
+    desk: '/verify/confirm',
+  },
+  financier: {
+    title: 'You have been invited as a financier',
+    blurb: 'See everything already standing against a receivable before you advance against it.',
+    desk: '/verify/desk',
+  },
+};
+
+const copy = invite.ok ? ROLE_COPY[invite.role] : null;
+const ERRORS: Record<string, string> = {
+  not_found: 'That invitation link is not valid. Ask whoever sent it for a new one.',
+  expired:   'That invitation has expired. Ask whoever sent it for a new one.',
+  revoked:   'That invitation was withdrawn.',
+  used:      'That invitation has already been accepted. If it was not you, ask for a new one.',
+};
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invitation — Almstins Verify</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; display: flex; align-items: center; justify-content: center;
+      padding: 2rem 1.1rem;
+    }
+    .card {
+      width: 100%; max-width: 30rem; background: var(--surface-card);
+      border: 1px solid var(--border-subtle); border-radius: 16px; padding: 1.9rem 1.75rem;
+      display: flex; flex-direction: column; gap: .8rem;
+    }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: 1.4rem; line-height: 1.25; font-weight: 700; }
+    p { font-size: .92rem; color: var(--text-secondary); }
+    .who {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle);
+      border-radius: 10px; padding: .7rem .85rem; font-size: .84rem; color: var(--text-secondary);
+    }
+    .who b { color: var(--text-primary); }
+    .btn {
+      background: var(--accent); color: var(--surface-bg); border: none; border-radius: 10px;
+      padding: .7rem 1rem; font-size: .92rem; font-weight: 700; cursor: pointer;
+      font-family: inherit; text-align: center; text-decoration: none; display: block;
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:disabled { opacity: .5; cursor: progress; }
+    .note { border-radius: 10px; padding: .7rem .85rem; font-size: .86rem; margin-top: .2rem; }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .foot { font-size: .78rem; color: var(--text-muted); text-align: center; }
+    .foot a { color: var(--accent); }
+    #out { display: none; }
+    #out.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="eyebrow">Almstins Verify</div>
+
+    {!invite.ok && (
+      <>
+        <h1>This invitation cannot be used</h1>
+        <p class="note note-loss">{ERRORS[invite.error] ?? ERRORS.not_found}</p>
+        <p class="foot"><a href="/verify/registry">Check a receivable without an account</a></p>
+      </>
+    )}
+
+    {invite.ok && copy && (
+      <>
+        <h1>{copy.title}</h1>
+        <p>{copy.blurb}</p>
+
+        {invite.label && (
+          <div class="who">Invited by <b>{invite.label}</b>.</div>
+        )}
+        {invite.receivableId && (
+          <div class="who">This invitation is for one specific receivable. Accepting binds your account to it, and nobody else can use this link.</div>
+        )}
+
+        {session ? (
+          <button class="btn" id="accept" data-token={token} data-desk={copy.desk}>Accept invitation</button>
+        ) : (
+          <>
+            <a class="btn" href={`/verify/login?next=${encodeURIComponent(`/verify/invite?token=${token}`)}`}>
+              Sign in to accept
+            </a>
+            <p class="foot">No separate signup. Signing in creates your account on first use.</p>
+          </>
+        )}
+
+        <div id="out" class="note"></div>
+      </>
+    )}
+  </div>
+
+  <script>
+    const btn = document.getElementById('accept');
+    btn?.addEventListener('click', async () => {
+      const el = btn as HTMLButtonElement;
+      const out = document.getElementById('out')!;
+      el.disabled = true;
+      out.className = 'note show';
+      out.textContent = 'Accepting…';
+      try {
+        const res = await fetch('/api/verify/receivables/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'accept', token: el.dataset.token }),
+        });
+        const j = await res.json();
+        if (!j.ok) {
+          out.className = 'note note-loss show';
+          out.textContent = j.error === 'used'
+            ? 'That invitation has already been accepted.'
+            : 'Could not accept it: ' + (j.error ?? 'unknown error');
+          el.disabled = false;
+          return;
+        }
+        out.className = 'note note-gain show';
+        out.textContent = 'Accepted. Taking you to your desk…';
+        location.href = el.dataset.desk || '/verify/registry';
+      } catch {
+        out.className = 'note note-loss show';
+        out.textContent = 'Could not reach the registry. Try again.';
+        el.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
