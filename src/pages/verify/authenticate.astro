@@ -11,13 +11,19 @@
 //   3. It says plainly that a lender will advance money on the answer.
 //   4. Disagreeing is exactly as easy as agreeing.
 import '@/styles/tokens.css';
-import { readConfirmRequest } from '@/lib/receivablesRegistry';
+import { readConfirmRequest, pathForToken } from '@/lib/receivablesRegistry';
 
 export const prerender = false;
 
 // Accept both spellings: links have been handed out with ?token= and ?t=.
 const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
 const req = token ? await readConfirmRequest(token) : { ok: false as const, error: 'not_found' };
+
+// A live token that belongs on another page. The reader did not choose this URL, so send
+// them on instead of stopping them.
+const elsewhere = (!req.ok && req.error === 'wrong_role' && token)
+  ? await pathForToken(token)
+  : null;
 
 const money = (n: number, ccy: string) =>
   `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -112,7 +118,14 @@ const ERRORS: Record<string, string> = {
     </div>
 
     {!req.ok && (
-      <div class="note note-loss show">{ERRORS[req.error] ?? ERRORS.not_found}</div>
+      <div class="note note-loss show">
+        {elsewhere ? 'This link is for a different step.' : (ERRORS[req.error] ?? ERRORS.not_found)}
+        {elsewhere && (
+          <div style="margin-top:.7rem">
+            <a href={elsewhere} style="color:var(--accent);font-weight:700">Continue to the right page</a>
+          </div>
+        )}
+      </div>
     )}
 
     {req.ok && (
