@@ -6,7 +6,7 @@
 // to advance against a receivable, and record the claim if you do.
 //
 // The headline figure is the unencumbered headroom, because that is the number the
-// financing decision turns on. The buyer's acknowledgment is surfaced as its own
+// financing decision turns on. The debtor's acknowledgment is surfaced as its own
 // evidence row: it is the keystone a lender leans on, so its absence should be loud.
 //
 // Read-only against everything except this tenant's own claims. No tenant_id or identity
@@ -91,7 +91,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .fact__k { font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
     .fact__v { font-size: .95rem; font-weight: 600; font-variant-numeric: tabular-nums; word-break: break-word; }
 
-    /* Evidence rows — the buyer ack is the keystone, so absence is loud */
+    /* Evidence rows — the debtor ack is the keystone, so absence is loud */
     .evidence { margin-top: 1.05rem; display: flex; flex-direction: column; gap: .5rem; }
     .ev { display: flex; gap: .7rem; align-items: flex-start; padding: .65rem .8rem; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--surface-card-2); }
     .ev.good { border-color: var(--gain-border); background: var(--gain-bg); }
@@ -161,12 +161,12 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         </div>
         <AccountMenu tenantId={sess.tenantId} email={email} current="desk" />
       </div>
-      <p class="lede">Before you advance, see everything already standing against a receivable. Paste the ID your client gave you.</p>
+      <p class="lede">Record a client's deal, attach the paperwork, and see everything already standing against it before you advance.</p>
     </header>
 
     <div class="card">
       <h2>Your clients</h2>
-      <p class="hint">Invite a supplier onto the registry. Accepting creates their own account and records them as your client. Nothing of theirs lives in your account.</p>
+      <p class="hint">Invite a client onto the registry. Accepting creates their own account and records them as your client. Nothing of theirs lives in your account.</p>
       <div class="row">
         <input id="inv-label" class="grow" placeholder="Your firm's name (shown to them)" autocomplete="organization" />
         <button id="inv-go">Create invitation</button>
@@ -395,14 +395,14 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         (det.paymentInstructions ? f('Payment instructions', det.paymentInstructions) : '') +
         (Array.isArray(det.extra) ? det.extra.map((e: any) => f(e.label, e.value)).join('') : '');
 
-      // ── Evidence: the buyer's acknowledgment is the keystone ──
+      // ── Evidence: the debtor's acknowledgment is the keystone ──
       const buyerAck = (r.attestations || []).find((a: any) => a.role === 'buyer') || null;
       const acked = !!buyerAck || !!r.acknowledgedAt;
       const ackWhen = buyerAck?.date || r.acknowledgedAt || '';
       const ev: string[] = [];
       ev.push(acked
-        ? `<div class="ev good"><div class="ev__icon">&#10003;</div><div><div class="ev__t">Buyer acknowledged the debt</div><div class="ev__d">${esc(buyerAck ? buyerAck.label : r.buyer)} confirmed this obligation${ackWhen ? ' on ' + esc(String(ackWhen).slice(0, 10)) : ''}. This is the evidence that does not come from the seller.</div></div></div>`
-        : `<div class="ev missing"><div class="ev__icon">!</div><div><div class="ev__t">No buyer acknowledgment</div><div class="ev__d">Nobody on the paying side has confirmed this debt. You are relying on the seller's paperwork alone.</div></div></div>`);
+        ? `<div class="ev good"><div class="ev__icon">&#10003;</div><div><div class="ev__t">Debtor acknowledged the debt</div><div class="ev__d">${esc(buyerAck ? buyerAck.label : r.buyer)} confirmed this obligation${ackWhen ? ' on ' + esc(String(ackWhen).slice(0, 10)) : ''}. This is the evidence that does not come from the client.</div></div></div>`
+        : `<div class="ev missing"><div class="ev__icon">!</div><div><div class="ev__t">No debtor acknowledgment</div><div class="ev__d">Nobody on the paying side has confirmed this debt. You are relying on the client's paperwork alone.</div></div></div>`);
       // A dispute is filed under the 'other' role so it can never sit in the buyer slot.
       // It still has to be the loudest thing on the page.
       const disputes = (r.attestations || []).filter((a: any) => String(a.statement || '').startsWith('DISPUTED'));
@@ -421,10 +421,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         ? `<p class="muted">No claims registered. The full face value is unencumbered.</p>`
         : `<table><thead><tr><th>Financier</th><th>Amount</th><th>Registered</th><th>Receipt</th><th>Status</th><th></th></tr></thead><tbody>` +
           claims.map((c: any) => {
-            // "Claimed" has never meant "funded". Until the supplier counter-signs, this
+            // "Claimed" has never meant "funded". Until the client counter-signs, this
             // row is one firm's word, and the desk says so rather than implying otherwise.
             const receipt = c.affirmed
-              ? `<span class="ok">confirmed by ${esc(c.affirmedBy || 'the supplier')}</span>`
+              ? `<span class="ok">confirmed by ${esc(c.affirmedBy || 'the client')}</span>`
               : `<span class="muted">not confirmed</span>`;
             const ask = c.affirmed || c.status === 'discharged'
               ? ''
@@ -492,7 +492,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       }
     }
 
-    // Releasing a claim once the buyer has paid frees the headroom again, so no phantom
+    // Releasing a claim once the debtor has paid frees the headroom again, so no phantom
     // lien outlives the payment. Only the financier who registered it can discharge it —
     // the API enforces that, since the public record never says whose claim is whose.
     async function discharge(claimId: string) {
@@ -588,7 +588,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     // ── Intake: record a new deal ───────────────────────────────────────────
     //
     // The banker-led flow: the client is across the desk with his paperwork, so the record
-    // is created here rather than on a page written in the supplier's voice. On success it
+    // is created here rather than on a page written in the client's voice. On success it
     // loads straight into the panel below, so attaching papers and asking the debtor are
     // the next two clicks and nobody has to re-paste an ID.
     function addExtraRow(label = '', value = '') {
