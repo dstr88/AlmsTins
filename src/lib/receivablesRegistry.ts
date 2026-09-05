@@ -138,6 +138,9 @@ export interface ReceivableStatus {
   paymentMethod: string | null;
   /** The extended paperwork fields, when the record carries them. */
   details: ReceivableDetails | null;
+  /** How many documents are attached and still held. A count, never the files or names:
+   *  a second financier needs to know whether paperwork exists, not what it says. */
+  documentCount: number;
   createdAt: string;
   signed: boolean;
   anchored: boolean;
@@ -614,6 +617,12 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     anchoredAt: anchoredAtOf(r.anchor_json),
   }));
 
+  const dr = await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM receivable_documents WHERE receivable_id = ? AND data IS NOT NULL`,
+    args: [rcv.id],
+  });
+  const docCount = Number((dr.rows[0] as any)?.n ?? 0);
+
   const claimed = claims.filter((c) => c.status === 'active').reduce((s, c) => s + c.amount, 0);
   const available = rcv.face - claimed;
   const status: ReceivableStatus['status'] =
@@ -637,6 +646,7 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     dueDate: rcv.due_date, acknowledgedAt: rcv.acknowledged_at,
     rtype: rcv.rtype, paymentMethod: rcv.payment_method,
     details: parseDetails(rcv.details_json),
+    documentCount: docCount,
     createdAt: rcv.created_at, signed: !!rcv.signature_json,
     anchored: !!rcv.anchor_json, anchoredAt: anchoredAtOf(rcv.anchor_json),
     settled, settledAt: rcv.settled_at,
