@@ -8,6 +8,10 @@
 //
 // It carries less than the main one by necessity — no avatar upload, alert email, plan or
 // last-login are in scope on these pages — and adds links to the other two desks.
+//
+// One deliberate divergence: the trigger shows the signed-in address rather than the word
+// "Account". On the dashboard you are always yourself, so the label is noise. Here three
+// parties each act from their own account, and which one is on screen is the point.
 import kingSolomon from '@/assets/KingSolomon.png';
 import minerva from '@/assets/Minerva.png';
 
@@ -37,7 +41,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent(backTo)}
 <details class="account-menu">
   <summary class="account-trigger">
     <img class="account-avatar account-avatar--default" src={avatar.src} alt="Account" />
-    <span class="account-label">Account</span>
+    <span class="account-label">{email ?? 'Account'}</span>
     <span class="account-caret" aria-hidden="true">▾</span>
   </summary>
 
@@ -109,7 +113,14 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent(backTo)}
   .account-avatar--default { object-position: top center; border-radius: 50%; border: 1px solid var(--border-bright); }
   .account-avatar--lg { width: 44px; height: 44px; flex-shrink: 0; }
 
-  .account-label { font-weight: 500; }
+  /* The signed-in address is shown on the trigger, not hidden in the dropdown: on these
+     desks each party acts from their own account, and that has to be visible to someone
+     watching a screen rather than one click away. */
+  .account-label {
+    font-weight: 500;
+    max-width: 14rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .account-caret { font-size: 0.7rem; opacity: 0.6; transition: transform 0.2s; }
   .account-menu[open] .account-caret { transform: rotate(180deg); }
 
