@@ -93,6 +93,10 @@ export function isPublicPath(pathname: string): boolean {
 		// Supplier counter-signature — same reasoning: the client confirming that a
 		// lender's advance actually reached him need not hold an account to say so.
 		pathname === '/api/verify/receivables/countersign' ||
+		// The client confirming his own deal was recorded correctly — same reasoning again.
+		pathname === '/api/verify/receivables/attest-record' ||
+		// The client accepting or declining a financing offer, before money moves.
+		pathname === '/api/verify/receivables/offer-respond' ||
 		// Onboarding-email unsubscribe — public one-click opt-out (token-based)
 		pathname === '/api/email/unsubscribe' ||
 		// Record-proof signing public key — published so anyone can verify a record proof

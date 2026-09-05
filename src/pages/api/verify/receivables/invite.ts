@@ -15,7 +15,7 @@ import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import {
   createInvite, readInvite, acceptInvite, revokeInvite, listInvitesFrom,
-  listConfirmRequests, listCountersignRequests,
+  listConfirmRequests, listCountersignRequests, listOutstandingForTenant,
   type InviteRole,
 } from '@/lib/receivablesRegistry';
 
@@ -33,6 +33,12 @@ export const GET: APIRoute = async ({ request, url }) => {
 
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
+
+  // Everything outstanding across the whole book. A financier should not have to open
+  // twenty records to find the three requests nobody answered.
+  if (url.searchParams.get('outstanding')) {
+    return json({ ok: true, outstanding: await listOutstandingForTenant(session.tenantId) });
+  }
 
   // The roster for one claim: everyone asked to counter-sign that advance.
   const claimId = url.searchParams.get('claimId');
@@ -73,6 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
   const result = await createInvite(session.tenantId, {
     role,
     receivableId: body.receivableId ?? null,
+    offerId: body.offerId ?? null,
     label: body.label ?? null,
     email: body.email ?? null,
   });

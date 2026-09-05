@@ -1,0 +1,25 @@
+name: Chase Requests
+
+# Daily: chase confirmation requests about to expire, and write down the ones that
+# expired unanswered. Silence used to leave no record at all, not even that we asked.
+on:
+  schedule:
+    - cron: '20 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  chase-requests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger chase-requests
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
+            exit 1
+          fi
+          curl -sS --fail --max-time 600 \
+            "$SYNC_URL/api/cron/chase-requests?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"

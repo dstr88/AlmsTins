@@ -259,7 +259,50 @@ const ENSURE_SETTLEMENT_COLS = [
   // The extended paperwork fields. Also inside manifest_json (so they are signed and
   // hashed); this column exists so reads do not have to parse the manifest.
   `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS details_json TEXT`,
+  // Chasing an unanswered request, and recording that it went unanswered.
+  `ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS reminded_at TEXT`,
+  `ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS lapse_recorded_at TEXT`,
+  // A request can be about one offer, the way it can be about one claim.
+  `ALTER TABLE receivable_invites ADD COLUMN IF NOT EXISTS offer_id TEXT`,
 ];
+
+/**
+ * Offers — terms put to the client, before the money moves.
+ *
+ * The client's signature is worth most at the moment he wants something. He accepts because
+ * that is how he gets funded; once the money has landed he has nothing left to gain and a
+ * reason to go quiet. So the binding artifact is taken here, not after.
+ *
+ * An offer carries what an offer has to carry to be one: the amount, the price, whether it
+ * is recourse, how it is repaid, and when it stops being available. Nothing enforces the
+ * order against the financier — he is a banker and knows not to hand over cash before the
+ * paperwork is in order.
+ */
+const ENSURE_OFFERS_SQL = `
+  CREATE TABLE IF NOT EXISTS receivable_offers (
+    id              TEXT NOT NULL PRIMARY KEY,
+    receivable_id   TEXT NOT NULL,
+    tenant_id       TEXT NOT NULL,
+    financier       TEXT NOT NULL,
+    amount          DOUBLE PRECISION NOT NULL,
+    currency        TEXT NOT NULL,
+    price           TEXT,
+    recourse        TEXT NOT NULL DEFAULT 'recourse',
+    repayment       TEXT,
+    expires_at      TEXT NOT NULL,
+    manifest_json   TEXT NOT NULL,
+    signature_json  TEXT,
+    digest          TEXT NOT NULL,
+    anchor_json     TEXT,
+    accepted_at     TEXT,
+    accepted_by     TEXT,
+    declined_at     TEXT,
+    declined_reason TEXT,
+    created_at      TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+const ENSURE_OFFERS_RCV_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_offers_rcv ON receivable_offers (receivable_id)`;
 
 // ── Invitations and access grants ─────────────────────────────────────────────
 //
@@ -350,6 +393,8 @@ export async function ensureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_ACCESS_RCV_IDX, args: [] });
   await db.execute({ sql: ENSURE_DOCS_SQL, args: [] });
   await db.execute({ sql: ENSURE_DOCS_RCV_IDX, args: [] });
+  await db.execute({ sql: ENSURE_OFFERS_SQL, args: [] });
+  await db.execute({ sql: ENSURE_OFFERS_RCV_IDX, args: [] });
   for (const sql of ENSURE_SETTLEMENT_COLS) {
     try { await db.execute({ sql, args: [] }); }
     catch (e) { console.error('[receivables] settlement column not applied:', e); }
@@ -961,7 +1006,7 @@ function inviteToken(): string {
 export async function createInvite(
   fromTenant: string,
   input: { role: InviteRole; receivableId?: string | null; label?: string | null;
-           email?: string | null; claimId?: string | null },
+           email?: string | null; claimId?: string | null; offerId?: string | null },
 ): Promise<{ ok: true; token: string; expiresAt: string } | { ok: false; error: string }> {
   await ensureReceivablesTables();
   if (!INVITE_ROLES.includes(input.role)) return { ok: false, error: 'invalid_role' };
@@ -991,15 +1036,24 @@ export async function createInvite(
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 86400_000)
     .toISOString().replace('T', ' ').slice(0, 19);
 
+  const offerId = input.offerId ? String(input.offerId).trim() : null;
+  if (offerId) {
+    const owns = await db.execute({
+      sql: `SELECT 1 FROM receivable_offers WHERE id = ? AND tenant_id = ? LIMIT 1`,
+      args: [offerId, fromTenant],
+    });
+    if (!owns.rows.length) return { ok: false, error: 'offer_not_found' };
+  }
+
   await db.execute({
     sql: `INSERT INTO receivable_invites
-            (token, receivable_id, from_tenant, role, label, email, expires_at, claim_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            (token, receivable_id, from_tenant, role, label, email, expires_at, claim_id, offer_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       token, receivableId, fromTenant, input.role,
       input.label ? String(input.label).slice(0, 160) : null,
       input.email ? String(input.email).slice(0, 200) : null,
-      expiresAt, claimId,
+      expiresAt, claimId, offerId,
     ],
   });
   return { ok: true, token, expiresAt };
@@ -1045,10 +1099,12 @@ export async function acceptInvite(
   // A counter-signature link answers one question; it does not hand out an account or an
   // access grant. Redeeming one here would turn a question into a permission.
   const bound = await db.execute({
-    sql: `SELECT claim_id FROM receivable_invites WHERE token = ? LIMIT 1`,
+    sql: `SELECT claim_id, offer_id FROM receivable_invites WHERE token = ? LIMIT 1`,
     args: [String(token).trim()],
   });
-  if ((bound.rows[0] as any)?.claim_id) return { ok: false, error: 'not_an_invitation' };
+  if ((bound.rows[0] as any)?.claim_id || (bound.rows[0] as any)?.offer_id) {
+    return { ok: false, error: 'not_an_invitation' };
+  }
 
   const claimed = await db.execute({
     sql: `UPDATE receivable_invites
@@ -1718,7 +1774,7 @@ export async function listCountersignRequests(
 export interface SendableRequest {
   token:      string;
   /** 'invitation' carries no receivable: it onboards a client rather than asking about a deal. */
-  kind:       'debtor' | 'client' | 'invitation';
+  kind:       'debtor' | 'client' | 'client_record' | 'offer' | 'invitation';
   sentTo:     string;
   supplier:   string;
   buyer:      string;
@@ -1728,6 +1784,11 @@ export interface SendableRequest {
   expiresAt:  string;
   /** What the sender called themselves when minting it. Shown to the invitee. */
   label:      string | null;
+  /** Offer terms, so the email can state them rather than only linking to them. Stated as
+   *  the financier wrote them: what is agreed between him and his client is theirs. */
+  recourse:   Recourse | null;
+  price:      string | null;
+  buyerName:  string | null;
 }
 
 /**
@@ -1740,10 +1801,14 @@ export async function getSendableRequest(
 ): Promise<SendableRequest | null> {
   await ensureReceivablesTables();
   const r = await db.execute({
-    sql: `SELECT i.token, i.role, i.email, i.label, i.claim_id, i.expires_at, i.accepted_at, i.revoked_at,
-                 i.receivable_id, c.amount AS claim_amount, c.currency AS claim_currency
+    sql: `SELECT i.token, i.role, i.email, i.label, i.claim_id, i.offer_id, i.expires_at,
+                 i.accepted_at, i.revoked_at,
+                 i.receivable_id, c.amount AS claim_amount, c.currency AS claim_currency,
+                 o.amount AS offer_amount, o.currency AS offer_currency,
+                 o.recourse AS offer_recourse, o.price AS offer_price
             FROM receivable_invites i
        LEFT JOIN receivable_claims c ON c.id = i.claim_id
+       LEFT JOIN receivable_offers o ON o.id = i.offer_id
            WHERE i.token = ? AND i.from_tenant = ? LIMIT 1`,
     args: [String(token || '').trim(), tenantId],
   });
@@ -1760,7 +1825,7 @@ export async function getSendableRequest(
     return {
       token: String(row.token), kind: 'invitation', sentTo: String(row.email),
       supplier: '', buyer: '', invoiceNo: '', amount: 0, currency: '',
-      expiresAt: String(row.expires_at), label,
+      expiresAt: String(row.expires_at), label, recourse: null, price: null, buyerName: null,
     };
   }
 
@@ -1775,16 +1840,18 @@ export async function getSendableRequest(
   const isClaim = !!row.claim_id;
   const role = String(row.role || '');
   const kind: SendableRequest['kind'] =
-    isClaim ? 'client'
-    : role === 'buyer' ? 'debtor'
-    : 'invitation';
+    row.offer_id ? 'offer'                                      // terms, before money moves
+    : isClaim ? 'client'                                        // receipt of an advance
+    : role === 'buyer' ? 'debtor'                               // the debt is real
+    : role === 'borrower' && row.receivable_id ? 'client_record' // the record is correct
+    : 'invitation';                                             // onboarding, no deal yet
 
   // An invitation carries no deal to describe even when it names a receivable.
   if (kind === 'invitation') {
     return {
       token: String(row.token), kind, sentTo: String(row.email),
       supplier: '', buyer: '', invoiceNo: '', amount: 0, currency: '',
-      expiresAt: String(row.expires_at), label,
+      expiresAt: String(row.expires_at), label, recourse: null, price: null, buyerName: null,
     };
   }
 
@@ -1795,10 +1862,13 @@ export async function getSendableRequest(
     supplier: String(rcv.supplier),
     buyer: String(rcv.buyer),
     invoiceNo: String(rcv.invoice_no),
-    amount: isClaim ? Number(row.claim_amount) : Number(rcv.face),
-    currency: isClaim ? String(row.claim_currency || rcv.currency) : String(rcv.currency),
+    amount: row.offer_id ? Number(row.offer_amount) : isClaim ? Number(row.claim_amount) : Number(rcv.face),
+    currency: String((row.offer_id ? row.offer_currency : isClaim ? row.claim_currency : null) || rcv.currency),
     expiresAt: String(row.expires_at),
     label,
+    recourse: row.offer_recourse ? (String(row.offer_recourse) === 'non_recourse' ? 'non_recourse' : 'recourse') : null,
+    price: row.offer_price != null ? String(row.offer_price) : null,
+    buyerName: String(rcv.buyer),
   };
 }
 
@@ -1823,7 +1893,7 @@ export async function countRecentInvites(tenantId: string): Promise<number> {
 export async function pathForToken(token: string): Promise<string | null> {
   await ensureReceivablesTables();
   const r = await db.execute({
-    sql: `SELECT role, claim_id, receivable_id, expires_at, revoked_at
+    sql: `SELECT role, claim_id, offer_id, receivable_id, expires_at, revoked_at
             FROM receivable_invites WHERE token = ? LIMIT 1`,
     args: [String(token || '').trim()],
   });
@@ -1832,7 +1902,463 @@ export async function pathForToken(token: string): Promise<string | null> {
   if (row.revoked_at || String(row.expires_at) < nowUtc()) return null;
 
   const t = encodeURIComponent(String(token).trim());
+  if (row.offer_id) return `/verify/offer?token=${t}`;
   if (row.claim_id) return `/verify/countersign?token=${t}`;
   if (String(row.role) === 'buyer' && row.receivable_id) return `/verify/authenticate?token=${t}`;
+  if (String(row.role) === 'borrower' && row.receivable_id) return `/verify/attest?token=${t}`;
   return `/verify/invite?token=${t}`;
+}
+
+// ── The client confirms the record ────────────────────────────────────────────
+//
+// The third assertion, and the one that was missing. In the banker-led flow the financier
+// types everything: the client's name, the amount, the terms, the goods. The client never
+// puts his name to any of it. So if the deal goes wrong he can say "I never told him that"
+// and nothing on the record contradicts him.
+//
+// This asks him, at intake, before any money moves: did we record your deal correctly, and
+// is the paperwork we scanned the paperwork you brought? Same shape as the debtor's
+// confirmation, and for the same reason — the party who would know is the one worth asking.
+//
+// A request of this kind is an invite with role 'borrower' and a receivable but no claim.
+// The receipt counter-signature is the one WITH a claim; it asks a different question and
+// cannot be answered before an advance exists.
+
+export type RecordOutcome = 'accurate' | 'wrong';
+
+export interface RecordAnswers {
+  by: string;
+  title?: string | null;
+  /** What they say is wrong, when they say something is. */
+  correction?: string | null;
+}
+
+export async function readRecordRequest(token: string): Promise<
+  | { ok: true; receivableId: string; supplier: string; buyer: string; invoiceNo: string;
+      face: number; currency: string; terms: string | null; dueDate: string | null;
+      details: ReceivableDetails | null; documents: DocumentMeta[]; sentTo: string | null }
+  | { ok: false; error: string }
+> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT receivable_id, role, claim_id, email, expires_at, accepted_at, revoked_at
+            FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token || '').trim()],
+  });
+  if (!r.rows.length) return { ok: false, error: 'not_found' };
+  const row = r.rows[0] as any;
+  if (row.revoked_at) return { ok: false, error: 'revoked' };
+  if (row.accepted_at) return { ok: false, error: 'used' };
+  if (String(row.expires_at) < nowUtc()) return { ok: false, error: 'expired' };
+  if (row.claim_id || !row.receivable_id || String(row.role) !== 'borrower') {
+    return { ok: false, error: 'wrong_kind' };
+  }
+
+  const rcv = await getReceivableRow(String(row.receivable_id));
+  if (!rcv) return { ok: false, error: 'not_found' };
+
+  return {
+    ok: true,
+    receivableId: String(rcv.id),
+    supplier: String(rcv.supplier), buyer: String(rcv.buyer), invoiceNo: String(rcv.invoice_no),
+    face: Number(rcv.face), currency: String(rcv.currency),
+    terms: rcv.terms != null ? String(rcv.terms) : null,
+    dueDate: rcv.due_date != null ? String(rcv.due_date) : null,
+    details: parseDetails(rcv.details_json),
+    documents: (await listDocuments(String(rcv.id))).filter((d) => !d.purgedAt),
+    sentTo: row.email != null ? String(row.email) : null,
+  };
+}
+
+export async function confirmRecordByToken(
+  token: string,
+  outcome: RecordOutcome,
+  answers: RecordAnswers,
+): Promise<{ ok: true; attestationId: string; receivableId: string } | { ok: false; error: string }> {
+  await ensureReceivablesTables();
+
+  const req = await readRecordRequest(token);
+  if (!req.ok) return { ok: false, error: req.error };
+
+  const who = clampStr(answers.by, 100);
+  if (!who) return { ok: false, error: 'name_required' };
+
+  const sender = await db.execute({
+    sql: `SELECT from_tenant FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token).trim()],
+  });
+  const fromTenant = String((sender.rows[0] as any)?.from_tenant ?? '');
+
+  const title = answers.title ? ` (${clampStr(answers.title, 60)})` : '';
+  const amount = `${req.currency} ${req.face.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+  let statement: string;
+  let role: AttesterRole;
+  if (outcome === 'accurate') {
+    statement = `Confirms this is their receivable: invoice ${req.invoiceNo} to ${req.buyer} for ${amount}, and that the attached paperwork is what they provided. Answered by ${who}${title} via a single-use link.`;
+    role = 'supplier';
+  } else {
+    const what = clampStr(answers.correction ?? '', 300);
+    statement = `DISPUTED — states the record is wrong. Invoice ${req.invoiceNo} to ${req.buyer} for ${amount}.${what ? ` They say: ${what}` : ''} Answered by ${who}${title} via a single-use link.`;
+    role = 'other';
+  }
+
+  const claimed = await db.execute({
+    sql: `UPDATE receivable_invites SET accepted_at = ?, accepted_by = ?
+           WHERE token = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    args: [nowUtc(), who, String(token).trim()],
+  });
+  if (!claimed.rowsAffected) return { ok: false, error: 'used' };
+
+  const docs = req.documents.map((d) => ({ sha256: d.sha256, filename: d.filename }));
+  const result = await addAttestation(fromTenant, req.receivableId, {
+    role, label: req.supplier, statement, docs,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+
+  return { ok: true, attestationId: result.attestationId, receivableId: req.receivableId };
+}
+
+// ── Requests that nobody answers ──────────────────────────────────────────────
+//
+// A client who takes the money and goes quiet, or a debtor who never replies, used to
+// leave nothing behind at all. The link expired and the record simply had a hole in it,
+// with no evidence that anyone had ever asked.
+//
+// That is backwards here. We cannot make anyone answer. We can prove the asking happened,
+// and an unanswered request is itself a fact worth signing: it shows the financier did the
+// diligence, and it lets a second financier weigh silence instead of guessing at it.
+
+export interface OpenRequest {
+  token: string; receivableId: string; role: string; claimId: string | null;
+  email: string | null; expiresAt: string; createdAt: string; remindedAt: string | null;
+}
+
+function openRequestRow(x: any): OpenRequest {
+  return {
+    token: String(x.token),
+    receivableId: String(x.receivable_id),
+    role: String(x.role),
+    claimId: x.claim_id != null ? String(x.claim_id) : null,
+    email: x.email != null ? String(x.email) : null,
+    expiresAt: String(x.expires_at),
+    createdAt: String(x.created_at),
+    remindedAt: x.reminded_at != null ? String(x.reminded_at) : null,
+  };
+}
+
+/** Live requests closing within `hours` that have not been chased yet. */
+export async function listRequestsToRemind(hours = 48, limit = 200): Promise<OpenRequest[]> {
+  await ensureReceivablesTables();
+  const soon = new Date(Date.now() + hours * 3600_000).toISOString().replace('T', ' ').slice(0, 19);
+  const r = await db.execute({
+    sql: `SELECT token, receivable_id, role, claim_id, email, expires_at, created_at, reminded_at
+            FROM receivable_invites
+           WHERE accepted_at IS NULL AND revoked_at IS NULL AND reminded_at IS NULL
+             AND email IS NOT NULL AND receivable_id IS NOT NULL
+             AND expires_at > ? AND expires_at <= ?
+           LIMIT ?`,
+    args: [nowUtc(), soon, limit],
+  });
+  return r.rows.map(openRequestRow);
+}
+
+export async function markReminded(token: string): Promise<void> {
+  await db.execute({
+    sql: `UPDATE receivable_invites SET reminded_at = ? WHERE token = ? AND reminded_at IS NULL`,
+    args: [nowUtc(), String(token).trim()],
+  });
+}
+
+/** Expired, never answered, and the fact of that not yet written down. */
+export async function listLapsedRequests(limit = 200): Promise<OpenRequest[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT token, receivable_id, role, claim_id, email, expires_at, created_at, reminded_at
+            FROM receivable_invites
+           WHERE accepted_at IS NULL AND revoked_at IS NULL AND lapse_recorded_at IS NULL
+             AND receivable_id IS NOT NULL AND expires_at <= ?
+           LIMIT ?`,
+    args: [nowUtc(), limit],
+  });
+  return r.rows.map(openRequestRow);
+}
+
+/**
+ * Write the silence down. Signed and anchorable like any other record, and filed under
+ * role 'other' so it can never be mistaken for somebody's answer.
+ *
+ * Deliberately does NOT name the address. The public lookup promises no identities, and
+ * the person who did not reply consented to even less than the person who did. How many
+ * times, and to which address, stays on the financier's own roster.
+ */
+export async function recordLapse(req: OpenRequest): Promise<boolean> {
+  await ensureReceivablesTables();
+
+  const claimed = await db.execute({
+    sql: `UPDATE receivable_invites SET lapse_recorded_at = ?
+           WHERE token = ? AND lapse_recorded_at IS NULL`,
+    args: [nowUtc(), req.token],
+  });
+  if (!claimed.rowsAffected) return false;
+
+  const owner = await db.execute({
+    sql: `SELECT from_tenant FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [req.token],
+  });
+  const fromTenant = String((owner.rows[0] as any)?.from_tenant ?? '');
+  if (!fromTenant) return false;
+
+  const asked = req.role === 'buyer' ? 'the debtor'
+    : req.claimId ? 'the client, to confirm the advance reached him'
+    : 'the client, to confirm the record';
+  const chased = req.remindedAt ? ' A reminder was sent.' : '';
+
+  const rcv = await getReceivableRow(req.receivableId);
+  const label = rcv ? String(rcv.buyer) : 'Unanswered request';
+
+  const result = await addAttestation(fromTenant, req.receivableId, {
+    role: 'other',
+    label: req.role === 'buyer' ? label : (rcv ? String(rcv.supplier) : label),
+    statement: `UNANSWERED — a confirmation was requested from ${asked} on ${req.createdAt.slice(0, 10)} and expired without a reply on ${req.expiresAt.slice(0, 10)}.${chased} This records the request, not an answer.`,
+    date: req.expiresAt.slice(0, 10),
+  });
+  return result.ok;
+}
+
+/** Outstanding and lapsed requests across a financier's whole book, so nothing rots unseen. */
+export async function listOutstandingForTenant(tenantId: string, limit = 200): Promise<Array<{
+  receivableId: string; supplier: string; buyer: string; invoiceNo: string;
+  role: string; claimId: string | null; email: string | null;
+  expiresAt: string; state: 'pending' | 'lapsed';
+}>> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT i.receivable_id, i.role, i.claim_id, i.email, i.expires_at,
+                 r.supplier, r.buyer, r.invoice_no
+            FROM receivable_invites i
+            JOIN receivables r ON r.id = i.receivable_id
+           WHERE i.from_tenant = ? AND i.accepted_at IS NULL AND i.revoked_at IS NULL
+             AND r.settled_at IS NULL
+           ORDER BY i.expires_at ASC
+           LIMIT ?`,
+    args: [tenantId, limit],
+  });
+  const now = nowUtc();
+  return r.rows.map((x: any) => ({
+    receivableId: String(x.receivable_id),
+    supplier: String(x.supplier), buyer: String(x.buyer), invoiceNo: String(x.invoice_no),
+    role: String(x.role),
+    claimId: x.claim_id != null ? String(x.claim_id) : null,
+    email: x.email != null ? String(x.email) : null,
+    expiresAt: String(x.expires_at),
+    state: String(x.expires_at) < now ? 'lapsed' : 'pending',
+  }));
+}
+
+// ── Offers ────────────────────────────────────────────────────────────────────
+
+export type Recourse = 'recourse' | 'non_recourse';
+
+export interface OfferInput {
+  financier: string;
+  amount: number;
+  currency?: string;
+  /** What it costs him, in the financier's own words. Fee structures vary too much to model. */
+  price?: string | null;
+  recourse: Recourse;
+  /** Who pays whom, and when. Disclosed or confidential factoring reads differently here. */
+  repayment?: string | null;
+  /** Days the offer stands. A credit view taken today should not be acceptable in a month. */
+  validDays?: number;
+}
+
+export interface PublicOffer {
+  id: string; financier: string; amount: number; currency: string;
+  price: string | null; recourse: Recourse; repayment: string | null;
+  expiresAt: string; createdAt: string;
+  acceptedAt: string | null; acceptedBy: string | null;
+  declinedAt: string | null; declinedReason: string | null;
+  signed: boolean; anchored: boolean; anchoredAt: string | null;
+}
+
+const OFFER_TTL_DAYS = 14;
+
+function offerRow(r: any): PublicOffer {
+  return {
+    id: String(r.id), financier: String(r.financier),
+    amount: Number(r.amount), currency: String(r.currency),
+    price: r.price != null ? String(r.price) : null,
+    recourse: (String(r.recourse) === 'non_recourse' ? 'non_recourse' : 'recourse') as Recourse,
+    repayment: r.repayment != null ? String(r.repayment) : null,
+    expiresAt: String(r.expires_at), createdAt: String(r.created_at),
+    acceptedAt: r.accepted_at != null ? String(r.accepted_at) : null,
+    acceptedBy: r.accepted_by != null ? String(r.accepted_by) : null,
+    declinedAt: r.declined_at != null ? String(r.declined_at) : null,
+    declinedReason: r.declined_reason != null ? String(r.declined_reason) : null,
+    signed: !!r.signature_json, anchored: !!r.anchor_json, anchoredAt: anchoredAtOf(r.anchor_json),
+  };
+}
+
+export async function createOffer(
+  tenantId: string,
+  receivableId: string,
+  input: OfferInput,
+): Promise<{ ok: true; offerId: string; digest: string; signed: boolean } | { ok: false; error: string; message?: string }> {
+  await ensureReceivablesTables();
+  if (!(await ownsReceivable(tenantId, receivableId))) return { ok: false, error: 'not_found' };
+
+  const rcv = await getReceivableRow(String(receivableId).trim());
+  if (!rcv) return { ok: false, error: 'not_found' };
+
+  const financier = clampStr(input.financier, 120);
+  const amount = Number(input.amount);
+  const currency = clampStr(input.currency || rcv.currency, 8).toUpperCase() || rcv.currency;
+  if (!financier) return { ok: false, error: 'invalid', message: 'Your firm name is required.' };
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: 'invalid', message: 'The offer amount must be a positive number.' };
+  }
+
+  const recourse: Recourse = input.recourse === 'non_recourse' ? 'non_recourse' : 'recourse';
+  const price = input.price != null ? clampStr(input.price, 300) || null : null;
+  const repayment = input.repayment != null ? clampStr(input.repayment, 300) || null : null;
+  const days = Number.isFinite(input.validDays) && (input.validDays as number) > 0
+    ? Math.min(90, Math.floor(input.validDays as number))
+    : OFFER_TTL_DAYS;
+  const expiresAt = new Date(Date.now() + days * 86400_000).toISOString().replace('T', ' ').slice(0, 19);
+
+  const manifest = {
+    v: 1, kind: 'financing_offer', receivableId: rcv.id,
+    financier, amount, currency, price, recourse, repayment, expiresAt,
+  };
+  const { signature, digest } = sign(manifest);
+  const offerId = randomUUID();
+
+  await db.execute({
+    sql: `INSERT INTO receivable_offers
+            (id, receivable_id, tenant_id, financier, amount, currency, price, recourse,
+             repayment, expires_at, manifest_json, signature_json, digest)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [offerId, rcv.id, tenantId, financier, amount, currency, price, recourse,
+           repayment, expiresAt, JSON.stringify(manifest),
+           signature ? JSON.stringify(signature) : null, digest],
+  });
+  return { ok: true, offerId, digest, signed: !!signature };
+}
+
+export async function listOffers(receivableId: string): Promise<PublicOffer[]> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT * FROM receivable_offers WHERE receivable_id = ? ORDER BY created_at ASC`,
+    args: [String(receivableId || '').trim()],
+  });
+  return r.rows.map(offerRow);
+}
+
+/** What the client sees. No account: he is being offered money, not signing up for software. */
+export async function readOfferRequest(token: string): Promise<
+  | { ok: true; offer: PublicOffer; supplier: string; buyer: string; invoiceNo: string;
+      face: number; currency: string; dueDate: string | null; documents: DocumentMeta[] }
+  | { ok: false; error: string }
+> {
+  await ensureReceivablesTables();
+  const r = await db.execute({
+    sql: `SELECT i.offer_id, i.expires_at, i.accepted_at, i.revoked_at, i.receivable_id
+            FROM receivable_invites i WHERE i.token = ? LIMIT 1`,
+    args: [String(token || '').trim()],
+  });
+  if (!r.rows.length) return { ok: false, error: 'not_found' };
+  const inv = r.rows[0] as any;
+  if (inv.revoked_at) return { ok: false, error: 'revoked' };
+  if (inv.accepted_at) return { ok: false, error: 'used' };
+  if (String(inv.expires_at) < nowUtc()) return { ok: false, error: 'expired' };
+  if (!inv.offer_id) return { ok: false, error: 'wrong_kind' };
+
+  const o = await db.execute({
+    sql: `SELECT * FROM receivable_offers WHERE id = ? LIMIT 1`,
+    args: [String(inv.offer_id)],
+  });
+  if (!o.rows.length) return { ok: false, error: 'not_found' };
+  const offer = offerRow(o.rows[0]);
+  if (offer.acceptedAt || offer.declinedAt) return { ok: false, error: 'used' };
+  if (offer.expiresAt < nowUtc()) return { ok: false, error: 'offer_expired' };
+
+  const rcv = await getReceivableRow(String(inv.receivable_id));
+  if (!rcv) return { ok: false, error: 'not_found' };
+
+  return {
+    ok: true, offer,
+    supplier: String(rcv.supplier), buyer: String(rcv.buyer), invoiceNo: String(rcv.invoice_no),
+    face: Number(rcv.face), currency: String(rcv.currency),
+    dueDate: rcv.due_date != null ? String(rcv.due_date) : null,
+    documents: (await listDocuments(String(rcv.id))).filter((d) => !d.purgedAt),
+  };
+}
+
+/**
+ * Accept or decline. Acceptance records a signed attestation reciting the terms, so what he
+ * agreed to is on the record and not only in the offer we happened to store.
+ */
+export async function respondToOffer(
+  token: string,
+  outcome: 'accept' | 'decline',
+  answers: { by: string; title?: string | null; reason?: string | null; initials?: string | null },
+): Promise<{ ok: true; attestationId: string; receivableId: string; offerId: string } | { ok: false; error: string }> {
+  await ensureReceivablesTables();
+
+  const req = await readOfferRequest(token);
+  if (!req.ok) return { ok: false, error: req.error };
+
+  const who = clampStr(answers.by, 100);
+  if (!who) return { ok: false, error: 'name_required' };
+
+  const sender = await db.execute({
+    sql: `SELECT from_tenant, receivable_id FROM receivable_invites WHERE token = ? LIMIT 1`,
+    args: [String(token).trim()],
+  });
+  const fromTenant = String((sender.rows[0] as any)?.from_tenant ?? '');
+  const receivableId = String((sender.rows[0] as any)?.receivable_id ?? '');
+
+  const claimed = await db.execute({
+    sql: `UPDATE receivable_invites SET accepted_at = ?, accepted_by = ?
+           WHERE token = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    args: [nowUtc(), who, String(token).trim()],
+  });
+  if (!claimed.rowsAffected) return { ok: false, error: 'used' };
+
+  const o = req.offer;
+  const title = answers.title ? ` (${clampStr(answers.title, 60)})` : '';
+  const amt = `${o.currency} ${o.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+  const rec = o.recourse === 'non_recourse'
+    ? 'non-recourse'
+    : 'with recourse';
+
+  let statement: string;
+  let role: AttesterRole;
+  if (outcome === 'accept') {
+    // Initials are taken against the recourse clause specifically, because that is the term
+    // people sign without reading and the one they later say they never saw.
+    const ini = clampStr(answers.initials ?? '', 8);
+    if (!ini) return { ok: false, error: 'initials_required' };
+    statement = `Accepts financing of ${amt} from ${o.financier} against invoice ${req.invoiceNo}. ${o.price ? `Charge: ${o.price}. ` : ''}Terms: ${rec}, initialled "${ini}".${o.repayment ? ` Repayment: ${o.repayment}.` : ''} Accepted by ${who}${title} via a single-use link, before funds were advanced.`;
+    role = 'supplier';
+    await db.execute({
+      sql: `UPDATE receivable_offers SET accepted_at = ?, accepted_by = ? WHERE id = ? AND accepted_at IS NULL`,
+      args: [nowUtc(), who, o.id],
+    });
+  } else {
+    const why = clampStr(answers.reason ?? '', 300);
+    statement = `DECLINED — did not accept financing of ${amt} from ${o.financier} against invoice ${req.invoiceNo}.${why ? ` They say: ${why}` : ''} Answered by ${who}${title} via a single-use link.`;
+    role = 'other';
+    await db.execute({
+      sql: `UPDATE receivable_offers SET declined_at = ?, declined_reason = ? WHERE id = ? AND declined_at IS NULL`,
+      args: [nowUtc(), why || null, o.id],
+    });
+  }
+
+  const result = await addAttestation(fromTenant, receivableId, {
+    role, label: req.supplier, statement,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, attestationId: result.attestationId, receivableId, offerId: o.id };
 }
