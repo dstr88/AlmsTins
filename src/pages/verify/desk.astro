@@ -358,6 +358,17 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .step--off .step__n { color: var(--text-muted); background: var(--surface-card); border-color: var(--border-subtle); }
     .step input:disabled, .step button:disabled { cursor: not-allowed; }
 
+    /* A finished step dims and locks so the eye moves on, its number becoming a check.
+       Applied to the intake block once the contract is attached, and to the record block
+       once the deal is signed. The attach controls sit outside the intake block, so
+       "add another" and "cancel" stay live even while the form above them is done. */
+    .step--done { opacity: .5; pointer-events: none; }
+    .step--done .step__n { font-size: 0; color: var(--surface-bg); background: var(--accent); border-color: var(--accent); }
+    .step--done .step__n::after { content: '\2713'; font-size: .95rem; font-weight: 800; }
+    /* The next step to act on lights up: a filled badge with a soft ring and an accent rule. */
+    .step--active { border-left: 2px solid var(--accent-dim); padding-left: 1rem; margin-left: -1.1rem; }
+    .step--active .step__n { color: var(--surface-bg); background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+
     .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .7rem; }
     .fld {
       display: flex; flex-direction: column; gap: .34rem;
@@ -525,6 +536,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <span class="modes__d" id="mode-note">A real deal. Everything recorded counts.</span>
       </div>
 
+      <div id="n-intake">
       <div class="step__h" style="margin-bottom:1rem">
         <span class="step__n">1</span>
         <div>
@@ -586,6 +598,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <button class="small ghost" id="n-add" type="button">+ Add a field</button>
         </div>
       </details>
+      </div>
 
       <div class="sep"></div>
 
@@ -603,6 +616,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </p>
 
       <div class="gsep"></div>
+      <div id="n-step2">
       <div class="step__h" style="margin-bottom:1rem">
         <span class="step__n">2</span>
         <div>
@@ -619,7 +633,11 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <div class="row" style="margin-top:1rem">
         <button id="n-go">Record, sign &amp; send</button>
       </div>
+      </div>
       <div id="n-out" class="note"></div>
+      <div class="row" id="n-reset-row" hidden style="margin-top:.8rem">
+        <button class="small ghost" id="n-reset" type="button">Start another deal</button>
+      </div>
 
       <!-- The client step stays on screen while it is still out of reach. A control that
            appears only once it is usable is invisible exactly when someone is learning
@@ -1411,18 +1429,23 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           failed.length ? 'note-loss' : 'note-gain');
         anchorNote();
 
+        // The deal is signed: lock the intake and record steps as done (kept on screen, with
+        // what he entered, so the record stays legible) and light up client acceptance as the
+        // next thing to do. The entered data is not cleared here — "Start another deal" resets.
+        const intakeEl = document.getElementById('n-intake');
+        if (intakeEl) { intakeEl.dataset.locked = '1'; intakeEl.classList.add('step--done'); }
+        document.getElementById('n-step2')?.classList.add('step--done');
+        document.getElementById('n-reset-row')?.removeAttribute('hidden');
+
         enableClientStep(j.id);
 
-        ['n-sup','n-buy','n-inv','n-face','n-ref','n-goods','n-pay','n-demail'].forEach((id) => {
-          const el = $(id) as HTMLInputElement; if (el) el.value = '';
-        });
-        const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = '';
-        chosenFiles = []; renderFileList();
-
+        // Prefill Check for later, but do NOT open its modal now: that overlay used to cover the
+        // client step the banker needs next. He checks the record on his own from the Check card.
         ($('q-id') as HTMLInputElement).value = j.id;
-        await check(j.id);
         loadBook();
-        document.getElementById('panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const cs = document.getElementById('n-client');
+        cs?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => ($('n-cemail') as HTMLInputElement)?.focus(), 450);
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
 
@@ -1449,7 +1472,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     let clientStepFor: string | null = null;
     function enableClientStep(receivableId: string) {
       clientStepFor = receivableId;
-      document.getElementById('n-client')!.classList.remove('step--off');
+      const cs = document.getElementById('n-client')!;
+      cs.classList.remove('step--off');
+      cs.classList.add('step--active');
       ($('n-cemail') as HTMLInputElement).disabled = false;
       ($('n-csend') as unknown as HTMLButtonElement).disabled = false;
       ($('n-clink') as unknown as HTMLButtonElement).disabled = false;
@@ -1457,6 +1482,35 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         'He confirms you recorded his deal correctly. Until he does, everything on the record is your word for what he told you.';
       loadClientRequests(receivableId);
     }
+
+    // Clears everything back to a blank intake so the banker can record the next deal:
+    // reopens steps 1 and 2, empties the fields and files, and stands step 3 back down.
+    function resetIntake() {
+      const intakeEl = document.getElementById('n-intake');
+      if (intakeEl) { delete intakeEl.dataset.locked; intakeEl.classList.remove('step--done'); }
+      document.getElementById('n-step2')?.classList.remove('step--done');
+      document.getElementById('n-reset-row')?.setAttribute('hidden', '');
+
+      const cs = document.getElementById('n-client')!;
+      cs.classList.add('step--off');
+      cs.classList.remove('step--active');
+      ($('n-cemail') as HTMLInputElement).disabled = true;
+      ($('n-csend') as unknown as HTMLButtonElement).disabled = true;
+      ($('n-clink') as unknown as HTMLButtonElement).disabled = true;
+      clientStepFor = null;
+      document.getElementById('n-client-why')!.textContent =
+        'Record the deal above first. Then this asks your client to confirm you took it down correctly.';
+      document.getElementById('n-clist')!.innerHTML = '';
+
+      ['n-sup','n-buy','n-inv','n-face','n-ref','n-idate','n-ddate','n-due','n-goods','n-pay','n-demail','n-cemail']
+        .forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
+      const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = '';
+      chosenFiles = []; renderFileList();
+      hide($('n-out') as unknown as HTMLElement);
+      hide($('n-cout') as unknown as HTMLElement);
+      intakeEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    document.getElementById('n-reset')?.addEventListener('click', resetIntake);
 
     // A clipboard write nobody asked for is a clipboard write nobody knows about, and it
     // can fail silently on top of that. Offer the link as a button the banker clicks.
@@ -2021,11 +2075,20 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       if (list) {
         list.innerHTML = chosenFiles.map((f, i) =>
           `<div class="filelist__row"><span class="filelist__ok">&#10003;</span><span>${esc(f.name)}</span>`
-          + `<button class="filelist__x" type="button" data-rmfile="${i}" aria-label="Remove">&times;</button></div>`).join('');
+          + `<button class="filelist__x" type="button" data-rmfile="${i}" aria-label="Remove">&times;</button></div>`).join('')
+          + (chosenFiles.length ? `<button class="small ghost" id="n-file-cancel" type="button" style="margin-top:.5rem">Cancel — remove all</button>` : '');
         list.querySelectorAll('[data-rmfile]').forEach((b) => b.addEventListener('click', () => {
           chosenFiles.splice(Number((b as HTMLElement).dataset.rmfile), 1); renderFileList();
         }));
+        document.getElementById('n-file-cancel')?.addEventListener('click', () => {
+          chosenFiles = []; const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = ''; renderFileList();
+        });
       }
+      // The first attached contract marks the intake done, dimming and locking the form
+      // above so the eye moves to the record step. Removing every file reopens it. The
+      // attach controls live outside #n-intake, so add-more and cancel stay usable.
+      const intake = document.getElementById('n-intake');
+      if (intake && !intake.dataset.locked) intake.classList.toggle('step--done', chosenFiles.length > 0);
       if (sum) sum.innerHTML = chosenFiles.length
         ? `<div class="attach-sum__h">Ready to attach when you record</div>`
           + chosenFiles.map((f) => `<div class="filelist__row"><span class="filelist__ok">&#10003;</span><span>${esc(f.name)}</span></div>`).join('')
