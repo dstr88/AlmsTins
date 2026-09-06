@@ -205,6 +205,21 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       color: var(--warning); border: 1px solid var(--warning-border); background: var(--warning-bg);
       border-radius: 99px; padding: .1rem .38rem;
     }
+    /* Inbox: unseen updates read like unread mail — bold row, an accent dot, floated to
+       the top (the list arrives already sorted by last activity). */
+    .book-row--new td { font-weight: 700; }
+    .newdot { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%;
+      background: var(--accent); margin-right: .45rem; vertical-align: middle; }
+    .updates-banner { display: none; align-items: center; justify-content: space-between; gap: 1rem;
+      margin-bottom: 1rem; padding: .6rem .9rem; border: 1px solid var(--accent-soft);
+      background: var(--accent-soft); border-radius: 10px; font-size: .9rem; }
+    .updates-banner.show { display: flex; }
+    .updates-banner b { color: var(--accent); }
+    .updates-banner .ub__x { background: transparent; border: none; color: var(--text-secondary);
+      cursor: pointer; font-size: 1.15rem; line-height: 1; padding: 0 .2rem; }
+    .chip { border: 1px solid var(--border-bright); background: transparent; color: var(--text-secondary);
+      border-radius: 99px; padding: .34rem .75rem; font-size: .8rem; cursor: pointer; white-space: nowrap; }
+    .chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
     /* The journey. Scrolls sideways on a narrow screen rather than wrapping into a
        shape that stops reading as a sequence. */
@@ -353,6 +368,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <p class="lede">Record a client's deal, attach the paperwork, and see everything already standing against it before you advance.</p>
     </header>
 
+    <div id="updates-banner" class="updates-banner"></div>
+
     <div class="card" id="waiting-card" style="display:none">
       <h2>Waiting on someone</h2>
       <p class="hint">Requests nobody has answered yet, across every deal. Lapsed ones are recorded as unanswered on the record itself.</p>
@@ -367,6 +384,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </p>
       <div class="row" style="margin-bottom:.6rem">
         <input id="book-q" class="grow" placeholder="Filter by client, debtor or invoice number" autocomplete="off" />
+        <button id="book-updated" class="chip" type="button" title="Show only contracts with unseen updates">Updated only</button>
       </div>
       <div id="book-list" class="inbox"></div>
     </div>
@@ -665,6 +683,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     let current: any = null;
     let book: any[] = [];
+    let updatedOnly = false;
+    let updatesDismissed = false;
 
     async function check(id?: string) {
       const rid = (id ?? val('q-id')).trim();
@@ -686,6 +706,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         loadDocs();
         loadConfirms();
         loadOffers();
+        // Opening (or reopening after an action) counts as seeing it, so it stops being an
+        // unseen update. No-op when the id isn't one of the banker's own book rows.
+        if (book.some((b: any) => b.id === rid)) markSeen(rid);
       } catch (e) {
         show(out, 'Could not reach the registry. Try again.', 'note-loss');
       }
@@ -1694,11 +1717,15 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     function renderBook() {
       const box = document.getElementById('book-list')!;
       const q = (val('book-q') || '').toLowerCase();
-      const rows = !q ? book : book.filter((v: any) =>
-        [v.supplier, v.buyer, v.invoiceNo].some((f: any) => String(f || '').toLowerCase().includes(q)));
+      let rows = q ? book.filter((v: any) =>
+        [v.supplier, v.buyer, v.invoiceNo].some((f: any) => String(f || '').toLowerCase().includes(q))) : book;
+      if (updatedOnly) rows = rows.filter((v: any) => v.updated);
+
+      renderUpdatesBanner();
 
       if (!rows.length) {
-        box.innerHTML = `<p class="muted" style="margin-top:.6rem">${q ? 'Nothing matches that.' : 'Nothing recorded yet. Start with New deal above.'}</p>`;
+        const why = updatedOnly ? 'No unseen updates.' : q ? 'Nothing matches that.' : 'Nothing recorded yet. Start with New deal above.';
+        box.innerHTML = `<p class="muted" style="margin-top:.6rem">${why}</p>`;
         return;
       }
 
@@ -1706,9 +1733,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         rows.map((v: any) => {
           const id = String(v.id);
           const short = `${id.slice(0, 10)}\u2026${id.slice(-6)}`;
-          return `<tr class="book-row">
+          return `<tr class="book-row${v.updated ? ' book-row--new' : ''}">
             <td class="dt">${esc(String(v.createdAt || '').slice(0, 10))}</td>
-            <td><b>${esc(v.supplier)}</b>${v.isTest ? ' <span class="tpill">test</span>' : ''}</td>
+            <td>${v.updated ? '<span class="newdot" title="Updated since you last looked"></span>' : ''}<b>${esc(v.supplier)}</b>${v.isTest ? ' <span class="tpill">test</span>' : ''}</td>
             <td>${esc(v.buyer)}</td>
             <td>${esc(v.invoiceNo)}</td>
             <td>${esc(money(Number(v.face), v.currency || 'NGN'))}</td>
@@ -1745,7 +1772,38 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       });
     }
 
+    function renderUpdatesBanner() {
+      const el = document.getElementById('updates-banner');
+      if (!el) return;
+      const n = book.filter((v: any) => v.updated).length;
+      if (!n || updatesDismissed) { el.classList.remove('show'); return; }
+      el.innerHTML = `<span><b>${n}</b> update${n > 1 ? 's' : ''} to your contracts. Bold rows are new since you last looked.</span>`
+        + `<button class="ub__x" id="ub-x" aria-label="Dismiss">&times;</button>`;
+      el.classList.add('show');
+      document.getElementById('ub-x')?.addEventListener('click', () => { updatesDismissed = true; el.classList.remove('show'); });
+    }
+
+    // Opening a contract (or acting on it) clears its unseen flag: locally at once so the
+    // row un-bolds instantly, then on the server so it sticks across reloads.
+    async function markSeen(id: string) {
+      const row = book.find((v: any) => v.id === id);
+      if (!row || !row.updated) return;
+      row.updated = false;
+      renderBook();
+      try {
+        await fetch('/api/verify/receivables/seen', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ receivableId: id }),
+        });
+      } catch { /* non-fatal; the server reconciles on next load */ }
+    }
+
     $('book-q')?.addEventListener('input', renderBook);
+    document.getElementById('book-updated')?.addEventListener('click', () => {
+      updatedOnly = !updatedOnly;
+      document.getElementById('book-updated')?.classList.toggle('on', updatedOnly);
+      renderBook();
+    });
     loadBook();
 
     // Nothing rots unseen: what is still outstanding, and what already lapsed.

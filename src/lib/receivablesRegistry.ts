@@ -276,7 +276,25 @@ const ENSURE_SETTLEMENT_COLS = [
   // Practice runs. Marked on the record itself and inside its signed manifest, so the flag
   // travels with every read and cannot be quietly dropped later.
   `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT FALSE`,
+  // Last-activity clock. Any change to the receivable OR its children (a claim, an
+  // attestation, a discharge, a settlement) bumps it, so "recently updated" and the
+  // desk's unseen-update badge read one column. COALESCE(updated_at, created_at) on read.
+  `ALTER TABLE receivables ADD COLUMN IF NOT EXISTS updated_at TEXT`,
 ];
+
+// Per-financier read state: the last time a tenant looked at (or acted on) a receivable
+// in their desk. An event newer than seen_at reads as an unseen update in Your book —
+// the unread-email pattern, so a debtor confirming or a competing claim lands loudly and
+// nothing the banker did himself does. Keyed by (tenant, receivable); a banker only ever
+// has read-state for receivables in their own book.
+const ENSURE_SEEN_SQL = `
+  CREATE TABLE IF NOT EXISTS receivable_seen (
+    tenant_id      TEXT NOT NULL,
+    receivable_id  TEXT NOT NULL,
+    seen_at        TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, receivable_id)
+  )
+`;
 
 /**
  * Offers — terms put to the client, before the money moves.
@@ -407,11 +425,35 @@ export async function ensureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_DOCS_RCV_IDX, args: [] });
   await db.execute({ sql: ENSURE_OFFERS_SQL, args: [] });
   await db.execute({ sql: ENSURE_OFFERS_RCV_IDX, args: [] });
+  await db.execute({ sql: ENSURE_SEEN_SQL, args: [] });
   for (const sql of ENSURE_SETTLEMENT_COLS) {
     try { await db.execute({ sql, args: [] }); }
     catch (e) { console.error('[receivables] settlement column not applied:', e); }
   }
   ensured = true;
+}
+
+/** Bump a receivable's last-activity clock. Any change to it or a child (claim,
+ *  attestation, discharge, settlement) calls this. Keyed by id ONLY, with no tenant
+ *  filter: a competing claim registered by another financier must still float the
+ *  record to the top of the creator's book. Non-fatal — sorting falls back to created_at. */
+async function touchReceivable(receivableId: string): Promise<void> {
+  try {
+    await db.execute({ sql: `UPDATE receivables SET updated_at = ? WHERE id = ?`, args: [nowUtc(), String(receivableId)] });
+  } catch { /* non-fatal */ }
+}
+
+/** Record that this tenant has seen (opened, or just acted on) a receivable, so only
+ *  later changes read as unseen updates in their book. Upsert; non-fatal. */
+export async function markReceivableSeen(tenantId: string, receivableId: string): Promise<void> {
+  await ensureReceivablesTables();
+  try {
+    await db.execute({
+      sql: `INSERT INTO receivable_seen (tenant_id, receivable_id, seen_at) VALUES (?, ?, ?)
+            ON CONFLICT (tenant_id, receivable_id) DO UPDATE SET seen_at = excluded.seen_at`,
+      args: [tenantId, String(receivableId), nowUtc()],
+    });
+  } catch { /* non-fatal */ }
 }
 
 /** Sign a manifest with the Almstins published key. Returns null when no key is
@@ -525,6 +567,11 @@ export async function createReceivable(
       ],
     });
   }
+  await touchReceivable(id);
+  // The creator has, by definition, seen the record they just made, so it does not show
+  // as an unseen update to them; only later events (a debtor confirming, a competing
+  // claim) will.
+  await markReceivableSeen(tenantId, id);
   return { ok: true, id, digest, signed: !!signature, keyId: getSigningKeyId() };
 }
 
@@ -625,6 +672,7 @@ export async function addClaim(
       JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
     ],
   });
+  await touchReceivable(rcv.id);
   const newClaimed = claimed + amount;
   return { ok: true, claimId, digest, signed: !!signature, claimed: newClaimed, available: rcv.face - newClaimed, face: rcv.face };
 }
@@ -767,6 +815,7 @@ export async function dischargeClaim(tenantId: string, claimId: string): Promise
     args: [dischargedAt, JSON.stringify(manifest), digest, claim.id, tenantId],
   });
 
+  await touchReceivable(String(claim.receivable_id));
   const rcv = await getReceivableRow(String(claim.receivable_id));
   const claimed = rcv ? await sumActiveClaims(rcv.id) : 0;
   const face = rcv?.face ?? 0;
@@ -807,6 +856,7 @@ export async function settleReceivable(tenantId: string, receivableId: string): 
           WHERE id = ? AND tenant_id = ? AND settled_at IS NULL`,
     args: [settledAt, JSON.stringify(manifest), digest, row.id, tenantId],
   });
+  await touchReceivable(row.id);
   return { ok: true, digest, signed: !!signature, settledAt };
 }
 
@@ -815,22 +865,43 @@ export async function settleReceivable(tenantId: string, receivableId: string): 
 export interface ReceivableSummary {
   id: string; supplier: string; buyer: string; invoiceNo: string;
   face: number; currency: string; settled: boolean; createdAt: string; isTest: boolean;
+  /** Last activity on the record or a child (COALESCE(updated_at, created_at)). */
+  updatedAt: string;
+  /** True when that activity is newer than the last time this tenant looked — an unseen
+   *  update for the desk's badge/bold/dot. */
+  updated: boolean;
 }
 
-/** The receivables this tenant created (so they don't have to hoard IDs). Tenant-scoped. */
+/** The receivables this tenant created (so they don't have to hoard IDs). Tenant-scoped.
+ *  Newest activity first, with an unseen-update flag from the tenant's read-state. */
 export async function listReceivables(tenantId: string): Promise<ReceivableSummary[]> {
   await ensureReceivablesTables();
   const r = await db.execute({
-    sql: `SELECT id, supplier, buyer, invoice_no, face, currency, settled_at, created_at, is_test
-          FROM receivables WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 200`,
+    sql: `SELECT r.id, r.supplier, r.buyer, r.invoice_no, r.face, r.currency, r.settled_at,
+                 r.created_at, r.is_test,
+                 COALESCE(r.updated_at, r.created_at) AS last_activity,
+                 s.seen_at AS seen_at
+          FROM receivables r
+          LEFT JOIN receivable_seen s ON s.receivable_id = r.id AND s.tenant_id = r.tenant_id
+          WHERE r.tenant_id = ?
+          ORDER BY COALESCE(r.updated_at, r.created_at) DESC
+          LIMIT 200`,
     args: [tenantId],
   });
-  return (r.rows as any[]).map((row) => ({
-    id: String(row.id), supplier: String(row.supplier), buyer: String(row.buyer),
-    invoiceNo: String(row.invoice_no), face: Number(row.face), currency: String(row.currency),
-    settled: row.settled_at != null, createdAt: String(row.created_at),
-    isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
-  }));
+  return (r.rows as any[]).map((row) => {
+    const lastActivity = String(row.last_activity ?? row.created_at);
+    const seenAt = row.seen_at != null ? String(row.seen_at) : null;
+    return {
+      id: String(row.id), supplier: String(row.supplier), buyer: String(row.buyer),
+      invoiceNo: String(row.invoice_no), face: Number(row.face), currency: String(row.currency),
+      settled: row.settled_at != null, createdAt: String(row.created_at),
+      isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
+      updatedAt: lastActivity,
+      // A row with no seen record (created before this feature) is treated as seen, so an
+      // existing book does not light up as one giant pile of updates on first load.
+      updated: seenAt != null && lastActivity > seenAt,
+    };
+  });
 }
 
 /**
@@ -906,6 +977,10 @@ export async function addAttestation(
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [attestationId, rcv.id, tenantId, role, label, statement, date, JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest],
   });
+  // Covers every "someone else answered" event — a debtor acknowledgment, a dispute, and
+  // (via affirmClaimByToken, which records its result through here) a client's receipt
+  // confirmation. Each floats the record up as an unseen update in the creator's book.
+  await touchReceivable(rcv.id);
   return { ok: true, attestationId, digest, signed: !!signature };
 }
 
