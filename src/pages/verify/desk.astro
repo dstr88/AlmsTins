@@ -365,9 +365,6 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .step--done { opacity: .5; pointer-events: none; }
     .step--done .step__n { font-size: 0; color: var(--surface-bg); background: var(--accent); border-color: var(--accent); }
     .step--done .step__n::after { content: '\2713'; font-size: .95rem; font-weight: 800; }
-    /* The next step to act on lights up: a filled badge with a soft ring and an accent rule. */
-    .step--active { border-left: 2px solid var(--accent-dim); padding-left: 1rem; margin-left: -1.1rem; }
-    .step--active .step__n { color: var(--surface-bg); background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
 
     .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: .7rem; }
     .fld {
@@ -639,22 +636,25 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <button class="small ghost" id="n-reset" type="button">Start another deal</button>
       </div>
 
-      <!-- The client step stays on screen while it is still out of reach. A control that
-           appears only once it is usable is invisible exactly when someone is learning
-           what the tool does, which is how three features got reported as missing. -->
+      <!-- Always live: this is the banker's own tool, so client acceptance is never gated.
+           Recording auto-fills the ID for the deal just taken down; he can also paste any
+           receivable ID to send it for a deal recorded earlier, without opening it first. -->
       <div class="gsep"></div>
-      <div id="n-client" class="step step--off">
+      <div id="n-client" class="step">
         <div class="step__h">
           <span class="step__n">3</span>
           <div>
             <div class="step__t">Client acceptance</div>
-            <div class="step__d" id="n-client-why">Record the deal above first, then this lights up. Already recorded it earlier? Open that deal from your book and send this from the record.</div>
+            <div class="step__d" id="n-client-why">Your client confirms you recorded his deal correctly. The ID fills in when you record above; paste another to send it for an earlier deal. He needs no account.</div>
           </div>
         </div>
         <div class="row" style="margin-top:.7rem">
-          <input id="n-cemail" class="grow" type="email" placeholder="him@his-company.com" autocomplete="off" disabled />
-          <button id="n-csend" disabled>Create &amp; email</button>
-          <button id="n-clink" class="ghost" disabled>Create link only</button>
+          <input id="n-crid" class="grow" placeholder="Receivable ID (fills in when you record)" spellcheck="false" autocomplete="off" />
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <input id="n-cemail" class="grow" type="email" placeholder="him@his-company.com" autocomplete="off" />
+          <button id="n-csend">Create &amp; email</button>
+          <button id="n-clink" class="ghost">Create link only</button>
         </div>
         <div id="n-clist"></div>
         <div id="n-cout" class="note"></div>
@@ -883,7 +883,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         loadClientRequests(current.id, 'mc-list', 'mc-out');
         // Opening (or reopening after an action) counts as seeing it, so it stops being an
         // unseen update. No-op when the id isn't one of the banker's own book rows.
-        if (book.some((b: any) => b.id === rid)) { markSeen(rid); enableClientStep(rid); }
+        if (book.some((b: any) => b.id === rid)) markSeen(rid);
       } catch (e) {
         show(out, 'Could not reach the registry. Try again.', 'note-loss');
       }
@@ -1447,14 +1447,16 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         anchorNote();
 
         // The deal is signed: lock the intake and record steps as done (kept on screen, with
-        // what he entered, so the record stays legible) and light up client acceptance as the
-        // next thing to do. The entered data is not cleared here — "Start another deal" resets.
+        // what he entered, so the record stays legible). Client acceptance stays live below.
+        // The entered data is not cleared here — "Start another deal" resets.
         const intakeEl = document.getElementById('n-intake');
         if (intakeEl) { intakeEl.dataset.locked = '1'; intakeEl.classList.add('step--done'); }
         document.getElementById('n-step2')?.classList.add('step--done');
         document.getElementById('n-reset-row')?.removeAttribute('hidden');
 
-        enableClientStep(j.id);
+        // Fill the client-acceptance ID with the deal just recorded, so sending it is one field
+        // and two clicks away, and load any request already sent for it.
+        prefillClientStep(j.id);
 
         // Prefill Check for later, but do NOT open its modal now: that overlay used to cover the
         // client step the banker needs next. He checks the record on his own from the Check card.
@@ -1485,41 +1487,25 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     syncMode();
 
     document.getElementById('n-add')?.addEventListener('click', () => addExtraRow());
-    // Step 2 of the tin: live only once there is a record for it to be about.
-    let clientStepFor: string | null = null;
-    function enableClientStep(receivableId: string) {
-      clientStepFor = receivableId;
-      const cs = document.getElementById('n-client')!;
-      cs.classList.remove('step--off');
-      cs.classList.add('step--active');
-      ($('n-cemail') as HTMLInputElement).disabled = false;
-      ($('n-csend') as unknown as HTMLButtonElement).disabled = false;
-      ($('n-clink') as unknown as HTMLButtonElement).disabled = false;
-      document.getElementById('n-client-why')!.textContent =
-        'He confirms you recorded his deal correctly. Until he does, everything on the record is your word for what he told you.';
-      loadClientRequests(receivableId);
+    // Step 3, client acceptance, is always live: it is the banker's own tool. Recording fills
+    // the ID for the deal just taken down; pasting another ID loads that deal's roster so a
+    // request sent earlier is visible. No enable/disable dance, nothing to unlock.
+    function prefillClientStep(receivableId: string) {
+      ($('n-crid') as HTMLInputElement).value = receivableId;
+      loadClientRequests(receivableId, 'n-clist', 'n-cout');
     }
+    $('n-crid')?.addEventListener('change', () => loadClientRequests(val('n-crid'), 'n-clist', 'n-cout'));
 
     // Clears everything back to a blank intake so the banker can record the next deal:
-    // reopens steps 1 and 2, empties the fields and files, and stands step 3 back down.
+    // reopens steps 1 and 2 and empties the fields, files and the client-step ID.
     function resetIntake() {
       const intakeEl = document.getElementById('n-intake');
       if (intakeEl) { delete intakeEl.dataset.locked; intakeEl.classList.remove('step--done'); }
       document.getElementById('n-step2')?.classList.remove('step--done');
       document.getElementById('n-reset-row')?.setAttribute('hidden', '');
-
-      const cs = document.getElementById('n-client')!;
-      cs.classList.add('step--off');
-      cs.classList.remove('step--active');
-      ($('n-cemail') as HTMLInputElement).disabled = true;
-      ($('n-csend') as unknown as HTMLButtonElement).disabled = true;
-      ($('n-clink') as unknown as HTMLButtonElement).disabled = true;
-      clientStepFor = null;
-      document.getElementById('n-client-why')!.textContent =
-        'Record the deal above first, then this lights up. Already recorded it earlier? Open that deal from your book and send this from the record.';
       document.getElementById('n-clist')!.innerHTML = '';
 
-      ['n-sup','n-buy','n-inv','n-face','n-ref','n-idate','n-ddate','n-due','n-goods','n-pay','n-demail','n-cemail']
+      ['n-sup','n-buy','n-inv','n-face','n-ref','n-idate','n-ddate','n-due','n-goods','n-pay','n-demail','n-cemail','n-crid']
         .forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
       const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = '';
       chosenFiles = []; renderFileList();
@@ -1603,7 +1589,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       } catch { box.innerHTML = ''; }
     }
 
-    const createCardCtx = (): ClientCtx => ({ rid: clientStepFor, emailId: 'n-cemail', outId: 'n-cout', listId: 'n-clist' });
+    const createCardCtx = (): ClientCtx => ({ rid: val('n-crid') || null, emailId: 'n-cemail', outId: 'n-cout', listId: 'n-clist' });
     document.getElementById('n-csend')?.addEventListener('click', () => createClientRequest(true, createCardCtx()));
     document.getElementById('n-clink')?.addEventListener('click', () => createClientRequest(false, createCardCtx()));
 
