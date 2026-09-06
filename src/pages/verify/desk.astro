@@ -648,7 +648,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <span class="step__n">3</span>
           <div>
             <div class="step__t">Client acceptance</div>
-            <div class="step__d" id="n-client-why">Record the deal above first. Then this asks your client to confirm you took it down correctly.</div>
+            <div class="step__d" id="n-client-why">Record the deal above first, then this lights up. Already recorded it earlier? Open that deal from your book and send this from the record.</div>
           </div>
         </div>
         <div class="row" style="margin-top:.7rem">
@@ -740,6 +740,22 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         </div>
         <div id="k-list"></div>
         <div id="k-out" class="note"></div>
+      </div>
+
+      <div class="card" style="margin-top:1.15rem" id="card-accept">
+        <h2>Ask your client to accept the record</h2>
+        <p class="hint">
+          He confirms you recorded his deal correctly. Until he does, everything on the record is your
+          word for what he told you. This is the final step of taking a deal down, and you can send it
+          here any time after recording. He needs no account.
+        </p>
+        <div class="row">
+          <input id="mc-email" class="grow" type="email" placeholder="him@his-company.com" autocomplete="off" />
+          <button id="mc-send">Create &amp; email</button>
+          <button id="mc-go" class="ghost">Create link only</button>
+        </div>
+        <div id="mc-list"></div>
+        <div id="mc-out" class="note"></div>
       </div>
 
       <div class="card" style="margin-top:1.15rem" id="card-offer">
@@ -864,6 +880,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         loadDocs();
         loadConfirms();
         loadOffers();
+        loadClientRequests(current.id, 'mc-list', 'mc-out');
         // Opening (or reopening after an action) counts as seeing it, so it stops being an
         // unseen update. No-op when the id isn't one of the banker's own book rows.
         if (book.some((b: any) => b.id === rid)) { markSeen(rid); enableClientStep(rid); }
@@ -1499,7 +1516,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       ($('n-clink') as unknown as HTMLButtonElement).disabled = true;
       clientStepFor = null;
       document.getElementById('n-client-why')!.textContent =
-        'Record the deal above first. Then this asks your client to confirm you took it down correctly.';
+        'Record the deal above first, then this lights up. Already recorded it earlier? Open that deal from your book and send this from the record.';
       document.getElementById('n-clist')!.innerHTML = '';
 
       ['n-sup','n-buy','n-inv','n-face','n-ref','n-idate','n-ddate','n-due','n-goods','n-pay','n-demail','n-cemail']
@@ -1525,40 +1542,44 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         .catch(() => { b.textContent = 'Could not copy — select the link and copy it'; });
     });
 
-    async function createClientRequest(alsoEmail: boolean) {
-      const out = $('n-cout') as unknown as HTMLElement;
-      const email = val('n-cemail');
-      if (!clientStepFor) { show(out, 'Record the deal above first.', 'note-loss'); return; }
+    // Client acceptance (role borrower) is sent from two places that share this logic: the
+    // create tin's step 3, right after recording, and the record view's own card, for a deal
+    // recorded earlier. The ctx names which fields and record each caller works against, so a
+    // banker who left and came back can still send it from the record instead of being stranded.
+    type ClientCtx = { rid: string | null; emailId: string; outId: string; listId: string };
+    async function createClientRequest(alsoEmail: boolean, ctx: ClientCtx) {
+      const out = $(ctx.outId) as unknown as HTMLElement;
+      const email = val(ctx.emailId);
+      if (!ctx.rid) { show(out, 'Record the deal first.', 'note-loss'); return; }
       if (alsoEmail && !email) { show(out, 'An address is needed to email it. Use "Create link only" otherwise.', 'note-loss'); return; }
       show(out, 'Creating…');
       try {
         const ir = await (await fetch('/api/verify/receivables/invite', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'borrower', receivableId: clientStepFor, email: email || null }),
+          body: JSON.stringify({ role: 'borrower', receivableId: ctx.rid, email: email || null }),
         })).json();
         if (!ir.ok) { show(out, 'Could not create that request.', 'note-loss'); return; }
-        const link = `${location.origin}/verify/attest?token=${encodeURIComponent(ir.token)}`;
 
         if (!alsoEmail) {
           show(out, `<b>Request created.</b> It works once and expires in seven days. The link is in the list below, for email, WhatsApp or however you reach him.`, 'note-gain');
-          loadClientRequests(clientStepFor);
+          loadClientRequests(ctx.rid, ctx.listId, ctx.outId);
           return;
         }
         if (await emailRequest(ir.token, out, 'your client')) {
-          ($('n-cemail') as HTMLInputElement).value = '';
+          ($(ctx.emailId) as HTMLInputElement).value = '';
         } else {
           // emailRequest already said why. Add the way out rather than replacing it.
           out.innerHTML += `<br>The request exists. Copy its link from the list below and send it yourself.`;
         }
-        loadClientRequests(clientStepFor);
+        loadClientRequests(ctx.rid, ctx.listId, ctx.outId);
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
 
     // The roster is where the link lives permanently. A copy button inside a status
     // message dies with the next action, and the banker may well be sending this over
     // WhatsApp an hour later rather than by email now.
-    async function loadClientRequests(receivableId: string) {
-      const box = document.getElementById('n-clist')!;
+    async function loadClientRequests(receivableId: string, listId = 'n-clist', outId = 'n-cout') {
+      const box = document.getElementById(listId)!;
       if (!receivableId) { box.innerHTML = ''; return; }
       try {
         const j = await (await fetch('/api/verify/receivables/invite?recordFor=' + encodeURIComponent(receivableId))).json();
@@ -1578,12 +1599,19 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             return `<tr><td>${esc(v.sentTo || 'link only')}</td><td>${state}</td><td>${esc(v.answeredBy || '\u2014')}</td><td>${act}</td></tr>`;
           }).join('') + '</tbody></table>';
         box.querySelectorAll('[data-resend]').forEach((b) => b.addEventListener('click', () =>
-          emailRequest((b as HTMLElement).dataset.resend as string, $('n-cout') as unknown as HTMLElement, 'your client')));
+          emailRequest((b as HTMLElement).dataset.resend as string, $(outId) as unknown as HTMLElement, 'your client')));
       } catch { box.innerHTML = ''; }
     }
 
-    document.getElementById('n-csend')?.addEventListener('click', () => createClientRequest(true));
-    document.getElementById('n-clink')?.addEventListener('click', () => createClientRequest(false));
+    const createCardCtx = (): ClientCtx => ({ rid: clientStepFor, emailId: 'n-cemail', outId: 'n-cout', listId: 'n-clist' });
+    document.getElementById('n-csend')?.addEventListener('click', () => createClientRequest(true, createCardCtx()));
+    document.getElementById('n-clink')?.addEventListener('click', () => createClientRequest(false, createCardCtx()));
+
+    // The same step from the record view, for a deal recorded earlier. current.id is whatever
+    // receivable the banker has open, so this is never stranded the way the create tin's step 3 is.
+    const recordCardCtx = (): ClientCtx => ({ rid: current?.id ?? null, emailId: 'mc-email', outId: 'mc-out', listId: 'mc-list' });
+    document.getElementById('mc-send')?.addEventListener('click', () => createClientRequest(true, recordCardCtx()));
+    document.getElementById('mc-go')?.addEventListener('click', () => createClientRequest(false, recordCardCtx()));
 
     document.getElementById('n-go')?.addEventListener('click', createDeal);
 
