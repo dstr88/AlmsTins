@@ -255,6 +255,32 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     .rl:hover:not(:disabled) { border-color: var(--border-bright); filter: none; }
 
+    /* Per-contract lifecycle timeline — vertical, dated, framed inside the contract. */
+    .tl-card { border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem 1.1rem;
+      margin-top: 1.15rem; background: var(--surface-card-2); }
+    .tl__h { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: .75rem; }
+    .tl { display: flex; flex-direction: column; }
+    .tl__row { display: flex; align-items: flex-start; gap: .75rem; position: relative;
+      background: transparent; border: none; text-align: left; cursor: pointer;
+      padding: .28rem 0; font-family: inherit; }
+    .tl__row:disabled { cursor: default; }
+    /* connector line joining the nodes */
+    .tl__row:not(:last-child)::before { content: ''; position: absolute; left: .69rem; top: 1.7rem;
+      bottom: -.28rem; width: 1px; background: var(--border-subtle); }
+    .tl__node { width: 1.4rem; height: 1.4rem; border-radius: 99px; display: flex; align-items: center;
+      justify-content: center; font-size: .7rem; font-weight: 800; font-variant-numeric: tabular-nums;
+      flex: 0 0 auto; position: relative; z-index: 1; }
+    .tl__body { display: flex; flex-direction: column; gap: .04rem; padding-top: .12rem; }
+    .tl__label { font-size: .85rem; font-weight: 600; color: var(--text-secondary); }
+    .tl__date { font-size: .72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .tl__row--done .tl__node { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .tl__row--now .tl__node { color: var(--surface-bg); background: var(--accent); }
+    .tl__row--now .tl__label { color: var(--text-primary); font-weight: 700; }
+    .tl__row--todo { opacity: .6; }
+    .tl__row--todo .tl__node { color: var(--text-muted); background: var(--surface-card); border: 1px solid var(--border-subtle); }
+    .tl__row:hover:not(:disabled) .tl__label { color: var(--text-primary); }
+
     .next {
       display: flex; gap: 1rem; align-items: center; justify-content: space-between;
       flex-wrap: wrap; margin-top: 1.15rem; padding: 1rem 1.2rem; border-radius: 12px;
@@ -941,29 +967,41 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       const offerAccepted = atts.some((a: any) => String(a.statement || '').startsWith('Accepts financing'));
       const discharged = allClaims.length > 0 && allClaims.every((c: any) => c.status === 'discharged');
 
+      // The date each stage happened, where the record carries one. A stage with no date
+      // yet simply shows none — honest about a step not reached.
+      const d = (s: any) => (s ? String(s).slice(0, 10) : '');
+      const buyerAck = atts.find((a: any) => a.role === 'buyer');
+      const acceptAtt = atts.find((a: any) => String(a.statement || '').startsWith('Accepts financing'));
+      const claimDates = claims.map((c: any) => d(c.registeredAt)).filter(Boolean).sort();
+      const affirmedClaim = claims.find((c: any) => c.affirmed);
+
       type St = 'done' | 'now' | 'todo';
-      const stages: Array<{ n: string; label: string; st: St; go?: string }> = [
-        { n: '1', label: 'Recorded', st: 'done' },
+      const stages: Array<{ n: string; label: string; st: St; go?: string; date?: string }> = [
+        { n: '1', label: 'Recorded', st: 'done', date: d(r.createdAt) },
         { n: '2', label: 'Paperwork', st: docs > 0 ? 'done' : 'now', go: 'card-paper' },
-        { n: '3', label: 'Debtor confirmed', st: acked ? 'done' : docs > 0 ? 'now' : 'todo', go: 'card-debtor' },
-        { n: '4', label: 'Terms accepted', st: offerAccepted ? 'done' : acked ? 'now' : 'todo', go: 'card-offer' },
-        { n: '5', label: 'Advance registered', st: claims.length ? 'done' : offerAccepted ? 'now' : 'todo', go: 'card-claim' },
-        { n: '6', label: 'Receipt confirmed', st: claims.length && !unconfirmed.length ? 'done' : claims.length ? 'now' : 'todo', go: 'cs-card' },
-        { n: '7', label: r.settled ? 'Settled' : 'Repaid', st: (r.settled || discharged) ? 'done' : (claims.length && !unconfirmed.length) ? 'now' : 'todo', go: 'card-claim' },
+        { n: '3', label: 'Debtor confirmed', st: acked ? 'done' : docs > 0 ? 'now' : 'todo', go: 'card-debtor', date: d(buyerAck?.date || r.acknowledgedAt) },
+        { n: '4', label: 'Terms accepted', st: offerAccepted ? 'done' : acked ? 'now' : 'todo', go: 'card-offer', date: d(acceptAtt?.date) },
+        { n: '5', label: 'Advance registered', st: claims.length ? 'done' : offerAccepted ? 'now' : 'todo', go: 'card-claim', date: claimDates[0] || '' },
+        { n: '6', label: 'Receipt confirmed', st: claims.length && !unconfirmed.length ? 'done' : claims.length ? 'now' : 'todo', go: 'cs-card', date: d(affirmedClaim?.affirmedAt) },
+        { n: '7', label: r.settled ? 'Settled' : 'Repaid', st: (r.settled || discharged) ? 'done' : (claims.length && !unconfirmed.length) ? 'now' : 'todo', go: 'card-claim', date: d(r.settledAt || r.settled_at) },
       ];
 
       // Only the earliest 'now' is the live one; the rest are still ahead.
-      let seen = false;
+      let seenNow = false;
       for (const st of stages) {
         if (st.st !== 'now') continue;
-        if (seen) st.st = 'todo'; else seen = true;
+        if (seenNow) st.st = 'todo'; else seenNow = true;
       }
 
-      box.innerHTML = `<div class="rail">` + stages.map((x) => `
-        <button class="rl rl--${x.st}" ${x.go ? `data-goto="${esc(x.go)}"` : ''} ${x.go ? '' : 'disabled'}>
-          <span class="rl__n">${x.st === 'done' ? '&#10003;' : esc(x.n)}</span>
-          <span class="rl__l">${esc(x.label)}</span>
-        </button>`).join('<span class="rl__j"></span>') + `</div>`;
+      box.innerHTML = `<div class="card tl-card"><div class="tl__h">Lifecycle</div><div class="tl">`
+        + stages.map((x) => {
+          const node = x.st === 'done' ? '&#10003;' : esc(x.n);
+          const dt = x.date ? esc(x.date) : (x.st === 'now' ? 'in progress' : '');
+          return `<button class="tl__row tl__row--${x.st}" ${x.go ? `data-goto="${esc(x.go)}"` : ''} ${x.go ? '' : 'disabled'}>
+            <span class="tl__node">${node}</span>
+            <span class="tl__body"><span class="tl__label">${esc(x.label)}</span>${dt ? `<span class="tl__date">${dt}</span>` : ''}</span>
+          </button>`;
+        }).join('') + `</div></div>`;
 
       box.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => goTo((b as HTMLElement).dataset.goto as string)));
     }
