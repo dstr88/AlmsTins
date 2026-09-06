@@ -281,6 +281,25 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .tl__row--todo .tl__node { color: var(--text-muted); background: var(--surface-card); border: 1px solid var(--border-subtle); }
     .tl__row:hover:not(:disabled) .tl__label { color: var(--text-primary); }
 
+    /* First-run primer — deliberately large and airy, the opposite of the dense desk. */
+    .primer-open { font-size: .82rem; color: var(--accent); text-decoration: none; margin-left: .5rem; white-space: nowrap; }
+    .primer-open:hover { text-decoration: underline; }
+    .primer { position: fixed; inset: 0; z-index: 60; background: var(--surface-bg);
+      overflow-y: auto; display: none; padding: 2.2rem 1.1rem 3.5rem; }
+    .primer.show { display: block; }
+    .primer__box { max-width: 42rem; margin: 0 auto; }
+    .primer__h1 { font-size: 1.9rem; line-height: 1.25; margin: .35rem 0 .5rem; color: var(--text-primary); }
+    .primer__lede { font-size: 1.15rem; line-height: 1.75; color: var(--text-secondary); margin-bottom: 1.4rem; }
+    .primer__h2 { font-size: 1.15rem; line-height: 1.4; margin: 1.7rem 0 .55rem; color: var(--text-primary); }
+    .primer p, .primer li { font-size: 1.08rem; line-height: 1.75; color: var(--text-secondary); }
+    .primer__defs, .primer__list, .primer__flow { padding-left: 1.25rem; display: flex; flex-direction: column; gap: .55rem; margin: .3rem 0 0; }
+    .primer__defs b { color: var(--text-primary); }
+    .primer__list--warn li::marker { color: var(--warning); }
+    .primer__foot { display: flex; align-items: center; gap: 1.3rem; flex-wrap: wrap; margin-top: 2.2rem; }
+    .primer__go { background: var(--accent); color: var(--surface-bg); border: none; border-radius: 10px;
+      padding: .72rem 1.5rem; font-size: 1.05rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .primer__docs { color: var(--accent); font-size: 1.02rem; }
+
     .next {
       display: flex; gap: 1rem; align-items: center; justify-content: space-between;
       flex-wrap: wrap; margin-top: 1.15rem; padding: 1rem 1.2rem; border-radius: 12px;
@@ -381,6 +400,60 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
   </style>
 </head>
 <body>
+  <!-- First-run primer. Shows once (cookie-gated) instead of the desk, reopenable via
+       "How this works". Plain language, large type, the minimum a new financier needs;
+       the technical desk and the full guide carry the depth. Fails open: if the script
+       does not run it stays hidden and the desk shows. -->
+  <div id="primer" class="primer">
+    <div class="primer__box">
+      <div class="eyebrow">Almstins Verify</div>
+      <h1 class="primer__h1">Before you start</h1>
+      <p class="primer__lede">A one-minute read: what this desk does, what it does not do, and the words you will see. You can reopen it any time from “How this works”.</p>
+
+      <h2 class="primer__h2">What this is</h2>
+      <p>A desk for checking a receivable before you finance it, and recording your claim once you do. It keeps a signed, timestamped record of who agreed to what.</p>
+
+      <h2 class="primer__h2">The words, in plain English</h2>
+      <ul class="primer__defs">
+        <li><b>Available to finance</b> — how much of the invoice is not already claimed by another financier.</li>
+        <li><b>Debtor confirmation</b> — the company that owes the money agreeing, in writing, that it owes it.</li>
+        <li><b>Claim</b> — your financing, registered against the receivable so others can see it is taken.</li>
+        <li><b>Receipt</b> — your client confirming your money actually reached them.</li>
+      </ul>
+
+      <h2 class="primer__h2">What it proves</h2>
+      <ul class="primer__list">
+        <li>That the debtor acknowledged the debt.</li>
+        <li>What financing is already registered, and how much room is left.</li>
+        <li>That a record existed on a date — timestamped to Bitcoin, so the date cannot be moved.</li>
+        <li>That your client confirmed receipt.</li>
+      </ul>
+
+      <h2 class="primer__h2">What it does not prove</h2>
+      <ul class="primer__list primer__list--warn">
+        <li>Who actually answered, or whether they had authority to.</li>
+        <li>That the goods were delivered.</li>
+        <li>Claims recorded outside this registry.</li>
+        <li>Legal priority — that is decided by law, not by us.</li>
+      </ul>
+
+      <h2 class="primer__h2">How you use it</h2>
+      <ol class="primer__flow">
+        <li>Record the deal.</li>
+        <li>Ask the debtor to confirm.</li>
+        <li>Check what is already claimed.</li>
+        <li>Register your financing.</li>
+        <li>Confirm your client received the money.</li>
+        <li>Mark it repaid when the debtor pays.</li>
+      </ol>
+
+      <div class="primer__foot">
+        <button id="primer-go" class="primer__go" type="button">Open the desk</button>
+        <a class="primer__docs" href="/verify/guide">Read the full guide</a>
+      </div>
+    </div>
+  </div>
+
   <div class="wrap">
 
     <header>
@@ -391,7 +464,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         </div>
         <AccountMenu tenantId={sess.tenantId} email={email} current="desk" />
       </div>
-      <p class="lede">Record a client's deal, attach the paperwork, and see everything already standing against it before you advance.</p>
+      <p class="lede">Record a client's deal, attach the paperwork, and see everything already standing against it before you advance.
+        <a id="primer-open" class="primer-open" href="#">How this works</a></p>
     </header>
 
     <div id="updates-banner" class="updates-banner"></div>
@@ -1878,6 +1952,25 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     document.getElementById('c-go')?.addEventListener('click', registerClaim);
 
     if (val('q-id')) check();
+
+    // First-run primer: shown until the banker clicks through once (cookie), reopenable
+    // from "How this works". Base CSS keeps it hidden, so if this never runs the desk is
+    // simply visible — fail-open.
+    (function primerInit() {
+      const primer = document.getElementById('primer');
+      if (!primer) return;
+      const seen = document.cookie.split('; ').some((c) => c.startsWith('desk_primer_seen='));
+      if (!seen) primer.classList.add('show');
+      document.getElementById('primer-go')?.addEventListener('click', () => {
+        document.cookie = 'desk_primer_seen=1; max-age=' + (60 * 60 * 24 * 365) + '; path=/; samesite=lax';
+        primer.classList.remove('show');
+      });
+      document.getElementById('primer-open')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        primer.classList.add('show');
+        primer.scrollTop = 0;
+      });
+    })();
   </script>
 </body>
 </html>
