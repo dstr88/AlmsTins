@@ -169,6 +169,15 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     @media (min-width: 1100px) { .card.tin { width: 92%; } }
     /* The thin green line that divides the three steps of the intake. */
     .gsep { height: 1px; background: var(--accent-dim); opacity: .6; margin: 1.75rem 0; }
+    /* Chosen contract files — a running list you add to, and a confirm list above Record. */
+    .filelist { display: flex; flex-direction: column; gap: .4rem; margin-top: .6rem; }
+    .filelist__row { display: flex; align-items: center; gap: .55rem; font-size: .95rem; color: var(--text-secondary); }
+    .filelist__ok { color: var(--gain); font-weight: 800; }
+    .filelist__x { margin-left: auto; background: transparent; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 1.05rem; line-height: 1; padding: 0 .25rem; }
+    .filelist__x:hover { color: var(--loss); }
+    .attach-sum { display: flex; flex-direction: column; gap: .35rem; margin-top: 1.1rem; }
+    .attach-sum__h { font-size: .75rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); }
 
     details.more { margin-top: .9rem; border-top: 1px solid var(--border-subtle); padding-top: .8rem; }
     details.more > summary {
@@ -541,7 +550,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </div>
 
       <details class="more">
-        <summary><span class="more__i">+</span> More from the contract</summary>
+        <summary><span class="more__i">+</span> Add more contract details (optional)</summary>
         <div class="grid2" style="margin-top:.8rem">
         <label class="fld">Debtor's own reference
           <input id="n-ref" placeholder="Their PO or contract no." autocomplete="off" />
@@ -573,12 +582,17 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
       <div class="sep"></div>
 
-      <label class="fld">The paperwork
-        <input id="n-file" type="file" multiple accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" />
-      </label>
-      <p class="hint" style="margin:.4rem 0 0">
-        Scan the promissory note or contract he brought in. Fingerprinted on upload, shown to both
-        people you ask, then deleted once they have answered.
+      <div class="fld">Attach the contract
+        <input id="n-file" type="file" multiple accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" hidden />
+      </div>
+      <div class="row" style="margin-top:.15rem; gap:.6rem; align-items:center">
+        <button class="small ghost" id="n-file-add" type="button">Choose the contract</button>
+        <span class="muted" style="font-size:.86rem">PDF or image. Add as many as you need.</span>
+      </div>
+      <div id="n-filelist" class="filelist"></div>
+      <p class="hint" style="margin:.5rem 0 0">
+        The contract or promissory note he brought in. Fingerprinted on upload, shown to whoever you
+        ask to confirm, then deleted once they answer. Files attach when you record the deal below.
       </p>
 
       <div class="gsep"></div>
@@ -594,6 +608,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       </label>
       <p class="hint" style="margin:.4rem 0 0">Leave it blank to skip. You can always send it later from the record.</p>
 
+      <div id="n-attach-sum" class="attach-sum"></div>
       <div class="row" style="margin-top:1rem">
         <button id="n-go">Record, sign &amp; send</button>
       </div>
@@ -797,6 +812,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     let book: any[] = [];
     let updatedOnly = false;
     let updatesDismissed = false;
+    let chosenFiles: File[] = [];
 
     async function check(id?: string) {
       const rid = (id ?? val('q-id')).trim();
@@ -1342,9 +1358,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         const done: string[] = ['recorded and signed'];
         const failed: string[] = [];
 
-        const files = ($('n-file') as HTMLInputElement)?.files;
-        if (files && files.length) {
-          for (const f of Array.from(files)) {
+        const files = chosenFiles;
+        if (files.length) {
+          for (const f of files) {
             try {
               const fd = new FormData();
               fd.append('receivableId', j.id);
@@ -1389,6 +1405,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           const el = $(id) as HTMLInputElement; if (el) el.value = '';
         });
         const fi = $('n-file') as HTMLInputElement; if (fi) fi.value = '';
+        chosenFiles = []; renderFileList();
 
         ($('q-id') as HTMLInputElement).value = j.id;
         await check(j.id);
@@ -1964,6 +1981,38 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     document.getElementById('c-go')?.addEventListener('click', registerClaim);
 
     if (val('q-id')) check();
+
+    // Attach the contract: files accumulate in chosenFiles across repeated picks (the native
+    // input replaces its selection each time, so we keep our own list). Shown as a removable
+    // list here and mirrored as a "ready to attach" checklist above Record. They upload only
+    // once the receivable exists — on Record, sign & send.
+    function renderFileList() {
+      const list = document.getElementById('n-filelist');
+      const sum = document.getElementById('n-attach-sum');
+      const addBtn = document.getElementById('n-file-add');
+      if (addBtn) addBtn.textContent = chosenFiles.length ? '＋ Add another file' : 'Choose the contract';
+      if (list) {
+        list.innerHTML = chosenFiles.map((f, i) =>
+          `<div class="filelist__row"><span class="filelist__ok">&#10003;</span><span>${esc(f.name)}</span>`
+          + `<button class="filelist__x" type="button" data-rmfile="${i}" aria-label="Remove">&times;</button></div>`).join('');
+        list.querySelectorAll('[data-rmfile]').forEach((b) => b.addEventListener('click', () => {
+          chosenFiles.splice(Number((b as HTMLElement).dataset.rmfile), 1); renderFileList();
+        }));
+      }
+      if (sum) sum.innerHTML = chosenFiles.length
+        ? `<div class="attach-sum__h">Ready to attach when you record</div>`
+          + chosenFiles.map((f) => `<div class="filelist__row"><span class="filelist__ok">&#10003;</span><span>${esc(f.name)}</span></div>`).join('')
+        : '';
+    }
+    document.getElementById('n-file-add')?.addEventListener('click', () => ($('n-file') as HTMLInputElement)?.click());
+    ($('n-file') as HTMLInputElement)?.addEventListener('change', (e) => {
+      const inp = e.target as HTMLInputElement;
+      for (const f of Array.from(inp.files || [])) {
+        if (!chosenFiles.some((g) => g.name === f.name && g.size === f.size)) chosenFiles.push(f);
+      }
+      inp.value = '';  // let the same file be re-picked and more be added
+      renderFileList();
+    });
 
     // First-run primer: shown until the banker clicks through once (cookie), reopenable
     // from "How this works". Base CSS keeps it hidden, so if this never runs the desk is
