@@ -836,7 +836,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         loadOffers();
         // Opening (or reopening after an action) counts as seeing it, so it stops being an
         // unseen update. No-op when the id isn't one of the banker's own book rows.
-        if (book.some((b: any) => b.id === rid)) markSeen(rid);
+        if (book.some((b: any) => b.id === rid)) { markSeen(rid); enableClientStep(rid); }
       } catch (e) {
         show(out, 'Could not reach the registry. Try again.', 'note-loss');
       }
