@@ -121,6 +121,24 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .foot a { color: var(--accent); }
     #track { display: none; }
     #track.show { display: block; }
+    /* Test / practice mode — reuses the --warning family, matching the financier desk
+       and the public registry check so a test record reads as TEST everywhere. */
+    .testrow { display: flex; align-items: flex-start; gap: .55rem; margin-top: .85rem; font-size: .82rem; color: var(--text-secondary); line-height: 1.4; }
+    .testrow input { width: auto; margin-top: .15rem; flex: none; }
+    .card.is-test { border-color: var(--warning-border); background: var(--warning-bg); box-shadow: inset 0 0 0 1px var(--warning-border); }
+    .card.is-test > h2::after {
+      content: 'TEST'; margin-left: .6rem; font-size: .58rem; font-weight: 800; letter-spacing: .12em;
+      color: var(--warning); border: 1px solid var(--warning-border); background: var(--warning-bg);
+      border-radius: 99px; padding: .12rem .4rem; vertical-align: middle;
+    }
+    .tpill {
+      font-size: .58rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--warning); border: 1px solid var(--warning-border); background: var(--warning-bg);
+      border-radius: 99px; padding: .1rem .38rem;
+    }
+    .testbanner { display: none; margin-bottom: .85rem; font-size: .82rem; font-weight: 600; color: var(--warning);
+      border: 1px solid var(--warning-border); background: var(--warning-bg); border-radius: 9px; padding: .55rem .75rem; }
+    .testbanner.show { display: block; }
   </style>
 </head>
 <body>
@@ -137,7 +155,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       <p class="lede">Record what you are owed, hand the ID to your financier, and see exactly what gets claimed against it.</p>
     </header>
 
-    <div class="card">
+    <div class="card" id="rec-card">
       <h2>Record a receivable</h2>
       <p class="hint">Your half of the record. Your financier fills in theirs.</p>
       <div class="grid">
@@ -161,6 +179,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         </label>
         <label>Due date<input id="f-due" type="date" /></label>
       </div>
+      <label class="testrow">
+        <input id="f-test" type="checkbox" />
+        <span>Practice run. Record this as a <b>test</b> so you can try the flow without a real deal. It is marked TEST everywhere it appears, including the public check and the debtor and financier links, and a test record can never be turned into a real one.</span>
+      </label>
       <div class="row" style="margin-top:.85rem">
         <button id="f-go">Sign, record &amp; timestamp</button>
         <span class="muted">Signed with the Almstins key and hashed into an ID you control.</span>
@@ -194,6 +216,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <div id="track">
       <div class="card">
         <h2>Where it stands</h2>
+        <div id="t-testbanner" class="testbanner">TEST RECORD — a practice run, not a real receivable. No money is implied.</div>
         <div id="t-facts" class="facts"></div>
         <div style="margin-top:1rem">
           <div class="bar"><div id="t-bar" class="bar__fill" style="width:0%"></div></div>
@@ -255,6 +278,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             currency: val('f-ccy') || 'NGN',
             terms: val('f-terms') || null,
             dueDate: val('f-due') || null,
+            isTest: (document.getElementById('f-test') as HTMLInputElement)?.checked === true,
           }),
         });
         const j = await r.json();
@@ -304,6 +328,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     function renderTrack(r: any) {
       const ccy = r.currency || 'NGN';
+      document.getElementById('t-testbanner')!.classList.toggle('show', r.isTest === true);
       const claimed = Number(r.claimed || 0), avail = Number(r.available || 0), face = Number(r.face || 0);
       const f = (k: string, v: string) => `<div><div class="fact__k">${esc(k)}</div><div class="fact__v">${esc(v)}</div></div>`;
       document.getElementById('t-facts')!.innerHTML =
@@ -343,7 +368,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         if (!list.length) { box.innerHTML = `<p class="muted">Nothing recorded yet.</p>`; return; }
         box.innerHTML = list.map((x: any) => `
           <div class="mine__row">
-            <span><b>${esc(x.invoiceNo)}</b> &middot; ${esc(x.buyer)} &middot; ${esc(money(x.face, x.currency))}</span>
+            <span><b>${esc(x.invoiceNo)}</b> &middot; ${esc(x.buyer)} &middot; ${esc(money(x.face, x.currency))}${x.isTest ? ' <span class="tpill">test</span>' : ''}</span>
             <button class="small ghost" data-track="${esc(x.id)}">Track</button>
           </div>`).join('');
         box.querySelectorAll('[data-track]').forEach((b) => {
@@ -389,6 +414,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     document.getElementById('t-settle')?.addEventListener('click', settle);
     document.getElementById('f-go')?.addEventListener('click', createReceivable);
+    document.getElementById('f-test')?.addEventListener('change', (e) => {
+      document.getElementById('rec-card')?.classList.toggle('is-test', (e.target as HTMLInputElement).checked);
+    });
     document.getElementById('t-go')?.addEventListener('click', () => track());
     $('t-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') track(); });
     document.getElementById('copy-id')?.addEventListener('click', (e) => copy(lastId, e.currentTarget as HTMLElement, 'Copied'));
