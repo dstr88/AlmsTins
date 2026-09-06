@@ -237,10 +237,9 @@ const ERRORS: Record<string, string> = {
           return;
         }
         document.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
-        show(outcome === 'accurate'
-          ? 'Recorded. Your confirmation is signed and timestamped, and your financier can see it.'
-          : 'Recorded. Your financier can see what you say is wrong.',
-          outcome === 'accurate' ? 'note-gain' : 'note-loss');
+        // Answered: send them on to a plain thank-you with the three tools, rather than
+        // leaving them on a dead note with nowhere to go.
+        window.location.href = '/verify/thanks';
       } catch { show('Could not reach Almstins. Try again.', 'note-loss'); }
     }
 

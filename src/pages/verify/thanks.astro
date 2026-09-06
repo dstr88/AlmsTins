@@ -1,0 +1,101 @@
+---
+// Almstins Verify — where a confirmer lands after answering.
+//
+// The attest / authenticate / offer / countersign pages used to leave the recipient sitting
+// on a success note with nowhere to go. This thanks them for putting their name to the record
+// and, since they have just seen the tool work, offers them the same row of three products the
+// hub shows. No token, no account, nothing to submit — a plain landing.
+import '@/styles/tokens.css';
+import { en as t } from '@/i18n/loginPage';
+
+export const prerender = false;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Thanks — Almstins Verify</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 3rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 52rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.4rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.6rem, 4vw, 2.1rem); line-height: 1.2; font-weight: 700; }
+    .lede { color: var(--text-secondary); font-size: 1rem; max-width: 40rem; }
+
+    .ok {
+      background: var(--gain-bg); border: 1px solid var(--gain-border); border-left: 3px solid var(--gain);
+      border-radius: 10px; padding: .9rem 1.05rem; font-size: .95rem; color: var(--text-primary);
+    }
+
+    /* The three tools, same row as the hub and the sign-in page. */
+    .doors-label { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--text-muted); margin-top: .8rem; }
+    .doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .9rem; width: 100%; }
+    .door {
+      display: flex; flex-direction: column; gap: .35rem; text-decoration: none; color: inherit;
+      background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px;
+      padding: 1.15rem 1.25rem; transition: border-color .15s, background .15s;
+    }
+    .door:hover { border-color: var(--accent-glow); background: var(--surface-hover); }
+    .door__icon { font-size: 1.35rem; }
+    .door__title { font-size: 1.02rem; font-weight: 700; }
+    .door__desc { font-size: .87rem; color: var(--text-secondary); }
+    .door__free { font-size: .78rem; color: var(--accent-dim, var(--accent)); margin-top: .35rem; }
+    .door__cta { font-size: .85rem; font-weight: 700; color: var(--accent); margin-top: .2rem; }
+
+    .foot { font-size: .8rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; margin-top: .6rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="display:flex;flex-direction:column;gap:.5rem">
+      <div class="eyebrow">Almstins Verify</div>
+      <h1>Thank you — your answer is recorded.</h1>
+      <p class="lede">
+        Your response is signed and timestamped, and the financier who asked you can see it.
+        There is nothing else for you to do here.
+      </p>
+    </div>
+
+    <div class="ok">You put your name to the record. That is what settles any later argument about what was agreed.</div>
+
+    <div>
+      <div class="doors-label">While you are here — three tools, all read-only, no wallet connection</div>
+      <div class="doors" aria-label={t.hub.doorsAria}>
+        <a class="door" href="/wallet-checker">
+          <span class="door__icon" aria-hidden="true">🛡️</span>
+          <span class="door__title">{t.hub.checker.title}</span>
+          <span class="door__desc">{t.hub.checker.desc}</span>
+          <span class="door__free">{t.hub.checker.free}</span>
+          <span class="door__cta">{t.hub.checker.cta} →</span>
+        </a>
+        <a class="door" href="/verify">
+          <span class="door__icon" aria-hidden="true">🏷️</span>
+          <span class="door__title">{t.hub.verify.title}</span>
+          <span class="door__desc">{t.hub.verify.desc}</span>
+          <span class="door__free">{t.hub.verify.free}</span>
+          <span class="door__cta">{t.hub.verify.cta} →</span>
+        </a>
+        <a class="door" href="/dashboard/vault">
+          <span class="door__icon" aria-hidden="true">📊</span>
+          <span class="door__title">{t.hub.watcher.title}</span>
+          <span class="door__desc">{t.hub.watcher.desc}</span>
+          <span class="door__free">{t.hub.watcher.free}</span>
+          <span class="door__cta">{t.hub.watcher.cta} →</span>
+        </a>
+      </div>
+    </div>
+
+    <p class="foot">
+      Almstins records and proves. It never holds money, never moves it, and never says who anyone is.
+    </p>
+  </div>
+</body>
+</html>

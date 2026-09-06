@@ -279,11 +279,8 @@ const ERRORS: Record<string, string> = {
           refresh();
           return;
         }
-        box.className = 'note note-gain show';
-        box.textContent = outcome === 'confirmed'
-          ? 'Thank you. Your confirmation has been recorded and timestamped. Nothing further is needed from you.'
-          : 'Thank you. Your reply has been recorded and the lender will see it. Nothing further is needed from you.';
-        document.querySelectorAll('.actions').forEach((el) => ((el as HTMLElement).style.display = 'none'));
+        // Answered: on to a plain thank-you with the three tools, not a dead note.
+        window.location.href = '/verify/thanks';
       } catch {
         box.className = 'note note-loss show';
         box.textContent = 'Could not reach the registry. Please try again.';

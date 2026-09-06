@@ -288,10 +288,8 @@ const ERRORS: Record<string, string> = {
           return;
         }
         document.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
-        show(outcome === 'accept'
-          ? 'Accepted. Your agreement is signed and timestamped. Your financier can see it.'
-          : 'Recorded. Your financier can see that you did not accept, and why.',
-          outcome === 'accept' ? 'note-gain' : 'note-loss');
+        // Answered: on to a plain thank-you with the three tools, not a dead note.
+        window.location.href = '/verify/thanks';
       } catch { show('Could not reach Almstins. Try again.', 'note-loss'); }
     }
 
