@@ -411,7 +411,14 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .foot { margin-top: 1.4rem; font-size: .77rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; }
     .foot a { color: var(--accent); }
     #panel { display: none; }
-    #panel.show { display: block; }
+    #panel.show { display: block; position: fixed; inset: 0; z-index: 70; overflow-y: auto;
+      background: rgba(0, 0, 0, .6); padding: 2.5rem 1rem; }
+    .panel__box { max-width: 60rem; margin: 0 auto; background: var(--surface-bg);
+      border: 1px solid var(--border-bright); border-radius: 14px; padding: 1.4rem 1.5rem; }
+    .panel__close { position: fixed; top: 1rem; right: 1.2rem; z-index: 71; background: var(--surface-card);
+      border: 1px solid var(--border-bright); color: var(--text-primary); border-radius: 99px;
+      width: 2.3rem; height: 2.3rem; font-size: 1.35rem; line-height: 1; cursor: pointer; }
+    .panel__close:hover { border-color: var(--accent); color: var(--accent); }
   </style>
 </head>
 <body>
@@ -649,6 +656,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <script type="application/json" id="terms-data" set:html={JSON.stringify(TERMS)}></script>
 
     <div id="panel">
+      <button id="panel-close" class="panel__close" type="button" aria-label="Close">&times;</button>
+      <div class="panel__box">
       <div id="verdict"></div>
 
       <div id="rail"></div>
@@ -783,6 +792,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         </div>
         <div id="cs-out" class="note"></div>
       </div>
+      </div>
     </div>
 
     <p class="foot">
@@ -825,12 +835,14 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         const j = await r.json();
         if (!j.ok || !j.found) {
           hide(out); show(out, 'No receivable found for that ID. Check it with whoever sent it.', 'note-loss');
-          panel.classList.remove('show'); current = null; return;
+          panel.classList.remove('show'); document.body.style.overflow = ''; current = null; return;
         }
         hide(out);
         current = j.receivable;
         render(current);
         panel.classList.add('show');
+        panel.scrollTop = 0;
+        document.body.style.overflow = 'hidden';
         loadDocs();
         loadConfirms();
         loadOffers();
@@ -1979,6 +1991,21 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     document.getElementById('q-go')?.addEventListener('click', () => check());
     $('q-id')?.addEventListener('keydown', (e: any) => { if (e.key === 'Enter') check(); });
     document.getElementById('c-go')?.addEventListener('click', registerClaim);
+
+    // The result view opens as a modal over the desk. Close on the ×, on a click on the
+    // backdrop (but not inside the box), and on Escape, restoring the page scroll.
+    function closePanel() {
+      const p = document.getElementById('panel');
+      if (p) p.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+    document.getElementById('panel-close')?.addEventListener('click', closePanel);
+    document.getElementById('panel')?.addEventListener('click', (e: any) => {
+      if (e.target === e.currentTarget) closePanel();
+    });
+    document.addEventListener('keydown', (e: any) => {
+      if (e.key === 'Escape' && document.getElementById('panel')?.classList.contains('show')) closePanel();
+    });
 
     if (val('q-id')) check();
 
