@@ -165,7 +165,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     select#cs-claim:focus { outline: none; border-color: var(--accent); }
     /* The intake tin. Wider than the reading cards because it is a form, capped so it does
        not stretch to 2000px on a desktop monitor. */
-    .card.tin { width: 100%; max-width: 62rem; padding: 1.5rem 1.65rem; }
+    .card.tin { width: 100%; max-width: 62rem; padding: 1.5rem 1.65rem; border: 1px solid var(--accent-soft); box-shadow: 0 0 0 1px var(--accent-soft); }
     @media (min-width: 1100px) { .card.tin { width: 80%; } }
 
     details.more { margin-top: .9rem; border-top: 1px solid var(--border-subtle); padding-top: .8rem; }
@@ -278,6 +278,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     }
     .step__t { font-size: .93rem; font-weight: 700; }
     .step__d { font-size: .82rem; color: var(--text-secondary); }
+    .actnote { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 1.15rem 0 .5rem; }
     .step--off { opacity: .5; }
     .step--off .step__n { color: var(--text-muted); background: var(--surface-card); border-color: var(--border-subtle); }
     .step input:disabled, .step button:disabled { cursor: not-allowed; }
@@ -391,6 +392,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         </div>
       </div>
 
+      <div class="actnote">Loan details</div>
       <div class="grid2">
         <label class="fld">Client <span class="req">required</span>
           <input id="n-sup" placeholder="Who you are financing" autocomplete="off" />
@@ -455,6 +457,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         people you ask, then deleted once they have answered.
       </p>
 
+      <div class="actnote">Confirm with the funding agency</div>
       <label class="fld" style="margin-top:.9rem">Email the debtor <span class="req">to confirm the debt</span>
         <input id="n-demail" type="email" placeholder="accounts@their-company.com" autocomplete="off" />
       </label>
@@ -469,6 +472,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
            appears only once it is usable is invisible exactly when someone is learning
            what the tool does, which is how three features got reported as missing. -->
       <div class="sep"></div>
+      <div class="actnote">Confirm with the client</div>
       <div id="n-client" class="step step--off">
         <div class="step__h">
           <span class="step__n">2</span>
