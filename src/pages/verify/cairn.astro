@@ -1,0 +1,331 @@
+---
+// Almstins Verify — PPPcairn milestone desk (Phase 0).
+//
+// A project is a financed piece of infrastructure; its milestones are the stages money is
+// released against. Phase 0 records and signs projects and milestones so the data model and
+// the desk are real; the independent-inspector attestation (the point of the whole thing)
+// arrives in Phase 1. Nothing here moves money.
+//
+// Signed-in only, like the receivables desk. No tenant_id or identity is ever rendered.
+import '@/styles/tokens.css';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+import { getAuthSession } from '@/lib/authSession';
+
+export const prerender = false;
+
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/verify/login?next=/verify/cairn', 302);
+
+const authSession = await getAuthSession(Astro.request);
+const email = authSession?.user?.email ?? null;
+const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify/login?next=/verify/cairn')}`;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Milestone Desk — Almstins Verify</title>
+  <meta name="description" content="Record a financed project and its milestones, signed and timestamped." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 60rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
+    .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.6rem, 4vw, 2.05rem); line-height: 1.2; font-weight: 700; margin-top: .3rem; }
+    .blurb { color: var(--text-secondary); font-size: 1rem; max-width: 42rem; margin-top: .35rem; }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 1.4rem 1.5rem; }
+    .card.accent { border-color: var(--accent-glow); box-shadow: inset 0 0 0 1px var(--accent-glow); }
+    .card h2 { font-size: 1.15rem; font-weight: 700; }
+    .card .hint { font-size: .92rem; color: var(--text-muted); margin: .25rem 0 1rem; }
+
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .8rem; }
+    .fld { display: flex; flex-direction: column; gap: .34rem; font-size: 1.02rem; }
+    .fld .req { font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+    .fld input, .fld select, .fld textarea {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .6rem .75rem; font-size: 1.02rem; font-family: inherit;
+    }
+    .fld textarea { min-height: 3.2rem; resize: vertical; }
+    .fld input:focus, .fld select:focus, .fld textarea:focus { outline: none; border-color: var(--accent); }
+    .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+    .grow { flex: 1 1 12rem; }
+
+    button {
+      border-radius: 10px; padding: .72rem 1.1rem; font-size: .98rem; font-weight: 700;
+      cursor: pointer; font-family: inherit; border: 1px solid transparent; background: var(--accent); color: var(--surface-bg);
+    }
+    button:hover:not(:disabled) { filter: brightness(1.08); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button.ghost { background: transparent; border-color: var(--border-bright); color: var(--text-secondary); }
+    button.small { padding: .45rem .8rem; font-size: .85rem; }
+
+    .modes { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 1.1rem; }
+    .mode { display: flex; gap: .4rem; align-items: center; font-size: .95rem; cursor: pointer; }
+    .mode--test input { accent-color: var(--warning); }
+    .modes__d { font-size: .86rem; color: var(--text-muted); }
+    .card.is-test { border-color: var(--warning-border); box-shadow: inset 0 0 0 1px var(--warning-border); background: var(--warning-bg); }
+
+    .note { border-radius: 10px; padding: .7rem .85rem; font-size: .92rem; margin-top: .8rem; display: none; }
+    .note.show { display: block; }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
+
+    .plist { display: flex; flex-direction: column; gap: .55rem; }
+    .prow { display: flex; justify-content: space-between; gap: 1rem; align-items: center;
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 11px; padding: .75rem .9rem; cursor: pointer; }
+    .prow:hover { border-color: var(--accent-glow); }
+    .prow__name { font-weight: 700; }
+    .prow__meta { font-size: .82rem; color: var(--text-muted); }
+    .pill { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+      color: var(--warning); border: 1px solid var(--warning-border); background: var(--warning-bg); border-radius: 99px; padding: .1rem .5rem; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: .4rem; }
+    th, td { text-align: left; padding: .55rem .6rem; border-bottom: 1px solid var(--border-subtle); font-size: .92rem; }
+    th { font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .st { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+    .sep { height: 1px; background: var(--accent-soft); border: 0; margin: 1.1rem 0; }
+    .muted { color: var(--text-muted); font-size: .9rem; }
+    .foot { font-size: .8rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; }
+    .foot a { color: var(--accent); }
+    .acct { display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; flex: 0 0 auto; }
+    .acct__email { font-size: .82rem; color: var(--text-muted); max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .acct__out { font-size: .82rem; color: var(--accent); text-decoration: none; }
+    .acct__out:hover { text-decoration: underline; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="eyebrow">Almstins Verify · PPPcairn</div>
+        <h1>Milestone desk</h1>
+        <p class="blurb">
+          Record a financed project and the milestones its money releases against. Each one is
+          signed and timestamped. Asking an independent party to attest a milestone comes next.
+        </p>
+      </div>
+      <div class="acct">
+        <span class="acct__email">{email ?? 'Account'}</span>
+        <a class="acct__out" href={signOutHref}>Sign out</a>
+      </div>
+    </div>
+
+    <div class="card accent" id="new-card">
+      <div class="modes" id="modes">
+        <label class="mode"><input type="radio" name="cairnmode" value="real" checked /><span>Real world</span></label>
+        <label class="mode mode--test"><input type="radio" name="cairnmode" value="test" /><span>Test</span></label>
+        <span class="modes__d" id="mode-note">A real project. Everything recorded counts.</span>
+      </div>
+
+      <h2>New project</h2>
+      <p class="hint">The financed work, and what it is worth in total. Milestones come after you record it.</p>
+      <div class="grid2">
+        <label class="fld">Project name <span class="req">required</span>
+          <input id="p-name" placeholder="Lagos-Ibadan section 3 road" autocomplete="off" />
+        </label>
+        <label class="fld">Contractor / borrower <span class="req">required</span>
+          <input id="p-cparty" placeholder="Who you are financing" autocomplete="off" />
+        </label>
+        <label class="fld">Total value <span class="req">required</span>
+          <input id="p-total" type="number" step="0.01" min="0" placeholder="500000000" />
+        </label>
+        <label class="fld">Currency
+          <select id="p-ccy">
+            <option value="NGN">NGN</option><option value="USD">USD</option>
+            <option value="GBP">GBP</option><option value="EUR">EUR</option>
+            <option value="GHS">GHS</option><option value="KES">KES</option>
+            <option value="ZAR">ZAR</option>
+          </select>
+        </label>
+      </div>
+      <label class="fld" style="margin-top:.8rem">Description (optional)
+        <textarea id="p-desc" placeholder="What is being built, and the shape of the facility."></textarea>
+      </label>
+      <div class="row" style="margin-top:1rem">
+        <button id="p-go">Record &amp; sign the project</button>
+      </div>
+      <div id="p-out" class="note"></div>
+    </div>
+
+    <div class="card" id="ms-card" hidden>
+      <h2 id="ms-title">Milestones</h2>
+      <p class="hint" id="ms-sub">The stages money releases against, in order.</p>
+      <div id="ms-list"></div>
+      <hr class="sep" />
+      <div class="grid2">
+        <label class="fld">Milestone <span class="req">required</span>
+          <input id="m-title" class="grow" placeholder="Foundation poured" autocomplete="off" />
+        </label>
+        <label class="fld">Tranche amount <span class="req">released here</span>
+          <input id="m-amt" type="number" step="0.01" min="0" placeholder="125000000" />
+        </label>
+        <label class="fld">Target date (optional)
+          <input id="m-date" type="date" />
+        </label>
+      </div>
+      <label class="fld" style="margin-top:.8rem">What this stage means (optional)
+        <textarea id="m-desc" placeholder="What has to be true for this milestone to count as reached."></textarea>
+      </label>
+      <div class="row" style="margin-top:1rem">
+        <button id="m-go">Add &amp; sign milestone</button>
+      </div>
+      <div id="m-out" class="note"></div>
+    </div>
+
+    <div class="card">
+      <h2>Your projects</h2>
+      <p class="hint">Everything you have recorded. Click one to work on its milestones.</p>
+      <div id="proj-list" class="plist"><p class="muted">Loading…</p></div>
+    </div>
+
+    <p class="foot">
+      Almstins records and proves. It never holds money, never moves it, and never says who anyone is.
+      Full workbench for receivables at <a href="/verify/desk">/verify/desk</a>.
+    </p>
+  </div>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const val = (id: string) => ($(id)?.value ?? '').trim();
+    function esc(s: unknown) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>
+      )[c]!);
+    }
+    function show(el: HTMLElement, html: string, cls = 'note-gain') {
+      el.className = `note show ${cls}`; el.innerHTML = html;
+    }
+    function hide(el: HTMLElement) { el.className = 'note'; el.innerHTML = ''; }
+    const money = (n: number, ccy: string) =>
+      `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+    let currentProject: string | null = null;
+
+    // Practice mode. The new-project card turns amber so a rehearsal can't be mistaken for real,
+    // and the flag travels with the record into its signed manifest.
+    function syncMode() {
+      const test = (document.querySelector('input[name=cairnmode]:checked') as HTMLInputElement)?.value === 'test';
+      document.getElementById('new-card')?.classList.toggle('is-test', test);
+      document.getElementById('mode-note')!.textContent = test
+        ? 'A practice run. Marked TEST on this desk and inside the signed record.'
+        : 'A real project. Everything recorded counts.';
+    }
+    document.querySelectorAll('input[name=cairnmode]').forEach((r) => r.addEventListener('change', syncMode));
+    syncMode();
+
+    async function createProject() {
+      const out = $('p-out') as unknown as HTMLElement;
+      const name = val('p-name'), counterparty = val('p-cparty');
+      const totalValue = Number(val('p-total'));
+      if (!name || !counterparty) { show(out, 'A project name and contractor are both needed.', 'note-loss'); return; }
+      if (!totalValue || totalValue <= 0) { show(out, 'Enter the total value of the project.', 'note-loss'); return; }
+      show(out, 'Signing and recording…');
+      try {
+        const r = await fetch('/api/verify/cairn/projects', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name, counterparty, totalValue, currency: val('p-ccy') || 'NGN',
+            description: val('p-desc') || null,
+            isTest: (document.querySelector('input[name=cairnmode]:checked') as HTMLInputElement)?.value === 'test',
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out, esc(j.message || 'Could not record that.'), 'note-loss'); return; }
+        show(out, '<b>Recorded and signed.</b> Now add the milestones its money releases against.', 'note-gain');
+        ['p-name','p-cparty','p-total','p-desc'].forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
+        openProject(j.id);
+        loadProjects();
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    async function openProject(id: string) {
+      currentProject = id;
+      try {
+        const j = await (await fetch('/api/verify/cairn/projects?id=' + encodeURIComponent(id))).json();
+        if (!j.ok) return;
+        const card = document.getElementById('ms-card')!;
+        card.hidden = false;
+        document.getElementById('ms-title')!.textContent = `Milestones — ${j.project.name}`;
+        document.getElementById('ms-sub')!.textContent =
+          `${j.project.counterparty} · ${money(j.project.totalValue, j.project.currency)} total${j.project.isTest ? ' · TEST' : ''}`;
+        renderMilestones(j.milestones || [], j.project.currency);
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        ($('m-title') as HTMLInputElement)?.focus();
+      } catch { /* non-fatal */ }
+    }
+
+    function renderMilestones(rows: any[], ccy: string) {
+      const box = document.getElementById('ms-list')!;
+      if (!rows.length) { box.innerHTML = '<p class="muted">No milestones yet. Add the first below.</p>'; return; }
+      box.innerHTML = '<table><thead><tr><th>#</th><th>Milestone</th><th>Tranche</th><th>Target</th><th>Status</th></tr></thead><tbody>' +
+        rows.map((m) => `<tr>
+          <td>${esc(m.seq)}</td>
+          <td>${esc(m.title)}${m.description ? `<div class="muted">${esc(m.description)}</div>` : ''}</td>
+          <td class="num">${esc(money(m.trancheAmount, ccy))}</td>
+          <td>${esc(m.targetDate || '—')}</td>
+          <td><span class="st">${esc(m.status)}</span></td>
+        </tr>`).join('') + '</tbody></table>';
+    }
+
+    async function addMilestone() {
+      const out = $('m-out') as unknown as HTMLElement;
+      if (!currentProject) { show(out, 'Record a project first.', 'note-loss'); return; }
+      const title = val('m-title');
+      const trancheAmount = Number(val('m-amt'));
+      if (!title) { show(out, 'A milestone needs a title.', 'note-loss'); return; }
+      if (!(trancheAmount >= 0)) { show(out, 'Enter the tranche amount (zero or more).', 'note-loss'); return; }
+      show(out, 'Signing…');
+      try {
+        const r = await fetch('/api/verify/cairn/milestone', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: currentProject, title,
+            trancheAmount, targetDate: val('m-date') || null, description: val('m-desc') || null,
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out, esc(j.message || 'Could not add that.'), 'note-loss'); return; }
+        hide(out);
+        ['m-title','m-amt','m-date','m-desc'].forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
+        openProject(currentProject);
+        loadProjects();
+        ($('m-title') as HTMLInputElement)?.focus();
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    async function loadProjects() {
+      const box = document.getElementById('proj-list')!;
+      try {
+        const j = await (await fetch('/api/verify/cairn/projects')).json();
+        const rows = j.projects ?? [];
+        if (!j.ok || !rows.length) { box.innerHTML = '<p class="muted">Nothing recorded yet.</p>'; return; }
+        box.innerHTML = rows.map((p: any) => `
+          <div class="prow" data-open="${esc(p.id)}">
+            <div>
+              <div class="prow__name">${esc(p.name)} ${p.isTest ? '<span class="pill">test</span>' : ''}</div>
+              <div class="prow__meta">${esc(p.counterparty)} · ${esc(money(p.totalValue, p.currency))} · ${esc(p.milestoneCount)} milestone${p.milestoneCount === 1 ? '' : 's'}</div>
+            </div>
+            <button class="small ghost" type="button">Open</button>
+          </div>`).join('');
+        box.querySelectorAll('[data-open]').forEach((el) =>
+          el.addEventListener('click', () => openProject((el as HTMLElement).dataset.open as string)));
+      } catch { box.innerHTML = '<p class="muted">Could not load your projects.</p>'; }
+    }
+
+    document.getElementById('p-go')?.addEventListener('click', createProject);
+    document.getElementById('m-go')?.addEventListener('click', addMilestone);
+    loadProjects();
+  </script>
+</body>
+</html>
