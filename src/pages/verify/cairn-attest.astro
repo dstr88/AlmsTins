@@ -67,6 +67,17 @@ const ERRORS: Record<string, string> = {
     input[type=text]:focus, textarea:focus { outline: none; border-color: var(--accent); }
     .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .7rem; }
 
+    .doclist { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
+    .doclist li { border: 1px solid var(--border-subtle); border-radius: 9px; padding: .6rem .75rem; background: var(--surface-card-2); }
+    a.doc { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; text-decoration: none; }
+    .doc__name { color: var(--accent); font-weight: 600; font-size: .95rem; word-break: break-all; }
+    .doc__meta { color: var(--text-muted); font-size: .74rem; white-space: nowrap; }
+    a.doc:hover .doc__name { text-decoration: underline; }
+    .doc__hash { margin-top: .4rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .64rem; color: var(--text-muted); word-break: break-all; }
+    .uprow { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+    .uprow input[type=file] { flex: 1 1 12rem; font-size: .85rem; color: var(--text-secondary); }
+    .upbtn { width: auto; padding: .55rem 1rem; font-size: .88rem; }
+
     .checks { display: flex; flex-direction: column; gap: .55rem; margin-top: .3rem; }
     .chk { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; cursor: pointer; }
     .chk input { margin-top: .28rem; width: 1rem; height: 1rem; accent-color: var(--accent); flex: 0 0 auto; }
@@ -131,6 +142,46 @@ const ERRORS: Record<string, string> = {
           to it. Answer from your own inspection of the work, not from anyone's report. A true
           "not yet" is worth more than a hopeful "done".
           {req.sentTo && <> This was sent to <b>{req.sentTo}</b>.</>}
+        </div>
+
+        {req.documents.filter((d) => d.uploadedBy === 'owner').length > 0 && (
+          <div class="card">
+            <h2>The report form to use</h2>
+            <p class="hint">
+              Whoever asked wants their own form filled in. Open it on your phone, fill it out or
+              print it, sign it, then photograph the signed copy and upload it below before you answer.
+            </p>
+            <ul class="doclist">
+              {req.documents.filter((d) => d.uploadedBy === 'owner').map((d) => (
+                <li>
+                  <a class="doc" href={`/api/verify/cairn/document?t=${encodeURIComponent(token)}&id=${encodeURIComponent(d.id)}`} target="_blank" rel="noopener">
+                    <span class="doc__name">{d.filename}</span>
+                    <span class="doc__meta">{(d.fileSize / 1024).toFixed(0)} KB · open / print</span>
+                  </a>
+                  <div class="doc__hash" title="SHA-256 of this file">{d.sha256}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div class="card">
+          <h2>Upload your completed report</h2>
+          <p class="hint">
+            A photo of the signed form, or a PDF. 5 MB per file, as many as you need. Upload before
+            you answer: each file's fingerprint is sealed inside your signed answer, so nobody can
+            swap the paperwork afterward.
+          </p>
+          <div class="uprow">
+            <input id="up-file" type="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" />
+            <button class="mid upbtn" id="up-go" data-token={token} type="button">Upload</button>
+          </div>
+          <ul class="doclist" id="up-list">
+            {req.documents.filter((d) => d.uploadedBy === 'inspector').map((d) => (
+              <li><a class="doc" href={`/api/verify/cairn/document?t=${encodeURIComponent(token)}&id=${encodeURIComponent(d.id)}`} target="_blank" rel="noopener"><span class="doc__name">{d.filename}</span><span class="doc__meta">{(d.fileSize / 1024).toFixed(0)} KB</span></a></li>
+            ))}
+          </ul>
+          <div id="up-out" class="note"></div>
         </div>
 
         <div class="card">
@@ -225,6 +276,37 @@ const ERRORS: Record<string, string> = {
     }
 
     const tok = (id: string) => ($(id) as unknown as HTMLElement)?.dataset.token ?? '';
+
+    // The completed, signed form comes back as a phone photo or PDF. Upload while the
+    // link is open; the answer then seals every file's fingerprint into the signed record.
+    async function uploadReport() {
+      const out = document.getElementById('up-out')!;
+      const showUp = (t: string, cls: string) => { out.className = `note show ${cls}`; out.textContent = t; };
+      const input = $('up-file') as HTMLInputElement;
+      const f = input?.files?.[0];
+      if (!f) { showUp('Choose a photo or PDF first.', 'note-loss'); return; }
+      showUp('Uploading…', 'note-gain');
+      try {
+        const fd = new FormData();
+        fd.append('token', tok('up-go'));
+        fd.append('file', f);
+        const r = await fetch('/api/verify/cairn/document', { method: 'POST', body: fd });
+        const j = await r.json();
+        if (!j.ok) {
+          showUp(j.error === 'too_large' ? 'That file is over 5 MB. A smaller photo works.'
+            : j.error === 'unsupported_type' ? 'PDF or photo formats only (PDF, PNG, JPG, GIF, WebP).'
+            : j.error === 'used' ? 'This link has already been answered; uploads are closed.'
+            : 'Could not upload that. Try again.', 'note-loss');
+          return;
+        }
+        const li = document.createElement('li');
+        li.textContent = `${j.doc.filename} · uploaded`;
+        document.getElementById('up-list')!.appendChild(li);
+        input.value = '';
+        showUp('On file. Its fingerprint will be sealed into your answer.', 'note-gain');
+      } catch { showUp('Could not reach Almstins. Try again.', 'note-loss'); }
+    }
+    document.getElementById('up-go')?.addEventListener('click', uploadReport);
     $('ok')?.addEventListener('click', () => send('reached', tok('ok')));
     $('notyet')?.addEventListener('click', () => send('not_reached', tok('notyet')));
     $('bad')?.addEventListener('click', () => {

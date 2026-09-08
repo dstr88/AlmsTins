@@ -100,6 +100,13 @@ export function isPublicPath(pathname: string): boolean {
 		// PPPcairn inspector attestation — public, login-free. The single-use token IS the
 		// capability: the inspector answering from a site has no account and never needs one.
 		pathname === '/api/verify/cairn/attest' ||
+		// PPPcairn milestone paperwork — the ?t= token path serves the report form to the
+		// inspector and accepts their completed upload; the handler gates every other branch.
+		pathname === '/api/verify/cairn/document' ||
+		// Receivables paperwork — same reasoning, and a bug fix: the debtor reading the
+		// attached note via ?t= was 401ing because this was never listed. The handler
+		// requires a session on all non-token branches.
+		pathname === '/api/verify/receivables/document' ||
 		// Reading an offer with its token. The handler still requires a session for the
 		// financier's own listing; only the ?t= branch is reachable without one.
 		pathname === '/api/verify/receivables/offer' ||

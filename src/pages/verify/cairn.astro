@@ -222,6 +222,14 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
           <button id="ask-send" class="small">Create &amp; email</button>
           <button id="ask-link" class="small ghost">Create link only</button>
         </div>
+        <div class="row" style="margin-top:.7rem">
+          <input id="ask-file" type="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" class="grow" style="font-size:.85rem" />
+          <button id="ask-attach" class="small ghost">Attach your report form</button>
+        </div>
+        <p class="hint" style="margin:.35rem 0 0">
+          Optional: attach the form you want the inspector to fill in, print, and sign. They see it
+          on their phone; their signed copy comes back below and both fingerprints seal into the answer.
+        </p>
         <div id="ask-out" class="note"></div>
         <div id="ask-linkbox" class="linkbox" hidden></div>
       </div>
@@ -230,6 +238,12 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         <h2 style="font-size:1rem">The trail</h2>
         <p class="hint">Every answer that has come back, signed and dated. This is what a tranche releases against.</p>
         <div id="trail" class="trail"></div>
+      </div>
+
+      <div id="docs-wrap" hidden style="margin-top:1.1rem">
+        <h2 style="font-size:1rem">The paperwork</h2>
+        <p class="hint">Forms you attached, and what inspectors sent back. Fingerprints seal into each answer.</p>
+        <div id="docs-list" style="display:flex;flex-direction:column;gap:.5rem"></div>
       </div>
 
       <div id="req-wrap" hidden style="margin-top:1.1rem">
@@ -373,6 +387,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         renderMilestones(j.milestones || [], j.project.currency);
         renderAlloc(j.project, j.milestones || []);
         renderTrail(j.attestations || []);
+        renderDocs(j.documents || [], j.milestones || []);
         loadRequests(id);
         if (scroll) {
           card.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -487,6 +502,50 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         </div>`).join('');
     }
 
+    // The lender attaches the report form the inspector is asked to use.
+    async function attachForm() {
+      const out = $('ask-out') as unknown as HTMLElement;
+      if (!currentProject || !askMilestone) { show(out, 'Pick a milestone first.', 'note-loss'); return; }
+      const input = $('ask-file') as HTMLInputElement;
+      const f = input?.files?.[0];
+      if (!f) { show(out, 'Choose the form file first (PDF or image).', 'note-loss'); return; }
+      show(out, 'Attaching…');
+      try {
+        const fd = new FormData();
+        fd.append('milestoneId', askMilestone);
+        fd.append('file', f);
+        const r = await fetch('/api/verify/cairn/document', { method: 'POST', body: fd });
+        const j = await r.json();
+        if (!j.ok) {
+          show(out, j.error === 'too_large' ? 'That file is over 5 MB.'
+            : j.error === 'unsupported_type' ? 'PDF or image formats only.'
+            : esc(j.message || 'Could not attach that.'), 'note-loss');
+          return;
+        }
+        input.value = '';
+        show(out, `<b>${esc(j.doc.filename)} attached.</b> The inspector's link now carries it.`, 'note-gain');
+        if (currentProject) openProject(currentProject, false);
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    function renderDocs(docs: any[], milestones: any[]) {
+      const wrap = document.getElementById('docs-wrap')!;
+      const box = document.getElementById('docs-list')!;
+      const live = docs.filter((d: any) => !d.purgedAt);
+      if (!live.length) { wrap.hidden = true; return; }
+      wrap.hidden = false;
+      const bySeq = (id: string) => milestones.find((m) => m.id === id)?.seq ?? '?';
+      box.innerHTML = live.map((d: any) => `
+        <div class="reqrow">
+          <div>
+            <a class="doc" href="/api/verify/cairn/document?id=${esc(d.id)}" target="_blank" rel="noopener" style="text-decoration:none">
+              <b style="color:var(--accent)">${esc(d.filename)}</b>
+            </a>
+            <div class="muted">milestone ${esc(bySeq(d.milestoneId))} · ${d.uploadedBy === 'inspector' ? 'sent back by the inspector' : 'your form'} · ${Math.round((d.fileSize || 0) / 1024)} KB · ${esc(String(d.sha256).slice(0, 16))}…</div>
+          </div>
+        </div>`).join('');
+    }
+
     async function loadRequests(projectId: string) {
       const wrap = document.getElementById('req-wrap')!;
       const box = document.getElementById('req-list')!;
@@ -575,6 +634,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     document.getElementById('m-go')?.addEventListener('click', addMilestone);
     document.getElementById('ask-send')?.addEventListener('click', () => mintInvite(true));
     document.getElementById('ask-link')?.addEventListener('click', () => mintInvite(false));
+    document.getElementById('ask-attach')?.addEventListener('click', attachForm);
     wirePct();
     loadProjects();
   </script>

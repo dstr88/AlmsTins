@@ -208,8 +208,35 @@ export async function ensureCairnTables(): Promise<void> {
   // The inspector's condition report — what they found, word for word, in the signed
   // manifest. Added after the table shipped; idempotent for both fresh and existing DBs.
   await db.execute({ sql: `ALTER TABLE cairn_attestations ADD COLUMN IF NOT EXISTS findings TEXT`, args: [] });
+  await db.execute({ sql: ENSURE_CAIRN_DOCS_SQL, args: [] });
+  await db.execute({ sql: ENSURE_CAIRN_DOCS_IDX, args: [] });
   ensured = true;
 }
+
+// Paperwork on a milestone, in both directions: the lender attaches the report form the
+// inspector must use; the inspector uploads the completed form (photo or PDF) from the
+// site. Bytes live base64 in Postgres (no object store; Render's disk is ephemeral).
+// Every file's sha256 is bound into the attestation manifest at answer time, so a swapped
+// form is provable rather than deniable. Purge policy arrives with the Phase 2/3 cron;
+// purged_at exists from day one so tombstoning needs no migration.
+const ENSURE_CAIRN_DOCS_SQL = `
+  CREATE TABLE IF NOT EXISTS cairn_documents (
+    id             TEXT NOT NULL PRIMARY KEY,
+    milestone_id   TEXT NOT NULL,
+    project_id     TEXT NOT NULL,
+    tenant_id      TEXT NOT NULL,
+    uploaded_by    TEXT NOT NULL DEFAULT 'owner',
+    filename       TEXT NOT NULL,
+    mime_type      TEXT NOT NULL,
+    file_size      INTEGER NOT NULL DEFAULT 0,
+    sha256         TEXT NOT NULL,
+    data           TEXT,
+    uploaded_at    TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS')),
+    purged_at      TEXT
+  )
+`;
+const ENSURE_CAIRN_DOCS_IDX =
+  `CREATE INDEX IF NOT EXISTS cairn_documents_ms ON cairn_documents (milestone_id)`;
 
 // ── Signing ─────────────────────────────────────────────────────────────────
 function sign(manifest: object): { signature: Signature | null; digest: string } {
@@ -388,7 +415,7 @@ export async function listMilestones(tenantId: string, projectId: string): Promi
 export async function getProjectForOwner(
   tenantId: string,
   projectId: string,
-): Promise<{ project: ProjectSummary; milestones: MilestoneSummary[]; attestations: AttestationSummary[] } | null> {
+): Promise<{ project: ProjectSummary; milestones: MilestoneSummary[]; attestations: AttestationSummary[]; documents: CairnDocMeta[] } | null> {
   await ensureCairnTables();
   const r = await db.execute({
     sql: `SELECT id, name, counterparty, total_value, currency, is_test, created_at,
@@ -400,6 +427,7 @@ export async function getProjectForOwner(
   const row = r.rows[0] as any;
   const milestones = await listMilestones(tenantId, String(row.id));
   const attestations = await listAttestations(tenantId, String(row.id));
+  const documents = await listProjectDocuments(tenantId, String(row.id));
   return {
     project: {
       id: String(row.id),
@@ -414,6 +442,7 @@ export async function getProjectForOwner(
     },
     milestones,
     attestations,
+    documents,
   };
 }
 
@@ -548,7 +577,7 @@ export async function readAttestRequest(token: string): Promise<
   | { ok: true; projectName: string; counterparty: string; currency: string;
       milestoneId: string; projectId: string; seq: number; milestoneTitle: string;
       milestoneDescription: string | null; trancheAmount: number; targetDate: string | null;
-      status: MilestoneStatus; sentTo: string | null; isTest: boolean }
+      status: MilestoneStatus; sentTo: string | null; isTest: boolean; documents: CairnDocMeta[] }
   | { ok: false; error: 'not_found' | 'expired' | 'revoked' | 'used' }
 > {
   await ensureCairnTables();
@@ -582,6 +611,7 @@ export async function readAttestRequest(token: string): Promise<
     status: String(row.status) as MilestoneStatus,
     sentTo: row.email != null ? String(row.email) : null,
     isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
+    documents: (await listMilestoneDocuments(String(row.milestone_id))).filter((d) => !d.purgedAt),
   };
 }
 
@@ -643,6 +673,16 @@ export async function attestByToken(
   };
   if (roleTitle) manifest.title = roleTitle;
   if (findings) manifest.findings = findings;
+  // Bind the exact paperwork on the milestone at answer time — the lender's form and the
+  // inspector's own uploaded, signed copy alike. Swap any file afterward and its digest no
+  // longer matches this signed manifest. Omitted entirely when absent so earlier
+  // attestations' manifests stay byte-identical.
+  const boundDocs = (await listMilestoneDocuments(req.milestoneId)).filter((d) => !d.purgedAt);
+  if (boundDocs.length) {
+    manifest.docs = boundDocs
+      .map((d) => ({ sha256: d.sha256, filename: d.filename }))
+      .sort((a, b) => (a.sha256 < b.sha256 ? -1 : a.sha256 > b.sha256 ? 1 : 0));
+  }
   const { signature, digest } = sign(manifest);
   const attestationId = randomUUID();
   await db.execute({
@@ -701,6 +741,183 @@ export async function listAttestations(tenantId: string, projectId: string): Pro
     digest: String(row.digest),
     anchored: row.anchor_json != null,
   }));
+}
+
+// ── Milestone paperwork (both directions) ─────────────────────────────────────
+
+export const CAIRN_DOC_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB, same as the other registries
+export const CAIRN_DOC_ALLOWED_TYPES = [
+  'application/pdf',
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+];
+
+export interface CairnDocMeta {
+  id: string;
+  milestoneId: string;
+  uploadedBy: 'owner' | 'inspector';
+  filename: string;
+  mimeType: string;
+  fileSize: number;
+  sha256: string;
+  uploadedAt: string;
+  purgedAt: string | null;
+}
+
+function cairnDocRow(r: any): CairnDocMeta {
+  return {
+    id: String(r.id),
+    milestoneId: String(r.milestone_id),
+    uploadedBy: String(r.uploaded_by) === 'inspector' ? 'inspector' : 'owner',
+    filename: String(r.filename),
+    mimeType: String(r.mime_type),
+    fileSize: Number(r.file_size || 0),
+    sha256: String(r.sha256),
+    uploadedAt: String(r.uploaded_at),
+    purgedAt: r.purged_at != null ? String(r.purged_at) : null,
+  };
+}
+
+function checkDocInput(mimeType: string, bytes: Buffer): string | null {
+  const mime = String(mimeType || '').toLowerCase().split(';')[0].trim();
+  if (!CAIRN_DOC_ALLOWED_TYPES.includes(mime)) return 'unsupported_type';
+  if (!bytes?.length) return 'empty';
+  if (bytes.length > CAIRN_DOC_MAX_SIZE_BYTES) return 'too_large';
+  return null;
+}
+
+async function insertCairnDoc(
+  milestoneId: string, projectId: string, tenantId: string,
+  uploadedBy: 'owner' | 'inspector',
+  input: { filename: string; mimeType: string; bytes: Buffer },
+): Promise<CairnDocMeta> {
+  const mime = String(input.mimeType || '').toLowerCase().split(';')[0].trim();
+  const filename = clampStr(input.filename, 200) || 'document';
+  const sha256 = createHash('sha256').update(input.bytes).digest('hex');
+  const id = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO cairn_documents
+            (id, milestone_id, project_id, tenant_id, uploaded_by, filename, mime_type, file_size, sha256, data)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, milestoneId, projectId, tenantId, uploadedBy, filename, mime,
+           input.bytes.length, sha256, input.bytes.toString('base64')],
+  });
+  const r = await db.execute({
+    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+            FROM cairn_documents WHERE id = ? LIMIT 1`,
+    args: [id],
+  });
+  return cairnDocRow(r.rows[0]);
+}
+
+/** The lender attaches the report form the inspector is asked to use. Owner only. */
+export async function addMilestoneDocument(
+  tenantId: string,
+  milestoneId: string,
+  input: { filename: string; mimeType: string; bytes: Buffer },
+): Promise<{ ok: true; doc: CairnDocMeta } | { ok: false; error: string }> {
+  await ensureCairnTables();
+  const ms = await db.execute({
+    sql: `SELECT id, project_id FROM cairn_milestones WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(milestoneId || '').trim(), tenantId],
+  });
+  if (!ms.rows.length) return { ok: false, error: 'not_found' };
+  const bad = checkDocInput(input.mimeType, input.bytes);
+  if (bad) return { ok: false, error: bad };
+  const doc = await insertCairnDoc(
+    String((ms.rows[0] as any).id), String((ms.rows[0] as any).project_id), tenantId, 'owner', input);
+  return { ok: true, doc };
+}
+
+/**
+ * The inspector uploads the completed, signed form from the site — phone photo or PDF —
+ * through the same single-use token, while it is still open. Answering closes uploads
+ * along with everything else, which is the right order: the paperwork goes on file first,
+ * then the answer seals it (every file's sha256 lands in the signed manifest).
+ */
+export async function addCairnDocumentByToken(
+  token: string,
+  input: { filename: string; mimeType: string; bytes: Buffer },
+): Promise<{ ok: true; doc: CairnDocMeta } | { ok: false; error: string }> {
+  await ensureCairnTables();
+  const req = await readAttestRequest(token);
+  if (!req.ok) return { ok: false, error: req.error };
+  const bad = checkDocInput(input.mimeType, input.bytes);
+  if (bad) return { ok: false, error: bad };
+  const sender = await db.execute({
+    sql: `SELECT from_tenant FROM cairn_invites WHERE token = ? LIMIT 1`,
+    args: [String(token).trim()],
+  });
+  const doc = await insertCairnDoc(
+    req.milestoneId, req.projectId, String((sender.rows[0] as any)?.from_tenant ?? ''), 'inspector', input);
+  return { ok: true, doc };
+}
+
+/** Metadata for every document on one milestone, tombstones included. */
+export async function listMilestoneDocuments(milestoneId: string): Promise<CairnDocMeta[]> {
+  await ensureCairnTables();
+  const r = await db.execute({
+    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+            FROM cairn_documents WHERE milestone_id = ? ORDER BY uploaded_at ASC`,
+    args: [String(milestoneId || '').trim()],
+  });
+  return r.rows.map(cairnDocRow);
+}
+
+/** All paperwork on a project the tenant owns — the desk's per-milestone file lists. */
+export async function listProjectDocuments(tenantId: string, projectId: string): Promise<CairnDocMeta[]> {
+  await ensureCairnTables();
+  const r = await db.execute({
+    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+            FROM cairn_documents WHERE project_id = ? AND tenant_id = ? ORDER BY uploaded_at ASC`,
+    args: [String(projectId || '').trim(), tenantId],
+  });
+  return r.rows.map(cairnDocRow);
+}
+
+/** The bytes, owner-scoped. Null once purged — a tombstone has no document to give. */
+export async function readCairnDocument(
+  tenantId: string,
+  documentId: string,
+): Promise<{ meta: CairnDocMeta; data: Buffer } | null> {
+  await ensureCairnTables();
+  const r = await db.execute({
+    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at, data
+            FROM cairn_documents WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(documentId || '').trim(), tenantId],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  if (row.data == null) return null;
+  return { meta: cairnDocRow(row), data: Buffer.from(String(row.data), 'base64') };
+}
+
+/**
+ * The bytes, by token — the inspector saving or printing the form. Deliberately NOT
+ * readAttestRequest: answering spends the right to answer, not the right to read the
+ * paperwork you just put your name against. Revoked and expired still close it.
+ */
+export async function readCairnDocumentByToken(
+  token: string,
+  documentId: string,
+): Promise<{ meta: CairnDocMeta; data: Buffer } | null> {
+  await ensureCairnTables();
+  const r = await db.execute({
+    sql: `SELECT milestone_id, expires_at, revoked_at FROM cairn_invites WHERE token = ? LIMIT 1`,
+    args: [String(token || '').trim()],
+  });
+  if (!r.rows.length) return null;
+  const row = r.rows[0] as any;
+  if (row.revoked_at) return null;
+  if (String(row.expires_at) < nowUtc()) return null;
+  const d = await db.execute({
+    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at, data
+            FROM cairn_documents WHERE id = ? AND milestone_id = ? LIMIT 1`,
+    args: [String(documentId || '').trim(), String(row.milestone_id)],
+  });
+  if (!d.rows.length) return null;
+  const doc = d.rows[0] as any;
+  if (doc.data == null) return null;
+  return { meta: cairnDocRow(doc), data: Buffer.from(String(doc.data), 'base64') };
 }
 
 /** An open, emailable request this tenant created — what the send endpoint describes. */
