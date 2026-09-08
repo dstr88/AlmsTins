@@ -1,0 +1,235 @@
+---
+// Almstins Verify — an independent inspector attests a project milestone.
+//
+// The single-use link is the whole ceremony: the project's owner minted it for one
+// milestone, and the inspector — standing on the site, not signing up for software — puts
+// their name to "reached", "not reached", or a dispute. The answer is signed, stamped to
+// Bitcoin, and un-backdatable. A lender releases the tranche against it.
+import '@/styles/tokens.css';
+import { readAttestRequest } from '@/lib/cairnRegistry';
+
+export const prerender = false;
+
+const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
+const req = token ? await readAttestRequest(token) : { ok: false as const, error: 'not_found' as const };
+
+const money = (n: number, ccy: string) =>
+  `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+const ERRORS: Record<string, string> = {
+  not_found: 'This link is not valid. Ask whoever sent it for a new one.',
+  expired: 'This link has expired. Ask whoever sent it for a new one.',
+  revoked: 'This request was withdrawn.',
+  used: 'This request has already been answered. If that was not you, contact the sender.',
+};
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Is this milestone reached? — Almstins Verify</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 40rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.5rem, 3.6vw, 1.9rem); line-height: 1.2; font-weight: 700; }
+
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.2rem 1.35rem; }
+    .card h2 { font-size: .98rem; font-weight: 700; margin-bottom: .2rem; }
+    .card .hint { font-size: .82rem; color: var(--text-muted); margin-bottom: .95rem; }
+
+    .claim { background: var(--surface-card-2); border: 1px solid var(--border-bright); border-radius: 13px; padding: 1.3rem 1.4rem; }
+    .claim__lead { font-size: 1.02rem; line-height: 1.5; font-weight: 600; }
+    .claim__lead b { color: var(--accent); }
+    .claim__stage { font-size: clamp(1.35rem, 4.4vw, 1.8rem); font-weight: 800; letter-spacing: -.01em; margin: .45rem 0 .3rem; }
+    .claim__desc { font-size: .95rem; color: var(--text-secondary); }
+    .claim__meta { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-top: .9rem; }
+    .m__k { font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
+    .m__v { font-size: .9rem; font-weight: 600; }
+
+    .relied { border-left: 3px solid var(--accent-glow); background: var(--accent-soft); border-radius: 8px; padding: .75rem .9rem; font-size: .88rem; }
+
+    label.f { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+    input[type=text] {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      color: var(--text-primary); padding: .6rem .75rem; font-size: .95rem; font-family: inherit;
+      font-weight: 400; letter-spacing: normal; text-transform: none;
+    }
+    input[type=text]:focus { outline: none; border-color: var(--accent); }
+    .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .7rem; }
+
+    .checks { display: flex; flex-direction: column; gap: .55rem; margin-top: .3rem; }
+    .chk { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; cursor: pointer; }
+    .chk input { margin-top: .28rem; width: 1rem; height: 1rem; accent-color: var(--accent); flex: 0 0 auto; }
+
+    .actions { display: flex; flex-direction: column; gap: .6rem; margin-top: .3rem; }
+    button {
+      border-radius: 10px; padding: .8rem 1rem; font-size: .95rem; font-weight: 700;
+      cursor: pointer; font-family: inherit; border: 1px solid transparent; width: 100%;
+    }
+    .yes { background: var(--accent); color: var(--surface-bg); }
+    .yes:hover:not(:disabled) { filter: brightness(1.08); }
+    .yes:disabled { opacity: .45; cursor: not-allowed; }
+    .mid { background: transparent; border-color: var(--border-bright); color: var(--text-secondary); font-weight: 600; }
+    .mid:hover:not(:disabled) { background: var(--surface-hover); }
+    .mid:disabled { opacity: .45; cursor: not-allowed; }
+    .no { background: transparent; border-color: var(--loss-border); color: var(--loss); font-weight: 600; }
+    .no:hover { background: var(--loss-bg); }
+
+    .note { border-radius: 10px; padding: .8rem .9rem; font-size: .9rem; display: none; }
+    .note.show { display: block; }
+    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .foot { font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; margin-top: .5rem; }
+    .testbar {
+      border: 1px solid var(--warning-border); background: var(--warning-bg); color: var(--text-primary);
+      border-left: 3px solid var(--warning); border-radius: 8px; padding: .8rem .95rem; font-size: .9rem;
+    }
+    .testbar b { color: var(--warning); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Almstins Verify · PPPcairn</div>
+      <h1>Is this stage of the work reached?</h1>
+    </div>
+
+    {!req.ok && (
+      <div class="note note-loss show">{ERRORS[req.error] ?? ERRORS.not_found}</div>
+    )}
+
+    {req.ok && (
+      <>
+        {req.isTest && (
+          <div class="testbar">
+            <b>This is a test.</b> Whoever sent this is practising with the software. Nothing here
+            is a real project, no money is involved, and your answer will not commit you to anything.
+          </div>
+        )}
+        <div class="claim">
+          <div class="claim__lead">On <b>{req.projectName}</b>, work by <b>{req.counterparty}</b></div>
+          <div class="claim__stage">{req.seq}. {req.milestoneTitle}</div>
+          {req.milestoneDescription && <div class="claim__desc">{req.milestoneDescription}</div>}
+          <div class="claim__meta">
+            <div><div class="m__k">Releases</div><div class="m__v">{money(req.trancheAmount, req.currency)}</div></div>
+            <div><div class="m__k">Target date</div><div class="m__v">{req.targetDate || 'not stated'}</div></div>
+          </div>
+        </div>
+
+        <div class="relied">
+          A lender releases the money for this stage only once someone independent puts their name
+          to it. Answer from your own inspection of the work, not from anyone's report. A true
+          "not yet" is worth more than a hopeful "done".
+          {req.sentTo && <> This was sent to <b>{req.sentTo}</b>.</>}
+        </div>
+
+        <div class="card">
+          <h2>Your answer, in your name</h2>
+          <div class="checks">
+            <label class="chk"><input type="checkbox" id="c1" /><span>I have inspected this work myself, or reviewed evidence sufficient to answer.</span></label>
+          </div>
+          <div class="two" style="margin-top:1rem">
+            <label class="f">Your name<input type="text" id="by" placeholder="Ama Mensah" autocomplete="name" /></label>
+            <label class="f">Your role<input type="text" id="title" placeholder="Resident engineer" autocomplete="organization-title" /></label>
+          </div>
+          <label class="f" style="margin-top:.7rem">Anything to add (optional)
+            <input type="text" id="note" placeholder="Snagging list outstanding on the east span…" />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button class="yes" id="ok" data-token={token} disabled>The stage is reached</button>
+          <button class="mid" id="notyet" data-token={token} disabled>Not reached yet</button>
+          <button class="no" id="bad" data-token={token}>Something here is wrong</button>
+        </div>
+
+        <div id="fixbox" class="card" style="display:none">
+          <h2>What is wrong?</h2>
+          <p class="hint">Say what does not add up. Whoever asked will see it, word for word.</p>
+          <label class="f">The problem<input type="text" id="fix" placeholder="This is not the milestone I was shown on site…" /></label>
+          <div class="actions" style="margin-top:.9rem">
+            <button class="no" id="badgo" data-token={token}>Record the dispute</button>
+          </div>
+        </div>
+
+        <div id="out" class="note"></div>
+
+        <p class="foot">
+          Almstins records and proves. It never holds money, never moves it, and never says who
+          anyone is. Your answer is signed, timestamped, and stamped to Bitcoin so its date cannot
+          be moved later.
+        </p>
+      </>
+    )}
+  </div>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const out = () => document.getElementById('out')!;
+
+    function show(text: string, cls: string) {
+      const el = out(); el.className = `note show ${cls}`; el.textContent = text;
+    }
+
+    // Both findings — reached and not reached — are professional statements, so both wait
+    // on the inspection affirmation and a name. The dispute path needs a name and a reason.
+    function refresh() {
+      const ready = ($('by')?.value ?? '').trim().length > 0 && $('c1')?.checked;
+      ['ok', 'notyet'].forEach((id) => {
+        const b = $(id) as unknown as HTMLButtonElement | null;
+        if (b) b.disabled = !ready;
+      });
+    }
+    $('c1')?.addEventListener('change', refresh);
+    $('by')?.addEventListener('input', refresh);
+
+    async function send(outcome: string, token: string, note?: string) {
+      const by = ($('by')?.value ?? '').trim();
+      if (!by) { show('Please put your name to this answer.', 'note-loss'); return; }
+      show('Recording…', 'note-gain');
+      try {
+        const r = await fetch('/api/verify/cairn/attest', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token, outcome, by,
+            title: ($('title')?.value ?? '').trim() || null,
+            note: note ?? (($('note')?.value ?? '').trim() || null),
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          show(j.error === 'used' ? 'This request has already been answered.'
+            : j.error === 'expired' ? 'This link has expired. Ask whoever sent it for a new one.'
+            : j.error === 'note_required' ? 'Say what is wrong before recording a dispute.'
+            : 'Could not record that. Try again.', 'note-loss');
+          return;
+        }
+        document.querySelectorAll('button').forEach((b) => ((b as HTMLButtonElement).disabled = true));
+        window.location.href = '/verify/thanks';
+      } catch { show('Could not reach Almstins. Try again.', 'note-loss'); }
+    }
+
+    const tok = (id: string) => ($(id) as unknown as HTMLElement)?.dataset.token ?? '';
+    $('ok')?.addEventListener('click', () => send('reached', tok('ok')));
+    $('notyet')?.addEventListener('click', () => send('not_reached', tok('notyet')));
+    $('bad')?.addEventListener('click', () => {
+      const box = document.getElementById('fixbox')!;
+      box.style.display = 'block';
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    $('badgo')?.addEventListener('click', () =>
+      send('disputed', tok('badgo'), ($('fix')?.value ?? '').trim() || undefined));
+
+    refresh();
+  </script>
+</body>
+</html>

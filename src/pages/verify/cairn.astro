@@ -1,10 +1,10 @@
 ---
-// Almstins Verify — PPPcairn milestone desk (Phase 0).
+// Almstins Verify — PPPcairn milestone desk (Phase 0 + 1).
 //
 // A project is a financed piece of infrastructure; its milestones are the stages money is
-// released against. Phase 0 records and signs projects and milestones so the data model and
-// the desk are real; the independent-inspector attestation (the point of the whole thing)
-// arrives in Phase 1. Nothing here moves money.
+// released against. Phase 1 adds the point of the whole thing: a single-use link asks an
+// independent inspector to attest a milestone, and the signed, Bitcoin-stamped answer
+// flips its status and lands on the dated trail below. Nothing here moves money.
 //
 // Signed-in only, like the receivables desk. No tenant_id or identity is ever rendered.
 import '@/styles/tokens.css';
@@ -93,6 +93,20 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     th { font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
     td.num { text-align: right; font-variant-numeric: tabular-nums; }
     .st { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+    .st--attested { color: var(--gain); }
+    .st--disputed { color: var(--loss); }
+
+    .trail { display: flex; flex-direction: column; gap: .5rem; margin-top: .5rem; }
+    .tr-item { border-left: 3px solid var(--accent-glow); background: var(--surface-card-2); border-radius: 8px; padding: .6rem .8rem; font-size: .88rem; }
+    .tr-item--disputed { border-left-color: var(--loss-border); }
+    .tr-item .when { font-size: .72rem; color: var(--text-muted); margin-top: .15rem; }
+
+    .reqrow { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem .9rem; align-items: center;
+      border: 1px solid var(--border-subtle); border-radius: 9px; padding: .55rem .75rem; font-size: .88rem; }
+    .reqrow .muted { font-size: .8rem; }
+    .linkbox { margin-top: .7rem; background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+      padding: .6rem .75rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem; word-break: break-all;
+      user-select: all; }
     .sep { height: 1px; background: var(--accent-soft); border: 0; margin: 1.1rem 0; }
     .muted { color: var(--text-muted); font-size: .9rem; }
     .foot { font-size: .8rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; }
@@ -111,8 +125,9 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         <div class="eyebrow">Almstins Verify · PPPcairn</div>
         <h1>Milestone desk</h1>
         <p class="blurb">
-          Record a financed project and the milestones its money releases against. Each one is
-          signed and timestamped. Asking an independent party to attest a milestone comes next.
+          Record a financed project and the milestones its money releases against. Then ask an
+          independent inspector to attest each stage by single-use link: their answer is signed,
+          stamped to Bitcoin, and becomes the dated trail a tranche can safely release against.
         </p>
       </div>
       <div class="acct">
@@ -162,6 +177,32 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       <h2 id="ms-title">Milestones</h2>
       <p class="hint" id="ms-sub">The stages money releases against, in order.</p>
       <div id="ms-list"></div>
+
+      <div id="ask-card" hidden style="margin-top:1rem; border:1px solid var(--accent-glow); border-radius:11px; padding:1rem 1.1rem">
+        <h2 style="font-size:1rem">Ask an inspector: <span id="ask-title"></span></h2>
+        <p class="hint">One single-use link, one milestone, one answer. Their reply is signed and stamped in their name.</p>
+        <div class="row">
+          <input id="ask-email" class="grow" type="email" placeholder="engineer@firm.com" autocomplete="off" />
+          <input id="ask-label" placeholder="Who this is (optional)" style="flex:0 1 14rem" autocomplete="off" />
+          <button id="ask-send" class="small">Create &amp; email</button>
+          <button id="ask-link" class="small ghost">Create link only</button>
+        </div>
+        <div id="ask-out" class="note"></div>
+        <div id="ask-linkbox" class="linkbox" hidden></div>
+      </div>
+
+      <div id="trail-wrap" hidden style="margin-top:1.1rem">
+        <h2 style="font-size:1rem">The trail</h2>
+        <p class="hint">Every answer that has come back, signed and dated. This is what a tranche releases against.</p>
+        <div id="trail" class="trail"></div>
+      </div>
+
+      <div id="req-wrap" hidden style="margin-top:1.1rem">
+        <h2 style="font-size:1rem">Outstanding requests</h2>
+        <p class="hint">Links minted and not yet answered.</p>
+        <div id="req-list" style="display:flex;flex-direction:column;gap:.5rem"></div>
+      </div>
+
       <hr class="sep" />
       <div class="grid2">
         <label class="fld">Milestone <span class="req">required</span>
@@ -249,7 +290,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
 
-    async function openProject(id: string) {
+    async function openProject(id: string, scroll = true) {
       currentProject = id;
       try {
         const j = await (await fetch('/api/verify/cairn/projects?id=' + encodeURIComponent(id))).json();
@@ -260,22 +301,134 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         document.getElementById('ms-sub')!.textContent =
           `${j.project.counterparty} · ${money(j.project.totalValue, j.project.currency)} total${j.project.isTest ? ' · TEST' : ''}`;
         renderMilestones(j.milestones || [], j.project.currency);
-        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        ($('m-title') as HTMLInputElement)?.focus();
+        renderTrail(j.attestations || []);
+        loadRequests(id);
+        if (scroll) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          ($('m-title') as HTMLInputElement)?.focus();
+        }
       } catch { /* non-fatal */ }
     }
 
     function renderMilestones(rows: any[], ccy: string) {
       const box = document.getElementById('ms-list')!;
       if (!rows.length) { box.innerHTML = '<p class="muted">No milestones yet. Add the first below.</p>'; return; }
-      box.innerHTML = '<table><thead><tr><th>#</th><th>Milestone</th><th>Tranche</th><th>Target</th><th>Status</th></tr></thead><tbody>' +
+      box.innerHTML = '<table><thead><tr><th>#</th><th>Milestone</th><th>Tranche</th><th>Target</th><th>Status</th><th></th></tr></thead><tbody>' +
         rows.map((m) => `<tr>
           <td>${esc(m.seq)}</td>
           <td>${esc(m.title)}${m.description ? `<div class="muted">${esc(m.description)}</div>` : ''}</td>
           <td class="num">${esc(money(m.trancheAmount, ccy))}</td>
           <td>${esc(m.targetDate || '—')}</td>
-          <td><span class="st">${esc(m.status)}</span></td>
+          <td><span class="st${m.status === 'attested' ? ' st--attested' : m.status === 'disputed' ? ' st--disputed' : ''}">${esc(m.status)}</span></td>
+          <td>${m.status === 'attested' ? '' : `<button class="small ghost" type="button" data-ask="${esc(m.id)}" data-mtitle="${esc(m.seq)}. ${esc(m.title)}">Ask an inspector</button>`}</td>
         </tr>`).join('') + '</tbody></table>';
+      box.querySelectorAll('[data-ask]').forEach((el) =>
+        el.addEventListener('click', () => openAsk(
+          (el as HTMLElement).dataset.ask as string,
+          (el as HTMLElement).dataset.mtitle as string,
+        )));
+    }
+
+    // ── Phase 1: the inspector flow ────────────────────────────────────────
+    let askMilestone: string | null = null;
+
+    function openAsk(milestoneId: string, title: string) {
+      askMilestone = milestoneId;
+      const card = document.getElementById('ask-card')!;
+      card.hidden = false;
+      document.getElementById('ask-title')!.textContent = title;
+      (document.getElementById('ask-linkbox') as HTMLElement).hidden = true;
+      hide($('ask-out') as unknown as HTMLElement);
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      ($('ask-email') as HTMLInputElement)?.focus();
+    }
+
+    // Mint the token; optionally hand it straight to the email machinery. "Link only" is
+    // for the WhatsApp-and-voice world where email is the wrong channel.
+    async function mintInvite(sendIt: boolean) {
+      const out = $('ask-out') as unknown as HTMLElement;
+      if (!currentProject || !askMilestone) { show(out, 'Pick a milestone first.', 'note-loss'); return; }
+      const email = val('ask-email');
+      if (sendIt && !email) { show(out, 'An email address is needed to send it. Or create the link only.', 'note-loss'); return; }
+      show(out, 'Creating the link…');
+      try {
+        const r = await fetch('/api/verify/cairn/invite', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId: currentProject, milestoneId: askMilestone,
+            email: email || null, label: val('ask-label') || null,
+          }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out, esc(j.message || 'Could not create the link.'), 'note-loss'); return; }
+        const link = `${location.origin}/verify/cairn-attest?token=${encodeURIComponent(j.token)}`;
+        if (sendIt) {
+          const s = await fetch('/api/verify/cairn/send', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: j.token }),
+          });
+          const sj = await s.json();
+          if (sj.ok) show(out, `<b>Sent to ${esc(sj.sentTo)}.</b> The link works once and expires ${esc(j.expiresAt.slice(0, 10))}.`, 'note-gain');
+          else show(out, `The link was created but the email failed${sj.detail ? ` (${esc(sj.detail)})` : ''}. Copy it below and send it yourself.`, 'note-loss');
+        } else {
+          show(out, `<b>Link created.</b> It works once and expires ${esc(j.expiresAt.slice(0, 10))}. Send it however you like:`, 'note-gain');
+        }
+        const box = document.getElementById('ask-linkbox') as HTMLElement;
+        box.textContent = link;
+        box.hidden = false;
+        loadRequests(currentProject);
+      } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    function renderTrail(rows: any[]) {
+      const wrap = document.getElementById('trail-wrap')!;
+      const box = document.getElementById('trail')!;
+      if (!rows.length) { wrap.hidden = true; return; }
+      wrap.hidden = false;
+      box.innerHTML = rows.map((a: any) => `
+        <div class="tr-item${String(a.statement).startsWith('DISPUTED') ? ' tr-item--disputed' : ''}">
+          <div>${esc(a.statement)}</div>
+          <div class="when">${esc(a.attestedAt)}${a.anchored ? ' · stamped to Bitcoin' : ''} · signed</div>
+        </div>`).join('');
+    }
+
+    async function loadRequests(projectId: string) {
+      const wrap = document.getElementById('req-wrap')!;
+      const box = document.getElementById('req-list')!;
+      try {
+        const j = await (await fetch('/api/verify/cairn/invite?projectId=' + encodeURIComponent(projectId))).json();
+        const open = (j.requests ?? []).filter((r: any) => r.state === 'open');
+        if (!j.ok || !open.length) { wrap.hidden = true; return; }
+        wrap.hidden = false;
+        box.innerHTML = open.map((r: any) => `
+          <div class="reqrow">
+            <div>
+              <b>${esc(r.seq)}. ${esc(r.milestoneTitle)}</b>
+              <div class="muted">${r.email ? `sent to ${esc(r.email)}` : 'link only'}${r.label ? ` · ${esc(r.label)}` : ''} · expires ${esc(r.expiresAt.slice(0, 10))}</div>
+            </div>
+            <div class="row">
+              <button class="small ghost" type="button" data-copy="${esc(r.token)}">Copy link</button>
+              <button class="small ghost" type="button" data-revoke="${esc(r.token)}">Revoke</button>
+            </div>
+          </div>`).join('');
+        box.querySelectorAll('[data-copy]').forEach((el) =>
+          el.addEventListener('click', async () => {
+            const t = (el as HTMLElement).dataset.copy as string;
+            try {
+              await navigator.clipboard.writeText(`${location.origin}/verify/cairn-attest?token=${encodeURIComponent(t)}`);
+              (el as HTMLButtonElement).textContent = 'Copied';
+              setTimeout(() => ((el as HTMLButtonElement).textContent = 'Copy link'), 1500);
+            } catch { /* clipboard unavailable */ }
+          }));
+        box.querySelectorAll('[data-revoke]').forEach((el) =>
+          el.addEventListener('click', async () => {
+            await fetch('/api/verify/cairn/invite', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'revoke', token: (el as HTMLElement).dataset.revoke }),
+            });
+            loadRequests(projectId);
+          }));
+      } catch { wrap.hidden = true; }
     }
 
     async function addMilestone() {
@@ -325,6 +478,8 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
 
     document.getElementById('p-go')?.addEventListener('click', createProject);
     document.getElementById('m-go')?.addEventListener('click', addMilestone);
+    document.getElementById('ask-send')?.addEventListener('click', () => mintInvite(true));
+    document.getElementById('ask-link')?.addEventListener('click', () => mintInvite(false));
     loadProjects();
   </script>
 </body>
