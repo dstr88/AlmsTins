@@ -57,6 +57,16 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     .fld textarea { min-height: 3.2rem; resize: vertical; }
     .fld input:focus, .fld select:focus, .fld textarea:focus { outline: none; border-color: var(--accent); }
     .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+
+    /* Tranche entry: money on top (currency symbol), percent below. One number each,
+       big enough to read across a desk. */
+    .amt-wrap { display: flex; align-items: center; gap: .5rem; background: var(--surface-card-2);
+      border: 1px solid var(--border-subtle); border-radius: 9px; padding: 0 .8rem; }
+    .amt-wrap:focus-within { border-color: var(--accent); }
+    .amt-wrap input { flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+      color: var(--text-primary); padding: .65rem 0; font-size: 1.2rem; font-family: inherit;
+      font-variant-numeric: tabular-nums; }
+    .amt-sym { font-size: 1.1rem; font-weight: 700; color: var(--text-muted); flex: 0 0 auto; }
     .grow { flex: 1 1 12rem; }
 
     button {
@@ -233,12 +243,11 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         <label class="fld">Milestone <span class="req">required</span>
           <input id="m-title" class="grow" placeholder="Foundation poured" autocomplete="off" />
         </label>
-        <label class="fld">Tranche amount <span class="req">released here</span>
-          <input id="m-amt" type="number" step="0.01" min="0" placeholder="125000000" />
-        </label>
-        <label class="fld">or % of total
-          <input id="m-pct" type="number" step="0.1" min="0" max="100" placeholder="10" />
-        </label>
+        <div class="fld">
+          <span>Tranche amount <span class="req">either box works</span></span>
+          <div class="amt-wrap"><span class="amt-sym" id="m-sym">$</span><input id="m-amt" type="number" step="0.01" min="0" placeholder="5000000" /></div>
+          <div class="amt-wrap"><input id="m-pct" type="number" step="0.1" min="0" max="100" placeholder="10" /><span class="amt-sym">%</span></div>
+        </div>
         <label class="fld">Target date (optional)
           <input id="m-date" type="date" />
         </label>
@@ -300,6 +309,11 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     }
     const pctOf = (n: number) => currentTotal > 0 ? `${Math.round((n / currentTotal) * 1000) / 10}%` : '';
 
+    const CCY_SYMBOL: Record<string, string> = {
+      NGN: '₦', USD: '$', GBP: '£', EUR: '€', GHS: 'GH₵', KES: 'KSh', ZAR: 'R',
+    };
+    const ccySymbol = (c: string) => CCY_SYMBOL[c] ?? c;
+
     // Practice mode. The new-project card turns amber so a rehearsal can't be mistaken for real,
     // and the flag travels with the record into its signed manifest.
     function syncMode() {
@@ -349,6 +363,8 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         const isTest = j.project.isTest === true;
         currentTotal = Number(j.project.totalValue || 0);
         currentCcy = j.project.currency;
+        const sym = document.getElementById('m-sym');
+        if (sym) sym.textContent = ccySymbol(currentCcy);
         card.classList.toggle('is-test', isTest);
         document.getElementById('ms-title')!.innerHTML =
           `Milestones — ${esc(j.project.name)}${isTest ? ' <span class="pill">test</span>' : ''}`;
