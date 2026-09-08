@@ -97,6 +97,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/verify/receivables/attest-record' ||
 		// The client accepting or declining a financing offer, before money moves.
 		pathname === '/api/verify/receivables/offer-respond' ||
+		// PPPcairn inspector attestation — public, login-free. The single-use token IS the
+		// capability: the inspector answering from a site has no account and never needs one.
+		pathname === '/api/verify/cairn/attest' ||
 		// Reading an offer with its token. The handler still requires a session for the
 		// financier's own listing; only the ?t= branch is reachable without one.
 		pathname === '/api/verify/receivables/offer' ||
