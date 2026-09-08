@@ -112,6 +112,17 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       padding: .6rem .75rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem; word-break: break-all;
       user-select: all; }
     .sep { height: 1px; background: var(--accent-soft); border: 0; margin: 1.1rem 0; }
+
+    /* The tranche arithmetic, done for you: total vs allocated vs still to place. */
+    .alloc { margin: .2rem 0 .9rem; }
+    .alloc__bar { height: 9px; border-radius: 99px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); overflow: hidden; }
+    .alloc__used { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .25s ease; }
+    .alloc__used.over { background: var(--loss); }
+    .alloc__keys { display: flex; flex-wrap: wrap; gap: .3rem 1.3rem; margin-top: .45rem; font-size: .82rem; color: var(--text-muted); }
+    .alloc__keys b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .alloc__keys .used b { color: var(--accent); }
+    .alloc__keys .free b { color: var(--text-secondary); }
+    .alloc__keys .free.over, .alloc__keys .free.over b { color: var(--loss); }
     .muted { color: var(--text-muted); font-size: .9rem; }
     .foot { font-size: .8rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; }
     .foot a { color: var(--accent); }
@@ -180,6 +191,16 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     <div class="card" id="ms-card" hidden>
       <h2 id="ms-title">Milestones</h2>
       <p class="hint" id="ms-sub">The stages money releases against, in order.</p>
+
+      <div id="alloc" class="alloc" hidden>
+        <div class="alloc__bar"><span class="alloc__used" id="alloc-used"></span></div>
+        <div class="alloc__keys">
+          <span><b id="alloc-total"></b> total</span>
+          <span class="used"><b id="alloc-in"></b> in milestones</span>
+          <span class="free" id="alloc-rest-wrap"><b id="alloc-rest"></b> <span id="alloc-rest-word">unallocated</span></span>
+        </div>
+      </div>
+
       <div id="ms-list"></div>
 
       <div id="ask-card" hidden style="margin-top:1rem; border:1px solid var(--accent-glow); border-radius:11px; padding:1rem 1.1rem">
@@ -310,6 +331,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         document.getElementById('ms-sub')!.textContent =
           `${j.project.counterparty} · ${money(j.project.totalValue, j.project.currency)} total${isTest ? ' · practice project, nothing here counts' : ''}`;
         renderMilestones(j.milestones || [], j.project.currency);
+        renderAlloc(j.project, j.milestones || []);
         renderTrail(j.attestations || []);
         loadRequests(id);
         if (scroll) {
@@ -336,6 +358,28 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
           (el as HTMLElement).dataset.ask as string,
           (el as HTMLElement).dataset.mtitle as string,
         )));
+    }
+
+    // The tranche arithmetic: total value vs what the milestones already carry. Turns red
+    // instead of silently letting a schedule promise more money than the project has.
+    function renderAlloc(project: any, milestones: any[]) {
+      const box = document.getElementById('alloc')!;
+      const total = Number(project.totalValue || 0);
+      if (!(total > 0)) { box.hidden = true; return; }
+      box.hidden = false;
+      const inMs = milestones.reduce((s, m) => s + (Number(m.trancheAmount) || 0), 0);
+      const rest = total - inMs;
+      const over = rest < 0;
+      const ccy = project.currency;
+      const pct = Math.max(0, Math.min(100, (inMs / total) * 100));
+      const used = document.getElementById('alloc-used')!;
+      used.style.width = pct + '%';
+      used.classList.toggle('over', over);
+      document.getElementById('alloc-total')!.textContent = money(total, ccy);
+      document.getElementById('alloc-in')!.textContent = money(inMs, ccy);
+      document.getElementById('alloc-rest')!.textContent = money(Math.abs(rest), ccy);
+      document.getElementById('alloc-rest-word')!.textContent = over ? 'over the total' : 'unallocated';
+      document.getElementById('alloc-rest-wrap')!.classList.toggle('over', over);
     }
 
     // ── Phase 1: the inspector flow ────────────────────────────────────────
