@@ -100,6 +100,10 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     .tr-item { border-left: 3px solid var(--accent-glow); background: var(--surface-card-2); border-radius: 8px; padding: .6rem .8rem; font-size: .88rem; }
     .tr-item--disputed { border-left-color: var(--loss-border); }
     .tr-item .when { font-size: .72rem; color: var(--text-muted); margin-top: .15rem; }
+    .tr-item .found { margin-top: .5rem; padding: .5rem .65rem; border: 1px solid var(--border-subtle); border-radius: 7px;
+      background: var(--surface-card); font-size: .85rem; color: var(--text-secondary); white-space: pre-wrap; }
+    .tr-item .found b { display: block; font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: .2rem; }
 
     .reqrow { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem .9rem; align-items: center;
       border: 1px solid var(--border-subtle); border-radius: 9px; padding: .55rem .75rem; font-size: .88rem; }
@@ -388,6 +392,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       box.innerHTML = rows.map((a: any) => `
         <div class="tr-item${String(a.statement).startsWith('DISPUTED') ? ' tr-item--disputed' : ''}">
           <div>${esc(a.statement)}</div>
+          ${a.findings ? `<div class="found"><b>What the inspector found</b>${esc(a.findings)}</div>` : ''}
           <div class="when">${esc(a.attestedAt)}${a.anchored ? ' · stamped to Bitcoin' : ''} · signed</div>
         </div>`).join('');
     }

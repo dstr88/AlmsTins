@@ -205,6 +205,9 @@ export async function ensureCairnTables(): Promise<void> {
   await db.execute({ sql: ENSURE_CAIRN_INVITES_FROM_IDX, args: [] });
   await db.execute({ sql: ENSURE_CAIRN_ATTESTATIONS_SQL, args: [] });
   await db.execute({ sql: ENSURE_CAIRN_ATTESTATIONS_IDX, args: [] });
+  // The inspector's condition report — what they found, word for word, in the signed
+  // manifest. Added after the table shipped; idempotent for both fresh and existing DBs.
+  await db.execute({ sql: `ALTER TABLE cairn_attestations ADD COLUMN IF NOT EXISTS findings TEXT`, args: [] });
   ensured = true;
 }
 
@@ -438,6 +441,7 @@ export interface AttestationSummary {
   by: string;
   title: string | null;
   statement: string;
+  findings: string | null;
   attestedAt: string;
   digest: string;
   anchored: boolean;
@@ -590,7 +594,7 @@ export async function readAttestRequest(token: string): Promise<
 export async function attestByToken(
   token: string,
   outcome: AttestOutcome,
-  answers: { by: string; title?: string | null; note?: string | null },
+  answers: { by: string; title?: string | null; note?: string | null; findings?: string | null },
 ): Promise<{ ok: true; attestationId: string; milestoneId: string } | { ok: false; error: string }> {
   await ensureCairnTables();
   const req = await readAttestRequest(token);
@@ -600,6 +604,10 @@ export async function attestByToken(
   if (!by) return { ok: false, error: 'name_required' };
   const roleTitle = answers.title ? clampStr(answers.title, 60) : null;
   const note = answers.note ? clampStr(answers.note, 600) : null;
+  // The condition report: what the inspector found, in their words, at whatever length the
+  // site deserves. It travels inside the signed manifest, so the description is as
+  // un-backdatable and un-editable as the verdict itself.
+  const findings = answers.findings ? clampStr(answers.findings, 4000) : null;
   if (outcome === 'disputed' && !note) return { ok: false, error: 'note_required' };
 
   const sender = await db.execute({
@@ -620,12 +628,13 @@ export async function attestByToken(
   const titled = roleTitle ? ` (${roleTitle})` : '';
   const via = ' via a single-use link';
   const stage = `milestone ${req.seq}, "${req.milestoneTitle}"`;
+  const found = findings ? ' Findings on record.' : '';
   const statement =
     outcome === 'reached'
-      ? `REACHED. Attests ${stage} is reached${note ? `. Note: ${note}` : ''}. Answered by ${by}${titled}${via}.`
+      ? `REACHED. Attests ${stage} is reached${note ? `. Note: ${note}` : ''}.${found} Answered by ${by}${titled}${via}.`
     : outcome === 'not_reached'
-      ? `NOT_REACHED. Attests ${stage} is not yet reached${note ? `. Note: ${note}` : ''}. Answered by ${by}${titled}${via}.`
-      : `DISPUTED — ${note}. ${stage[0].toUpperCase()}${stage.slice(1)}. Answered by ${by}${titled}${via}.`;
+      ? `NOT_REACHED. Attests ${stage} is not yet reached${note ? `. Note: ${note}` : ''}.${found} Answered by ${by}${titled}${via}.`
+      : `DISPUTED — ${note}. ${stage[0].toUpperCase()}${stage.slice(1)}.${found} Answered by ${by}${titled}${via}.`;
 
   const manifest: Record<string, unknown> = {
     v: 1, kind: 'cairn_attestation',
@@ -633,14 +642,15 @@ export async function attestByToken(
     role: 'inspector', by, statement, date,
   };
   if (roleTitle) manifest.title = roleTitle;
+  if (findings) manifest.findings = findings;
   const { signature, digest } = sign(manifest);
   const attestationId = randomUUID();
   await db.execute({
     sql: `INSERT INTO cairn_attestations
-            (id, milestone_id, project_id, tenant_id, role, attested_by, attester_title, statement, attested_at, manifest_json, signature_json, digest)
-          VALUES (?, ?, ?, ?, 'inspector', ?, ?, ?, ?, ?, ?, ?)`,
+            (id, milestone_id, project_id, tenant_id, role, attested_by, attester_title, statement, findings, attested_at, manifest_json, signature_json, digest)
+          VALUES (?, ?, ?, ?, 'inspector', ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
-      attestationId, req.milestoneId, req.projectId, fromTenant, by, roleTitle, statement, date,
+      attestationId, req.milestoneId, req.projectId, fromTenant, by, roleTitle, statement, findings, date,
       JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
     ],
   });
@@ -672,7 +682,7 @@ export async function attestByToken(
 export async function listAttestations(tenantId: string, projectId: string): Promise<AttestationSummary[]> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, milestone_id, role, attested_by, attester_title, statement, attested_at, digest, anchor_json
+    sql: `SELECT id, milestone_id, role, attested_by, attester_title, statement, findings, attested_at, digest, anchor_json
             FROM cairn_attestations
            WHERE project_id = ? AND tenant_id = ?
            ORDER BY created_at ASC
@@ -686,6 +696,7 @@ export async function listAttestations(tenantId: string, projectId: string): Pro
     by: String(row.attested_by),
     title: row.attester_title != null ? String(row.attester_title) : null,
     statement: String(row.statement),
+    findings: row.findings != null ? String(row.findings) : null,
     attestedAt: String(row.attested_at),
     digest: String(row.digest),
     anchored: row.anchor_json != null,

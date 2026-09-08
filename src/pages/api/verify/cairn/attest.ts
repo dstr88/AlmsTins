@@ -6,8 +6,9 @@
  * to one milestone, and dies the moment it is spent.
  *
  * GET  ?t=…                                          -> what the inspector sees before answering
- * POST { token, outcome, by, title?, note? }         -> record the signed, anchored attestation
+ * POST { token, outcome, by, title?, note?, findings? } -> record the signed, anchored attestation
  *      outcome ∈ 'reached' | 'not_reached' | 'disputed'
+ *      findings = the inspector's condition report, word for word, inside the signed manifest
  */
 import type { APIRoute } from 'astro';
 import { readAttestRequest, attestByToken, type AttestOutcome } from '@/lib/cairnRegistry';
@@ -40,6 +41,7 @@ export const POST: APIRoute = async ({ request }) => {
     by: String(body.by ?? ''),
     title: body.title ? String(body.title) : null,
     note: body.note ? String(body.note) : null,
+    findings: body.findings ? String(body.findings) : null,
   });
 
   if (result.ok) return json(result);

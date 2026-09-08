@@ -58,12 +58,13 @@ const ERRORS: Record<string, string> = {
     .relied { border-left: 3px solid var(--accent-glow); background: var(--accent-soft); border-radius: 8px; padding: .75rem .9rem; font-size: .88rem; }
 
     label.f { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
-    input[type=text] {
+    input[type=text], textarea {
       background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
       color: var(--text-primary); padding: .6rem .75rem; font-size: .95rem; font-family: inherit;
       font-weight: 400; letter-spacing: normal; text-transform: none;
     }
-    input[type=text]:focus { outline: none; border-color: var(--accent); }
+    textarea { resize: vertical; line-height: 1.5; }
+    input[type=text]:focus, textarea:focus { outline: none; border-color: var(--accent); }
     .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .7rem; }
 
     .checks { display: flex; flex-direction: column; gap: .55rem; margin-top: .3rem; }
@@ -141,9 +142,13 @@ const ERRORS: Record<string, string> = {
             <label class="f">Your name<input type="text" id="by" placeholder="Ama Mensah" autocomplete="name" /></label>
             <label class="f">Your role<input type="text" id="title" placeholder="Resident engineer" autocomplete="organization-title" /></label>
           </div>
-          <label class="f" style="margin-top:.7rem">Anything to add (optional)
-            <input type="text" id="note" placeholder="Snagging list outstanding on the east span…" />
+          <label class="f" style="margin-top:.7rem">What you found on inspection (optional, recorded word for word)
+            <textarea id="findings" rows="4" placeholder="Inspected the site on foot. Foundation poured across the full footprint, cured and struck; east retaining wall to first lift; drainage channels excavated but unlined. Snagging: honeycombing on two columns, marked for repair."></textarea>
           </label>
+          <p class="hint" style="margin:.4rem 0 0">
+            Your description goes into the signed record exactly as written, alongside your answer.
+            It cannot be edited or backdated afterward, by anyone.
+          </p>
         </div>
 
         <div class="actions">
@@ -202,7 +207,8 @@ const ERRORS: Record<string, string> = {
           body: JSON.stringify({
             token, outcome, by,
             title: ($('title')?.value ?? '').trim() || null,
-            note: note ?? (($('note')?.value ?? '').trim() || null),
+            note: note ?? null,
+            findings: ($('findings')?.value ?? '').trim() || null,
           }),
         });
         const j = await r.json();
