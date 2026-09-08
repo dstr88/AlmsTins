@@ -236,6 +236,9 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         <label class="fld">Tranche amount <span class="req">released here</span>
           <input id="m-amt" type="number" step="0.01" min="0" placeholder="125000000" />
         </label>
+        <label class="fld">or % of total
+          <input id="m-pct" type="number" step="0.1" min="0" max="100" placeholder="10" />
+        </label>
         <label class="fld">Target date (optional)
           <input id="m-date" type="date" />
         </label>
@@ -277,6 +280,25 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       `${ccy} ${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
     let currentProject: string | null = null;
+    let currentTotal = 0;
+    let currentCcy = 'NGN';
+
+    // Percent <-> amount, both directions. He thinks "the first nine weeks is worth 10%";
+    // the record stores money, because money is what the signature and the lender release.
+    function wirePct() {
+      const amt = $('m-amt'), pct = $('m-pct');
+      pct?.addEventListener('input', () => {
+        if (!(currentTotal > 0)) return;
+        const p = Number(pct.value);
+        if (Number.isFinite(p) && p >= 0) amt.value = String(Math.round(currentTotal * p) / 100);
+      });
+      amt?.addEventListener('input', () => {
+        if (!(currentTotal > 0)) { if (pct) pct.value = ''; return; }
+        const a = Number(amt.value);
+        if (pct) pct.value = Number.isFinite(a) && a >= 0 ? String(Math.round((a / currentTotal) * 1000) / 10) : '';
+      });
+    }
+    const pctOf = (n: number) => currentTotal > 0 ? `${Math.round((n / currentTotal) * 1000) / 10}%` : '';
 
     // Practice mode. The new-project card turns amber so a rehearsal can't be mistaken for real,
     // and the flag travels with the record into its signed manifest.
@@ -325,6 +347,8 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         // The whole workspace wears the test color while a test project is open — the
         // create-card toggle already marks what you record; this marks where you ARE.
         const isTest = j.project.isTest === true;
+        currentTotal = Number(j.project.totalValue || 0);
+        currentCcy = j.project.currency;
         card.classList.toggle('is-test', isTest);
         document.getElementById('ms-title')!.innerHTML =
           `Milestones — ${esc(j.project.name)}${isTest ? ' <span class="pill">test</span>' : ''}`;
@@ -348,7 +372,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         rows.map((m) => `<tr>
           <td>${esc(m.seq)}</td>
           <td>${esc(m.title)}${m.description ? `<div class="muted">${esc(m.description)}</div>` : ''}</td>
-          <td class="num">${esc(money(m.trancheAmount, ccy))}</td>
+          <td class="num">${esc(money(m.trancheAmount, ccy))}${pctOf(Number(m.trancheAmount) || 0) ? `<div class="muted">${esc(pctOf(Number(m.trancheAmount) || 0))}</div>` : ''}</td>
           <td>${esc(m.targetDate || '—')}</td>
           <td><span class="st${m.status === 'attested' ? ' st--attested' : m.status === 'disputed' ? ' st--disputed' : ''}">${esc(m.status)}</span></td>
           <td>${m.status === 'attested' ? '' : `<button class="small ghost" type="button" data-ask="${esc(m.id)}" data-mtitle="${esc(m.seq)}. ${esc(m.title)}">Ask an inspector</button>`}</td>
@@ -376,7 +400,8 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       used.style.width = pct + '%';
       used.classList.toggle('over', over);
       document.getElementById('alloc-total')!.textContent = money(total, ccy);
-      document.getElementById('alloc-in')!.textContent = money(inMs, ccy);
+      document.getElementById('alloc-in')!.textContent =
+        `${money(inMs, ccy)} (${Math.round((inMs / total) * 1000) / 10}%)`;
       document.getElementById('alloc-rest')!.textContent = money(Math.abs(rest), ccy);
       document.getElementById('alloc-rest-word')!.textContent = over ? 'over the total' : 'unallocated';
       document.getElementById('alloc-rest-wrap')!.classList.toggle('over', over);
@@ -504,7 +529,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         const j = await r.json();
         if (!j.ok) { show(out, esc(j.message || 'Could not add that.'), 'note-loss'); return; }
         hide(out);
-        ['m-title','m-amt','m-date','m-desc'].forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
+        ['m-title','m-amt','m-pct','m-date','m-desc'].forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
         openProject(currentProject);
         loadProjects();
         ($('m-title') as HTMLInputElement)?.focus();
@@ -534,6 +559,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     document.getElementById('m-go')?.addEventListener('click', addMilestone);
     document.getElementById('ask-send')?.addEventListener('click', () => mintInvite(true));
     document.getElementById('ask-link')?.addEventListener('click', () => mintInvite(false));
+    wirePct();
     loadProjects();
   </script>
 </body>
