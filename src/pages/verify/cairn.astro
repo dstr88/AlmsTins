@@ -301,9 +301,14 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         if (!j.ok) return;
         const card = document.getElementById('ms-card')!;
         card.hidden = false;
-        document.getElementById('ms-title')!.textContent = `Milestones — ${j.project.name}`;
+        // The whole workspace wears the test color while a test project is open — the
+        // create-card toggle already marks what you record; this marks where you ARE.
+        const isTest = j.project.isTest === true;
+        card.classList.toggle('is-test', isTest);
+        document.getElementById('ms-title')!.innerHTML =
+          `Milestones — ${esc(j.project.name)}${isTest ? ' <span class="pill">test</span>' : ''}`;
         document.getElementById('ms-sub')!.textContent =
-          `${j.project.counterparty} · ${money(j.project.totalValue, j.project.currency)} total${j.project.isTest ? ' · TEST' : ''}`;
+          `${j.project.counterparty} · ${money(j.project.totalValue, j.project.currency)} total${isTest ? ' · practice project, nothing here counts' : ''}`;
         renderMilestones(j.milestones || [], j.project.currency);
         renderTrail(j.attestations || []);
         loadRequests(id);
