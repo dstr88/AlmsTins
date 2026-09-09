@@ -92,7 +92,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       <p class="hint" id="ms-sub">The stages money releases against, in order.</p>
 
       <div id="alloc" class="alloc" hidden>
-        <div class="alloc__bar"><span class="alloc__used" id="alloc-used"></span></div>
+        <div class="alloc__bar"><span class="alloc__used" id="alloc-used"></span><span class="alloc__pending" id="alloc-pending"></span></div>
         <div class="alloc__keys">
           <span><b id="alloc-total"></b> total</span>
           <span class="used"><b id="alloc-in"></b> in milestones</span>
@@ -239,6 +239,17 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       txt.textContent = s;
       txt.classList.toggle('over', Number.isFinite(typed) && typed > 0 && remaining - typed < 0);
       (document.getElementById('m-rest') as HTMLButtonElement).disabled = remaining <= 0;
+
+      // The bar tracks the typing, live: solid = committed milestones (minus the one being
+      // edited, whose money is back in the pool), light = what is in the box right now.
+      const usedEl = document.getElementById('alloc-used') as HTMLElement | null;
+      const pendEl = document.getElementById('alloc-pending') as HTMLElement | null;
+      if (usedEl && pendEl && currentTotal > 0) {
+        const base = Math.max(0, currentAllocated - (editingId ? editingOrigAmt : 0));
+        const pend = Number.isFinite(typed) && typed > 0 ? Math.min(typed, currentTotal - base) : 0;
+        usedEl.style.width = `${Math.min(100, (base / currentTotal) * 100)}%`;
+        pendEl.style.width = `${Math.max(0, (pend / currentTotal) * 100)}%`;
+      }
     }
 
     // Percent <-> amount, both directions. He thinks "the first nine weeks is worth 10%";

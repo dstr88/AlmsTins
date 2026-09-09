@@ -111,9 +111,11 @@ td .muted { margin-top: .15rem; font-size: .8rem; }
 
 /* The tranche arithmetic, done for you: total vs allocated vs still to place. */
 .alloc { margin: .2rem 0 .9rem; }
-.alloc__bar { height: 9px; border-radius: 99px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); overflow: hidden; }
-.alloc__used { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .25s ease; }
+.alloc__bar { display: flex; height: 9px; border-radius: 99px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); overflow: hidden; }
+.alloc__used { display: block; height: 100%; background: var(--accent); border-radius: 99px 0 0 99px; transition: width .25s ease; }
 .alloc__used.over { background: var(--loss); }
+/* what is in the tranche box right now — the bar previews it before it is saved */
+.alloc__pending { display: block; height: 100%; background: var(--accent-glow); transition: width .15s ease; }
 .alloc__keys { display: flex; flex-wrap: wrap; gap: .3rem 1.3rem; margin-top: .45rem; font-size: .82rem; color: var(--text-muted); }
 .alloc__keys b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .alloc__keys .used b { color: var(--accent); }
