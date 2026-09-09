@@ -134,3 +134,7 @@ td .muted { margin-top: .15rem; font-size: .8rem; }
 .leftline { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; margin-top: .1rem;
   font-size: .85rem; color: var(--text-secondary); }
 .leftline .over { color: var(--loss); font-weight: 600; }
+
+/* The gauge rides inside the table, above the first unfunded row. */
+.alloc-cell { padding: .8rem .9rem; background: var(--surface-card); }
+.alloc-cell .alloc { margin: 0; }

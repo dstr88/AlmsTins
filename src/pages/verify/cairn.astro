@@ -387,6 +387,10 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     function renderMilestones(rows: any[], ccy: string, sealed: boolean) {
       msRows = rows;
       const box = document.getElementById('ms-list')!;
+      // Park the gauge back in its home above the table BEFORE wiping the table —
+      // otherwise the innerHTML rebuild would destroy it where it was last placed.
+      const allocEl = document.getElementById('alloc');
+      if (allocEl && box.parentElement) box.parentElement.insertBefore(allocEl, box);
       if (!rows.length) { box.innerHTML = '<p class="muted">No milestones yet. Add the first below.</p>'; return; }
       box.innerHTML = '<div class="ms-table-wrap"><table><thead><tr><th class="col-seq">#</th><th>Milestone</th><th class="col-num">Tranche</th><th>Target</th><th>Status</th><th class="col-act"></th></tr></thead><tbody>' +
         rows.map((m) => `<tr>
@@ -400,6 +404,25 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
             ${!sealed ? `<button class="small ghost" type="button" data-edit="${esc(m.id)}">Edit</button><button class="small ghost" type="button" data-del="${esc(m.id)}" title="Remove this draft milestone">&#10005;</button>` : ''}
           </div></td>
         </tr>`).join('') + '</tbody></table></div>';
+
+      // The gauge follows the work: it sits above the first row still waiting for money,
+      // and once every tranche is placed it settles below the last one.
+      if (allocEl) {
+        const tbody = box.querySelector('tbody');
+        if (tbody) {
+          const idx = rows.findIndex((m) => !(Number(m.trancheAmount) > 0));
+          const slot = document.createElement('tr');
+          slot.className = 'alloc-row';
+          const cell = document.createElement('td');
+          cell.className = 'alloc-cell';
+          cell.colSpan = 6;
+          slot.appendChild(cell);
+          const target = idx >= 0 ? tbody.children[idx] : null;
+          if (target) tbody.insertBefore(slot, target); else tbody.appendChild(slot);
+          cell.appendChild(allocEl);
+        }
+      }
+
       box.querySelectorAll('[data-ask]').forEach((el) =>
         el.addEventListener('click', () => openAsk(
           (el as HTMLElement).dataset.ask as string,
