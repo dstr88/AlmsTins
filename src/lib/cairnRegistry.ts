@@ -100,6 +100,7 @@ export interface ProjectSummary {
   totalValue: number;
   currency: string;
   isTest: boolean;
+  sealedAt: string | null;
   createdAt: string;
   updatedAt: string;
   milestoneCount: number;
@@ -214,6 +215,9 @@ export async function ensureCairnTables(): Promise<void> {
   // work itself, or the inspector's drawn signature. Different bankers accept different
   // ceremonies; the desk labels each accordingly.
   await db.execute({ sql: `ALTER TABLE cairn_documents ADD COLUMN IF NOT EXISTS kind TEXT`, args: [] });
+  // Draft -> sealed lifecycle: a schedule is built freely, then signed in one deliberate
+  // act. NULL = still a draft; the timestamp is when the owner put their name to it all.
+  await db.execute({ sql: `ALTER TABLE cairn_projects ADD COLUMN IF NOT EXISTS signed_at TEXT`, args: [] });
   ensured = true;
 }
 
@@ -289,27 +293,27 @@ export async function createProject(
   const isTest = input.isTest === true;
   const project: Record<string, unknown> = { name, counterparty, totalValue, currency };
   if (description) project.description = description;
-  // In the manifest so a test project's ID differs from the same one recorded for real, and
-  // the flag is covered by the signature — a test record cannot be laundered into a real one.
+  // In the manifest so the flag is covered by the eventual signature — a test record
+  // cannot be laundered into a real one at sealing time.
   if (isTest) project.isTest = true;
-  const manifest = { v: 1, kind: 'cairn_project', project };
-  const { signature, digest } = sign(manifest);
-  const id = sha256hex(canonicalManifestBytes(manifest));
+  // A DRAFT: recorded, unsigned, freely editable. The id is random (still an unguessable
+  // capability); signing happens once, deliberately, when the whole schedule is true —
+  // sealProject() below. The draft manifest is a placeholder the seal overwrites.
+  const manifest = { v: 1, kind: 'cairn_project_draft', project };
+  const digest = sha256hex(canonicalManifestBytes(manifest));
+  const id = randomUUID();
 
-  const existing = await db.execute({ sql: `SELECT id FROM cairn_projects WHERE id = ? LIMIT 1`, args: [id] });
-  if (!existing.rows.length) {
-    await db.execute({
-      sql: `INSERT INTO cairn_projects
-              (id, tenant_id, name, counterparty, total_value, currency, description, is_test, manifest_json, signature_json, digest)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        id, tenantId, name, counterparty, totalValue, currency, description, isTest,
-        JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
-      ],
-    });
-  }
+  await db.execute({
+    sql: `INSERT INTO cairn_projects
+            (id, tenant_id, name, counterparty, total_value, currency, description, is_test, manifest_json, signature_json, digest)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id, tenantId, name, counterparty, totalValue, currency, description, isTest,
+      JSON.stringify(manifest), null, digest,
+    ],
+  });
   await touchProject(id);
-  return { ok: true, id, digest, signed: !!signature, keyId: getSigningKeyId() ?? undefined };
+  return { ok: true, id, digest, signed: false, keyId: getSigningKeyId() ?? undefined };
 }
 
 export async function addMilestone(
@@ -330,12 +334,16 @@ export async function addMilestone(
     return { ok: false, error: 'invalid', message: 'Tranche amount must be zero or more.' };
   }
 
-  // Owner-scoped: you can only add milestones to your own project.
+  // Owner-scoped, drafts only: a sealed schedule does not grow quietly. (Whether sealed
+  // projects can take signed addenda is an open question for the pilot financier.)
   const proj = await db.execute({
-    sql: `SELECT id FROM cairn_projects WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    sql: `SELECT id, signed_at FROM cairn_projects WHERE id = ? AND tenant_id = ? LIMIT 1`,
     args: [pid, tenantId],
   });
   if (!proj.rows.length) return { ok: false, error: 'not_found', message: 'Project not found.' };
+  if ((proj.rows[0] as any).signed_at != null) {
+    return { ok: false, error: 'locked', message: 'This schedule is signed and sealed. It does not grow quietly.' };
+  }
 
   // Next sequence number in this project.
   const seqRow = await db.execute({
@@ -344,27 +352,179 @@ export async function addMilestone(
   });
   const seq = Number((seqRow.rows[0] as any)?.max_seq ?? 0) + 1;
 
+  // A draft row: unsigned, editable in place, random-id. The seal signs it.
   const milestone: Record<string, unknown> = { projectId: pid, seq, title, trancheAmount };
   if (description) milestone.description = description;
   if (targetDate) milestone.targetDate = targetDate;
-  const manifest = { v: 1, kind: 'cairn_milestone', milestone };
-  const { signature, digest } = sign(manifest);
-  const id = sha256hex(canonicalManifestBytes(manifest));
+  const manifest = { v: 1, kind: 'cairn_milestone_draft', milestone };
+  const digest = sha256hex(canonicalManifestBytes(manifest));
+  const id = randomUUID();
 
-  const existing = await db.execute({ sql: `SELECT id FROM cairn_milestones WHERE id = ? LIMIT 1`, args: [id] });
-  if (!existing.rows.length) {
-    await db.execute({
-      sql: `INSERT INTO cairn_milestones
-              (id, project_id, tenant_id, seq, title, description, tranche_amount, target_date, status, manifest_json, signature_json, digest)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
-      args: [
-        id, pid, tenantId, seq, title, description, trancheAmount, targetDate,
-        JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
-      ],
-    });
-  }
+  await db.execute({
+    sql: `INSERT INTO cairn_milestones
+            (id, project_id, tenant_id, seq, title, description, tranche_amount, target_date, status, manifest_json, signature_json, digest)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+    args: [
+      id, pid, tenantId, seq, title, description, trancheAmount, targetDate,
+      JSON.stringify(manifest), null, digest,
+    ],
+  });
   await touchProject(pid);
-  return { ok: true, id, digest, signed: !!signature };
+  return { ok: true, id, digest, signed: false };
+}
+
+// ── The draft -> sealed lifecycle ─────────────────────────────────────────────
+//
+// The banker builds the schedule freely: add, edit, remove, leave, come back. Nothing is
+// signed while he is still writing what he knows to be true. When all of it is, he signs
+// once — sealProject — and the whole schedule locks: every milestone gets its signed
+// manifest, and the project's own signed manifest embeds every milestone's digest, so the
+// schedule is sealed as one object, not a pile of independently signed pieces. Inspectors
+// can only be invited onto a sealed schedule: an attestation must bind to a milestone that
+// can no longer shift under the inspector's feet.
+
+async function milestoneDraft(
+  tenantId: string, milestoneId: string,
+): Promise<{ ok: true; projectId: string } | { ok: false; error: string }> {
+  const ms = await db.execute({
+    sql: `SELECT m.id, m.project_id, p.signed_at
+            FROM cairn_milestones m JOIN cairn_projects p ON p.id = m.project_id
+           WHERE m.id = ? AND m.tenant_id = ? LIMIT 1`,
+    args: [String(milestoneId || '').trim(), tenantId],
+  });
+  if (!ms.rows.length) return { ok: false, error: 'not_found' };
+  const row = ms.rows[0] as any;
+  if (row.signed_at != null) return { ok: false, error: 'locked' };
+  return { ok: true, projectId: String(row.project_id) };
+}
+
+/** Edit a draft milestone in place. Refused once the schedule is sealed. */
+export async function updateMilestone(
+  tenantId: string,
+  milestoneId: string,
+  input: MilestoneInput,
+): Promise<AddMilestoneResult> {
+  await ensureCairnTables();
+  const can = await milestoneDraft(tenantId, milestoneId);
+  if (!can.ok) return { ok: false, error: can.error, message: can.error === 'locked'
+    ? 'This schedule is signed and sealed; its milestones no longer change.'
+    : 'Milestone not found.' };
+
+  const title = clampStr(input.title, 200);
+  const description = input.description != null ? clampStr(input.description, 2000) || null : null;
+  const trancheAmount = Number(input.trancheAmount);
+  const targetDate = isYmd(input.targetDate) ? input.targetDate : null;
+  if (!title) return { ok: false, error: 'invalid', message: 'A milestone title is required.' };
+  if (!Number.isFinite(trancheAmount) || trancheAmount < 0) {
+    return { ok: false, error: 'invalid', message: 'Tranche amount must be zero or more.' };
+  }
+
+  await db.execute({
+    sql: `UPDATE cairn_milestones
+             SET title = ?, description = ?, tranche_amount = ?, target_date = ?
+           WHERE id = ? AND tenant_id = ?`,
+    args: [title, description, trancheAmount, targetDate, String(milestoneId).trim(), tenantId],
+  });
+  await touchProject(can.projectId);
+  return { ok: true, id: String(milestoneId).trim(), signed: false };
+}
+
+/** Remove a draft milestone. Later seats shuffle up so the schedule stays 1..N. */
+export async function deleteMilestone(
+  tenantId: string, milestoneId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await ensureCairnTables();
+  const can = await milestoneDraft(tenantId, milestoneId);
+  if (!can.ok) return can;
+  const id = String(milestoneId).trim();
+  const seqRow = await db.execute({ sql: `SELECT seq FROM cairn_milestones WHERE id = ? LIMIT 1`, args: [id] });
+  const seq = Number((seqRow.rows[0] as any)?.seq ?? 0);
+  await db.execute({ sql: `DELETE FROM cairn_documents WHERE milestone_id = ? AND tenant_id = ?`, args: [id, tenantId] });
+  await db.execute({
+    sql: `UPDATE cairn_invites SET revoked_at = ?
+           WHERE milestone_id = ? AND accepted_at IS NULL AND revoked_at IS NULL`,
+    args: [nowUtc(), id],
+  });
+  await db.execute({ sql: `DELETE FROM cairn_milestones WHERE id = ? AND project_id = ?`, args: [id, can.projectId] });
+  await db.execute({
+    sql: `UPDATE cairn_milestones SET seq = seq - 1 WHERE project_id = ? AND seq > ?`,
+    args: [can.projectId, seq],
+  });
+  await touchProject(can.projectId);
+  return { ok: true };
+}
+
+/**
+ * The deliberate act: sign the whole schedule at once. Each milestone gets its signed
+ * manifest; the project manifest embeds every milestone digest and is signed over the lot;
+ * the project digest is stamped to Bitcoin (non-fatal). After this, the schedule is
+ * read-only and inspectors can be invited.
+ */
+export async function sealProject(
+  tenantId: string,
+  projectId: string,
+): Promise<{ ok: true; digest: string; milestones: number; anchored: boolean } | { ok: false; error: string; message?: string }> {
+  await ensureCairnTables();
+  const pr = await db.execute({
+    sql: `SELECT id, name, counterparty, total_value, currency, description, is_test, signed_at
+            FROM cairn_projects WHERE id = ? AND tenant_id = ? LIMIT 1`,
+    args: [String(projectId || '').trim(), tenantId],
+  });
+  if (!pr.rows.length) return { ok: false, error: 'not_found', message: 'Project not found.' };
+  const p = pr.rows[0] as any;
+  if (p.signed_at != null) return { ok: false, error: 'already_sealed', message: 'This schedule is already signed and sealed.' };
+
+  const ms = await db.execute({
+    sql: `SELECT id, seq, title, description, tranche_amount, target_date
+            FROM cairn_milestones WHERE project_id = ? AND tenant_id = ? ORDER BY seq ASC`,
+    args: [String(p.id), tenantId],
+  });
+  if (!ms.rows.length) return { ok: false, error: 'empty', message: 'Add at least one milestone before sealing.' };
+
+  // Sign each milestone, collecting digests in schedule order.
+  const schedule: Array<Record<string, unknown>> = [];
+  for (const r of ms.rows as any[]) {
+    const milestone: Record<string, unknown> = {
+      projectId: String(p.id), seq: Number(r.seq), title: String(r.title),
+      trancheAmount: Number(r.tranche_amount),
+    };
+    if (r.description != null && String(r.description)) milestone.description = String(r.description);
+    if (r.target_date != null && String(r.target_date)) milestone.targetDate = String(r.target_date);
+    const manifest = { v: 1, kind: 'cairn_milestone', milestone };
+    const { signature, digest } = sign(manifest);
+    await db.execute({
+      sql: `UPDATE cairn_milestones SET manifest_json = ?, signature_json = ?, digest = ? WHERE id = ?`,
+      args: [JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest, String(r.id)],
+    });
+    schedule.push({ seq: Number(r.seq), title: String(r.title), trancheAmount: Number(r.tranche_amount), digest });
+  }
+
+  // The project manifest seals the whole schedule: every milestone digest inside it.
+  const isTest = p.is_test === true || p.is_test === 1 || String(p.is_test) === 'true';
+  const project: Record<string, unknown> = {
+    name: String(p.name), counterparty: String(p.counterparty),
+    totalValue: Number(p.total_value), currency: String(p.currency),
+  };
+  if (p.description != null && String(p.description)) project.description = String(p.description);
+  if (isTest) project.isTest = true;
+  const manifest = { v: 1, kind: 'cairn_project', project, schedule };
+  const { signature, digest } = sign(manifest);
+  await db.execute({
+    sql: `UPDATE cairn_projects SET manifest_json = ?, signature_json = ?, digest = ?, signed_at = ? WHERE id = ?`,
+    args: [JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest, nowUtc(), String(p.id)],
+  });
+
+  // Stamp the sealed schedule's digest to Bitcoin while the moment is fresh (non-fatal).
+  let anchored = false;
+  try {
+    const { OpenTimestampsAnchor } = await import('@/lib/rwaProof/anchorOpenTimestamps');
+    const receipt = await new OpenTimestampsAnchor().stamp(digest.toLowerCase());
+    await db.execute({ sql: `UPDATE cairn_projects SET anchor_json = ? WHERE id = ?`, args: [JSON.stringify(receipt), String(p.id)] });
+    anchored = true;
+  } catch { /* anchor later; the signature already binds the content */ }
+
+  await touchProject(String(p.id));
+  return { ok: true, digest, milestones: schedule.length, anchored };
 }
 
 // ── Read ──────────────────────────────────────────────────────────────────
@@ -372,7 +532,7 @@ export async function addMilestone(
 export async function listProjects(tenantId: string): Promise<ProjectSummary[]> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT p.id, p.name, p.counterparty, p.total_value, p.currency, p.is_test,
+    sql: `SELECT p.id, p.name, p.counterparty, p.total_value, p.currency, p.is_test, p.signed_at,
                  p.created_at, COALESCE(p.updated_at, p.created_at) AS last_activity,
                  (SELECT COUNT(*) FROM cairn_milestones m WHERE m.project_id = p.id) AS milestone_count
           FROM cairn_projects p
@@ -388,6 +548,7 @@ export async function listProjects(tenantId: string): Promise<ProjectSummary[]> 
     totalValue: Number(row.total_value),
     currency: String(row.currency),
     isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
+    sealedAt: row.signed_at != null ? String(row.signed_at) : null,
     createdAt: String(row.created_at),
     updatedAt: String(row.last_activity ?? row.created_at),
     milestoneCount: Number(row.milestone_count ?? 0),
@@ -422,7 +583,7 @@ export async function getProjectForOwner(
 ): Promise<{ project: ProjectSummary; milestones: MilestoneSummary[]; attestations: AttestationSummary[]; documents: CairnDocMeta[] } | null> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, name, counterparty, total_value, currency, is_test, created_at,
+    sql: `SELECT id, name, counterparty, total_value, currency, is_test, signed_at, created_at,
                  COALESCE(updated_at, created_at) AS last_activity
           FROM cairn_projects WHERE id = ? AND tenant_id = ? LIMIT 1`,
     args: [String(projectId), tenantId],
@@ -440,6 +601,7 @@ export async function getProjectForOwner(
       totalValue: Number(row.total_value),
       currency: String(row.currency),
       isTest: row.is_test === true || row.is_test === 1 || String(row.is_test) === 'true',
+      sealedAt: row.signed_at != null ? String(row.signed_at) : null,
       createdAt: String(row.created_at),
       updatedAt: String(row.last_activity ?? row.created_at),
       milestoneCount: milestones.length,
@@ -503,10 +665,15 @@ export async function createInspectorInvite(
   const milestoneId = clampStr(input.milestoneId, 80);
 
   const owns = await db.execute({
-    sql: `SELECT 1 FROM cairn_milestones WHERE id = ? AND project_id = ? AND tenant_id = ? LIMIT 1`,
+    sql: `SELECT m.id, p.signed_at
+            FROM cairn_milestones m JOIN cairn_projects p ON p.id = m.project_id
+           WHERE m.id = ? AND m.project_id = ? AND m.tenant_id = ? LIMIT 1`,
     args: [milestoneId, projectId, tenantId],
   });
   if (!owns.rows.length) return { ok: false, error: 'not_found' };
+  // Drafts take no inspectors: an attestation must bind to a milestone that can no longer
+  // shift under the inspector's feet. Seal the schedule first.
+  if ((owns.rows[0] as any).signed_at == null) return { ok: false, error: 'draft' };
 
   const token = cairnToken();
   const expiresAt = new Date(Date.now() + CAIRN_INVITE_TTL_DAYS * 86400_000)

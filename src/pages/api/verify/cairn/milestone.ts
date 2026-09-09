@@ -1,14 +1,16 @@
 /**
- * POST /api/verify/cairn/milestone — add + sign a milestone on a project (authenticated).
+ * POST /api/verify/cairn/milestone — add, replace, or remove a milestone (authenticated).
  *
- * Body: { projectId, title, description?, trancheAmount, targetDate? }
+ * Body: { projectId, title, description?, trancheAmount, targetDate? }         — add
+ *       { …same, editMilestoneId }        — edit a DRAFT milestone in place
+ *       { action: 'remove', milestoneId } — remove a DRAFT milestone (later seats shuffle up)
  *
- * Owner-scoped: you can only add milestones to a project you created. Each milestone is signed
- * on write and gets the next sequence number in the project. No money moves here.
+ * Drafts only: while the project is unsealed, the schedule is the banker's to shape.
+ * Sealing signs the lot and locks it. Owner-scoped throughout. No money moves here.
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
-import { addMilestone } from '@/lib/cairnRegistry';
+import { addMilestone, updateMilestone, deleteMilestone } from '@/lib/cairnRegistry';
 
 export const prerender = false;
 
@@ -23,12 +25,22 @@ export const POST: APIRoute = async ({ request }) => {
   let body: any = {};
   try { body = await request.json(); } catch { /* ignore */ }
 
-  const result = await addMilestone(session.tenantId, String(body.projectId ?? ''), {
+  if (body.action === 'remove') {
+    const gone = await deleteMilestone(session.tenantId, String(body.milestoneId ?? ''));
+    return gone.ok ? json(gone) : json(gone, gone.error === 'not_found' ? 404 : 409);
+  }
+
+  const input = {
     title: String(body.title ?? ''),
     description: body.description ?? null,
     trancheAmount: Number(body.trancheAmount),
     targetDate: body.targetDate ?? null,
-  });
+  };
 
-  return result.ok ? json(result) : json(result, result.error === 'not_found' ? 404 : 400);
+  const editId = String(body.editMilestoneId ?? '').trim();
+  const result = editId
+    ? await updateMilestone(session.tenantId, editId, input)
+    : await addMilestone(session.tenantId, String(body.projectId ?? ''), input);
+
+  return result.ok ? json(result) : json(result, result.error === 'not_found' ? 404 : result.error === 'locked' ? 409 : 400);
 };
