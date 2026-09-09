@@ -138,3 +138,18 @@ td .muted { margin-top: .15rem; font-size: .8rem; }
 /* The gauge rides inside the table, above the first unfunded row. */
 .alloc-cell { padding: .8rem .9rem; background: var(--surface-card); }
 .alloc-cell .alloc { margin: 0; }
+
+/* Bare inputs in action rows (the ask-an-inspector card) were rendering as native
+   white controls — style them like every other field on the desk. */
+.row > input:not([type="file"]) {
+  background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
+  color: var(--text-primary); padding: .6rem .75rem; font-size: .95rem; font-family: inherit;
+}
+.row > input:not([type="file"]):focus { outline: none; border-color: var(--accent); }
+.row > input[type="file"] { color: var(--text-secondary); font-size: .85rem; }
+.row > input[type="file"]::file-selector-button {
+  background: transparent; border: 1px solid var(--border-bright); border-radius: 8px;
+  color: var(--text-secondary); padding: .45rem .8rem; font-size: .85rem; font-family: inherit;
+  cursor: pointer; margin-right: .6rem;
+}
+.row > input[type="file"]::file-selector-button:hover { background: var(--surface-hover); }
