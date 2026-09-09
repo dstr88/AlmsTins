@@ -624,8 +624,18 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       const out = $('m-out') as unknown as HTMLElement;
       if (!currentProject) { show(out, 'Record a project first.', 'note-loss'); return; }
       const title = val('m-title');
-      const trancheAmount = Number(val('m-amt'));
       if (!title) { show(out, 'A milestone needs a title.', 'note-loss'); return; }
+      // Take whichever box was filled. An empty form is NOT zero: milestones were being
+      // silently recorded at $0 when the amount box was left blank, which is how a whole
+      // practice schedule ended up unfunded. Zero is allowed, but it must be typed.
+      let trancheAmount = Number(val('m-amt'));
+      if (!val('m-amt') && val('m-pct') && currentTotal > 0) {
+        trancheAmount = Math.round(currentTotal * Number(val('m-pct'))) / 100;
+      }
+      if (!val('m-amt') && !val('m-pct')) {
+        show(out, 'Enter the tranche as money or as a percent of the total. Zero is allowed, but type it.', 'note-loss');
+        return;
+      }
       if (!(trancheAmount >= 0)) { show(out, 'Enter the tranche amount (zero or more).', 'note-loss'); return; }
       show(out, 'Signing…');
       try {
