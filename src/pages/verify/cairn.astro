@@ -462,11 +462,21 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       refreshLeft();
     }
 
-    // The deliberate act. One confirm, because it cannot be undone.
+    // The deliberate act. One confirm, because it cannot be undone — and a much louder
+    // one when money would seal as unplaced, because that cannot be fixed afterward.
     async function sealSchedule() {
       const out = document.getElementById('seal-out')!;
       if (!currentProject) return;
-      if (!confirm('Sign and seal this schedule? After this, milestones cannot be edited or removed, and inspectors can be invited.')) return;
+      const rem = currentTotal - currentAllocated;
+      let msg = 'Sign and seal this schedule? After this, milestones cannot be edited or removed, and inspectors can be invited.';
+      if (currentTotal > 0 && rem > 0.005) {
+        const remPct = Math.round((rem / currentTotal) * 1000) / 10;
+        msg = `WAIT: only ${money(currentAllocated, currentCcy)} of the ${money(currentTotal, currentCcy)} total is placed in milestones.\n\n`
+          + `${money(rem, currentCcy)} (${remPct}%) has no milestone, and after sealing the schedule can never be changed. `
+          + `Sealing short can be deliberate (retention, contingency, phases still to come), but it must be a decision, not an accident.\n\n`
+          + `Seal it short anyway?`;
+      }
+      if (!confirm(msg)) return;
       show(out as HTMLElement, 'Signing every milestone and sealing the schedule…');
       try {
         const r = await fetch('/api/verify/cairn/seal', {
