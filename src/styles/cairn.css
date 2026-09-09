@@ -127,3 +127,8 @@ td .muted { margin-top: .15rem; font-size: .8rem; }
 .acct__out { font-size: .82rem; color: var(--accent); text-decoration: none; }
 .acct__out:hover { text-decoration: underline; }
 [hidden] { display: none !important; }
+
+/* The at-the-form counter: what is left to place, live against what is being typed. */
+.leftline { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; margin-top: .1rem;
+  font-size: .85rem; color: var(--text-secondary); }
+.leftline .over { color: var(--loss); font-weight: 600; }

@@ -481,6 +481,17 @@ export async function sealProject(
   });
   if (!ms.rows.length) return { ok: false, error: 'empty', message: 'Add at least one milestone before sealing.' };
 
+  // A schedule cannot promise more money than the project has. Under-allocation is
+  // legitimate (retention, contingency, a phase to be scheduled later); over-allocation is
+  // an arithmetic error, and the moment of signing is the last honest place to catch it.
+  const allocated = (ms.rows as any[]).reduce((s, r) => s + (Number(r.tranche_amount) || 0), 0);
+  if (allocated > Number(p.total_value) + 0.005) {
+    return {
+      ok: false, error: 'over_allocated',
+      message: `The milestones promise ${allocated.toLocaleString('en-US')} against a project total of ${Number(p.total_value).toLocaleString('en-US')}. Fix the tranches before sealing.`,
+    };
+  }
+
   // Sign each milestone, collecting digests in schedule order.
   const schedule: Array<Record<string, unknown>> = [];
   for (const r of ms.rows as any[]) {
