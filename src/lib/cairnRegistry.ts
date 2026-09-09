@@ -345,6 +345,21 @@ export async function addMilestone(
     return { ok: false, error: 'locked', message: 'This schedule is signed and sealed. It does not grow quietly.' };
   }
 
+  // The schedule cannot promise more than the project. Enforced here, at edit, and at
+  // sealing — the form does the arithmetic so the last tile is never a math problem.
+  const totRow = await db.execute({
+    sql: `SELECT p.total_value, COALESCE(SUM(m.tranche_amount), 0) AS allocated
+            FROM cairn_projects p LEFT JOIN cairn_milestones m ON m.project_id = p.id
+           WHERE p.id = ? GROUP BY p.total_value`,
+    args: [pid],
+  });
+  const totalValueP = Number((totRow.rows[0] as any)?.total_value ?? 0);
+  const allocated = Number((totRow.rows[0] as any)?.allocated ?? 0);
+  if (totalValueP > 0 && allocated + trancheAmount > totalValueP + 0.005) {
+    const left = Math.max(0, totalValueP - allocated);
+    return { ok: false, error: 'over_allocated', message: `Only ${left.toLocaleString('en-US')} is left to place on this project.` };
+  }
+
   // Next sequence number in this project.
   const seqRow = await db.execute({
     sql: `SELECT COALESCE(MAX(seq), 0) AS max_seq FROM cairn_milestones WHERE project_id = ?`,
@@ -417,6 +432,21 @@ export async function updateMilestone(
   if (!title) return { ok: false, error: 'invalid', message: 'A milestone title is required.' };
   if (!Number.isFinite(trancheAmount) || trancheAmount < 0) {
     return { ok: false, error: 'invalid', message: 'Tranche amount must be zero or more.' };
+  }
+
+  // Over-allocation check, with this milestone's own money given back first.
+  const totRow = await db.execute({
+    sql: `SELECT p.total_value,
+                 COALESCE((SELECT SUM(m2.tranche_amount) FROM cairn_milestones m2
+                            WHERE m2.project_id = p.id AND m2.id <> ?), 0) AS others
+            FROM cairn_projects p WHERE p.id = ? LIMIT 1`,
+    args: [String(milestoneId).trim(), can.projectId],
+  });
+  const totalValueU = Number((totRow.rows[0] as any)?.total_value ?? 0);
+  const others = Number((totRow.rows[0] as any)?.others ?? 0);
+  if (totalValueU > 0 && others + trancheAmount > totalValueU + 0.005) {
+    const left = Math.max(0, totalValueU - others);
+    return { ok: false, error: 'over_allocated', message: `Only ${left.toLocaleString('en-US')} is left to place on this project.` };
   }
 
   await db.execute({
