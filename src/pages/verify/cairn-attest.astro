@@ -6,6 +6,7 @@
 // their name to "reached", "not reached", or a dispute. The answer is signed, stamped to
 // Bitcoin, and un-backdatable. A lender releases the tranche against it.
 import '@/styles/tokens.css';
+import '@/styles/cairn-attest.css';
 import { readAttestRequest } from '@/lib/cairnRegistry';
 
 export const prerender = false;
@@ -31,85 +32,6 @@ const ERRORS: Record<string, string> = {
   <title>Is this milestone reached? — Almstins Verify</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/favicon-verify.png" />
-  <style is:global>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 1.6; padding: 2.5rem 1.1rem 4rem;
-    }
-    .wrap { max-width: 40rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; }
-    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
-    h1 { font-size: clamp(1.5rem, 3.6vw, 1.9rem); line-height: 1.2; font-weight: 700; }
-
-    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 1.2rem 1.35rem; }
-    .card h2 { font-size: .98rem; font-weight: 700; margin-bottom: .2rem; }
-    .card .hint { font-size: .82rem; color: var(--text-muted); margin-bottom: .95rem; }
-
-    .claim { background: var(--surface-card-2); border: 1px solid var(--border-bright); border-radius: 13px; padding: 1.3rem 1.4rem; }
-    .claim__lead { font-size: 1.02rem; line-height: 1.5; font-weight: 600; }
-    .claim__lead b { color: var(--accent); }
-    .claim__stage { font-size: clamp(1.35rem, 4.4vw, 1.8rem); font-weight: 800; letter-spacing: -.01em; margin: .45rem 0 .3rem; }
-    .claim__desc { font-size: .95rem; color: var(--text-secondary); }
-    .claim__meta { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-top: .9rem; }
-    .m__k { font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--text-muted); }
-    .m__v { font-size: .9rem; font-weight: 600; }
-
-    .relied { border-left: 3px solid var(--accent-glow); background: var(--accent-soft); border-radius: 8px; padding: .75rem .9rem; font-size: .88rem; }
-
-    label.f { display: flex; flex-direction: column; gap: .3rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
-    input[type=text], textarea {
-      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
-      color: var(--text-primary); padding: .6rem .75rem; font-size: .95rem; font-family: inherit;
-      font-weight: 400; letter-spacing: normal; text-transform: none;
-    }
-    textarea { resize: vertical; line-height: 1.5; }
-    input[type=text]:focus, textarea:focus { outline: none; border-color: var(--accent); }
-    .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .7rem; }
-
-    .doclist { list-style: none; margin: .6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
-    .doclist li { border: 1px solid var(--border-subtle); border-radius: 9px; padding: .6rem .75rem; background: var(--surface-card-2); }
-    a.doc { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; text-decoration: none; }
-    .doc__name { color: var(--accent); font-weight: 600; font-size: .95rem; word-break: break-all; }
-    .doc__meta { color: var(--text-muted); font-size: .74rem; white-space: nowrap; }
-    a.doc:hover .doc__name { text-decoration: underline; }
-    .doc__hash { margin-top: .4rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .64rem; color: var(--text-muted); word-break: break-all; }
-    .uprow { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
-    .uprow input[type=file] { flex: 1 1 12rem; font-size: .85rem; color: var(--text-secondary); }
-    .upbtn { width: auto; padding: .55rem 1rem; font-size: .88rem; }
-    .evi { margin-top: 1rem; }
-    .evi__label { font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: .45rem; }
-    #sig-pad { width: 100%; height: 180px; background: #fff; border: 1px solid var(--border-bright); border-radius: 9px; touch-action: none; display: block; }
-
-    .checks { display: flex; flex-direction: column; gap: .55rem; margin-top: .3rem; }
-    .chk { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; cursor: pointer; }
-    .chk input { margin-top: .28rem; width: 1rem; height: 1rem; accent-color: var(--accent); flex: 0 0 auto; }
-
-    .actions { display: flex; flex-direction: column; gap: .6rem; margin-top: .3rem; }
-    button {
-      border-radius: 10px; padding: .8rem 1rem; font-size: .95rem; font-weight: 700;
-      cursor: pointer; font-family: inherit; border: 1px solid transparent; width: 100%;
-    }
-    .yes { background: var(--accent); color: var(--surface-bg); }
-    .yes:hover:not(:disabled) { filter: brightness(1.08); }
-    .yes:disabled { opacity: .45; cursor: not-allowed; }
-    .mid { background: transparent; border-color: var(--border-bright); color: var(--text-secondary); font-weight: 600; }
-    .mid:hover:not(:disabled) { background: var(--surface-hover); }
-    .mid:disabled { opacity: .45; cursor: not-allowed; }
-    .no { background: transparent; border-color: var(--loss-border); color: var(--loss); font-weight: 600; }
-    .no:hover { background: var(--loss-bg); }
-
-    .note { border-radius: 10px; padding: .8rem .9rem; font-size: .9rem; display: none; }
-    .note.show { display: block; }
-    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
-    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
-    .foot { font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1rem; margin-top: .5rem; }
-    .testbar {
-      border: 1px solid var(--warning-border); background: var(--warning-bg); color: var(--text-primary);
-      border-left: 3px solid var(--warning); border-radius: 8px; padding: .8rem .95rem; font-size: .9rem;
-    }
-    .testbar b { color: var(--warning); }
-  </style>
 </head>
 <body>
   <div class="wrap">

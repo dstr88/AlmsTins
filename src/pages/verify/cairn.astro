@@ -8,6 +8,7 @@
 //
 // Signed-in only, like the receivables desk. No tenant_id or identity is ever rendered.
 import '@/styles/tokens.css';
+import '@/styles/cairn.css';
 import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
 
@@ -29,132 +30,6 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
   <meta name="description" content="Record a financed project and its milestones, signed and timestamped." />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/favicon-verify.png" />
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      line-height: 1.6; padding: 2rem 1.1rem 4rem;
-    }
-    .wrap { max-width: 60rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
-    .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
-    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
-    h1 { font-size: clamp(1.6rem, 4vw, 2.05rem); line-height: 1.2; font-weight: 700; margin-top: .3rem; }
-    .blurb { color: var(--text-secondary); font-size: 1rem; max-width: 42rem; margin-top: .35rem; }
-
-    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 1.4rem 1.5rem; }
-    .card.accent { border-color: var(--accent-glow); box-shadow: inset 0 0 0 1px var(--accent-glow); }
-    .card h2 { font-size: 1.15rem; font-weight: 700; }
-    .card .hint { font-size: .92rem; color: var(--text-muted); margin: .25rem 0 1rem; }
-
-    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .8rem; }
-    .fld { display: flex; flex-direction: column; gap: .34rem; font-size: 1.02rem; }
-    .fld .req { font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
-    .fld input, .fld select, .fld textarea {
-      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
-      color: var(--text-primary); padding: .6rem .75rem; font-size: 1.02rem; font-family: inherit;
-    }
-    .fld textarea { min-height: 3.2rem; resize: vertical; }
-    .fld input:focus, .fld select:focus, .fld textarea:focus { outline: none; border-color: var(--accent); }
-    .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
-
-    /* Tranche entry: money on top (currency symbol), percent below. One number each,
-       big enough to read across a desk. */
-    .amt-wrap { display: flex; align-items: center; gap: .5rem; background: var(--surface-card-2);
-      border: 1px solid var(--border-subtle); border-radius: 9px; padding: 0 .8rem; }
-    .amt-wrap:focus-within { border-color: var(--accent); }
-    .amt-wrap input { flex: 1; min-width: 0; background: transparent; border: none; outline: none;
-      color: var(--text-primary); padding: .65rem 0; font-size: 1.2rem; font-family: inherit;
-      font-variant-numeric: tabular-nums; }
-    .amt-sym { font-size: 1.1rem; font-weight: 700; color: var(--text-muted); flex: 0 0 auto; }
-    .grow { flex: 1 1 12rem; }
-
-    button {
-      border-radius: 10px; padding: .72rem 1.1rem; font-size: .98rem; font-weight: 700;
-      cursor: pointer; font-family: inherit; border: 1px solid transparent; background: var(--accent); color: var(--surface-bg);
-    }
-    button:hover:not(:disabled) { filter: brightness(1.08); }
-    button:disabled { opacity: .45; cursor: not-allowed; }
-    button.ghost { background: transparent; border-color: var(--border-bright); color: var(--text-secondary); }
-    button.small { padding: .45rem .8rem; font-size: .85rem; }
-
-    .modes { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 1.1rem; }
-    .mode { display: flex; gap: .4rem; align-items: center; font-size: .95rem; cursor: pointer; }
-    .mode--test input { accent-color: var(--warning); }
-    .modes__d { font-size: .86rem; color: var(--text-muted); }
-    .card.is-test { border-color: var(--warning-border); box-shadow: inset 0 0 0 1px var(--warning-border); background: var(--warning-bg); }
-
-    .note { border-radius: 10px; padding: .7rem .85rem; font-size: .92rem; margin-top: .8rem; display: none; }
-    .note.show { display: block; }
-    .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); }
-    .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); }
-
-    .plist { display: flex; flex-direction: column; gap: .55rem; }
-    .prow { display: flex; justify-content: space-between; gap: 1rem; align-items: center;
-      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 11px; padding: .75rem .9rem; cursor: pointer; }
-    .prow:hover { border-color: var(--accent-glow); }
-    .prow__name { font-weight: 700; }
-    .prow__meta { font-size: .82rem; color: var(--text-muted); }
-    .pill { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
-      color: var(--warning); border: 1px solid var(--warning-border); background: var(--warning-bg); border-radius: 99px; padding: .1rem .5rem; }
-
-    /* Milestone table: a framed ledger, not a bare grid. Rounded frame, tinted
-       header, hover on rows, status as pills, money right-aligned. (Lovable restyle.) */
-    .ms-table-wrap { margin-top: .5rem; border: 1px solid var(--border-subtle); border-radius: 12px;
-      overflow-x: auto; background: var(--surface-card-2); }
-    table { width: 100%; border-collapse: collapse; min-width: 34rem; }
-    th, td { text-align: left; padding: .7rem .9rem; border-bottom: 1px solid var(--border-subtle); font-size: .92rem; }
-    thead th { background: var(--surface-card); font-size: .66rem; letter-spacing: .09em; text-transform: uppercase;
-      color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--border-bright); white-space: nowrap; }
-    tbody tr { transition: background .12s ease; }
-    tbody tr:hover { background: var(--surface-hover); }
-    tbody tr:last-child td { border-bottom: none; }
-    th.col-num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    th.col-seq, td.seq { width: 2.2rem; text-align: center; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-    th.col-act, td.act { text-align: right; white-space: nowrap; }
-    td .muted { margin-top: .15rem; font-size: .8rem; }
-    .st { display: inline-block; font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
-      color: var(--text-secondary); border: 1px solid var(--border-bright); background: var(--surface-card);
-      border-radius: 99px; padding: .14rem .6rem; white-space: nowrap; }
-    .st--attested { color: var(--gain); border-color: var(--gain-border); background: var(--gain-bg); }
-    .st--disputed { color: var(--loss); border-color: var(--loss-border); background: var(--loss-bg); }
-
-    .trail { display: flex; flex-direction: column; gap: .5rem; margin-top: .5rem; }
-    .tr-item { border-left: 3px solid var(--accent-glow); background: var(--surface-card-2); border-radius: 8px; padding: .6rem .8rem; font-size: .88rem; }
-    .tr-item--disputed { border-left-color: var(--loss-border); }
-    .tr-item .when { font-size: .72rem; color: var(--text-muted); margin-top: .15rem; }
-    .tr-item .found { margin-top: .5rem; padding: .5rem .65rem; border: 1px solid var(--border-subtle); border-radius: 7px;
-      background: var(--surface-card); font-size: .85rem; color: var(--text-secondary); white-space: pre-wrap; }
-    .tr-item .found b { display: block; font-size: .64rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
-      color: var(--text-muted); margin-bottom: .2rem; }
-
-    .reqrow { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem .9rem; align-items: center;
-      border: 1px solid var(--border-subtle); border-radius: 9px; padding: .55rem .75rem; font-size: .88rem; }
-    .reqrow .muted { font-size: .8rem; }
-    .linkbox { margin-top: .7rem; background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 9px;
-      padding: .6rem .75rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem; word-break: break-all;
-      user-select: all; }
-    .sep { height: 1px; background: var(--accent-soft); border: 0; margin: 1.1rem 0; }
-
-    /* The tranche arithmetic, done for you: total vs allocated vs still to place. */
-    .alloc { margin: .2rem 0 .9rem; }
-    .alloc__bar { height: 9px; border-radius: 99px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); overflow: hidden; }
-    .alloc__used { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .25s ease; }
-    .alloc__used.over { background: var(--loss); }
-    .alloc__keys { display: flex; flex-wrap: wrap; gap: .3rem 1.3rem; margin-top: .45rem; font-size: .82rem; color: var(--text-muted); }
-    .alloc__keys b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
-    .alloc__keys .used b { color: var(--accent); }
-    .alloc__keys .free b { color: var(--text-secondary); }
-    .alloc__keys .free.over, .alloc__keys .free.over b { color: var(--loss); }
-    .muted { color: var(--text-muted); font-size: .9rem; }
-    .foot { font-size: .8rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; }
-    .foot a { color: var(--accent); }
-    .acct { display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; flex: 0 0 auto; }
-    .acct__email { font-size: .82rem; color: var(--text-muted); max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .acct__out { font-size: .82rem; color: var(--accent); text-decoration: none; }
-    .acct__out:hover { text-decoration: underline; }
-    [hidden] { display: none !important; }
-  </style>
 </head>
 <body>
   <div class="wrap">
