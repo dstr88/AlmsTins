@@ -98,13 +98,26 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     .pill { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
       color: var(--warning); border: 1px solid var(--warning-border); background: var(--warning-bg); border-radius: 99px; padding: .1rem .5rem; }
 
-    table { width: 100%; border-collapse: collapse; margin-top: .4rem; }
-    th, td { text-align: left; padding: .55rem .6rem; border-bottom: 1px solid var(--border-subtle); font-size: .92rem; }
-    th { font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
-    td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    .st { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
-    .st--attested { color: var(--gain); }
-    .st--disputed { color: var(--loss); }
+    /* Milestone table: a framed ledger, not a bare grid. Rounded frame, tinted
+       header, hover on rows, status as pills, money right-aligned. (Lovable restyle.) */
+    .ms-table-wrap { margin-top: .5rem; border: 1px solid var(--border-subtle); border-radius: 12px;
+      overflow-x: auto; background: var(--surface-card-2); }
+    table { width: 100%; border-collapse: collapse; min-width: 34rem; }
+    th, td { text-align: left; padding: .7rem .9rem; border-bottom: 1px solid var(--border-subtle); font-size: .92rem; }
+    thead th { background: var(--surface-card); font-size: .66rem; letter-spacing: .09em; text-transform: uppercase;
+      color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--border-bright); white-space: nowrap; }
+    tbody tr { transition: background .12s ease; }
+    tbody tr:hover { background: var(--surface-hover); }
+    tbody tr:last-child td { border-bottom: none; }
+    th.col-num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    th.col-seq, td.seq { width: 2.2rem; text-align: center; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    th.col-act, td.act { text-align: right; white-space: nowrap; }
+    td .muted { margin-top: .15rem; font-size: .8rem; }
+    .st { display: inline-block; font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--text-secondary); border: 1px solid var(--border-bright); background: var(--surface-card);
+      border-radius: 99px; padding: .14rem .6rem; white-space: nowrap; }
+    .st--attested { color: var(--gain); border-color: var(--gain-border); background: var(--gain-bg); }
+    .st--disputed { color: var(--loss); border-color: var(--loss-border); background: var(--loss-bg); }
 
     .trail { display: flex; flex-direction: column; gap: .5rem; margin-top: .5rem; }
     .tr-item { border-left: 3px solid var(--accent-glow); background: var(--surface-card-2); border-radius: 8px; padding: .6rem .8rem; font-size: .88rem; }
@@ -150,9 +163,10 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         <div class="eyebrow">Almstins Verify · PPPcairn</div>
         <h1>Milestone desk</h1>
         <p class="blurb">
-          Record a financed project and the milestones its money releases against. Then ask an
-          independent inspector to attest each stage by single-use link: their answer is signed,
-          stamped to Bitcoin, and becomes the dated trail a tranche can safely release against.
+          Draft a financed project and the milestones its money releases against. Edit freely,
+          leave, come back. When all of it is true, sign and seal the schedule in one act; then
+          ask independent inspectors to attest each stage by single-use link, signed and stamped
+          to Bitcoin: the dated trail a tranche can safely release against.
         </p>
       </div>
       <div class="acct">
@@ -193,7 +207,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         <textarea id="p-desc" placeholder="What is being built, and the shape of the facility."></textarea>
       </label>
       <div class="row" style="margin-top:1rem">
-        <button id="p-go">Record &amp; sign the project</button>
+        <button id="p-go">Record the project</button>
       </div>
       <div id="p-out" class="note"></div>
     </div>
@@ -212,6 +226,20 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       </div>
 
       <div id="ms-list"></div>
+
+      <div id="seal-wrap" hidden style="margin-top:1rem; border:1px solid var(--accent-glow); border-radius:11px; padding:1rem 1.1rem">
+        <h2 style="font-size:1rem">When all of it is true, sign it</h2>
+        <p class="hint">
+          Look the schedule over. While it is a draft you can edit and remove freely. Sealing signs
+          every milestone and the schedule as one object, stamps it to Bitcoin, and locks it. Only a
+          sealed schedule can take inspectors: their answer must bind to a milestone that can no
+          longer change.
+        </p>
+        <div class="row">
+          <button id="seal-go">Sign &amp; seal the schedule</button>
+        </div>
+        <div id="seal-out" class="note"></div>
+      </div>
 
       <div id="ask-card" hidden style="margin-top:1rem; border:1px solid var(--accent-glow); border-radius:11px; padding:1rem 1.1rem">
         <h2 style="font-size:1rem">Ask an inspector: <span id="ask-title"></span></h2>
@@ -270,7 +298,8 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         <textarea id="m-desc" placeholder="What has to be true for this milestone to count as reached."></textarea>
       </label>
       <div class="row" style="margin-top:1rem">
-        <button id="m-go">Add &amp; sign milestone</button>
+        <button id="m-go">Add milestone</button>
+        <button id="m-cancel" class="ghost" hidden>Cancel edit</button>
       </div>
       <div id="m-out" class="note"></div>
     </div>
@@ -358,7 +387,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         });
         const j = await r.json();
         if (!j.ok) { show(out, esc(j.message || 'Could not record that.'), 'note-loss'); return; }
-        show(out, '<b>Recorded and signed.</b> Now add the milestones its money releases against.', 'note-gain');
+        show(out, '<b>Recorded as a draft.</b> Add the milestones, edit until it is all true, then sign and seal.', 'note-gain');
         ['p-name','p-cparty','p-total','p-desc'].forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
         openProject(j.id);
         loadProjects();
@@ -375,16 +404,25 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         // The whole workspace wears the test color while a test project is open — the
         // create-card toggle already marks what you record; this marks where you ARE.
         const isTest = j.project.isTest === true;
+        const sealed = j.project.sealedAt != null;
         currentTotal = Number(j.project.totalValue || 0);
         currentCcy = j.project.currency;
         const sym = document.getElementById('m-sym');
         if (sym) sym.textContent = ccySymbol(currentCcy);
         card.classList.toggle('is-test', isTest);
         document.getElementById('ms-title')!.innerHTML =
-          `Milestones — ${esc(j.project.name)}${isTest ? ' <span class="pill">test</span>' : ''}`;
+          `Milestones — ${esc(j.project.name)}${isTest ? ' <span class="pill">test</span>' : ''}${sealed ? ' <span class="pill" style="color:var(--gain);border-color:var(--gain-border);background:var(--gain-bg)">sealed</span>' : ' <span class="pill" style="color:var(--text-muted);border-color:var(--border-bright);background:transparent">draft</span>'}`;
         document.getElementById('ms-sub')!.textContent =
-          `${j.project.counterparty} · ${money(j.project.totalValue, j.project.currency)} total${isTest ? ' · practice project, nothing here counts' : ''}`;
-        renderMilestones(j.milestones || [], j.project.currency);
+          `${j.project.counterparty} · ${money(j.project.totalValue, j.project.currency)} total` +
+          `${sealed ? ` · signed and sealed ${String(j.project.sealedAt).slice(0, 10)}` : ' · a draft, edit freely'}` +
+          `${isTest ? ' · practice project, nothing here counts' : ''}`;
+        renderMilestones(j.milestones || [], j.project.currency, sealed);
+        (document.getElementById('seal-wrap') as HTMLElement).hidden = sealed || !(j.milestones || []).length;
+        // The add-milestone form only makes sense while drafting.
+        const canDraft = !sealed;
+        ['m-title','m-amt','m-pct','m-date','m-desc'].forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.disabled = !canDraft; });
+        (document.getElementById('m-go') as HTMLButtonElement).disabled = !canDraft;
+        if (sealed && editingId) cancelEdit();
         renderAlloc(j.project, j.milestones || []);
         renderTrail(j.attestations || []);
         renderDocs(j.documents || [], j.milestones || []);
@@ -396,23 +434,99 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       } catch { /* non-fatal */ }
     }
 
-    function renderMilestones(rows: any[], ccy: string) {
+    let msRows: any[] = [];
+    let editingId: string | null = null;
+
+    function renderMilestones(rows: any[], ccy: string, sealed: boolean) {
+      msRows = rows;
       const box = document.getElementById('ms-list')!;
       if (!rows.length) { box.innerHTML = '<p class="muted">No milestones yet. Add the first below.</p>'; return; }
-      box.innerHTML = '<table><thead><tr><th>#</th><th>Milestone</th><th>Tranche</th><th>Target</th><th>Status</th><th></th></tr></thead><tbody>' +
+      box.innerHTML = '<div class="ms-table-wrap"><table><thead><tr><th class="col-seq">#</th><th>Milestone</th><th class="col-num">Tranche</th><th>Target</th><th>Status</th><th class="col-act"></th></tr></thead><tbody>' +
         rows.map((m) => `<tr>
-          <td>${esc(m.seq)}</td>
+          <td class="seq">${esc(m.seq)}</td>
           <td>${esc(m.title)}${m.description ? `<div class="muted">${esc(m.description)}</div>` : ''}</td>
           <td class="num">${esc(money(m.trancheAmount, ccy))}${pctOf(Number(m.trancheAmount) || 0) ? `<div class="muted">${esc(pctOf(Number(m.trancheAmount) || 0))}</div>` : ''}</td>
           <td>${esc(m.targetDate || '—')}</td>
-          <td><span class="st${m.status === 'attested' ? ' st--attested' : m.status === 'disputed' ? ' st--disputed' : ''}">${esc(m.status)}</span></td>
-          <td>${m.status === 'attested' ? '' : `<button class="small ghost" type="button" data-ask="${esc(m.id)}" data-mtitle="${esc(m.seq)}. ${esc(m.title)}">Ask an inspector</button>`}</td>
-        </tr>`).join('') + '</tbody></table>';
+          <td><span class="st${m.status === 'attested' ? ' st--attested' : m.status === 'disputed' ? ' st--disputed' : ''}">${sealed ? esc(m.status) : 'draft'}</span></td>
+          <td class="act"><div class="row" style="gap:.35rem;justify-content:flex-end">
+            ${sealed && m.status !== 'attested' ? `<button class="small ghost" type="button" data-ask="${esc(m.id)}" data-mtitle="${esc(m.seq)}. ${esc(m.title)}">Ask an inspector</button>` : ''}
+            ${!sealed ? `<button class="small ghost" type="button" data-edit="${esc(m.id)}">Edit</button><button class="small ghost" type="button" data-del="${esc(m.id)}" title="Remove this draft milestone">&#10005;</button>` : ''}
+          </div></td>
+        </tr>`).join('') + '</tbody></table></div>';
       box.querySelectorAll('[data-ask]').forEach((el) =>
         el.addEventListener('click', () => openAsk(
           (el as HTMLElement).dataset.ask as string,
           (el as HTMLElement).dataset.mtitle as string,
         )));
+      box.querySelectorAll('[data-edit]').forEach((el) =>
+        el.addEventListener('click', () => startEdit((el as HTMLElement).dataset.edit as string)));
+      box.querySelectorAll('[data-del]').forEach((el) =>
+        el.addEventListener('click', () => removeMilestone((el as HTMLElement).dataset.del as string)));
+    }
+
+    // Edit = replace-the-draft: the form becomes the editor, and saving re-signs the
+    // milestone into the same seat. Server enforces drafts-only (pending, unattested).
+    function startEdit(id: string) {
+      const m = msRows.find((r) => r.id === id);
+      if (!m) return;
+      editingId = id;
+      ($('m-title') as HTMLInputElement).value = m.title || '';
+      ($('m-amt') as HTMLInputElement).value = m.trancheAmount ? String(m.trancheAmount) : '';
+      ($('m-amt') as HTMLInputElement).dispatchEvent(new Event('input'));
+      ($('m-date') as HTMLInputElement).value = m.targetDate || '';
+      ($('m-desc') as HTMLInputElement).value = m.description || '';
+      const go = document.getElementById('m-go')!;
+      go.textContent = `Save changes to milestone ${m.seq}`;
+      (document.getElementById('m-cancel') as HTMLButtonElement).hidden = false;
+      go.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      ($('m-title') as HTMLInputElement).focus();
+    }
+
+    function cancelEdit() {
+      editingId = null;
+      ['m-title','m-amt','m-pct','m-date','m-desc'].forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
+      document.getElementById('m-go')!.textContent = 'Add milestone';
+      (document.getElementById('m-cancel') as HTMLButtonElement).hidden = true;
+    }
+
+    // The deliberate act. One confirm, because it cannot be undone.
+    async function sealSchedule() {
+      const out = document.getElementById('seal-out')!;
+      if (!currentProject) return;
+      if (!confirm('Sign and seal this schedule? After this, milestones cannot be edited or removed, and inspectors can be invited.')) return;
+      show(out as HTMLElement, 'Signing every milestone and sealing the schedule…');
+      try {
+        const r = await fetch('/api/verify/cairn/seal', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: currentProject }),
+        });
+        const j = await r.json();
+        if (!j.ok) { show(out as HTMLElement, esc(j.message || 'Could not seal the schedule.'), 'note-loss'); return; }
+        show(out as HTMLElement, `<b>Sealed.</b> ${esc(j.milestones)} milestones signed as one schedule${j.anchored ? ', stamped to Bitcoin' : ''}. You can now ask inspectors.`, 'note-gain');
+        openProject(currentProject, false);
+        loadProjects();
+      } catch { show(out as HTMLElement, 'Could not reach the registry. Try again.', 'note-loss'); }
+    }
+
+    async function removeMilestone(id: string) {
+      const m = msRows.find((r) => r.id === id);
+      if (!m) return;
+      if (!confirm(`Remove milestone ${m.seq}, "${m.title}"? Open inspector links on it will stop working.`)) return;
+      try {
+        const r = await fetch('/api/verify/cairn/milestone', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'remove', milestoneId: id }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          const out = $('m-out') as unknown as HTMLElement;
+          show(out, j.error === 'locked' ? 'This schedule is signed and sealed; its milestones no longer change.' : 'Could not remove that.', 'note-loss');
+          return;
+        }
+        if (editingId === id) cancelEdit();
+        if (currentProject) openProject(currentProject, false);
+        loadProjects();
+      } catch { /* non-fatal */ }
     }
 
     // The tranche arithmetic: total value vs what the milestones already carry. Turns red
@@ -469,7 +583,12 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
           }),
         });
         const j = await r.json();
-        if (!j.ok) { show(out, esc(j.message || 'Could not create the link.'), 'note-loss'); return; }
+        if (!j.ok) {
+          show(out, j.error === 'draft'
+            ? 'This schedule is still a draft. Sign and seal it first; an inspector can only attest a milestone that can no longer change.'
+            : esc(j.message || 'Could not create the link.'), 'note-loss');
+          return;
+        }
         const link = `${location.origin}/verify/cairn-attest?token=${encodeURIComponent(j.token)}`;
         if (sendIt) {
           const s = await fetch('/api/verify/cairn/send', {
@@ -603,13 +722,19 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
           body: JSON.stringify({
             projectId: currentProject, title,
             trancheAmount, targetDate: val('m-date') || null, description: val('m-desc') || null,
+            editMilestoneId: editingId || undefined,
           }),
         });
         const j = await r.json();
-        if (!j.ok) { show(out, esc(j.message || 'Could not add that.'), 'note-loss'); return; }
+        if (!j.ok) {
+          show(out, j.error === 'locked'
+            ? 'This schedule is signed and sealed; its milestones no longer change.'
+            : esc(j.message || 'Could not add that.'), 'note-loss');
+          return;
+        }
         hide(out);
-        ['m-title','m-amt','m-pct','m-date','m-desc'].forEach((id) => { const el = $(id) as HTMLInputElement; if (el) el.value = ''; });
-        openProject(currentProject);
+        cancelEdit();
+        openProject(currentProject, false);
         loadProjects();
         ($('m-title') as HTMLInputElement)?.focus();
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
@@ -636,6 +761,8 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
 
     document.getElementById('p-go')?.addEventListener('click', createProject);
     document.getElementById('m-go')?.addEventListener('click', addMilestone);
+    document.getElementById('m-cancel')?.addEventListener('click', cancelEdit);
+    document.getElementById('seal-go')?.addEventListener('click', sealSchedule);
     document.getElementById('ask-send')?.addEventListener('click', () => mintInvite(true));
     document.getElementById('ask-link')?.addEventListener('click', () => mintInvite(false));
     document.getElementById('ask-attach')?.addEventListener('click', attachForm);
