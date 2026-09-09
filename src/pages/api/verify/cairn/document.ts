@@ -84,10 +84,12 @@ export const POST: APIRoute = async ({ request }) => {
     bytes,
   };
 
-  // Inspector path: the open token is the authority, same as answering.
+  // Inspector path: the open token is the authority, same as answering. `kind` says what
+  // the file is — completed report, site photo, or drawn signature.
   const token = String(form.get('token') ?? '').trim();
   if (token) {
-    const result = await addCairnDocumentByToken(token, input);
+    const kind = String(form.get('kind') ?? '') as 'report' | 'photo' | 'signature';
+    const result = await addCairnDocumentByToken(token, { ...input, kind });
     if (result.ok) return json(result);
     const status =
       result.error === 'not_found' ? 404

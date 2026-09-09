@@ -541,7 +541,11 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
             <a class="doc" href="/api/verify/cairn/document?id=${esc(d.id)}" target="_blank" rel="noopener" style="text-decoration:none">
               <b style="color:var(--accent)">${esc(d.filename)}</b>
             </a>
-            <div class="muted">milestone ${esc(bySeq(d.milestoneId))} · ${d.uploadedBy === 'inspector' ? 'sent back by the inspector' : 'your form'} · ${Math.round((d.fileSize || 0) / 1024)} KB · ${esc(String(d.sha256).slice(0, 16))}…</div>
+            <div class="muted">milestone ${esc(bySeq(d.milestoneId))} · ${
+              d.kind === 'photo' ? 'site photo from the inspector'
+              : d.kind === 'signature' ? "inspector's signature"
+              : d.kind === 'report' ? 'completed form from the inspector'
+              : 'your form'} · ${Math.round((d.fileSize || 0) / 1024)} KB · ${esc(String(d.sha256).slice(0, 16))}…</div>
           </div>
         </div>`).join('');
     }

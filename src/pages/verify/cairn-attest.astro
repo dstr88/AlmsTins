@@ -77,6 +77,9 @@ const ERRORS: Record<string, string> = {
     .uprow { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
     .uprow input[type=file] { flex: 1 1 12rem; font-size: .85rem; color: var(--text-secondary); }
     .upbtn { width: auto; padding: .55rem 1rem; font-size: .88rem; }
+    .evi { margin-top: 1rem; }
+    .evi__label { font-size: .74rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: .45rem; }
+    #sig-pad { width: 100%; height: 180px; background: #fff; border: 1px solid var(--border-bright); border-radius: 9px; touch-action: none; display: block; }
 
     .checks { display: flex; flex-direction: column; gap: .55rem; margin-top: .3rem; }
     .chk { display: flex; gap: .6rem; align-items: flex-start; font-size: .92rem; cursor: pointer; }
@@ -166,19 +169,42 @@ const ERRORS: Record<string, string> = {
         )}
 
         <div class="card">
-          <h2>Upload your completed report</h2>
+          <h2>Your evidence</h2>
           <p class="hint">
-            A photo of the signed form, or a PDF. 5 MB per file, as many as you need. Upload before
-            you answer: each file's fingerprint is sealed inside your signed answer, so nobody can
-            swap the paperwork afterward.
+            Three ways in, use any of them. 5 MB per file, as many files as you need. Everything
+            goes on file before you answer, and each file's fingerprint is sealed inside your
+            signed answer, so nobody can swap anything afterward.
           </p>
-          <div class="uprow">
-            <input id="up-file" type="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" />
-            <button class="mid upbtn" id="up-go" data-token={token} type="button">Upload</button>
+
+          <div class="evi">
+            <div class="evi__label">1 · The completed form (photo of the signed page, or a PDF)</div>
+            <div class="uprow">
+              <input id="up-file" type="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" />
+              <button class="mid upbtn" id="up-go" data-token={token} type="button">Upload</button>
+            </div>
           </div>
+
+          <div class="evi">
+            <div class="evi__label">2 · The work itself — photograph the finished stage</div>
+            <div class="uprow">
+              <input id="cam-file" type="file" accept="image/*" capture="environment" hidden />
+              <button class="mid upbtn" id="cam-go" data-token={token} type="button">📷 Open the camera</button>
+              <span class="hint" style="margin:0">Each shot uploads on its own. Take as many as the stage deserves.</span>
+            </div>
+          </div>
+
+          <div class="evi">
+            <div class="evi__label">3 · Sign with your thumb</div>
+            <canvas id="sig-pad" width="600" height="180"></canvas>
+            <div class="uprow" style="margin-top:.5rem">
+              <button class="mid upbtn" id="sig-clear" type="button">Clear</button>
+              <button class="mid upbtn" id="sig-go" data-token={token} type="button">Attach my signature</button>
+            </div>
+          </div>
+
           <ul class="doclist" id="up-list">
             {req.documents.filter((d) => d.uploadedBy === 'inspector').map((d) => (
-              <li><a class="doc" href={`/api/verify/cairn/document?t=${encodeURIComponent(token)}&id=${encodeURIComponent(d.id)}`} target="_blank" rel="noopener"><span class="doc__name">{d.filename}</span><span class="doc__meta">{(d.fileSize / 1024).toFixed(0)} KB</span></a></li>
+              <li><a class="doc" href={`/api/verify/cairn/document?t=${encodeURIComponent(token)}&id=${encodeURIComponent(d.id)}`} target="_blank" rel="noopener"><span class="doc__name">{d.filename}</span><span class="doc__meta">{d.kind} · {(d.fileSize / 1024).toFixed(0)} KB</span></a></li>
             ))}
           </ul>
           <div id="up-out" class="note"></div>
@@ -277,18 +303,16 @@ const ERRORS: Record<string, string> = {
 
     const tok = (id: string) => ($(id) as unknown as HTMLElement)?.dataset.token ?? '';
 
-    // The completed, signed form comes back as a phone photo or PDF. Upload while the
-    // link is open; the answer then seals every file's fingerprint into the signed record.
-    async function uploadReport() {
+    // Evidence goes on file while the link is open — the completed form, site photos, the
+    // drawn signature. The answer then seals every file's fingerprint into the signed record.
+    async function uploadEvidence(f: File, kind: string) {
       const out = document.getElementById('up-out')!;
       const showUp = (t: string, cls: string) => { out.className = `note show ${cls}`; out.textContent = t; };
-      const input = $('up-file') as HTMLInputElement;
-      const f = input?.files?.[0];
-      if (!f) { showUp('Choose a photo or PDF first.', 'note-loss'); return; }
       showUp('Uploading…', 'note-gain');
       try {
         const fd = new FormData();
         fd.append('token', tok('up-go'));
+        fd.append('kind', kind);
         fd.append('file', f);
         const r = await fetch('/api/verify/cairn/document', { method: 'POST', body: fd });
         const j = await r.json();
@@ -297,16 +321,71 @@ const ERRORS: Record<string, string> = {
             : j.error === 'unsupported_type' ? 'PDF or photo formats only (PDF, PNG, JPG, GIF, WebP).'
             : j.error === 'used' ? 'This link has already been answered; uploads are closed.'
             : 'Could not upload that. Try again.', 'note-loss');
-          return;
+          return false;
         }
         const li = document.createElement('li');
-        li.textContent = `${j.doc.filename} · uploaded`;
+        li.textContent = `${j.doc.filename} · ${kind} · on file`;
         document.getElementById('up-list')!.appendChild(li);
-        input.value = '';
         showUp('On file. Its fingerprint will be sealed into your answer.', 'note-gain');
-      } catch { showUp('Could not reach Almstins. Try again.', 'note-loss'); }
+        return true;
+      } catch { showUp('Could not reach Almstins. Try again.', 'note-loss'); return false; }
     }
-    document.getElementById('up-go')?.addEventListener('click', uploadReport);
+
+    document.getElementById('up-go')?.addEventListener('click', async () => {
+      const input = $('up-file') as HTMLInputElement;
+      const f = input?.files?.[0];
+      if (!f) {
+        const out = document.getElementById('up-out')!;
+        out.className = 'note show note-loss'; out.textContent = 'Choose a photo or PDF first.';
+        return;
+      }
+      if (await uploadEvidence(f, 'report')) input.value = '';
+    });
+
+    // The camera: the button opens the phone's camera directly; each shot uploads itself.
+    document.getElementById('cam-go')?.addEventListener('click', () => ($('cam-file') as HTMLInputElement)?.click());
+    $('cam-file')?.addEventListener('change', async () => {
+      const input = $('cam-file') as HTMLInputElement;
+      const f = input?.files?.[0];
+      if (f && await uploadEvidence(f, 'photo')) input.value = '';
+    });
+
+    // The thumb signature: a plain canvas, white like paper, exported as a PNG that gets
+    // fingerprinted like every other file. Not a biometric — a mark, the way a signature
+    // has always been a mark.
+    (() => {
+      const pad = document.getElementById('sig-pad') as HTMLCanvasElement | null;
+      if (!pad) return;
+      const ctx = pad.getContext('2d')!;
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, pad.width, pad.height);
+      ctx.strokeStyle = '#111'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      let drawing = false, drew = false;
+      const pos = (e: PointerEvent) => {
+        const r = pad.getBoundingClientRect();
+        return { x: (e.clientX - r.left) * (pad.width / r.width), y: (e.clientY - r.top) * (pad.height / r.height) };
+      };
+      pad.addEventListener('pointerdown', (e) => {
+        drawing = true; drew = true; pad.setPointerCapture(e.pointerId);
+        const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + .1, p.y + .1); ctx.stroke();
+      });
+      pad.addEventListener('pointermove', (e) => {
+        if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke();
+      });
+      const stop = () => { drawing = false; };
+      pad.addEventListener('pointerup', stop); pad.addEventListener('pointercancel', stop);
+      document.getElementById('sig-clear')?.addEventListener('click', () => {
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, pad.width, pad.height); drew = false;
+      });
+      document.getElementById('sig-go')?.addEventListener('click', () => {
+        const out = document.getElementById('up-out')!;
+        if (!drew) { out.className = 'note show note-loss'; out.textContent = 'Sign the white box first.'; return; }
+        pad.toBlob(async (blob) => {
+          if (!blob) return;
+          const name = (($('by')?.value ?? '').trim() || 'inspector').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          await uploadEvidence(new File([blob], `signature-${name}.png`, { type: 'image/png' }), 'signature');
+        }, 'image/png');
+      });
+    })();
     $('ok')?.addEventListener('click', () => send('reached', tok('ok')));
     $('notyet')?.addEventListener('click', () => send('not_reached', tok('notyet')));
     $('bad')?.addEventListener('click', () => {

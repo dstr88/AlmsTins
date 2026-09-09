@@ -210,6 +210,10 @@ export async function ensureCairnTables(): Promise<void> {
   await db.execute({ sql: `ALTER TABLE cairn_attestations ADD COLUMN IF NOT EXISTS findings TEXT`, args: [] });
   await db.execute({ sql: ENSURE_CAIRN_DOCS_SQL, args: [] });
   await db.execute({ sql: ENSURE_CAIRN_DOCS_IDX, args: [] });
+  // What each file IS: the lender's blank form, the completed report, a site photo of the
+  // work itself, or the inspector's drawn signature. Different bankers accept different
+  // ceremonies; the desk labels each accordingly.
+  await db.execute({ sql: `ALTER TABLE cairn_documents ADD COLUMN IF NOT EXISTS kind TEXT`, args: [] });
   ensured = true;
 }
 
@@ -751,10 +755,13 @@ export const CAIRN_DOC_ALLOWED_TYPES = [
   'image/png', 'image/jpeg', 'image/gif', 'image/webp',
 ];
 
+export type CairnDocKind = 'form' | 'report' | 'photo' | 'signature';
+
 export interface CairnDocMeta {
   id: string;
   milestoneId: string;
   uploadedBy: 'owner' | 'inspector';
+  kind: CairnDocKind;
   filename: string;
   mimeType: string;
   fileSize: number;
@@ -768,6 +775,8 @@ function cairnDocRow(r: any): CairnDocMeta {
     id: String(r.id),
     milestoneId: String(r.milestone_id),
     uploadedBy: String(r.uploaded_by) === 'inspector' ? 'inspector' : 'owner',
+    kind: (['form', 'report', 'photo', 'signature'].includes(String(r.kind))
+      ? String(r.kind) : String(r.uploaded_by) === 'inspector' ? 'report' : 'form') as CairnDocKind,
     filename: String(r.filename),
     mimeType: String(r.mime_type),
     fileSize: Number(r.file_size || 0),
@@ -788,21 +797,23 @@ function checkDocInput(mimeType: string, bytes: Buffer): string | null {
 async function insertCairnDoc(
   milestoneId: string, projectId: string, tenantId: string,
   uploadedBy: 'owner' | 'inspector',
-  input: { filename: string; mimeType: string; bytes: Buffer },
+  input: { filename: string; mimeType: string; bytes: Buffer; kind?: CairnDocKind },
 ): Promise<CairnDocMeta> {
   const mime = String(input.mimeType || '').toLowerCase().split(';')[0].trim();
   const filename = clampStr(input.filename, 200) || 'document';
   const sha256 = createHash('sha256').update(input.bytes).digest('hex');
+  const kind: CairnDocKind = uploadedBy === 'owner' ? 'form'
+    : (['report', 'photo', 'signature'].includes(String(input.kind)) ? input.kind! : 'report');
   const id = randomUUID();
   await db.execute({
     sql: `INSERT INTO cairn_documents
-            (id, milestone_id, project_id, tenant_id, uploaded_by, filename, mime_type, file_size, sha256, data)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, milestoneId, projectId, tenantId, uploadedBy, filename, mime,
+            (id, milestone_id, project_id, tenant_id, uploaded_by, kind, filename, mime_type, file_size, sha256, data)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, milestoneId, projectId, tenantId, uploadedBy, kind, filename, mime,
            input.bytes.length, sha256, input.bytes.toString('base64')],
   });
   const r = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at
             FROM cairn_documents WHERE id = ? LIMIT 1`,
     args: [id],
   });
@@ -836,7 +847,7 @@ export async function addMilestoneDocument(
  */
 export async function addCairnDocumentByToken(
   token: string,
-  input: { filename: string; mimeType: string; bytes: Buffer },
+  input: { filename: string; mimeType: string; bytes: Buffer; kind?: CairnDocKind },
 ): Promise<{ ok: true; doc: CairnDocMeta } | { ok: false; error: string }> {
   await ensureCairnTables();
   const req = await readAttestRequest(token);
@@ -856,7 +867,7 @@ export async function addCairnDocumentByToken(
 export async function listMilestoneDocuments(milestoneId: string): Promise<CairnDocMeta[]> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at
             FROM cairn_documents WHERE milestone_id = ? ORDER BY uploaded_at ASC`,
     args: [String(milestoneId || '').trim()],
   });
@@ -867,7 +878,7 @@ export async function listMilestoneDocuments(milestoneId: string): Promise<Cairn
 export async function listProjectDocuments(tenantId: string, projectId: string): Promise<CairnDocMeta[]> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at
             FROM cairn_documents WHERE project_id = ? AND tenant_id = ? ORDER BY uploaded_at ASC`,
     args: [String(projectId || '').trim(), tenantId],
   });
@@ -881,7 +892,7 @@ export async function readCairnDocument(
 ): Promise<{ meta: CairnDocMeta; data: Buffer } | null> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at, data
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, data
             FROM cairn_documents WHERE id = ? AND tenant_id = ? LIMIT 1`,
     args: [String(documentId || '').trim(), tenantId],
   });
@@ -910,7 +921,7 @@ export async function readCairnDocumentByToken(
   if (row.revoked_at) return null;
   if (String(row.expires_at) < nowUtc()) return null;
   const d = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, filename, mime_type, file_size, sha256, uploaded_at, purged_at, data
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, data
             FROM cairn_documents WHERE id = ? AND milestone_id = ? LIMIT 1`,
     args: [String(documentId || '').trim(), String(row.milestone_id)],
   });
