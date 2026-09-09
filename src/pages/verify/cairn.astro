@@ -14,6 +14,11 @@ import { getAuthSession } from '@/lib/authSession';
 
 export const prerender = false;
 
+// Never let an edge cache serve yesterday's desk after a deploy — same lesson as the
+// research page: a stale cached HTML shell keeps running old JavaScript through any
+// number of plain refreshes, and "the fix is live but the user can't see it" is the bug.
+Astro.response.headers.set('Cache-Control', 'no-store');
+
 const sess = await requireTenantSession(Astro.request);
 if (!sess) return Astro.redirect('/verify/login?next=/verify/cairn', 302);
 

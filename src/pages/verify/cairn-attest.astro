@@ -11,6 +11,10 @@ import { readAttestRequest } from '@/lib/cairnRegistry';
 
 export const prerender = false;
 
+// No edge-cached copies of a single-use page — stale HTML plus a spent token is confusion
+// squared, and the inspector gets exactly one visit to get this right.
+Astro.response.headers.set('Cache-Control', 'no-store');
+
 const token = Astro.url.searchParams.get('token') ?? Astro.url.searchParams.get('t') ?? '';
 const req = token ? await readAttestRequest(token) : { ok: false as const, error: 'not_found' as const };
 
