@@ -632,6 +632,19 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
       } catch { show(out, 'Could not reach the registry. Try again.', 'note-loss'); }
     }
 
+    // Where the inspector's device said it stood when the shot was taken. Labeled as
+    // reported, never verified — the value is that it sits inside the signed manifest,
+    // so the inspector's name stands behind the claim.
+    function docLoc(d: any): string {
+      const l = d?.location;
+      const lat = Number(l?.lat), lon = Number(l?.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return '';
+      const acc = Number(l?.accuracyM);
+      const map = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
+      return `<div class="muted">📍 reported location ${esc(lat.toFixed(5))}, ${esc(lon.toFixed(5))}${
+        Number.isFinite(acc) ? ` (±${esc(Math.round(acc))} m)` : ''} · <a href="${map}" target="_blank" rel="noopener" style="color:var(--accent)">map</a> · device-reported, sealed with the photo</div>`;
+    }
+
     function renderDocs(docs: any[], milestones: any[]) {
       const wrap = document.getElementById('docs-wrap')!;
       const box = document.getElementById('docs-list')!;
@@ -650,6 +663,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
               : d.kind === 'signature' ? "inspector's signature"
               : d.kind === 'report' ? 'completed form from the inspector'
               : 'your form'} · ${Math.round((d.fileSize || 0) / 1024)} KB · ${esc(String(d.sha256).slice(0, 16))}…</div>
+            ${docLoc(d)}
           </div>
         </div>`).join('');
     }

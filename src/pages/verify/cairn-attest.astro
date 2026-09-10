@@ -115,7 +115,7 @@ const ERRORS: Record<string, string> = {
             <div class="uprow">
               <input id="cam-file" type="file" accept="image/*" capture="environment" hidden />
               <button class="mid upbtn" id="cam-go" data-token={token} type="button">📷 Open the camera</button>
-              <span class="hint" style="margin:0">Each shot uploads on its own. Take as many as the stage deserves.</span>
+              <span class="hint" style="margin:0">Each shot uploads on its own. Take as many as the stage deserves. If you allow location when asked, where you stood is sealed in with the photo.</span>
             </div>
           </div>
 
@@ -130,7 +130,7 @@ const ERRORS: Record<string, string> = {
 
           <ul class="doclist" id="up-list">
             {req.documents.filter((d) => d.uploadedBy === 'inspector').map((d) => (
-              <li><a class="doc" href={`/api/verify/cairn/document?t=${encodeURIComponent(token)}&id=${encodeURIComponent(d.id)}`} target="_blank" rel="noopener"><span class="doc__name">{d.filename}</span><span class="doc__meta">{d.kind} · {(d.fileSize / 1024).toFixed(0)} KB</span></a></li>
+              <li><a class="doc" href={`/api/verify/cairn/document?t=${encodeURIComponent(token)}&id=${encodeURIComponent(d.id)}`} target="_blank" rel="noopener"><span class="doc__name">{d.filename}</span><span class="doc__meta">{d.kind}{d.location ? ' · 📍 location attached' : ''} · {(d.fileSize / 1024).toFixed(0)} KB</span></a></li>
             ))}
           </ul>
           <div id="up-out" class="note"></div>
@@ -231,7 +231,7 @@ const ERRORS: Record<string, string> = {
 
     // Evidence goes on file while the link is open — the completed form, site photos, the
     // drawn signature. The answer then seals every file's fingerprint into the signed record.
-    async function uploadEvidence(f: File, kind: string) {
+    async function uploadEvidence(f: File, kind: string, loc?: { lat: number; lon: number; accuracyM: number | null } | null) {
       const out = document.getElementById('up-out')!;
       const showUp = (t: string, cls: string) => { out.className = `note show ${cls}`; out.textContent = t; };
       showUp('Uploading…', 'note-gain');
@@ -240,6 +240,11 @@ const ERRORS: Record<string, string> = {
         fd.append('token', tok('up-go'));
         fd.append('kind', kind);
         fd.append('file', f);
+        if (loc) {
+          fd.append('lat', String(loc.lat));
+          fd.append('lon', String(loc.lon));
+          if (loc.accuracyM != null) fd.append('accuracy', String(loc.accuracyM));
+        }
         const r = await fetch('/api/verify/cairn/document', { method: 'POST', body: fd });
         const j = await r.json();
         if (!j.ok) {
@@ -250,9 +255,11 @@ const ERRORS: Record<string, string> = {
           return false;
         }
         const li = document.createElement('li');
-        li.textContent = `${j.doc.filename} · ${kind} · on file`;
+        li.textContent = `${j.doc.filename} · ${kind}${j.doc.location ? ' · 📍 location attached' : ''} · on file`;
         document.getElementById('up-list')!.appendChild(li);
-        showUp('On file. Its fingerprint will be sealed into your answer.', 'note-gain');
+        showUp(j.doc.location
+          ? 'On file, with where you stood. Both will be sealed into your answer.'
+          : 'On file. Its fingerprint will be sealed into your answer.', 'note-gain');
         return true;
       } catch { showUp('Could not reach Almstins. Try again.', 'note-loss'); return false; }
     }
@@ -269,11 +276,34 @@ const ERRORS: Record<string, string> = {
     });
 
     // The camera: the button opens the phone's camera directly; each shot uploads itself.
+    // After a shot is taken, the page asks the device where it stands — once, at the moment
+    // of capture, never on page load. Declined or unavailable is fine: the photo still
+    // uploads, the record simply says no location was shared. What comes back is the
+    // device's report, not proof — the inspector's signature is what stands behind it.
+    function captureLocation(): Promise<{ lat: number; lon: number; accuracyM: number | null } | null> {
+      return new Promise((resolve) => {
+        if (!('geolocation' in navigator)) { resolve(null); return; }
+        const timer = setTimeout(() => resolve(null), 9000);
+        navigator.geolocation.getCurrentPosition(
+          (p) => {
+            clearTimeout(timer);
+            resolve({
+              lat: p.coords.latitude, lon: p.coords.longitude,
+              accuracyM: Number.isFinite(p.coords.accuracy) ? Math.round(p.coords.accuracy) : null,
+            });
+          },
+          () => { clearTimeout(timer); resolve(null); },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+        );
+      });
+    }
     document.getElementById('cam-go')?.addEventListener('click', () => ($('cam-file') as HTMLInputElement)?.click());
     $('cam-file')?.addEventListener('change', async () => {
       const input = $('cam-file') as HTMLInputElement;
       const f = input?.files?.[0];
-      if (f && await uploadEvidence(f, 'photo')) input.value = '';
+      if (!f) return;
+      const loc = await captureLocation();
+      if (await uploadEvidence(f, 'photo', loc)) input.value = '';
     });
 
     // The thumb signature: a plain canvas, white like paper, exported as a PNG that gets

@@ -89,7 +89,12 @@ export const POST: APIRoute = async ({ request }) => {
   const token = String(form.get('token') ?? '').trim();
   if (token) {
     const kind = String(form.get('kind') ?? '') as 'report' | 'photo' | 'signature';
-    const result = await addCairnDocumentByToken(token, { ...input, kind });
+    // Optional device-reported capture location (site photos). The registry validates and
+    // clamps; garbage coordinates simply store no location.
+    const location = form.get('lat') != null
+      ? { lat: Number(form.get('lat')), lon: Number(form.get('lon')), accuracyM: Number(form.get('accuracy')) }
+      : undefined;
+    const result = await addCairnDocumentByToken(token, { ...input, kind, location });
     if (result.ok) return json(result);
     const status =
       result.error === 'not_found' ? 404

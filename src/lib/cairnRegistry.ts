@@ -215,6 +215,10 @@ export async function ensureCairnTables(): Promise<void> {
   // work itself, or the inspector's drawn signature. Different bankers accept different
   // ceremonies; the desk labels each accordingly.
   await db.execute({ sql: `ALTER TABLE cairn_documents ADD COLUMN IF NOT EXISTS kind TEXT`, args: [] });
+  // Where the inspector's device says a site photo was taken. A reported claim, never a
+  // verified one (browser geolocation is spoofable) — the signature on the attestation is
+  // what makes someone answerable for it. NULL when the inspector declined or had no fix.
+  await db.execute({ sql: `ALTER TABLE cairn_documents ADD COLUMN IF NOT EXISTS location_json TEXT`, args: [] });
   // Draft -> sealed lifecycle: a schedule is built freely, then signed in one deliberate
   // act. NULL = still a draft; the timestamp is when the owner put their name to it all.
   await db.execute({ sql: `ALTER TABLE cairn_projects ADD COLUMN IF NOT EXISTS signed_at TEXT`, args: [] });
@@ -892,7 +896,12 @@ export async function attestByToken(
   const boundDocs = (await listMilestoneDocuments(req.milestoneId)).filter((d) => !d.purgedAt);
   if (boundDocs.length) {
     manifest.docs = boundDocs
-      .map((d) => ({ sha256: d.sha256, filename: d.filename }))
+      // Device-reported capture location rides with its photo's digest — a claim the
+      // signature makes answerable, not a verified fact. Omitted when absent so docs
+      // without one serialize exactly as they always have.
+      .map((d) => (d.location
+        ? { sha256: d.sha256, filename: d.filename, location: d.location }
+        : { sha256: d.sha256, filename: d.filename }))
       .sort((a, b) => (a.sha256 < b.sha256 ? -1 : a.sha256 > b.sha256 ? 1 : 0));
   }
   const { signature, digest } = sign(manifest);
@@ -965,6 +974,14 @@ export const CAIRN_DOC_ALLOWED_TYPES = [
 
 export type CairnDocKind = 'form' | 'report' | 'photo' | 'signature';
 
+/** Device-reported capture location. A claim the inspector signs, not a verified fact. */
+export interface CairnDocLocation {
+  lat: number;
+  lon: number;
+  accuracyM: number | null;
+  capturedAt: string;
+}
+
 export interface CairnDocMeta {
   id: string;
   milestoneId: string;
@@ -976,6 +993,22 @@ export interface CairnDocMeta {
   sha256: string;
   uploadedAt: string;
   purgedAt: string | null;
+  location: CairnDocLocation | null;
+}
+
+function cleanDocLocation(loc: unknown): CairnDocLocation | null {
+  if (!loc || typeof loc !== 'object') return null;
+  const l = loc as Record<string, unknown>;
+  const lat = Number(l.lat), lon = Number(l.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  const acc = Number(l.accuracyM);
+  return {
+    lat: Math.round(lat * 1e6) / 1e6,
+    lon: Math.round(lon * 1e6) / 1e6,
+    accuracyM: Number.isFinite(acc) && acc >= 0 ? Math.round(acc) : null,
+    capturedAt: nowUtc(),
+  };
 }
 
 function cairnDocRow(r: any): CairnDocMeta {
@@ -991,6 +1024,10 @@ function cairnDocRow(r: any): CairnDocMeta {
     sha256: String(r.sha256),
     uploadedAt: String(r.uploaded_at),
     purgedAt: r.purged_at != null ? String(r.purged_at) : null,
+    location: (() => {
+      if (r.location_json == null) return null;
+      try { return JSON.parse(String(r.location_json)) as CairnDocLocation; } catch { return null; }
+    })(),
   };
 }
 
@@ -1005,23 +1042,27 @@ function checkDocInput(mimeType: string, bytes: Buffer): string | null {
 async function insertCairnDoc(
   milestoneId: string, projectId: string, tenantId: string,
   uploadedBy: 'owner' | 'inspector',
-  input: { filename: string; mimeType: string; bytes: Buffer; kind?: CairnDocKind },
+  input: { filename: string; mimeType: string; bytes: Buffer; kind?: CairnDocKind; location?: unknown },
 ): Promise<CairnDocMeta> {
   const mime = String(input.mimeType || '').toLowerCase().split(';')[0].trim();
   const filename = clampStr(input.filename, 200) || 'document';
   const sha256 = createHash('sha256').update(input.bytes).digest('hex');
   const kind: CairnDocKind = uploadedBy === 'owner' ? 'form'
     : (['report', 'photo', 'signature'].includes(String(input.kind)) ? input.kind! : 'report');
+  // Location travels only with the inspector's own uploads — the owner attaches forms
+  // from a desk, and a desk's location is noise, not evidence.
+  const location = uploadedBy === 'inspector' ? cleanDocLocation(input.location) : null;
   const id = randomUUID();
   await db.execute({
     sql: `INSERT INTO cairn_documents
-            (id, milestone_id, project_id, tenant_id, uploaded_by, kind, filename, mime_type, file_size, sha256, data)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (id, milestone_id, project_id, tenant_id, uploaded_by, kind, filename, mime_type, file_size, sha256, data, location_json)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [id, milestoneId, projectId, tenantId, uploadedBy, kind, filename, mime,
-           input.bytes.length, sha256, input.bytes.toString('base64')],
+           input.bytes.length, sha256, input.bytes.toString('base64'),
+           location ? JSON.stringify(location) : null],
   });
   const r = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, location_json
             FROM cairn_documents WHERE id = ? LIMIT 1`,
     args: [id],
   });
@@ -1055,7 +1096,7 @@ export async function addMilestoneDocument(
  */
 export async function addCairnDocumentByToken(
   token: string,
-  input: { filename: string; mimeType: string; bytes: Buffer; kind?: CairnDocKind },
+  input: { filename: string; mimeType: string; bytes: Buffer; kind?: CairnDocKind; location?: unknown },
 ): Promise<{ ok: true; doc: CairnDocMeta } | { ok: false; error: string }> {
   await ensureCairnTables();
   const req = await readAttestRequest(token);
@@ -1075,7 +1116,7 @@ export async function addCairnDocumentByToken(
 export async function listMilestoneDocuments(milestoneId: string): Promise<CairnDocMeta[]> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, location_json
             FROM cairn_documents WHERE milestone_id = ? ORDER BY uploaded_at ASC`,
     args: [String(milestoneId || '').trim()],
   });
@@ -1086,7 +1127,7 @@ export async function listMilestoneDocuments(milestoneId: string): Promise<Cairn
 export async function listProjectDocuments(tenantId: string, projectId: string): Promise<CairnDocMeta[]> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, location_json
             FROM cairn_documents WHERE project_id = ? AND tenant_id = ? ORDER BY uploaded_at ASC`,
     args: [String(projectId || '').trim(), tenantId],
   });
@@ -1100,7 +1141,7 @@ export async function readCairnDocument(
 ): Promise<{ meta: CairnDocMeta; data: Buffer } | null> {
   await ensureCairnTables();
   const r = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, data
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, location_json, data
             FROM cairn_documents WHERE id = ? AND tenant_id = ? LIMIT 1`,
     args: [String(documentId || '').trim(), tenantId],
   });
@@ -1129,7 +1170,7 @@ export async function readCairnDocumentByToken(
   if (row.revoked_at) return null;
   if (String(row.expires_at) < nowUtc()) return null;
   const d = await db.execute({
-    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, data
+    sql: `SELECT id, milestone_id, uploaded_by, kind, filename, mime_type, file_size, sha256, uploaded_at, purged_at, location_json, data
             FROM cairn_documents WHERE id = ? AND milestone_id = ? LIMIT 1`,
     args: [String(documentId || '').trim(), String(row.milestone_id)],
   });
