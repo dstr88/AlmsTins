@@ -1,0 +1,161 @@
+---
+// The destination check, documented for the people wiring payment agents.
+//
+// Not a feature tour and not merchant copy: an agent builder should leave this page
+// knowing the one call to make, the three answers it can give, and why anything but
+// `proven` fails closed. Public and indexable — this page IS the distribution.
+import '@/styles/tokens.css';
+
+export const prerender = false;
+
+const STATUSES = [
+  {
+    s: 'proven',
+    cls: 'good',
+    h: 'The destination has a live proof of control',
+    p: 'Someone proved they control this destination, and if you passed expect, the proving domain matches the business you intend to pay. Proceed under your own policy.',
+  },
+  {
+    s: 'mismatch',
+    cls: 'bad',
+    h: 'Proven, but by a DIFFERENT domain than you expected',
+    p: 'The loudest signal this API can emit. The invoice says one business; the destination belongs to another party who proved control of it. This is the swapped-invoice attack made machine-visible. Do not pay. Surface it to a human.',
+  },
+  {
+    s: 'unknown',
+    cls: 'warn',
+    h: 'No proof on record',
+    p: 'Nobody has proven control of this destination with Almstins. Not an accusation, just an absence: treat it the way a browser treats a site with no certificate, and fail closed.',
+  },
+];
+
+const PRINCIPLES = [
+  ['Proof, never reputation.', 'We answer "is this destination proven to belong to this domain," never "is this party good." No risk scores, no success counts, no endorsements. proven means the domain stands behind the address, not that the deal is wise.'],
+  ['Always pass expect.', 'Without it you only learn that someone proved this destination. With it you learn whether the party you intend to pay proved it. The second is the product.'],
+  ['503 is not unknown.', 'A 200 with status unknown means the registry has no proof: act on your fail-closed policy. A 503 means the check itself is unavailable: retry with backoff. We will never disguise an outage as an absence of proof.'],
+  ['Nobody approves anybody.', 'Payees prove control of their own destinations (a self-send, a file on their own domain). We maintain no list of legitimate businesses and decide nothing. We check proofs the way a browser checks certificates.'],
+  ['The contract is additive-only.', 'Fields are added, never removed or repurposed. The v field bumps only on a breaking change, which we intend never to ship.'],
+];
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Destination check for payment agents — Almstins Verify</title>
+  <meta name="description" content="One GET before your agent authorizes a payment: is this destination proven to belong to the business you intend to pay? proven, mismatch, or unknown — treat anything but proven as fail-closed." />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.65; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.7rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.7rem, 4.2vw, 2.2rem); line-height: 1.12; font-weight: 800; letter-spacing: -.022em; margin-top: .25rem; }
+    .lede { color: var(--text-secondary); font-size: 1rem; margin-top: .5rem; }
+    .lede b { color: var(--text-primary); }
+    section { border-top: 1px solid var(--border-subtle); padding-top: 1.4rem; }
+    h2 { font-size: 1.08rem; font-weight: 700; margin-bottom: .6rem; }
+    p.body { font-size: .93rem; color: var(--text-secondary); margin-bottom: .8rem; }
+    p.body b { color: var(--text-primary); font-weight: 650; }
+    pre {
+      background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 10px;
+      padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.55;
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; color: var(--text-secondary);
+    }
+    pre b { color: var(--accent); font-weight: 600; }
+    .st { border-left: 2px solid var(--border-bright); padding-left: .95rem; margin-bottom: 1rem; }
+    .st code {
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; font-size: .9rem;
+      padding: .1rem .45rem; border-radius: 6px;
+    }
+    .st.good code { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .st.bad  code { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    .st.warn code { color: var(--text-primary); background: var(--surface-card-2); border: 1px solid var(--border-bright); }
+    .st h3 { font-size: .93rem; font-weight: 700; margin: .35rem 0 .1rem; }
+    .st p { font-size: .87rem; color: var(--text-secondary); }
+    ul.pr { list-style: none; display: flex; flex-direction: column; gap: .8rem; }
+    ul.pr li { font-size: .9rem; color: var(--text-secondary); }
+    ul.pr b { color: var(--text-primary); font-weight: 650; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .note { font-size: .82rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Almstins Verify · for agent builders</div>
+      <h1>Call this before you authorize.</h1>
+      <p class="lede">
+        One GET answers the question your agent cannot feel its way through:
+        <b>is this destination proven to belong to the business I intend to pay?</b>
+        Treat anything but <b>proven</b> as fail-closed.
+      </p>
+    </header>
+
+    <section>
+      <h2>The call</h2>
+      <pre><b>GET</b> https://almstins.com/api/verify/check?value=&lt;address or payment URL&gt;&amp;expect=&lt;domain&gt;</pre>
+      <p class="body">
+        <b>value</b> is a crypto address, a payment link (Stripe, PayPal), or an EMV/UPI payload.
+        <b>expect</b> is the domain of the business your agent believes it is paying, taken from the
+        invoice, the order, or your vendor record. Optional, but see the principles below: always pass it.
+      </p>
+      <pre>{`{
+  "v": 1,
+  "status": "proven",          // or "mismatch" | "unknown"
+  "level": "verified",         // "verified" (domain-anchored) | "claimed" (control only) | null
+  "domain": "x-capital.com",   // the proving domain, or null
+  "label": null,               // a merchant's own label, or null — never a derived identity
+  "chain": "ethereum",
+  "since": "2026-07-14",       // when the proof was made
+  "proofAgeDays": 59,
+  "checkedAt": "2026-09-11T14:30:00Z"
+}`}</pre>
+    </section>
+
+    <section>
+      <h2>The three answers</h2>
+      {STATUSES.map((x) => (
+        <div class={`st ${x.cls}`}>
+          <code>{x.s}</code>
+          <h3>{x.h}</h3>
+          <p>{x.p}</p>
+        </div>
+      ))}
+    </section>
+
+    <section>
+      <h2>Principles the contract keeps</h2>
+      <ul class="pr">
+        {PRINCIPLES.map(([b, p]) => (<li><b>{b}</b> {p}</li>))}
+      </ul>
+    </section>
+
+    <section>
+      <h2>Limits and keys</h2>
+      <p class="body">
+        Anonymous calls are free and stay free: 30 requests per minute per IP, enough for a human-paced
+        agent. Keys with fleet-scale limits are next on the roadmap, self-issued by proving control of
+        your own domain with a DNS record. Nobody reviews an application, because there is no application.
+      </p>
+      <p class="note">Rate-limited calls return 429 with Retry-After. The check makes no outbound requests and reads only proof state that is already public.</p>
+    </section>
+
+    <section>
+      <h2>If you are the one being paid</h2>
+      <p class="body">
+        Your agents' counterparties can only get <b>proven</b> if you have proven your destinations.
+        It takes minutes and never touches a wallet connection or a key:
+        <a href="/verify">register your receiving addresses and prove they are yours</a>.
+        An unproven destination is not accused of anything. It is simply invisible to an agent that
+        checks, the way an unencrypted store is invisible to a careful customer.
+      </p>
+    </section>
+  </div>
+</body>
+</html>

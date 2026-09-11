@@ -80,6 +80,9 @@ export function isPublicPath(pathname: string): boolean {
 		// Verified-publisher lookup — public, login-free; address → publishing domain
 		// (reads the global mirror, never exposes tenant_id/identity)
 		pathname === '/api/verify/lookup' ||
+		// Agent pre-send destination check — public, login-free, machine-readable.
+		// Proof status only (proven/mismatch/unknown); never reputation, never identity.
+		pathname === '/api/verify/check' ||
 		// Bitcoin-anchor endpoint — public; anchors a caller-supplied SHA-256 digest to
 		// Bitcoin via OpenTimestamps (no key, no identity, no signing). Backs /artifacts/sandbox.
 		pathname === '/api/verify/anchor' ||
