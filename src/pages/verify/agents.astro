@@ -140,10 +140,13 @@ const PRINCIPLES = [
       <h2>Limits and keys</h2>
       <p class="body">
         Anonymous calls are free and stay free: 30 requests per minute per IP, enough for a human-paced
-        agent. Keys with fleet-scale limits are next on the roadmap, self-issued by proving control of
-        your own domain with a DNS record. Nobody reviews an application, because there is no application.
+        agent. For fleets, <a href="/verify/agent-keys">a key raises that to 300 per minute</a>, and you
+        issue it yourself: claim your domain from a free account, publish one DNS TXT record carrying the
+        challenge, and the key mints. Nobody reviews an application, because there is no application.
+        Send it as <b>Authorization: Bearer &lt;key&gt;</b>. A revoked or malformed key gets 401, never a
+        silent downgrade, so your fleet knows the moment a key stops working.
       </p>
-      <p class="note">Rate-limited calls return 429 with Retry-After. The check makes no outbound requests and reads only proof state that is already public.</p>
+      <p class="note">Rate-limited calls return 429 with Retry-After. The check makes no outbound requests and reads only proof state that is already public — which is why keys can be self-served: a leaked key is a quota nuisance, not a breach.</p>
     </section>
 
     <section>

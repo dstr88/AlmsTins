@@ -1,0 +1,191 @@
+---
+// Agent API keys — claim a domain, publish the TXT record, mint the key. Self-serve:
+// the DNS record is the whole approval process, so this page is a list and two buttons.
+import '@/styles/tokens.css';
+import { requireTenantSession } from '@/lib/requireTenantSession';
+
+export const prerender = false;
+
+const sess = await requireTenantSession(Astro.request);
+if (!sess) return Astro.redirect('/verify/login?next=/verify/agent-keys', 302);
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent API keys — Almstins Verify</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/favicon-verify.png" />
+  <style is:global>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6; padding: 2.5rem 1.1rem 4rem;
+    }
+    .wrap { max-width: 46rem; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+    .eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    h1 { font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 800; letter-spacing: -.02em; margin-top: .25rem; }
+    .lede { color: var(--text-secondary); font-size: .95rem; margin-top: .4rem; }
+    .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1.2rem; }
+    .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+    input[type="text"] {
+      flex: 1 1 16rem; background: var(--surface-card-2); color: var(--text-primary);
+      border: 1px solid var(--border-bright); border-radius: 8px; padding: .6rem .8rem; font-size: .95rem;
+    }
+    button {
+      background: var(--accent); color: var(--surface-bg); border: 0; border-radius: 8px;
+      padding: .6rem 1rem; font-size: .9rem; font-weight: 700; cursor: pointer;
+    }
+    button.ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-bright); font-weight: 600; }
+    button:disabled { opacity: .5; cursor: default; }
+    .keyrow { border-top: 1px solid var(--border-subtle); padding: .9rem 0; display: flex; flex-direction: column; gap: .45rem; }
+    .keyrow:first-of-type { border-top: 0; }
+    .keyrow b { font-size: .95rem; }
+    .muted { font-size: .82rem; color: var(--text-muted); }
+    .pill { font-size: .72rem; font-weight: 700; border-radius: 99px; padding: .15rem .6rem; display: inline-block; }
+    .pill--active  { color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border); }
+    .pill--pending { color: var(--text-primary); background: var(--surface-card-2); border: 1px solid var(--border-bright); }
+    .pill--revoked { color: var(--loss); background: var(--loss-bg); border: 1px solid var(--loss-border); }
+    pre {
+      background: var(--surface-card-2); border: 1px solid var(--border-subtle); border-radius: 8px;
+      padding: .7rem .9rem; overflow-x: auto; font-size: .8rem;
+      font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; color: var(--text-secondary);
+      user-select: all;
+    }
+    .minted {
+      border: 1px solid var(--accent-glow); background: var(--accent-soft); border-radius: 10px;
+      padding: .9rem 1rem; font-size: .85rem;
+    }
+    .minted pre { margin-top: .5rem; background: var(--surface-bg); }
+    .note { font-size: .85rem; color: var(--text-secondary); }
+    .err { color: var(--loss); font-size: .85rem; }
+    a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Almstins Verify · agent API</div>
+      <h1>Agent API keys</h1>
+      <p class="lede">
+        A key raises <a href="/verify/agents">/api/verify/check</a> from 30 requests a minute to 300.
+        Prove control of your domain with one DNS record and the key mints itself.
+        Nobody reviews an application, because there is no application.
+      </p>
+    </header>
+
+    <div class="card">
+      <div class="row">
+        <input id="dom" type="text" placeholder="your-domain.com" autocomplete="off" />
+        <button id="claim" type="button">Claim domain</button>
+      </div>
+      <p class="muted" style="margin-top:.5rem">
+        One key per proven domain. The key only reads public proof state, so a leaked key is a
+        quota nuisance, not a breach. Revoke and re-mint any time.
+      </p>
+      <p id="claim-err" class="err" hidden></p>
+    </div>
+
+    <div id="minted-box" class="minted" hidden>
+      <b>Your key. Copy it now — it is shown once and never stored.</b>
+      <pre id="minted-key"></pre>
+      <span class="muted">Use it as <code>Authorization: Bearer &lt;key&gt;</code> on /api/verify/check.</span>
+    </div>
+
+    <div class="card">
+      <div id="keys">Loading…</div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id: string) => document.getElementById(id) as any;
+    const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
+
+    async function load() {
+      const box = $('keys');
+      try {
+        const j = await (await fetch('/api/verify/agent-keys')).json();
+        if (!j.ok) { box.textContent = 'Could not load keys.'; return; }
+        if (!j.keys.length) { box.innerHTML = '<span class="muted">No keys yet. Claim a domain above.</span>'; return; }
+        box.innerHTML = j.keys.map((k: any) => `
+          <div class="keyrow">
+            <div class="row" style="justify-content:space-between">
+              <b>${esc(k.domain)}</b>
+              <span class="pill pill--${esc(k.status)}">${esc(k.status)}</span>
+            </div>
+            ${k.status === 'pending' ? `
+              <span class="note">Publish this TXT record on <b>${esc(k.domain)}</b> (root) or <b>_almstins-verify.${esc(k.domain)}</b>, then mint:</span>
+              <pre>${esc(k.challenge)}</pre>
+              <div class="row">
+                <button type="button" data-mint="${esc(k.id)}">Check DNS &amp; mint key</button>
+                <button type="button" class="ghost" data-revoke="${esc(k.id)}">Cancel claim</button>
+              </div>
+              <p class="err" data-err="${esc(k.id)}" hidden></p>
+            ` : k.status === 'active' ? `
+              <span class="muted">proven ${esc((k.provenAt || '').slice(0, 10))}${k.lastUsedAt ? ` · last used ${esc(k.lastUsedAt.slice(0, 10))}` : ' · never used'}</span>
+              <div class="row"><button type="button" class="ghost" data-revoke="${esc(k.id)}">Revoke</button></div>
+            ` : `
+              <span class="muted">revoked ${esc((k.revokedAt || '').slice(0, 10))}</span>
+            `}
+          </div>`).join('');
+
+        box.querySelectorAll('[data-mint]').forEach((node: Element) => (node as HTMLButtonElement).addEventListener('click', async () => {
+          const el = node as HTMLButtonElement;
+          el.disabled = true; el.textContent = 'Checking DNS…';
+          const err = box.querySelector(`[data-err="${el.dataset.mint}"]`) as HTMLElement;
+          try {
+            const r = await fetch('/api/verify/agent-keys', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'verify', id: el.dataset.mint }),
+            });
+            const j2 = await r.json();
+            if (!j2.ok) {
+              err.hidden = false;
+              err.textContent = j2.error === 'challenge_mismatch'
+                ? 'TXT record not found yet. DNS can take a few minutes to propagate — try again shortly.'
+                : j2.error === 'unreachable' ? 'Could not resolve that domain.' : 'Could not mint. Try again.';
+              el.disabled = false; el.textContent = 'Check DNS & mint key';
+              return;
+            }
+            $('minted-key').textContent = j2.plaintextKey;
+            $('minted-box').hidden = false;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            load();
+          } catch {
+            err.hidden = false; err.textContent = 'Network error. Try again.';
+            el.disabled = false; el.textContent = 'Check DNS & mint key';
+          }
+        }));
+
+        box.querySelectorAll('[data-revoke]').forEach((node: Element) => (node as HTMLButtonElement).addEventListener('click', async () => {
+          const el = node as HTMLButtonElement;
+          if (!window.confirm('Revoke this key? Agents using it will start getting 401s.')) return;
+          await fetch('/api/verify/agent-keys?id=' + encodeURIComponent(el.dataset.revoke ?? ''), { method: 'DELETE' });
+          load();
+        }));
+      } catch { box.textContent = 'Could not load keys.'; }
+    }
+
+    $('claim').addEventListener('click', async () => {
+      const dom = $('dom').value.trim();
+      const err = $('claim-err');
+      err.hidden = true;
+      if (!dom) { err.hidden = false; err.textContent = 'Type a domain first.'; return; }
+      const r = await fetch('/api/verify/agent-keys', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: dom }),
+      });
+      const j = await r.json();
+      if (!j.ok) { err.hidden = false; err.textContent = j.error === 'invalid_domain' ? 'That does not look like a domain.' : 'Could not claim. Try again.'; return; }
+      $('dom').value = '';
+      load();
+    });
+
+    load();
+  </script>
+</body>
+</html>

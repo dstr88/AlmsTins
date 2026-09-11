@@ -27,6 +27,7 @@ import { getClientIp } from '@/lib/analytics/ip';
 import { isValidAddress } from '@/lib/walletChecker';
 import { lookupVerifiedAddress, lookupVerifiedUrl } from '@/lib/verifyEntities';
 import { isEmvPayload } from '@/lib/paymentQr';
+import { authenticateAgentKey } from '@/lib/agentKeys';
 
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -38,16 +39,18 @@ const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =
   new Response(JSON.stringify(body), { status, headers: { ...HEADERS, ...extra } });
 
 // Own budget, separate from /lookup's — an agent hammering the check must not starve
-// the badge lookups (or vice versa). Keyed tiers with higher limits arrive in slice 2.
+// the badge lookups (or vice versa). Anonymous callers get a per-IP budget; a
+// domain-proven key (see /api/verify/agent-keys) gets a fleet-scale per-key budget.
 const HITS = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 30;
-function rateLimited(ip: string): boolean {
+const ANON_PER_WINDOW = 30;
+const KEYED_PER_WINDOW = 300;
+function rateLimited(bucket: string, max: number): boolean {
   const now = Date.now();
-  const e = HITS.get(ip);
-  if (!e || now >= e.resetAt) { HITS.set(ip, { count: 1, resetAt: now + WINDOW_MS }); return false; }
+  const e = HITS.get(bucket);
+  if (!e || now >= e.resetAt) { HITS.set(bucket, { count: 1, resetAt: now + WINDOW_MS }); return false; }
   e.count += 1;
-  return e.count > MAX_PER_WINDOW;
+  return e.count > max;
 }
 
 /**
@@ -91,8 +94,19 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
     return json({ ok: false, error: 'expect must be a domain' }, 400);
   }
 
-  const ip = getClientIp(request) ?? clientAddress ?? 'unknown';
-  if (rateLimited(ip)) {
+  // A presented key must be valid — a dead or malformed key gets 401, never a silent
+  // downgrade to anonymous, because an agent fleet needs to KNOW its key stopped working.
+  const authz = request.headers.get('authorization') ?? '';
+  const bearer = authz.replace(/^Bearer\s+/i, '').trim();
+  let keyId: string | null = null;
+  if (bearer) {
+    const key = await authenticateAgentKey(bearer);
+    if (!key) return json({ ok: false, error: 'invalid key' }, 401);
+    keyId = key.id;
+  }
+
+  const bucket = keyId ? `k:${keyId}` : `ip:${getClientIp(request) ?? clientAddress ?? 'unknown'}`;
+  if (rateLimited(bucket, keyId ? KEYED_PER_WINDOW : ANON_PER_WINDOW)) {
     return json({ ok: false, error: 'rate limited' }, 429, { 'Retry-After': '60' });
   }
 
