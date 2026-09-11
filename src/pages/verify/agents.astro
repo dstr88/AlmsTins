@@ -147,6 +147,15 @@ const PRINCIPLES = [
         silent downgrade, so your fleet knows the moment a key stops working.
       </p>
       <p class="note">Rate-limited calls return 429 with Retry-After. The check makes no outbound requests and reads only proof state that is already public — which is why keys can be self-served: a leaked key is a quota nuisance, not a breach.</p>
+      <p class="body">
+        <b>Cache your results.</b> Proof state changes slowly, so a <b>proven</b> answer is safe to
+        cache for a few minutes (we suggest 5 to 15, keyed by value plus expect) rather than
+        re-checking the same destination on every invoice in a batch. On a 503, retry with backoff,
+        and your policy may reasonably honor a recently cached <b>proven</b> while the check is
+        unavailable. Never cache your way past a <b>mismatch</b>, and never treat a 503 as
+        <b>unknown</b>: an outage is not an absence of proof, which is exactly why the two are
+        different signals.
+      </p>
     </section>
 
     <section>
