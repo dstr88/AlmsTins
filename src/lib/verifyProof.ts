@@ -26,6 +26,16 @@ import { isIP } from 'node:net';
 /** Where the owner publishes the proof. The path is fixed; the file is per-domain. */
 export const WELL_KNOWN_PATH = '/.well-known/almstins-verify.json';
 
+/**
+ * Canonical path where a platform serves its live address list for the entity pull.
+ * Deliberately UNBRANDED: the public strategy is that the proof format stays boring
+ * and vendor-neutral ("whoever tries to own that standard will lose to whoever makes
+ * it boring") — a standard carrying our name inside it would contradict the pitch.
+ * Any on-domain https path still validates (validateEntityEndpoint); the legacy
+ * convention `/almstins/addresses` keeps working for platforms already serving it.
+ */
+export const WELL_KNOWN_ADDRESSES_PATH = '/.well-known/payment-addresses';
+
 const CHALLENGE_PREFIX = 'almstins-verify-';
 const FETCH_TIMEOUT_MS = 8_000;
 const MAX_BYTES = 64 * 1024; // a proof file is tiny; cap to avoid a hostile large body
