@@ -29,6 +29,12 @@ const authSession = await getAuthSession(Astro.request);
 const email = authSession?.user?.email ?? null;
 
 const prefillId = Astro.url.searchParams.get('id') ?? '';
+
+// Currency default follows the visitor (same as the cairn desk): Render's Cloudflare
+// front stamps cf-ipcountry, so a US financier lands on USDC while the African
+// corridors keep NGN first. A header, not a geolocation prompt — and only a default.
+const visitorCountry = Astro.request.headers.get('cf-ipcountry')?.toUpperCase() ?? '';
+const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
 ---
 <!doctype html>
 <html lang="en">
@@ -557,7 +563,9 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         </label>
         <label class="fld">Currency
           <select id="n-ccy">
-            <option value="NGN">NGN</option><option value="USD">USD</option>
+            <option value="NGN" selected={defaultCcy === 'NGN'}>NGN</option>
+            <option value="USDC" selected={defaultCcy === 'USDC'}>USDC</option>
+            <option value="USD">USD</option>
             <option value="GBP">GBP</option><option value="EUR">EUR</option>
             <option value="GHS">GHS</option><option value="KES">KES</option>
             <option value="ZAR">ZAR</option>
