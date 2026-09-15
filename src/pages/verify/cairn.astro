@@ -25,6 +25,13 @@ if (!sess) return Astro.redirect('/verify/login?next=/verify/cairn', 302);
 const authSession = await getAuthSession(Astro.request);
 const email = authSession?.user?.email ?? null;
 const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify/login?next=/verify/cairn')}`;
+
+// Currency default follows the visitor: Render's Cloudflare front stamps the request
+// country on cf-ipcountry, so a US banker lands on USDC while the African corridors
+// keep NGN first. A header, not a geolocation prompt — and only a default: the select
+// still offers everything.
+const visitorCountry = Astro.request.headers.get('cf-ipcountry')?.toUpperCase() ?? '';
+const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
 ---
 <!doctype html>
 <html lang="en">
@@ -76,7 +83,9 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
         </label>
         <label class="fld">Currency
           <select id="p-ccy">
-            <option value="NGN">NGN</option><option value="USD">USD</option>
+            <option value="NGN" selected={defaultCcy === 'NGN'}>NGN</option>
+            <option value="USDC" selected={defaultCcy === 'USDC'}>USDC</option>
+            <option value="USD">USD</option>
             <option value="GBP">GBP</option><option value="EUR">EUR</option>
             <option value="GHS">GHS</option><option value="KES">KES</option>
             <option value="ZAR">ZAR</option>
@@ -297,7 +306,7 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent('/verify
     const pctOf = (n: number) => currentTotal > 0 ? `${Math.round((n / currentTotal) * 1000) / 10}%` : '';
 
     const CCY_SYMBOL: Record<string, string> = {
-      NGN: '₦', USD: '$', GBP: '£', EUR: '€', GHS: 'GH₵', KES: 'KSh', ZAR: 'R',
+      NGN: '₦', USD: '$', USDC: '$', GBP: '£', EUR: '€', GHS: 'GH₵', KES: 'KSh', ZAR: 'R',
     };
     const ccySymbol = (c: string) => CCY_SYMBOL[c] ?? c;
 
