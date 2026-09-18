@@ -343,7 +343,7 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   //    expose only the merchant's OWN self-chosen label — never tenant_id or any identity.
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT tenant_id, rail, value, label, proof_domain, proven_at FROM verify_destinations
+    sql: `SELECT tenant_id, rail, value, label, proof_domain, proven_at, last_confirmed_at FROM verify_destinations
           WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)`,
     args: [normalized, normalized],
   });
@@ -357,9 +357,17 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     // proof (micro-deposit, no proof_domain) is Claimed, even if the operating business
     // is otherwise domain-known: the address itself isn't published anywhere to swap-check.
     const publishedDomain = hit.proof_domain ? String(hit.proof_domain) : null;
+    // Fail-closed freshness: 'verified' also requires the watchman to have POSITIVELY
+    // re-confirmed the anchor within the max-stale window (Pass B still vouches it, or Pass C
+    // still finds it published — both advance last_confirmed_at). If it has gone stale (source
+    // unreachable, the value now rendered by JS, or the monitor cron stalled), degrade
+    // verified→claimed: keep the proven-control fact, drop the current-confirmation claim.
+    // Under-claim, never over-claim — the same rule the entity mirror already enforces.
+    const confirmedAt = hit.last_confirmed_at ? String(hit.last_confirmed_at) : (hit.proven_at ? String(hit.proven_at) : null);
+    const fresh = confirmedAt !== null && confirmedAt >= staleCutoffUtc();
     return {
       source: 'merchant',
-      level: publishedDomain ? 'verified' : 'claimed',
+      level: publishedDomain && fresh ? 'verified' : 'claimed',
       since: hit.proven_at ? String(hit.proven_at) : null,
       domain: vn?.domain ?? publishedDomain,
       label: vn?.name ?? (hit.label ? String(hit.label) : null),
@@ -384,7 +392,7 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
   if (!normalized) return null;
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT tenant_id, rail, value, label, proven_at FROM verify_destinations
+    sql: `SELECT tenant_id, rail, value, label, proven_at, monitor_url, last_confirmed_at FROM verify_destinations
           WHERE kind = 'qr' AND proof_status = 'proven'`,
     args: [],
   });
@@ -394,9 +402,15 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
   let host: string | null = null;
   try { host = new URL(normalized).host || null; } catch { host = null; }
   // A claimed link is control-proven (account_claim). Verified only when the operating
-  // merchant is itself domain-verified (an accountable anchor); otherwise Claimed.
+  // merchant is itself domain-verified (an accountable anchor); otherwise Claimed. Fail-closed:
+  // if the link is monitored (Pass C watches its published page) and that check has gone stale,
+  // downgrade verified→claimed rather than keep vouching a link we can no longer confirm is live.
+  const monitored = hit.monitor_url != null;
+  const confirmedAt = hit.last_confirmed_at ? String(hit.last_confirmed_at) : (hit.proven_at ? String(hit.proven_at) : null);
+  const fresh = confirmedAt !== null && confirmedAt >= staleCutoffUtc();
+  const level: 'verified' | 'claimed' = (vn?.domain && (!monitored || fresh)) ? 'verified' : 'claimed';
   return {
-    source: 'merchant', level: vn?.domain ? 'verified' : 'claimed',
+    source: 'merchant', level,
     since: hit.proven_at ? String(hit.proven_at) : null,
     domain: vn?.domain ?? host, label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url',
   };

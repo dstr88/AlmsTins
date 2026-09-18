@@ -1,0 +1,26 @@
+name: Refresh Threat Lists
+
+on:
+  schedule:
+    # Every 3 hours (offset :17). Keeps the phishing + OFAC mirror fresh and doubles as the
+    # verify-monitor heartbeat check (a dead-man's-switch for the watchman).
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+
+jobs:
+  refresh-threat-lists:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger refresh-threat-lists
+        env:
+          SYNC_URL:    ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "SYNC_URL or CRON_SECRET secret missing."
+            exit 1
+          fi
+          curl -sS --fail --max-time 600 \
+            --retry 4 --retry-all-errors --retry-delay 15 --retry-max-time 120 --connect-timeout 20 \
+            "$SYNC_URL/api/cron/refresh-threat-lists?secret=$CRON_SECRET" \
+            -H "x-cron-secret: $CRON_SECRET"

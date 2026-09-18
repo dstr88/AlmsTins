@@ -12,6 +12,8 @@
  *   - Checked addresses are NEVER logged or persisted to the database
  */
 
+import { lookupSanctionedAddress } from './threatLists';
+
 // ─── Address detection ────────────────────────────────────────────────────────
 
 const EVM_REGEX     = /^0x[0-9a-fA-F]{40}$/;
@@ -318,6 +320,25 @@ async function fetchGoPlusFlags(
   }));
 
   return { flags, errors };
+}
+
+// Chainalysis free sanctions-screening API — an OPTIONAL live fallback for the `sanctioned`
+// flag when GoPlus is unavailable. Requires CHAINALYSIS_API_KEY (free, register once); when
+// unset this is a no-op and the always-on local OFAC mirror carries the redundancy. Fail-soft.
+async function chainalysisSanctioned(address: string): Promise<boolean> {
+  const key = import.meta.env.CHAINALYSIS_API_KEY ?? process.env.CHAINALYSIS_API_KEY ?? '';
+  if (!key) return false;
+  try {
+    const res = await fetchWithTimeout(
+      `https://public.chainalysis.com/api/v1/address/${encodeURIComponent(address)}`,
+      { headers: { 'X-API-Key': key, Accept: 'application/json' } },
+    );
+    if (!res.ok) return false;
+    const json = (await res.json()) as { identifications?: unknown[] };
+    return Array.isArray(json.identifications) && json.identifications.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 // Etherscan — wallet age, tx count, ETH balance
@@ -930,6 +951,17 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   );
 
   const flags: WalletCheckResult['flags'] = { ...emptyFlags, ...(goplus.flags ?? {}) };
+
+  // Sanctions redundancy — GoPlus is the primary signal, but if it is down or rate-limited the
+  // flag would silently read false. Two independent backstops (OR-merge, never clear a hit):
+  //   1) the always-on local OFAC mirror (free, no live dependency — survives any API outage);
+  //   2) Chainalysis' free sanctions API as a live fallback, only when GoPlus actually errored.
+  if (!flags.sanctioned) {
+    try { if (await lookupSanctionedAddress(address)) flags.sanctioned = true; } catch { /* fail-soft */ }
+  }
+  if (!flags.sanctioned && goplus.errors.length > 0) {
+    try { if (await chainalysisSanctioned(address)) flags.sanctioned = true; } catch { /* fail-soft */ }
+  }
 
   // Consumer-safety fail-safe: a positive known-mixer identification — by curated
   // address OR by the resolved contract name (e.g. "TornadoProxy" from Etherscan) —
