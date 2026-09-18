@@ -103,6 +103,7 @@ export interface WalletCheckerLocale {
     scamLimited: string;
     limitedCoverageTitle: string;
     limitedCoverageBody: string;
+    cleanNotSafe: string;
     checksUnavailableTitle: string;
     checksRan: string;
     checksUnavailable: string;
@@ -376,6 +377,7 @@ export const en: WalletCheckerLocale = {
     scamLimited: '⚠️ Limited check — not a clean bill',
     limitedCoverageTitle: 'Limited check for {chain}',
     limitedCoverageBody: 'We could not run the main scam databases for {chain}, so the absence of a flag here is not a clean bill of health. Verify the address independently before you send.',
+    cleanNotSafe: 'A clean result means we found nothing in the lists we checked — not that this address is safe. Lists are incomplete and can lag. You are responsible for the decision to send.',
     checksUnavailableTitle: 'Some checks were unavailable',
     checksRan: 'Checked',
     checksUnavailable: 'Unavailable',
@@ -655,6 +657,7 @@ export const es: WalletCheckerLocale = {
     scamLimited: '⚠️ Comprobación limitada — no es garantía',
     limitedCoverageTitle: 'Comprobación limitada para {chain}',
     limitedCoverageBody: 'No pudimos consultar las principales bases de datos de fraude para {chain}, así que la ausencia de una alerta aquí no es una garantía de seguridad. Verifica la dirección de forma independiente antes de enviar.',
+    cleanNotSafe: 'Un resultado limpio significa que no encontramos nada en las listas que verificamos — no que esta dirección sea segura. Las listas son incompletas y pueden ir con retraso. La decisión de enviar es tu responsabilidad.',
     checksUnavailableTitle: 'Algunas comprobaciones no estuvieron disponibles',
     checksRan: 'Comprobado',
     checksUnavailable: 'No disponible',
@@ -934,6 +937,7 @@ export const fr: WalletCheckerLocale = {
     scamLimited: '⚠️ Vérification limitée — pas une garantie',
     limitedCoverageTitle: 'Vérification limitée pour {chain}',
     limitedCoverageBody: 'Nous n\'avons pas pu interroger les principales bases de données d\'arnaques pour {chain} ; l\'absence de signalement ici n\'est donc pas un gage de sécurité. Vérifiez l\'adresse de manière indépendante avant d\'envoyer.',
+    cleanNotSafe: 'Un résultat vierge signifie que nous n\'avons rien trouvé dans les listes vérifiées — pas que cette adresse est sûre. Les listes sont incomplètes et peuvent être en retard. La décision d\'envoyer relève de votre responsabilité.',
     checksUnavailableTitle: 'Certaines vérifications étaient indisponibles',
     checksRan: 'Vérifié',
     checksUnavailable: 'Indisponible',

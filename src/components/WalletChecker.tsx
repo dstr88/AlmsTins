@@ -855,6 +855,18 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
             );
           })()}
 
+          {/* Clean-result honesty: a green verdict means "nothing found in the lists we checked", NOT "safe".
+              Shown only on a confident clean result (the limited-coverage banner already covers the partial case). */}
+          {result.scamLevel === 'clean' && !result.partialCoverage && (result.errors?.length ?? 0) === 0 && activeFlags.length === 0 && (
+            <div style={{
+              marginBottom: '1.25rem', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem',
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+              color: 'rgba(255,255,255,0.72)', lineHeight: 1.5,
+            }}>
+              {c.cleanNotSafe}
+            </div>
+          )}
+
           {/* Active flags summary */}
           {activeFlags.length > 0 && (
             <div style={{ marginBottom: '1.25rem', padding: '0.75rem 1rem', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', fontSize: '0.85rem', color: '#fca5a5' }}>
