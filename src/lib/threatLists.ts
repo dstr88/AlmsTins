@@ -21,6 +21,10 @@ import { db } from '@/lib/db';
 
 const METAMASK_URL    = 'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/main/src/config.json';
 const SCAMSNIFFER_URL = 'https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/domains.json';
+// OFAC SDN sanctioned EVM addresses (community mirror of the official list, one 0x address
+// per line). Mirrored locally so the wallet-checker's `sanctioned` flag survives a GoPlus
+// outage with zero live dependency — the check becomes one indexed lookup that can't be "down".
+const OFAC_ETH_URL    = 'https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists/sanctioned_addresses_ETH.txt';
 const FETCH_TIMEOUT_MS = 45_000;
 const STALE_MS         = 6 * 60 * 60 * 1000; // refresh a source once its mirror is older than 6h
 const INSERT_CHUNK     = 1000;               // rows per multi-row INSERT (×3 params, well under PG's limit)
@@ -157,6 +161,28 @@ export async function refreshThreatLists(opts?: { force?: boolean }): Promise<Th
 		out.scamsniffer = 'error';
 	}
 
+	// OFAC — plain-text list of sanctioned EVM addresses, one 0x… per line. Stored lowercased
+	// under source='ofac', kind='sanctioned'. Redundant, always-on backstop for GoPlus sanctions.
+	try {
+		const text = await fetchText(OFAC_ETH_URL);
+		const hash = sha256(text);
+		const meta = await getMeta('ofac');
+		if (!opts?.force && meta?.content_hash === hash) {
+			out.ofac = 'unchanged';
+		} else {
+			const entries = text
+				.split('\n')
+				.map((l) => l.trim().toLowerCase())
+				.filter((a) => /^0x[0-9a-f]{40}$/.test(a))
+				.map((a) => ({ kind: 'sanctioned', value: a }));
+			await replaceSource('ofac', entries, hash);
+			out.ofac = entries.length;
+		}
+	} catch (e) {
+		console.error('[threatLists] ofac refresh failed:', e instanceof Error ? e.message : e);
+		out.ofac = 'error';
+	}
+
 	return out;
 }
 
@@ -176,10 +202,10 @@ export function refreshThreatListsIfStale(): void {
 	void (async () => {
 		try {
 			await ensureTables();
-			const [mm, ss] = await Promise.all([getMeta('metamask'), getMeta('scamsniffer')]);
+			const [mm, ss, of] = await Promise.all([getMeta('metamask'), getMeta('scamsniffer'), getMeta('ofac')]);
 			const isStale = (m: { refreshed_at: string | null } | null) =>
 				!m?.refreshed_at || Date.now() - Date.parse(m.refreshed_at) > STALE_MS;
-			if (isStale(mm) || isStale(ss)) {
+			if (isStale(mm) || isStale(of) || isStale(ss)) {
 				await refreshThreatLists();
 			} else {
 				populated = true;
@@ -198,6 +224,31 @@ export type DomainThreatLookup = {
 	metamaskBlacklist: boolean;
 	scamsniffer: boolean;
 };
+
+/**
+ * Is this address on the locally-mirrored OFAC sanctions list? One indexed lookup, fail-soft.
+ * A redundant, always-on backstop for the wallet-checker's `sanctioned` flag: even if GoPlus is
+ * down, sanctions screening still works with zero live dependency. EVM addresses match
+ * case-insensitively (stored lowercased); a miss (or any error) is a plain false.
+ */
+export async function lookupSanctionedAddress(address: string): Promise<boolean> {
+	try {
+		await ensureTables();
+		if (populated === null) {
+			const probe = await db.execute({ sql: `SELECT 1 FROM threat_entries LIMIT 1` });
+			populated = probe.rows.length > 0;
+		}
+		if (!populated) return false;
+		const r = await db.execute({
+			sql: `SELECT 1 FROM threat_entries WHERE source = 'ofac' AND value = ? LIMIT 1`,
+			args: [address.toLowerCase()],
+		});
+		return r.rows.length > 0;
+	} catch (e) {
+		console.warn('[threatLists] sanctions lookup failed:', e instanceof Error ? e.message : e);
+		return false;
+	}
+}
 
 /** One indexed lookup: which mirrored lists flag this domain. Fail-soft. */
 export async function lookupDomainThreats(domain: string): Promise<DomainThreatLookup> {

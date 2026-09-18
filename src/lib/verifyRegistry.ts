@@ -159,6 +159,12 @@ const ENSURE_MONITOR_COLS = [
   `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS monitor_url TEXT`,
   `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS monitor_status TEXT`,
   `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS monitor_checked_at TEXT`,
+  // Fail-closed TTL: the last time the watchman POSITIVELY re-confirmed this destination
+  // (its domain proof still vouches it, or its published page still shows it). The public
+  // lookup treats a domain-anchored destination as 'verified' only while this stays within
+  // the max-stale window; a stale one degrades to 'claimed'. Advanced ONLY on a positive
+  // confirm — never on an unreachable/missing attempt — so a blind monitor fails safe.
+  `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS last_confirmed_at TEXT`,
 ];
 
 let ensured = false;
@@ -568,15 +574,29 @@ export async function listMonitoredDestinations(): Promise<MonitorTarget[]> {
   }));
 }
 
-/** Stamp the latest monitor outcome (tenant-scoped). */
+/**
+ * Stamp the latest monitor outcome (tenant-scoped). A 'present' outcome is a positive
+ * re-confirmation, so it also advances last_confirmed_at (keeps the public badge fresh).
+ * Every other outcome ('unreachable' / 'missing' / 'swapped' / 'invalid_url') records the
+ * attempt but NEVER advances last_confirmed_at, so a persistently blind monitor lets the
+ * badge lapse 'verified'→'claimed' via the max-stale TTL. Fail-closed by construction.
+ */
 export async function recordMonitorResult(tenantId: string, id: string, status: string): Promise<void> {
   await ensureVerifyTables();
   const now = nowUtc();
-  await db.execute({
-    sql: `UPDATE verify_destinations SET monitor_status = ?, monitor_checked_at = ?, updated_at = ?
-          WHERE id = ? AND tenant_id = ?`,
-    args: [status, now, now, id, tenantId],
-  });
+  if (status === 'present') {
+    await db.execute({
+      sql: `UPDATE verify_destinations SET monitor_status = ?, monitor_checked_at = ?, last_confirmed_at = ?, updated_at = ?
+            WHERE id = ? AND tenant_id = ?`,
+      args: [status, now, now, now, id, tenantId],
+    });
+  } else {
+    await db.execute({
+      sql: `UPDATE verify_destinations SET monitor_status = ?, monitor_checked_at = ?, updated_at = ?
+            WHERE id = ? AND tenant_id = ?`,
+      args: [status, now, now, id, tenantId],
+    });
+  }
 }
 
 // ── Phase 3: proof of control (domain attestation) ───────────────────────────
@@ -760,6 +780,25 @@ export async function markDestinationsLapsed(tenantId: string, ids: string[]): P
       sql: `UPDATE verify_destinations SET proof_status = 'lapsed', updated_at = ?
             WHERE id = ? AND tenant_id = ?`,
       args: [now, id, tenantId],
+    });
+  }
+}
+
+/**
+ * Advance last_confirmed_at for destinations POSITIVELY re-confirmed this run — the domain
+ * proof still vouches them (Pass B). Together with the 'present' path in recordMonitorResult
+ * (Pass C), this is the ONLY writer of last_confirmed_at. A destination the watchman could not
+ * confirm keeps its old timestamp and lapses 'verified'→'claimed' via the public max-stale TTL.
+ */
+export async function markDestinationsConfirmed(tenantId: string, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await ensureVerifyTables();
+  const now = nowUtc();
+  for (const id of ids) {
+    await db.execute({
+      sql: `UPDATE verify_destinations SET last_confirmed_at = ?, updated_at = ?
+            WHERE id = ? AND tenant_id = ?`,
+      args: [now, now, id, tenantId],
     });
   }
 }

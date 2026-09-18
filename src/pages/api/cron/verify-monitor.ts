@@ -29,11 +29,12 @@ import { getVerifyAlert, type VerifyAlertKind } from '@/i18n/emails/verifyAlert'
 import { listEntitiesForMonitor, monitorEntity } from '@/lib/verifyEntities';
 import {
   listProvenDomainsForMonitor, getProvenAddressDestinations,
-  markDestinationsLapsed, markDomainProofFailed, markDomainProofRechecked,
+  markDestinationsLapsed, markDestinationsConfirmed, markDomainProofFailed, markDomainProofRechecked,
   normalizeDestinationValue, listMonitoredDestinations, recordMonitorResult,
 } from '@/lib/verifyRegistry';
 import { verifyDomainProof } from '@/lib/verifyProof';
 import { checkPublishedSource } from '@/lib/verifyPublishedSource';
+import { recordCronSuccess } from '@/lib/cronHeartbeat';
 
 export const prerender = false;
 
@@ -150,6 +151,11 @@ export const GET: APIRoute = async ({ request }) => {
               merchant.addressDroppedAlerts++;
             }
           }
+          // Positively re-confirm the addresses the (re-validated) proof still vouches — advances
+          // last_confirmed_at so their public badge stays 'verified'. Addresses NOT confirmed this
+          // run keep their old timestamp and lapse 'verified'→'claimed' via the max-stale TTL.
+          const stillVouched = proven.filter((p) => vouched.has(normalizeDestinationValue(p.value)));
+          if (stillVouched.length) await markDestinationsConfirmed(d.tenantId, stillVouched.map((p) => p.id));
           await markDomainProofRechecked(d.tenantId, d.domain);
         }
       } catch (err) {
@@ -190,6 +196,11 @@ export const GET: APIRoute = async ({ request }) => {
   } catch (err) {
     console.error('[cron/verify-monitor] watch pass failed', err);
   }
+
+  // Heartbeat: this run completed. A separate, frequently-running cron (refresh-threat-lists)
+  // alerts the owner if this heartbeat goes stale — the dead-man's-switch for a silently-stopped
+  // watchman. (Users stay safe regardless: badges fail closed to unverified via the max-stale TTL.)
+  await recordCronSuccess('verify-monitor');
 
   const elapsed_ms = Date.now() - startedAt;
   console.log(`[cron/verify-monitor] done in ${elapsed_ms}ms — entity:`, entity, 'merchant:', merchant, 'watch:', watch);
