@@ -19,6 +19,6 @@ jobs:
             echo "SYNC_URL secret missing."
             exit 1
           fi
-          curl -sS --fail \
+          curl -sS --fail --retry 4 --retry-all-errors --retry-delay 15 --retry-max-time 120 --connect-timeout 20 --max-time 120 \
             "$SYNC_URL/api/cron/price-alerts?secret=$CRON_SECRET" \
             -H "x-cron-secret: $CRON_SECRET"
