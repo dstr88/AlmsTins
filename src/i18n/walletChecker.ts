@@ -330,7 +330,7 @@ export const en: WalletCheckerLocale = {
     ],
   },
   disclaimer: {
-    text: 'Wallet check results are sourced from public databases including GoPlus Security, Etherscan, Alchemy, and honeypot.is. dApp / website results are sourced from MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io, and OpenPhish. All findings are reported from third-party databases and are not independently verified by Almstins. This tool does not constitute financial or legal advice. Always do your own research.',
+    text: 'Wallet check results are sourced from public databases including the U.S. Treasury OFAC SDN sanctions list, GoPlus Security, Etherscan, Alchemy, and honeypot.is. dApp / website results are sourced from MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io, and OpenPhish. All findings are reported from third-party databases and are not independently verified by Almstins. This tool does not constitute financial or legal advice. Always do your own research.',
     link: 'A free tool by Almstins — crypto portfolio tracker & bookkeeping tool.',
   },
   js: {
@@ -400,7 +400,7 @@ export const en: WalletCheckerLocale = {
     chainabuseOne: '🚨 {n} community scam report on Chainabuse',
     chainabuseMany: '🚨 {n} community scam reports on Chainabuse',
     chainabuseNone: '✅ No Chainabuse community reports',
-    safetySource: 'Source: GoPlus Security (ETH, BSC, Polygon) + Chainabuse community reports. Results are reported, not legally confirmed.',
+    safetySource: 'Sources: sanctions checked against the U.S. Treasury OFAC SDN list; other risk flags from GoPlus Security; community reports from Chainabuse. Reported from these sources, not independently confirmed by Almstins.',
     holdingsEvmSuiOnly: 'Token balance lookup is only available for EVM and Sui addresses.',
     noCoinBalances: 'No coin balances found.',
     noErc20: 'No ERC-20 token holdings found.',
@@ -609,7 +609,7 @@ export const es: WalletCheckerLocale = {
     ],
   },
   disclaimer: {
-    text: 'Los resultados de verificación de billeteras provienen de bases de datos públicas incluyendo GoPlus Security, Etherscan, Alchemy y honeypot.is. Los resultados de dApp / sitio web provienen de MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io y OpenPhish. Todos los hallazgos se reportan desde bases de datos de terceros y no son verificados independientemente por Almstins. Esta herramienta no constituye asesoramiento financiero ni legal. Haz siempre tu propia investigación.',
+    text: 'Los resultados de verificación de billeteras provienen de bases de datos públicas incluyendo la lista de sanciones OFAC SDN del Tesoro de EE. UU., GoPlus Security, Etherscan, Alchemy y honeypot.is. Los resultados de dApp / sitio web provienen de MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io y OpenPhish. Todos los hallazgos se reportan desde bases de datos de terceros y no son verificados independientemente por Almstins. Esta herramienta no constituye asesoramiento financiero ni legal. Haz siempre tu propia investigación.',
     link: 'Una herramienta gratuita de Almstins — rastreador de portafolio cripto y herramienta de contabilidad.',
   },
   js: {
@@ -679,7 +679,7 @@ export const es: WalletCheckerLocale = {
     chainabuseOne: '🚨 {n} reporte de estafa de la comunidad en Chainabuse',
     chainabuseMany: '🚨 {n} reportes de estafa de la comunidad en Chainabuse',
     chainabuseNone: '✅ Sin reportes de la comunidad en Chainabuse',
-    safetySource: 'Fuente: GoPlus Security (ETH, BSC, Polygon) + reportes de la comunidad de Chainabuse. Los resultados son reportados, no confirmados legalmente.',
+    safetySource: 'Fuentes: sanciones verificadas contra la lista OFAC SDN del Tesoro de EE. UU.; otras señales de riesgo de GoPlus Security; reportes de la comunidad de Chainabuse. Reportado desde estas fuentes, no confirmado de forma independiente por Almstins.',
     holdingsEvmSuiOnly: 'La consulta de saldo de tokens solo está disponible para direcciones EVM y Sui.',
     noCoinBalances: 'No se encontraron saldos de monedas.',
     noErc20: 'No se encontraron tenencias de tokens ERC-20.',
@@ -888,7 +888,7 @@ export const fr: WalletCheckerLocale = {
     ],
   },
   disclaimer: {
-    text: 'Les résultats de vérification de portefeuille proviennent de bases de données publiques dont GoPlus Security, Etherscan, Alchemy et honeypot.is. Les résultats dApp / site web proviennent de MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io et OpenPhish. Tous les constats sont rapportés depuis des bases de données tierces et ne sont pas vérifiés indépendamment par Almstins. Cet outil ne constitue pas un conseil financier ou juridique. Faites toujours vos propres recherches.',
+    text: 'Les résultats de vérification de portefeuille proviennent de bases de données publiques dont la liste de sanctions OFAC SDN du Trésor américain, GoPlus Security, Etherscan, Alchemy et honeypot.is. Les résultats dApp / site web proviennent de MetaMask eth-phishing-detect, ScamSniffer, GoPlus Security, URLScan.io et OpenPhish. Tous les constats sont rapportés depuis des bases de données tierces et ne sont pas vérifiés indépendamment par Almstins. Cet outil ne constitue pas un conseil financier ou juridique. Faites toujours vos propres recherches.',
     link: 'Un outil gratuit d’Almstins — suivi de portefeuille crypto et outil de comptabilité.',
   },
   js: {
@@ -958,7 +958,7 @@ export const fr: WalletCheckerLocale = {
     chainabuseOne: '🚨 {n} signalement d’arnaque de la communauté sur Chainabuse',
     chainabuseMany: '🚨 {n} signalements d’arnaque de la communauté sur Chainabuse',
     chainabuseNone: '✅ Aucun signalement de la communauté sur Chainabuse',
-    safetySource: 'Source : GoPlus Security (ETH, BSC, Polygon) + signalements de la communauté Chainabuse. Les résultats sont rapportés, non confirmés légalement.',
+    safetySource: 'Sources : sanctions vérifiées via la liste OFAC SDN du Trésor américain ; autres signaux de risque de GoPlus Security ; signalements de la communauté Chainabuse. Rapporté depuis ces sources, non confirmé de façon indépendante par Almstins.',
     holdingsEvmSuiOnly: 'La consultation du solde de tokens n’est disponible que pour les adresses EVM et Sui.',
     noCoinBalances: 'Aucun solde de pièce trouvé.',
     noErc20: 'Aucun avoir en tokens ERC-20 trouvé.',
