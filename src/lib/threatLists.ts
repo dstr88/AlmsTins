@@ -21,10 +21,17 @@ import { db } from '@/lib/db';
 
 const METAMASK_URL    = 'https://raw.githubusercontent.com/MetaMask/eth-phishing-detect/main/src/config.json';
 const SCAMSNIFFER_URL = 'https://raw.githubusercontent.com/scamsniffer/scam-database/main/blacklist/domains.json';
-// OFAC SDN sanctioned EVM addresses (community mirror of the official list, one 0x address
-// per line). Mirrored locally so the wallet-checker's `sanctioned` flag survives a GoPlus
-// outage with zero live dependency — the check becomes one indexed lookup that can't be "down".
-const OFAC_ETH_URL    = 'https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists/sanctioned_addresses_ETH.txt';
+// OFAC SDN sanctioned addresses per chain (community mirror of the official list, one address per
+// line). Mirrored locally so the wallet-checker's `sanctioned` flag survives a GoPlus outage with
+// zero live dependency — an indexed lookup that can't be "down". Each chain is an INDEPENDENT
+// source so one flaky fetch never drops another chain's coverage. All share kind='sanctioned' so
+// the lookup is chain-agnostic; EVM addresses are stored lowercased, other chains as published.
+const OFAC_BASE = 'https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists';
+const OFAC_CHAINS: Array<{ code: string; evm: boolean }> = [
+	{ code: 'ETH', evm: true },  { code: 'ARB', evm: true },  { code: 'BSC', evm: true },  { code: 'ETC', evm: true },
+	{ code: 'XBT', evm: false }, { code: 'LTC', evm: false }, { code: 'SOL', evm: false }, { code: 'TRX', evm: false },
+];
+const OFAC_SOURCES = OFAC_CHAINS.map((s) => ({ ...s, url: `${OFAC_BASE}/sanctioned_addresses_${s.code}.txt` }));
 const FETCH_TIMEOUT_MS = 45_000;
 const STALE_MS         = 6 * 60 * 60 * 1000; // refresh a source once its mirror is older than 6h
 const INSERT_CHUNK     = 1000;               // rows per multi-row INSERT (×3 params, well under PG's limit)
@@ -161,26 +168,38 @@ export async function refreshThreatLists(opts?: { force?: boolean }): Promise<Th
 		out.scamsniffer = 'error';
 	}
 
-	// OFAC — plain-text list of sanctioned EVM addresses, one 0x… per line. Stored lowercased
-	// under source='ofac', kind='sanctioned'. Redundant, always-on backstop for GoPlus sanctions.
-	try {
-		const text = await fetchText(OFAC_ETH_URL);
-		const hash = sha256(text);
-		const meta = await getMeta('ofac');
-		if (!opts?.force && meta?.content_hash === hash) {
-			out.ofac = 'unchanged';
-		} else {
-			const entries = text
-				.split('\n')
-				.map((l) => l.trim().toLowerCase())
-				.filter((a) => /^0x[0-9a-f]{40}$/.test(a))
-				.map((a) => ({ kind: 'sanctioned', value: a }));
-			await replaceSource('ofac', entries, hash);
-			out.ofac = entries.length;
+	// OFAC — one independent source per chain (kind='sanctioned'). A per-chain fetch failure is
+	// isolated: it keeps that chain's prior rows (never shrinks the list on a transient blip) and
+	// never touches the others. EVM addresses are lowercased + shape-validated; other chains are
+	// stored as published (case-sensitive) with a loose sanity filter. Redundant, always-on
+	// backstop for the GoPlus `sanctioned` flag.
+	for (const src of OFAC_SOURCES) {
+		const key = `ofac_${src.code}`;
+		try {
+			const text = await fetchText(src.url);
+			const hash = sha256(text);
+			const meta = await getMeta(key);
+			if (!opts?.force && meta?.content_hash === hash) {
+				out[key] = 'unchanged';
+			} else {
+				const entries: Array<{ kind: string; value: string }> = [];
+				for (const line of text.split('\n')) {
+					const raw = line.trim();
+					if (!raw || raw.startsWith('#')) continue;
+					if (src.evm) {
+						const v = raw.toLowerCase();
+						if (/^0x[0-9a-f]{40}$/.test(v)) entries.push({ kind: 'sanctioned', value: v });
+					} else if (!/\s/.test(raw) && raw.length >= 16 && raw.length <= 128) {
+						entries.push({ kind: 'sanctioned', value: raw });
+					}
+				}
+				await replaceSource(key, entries, hash);
+				out[key] = entries.length;
+			}
+		} catch (e) {
+			console.error(`[threatLists] ${key} refresh failed:`, e instanceof Error ? e.message : e);
+			out[key] = 'error';
 		}
-	} catch (e) {
-		console.error('[threatLists] ofac refresh failed:', e instanceof Error ? e.message : e);
-		out.ofac = 'error';
 	}
 
 	return out;
@@ -202,7 +221,7 @@ export function refreshThreatListsIfStale(): void {
 	void (async () => {
 		try {
 			await ensureTables();
-			const [mm, ss, of] = await Promise.all([getMeta('metamask'), getMeta('scamsniffer'), getMeta('ofac')]);
+			const [mm, ss, of] = await Promise.all([getMeta('metamask'), getMeta('scamsniffer'), getMeta('ofac_ETH')]);
 			const isStale = (m: { refreshed_at: string | null } | null) =>
 				!m?.refreshed_at || Date.now() - Date.parse(m.refreshed_at) > STALE_MS;
 			if (isStale(mm) || isStale(of) || isStale(ss)) {
@@ -228,8 +247,8 @@ export type DomainThreatLookup = {
 /**
  * Is this address on the locally-mirrored OFAC sanctions list? One indexed lookup, fail-soft.
  * A redundant, always-on backstop for the wallet-checker's `sanctioned` flag: even if GoPlus is
- * down, sanctions screening still works with zero live dependency. EVM addresses match
- * case-insensitively (stored lowercased); a miss (or any error) is a plain false.
+ * down, sanctions screening still works with zero live dependency. Covers every OFAC chain source
+ * (EVM matched lowercased, other chains matched exact); a miss (or any error) is a plain false.
  */
 export async function lookupSanctionedAddress(address: string): Promise<boolean> {
 	try {
@@ -239,9 +258,11 @@ export async function lookupSanctionedAddress(address: string): Promise<boolean>
 			populated = probe.rows.length > 0;
 		}
 		if (!populated) return false;
+		// kind='sanctioned' spans every OFAC chain source. Match the exact value (case-sensitive
+		// chains: BTC/LTC/SOL/TRX…) and the lowercased value (EVM, stored lowercased) in one lookup.
 		const r = await db.execute({
-			sql: `SELECT 1 FROM threat_entries WHERE source = 'ofac' AND value = ? LIMIT 1`,
-			args: [address.toLowerCase()],
+			sql: `SELECT 1 FROM threat_entries WHERE kind = 'sanctioned' AND value IN (?, ?) LIMIT 1`,
+			args: [address, address.toLowerCase()],
 		});
 		return r.rows.length > 0;
 	} catch (e) {
