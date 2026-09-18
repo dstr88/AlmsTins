@@ -856,8 +856,11 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
           })()}
 
           {/* Clean-result honesty: a green verdict means "nothing found in the lists we checked", NOT "safe".
-              Shown only on a confident clean result (the limited-coverage banner already covers the partial case). */}
-          {result.scamLevel === 'clean' && !result.partialCoverage && (result.errors?.length ?? 0) === 0 && activeFlags.length === 0 && (
+              Shows on any clean, non-partial result. We deliberately do NOT gate on errors: benign
+              secondary failures (activity/holdings unavailable) are near-universal and must not suppress
+              the you-decide reminder. The partialCoverage path has its own "not a clean bill" body, so
+              this only fires when that one doesn't — no double message. */}
+          {result.scamLevel === 'clean' && !result.partialCoverage && activeFlags.length === 0 && (
             <div style={{
               marginBottom: '1.25rem', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem',
               background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
