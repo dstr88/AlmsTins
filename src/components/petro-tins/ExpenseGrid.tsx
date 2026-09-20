@@ -105,7 +105,7 @@ export default function ExpenseGrid({
           <td></td>
           <td colSpan={2}>
             <input
-              className="xg__name"
+              className={locked ? 'xg__name xg__name--start' : 'xg__name'}
               placeholder={namePlaceholder ?? 'Name'}
               value={draft.__n ?? title}
               onChange={e => set('__n', e.target.value)}
@@ -118,6 +118,16 @@ export default function ExpenseGrid({
           </td>
         </tr>
 
+        {/* The unnamed spare: name the person first — that is what creates them, and a bill
+            cannot attach to someone who does not exist yet. Once named, the real grid below
+            appears and takes expenses and income. So show a prompt here, not a dead grid. */}
+        {locked && (
+          <tr className="xg__starthint">
+            <td colSpan={4}>Type a name above to start this person's sheet, then add their expenses and income.</td>
+          </tr>
+        )}
+
+        {!locked && (<>
         <tr className="xg__labels">
           <td></td><td></td>
           <td className="xg__amount">Expense (&minus;)</td>
@@ -255,6 +265,7 @@ export default function ExpenseGrid({
             {money(balance)}
           </td>
         </tr>
+        </>)}
       </tbody>
     </table>
   );
