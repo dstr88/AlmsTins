@@ -16,9 +16,13 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 // List the receivables this tenant created (so they don't have to keep the IDs).
+// A signed-out visitor simply has no receivables to list, so return an empty list
+// (200) rather than 401. The public /verify/registry page fetches this on load; a 401
+// there logs a console error for every anonymous visitor with nothing to hide. This
+// leaks nothing (no tenant, no data) — writes (POST/DELETE) below stay strictly 401.
 export const GET: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
-  if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
+  if (!session) return json({ ok: true, receivables: [] });
   const receivables = await listReceivables(session.tenantId);
   return json({ ok: true, receivables });
 };

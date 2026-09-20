@@ -74,6 +74,26 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-secondary); }
     .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); color: var(--text-secondary); }
     .note-warn { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--text-secondary); }
+    /* "Verify now" — on-demand re-verification verdict + per-check breakdown */
+    .btn-verify { border-color: var(--accent-glow); color: var(--accent); }
+    .btn-verify:hover { background: var(--accent-soft); }
+    .reverify-out { margin: .6rem 0 .2rem; }
+    .reverify-out:empty { display: none; margin: 0; }
+    .rv-verdict { border-radius: 10px; padding: .7rem .85rem; display: flex; flex-direction: column; gap: .18rem; font-size: .82rem; }
+    .rv-verdict b { font-size: .9rem; }
+    .rv-verdict > span { color: var(--text-secondary); }
+    .rv-confirmed { background: var(--gain-bg); border: 1px solid var(--gain-border); color: var(--gain); }
+    .rv-attention { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning); }
+    .rv-checks { list-style: none; margin: .5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+    .rv-check { display: flex; gap: .55rem; align-items: flex-start; font-size: .8rem; padding: .4rem .55rem; border-radius: 8px; background: var(--surface-card-2); border: 1px solid var(--border-subtle); }
+    .rv-ic { flex: none; width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; font-size: .66rem; font-weight: 700; margin-top: .05rem; }
+    .rv-body { display: flex; flex-direction: column; gap: .08rem; }
+    .rv-body b { color: var(--text-primary); font-weight: 600; }
+    .rv-body span { color: var(--text-secondary); }
+    .rv-pass .rv-ic { background: var(--gain-bg); color: var(--gain); }
+    .rv-warn .rv-ic { background: var(--warning-bg); color: var(--warning); }
+    .rv-fail .rv-ic { background: var(--loss-bg); color: var(--loss); }
+    .rv-fail { border-color: var(--loss-border); }
     .note b { color: var(--text-primary); }
     .idcode { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem; color: var(--accent); word-break: break-all; user-select: all; }
 
@@ -559,8 +579,10 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
           <span class="status-head-right">
             <span class="rag ${r.cls}"><span class="dot"></span>${esc(r.label)}</span>
             <button class="btn btn-xs" data-refresh="1" type="button" title="Re-check this receivable">⟳ Refresh</button>
+            <button class="btn btn-xs btn-verify" data-verifynow="1" type="button" title="Re-run the load-bearing checks now and record a dated verification">✔ Verify now</button>
           </span>
         </div>
+        <div id="reverify-out" class="reverify-out"></div>
         <div class="bar"><div class="fill ${rcv.claimed >= rcv.face ? 'full' : ''}" style="width:${pct}%"></div></div>
         <div class="legend">
           <span>Claimed <b>${esc(fmtNum(rcv.claimed, ccy))}</b></span>
@@ -576,6 +598,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         ${settleBtn}
         ${renderSaveRow(rcv)}`);
       out.querySelector('[data-refresh]')?.addEventListener('click', () => query(rcv.id));
+      out.querySelector('[data-verifynow]')?.addEventListener('click', () => verifyNowReq(rcv.id, out));
       out.querySelector('#watch-add')?.addEventListener('click', () => {
         const name = (($('watch-name') as HTMLInputElement)?.value || '').trim();
         watchAdd(rcv.id, name);
@@ -610,6 +633,33 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       if (!j) return;
       if (!j.ok) { show(out, `<div class="note note-loss">${esc(j.message || 'Could not settle the receivable.')}</div>`); return; }
       query(receivableId);
+    }
+
+    // ---- "Verify now": re-run the load-bearing checks, fail closed, leave a dated receipt ----
+    // Refresh above just re-fetches the current status. This actively re-verifies the record —
+    // integrity, headroom, acknowledgment, funds, anchor — returns a fail-closed verdict, and
+    // records a signed re-verification (contemporaneous evidence the control ran). Authed:
+    // recording who verified is the point, so anonymous visitors get a sign-in prompt.
+    async function verifyNowReq(receivableId: string, out: HTMLElement) {
+      const box = (out.querySelector('#reverify-out') as HTMLElement) || out;
+      show(box, `<div class="note note-info">Verifying…</div>`);
+      const j = await authedPost('/api/verify/receivables/reverify', { receivableId }, box);
+      if (!j) return; // 401/403/network already surfaced into the box
+      if (!j.ok) { show(box, `<div class="note note-loss">${esc(j.message || 'Could not verify this receivable.')}</div>`); return; }
+      renderReverify(box, j);
+    }
+
+    function renderReverify(box: HTMLElement, j: any) {
+      const when = String(j.at || '').replace('T', ' ').slice(0, 16);
+      const confirmed = j.verdict === 'confirmed';
+      const rows = (j.checks || []).map((c: any) => {
+        const ic = c.state === 'pass' ? '✓' : c.state === 'warn' ? '!' : '✕';
+        return `<li class="rv-check rv-${esc(c.state)}"><span class="rv-ic">${ic}</span><span class="rv-body"><b>${esc(c.label)}</b><span>${esc(c.detail)}</span></span></li>`;
+      }).join('');
+      const head = confirmed
+        ? `<div class="rv-verdict rv-confirmed"><b>✔ Verified now · ${esc(when)} UTC</b><span>Every control re-confirmed. A signed re-verification was recorded — evidence you checked at this moment.</span></div>`
+        : `<div class="rv-verdict rv-attention"><b>▲ Needs attention · ${esc(when)} UTC</b><span>One or more controls did not re-confirm. It fails closed: treat this as unproven until resolved. The check was still recorded.</span></div>`;
+      show(box, `${head}<ul class="rv-checks">${rows}</ul>`);
     }
 
     // ---- #1: Bitcoin anchor a record (authed), then refresh the status ----

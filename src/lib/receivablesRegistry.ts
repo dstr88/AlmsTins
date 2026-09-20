@@ -35,6 +35,7 @@ import { randomUUID, randomBytes, createHash } from 'crypto';
 import {
   canonicalManifestBytes,
   signManifest,
+  verifyManifestSignature,
   getPublicKeyHex,
   getSigningKeyId,
 } from '@/lib/recordProof/signing';
@@ -247,6 +248,29 @@ const ENSURE_CLAIMS_SQL = `
 const ENSURE_CLAIMS_RCV_IDX =
   `CREATE INDEX IF NOT EXISTS receivable_claims_rcv ON receivable_claims (receivable_id)`;
 
+// "Verify now" — one row per on-demand re-verification of a receivable. A signature proves
+// what was true when it was signed; it cannot promise the fact stayed true between the advance
+// and settlement. So a party re-runs the load-bearing checks at the moment they act, and the
+// run is recorded here: a dated, signed verdict + the per-check result. This is the
+// contemporaneous evidence that the control ran and what it found — the thing an examiner asks
+// for — not a green light that vanishes. tenant_id records WHO checked; never surfaced publicly.
+const ENSURE_REVERIFICATIONS_SQL = `
+  CREATE TABLE IF NOT EXISTS receivable_reverifications (
+    id             TEXT NOT NULL PRIMARY KEY,
+    receivable_id  TEXT NOT NULL,
+    tenant_id      TEXT NOT NULL,
+    verdict        TEXT NOT NULL,
+    checks_json    TEXT NOT NULL,
+    manifest_json  TEXT NOT NULL,
+    signature_json TEXT,
+    digest         TEXT NOT NULL,
+    anchor_json    TEXT,
+    created_at     TEXT NOT NULL DEFAULT (to_char(now() AT TIME ZONE 'UTC','YYYY-MM-DD HH24:MI:SS'))
+  )
+`;
+const ENSURE_REVERIFICATIONS_IDX =
+  `CREATE INDEX IF NOT EXISTS receivable_reverifications_rcv ON receivable_reverifications (receivable_id)`;
+
 // Stage 4 (settlement) columns — lazy adds so a table created by an earlier version of
 // this file gains them without a migration. IF NOT EXISTS makes each idempotent.
 const ENSURE_SETTLEMENT_COLS = [
@@ -414,6 +438,8 @@ export async function ensureReceivablesTables(): Promise<void> {
   await db.execute({ sql: ENSURE_RECEIVABLES_TENANT_IDX, args: [] });
   await db.execute({ sql: ENSURE_CLAIMS_SQL, args: [] });
   await db.execute({ sql: ENSURE_CLAIMS_RCV_IDX, args: [] });
+  await db.execute({ sql: ENSURE_REVERIFICATIONS_SQL, args: [] });
+  await db.execute({ sql: ENSURE_REVERIFICATIONS_IDX, args: [] });
   await db.execute({ sql: ENSURE_ATTESTATIONS_SQL, args: [] });
   await db.execute({ sql: ENSURE_ATTESTATIONS_IDX, args: [] });
   await db.execute({ sql: ENSURE_INVITES_SQL, args: [] });
@@ -770,6 +796,160 @@ export async function getReceivableStatus(receivableId: string): Promise<Receiva
     settled, settledAt: rcv.settled_at,
     attestations,
     claims, claimed, available, status, lifecycle,
+  };
+}
+
+// ── "Verify now" — re-check a receivable's proof on demand, and fail closed ────
+//
+// A signature proves what was true when it was signed. It cannot promise the fact stayed true
+// between the advance and settlement — the debtor's acknowledgment, the headroom, the funds
+// affirmation can each change while a claim is still outstanding. So a party about to rely on a
+// receivable re-runs the load-bearing checks AT THE MOMENT THEY ACT, and the answer fails
+// closed: anything that cannot be re-confirmed drops the verdict to 'attention' rather than
+// silently passing. Each run is recorded as a dated, signed re-verification — the evidence that
+// the control ran and what it found. Reads across tenants are safe (holding the ID makes you a
+// party, exactly like registering a claim); the row records WHO checked, scoped by their tenant.
+
+export type ReverifyState = 'pass' | 'warn' | 'fail';
+export interface ReverifyCheck { key: string; label: string; state: ReverifyState; detail: string; }
+export type ReverifyResult =
+  | {
+      ok: true;
+      verdict: 'confirmed' | 'attention';
+      checks: ReverifyCheck[];
+      at: string;
+      digest: string;
+      signed: boolean;
+      reverificationId: string | null;
+      receivable: {
+        id: string; supplier: string; buyer: string; invoiceNo: string;
+        face: number; currency: string; claimed: number; available: number;
+        status: ReceivableStatus['status']; lifecycle: ReceivableStatus['lifecycle'];
+      };
+    }
+  | { ok: false; error: 'not_found'; message: string };
+
+export async function reverifyReceivable(
+  tenantId: string,
+  receivableId: string,
+  opts: { persist?: boolean } = {},
+): Promise<ReverifyResult> {
+  await ensureReceivablesTables();
+  const id = String(receivableId || '').trim();
+  const status = await getReceivableStatus(id);
+  if (!status) return { ok: false, error: 'not_found', message: 'No receivable found for that ID.' };
+
+  const checks: ReverifyCheck[] = [];
+
+  // 1. Integrity — the record has not been altered since it was signed. Load-bearing:
+  //    recompute the canonical bytes from the stored manifest, verify the Ed25519 signature,
+  //    confirm the digest matches AND the signer is the current Almstins published key. Any
+  //    failure here is a hard fail: an unverifiable record is treated as suspect, not trusted.
+  try {
+    const r = await db.execute({
+      sql: `SELECT manifest_json, signature_json, digest FROM receivables WHERE id = ? LIMIT 1`,
+      args: [id],
+    });
+    const row = r.rows[0] as any;
+    const sig = row?.signature_json ? JSON.parse(String(row.signature_json)) : null;
+    if (!row?.manifest_json || !sig?.signatureHex || !sig?.publicKeyHex) {
+      checks.push({ key: 'integrity', label: 'Record integrity', state: 'fail',
+        detail: 'The record is not signed, so it cannot be re-verified against a key.' });
+    } else {
+      const bytes = canonicalManifestBytes(JSON.parse(String(row.manifest_json)));
+      const digestOk = sha256hex(bytes) === String(row.digest);
+      const sigOk = verifyManifestSignature(bytes, String(sig.signatureHex), String(sig.publicKeyHex));
+      const currentKey = getPublicKeyHex();
+      const keyOk = !currentKey || String(sig.publicKeyHex) === currentKey;
+      if (sigOk && digestOk && keyOk) {
+        checks.push({ key: 'integrity', label: 'Record integrity', state: 'pass',
+          detail: 'Signature verifies and the record is unchanged since it was signed.' });
+      } else {
+        checks.push({ key: 'integrity', label: 'Record integrity', state: 'fail',
+          detail: !keyOk ? 'Signed by a key that is not the current Almstins key.'
+            : !digestOk ? 'The stored record no longer matches its signed fingerprint.'
+            : 'The signature does not verify.' });
+      }
+    }
+  } catch {
+    checks.push({ key: 'integrity', label: 'Record integrity', state: 'fail',
+      detail: 'The integrity check could not be completed, so it is treated as unproven.' });
+  }
+
+  // 2. Financing headroom — the duplicate-financing check, recomputed NOW. Over-financed is a
+  //    hard fail (a double-pledge is already on record); no headroom left is a caution.
+  if (status.status === 'over_financed') {
+    checks.push({ key: 'headroom', label: 'Financing headroom', state: 'fail',
+      detail: `Claims exceed face value — ${status.claimed} claimed against ${status.face} ${status.currency}.` });
+  } else if (status.available <= 0) {
+    checks.push({ key: 'headroom', label: 'Financing headroom', state: 'warn',
+      detail: 'Fully encumbered — no unclaimed headroom remains.' });
+  } else {
+    checks.push({ key: 'headroom', label: 'Financing headroom', state: 'pass',
+      detail: `${status.available} of ${status.face} ${status.currency} is still unencumbered.` });
+  }
+
+  // 3. Debtor acknowledgment — a buyer attestation is what turns one firm's word into a debt the
+  //    obligor owns. Its absence is the caution the pledge-boundary scream is about.
+  const acknowledged = (status.attestations || []).some((a) => a.role === 'buyer');
+  checks.push(acknowledged
+    ? { key: 'acknowledged', label: 'Debtor acknowledgment', state: 'pass',
+        detail: 'The buyer has attested to the debt on record.' }
+    : { key: 'acknowledged', label: 'Debtor acknowledgment', state: 'warn',
+        detail: 'No buyer attestation — any claim rests on the supplier’s word until the obligor confirms.' });
+
+  // 4. Funds affirmation — a claim is an assertion until the supplier confirms the money
+  //    arrived. Only meaningful when active claims exist.
+  const activeClaims = (status.claims || []).filter((c) => c.status === 'active');
+  if (activeClaims.length) {
+    const unaffirmed = activeClaims.filter((c) => !c.affirmed).length;
+    checks.push(unaffirmed === 0
+      ? { key: 'affirmation', label: 'Funds affirmation', state: 'pass',
+          detail: 'Every active claim is supplier-confirmed as funded.' }
+      : { key: 'affirmation', label: 'Funds affirmation', state: 'warn',
+          detail: `${unaffirmed} active claim${unaffirmed === 1 ? '' : 's'} not yet confirmed as funded by the supplier.` });
+  }
+
+  // 5. Durability — is the proof stamped into Bitcoin, or only signed? Signed-but-unanchored is
+  //    still evidence, just not yet independently time-stamped. A caution, not a fail.
+  checks.push(status.anchored && status.anchoredAt
+    ? { key: 'anchor', label: 'Bitcoin anchor', state: 'pass',
+        detail: `Anchored to Bitcoin on ${String(status.anchoredAt).slice(0, 10)}.` }
+    : { key: 'anchor', label: 'Bitcoin anchor', state: 'warn',
+        detail: status.anchored ? 'Anchor pending Bitcoin confirmation.' : 'Signed but not yet anchored to Bitcoin.' });
+
+  // Fail-closed verdict: confirmed ONLY if every check passed. Any warn or fail → attention.
+  const verdict: 'confirmed' | 'attention' = checks.every((c) => c.state === 'pass') ? 'confirmed' : 'attention';
+  const at = nowUtc();
+
+  const manifest = {
+    v: 1, kind: 'reverification', receivableId: status.id, at, verdict,
+    face: status.face, claimed: status.claimed, available: status.available,
+    checks: checks.map((c) => ({ key: c.key, state: c.state })),
+  };
+  const { signature, digest } = sign(manifest);
+
+  let reverificationId: string | null = null;
+  if (opts.persist !== false) {
+    reverificationId = randomUUID();
+    await db.execute({
+      sql: `INSERT INTO receivable_reverifications
+              (id, receivable_id, tenant_id, verdict, checks_json, manifest_json, signature_json, digest)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        reverificationId, status.id, tenantId, verdict, JSON.stringify(checks),
+        JSON.stringify(manifest), signature ? JSON.stringify(signature) : null, digest,
+      ],
+    });
+  }
+
+  return {
+    ok: true, verdict, checks, at, digest, signed: !!signature, reverificationId,
+    receivable: {
+      id: status.id, supplier: status.supplier, buyer: status.buyer, invoiceNo: status.invoiceNo,
+      face: status.face, currency: status.currency, claimed: status.claimed, available: status.available,
+      status: status.status, lifecycle: status.lifecycle,
+    },
   };
 }
 
