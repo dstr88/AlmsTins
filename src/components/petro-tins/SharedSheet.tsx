@@ -122,7 +122,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
     onRefresh();
   }
 
-  async function addRow(personId: string, name: string, raw: string, lookup: Array<{ id: string; name: string; amount: number }>) {
+  async function addRow(personId: string, name: string, raw: string, lookup: Array<{ id: string; name: string; amount: number }>, deposit = 0) {
     const value = evalFormula(raw, lookup, budgetEntries);
     if (isNaN(value)) return;
     const res = await api({ action: 'add_bill', splitsId: tin.id, name, amount: value, isDefault: false });
@@ -131,6 +131,14 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
         action: 'set_assignment', billId: res.id, personId, type: 'flat', value,
         breakdown: JSON.stringify([{ label: raw, value }]),
       });
+      // Income entered on the same new line — record it as a payment against this row, so a
+      // person's first deposit no longer requires creating the expense row first.
+      if (deposit > 0) {
+        await api({
+          action: 'add_payment', splitsId: tin.id, personId, billId: res.id,
+          amount: deposit, paidDate: new Date().toISOString().slice(0, 10), budgetTinId: tin.budgetTinId,
+        });
+      }
     }
     onRefresh();
   }
@@ -166,7 +174,7 @@ export default function SharedSheet({ tin, budgetEntries, onRefresh, onDelete }:
               }}
               onAmount={(billId, raw) => saveAmount(person.id, billId, raw, lookup)}
               onDeposit={(billId, amount) => setDeposit(person.id, billId, amount)}
-              onAddRow={(name, raw) => addRow(person.id, name, raw, lookup)}
+              onAddRow={(name, raw, deposit) => addRow(person.id, name, raw, lookup, deposit)}
               onRemoveRow={async (billId, name) => {
                 if (!confirm(`Remove "${name}"?`)) return;
                 await api({ action: 'delete_bill', billId });
