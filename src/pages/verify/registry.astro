@@ -73,6 +73,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     .note-info { background: var(--accent-soft); border: 1px solid var(--accent-glow); color: var(--text-secondary); }
     .note-loss { background: var(--loss-bg); border: 1px solid var(--loss-border); color: var(--text-secondary); }
     .note-gain { background: var(--gain-bg); border: 1px solid var(--gain-border); color: var(--text-secondary); }
+    .note-warn { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--text-secondary); }
     .note b { color: var(--text-primary); }
     .idcode { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem; color: var(--accent); word-break: break-all; user-select: all; }
 
@@ -252,7 +253,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <!-- 3. CLAIM (authed) -->
     <section class="card">
       <h2><span class="badge-num">3</span> Register a financing claim</h2>
-      <p class="sub">Records "I financed X against this receivable." Rejected if it exceeds the unencumbered headroom. Requires sign-in.</p>
+      <p class="sub">Records "I financed X against this receivable." Two guards run at this boundary: a claim over the unencumbered headroom is <b>blocked</b> (the registry will not record the same value pledged twice), and a claim against a receivable the debtor has not acknowledged is <b>flagged</b> so you decide with your eyes open. Almstins records the claim; the financing decision stays yours. Requires sign-in.</p>
       <div class="field"><label for="k-id">Receivable ID</label><input id="k-id" type="text" placeholder="64-character receivable ID" spellcheck="false" /></div>
       <div class="grid3">
         <div class="field"><label for="k-financier">Financier</label><input id="k-financier" type="text" placeholder="Sahel Capital" /></div>
@@ -266,14 +267,14 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     <!-- 4. ATTEST (authed) — Stage 2 -->
     <section class="card">
       <h2><span class="badge-num">4</span> Attest to a receivable</h2>
-      <p class="sub">The buyer acknowledging the debt is the load-bearing attestation — the obligor signing against their own interest. Requires sign-in.</p>
+      <p class="sub">The buyer acknowledging the debt is the load-bearing attestation — the obligor signing against their own interest. An inspector or surveyor attests to the goods the same way (quantity, grade, delivery). Each statement is signed, bound to this receivable's hash, and Bitcoin-anchorable. Requires sign-in.</p>
       <div class="field"><label for="a-id">Receivable ID</label><input id="a-id" type="text" placeholder="64-character receivable ID" spellcheck="false" /></div>
       <div class="grid3">
         <div class="field"><label for="a-role">Role</label>
           <select id="a-role">
             <option value="buyer">buyer (obligor)</option>
             <option value="supplier">supplier</option>
-            <option value="inspector">inspector</option>
+            <option value="inspector">inspector / surveyor</option>
             <option value="other">other</option>
           </select>
         </div>
@@ -332,7 +333,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
 
     <p class="foot">
       Almstins records and proves state; it never makes the financing decision. Each claim is a voluntary self-disclosure — a financier shows their own claim the way a wallet holder shows their own wallet. Signatures use the Almstins published key; digests are Bitcoin-anchorable. No account, wallet, or identity is ever shown — only self-chosen labels.<br>
-      <a href="/verify">almstins.com/verify</a> · <a href="/artifacts/registry">see the concept demo</a>
+      <a href="/verify">almstins.com/verify</a>
     </p>
   </main>
 
@@ -571,6 +572,7 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
         <ul class="claims">${claims}</ul>
         ${attBlock}
         ${over ? `<div class="note note-loss"><b>Over-financed.</b> Claims exceed the face value — a double-pledge is already recorded here.</div>` : ''}
+        ${(!rcv.isTest && !(rcv.attestations || []).some((a: any) => a.role === 'buyer')) ? `<div class="note note-warn"><b>Not acknowledged by the debtor.</b> No buyer attestation is on record — this receivable is <b>Recorded</b>, not <b>Attested</b>. Any claim here rests on the supplier's word until the obligor confirms.</div>` : ''}
         ${settleBtn}
         ${renderSaveRow(rcv)}`);
       out.querySelector('[data-refresh]')?.addEventListener('click', () => query(rcv.id));
@@ -685,12 +687,37 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
     });
 
     // ---- 3. CLAIM (authed) ----
-    async function registerClaim(force: boolean) {
+    // Two guards at the pledge boundary. The headroom guard BLOCKS a double-pledge (enforced
+    // by the API, below). This one SCREAMS — a loud, skippable warning — when the debtor has
+    // never acknowledged the obligation, because financing an unconfirmed receivable is a risk
+    // decision that belongs to the financier, not a fact the registry should silently pass.
+    async function registerClaim(force: boolean, trustAck = false) {
       const out = $('k-out'); const btn = $('k-btn') as HTMLButtonElement;
       const receivableId = val('k-id'), financier = val('k-financier'), amount = Number(val('k-amount'));
       if (!/^[0-9a-fA-F]{64}$/.test(receivableId) || !financier || !(amount > 0)) {
         show(out, `<div class="note note-loss">A valid receivable ID, a financier name, and a positive amount are required.</div>`);
         return;
+      }
+      // Pre-pledge trust check (skippable, advisory). If the lookup can't be reached the pledge
+      // still proceeds — the warning is advisory; the headroom block below is not.
+      if (!trustAck) {
+        try {
+          const st = await (await fetch('/api/verify/receivables/lookup?id=' + encodeURIComponent(receivableId))).json();
+          if (st.ok && st.found && !st.receivable.isTest) {
+            const acknowledged = (st.receivable.attestations || []).some((a: any) => a.role === 'buyer');
+            if (!acknowledged) {
+              show(out, `
+                <div class="note note-warn"><b>The debtor has not acknowledged this receivable.</b> No buyer attestation is on record, so it sits at <b>Recorded</b>, not <b>Attested</b> — you would be financing on the supplier's word alone. This is a risk decision, not a block: Almstins flags it and leaves the call to you.</div>
+                <div class="row">
+                  <button class="btn" id="k-req-att" type="button">Ask the debtor to acknowledge first</button>
+                  <button class="btn" id="k-trustack" type="button">Finance anyway (I've assessed the risk)</button>
+                </div>`);
+              $('k-trustack').addEventListener('click', () => registerClaim(force, true));
+              $('k-req-att').addEventListener('click', () => { ($('a-id') as HTMLInputElement).value = receivableId; $('a-id').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+              return;
+            }
+          }
+        } catch (e) { /* advisory only — fall through and let the pledge proceed */ }
       }
       btn.disabled = true;
       const j = await authedPost('/api/verify/receivables/claim', {
@@ -725,8 +752,8 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
             <button class="btn" id="k-avail" type="button">Register only the available ${esc(String(j.available))}</button>
             <button class="btn" id="k-force" type="button">Record it anyway (acknowledged over-claim)</button>
           </div>`);
-        $('k-avail').addEventListener('click', () => { ($('k-amount') as HTMLInputElement).value = String(j.available); registerClaim(false); });
-        $('k-force').addEventListener('click', () => registerClaim(true));
+        $('k-avail').addEventListener('click', () => { ($('k-amount') as HTMLInputElement).value = String(j.available); registerClaim(false, true); });
+        $('k-force').addEventListener('click', () => registerClaim(true, true));
         return;
       }
       show(out, `<div class="note note-loss">${esc(j.message || 'Could not register the claim.')}</div>`);
@@ -750,6 +777,21 @@ const prefillId = Astro.url.searchParams.get('id') ?? '';
       show(out, `<div class="note note-gain"><b>Attestation recorded${j.signed ? ' and signed' : ''}.</b> It now shows on the receivable's status above. Anchor it to Bitcoin from there.</div>`);
       if (val('q-id') === receivableId) query(receivableId);
     });
+
+    // Role-aware example prompts, so the statement field shows the shape each role signs —
+    // the debtor's acknowledgment, the surveyor's inspection, etc.
+    (function wireAttestPlaceholder() {
+      const roleSel = $('a-role') as HTMLSelectElement;
+      const stmt = $('a-statement') as HTMLInputElement;
+      const examples: Record<string, string> = {
+        buyer: 'I owe ₦100,000,000 for invoice INV-4471, due 2026-09-30.',
+        supplier: 'I supplied the goods on invoice INV-4471; this receivable is unassigned as of today.',
+        inspector: 'Inspected 18,000 MT Grade-1 cocoa at Lagos load port on 2026-09-18; matches invoice INV-4471.',
+        other: 'A signed statement about this receivable.',
+      };
+      const sync = () => { stmt.placeholder = examples[roleSel.value] || examples.other; };
+      roleSel.addEventListener('change', sync); sync();
+    })();
 
     // ---- 3. Your receivables (authed; silent when signed out) ----
     async function loadMine() {
