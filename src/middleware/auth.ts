@@ -88,7 +88,12 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/verify/anchor' ||
 		// Receivables financing-status check — public, login-free; receivable ID → its
 		// financing status + claims (self-chosen labels only, never tenant_id/identity).
-		// The write endpoints (/api/verify/receivables, …/claim) stay behind the auth gate.
+		// The base list path is public too, so a signed-out visitor never triggers a 401 the
+		// browser would log to the console on the registry page: its GET returns an empty list
+		// for anon and the caller's own list when signed in (the handler resolves the session
+		// itself via requireTenantSession), while its POST/DELETE writes self-gate and return
+		// 401 for anon. Other receivables write endpoints (…/claim, …/reverify) stay gated here.
+		pathname === '/api/verify/receivables' ||
 		pathname === '/api/verify/receivables/lookup' ||
 		// Buyer confirmation — public, login-free. The single-use token IS the capability:
 		// the debtor being asked to confirm has no account and must never need one.

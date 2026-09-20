@@ -839,6 +839,8 @@ export async function reverifyReceivable(
   const status = await getReceivableStatus(id);
   if (!status) return { ok: false, error: 'not_found', message: 'No receivable found for that ID.' };
 
+  // Group digits so a detail line reads like the rest of the page (50,000,000 not 50000000).
+  const fmtAmt = (n: number) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 8 });
   const checks: ReverifyCheck[] = [];
 
   // 1. Integrity — the record has not been altered since it was signed. Load-bearing:
@@ -880,13 +882,13 @@ export async function reverifyReceivable(
   //    hard fail (a double-pledge is already on record); no headroom left is a caution.
   if (status.status === 'over_financed') {
     checks.push({ key: 'headroom', label: 'Financing headroom', state: 'fail',
-      detail: `Claims exceed face value — ${status.claimed} claimed against ${status.face} ${status.currency}.` });
+      detail: `Claims exceed face value — ${fmtAmt(status.claimed)} claimed against ${fmtAmt(status.face)} ${status.currency}.` });
   } else if (status.available <= 0) {
     checks.push({ key: 'headroom', label: 'Financing headroom', state: 'warn',
       detail: 'Fully encumbered — no unclaimed headroom remains.' });
   } else {
     checks.push({ key: 'headroom', label: 'Financing headroom', state: 'pass',
-      detail: `${status.available} of ${status.face} ${status.currency} is still unencumbered.` });
+      detail: `${fmtAmt(status.available)} of ${fmtAmt(status.face)} ${status.currency} is still unencumbered.` });
   }
 
   // 3. Debtor acknowledgment — a buyer attestation is what turns one firm's word into a debt the
