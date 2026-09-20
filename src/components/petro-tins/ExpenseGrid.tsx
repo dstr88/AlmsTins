@@ -54,6 +54,51 @@ export interface ExpenseGridProps {
 }
 
 /**
+ * A blank entry line. Each one owns its own draft, so pressing ＋ gives a real editable
+ * row (not a dead read-only one), and several can be filled before any is committed.
+ * Commits on Enter or blur of the formula/amount, then clears itself for the next entry.
+ */
+function NewEntryRow({ locked, onAddRow, calc }: {
+  locked?: boolean;
+  onAddRow?: (name: string, raw: string) => void;
+  calc: (raw: string) => number;
+}) {
+  const [name, setName] = useState('');
+  const [formula, setFormula] = useState('');
+  const [amt, setAmt] = useState('');
+  function commit() {
+    if (locked || !onAddRow) return;
+    const n = name.trim();
+    const raw = formula.trim() || amt.trim();
+    if (!n || !raw) return;
+    // Keep a formula that cannot resolve yet (a name it will match later); reject only a
+    // plain value that is not a number.
+    const looksLikeFormula = raw.startsWith('=') || /\[[^\]]+\]/.test(raw);
+    if (!looksLikeFormula && isNaN(calc(raw))) return;
+    onAddRow(n, raw);
+    setName(''); setFormula(''); setAmt('');
+  }
+  const enter = (e: { key: string }) => { if (e.key === 'Enter') commit(); };
+  return (
+    <tr className="xg__row">
+      <td className="xg__item">
+        <input placeholder={locked ? '' : 'item'} value={name} disabled={locked}
+          onChange={e => setName(e.target.value)} onKeyDown={enter} onBlur={commit} />
+      </td>
+      <td className="xg__formula">
+        <input placeholder={locked ? '' : 'formula'} value={formula} disabled={locked}
+          onChange={e => setFormula(e.target.value)} onKeyDown={enter} onBlur={commit} />
+      </td>
+      <td className="xg__amount">
+        <input placeholder={locked ? '' : '0'} value={amt} disabled={locked}
+          onChange={e => setAmt(e.target.value)} onKeyDown={enter} onBlur={commit} />
+      </td>
+      <td className="xg__amount"></td>
+    </tr>
+  );
+}
+
+/**
  * One expense grid: item, the formula behind it, and the amount it comes to.
  *
  * The formula column holds the working (e.g. =[Rent]*0.25) and stays blank when a row is
@@ -65,9 +110,6 @@ export default function ExpenseGrid({
   onRename, onRemove, onItemName, onAmount, onAddRow, onRemoveRow, onDeposit, locked,
 }: ExpenseGridProps) {
   const [draft, setDraft] = useState<Record<string, string>>({});
-  const [newName, setNewName] = useState('');
-  const [newFormula, setNewFormula] = useState('');
-  const [newAmt, setNewAmt] = useState('');
   const [extraBlanks, setExtraBlanks] = useState(0);
 
   const set = (k: string, v: string) => setDraft(d => ({ ...d, [k]: v }));
@@ -83,19 +125,6 @@ export default function ExpenseGrid({
   const expenses = rows.reduce((s, r) => s + r.amount, 0) + carried;
   const deposits = rows.reduce((s, r) => s + r.deposit, 0);
   const balance = deposits - expenses;
-
-  function commitNew() {
-    if (locked || !onAddRow) return;
-    const name = newName.trim();
-    const raw = (newFormula.trim() || newAmt.trim());
-    // Keep a formula that cannot resolve yet, same as an existing row. Refusing it here
-    // is why nothing could be added below the last saved line.
-    const looksLikeFormula = raw.startsWith('=') || /\[[^\]]+\]/.test(raw);
-    if (!name || !raw) return;
-    if (!looksLikeFormula && isNaN(calc(raw))) return;
-    onAddRow(name, raw);
-    setNewName(''); setNewFormula(''); setNewAmt('');
-  }
 
   return (
     <table className="xg">
@@ -213,34 +242,9 @@ export default function ExpenseGrid({
           </tr>
         )}
 
-        <tr className="xg__row">
-          <td className="xg__item">
-            <input placeholder={locked ? '' : 'item'} value={newName} disabled={locked}
-              onChange={e => setNewName(e.target.value)} />
-          </td>
-          <td className="xg__formula">
-            <input placeholder={locked ? '' : 'formula'} value={newFormula} disabled={locked}
-              onChange={e => setNewFormula(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') commitNew(); }}
-              onBlur={commitNew} />
-          </td>
-          <td className="xg__amount">
-            <input placeholder={locked ? '' : '0'} value={newAmt} disabled={locked}
-              onChange={e => setNewAmt(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') commitNew(); }}
-              onBlur={commitNew} />
-          </td>
-          <td className="xg__amount"></td>
-        </tr>
-
-        {/* Spare lines, one per press of + */}
-        {Array.from({ length: extraBlanks }).map((_, i) => (
-          <tr key={`blank:${i}`} className="xg__row">
-            <td className="xg__item"><input placeholder="item" disabled={locked} readOnly /></td>
-            <td className="xg__formula"><input placeholder="formula" disabled={locked} readOnly /></td>
-            <td className="xg__amount"><input placeholder="0" disabled={locked} readOnly /></td>
-            <td className="xg__amount"></td>
-          </tr>
+        {/* One entry line, plus one more per press of ＋ — each independently editable. */}
+        {Array.from({ length: 1 + extraBlanks }).map((_, i) => (
+          <NewEntryRow key={`new:${i}`} locked={locked} onAddRow={onAddRow} calc={raw => calc(raw)} />
         ))}
 
         <tr className="xg__addrow">
