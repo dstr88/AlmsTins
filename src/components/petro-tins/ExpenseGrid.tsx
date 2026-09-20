@@ -97,11 +97,11 @@ function NewEntryRow({ locked, onAddRow, calc }: {
           onChange={e => setFormula(e.target.value)} onKeyDown={enter} onBlur={commit} />
       </td>
       <td className="xg__amount">
-        <input placeholder={locked ? '' : '0'} value={amt} disabled={locked}
+        <input placeholder={locked ? '' : 'expense'} value={amt} disabled={locked}
           onChange={e => setAmt(e.target.value)} onKeyDown={enter} onBlur={commit} />
       </td>
       <td className="xg__amount">
-        <input placeholder={locked ? '' : '0'} value={dep} disabled={locked}
+        <input placeholder={locked ? '' : 'deposit'} value={dep} disabled={locked}
           onChange={e => setDep(e.target.value)} onKeyDown={enter} onBlur={commit} />
       </td>
     </tr>
