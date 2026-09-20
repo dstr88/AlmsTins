@@ -86,6 +86,13 @@
   .pill.pend{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
   .pill.anchor{cursor:pointer}
   .pill.anchor:hover{border-color:var(--accent-line)}
+  .pill.warn{color:var(--warn);border-color:var(--warn-line);background:var(--warn-soft)}
+  .reverify-lede{font-size:.9rem;color:var(--ink-2);margin:0 0 .9rem}
+  .reverify-lede b{color:var(--ink)}
+  .reverify-state{display:flex;flex-wrap:wrap;align-items:center;gap:.55rem}
+  .reverify-state .rv-meta{font-size:.8rem;color:var(--ink-3)}
+  .reverify-note{margin-top:.85rem;font-size:.86rem;color:var(--ink-2)}
+  .reverify-note b{color:var(--ink)}
 
   label{display:block;font-size:.74rem;font-family:"IBM Plex Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0 0 .35rem}
   input, select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;color:var(--ink);font:inherit;font-size:.9rem;padding:.55rem .7rem;transition:border-color .15s}
@@ -208,6 +215,18 @@
     </button>
 
     <div id="verdict"></div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step-eyebrow"><span class="n">4</span><span class="t">Does the proof stay true?</span></div>
+  <div class="card">
+    <p class="reverify-lede">A signature proves what was true when it was signed. It cannot promise the fact stayed true between the advance and settlement. The debtor's acknowledgment, the address funds point to, the reserves behind a claim &mdash; any can change while a claim is still outstanding. So a lender does not lean on the last check. They <b>verify now</b>, at the moment they act, and the proof fails closed: when it cannot be re-confirmed, its confidence steps down on its own rather than vouching forever.</p>
+    <div class="reverify-state" id="reverifyState"></div>
+    <div class="verdict-actions">
+      <button class="btn btn-primary" id="verifyNow" type="button">Verify now</button>
+      <button class="btn" id="verifyChanged" type="button">Verify now, against a changed source</button>
+    </div>
+    <div class="reverify-note" id="reverifyNote"></div>
   </div>
 
   <!-- ARCHITECTURE -->
@@ -420,6 +439,30 @@
     $('verdict').innerHTML = `<div class="verdict clear"><span class="badge">${svgSeal}</span><div><h2>${esc(who)}'s ${fmt(amt)} claim registered</h2><p>Signed with ${esc(who)}'s own key and added to the registry. The next lender who queries this receivable now sees <b>${fmt(d.claimed)}</b> claimed, <b>${fmt(d.avail)}</b> free. Anchor it to Bitcoin from its row above to make the date unforgeable.</p></div></div>`;
     $('amt2').value = Math.max(0, d.avail);
   }
+
+  // ---- "verify now": re-check a claim's proof on demand, and fail closed ----
+  let reverify = { state:'confirmed', at:Date.now() };
+  function rvTime(t){ try{ return new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }catch(e){ return 'now'; } }
+  function renderReverify(){
+    const el = $('reverifyState'); if(!el) return;
+    if (reverify.state === 'confirmed'){
+      el.innerHTML = `<span class="pill ok">${svgSeal}Re-confirmed &middot; ${esc(rvTime(reverify.at))}</span><span class="rv-meta">matched its source; confidence holds</span>`;
+    } else {
+      el.innerHTML = `<span class="pill warn">${svgClock}Could not re-confirm &middot; confidence lowered</span><span class="rv-meta">stepped down on its own &mdash; not shown as still true</span>`;
+    }
+  }
+  (function wireReverify(){
+    const ok = $('verifyNow'), bad = $('verifyChanged'), note = $('reverifyNote');
+    if (ok) ok.addEventListener('click', ()=>{
+      reverify = { state:'confirmed', at:Date.now() }; renderReverify();
+      if (note) note.innerHTML = `<b>Matched.</b> The re-check confirmed the proof against its source, so confidence holds and the freshness clock resets to now. A live proof is one that keeps re-confirming &mdash; not one that was true once.`;
+    });
+    if (bad) bad.addEventListener('click', ()=>{
+      reverify = { state:'stale', at:Date.now() }; renderReverify();
+      if (note) note.innerHTML = `<b>It did not stay green.</b> The source no longer matches, so the proof cannot be re-confirmed. Confidence steps down on its own, never up. That is fail-closed: an unconfirmable proof is treated as suspect, not as still true. The distance between <b>verified once</b> and <b>verified now</b>.`;
+    });
+    renderReverify();
+  })();
 
   // ---- boot: build receivable id + seed the first claim ----
   (async function boot(){
