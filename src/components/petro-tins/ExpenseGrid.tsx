@@ -46,7 +46,7 @@ export interface ExpenseGridProps {
   onItemName?: (rowId: string, next: string) => void;
   /** Saves whatever was typed — a formula or a plain number. */
   onAmount?: (rowId: string, raw: string) => void;
-  onAddRow?: (name: string, raw: string) => void;
+  onAddRow?: (name: string, raw: string, deposit?: number) => void;
   onRemoveRow?: (rowId: string, name: string) => void;
   /** Sets the deposit recorded against a row, replacing whatever was there. */
   onDeposit?: (rowId: string, amount: number) => void;
@@ -60,23 +60,30 @@ export interface ExpenseGridProps {
  */
 function NewEntryRow({ locked, onAddRow, calc }: {
   locked?: boolean;
-  onAddRow?: (name: string, raw: string) => void;
+  onAddRow?: (name: string, raw: string, deposit?: number) => void;
   calc: (raw: string) => number;
 }) {
   const [name, setName] = useState('');
   const [formula, setFormula] = useState('');
   const [amt, setAmt] = useState('');
+  const [dep, setDep] = useState('');
   function commit() {
     if (locked || !onAddRow) return;
     const n = name.trim();
-    const raw = formula.trim() || amt.trim();
-    if (!n || !raw) return;
-    // Keep a formula that cannot resolve yet (a name it will match later); reject only a
-    // plain value that is not a number.
-    const looksLikeFormula = raw.startsWith('=') || /\[[^\]]+\]/.test(raw);
-    if (!looksLikeFormula && isNaN(calc(raw))) return;
-    onAddRow(n, raw);
-    setName(''); setFormula(''); setAmt('');
+    const rawExp = formula.trim() || amt.trim();
+    const depNum = dep.trim() === '' ? 0 : Number(dep.replace(/[$,\s]/g, ''));
+    const hasExp = rawExp !== '';
+    const hasDep = Number.isFinite(depNum) && depNum > 0;
+    // A name plus at least one side of the line — an expense, income, or both.
+    if (!n || (!hasExp && !hasDep)) return;
+    if (hasExp) {
+      // Keep a formula that cannot resolve yet (a name it will match later); reject only a
+      // plain value that is not a number.
+      const looksLikeFormula = rawExp.startsWith('=') || /\[[^\]]+\]/.test(rawExp);
+      if (!looksLikeFormula && isNaN(calc(rawExp))) return;
+    }
+    onAddRow(n, hasExp ? rawExp : '0', hasDep ? depNum : 0);
+    setName(''); setFormula(''); setAmt(''); setDep('');
   }
   const enter = (e: { key: string }) => { if (e.key === 'Enter') commit(); };
   return (
@@ -93,7 +100,10 @@ function NewEntryRow({ locked, onAddRow, calc }: {
         <input placeholder={locked ? '' : '0'} value={amt} disabled={locked}
           onChange={e => setAmt(e.target.value)} onKeyDown={enter} onBlur={commit} />
       </td>
-      <td className="xg__amount"></td>
+      <td className="xg__amount">
+        <input placeholder={locked ? '' : '0'} value={dep} disabled={locked}
+          onChange={e => setDep(e.target.value)} onKeyDown={enter} onBlur={commit} />
+      </td>
     </tr>
   );
 }
