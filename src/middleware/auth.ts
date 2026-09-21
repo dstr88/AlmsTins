@@ -52,6 +52,9 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/verify' ||
 		pathname.startsWith('/verify/') ||
 		pathname === '/marchand' ||
+		// Receivables — public landing for the financing suite; a front door to the /verify
+		// tools. Must be reachable without a session (the gated desks handle their own login).
+		pathname === '/receivables' ||
 		// Artifacts — public static demos served from public/artifacts (e.g. /artifacts/demo)
 		pathname === '/artifacts' ||
 		pathname.startsWith('/artifacts/') ||
