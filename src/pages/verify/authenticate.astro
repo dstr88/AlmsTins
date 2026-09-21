@@ -1,4 +1,5 @@
 ---
+import Analytics from '@/components/Analytics.astro';
 // Almstins Verify — the obligor's confirmation page.
 //
 // Reached from an emailed link and nothing else. No account: this person acts once, gains
@@ -114,6 +115,7 @@ const ERRORS: Record<string, string> = {
     }
     .testbar b { color: var(--warning); }
   </style>
+	<Analytics />
 </head>
 <body>
   <div class="wrap">

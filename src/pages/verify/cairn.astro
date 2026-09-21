@@ -1,4 +1,5 @@
 ---
+import Analytics from '@/components/Analytics.astro';
 // Almstins Verify — PPPcairn milestone desk (Phase 0 + 1).
 //
 // A project is a financed piece of infrastructure; its milestones are the stages money is
@@ -42,6 +43,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
   <meta name="description" content="Record a financed project and its milestones, signed and timestamped." />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/favicon-verify.png" />
+	<Analytics />
 </head>
 <body>
   <div class="wrap">

@@ -1,4 +1,5 @@
 ---
+import Analytics from '@/components/Analytics.astro';
 // /tax → permanently redirect to /tax-login
 return Astro.redirect('/tax-login', 302);
 
@@ -171,6 +172,7 @@ const years = Array.from({ length: 8 }, (_, i) => currentYear - 1 - i);
 			.page { padding:0; }
 		}
 	</style>
+	<Analytics />
 </head>
 <body>
 <div class="page">

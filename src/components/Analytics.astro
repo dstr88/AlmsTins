@@ -1,0 +1,13 @@
+---
+// Google Analytics (GA4). Dropped into the <head> of pages and layouts that render their
+// own document, so every page is tracked. Layout.astro and LoginLayout.astro carry the same
+// tag inline, so they are intentionally NOT given this component (avoids double-counting).
+// is:inline keeps the snippet verbatim, exactly as GA expects, instead of Astro bundling it.
+---
+<script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-G3P0FSHN21"></script>
+<script is:inline>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-G3P0FSHN21');
+</script>
