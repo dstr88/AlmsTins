@@ -87,20 +87,40 @@ const trust = [
 
     <!-- Hero -->
     <header class="rhero">
-      <img class="rhero__mark" src={VerifyLogo} width="120" height="120" alt="Almstins Verify" loading="eager" decoding="async" />
-      <div class="rhero__eyebrow">Almstins Verify · Receivables</div>
-      <h1 class="rhero__title">Verify a receivable. Prove your own.</h1>
-      <p class="rhero__sub">
-        A shared, checkable record for any invoice: what is already financed against it, whether the
-        debtor has acknowledged it, and dated proof that stands up later. Read-only. Almstins records
-        and proves state; it never holds or moves the asset, and never makes the financing decision.
-      </p>
-      <div class="rhero__ctas">
-        <a class="rbtn" href="/verify/desk">Open the desk</a>
-        <a class="rbtn rbtn--demo" href="/artifacts/registry">Try the demo</a>
-        <a class="rbtn rbtn--ghost" href="/verify/registry">Check a receivable</a>
+      <div class="rhero__copy">
+        <h1 class="rhero__title">Verify a receivable. Prove your own.</h1>
+        <p class="rhero__sub">
+          A shared, checkable record for any invoice: what is already financed against it, whether the
+          debtor has acknowledged it, and dated proof that stands up later. Read-only. Almstins records
+          and proves state; it never holds or moves the asset, and never makes the financing decision.
+        </p>
+        <div class="rhero__ctas">
+          <a class="rbtn" href="/verify/desk">Open the desk</a>
+          <a class="rbtn rbtn--demo" href="/artifacts/registry">Try the demo</a>
+          <a class="rbtn rbtn--ghost" href="/verify/registry">Check a receivable</a>
+        </div>
+        <p class="rhero__who">For lenders, private-credit and factoring investors, the suppliers who raise the invoice, and the auditors who check it.</p>
       </div>
-      <p class="rhero__who">For lenders, private-credit and factoring investors, the suppliers who raise the invoice, and the auditors who check it.</p>
+
+      <!-- Synthetic product preview (decorative; the demo entity, never real data) -->
+      <div class="rhero__visual" aria-hidden="true">
+        <div class="rpreview">
+          <div class="rpreview__top">
+            <img class="rpreview__mark" src={VerifyLogo} width="26" height="26" alt="" loading="eager" decoding="async" />
+            <span class="rpreview__id">INV-4471</span>
+            <span class="rpreview__rag">Partially encumbered</span>
+          </div>
+          <div class="rpreview__lead">₦80,000,000 <span>of ₦100,000,000 financed</span></div>
+          <div class="rpreview__bar"><span></span></div>
+          <div class="rpreview__legend"><span>Claimed ₦80m</span><span class="rpreview__free">Free ₦20m</span></div>
+          <div class="rpreview__meta">Lagos Foods → MegaRetail</div>
+          <ul class="rpreview__rows">
+            <li><span class="rp-ok">✓</span> Debtor acknowledged the invoice</li>
+            <li><span class="rp-seal">⛓</span> Anchored to Bitcoin · 2026-07-12</li>
+            <li><span class="rp-warn">▲</span> A second claim would exceed the headroom</li>
+          </ul>
+        </div>
+      </div>
     </header>
 
     <!-- Demos -->
@@ -166,7 +186,7 @@ const trust = [
   .rpage {
     width: 100%;
     box-sizing: border-box;
-    max-width: 860px;
+    max-width: 1080px;
     margin: 0 auto;
     padding: 2.5rem 1.25rem 5rem;
     color: var(--text-primary);
@@ -218,21 +238,48 @@ const trust = [
   .rbtn--ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-bright); box-shadow: none; font-weight: 600; }
   .rbtn--ghost:hover { color: var(--text-primary); border-color: var(--accent); transform: none; }
 
-  /* Hero */
-  .rhero { text-align: center; padding: 2rem 0 2.75rem; border-bottom: 1px solid var(--border-subtle); margin-bottom: 3rem; }
-  .rhero__mark { display: block; width: 108px; height: 108px; margin: 0 auto 1.25rem; filter: drop-shadow(0 8px 26px var(--accent-glow)); }
-  .rhero__eyebrow {
-    display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-glow);
-    padding: 0.3rem 0.9rem; border-radius: 999px; margin-bottom: 1.25rem;
+  /* Hero — two columns: copy + a synthetic product preview */
+  .rhero {
+    display: grid; grid-template-columns: 1fr; gap: 2.25rem; align-items: center;
+    padding: 1.5rem 0 3rem; border-bottom: 1px solid var(--border-subtle); margin-bottom: 3rem;
   }
+  @media (min-width: 860px) { .rhero { grid-template-columns: 1.05fr 0.95fr; gap: 3rem; } }
+  .rhero__copy { min-width: 0; }
   .rhero__title {
-    font-size: clamp(1.9rem, 5vw, 3rem); font-weight: 800; line-height: 1.15; letter-spacing: -0.02em;
-    margin: 0 0 1.1rem; color: var(--text-primary); max-width: 20ch; margin-inline: auto;
+    font-size: clamp(1.9rem, 4.6vw, 2.9rem); font-weight: 800; line-height: 1.14; letter-spacing: -0.02em;
+    margin: 0 0 1.1rem; color: var(--text-primary);
   }
-  .rhero__sub { font-size: 1.08rem; color: var(--text-secondary); line-height: 1.75; max-width: 620px; margin: 0 auto 1.75rem; }
-  .rhero__ctas { display: flex; flex-wrap: wrap; gap: 0.85rem; justify-content: center; align-items: center; }
-  .rhero__who { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; margin: 1.75rem auto 0; max-width: 560px; }
+  .rhero__sub { font-size: 1.05rem; color: var(--text-secondary); line-height: 1.7; margin: 0 0 1.6rem; }
+  .rhero__ctas { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+  .rhero__who { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; margin: 1.5rem 0 0; }
+
+  /* Synthetic product-preview card (decorative) */
+  .rhero__visual { display: flex; justify-content: center; }
+  .rpreview {
+    width: 100%; max-width: 400px; box-sizing: border-box;
+    background: var(--surface-card-2); border: 1px solid var(--border-bright);
+    border-radius: 16px; padding: 1.2rem 1.3rem; box-shadow: 0 10px 40px var(--accent-glow);
+  }
+  .rpreview__top { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.95rem; }
+  .rpreview__mark { border-radius: 6px; display: block; }
+  .rpreview__id { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.72rem; letter-spacing: 0.04em; color: var(--text-muted); }
+  .rpreview__rag {
+    margin-left: auto; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border);
+    padding: 0.2rem 0.5rem; border-radius: 999px;
+  }
+  .rpreview__lead { font-size: 1.15rem; font-weight: 800; color: var(--text-primary); }
+  .rpreview__lead span { font-size: 0.82rem; font-weight: 500; color: var(--text-muted); }
+  .rpreview__bar { height: 8px; border-radius: 999px; background: var(--surface-hover); overflow: hidden; margin: 0.7rem 0 0.45rem; }
+  .rpreview__bar span { display: block; width: 80%; height: 100%; background: var(--warning); border-radius: 999px; }
+  .rpreview__legend { display: flex; justify-content: space-between; font-size: 0.76rem; color: var(--text-secondary); }
+  .rpreview__free { color: var(--gain); }
+  .rpreview__meta { font-size: 0.85rem; color: var(--text-secondary); margin: 0.85rem 0 0.9rem; padding-top: 0.85rem; border-top: 1px solid var(--border-subtle); }
+  .rpreview__rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+  .rpreview__rows li { display: flex; align-items: center; gap: 0.55rem; font-size: 0.84rem; color: var(--text-secondary); }
+  .rp-ok { color: var(--gain); font-weight: 800; }
+  .rp-seal { color: var(--accent); }
+  .rp-warn { color: var(--warning); font-weight: 800; }
 
   /* Sections */
   .rsection { margin-bottom: 2.75rem; }
