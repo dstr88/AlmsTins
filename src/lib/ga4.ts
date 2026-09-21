@@ -122,7 +122,16 @@ export interface GA4Summary {
   topSources:        { source: string; sessions: number; newUsers: number }[];
   topCountries:      { country: string; sessions: number }[];
   dailySessions:     { date: string; sessions: number }[];
+  /** Views of specific, auth-gated tool pages — a view here means a real session. */
+  toolTraffic:       { path: string; label: string; views: number; users: number }[];
 }
+
+/** Auth-gated tool pages to monitor on the admin dashboard. A pageview here is a real,
+ *  signed-in session (unauthenticated hits are redirected to login before the page renders). */
+const MONITORED_TOOLS = [
+  { path: '/verify/desk',  label: 'Financing Desk' },
+  { path: '/verify/cairn', label: 'Caire' },
+];
 
 export async function getGA4Summary(days = 28): Promise<GA4Summary | null> {
   if (!PROPERTY_ID || !PRIVATE_KEY) return null;
@@ -130,7 +139,7 @@ export async function getGA4Summary(days = 28): Promise<GA4Summary | null> {
   const dateRange = { startDate: `${days}daysAgo`, endDate: 'today' };
 
   try {
-    const [overview, pages, sources, countries, daily] = await Promise.all([
+    const [overview, pages, sources, countries, daily, toolPages] = await Promise.all([
       // 1 — Overall totals
       runReport({
         dateRanges: [dateRange],
@@ -175,6 +184,16 @@ export async function getGA4Summary(days = 28): Promise<GA4Summary | null> {
         metrics:    [{ name: 'sessions' }],
         orderBys:   [{ dimension: { dimensionName: 'date' }, desc: false }],
       }),
+
+      // 6 — Monitored tool pages (auth-gated, so a view is a real signed-in session)
+      runReport({
+        dateRanges: [dateRange],
+        dimensions: [{ name: 'pagePath' }],
+        metrics:    [{ name: 'screenPageViews' }, { name: 'totalUsers' }],
+        dimensionFilter: {
+          filter: { fieldName: 'pagePath', inListFilter: { values: MONITORED_TOOLS.map((t) => t.path) } },
+        },
+      }),
     ]);
 
     const tot      = overview[0] ?? {};
@@ -216,6 +235,10 @@ export async function getGA4Summary(days = 28): Promise<GA4Summary | null> {
         date:     String(r.date),
         sessions: Number(r.sessions),
       })),
+      toolTraffic: MONITORED_TOOLS.map((t) => {
+        const row = toolPages.find((x) => String(x.pagePath) === t.path);
+        return { path: t.path, label: t.label, views: Number(row?.screenPageViews ?? 0), users: Number(row?.totalUsers ?? 0) };
+      }),
     };
   } catch (err) {
     console.warn('[ga4] getGA4Summary failed:', err instanceof Error ? err.message : err);
