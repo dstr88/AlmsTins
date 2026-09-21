@@ -1,4 +1,5 @@
 ---
+import Analytics from '@/components/Analytics.astro';
 // Almstins Verify — product-specific sign-in for the role desks.
 //
 // The general landing page leads with a marketing CTA ("Start with the free checker"),
@@ -123,6 +124,7 @@ const failed = !!error;
     .trust { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; font-size: .78rem; color: var(--text-muted); }
     [hidden] { display: none !important; }
   </style>
+	<Analytics />
 </head>
 <body>
   <div class="wrap">

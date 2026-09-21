@@ -1,4 +1,5 @@
 ---
+import Analytics from '@/components/Analytics.astro';
 // Public record-verification utility. Verifies an Almstins proof bundle entirely
 // in the browser (or against a pasted public key), so a skeptical accountant /
 // auditor can confirm a record WITHOUT trusting almstins.com.
@@ -19,6 +20,7 @@ import VerifyRecordIsland from '@/components/recordProof/VerifyRecord';
     body { background: var(--surface-bg); color: var(--text-primary); min-height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
   </style>
+	<Analytics />
 </head>
 <body>
   <VerifyRecordIsland client:load />

@@ -1,4 +1,5 @@
 ---
+import Analytics from '@/components/Analytics.astro';
 // Almstins Verify — the client confirms his own deal was recorded correctly.
 //
 // The banker types everything in the banker-led flow: the client's name, the amount, the
@@ -104,6 +105,7 @@ const ERRORS: Record<string, string> = {
     }
     .testbar b { color: var(--warning); }
   </style>
+	<Analytics />
 </head>
 <body>
   <div class="wrap">

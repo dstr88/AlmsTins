@@ -1,4 +1,5 @@
 ---
+import Analytics from '@/components/Analytics.astro';
 // The pilot run sheet — the page you keep open during the call.
 //
 // noindex, no login. It is meant to be handed out by link, not found. A page beats a
@@ -125,6 +126,7 @@ const QUESTIONS = [
       section { break-inside: avoid; }
     }
   </style>
+	<Analytics />
 </head>
 <body>
   <div class="wrap">

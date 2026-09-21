@@ -1,4 +1,5 @@
 ---
+import Analytics from '@/components/Analytics.astro';
 // Almstins Verify — where a confirmer lands after answering.
 //
 // The attest / authenticate / offer / countersign pages used to leave the recipient sitting
@@ -52,6 +53,7 @@ export const prerender = false;
 
     .foot { font-size: .8rem; color: var(--text-muted); border-top: 1px solid var(--border-subtle); padding-top: 1.1rem; margin-top: .6rem; }
   </style>
+	<Analytics />
 </head>
 <body>
   <div class="wrap">
