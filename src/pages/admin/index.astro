@@ -576,6 +576,23 @@ const fmtDate = (iso: string | null) => {
 
 	<!-- ── Google Analytics 4 — last 28 days ────────────────────── -->
 	<div class="section">
+		<div class="section-title">Tool usage · last 28 days</div>
+		{ga4?.toolTraffic ? (
+			<div class="stat-grid">
+				{ga4.toolTraffic.map((t) => (
+					<div class="stat-card highlight">
+						<div class="stat-label">{t.label}</div>
+						<div class="stat-value">{t.views}</div>
+						<div class="stat-sub">{t.users} {t.users === 1 ? 'visitor' : 'visitors'} · authenticated views</div>
+					</div>
+				))}
+			</div>
+		) : (
+			<div class="ga4-unavailable">Google Analytics is not connected, so tool traffic is unavailable.</div>
+		)}
+	</div>
+
+	<div class="section">
 		<div class="section-title">Google Analytics · last 28 days</div>
 
 		{ga4 ? (
