@@ -49,9 +49,30 @@ const demos = [
 const partySteps = 'Buyers and suppliers reach the confirmation steps by a secure link, not from here: acknowledging a debt, confirming an invoice, attesting a deal, confirming funds arrived, reviewing a financing offer, or accepting an invitation. Each opens only from the link it was sent with.';
 
 const trust = [
-  { title: 'Read-only. No custody.', body: 'Almstins reads and records. It never holds, signs for, or moves the invoice or the money, so a breach of Almstins cannot move a thing.' },
-  { title: 'It organizes; it never decides.', body: 'The registry shows what is claimed and what is acknowledged. The financing call stays entirely yours.' },
-  { title: 'Provable, not promised.', body: 'Every record is signed, and its date can be anchored to Bitcoin, so it holds up in a dispute instead of resting on anyone’s word.' },
+  {
+    title: 'Read-only. No custody.',
+    body: 'Almstins reads and records. It never holds, signs for, or moves the invoice or the money, so a breach of Almstins cannot move a thing.',
+    more: [
+      'This is architecture, not a pledge. Almstins never asks for a private key, never requests permission to sign, and has no path to initiate or move a transaction. It reads public records and the records you import, and writes signed notes of what it saw.',
+      'Because it holds no keys and no funds, there is nothing in it worth stealing and no lever anyone, including us, could pull to move your money. The safety is a property of what the system cannot do, the same way no custody means we cannot lose your funds.',
+    ],
+  },
+  {
+    title: 'It organizes; it never decides.',
+    body: 'The registry shows what is claimed and what is acknowledged. The financing call stays entirely yours.',
+    more: [
+      'Almstins surfaces the facts a financier needs: is this receivable already claimed, has the debtor acknowledged it, is the proof anchored. Then it stops.',
+      'It never scores a counterparty, never says yes or no to a deal, never files or reports on anyone. The judgment, the price, and the risk stay with the people whose money is on the line. It is a shared record, not an underwriter and not a gatekeeper.',
+    ],
+  },
+  {
+    title: 'Provable, not promised.',
+    body: 'Every record is signed, and its date can be anchored to Bitcoin, so it holds up in a dispute instead of resting on anyone’s word.',
+    more: [
+      'Every receivable, claim, and confirmation is signed with a published key, and its fingerprint can be stamped into the Bitcoin blockchain: a date no one can move.',
+      'So when two parties disagree later, who claimed first, when the debtor acknowledged, whether a document changed, the answer is a dated, tamper-evident record instead of "trust me." Evidence that the control ran, contemporaneous and checkable, is what stands up to an auditor or a court.',
+    ],
+  },
 ];
 ---
 
@@ -158,18 +179,31 @@ const trust = [
       <p class="rnote">{partySteps}</p>
     </section>
 
-    <!-- Trust / bright lines -->
+    <!-- Trust / bright lines — each card opens a modal with the deeper explanation -->
     <section class="rsection rtrust" aria-labelledby="rtrust-h">
       <h2 id="rtrust-h" class="rsection__heading">Why you can rely on it</h2>
       <div class="rgrid">
-        {trust.map((p) => (
-          <div class="rcard rcard--static">
+        {trust.map((p, i) => (
+          <button class="rcard rcard--trust" type="button" data-rmodal={String(i)} aria-haspopup="dialog">
             <span class="rcard__title">{p.title}</span>
             <span class="rcard__body">{p.body}</span>
-          </div>
+            <span class="rcard__more">More <span aria-hidden="true">→</span></span>
+          </button>
         ))}
       </div>
     </section>
+
+    <!-- Modals for the trust cards -->
+    {trust.map((p, i) => (
+      <div class="rmodal" id={`rmodal-${i}`} role="dialog" aria-modal="true" aria-labelledby={`rmodal-${i}-t`} hidden>
+        <div class="rmodal__backdrop" data-rmodal-close></div>
+        <div class="rmodal__panel">
+          <button class="rmodal__x" type="button" data-rmodal-close aria-label="Close">✕</button>
+          <h3 class="rmodal__title" id={`rmodal-${i}-t`}>{p.title}</h3>
+          {p.more.map((para) => <p class="rmodal__p">{para}</p>)}
+        </div>
+      </div>
+    ))}
 
     <!-- Footer -->
     <footer class="rfoot">
@@ -179,6 +213,29 @@ const trust = [
     </footer>
 
   </div>
+
+  <script>
+    const closeModal = (m: Element | null) => {
+      if (!m) return;
+      (m as HTMLElement).hidden = true;
+      document.body.style.overflow = '';
+    };
+    document.querySelectorAll('[data-rmodal]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const m = document.getElementById('rmodal-' + btn.getAttribute('data-rmodal'));
+        if (!m) return;
+        (m as HTMLElement).hidden = false;
+        document.body.style.overflow = 'hidden';
+        (m.querySelector('.rmodal__x') as HTMLElement | null)?.focus();
+      });
+    });
+    document.querySelectorAll('[data-rmodal-close]').forEach((el) => {
+      el.addEventListener('click', () => closeModal(el.closest('.rmodal')));
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') document.querySelectorAll('.rmodal:not([hidden])').forEach((m) => closeModal(m));
+    });
+  </script>
 </LoginLayout>
 
 <style>
@@ -311,6 +368,25 @@ const trust = [
 
   /* Trust */
   .rtrust { border-top: 1px solid var(--border-subtle); padding-top: 2.5rem; }
+  /* Trust cards are buttons that open a modal */
+  .rcard--trust { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+  .rcard--trust:hover { border-color: var(--accent); transform: translateY(-2px); background: var(--surface-hover); }
+  .rcard__more { margin-top: 0.5rem; font-size: 0.8rem; font-weight: 700; color: var(--accent); }
+
+  /* Modal */
+  .rmodal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1.25rem; }
+  .rmodal[hidden] { display: none; }
+  .rmodal__backdrop { position: absolute; inset: 0; background: var(--surface-bg); opacity: 0.82; }
+  .rmodal__panel {
+    position: relative; z-index: 1; width: 100%; max-width: 560px; max-height: 85vh; overflow-y: auto;
+    background: var(--surface-card-2); border: 1px solid var(--border-bright); border-radius: 16px;
+    padding: 1.9rem 1.9rem 1.75rem; box-shadow: 0 24px 70px var(--accent-glow);
+  }
+  .rmodal__x { position: absolute; top: 0.85rem; right: 0.9rem; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 0.35rem; }
+  .rmodal__x:hover { color: var(--text-primary); }
+  .rmodal__title { font-size: 1.25rem; font-weight: 800; color: var(--text-primary); margin: 0 0 1rem; letter-spacing: -0.01em; padding-right: 1.5rem; }
+  .rmodal__p { font-size: 0.95rem; color: var(--text-secondary); line-height: 1.75; margin: 0 0 1rem; }
+  .rmodal__p:last-child { margin-bottom: 0; }
 
   /* Footer */
   .rfoot { text-align: center; border-top: 1px solid var(--border-subtle); padding-top: 2rem; margin-top: 1rem; display: flex; gap: 0.6rem; justify-content: center; align-items: center; }
