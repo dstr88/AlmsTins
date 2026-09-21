@@ -11,22 +11,15 @@ const canonical = 'https://almstins.com/receivables';
 // Every receivables service. The general Verify tools (safety scanner, publisher
 // attestation, the payment-agent API) live on /verify; the private milestone desk is
 // deliberately not listed here.
+// The three tools, shown together in one tile.
+const tools = [
+  { href: '/verify/desk', title: 'Financing Desk', body: 'Unencumbered headroom, a clear verdict, the claim register, and Verify now on any receivable.' },
+  { href: '/verify/registry', title: 'Check a receivable', body: 'Paste a receivable ID to see what is already claimed against it. Public, no login.' },
+  { href: '/verify/client', title: 'Client Portal', body: 'Record a receivable and hand its ID to the financiers you choose. Show it is real and unpledged.' },
+];
+
+// Secondary utility + reference links (below the tools).
 const groups = [
-  {
-    heading: 'Check & finance',
-    note: 'The financier’s side.',
-    cards: [
-      { href: '/verify/desk', title: 'Financing Desk', body: 'Unencumbered headroom, a clear verdict, the claim register, and Verify now on any receivable.' },
-      { href: '/verify/registry', title: 'Check a receivable', body: 'Paste a receivable ID to see what is already claimed against it. Public, no login.' },
-    ],
-  },
-  {
-    heading: 'Record & prove',
-    note: 'The supplier’s side.',
-    cards: [
-      { href: '/verify/client', title: 'Client Portal', body: 'Record a receivable and hand its ID to the financiers you choose. Show it is real and unpledged.' },
-    ],
-  },
   {
     heading: 'Sign in & reference',
     note: null,
@@ -143,6 +136,26 @@ const trust = [
         </div>
       </div>
     </header>
+
+    <!-- The tools: three in one tile, plus a "coming soon" tile to balance -->
+    <section class="rsection" aria-labelledby="rtools-h">
+      <h2 id="rtools-h" class="rsection__heading">The tools</h2>
+      <div class="rtiles">
+        <div class="rtile rtile--tools">
+          {tools.map((t) => (
+            <a class="rtool" href={t.href}>
+              <span class="rtool__title">{t.title}<span class="rtool__arrow" aria-hidden="true">→</span></span>
+              <span class="rtool__body">{t.body}</span>
+            </a>
+          ))}
+        </div>
+        <div class="rtile rtile--soon">
+          <span class="rtile__badge">Coming soon</span>
+          <span class="rtile__soon-title">More tools coming soon</span>
+          <span class="rtile__soon-body">New ways to record, verify, and prove are in the works.</span>
+        </div>
+      </div>
+    </section>
 
     <!-- Demos -->
     <section class="rsection" aria-labelledby="rdemo-h">
@@ -343,6 +356,29 @@ const trust = [
   .rsection__heading { font-size: clamp(1.2rem, 2.5vw, 1.55rem); font-weight: 800; letter-spacing: -0.01em; margin: 0 0 0.4rem; color: var(--text-primary); }
   .rsection__lede { font-size: 0.92rem; color: var(--text-muted); line-height: 1.6; margin: 0 0 1.25rem; }
   .rnote { font-size: 0.9rem; color: var(--text-muted); line-height: 1.75; margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem 1.25rem; }
+
+  /* The tools: two tiles (three tools on the left, "coming soon" on the right) */
+  .rtiles { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .rtiles { grid-template-columns: 1.45fr 1fr; align-items: stretch; } }
+  .rtile { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 16px; }
+  .rtile--tools { padding: 0.5rem; }
+  .rtool { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.85rem 0.95rem; border-radius: 12px; text-decoration: none; transition: background 0.15s ease; }
+  .rtool:hover { background: var(--surface-hover); }
+  .rtool + .rtool { border-top: 1px solid var(--border-subtle); }
+  .rtool__title { display: flex; align-items: center; gap: 0.5rem; font-size: 0.98rem; font-weight: 700; color: var(--text-primary); }
+  .rtool__arrow { margin-left: auto; color: var(--accent); font-weight: 700; }
+  .rtool__body { font-size: 0.86rem; color: var(--text-secondary); line-height: 1.55; }
+  .rtile--soon {
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0.55rem;
+    padding: 1.5rem 1.6rem; border-style: dashed; background: var(--surface-card-2);
+  }
+  .rtile__badge {
+    font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-glow);
+    padding: 0.2rem 0.55rem; border-radius: 999px;
+  }
+  .rtile__soon-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); }
+  .rtile__soon-body { font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; }
 
   /* Card grid */
   .rgrid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
