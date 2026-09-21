@@ -18,7 +18,6 @@ const groups = [
     cards: [
       { href: '/verify/desk', title: 'Financing Desk', body: 'Unencumbered headroom, a clear verdict, the claim register, and Verify now on any receivable.' },
       { href: '/verify/registry', title: 'Check a receivable', body: 'Paste a receivable ID to see what is already claimed against it. Public, no login.' },
-      { href: '/verify/offer', title: 'Make a financing offer', body: 'Put terms to a client and capture their signature before the money moves.' },
     ],
   },
   {
@@ -26,17 +25,6 @@ const groups = [
     note: 'The supplier’s side.',
     cards: [
       { href: '/verify/client', title: 'Client Portal', body: 'Record a receivable and hand its ID to the financiers you choose. Show it is real and unpledged.' },
-      { href: '/verify/invite', title: 'Invite a party', body: 'Bind a client, buyer, or financier to one role on one receivable.' },
-    ],
-  },
-  {
-    heading: 'Confirmation steps',
-    note: 'Usually opened from a link a party is sent.',
-    cards: [
-      { href: '/verify/confirm', title: 'Confirm what you owe', body: 'The buyer acknowledges the debt against their own interest — the step that makes a claim trustworthy.' },
-      { href: '/verify/authenticate', title: 'Confirm an invoice', body: 'A party confirms the invoice as recorded.' },
-      { href: '/verify/attest', title: 'Attest a deal', body: 'Is this your deal, as recorded? A signed statement bound to the receivable’s hash.' },
-      { href: '/verify/countersign', title: 'Confirm funds received', body: 'The supplier counter-signs that a lender’s advance actually arrived.' },
     ],
   },
   {
@@ -55,6 +43,10 @@ const demos = [
   { href: '/artifacts/registry', title: 'Receivables registry', body: 'Can two lenders finance the same invoice? Try the duplicate-financing check live, in your browser. No login.' },
   { href: '/artifacts/proof', title: 'A Bitcoin-anchored proof', body: 'See how a signed record earns a dated, tamper-evident timestamp on Bitcoin.' },
 ];
+
+// The party-facing steps arrive as a secure link and can't be browsed to — visiting one
+// without its token just shows "this link is not valid" — so they're named here, not linked.
+const partySteps = 'Buyers and suppliers reach the confirmation steps by a secure link, not from here: acknowledging a debt, confirming an invoice, attesting a deal, confirming funds arrived, reviewing a financing offer, or accepting an invitation. Each opens only from the link it was sent with.';
 
 const trust = [
   { title: 'Read-only. No custody.', body: 'Almstins reads and records. It never holds, signs for, or moves the invoice or the money, so a breach of Almstins cannot move a thing.' },
@@ -140,6 +132,11 @@ const trust = [
         </div>
       </section>
     ))}
+
+    <!-- Party-facing steps: named, not linked (they only open from a sent token) -->
+    <section class="rsection">
+      <p class="rnote">{partySteps}</p>
+    </section>
 
     <!-- Trust / bright lines -->
     <section class="rsection rtrust" aria-labelledby="rtrust-h">
@@ -241,6 +238,7 @@ const trust = [
   .rsection { margin-bottom: 2.75rem; }
   .rsection__heading { font-size: clamp(1.2rem, 2.5vw, 1.55rem); font-weight: 800; letter-spacing: -0.01em; margin: 0 0 0.4rem; color: var(--text-primary); }
   .rsection__lede { font-size: 0.92rem; color: var(--text-muted); line-height: 1.6; margin: 0 0 1.25rem; }
+  .rnote { font-size: 0.9rem; color: var(--text-muted); line-height: 1.75; margin: 0; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 1rem 1.25rem; }
 
   /* Card grid */
   .rgrid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
