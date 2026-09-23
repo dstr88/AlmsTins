@@ -3,6 +3,18 @@ import LoginLayout from '../layouts/LoginLayout.astro';
 import AlmstinsLogo from '../assets/logo.jpeg';
 import VerifyLogo from '../assets/verify-logo.svg?url';
 import { receivablesPath, receivablesLogin } from '../lib/receivables/paths';
+import AccountMenu from '../components/verify/AccountMenu.astro';
+import { requireTenantSession } from '../lib/requireTenantSession';
+import { getAuthSession } from '../lib/authSession';
+
+// One or the other, never both: a signed-in visitor (a real account, never the demo cookie)
+// gets the account menu and "Open the desk"; everyone else gets a single way to sign in.
+// Demos are for visitors who are not signed in: a signed-in account sees none of them.
+// The page now differs per visitor, so no proxy or browser may cache it.
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const sess = await requireTenantSession(Astro.request);
+const signedIn = !!sess && !sess.isDemo;
+const email = signedIn ? ((await getAuthSession(Astro.request))?.user?.email ?? null) : null;
 
 const title = 'Receivables — Almstins Verify';
 const description =
@@ -22,10 +34,10 @@ const tools = [
 // Secondary utility + reference links (below the tools).
 const groups = [
   {
-    heading: 'Sign in & reference',
+    heading: signedIn ? 'Reference' : 'Sign in & reference',
     note: null,
     cards: [
-      { href: receivablesLogin(), title: 'Sign in', body: 'Log in as a client or a financier.' },
+      ...(signedIn ? [] : [{ href: receivablesLogin(), title: 'Sign in', body: 'Log in as a client or a financier.' }]),
       { href: receivablesPath('guide'), title: 'Using the desk', body: 'A short guide to the financing desk.' },
       { href: receivablesPath('runsheet'), title: 'Pilot run sheet', body: 'Run one real receivable end to end.' },
       { href: receivablesPath('changelog'), title: 'What changed', body: 'The build log for Almstins Verify.' },
@@ -91,7 +103,9 @@ const trust = [
       <span class="rnav__tag">Receivables</span>
     </a>
     <div class="rnav__right">
-      <a class="rnav__login" href={receivablesLogin()}>Sign in</a>
+      {signedIn && sess
+        ? <AccountMenu tenantId={sess.tenantId} email={email} current="landing" />
+        : <a class="rnav__login" href={receivablesLogin()}>Sign in</a>}
       <a class="rnav__logo" href="/" aria-label="Almstins home">
         <img src={AlmstinsLogo.src} alt="Almstins" width="960" height="1104" loading="eager" decoding="async" />
       </a>
@@ -110,8 +124,10 @@ const trust = [
           and proves state; it never holds or moves the asset, and never makes the financing decision.
         </p>
         <div class="rhero__ctas">
-          <a class="rbtn" href={receivablesPath('desk')}>Open the desk</a>
-          <a class="rbtn rbtn--demo" href="/artifacts/registry">Try the demo</a>
+          {signedIn
+            ? <a class="rbtn" href={receivablesPath('desk')}>Open the desk</a>
+            : <a class="rbtn" href={receivablesLogin()}>Log in to get started</a>}
+          {!signedIn && <a class="rbtn rbtn--demo" href="/artifacts/registry">Try the demo</a>}
           <a class="rbtn rbtn--ghost" href={receivablesPath('registry')}>Check a receivable</a>
         </div>
         <p class="rhero__who">For lenders, private-credit and factoring investors, the suppliers who raise the invoice, and the auditors who check it.</p>
@@ -158,7 +174,8 @@ const trust = [
       </div>
     </section>
 
-    <!-- Demos -->
+    <!-- Demos (signed-out visitors only) -->
+    {!signedIn && (
     <section class="rsection" aria-labelledby="rdemo-h">
       <h2 id="rdemo-h" class="rsection__heading">See it work</h2>
       <p class="rsection__lede">Interactive, in your browser, no login. The mechanism, honestly shown.</p>
@@ -171,6 +188,7 @@ const trust = [
         ))}
       </div>
     </section>
+    )}
 
     <!-- Tools -->
     {groups.map((g) => (
@@ -431,6 +449,7 @@ const trust = [
   .rfoot__link:hover { color: var(--accent); }
   .rfoot__dot { color: var(--text-muted); }
 
+  @media (max-width: 640px) { .rnav__tag { display: none; } }
   @media (max-width: 480px) {
     .rpage { padding: 2rem 1rem 4rem; }
     .rnav { padding: 0.75rem 1rem; }
