@@ -72,14 +72,12 @@ const BATCH_CRY      = 'demo-batch-crypto-000000000000000000000';
 const BATCH_CRY_2025 = 'demo-batch-cry-2025-0000000000000000000';
 
 export const GET: APIRoute = async ({ request }) => {
-	// If the user is already authenticated, log them out first so demo mode
-	// starts with a clean session — useful when showing the app to someone else.
+	// The demo is not available to anyone signed in: a signed-in account goes to the real
+	// page the demo link was for (the same `next`, sanitized), never logged out into a demo.
 	const session = await getAuthSession(request).catch(() => null);
 	if (session?.user?.id) {
-		// Keep the caller's destination through the sign-out hop (sanitized both times).
 		const safeNext = safeNextPath(new URL(request.url).searchParams.get('next'));
-		const restart = '/api/demo/start' + (safeNext ? '?next=' + encodeURIComponent(safeNext) : '');
-		return new Response(null, { status: 302, headers: { Location: '/api/logout?next=' + encodeURIComponent(restart) } });
+		return new Response(null, { status: 302, headers: { Location: safeNext ?? '/dashboard' } });
 	}
 
 	// ── Pre-generate all UUIDs synchronously ─────────────────────────────────

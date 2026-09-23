@@ -23,8 +23,8 @@ import { DEMO_TENANT_ID } from '@/lib/demo';
 interface Props {
   tenantId: string;
   email?: string | null;
-  /** Which desk is showing, so the menu links to the others. */
-  current: 'client' | 'desk' | 'confirm' | 'project';
+  /** Which desk is showing, so the menu links to the others ('landing' = the /receivables landing). */
+  current: 'client' | 'desk' | 'confirm' | 'project' | 'landing';
 }
 const { tenantId, email = null, current } = Astro.props;
 
@@ -49,8 +49,9 @@ const others = DESKS.filter(
 );
 
 // Sign out returns to the sign-in page for the desk they were on.
+// From the public landing, sign-out simply returns to the landing.
 const currentHref = DESKS.find((d) => d.key === current)?.href ?? '/verify/desk';
-const backTo = `/verify/login?next=${currentHref}`;
+const backTo = current === 'landing' ? '/receivables' : `/verify/login?next=${currentHref}`;
 const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent(backTo)}`;
 ---
 
@@ -138,6 +139,8 @@ const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent(backTo)}
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .account-caret { font-size: 0.7rem; opacity: 0.6; transition: transform 0.2s; }
+  @media (max-width: 640px) { .account-label { max-width: 9rem; } }
+  @media (max-width: 400px) { .account-label { max-width: 6rem; } }
   .account-menu[open] .account-caret { transform: rotate(180deg); }
 
   .account-dropdown {
