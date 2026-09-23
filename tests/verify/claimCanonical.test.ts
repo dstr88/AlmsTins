@@ -80,7 +80,7 @@ vi.mock('@/lib/db', () => {
     if (sql.startsWith("UPDATE verify_destinations SET proof_status = 'proven'")) {
       const [id, tenantId] = args.slice(-2) as string[];
       const row = store.rows.find((r) => r.id === id && r.tenant_id === tenantId);
-      if (!row) return { rows: [] };
+      if (!row) return { rows: [], rowsAffected: 0 };
       // The real partial unique index on the RAW (rail, value) of proven address rows.
       if (store.rows.some((r) => r !== row && r.kind === 'address' && r.proof_status === 'proven'
         && r.rail === row.rail && r.value === row.value)) {
@@ -89,7 +89,16 @@ vi.mock('@/lib/db', () => {
       row.proof_status = 'proven';
       row.proof_method = sql.includes("'well_known'") ? 'well_known' : 'micro_deposit';
       if (sql.includes("'well_known'")) row.proof_domain = String(args[0]);
-      return { rows: [] };
+      return { rows: [], rowsAffected: 1 };
+    }
+    // A domain anchor (or re-confirm) on an already-proven address: attaches this domain.
+    if (sql.startsWith('UPDATE verify_destinations SET domain_anchored_at = CASE WHEN proof_domain IS NULL THEN ?')) {
+      const [, , domain, , , id, tenantId] = args as string[];
+      const row = store.rows.find((r) => r.id === id && r.tenant_id === tenantId && r.proof_status === 'proven'
+        && (r.proof_domain === null || r.proof_domain === domain));
+      if (!row) return { rows: [], rowsAffected: 0 };
+      row.proof_domain = domain;
+      return { rows: [], rowsAffected: 1 };
     }
     throw new Error(`fake db: unexpected SQL: ${sql}`);
   };
@@ -248,7 +257,7 @@ describe('the .well-known file flip runs the guard', () => {
       row({ id: 'twin', tenant_id: 'attacker', rail: 'ethereum', value: LOWER }),
     ];
     const res = await recordProofResult('attacker', 'attacker.example', [LOWER]);
-    expect(res).toEqual({ flipped: [], claimedElsewhere: ['twin'] });
+    expect(res).toEqual({ flipped: [], otherDomain: [], claimedElsewhere: ['twin'] });
     expect(guardCalls()).toHaveLength(1);
     expect(guardCalls()[0].args).toEqual(['address', 'attacker', LOWER]);
     expect(flipCalls()).toHaveLength(0);
@@ -261,7 +270,7 @@ describe('the .well-known file flip runs the guard', () => {
       row({ id: 'poly', tenant_id: 'attacker', rail: 'polygon', value: CHECKSUM }),
     ];
     const res = await recordProofResult('attacker', 'attacker.example', [CHECKSUM]);
-    expect(res).toEqual({ flipped: [], claimedElsewhere: ['poly'] });
+    expect(res).toEqual({ flipped: [], otherDomain: [], claimedElsewhere: ['poly'] });
     expect(flipCalls()).toHaveLength(0);
   });
 
@@ -275,7 +284,7 @@ describe('the .well-known file flip runs the guard', () => {
       ];
       store.calls = [];
       const res = await recordProofResult('attacker', 'attacker.example', [BTC]);
-      expect(res, rail).toEqual({ flipped: [], claimedElsewhere: ['twin'] });
+      expect(res, rail).toEqual({ flipped: [], otherDomain: [], claimedElsewhere: ['twin'] });
       expect(flipCalls(), rail).toHaveLength(0);
       expect(store.rows.find((r) => r.id === 'twin')!.proof_status, rail).toBe('unproven');
     }
@@ -287,7 +296,7 @@ describe('the .well-known file flip runs the guard', () => {
       row({ id: 'twin', tenant_id: 'attacker', rail: 'bitcoin', value: SOL }),
     ];
     expect(await recordProofResult('attacker', 'attacker.example', [SOL]))
-      .toEqual({ flipped: [], claimedElsewhere: ['twin'] });
+      .toEqual({ flipped: [], otherDomain: [], claimedElsewhere: ['twin'] });
 
     // A pre-allowlist row on a spelling like 'btc' still anchors the wallet.
     store.rows = [
@@ -295,7 +304,7 @@ describe('the .well-known file flip runs the guard', () => {
       row({ id: 'twin', tenant_id: 'attacker', rail: 'bitcoin', value: BTC }),
     ];
     expect(await recordProofResult('attacker', 'attacker.example', [BTC]))
-      .toEqual({ flipped: [], claimedElsewhere: ['twin'] });
+      .toEqual({ flipped: [], otherDomain: [], claimedElsewhere: ['twin'] });
   });
 
   it('the raw (rail, value) index alone would let a cross-rail twin through: the guard is what stops it', async () => {
@@ -317,8 +326,10 @@ describe('the .well-known file flip runs the guard', () => {
     const res = await recordProofResult('merchant', 'merchant.example', [CHECKSUM, BTC]);
     expect(res.claimedElsewhere).toEqual([]);
     expect(res.flipped.sort()).toEqual(['btc', 'eth', 'poly']);
-    // Guard ran once per row that needed a flip (not for the already-proven one).
-    expect(guardCalls()).toHaveLength(2);
+    // Guard ran once per row that gets a new claim: the two flips AND the new anchor on the
+    // self-send-proven one (an anchor lifts it to Verified, so it is a new public claim).
+    expect(guardCalls()).toHaveLength(3);
+    expect(store.rows.find((r) => r.id === 'eth')!.proof_domain).toBe('merchant.example');
     expect(store.rows.find((r) => r.id === 'poly')!.proof_status).toBe('proven');
     expect(store.rows.find((r) => r.id === 'btc')!.proof_domain).toBe('merchant.example');
   });
@@ -332,7 +343,7 @@ describe('the .well-known file flip runs the guard', () => {
     ];
     store.guardBlind = true;
     const res = await recordProofResult('other', 'other.example', [BTC]);
-    expect(res).toEqual({ flipped: [], claimedElsewhere: ['dup'] });
+    expect(res).toEqual({ flipped: [], otherDomain: [], claimedElsewhere: ['dup'] });
     expect(flipCalls()).toHaveLength(1);
     expect(store.rows.find((r) => r.id === 'dup')!.proof_status).toBe('unproven');
   });
@@ -341,7 +352,7 @@ describe('the .well-known file flip runs the guard', () => {
     store.rows = [row({ id: 'btc', tenant_id: 'merchant', rail: 'bitcoin', value: BTC })];
     store.guardThrows = true;
     const res = await recordProofResult('merchant', 'merchant.example', [BTC]);
-    expect(res).toEqual({ flipped: [], claimedElsewhere: [] });
+    expect(res).toEqual({ flipped: [], otherDomain: [], claimedElsewhere: [] });
     expect(flipCalls()).toHaveLength(0);
   });
 });

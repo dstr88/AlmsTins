@@ -1,0 +1,104 @@
+import { describe, it, expect } from 'vitest';
+import {
+  decideAnchor, decideAnchorLoss, anchoredSince, merchantAddressAssurance,
+  type MerchantAddressRow,
+} from '../../src/lib/verifyAnchor';
+
+/**
+ * Control (proven_at, proof_method) and the domain anchor (proof_domain, domain_anchored_at)
+ * are separate facts. These pin the decisions that keep them separate: a domain proof may
+ * attach a domain to a self-send-proven address but never move it between domains, losing the
+ * anchor never destroys a self-send control proof, and "verified since" is the anchor's age.
+ */
+const addr = (proofStatus: string, proofDomain: string | null) => ({ kind: 'address', proofStatus, proofDomain });
+
+describe('decideAnchor (what a successful domain proof does to a destination)', () => {
+  it('skips anything the file does not list, and every QR', () => {
+    expect(decideAnchor(addr('unproven', null), 'shop.com', false)).toBe('skip');
+    expect(decideAnchor(addr('proven', null), 'shop.com', false)).toBe('skip');
+    expect(decideAnchor({ kind: 'qr', proofStatus: 'proven', proofDomain: null }, 'shop.com', true)).toBe('skip');
+  });
+
+  it('proves and anchors an unproven or lapsed address', () => {
+    expect(decideAnchor(addr('unproven', null), 'shop.com', true)).toBe('flip');
+    expect(decideAnchor(addr('lapsed', 'shop.com'), 'shop.com', true)).toBe('flip');
+  });
+
+  it('attaches the domain to a self-send-proven address (Claimed → Verified)', () => {
+    expect(decideAnchor(addr('proven', null), 'shop.com', true)).toBe('anchor');
+  });
+
+  it('re-confirms an address already anchored to the same domain', () => {
+    expect(decideAnchor(addr('proven', 'shop.com'), 'shop.com', true)).toBe('reconfirm');
+  });
+
+  it('never moves an address anchored to a different domain', () => {
+    expect(decideAnchor(addr('proven', 'shop.com'), 'shop-pay.com', true)).toBe('other_domain');
+  });
+});
+
+describe('decideAnchorLoss (the watchman sees the domain stop vouching)', () => {
+  it('lapses only an address whose control was proven by the file itself', () => {
+    expect(decideAnchorLoss('well_known')).toBe('lapse');
+  });
+
+  it('keeps a self-send control proof and only drops the anchor', () => {
+    expect(decideAnchorLoss('micro_deposit')).toBe('unanchor');
+    // Any other method is also control proven elsewhere: never lapse it on a file change.
+    expect(decideAnchorLoss('none')).toBe('unanchor');
+    expect(decideAnchorLoss('')).toBe('unanchor');
+  });
+});
+
+const CUTOFF = '2026-09-22 12:00:00'; // 24h before "now" in these cases
+const row = (o: Partial<MerchantAddressRow>): MerchantAddressRow => ({
+  proofMethod: 'micro_deposit', proofDomain: null, provenAt: '2026-01-01 00:00:00',
+  domainAnchoredAt: null, lastConfirmedAt: null, ...o,
+});
+
+describe('anchoredSince', () => {
+  it('uses the recorded anchor date when present', () => {
+    expect(anchoredSince(row({ proofDomain: 'shop.com', domainAnchoredAt: '2026-09-20 08:00:00' }))).toBe('2026-09-20 08:00:00');
+  });
+
+  it('falls back to proven_at only for legacy file-proven rows (the file anchored them then)', () => {
+    expect(anchoredSince(row({ proofMethod: 'well_known', proofDomain: 'shop.com' }))).toBe('2026-01-01 00:00:00');
+  });
+
+  it('never borrows a self-send proof date as the anchor date', () => {
+    expect(anchoredSince(row({ proofDomain: 'shop.com' }))).toBeNull();
+  });
+});
+
+describe('merchantAddressAssurance (public level + since)', () => {
+  it('self-send only → claimed, since = control proof date', () => {
+    expect(merchantAddressAssurance(row({}), CUTOFF)).toEqual({ level: 'claimed', since: '2026-01-01 00:00:00' });
+  });
+
+  it('self-send + fresh domain anchor → verified, since = anchor date (not the older self-send)', () => {
+    const r = row({ proofDomain: 'shop.com', domainAnchoredAt: '2026-09-22 20:00:00', lastConfirmedAt: '2026-09-22 20:00:00' });
+    expect(merchantAddressAssurance(r, CUTOFF)).toEqual({ level: 'verified', since: '2026-09-22 20:00:00' });
+  });
+
+  it('a stale anchor degrades to claimed and reports the control date', () => {
+    const r = row({ proofDomain: 'shop.com', domainAnchoredAt: '2026-09-01 00:00:00', lastConfirmedAt: '2026-09-10 00:00:00' });
+    expect(merchantAddressAssurance(r, CUTOFF)).toEqual({ level: 'claimed', since: '2026-01-01 00:00:00' });
+  });
+
+  it('freshness falls back to the anchor date, never to an old self-send date', () => {
+    // Anchored but never confirmed since: the self-send date (Jan) must not count as a confirm.
+    expect(merchantAddressAssurance(row({ proofDomain: 'shop.com' }), CUTOFF).level).toBe('claimed');
+    const fresh = row({ proofDomain: 'shop.com', domainAnchoredAt: '2026-09-23 01:00:00' });
+    expect(merchantAddressAssurance(fresh, CUTOFF)).toEqual({ level: 'verified', since: '2026-09-23 01:00:00' });
+  });
+
+  it('legacy file-proven row keeps its behavior: verified since proven_at while fresh', () => {
+    const r = row({ proofMethod: 'well_known', proofDomain: 'shop.com', provenAt: '2026-05-01 12:00:00', lastConfirmedAt: '2026-09-23 00:00:00' });
+    expect(merchantAddressAssurance(r, CUTOFF)).toEqual({ level: 'verified', since: '2026-05-01 12:00:00' });
+  });
+
+  it('a cleared anchor is claimed even if a published-page check was fresh', () => {
+    const r = row({ proofDomain: null, lastConfirmedAt: '2026-09-23 00:00:00' });
+    expect(merchantAddressAssurance(r, CUTOFF).level).toBe('claimed');
+  });
+});

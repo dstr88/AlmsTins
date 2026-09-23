@@ -21,6 +21,7 @@ import {
 } from './verifyTestAmount';
 import { isEmvPayload, parseEmv, parseUpi, paymentFormat } from './paymentQr';
 import { normalizeName, registrableLabel, nameMatchesDomain } from './verifyNameMatch';
+import { decideAnchor, decideAnchorLoss } from './verifyAnchor';
 
 /** SHA-256 hex — used to store a non-URL payment-QR identifier (PIX key / UPI VPA) as a
  *  hash, never the raw key (it can be a CPF/phone/email — PII we never hold). */
@@ -262,6 +263,11 @@ export async function ensureVerifyTables(): Promise<void> {
   }
   try { await db.execute({ sql: `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS display_hint TEXT`, args: [] }); }
   catch (e) { console.error('[verify] display_hint column not applied:', e); }
+  // When proof_domain was attached. Kept apart from proven_at (when CONTROL was proven) so a
+  // domain added later to a self-send-proven address doesn't inherit its older age. Mirrors
+  // migrations-pg/0035_verify_domain_anchor.sql.
+  try { await db.execute({ sql: `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS domain_anchored_at TEXT`, args: [] }); }
+  catch (e) { console.error('[verify] domain_anchored_at column not applied:', e); }
   // Backstop only — never let a pre-existing duplicate-proven row break Verify.
   try { await db.execute({ sql: ENSURE_CLAIM_IDX, args: [] }); }
   catch (e) { console.error('[verify] claim-once index not applied (resolve duplicate proven claims):', e); }
@@ -791,25 +797,36 @@ export async function getChallenge(tenantId: string, domain: string): Promise<st
   return res.rows.length ? String((res.rows[0] as any).challenge_token) : null;
 }
 
-export interface ProofFlipResult {
-  /** Destinations the file vouches for that are now proven (including already-ours). */
+export interface ProofRecordResult {
+  /** Destinations the published file now anchors to this domain (newly proven, newly
+   *  anchored, or re-confirmed). Only ids whose UPDATE actually landed. */
   flipped: string[];
-  /** Vouched destinations held out because another account already proved that wallet. */
+  /** Listed destinations already anchored to a DIFFERENT domain — left untouched. */
+  otherDomain: string[];
+  /** Listed destinations held out because another account already proved that wallet
+   *  (S5a claim guard, or the claim-once index in a race) — left as they were. */
   claimedElsewhere: string[];
 }
 
 /**
- * Record a successful proof: mark the (tenant, domain) proof proven and flip every
- * registered address destination whose value the published file vouches for. Both
- * sides are normalized for the match. A listing is not a control proof, so each flip
- * first passes the S5a claim guard: a wallet another account already proved (in any
- * case, under any rail) is held out and reported as claimed elsewhere.
+ * Record a successful proof: mark the (tenant, domain) proof proven and anchor every
+ * registered address destination the published file lists (see decideAnchor). Both sides
+ * are normalized for the match.
+ *  - Unproven/lapsed → proven by the file (well_known) and anchored.
+ *  - Already proven another way (self-send) → the domain is ATTACHED; the control proof
+ *    (proof_method, proven_at) is kept, and domain_anchored_at records the anchor's own age.
+ *  - Already anchored to this domain → re-confirmed (keeps its original anchor date).
+ *  - Anchored to a different domain → never moved.
+ * A listing is not a control proof, so a flip or a new anchor first passes the S5a claim
+ * guard: a wallet another account already proved (in any case, under any rail) is held out
+ * and reported as claimed elsewhere. A re-confirm makes no new claim (the watchman
+ * re-confirms the same anchor the same way), so it skips the guard.
  */
 export async function recordProofResult(
   tenantId: string,
   domain: string,
   fileAddresses: string[],
-): Promise<ProofFlipResult> {
+): Promise<ProofRecordResult> {
   await ensureVerifyTables();
   const now = nowUtc();
   await db.execute({
@@ -820,31 +837,45 @@ export async function recordProofResult(
   });
   const vouched = new Set(fileAddresses.map(normalizeDestinationValue).filter(Boolean));
   const dests = await listDestinations(tenantId);
-  const flipped: string[] = [];
-  const claimedElsewhere: string[] = [];
+  const out: ProofRecordResult = { flipped: [], otherDomain: [], claimedElsewhere: [] };
   for (const d of dests) {
-    if (d.kind !== 'address') continue;
-    if (!vouched.has(normalizeDestinationValue(d.value))) continue;
-    if (d.proofStatus === 'proven') { flipped.push(d.id); continue; } // already ours
+    const action = decideAnchor(d, domain, vouched.has(normalizeDestinationValue(d.value)));
+    if (action === 'skip') continue;
+    if (action === 'other_domain') { out.otherDomain.push(d.id); continue; }
     try {
-      if (await isClaimedElsewhere(tenantId, 'address', d.value)) {
-        claimedElsewhere.push(d.id);
+      if (action !== 'reconfirm' && await isClaimedElsewhere(tenantId, 'address', d.value)) {
+        out.claimedElsewhere.push(d.id);
         continue;
       }
-      await db.execute({
-        sql: `UPDATE verify_destinations
-              SET proof_status = 'proven', proof_method = 'well_known', proof_domain = ?, proven_at = ?, updated_at = ?
-              WHERE id = ? AND tenant_id = ?`,
-        args: [domain, now, now, d.id, tenantId],
-      });
-      flipped.push(d.id);
+      const res = action === 'flip'
+        ? await db.execute({
+            sql: `UPDATE verify_destinations
+                  SET proof_status = 'proven', proof_method = 'well_known', proof_domain = ?, proven_at = ?,
+                      domain_anchored_at = ?, last_confirmed_at = ?, updated_at = ?
+                  WHERE id = ? AND tenant_id = ? AND kind = 'address' AND proof_status <> 'proven'`,
+            args: [domain, now, now, now, now, d.id, tenantId],
+          })
+        // 'anchor' | 'reconfirm'. The WHERE re-checks the anchor rule so a concurrent anchor to
+        // another domain can't be overwritten. A re-confirm keeps its anchor date (a legacy
+        // well_known row falls back to proven_at, which is when its file anchored it).
+        : await db.execute({
+            sql: `UPDATE verify_destinations
+                  SET domain_anchored_at = CASE WHEN proof_domain IS NULL THEN ?
+                        ELSE COALESCE(domain_anchored_at, CASE WHEN proof_method = 'well_known' THEN proven_at END, ?) END,
+                      proof_domain = ?, last_confirmed_at = ?, updated_at = ?
+                  WHERE id = ? AND tenant_id = ? AND kind = 'address' AND proof_status = 'proven'
+                    AND (proof_domain IS NULL OR proof_domain = ?)`,
+            args: [now, now, domain, now, now, d.id, tenantId, domain],
+          });
+      if ((res.rowsAffected ?? 0) > 0) out.flipped.push(d.id);
+      else console.warn('[verify] destination not anchored (changed concurrently):', d.id);
     } catch (e) {
       // Claim-once backstop: the partial unique index rejects an exact (rail, value) that
       // another account proved in the moment since the guard ran (Postgres 23505). Any
-      // other error (the guard itself failing) also leaves the row unproven: fail closed,
+      // other error (the guard itself failing) also leaves the row as it was: fail closed,
       // without failing the whole proof.
-      if ((e as { code?: string })?.code === '23505') claimedElsewhere.push(d.id);
-      console.warn('[verify] destination not flipped (already claimed elsewhere?):', d.id, e);
+      if ((e as { code?: string })?.code === '23505') out.claimedElsewhere.push(d.id);
+      console.warn('[verify] destination not anchored (already claimed elsewhere?):', d.id, e);
     }
   }
   // A proven domain unlocks its matching business name: reserve the domain-anchored name
@@ -854,7 +885,7 @@ export async function recordProofResult(
       try { await tryClaimVerifiedName(tenantId, d.label); } catch { /* non-fatal */ }
     }
   }
-  return { flipped, claimedElsewhere };
+  return out;
 }
 
 /**
@@ -932,20 +963,40 @@ export async function getProvenAddressDestinations(tenantId: string, domain: str
 }
 
 /**
- * Flip specific destinations back to 'lapsed' (no longer vouched by the published
- * file). The dashboard then prompts a re-prove. Flipping them OUT of 'proven' also
- * dedups the alert — next run they're excluded from the expected set.
+ * A proven domain no longer vouches for these destinations (its file stopped validating, or
+ * stopped listing them). What that costs each one depends on how CONTROL was proven
+ * (decideAnchorLoss):
+ *  - well_known → 'lapsed': the file WAS the control proof. The dashboard prompts a re-prove,
+ *    and flipping it OUT of 'proven' also dedups the alert (next run excludes it).
+ *  - otherwise (self-send) → the domain anchor (and its confirmation) is cleared and control
+ *    stays proven, so the public level drops verified → claimed and the claim-once index
+ *    keeps holding the address.
+ *    Clearing proof_domain also drops it from this domain's next run (alert dedup).
+ * Tenant-scoped; each UPDATE re-checks the method and the anchor it acts on.
  */
-export async function markDestinationsLapsed(tenantId: string, ids: string[]): Promise<void> {
-  if (!ids.length) return;
+export async function releaseDomainAnchor(
+  tenantId: string,
+  domain: string,
+  dests: Pick<Destination, 'id' | 'proofMethod'>[],
+): Promise<void> {
+  if (!dests.length) return;
   await ensureVerifyTables();
   const now = nowUtc();
-  for (const id of ids) {
-    await db.execute({
-      sql: `UPDATE verify_destinations SET proof_status = 'lapsed', updated_at = ?
-            WHERE id = ? AND tenant_id = ?`,
-      args: [now, id, tenantId],
-    });
+  for (const d of dests) {
+    if (decideAnchorLoss(d.proofMethod) === 'lapse') {
+      await db.execute({
+        sql: `UPDATE verify_destinations SET proof_status = 'lapsed', updated_at = ?
+              WHERE id = ? AND tenant_id = ? AND proof_method = 'well_known' AND proof_domain = ?`,
+        args: [now, d.id, tenantId, domain],
+      });
+    } else {
+      await db.execute({
+        sql: `UPDATE verify_destinations
+              SET proof_domain = NULL, domain_anchored_at = NULL, last_confirmed_at = NULL, updated_at = ?
+              WHERE id = ? AND tenant_id = ? AND proof_method <> 'well_known' AND proof_domain = ?`,
+        args: [now, d.id, tenantId, domain],
+      });
+    }
   }
 }
 
@@ -1461,11 +1512,14 @@ export async function verifyMicroDeposit(
   }
 
   // Claim-once: the partial unique index rejects the flip if another account already
-  // proved this (rail, value). Catch and report rather than failing hard.
+  // proved this (rail, value). Catch and report rather than failing hard. A self-send
+  // proves control only, so any domain anchor (and its confirmation) left over from an
+  // earlier, now lapsed, file proof is cleared: only a fresh domain proof re-anchors it.
   try {
     await db.execute({
       sql: `UPDATE verify_destinations
-            SET proof_status = 'proven', proof_method = 'micro_deposit', proven_at = ?, updated_at = ?
+            SET proof_status = 'proven', proof_method = 'micro_deposit', proven_at = ?,
+                proof_domain = NULL, domain_anchored_at = NULL, last_confirmed_at = NULL, updated_at = ?
             WHERE id = ? AND tenant_id = ? AND proof_status <> 'proven'`,
       args: [stamp, stamp, destinationId, tenantId],
     });
