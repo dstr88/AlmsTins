@@ -215,7 +215,7 @@
   </div>
 
   <p class="foot">
-    This page runs the real thing in miniature: a domain-separated <b>SHA-256 Merkle tree</b> over the records, a canonical manifest, and a digest an anchor pins to a time it doesn't control. Signature uses your browser's <b>Ed25519</b> where available. Keys are generated fresh in your browser for this page and discarded when you leave, so a demo signature can never pass as Almstins' production signing key.
+    This page runs the real thing in miniature: a domain-separated <b>SHA-256 Merkle tree</b> over the records, a canonical manifest, and a digest an anchor pins to a time it doesn't control. Signature uses your browser's <b>Ed25519</b> where available. Keys are generated fresh in your browser for this page and discarded when you leave (a browser without Ed25519 gets an unkeyed SHA-256 seal instead), so a demo signature can never pass as Almstins' production signing key.
     In production, Almstins signs the manifest with its own Ed25519 key and anchors the digest to <b>Bitcoin via OpenTimestamps</b> — so "verified since" is provable against a public chain, not against our word. Change the date and the anchored digest stops matching. That is the whole idea: <code>the plumbing hides, the proof never does</code>.
   </p>
 </div>

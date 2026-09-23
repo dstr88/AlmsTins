@@ -122,7 +122,7 @@
   <p class="kick">Verify · Proof</p>
 
   <h1>One test proof, checked in front of you</h1>
-  <p class="lede">This is a <b>TEST</b> proof in the exact format Almstins Verify produces. It is signed with a throwaway <b>TEST key</b>, not Almstins' production key, and its digest was submitted through OpenTimestamps to be anchored in a <b>Bitcoin block</b>. Nothing below trusts our word. Your browser recomputes every check live with real cryptography, and you can confirm the Bitcoin timestamp yourself against the public chain.</p>
+  <p class="lede">This is a <b>TEST</b> proof in the scoped-proof format Almstins is building for Verify. It is signed with a throwaway <b>TEST key</b>, not Almstins' production key, and its digest was submitted through OpenTimestamps to be anchored in a <b>Bitcoin block</b>. Nothing below trusts our word. Your browser recomputes every check live with real cryptography, and once Bitcoin confirms the anchor you can check the timestamp yourself against the public chain.</p>
 
   <div class="verdict" id="verdict">
     <span class="badge" id="verdictBadge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/></svg></span>
@@ -166,7 +166,7 @@
   </div>
 
   <div class="card btc">
-    <h3>Timestamped in Bitcoin</h3>
+    <h3>Bitcoin timestamp</h3>
     <div class="when" id="btcWhen">—</div>
     <div class="sub" id="btcSub">Block time of the Bitcoin transaction that commits this proof's digest. Almstins cannot forge or backdate it — it would have to rewrite Bitcoin.</div>
     <dl class="kv">
@@ -197,7 +197,7 @@
   <div class="cta">
     <div>
       <div class="cta-t">Make one yourself</div>
-      <div class="cta-d">This test proof uses the same format Almstins Verify produces. Claim and prove control of your own address — no wallet connection, no private keys.</div>
+      <div class="cta-d">This test proof shows the proof format Almstins is building for Verify. Claim and prove control of your own address — no wallet connection, no private keys.</div>
     </div>
     <div class="cta-actions">
       <a class="btn cta-primary" href="/verify">Try Almstins Verify</a>
@@ -206,7 +206,7 @@
   </div>
 
   <p class="foot">
-    Verified locally with your browser's WebCrypto — SHA-256 Merkle tree, RFC-8785 canonical manifest, and Ed25519 signature. No request leaves this page to check the proof. The TEST key that signed this proof was generated in memory for this one signing, never saved, and discarded afterward, so a demo signature can never pass as Almstins' production signing key.<br>
+    Verified locally with your browser's WebCrypto — SHA-256 Merkle tree, RFC-8785 canonical manifest, and Ed25519 signature. No request leaves this page to check the proof. The TEST key that signed this proof was generated in memory for this one signing, never saved, and discarded afterward. Its key ID is not Almstins' published production key (listed at /.well-known/almstins-signing-key.json), so this proof cannot pass as a real Almstins record.<br>
     See the interactive concept at <a href="/artifacts/demo">/artifacts/demo</a>.
   </p>
 </main>
