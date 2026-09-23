@@ -1,5 +1,5 @@
 /**
- * PPPcairn — milestone / disbursement evidence layer.
+ * Milestone desk — milestone / disbursement evidence layer.
  *
  * Sibling of receivablesRegistry.ts, same primitives, different nouns: a PROJECT (a financed
  * piece of infrastructure) holds an ordered list of MILESTONES, each tied to a tranche of
@@ -13,7 +13,7 @@
  * No documents or disbursements yet (Phases 2–3).
  *
  * Bright lines (inherited from Almstins): no money movement ever; no attribution; tenant
- * isolation (every query scoped by tenant_id); project id = capability. See pppcairn.md.
+ * isolation (every query scoped by tenant_id); project id = capability. Design notes live in a gitignored doc.
  *
  * Lazy ensureCairnTables() + app-enforced tenant isolation, mirroring receivablesRegistry.ts.
  */
@@ -662,7 +662,7 @@ export async function getProjectForOwner(
 // The load-bearing proof of the whole product: an independent party puts their name to
 // "this stage of the work is reached" through a single-use link, and the answer is signed
 // by Almstins' key, bound to the milestone hash, and stamped to Bitcoin at write time. The
-// lender still decides and still moves the money; PPPcairn only makes the fact provable.
+// lender still decides and still moves the money; the milestone desk only makes the fact provable.
 
 /** Two weeks, not the receivables week: an inspector has to reach a site, not a filing cabinet. */
 const CAIRN_INVITE_TTL_DAYS = 14;

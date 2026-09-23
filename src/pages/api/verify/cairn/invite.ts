@@ -20,6 +20,8 @@ const json = (body: unknown, status = 200) =>
 export const GET: APIRoute = async ({ request, url }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
+  // The desk is for real accounts only; a demo session sees nothing here at all.
+  if (session.isDemo) return json({ ok: false, error: 'not_found' }, 404);
 
   const projectId = url.searchParams.get('projectId') ?? '';
   if (!projectId) return json({ ok: false, error: 'project_required' }, 400);

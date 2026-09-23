@@ -2,6 +2,7 @@
 import './Layout.css';
 import '../styles/dashboard.css';
 import Footer from "@/components/Footer.astro";
+import AnalyticsPageContext from "@/components/AnalyticsPageContext.astro";
 import DemoBanner from "@/components/DemoBanner.astro";
 import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
@@ -198,13 +199,14 @@ const memberSinceDisplay = memberSinceIso
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-		<!-- Google Analytics -->
+		<!-- Google Analytics (AnalyticsPageContext strips query strings first) -->
+	<AnalyticsPageContext />
 	<script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
 <script is:inline define:vars={{ GA_ID, isDemo }}>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', GA_ID, isDemo ? { page_path: '/demo' + window.location.pathname } : {});
+  gtag('config', GA_ID, Object.assign({}, window.__gaPage || {}, isDemo ? { page_path: '/demo' + window.location.pathname } : {}));
   if (isDemo) {
     gtag('set', 'user_properties', { demo_user: 'true' });
     gtag('event', 'demo_page_view', {

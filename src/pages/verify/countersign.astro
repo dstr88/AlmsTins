@@ -40,6 +40,8 @@ const ERRORS: Record<string, string> = {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Confirm you received the money — Almstins Verify</title>
   <meta name="robots" content="noindex, nofollow" />
+  <!-- The URL carries a single-use token: never send it to another site as a Referer. -->
+  <meta name="referrer" content="same-origin" />
   <link rel="icon" href="/favicon-verify.png" />
   <style is:global>
     * { box-sizing: border-box; margin: 0; padding: 0; }

@@ -50,6 +50,8 @@ export const GET: APIRoute = async ({ request }) => {
 
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
+  // The desk is for real accounts only; a demo session sees nothing here at all.
+  if (session.isDemo) return json({ ok: false, error: 'not_found' }, 404);
 
   if (docId) {
     const found = await readCairnDocument(session.tenantId, docId);

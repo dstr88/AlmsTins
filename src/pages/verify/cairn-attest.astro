@@ -36,13 +36,15 @@ const ERRORS: Record<string, string> = {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Is this milestone reached? — Almstins Verify</title>
   <meta name="robots" content="noindex, nofollow" />
+  <!-- The URL carries a single-use token: never send it to another site as a Referer. -->
+  <meta name="referrer" content="same-origin" />
   <link rel="icon" href="/favicon-verify.png" />
 	<Analytics />
 </head>
 <body>
   <div class="wrap">
     <div>
-      <div class="eyebrow">Almstins Verify · PPPcairn</div>
+      <div class="eyebrow">Almstins Verify · Milestone attestation</div>
       <h1>Is this stage of the work reached?</h1>
     </div>
 

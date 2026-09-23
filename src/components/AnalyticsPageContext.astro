@@ -1,0 +1,29 @@
+---
+// What Google Analytics is allowed to learn about the page. Include it BEFORE any
+// gtag('config', …) (Analytics.astro, Layout.astro, LoginLayout.astro).
+//
+// By default GA4 sends the full URL as page_location and the full referring URL as
+// page_referrer, query string included. On this site the query string can carry a
+// single-use capability token (?token=, ?t=), a receivable or project ID (?id=), a return
+// path (?next=), or an address someone scanned (?address=). None of that may leave for a
+// third party. So both values are rebuilt from an allowlist: origin + path, plus only the
+// campaign parameters (utm_*, gclid). Anything added later is dropped by default.
+---
+<script is:inline>
+  (function () {
+    var page = { page_location: location.origin + location.pathname, page_referrer: '' };
+    try {
+      var keep = new URLSearchParams();
+      new URL(location.href).searchParams.forEach(function (v, k) {
+        if (k.indexOf('utm_') === 0 || k === 'gclid') keep.append(k, v);
+      });
+      var q = keep.toString();
+      if (q) page.page_location += '?' + q;
+      if (document.referrer) {
+        var r = new URL(document.referrer);
+        page.page_referrer = r.origin + r.pathname;
+      }
+    } catch (e) { /* keep the path-only defaults */ }
+    window.__gaPage = page;
+  })();
+</script>

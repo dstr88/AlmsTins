@@ -55,6 +55,7 @@ export function isPublicPath(pathname: string): boolean {
 		// Receivables — public landing for the financing suite; a front door to the /verify
 		// tools. Must be reachable without a session (the gated desks handle their own login).
 		pathname === '/receivables' ||
+		pathname === '/receivables/' ||
 		// Artifacts — public static demos served from public/artifacts (e.g. /artifacts/demo)
 		pathname === '/artifacts' ||
 		pathname.startsWith('/artifacts/') ||
@@ -108,10 +109,10 @@ export function isPublicPath(pathname: string): boolean {
 		pathname === '/api/verify/receivables/attest-record' ||
 		// The client accepting or declining a financing offer, before money moves.
 		pathname === '/api/verify/receivables/offer-respond' ||
-		// PPPcairn inspector attestation — public, login-free. The single-use token IS the
+		// Milestone-desk inspector attestation — public, login-free. The single-use token IS the
 		// capability: the inspector answering from a site has no account and never needs one.
 		pathname === '/api/verify/cairn/attest' ||
-		// PPPcairn milestone paperwork — the ?t= token path serves the report form to the
+		// Milestone-desk paperwork — the ?t= token path serves the report form to the
 		// inspector and accepts their completed upload; the handler gates every other branch.
 		pathname === '/api/verify/cairn/document' ||
 		// Receivables paperwork — same reasoning, and a bug fix: the debtor reading the

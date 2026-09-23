@@ -3,6 +3,7 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import node from '@astrojs/node';
 import sitemap from '@astrojs/sitemap';
+import { sitemapFilter } from './src/lib/seo/sitemapFilter.mjs';
 
 const host = process.env.HOST ?? '0.0.0.0';
 const port = process.env.PORT ? Number(process.env.PORT) : 10000;
@@ -12,18 +13,8 @@ export default defineConfig({
 	integrations: [
 		react(),
 		sitemap({
-			// Only include public, indexable pages
-			filter: (page) =>
-				!page.includes('/dashboard') &&
-				!page.includes('/admin') &&
-				!page.includes('/api/') &&
-				!page.includes('/onboarding') &&
-				!page.includes('/login') &&
-				!page.includes('/signup') &&
-				!page.includes('/cancel') &&
-				!page.includes('/success') &&
-				!page.includes('/transition') &&
-				!page.includes('/welcome'),
+			// Only include public, indexable pages (see src/lib/seo/sitemapFilter.mjs)
+			filter: sitemapFilter,
 		}),
 	],
 	output: 'server',

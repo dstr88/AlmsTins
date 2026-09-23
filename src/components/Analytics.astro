@@ -3,11 +3,14 @@
 // own document, so every page is tracked. Layout.astro and LoginLayout.astro carry the same
 // tag inline, so they are intentionally NOT given this component (avoids double-counting).
 // is:inline keeps the snippet verbatim, exactly as GA expects, instead of Astro bundling it.
+// AnalyticsPageContext strips query strings (tokens, IDs, scanned addresses) before GA sees them.
+import AnalyticsPageContext from './AnalyticsPageContext.astro';
 ---
+<AnalyticsPageContext />
 <script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-G3P0FSHN21"></script>
 <script is:inline>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', 'G-G3P0FSHN21');
+  gtag('config', 'G-G3P0FSHN21', window.__gaPage || {});
 </script>
