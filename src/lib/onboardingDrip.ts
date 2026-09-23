@@ -18,6 +18,8 @@ import { isLang, type Lang } from '@/lib/i18n/locale';
 import type { DripLocale } from '@/i18n/emails/dripTemplate';
 import { onboardingLocales } from '@/i18n/emails/onboarding';
 import { businessLocales } from '@/i18n/emails/business';
+import { ensureReceivablesTables } from '@/lib/receivablesRegistry';
+import { ensureCairnTables } from '@/lib/cairnRegistry';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -96,15 +98,42 @@ async function insertEnrollments(
   return n;
 }
 
-/** Onboarding: every new SIGNUP (auth_users.created_at) since launch. */
+/**
+ * Financing-only accounts: the user owns a tenant that uses the financing desks (receivables,
+ * receivable access, or milestone-desk projects) and has no wallets. The onboarding campaign is
+ * about wallets and crypto taxes, which is the wrong message for them, so they are skipped at
+ * enrollment and again at send time. `userCol` is a trusted column reference, never user input.
+ * Every subquery is scoped by the owned tenant.
+ */
+const financingOnlyUser = (userCol: string) => `
+  EXISTS (
+    SELECT 1 FROM tenant_memberships tm
+    WHERE tm.user_id = ${userCol} AND tm.role = 'owner'
+      AND NOT EXISTS (SELECT 1 FROM wallets w WHERE w.tenant_id = tm.tenant_id)
+      AND (
+        EXISTS (SELECT 1 FROM receivables r WHERE r.tenant_id = tm.tenant_id)
+        OR EXISTS (SELECT 1 FROM receivable_access ra WHERE ra.tenant_id = tm.tenant_id AND ra.revoked_at IS NULL)
+        OR EXISTS (SELECT 1 FROM cairn_projects cp WHERE cp.tenant_id = tm.tenant_id)
+      )
+  )`;
+
+/** The financing tables are created lazily; make sure they exist before the filter reads them. */
+async function ensureFinancingTables(): Promise<void> {
+  await ensureReceivablesTables();
+  await ensureCairnTables();
+}
+
+/** Onboarding: every new SIGNUP (auth_users.created_at) since launch, except financing-only accounts. */
 async function enrollOnboarding(): Promise<number> {
+  await ensureFinancingTables();
   const res = await db.execute({
     sql: `SELECT au.id, au.email, au.lang, au.created_at
           FROM auth_users au
           WHERE au.email IS NOT NULL AND au.email <> ''
             AND au.created_at IS NOT NULL
             AND substr(au.created_at, 1, 10) >= ?
-            AND NOT EXISTS (SELECT 1 FROM campaign_drip d WHERE d.user_id = au.id AND d.campaign = 'onboarding')`,
+            AND NOT EXISTS (SELECT 1 FROM campaign_drip d WHERE d.user_id = au.id AND d.campaign = 'onboarding')
+            AND NOT ${financingOnlyUser('au.id')}`,
     args: [CAMPAIGN_START_DATE],
   });
   return insertEnrollments('onboarding', res.rows as any[], (r) => String(r.created_at));
@@ -134,14 +163,22 @@ export async function enrollForCampaign(campaign: Campaign): Promise<number> {
   return 0;
 }
 
-/** Enrolled + subscribed + unfinished users in a campaign whose NEXT step is now due. */
+/**
+ * Enrolled + subscribed + unfinished users in a campaign whose NEXT step is now due.
+ * Onboarding also re-checks the financing-only rule at send time: an account enrolled at signup
+ * that has since turned out to be financing-only gets no further tracker emails. If that check
+ * errors, the whole call throws and the cron sends nothing this run (no email beats a wrong one).
+ */
 export async function getDueDrips(campaign: Campaign, limit = 200): Promise<DueDrip[]> {
   await ensureDripTable();
   const cadence = CAMPAIGNS[campaign].cadence;
+  const skipFinancingOnly = campaign === 'onboarding';
+  if (skipFinancingOnly) await ensureFinancingTables();
   const res = await db.execute({
     sql: `SELECT user_id, email, lang, enrolled_at, last_step, unsub_token
           FROM campaign_drip
           WHERE campaign = ? AND unsubscribed = 0 AND last_step < ?
+            ${skipFinancingOnly ? `AND NOT ${financingOnlyUser('campaign_drip.user_id')}` : ''}
           ORDER BY enrolled_at ASC
           LIMIT ?`,
     args: [campaign, cadence.length, limit],
