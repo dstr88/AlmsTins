@@ -56,6 +56,9 @@ export function isPublicPath(pathname: string): boolean {
 		// tools. Must be reachable without a session (the gated desks handle their own login).
 		pathname === '/receivables' ||
 		pathname === '/receivables/' ||
+		// The financing pages under /receivables (aliases of /verify/<name> today). Every page
+		// gates itself, the same model as /verify/ above.
+		pathname.startsWith('/receivables/') ||
 		// Artifacts — public static demos served from public/artifacts (e.g. /artifacts/demo)
 		pathname === '/artifacts' ||
 		pathname.startsWith('/artifacts/') ||

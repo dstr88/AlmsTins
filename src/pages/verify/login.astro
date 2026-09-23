@@ -32,12 +32,15 @@ export const prerender = false;
 
 const data = await getLoginPageData(Astro.request, Astro.url);
 
-// Already signed in? Go straight where they were headed.
-if (data.isLoggedIn) return Astro.redirect(data.safeCallbackUrl, 302);
-
 // Which door the visitor came through decides the heading: Almstins Verify proper, or a
 // financing desk with its role heading. See verifyLoginMode for the rules.
 const mode = verifyLoginMode(Astro.url.searchParams.get('next'));
+
+// Already signed in? Go straight where they were headed. From the /receivables landing's
+// role-neutral Sign in, that is the tools on the landing, so the click visibly does something.
+if (data.isLoggedIn) {
+  return Astro.redirect(mode === 'receivables' ? '/receivables#rtools-h' : data.safeCallbackUrl, 302);
+}
 const isVerify = mode === 'verify';
 const ROLE: Record<VerifyLoginMode, { title: string; blurb: string }> = {
   verify: {
@@ -51,6 +54,10 @@ const ROLE: Record<VerifyLoginMode, { title: string; blurb: string }> = {
   project: {
     title: 'Log in as a financier',
     blurb: 'Sign in to your financing desk.',
+  },
+  receivables: {
+    title: 'Log in to Receivables',
+    blurb: 'Clients and financiers sign in here, then pick their desk.',
   },
   client: {
     title: 'Log in as a client',
