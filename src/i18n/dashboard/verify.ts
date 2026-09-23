@@ -109,17 +109,46 @@ export interface VerifyDashboardLocale {
   proveVerifyBtn: string;
   proveVerifyingBtn: string;
   proveError: string;
-  // Self-send proof of control (micro-deposit) — Phase 4.
+  // Self-send proof of control: the satoshi test (rule bound_v1). The merchant sends an
+  // exact amount FROM their address TO the same address. Copy never shows an address to
+  // send to: only the first 6 / last 4 of their own, to check against their wallet.
   proveMethodSelfSend: string;
   proveMethodDomain: string;
-  ssHint: string; // "… {address} …"
-  ssCheckBtn: string;
+  ssIntro: string;
+  ssReadyBtn: string;
+  ssIssuingBtn: string;
+  ssHeading: string;
+  ssAddressStep: string; // "… {first} … {last} …"
+  ssAmountLabel: string;
+  ssCopyAmountBtn: string;
+  ssBaseUnits: string; // "… {n} {unit} …"
+  ssCommaNote: string;
+  ssFeeNote: string; // "… {coin} …"
+  ssNeverNote: string;
+  ssEvmNote: string; // "… {chain} …"
+  ssValidUntil: string; // "… {time} …"
+  ssSentBtn: string;
   ssCheckingBtn: string;
+  ssCheckAgainBtn: string;
+  ssWaiting: string; // "… {chain} … {time} …"
+  ssDontResend: string;
+  ssStopped: string; // "… {time} …"
+  ssNewAmountBtn: string;
+  ssOffline: string;
+  ssLate: string; // "… {time} …" (checking continues until then)
+  ssRateLimited: string; // "… {time} …" (a new amount can be drawn then)
+  ssIssueUnavailable: string; // "… {chain} …"
+  ssBusy: string;
+  // Outcomes of a check (deposit-verify codes).
   ssProven: string;
-  ssNotYet: string;
+  ssNotYet: string; // "… {chain} … {last} …"
+  ssExpired: string;
+  ssWrongAmount: string; // "… {amount} {unit} …"
+  ssWrongRecipient: string;
+  ssSentToNotFrom: string;
   ssClaimedElsewhere: string;
   ssUnsupported: string;
-  ssUnavailable: string;
+  ssUnavailable: string; // "… {chain} …"
   // Shareable verified-address QR badge.
   qrBadgeBtn: string;
   paymentQrBtn: string;
@@ -263,16 +292,42 @@ export const en: VerifyDashboardLocale = {
   proveVerifyBtn: 'Verify now',
   proveVerifyingBtn: 'Verifying…',
   proveError: 'Something went wrong. Try again.',
-  proveMethodSelfSend: 'Self-send — no website',
+  proveMethodSelfSend: 'Satoshi test (self-send)',
   proveMethodDomain: 'Domain',
-  ssHint: 'From the wallet that holds {address}, send any tiny amount — even to yourself. We’ll watch the chain and confirm in about a minute. We never ask you to connect or sign anything.',
-  ssCheckBtn: 'I’ve sent it — check now',
+  ssIntro: 'Claim this address with the satoshi test (a self-send). From your own wallet app, you send a tiny, exact amount from this address back to itself. The coins stay in your wallet, and you pay only the normal network fee. When you tap below, we give you the exact amount. It is valid for 24 hours.',
+  ssReadyBtn: 'I’m ready to send',
+  ssIssuingBtn: 'Getting your amount…',
+  ssHeading: 'Take the satoshi test (a self-send)',
+  ssAddressStep: 'In your wallet app, tap Send and paste your own address. Copy it from your wallet’s Receive screen, not from this page. It starts with {first} and ends with {last}.',
+  ssAmountLabel: 'Amount:',
+  ssCopyAmountBtn: 'Copy amount',
+  ssBaseUnits: 'That is {n} {unit}.',
+  ssCommaNote: 'The amount copies with a dot. If your wallet uses a comma for decimals, type it with a comma.',
+  ssFeeNote: 'The coins come straight back to you. You pay only the normal network fee, in {coin}. Send it in {coin}, not USDT or another token.',
+  ssNeverNote: 'Almstins never asks you to connect a wallet or sign anything for us, and we will never give you an address to send to.',
+  ssEvmNote: 'Send it on {chain}. Turn off gasless or sponsored-fee mode for this send.',
+  ssValidUntil: 'This amount is valid until {time}.',
+  ssSentBtn: 'I’ve sent it',
   ssCheckingBtn: 'Checking…',
-  ssProven: '✓ Verified — you control this address.',
-  ssNotYet: 'No outgoing transaction yet. Send one from this address, then check again.',
-  ssClaimedElsewhere: 'This address is already verified by another account.',
-  ssUnsupported: 'Self-send proof isn’t available for this chain yet.',
-  ssUnavailable: 'Couldn’t reach the chain — try again in a moment.',
+  ssCheckAgainBtn: 'Check again',
+  ssWaiting: 'Checking {chain} for your test. Last checked {time}.',
+  ssDontResend: 'Don’t send it again, even if your wallet still shows pending.',
+  ssStopped: 'We stopped checking automatically. If you sent it, tap Check again. Your amount is valid until {time}.',
+  ssNewAmountBtn: 'Get a new amount',
+  ssOffline: 'You seem to be offline. We’ll check again when you’re back.',
+  ssLate: 'The 24 hours for this amount are up. If you already sent it, we’ll keep checking until {time}, so don’t send it again. If you haven’t sent it, get a new amount.',
+  ssRateLimited: 'You’ve asked for several new amounts for this address today. You can get another after {time}.',
+  ssIssueUnavailable: 'We couldn’t reach {chain} just now, so we haven’t given you an amount yet. Try again in a moment.',
+  ssBusy: 'We couldn’t give you an amount just now. Try again later.',
+  ssProven: '✓ Claimed. You proved you control this address.',
+  ssNotYet: 'Nothing from this address yet. If you just sent it, give it a few minutes. Check that your wallet is on {chain} and that the account shown ends in {last}.',
+  ssExpired: 'Your test amount expired before we saw it. If you already sent it, the coins are still in your wallet; only the fee was spent.',
+  ssWrongAmount: 'We found a transaction from this address, but it wasn’t the exact test. Send exactly {amount} {unit} to the same address, in {unit}, not USDT or another token.',
+  ssWrongRecipient: 'We saw the exact amount leave this address, but it went to a different address. The test only counts when you send to this same address.',
+  ssSentToNotFrom: 'The test amount arrived at this address, but your wallet paid it from other coins or another address. Use coin control to spend from this exact address, or send from the wallet that holds it.',
+  ssClaimedElsewhere: 'Another account already claimed this address. If it’s yours, don’t send again. Contact us and we’ll review it.',
+  ssUnsupported: 'The satoshi test isn’t available for this network yet.',
+  ssUnavailable: 'We couldn’t reach {chain} just now. Your test is still valid, so don’t send again. Check again in a moment.',
   qrBadgeBtn: '📱 QR badge',
   paymentQrBtn: '📥 Download QR',
   paymentQrHint: 'A printable QR of this receiving destination — put it on your counter, invoice, or checkout. Customers scan it to pay, and can check it against Almstins before they send. (Prove the destination so the check shows “verified.”)',
@@ -432,16 +487,42 @@ export const es: VerifyDashboardLocale = {
   proveVerifyBtn: 'Verificar ahora',
   proveVerifyingBtn: 'Verificando…',
   proveError: 'Algo salió mal. Inténtalo de nuevo.',
-  proveMethodSelfSend: 'Autoenvío — sin sitio web',
+  proveMethodSelfSend: 'Prueba del satoshi (autoenvío)',
   proveMethodDomain: 'Dominio',
-  ssHint: 'Desde la billetera que tiene {address}, envía cualquier cantidad mínima — incluso a ti mismo. Observaremos la cadena y lo confirmaremos en aproximadamente un minuto. Nunca te pedimos conectar ni firmar nada.',
-  ssCheckBtn: 'Ya lo envié — comprobar ahora',
+  ssIntro: 'Reclama esta dirección con la prueba del satoshi (un autoenvío). Desde tu propia app de billetera, envías una cantidad pequeña y exacta desde esta dirección a sí misma. Las monedas se quedan en tu billetera y solo pagas la comisión normal de la red. Cuando toques abajo, te daremos la cantidad exacta. Es válida por 24 horas.',
+  ssReadyBtn: 'Estoy listo para enviar',
+  ssIssuingBtn: 'Obteniendo tu cantidad…',
+  ssHeading: 'Haz la prueba del satoshi (un autoenvío)',
+  ssAddressStep: 'En tu app de billetera, toca Enviar y pega tu propia dirección. Cópiala desde la pantalla Recibir de tu billetera, no desde esta página. Empieza con {first} y termina con {last}.',
+  ssAmountLabel: 'Cantidad:',
+  ssCopyAmountBtn: 'Copiar cantidad',
+  ssBaseUnits: 'Son {n} {unit}.',
+  ssCommaNote: 'La cantidad se copia con punto. Si tu billetera usa coma para los decimales, escríbela con coma.',
+  ssFeeNote: 'Las monedas vuelven directamente a ti. Solo pagas la comisión normal de la red, en {coin}. Envíala en {coin}, no en USDT ni en otro token.',
+  ssNeverNote: 'Almstins nunca te pide conectar una billetera ni firmar nada para nosotros, y nunca te daremos una dirección a la que enviar.',
+  ssEvmNote: 'Envíala en {chain}. Desactiva el modo sin gas o de comisión patrocinada para este envío.',
+  ssValidUntil: 'Esta cantidad es válida hasta {time}.',
+  ssSentBtn: 'Ya lo envié',
   ssCheckingBtn: 'Comprobando…',
-  ssProven: '✓ Verificada — controlas esta dirección.',
-  ssNotYet: 'Aún no hay transacción saliente. Envía una desde esta dirección y vuelve a comprobar.',
-  ssClaimedElsewhere: 'Esta dirección ya está verificada por otra cuenta.',
-  ssUnsupported: 'La prueba por autoenvío aún no está disponible para esta cadena.',
-  ssUnavailable: 'No se pudo acceder a la cadena — inténtalo de nuevo en un momento.',
+  ssCheckAgainBtn: 'Comprobar de nuevo',
+  ssWaiting: 'Buscando tu prueba en {chain}. Última comprobación: {time}.',
+  ssDontResend: 'No lo envíes otra vez, aunque tu billetera todavía lo muestre como pendiente.',
+  ssStopped: 'Dejamos de comprobar automáticamente. Si ya lo enviaste, toca Comprobar de nuevo. Tu cantidad es válida hasta {time}.',
+  ssNewAmountBtn: 'Obtener una cantidad nueva',
+  ssOffline: 'Parece que no tienes conexión. Volveremos a comprobar cuando vuelvas.',
+  ssLate: 'Se acabaron las 24 horas de esta cantidad. Si ya la enviaste, seguiremos comprobando hasta {time}, así que no la envíes otra vez. Si no la has enviado, obtén una cantidad nueva.',
+  ssRateLimited: 'Hoy ya pediste varias cantidades nuevas para esta dirección. Podrás obtener otra después de {time}.',
+  ssIssueUnavailable: 'No pudimos acceder a {chain} en este momento, así que todavía no te dimos una cantidad. Inténtalo de nuevo en un momento.',
+  ssBusy: 'No pudimos darte una cantidad en este momento. Inténtalo más tarde.',
+  ssProven: '✓ Control confirmado. Demostraste que controlas esta dirección.',
+  ssNotYet: 'Todavía no hay nada desde esta dirección. Si acabas de enviarlo, espera unos minutos. Comprueba que tu billetera esté en {chain} y que la cuenta que muestra termine en {last}.',
+  ssExpired: 'Tu cantidad de prueba venció antes de que la viéramos. Si ya la enviaste, las monedas siguen en tu billetera; solo se gastó la comisión.',
+  ssWrongAmount: 'Encontramos una transacción desde esta dirección, pero no era la prueba exacta. Envía exactamente {amount} {unit} a la misma dirección, en {unit}, no en USDT ni en otro token.',
+  ssWrongRecipient: 'Vimos salir la cantidad exacta de esta dirección, pero fue a otra dirección. La prueba solo cuenta cuando envías a esta misma dirección.',
+  ssSentToNotFrom: 'La cantidad de prueba llegó a esta dirección, pero tu billetera la pagó con otras monedas o desde otra dirección. Usa el control de monedas para gastar desde esta dirección exacta, o envía desde la billetera que la tiene.',
+  ssClaimedElsewhere: 'Otra cuenta ya reclamó esta dirección. Si es tuya, no vuelvas a enviar. Contáctanos y la revisaremos.',
+  ssUnsupported: 'La prueba del satoshi aún no está disponible para esta red.',
+  ssUnavailable: 'No pudimos acceder a {chain} en este momento. Tu prueba sigue siendo válida, así que no vuelvas a enviar. Comprueba de nuevo en un momento.',
   qrBadgeBtn: '📱 Código QR',
   paymentQrBtn: '📥 Descargar QR',
   paymentQrHint: 'Un QR imprimible de este destino de cobro — ponlo en tu mostrador, factura o pantalla de pago. Los clientes lo escanean para pagar, y pueden comprobarlo contra Almstins antes de enviar. (Demuestra el destino para que la comprobación muestre «verificado».)',
@@ -601,16 +682,42 @@ export const fr: VerifyDashboardLocale = {
   proveVerifyBtn: 'Vérifier maintenant',
   proveVerifyingBtn: 'Vérification…',
   proveError: 'Une erreur s’est produite. Réessayez.',
-  proveMethodSelfSend: 'Auto-envoi — sans site web',
+  proveMethodSelfSend: 'Test du satoshi (auto-envoi)',
   proveMethodDomain: 'Domaine',
-  ssHint: 'Depuis le portefeuille qui détient {address}, envoyez n’importe quel petit montant — même à vous-même. Nous observerons la chaîne et confirmerons en environ une minute. Nous ne vous demandons jamais de connecter ni de signer quoi que ce soit.',
-  ssCheckBtn: 'C’est envoyé — vérifier',
+  ssIntro: 'Revendiquez cette adresse avec le test du satoshi (un auto-envoi). Depuis votre propre application de portefeuille, vous envoyez un petit montant exact de cette adresse vers elle-même. Les fonds restent dans votre portefeuille et vous ne payez que les frais de réseau habituels. Quand vous appuyez ci-dessous, nous vous donnons le montant exact. Il est valable 24 heures.',
+  ssReadyBtn: 'Je suis prêt à envoyer',
+  ssIssuingBtn: 'Obtention de votre montant…',
+  ssHeading: 'Passez le test du satoshi (un auto-envoi)',
+  ssAddressStep: 'Dans votre application de portefeuille, appuyez sur Envoyer et collez votre propre adresse. Copiez-la depuis l’écran Recevoir de votre portefeuille, pas depuis cette page. Elle commence par {first} et se termine par {last}.',
+  ssAmountLabel: 'Montant :',
+  ssCopyAmountBtn: 'Copier le montant',
+  ssBaseUnits: 'Soit {n} {unit}.',
+  ssCommaNote: 'Le montant est copié avec un point. Si votre portefeuille utilise une virgule pour les décimales, tapez-le avec une virgule.',
+  ssFeeNote: 'Les fonds vous reviennent directement. Vous ne payez que les frais de réseau habituels, en {coin}. Envoyez-le en {coin}, pas en USDT ni dans un autre jeton.',
+  ssNeverNote: 'Almstins ne vous demande jamais de connecter un portefeuille ni de signer quoi que ce soit pour nous, et nous ne vous donnerons jamais d’adresse vers laquelle envoyer.',
+  ssEvmNote: 'Envoyez-le sur {chain}. Désactivez le mode sans gaz ou à frais sponsorisés pour cet envoi.',
+  ssValidUntil: 'Ce montant est valable jusqu’au {time}.',
+  ssSentBtn: 'C’est envoyé',
   ssCheckingBtn: 'Vérification…',
-  ssProven: '✓ Vérifiée — vous contrôlez cette adresse.',
-  ssNotYet: 'Aucune transaction sortante pour l’instant. Envoyez-en une depuis cette adresse, puis revérifiez.',
-  ssClaimedElsewhere: 'Cette adresse est déjà vérifiée par un autre compte.',
-  ssUnsupported: 'La preuve par auto-envoi n’est pas encore disponible pour cette chaîne.',
-  ssUnavailable: 'Impossible d’accéder à la chaîne — réessayez dans un instant.',
+  ssCheckAgainBtn: 'Vérifier à nouveau',
+  ssWaiting: 'Nous cherchons votre test sur {chain}. Dernière vérification : {time}.',
+  ssDontResend: 'Ne l’envoyez pas une deuxième fois, même si votre portefeuille l’affiche encore en attente.',
+  ssStopped: 'Nous avons arrêté de vérifier automatiquement. Si vous l’avez envoyé, appuyez sur Vérifier à nouveau. Votre montant est valable jusqu’au {time}.',
+  ssNewAmountBtn: 'Obtenir un nouveau montant',
+  ssOffline: 'Vous semblez hors ligne. Nous vérifierons à nouveau à votre retour.',
+  ssLate: 'Les 24 heures de ce montant sont écoulées. Si vous l’avez déjà envoyé, nous continuerons à vérifier jusqu’au {time}, donc ne l’envoyez pas une deuxième fois. Si vous ne l’avez pas envoyé, obtenez un nouveau montant.',
+  ssRateLimited: 'Vous avez déjà demandé plusieurs nouveaux montants pour cette adresse aujourd’hui. Vous pourrez en obtenir un autre après le {time}.',
+  ssIssueUnavailable: 'Impossible d’accéder à {chain} pour le moment, donc nous ne vous avons pas encore donné de montant. Réessayez dans un instant.',
+  ssBusy: 'Nous n’avons pas pu vous donner de montant pour le moment. Réessayez plus tard.',
+  ssProven: '✓ Contrôle confirmé. Vous avez prouvé que vous contrôlez cette adresse.',
+  ssNotYet: 'Rien depuis cette adresse pour l’instant. Si vous venez de l’envoyer, attendez quelques minutes. Vérifiez que votre portefeuille est sur {chain} et que le compte affiché se termine par {last}.',
+  ssExpired: 'Votre montant de test a expiré avant que nous le voyions. Si vous l’avez déjà envoyé, les fonds sont toujours dans votre portefeuille ; seuls les frais ont été dépensés.',
+  ssWrongAmount: 'Nous avons trouvé une transaction depuis cette adresse, mais ce n’était pas le test exact. Envoyez exactement {amount} {unit} vers la même adresse, en {unit}, pas en USDT ni dans un autre jeton.',
+  ssWrongRecipient: 'Nous avons vu le montant exact quitter cette adresse, mais il est allé vers une autre adresse. Le test ne compte que si vous envoyez vers cette même adresse.',
+  ssSentToNotFrom: 'Le montant du test est arrivé à cette adresse, mais votre portefeuille l’a payé avec d’autres fonds ou depuis une autre adresse. Utilisez le contrôle des pièces (coin control) pour dépenser depuis cette adresse exacte, ou envoyez depuis le portefeuille qui la détient.',
+  ssClaimedElsewhere: 'Un autre compte a déjà revendiqué cette adresse. Si elle est à vous, n’envoyez rien de plus. Contactez-nous et nous l’examinerons.',
+  ssUnsupported: 'Le test du satoshi n’est pas encore disponible pour ce réseau.',
+  ssUnavailable: 'Impossible d’accéder à {chain} pour le moment. Votre test reste valable, donc ne renvoyez rien. Vérifiez à nouveau dans un instant.',
   qrBadgeBtn: '📱 Badge QR',
   paymentQrBtn: '📥 Télécharger le QR',
   paymentQrHint: 'Un QR imprimable de cette destination de réception — mettez-le sur votre comptoir, facture ou page de paiement. Les clients le scannent pour payer, et peuvent le vérifier auprès d’Almstins avant d’envoyer. (Prouvez la destination pour que la vérification affiche « vérifié ».)',

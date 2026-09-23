@@ -14,7 +14,11 @@
 import { db } from '@/lib/db';
 import { randomUUID, createHash } from 'crypto';
 import { generateChallenge } from './verifyProof';
-import { detectOutgoingSince } from './verifyDeposit';
+import { captureSelfSendBaseline, detectBoundSelfSend, parseSelfSendBaseline, railNeedsBaseline } from './verifyDeposit';
+import {
+  allocateTestAmount, canonicalAddress, formatTestAmount, isCaselessAddress, planIssue, recentPerTenant,
+  testAmountSpec, type OwnDraw,
+} from './verifyTestAmount';
 import { isEmvPayload, parseEmv, parseUpi, paymentFormat } from './paymentQr';
 
 /** SHA-256 hex — used to store a non-URL payment-QR identifier (PIX key / UPI VPA) as a
@@ -25,6 +29,12 @@ function sha256hex(s: string): string {
 
 /** Timestamp matching the columns' `to_char(now() … 'YYYY-MM-DD HH24:MI:SS')` default. */
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
+/** Epoch ms → the same 'YYYY-MM-DD HH:MM:SS' UTC stamp. */
+const toStamp = (ms: number): string => new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
+/** A stored UTC stamp → epoch ms (NaN when missing or unparseable). */
+const stampMs = (s: unknown): number => (s ? Date.parse(String(s).replace(' ', 'T') + 'Z') : NaN);
+/** A stored UTC stamp → ISO 8601 with Z, so the browser can show it in local time. */
+const stampIso = (s: unknown): string => String(s ?? '').replace(' ', 'T') + 'Z';
 
 export type DestinationKind = 'address' | 'qr';
 export type ProofStatus = 'unproven' | 'proven' | 'lapsed' | 'revoked';
@@ -119,8 +129,8 @@ const ENSURE_CLAIM_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_
 const ENSURE_CLAIM_QR_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_proven_claim_qr
   ON verify_destinations (rail, value) WHERE proof_status = 'proven' AND kind = 'qr'`;
 
-// Self-send proof: one pending challenge per address destination. Proving needs a
-// NEW outgoing tx from the address after issued_at (see verifyDeposit.ts).
+// Self-send proof (the satoshi test): one challenge row per address destination,
+// reissued in place. The binding columns are added by ENSURE_DEPOSIT_COLS below.
 // Mirrors migrations-pg/0006_verify_deposit.sql.
 const ENSURE_DEPOSIT_SQL = `
   CREATE TABLE IF NOT EXISTS verify_deposit_challenges (
@@ -138,6 +148,71 @@ const ENSURE_DEPOSIT_SQL = `
 `;
 const ENSURE_DEPOSIT_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_deposit_challenges_dest
   ON verify_deposit_challenges (destination_id)`;
+
+// Satoshi test binding (rule 'bound_v1'). A challenge carries a random EXACT amount in
+// base units (a BigInt string), the coin it is sent in, the address's canonical form,
+// and an expiry. The proof is a self-send of exactly that amount inside the window (see
+// verifyDeposit.ts). BTC/LTC challenges also carry the baseline (JSON: the tip height and
+// mempool txids at issuance), so nothing already on chain can prove them. Rows without
+// rule='bound_v1' are pre-binding challenges and can no longer prove anything. Lazy
+// column adds; mirrors migrations-pg/0044_verify_deposit_binding.sql.
+const ENSURE_DEPOSIT_COLS = [
+  `ALTER TABLE verify_deposit_challenges ADD COLUMN IF NOT EXISTS expected_amount TEXT`,
+  `ALTER TABLE verify_deposit_challenges ADD COLUMN IF NOT EXISTS unit TEXT`,
+  `ALTER TABLE verify_deposit_challenges ADD COLUMN IF NOT EXISTS canonical_address TEXT`,
+  `ALTER TABLE verify_deposit_challenges ADD COLUMN IF NOT EXISTS expires_at TEXT`,
+  `ALTER TABLE verify_deposit_challenges ADD COLUMN IF NOT EXISTS rule TEXT`,
+  `ALTER TABLE verify_deposit_challenges ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE verify_deposit_challenges ADD COLUMN IF NOT EXISTS last_outcome TEXT`,
+  `ALTER TABLE verify_deposit_challenges ADD COLUMN IF NOT EXISTS baseline TEXT`,
+];
+// Two accounts testing the same address never hold the same pending amount, so one
+// self-send can satisfy at most one challenge. Global on purpose (like claim-once): the
+// arbiter must see every tenant's pending amounts. A collision is resolved silently by
+// drawing another amount; nothing about the other challenge is ever returned.
+const ENSURE_DEPOSIT_AMOUNT_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_deposit_challenges_pending_amount
+  ON verify_deposit_challenges (canonical_address, expected_amount) WHERE status = 'pending'`;
+// The issuance history: one row per NEW amount a tenant draws for an address, kept 7 days.
+// It is keyed by (tenant, canonical address), not by destination, and deleting a
+// destination leaves it alone, so delete + re-add can't reroll an amount: while a drawn
+// amount is unexpired the tenant gets it back (same window and baseline), and new draws are
+// capped per address and per tenant (planIssue in verifyTestAmount.ts). It also keeps a
+// reissue from repeating a recent amount, so a late send for an old amount can't land on
+// someone else's new challenge. Amounts, windows and baselines only (public chain data);
+// purged past 7 days on each issue.
+const ENSURE_DEPOSIT_LOG_SQL = `
+  CREATE TABLE IF NOT EXISTS verify_deposit_amount_log (
+    id                TEXT NOT NULL PRIMARY KEY,
+    tenant_id         TEXT NOT NULL,
+    canonical_address TEXT NOT NULL,
+    expected_amount   TEXT NOT NULL,
+    issued_at         TEXT NOT NULL,
+    expires_at        TEXT,
+    baseline          TEXT
+  )
+`;
+const ENSURE_DEPOSIT_LOG_COLS = [
+  `ALTER TABLE verify_deposit_amount_log ADD COLUMN IF NOT EXISTS expires_at TEXT`,
+  `ALTER TABLE verify_deposit_amount_log ADD COLUMN IF NOT EXISTS baseline TEXT`,
+];
+const ENSURE_DEPOSIT_LOG_IDX = `CREATE INDEX IF NOT EXISTS verify_deposit_amount_log_addr
+  ON verify_deposit_amount_log (canonical_address, issued_at)`;
+const ENSURE_DEPOSIT_LOG_TENANT_IDX = `CREATE INDEX IF NOT EXISTS verify_deposit_amount_log_tenant
+  ON verify_deposit_amount_log (tenant_id, issued_at)`;
+// Claims proven under the old, unbound rule (any outgoing tx counted). Internal only:
+// nothing public reads it, so those Claimed rows look exactly as before. It marks them
+// for the later contest/takeover path (plan D4a, PR-11).
+const ENSURE_LEGACY_UNBOUND_COL = `ALTER TABLE verify_destinations
+  ADD COLUMN IF NOT EXISTS legacy_unbound BOOLEAN NOT NULL DEFAULT false`;
+// Idempotent backfill. A bound proof's challenge row has rule='bound_v1' from the moment
+// it is issued (before the destination can flip), so this only ever tags rows proven
+// under the old rule: re-running it on every cold start changes nothing new.
+const BACKFILL_LEGACY_UNBOUND = `UPDATE verify_destinations d SET legacy_unbound = true
+  WHERE d.proof_method = 'micro_deposit' AND d.proof_status = 'proven' AND d.legacy_unbound = false
+    AND NOT EXISTS (
+      SELECT 1 FROM verify_deposit_challenges c
+      WHERE c.destination_id = d.id AND c.tenant_id = d.tenant_id AND c.rule = 'bound_v1'
+    )`;
 
 // Global business-name registry. A business name is claimed like an email handle:
 // the normalized name is the PRIMARY KEY, so it belongs to exactly one tenant —
@@ -191,6 +266,22 @@ export async function ensureVerifyTables(): Promise<void> {
   catch (e) { console.error('[verify] claim-once index not applied (resolve duplicate proven claims):', e); }
   try { await db.execute({ sql: ENSURE_CLAIM_QR_IDX, args: [] }); }
   catch (e) { console.error('[verify] QR claim-once index not applied (resolve duplicate proven URLs):', e); }
+  for (const sql of ENSURE_DEPOSIT_COLS) {
+    try { await db.execute({ sql, args: [] }); }
+    catch (e) { console.error('[verify] deposit binding column not applied:', e); }
+  }
+  try { await db.execute({ sql: ENSURE_DEPOSIT_AMOUNT_IDX, args: [] }); }
+  catch (e) { console.error('[verify] pending-amount index not applied:', e); }
+  try {
+    await db.execute({ sql: ENSURE_DEPOSIT_LOG_SQL, args: [] });
+    for (const sql of ENSURE_DEPOSIT_LOG_COLS) await db.execute({ sql, args: [] });
+    await db.execute({ sql: ENSURE_DEPOSIT_LOG_IDX, args: [] });
+    await db.execute({ sql: ENSURE_DEPOSIT_LOG_TENANT_IDX, args: [] });
+  } catch (e) { console.error('[verify] deposit amount log not applied:', e); }
+  try {
+    await db.execute({ sql: ENSURE_LEGACY_UNBOUND_COL, args: [] });
+    await db.execute({ sql: BACKFILL_LEGACY_UNBOUND, args: [] });
+  } catch (e) { console.error('[verify] legacy_unbound tag not applied:', e); }
   ensured = true;
 }
 
@@ -590,6 +681,14 @@ export async function deleteDestination(tenantId: string, id: string): Promise<v
     sql: `DELETE FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
+  // Its satoshi-test challenge goes with it, so an orphaned pending row doesn't keep an
+  // amount reserved. The issuance log stays: re-adding the address within the amount's
+  // window gets the SAME amount back (no reroll), and the log still blocks the amount's
+  // reuse for 7 days.
+  await db.execute({
+    sql: `DELETE FROM verify_deposit_challenges WHERE destination_id = ? AND tenant_id = ?`,
+    args: [id, tenantId],
+  });
 }
 
 // ── Phase 5: published-source swap monitor ───────────────────────────────────
@@ -931,16 +1030,222 @@ export async function markDomainProofRechecked(tenantId: string, domain: string)
   });
 }
 
-// ── Phase 4 (self-send): micro-deposit proof of control ──────────────────────
+
+// ── Phase 4 (self-send): the satoshi test, rule bound_v1 ─────────────────────
+
+/** An issued amount is valid for 24h; a tap after that draws a NEW amount. */
+const DEPOSIT_TTL_MS = 24 * 60 * 60 * 1000;
+/** An address's amounts aren't reissued for 7 days. */
+const DEPOSIT_REUSE_MS = 7 * 24 * 60 * 60 * 1000;
+/** Past expiry we keep looking for 2h more (a send made in time can be indexed or
+ *  confirmed late; it must still fall inside the window). A miss in that time is
+ *  'checking_late', which the panel keeps checking; only after it is a miss 'expired'. */
+const DEPOSIT_CHECK_GRACE_MS = 2 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** A re-check within 10 s replays the last outcome instead of reading the chain again
+ *  (double taps and open tabs share one explorer budget). */
+const DEPOSIT_CHECK_MIN_INTERVAL_MS = 10_000;
+
+/** The satoshi test as the merchant sees it. It never contains an address to send to. */
+export interface DepositChallengeView {
+  /** Exact amount in the native coin, dot decimal, e.g. '0.00001234'. */
+  amount: string;
+  /** The same amount in base units (sats, litoshis, wei, lamports). */
+  baseAmount: string;
+  /** Native coin: BTC, LTC, ETH, POL, AVAX or SOL. */
+  unit: string;
+  /** 'sats' / 'litoshis' on UTXO chains, else null. */
+  baseUnit: string | null;
+  /** ISO 8601, UTC. */
+  issuedAt: string;
+  expiresAt: string;
+  /** ISO 8601, UTC: the end of the post-expiry grace, when checking stops for good. */
+  checkUntil: string;
+  /** Past expiresAt but inside the grace: a send made in time may still be found. */
+  late: boolean;
+  /** Past the grace (or recorded expired): only a new amount helps now. */
+  expired: boolean;
+}
 
 export type DepositChallengeResult =
-  | { ok: true; rail: string; address: string; issuedAt: string }
-  | { ok: false; error: 'not_found' | 'not_address' | 'already_proven' };
+  | { ok: true; challenge: DepositChallengeView }
+  | { ok: false; error: 'not_found' | 'not_address' | 'already_proven' | 'unsupported_rail' | 'unavailable' | 'busy' }
+  | { ok: false; error: 'rate_limited'; retryAt: string };
+
+export type DepositChallengeLookup =
+  | { ok: true; challenge: DepositChallengeView | null }
+  | { ok: false; error: 'not_found' | 'not_address' };
+
+interface DepositChallengeRow {
+  status: string;
+  issuedAt: string;
+  expiresAt: string | null;
+  expectedAmount: string | null;
+  unit: string | null;
+  rule: string | null;
+  lastOutcome: string | null;
+  lastCheckedAt: string | null;
+  baseline: string | null;
+}
+type BoundChallengeRow = DepositChallengeRow & { expiresAt: string; expectedAmount: string };
+
+async function readDepositChallenge(tenantId: string, destinationId: string): Promise<DepositChallengeRow | null> {
+  const res = await db.execute({
+    sql: `SELECT status, issued_at, expires_at, expected_amount, unit, rule, last_outcome, last_checked_at, baseline
+          FROM verify_deposit_challenges WHERE destination_id = ? AND tenant_id = ? LIMIT 1`,
+    args: [destinationId, tenantId],
+  });
+  const r = res.rows[0] as any;
+  if (!r) return null;
+  return {
+    status: String(r.status ?? ''),
+    issuedAt: String(r.issued_at ?? ''),
+    expiresAt: r.expires_at ? String(r.expires_at) : null,
+    expectedAmount: r.expected_amount ? String(r.expected_amount) : null,
+    unit: r.unit ? String(r.unit) : null,
+    rule: r.rule ? String(r.rule) : null,
+    lastOutcome: r.last_outcome ? String(r.last_outcome) : null,
+    lastCheckedAt: r.last_checked_at ? String(r.last_checked_at) : null,
+    baseline: r.baseline ? String(r.baseline) : null,
+  };
+}
 
 /**
- * Issue (or return the existing) self-send challenge for an address destination.
- * Idempotent — the detection window runs from the original issued_at, so re-opening
- * the panel keeps the same challenge. Tenant-scoped.
+ * A bound challenge (amount + expiry, and on BTC/LTC the issuance baseline). Pre-binding
+ * rows can't prove anything, and neither can a BTC/LTC row with no baseline: nothing would
+ * tell the test apart from a transaction that was already on chain.
+ */
+function isBound(row: DepositChallengeRow | null, rail: string): row is BoundChallengeRow {
+  return !!row && row.rule === 'bound_v1'
+    && !!row.expectedAmount && /^\d+$/.test(row.expectedAmount)
+    && Number.isFinite(stampMs(row.expiresAt)) && Number.isFinite(stampMs(row.issuedAt))
+    && (!railNeedsBaseline(rail) || parseSelfSendBaseline(row.baseline) !== null);
+}
+
+/** The merchant's view of a test (a bound row, or one just written). */
+function challengeView(
+  rail: string,
+  w: { status: string; expectedAmount: string; unit: string | null; issuedAt: string; expiresAt: string },
+  nowMs: number,
+): DepositChallengeView | null {
+  const spec = testAmountSpec(rail);
+  if (!spec) return null;
+  const base = BigInt(w.expectedAmount);
+  const expiresMs = stampMs(w.expiresAt);
+  const checkUntilMs = expiresMs + DEPOSIT_CHECK_GRACE_MS;
+  const expired = w.status === 'expired' || nowMs > checkUntilMs;
+  return {
+    amount: formatTestAmount(rail, base),
+    baseAmount: base.toString(),
+    unit: w.unit ?? spec.unit,
+    baseUnit: spec.baseUnit,
+    issuedAt: stampIso(w.issuedAt),
+    expiresAt: stampIso(w.expiresAt),
+    checkUntil: stampIso(toStamp(checkUntilMs)),
+    late: !expired && nowMs > expiresMs,
+    expired,
+  };
+}
+
+/** Postgres unique_violation (23505); the message fallback covers the legacy engine. */
+function isUniqueViolation(e: unknown): boolean {
+  const err = e as { code?: unknown; message?: unknown } | null;
+  return err?.code === '23505' || /unique|duplicate key/i.test(String(err?.message ?? ''));
+}
+
+/**
+ * The destination's current satoshi test, if it has a bound one that hasn't proven.
+ * Read-only: opening the panel never issues an amount. Tenant-scoped.
+ */
+export async function getDepositChallenge(tenantId: string, destinationId: string): Promise<DepositChallengeLookup> {
+  await ensureVerifyTables();
+  const dest = await getDestination(tenantId, destinationId);
+  if (!dest) return { ok: false, error: 'not_found' };
+  if (dest.kind !== 'address') return { ok: false, error: 'not_address' };
+  if (dest.proofStatus === 'proven') return { ok: true, challenge: null };
+  const row = await readDepositChallenge(tenantId, destinationId);
+  if (!isBound(row, dest.rail) || row.status === 'proven') return { ok: true, challenge: null };
+  return { ok: true, challenge: challengeView(dest.rail, row, Date.now()) };
+}
+
+type WriteResult = 'written' | 'lost_race' | 'taken';
+
+/**
+ * Write a test onto the destination's one challenge row. The DO UPDATE only replaces a
+ * row that is this tenant's and not an active bound test, so a double tap can't swap the
+ * amount under a merchant who is already sending ('lost_race'). A unique violation means
+ * another challenge holds this amount on the address right now ('taken').
+ *
+ * A NEW draw (logDraw) is logged in the same transaction, and only when the upsert
+ * actually wrote this amount, so the history the caps and the no-reroll rule read can't
+ * miss an amount that was issued.
+ */
+async function writeChallenge(
+  tenantId: string,
+  destinationId: string,
+  w: {
+    amount: string; unit: string; canonical: string; issuedAt: string; expiresAt: string;
+    baseline: string | null; now: string; replaceMissingBaseline: boolean; logDraw: boolean;
+  },
+): Promise<WriteResult> {
+  const upsert = {
+    sql: `INSERT INTO verify_deposit_challenges
+            (id, destination_id, tenant_id, status, issued_at, expected_amount, unit, canonical_address,
+             expires_at, rule, attempts, last_outcome, last_checked_at, proven_at, proof_ref, baseline, updated_at)
+          VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, 'bound_v1', 0, NULL, NULL, NULL, NULL, ?, ?)
+          ON CONFLICT (destination_id) DO UPDATE SET
+            status = 'pending', issued_at = EXCLUDED.issued_at, expected_amount = EXCLUDED.expected_amount,
+            unit = EXCLUDED.unit, canonical_address = EXCLUDED.canonical_address,
+            expires_at = EXCLUDED.expires_at, rule = 'bound_v1', attempts = 0, last_outcome = NULL,
+            last_checked_at = NULL, proven_at = NULL, proof_ref = NULL, baseline = EXCLUDED.baseline,
+            updated_at = EXCLUDED.updated_at
+          WHERE verify_deposit_challenges.tenant_id = EXCLUDED.tenant_id
+            AND (verify_deposit_challenges.rule IS DISTINCT FROM 'bound_v1'
+                 OR verify_deposit_challenges.status <> 'pending'
+                 OR verify_deposit_challenges.expires_at IS NULL
+                 OR verify_deposit_challenges.expires_at < ?${w.replaceMissingBaseline
+                   ? `
+                 OR verify_deposit_challenges.baseline IS NULL` : ''})`,
+    args: [randomUUID(), destinationId, tenantId, w.issuedAt, w.amount, w.unit, w.canonical,
+      w.expiresAt, w.baseline, w.now, w.now],
+  };
+  const log = {
+    sql: `INSERT INTO verify_deposit_amount_log
+            (id, tenant_id, canonical_address, expected_amount, issued_at, expires_at, baseline)
+          SELECT ?, ?, ?, ?, ?, ?, ?
+          WHERE EXISTS (
+            SELECT 1 FROM verify_deposit_challenges
+            WHERE destination_id = ? AND tenant_id = ? AND status = 'pending'
+              AND expected_amount = ? AND issued_at = ?
+          )`,
+    args: [randomUUID(), tenantId, w.canonical, w.amount, w.issuedAt, w.expiresAt, w.baseline,
+      destinationId, tenantId, w.amount, w.issuedAt],
+  };
+  try {
+    const [res] = w.logDraw ? await db.batch([upsert, log], 'write') : [await db.execute(upsert)];
+    return res.rowsAffected ? 'written' : 'lost_race';
+  } catch (e) {
+    if (isUniqueViolation(e)) return 'taken';
+    throw e;
+  }
+}
+
+/**
+ * Issue the satoshi test for an address destination. Called only on the merchant's
+ * explicit "I'm ready to send", never when the panel opens. An unexpired pending test
+ * is returned unchanged, so a second tap shows the same amount; an expired one is
+ * replaced by a NEW amount. Tenant-scoped, and the result never contains an address to
+ * send to.
+ *
+ * The amount can't be picked by drawing again and again (see planIssue): while this
+ * tenant holds an unexpired amount for the address (even under a destination it deleted
+ * and re-added), it gets that same amount and window back, and new draws are capped per
+ * address and per tenant ('rate_limited', with the time a draw reopens). A new amount is
+ * unique among pending challenges for this canonical address across tenants (the
+ * pending-amount index; a collision draws again), skips this tenant's amounts from the
+ * last 7 days and a few recent ones per other tenant (so no one can use up the pool). On
+ * BTC/LTC the address's baseline is captured BEFORE the amount is drawn, and no amount is
+ * issued without it ('unavailable').
  */
 export async function issueDepositChallenge(tenantId: string, destinationId: string): Promise<DepositChallengeResult> {
   await ensureVerifyTables();
@@ -948,33 +1253,185 @@ export async function issueDepositChallenge(tenantId: string, destinationId: str
   if (!dest) return { ok: false, error: 'not_found' };
   if (dest.kind !== 'address') return { ok: false, error: 'not_address' };
   if (dest.proofStatus === 'proven') return { ok: false, error: 'already_proven' };
+  const spec = testAmountSpec(dest.rail);
+  if (!spec) return { ok: false, error: 'unsupported_rail' };
 
-  const existing = await db.execute({
-    sql: `SELECT issued_at FROM verify_deposit_challenges WHERE destination_id = ? AND tenant_id = ? LIMIT 1`,
-    args: [destinationId, tenantId],
-  });
-  if (existing.rows.length) {
-    return { ok: true, rail: dest.rail, address: dest.value, issuedAt: String((existing.rows[0] as any).issued_at) };
+  const nowMs = Date.now();
+  const current = await readDepositChallenge(tenantId, destinationId);
+  if (isBound(current, dest.rail) && current.status === 'pending' && nowMs <= stampMs(current.expiresAt)) {
+    const view = challengeView(dest.rail, current, nowMs);
+    if (view) return { ok: true, challenge: view };
   }
-  const issuedAt = nowUtc();
-  await db.execute({
-    sql: `INSERT INTO verify_deposit_challenges (id, destination_id, tenant_id, status, issued_at)
-          VALUES (?, ?, ?, 'pending', ?)`,
-    args: [randomUUID(), destinationId, tenantId, issuedAt],
+
+  const canonical = canonicalAddress(dest.rail, dest.value);
+  const needsBaseline = railNeedsBaseline(dest.rail);
+  const now = toStamp(nowMs);
+  const reuseCutoff = toStamp(nowMs - DEPOSIT_REUSE_MS);
+
+  // This tenant's issuance history: its draws for this address (7 days), and its draws for
+  // any address in the last 24h (the per-tenant cap).
+  const ownRes = await db.execute({
+    sql: `SELECT expected_amount, issued_at, expires_at, baseline FROM verify_deposit_amount_log
+          WHERE tenant_id = ? AND canonical_address = ? AND issued_at >= ?
+          ORDER BY issued_at DESC`,
+    args: [tenantId, canonical, reuseCutoff],
   });
-  return { ok: true, rail: dest.rail, address: dest.value, issuedAt };
+  const dayRes = await db.execute({
+    sql: `SELECT issued_at FROM verify_deposit_amount_log WHERE tenant_id = ? AND issued_at >= ?`,
+    args: [tenantId, toStamp(nowMs - DAY_MS)],
+  });
+  // Cross-tenant on purpose, amounts only: what is pending on this address anywhere. Used
+  // only to draw; nothing about another account's challenge is ever returned or revealed.
+  const heldRes = await db.execute({
+    sql: `SELECT expected_amount FROM verify_deposit_challenges
+          WHERE canonical_address = ? AND status = 'pending' AND expected_amount IS NOT NULL`,
+    args: [canonical],
+  });
+
+  const baselines = new Map<OwnDraw, string | null>();
+  const own: OwnDraw[] = (ownRes.rows as any[]).map((r) => {
+    const issuedAtMs = stampMs(r.issued_at);
+    const expiresAtMs = r.expires_at ? stampMs(r.expires_at) : issuedAtMs + DEPOSIT_TTL_MS;
+    const baseline = r.baseline ? String(r.baseline) : null;
+    const draw: OwnDraw = {
+      amount: String(r.expected_amount),
+      issuedAtMs,
+      expiresAtMs,
+      reusable: Number.isFinite(issuedAtMs) && Number.isFinite(expiresAtMs)
+        && (!needsBaseline || parseSelfSendBaseline(baseline) !== null),
+    };
+    baselines.set(draw, baseline);
+    return draw;
+  });
+  const held = new Set((heldRes.rows as any[]).map((r) => String(r.expected_amount)));
+  const plan = planIssue({
+    own,
+    tenantDraws: (dayRes.rows as any[]).map((r) => stampMs(r.issued_at)),
+    held,
+    nowMs,
+  });
+
+  const readBack = async (): Promise<DepositChallengeResult> => {
+    const row = await readDepositChallenge(tenantId, destinationId);
+    const view = isBound(row, dest.rail) ? challengeView(dest.rail, row, Date.now()) : null;
+    return view ? { ok: true, challenge: view } : { ok: false, error: 'unavailable' };
+  };
+
+  // No reroll: an unexpired amount this tenant already drew comes back as it was issued.
+  if (plan.reuse) {
+    const w = {
+      amount: plan.reuse.amount, unit: spec.unit, canonical,
+      issuedAt: toStamp(plan.reuse.issuedAtMs), expiresAt: toStamp(plan.reuse.expiresAtMs),
+      baseline: baselines.get(plan.reuse) ?? null, now, replaceMissingBaseline: needsBaseline, logDraw: false,
+    };
+    const res = await writeChallenge(tenantId, destinationId, w);
+    if (res === 'written') {
+      const view = challengeView(dest.rail, { status: 'pending', expectedAmount: w.amount, unit: w.unit, issuedAt: w.issuedAt, expiresAt: w.expiresAt }, nowMs);
+      if (view) return { ok: true, challenge: view };
+    }
+    if (res === 'lost_race') return readBack();
+    // 'taken': another challenge holds it now, so this is a new draw after all.
+  }
+  if (!plan.canDraw) {
+    return { ok: false, error: 'rate_limited', retryAt: stampIso(toStamp(plan.retryAtMs ?? nowMs + DAY_MS)) };
+  }
+
+  // Before the amount exists: what the address already shows (BTC/LTC). Fail closed.
+  const baseline = await captureSelfSendBaseline(dest.rail, dest.value);
+  if (baseline === 'unavailable') return { ok: false, error: 'unavailable' };
+  const baselineJson = baseline ? JSON.stringify(baseline) : null;
+
+  // Other tenants' recent amounts on this address, at most a few per tenant, so one
+  // account can't fill the pool and lock the owner out. Cross-tenant, amounts only.
+  const othersRes = await db.execute({
+    sql: `SELECT tenant_id, expected_amount, issued_at FROM verify_deposit_amount_log
+          WHERE canonical_address = ? AND issued_at >= ? AND tenant_id <> ?`,
+    args: [canonical, reuseCutoff, tenantId],
+  });
+  const others = recentPerTenant((othersRes.rows as any[]).map((r) => ({
+    tenantId: String(r.tenant_id), amount: String(r.expected_amount), issuedAtMs: stampMs(r.issued_at),
+  })));
+  const ownAmounts = own.map((d) => d.amount);
+
+  const issuedAt = now;
+  const expiresAt = toStamp(nowMs + DEPOSIT_TTL_MS);
+  let lostRace = false;
+  const tryClaim = async (amount: { base: string; unit: string }): Promise<boolean> => {
+    const res = await writeChallenge(tenantId, destinationId, {
+      amount: amount.base, unit: amount.unit, canonical, issuedAt, expiresAt, baseline: baselineJson,
+      now, replaceMissingBaseline: needsBaseline, logDraw: true,
+    });
+    if (res === 'taken') return false; // amount just taken by another challenge: draw again
+    if (res === 'lost_race') lostRace = true; // a concurrent tap issued an active test first
+    return true;
+  };
+  // If other tenants' history ever fills the pool, draw again without it: the pending
+  // amounts and this tenant's own history are all that must never repeat.
+  const claimed = (await allocateTestAmount(dest.rail, [...held, ...ownAmounts, ...others], tryClaim))
+    ?? (await allocateTestAmount(dest.rail, [...held, ...ownAmounts], tryClaim));
+
+  if (lostRace) return readBack();
+  if (!claimed) return { ok: false, error: 'busy' };
+
+  // Drop this address's log entries past the 7-day window. Best-effort housekeeping.
+  try {
+    await db.execute({
+      sql: `DELETE FROM verify_deposit_amount_log WHERE canonical_address = ? AND issued_at < ?`,
+      args: [canonical, reuseCutoff],
+    });
+  } catch (e) {
+    console.error('[verify] deposit amount log not purged:', e);
+  }
+
+  const view = challengeView(dest.rail, { status: 'pending', expectedAmount: claimed.base, unit: claimed.unit, issuedAt, expiresAt }, nowMs);
+  return view ? { ok: true, challenge: view } : { ok: false, error: 'unavailable' };
 }
 
 export type MicroDepositOutcome =
-  | 'proven' | 'not_yet' | 'no_challenge' | 'not_found' | 'not_address'
-  | 'already_proven' | 'claimed_elsewhere' | 'unsupported_rail' | 'unavailable';
+  | 'proven' | 'not_yet' | 'no_challenge' | 'expired' | 'checking_late' | 'not_found' | 'not_address'
+  | 'already_proven' | 'claimed_elsewhere' | 'unsupported_rail' | 'unavailable'
+  | 'wrong_amount' | 'wrong_recipient' | 'sent_to_not_from';
+
+/** Outcomes a throttled re-check may replay without reading the chain again. */
+const REPLAYABLE_OUTCOMES = new Set<string>([
+  'not_yet', 'unavailable', 'expired', 'checking_late', 'wrong_amount', 'wrong_recipient', 'sent_to_not_from',
+]);
 
 /**
- * Check the chain for the self-send and, if a new outgoing tx is found, flip the
- * destination to proven. The flip passes through the S5a claim guard (canonical value,
- * whatever the rail) and then the claim-once index (exact rail + value): if another
- * account already proved this address, we report 'claimed_elsewhere' rather than taking it.
- * Read-only chain access — no movement.
+ * Claim-once across letter case. The claim index compares the raw (rail, value), but EVM
+ * hex and bech32 addresses are case-insensitive, so 'BC1Q…' and 'bc1q…' are one address.
+ * True when another tenant has already proven this address on this rail in any case.
+ * Cross-tenant existence check only (like the claim index): nothing about the other
+ * account is returned.
+ */
+async function provenByAnotherTenant(tenantId: string, rail: string, value: string): Promise<boolean> {
+  const v = String(value ?? '').trim();
+  const caseless = isCaselessAddress(rail, v);
+  const res = await db.execute({
+    sql: `SELECT 1 FROM verify_destinations
+          WHERE kind = 'address' AND proof_status = 'proven' AND rail = ? AND tenant_id <> ?
+            AND ${caseless ? 'lower(value) = ?' : 'value = ?'}
+          LIMIT 1`,
+    args: [rail, tenantId, caseless ? v.toLowerCase() : v],
+  });
+  return res.rows.length > 0;
+}
+
+/**
+ * Check the chain for the satoshi test (rule bound_v1): a self-send of exactly the
+ * challenge's amount inside its window (see verifyDeposit.ts). When found, flip the
+ * destination to proven. The flip passes through the claim-once guard (the partial
+ * unique index) and the S5a claim guard (canonical value, whatever the rail): if another
+ * account already proved this address, we report 'claimed_elsewhere' rather than taking
+ * it (in any letter case, too: see provenByAnotherTenant). A pre-binding challenge reports
+ * 'no_challenge', so the merchant taps "I'm ready to send" for a bound one. For 2h past
+ * expiry a miss is 'checking_late', not final, because a send made in time can be indexed
+ * or confirmed late; after that it is 'expired'. Every check records attempts and
+ * last_outcome. Read-only chain access; nothing moves.
+ *
+ * TODO(PR-6): a background job re-checks pending tests every 10 minutes until expiry and
+ * emails the merchant on success; today only the browser checks (on "I've sent it",
+ * every 20 s for 15 minutes, and on tab focus).
  */
 export async function verifyMicroDeposit(
   tenantId: string,
@@ -986,30 +1443,60 @@ export async function verifyMicroDeposit(
   if (dest.kind !== 'address') return { outcome: 'not_address' };
   if (dest.proofStatus === 'proven') return { outcome: 'already_proven' };
 
-  const ch = await db.execute({
-    sql: `SELECT issued_at FROM verify_deposit_challenges WHERE destination_id = ? AND tenant_id = ? LIMIT 1`,
-    args: [destinationId, tenantId],
-  });
-  if (!ch.rows.length) return { outcome: 'no_challenge' };
-  const issuedAt = String((ch.rows[0] as any).issued_at);
+  const ch = await readDepositChallenge(tenantId, destinationId);
+  if (!isBound(ch, dest.rail) || ch.status === 'proven') return { outcome: 'no_challenge' };
+  if (ch.status === 'expired') return { outcome: 'expired' };
 
-  const detected = await detectOutgoingSince(dest.rail, dest.value, issuedAt);
-  const now = nowUtc();
-  await db.execute({
-    sql: `UPDATE verify_deposit_challenges SET last_checked_at = ?, updated_at = ? WHERE destination_id = ? AND tenant_id = ?`,
-    args: [now, now, destinationId, tenantId],
-  });
+  const nowMs = Date.now();
+  const stamp = toStamp(nowMs);
+  const expiresMs = stampMs(ch.expiresAt);
+  const record = (outcome: MicroDepositOutcome, status: 'pending' | 'expired' = 'pending') =>
+    db.execute({
+      sql: `UPDATE verify_deposit_challenges
+            SET status = ?, attempts = attempts + 1, last_outcome = ?, last_checked_at = ?, updated_at = ?
+            WHERE destination_id = ? AND tenant_id = ? AND status = 'pending'`,
+      args: [status, outcome, stamp, stamp, destinationId, tenantId],
+    });
 
-  if (!detected.found) {
-    if (detected.reason === 'unsupported_rail') return { outcome: 'unsupported_rail' };
-    if (detected.reason === 'unavailable') return { outcome: 'unavailable' };
-    return { outcome: 'not_yet' };
+  if (nowMs > expiresMs + DEPOSIT_CHECK_GRACE_MS) {
+    await record('expired', 'expired'); // frees the amount; the log still blocks its reuse
+    return { outcome: 'expired' };
+  }
+  if (ch.lastOutcome && REPLAYABLE_OUTCOMES.has(ch.lastOutcome)
+      && nowMs - stampMs(ch.lastCheckedAt) < DEPOSIT_CHECK_MIN_INTERVAL_MS) {
+    return { outcome: ch.lastOutcome as MicroDepositOutcome };
   }
 
-  // S5a: another account already proved this wallet in another case or under another
-  // rail, which the exact index below can't see. Hold this one out. A DB error here
-  // throws, so nothing flips (fail closed).
+  const detected = await detectBoundSelfSend({
+    rail: dest.rail,
+    address: dest.value,
+    expected: BigInt(ch.expectedAmount),
+    issuedAt: Math.floor(stampMs(ch.issuedAt) / 1000),
+    expiresAt: Math.floor(expiresMs / 1000),
+    baseline: parseSelfSendBaseline(ch.baseline),
+  }, Math.floor(nowMs / 1000));
+
+  if (!detected.found) {
+    // Past expiry (inside the grace) a miss can't be fixed on this amount, so no hints:
+    // just say we're still checking for a send made in time. Not final: the panel keeps
+    // checking until the grace ends. An unreachable chain stays 'unavailable'.
+    const outcome: MicroDepositOutcome =
+      nowMs > expiresMs && detected.reason !== 'unavailable' ? 'checking_late' : detected.reason;
+    await record(outcome);
+    return { outcome };
+  }
+
+  // S5a: another account already proved this wallet under another spelling or rail,
+  // which the exact index below can't see. Hold this one out. A DB error here throws,
+  // so nothing flips (fail closed).
   if (await isClaimedElsewhere(tenantId, 'address', dest.value)) {
+    await record('claimed_elsewhere');
+    return { outcome: 'claimed_elsewhere' };
+  }
+
+  if (await provenByAnotherTenant(tenantId, dest.rail, dest.value)) {
+    console.warn('[verify] self-send flip blocked (claimed elsewhere, other letter case):', destinationId);
+    await record('claimed_elsewhere');
     return { outcome: 'claimed_elsewhere' };
   }
 
@@ -1020,16 +1507,23 @@ export async function verifyMicroDeposit(
       sql: `UPDATE verify_destinations
             SET proof_status = 'proven', proof_method = 'micro_deposit', proven_at = ?, updated_at = ?
             WHERE id = ? AND tenant_id = ? AND proof_status <> 'proven'`,
-      args: [now, now, destinationId, tenantId],
+      args: [stamp, stamp, destinationId, tenantId],
     });
   } catch (e) {
-    console.warn('[verify] micro-deposit flip blocked (claimed elsewhere?):', destinationId, e);
+    if (!isUniqueViolation(e)) {
+      console.error('[verify] self-send flip failed:', destinationId, e);
+      return { outcome: 'unavailable' };
+    }
+    console.warn('[verify] self-send flip blocked (claimed elsewhere):', destinationId);
+    await record('claimed_elsewhere');
     return { outcome: 'claimed_elsewhere' };
   }
   await db.execute({
-    sql: `UPDATE verify_deposit_challenges SET status = 'proven', proven_at = ?, proof_ref = ?, updated_at = ?
+    sql: `UPDATE verify_deposit_challenges
+          SET status = 'proven', proven_at = ?, proof_ref = ?, attempts = attempts + 1,
+              last_outcome = 'proven', last_checked_at = ?, updated_at = ?
           WHERE destination_id = ? AND tenant_id = ?`,
-    args: [now, detected.ref, now, destinationId, tenantId],
+    args: [stamp, detected.ref, stamp, stamp, destinationId, tenantId],
   });
   return { outcome: 'proven', ref: detected.ref };
 }
