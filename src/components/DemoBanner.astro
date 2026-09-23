@@ -5,18 +5,29 @@ import './DemoBanner.css';
  *
  * Sticky top bar shown to visitors in demo mode.
  * Disappears when they sign up or click "Exit Demo".
+ *
+ * A product demo (e.g. Verify) can pass its own sign-up `href`, plain-text `text`, and
+ * translated button labels; without them the banner keeps the tracker copy, /signup,
+ * and the English labels.
  */
+interface Props {
+	href?: string;
+	text?: string;
+	ctaLabel?: string;
+	exitLabel?: string;
+}
+const { href = '/signup', text, ctaLabel = 'Sign up free →', exitLabel = 'Exit demo' } = Astro.props;
 ---
 
 <div class="demo-banner" role="banner" aria-label="Demo mode notice">
 	<div class="demo-banner__inner">
 		<span class="demo-badge">DEMO</span>
 		<p class="demo-banner__text">
-			You're in demo mode — <strong>add your wallet address</strong> to explore with your own data.
+			{text ?? <Fragment>You're in demo mode — <strong>add your wallet address</strong> to explore with your own data.</Fragment>}
 		</p>
 		<div class="demo-banner__actions">
-			<a href="/signup" class="demo-btn demo-btn--signup">Sign up free →</a>
-			<a href="/api/demo/end" class="demo-btn demo-btn--exit">Exit demo</a>
+			<a href={href} class="demo-btn demo-btn--signup">{ctaLabel}</a>
+			<a href="/api/demo/end" class="demo-btn demo-btn--exit">{exitLabel}</a>
 		</div>
 	</div>
 </div>

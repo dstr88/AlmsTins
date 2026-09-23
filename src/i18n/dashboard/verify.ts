@@ -166,6 +166,8 @@ export interface VerifyDashboardLocale {
   // Demo mode (seeded sample vendor account) — banner + how-to guide.
   demoBanner: string;
   demoSignupCta: string;
+  /** Demo-mode banner on /dashboard/verify (plain text), in place of the tracker copy. */
+  demoBannerText: string;
   demoProveNote: string;
   howToHeading: string;
   howToWalletTitle: string;
@@ -314,6 +316,7 @@ export const en: VerifyDashboardLocale = {
   entError: 'Something went wrong. Try again.',
   demoBanner: 'This is a demo vendor account — the destinations below are samples. Try “Verify a sign” to check one, then see how to register your own.',
   demoSignupCta: 'Sign up free →',
+  demoBannerText: "You're in the vendor demo. Sign in to register and prove your own addresses.",
   demoProveNote: 'In the live app, you prove this address by sending the tiny amount we show you, from that same wallet — we just watch the chain for it, so we never ask you to connect or sign anything. Once it lands, the address is Verified and locked to your account. Sign up free to prove your own.',
   howToHeading: 'How to register your own',
   howToWalletTitle: 'Add a wallet address',
@@ -482,6 +485,7 @@ export const es: VerifyDashboardLocale = {
   entError: 'Algo salió mal. Inténtalo de nuevo.',
   demoBanner: 'Esta es una cuenta de comercio de demostración — los destinos de abajo son ejemplos. Prueba “Verifica un letrero” para comprobar uno y luego mira cómo registrar los tuyos.',
   demoSignupCta: 'Regístrate gratis →',
+  demoBannerText: 'Estás en la demo para comercios. Inicia sesión para registrar y demostrar tus propias direcciones.',
   demoProveNote: 'En la app real, demuestras esta dirección enviando el pequeño monto que te mostramos, desde esa misma billetera — solo observamos la cadena, así que nunca te pedimos conectar ni firmar nada. Cuando llega, la dirección queda Verificada y bloqueada a tu cuenta. Regístrate gratis para demostrar la tuya.',
   howToHeading: 'Cómo registrar los tuyos',
   howToWalletTitle: 'Agregar una dirección de billetera',
@@ -650,6 +654,7 @@ export const fr: VerifyDashboardLocale = {
   entError: 'Une erreur s’est produite. Réessayez.',
   demoBanner: 'Ceci est un compte marchand de démonstration — les destinations ci-dessous sont des exemples. Essayez « Vérifier un panneau » pour en vérifier une, puis voyez comment enregistrer les vôtres.',
   demoSignupCta: 'Inscrivez-vous gratuitement →',
+  demoBannerText: 'Vous êtes dans la démo commerçant. Connectez-vous pour enregistrer et prouver vos propres adresses.',
   demoProveNote: 'Dans l’app réelle, vous prouvez cette adresse en envoyant le petit montant que nous indiquons, depuis ce même portefeuille — nous observons simplement la chaîne, donc nous ne vous demandons jamais de connecter ni de signer quoi que ce soit. Une fois reçu, l’adresse est Vérifiée et verrouillée à votre compte. Inscrivez-vous gratuitement pour prouver la vôtre.',
   howToHeading: 'Comment enregistrer les vôtres',
   howToWalletTitle: 'Ajouter une adresse de portefeuille',
