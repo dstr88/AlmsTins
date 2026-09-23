@@ -29,10 +29,13 @@ describe('verify login — mode from next', () => {
     expect(verifyLoginMode('/receivables/client')).toBe('client');
   });
 
-  it('keeps the client heading for everything else, including no next', () => {
-    expect(verifyLoginMode(null)).toBe('client');
-    expect(verifyLoginMode(undefined)).toBe('client');
-    expect(verifyLoginMode('')).toBe('client');
+  it('serves Verify for a bare /verify/login (no next)', () => {
+    expect(verifyLoginMode(null)).toBe('verify');
+    expect(verifyLoginMode(undefined)).toBe('verify');
+    expect(verifyLoginMode('')).toBe('verify');
+  });
+
+  it('keeps the client heading for the other financing destinations', () => {
     expect(verifyLoginMode('/verify/client')).toBe('client');
     expect(verifyLoginMode('/verify/confirm')).toBe('client');
     expect(verifyLoginMode('/verify/invite?token=abc')).toBe('client');

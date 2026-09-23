@@ -74,6 +74,12 @@ export function routeLegacy(
   if (!(p.startsWith('/verify/') || p.startsWith('/receivables/') || p === '/artifacts/cairn')) return null;
 
   if (mode === 'alias') {
+    // A bare /receivables/login is the role-neutral financing sign-in that returns to the
+    // landing; a bare /verify/login is the Verify sign-in, so give it the landing as `next`.
+    if (p === '/receivables/login' && !url.searchParams.has('next') && !url.searchParams.has('callbackUrl')) {
+      const rest = url.search ? '&' + url.search.slice(1) : '';
+      return { kind: 'rewrite', to: `/verify/login?next=%2Freceivables${rest}` };
+    }
     const old = NEW_TO_OLD.get(p);
     return old ? { kind: 'rewrite', to: old + url.search } : null;
   }
