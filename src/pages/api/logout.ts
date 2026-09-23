@@ -1,4 +1,5 @@
 import type { APIRoute, AstroCookies } from 'astro';
+import { safeNextPath } from '@/lib/safeNext';
 
 const COOKIE_NAMES = [
 	'authjs.session-token',
@@ -26,6 +27,7 @@ export const POST: APIRoute = async ({ cookies, redirect }) => {
 export const GET: APIRoute = async ({ request, cookies, redirect }) => {
 	clearAuthCookies(cookies);
 	const next = new URL(request.url).searchParams.get('next');
-	const destination = next && next.startsWith('/') ? next : '/login';
+	// Same-origin paths only. No /api remap here: logout legitimately hops to /api/demo/start.
+	const destination = safeNextPath(next) ?? '/login';
 	return redirect(destination, 303);
 };
