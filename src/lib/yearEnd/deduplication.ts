@@ -16,10 +16,13 @@
 //      Mark the import row as duplicate.
 //
 //   3. Within import_transactions (confidence 0.85)
-//      Two import rows (any batch, including the same one) share the same
-//      source, asset_symbol and direction, amount within 1 %, and timestamps
-//      within 5 minutes. Mark the later row as a duplicate of the earlier (keeper) row.
-//      Open question: with no same-batch guard (a343fc4), two real same-size trades in one CSV can be flagged.
+//      Two import rows from DIFFERENT upload batches share the same source,
+//      asset_symbol and direction, amount within 1 %, and timestamps within
+//      5 minutes. Mark the later row as a duplicate of the earlier (keeper) row.
+//      Rows from the same batch are never duplicates of each other: two
+//      same-size trades minutes apart inside one CSV are real, separate trades,
+//      and hiding one would understate holdings and cost basis. A re-uploaded CSV
+//      arrives as a new batch, so it is still caught.
 //
 // Rows with is_duplicate = -1 (user override "not a duplicate") are skipped.
 //
@@ -207,8 +210,9 @@ export async function runDuplicateSweep(tenantId: string): Promise<DedupStats> {
 			for (let j = i + 1; j < group.length; j++) {
 				const candidate = group[j];
 				if (seenImportIds.has(candidate.id)) continue;
-				// Allow same-batch matches — re-uploading the same CSV creates
-				// duplicates in the same batch with identical fields.
+				// Same upload batch: separate trades, never duplicates (see the header).
+				// Rows with no batch id compare equal too, so they are never hidden either.
+				if (candidate.batchId === keeper.batchId) continue;
 				if (Math.abs(candidate.tsMs - keeper.tsMs) > windowMs3) continue;
 				const ratio = keeper.qty > 0 ? Math.abs(candidate.qty - keeper.qty) / keeper.qty : 1;
 				if (ratio > AMOUNT_TOLERANCE) continue;

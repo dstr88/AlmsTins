@@ -285,12 +285,40 @@ describe('runDuplicateSweep — strategy 3: within-import near-duplicate', () =>
     expect(stats.totalMarked).toBe(1);
   });
 
-  // Open question (owner): a343fc4 dropped the same-batch guard to catch re-uploads, which may also flag two genuine same-size trades in one CSV.
-  it.todo('same-batch rows: decide whether identical rows inside one import batch are duplicates or separate trades');
+  // Owner decision (2026-09-23): rows from the same upload are separate trades, never
+  // duplicates. a343fc4 had removed this guard; it is restored. Re-uploads are a new batch.
+  it('does NOT flag two same-size rows from the same upload batch', async () => {
+    setupMock({
+      batchRows: [
+        batchRow({ id: 'imp-1', import_batch_id: 'batch-A', timestamp_utc: '2024-03-15T10:00:00Z' }),
+        batchRow({ id: 'imp-2', import_batch_id: 'batch-A', timestamp_utc: '2024-03-15T10:00:10Z' }),
+      ],
+    });
+    const stats = await runDuplicateSweep('tenant-1');
+    expect(stats.strategy3WithinImport).toBe(0);
+    expect(stats.totalMarked).toBe(0);
+  });
+
+  it('still flags the same row arriving again in a later upload (a re-uploaded CSV)', async () => {
+    setupMock({
+      batchRows: [
+        batchRow({ id: 'imp-1', import_batch_id: 'batch-A', timestamp_utc: '2024-03-15T10:00:00Z' }),
+        batchRow({ id: 'imp-2', import_batch_id: 'batch-A', timestamp_utc: '2024-03-15T10:00:10Z' }),
+        batchRow({ id: 'imp-3', import_batch_id: 'batch-B', timestamp_utc: '2024-03-15T10:00:00Z' }),
+      ],
+    });
+    const stats = await runDuplicateSweep('tenant-1');
+    // imp-1 and imp-2 are two real trades; imp-3 is the re-upload of imp-1.
+    expect(stats.strategy3WithinImport).toBe(1);
+    const stmts = mockBatch.mock.calls[0][0] as { sql: string; args: unknown[] }[];
+    const flagged = stmts.filter((s) => s.sql.includes('SET is_duplicate = 1'));
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0].args[1]).toBe('imp-3');
+  });
 
   // Strategy-3 window is 5 minutes, inclusive (widened from 30 s in a343fc4).
   // IMPORT_WINDOW_SEC is not exported from deduplication.ts, so it is mirrored here.
-  // Different batch IDs keep these two tests independent of the same-batch question above.
+  // Different batch IDs: the window only applies across uploads.
   const IMPORT_WINDOW_SEC = 300;
   const WINDOW_T0 = '2024-03-15T10:00:00Z';
   const plusSec = (sec: number) => new Date(Date.parse(WINDOW_T0) + sec * 1000).toISOString();
