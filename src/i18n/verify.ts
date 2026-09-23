@@ -37,6 +37,19 @@ export interface VerifyCopy {
     ctaSecondary: string;
     ctaDemo: string;
   };
+  /**
+   * "The tools": the three priced levels (in order: proven wallet, domain-verified,
+   * agents), the free customer scan, and the login invitation. Hrefs are
+   * language-neutral and live in VerifyPage.astro, matched by position.
+   */
+  tools: {
+    heading: string;
+    lede: string;
+    levelLabel: string;
+    levels: Array<{ title: string; body: string; price: string; cta: string }>;
+    scan: { badge: string; title: string; body: string; cta: string };
+    login: { heading: string; body: string; button: string };
+  };
   problem: { heading: string; body: string[] };
   how: { heading: string; steps: Array<{ title: string; body: string }> };
   free: { heading: string; items: string[]; note: string };
@@ -83,9 +96,45 @@ const en: VerifyCopy = {
     eyebrow: 'Early access · Free to start',
     title: 'The address your customers pay could be swapped. Now you can check it before you trust it.',
     sub: "Register your receiving addresses and payment QR, prove they're yours — no wallet connection, ever — then verify any sign, invoice, or checkout against them before you rely on it. Free to start: 2 wallets and 1 QR.",
-    ctaPrimary: 'Create your free account',
+    ctaPrimary: 'Log in to get started',
     ctaSecondary: 'How it works ↓',
     ctaDemo: 'Try the vendor demo →',
+  },
+  tools: {
+    heading: 'The tools',
+    lede: 'Three levels of proof for the destinations you publish, plus a free scan for the people who pay you. All three levels live behind one login.',
+    levelLabel: 'Level',
+    levels: [
+      {
+        title: 'Proven wallet',
+        body: 'Prove a receiving address is yours by sending yourself a tiny amount. No wallet connection, no signing, no keys. Payment QRs and payment links register the same way. Scans show it as control confirmed.',
+        price: 'Free: 2 wallets + 1 QR',
+        cta: 'Start with a wallet',
+      },
+      {
+        title: 'Domain-verified',
+        body: 'Prove your domain with a DNS record or a small file on your site to attach your verified business name. List your addresses in that file and scans show them as a verified destination, so a swapped address on a fake page fails the check.',
+        price: 'Free during beta',
+        cta: 'Verify your domain',
+      },
+      {
+        title: 'Agents',
+        body: 'Payment agents check a destination before they pay: one GET returns proven, mismatch, or unknown. Mint your own API key with one DNS record for 300 checks a minute, and publish your full address list from your own domain.',
+        price: 'Free during beta',
+        cta: 'Read the agent docs',
+      },
+    ],
+    scan: {
+      badge: 'Free · no login',
+      title: 'Scan before you pay',
+      body: 'Paste an address or payment link, or scan a payment QR, to see whether its owner proved it. Addresses and links are also screened for known scams. Free for the people who pay, always.',
+      cta: 'Open the scanner',
+    },
+    login: {
+      heading: 'One login for all three',
+      body: 'New here? Google, GitHub, or an email link creates your free account. No card, no wallet connection.',
+      button: 'Log in to get started',
+    },
   },
   problem: {
     heading: 'The problem',
@@ -127,7 +176,7 @@ const en: VerifyCopy = {
     points: [
       {
         title: 'We never connect to your wallet.',
-        body: 'Verification is a one-time signature or a file on your site — you keep your keys.',
+        body: 'Verification is a tiny send to yourself or a file on your site — you keep your keys.',
       },
       {
         title: 'We never touch your funds.',
@@ -145,7 +194,7 @@ const en: VerifyCopy = {
   },
   finalCta: {
     heading: 'Check before money moves.',
-    button: 'Create your free account',
+    button: 'Log in to get started',
     sub: 'Register + verify 2 wallets + 1 QR. No card, no wallet connection.',
     footerAria: 'Almstins home',
   },
@@ -155,7 +204,7 @@ const en: VerifyCopy = {
     howToLabel: 'How to get verified',
     steps: [
       'Create a free account and add the receiving addresses and payment QR you publish.',
-      "Prove they're yours — a quick signature or a small file on your site. No wallet connection, no keys, ever.",
+      "Prove they're yours — for a wallet, send yourself a tiny amount or host a small file on your site; a payment QR is proven when you register it. No wallet connection, no keys, ever.",
       'Verify them on demand before you rely on them — scan a sign and we confirm it still matches. Automatic monitoring is coming.',
     ],
     scaleLabel: 'Publishing many addresses?',
@@ -192,9 +241,45 @@ const es: VerifyCopy = {
     eyebrow: 'Acceso anticipado · Gratis para empezar',
     title: 'La dirección donde te pagan tus clientes podría ser sustituida. Ahora puedes comprobarla antes de confiar.',
     sub: 'Registra tus direcciones de recepción y tu QR de pago, demuestra que son tuyos — sin conectar la billetera, nunca — y luego verifica cualquier letrero, factura o pantalla de pago contra ellas antes de fiarte. Gratis para empezar: 2 direcciones y 1 QR.',
-    ctaPrimary: 'Crea tu cuenta gratis',
+    ctaPrimary: 'Inicia sesión para empezar',
     ctaSecondary: 'Cómo funciona ↓',
     ctaDemo: 'Prueba la demo para comercios →',
+  },
+  tools: {
+    heading: 'Las herramientas',
+    lede: 'Tres niveles de prueba para los destinos que publicas, más un escáner gratuito para quienes te pagan. Los tres niveles están detrás de un mismo inicio de sesión.',
+    levelLabel: 'Nivel',
+    levels: [
+      {
+        title: 'Billetera probada',
+        body: 'Demuestra que una dirección de recepción es tuya enviándote un pequeño monto. Sin conectar la billetera, sin firmar, sin claves. Los QR de pago y los enlaces de pago se registran igual. Los escaneos la muestran como control confirmado.',
+        price: 'Gratis: 2 direcciones + 1 QR',
+        cta: 'Empieza con una billetera',
+      },
+      {
+        title: 'Dominio verificado',
+        body: 'Demuestra tu dominio con un registro DNS o un pequeño archivo en tu sitio para vincular tu nombre comercial verificado. Incluye tus direcciones en ese archivo y los escaneos las mostrarán como destino verificado, así que una dirección sustituida en una página falsa no pasa la comprobación.',
+        price: 'Gratis durante la beta',
+        cta: 'Verifica tu dominio',
+      },
+      {
+        title: 'Agentes',
+        body: 'Los agentes de pago comprueban un destino antes de pagar: una sola petición GET responde proven, mismatch o unknown. Genera tu propia clave de API con un registro DNS para 300 consultas por minuto, y publica tu lista completa de direcciones desde tu propio dominio.',
+        price: 'Gratis durante la beta',
+        cta: 'Lee la documentación para agentes (en inglés)',
+      },
+    ],
+    scan: {
+      badge: 'Gratis · sin cuenta',
+      title: 'Escanea antes de pagar',
+      body: 'Pega una dirección o un enlace de pago, o escanea un QR de pago, para ver si su dueño lo demostró. Las direcciones y los enlaces también se revisan contra estafas conocidas. Gratis para quienes pagan, siempre.',
+      cta: 'Abrir el escáner (en inglés)',
+    },
+    login: {
+      heading: 'Un solo inicio de sesión para los tres',
+      body: '¿Eres nuevo? Google, GitHub o un enlace por email crean tu cuenta gratuita. Sin tarjeta, sin conectar la billetera.',
+      button: 'Inicia sesión para empezar',
+    },
   },
   problem: {
     heading: 'El problema',
@@ -236,7 +321,7 @@ const es: VerifyCopy = {
     points: [
       {
         title: 'Nunca nos conectamos a tu billetera.',
-        body: 'La verificación es una firma única o un archivo en tu sitio — tú conservas tus claves.',
+        body: 'La verificación es un pequeño envío a ti mismo o un archivo en tu sitio — tú conservas tus claves.',
       },
       {
         title: 'Nunca tocamos tus fondos.',
@@ -254,7 +339,7 @@ const es: VerifyCopy = {
   },
   finalCta: {
     heading: 'Comprueba antes de que el dinero se mueva.',
-    button: 'Crea tu cuenta gratis',
+    button: 'Inicia sesión para empezar',
     sub: 'Registra + verifica 2 direcciones + 1 QR. Sin tarjeta, sin conexión de billetera.',
     footerAria: 'Inicio de Almstins',
   },
@@ -264,7 +349,7 @@ const es: VerifyCopy = {
     howToLabel: 'Cómo verificarte',
     steps: [
       'Crea una cuenta gratis y añade las direcciones de cobro y el QR de pago que publicas.',
-      'Demuestra que son tuyas — una firma rápida o un pequeño archivo en tu sitio. Sin conectar la wallet, sin claves, nunca.',
+      'Demuestra que son tuyas — para una billetera, envíate un pequeño monto o aloja un pequeño archivo en tu sitio; un QR de pago queda demostrado al registrarlo. Sin conectar la wallet, sin claves, nunca.',
       'Verifícalas a demanda antes de fiarte — escanea un letrero y confirmamos que sigue coincidiendo. La supervisión automática llega pronto.',
     ],
     scaleLabel: '¿Publicas muchas direcciones?',
@@ -301,9 +386,45 @@ const fr: VerifyCopy = {
     eyebrow: 'Accès anticipé · Gratuit pour commencer',
     title: "L'adresse où vos clients vous paient pourrait être remplacée. Vous pouvez désormais la vérifier avant de vous y fier.",
     sub: "Enregistrez vos adresses de réception et votre QR de paiement, prouvez qu'ils sont à vous — sans jamais connecter de portefeuille — puis vérifiez n'importe quelle pancarte, facture ou page de paiement par rapport à elles avant de vous y fier. Gratuit pour commencer : 2 adresses et 1 QR.",
-    ctaPrimary: 'Créez votre compte gratuit',
+    ctaPrimary: 'Connectez-vous pour commencer',
     ctaSecondary: 'Comment ça marche ↓',
     ctaDemo: 'Essayer la démo commerçant →',
+  },
+  tools: {
+    heading: 'Les outils',
+    lede: 'Trois niveaux de preuve pour les destinations que vous publiez, plus un scanner gratuit pour celles et ceux qui vous paient. Les trois niveaux sont accessibles avec une seule connexion.',
+    levelLabel: 'Niveau',
+    levels: [
+      {
+        title: 'Portefeuille prouvé',
+        body: "Prouvez qu'une adresse de réception est à vous en vous envoyant un petit montant. Sans connexion de portefeuille, sans signature, sans clés. Les QR de paiement et les liens de paiement s'enregistrent de la même façon. Les scans l'affichent comme contrôle confirmé.",
+        price: 'Gratuit : 2 adresses + 1 QR',
+        cta: 'Commencer avec un portefeuille',
+      },
+      {
+        title: 'Domaine vérifié',
+        body: "Prouvez votre domaine avec un enregistrement DNS ou un petit fichier sur votre site pour rattacher votre nom commercial vérifié. Listez vos adresses dans ce fichier et les scans les affichent comme destination vérifiée, donc une adresse remplacée sur une fausse page échoue à la vérification.",
+        price: 'Gratuit pendant la bêta',
+        cta: 'Vérifier votre domaine',
+      },
+      {
+        title: 'Agents',
+        body: "Les agents de paiement vérifient une destination avant de payer : une seule requête GET répond proven, mismatch ou unknown. Créez votre propre clé API avec un enregistrement DNS pour 300 vérifications par minute, et publiez votre liste complète d'adresses depuis votre propre domaine.",
+        price: 'Gratuit pendant la bêta',
+        cta: 'Lire la documentation agents (en anglais)',
+      },
+    ],
+    scan: {
+      badge: 'Gratuit · sans compte',
+      title: 'Scannez avant de payer',
+      body: "Collez une adresse ou un lien de paiement, ou scannez un QR de paiement, pour voir si son propriétaire l'a prouvé. Les adresses et les liens sont aussi passés au crible des arnaques connues. Gratuit pour celles et ceux qui paient, toujours.",
+      cta: 'Ouvrir le scanner (en anglais)',
+    },
+    login: {
+      heading: 'Une seule connexion pour les trois',
+      body: 'Nouveau ? Google, GitHub ou un lien par e-mail crée votre compte gratuit. Sans carte, sans connexion de portefeuille.',
+      button: 'Connectez-vous pour commencer',
+    },
   },
   problem: {
     heading: 'Le problème',
@@ -345,7 +466,7 @@ const fr: VerifyCopy = {
     points: [
       {
         title: 'Nous ne nous connectons jamais à votre portefeuille.',
-        body: 'La vérification est une signature unique ou un fichier sur votre site — vous gardez vos clés.',
+        body: 'La vérification est un petit envoi à vous-même ou un fichier sur votre site — vous gardez vos clés.',
       },
       {
         title: 'Nous ne touchons jamais à vos fonds.',
@@ -363,7 +484,7 @@ const fr: VerifyCopy = {
   },
   finalCta: {
     heading: 'Vérifiez avant que l\'argent ne bouge.',
-    button: 'Créez votre compte gratuit',
+    button: 'Connectez-vous pour commencer',
     sub: 'Enregistrez + vérifiez 2 adresses + 1 QR. Sans carte, sans connexion de portefeuille.',
     footerAria: 'Accueil Almstins',
   },
@@ -373,7 +494,7 @@ const fr: VerifyCopy = {
     howToLabel: 'Comment se faire vérifier',
     steps: [
       'Créez un compte gratuit et ajoutez les adresses de réception et le QR de paiement que vous publiez.',
-      'Prouvez qu’elles sont à vous — une signature rapide ou un petit fichier sur votre site. Sans connexion de wallet, sans clés, jamais.',
+      'Prouvez qu’elles sont à vous — pour un portefeuille, envoyez-vous un petit montant ou hébergez un petit fichier sur votre site ; un QR de paiement est prouvé dès que vous l’enregistrez. Sans connexion de wallet, sans clés, jamais.',
       'Vérifiez-les à la demande avant de vous y fier — scannez une pancarte et nous confirmons qu’elle correspond toujours. La surveillance automatique arrive bientôt.',
     ],
     scaleLabel: 'Vous publiez de nombreuses adresses ?',

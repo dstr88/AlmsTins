@@ -18,7 +18,7 @@ export const en: DripLocale = {
       subject: 'You registered your first address — now prove it’s yours',
       paragraphs: [
         'You just registered a payment address with Almstins Verify. That’s the foundation: Almstins now knows your real receiving address, so you can check any sign or QR against it before you trust it.',
-        'The next step makes it count for your customers too — prove you control the domain you publish on. A quick signature or a small file on your site, no wallet connection and no keys, and your published address carries your domain behind it.',
+        'The next step makes it count for your customers too — prove you control the domain you publish on. A DNS record or a small file on your site, no wallet connection and no keys, and your verified business name shows next to your address.',
       ],
       ctaLabel: 'Prove your domain',
       ctaPath: '/dashboard/verify',
@@ -64,7 +64,7 @@ export const es: DripLocale = {
       subject: 'Registraste tu primera dirección — ahora demuestra que es tuya',
       paragraphs: [
         'Acabas de registrar una dirección de pago con Almstins Verify. Esa es la base: Almstins ahora conoce tu dirección de cobro real, así que puedes comprobar cualquier letrero o QR contra ella antes de fiarte.',
-        'El siguiente paso hace que también cuente para tus clientes: demuestra que controlas el dominio donde publicas. Una firma rápida o un pequeño archivo en tu sitio, sin conectar la billetera y sin claves, y tu dirección publicada lleva tu dominio detrás.',
+        'El siguiente paso hace que también cuente para tus clientes: demuestra que controlas el dominio donde publicas. Un registro DNS o un pequeño archivo en tu sitio, sin conectar la billetera y sin claves, y tu nombre comercial verificado aparece junto a tu dirección.',
       ],
       ctaLabel: 'Demostrar tu dominio',
       ctaPath: '/dashboard/verify',
@@ -110,7 +110,7 @@ export const fr: DripLocale = {
       subject: 'Vous avez enregistré votre première adresse — prouvez maintenant qu’elle est à vous',
       paragraphs: [
         'Vous venez d’enregistrer une adresse de paiement avec Almstins Verify. C’est la base : Almstins connaît désormais votre adresse de réception réelle, vous pouvez donc vérifier n’importe quel panneau ou QR par rapport à elle avant de vous y fier.',
-        'L’étape suivante la rend utile pour vos clients aussi : prouvez que vous contrôlez le domaine sur lequel vous publiez. Une signature rapide ou un petit fichier sur votre site, sans connexion de portefeuille ni clés, et votre adresse publiée porte votre domaine derrière elle.',
+        'L’étape suivante la rend utile pour vos clients aussi : prouvez que vous contrôlez le domaine sur lequel vous publiez. Un enregistrement DNS ou un petit fichier sur votre site, sans connexion de portefeuille ni clés, et votre nom commercial vérifié s’affiche à côté de votre adresse.',
       ],
       ctaLabel: 'Prouver votre domaine',
       ctaPath: '/dashboard/verify',

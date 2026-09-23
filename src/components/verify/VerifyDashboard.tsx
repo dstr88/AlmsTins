@@ -128,7 +128,7 @@ function HowToAdd({ t }: { t: VerifyDashboardLocale }) {
           </ol>
         </details>
       ))}
-      <a className="vd-howto__cta" href="/login">{t.demoSignupCta}</a>
+      <a className="vd-howto__cta" href="/verify/login?next=/dashboard/verify">{t.demoSignupCta}</a>
     </section>
   );
 }

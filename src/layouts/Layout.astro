@@ -100,6 +100,12 @@ export interface Props {
   logoutRedirect?: string;
   /** HTML lang attribute — set to "es" for Spanish pages. Defaults to "en". */
   lang?: string;
+  /** Demo mode: where the demo's sign-up links go (banner + nav). Defaults to /signup (banner) and / (nav). */
+  demoSignupHref?: string;
+  /** Demo mode: plain-text banner message in place of the default tracker copy. */
+  demoBannerText?: string;
+  /** Demo mode: translated label for the banner's sign-up button. Defaults to English. */
+  demoSignupLabel?: string;
 }
 
 const {
@@ -110,6 +116,9 @@ const {
   noindex = false,
   logoutRedirect,
   lang = cookieLang,
+  demoSignupHref,
+  demoBannerText,
+  demoSignupLabel,
 } = Astro.props;
 
 const navLang = isLang(lang) ? lang : 'en';
@@ -206,7 +215,14 @@ const memberSinceDisplay = memberSinceIso
 </script>
 	</head>
 	<body>
-		{isDemo && <DemoBanner />}
+		{isDemo && (
+			<DemoBanner
+				href={demoSignupHref}
+				text={demoBannerText}
+				ctaLabel={demoSignupLabel}
+				exitLabel={demoBannerText ? tNav.chrome.demoExit : undefined}
+			/>
+		)}
 		{promoDaysLeft !== null && (
 			<div class="promo-expiry-banner">
 				<span class="promo-expiry-banner__icon">⏳</span>
@@ -391,7 +407,7 @@ const memberSinceDisplay = memberSinceIso
 					</details>
 					{isDemo && (
 						<div class="nav-demo-links">
-							<a href="/" class="nav-link nav-demo-signup">{tNav.chrome.demoSignup}</a>
+							<a href={demoSignupHref ?? '/'} class="nav-link nav-demo-signup">{tNav.chrome.demoSignup}</a>
 							<a href="/api/demo/end" class="nav-link nav-demo-exit">{tNav.chrome.demoExit}</a>
 						</div>
 					)}

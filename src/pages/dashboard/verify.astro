@@ -19,7 +19,14 @@ const heroDesktop = await getImage({ src: heroDesktopImg, format: 'webp', width:
 const heroMobile = await getImage({ src: heroMobileImg, format: 'webp', width: 928 });
 ---
 
-<Layout title={t.pageTitle} noindex={true} logoutRedirect="/verify">
+<Layout
+  title={t.pageTitle}
+  noindex={true}
+  logoutRedirect="/verify"
+  demoSignupHref="/verify/login?next=/dashboard/verify"
+  demoBannerText={t.demoBannerText}
+  demoSignupLabel={t.demoSignupCta}
+>
   <div class="vd-page">
     <div class="hero-bleed">
       <section class="vd-hero">

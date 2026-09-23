@@ -235,6 +235,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			if (pathname.startsWith('/dashboard/petro-tins')) {
 				return finish(Response.redirect(`https://${canonicalHost}/petro-tins`, 303));
 			}
+			// Verify dashboard → the Verify login (titled for Verify), not the general
+			// /login. Alert emails and old links point at /dashboard/verify directly.
+			if (pathname === '/dashboard/verify' || pathname.startsWith('/dashboard/verify/')) {
+				const next = encodeURIComponent(pathname);
+				return finish(Response.redirect(`https://${canonicalHost}/verify/login?next=${next}`, 303));
+			}
 			// Preserve the intended destination so sign-in returns there (login.astro
 			// sanitizes `next` to an internal path). Otherwise everyone lands on the
 			// default /dashboard/vault — e.g. a Verify visitor never reaches their dashboard.
