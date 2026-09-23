@@ -1,3 +1,4 @@
+// DIAGNOSTIC, NOT A CI TEST: opt-in only (RUN_PG_DIAGNOSTICS=1 + DATABASE_URL); it WRITES, so never point it at production without intent.
 import 'dotenv/config';
 import { test } from 'vitest';
 
@@ -7,9 +8,12 @@ import { test } from 'vitest';
 // DATABASE_URL / WEB_DATABASE_URL. Not a CI unit test.
 process.env.DB_ENGINE = 'pg';
 
-// Skips unless a live DATABASE_URL is present (so CI without PG creds is unaffected).
-// Run deliberately with: DB_ENGINE=pg npx vitest run tests/pgSmoke.test.ts
-test.skipIf(!process.env.DATABASE_URL)('broad PG query smoke (needs live PG)', async () => {
+// Skips unless explicitly opted in. DATABASE_URL alone is NOT enough: a CI Postgres
+// service or a local .env would otherwise switch this on (and it runs a write,
+// rebuildAssetLifecycles, on the busiest tenant it finds).
+// Run deliberately with: RUN_PG_DIAGNOSTICS=1 DB_ENGINE=pg npx vitest run tests/pgSmoke.test.ts
+const runPgDiagnostics = process.env.RUN_PG_DIAGNOSTICS === '1' && !!process.env.DATABASE_URL;
+test.skipIf(!runPgDiagnostics)('broad PG query smoke (needs live PG)', async () => {
 	const pg = (await import('pg')).default;
 	const probe = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 	await probe.connect();

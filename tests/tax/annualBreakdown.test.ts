@@ -804,10 +804,24 @@ type PipelineMockOpts = {
 	manualRows?:   object[];     // manual_cost_basis
 };
 
+/**
+ * True for the source='auto' probe:
+ *   SELECT COUNT(*) AS cnt FROM tax_disposals WHERE tenant_id = ? AND <year of disposed_at> = ?
+ * Matched on structure, never on the year-extraction function. The old matcher
+ * required 'strftime'; 7ef25a3 (Postgres Phase 1d) switched the SQL to
+ * substr(disposed_at, 1, 4), and the three overrides below silently stopped firing.
+ */
+function isAutoSourceCountQuery(sql: string): boolean {
+	return /\bCOUNT\(\*\)/i.test(sql)
+		&& /\bFROM\s+tax_disposals\b/i.test(sql)
+		&& /\bdisposed_at\b/.test(sql)
+		&& !/\bJOIN\b/i.test(sql);
+}
+
 function setupPipelineMock(opts: PipelineMockOpts = {}) {
 	mockExecute.mockImplementation(({ sql }: { sql: string }) => {
 		// auto-mode: COUNT(*) FROM tax_disposals to decide which source to use
-		if (sql.includes('COUNT(*)') && sql.includes('tax_disposals') && sql.includes('strftime'))
+		if (isAutoSourceCountQuery(sql))
 			return Promise.resolve({ rows: opts.countRows ?? [{ cnt: 0 }] });
 
 		// tax_disposals LEFT JOIN tax_lots — main settled lots query
@@ -880,16 +894,24 @@ describe('Pipeline source path', () => {
 		setupMock(); // lifecycle mock handles all queries
 		// Override just the COUNT check
 		const originalImpl = mockExecute.getMockImplementation();
-		mockExecute.mockImplementation(({ sql }: { sql: string }) => {
-			if (sql.includes('COUNT(*)') && sql.includes('tax_disposals') && sql.includes('strftime'))
+		const probeArgs: unknown[][] = [];
+		mockExecute.mockImplementation(({ sql, args }: { sql: string; args?: unknown[] }) => {
+			if (isAutoSourceCountQuery(sql)) {
+				probeArgs.push(args ?? []);
 				return Promise.resolve({ rows: [{ cnt: 0 }] });
+			}
 			return originalImpl!({ sql } as { sql: string });
 		});
 		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'auto');
+		// The lifecycle default also yields cnt=0, so the outcome alone cannot tell
+		// whether the override ran. Pin that the probe was issued once, scoped to tenant+year.
+		expect(probeArgs).toEqual([[TENANT, '2023']]);
 		expect(bd.dataSource).toBe('lifecycle');
 	});
 
 	it('source="auto" with count>0 uses pipeline (dataSource="pipeline")', async () => {
+		// Only the COUNT override can yield cnt>0 (every other query gets rows: []),
+		// so dataSource='pipeline' is itself proof that the override fired.
 		setupPipelineMock({ countRows: [{ cnt: 3 }] });
 		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'auto');
 		expect(bd.dataSource).toBe('pipeline');
@@ -1017,12 +1039,18 @@ describe('Pipeline source path', () => {
 		// Simulate tax_disposals table not existing (pipeline never run)
 		setupMock(); // lifecycle mock for the fallback path
 		const originalImpl = mockExecute.getMockImplementation();
+		let probeRejections = 0;
 		mockExecute.mockImplementation(({ sql }: { sql: string }) => {
-			if (sql.includes('COUNT(*)') && sql.includes('tax_disposals') && sql.includes('strftime'))
-				return Promise.reject(new Error('no such table: tax_disposals'));
+			if (isAutoSourceCountQuery(sql)) {
+				probeRejections++;
+				return Promise.reject(new Error('relation "tax_disposals" does not exist'));
+			}
 			return originalImpl!({ sql } as { sql: string });
 		});
 		const bd = await buildAnnualBreakdown(TENANT, 2023, 'fifo', undefined, 'auto');
+		// Without this, a non-firing override also ends in 'lifecycle' (cnt=0) and
+		// the catch fallback in buildAnnualBreakdown goes untested.
+		expect(probeRejections).toBe(1);
 		expect(bd.dataSource).toBe('lifecycle');
 	});
 });

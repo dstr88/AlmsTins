@@ -1,4 +1,5 @@
 // @ts-nocheck — diagnostic harness; loose Auth.js adapter typing is intentional.
+// DIAGNOSTIC, NOT A CI TEST: opt-in only (RUN_PG_DIAGNOSTICS=1 + DATABASE_URL); it WRITES auth rows, so never point it at production without intent.
 import 'dotenv/config';
 import { test } from 'vitest';
 
@@ -7,7 +8,12 @@ import { test } from 'vitest';
 // Creates + deletes a throwaway user/account/session. Needs live PG.
 process.env.DB_ENGINE = 'pg';
 
-test.skipIf(!process.env.DATABASE_URL)('auth adapter sign-in chain on PG', async () => {
+// Skips unless explicitly opted in. DATABASE_URL alone is NOT enough: a CI Postgres
+// service or a local .env would otherwise switch this on.
+// Run deliberately with: RUN_PG_DIAGNOSTICS=1 DB_ENGINE=pg npx vitest run tests/pgAuthSmoke.test.ts
+const runPgDiagnostics = process.env.RUN_PG_DIAGNOSTICS === '1' && !!process.env.DATABASE_URL;
+
+test.skipIf(!runPgDiagnostics)('auth adapter sign-in chain on PG', async () => {
 	const { authAdapter } = await import('@/lib/authAdapter');
 	const { db } = await import('@/lib/db');
 	const a = authAdapter();
@@ -44,7 +50,7 @@ test.skipIf(!process.env.DATABASE_URL)('auth adapter sign-in chain on PG', async
 	for (const [n, s] of results) console.log(`  ${n}: ${s}`);
 }, 60_000);
 
-test.skipIf(!process.env.DATABASE_URL)('tenant resolution on PG (real owner user)', async () => {
+test.skipIf(!runPgDiagnostics)('tenant resolution on PG (real owner user)', async () => {
 	const t = await import('@/lib/tenants');
 	const userId = 'cfaeb2a2-7040-4ce2-abd0-b1a22273f50f'; // real owner of tenant fc236bc3
 	const run = async (name: string, fn: () => Promise<unknown>) => {

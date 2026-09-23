@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   calculateScamScore,
   computePartialCoverage,
@@ -7,6 +7,16 @@ import {
   isMixerName,
   KNOWN_MIXER_ADDRESSES,
 } from '../../src/lib/walletChecker';
+
+// src/lib/db.ts opens the Postgres pool at import time and throws without
+// DATABASE_URL (pg became the default engine in 64b74d1). The scoring helpers
+// are pure but reach it via walletChecker.ts -> threatLists.ts -> '@/lib/db'
+// (the threatLists import arrived in 44a91c4), so stub the client: this suite
+// needs no database, and any query throws.
+vi.mock('@/lib/db', () => {
+  const noDb = (): never => { throw new Error('DB-free unit test: db was called'); };
+  return { db: { execute: noDb, batch: noDb } };
+});
 
 /**
  * Consumer-safety regression tests for the wallet checker's fail-safe rules.

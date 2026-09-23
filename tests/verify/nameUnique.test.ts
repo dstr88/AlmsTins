@@ -1,5 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { normalizeName, registrableLabel, nameMatchesDomain } from '../../src/lib/verifyRegistry';
+
+// src/lib/db.ts opens the Postgres pool at import time and throws without
+// DATABASE_URL (pg became the default engine in 64b74d1). The name helpers are
+// pure but reach it via verifyRegistry.ts -> '@/lib/db', so stub the client:
+// this suite needs no database, and any query throws.
+vi.mock('@/lib/db', () => {
+  const noDb = (): never => { throw new Error('DB-free unit test: db was called'); };
+  return { db: { execute: noDb, batch: noDb } };
+});
 
 /**
  * Business names are reserved like an email handle, but ANCHORED to a proven domain:

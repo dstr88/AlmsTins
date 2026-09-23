@@ -2,11 +2,13 @@
  * Tests for pass5 — Review queue builder.
  *
  * buildReviewQueue collects transactions that need manual attention before
- * the tax report is considered complete.  It has three independent triggers:
+ * the tax report is considered complete.  It has four independent triggers:
  *
- *   1. unknown_type    — row was not classified by any earlier pass
- *   2. low_confidence  — classified with confidence < 0.7
- *   3. missing_price   — taxable event with no native_usd / usd_value
+ *   1. unknown_type        — row was not classified by any earlier pass
+ *   2. low_confidence      — classified with confidence < 0.7
+ *   3. missing_price       — taxable event with no native_usd / usd_value
+ *   4. missing_cost_basis  — import acquisition (direction 'in') with no
+ *                            native_usd (added in commit 5add524)
  *
  * Deduplication: an `existingReviewKeys` set (format "sourceType:id:reason")
  * prevents the same item+reason from being queued twice across pipeline runs.
@@ -360,6 +362,99 @@ describe('missing_price — onchain rows', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 6b. missing_cost_basis — import rows (commit 5add524)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('missing_cost_basis — import rows', () => {
+	// Mirrors acquisitionCategories in src/lib/yearEnd/pass5.ts.
+	const ACQUISITION: ClassificationResult['category'][] = [
+		'buy', 'income', 'airdrop', 'transfer', 'loan-proceeds',
+	];
+	// Disposal / outflow categories: never an acquisition, even if the row
+	// is marked direction 'in'.
+	const NON_ACQUISITION: ClassificationResult['category'][] = [
+		'sell', 'swap', 'liquidation', 'burn', 'lost', 'nft-sale', 'fee',
+		'loan-repayment', 'collateral-deposit', 'loan-interest-paid',
+	];
+
+	const costBasisItems = (items: ReturnType<typeof buildReviewQueue>) =>
+		items.filter((x) => x.reason === 'missing_cost_basis');
+
+	it.each(ACQUISITION)(
+		'queues exactly one missing_cost_basis item for acquisition "%s" (direction in, native_usd null)',
+		(cat) => {
+			const rows = [importRow({ id: `mcb-${cat}`, direction: 'in', native_usd: null })];
+			const items = buildReviewQueue(rows, [], classMap(cls('import', `mcb-${cat}`, cat)), noExisting());
+			const found = costBasisItems(items);
+			expect(found, `${cat} should trigger missing_cost_basis`).toHaveLength(1);
+			expect(found[0].sourceType).toBe('import');
+			expect(found[0].sourceId).toBe(`mcb-${cat}`);
+		},
+	);
+
+	it.each(ACQUISITION)(
+		'does NOT queue missing_cost_basis for "%s" when direction is out',
+		(cat) => {
+			const rows = [importRow({ id: `mcb-out-${cat}`, direction: 'out', native_usd: null })];
+			const items = buildReviewQueue(rows, [], classMap(cls('import', `mcb-out-${cat}`, cat)), noExisting());
+			expect(costBasisItems(items)).toHaveLength(0);
+		},
+	);
+
+	it.each(NON_ACQUISITION)(
+		'does NOT queue missing_cost_basis for non-acquisition "%s" even with direction in',
+		(cat) => {
+			const rows = [importRow({ id: `mcb-non-${cat}`, direction: 'in', native_usd: null })];
+			const items = buildReviewQueue(rows, [], classMap(cls('import', `mcb-non-${cat}`, cat)), noExisting());
+			expect(costBasisItems(items)).toHaveLength(0);
+		},
+	);
+
+	it('does NOT queue missing_cost_basis when native_usd is present and positive', () => {
+		const rows = [importRow({ id: 'mcb-priced', direction: 'in', native_usd: 250 })];
+		const items = buildReviewQueue(rows, [], classMap(cls('import', 'mcb-priced', 'buy')), noExisting());
+		expect(items).toHaveLength(0);
+	});
+
+	it('queues missing_cost_basis when native_usd is 0 (falsy, same rule as missing_price)', () => {
+		const rows = [importRow({ id: 'mcb-zero', direction: 'in', native_usd: 0 })];
+		const items = buildReviewQueue(rows, [], classMap(cls('import', 'mcb-zero', 'buy')), noExisting());
+		expect(costBasisItems(items)).toHaveLength(1);
+	});
+
+	it('is suppressed by an existing missing_cost_basis review key, without suppressing other reasons', () => {
+		// income is both taxable (missing_price) and an acquisition (missing_cost_basis)
+		const rows = [importRow({ id: 'mcb-dup', direction: 'in', native_usd: null })];
+		const existing = new Set(['import:mcb-dup:missing_cost_basis']);
+		const items = buildReviewQueue(rows, [], classMap(cls('import', 'mcb-dup', 'income')), existing);
+		expect(costBasisItems(items)).toHaveLength(0);
+		expect(items.filter((x) => x.reason === 'missing_price')).toHaveLength(1);
+	});
+
+	it('an existing missing_price key does NOT suppress missing_cost_basis', () => {
+		const rows = [importRow({ id: 'mcb-mp', direction: 'in', native_usd: null })];
+		const existing = new Set(['import:mcb-mp:missing_price']);
+		const items = buildReviewQueue(rows, [], classMap(cls('import', 'mcb-mp', 'income')), existing);
+		expect(items.filter((x) => x.reason === 'missing_price')).toHaveLength(0);
+		expect(costBasisItems(items)).toHaveLength(1);
+	});
+
+	it('reasonDetail names the category, symbol and date; snapshotJson carries the category', () => {
+		const rows = [importRow({
+			id: 'mcb-detail', direction: 'in', native_usd: null,
+			asset_symbol: 'SOL', timestamp_utc: '2024-02-10T08:00:00Z',
+		})];
+		const items = buildReviewQueue(rows, [], classMap(cls('import', 'mcb-detail', 'airdrop')), noExisting());
+		const item = costBasisItems(items)[0];
+		expect(item.reasonDetail).toContain('airdrop');
+		expect(item.reasonDetail).toContain('SOL');
+		expect(item.reasonDetail).toContain('2024-02-10');
+		const snap = JSON.parse(item.snapshotJson);
+		expect(snap).toMatchObject({ symbol: 'SOL', category: 'airdrop', timestamp: '2024-02-10T08:00:00Z' });
+	});
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 7. Deduplication via existingReviewKeys
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -451,7 +546,7 @@ describe('Multi-row batches', () => {
 	it('processes all rows independently and returns one item per trigger', () => {
 		const iRows = [
 			importRow({ id: 'b1' }),                                               // unknown
-			importRow({ id: 'b2', native_usd: null }),                             // low conf + missing price
+			importRow({ id: 'b2', native_usd: null }),                             // low conf + missing price + missing cost basis
 			importRow({ id: 'b3', native_usd: 500 }),                             // clean
 		];
 		const oRows = [
@@ -467,7 +562,11 @@ describe('Multi-row batches', () => {
 
 		const bySource = (id: string) => items.filter((x) => x.sourceId === id);
 		expect(bySource('b1')).toHaveLength(1);          // unknown_type only
-		expect(bySource('b2')).toHaveLength(2);          // low_confidence + missing_price
+		// b2 is an unpriced direction-'in' airdrop: an acquisition, so commit
+		// 5add524 also queues missing_cost_basis on top of the two older reasons.
+		expect(bySource('b2').map((x) => x.reason).sort()).toEqual(
+			['low_confidence', 'missing_cost_basis', 'missing_price'],
+		);
 		expect(bySource('b3')).toHaveLength(0);          // clean
 		expect(bySource('ob1')).toHaveLength(1);         // unknown_type
 		expect(bySource('ob2')).toHaveLength(1);         // missing_price
