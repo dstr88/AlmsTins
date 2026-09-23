@@ -911,12 +911,19 @@ export async function recordDomainControlProof(tenantId: string, domain: string)
   }
 }
 
-/** Stamp a check that didn't prove the domain (for re-validation/audit later). */
+/**
+ * Stamp an owner-started check that didn't prove the domain (for re-validation/audit later).
+ * An already-PROVEN domain keeps its status: a typo in an edited file must not take the domain
+ * out of the watchman's rotation (listProvenDomainsForMonitor), which would leave its anchored
+ * addresses neither re-confirmed nor released. The watchman alone demotes a proven domain, on a
+ * definitive change, releasing its anchors and alerting the owner (verify-monitor Pass B).
+ */
 export async function markProofChecked(tenantId: string, domain: string, status: 'failed' | 'pending'): Promise<void> {
   await ensureVerifyTables();
   const now = nowUtc();
   await db.execute({
-    sql: `UPDATE verify_domain_proofs SET status = ?, last_checked_at = ?, updated_at = ?
+    sql: `UPDATE verify_domain_proofs
+          SET status = CASE WHEN status = 'proven' THEN status ELSE ? END, last_checked_at = ?, updated_at = ?
           WHERE tenant_id = ? AND domain = ?`,
     args: [status, now, now, tenantId, domain],
   });

@@ -97,6 +97,12 @@ describe('merchantAddressAssurance (public level + since)', () => {
     expect(merchantAddressAssurance(r, CUTOFF)).toEqual({ level: 'verified', since: '2026-05-01 12:00:00' });
   });
 
+  it('a leftover self-send domain with no known anchor date is not verified, even if confirmed', () => {
+    // Pre-fix, a self-send re-prove of a lapsed file-proven row kept the old proof_domain.
+    const r = row({ proofDomain: 'shop.com', lastConfirmedAt: '2026-09-23 00:00:00' });
+    expect(merchantAddressAssurance(r, CUTOFF)).toEqual({ level: 'claimed', since: '2026-01-01 00:00:00' });
+  });
+
   it('a cleared anchor is claimed even if a published-page check was fresh', () => {
     const r = row({ proofDomain: null, lastConfirmedAt: '2026-09-23 00:00:00' });
     expect(merchantAddressAssurance(r, CUTOFF).level).toBe('claimed');

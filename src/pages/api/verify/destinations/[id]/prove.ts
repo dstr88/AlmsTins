@@ -7,8 +7,7 @@
  * happened to THIS destination. Body: { domain, method? }.
  *
  * method: 'file' is the "add a domain to a proven address" flow: only the file can
- * anchor an address, so a DNS-only pass reports the file's failure code instead of
- * a name-only success.
+ * anchor an address, so the DNS method is skipped and a failure reports the file's code.
  *
  * Returns { ok, outcome }, where outcome is a code the UI maps to localized copy:
  *   proven | name_attached | address_not_listed | anchored_other_domain | claimed_elsewhere
@@ -60,13 +59,15 @@ export const POST: APIRoute = async ({ request, params }) => {
   // Method 2 — DNS TXT record (the easier path for managed-host merchants). It proves
   // CONTROL but carries no address list, so it attaches the business NAME without
   // vouching for addresses (those stay self-send/file-proven).
-  const dns = await verifyDnsTxt(domain, challenge);
-  if (dns.ok) {
-    await recordDomainControlProof(session.tenantId, domain);
-    return json({ ok: true, outcome: fileOnly ? result.code : 'name_attached' });
+  if (!fileOnly) {
+    const dns = await verifyDnsTxt(domain, challenge);
+    if (dns.ok) {
+      await recordDomainControlProof(session.tenantId, domain);
+      return json({ ok: true, outcome: 'name_attached' });
+    }
   }
 
-  // Neither method passed — surface the file outcome as the primary hint.
+  // No method passed — surface the file outcome as the primary hint.
   await markProofChecked(session.tenantId, domain, 'failed');
   return json({ ok: true, outcome: result.code });
 };
