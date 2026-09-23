@@ -1,6 +1,10 @@
 ---
 import Analytics from '@/components/Analytics.astro';
-// Almstins Verify — product-specific sign-in for the role desks.
+// Almstins Verify — product-specific sign-in for Verify merchants and the role desks.
+//
+// Verify merchants (next = the Verify dashboard or agent keys) get a Verify heading, a
+// scan link, and a demo pill in place of the hub doors. Everyone else gets the role
+// headings below.
 //
 // The general landing page leads with a marketing CTA ("Start with the free checker"),
 // which is the wrong destination for someone who clicked a link to the Client Portal or
@@ -22,6 +26,7 @@ import Analytics from '@/components/Analytics.astro';
 import '@/styles/tokens.css';
 import { en as t } from '@/i18n/loginPage';
 import { getLoginPageData } from '@/lib/loginPageData';
+import { verifyLoginMode, type VerifyLoginMode } from '@/lib/verifyLoginMode';
 
 export const prerender = false;
 
@@ -30,12 +35,30 @@ const data = await getLoginPageData(Astro.request, Astro.url);
 // Already signed in? Go straight where they were headed.
 if (data.isLoggedIn) return Astro.redirect(data.safeCallbackUrl, 302);
 
-const next = Astro.url.searchParams.get('next') ?? '';
-const isFinancier = next.includes('/verify/desk');
-const roleTitle = isFinancier ? 'Log in as a financier' : 'Log in as a client';
-const roleBlurb = isFinancier
-  ? 'Sign in to check what stands against a receivable before you advance against it.'
-  : 'Sign in to record a receivable and hand the ID to your financier.';
+// Which door the visitor came through decides the heading: Almstins Verify proper, or a
+// financing desk with its role heading. See verifyLoginMode for the rules.
+const mode = verifyLoginMode(Astro.url.searchParams.get('next'));
+const isVerify = mode === 'verify';
+const ROLE: Record<VerifyLoginMode, { title: string; blurb: string }> = {
+  verify: {
+    title: 'Log in to Almstins Verify',
+    blurb: 'Prove the wallets, domain, and payment links you publish, and manage your agent keys. New here? Signing in creates your free account.',
+  },
+  financier: {
+    title: 'Log in as a financier',
+    blurb: 'Sign in to check what stands against a receivable before you advance against it.',
+  },
+  project: {
+    title: 'Log in as a financier',
+    blurb: 'Sign in to your financing desk.',
+  },
+  client: {
+    title: 'Log in as a client',
+    blurb: 'Sign in to record a receivable and hand the ID to your financier.',
+  },
+};
+const { title: roleTitle, blurb: roleBlurb } = ROLE[mode];
+const pageTitle = isVerify ? 'Log in — Almstins Verify' : `${roleTitle} — Almstins Verify`;
 const { csrfToken, safeCallbackUrl, error } = data;
 const failed = !!error;
 ---
@@ -44,7 +67,7 @@ const failed = !!error;
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{roleTitle} — Almstins Verify</title>
+  <title>{pageTitle}</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/favicon-verify.png" />
   <style is:global>
@@ -121,6 +144,16 @@ const failed = !!error;
     .door__free { font-size: .78rem; color: var(--accent-dim, var(--accent)); margin-top: .35rem; }
     .door__cta { font-size: .85rem; font-weight: 700; color: var(--accent); margin-top: .2rem; }
 
+    /* ── Verify door: demo + way back, as pills under the card ── */
+    .pills { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; }
+    .pill {
+      font-size: .82rem; font-weight: 600; text-decoration: none; color: var(--text-secondary);
+      border: 1px solid var(--border-bright); border-radius: 999px; padding: .45rem 1rem;
+      transition: color .15s, border-color .15s;
+    }
+    .pill:hover { color: var(--text-primary); border-color: var(--accent); }
+    .pill--demo { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-glow); }
+
     .trust { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; font-size: .78rem; color: var(--text-muted); }
     [hidden] { display: none !important; }
   </style>
@@ -187,10 +220,19 @@ const failed = !!error;
 
       <p class="cardfoot">
         No separate signup. The link creates your account on first use.<br />
-        <a href="/verify/registry">Check a receivable without an account</a>
+        {isVerify
+          ? <a href="/verify/scan">Check an address without an account</a>
+          : <a href="/verify/registry">Check a receivable without an account</a>}
       </p>
     </div>
 
+    {isVerify ? (
+    <div class="pills">
+      <a class="pill pill--demo" href="/api/demo/start?next=/dashboard/verify" rel="nofollow">Try the vendor demo, no login →</a>
+      <a class="pill" href="/verify">What is Almstins Verify?</a>
+    </div>
+    ) : (
+    <>
     <div class="doors-label">{t.hub.eyebrow}</div>
     <div class="doors" aria-label={t.hub.doorsAria}>
       <a class="door" href="/wallet-checker">
@@ -215,6 +257,8 @@ const failed = !!error;
         <span class="door__cta">{t.hub.watcher.cta} →</span>
       </a>
     </div>
+    </>
+    )}
 
     <div class="trust">
       <span>{t.hub.trust1}</span>

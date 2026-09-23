@@ -15,6 +15,13 @@ const title = `${BRAND} — ${t.meta.tagline}`;
 const here = LANGS.find((l) => l.code === lang) ?? LANGS[0];
 const canonical = `https://almstins.com${here.href}`;
 
+// Every Verify level lives behind the Verify login. It is titled for Verify and
+// returns the merchant to their dashboard (the general /login would land them on
+// the tracker vault). Already signed in, it forwards straight to the dashboard.
+const LOGIN_HREF = '/verify/login?next=/dashboard/verify';
+// Matched by position to t.tools.levels: proven wallet, domain-verified, agents.
+const LEVEL_HREFS = [LOGIN_HREF, LOGIN_HREF, '/verify/agents'];
+
 // Language-neutral integration contract shown to exchanges (code, not translated).
 // The path is a deliberately UNBRANDED well-known URI — the standard must not carry
 // a vendor's name. Legacy /almstins/addresses endpoints keep working unchanged.
@@ -67,7 +74,7 @@ Authorization: Bearer <your-key>
              aria-current={l.code === lang ? 'true' : undefined}>{l.label}</a>
         ))}
       </div>
-      <a class="vnav__login" href="/dashboard/verify">{t.nav.login}</a>
+      <a class="vnav__login" href={LOGIN_HREF}>{t.nav.login}</a>
       <a class="vnav__logo" href="/" aria-label={t.nav.brandAria}>
         <img src={AlmstinsLogo.src} alt="AlmsTins" width="960" height="1104" loading="eager" decoding="async" />
       </a>
@@ -83,11 +90,41 @@ Authorization: Bearer <your-key>
       <h1 class="vhero__title">{t.hero.title}</h1>
       <p class="vhero__sub">{t.hero.sub}</p>
       <div class="vhero__ctas">
-        <a class="vbtn" href="/dashboard/verify">{t.hero.ctaPrimary}</a>
+        <a class="vbtn" href={LOGIN_HREF}>{t.hero.ctaPrimary}</a>
         <a class="vbtn vbtn--demo" href="/api/demo/start?next=/dashboard/verify" rel="nofollow">{t.hero.ctaDemo}</a>
         <a class="vbtn vbtn--ghost" href="#how">{t.hero.ctaSecondary}</a>
       </div>
     </header>
+
+    <!-- Section 1b — The tools: three levels of proof, the free scan, one login -->
+    <section class="vsection vtools" aria-labelledby="vtools-h">
+      <h2 id="vtools-h" class="vsection__heading">{t.tools.heading}</h2>
+      <p class="vtools__lede">{t.tools.lede}</p>
+      <div class="vtools__levels">
+        {t.tools.levels.map((l, i) => (
+          <a class="vtool" href={LEVEL_HREFS[i]}>
+            <span class="vtool__level">{t.tools.levelLabel} {i + 1}</span>
+            <span class="vtool__title">{l.title}</span>
+            <span class="vtool__body">{l.body}</span>
+            <span class="vtool__price">{l.price}</span>
+            <span class="vtool__cta">{l.cta} <span aria-hidden="true">→</span></span>
+          </a>
+        ))}
+      </div>
+      <a class="vtool vtool--scan" href="/verify/scan">
+        <span class="vtool__badge">{t.tools.scan.badge}</span>
+        <span class="vtool__title">{t.tools.scan.title}</span>
+        <span class="vtool__body">{t.tools.scan.body}</span>
+        <span class="vtool__cta">{t.tools.scan.cta} <span aria-hidden="true">→</span></span>
+      </a>
+      <div class="vtools__login">
+        <div class="vtools__login-copy">
+          <h3 class="vtools__login-heading">{t.tools.login.heading}</h3>
+          <p class="vtools__login-body">{t.tools.login.body}</p>
+        </div>
+        <a class="vbtn" href={LOGIN_HREF}>{t.tools.login.button}</a>
+      </div>
+    </section>
 
     <!-- Section 2 — The problem -->
     <section class="vsection vproblem" aria-labelledby="vproblem-h">
@@ -143,7 +180,7 @@ Authorization: Bearer <your-key>
     <!-- Section 7 — Final CTA -->
     <section class="vfinal" aria-labelledby="vfinal-h">
       <h2 id="vfinal-h" class="vfinal__heading">{t.finalCta.heading}</h2>
-      <a class="vbtn vbtn--lg" href="/dashboard/verify">{t.finalCta.button}</a>
+      <a class="vbtn vbtn--lg" href={LOGIN_HREF}>{t.finalCta.button}</a>
       <p class="vfinal__sub">{t.finalCta.sub}</p>
       <a class="vfinal__footer" href="https://almstins.com" aria-label={t.finalCta.footerAria}>{ALMSTINS_URL}</a>
     </section>
@@ -320,6 +357,50 @@ Authorization: Bearer <your-key>
     color: var(--text-primary);
   }
 
+  /* ── Section 1b: the tools ── */
+  .vtools__lede { font-size: 0.97rem; color: var(--text-secondary); line-height: 1.75; margin: -0.5rem 0 1.25rem; }
+  .vtools__levels { display: grid; gap: 1rem; grid-template-columns: 1fr; margin-bottom: 1rem; }
+  @media (min-width: 720px) { .vtools__levels { grid-template-columns: repeat(3, 1fr); } }
+  .vtool {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    background: var(--surface-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    padding: 1.2rem 1.25rem;
+    text-decoration: none;
+    transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  }
+  .vtool:hover { border-color: var(--accent); transform: translateY(-2px); background: var(--surface-hover); }
+  .vtool__level {
+    font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent);
+  }
+  .vtool__title { font-size: 1.05rem; font-weight: 800; color: var(--text-primary); }
+  .vtool__body { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.65; flex: 1; overflow-wrap: anywhere; }
+  .vtool__price {
+    align-self: flex-start;
+    font-size: 0.75rem; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); border: 1px solid var(--accent-glow);
+    padding: 0.2rem 0.6rem; border-radius: 999px;
+  }
+  .vtool__cta { font-size: 0.85rem; font-weight: 700; color: var(--accent); margin-top: 0.15rem; }
+  .vtool--scan { background: var(--surface-card-2); border-style: dashed; border-color: var(--border-bright); }
+  .vtool__badge {
+    align-self: flex-start;
+    font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--gain); background: var(--gain-bg); border: 1px solid var(--gain-border);
+    padding: 0.2rem 0.55rem; border-radius: 999px;
+  }
+  .vtools__login {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem 1.5rem;
+    margin-top: 1rem; padding: 1.35rem 1.5rem;
+    border: 1px solid var(--accent-glow); background: var(--accent-soft); border-radius: 16px;
+  }
+  .vtools__login-copy { flex: 1 1 18rem; min-width: 0; }
+  .vtools__login-heading { font-size: 1.05rem; font-weight: 800; color: var(--text-primary); margin: 0 0 0.3rem; }
+  .vtools__login-body { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+
   /* ── Section 2: problem ── */
   .vproblem {
     border-left: 3px solid var(--loss-border);
@@ -479,5 +560,6 @@ Authorization: Bearer <your-key>
     .vpage { padding: 2rem 1rem 4rem; }
     .vnav { padding: 0.75rem 1rem; }
     .vhero__ctas .vbtn { width: 100%; text-align: center; }
+    .vtools__login .vbtn { width: 100%; text-align: center; }
   }
 </style>
