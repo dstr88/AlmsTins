@@ -8,6 +8,7 @@ import { db } from '../../../lib/db';
 import { authAdapter } from '../../../lib/authAdapter';
 import { verifyPassword } from '../../../lib/passwords';
 import { getPostLoginRedirect } from '../../../lib/postLoginRedirect';
+import { safeAuthRedirect } from '@/lib/safeNext';
 import { ensureTenantForUser, resolveActiveTenantId } from '../../../lib/tenants';
 import { isEmailDomainBlocked } from '../../../lib/blockedEmailDomains';
 
@@ -323,17 +324,8 @@ ON CONFLICT DO NOTHING`,
 			return session;
 		},
 		redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-			const fallback = getPostLoginRedirect(null);
-			if (url === baseUrl || url === `${baseUrl}/`) {
-				return new URL(fallback, baseUrl).toString();
-			}
-			if (url.startsWith('/')) {
-				return new URL(url, baseUrl).toString();
-			}
-			if (url.startsWith(baseUrl)) {
-				return url;
-			}
-			return new URL(fallback, baseUrl).toString();
+			// Same-origin destinations that pass safeNextPath only; everything else falls back.
+			return safeAuthRedirect(url, baseUrl, getPostLoginRedirect(null));
 		},
 	},
 };

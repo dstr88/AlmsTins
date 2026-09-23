@@ -10,6 +10,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { safeNextPath } from '@/lib/safeNext';
 import type { APIRoute } from 'astro';
 import { demoCookieSet, DEMO_TENANT_ID } from '../../../lib/demo';
 import { db } from '../../../lib/db';
@@ -75,7 +76,10 @@ export const GET: APIRoute = async ({ request }) => {
 	// starts with a clean session — useful when showing the app to someone else.
 	const session = await getAuthSession(request).catch(() => null);
 	if (session?.user?.id) {
-		return new Response(null, { status: 302, headers: { Location: '/api/logout?next=/api/demo/start' } });
+		// Keep the caller's destination through the sign-out hop (sanitized both times).
+		const safeNext = safeNextPath(new URL(request.url).searchParams.get('next'));
+		const restart = '/api/demo/start' + (safeNext ? '?next=' + encodeURIComponent(safeNext) : '');
+		return new Response(null, { status: 302, headers: { Location: '/api/logout?next=' + encodeURIComponent(restart) } });
 	}
 
 	// ── Pre-generate all UUIDs synchronously ─────────────────────────────────
@@ -656,9 +660,8 @@ ON CONFLICT (tenant_id, address) DO UPDATE SET verdict = excluded.verdict, revie
 	const lang = (request.headers.get('referer') ?? '').includes('/es') ? 'es' : 'en';
 	const langCookie = `almstins-demo-lang=${lang}; Path=/; SameSite=Lax; Max-Age=3600`;
 
-	// Respect ?next= param for PetroTins demo link; whitelist internal paths only
-	const nextParam = url.searchParams.get('next') ?? '';
-	const destination = nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/dashboard/vault';
+	// Respect ?next= (e.g. the PetroTins and Verify demo links): same-origin paths only.
+	const destination = safeNextPath(url.searchParams.get('next')) ?? '/dashboard/vault';
 
 	const headers = new Headers();
 	headers.append('Location', destination);

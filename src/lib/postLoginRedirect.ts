@@ -1,20 +1,20 @@
+import { safeNextPath } from './safeNext';
+
 const transitionPage = import.meta.glob('../pages/transition.astro');
 const hasTransitionPage = Object.keys(transitionPage).length > 0;
 
 function normalizeNextPath(nextValue: FormDataEntryValue | string | null | undefined) {
-	if (typeof nextValue !== 'string' || nextValue.length === 0) {
+	// Same-origin paths only (see safeNext.ts for the tricks this refuses).
+	const safe = safeNextPath(nextValue);
+	if (!safe) {
 		return null;
 	}
 
-	if (nextValue.startsWith('/') && !nextValue.startsWith('//')) {
-		// Never treat API endpoints as post-login destinations.
-		if (nextValue.startsWith('/api/')) {
-			return '/onboarding/tenant-setup';
-		}
-		return nextValue;
+	// Never treat API endpoints as post-login destinations.
+	if (safe.startsWith('/api/')) {
+		return '/onboarding/tenant-setup';
 	}
-
-	return null;
+	return safe;
 }
 
 export function getPostLoginRedirect(nextValue: FormDataEntryValue | string | null | undefined) {
