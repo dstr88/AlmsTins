@@ -19,10 +19,9 @@
       });
       var q = keep.toString();
       if (q) page.page_location += '?' + q;
-      if (document.referrer) {
-        var r = new URL(document.referrer);
-        page.page_referrer = r.origin + r.pathname;
-      }
+      // Drop only the query and fragment. Keep the scheme and host as-is, so app referrers
+      // like android-app://com.google.android.gm/ (Gmail, LinkedIn) still attribute.
+      if (document.referrer) page.page_referrer = document.referrer.split(/[?#]/)[0];
     } catch (e) { /* keep the path-only defaults */ }
     window.__gaPage = page;
   })();
