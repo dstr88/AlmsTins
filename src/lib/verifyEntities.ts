@@ -18,6 +18,7 @@ import {
 } from './verifyProof';
 import { encryptSecret, decryptSecret, encryptionAvailable } from './verifyCrypto';
 import { normalizeDestinationValue, ensureVerifyTables } from './verifyRegistry';
+import { merchantAddressAssurance } from './verifyAnchor';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -288,7 +289,8 @@ export interface VerifiedAddressHit {
    *    prove control of their own address — so this is shown as caution, not endorsement.
    */
   level: 'claimed' | 'verified';
-  /** ISO datetime (UTC) the destination/entity was proven — the "verified/claimed since" date. Null if unknown. */
+  /** ISO datetime (UTC) behind the level — the "verified/claimed since" date. For 'verified' it is
+   *  when the domain anchor was attached; for 'claimed', when control was proven. Null if unknown. */
   since: string | null;
   /** Publishing domain (entity path), or null for a merchant self-listing. */
   domain: string | null;
@@ -343,7 +345,7 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   //    expose only the merchant's OWN self-chosen label — never tenant_id or any identity.
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT tenant_id, rail, value, label, proof_domain, proven_at, last_confirmed_at FROM verify_destinations
+    sql: `SELECT tenant_id, rail, value, label, proof_method, proof_domain, proven_at, domain_anchored_at, last_confirmed_at FROM verify_destinations
           WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)`,
     args: [normalized, normalized],
   });
@@ -363,12 +365,20 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     // unreachable, the value now rendered by JS, or the monitor cron stalled), degrade
     // verified→claimed: keep the proven-control fact, drop the current-confirmation claim.
     // Under-claim, never over-claim — the same rule the entity mirror already enforces.
-    const confirmedAt = hit.last_confirmed_at ? String(hit.last_confirmed_at) : (hit.proven_at ? String(hit.proven_at) : null);
-    const fresh = confirmedAt !== null && confirmedAt >= staleCutoffUtc();
+    // "Since" follows the level: a 'verified' address is as old as its domain anchor, never
+    // its (possibly older) self-send proof — see merchantAddressAssurance.
+    const str = (v: unknown): string | null => (v ? String(v) : null);
+    const { level, since } = merchantAddressAssurance({
+      proofMethod: String(hit.proof_method ?? ''),
+      proofDomain: publishedDomain,
+      provenAt: str(hit.proven_at),
+      domainAnchoredAt: str(hit.domain_anchored_at),
+      lastConfirmedAt: str(hit.last_confirmed_at),
+    }, staleCutoffUtc());
     return {
       source: 'merchant',
-      level: publishedDomain && fresh ? 'verified' : 'claimed',
-      since: hit.proven_at ? String(hit.proven_at) : null,
+      level,
+      since,
       domain: vn?.domain ?? publishedDomain,
       label: vn?.name ?? (hit.label ? String(hit.label) : null),
       chain: String(hit.rail),

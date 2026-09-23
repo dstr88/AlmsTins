@@ -109,6 +109,12 @@ export interface VerifyDashboardLocale {
   proveVerifyBtn: string;
   proveVerifyingBtn: string;
   proveError: string;
+  // Level 1 → Level 2: add a domain to an address already proven by self-send (Claimed →
+  // Verified). Only the published file can do it, so the panel opens on the domain method.
+  anchorBtn: string;
+  anchorHint: string;
+  proofAnchored: string;
+  proofOtherDomain: string;
   // Self-send proof of control (micro-deposit) — Phase 4.
   proveMethodSelfSend: string;
   proveMethodDomain: string;
@@ -263,6 +269,10 @@ export const en: VerifyDashboardLocale = {
   proveVerifyBtn: 'Verify now',
   proveVerifyingBtn: 'Verifying…',
   proveError: 'Something went wrong. Try again.',
+  anchorBtn: 'Verify domain',
+  anchorHint: 'Your self-send proved you control this wallet, so it shows as Claimed. To show it as Verified, list it in your domain’s verification file: enter your domain, publish the file we give you, then verify. If the file stops listing it later, it goes back to Claimed.',
+  proofAnchored: '✓ Verified. Your domain’s file lists this address, so scans now show it with your domain.',
+  proofOtherDomain: '⚠ This address is already verified through a different domain. To move it, remove it from that domain’s file first, then verify here again after our next check.',
   proveMethodSelfSend: 'Self-send — no website',
   proveMethodDomain: 'Domain',
   ssHint: 'From the wallet that holds {address}, send any tiny amount — even to yourself. We’ll watch the chain and confirm in about a minute. We never ask you to connect or sign anything.',
@@ -432,6 +442,10 @@ export const es: VerifyDashboardLocale = {
   proveVerifyBtn: 'Verificar ahora',
   proveVerifyingBtn: 'Verificando…',
   proveError: 'Algo salió mal. Inténtalo de nuevo.',
+  anchorBtn: 'Verificar dominio',
+  anchorHint: 'Tu autoenvío demostró que controlas esta billetera, así que aparece como «Control confirmado». Para que aparezca como «Verificado», inclúyela en el archivo de verificación de tu dominio: escribe tu dominio, publica el archivo que te damos y luego verifica. Si el archivo deja de incluirla, vuelve a «Control confirmado».',
+  proofAnchored: '✓ Verificada. El archivo de tu dominio incluye esta dirección, así que los escaneos ahora la muestran con tu dominio.',
+  proofOtherDomain: '⚠ Esta dirección ya está verificada con otro dominio. Para moverla, quítala primero del archivo de ese dominio y vuelve a verificar aquí después de nuestra próxima comprobación.',
   proveMethodSelfSend: 'Autoenvío — sin sitio web',
   proveMethodDomain: 'Dominio',
   ssHint: 'Desde la billetera que tiene {address}, envía cualquier cantidad mínima — incluso a ti mismo. Observaremos la cadena y lo confirmaremos en aproximadamente un minuto. Nunca te pedimos conectar ni firmar nada.',
@@ -601,6 +615,10 @@ export const fr: VerifyDashboardLocale = {
   proveVerifyBtn: 'Vérifier maintenant',
   proveVerifyingBtn: 'Vérification…',
   proveError: 'Une erreur s’est produite. Réessayez.',
+  anchorBtn: 'Vérifier le domaine',
+  anchorHint: 'Votre auto-envoi a prouvé que vous contrôlez ce portefeuille, il apparaît donc comme « Contrôle confirmé ». Pour qu’il apparaisse comme « Vérifié », listez-le dans le fichier de vérification de votre domaine : saisissez votre domaine, publiez le fichier que nous vous donnons, puis vérifiez. Si le fichier cesse de le lister, il repasse en « Contrôle confirmé ».',
+  proofAnchored: '✓ Vérifié. Le fichier de votre domaine liste cette adresse, les scans l’affichent donc maintenant avec votre domaine.',
+  proofOtherDomain: '⚠ Cette adresse est déjà vérifiée via un autre domaine. Pour la déplacer, retirez-la d’abord du fichier de ce domaine, puis revérifiez ici après notre prochain contrôle.',
   proveMethodSelfSend: 'Auto-envoi — sans site web',
   proveMethodDomain: 'Domaine',
   ssHint: 'Depuis le portefeuille qui détient {address}, envoyez n’importe quel petit montant — même à vous-même. Nous observerons la chaîne et confirmerons en environ une minute. Nous ne vous demandons jamais de connecter ni de signer quoi que ce soit.',

@@ -12,7 +12,9 @@
  *
  *  B. Merchant .well-known proofs — re-fetch each proven domain's proof file. On a
  *     DEFINITIVE change (challenge/file no longer validates, or a proven address is
- *     no longer vouched) the affected destinations lapse and the owner is alerted.
+ *     no longer vouched) the affected destinations lose the domain anchor and the owner
+ *     is alerted: a file-proven address lapses; a self-send-proven one keeps its control
+ *     proof and drops verified→claimed (releaseDomainAnchor).
  *     A transient unreachable is NOT treated as a swap (no lapse, no alert).
  *
  * Protected by CRON_SECRET (header or ?secret=). Alerts reuse the liquidation-email
@@ -29,7 +31,7 @@ import { getVerifyAlert, type VerifyAlertKind } from '@/i18n/emails/verifyAlert'
 import { listEntitiesForMonitor, monitorEntity } from '@/lib/verifyEntities';
 import {
   listProvenDomainsForMonitor, getProvenAddressDestinations,
-  markDestinationsLapsed, markDestinationsConfirmed, markDomainProofFailed, markDomainProofRechecked,
+  releaseDomainAnchor, markDestinationsConfirmed, markDomainProofFailed, markDomainProofRechecked,
   normalizeDestinationValue, listMonitoredDestinations, recordMonitorResult,
 } from '@/lib/verifyRegistry';
 import { verifyDomainProof } from '@/lib/verifyProof';
@@ -131,8 +133,8 @@ export const GET: APIRoute = async ({ request }) => {
         const res = await verifyDomainProof(d.domain, d.challenge);
         if (!res.ok) {
           if (res.code === 'challenge_mismatch' || res.code === 'malformed') {
-            // Definitive: the published proof changed. Lapse its addresses + alert once.
-            await markDestinationsLapsed(d.tenantId, proven.map((p) => p.id));
+            // Definitive: the published proof changed. Release its addresses + alert once.
+            await releaseDomainAnchor(d.tenantId, d.domain, proven);
             await markDomainProofFailed(d.tenantId, d.domain);
             if (proven.length && (await alert(d.tenantId, 'proof_changed', d.domain, proven.map((p) => p.value)))) {
               merchant.proofChangedAlerts++;
@@ -146,7 +148,7 @@ export const GET: APIRoute = async ({ request }) => {
           const vouched = new Set(res.addresses.map(normalizeDestinationValue));
           const missing = proven.filter((p) => !vouched.has(normalizeDestinationValue(p.value)));
           if (missing.length) {
-            await markDestinationsLapsed(d.tenantId, missing.map((m) => m.id));
+            await releaseDomainAnchor(d.tenantId, d.domain, missing);
             if (await alert(d.tenantId, 'revoked', d.domain, missing.map((m) => m.value))) {
               merchant.addressDroppedAlerts++;
             }
