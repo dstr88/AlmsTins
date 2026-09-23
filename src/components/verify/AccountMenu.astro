@@ -7,19 +7,24 @@
 // styles are reproduced here rather than inherited.
 //
 // It carries less than the main one by necessity — no avatar upload, alert email, plan or
-// last-login are in scope on these pages — and adds links to the other two desks.
+// last-login are in scope on these pages — and adds links to the other desks.
+//
+// The milestone desk is private: it is linked only for accounts that already have a project
+// there (checked server-side, per tenant), so nobody else ever receives the link in HTML.
 //
 // One deliberate divergence: the trigger shows the signed-in address rather than the word
 // "Account". On the dashboard you are always yourself, so the label is noise. Here three
 // parties each act from their own account, and which one is on screen is the point.
 import kingSolomon from '@/assets/KingSolomon.png';
 import minerva from '@/assets/Minerva.png';
+import { hasProjects } from '@/lib/cairnRegistry';
+import { DEMO_TENANT_ID } from '@/lib/demo';
 
 interface Props {
   tenantId: string;
   email?: string | null;
-  /** Which desk is showing, so the menu links to the other two. */
-  current: 'client' | 'desk' | 'confirm';
+  /** Which desk is showing, so the menu links to the others. */
+  current: 'client' | 'desk' | 'confirm' | 'project';
 }
 const { tenantId, email = null, current } = Astro.props;
 
@@ -30,11 +35,22 @@ const DESKS = [
   { key: 'client',  href: '/verify/client',  label: 'Client Portal',  who: 'supplier' },
   { key: 'desk',    href: '/verify/desk',    label: 'Financing Desk', who: 'financier' },
   { key: 'confirm', href: '/verify/confirm', label: 'Confirm a debt', who: 'buyer' },
+  { key: 'project', href: '/verify/cairn',   label: 'Milestone Desk', who: 'financier' },
 ];
-const others = DESKS.filter((d) => d.key !== current);
+
+// Fail closed: if the check errors, the private desk is simply not linked. Never for the
+// public demo account.
+const showProjectDesk =
+  current !== 'project' &&
+  tenantId !== DEMO_TENANT_ID &&
+  (await hasProjects(tenantId).catch(() => false));
+const others = DESKS.filter(
+  (d) => d.key !== current && (d.key !== 'project' || showProjectDesk),
+);
 
 // Sign out returns to the sign-in page for the desk they were on.
-const backTo = `/verify/login?next=/verify/${current}`;
+const currentHref = DESKS.find((d) => d.key === current)?.href ?? '/verify/desk';
+const backTo = `/verify/login?next=${currentHref}`;
 const signOutHref = `/api/auth/signout?callbackUrl=${encodeURIComponent(backTo)}`;
 ---
 
