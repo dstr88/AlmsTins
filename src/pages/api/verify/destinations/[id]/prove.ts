@@ -6,7 +6,10 @@
  * reports whether THIS destination was among them. Body: { domain }.
  *
  * Returns { ok, outcome }, where outcome is a code the UI maps to localized copy:
- *   proven | address_not_listed | challenge_mismatch | unreachable | malformed | invalid_domain
+ *   proven | address_not_listed | claimed_elsewhere | challenge_mismatch | unreachable |
+ *   malformed | invalid_domain | name_attached
+ * claimed_elsewhere: the file lists this wallet, but another account already proved it
+ * (S5a claim guard); the other account is never named.
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
@@ -40,10 +43,12 @@ export const POST: APIRoute = async ({ request, params }) => {
   // Method 1 — the published file (carries the address list; vouches for addresses).
   const result = await verifyDomainProof(domain, challenge);
   if (result.ok) {
-    const flipped = await recordProofResult(session.tenantId, domain, result.addresses);
+    const { flipped, claimedElsewhere } = await recordProofResult(session.tenantId, domain, result.addresses);
     return json({
       ok: true,
-      outcome: flipped.includes(id) ? 'proven' : 'address_not_listed',
+      outcome: flipped.includes(id) ? 'proven'
+        : claimedElsewhere.includes(id) ? 'claimed_elsewhere'
+        : 'address_not_listed',
       flipped: flipped.length,
     });
   }

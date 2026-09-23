@@ -103,8 +103,9 @@ const ENSURE_PROOFS_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_domain_proof
 // Claim-once: a (rail, address) can be PROVEN by only one account, globally. This
 // partial unique index is the arbiter — a second account proving the same address
 // is rejected at the DB layer regardless of who can see what (RLS-agnostic). The
-// proof paths catch the violation and skip gracefully. Mirrors
-// migrations-pg/0005_verify_claim_once.sql.
+// proof paths catch the violation and skip gracefully. It keys on the RAW (rail, value), so
+// it can't see a case twin or the same address filed under another rail; isClaimedElsewhere
+// (S5a) checks those before every flip. Mirrors migrations-pg/0005_verify_claim_once.sql.
 const ENSURE_CLAIM_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_proven_claim
   ON verify_destinations (rail, value) WHERE proof_status = 'proven' AND kind = 'address'`;
 
@@ -261,6 +262,92 @@ export function normalizeDestinationValue(raw: string): string {
   return noScheme.split(/[?@\s]/)[0].trim();
 }
 
+// ── Canonical claim identity (S5a) ───────────────────────────────────────────
+//
+// Claim-once is enforced in the DB on the RAW (rail, value), but the public lookup
+// (lookupVerifiedAddress) matches on the canonical value and ignores the rail. So
+// "0xAbC…" and "0xabc…", the same 0x address on ethereum and on polygon, or one bc1…
+// string filed under bitcoin and under litecoin, are one wallet to a payer. Every path
+// that flips a destination to proven checks this canonical identity against OTHER
+// accounts' proven rows first (isClaimedElsewhere). S5b later moves the index itself
+// onto canonical columns; until then this guard is the arbiter.
+
+const EVM_CANONICAL = /^0x[0-9a-f]{40}$/;
+
+export interface ClaimIdentity {
+  /** normalizeDestinationValue(value); '' when the value has no usable form. */
+  canonical: string;
+  /** 'qr' for payment links/QRs; for an address, 'evm' (a 0x value) or 'addr' (any other). */
+  family: string;
+}
+
+/**
+ * The claim family of a destination, from its kind and canonical value. Never from the
+ * rail: the public lookup ignores the rail, and nothing checks that a value fits the rail
+ * it was filed under, so a family keyed on the rail would let the same string re-filed
+ * under another rail slip past the guard. A 0x value is 'evm' (one key controls it on
+ * every EVM chain; the normalizer lowercases it). Every other address is one 'addr'
+ * family, compared exactly (case-sensitive): base58/bech32 strings from different chains
+ * don't collide, and the one overlap, a BTC/LTC "3…" P2SH string, is the same script hash
+ * on both. Payment links/QRs are looked up by value alone, so every QR rail is one 'qr'.
+ */
+export function claimFamily(kind: DestinationKind, canonical: string): string {
+  if (kind === 'qr') return 'qr';
+  return EVM_CANONICAL.test(canonical) ? 'evm' : 'addr';
+}
+
+/** Canonical claim identity of a stored or entered destination. Pure; the rail it was
+ *  filed under deliberately plays no part (see claimFamily). */
+export function claimIdentity(kind: DestinationKind, value: string): ClaimIdentity {
+  const canonical = normalizeDestinationValue(value);
+  return { canonical, family: claimFamily(kind, canonical) };
+}
+
+/** Same wallet/link for claim purposes. An empty canonical value never matches. EVM
+ *  values are lowercased by the normalizer; every other value is exact (case-sensitive). */
+export function sameClaimIdentity(a: ClaimIdentity, b: ClaimIdentity): boolean {
+  return !!a.canonical && a.canonical === b.canonical && a.family === b.family;
+}
+
+/**
+ * May this destination be anchored (flipped to proven), given the canonical identities
+ * of the proven rows OTHER accounts hold? Pure: the caller supplies `others` and must
+ * already have excluded its own tenant, so an account can re-prove its own wallet or
+ * prove it again under a second rail.
+ */
+export function canAnchor(mine: ClaimIdentity, others: ClaimIdentity[]): boolean {
+  return !others.some((o) => sameClaimIdentity(mine, o));
+}
+
+/**
+ * S5a claim guard: does ANOTHER account already hold a proven destination with the same
+ * canonical identity? If so the caller must not flip this one and reports
+ * 'claimed_elsewhere'. Cross-tenant by design, like the claim-once index it tightens: it
+ * reads only the value (never tenant_id or any identity) and answers yes/no, so the
+ * other account is never named. No rail is taken or read: the public lookup ignores the
+ * rail, so the same wallet re-filed under any rail must still collide. The SQL is a
+ * coarse prefilter (lowercased containment, so a twin stored in another case or wrapped
+ * in a URI still surfaces); the canonical comparison in code decides. Throws on a DB
+ * error, so a caller that can't check fails closed and does not flip.
+ */
+export async function isClaimedElsewhere(
+  tenantId: string,
+  kind: DestinationKind,
+  value: string,
+): Promise<boolean> {
+  const mine = claimIdentity(kind, value);
+  if (!mine.canonical) return false;
+  await ensureVerifyTables();
+  const res = await db.execute({
+    sql: `SELECT value FROM verify_destinations
+          WHERE kind = ? AND proof_status = 'proven' AND tenant_id <> ?
+            AND strpos(lower(value), ?) > 0`,
+    args: [kind, tenantId, mine.canonical.toLowerCase()],
+  });
+  const others = (res.rows as any[]).map((r) => claimIdentity(kind, String(r.value)));
+  return !canAnchor(mine, others);
+}
+
 /**
  * Canonical form of a business name for the global-uniqueness check. Like an email,
  * the name is case-insensitive and whitespace-normalized, so "Joe's Coffee", "joe's
@@ -395,6 +482,15 @@ export async function createDestination(
     if (emv.ok) { rail = emv.scheme; displayHint = emv.merchantName; }
     else if (/^upi:\/\//i.test(rawValue)) { rail = 'upi'; displayHint = parseUpi(rawValue)?.name ?? null; }
     else rail = 'url';
+  } else {
+    // Addresses: only the rails we support (the self-send check reads the chain by rail).
+    // Case is folded ("Bitcoin") and anything off the list ("btc", "base") is refused.
+    // Existing rows are untouched. The claim guard does not rely on this: it keys on the
+    // value alone, so a wallet re-filed under another rail still collides (claimFamily).
+    rail = rail.trim().toLowerCase();
+    if (!(ADDRESS_RAILS as readonly string[]).includes(rail)) {
+      return { ok: false, error: 'invalid', message: 'Choose a supported network for this address.' };
+    }
   }
   // QR/payment-link destinations are stored canonicalized so the claim-once index and
   // the customer-scan match operate on one stable form (URLs canonicalized; PIX/UPI
@@ -446,22 +542,16 @@ export async function createDestination(
 
   // QR/payment links are proven on save (account_claim): registering a link while
   // authenticated in your own account IS the proof of ownership. Claim-once keeps it
-  // exclusive — if another account already proved this exact URL, we say so rather
-  // than create an ambiguous second "verified" row.
+  // exclusive — if another account already proved this link (canonically, on any QR
+  // rail: the scan lookup ignores the rail), we say so rather than create an ambiguous
+  // second "verified" row.
   const isQr = kind === 'qr';
-  if (isQr) {
-    const claimed = await db.execute({
-      sql: `SELECT 1 FROM verify_destinations
-            WHERE kind = 'qr' AND proof_status = 'proven' AND rail = ? AND value = ? LIMIT 1`,
-      args: [rail, value],
-    });
-    if (claimed.rows.length) {
-      return {
-        ok: false,
-        error: 'claimed_elsewhere',
-        message: 'This payment link is already verified by another Almstins account.',
-      };
-    }
+  if (isQr && await isClaimedElsewhere(tenantId, 'qr', value)) {
+    return {
+      ok: false,
+      error: 'claimed_elsewhere',
+      message: 'This payment link is already verified by another Almstins account.',
+    };
   }
 
   const id = randomUUID();
@@ -642,16 +732,25 @@ export async function getChallenge(tenantId: string, domain: string): Promise<st
   return res.rows.length ? String((res.rows[0] as any).challenge_token) : null;
 }
 
+export interface ProofFlipResult {
+  /** Destinations the file vouches for that are now proven (including already-ours). */
+  flipped: string[];
+  /** Vouched destinations held out because another account already proved that wallet. */
+  claimedElsewhere: string[];
+}
+
 /**
  * Record a successful proof: mark the (tenant, domain) proof proven and flip every
  * registered address destination whose value the published file vouches for. Both
- * sides are normalized for the match. Returns the ids of the destinations flipped.
+ * sides are normalized for the match. A listing is not a control proof, so each flip
+ * first passes the S5a claim guard: a wallet another account already proved (in any
+ * case, under any rail) is held out and reported as claimed elsewhere.
  */
 export async function recordProofResult(
   tenantId: string,
   domain: string,
   fileAddresses: string[],
-): Promise<string[]> {
+): Promise<ProofFlipResult> {
   await ensureVerifyTables();
   const now = nowUtc();
   await db.execute({
@@ -663,11 +762,16 @@ export async function recordProofResult(
   const vouched = new Set(fileAddresses.map(normalizeDestinationValue).filter(Boolean));
   const dests = await listDestinations(tenantId);
   const flipped: string[] = [];
+  const claimedElsewhere: string[] = [];
   for (const d of dests) {
     if (d.kind !== 'address') continue;
     if (!vouched.has(normalizeDestinationValue(d.value))) continue;
     if (d.proofStatus === 'proven') { flipped.push(d.id); continue; } // already ours
     try {
+      if (await isClaimedElsewhere(tenantId, 'address', d.value)) {
+        claimedElsewhere.push(d.id);
+        continue;
+      }
       await db.execute({
         sql: `UPDATE verify_destinations
               SET proof_status = 'proven', proof_method = 'well_known', proof_domain = ?, proven_at = ?, updated_at = ?
@@ -676,9 +780,11 @@ export async function recordProofResult(
       });
       flipped.push(d.id);
     } catch (e) {
-      // Claim-once: the partial unique index rejects an address another account has
-      // already proven. Leave it unproven for this tenant rather than failing the
-      // whole proof — they can't take ownership of someone else's verified address.
+      // Claim-once backstop: the partial unique index rejects an exact (rail, value) that
+      // another account proved in the moment since the guard ran (Postgres 23505). Any
+      // other error (the guard itself failing) also leaves the row unproven: fail closed,
+      // without failing the whole proof.
+      if ((e as { code?: string })?.code === '23505') claimedElsewhere.push(d.id);
       console.warn('[verify] destination not flipped (already claimed elsewhere?):', d.id, e);
     }
   }
@@ -689,7 +795,7 @@ export async function recordProofResult(
       try { await tryClaimVerifiedName(tenantId, d.label); } catch { /* non-fatal */ }
     }
   }
-  return flipped;
+  return { flipped, claimedElsewhere };
 }
 
 /**
@@ -865,9 +971,10 @@ export type MicroDepositOutcome =
 
 /**
  * Check the chain for the self-send and, if a new outgoing tx is found, flip the
- * destination to proven. The flip passes through the claim-once guard (the partial
- * unique index): if another account already proved this address, we report
- * 'claimed_elsewhere' rather than taking it. Read-only chain access — no movement.
+ * destination to proven. The flip passes through the S5a claim guard (canonical value,
+ * whatever the rail) and then the claim-once index (exact rail + value): if another
+ * account already proved this address, we report 'claimed_elsewhere' rather than taking it.
+ * Read-only chain access — no movement.
  */
 export async function verifyMicroDeposit(
   tenantId: string,
@@ -897,6 +1004,13 @@ export async function verifyMicroDeposit(
     if (detected.reason === 'unsupported_rail') return { outcome: 'unsupported_rail' };
     if (detected.reason === 'unavailable') return { outcome: 'unavailable' };
     return { outcome: 'not_yet' };
+  }
+
+  // S5a: another account already proved this wallet in another case or under another
+  // rail, which the exact index below can't see. Hold this one out. A DB error here
+  // throws, so nothing flips (fail closed).
+  if (await isClaimedElsewhere(tenantId, 'address', dest.value)) {
+    return { outcome: 'claimed_elsewhere' };
   }
 
   // Claim-once: the partial unique index rejects the flip if another account already

@@ -642,6 +642,7 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
     name_attached: t.proofNameAttached,
     challenge_mismatch: t.proofChallengeMismatch,
     address_not_listed: t.proofAddressNotListed,
+    claimed_elsewhere: t.ssClaimedElsewhere,
     unreachable: t.proofUnreachable,
     malformed: t.proofMalformed,
     invalid_domain: t.proofInvalidDomain,
