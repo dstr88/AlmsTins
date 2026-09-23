@@ -94,9 +94,10 @@ const [
 	safeScalar('SELECT COUNT(*) FROM import_transactions'),
 	safeScalar('SELECT COUNT(*) FROM sui_transactions'),
 	safeScalar('SELECT COUNT(*) FROM transactions'),
-	safeQ(`SELECT u.email, u.name, u.last_login, tm.created_at AS member_since
+	safeQ(`SELECT u.email, u.name, u.last_login, MIN(tm.created_at) AS member_since
 	   FROM auth_users u
 	   LEFT JOIN tenant_memberships tm ON tm.user_id = u.id
+	   GROUP BY u.id, u.email, u.name, u.last_login
 	   ORDER BY u.last_login DESC NULLS LAST
 	   LIMIT 20`),
 	safeQ(`SELECT
