@@ -6,12 +6,15 @@
  * lazily via dynamic import, so a module-level throw in any dependency
  * (e.g. missing TURSO_DATABASE_URL) cannot crash the login route.
  *
+ *   /receivables/<name>? → rewrite to its /verify page (legacyRedirects, alias phase)
  *   isPublicPath?  → next()                    (route handler only)
  *   else           → dynamic import(app.ts)()  (session, tenant, headers)
  */
 
 import { defineMiddleware } from 'astro/middleware';
 import { isPublicPath } from './middleware/auth';
+import { routeLegacy } from './middleware/legacyRedirects';
+import { needsPublicHeaders, withPublicHeaders } from './middleware/securityHeaders';
 
 export const onRequest = defineMiddleware(async (context, next) => {
 	const { pathname } = new URL(context.request.url);
@@ -36,10 +39,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		}
 	}
 
+	// Financing pages moving to /receivables (pure; exact paths only; query kept verbatim).
+	const legacy = routeLegacy(new URL(context.request.url));
+	if (legacy?.kind === 'respond') return legacy.response;
+	if (legacy?.kind === 'rewrite') return withPublicHeaders(await next(legacy.to), pathname);
+
 	// Auth + public paths: pure pass-through.
 	// app.ts is never even imported — nothing it does can break login.
 	if (isPublicPath(pathname)) {
-		return next();
+		const res = await next();
+		return needsPublicHeaders(pathname) ? withPublicHeaders(res, pathname) : res;
 	}
 
 	// Lazy import: if app.ts or any of its dependencies (db, tenants, …) throw

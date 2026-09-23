@@ -18,6 +18,15 @@ describe('verify login — mode from next', () => {
     expect(verifyLoginMode('/verify/desk')).toBe('financier');
     expect(verifyLoginMode('/verify/desk?id=INV-4471')).toBe('financier');
     expect(verifyLoginMode('/verify/cairn')).toBe('project');
+    expect(verifyLoginMode('/receivables/desk')).toBe('financier');
+    expect(verifyLoginMode('/receivables/desk?id=INV-1')).toBe('financier');
+    expect(verifyLoginMode('/receivables/milestones')).toBe('project');
+  });
+
+  it('serves the role-neutral Receivables sign-in for the /receivables landing', () => {
+    expect(verifyLoginMode('/receivables')).toBe('receivables');
+    expect(verifyLoginMode('/receivables/')).toBe('receivables');
+    expect(verifyLoginMode('/receivables/client')).toBe('client');
   });
 
   it('keeps the client heading for everything else, including no next', () => {

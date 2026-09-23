@@ -20,6 +20,7 @@ import { getClientIp } from '../lib/analytics/ip';
 import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } from '../lib/analytics/routes';
 import { isDemoRequest, DEMO_TENANT_ID, demoCookieClear } from '../lib/demo';
 import { runWithDbContext } from '../lib/dbContext';
+import { applySecurityHeaders } from './securityHeaders';
 
 /**
  * Mutation endpoints that demo users are allowed to call.
@@ -309,43 +310,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		}
 	}
 });
-
-const CSP_REPORT_ONLY = [
-	"default-src 'self'",
-	"base-uri 'self'",
-	"object-src 'none'",
-	"frame-ancestors 'none'",
-	"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-	"img-src 'self' data: blob: https://images.unsplash.com",
-	"connect-src 'self'",
-	"font-src 'self' data: https://fonts.gstatic.com",
-	"script-src 'self'",
-	'upgrade-insecure-requests',
-].join('; ');
-
-function applySecurityHeaders(response: Response): Response {
-	// Clone into a mutable response — Auth.js uses Response.redirect() which
-	// produces immutable headers; calling .set() on those throws TypeError.
-	const headers = new Headers(response.headers);
-	headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY);
-	headers.set('X-Frame-Options', 'DENY');
-	headers.set('X-Content-Type-Options', 'nosniff');
-	headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-	headers.set(
-		'Permissions-Policy',
-		'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
-	);
-	headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-	headers.set('Cross-Origin-Resource-Policy', 'same-origin');
-	if (process.env.NODE_ENV === 'production') {
-		headers.set('Strict-Transport-Security', 'max-age=86400; includeSubDomains');
-	}
-	return new Response(response.body, {
-		status: response.status,
-		statusText: response.statusText,
-		headers,
-	});
-}
 
 async function writeRequestAnalyticsBestEffort(request: Request, response: Response, startedAt: number) {
 	try {

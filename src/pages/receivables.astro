@@ -2,6 +2,7 @@
 import LoginLayout from '../layouts/LoginLayout.astro';
 import AlmstinsLogo from '../assets/logo.jpeg';
 import VerifyLogo from '../assets/verify-logo.svg?url';
+import { receivablesPath, receivablesLogin } from '../lib/receivables/paths';
 
 const title = 'Receivables — Almstins Verify';
 const description =
@@ -13,9 +14,9 @@ const canonical = 'https://almstins.com/receivables';
 // deliberately not listed here.
 // The three tools, shown together in one tile.
 const tools = [
-  { href: '/verify/desk', title: 'Financing Desk', body: 'Unencumbered headroom, a clear verdict, the claim register, and Verify now on any receivable.' },
-  { href: '/verify/registry', title: 'Check a receivable', body: 'Paste a receivable ID to see what is already claimed against it. Public, no login.' },
-  { href: '/verify/client', title: 'Client Portal', body: 'Record a receivable and hand its ID to the financiers you choose. Show it is real and unpledged.' },
+  { href: receivablesPath('desk'), title: 'Financing Desk', body: 'Unencumbered headroom, a clear verdict, the claim register, and Verify now on any receivable.' },
+  { href: receivablesPath('registry'), title: 'Check a receivable', body: 'Paste a receivable ID to see what is already claimed against it. Public, no login.' },
+  { href: receivablesPath('client'), title: 'Client Portal', body: 'Record a receivable and hand its ID to the financiers you choose. Show it is real and unpledged.' },
 ];
 
 // Secondary utility + reference links (below the tools).
@@ -24,10 +25,10 @@ const groups = [
     heading: 'Sign in & reference',
     note: null,
     cards: [
-      { href: '/verify/login', title: 'Sign in', body: 'Log in as a client or a financier.' },
-      { href: '/verify/guide', title: 'Using the desk', body: 'A short guide to the financing desk.' },
-      { href: '/verify/runsheet', title: 'Pilot run sheet', body: 'Run one real receivable end to end.' },
-      { href: '/verify/changelog', title: 'What changed', body: 'The build log for Almstins Verify.' },
+      { href: receivablesLogin(), title: 'Sign in', body: 'Log in as a client or a financier.' },
+      { href: receivablesPath('guide'), title: 'Using the desk', body: 'A short guide to the financing desk.' },
+      { href: receivablesPath('runsheet'), title: 'Pilot run sheet', body: 'Run one real receivable end to end.' },
+      { href: receivablesPath('changelog'), title: 'What changed', body: 'The build log for Almstins Verify.' },
     ],
   },
 ];
@@ -90,7 +91,7 @@ const trust = [
       <span class="rnav__tag">Receivables</span>
     </a>
     <div class="rnav__right">
-      <a class="rnav__login" href="/verify/login">Sign in</a>
+      <a class="rnav__login" href={receivablesLogin()}>Sign in</a>
       <a class="rnav__logo" href="/" aria-label="Almstins home">
         <img src={AlmstinsLogo.src} alt="Almstins" width="960" height="1104" loading="eager" decoding="async" />
       </a>
@@ -109,9 +110,9 @@ const trust = [
           and proves state; it never holds or moves the asset, and never makes the financing decision.
         </p>
         <div class="rhero__ctas">
-          <a class="rbtn" href="/verify/desk">Open the desk</a>
+          <a class="rbtn" href={receivablesPath('desk')}>Open the desk</a>
           <a class="rbtn rbtn--demo" href="/artifacts/registry">Try the demo</a>
-          <a class="rbtn rbtn--ghost" href="/verify/registry">Check a receivable</a>
+          <a class="rbtn rbtn--ghost" href={receivablesPath('registry')}>Check a receivable</a>
         </div>
         <p class="rhero__who">For lenders, private-credit and factoring investors, the suppliers who raise the invoice, and the auditors who check it.</p>
       </div>
