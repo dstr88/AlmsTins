@@ -1,6 +1,6 @@
 ---
 import Analytics from '@/components/Analytics.astro';
-// Almstins Verify — PPPcairn milestone desk (Phase 0 + 1).
+// Almstins Verify — milestone desk (Phase 0 + 1).
 //
 // A project is a financed piece of infrastructure; its milestones are the stages money is
 // released against. Phase 1 adds the point of the whole thing: a single-use link asks an
@@ -20,8 +20,9 @@ export const prerender = false;
 // number of plain refreshes, and "the fix is live but the user can't see it" is the bug.
 Astro.response.headers.set('Cache-Control', 'no-store');
 
+// Real signed-in accounts only: a demo session never opens this desk.
 const sess = await requireTenantSession(Astro.request);
-if (!sess) return Astro.redirect('/verify/login?next=/verify/cairn', 302);
+if (!sess || sess.isDemo) return Astro.redirect('/verify/login?next=/verify/cairn', 302);
 
 const authSession = await getAuthSession(Astro.request);
 const email = authSession?.user?.email ?? null;
@@ -49,7 +50,7 @@ const defaultCcy = visitorCountry === 'US' ? 'USDC' : 'NGN';
   <div class="wrap">
     <div class="top">
       <div>
-        <div class="eyebrow">Almstins Verify · PPPcairn</div>
+        <div class="eyebrow">Almstins Verify</div>
         <h1>Milestone desk</h1>
         <p class="blurb">
           Draft a financed project and the milestones its money releases against. Edit freely,

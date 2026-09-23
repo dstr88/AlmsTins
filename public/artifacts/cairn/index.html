@@ -2,9 +2,10 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<title>PPPcairn Milestone Desk</title>
+<title>Milestone Desk demo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="same-origin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -130,7 +131,7 @@
     <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" fill="currentColor" opacity=".22"/><path d="M12 2l7 3v6c0 4.4-3 8.2-7 9-4-.8-7-4.6-7-9V5l7-3z" stroke="currentColor" stroke-width="1.4"/><path d="M8.5 12l2.4 2.4L15.8 9.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
     <span class="name">Almstins</span>
   </div>
-  <p class="kick">Verify &middot; PPPcairn Milestone Desk</p>
+  <p class="kick">Verify &middot; Milestone Desk demo</p>
 
   <h1>The money moves when the roof is finished. Who says the roof is finished?</h1>
   <p class="lede">Tranche finance releases money against milestones, and every release rests on somebody's word that the work is real. This walks one project end to end: a <b>GH&#8373;800,000</b> classroom block in Kumasi, a sealed milestone schedule, and an independent inspector answering a <b>single-use link</b> from the site. The answer is signed, bound to the evidence, and timestamped into Bitcoin &mdash; a trail a lender can rely on and a stranger can check.</p>
@@ -327,7 +328,7 @@
 
     const photoSha = await sha256(te.encode('site-photo-roof.jpg::demo-bytes'));
     const signed = await signManifest(name, {
-      v:1, kind:'cairn_attestation', outcome,
+      v:1, kind:'milestone_attestation', outcome,
       milestone:'Roof completely covered', seq:3,
       scheduleDigest, findings, by:name, title,
       date: new Date().toISOString().slice(0,10),
@@ -360,7 +361,7 @@
   $('btnRelease').addEventListener('click', async ()=>{
     $('btnRelease').disabled = true;
     const signed = await signManifest('Prudence Bank Ghana', {
-      v:1, kind:'cairn_release', amount:240000, currency:'GHS',
+      v:1, kind:'milestone_release', amount:240000, currency:'GHS',
       milestone:'Roof completely covered', seq:3, scheduleDigest,
       date: new Date().toISOString().slice(0,10),
     });
@@ -379,10 +380,10 @@
   (async function boot(){
     const msDigests = [];
     for (const m of milestones){
-      msDigests.push(await sha256(te.encode(jcs({ v:1, kind:'cairn_milestone', seq:m.seq, title:m.title, amount:m.amount, currency:'GHS' }))));
+      msDigests.push(await sha256(te.encode(jcs({ v:1, kind:'milestone_milestone', seq:m.seq, title:m.title, amount:m.amount, currency:'GHS' }))));
     }
     const sealed = await signManifest('Prudence Bank Ghana', {
-      v:1, kind:'cairn_schedule', project:'Kumasi Classroom Block',
+      v:1, kind:'milestone_schedule', project:'Kumasi Classroom Block',
       borrower:'Adom Construction Ltd', total:800000, currency:'GHS',
       milestones: msDigests,
     });
@@ -391,7 +392,7 @@
     renderSchedule();
 
     const seed = await signManifest('A. Boateng', {
-      v:1, kind:'cairn_attestation', outcome:'reached',
+      v:1, kind:'milestone_attestation', outcome:'reached',
       milestone:'Walls to lintel level', seq:2, scheduleDigest,
       by:'A. Boateng', title:'Quantity Surveyor', date:'2026-08-21',
     });

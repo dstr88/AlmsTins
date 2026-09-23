@@ -1,5 +1,5 @@
 /**
- * PPPcairn projects — create + list (authenticated).
+ * Milestone-desk projects — create + list (authenticated).
  *
  * POST /api/verify/cairn/projects  — create + sign a project. Returns its ID (SHA-256 of the
  *   signed creation manifest), which is the capability handed to counterparties in later phases.
@@ -20,6 +20,8 @@ const json = (body: unknown, status = 200) =>
 export const GET: APIRoute = async ({ request, url }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
+  // The desk is for real accounts only; a demo session sees nothing here at all.
+  if (session.isDemo) return json({ ok: false, error: 'not_found' }, 404);
 
   const id = url.searchParams.get('id') ?? '';
   if (id) {
