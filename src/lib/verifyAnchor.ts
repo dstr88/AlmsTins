@@ -74,9 +74,12 @@ export function anchoredSince(row: MerchantAddressRow): string | null {
 
 /**
  * The public assurance level + "since" date for a PROVEN merchant address.
- *  - 'verified' needs a domain anchor that the watchman positively re-confirmed within the
- *    max-stale window (`staleCutoff`, same 'YYYY-MM-DD HH:MM:SS' format so a lexical compare
- *    is chronological). "Since" is the anchor date, never the older control-proof date.
+ *  - 'verified' needs a domain anchor with a known anchor date (anchoredSince) that the
+ *    watchman positively re-confirmed within the max-stale window (`staleCutoff`, same
+ *    'YYYY-MM-DD HH:MM:SS' format so a lexical compare is chronological). "Since" is the
+ *    anchor date, never the older control-proof date. A proof_domain with no known anchor
+ *    date is a leftover (a self-send re-prove before domain_anchored_at existed kept the
+ *    lapsed file proof's domain), not an anchor the owner made.
  *  - otherwise 'claimed' (control only), "since" = when control was proven.
  * Under-claim, never over-claim.
  */
@@ -87,6 +90,6 @@ export function merchantAddressAssurance(
   const since = anchoredSince(row);
   const confirmedAt = row.lastConfirmedAt ?? since;
   const fresh = confirmedAt !== null && confirmedAt >= staleCutoff;
-  if (row.proofDomain && fresh) return { level: 'verified', since };
+  if (row.proofDomain && since !== null && fresh) return { level: 'verified', since };
   return { level: 'claimed', since: row.provenAt };
 }

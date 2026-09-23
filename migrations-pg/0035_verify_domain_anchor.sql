@@ -17,3 +17,13 @@ UPDATE verify_destinations
    AND proof_domain IS NOT NULL
    AND proof_method = 'well_known'
    AND proven_at IS NOT NULL;
+
+-- Leftovers: before this change a self-send re-prove of a lapsed file-proven address kept the
+-- old proof_domain. That is not an anchor the owner made (the public lookup already treats it
+-- as claimed); clear it so the dashboard offers "Verify domain" for it again.
+UPDATE verify_destinations
+   SET proof_domain = NULL, last_confirmed_at = NULL
+ WHERE kind = 'address'
+   AND proof_method <> 'well_known'
+   AND proof_domain IS NOT NULL
+   AND domain_anchored_at IS NULL;
