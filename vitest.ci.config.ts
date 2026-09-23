@@ -14,10 +14,11 @@ import path from 'node:path';
  *   - tests/e2e/**: Playwright specs, run by .github/workflows/playwright.yml.
  *   - tests/pg*.test.ts: opt-in diagnostics against a real Postgres. They run only with
  *     RUN_PG_DIAGNOSTICS=1 and DATABASE_URL set, and some write data or call external APIs.
- *   - tests/tax/pipeline.integration.test.ts: its in-memory SQLite (libsql) harness cannot run
- *     the Postgres-only SQL the tax pipeline now uses, so it fails. Follow-up: port it to
- *     Postgres and run it in a separate CI job with a throwaway Postgres service. Its failure-path
- *     test drops a table, so the port must refuse any DATABASE_URL that is not local or CI.
+ *   - tests/tax/pipeline.integration.test.ts: it needs a real Postgres, so it stays out of this
+ *     database-free step. CI runs it in its own step, "Tax pipeline integration (Postgres)", in
+ *     the same job (.github/workflows/ci.yml), against a throwaway postgres service container.
+ *     The test runs only with RUN_TAX_PIPELINE_IT=1 (set on that step) and a DATABASE_URL on
+ *     localhost or 127.0.0.1, because its failure-path test drops a table.
  * Remove an exclusion only once that file runs green here without secrets.
  */
 export default defineConfig({
