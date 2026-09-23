@@ -4,12 +4,21 @@ import { db } from '@/lib/db';
 import { getGA4Summary } from '@/lib/ga4';
 import { getLang } from '@/lib/i18n/locale';
 import { getAnalytics } from '@/i18n/dashboard/analytics';
+import { requireAdminSession } from '@/lib/adminGuard';
+
+// Platform-wide numbers across every account (request log, GA4, checker totals): owner
+// only, same gate as /admin. Middleware only proves there is a session (or a demo cookie),
+// which is not enough for a cross-tenant view.
+try {
+	await requireAdminSession(Astro.request);
+} catch (resp) {
+	if (resp instanceof Response && resp.status === 401) return Astro.redirect('/login', 303);
+	return Astro.redirect('/dashboard/vault', 303);
+}
 
 const lang = getLang(Astro.request);
 const t = getAnalytics(lang);
 
-// You already gate /dashboard/* in middleware.
-// This is just a belt-and-suspenders check if you ever bypass middleware in dev.
 const today = new Date().toISOString().slice(0, 10);
 const dayParam = Astro.url.searchParams.get('day') ?? today;
 
