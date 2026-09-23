@@ -2,37 +2,33 @@ import { defineConfig } from 'vitest/config';
 import path from 'node:path';
 
 /**
- * The unit tests CI runs on every pull request: the ones that need no database, no network,
- * and no secrets. `npx vitest run` (vitest.config.ts) still runs everything locally.
+ * The unit tests CI runs on every pull request: the whole unit suite, minus the explicit
+ * exclusions below. Every included file must run green with no database, no network, and no
+ * secrets. Any new *.test.ts file under tests/ is picked up automatically, so it must meet that
+ * bar too (DB-free suites stub '@/lib/db'; see tests/verify/nameUnique.test.ts).
  *
- * Standalone on purpose: mergeConfig would ADD this include list to the base one instead of
- * replacing it. Keep `resolve.alias` in step with vitest.config.ts.
+ * Standalone on purpose: mergeConfig would ADD these include/exclude lists to the base ones
+ * instead of replacing them. Keep `resolve.alias` in step with vitest.config.ts.
  *
- * Not here yet, and why:
- *   - tests that import src/lib/db and need DATABASE_URL (tests/verify/{nameUnique,paymentQr,
- *     publishedSource,qrClaimNormalize}, tests/transferLink, tests/walletChecker/mixerAndCoverage)
- *   - tests that call a live third-party API (tests/aaveApi)
- *   - tests/tax/{pass1,pass2,pass5,deduplication,annualBreakdown,pipeline.integration}, which fail
- *     today and are being diagnosed
- *   - tests/pg*.test.ts, which skip unless pointed at a real Postgres
- * Move a file into the list below once it runs green without secrets.
+ * Excluded, and why:
+ *   - tests/e2e/**: Playwright specs, run by .github/workflows/playwright.yml.
+ *   - tests/pg*.test.ts: opt-in diagnostics against a real Postgres. They run only with
+ *     RUN_PG_DIAGNOSTICS=1 and DATABASE_URL set, and some write data or call external APIs.
+ *   - tests/tax/pipeline.integration.test.ts: its in-memory SQLite (libsql) harness cannot run
+ *     the Postgres-only SQL the tax pipeline now uses, so it fails. Follow-up: port it to
+ *     Postgres and run it in a separate CI job with a throwaway Postgres service. Its failure-path
+ *     test drops a table, so the port must refuse any DATABASE_URL that is not local or CI.
+ * Remove an exclusion only once that file runs green here without secrets.
  */
 export default defineConfig({
 	test: {
 		environment: 'node',
-		include: [
-			'tests/auth/**/*.test.ts',
-			'tests/seo/**/*.test.ts',
-			'tests/recordProof/**/*.test.ts',
-			'tests/rwaProof/**/*.test.ts',
-			'tests/tax/fifo.test.ts',
-			'tests/tax/lotSelection.test.ts',
-			'tests/tax/pass3.test.ts',
-			'tests/tax/pass3b.test.ts',
-			'tests/verify/dnsTxt.test.ts',
-			'tests/verify/loginMode.test.ts',
+		include: ['tests/**/*.test.ts'],
+		exclude: [
+			'tests/e2e/**',
+			'tests/pg*.test.ts',
+			'tests/tax/pipeline.integration.test.ts',
 		],
-		exclude: ['tests/e2e/**'],
 	},
 	resolve: {
 		alias: {

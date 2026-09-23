@@ -285,26 +285,41 @@ describe('runDuplicateSweep — strategy 3: within-import near-duplicate', () =>
     expect(stats.totalMarked).toBe(1);
   });
 
-  it('does NOT match when rows are from the same batch', async () => {
+  // Open question (owner): a343fc4 dropped the same-batch guard to catch re-uploads, which may also flag two genuine same-size trades in one CSV.
+  it.todo('same-batch rows: decide whether identical rows inside one import batch are duplicates or separate trades');
+
+  // Strategy-3 window is 5 minutes, inclusive (widened from 30 s in a343fc4).
+  // IMPORT_WINDOW_SEC is not exported from deduplication.ts, so it is mirrored here.
+  // Different batch IDs keep these two tests independent of the same-batch question above.
+  const IMPORT_WINDOW_SEC = 300;
+  const WINDOW_T0 = '2024-03-15T10:00:00Z';
+  const plusSec = (sec: number) => new Date(Date.parse(WINDOW_T0) + sec * 1000).toISOString();
+
+  it('matches at exactly the 5-minute timestamp boundary (inclusive)', async () => {
     setupMock({
       batchRows: [
-        batchRow({ id: 'imp-1', import_batch_id: 'batch-A', timestamp_utc: '2024-03-15T10:00:00Z' }),
-        batchRow({ id: 'imp-2', import_batch_id: 'batch-A', timestamp_utc: '2024-03-15T10:00:05Z' }), // same batch
+        batchRow({ id: 'imp-1', import_batch_id: 'batch-A', timestamp_utc: WINDOW_T0 }),
+        batchRow({ id: 'imp-2', import_batch_id: 'batch-B', timestamp_utc: plusSec(IMPORT_WINDOW_SEC) }), // 300 s apart
       ],
     });
     const stats = await runDuplicateSweep('tenant-1');
-    expect(stats.strategy3WithinImport).toBe(0);
+    expect(stats.strategy3WithinImport).toBe(1);
+    // The later row is flagged as a duplicate of the earlier (keeper) row.
+    const stmts = mockBatch.mock.calls[0][0] as { sql: string; args: unknown[] }[];
+    const flagged = stmts.filter((s) => s.sql.includes('SET is_duplicate = 1'));
+    expect(flagged.map((s) => s.args)).toEqual([['imp-1', 'imp-2', 'tenant-1']]);
   });
 
-  it('does NOT match when timestamps differ by more than 30 seconds', async () => {
+  it('does NOT match when timestamps differ by more than 5 minutes (301 s)', async () => {
     setupMock({
       batchRows: [
-        batchRow({ id: 'imp-1', import_batch_id: 'batch-A', timestamp_utc: '2024-03-15T10:00:00Z' }),
-        batchRow({ id: 'imp-2', import_batch_id: 'batch-B', timestamp_utc: '2024-03-15T10:00:31Z' }), // 31 s apart
+        batchRow({ id: 'imp-1', import_batch_id: 'batch-A', timestamp_utc: WINDOW_T0 }),
+        batchRow({ id: 'imp-2', import_batch_id: 'batch-B', timestamp_utc: plusSec(IMPORT_WINDOW_SEC + 1) }), // 301 s apart
       ],
     });
     const stats = await runDuplicateSweep('tenant-1');
     expect(stats.strategy3WithinImport).toBe(0);
+    expect(stats.totalMarked).toBe(0);
   });
 
   it('does NOT match across different sources', async () => {

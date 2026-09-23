@@ -12,6 +12,7 @@ import { matchTransfers, detectLoans } from '../../src/lib/yearEnd/pass2';
 import {
 	TRANSFER_AMOUNT_TOLERANCE,
 	TRANSFER_MATCH_WINDOW_MINUTES,
+	TRANSFER_MATCH_WINDOW_CEX_MINUTES,
 	LENDING_PROTOCOL_ADDRESSES,
 } from '../../src/lib/yearEnd/constants';
 import type { RawImportTx, RawOnchainTx } from '../../src/lib/yearEnd/types';
@@ -196,7 +197,14 @@ describe('Transfer matching — amount tolerance', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Transfer matching — time window', () => {
-	const WIN = TRANSFER_MATCH_WINDOW_MINUTES; // 90 minutes
+	// Commit a343fc4 split the window by source type. A pair with at least one
+	// on-chain side uses TRANSFER_MATCH_WINDOW_MINUTES (90 min). A pair where
+	// BOTH sides are CSV imports uses TRANSFER_MATCH_WINDOW_CEX_MINUTES (6 h),
+	// because exchange CSV timestamps can lag the real transfer by hours. So the
+	// 90-minute boundary is pinned with on-chain pairs, and the CEX boundary
+	// with import pairs.
+	const WIN     = TRANSFER_MATCH_WINDOW_MINUTES;     // on-chain / mixed pairs
+	const CEX_WIN = TRANSFER_MATCH_WINDOW_CEX_MINUTES; // import → import pairs
 
 	function tsOffset(baseIso: string, minutes: number): string {
 		return new Date(new Date(baseIso).getTime() + minutes * 60_000).toISOString();
@@ -204,32 +212,128 @@ describe('Transfer matching — time window', () => {
 
 	const BASE = '2024-01-01T12:00:00.000Z';
 
-	it('matches when incoming is exactly at the window edge', () => {
-		const rows = [
-			importSend({ id: 'out1', timestamp_utc: BASE }),
-			importReceive({ id: 'in1', timestamp_utc: tsOffset(BASE, WIN) }),
+	it('the import → import window is wider than the on-chain window', () => {
+		// The import cases below place a match at WIN + 1; that only proves the
+		// wider window is in effect if WIN + 1 is still inside CEX_WIN.
+		expect(CEX_WIN).toBeGreaterThan(WIN + 1);
+	});
+
+	// ── On-chain pairs: TRANSFER_MATCH_WINDOW_MINUTES ───────────────────────
+
+	it('on-chain pair: matches when incoming is exactly at the window edge', () => {
+		const onchain = [
+			onchainTx({ id: 'oc-out', direction: 'out', timestamp: BASE }),
+			onchainTx({ id: 'oc-in',  direction: 'in',  timestamp: tsOffset(BASE, WIN) }),
 		];
-		const { results } = matchTransfers(rows, [], WALLETS, NO_CLASSIFIED);
+		const { results, reviewItems } = matchTransfers([], onchain, WALLETS, NO_CLASSIFIED);
+		expect(results).toHaveLength(2);
+		expect(reviewItems).toHaveLength(0);
+		expect(results.find((r) => r.sourceId === 'oc-out')?.linkedTxId).toBe('oc-in');
+	});
+
+	it('on-chain pair: matches when incoming is 1 minute before the outgoing (negative diff OK)', () => {
+		const onchain = [
+			onchainTx({ id: 'oc-out', direction: 'out', timestamp: BASE }),
+			onchainTx({ id: 'oc-in',  direction: 'in',  timestamp: tsOffset(BASE, -1) }),
+		];
+		const { results } = matchTransfers([], onchain, WALLETS, NO_CLASSIFIED);
 		expect(results).toHaveLength(2);
 	});
 
-	it('matches when incoming is 1 minute before the outgoing (negative diff OK)', () => {
-		const rows = [
-			importSend({ id: 'out1', timestamp_utc: BASE }),
-			importReceive({ id: 'in1', timestamp_utc: tsOffset(BASE, -1) }),
+	it('on-chain pair: does NOT match when incoming is just outside the window', () => {
+		const onchain = [
+			onchainTx({ id: 'oc-out', direction: 'out', timestamp: BASE }),
+			onchainTx({ id: 'oc-in',  direction: 'in',  timestamp: tsOffset(BASE, WIN + 1) }),
 		];
-		const { results } = matchTransfers(rows, [], WALLETS, NO_CLASSIFIED);
-		expect(results).toHaveLength(2);
+		const { results, reviewItems } = matchTransfers([], onchain, WALLETS, NO_CLASSIFIED);
+		expect(results).toHaveLength(0);
+		expect(reviewItems).toHaveLength(1);
+		expect(reviewItems[0].reason).toBe('unmatched_transfer');
+		expect(reviewItems[0].sourceType).toBe('onchain');
+		expect(reviewItems[0].sourceId).toBe('oc-out');
 	});
 
-	it('does NOT match when incoming is just outside the window', () => {
+	it('mixed import → on-chain pair keeps the on-chain window (CEX window needs BOTH sides imported)', () => {
+		const atEdge = matchTransfers(
+			[importSend({ id: 'out1', timestamp_utc: BASE })],
+			[onchainTx({ id: 'oc-in', direction: 'in', timestamp: tsOffset(BASE, WIN) })],
+			WALLETS,
+			NO_CLASSIFIED,
+		);
+		expect(atEdge.results).toHaveLength(2);
+		const out = atEdge.results.find((r) => r.sourceId === 'out1')!;
+		expect(out.linkedTxId).toBe('oc-in');
+		expect(out.linkedSourceType).toBe('onchain');
+
+		const pastEdge = matchTransfers(
+			[importSend({ id: 'out1', timestamp_utc: BASE })],
+			[onchainTx({ id: 'oc-in', direction: 'in', timestamp: tsOffset(BASE, WIN + 1) })],
+			WALLETS,
+			NO_CLASSIFIED,
+		);
+		expect(pastEdge.results).toHaveLength(0);
+		expect(pastEdge.reviewItems).toHaveLength(1);
+		expect(pastEdge.reviewItems[0].sourceId).toBe('out1');
+	});
+
+	// ── Import → import pairs: TRANSFER_MATCH_WINDOW_CEX_MINUTES ────────────
+
+	it('import pair: matches just past the on-chain window (WIN + 1)', () => {
 		const rows = [
 			importSend({ id: 'out1', timestamp_utc: BASE }),
 			importReceive({ id: 'in1', timestamp_utc: tsOffset(BASE, WIN + 1) }),
 		];
 		const { results, reviewItems } = matchTransfers(rows, [], WALLETS, NO_CLASSIFIED);
+		expect(results).toHaveLength(2);
+		expect(reviewItems).toHaveLength(0);
+	});
+
+	it('import pair: matches when incoming is exactly at the CEX window edge', () => {
+		const rows = [
+			importSend({ id: 'out1', timestamp_utc: BASE }),
+			importReceive({ id: 'in1', timestamp_utc: tsOffset(BASE, CEX_WIN) }),
+		];
+		const { results, reviewItems } = matchTransfers(rows, [], WALLETS, NO_CLASSIFIED);
+		expect(results).toHaveLength(2);
+		expect(reviewItems).toHaveLength(0);
+		expect(results.find((r) => r.sourceId === 'out1')?.linkedTxId).toBe('in1');
+	});
+
+	it('import pair: does NOT match when incoming is just outside the CEX window', () => {
+		const rows = [
+			importSend({ id: 'out1', timestamp_utc: BASE }),
+			importReceive({ id: 'in1', timestamp_utc: tsOffset(BASE, CEX_WIN + 1) }),
+		];
+		const { results, reviewItems } = matchTransfers(rows, [], WALLETS, NO_CLASSIFIED);
 		expect(results).toHaveLength(0);
 		expect(reviewItems).toHaveLength(1);
+		expect(reviewItems[0].reason).toBe('unmatched_transfer');
+		expect(reviewItems[0].sourceId).toBe('out1');
+	});
+
+	it('import pair: the CEX window applies before the outgoing too (negative diff)', () => {
+		const inside = matchTransfers(
+			[
+				importSend({ id: 'out1', timestamp_utc: BASE }),
+				importReceive({ id: 'in1', timestamp_utc: tsOffset(BASE, -CEX_WIN) }),
+			],
+			[],
+			WALLETS,
+			NO_CLASSIFIED,
+		);
+		expect(inside.results).toHaveLength(2);
+
+		const outside = matchTransfers(
+			[
+				importSend({ id: 'out1', timestamp_utc: BASE }),
+				importReceive({ id: 'in1', timestamp_utc: tsOffset(BASE, -(CEX_WIN + 1)) }),
+			],
+			[],
+			WALLETS,
+			NO_CLASSIFIED,
+		);
+		expect(outside.results).toHaveLength(0);
+		expect(outside.reviewItems).toHaveLength(1);
 	});
 
 	it('prefers the closest-in-time match when multiple candidates exist', () => {

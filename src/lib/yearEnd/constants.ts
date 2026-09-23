@@ -137,7 +137,8 @@ export const LOAN_INTEREST_KEYWORDS = ['interest paid', 'borrow fee', 'accrued i
 export const TRANSFER_MATCH_WINDOW_MINUTES = 90;
 
 /**
- * Wider transfer match window for CEX→CEX or CEX→on-chain pairs.
+ * Wider transfer match window for import→import (CEX CSV) pairs only. Any pair with
+ * an on-chain side uses TRANSFER_MATCH_WINDOW_MINUTES (see pass2.ts).
  * CEX CSV exports often have coarse timestamps (daily batches, delayed
  * posting) so a 90-minute window misses legitimate transfers like
  * LTC sent to Coinbase that posts hours later.

@@ -1,6 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { emvCrc, parseEmv, parseUpi, isEmvPayload, paymentFormat } from '../../src/lib/paymentQr';
 import { normalizeDestinationValue } from '../../src/lib/verifyRegistry';
+
+// src/lib/db.ts opens the Postgres pool at import time and throws without
+// DATABASE_URL (pg became the default engine in 64b74d1). paymentQr.ts is
+// DB-free, but normalizeDestinationValue (pure) lives in verifyRegistry.ts,
+// which imports '@/lib/db'. Stub the client: this suite needs no database, and
+// any query throws.
+vi.mock('@/lib/db', () => {
+  const noDb = (): never => { throw new Error('DB-free unit test: db was called'); };
+  return { db: { execute: noDb, batch: noDb } };
+});
 
 // Build a valid EMVCo TLV field (2-digit length, max 99 — per spec).
 const tlv = (tag: string, v: string) => tag + String(v.length).padStart(2, '0') + v;

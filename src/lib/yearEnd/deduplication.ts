@@ -16,9 +16,10 @@
 //      Mark the import row as duplicate.
 //
 //   3. Within import_transactions (confidence 0.85)
-//      Two import rows from DIFFERENT batch IDs share the same source,
-//      asset_symbol, amount, direction, and timestamp within 30 seconds.
-//      Mark the newer-batch row as duplicate.
+//      Two import rows (any batch, including the same one) share the same
+//      source, asset_symbol and direction, amount within 1 %, and timestamps
+//      within 5 minutes. Mark the later row as a duplicate of the earlier (keeper) row.
+//      Open question: with no same-batch guard (a343fc4), two real same-size trades in one CSV can be flagged.
 //
 // Rows with is_duplicate = -1 (user override "not a duplicate") are skipped.
 //

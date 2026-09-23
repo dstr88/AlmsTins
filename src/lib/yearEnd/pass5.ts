@@ -5,6 +5,7 @@
 //   • Still 'unknown' after all passes
 //   • Missing USD price on taxable events
 //   • Low confidence classifications (< 0.7)
+//   • Missing cost basis on unpriced acquisitions (direction 'in')
 //
 // Items already added by passes 2 and 3 are deduplicated.
 // ─────────────────────────────────────────────────────────────────────────────

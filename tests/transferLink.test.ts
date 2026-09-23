@@ -1,6 +1,16 @@
-import 'dotenv/config';
-import { test, expect } from 'vitest';
+import { test, expect, vi } from 'vitest';
 import { selectArrivalMatch } from '@/lib/lifecycle';
+
+// src/lib/db.ts opens the Postgres pool at import time and throws without
+// DATABASE_URL (pg became the default engine in 64b74d1). selectArrivalMatch is
+// pure but lifecycle.ts imports './db' (the same module as '@/lib/db'), so stub
+// the client: this suite needs no database, and any query throws. The old
+// `import 'dotenv/config'` only existed to feed that import chain, and a local
+// .env would hide a new env dependency that CI would hit, so it is gone.
+vi.mock('@/lib/db', () => {
+	const noDb = (): never => { throw new Error('DB-free unit test: db was called'); };
+	return { db: { execute: noDb, batch: noDb } };
+});
 
 // Pure unit tests for the exchange-withdrawal -> on-chain-arrival selector (2A).
 // TAX-SENSITIVE: a false link silently hides a disposal, so these pin the guards.

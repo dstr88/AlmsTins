@@ -1,3 +1,4 @@
+// DIAGNOSTIC, NOT A CI TEST: opt-in only (RUN_PG_DIAGNOSTICS=1 + DATABASE_URL); it reads real owner wallets and calls external APIs, so never point it at production without intent.
 import 'dotenv/config';
 import { test } from 'vitest';
 
@@ -6,7 +7,12 @@ import { test } from 'vitest';
 // error" emails). Per-wallet timeout guards against external-API hangs. Needs live PG.
 process.env.DB_ENGINE = 'pg';
 
-test.skipIf(!process.env.DATABASE_URL)('getWalletTokenBreakdown for all real wallets on PG', async () => {
+// Skips unless explicitly opted in. DATABASE_URL alone is NOT enough: a CI Postgres
+// service or a local .env would otherwise switch this on.
+// Run deliberately with: RUN_PG_DIAGNOSTICS=1 DB_ENGINE=pg npx vitest run tests/pgWalletRepro.test.ts
+const runPgDiagnostics = process.env.RUN_PG_DIAGNOSTICS === '1' && !!process.env.DATABASE_URL;
+
+test.skipIf(!runPgDiagnostics)('getWalletTokenBreakdown for all real wallets on PG', async () => {
 	const pg = (await import('pg')).default;
 	const c = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 	await c.connect();

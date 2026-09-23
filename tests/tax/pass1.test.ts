@@ -133,44 +133,51 @@ describe('Coinbase kind → category mapping', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Crypto.com kind → category mapping', () => {
+	// The source value every Crypto.com writer stores (import/crypto-com.ts,
+	// import/detect.ts, demo seed). Commit 61e4521 switched pass1 from the
+	// hyphenated 'crypto-com' (never written by any import) to 'crypto_com'.
+	// With the hyphen these rows skip the Crypto.com kind map and fall through
+	// to the keyword fallback, which is not what these tests are pinning.
+	const CDC = 'crypto_com';
+
 	it('maps every buy kind to "buy"', () => {
 		for (const kind of CRYPTOCOM_BUY_KINDS) {
-			const result = classifyImportTxPass1(importRow({ id: 'x', source: 'crypto-com', kind }));
+			const result = classifyImportTxPass1(importRow({ id: 'x', source: CDC, kind }));
 			expect(result?.category, `kind="${kind}"`).toBe('buy');
 		}
 	});
 
 	it('maps every sell kind to "sell"', () => {
 		for (const kind of CRYPTOCOM_SELL_KINDS) {
-			const result = classifyImportTxPass1(importRow({ id: 'x', source: 'crypto-com', kind }));
+			const result = classifyImportTxPass1(importRow({ id: 'x', source: CDC, kind }));
 			expect(result?.category, `kind="${kind}"`).toBe('sell');
 		}
 	});
 
 	it('maps every swap kind to "swap"', () => {
 		for (const kind of CRYPTOCOM_SWAP_KINDS) {
-			const result = classifyImportTxPass1(importRow({ id: 'x', source: 'crypto-com', kind }));
+			const result = classifyImportTxPass1(importRow({ id: 'x', source: CDC, kind }));
 			expect(result?.category, `kind="${kind}"`).toBe('swap');
 		}
 	});
 
 	it('maps every income kind to "income"', () => {
 		for (const kind of CRYPTOCOM_INCOME_KINDS) {
-			const result = classifyImportTxPass1(importRow({ id: 'x', source: 'crypto-com', kind }));
+			const result = classifyImportTxPass1(importRow({ id: 'x', source: CDC, kind }));
 			expect(result?.category, `kind="${kind}"`).toBe('income');
 		}
 	});
 
 	it('maps every transfer-in kind to "transfer"', () => {
 		for (const kind of CRYPTOCOM_TRANSFER_IN_KINDS) {
-			const result = classifyImportTxPass1(importRow({ id: 'x', source: 'crypto-com', kind }));
+			const result = classifyImportTxPass1(importRow({ id: 'x', source: CDC, kind }));
 			expect(result?.category, `kind="${kind}"`).toBe('transfer');
 		}
 	});
 
 	it('maps every transfer-out kind to "transfer"', () => {
 		for (const kind of CRYPTOCOM_TRANSFER_OUT_KINDS) {
-			const result = classifyImportTxPass1(importRow({ id: 'x', source: 'crypto-com', kind }));
+			const result = classifyImportTxPass1(importRow({ id: 'x', source: CDC, kind }));
 			expect(result?.category, `kind="${kind}"`).toBe('transfer');
 		}
 	});
