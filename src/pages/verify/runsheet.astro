@@ -10,7 +10,7 @@ import '@/styles/tokens.css';
 export const prerender = false;
 
 const STEPS = [
-  { n: '1', what: 'Sign in', where: '/verify/login', note: 'Role-aware. Choose "financier".' },
+  { n: '1', what: 'Sign in', where: '/receivables/login?next=/receivables/desk', note: 'Signs you in as the financier and opens the desk.' },
   { n: '2', what: 'Record the deal', where: '/verify/desk', note: 'First card. Client, debtor, invoice no, amount are required. Everything else is whatever the contract says. "+ Add a field" for anything we did not anticipate.' },
   { n: '3', what: 'Attach the papers', where: '/verify/desk', note: 'PDF or photo, 5 MB each, as many as needed. Fingerprinted the moment they land.' },
   { n: '4', what: 'Ask the debtor to confirm', where: '/verify/desk', note: 'Creates a single-use link and copies it. Send it to the debtor. Send a second one to a different person there if the amount warrants it.' },
@@ -23,7 +23,7 @@ const STEPS = [
 ];
 
 const LINKS = [
-  { label: 'Sign in', url: '/verify/login', who: 'The financier' },
+  { label: 'Sign in', url: '/receivables/login?next=/receivables/desk', who: 'The financier' },
   { label: 'Financing desk', url: '/verify/desk', who: 'The financier — everything happens here' },
   { label: 'Debtor confirmation', url: '/verify/authenticate', who: 'The debtor — link only, no account' },
   { label: 'Client counter-signature', url: '/verify/countersign', who: 'The client — link only, no account' },

@@ -35,11 +35,14 @@ const data = await getLoginPageData(Astro.request, Astro.url);
 // Which door the visitor came through decides the heading: Almstins Verify proper, or a
 // financing desk with its role heading. See verifyLoginMode for the rules.
 const mode = verifyLoginMode(Astro.url.searchParams.get('next'));
+const hasDestination = !!(Astro.url.searchParams.get('next') || Astro.url.searchParams.get('callbackUrl'));
+// A bare /verify/login is the Verify sign-in, so it returns to the Verify dashboard.
+const callbackUrl = mode === 'verify' && !hasDestination ? '/dashboard/verify' : data.safeCallbackUrl;
 
 // Already signed in? Go straight where they were headed. From the /receivables landing's
 // role-neutral Sign in, that is the tools on the landing, so the click visibly does something.
 if (data.isLoggedIn) {
-  return Astro.redirect(mode === 'receivables' ? '/receivables#rtools-h' : data.safeCallbackUrl, 302);
+  return Astro.redirect(mode === 'receivables' ? '/receivables#rtools-h' : callbackUrl, 302);
 }
 const isVerify = mode === 'verify';
 const ROLE: Record<VerifyLoginMode, { title: string; blurb: string }> = {
@@ -66,7 +69,7 @@ const ROLE: Record<VerifyLoginMode, { title: string; blurb: string }> = {
 };
 const { title: roleTitle, blurb: roleBlurb } = ROLE[mode];
 const pageTitle = isVerify ? 'Log in — Almstins Verify' : `${roleTitle} — Almstins Verify`;
-const { csrfToken, safeCallbackUrl, error } = data;
+const { csrfToken, error } = data;
 const failed = !!error;
 ---
 <!doctype html>
@@ -179,7 +182,7 @@ const failed = !!error;
       {failed && <p class="notice">Sign-in failed. Please try again.</p>}
 
       <form method="POST" action="/api/auth/signin/google">
-        <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
         <input type="hidden" name="csrfToken" value={csrfToken} />
         <button class="provider" type="submit" data-needs-csrf disabled>
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -193,7 +196,7 @@ const failed = !!error;
       </form>
 
       <form method="POST" action="/api/auth/signin/github">
-        <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
         <input type="hidden" name="csrfToken" value={csrfToken} />
         <button class="provider" type="submit" data-needs-csrf disabled>
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -211,14 +214,14 @@ const failed = !!error;
       </div>
 
       <form method="POST" action="/api/auth/signin/email" id="form-link">
-        <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
         <input type="hidden" name="csrfToken" value={csrfToken} />
         <label>Email<input type="email" name="email" placeholder="you@company.com" required autocomplete="email" /></label>
         <button class="primary" type="submit" data-needs-csrf disabled>Send me a sign-in link</button>
       </form>
 
       <form method="POST" action="/api/auth/callback/credentials" id="form-pass" hidden>
-        <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
         <input type="hidden" name="csrfToken" value={csrfToken} />
         <label>Email<input type="email" name="email" placeholder="you@company.com" required autocomplete="email" /></label>
         <label>Password<input type="password" name="password" minlength="10" required autocomplete="current-password" /></label>

@@ -23,7 +23,9 @@ describe('alias phase (today)', () => {
       expect(routeLegacy(u(`/receivables/${p}`), 'alias')).toEqual({ kind: 'rewrite', to: `/verify/${p}` });
       expect(routeLegacy(u(`/receivables/${p}/`), 'alias')).toEqual({ kind: 'rewrite', to: `/verify/${p}` });
     }
-    expect(routeLegacy(u('/receivables/login'), 'alias')).toEqual({ kind: 'rewrite', to: '/verify/login' });
+    // A bare /receivables/login keeps the role-neutral Receivables sign-in.
+    expect(routeLegacy(u('/receivables/login'), 'alias')).toEqual({ kind: 'rewrite', to: '/verify/login?next=%2Freceivables' });
+    expect(routeLegacy(u('/receivables/login?role=client'), 'alias')).toEqual({ kind: 'rewrite', to: '/verify/login?next=%2Freceivables&role=client' });
   });
 
   it('keeps the query string byte for byte (tokens, ids, duplicates, encoding)', () => {
