@@ -1,0 +1,39 @@
+name: CI
+
+# Runs on every pull request into production: the hermetic unit tests and a full build.
+# Nothing here deploys or touches production; it needs no secrets.
+on:
+  pull_request:
+    branches: [production]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Unit tests + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Same Node as Render (Render reads .node-version).
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests (no database, no network)
+        run: npx vitest run --config vitest.ci.config.ts
+
+      - name: Build
+        run: npm run build
