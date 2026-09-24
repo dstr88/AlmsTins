@@ -34,6 +34,9 @@ vi.mock('@/lib/db', () => {
 		if (sql === 'SELECT 1 AS ok FROM auth_users WHERE email = ? LIMIT 1') {
 			return { rows: mem.users.filter((u) => u.email === args[0]).map(() => ({ ok: 1 })), rowsAffected: 0 };
 		}
+		if (sql === 'SELECT to_regclass(?) AS r') {
+			return { rows: [{ r: String(args[0]) }], rowsAffected: 0 }; // token tables present (tests/auth/signupTokenTable.test.ts covers creation)
+		}
 		throw new Error(`unexpected SQL in test: ${sql}`);
 	};
 	return { db: { execute, batch: async () => { throw new Error('batch not expected'); } } };

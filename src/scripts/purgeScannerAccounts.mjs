@@ -7,11 +7,11 @@
 //   node src/scripts/purgeScannerAccounts.mjs --apply            # delete
 //   node src/scripts/purgeScannerAccounts.mjs --apply --revoke-mixed
 //
-// Selection (all must hold): the email is exactly 'testing@example.com' or that address
-// followed by a character that cannot continue a domain (a quote, a bracket, a space...),
-// which is the scanner's payload shape; so testing@example.com.au or
-// testing@example.company are never selected (the count of such prefix-only matches is
-// printed); email_verified empty; created in the last 14 days (rows with no created_at are
+// Selection (all must hold): the email is exactly 'testing@example.com', or that address
+// followed by text containing an ASCII character that cannot appear in a domain name (a
+// quote, a bracket, a space, '=', '%'...), which is the scanner's payload shape. So
+// testing@example.com.au or testing@example.company are never selected (the count of such
+// prefix-only matches is printed), but testing@example.com0'xor(...) is; email_verified empty; created in the last 14 days (rows with no created_at are
 // never selected); has a password row; has NO Google/GitHub account row. A user is purged
 // only when every tenant it belongs to has no other member. The owner tenant, the demo
 // tenant and 'default' are refused outright: if any selected user touches one, the script
@@ -134,9 +134,11 @@ async function main() {
 
 	// ── Select the scanner accounts ─────────────────────────────────────────────
 	const since = utcStamp(new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000));
-	// The scanner's shape: the bare address, or the address plus payload junk. A character
-	// that can continue a domain (letter, digit, dot, hyphen) means a real, different domain.
-	const scannerShape = `(u.email = $1 OR (starts_with(u.email, $1) AND substr(u.email, ${AFTER_PREFIX}, 1) !~ '[a-z0-9.-]'))`;
+	// The scanner's shape: the bare address, or the address plus payload junk. Text after the
+	// prefix made only of domain characters (letter, digit, dot, hyphen) could be a real,
+	// longer domain and is never selected; any other character there cannot be in a domain.
+	// ASCII only: a non-ASCII letter can be part of a real internationalized domain.
+	const scannerShape = `(u.email = $1 OR (starts_with(u.email, $1) AND substr(u.email, ${AFTER_PREFIX}) ~ '[\\x01-\\x2c\\x2f\\x3a-\\x40\\x5b-\\x60\\x7b-\\x7f]'))`;
 	const users = (await client.query(
 		`SELECT u.id FROM auth_users u
 		 WHERE ${scannerShape} AND ${unverified}
@@ -193,7 +195,12 @@ async function main() {
 		else if (c.column_name === 'user_id') targets.push({ table: c.table_name, column: c.column_name, kind: 'user', cast });
 		else if (/tenant/.test(c.column_name) || /_by$/.test(c.column_name)) reportOnly.push({ table: c.table_name, column: c.column_name, cast });
 	}
-	const hasAuthSessions = (await client.query(`SELECT to_regclass('public.auth_sessions') AS r`)).rows[0].r != null;
+	// Optional tables: skipped when absent (production has no auth_sessions under JWT sessions,
+	// and signup_verification_tokens is created lazily on first use).
+	const hasTable = async (name) => (await client.query('SELECT to_regclass($1) AS r', [`public.${name}`])).rows[0].r != null;
+	const hasAuthSessions = await hasTable('auth_sessions');
+	const hasSignupTokens = await hasTable('signup_verification_tokens');
+	const hasAuthTokens = await hasTable('auth_verification_tokens');
 
 	const where = (t) => `${qi(t.column)}${t.cast} = ANY($1::text[])`;
 	const keysFor = (t, p) => (t.kind === 'user' ? [p.userId] : p.tenants);
@@ -219,7 +226,7 @@ async function main() {
 			['auth_credentials', await count('SELECT COUNT(*)::int n FROM auth_credentials WHERE user_id = $1', [p.userId])],
 			['auth_accounts', await count('SELECT COUNT(*)::int n FROM auth_accounts WHERE user_id = $1', [p.userId])],
 			...(hasAuthSessions ? [['auth_sessions', await count('SELECT COUNT(*)::int n FROM auth_sessions WHERE user_id = $1', [p.userId])]] : []),
-			['signup_verification_tokens', await count(`SELECT COUNT(*)::int n FROM signup_verification_tokens WHERE identifier = (SELECT 'signup:' || email FROM auth_users WHERE id = $1)`, [p.userId])],
+			...(hasSignupTokens ? [['signup_verification_tokens', await count(`SELECT COUNT(*)::int n FROM signup_verification_tokens WHERE identifier = (SELECT 'signup:' || email FROM auth_users WHERE id = $1)`, [p.userId])]] : []),
 		];
 		for (const [name, n] of explicitCounts) if (n) console.log(`  ${name}: ${n}`);
 		if (!APPLY) continue;
@@ -254,8 +261,8 @@ async function main() {
 				const r = await client.query(sql, args);
 				if (r.rowCount) deleted[label] = (deleted[label] ?? 0) + r.rowCount;
 			};
-			await run('signup_verification_tokens', `DELETE FROM signup_verification_tokens WHERE identifier = (SELECT 'signup:' || email FROM auth_users WHERE id = $1)`, [p.userId]);
-			await run('auth_verification_tokens', 'DELETE FROM auth_verification_tokens WHERE identifier = (SELECT email FROM auth_users WHERE id = $1)', [p.userId]);
+			if (hasSignupTokens) await run('signup_verification_tokens', `DELETE FROM signup_verification_tokens WHERE identifier = (SELECT 'signup:' || email FROM auth_users WHERE id = $1)`, [p.userId]);
+			if (hasAuthTokens) await run('auth_verification_tokens', 'DELETE FROM auth_verification_tokens WHERE identifier = (SELECT email FROM auth_users WHERE id = $1)', [p.userId]);
 			await run('tenant_memberships', 'DELETE FROM tenant_memberships WHERE user_id = $1 OR tenant_id = ANY($2::text[])', [p.userId, p.tenants]);
 			await run('tenants', 'DELETE FROM tenants WHERE id = ANY($1::text[])', [p.tenants]);
 			await run('auth_credentials', 'DELETE FROM auth_credentials WHERE user_id = $1', [p.userId]);
