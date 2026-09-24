@@ -5,6 +5,8 @@ import { db } from '@/lib/db';
 import { getGA4Summary } from '@/lib/ga4';
 import { countUniqueChecksByKind } from '@/lib/checkLog';
 import MailboxWindows from '@/components/admin/MailboxWindows.astro';
+import { getAuthSession } from '@/lib/authSession';
+import { isPetroTinsOwnerSession, petroTinsVisibility, withoutPetroTinsRows } from '@/lib/petroTinsAccess';
 
 // Guard — redirect non-admin users rather than returning a raw 4xx,
 // since Render's infrastructure renders raw error responses as "file not found".
@@ -152,11 +154,21 @@ const [
 ]);
 
 // ── PetroTins visit stats ─────────────────────────────────────────────────────
-const [petroVisitCount, petroAvgDuration, petroRecentVisits] = await Promise.all([
-	safeScalar(`SELECT COUNT(*) FROM petro_visits`).catch(() => 0),
-	safeScalar(`SELECT ROUND(AVG(duration_s)) FROM petro_visits`).catch(() => 0),
-	safeQ(`SELECT visited_at, duration_s FROM petro_visits ORDER BY visited_at DESC LIMIT 10`).catch(() => []),
-]);
+// While PetroTins is owner-only (src/lib/petroTinsFlag.mjs) this section is shown to the
+// owner alone, not to every admin, and its queries are skipped for anyone else. PetroTins
+// routes and pages are also dropped from the traffic tables below for anyone else.
+const showPetroTins = petroTinsVisibility({
+	isOwner: await isPetroTinsOwnerSession(Astro.request, await getAuthSession(Astro.request).catch(() => null)),
+}).adminStats;
+const shownTopRoutes = withoutPetroTinsRows(topRoutes, (row) => row.route_key, showPetroTins);
+const shownTopPages = withoutPetroTinsRows(ga4?.topPages ?? [], (p) => p.page, showPetroTins);
+const [petroVisitCount, petroAvgDuration, petroRecentVisits] = showPetroTins
+	? await Promise.all([
+		safeScalar(`SELECT COUNT(*) FROM petro_visits`).catch(() => 0),
+		safeScalar(`SELECT ROUND(AVG(duration_s)) FROM petro_visits`).catch(() => 0),
+		safeQ(`SELECT visited_at, duration_s FROM petro_visits ORDER BY visited_at DESC LIMIT 10`).catch(() => []),
+	])
+	: ([0, 0, []] as [number, number, Record<string, any>[]]);
 
 const fmt = (iso: string | null) => {
 	if (!iso) return '—';
@@ -628,14 +640,14 @@ const fmtDate = (iso: string | null) => {
 								</tr>
 							</thead>
 							<tbody>
-								{ga4.topPages.map((p) => (
+								{shownTopPages.map((p) => (
 									<tr>
 										<td style="font-family:monospace; font-size:0.75rem;">{p.page}</td>
 										<td style="text-align:right">{p.views.toLocaleString()}</td>
 										<td style="text-align:right">{p.users.toLocaleString()}</td>
 									</tr>
 								))}
-								{ga4.topPages.length === 0 && (
+								{shownTopPages.length === 0 && (
 									<tr><td colspan="3" style="opacity:0.35; text-align:center; padding:1rem;">No data</td></tr>
 								)}
 							</tbody>
@@ -759,7 +771,7 @@ const fmtDate = (iso: string | null) => {
 			</div>
 
 			<!-- Top routes (7 days) -->
-			{topRoutes.length > 0 && (
+			{shownTopRoutes.length > 0 && (
 				<div>
 					<div class="section-title">Top routes — last 7 days</div>
 					<div class="table-wrap">
@@ -768,7 +780,7 @@ const fmtDate = (iso: string | null) => {
 								<tr><th>Route</th><th style="text-align:right">Hits</th></tr>
 							</thead>
 							<tbody>
-								{topRoutes.map((row) => (
+								{shownTopRoutes.map((row) => (
 									<tr>
 										<td style="font-family:monospace; font-size:0.75rem;">{row.route_key}</td>
 										<td style="text-align:right;">{Number(row.hits).toLocaleString()}</td>
@@ -782,46 +794,48 @@ const fmtDate = (iso: string | null) => {
 		</div>
 	</div>
 
-	<!-- ── PetroTins visits ──────────────────────────────────────────────── -->
-	<div class="section">
-		<div class="section-title">PetroTins — visitor sessions</div>
-		<div class="stat-grid" style="margin-bottom:1rem">
-			<div class="stat-card">
-				<div class="stat-label">Total visits</div>
-				<div class="stat-value">{Number(petroVisitCount).toLocaleString()}</div>
-			</div>
-			<div class="stat-card">
-				<div class="stat-label">Avg time on page</div>
-				<div class="stat-value">
-					{petroAvgDuration
-						? `${Math.floor(Number(petroAvgDuration) / 60)}m ${Number(petroAvgDuration) % 60}s`
-						: '—'}
+	{/* ── PetroTins visits (owner-only while PetroTins is private) ──────── */}
+	{showPetroTins && (
+		<div class="section">
+			<div class="section-title">PetroTins — visitor sessions</div>
+			<div class="stat-grid" style="margin-bottom:1rem">
+				<div class="stat-card">
+					<div class="stat-label">Total visits</div>
+					<div class="stat-value">{Number(petroVisitCount).toLocaleString()}</div>
+				</div>
+				<div class="stat-card">
+					<div class="stat-label">Avg time on page</div>
+					<div class="stat-value">
+						{petroAvgDuration
+							? `${Math.floor(Number(petroAvgDuration) / 60)}m ${Number(petroAvgDuration) % 60}s`
+							: '—'}
+					</div>
 				</div>
 			</div>
+			{(petroRecentVisits as any[]).length > 0 && (
+				<div class="table-wrap">
+					<table class="data-table">
+						<thead>
+							<tr><th>Visited at</th><th style="text-align:right">Time on page</th></tr>
+						</thead>
+						<tbody>
+							{(petroRecentVisits as any[]).map(row => (
+								<tr>
+									<td style="font-size:0.78rem">{fmt(String(row.visited_at))}</td>
+									<td style="text-align:right; font-variant-numeric:tabular-nums">
+										{Math.floor(Number(row.duration_s) / 60)}m {Number(row.duration_s) % 60}s
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			)}
+			{(petroRecentVisits as any[]).length === 0 && (
+				<p style="font-size:0.82rem; color:var(--text-muted)">No visits recorded yet.</p>
+			)}
 		</div>
-		{(petroRecentVisits as any[]).length > 0 && (
-			<div class="table-wrap">
-				<table class="data-table">
-					<thead>
-						<tr><th>Visited at</th><th style="text-align:right">Time on page</th></tr>
-					</thead>
-					<tbody>
-						{(petroRecentVisits as any[]).map(row => (
-							<tr>
-								<td style="font-size:0.78rem">{fmt(String(row.visited_at))}</td>
-								<td style="text-align:right; font-variant-numeric:tabular-nums">
-									{Math.floor(Number(row.duration_s) / 60)}m {Number(row.duration_s) % 60}s
-								</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
-		)}
-		{(petroRecentVisits as any[]).length === 0 && (
-			<p style="font-size:0.82rem; color:var(--text-muted)">No visits recorded yet.</p>
-		)}
-	</div>
+	)}
 
 	<p class="refresh-note">Data is live — refresh the page for updated stats.</p>
 

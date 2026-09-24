@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// Pin PetroTins to owner-only, so these cases hold whatever the committed switch says.
+vi.mock('../../src/lib/petroTinsFlag.mjs', () => ({ PETRO_TINS_PUBLIC: false }));
+
 import { routeSignInError, cutSignInQuery, loginPathForLang } from '../../src/lib/authErrorRedirect';
 import { resolveLoginAlert, signInErrorMessage } from '../../src/lib/loginPageData';
 import { withoutSessionCookies } from '../../src/lib/authSession';
@@ -46,9 +50,11 @@ describe('routeSignInError', () => {
 		expect(loc.searchParams.get('next')).toBe('/receivables/desk');
 	});
 
-	it('returns PetroTins errors to /petro-tins', () => {
+	it('leaves PetroTins errors on /login while PetroTins is owner-only (its page is a 404 to a signed-out visitor)', () => {
 		const res = routeSignInError(post('https://almstins.com/petro-tins'), authRedirect('error=CredentialsSignin&code=credentials'));
-		expect(new URL(res.headers.get('Location')!).pathname).toBe('/petro-tins');
+		const loc = new URL(res.headers.get('Location')!);
+		expect(loc.pathname).toBe('/login');
+		expect(loc.searchParams.get('code')).toBe('credentials');
 	});
 
 	it('leaves /login alone for any other page, another host, no Referer, or a success redirect', () => {

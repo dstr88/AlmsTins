@@ -5,6 +5,8 @@ import { getGA4Summary } from '@/lib/ga4';
 import { getLang } from '@/lib/i18n/locale';
 import { getAnalytics } from '@/i18n/dashboard/analytics';
 import { requireAdminSession } from '@/lib/adminGuard';
+import { getAuthSession } from '@/lib/authSession';
+import { isPetroTinsOwnerSession, petroTinsVisibility, withoutPetroTinsRows } from '@/lib/petroTinsAccess';
 
 // Platform-wide numbers across every account (request log, GA4, checker totals): owner
 // only, same gate as /admin. Middleware only proves there is a session (or a demo cookie),
@@ -15,6 +17,12 @@ try {
 	if (resp instanceof Response && resp.status === 401) return Astro.redirect('/login', 303);
 	return Astro.redirect('/dashboard/vault', 303);
 }
+
+// While PetroTins is owner-only (src/lib/petroTinsFlag.mjs), its routes and pages stay out of
+// the tables below for anyone but the owner.
+const showPetroTins = petroTinsVisibility({
+	isOwner: await isPetroTinsOwnerSession(Astro.request, await getAuthSession(Astro.request).catch(() => null)),
+}).adminStats;
 
 const lang = getLang(Astro.request);
 const t = getAnalytics(lang);
@@ -178,6 +186,10 @@ const recentLogs = showLogs
 			`,
 	  )
 	: [];
+
+const shownByRoute = withoutPetroTinsRows(byRoute, (r) => r.route_key, showPetroTins);
+const shownRecentLogs = withoutPetroTinsRows(recentLogs, (r) => r.route, showPetroTins);
+const shownTopPages = withoutPetroTinsRows(ga4?.topPages ?? [], (p) => p.page, showPetroTins);
 ---
 
 <Layout title={t.pageTitle} noindex={true}>
@@ -224,7 +236,7 @@ const recentLogs = showLogs
 								</tr>
 							</thead>
 							<tbody>
-								{ga4.topPages.map((p) => (
+								{shownTopPages.map((p) => (
 									<tr style="border-top: 1px solid rgba(255,255,255,0.07);">
 										<td style="padding: 0.4rem 0; font-family: ui-monospace, monospace; font-size: 0.8rem;">{p.page}</td>
 										<td style="padding: 0.4rem 0;">{p.views.toLocaleString()}</td>
@@ -346,7 +358,7 @@ const recentLogs = showLogs
 						</tr>
 					</thead>
 					<tbody>
-						{byRoute.map((r) => (
+						{shownByRoute.map((r) => (
 							<tr style="border-top: 1px solid rgba(255,255,255,0.12);">
 								<td style="padding:0.45rem 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">
 									{str(r.route_key)}
@@ -355,7 +367,7 @@ const recentLogs = showLogs
 								<td style="padding:0.45rem 0;">{num(r.avg_ms)}</td>
 							</tr>
 						))}
-						{byRoute.length === 0 && (
+						{shownByRoute.length === 0 && (
 							<tr><td colspan="3" style="padding:0.75rem 0; opacity:0.8;">{t.noRowsForDay}</td></tr>
 						)}
 					</tbody>
@@ -431,7 +443,7 @@ const recentLogs = showLogs
 							</tr>
 						</thead>
 						<tbody>
-							{recentLogs.map((r) => (
+							{shownRecentLogs.map((r) => (
 								<tr style="border-top: 1px solid rgba(255,255,255,0.12);">
 									<td style="padding:0.45rem 0; font-family: ui-monospace, monospace;">{str(r.ts)}</td>
 									<td style="padding:0.45rem 0; font-family: ui-monospace, monospace;">{str(r.route_key)}</td>
@@ -444,7 +456,7 @@ const recentLogs = showLogs
 									<td style="padding:0.45rem 0;">{num(r.cache_hit) ? 'Y' : 'N'}</td>
 								</tr>
 							))}
-							{recentLogs.length === 0 && (
+							{shownRecentLogs.length === 0 && (
 								<tr><td colspan="9" style="padding:0.75rem 0; opacity:0.8;">{t.noDetailedLogs}</td></tr>
 							)}
 						</tbody>

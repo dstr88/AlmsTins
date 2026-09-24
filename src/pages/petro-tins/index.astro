@@ -5,6 +5,7 @@ import SiteFooter from '@/components/petro-tins/SiteFooter.astro';
 import { getAuthSession } from '@/lib/authSession';
 import { en as loginEn } from '@/i18n/loginPage';
 import { signInErrorMessage } from '@/lib/loginPageData';
+import { PETRO_TINS_PUBLIC } from '@/lib/petroTinsAccess';
 
 const { searchParams } = Astro.url;
 const error        = searchParams.get('error');
@@ -189,11 +190,13 @@ try {
           <a href="/login">Looking for Almstins? →</a>
         </p>
 
-        <div class="pt-demo-divider"><span>or</span></div>
+        {PETRO_TINS_PUBLIC && (<>
+          <div class="pt-demo-divider"><span>or</span></div>
 
-        <a href="/api/petro-tins/demo" class="pt-demo-btn">
-          ⛽ Try the demo
-        </a>
+          <a href="/api/petro-tins/demo" class="pt-demo-btn">
+            ⛽ Try the demo
+          </a>
+        </>)}
       </div>
 
     </div>

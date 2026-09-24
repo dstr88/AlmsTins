@@ -7,14 +7,33 @@
  * entries for the current month and sends a reminder email to their
  * alert_email (or account email) listing what still needs to be paid.
  *
+ * While PetroTins is owner-only (PETRO_TINS_PUBLIC in src/lib/petroTinsFlag.mjs),
+ * the job reads and emails the owner's tenant alone: the tenant query is limited
+ * to the owner tenant, and the loop skips anything else as a second check. The
+ * email's link goes through sign-in (/login?next=...), because a signed-out visit
+ * to a PetroTins page is a 404 while it is owner-only.
+ *
+ * The scheduled workflow runs in a public repo, so its log is public. While
+ * owner-only the response is a bare { ok: true } (the counts would describe the
+ * owner's bills); the details go to the server log. When public it carries counts
+ * and statuses only, never tenant IDs.
+ *
  * Protected by CRON_SECRET header.
  */
 
 import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
+import { OWNER_TENANT_ID, isOwner } from '@/lib/owner';
+import { PETRO_TINS_PUBLIC } from '@/lib/petroTinsAccess';
 
 export const prerender = false;
+
+// Where the email sends the reader. While owner-only a signed-out visit to the dashboard is a
+// 404, so the link goes through sign-in, which returns to the dashboard (safeNextPath allows it).
+const DASHBOARD_LINK = PETRO_TINS_PUBLIC
+  ? 'https://almstins.com/dashboard/petro-tins'
+  : 'https://almstins.com/login?next=%2Fdashboard%2Fpetro-tins';
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -37,25 +56,31 @@ export const GET: APIRoute = async ({ request }) => {
   const startedAt = Date.now();
   const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
 
-  // ── Find all tenants with budget tins ─────────────────────────────────────
+  // ── Find the tenants with budget tins (only the owner's while owner-only) ──
   let tenants: { tenantId: string }[] = [];
   try {
-    const res = await db.execute({
-      sql: `SELECT DISTINCT tenant_id FROM petro_tins WHERE type = 'budget'`,
-      args: [],
-    });
+    const res = await db.execute(
+      PETRO_TINS_PUBLIC
+        ? { sql: `SELECT DISTINCT tenant_id FROM petro_tins WHERE type = 'budget'`, args: [] }
+        : {
+            sql: `SELECT DISTINCT tenant_id FROM petro_tins WHERE type = 'budget' AND LOWER(tenant_id) = ?`,
+            args: [OWNER_TENANT_ID],
+          },
+    );
     tenants = res.rows.map((r: any) => ({ tenantId: String(r.tenant_id) }));
   } catch (err) {
     // Table may not exist yet if no one has used PetroTins
     console.warn('[cron/petro-tins-reminder] petro_tins table not found or empty:', err);
-    return json({ ok: true, skipped: 'no tenants', elapsed_ms: Date.now() - startedAt });
+    return json(PETRO_TINS_PUBLIC ? { ok: true, skipped: 'no tenants', elapsed_ms: Date.now() - startedAt } : { ok: true });
   }
 
   let reminded = 0;
   let skipped  = 0;
-  const results: { tenantId: string; status: string; unpaidCount?: number }[] = [];
+  const results: { status: string; unpaidCount?: number }[] = [];
 
   for (const { tenantId } of tenants) {
+    // Second check: never touch another tenant while PetroTins is owner-only.
+    if (!PETRO_TINS_PUBLIC && !isOwner(tenantId)) continue;
     try {
       // ── Find unchecked entries for this month ────────────────────────────
       const unpaidRes = await db.execute({
@@ -74,7 +99,7 @@ export const GET: APIRoute = async ({ request }) => {
 
       if (!unpaidRes.rows.length) {
         skipped++;
-        results.push({ tenantId, status: 'all_paid' });
+        results.push({ status: 'all_paid' });
         continue;
       }
 
@@ -96,7 +121,7 @@ export const GET: APIRoute = async ({ request }) => {
       const to  = row?.alert_email || row?.email;
       if (!to) {
         skipped++;
-        results.push({ tenantId, status: 'no_email' });
+        results.push({ status: 'no_email' });
         continue;
       }
 
@@ -130,7 +155,7 @@ export const GET: APIRoute = async ({ request }) => {
           : '',
         ``,
         `Log in to check things off as you pay them:`,
-        `https://almstins.com/dashboard/petro-tins`,
+        DASHBOARD_LINK,
         ``,
         `— PetroTins`,
       ].filter(l => l !== undefined).join('\n');
@@ -157,7 +182,7 @@ export const GET: APIRoute = async ({ request }) => {
               <td style="padding:0.75rem 0.75rem 0;text-align:right;color:#ef4444;font-weight:800">${fmt(totalUnpaid)}</td>
             </tr>` : ''}
           </table>
-          <a href="https://almstins.com/dashboard/petro-tins"
+          <a href="${DASHBOARD_LINK}"
              style="display:inline-block;background:#f59e0b;color:#09090f;font-weight:700;padding:0.65rem 1.5rem;border-radius:8px;text-decoration:none">
             Check off paid bills →
           </a>
@@ -170,16 +195,18 @@ export const GET: APIRoute = async ({ request }) => {
       await sendMail({ to, subject, text, html });
 
       reminded++;
-      results.push({ tenantId, status: 'sent', unpaidCount: unpaid.length });
+      results.push({ status: 'sent', unpaidCount: unpaid.length });
 
     } catch (err) {
       console.error(`[cron/petro-tins-reminder] Error for tenant ${tenantId}:`, err);
-      results.push({ tenantId, status: 'error' });
+      results.push({ status: 'error' });
     }
   }
 
   const elapsed_ms = Date.now() - startedAt;
   console.log(`[cron/petro-tins-reminder] done in ${elapsed_ms}ms — reminded:${reminded} skipped:${skipped}`);
 
-  return json({ ok: true, elapsed_ms, total: tenants.length, reminded, skipped, results });
+  // Owner-only: nothing about the owner's bills in the public workflow log.
+  if (!PETRO_TINS_PUBLIC) return json({ ok: true });
+  return json({ ok: true, elapsed_ms, total: results.length, reminded, skipped, results });
 };
