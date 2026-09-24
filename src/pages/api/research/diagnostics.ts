@@ -101,6 +101,8 @@ export const GET: APIRoute = async ({ request }) => {
 		}
 	} catch { /* cache miss — fall through to live queries */ }
 
+	// Amounts are double precision; Postgres only has two-argument ROUND for
+	// numeric, so every two-argument ROUND below casts to numeric first.
 	const [
 		coverageResult,
 		pre2019Result,
@@ -129,7 +131,7 @@ export const GET: APIRoute = async ({ request }) => {
 		db.execute({
 			sql: `SELECT COUNT(*) AS total,
 			             SUM(CASE WHEN tx_hash IS NULL THEN 1 ELSE 0 END) AS no_hash,
-			             ROUND(SUM(ABS(COALESCE(native_usd,0))),0) AS value_usd
+			             ROUND(CAST(SUM(ABS(COALESCE(native_usd,0))) AS numeric), 0) AS value_usd
 			      FROM import_transactions
 			      WHERE tenant_id = ? AND timestamp_utc < '2019-01-01'
 			        AND asset_symbol IS NOT NULL`,
@@ -140,7 +142,7 @@ export const GET: APIRoute = async ({ request }) => {
 		db.execute({
 			sql: `SELECT t.asset_symbol,
 			             COUNT(*) AS cnt,
-			             ROUND(SUM(ABS(COALESCE(t.native_usd,0))),0) AS value_usd,
+			             ROUND(CAST(SUM(ABS(COALESCE(t.native_usd,0))) AS numeric), 0) AS value_usd,
 			             SUM(CASE WHEN t.tx_hash IS NOT NULL THEN 1 ELSE 0 END) AS has_hash
 			      ${NEEDS_ATTENTION_BASE}
 			        AND t.asset_symbol IN (${[...NON_EVM_ASSETS].map(() => '?').join(',')})
@@ -151,7 +153,7 @@ export const GET: APIRoute = async ({ request }) => {
 		// 4. P2P phone-number transfers
 		db.execute({
 			sql: `SELECT COUNT(*) AS cnt,
-			             ROUND(SUM(ABS(COALESCE(native_usd,0))),0) AS value_usd
+			             ROUND(CAST(SUM(ABS(COALESCE(native_usd,0))) AS numeric), 0) AS value_usd
 			      FROM import_transactions
 			      WHERE tenant_id = ? AND kind = 'crypto_transfer'
 			        AND (description LIKE 'To +%' OR description LIKE 'From +%')`,
@@ -184,7 +186,7 @@ export const GET: APIRoute = async ({ request }) => {
 		db.execute({
 			sql: `SELECT t.asset_symbol,
 			             COUNT(*) AS cnt,
-			             ROUND(SUM(ABS(COALESCE(t.native_usd,0))),0) AS value_usd
+			             ROUND(CAST(SUM(ABS(COALESCE(t.native_usd,0))) AS numeric), 0) AS value_usd
 			      ${NEEDS_ATTENTION_BASE}
 			        AND t.direction = 'in'
 			        AND ABS(COALESCE(t.native_usd,0)) >= 500
@@ -214,8 +216,8 @@ export const GET: APIRoute = async ({ request }) => {
 			        GROUP BY asset_symbol
 			      )
 			      SELECT t.id, t.asset_symbol, t.direction, t.amount, t.native_usd,
-			             ROUND(ABS(t.native_usd) / ABS(t.amount), 8) AS implied_price,
-			             ROUND(p.max_price, 8)                        AS max_price,
+			             ROUND(CAST(ABS(t.native_usd) / ABS(t.amount) AS numeric), 8) AS implied_price,
+			             ROUND(CAST(p.max_price AS numeric), 8)                        AS max_price,
 			             t.source, t.timestamp_utc, t.description
 			      FROM import_transactions t
 			      JOIN prices p ON p.asset_symbol = t.asset_symbol

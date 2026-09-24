@@ -91,6 +91,16 @@ function makePool(connectionString: string): pg.Pool {
 		ssl: noSsl ? false : { rejectUnauthorized: false },
 		max: Number(process.env.PG_POOL_MAX ?? 10),
 	});
+	// Every session runs in UTC, whatever the server default. Ledger timestamps are
+	// ISO-8601 UTC text, and a zone-less one ('2024-04-01 00:00:00') cast to
+	// timestamptz is read in the session time zone; outside UTC, a DST change would
+	// shift day counts such as the wash-sale window. Set after connect rather than as a
+	// startup option, so a proxy that rejects startup options can't block connections.
+	// The SET is queued on the new client before any query that checks it out.
+	pool.on('connect', (client) => {
+		client.query("SET TIME ZONE 'UTC'").catch((e: unknown) =>
+			console.error('[db] could not set session time zone', e instanceof Error ? e.message : String(e)));
+	});
 	pool.on('error', (e) => console.error('[db] postgres pool error', e instanceof Error ? e.message : String(e)));
 	return pool;
 }

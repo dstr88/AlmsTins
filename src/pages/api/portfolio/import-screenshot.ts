@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID, createHash } from 'node:crypto';
 import { requireTenantSession } from '../../../lib/requireTenantSession';
 import { db } from '../../../lib/db';
+import { toUtcIso } from '../../../lib/utcTimestamp';
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 const VALID_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
@@ -82,6 +83,17 @@ If a field cannot be determined from the image, use null.`,
 		);
 	}
 
+	// Store the timestamp as ISO-8601 UTC. Year filters read its first four characters
+	// and date math casts it, so a raw or offset value would land in the wrong year or
+	// break those queries.
+	const timestampUtc = toUtcIso(parsed.timestampUtc);
+	if (!timestampUtc) {
+		return new Response(
+			JSON.stringify({ error: 'Could not read the transaction date from the screenshot.' }),
+			{ status: 422 },
+		);
+	}
+
 	const source =
 		typeof parsed.source === 'string' ? parsed.source.toLowerCase().trim() : 'unknown';
 
@@ -101,6 +113,8 @@ If a field cannot be determined from the image, use null.`,
 		});
 	}
 
+	// Hashes the raw timestamp, as before, so re-importing an earlier screenshot
+	// still dedups against the row it produced.
 	const rowHash = createHash('sha256')
 		.update(
 			JSON.stringify([
@@ -130,7 +144,7 @@ ON CONFLICT DO NOTHING`,
 			source,
 			accountId,
 			batchId,
-			String(parsed.timestampUtc),
+			timestampUtc,
 			parsed.description ?? null,
 			String(parsed.currency),
 			parsed.amount ?? null,
@@ -155,7 +169,7 @@ ON CONFLICT DO NOTHING`,
 				? null
 				: {
 						id: txId,
-						timestampUtc: parsed.timestampUtc,
+						timestampUtc,
 						description: parsed.description,
 						currency: parsed.currency,
 						amount: parsed.amount,

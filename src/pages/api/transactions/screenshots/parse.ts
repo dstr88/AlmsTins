@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { requireTenantSession } from '../../../../lib/requireTenantSession';
 import { db } from '../../../../lib/db';
+import { toUtcIso } from '../../../../lib/utcTimestamp';
 
 const KNOWN_SOURCES = ['cashapp', 'coinbase', 'gemini', 'robinhood', 'venmo', 'crypto-com'] as const;
 type KnownSource = (typeof KNOWN_SOURCES)[number];
@@ -108,6 +109,17 @@ If a field cannot be determined from the image, use null.`,
 		);
 	}
 
+	// Store the timestamp as ISO-8601 UTC. Year filters read its first four characters
+	// and date math casts it, so a raw or offset value would land in the wrong year or
+	// break those queries.
+	const timestampUtc = toUtcIso(parsed.timestampUtc);
+	if (!timestampUtc) {
+		return new Response(
+			JSON.stringify({ error: 'Could not read the transaction date from the screenshot.' }),
+			{ status: 422 },
+		);
+	}
+
 	const source = typeof parsed.source === 'string' ? parsed.source.toLowerCase().trim() : 'unknown';
 
 	// Find or create an exchange account for this source
@@ -128,7 +140,8 @@ If a field cannot be determined from the image, use null.`,
 		});
 	}
 
-	// Build a dedup hash
+	// Build a dedup hash. It hashes the raw timestamp, as before, so re-importing an
+	// earlier screenshot still dedups against the row it produced.
 	const rowHash = createHash('sha256')
 		.update(
 			JSON.stringify([
@@ -158,7 +171,7 @@ ON CONFLICT DO NOTHING`,
 			source,
 			accountId,
 			batchId,
-			parsed.timestampUtc,
+			timestampUtc,
 			parsed.description || null,
 			parsed.currency,
 			parsed.amount,
@@ -190,7 +203,7 @@ ON CONFLICT DO NOTHING`,
 				? null
 				: {
 						id: txId,
-						timestampUtc: parsed.timestampUtc,
+						timestampUtc,
 						description: parsed.description,
 						currency: parsed.currency,
 						amount: parsed.amount,

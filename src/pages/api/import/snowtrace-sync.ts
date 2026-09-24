@@ -88,7 +88,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const res = await db.execute({
 			sql: `SELECT address FROM address_labels
 			      WHERE tenant_id = ? AND source IN ('user','system')
-			        AND (label LIKE '%Avalanche%' OR label LIKE '%avalanche%')
+			        AND lower(label) LIKE '%avalanche%'
 			        AND address LIKE '0x%'
 			      LIMIT 1`,
 			args: [tenantId],
