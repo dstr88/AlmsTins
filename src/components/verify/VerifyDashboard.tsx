@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import jsQR from 'jsqr';
 import { decodeQrFromImageFile } from '../../lib/qrScan';
-import { hasAnchor } from '../../lib/verifyAnchor';
+import { hasAnchor, merchantAddressAssurance, staleCutoffUtc } from '../../lib/verifyAnchor';
 import type { VerifyDashboardLocale } from '../../i18n/dashboard/verify';
 import './VerifyDashboard.css';
 
@@ -18,6 +18,7 @@ interface Destination {
   proofMethod: string;
   proofDomain: string | null;
   domainAnchoredAt: string | null;
+  lastConfirmedAt: string | null;
   provenAt: string | null;
   registeredAt: string;
   monitorUrl: string | null;
@@ -45,13 +46,38 @@ function short(v: string): string {
 }
 
 // Localized three-tier badge label. The raw status still drives the CSS class.
-// Registered (unproven) → Claimed (proven, control only) → Verified (proven + domain anchor,
-// by the same rule as the public lookup: hasAnchor).
-function statusLabel(s: ProofStatus, anchored: boolean, t: VerifyDashboardLocale): string {
+// Registered (unproven) → Claimed (proven, control only) → Verified (proven, anchored to a
+// domain, AND re-confirmed within the last 24h — `fresh`, from merchantAddressAssurance,
+// the exact rule the public lookup uses (F12: the owner's own badge must never claim
+// Verified a moment longer than a customer's scan would).
+export function statusLabel(s: ProofStatus, fresh: boolean, t: VerifyDashboardLocale): string {
   if (s === 'lapsed') return t.statusLapsed;
   if (s === 'revoked') return t.statusRevoked;
-  if (s === 'proven') return anchored ? t.statusProven : t.statusClaimed;
+  if (s === 'proven') return fresh ? t.statusProven : t.statusClaimed;
   return t.statusRegistered; // unproven = asserted, no proof yet
+}
+
+/** Whether THIS row's public answer is currently 'verified' — same rule as the badge, the
+ *  lookup and the check API, given here so a stale anchor never shows Verified anywhere. */
+export function isCurrentlyVerified(d: Destination): boolean {
+  if (d.kind !== 'address' || d.proofStatus !== 'proven') return false;
+  return merchantAddressAssurance(
+    { proofMethod: d.proofMethod, proofDomain: d.proofDomain, provenAt: d.provenAt, domainAnchoredAt: d.domainAnchoredAt, lastConfirmedAt: d.lastConfirmedAt },
+    staleCutoffUtc(),
+  ).level === 'verified';
+}
+
+/** "3h ago" / "2d ago" / "just now" for a stored 'YYYY-MM-DD HH:MM:SS' UTC stamp. */
+function timeAgo(stamp: string | null, t: VerifyDashboardLocale): string | null {
+  if (!stamp) return null;
+  const ms = Date.now() - Date.parse(stamp.replace(' ', 'T') + 'Z');
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return t.timeAgoJustNow;
+  if (mins < 60) return t.timeAgoMinutes.replace('{n}', String(mins));
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return t.timeAgoHours.replace('{n}', String(hours));
+  return t.timeAgoDays.replace('{n}', String(Math.floor(hours / 24)));
 }
 
 // Name-service handles (vitalik.eth, foo.sol …) resolve to an address — they take
@@ -107,6 +133,7 @@ export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = 
 
       {error && <div className="vd__error">{error}</div>}
 
+      {!loading && destinations.length > 0 && !isDemo && <AlertEmailRow t={t} />}
       {!loading && destinations.length > 0 && <VerifySign t={t} />}
 
       <DestSection title={t.addressesTitle} kind="address" limit={LIMITS.address}
@@ -141,6 +168,78 @@ function HowToAdd({ t }: { t: VerifyDashboardLocale }) {
       ))}
       <a className="vd-howto__cta" href="/verify/login?next=/dashboard/verify">{t.demoSignupCta}</a>
     </section>
+  );
+}
+
+// SD1: a lapse or swap alert reaches this address (verify-monitor's getOwner falls back to
+// the sign-in email when no alert_email is set — this shows what that resolves to today,
+// so the merchant never has to guess). GET reads the effective address; POST/clear reuse
+// the existing /api/account/alert-email endpoint.
+function AlertEmailRow({ t }: { t: VerifyDashboardLocale }) {
+  const [email, setEmail] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/account/alert-email').then(r => r.json()).then(data => {
+      if (!cancelled && data.ok) setEmail(data.effective ?? null);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  async function save(value: string) {
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/account/alert-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alertEmail: value }),
+      });
+      const data = await res.json();
+      if (!data.ok) { setErr(t.alertsInvalid); return; }
+      // The server may have stored an explicit address, or (value === '') cleared it back
+      // to the sign-in default — re-read so the shown address always reflects the fallback.
+      const check = await fetch('/api/account/alert-email').then(r => r.json());
+      setEmail(check.ok ? check.effective ?? null : value || null);
+      setEditing(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setErr(t.alertsInvalid);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (email === null && !editing) return null; // still loading, or nothing to show yet
+  return (
+    <div className="vd__alertemail">
+      {!editing ? (
+        <>
+          <span>{t.alertsGoTo.replace('{email}', email ?? '')}</span>
+          <button type="button" className="vd__alertemail-link" onClick={() => { setDraft(email ?? ''); setEditing(true); setErr(null); }}>
+            {t.alertsChange}
+          </button>
+          {saved && <span className="vd__alertemail-saved">{t.alertsSaved}</span>}
+        </>
+      ) : (
+        <form className="vd__alertemail-form" onSubmit={e => { e.preventDefault(); void save(draft.trim()); }}>
+          <input
+            type="email" value={draft} onChange={e => setDraft(e.target.value)}
+            placeholder={t.alertsPlaceholder} disabled={saving} autoFocus
+          />
+          <button type="submit" disabled={saving || !draft.trim()}>{t.alertsSave}</button>
+          <button type="button" onClick={() => void save('')} disabled={saving}>{t.alertsUseSignIn}</button>
+          <button type="button" onClick={() => { setEditing(false); setErr(null); }} disabled={saving}>{t.alertsCancel}</button>
+          {err && <span className="vd__alertemail-err">{err}</span>}
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -492,6 +591,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
   // claim was made under the old self-send check: then it takes the satoshi test again first,
   // on this same row (it stays Claimed meanwhile).
   const anchored = hasAnchor(d);
+  const fresh = isCurrentlyVerified(d);
   const reprove = d.kind === 'address' && d.proofStatus === 'proven' && !!d.needsReproof;
   const canAnchor = d.kind === 'address' && d.proofStatus === 'proven' && !anchored && !reprove;
   const canProve = d.kind === 'address' && (d.proofStatus !== 'proven' || !anchored);
@@ -527,8 +627,15 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
         </button>
         <span
           className={`vd-badge vd-badge--${d.proofStatus}`}
-          title={d.proofStatus === 'proven' && anchored && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
-        >{statusLabel(d.proofStatus, anchored, t)}</span>
+          title={fresh && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
+        >{statusLabel(d.proofStatus, fresh, t)}</span>
+        {anchored && (
+          <span className="vd-row__confirmed">
+            {fresh
+              ? t.lastConfirmed.replace('{time}', timeAgo(d.lastConfirmedAt ?? d.domainAnchoredAt, t) ?? t.timeAgoJustNow)
+              : t.confirmationLapsed}
+          </span>
+        )}
         {canProve && (
           <button className="vd-row__prove" onClick={() => setProving(p => !p)} aria-expanded={proving}>
             {proveMode === 'reprove' ? t.reproveBtn : proveMode === 'anchor' ? t.anchorBtn : t.proveBtn}

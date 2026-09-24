@@ -65,6 +65,10 @@ export interface Destination {
   proofDomain: string | null;
   /** When proof_domain was attached (see verifyAnchor.ts anchoredSince / hasAnchor). */
   domainAnchoredAt: string | null;
+  /** When the anchor was last positively re-confirmed (an owner's domain proof, or the
+   *  watchman's Pass B) — the input to verifyAnchor.ts merchantAddressAssurance, so the
+   *  owner's own dashboard badge follows the same 24h freshness rule the public answer does. */
+  lastConfirmedAt: string | null;
   registeredAt: string;
   provenAt: string | null;
   /** Phase 5 — the public page (if any) we watch for a swap of this destination. */
@@ -79,7 +83,7 @@ export interface Destination {
 
 /** The columns mapRow reads. */
 const DEST_COLS = `id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain,
-  domain_anchored_at, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at`;
+  domain_anchored_at, last_confirmed_at, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at`;
 
 const ENSURE_SQL = `
   CREATE TABLE IF NOT EXISTS verify_destinations (
@@ -352,6 +356,7 @@ function mapRow(r: any): Destination {
     proofStatus: String(r.proof_status ?? 'unproven') as ProofStatus,
     proofDomain: r.proof_domain ? String(r.proof_domain) : null,
     domainAnchoredAt: r.domain_anchored_at ? String(r.domain_anchored_at) : null,
+    lastConfirmedAt: r.last_confirmed_at ? String(r.last_confirmed_at) : null,
     registeredAt: String(r.registered_at),
     provenAt: r.proven_at ? String(r.proven_at) : null,
     monitorUrl: r.monitor_url ? String(r.monitor_url) : null,

@@ -50,7 +50,7 @@ vi.mock('@/lib/db', () => ({
   db: {
     execute: async (stmt: { sql: string }) => {
       const sql = stmt.sql.replace(/\s+/g, ' ').trim();
-      if (sql.startsWith('SELECT au.alert_email, au.lang')) return { rows: [{ alert_email: 'owner@shop.test', lang: 'en' }] };
+      if (sql.startsWith('SELECT COALESCE(au.alert_email, au.email)')) return { rows: [{ email: 'owner@shop.test', lang: 'en' }] };
       if (/^(CREATE|ALTER)\b/.test(sql)) return { rows: [] };
       throw new Error(`unexpected SQL in test: ${sql}`);
     },

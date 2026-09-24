@@ -24,6 +24,34 @@
 }
 .vd__demo-banner > span { flex: 1; min-width: 14rem; }
 
+/* SD1: where the next lapse/swap alert goes */
+.vd__alertemail {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem;
+  font-size: 0.85rem; color: var(--text-secondary);
+  margin: 0.5rem 0 1.25rem;
+}
+.vd__alertemail-link {
+  background: none; border: none; padding: 0; font: inherit; cursor: pointer;
+  color: var(--accent); text-decoration: underline;
+}
+.vd__alertemail-saved { color: var(--gain); }
+.vd__alertemail-err { color: var(--loss); font-size: 0.82rem; flex-basis: 100%; }
+.vd__alertemail-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.vd__alertemail-form input {
+  font: inherit; padding: 0.35rem 0.55rem; border-radius: 6px;
+  border: 1px solid var(--border-bright); background: var(--surface-card); color: var(--text-primary);
+  min-width: 15rem;
+}
+.vd__alertemail-form button {
+  font: inherit; font-size: 0.82rem; padding: 0.35rem 0.6rem; border-radius: 6px;
+  border: 1px solid var(--border-bright); background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.vd__alertemail-form button[type="submit"] { border-color: var(--accent-glow); color: var(--accent); }
+.vd__alertemail-form button:disabled { opacity: 0.6; cursor: default; }
+
+/* F12: when an address stays anchored, or has gone stale — under the status badge */
+.vd-row__confirmed { font-size: 0.78rem; color: var(--text-muted); }
+
 /* Demo-only "how to register your own" guide */
 .vd-howto {
   margin: 2rem 0 0; padding: 1.25rem; border-radius: 14px;
