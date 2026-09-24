@@ -119,7 +119,7 @@ const en: VerifyCopy = {
       },
       {
         title: 'Agents',
-        body: 'Payment agents check a destination before they pay: one GET returns proven, mismatch, or unknown. Mint your own API key with one DNS record for 300 checks a minute, and publish your full address list from your own domain.',
+        body: 'Payment agents check a destination before they pay: one GET returns a status and a level, and an agent proceeds only when the answer is proven and verified. Mint your own API key with one DNS record for 300 checks a minute, and publish your full address list from your own domain.',
         price: 'Free during beta',
         cta: 'Read the agent docs',
       },
@@ -264,7 +264,7 @@ const es: VerifyCopy = {
       },
       {
         title: 'Agentes',
-        body: 'Los agentes de pago comprueban un destino antes de pagar: una sola petición GET responde proven, mismatch o unknown. Genera tu propia clave de API con un registro DNS para 300 consultas por minuto, y publica tu lista completa de direcciones desde tu propio dominio.',
+        body: 'Los agentes de pago comprueban un destino antes de pagar: una sola petición GET devuelve un estado y un nivel, y un agente solo sigue adelante si la respuesta es proven y verified. Genera tu propia clave de API con un registro DNS para 300 consultas por minuto, y publica tu lista completa de direcciones desde tu propio dominio.',
         price: 'Gratis durante la beta',
         cta: 'Lee la documentación para agentes (en inglés)',
       },
@@ -409,7 +409,7 @@ const fr: VerifyCopy = {
       },
       {
         title: 'Agents',
-        body: "Les agents de paiement vérifient une destination avant de payer : une seule requête GET répond proven, mismatch ou unknown. Créez votre propre clé API avec un enregistrement DNS pour 300 vérifications par minute, et publiez votre liste complète d'adresses depuis votre propre domaine.",
+        body: "Les agents de paiement vérifient une destination avant de payer : une seule requête GET renvoie un statut et un niveau, et un agent ne poursuit que si la réponse est proven et verified. Créez votre propre clé API avec un enregistrement DNS pour 300 vérifications par minute, et publiez votre liste complète d'adresses depuis votre propre domaine.",
         price: 'Gratuit pendant la bêta',
         cta: 'Lire la documentation agents (en anglais)',
       },
