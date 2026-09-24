@@ -61,12 +61,25 @@ describe('a freeform label is never a publisher', () => {
   it('an entity (exchange) listing is "listed on" its own domain; a merchant hit is "verified via"', () => {
     expect(publicPublisher(hit({ source: 'entity', label: null, domain: 'exchange.example' })))
       .toEqual({ name: null, domain: 'exchange.example', listed: true });
-    // The lookup's merchant domain can be a different proven domain of the same account
-    // than the one listing this address, so "listed on" would be a claim it can't back.
+    // No provingDomain on this hit (an older lookup response, or one where it's genuinely
+    // unknown): the shown domain is the account's business name, which the card cannot
+    // promise is the one anchoring THIS destination, so it stays "verified via".
     expect(publicPublisher(hit({ source: 'merchant', label: 'Acme', domain: 'acme.com' })))
       .toEqual(via('acme.com', 'Acme'));
     expect(publicPublisher(hit({ source: null, label: null, domain: 'acme.com' }))?.listed).toBe(false);
     expect(publicPublisher(hit({ source: undefined, label: null, domain: 'acme.com' }))?.listed).toBe(false);
+  });
+
+  it('C5/S7b: a merchant hit is "Listed on" once provingDomain says the shown domain is the one anchoring THIS wallet', () => {
+    expect(publicPublisher(hit({ source: 'merchant', label: 'Acme', domain: 'acme.com', provingDomain: 'acme.com' })))
+      .toEqual({ name: 'Acme', domain: 'acme.com', listed: true });
+  });
+
+  it('stays "verified via" when the business-name domain shown differs from the one that actually anchors this wallet', () => {
+    // The account proved acme.com (its business name) but THIS wallet is anchored to a
+    // different domain of the same account (shop.acme.com's own file listed it, say).
+    expect(publicPublisher(hit({ source: 'merchant', label: 'Acme', domain: 'acme.com', provingDomain: 'shop.acme.com' })))
+      .toEqual(via('acme.com', 'Acme'));
   });
 
   it('Verified with no domain shows no publisher line', () => {

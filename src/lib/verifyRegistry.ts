@@ -137,9 +137,10 @@ const ENSURE_CLAIM_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_
 
 // Claim-once for QR/payment-link destinations. A proven (rail, value) URL can belong
 // to only one account, globally — the customer-scan match is therefore unambiguous.
-// QR destinations are proven on save (proof_method='account_claim'): an owner
-// registering a payment link while authenticated in their OWN account IS the claim.
-// We normalize the URL before storing (see createDestination), so this index on the
+// A QR destination is proven (proof_method='account_claim') on save only once the
+// account has already proven a domain (createDestination); before that it is stored
+// private/unproven, and proving a domain later unlocks it (unlockPendingQrLinks). We
+// normalize the URL before storing (see createDestination), so this index on the
 // canonical value is the real exclusivity arbiter. Mirrors
 // migrations-pg/0009_verify_qr_claim.sql.
 const ENSURE_CLAIM_QR_IDX = `CREATE UNIQUE INDEX IF NOT EXISTS verify_destinations_proven_claim_qr
@@ -431,11 +432,23 @@ export async function listDestinationsForOwner(tenantId: string): Promise<Destin
  *  - other chains → strip any URI scheme + trailing params; keep case
  *    (BTC/SOL/LTC base58/bech32 are case-sensitive — never lowercase them)
  */
-/** Canonical http(s) URL: scheme + lowercased host + path, query/hash/trailing-slash dropped. */
+// Analytics/referral params a merchant's link-sharing tool adds, which carry no identity
+// for the link itself — dropped so the SAME payment link shared two different ways still
+// canonicalizes to one row. Anything else in the query string is kept (D6): a PayPal
+// hosted-button-id, a Stripe price id, or any other identifier lives here, and dropping
+// the whole query string (as this did before) collapsed every such link on a host down to
+// one value — two unrelated merchants' PayPal buttons matched as "the same" destination.
+const TRACKING_PARAMS = /^(utm_|mc_|igshid$|fbclid$|gclid$|msclkid$|ref$|source$|si$)/i;
+
+/** Canonical http(s) URL: scheme + lowercased host + path + query (tracking params
+ *  dropped, the rest kept and sorted so param order never matters), hash discarded. */
 function normalizeUrl(s: string): string {
   try {
     const u = new URL(s);
-    return `${u.protocol.toLowerCase()}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}`;
+    const kept = [...u.searchParams.entries()].filter(([k]) => !TRACKING_PARAMS.test(k));
+    kept.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const query = kept.length ? `?${kept.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')}` : '';
+    return `${u.protocol.toLowerCase()}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}${query}`;
   } catch { return s.toLowerCase(); }
 }
 
@@ -732,13 +745,23 @@ export async function createDestination(
     }
   }
 
-  // QR/payment links are proven on save (account_claim): registering a link while
-  // authenticated in your own account IS the proof of ownership. Claim-once keeps it
-  // exclusive — if another account already proved this link (canonically, on any QR
-  // rail: the scan lookup ignores the rail), we say so rather than create an ambiguous
-  // second "verified" row.
+  // QR/payment links (D6): registering a link is only ever an account's OWN say-so about
+  // its own link — never proof anyone else can check. It becomes 'proven' (and so
+  // publicly answerable at all) only once the account has ALREADY proven a domain, the
+  // same bar tryClaimVerifiedName uses to reserve a business name. An account with no
+  // proven domain gets a private, unproven row: saved, usable for its own dashboard/QR
+  // download, invisible to the public lookup and the claim-once index alike. Proving a
+  // domain later retroactively unlocks it (recordProofResult, below).
   const isQr = kind === 'qr';
-  if (isQr && await isClaimedElsewhere(tenantId, 'qr', value)) {
+  const hasProvenDomain = isQr && (await db.execute({
+    sql: `SELECT 1 FROM verify_domain_proofs WHERE tenant_id = ? AND status = 'proven' LIMIT 1`,
+    args: [tenantId],
+  })).rows.length > 0;
+  // Claim-once only matters once a row could become publicly proven — an unproven row
+  // isn't a claim on anything yet, and checking it here would block two accounts with no
+  // domain proof from saving the identical public link (buy.stripe.com/x), which is
+  // exactly the case D6 is written for: nothing vouches for either of them yet.
+  if (isQr && hasProvenDomain && await isClaimedElsewhere(tenantId, 'qr', value)) {
     return {
       ok: false,
       error: 'claimed_elsewhere',
@@ -754,9 +777,9 @@ export async function createDestination(
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, tenantId, kind, rail, value, label, displayHint,
-        isQr ? 'account_claim' : 'none',
-        isQr ? 'proven' : 'unproven',
-        isQr ? nowUtc() : null,
+        isQr && hasProvenDomain ? 'account_claim' : 'none',
+        isQr && hasProvenDomain ? 'proven' : 'unproven',
+        isQr && hasProvenDomain ? nowUtc() : null,
       ],
     });
   } catch (e) {
@@ -1087,7 +1110,34 @@ export async function recordProofResult(
       try { await tryClaimVerifiedName(tenantId, d.label); } catch { /* non-fatal */ }
     }
   }
+  await unlockPendingQrLinks(tenantId, dests);
   return out;
+}
+
+/**
+ * D6: a tenant's payment links saved before it had ANY proven domain were stored private
+ * (unproven) — see createDestination. The moment a domain proof lands (the file flip
+ * above, or the DNS-TXT proof below), whichever one, retroactively unlocks them: the same
+ * bar a save now clears is met, just met a little later. Re-checks claim-once per link at
+ * unlock time (another account may have proven the same canonical link in the meantime)
+ * and skips it silently rather than failing the whole domain proof. Best-effort.
+ */
+async function unlockPendingQrLinks(tenantId: string, dests: Destination[]): Promise<void> {
+  const now = nowUtc();
+  for (const d of dests) {
+    if (d.kind !== 'qr' || d.proofStatus !== 'unproven') continue;
+    try {
+      if (await isClaimedElsewhere(tenantId, 'qr', d.value)) continue;
+      await db.execute({
+        sql: `UPDATE verify_destinations
+              SET proof_status = 'proven', proof_method = 'account_claim', proven_at = ?, updated_at = ?
+              WHERE id = ? AND tenant_id = ? AND kind = 'qr' AND proof_status = 'unproven'`,
+        args: [now, now, d.id, tenantId],
+      });
+    } catch (e) {
+      console.warn('[verify] pending payment link not unlocked:', d.id, e);
+    }
+  }
 }
 
 /**
@@ -1111,6 +1161,7 @@ export async function recordDomainControlProof(tenantId: string, domain: string)
       try { await tryClaimVerifiedName(tenantId, d.label); } catch { /* non-fatal */ }
     }
   }
+  await unlockPendingQrLinks(tenantId, dests);
 }
 
 /**

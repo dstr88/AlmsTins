@@ -29,6 +29,9 @@ const store = vi.hoisted(() => ({
   legacyBlind: false,
   /** The legacy claims read fails (DB error). */
   legacyThrows: false,
+  /** D6: tenants with a proven domain (verify_domain_proofs) — only these may save a
+   *  payment link as 'proven' on save, and only these are checked against claim-once. */
+  provenDomainTenants: new Set<string>(),
 }));
 
 vi.mock('@/lib/db', () => {
@@ -51,6 +54,10 @@ vi.mock('@/lib/db', () => {
     }
     if (sql.startsWith('UPDATE verify_domain_proofs') || sql.startsWith('UPDATE verify_deposit_challenges')) {
       return { rows: [] };
+    }
+    // D6: does this tenant have a proven domain? (createDestination's QR gate.)
+    if (sql === `SELECT 1 FROM verify_domain_proofs WHERE tenant_id = ? AND status = 'proven' LIMIT 1`) {
+      return { rows: store.provenDomainTenants.has(String(args[0])) ? [{}] : [] };
     }
     // A pending bound test (rule bound_v1) that has not expired.
     if (sql.startsWith('SELECT status, issued_at, expires_at, expected_amount, unit, rule, last_outcome, last_checked_at, baseline FROM verify_deposit_challenges')) {
@@ -278,6 +285,7 @@ beforeEach(() => {
   store.guardThrows = false;
   store.legacyBlind = false;
   store.legacyThrows = false;
+  store.provenDomainTenants = new Set();
   warn = vi.spyOn(console, 'warn').mockImplementation(() => {}); // the held-out paths log
 });
 afterEach(() => { warn.mockRestore(); });
@@ -870,6 +878,9 @@ describe('registration', () => {
   it('a payment link another account proved on another QR rail is claimed elsewhere', async () => {
     // A dynamic PIX QR stores its PSP location URL; the same URL registered as a plain
     // link must not become a second verified owner (the scan lookup ignores the rail).
+    // D6: claim-once for a link is only checked once the SAVING account itself already
+    // has a proven domain — 'other' does here.
+    store.provenDomainTenants.add('other');
     store.rows = [row({
       id: 'q1', tenant_id: 'merchant', kind: 'qr', rail: 'pix', value: 'https://pix.example.com/loc/abc',
       proof_status: 'proven', proof_method: 'account_claim',
@@ -880,10 +891,26 @@ describe('registration', () => {
     expect(store.rows).toHaveLength(1);
   });
 
-  it('a payment link nobody else proved is claimed on save', async () => {
+  it('a payment link is saved private (unproven) when the account has no proven domain yet', async () => {
+    const res = await createDestination('merchant', { kind: 'qr', rail: 'url', value: 'https://buy.stripe.com/abc123' });
+    expect(res.ok).toBe(true);
+    expect(store.rows[0]).toMatchObject({ kind: 'qr', rail: 'url', proof_status: 'unproven', proof_method: 'none' });
+    expect(guardCalls()).toHaveLength(0); // nothing to claim yet — no domain backs it
+  });
+
+  it('a payment link is proven on save once the account already has a proven domain (D6)', async () => {
+    store.provenDomainTenants.add('merchant');
     const res = await createDestination('merchant', { kind: 'qr', rail: 'url', value: 'https://buy.stripe.com/abc123' });
     expect(res.ok).toBe(true);
     expect(store.rows[0]).toMatchObject({ kind: 'qr', rail: 'url', proof_status: 'proven', proof_method: 'account_claim' });
+  });
+
+  it('two accounts with no proven domain can each save the same public link — neither is a claim yet', async () => {
+    const first = await createDestination('a', { kind: 'qr', rail: 'url', value: 'https://buy.stripe.com/shared' });
+    const second = await createDestination('b', { kind: 'qr', rail: 'url', value: 'https://buy.stripe.com/shared' });
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(store.rows.every((r) => r.proof_status === 'unproven')).toBe(true);
   });
 
   it('rejects an address on an unsupported rail', async () => {
@@ -1013,7 +1040,8 @@ describe('segwit letter case: BC1Q… and bc1q… are one wallet', () => {
     ];
     for (const q of [BTC, BTC_UP]) {
       expect(await lookupVerifiedAddress(q), q).toEqual({
-        source: 'merchant', level: 'claimed', since: '2026-08-01 00:00:00', domain: null, label: null, chain: 'bitcoin',
+        source: 'merchant', level: 'claimed', since: '2026-08-01 00:00:00',
+        domain: null, provingDomain: null, label: null, chain: 'bitcoin',
       });
     }
   });

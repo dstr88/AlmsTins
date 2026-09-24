@@ -230,8 +230,8 @@ function seedTenant(tenant: string, user: string, tag: string, wallet: string, m
 
   add('verify_destinations', {
     id: `d-${tag}`, tenant_id: tenant, kind: 'address', rail: 'ethereum', value: wallet, label: `Shop ${tag}`,
-    proof_method: 'micro_deposit', proof_status: 'proven', proof_domain: null,
-    proven_at: '2026-09-01 00:00:00', last_confirmed_at: null,
+    proof_method: 'well_known', proof_status: 'proven', proof_domain: `shop-${tag}.example`,
+    proven_at: '2026-09-01 00:00:00', domain_anchored_at: '2026-09-01 00:00:00', last_confirmed_at: nowStamp(),
   });
   add('verify_destinations', {
     id: `q-${tag}`, tenant_id: tenant, kind: 'qr', rail: 'url', value: `https://buy.stripe.com/${tag}`,

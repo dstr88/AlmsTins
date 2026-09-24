@@ -66,13 +66,18 @@ export const GET: APIRoute = async ({ request, url, clientAddress }) => {
       since: hit?.since ? String(hit.since).slice(0, 10) : null,
       source: hit?.source ?? null,
       domain: hit?.domain ?? null,
+      // C5/S7b: the domain that actually vouches for this destination (never the
+      // account's business-name domain) — verifyPublicCard.ts uses it to decide "Listed
+      // on {domain}" vs "verified via {domain}". Additive field; an older client that
+      // hasn't read it yet still gets the same `domain` it always did.
+      provingDomain: hit?.provingDomain ?? null,
       label: hit?.label ?? null,
       chain: hit?.chain ?? null,
     });
   } catch (err) {
     console.error('[verify-lookup] error:', err instanceof Error ? err.message : err);
     // Fail closed: never block the page — just report "not verified" (no badge).
-    return json({ ok: true, verified: false, level: null, since: null, source: null, domain: null, label: null, chain: null });
+    return json({ ok: true, verified: false, level: null, since: null, source: null, domain: null, provingDomain: null, label: null, chain: null });
   }
 };
 
