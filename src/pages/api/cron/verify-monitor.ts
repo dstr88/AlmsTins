@@ -6,9 +6,11 @@
  * lookup, not here), detection-driven revocation, fail-safe to *unverified*.
  *
  *  A. Verified Entities — re-pull each proven entity's hosted list, refreshing the
- *     public mirror's `refreshed_at`. Alert the owner on a revocation (an address
- *     dropped from their list) or on the ok->fail TRANSITION of their endpoint
- *     (the public badge will lapse within the TTL — fail-safe, never stale-verified).
+ *     public mirror's `refreshed_at`. Only tenants approved to publish a platform list
+ *     (verifyEntityAccess.ts) are refreshed; any other list is never re-pulled. Alert the
+ *     owner on a revocation (an address dropped from their list) or on the ok->fail
+ *     TRANSITION of their endpoint (the public badge will lapse within the TTL — fail-safe,
+ *     never stale-verified).
  *
  *  B. Merchant .well-known proofs — re-fetch each proven domain's proof file. On a
  *     DEFINITIVE change (challenge/file no longer validates, or a proven address is
@@ -27,6 +29,7 @@ import { isLang, type Lang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
 import { getVerifyAlert, type VerifyAlertKind } from '@/i18n/emails/verifyAlert';
 import { listEntitiesForMonitor, monitorEntity } from '@/lib/verifyEntities';
+import { ENTITY_NOT_APPROVED } from '@/lib/verifyEntityAccess';
 import {
   listProvenDomainsForMonitor, getProvenAddressDestinations,
   markDestinationsLapsed, markDestinationsConfirmed, markDomainProofFailed, markDomainProofRechecked,
@@ -104,7 +107,10 @@ export const GET: APIRoute = async ({ request }) => {
         const r = await monitorEntity(t.tenantId, t.id);
         if (!r.pull.ok) {
           // Alert only on the ok->fail transition — a persistent failure won't re-spam.
-          if (t.lastPullStatus === 'ok' && (await alert(t.tenantId, 'unreachable', t.domain, []))) {
+          // A tenant that is not approved to publish is skipped, not reported as unreachable
+          // (listEntitiesForMonitor already leaves them out; this is the backstop).
+          if (r.pull.code !== ENTITY_NOT_APPROVED && t.lastPullStatus === 'ok'
+              && (await alert(t.tenantId, 'unreachable', t.domain, []))) {
             entity.unreachableAlerts++;
           }
         } else if (r.removed.length) {

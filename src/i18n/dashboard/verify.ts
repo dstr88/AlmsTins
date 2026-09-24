@@ -192,6 +192,10 @@ export interface VerifyDashboardLocale {
   entUnreachable: string;
   entMalformed: string;
   entError: string;
+  // Platform lists are by approval during early access (verifyEntityAccess.ts).
+  entApprovalNotice: string; // "… {email} …", rendered as a mailto link
+  entNotApproved: string;
+  entNotPublished: string; // badge on a list whose account is not approved
   // Demo mode (seeded sample vendor account) — banner + how-to guide.
   demoBanner: string;
   demoSignupCta: string;
@@ -369,6 +373,9 @@ export const en: VerifyDashboardLocale = {
   entUnreachable: "⚠ Couldn't reach your endpoint. Check the URL and that it's live.",
   entMalformed: "⚠ Your endpoint's response wasn't in the expected format.",
   entError: 'Something went wrong. Try again.',
+  entApprovalNotice: 'Platform lists are by approval during early access. To request access, contact {email}.',
+  entNotApproved: '⚠ Platform lists are by approval during early access. Contact support@almstins.com to request access.',
+  entNotPublished: 'Not published (approval required)',
   demoBanner: 'This is a demo vendor account — the destinations below are samples. Try “Verify a sign” to check one, then see how to register your own.',
   demoSignupCta: 'Sign up free →',
   demoBannerText: "You're in the vendor demo. Sign in to register and prove your own addresses.",
@@ -391,6 +398,7 @@ export const en: VerifyDashboardLocale = {
   ],
   howToExchangeTitle: 'Publishing many addresses? (exchanges & platforms)',
   howToExchangeSteps: [
+    'During early access, platform lists are by approval. Email support@almstins.com to request access.',
     'Publish your official address list on your own domain, and prove the domain once by hosting a single Almstins file on it.',
     'Connect a read-only API endpoint that returns the list, plus a key — we only ever read it, and never move funds.',
     'We keep the list in sync, so any customer can verify an official address against your domain before they send.',
@@ -564,6 +572,9 @@ export const es: VerifyDashboardLocale = {
   entUnreachable: '⚠ No se pudo acceder a tu endpoint. Revisa la URL y que esté activo.',
   entMalformed: '⚠ La respuesta de tu endpoint no tenía el formato esperado.',
   entError: 'Algo salió mal. Inténtalo de nuevo.',
+  entApprovalNotice: 'Las listas de plataformas requieren aprobación durante el acceso anticipado. Para solicitar acceso, escribe a {email}.',
+  entNotApproved: '⚠ Las listas de plataformas requieren aprobación durante el acceso anticipado. Escribe a support@almstins.com para solicitar acceso.',
+  entNotPublished: 'No publicada (requiere aprobación)',
   demoBanner: 'Esta es una cuenta de comercio de demostración — los destinos de abajo son ejemplos. Prueba “Verifica un letrero” para comprobar uno y luego mira cómo registrar los tuyos.',
   demoSignupCta: 'Regístrate gratis →',
   demoBannerText: 'Estás en la demo para comercios. Inicia sesión para registrar y demostrar tus propias direcciones.',
@@ -586,6 +597,7 @@ export const es: VerifyDashboardLocale = {
   ],
   howToExchangeTitle: '¿Publicas muchas direcciones? (exchanges y plataformas)',
   howToExchangeSteps: [
+    'Durante el acceso anticipado, las listas de plataformas requieren aprobación. Escribe a support@almstins.com para solicitar acceso.',
     'Publica tu lista oficial de direcciones en tu propio dominio y demuestra el dominio una vez alojando en él un único archivo de Almstins.',
     'Conecta un endpoint de API de solo lectura que devuelva la lista, más una clave — solo la leemos y nunca movemos fondos.',
     'Mantenemos la lista sincronizada, para que cualquier cliente verifique una dirección oficial contra tu dominio antes de enviar.',
@@ -759,6 +771,9 @@ export const fr: VerifyDashboardLocale = {
   entUnreachable: '⚠ Impossible de joindre votre endpoint. Vérifiez l’URL et qu’il est actif.',
   entMalformed: '⚠ La réponse de votre endpoint n’était pas au format attendu.',
   entError: 'Une erreur s’est produite. Réessayez.',
+  entApprovalNotice: 'Pendant l’accès anticipé, les listes de plateformes sont soumises à approbation. Pour demander l’accès, écrivez à {email}.',
+  entNotApproved: '⚠ Pendant l’accès anticipé, les listes de plateformes sont soumises à approbation. Écrivez à support@almstins.com pour demander l’accès.',
+  entNotPublished: 'Non publiée (approbation requise)',
   demoBanner: 'Ceci est un compte marchand de démonstration — les destinations ci-dessous sont des exemples. Essayez « Vérifier un panneau » pour en vérifier une, puis voyez comment enregistrer les vôtres.',
   demoSignupCta: 'Inscrivez-vous gratuitement →',
   demoBannerText: 'Vous êtes dans la démo commerçant. Connectez-vous pour enregistrer et prouver vos propres adresses.',
@@ -781,6 +796,7 @@ export const fr: VerifyDashboardLocale = {
   ],
   howToExchangeTitle: 'Vous publiez de nombreuses adresses ? (exchanges et plateformes)',
   howToExchangeSteps: [
+    'Pendant l’accès anticipé, les listes de plateformes sont soumises à approbation. Écrivez à support@almstins.com pour demander l’accès.',
     'Publiez votre liste officielle d’adresses sur votre propre domaine et prouvez le domaine une fois en y hébergeant un seul fichier Almstins.',
     'Connectez un point de terminaison d’API en lecture seule qui renvoie la liste, plus une clé — nous la lisons seulement et ne déplaçons jamais de fonds.',
     'Nous gardons la liste synchronisée, pour que tout client vérifie une adresse officielle par rapport à votre domaine avant d’envoyer.',
