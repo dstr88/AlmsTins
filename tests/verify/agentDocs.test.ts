@@ -122,7 +122,10 @@ describe('/verify/agents: the safe-reading rule', () => {
     expect(payee).toContain('Level 2, domain-verified');
     expect(payee).toContain('The file is what makes an address verified.');
     expect(payee).toMatch(/DNS record also proves your domain[^.]*but it lists no addresses/);
-    expect(payee).toMatch(/already proved by a self-send is not yet upgraded/);
+    // A self-send-proven address listed in the file is anchored to the domain (verified), and
+    // drops back to claimed, keeping its self-send, when the file stops listing it.
+    expect(payee).toContain('already proved by a self-send becomes verified once you list it in the file and verify the domain, and goes back to claimed if the file stops listing it.');
+    expect(payee).not.toMatch(/not yet upgraded|until that upgrade ships/);
   });
 
   it('says the check is proof-only and screens nothing', () => {
@@ -157,8 +160,23 @@ describe('/verify/agents: what verified covers today', () => {
   });
 
   it('says which lapses read claimed and which read unknown', () => {
-    expect(field('level')).toMatch(/A platform listing that goes stale, or an address withdrawn from a listing, reads unknown/);
-    expect(docsText).toMatch(/code: 'unknown'[^\]]*never proven, or its listing lapsed or was withdrawn/);
+    // An address removed from its listing keeps a self-send proof (claimed) if it had one; if
+    // the listing was its only proof, it lapses (unknown). releaseDomainAnchor / decideAnchorLoss.
+    const level = field('level');
+    expect(level).toContain('and so does an address a self-send proved once it is removed from its listing');
+    expect(level).toContain('A platform listing that goes stale, or an address whose only proof was a listing and that is removed from it, reads unknown instead.');
+    expect(section('What verified covers today'))
+      .toContain('An address removed from the file reads claimed if a self-send also proved it, and unknown if the file was its only proof.');
+    expect(docsText).toMatch(/code: 'unknown'[^\]]*never proven, or the listing that was its only proof lapsed or was withdrawn/);
+  });
+
+  it('says since follows level: a verified address dates from its listing, not an older self-send', () => {
+    // merchantAddressAssurance: verified → domain_anchored_at; claimed → proven_at.
+    const since = field('since');
+    expect(since).toContain('For a verified crypto address, the date its listing on a proven domain was first confirmed, never an older self-send date; for a claimed one, the date control was proven.');
+    expect(since).toContain('It follows level');
+    expect(field('proofAgeDays')).toContain('proofAgeDays can jump when level changes');
+    expect(since).not.toMatch(/^The date the destination was proven/);
   });
 });
 

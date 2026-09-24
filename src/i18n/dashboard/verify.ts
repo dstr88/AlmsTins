@@ -426,7 +426,7 @@ export const en: VerifyDashboardLocale = {
   howToCustomerTitle: 'What your customers see',
   howToCustomerSteps: [
     'Your customer scans the QR or address on your sign, invoice, or checkout.',
-    'If it matches a destination you’ve proven, they see ✓ Verified with your verified domain (and your business name, when it matches that domain) once your domain is proven. Until then they see Claimed, with no name. The label you type isn’t shown on the scan card.',
+    'If it matches a destination you’ve proven, they see ✓ Verified with your verified domain (and your business name, when it matches that domain): a payment link once your domain is proven, an address once your domain’s verification file lists it. Until then they see Claimed, with no name. The label you type isn’t shown on the scan card.',
     'If your QR was swapped for someone else’s address, it shows ⚠ Not a verified destination, a warning to hold off before paying a scammer.',
     'Every scan also runs a free safety screen — scam, sanctions, and honeypot lists for an address; phishing and scam-site lists for a payment link — flagging a dangerous destination even if it isn’t yours.',
   ],
@@ -632,7 +632,7 @@ export const es: VerifyDashboardLocale = {
   howToCustomerTitle: 'Lo que ven tus clientes',
   howToCustomerSteps: [
     'Tu cliente escanea el QR o la dirección de tu letrero, factura o checkout.',
-    'Si coincide con un destino que demostraste, ve ✓ Verificada con tu dominio verificado (y el nombre de tu negocio, cuando coincide con ese dominio) cuando tu dominio quede demostrado. Hasta entonces ve Reclamada, sin nombre. La etiqueta que escribes no se muestra en la tarjeta del escaneo.',
+    'Si coincide con un destino que demostraste, ve ✓ Verificada con tu dominio verificado (y el nombre de tu negocio, cuando coincide con ese dominio): un enlace de pago cuando tu dominio quede demostrado, y una dirección cuando el archivo de verificación de tu dominio la incluya. Hasta entonces ve Reclamada, sin nombre. La etiqueta que escribes no se muestra en la tarjeta del escaneo.',
     'Si sustituyeron tu QR por otra dirección, muestra ⚠ Destino no verificado, una advertencia para esperar antes de pagarle a un estafador.',
     'Cada escaneo también corre un chequeo de seguridad gratuito — listas de estafas, sanciones y honeypots para una dirección; listas de phishing y sitios fraudulentos para un enlace de pago — marcando un destino peligroso aunque no sea tuyo.',
   ],
@@ -838,7 +838,7 @@ export const fr: VerifyDashboardLocale = {
   howToCustomerTitle: 'Ce que voient vos clients',
   howToCustomerSteps: [
     'Votre client scanne le QR ou l’adresse sur votre panneau, facture ou page de paiement.',
-    'Si cela correspond à une destination que vous avez prouvée, il voit ✓ Vérifiée avec votre domaine vérifié (et le nom de votre entreprise, s’il correspond à ce domaine) une fois votre domaine prouvé. D’ici là, il voit Revendiquée, sans nom. Le libellé que vous saisissez n’apparaît pas sur la carte du scan.',
+    'Si cela correspond à une destination que vous avez prouvée, il voit ✓ Vérifiée avec votre domaine vérifié (et le nom de votre entreprise, s’il correspond à ce domaine) : un lien de paiement une fois votre domaine prouvé, une adresse une fois que le fichier de vérification de votre domaine la liste. D’ici là, il voit Revendiquée, sans nom. Le libellé que vous saisissez n’apparaît pas sur la carte du scan.',
     'Si votre QR a été remplacé par une autre adresse, il affiche ⚠ Destination non vérifiée, un avertissement pour attendre avant de payer un fraudeur.',
     'Chaque scan lance aussi un contrôle de sécurité gratuit — listes d’arnaques, sanctions et honeypots pour une adresse ; listes de phishing et de sites frauduleux pour un lien de paiement — signalant une destination dangereuse même si elle n’est pas la vôtre.',
   ],
