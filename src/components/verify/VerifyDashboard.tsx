@@ -66,7 +66,9 @@ function classifyScan(raw: string): { kind: 'url' | 'address'; value: string } {
   return { kind: 'address', value: noScheme.split(/[?@\s]/)[0].trim() };
 }
 
-export default function VerifyDashboard({ t, isDemo = false }: { t: VerifyDashboardLocale; isDemo?: boolean }) {
+export default function VerifyDashboard({ t, isDemo = false, entitiesApproved = false }: {
+  t: VerifyDashboardLocale; isDemo?: boolean; entitiesApproved?: boolean;
+}) {
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +106,7 @@ export default function VerifyDashboard({ t, isDemo = false }: { t: VerifyDashbo
       <DestSection title={t.qrTitle} kind="qr" limit={LIMITS.qr}
         items={qrs} loading={loading} onChange={load} t={t} isDemo={isDemo} />
 
-      {isDemo ? <HowToAdd t={t} /> : <EntitiesSection t={t} />}
+      {isDemo ? <HowToAdd t={t} /> : <EntitiesSection t={t} approved={entitiesApproved} />}
     </div>
   );
 }
@@ -154,7 +156,27 @@ function entityProofFile(challenge: string): string {
   return JSON.stringify({ almstins: { version: 1, challenge, addresses: [] } }, null, 2);
 }
 
-function EntitiesSection({ t }: { t: VerifyDashboardLocale }) {
+// A 403 { error: 'not_approved' } from an entity write (approval withdrawn mid-session).
+function isNotApproved(res: Response, data: any): boolean {
+  return res.status === 403 && data?.error === 'not_approved';
+}
+
+// "Platform lists are by approval…" with the {email} token rendered as a mailto link.
+const SUPPORT_EMAIL = 'support@almstins.com';
+function ApprovalNotice({ t }: { t: VerifyDashboardLocale }) {
+  const [before, after = ''] = t.entApprovalNotice.split('{email}');
+  return (
+    <p className="ve__approval">
+      {before}<a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>{after}
+    </p>
+  );
+}
+
+// Platform lists are by approval during early access. An account that is not approved
+// sees the explainer and the approval notice instead of the add form, and any rows it
+// already has show as "Not published" with Remove only (the API refuses prove/connect for
+// it, and the public lookup ignores its rows).
+function EntitiesSection({ t, approved }: { t: VerifyDashboardLocale; approved: boolean }) {
   const [entities, setEntities] = useState<VEntity[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -172,12 +194,15 @@ function EntitiesSection({ t }: { t: VerifyDashboardLocale }) {
     <section className="vd-sec ve">
       <div className="vd-sec__head"><h2 className="vd-sec__title">{t.entHeading}</h2></div>
       <p className="ve__intro">{t.entIntro}</p>
-      <div className="vd-list">
-        {entities.map(e => <EntityCard key={e.id} e={e} t={t} onChange={load} />)}
-        {!loading && entities.length === 0 && <p className="vd-sec__empty">{t.entEmpty}</p>}
-        {loading && entities.length === 0 && <p className="vd-sec__empty">{t.loading}</p>}
-      </div>
-      <EntityAddForm t={t} onChange={load} />
+      {!approved && <ApprovalNotice t={t} />}
+      {(approved || entities.length > 0) && (
+        <div className="vd-list">
+          {entities.map(e => <EntityCard key={e.id} e={e} t={t} onChange={load} approved={approved} />)}
+          {approved && !loading && entities.length === 0 && <p className="vd-sec__empty">{t.entEmpty}</p>}
+          {approved && loading && entities.length === 0 && <p className="vd-sec__empty">{t.loading}</p>}
+        </div>
+      )}
+      {approved && <EntityAddForm t={t} onChange={load} />}
     </section>
   );
 }
@@ -195,6 +220,7 @@ function EntityAddForm({ t, onChange }: { t: VerifyDashboardLocale; onChange: ()
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: d }),
       });
       const data = await res.json();
+      if (isNotApproved(res, data)) { setErr(t.entNotApproved); return; }
       if (data.outcome === 'invalid_domain') { setErr(t.proofInvalidDomain); return; }
       if (data.ok && data.entity) { setDomain(''); onChange(); }
       else setErr(t.entError);
@@ -212,7 +238,9 @@ function EntityAddForm({ t, onChange }: { t: VerifyDashboardLocale; onChange: ()
   );
 }
 
-function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; onChange: () => void }) {
+function EntityCard({ e, t, onChange, approved }: {
+  e: VEntity; t: VerifyDashboardLocale; onChange: () => void; approved: boolean;
+}) {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null);
   const [endpoint, setEndpoint] = useState(e.apiEndpoint ?? '');
@@ -231,6 +259,7 @@ function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; 
     try {
       const res = await fetch(`/api/verify/entities/${encodeURIComponent(e.id)}/prove`, { method: 'POST' });
       const data = await res.json();
+      if (isNotApproved(res, data)) { setOutcome({ text: t.entNotApproved, ok: false }); return; }
       const ok = data.outcome === 'proven';
       const map: Record<string, string> = {
         proven: t.proofProven, challenge_mismatch: t.proofChallengeMismatch,
@@ -250,6 +279,7 @@ function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; 
         body: JSON.stringify({ endpoint: endpoint.trim(), apiKey: apiKey.trim() }),
       });
       const data = await res.json();
+      if (isNotApproved(res, data)) { setOutcome({ text: t.entNotApproved, ok: false }); return; }
       const ok = data.outcome === 'pulled';
       const map: Record<string, string> = {
         invalid_endpoint: t.entInvalidEndpoint, no_endpoint: t.entInvalidEndpoint, invalid_domain: t.entInvalidEndpoint,
@@ -269,14 +299,17 @@ function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; 
     <div className="ve-card">
       <div className="ve-card__head">
         <span className="ve-card__domain">{e.domain}</span>
-        <span className={`vd-badge vd-badge--${e.proofStatus}`}>{proven ? t.statusProven : t.statusUnproven}</span>
-        {proven && e.hasEndpoint && e.lastPullStatus === 'ok' && (
+        {/* Not approved: the public lookup ignores this list, so never show it as Verified or synced. */}
+        {approved
+          ? <span className={`vd-badge vd-badge--${e.proofStatus}`}>{proven ? t.statusProven : t.statusUnproven}</span>
+          : <span className="vd-badge vd-badge--unproven">{t.entNotPublished}</span>}
+        {approved && proven && e.hasEndpoint && e.lastPullStatus === 'ok' && (
           <span className="ve-card__synced">{t.entSynced.replace('{n}', String(e.lastPullCount))}</span>
         )}
         <button className="vd-row__del" onClick={del} disabled={busy} aria-label={t.removeAria}>✕</button>
       </div>
 
-      {!proven && (
+      {approved && !proven && (
         <div className="vd-prove">
           <p className="vd-prove__steps">{t.proveStep1.replace('{url}', wkUrl)}</p>
           <pre className="vd-prove__pre">{file}</pre>
@@ -287,7 +320,7 @@ function EntityCard({ e, t, onChange }: { e: VEntity; t: VerifyDashboardLocale; 
         </div>
       )}
 
-      {proven && (
+      {approved && proven && (
         <div className="vd-prove">
           <p className="vd-prove__hint">{t.entConnectPrompt}</p>
           <input className="vd-prove__input" value={endpoint} onChange={(ev) => setEndpoint(ev.target.value)}

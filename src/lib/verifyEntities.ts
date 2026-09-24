@@ -9,6 +9,10 @@
  *  - the API key is read-only (reads a public list) and stored ENCRYPTED, never hashed
  *    (we replay it on every pull).
  * Tenant isolation is app-enforced (WHERE tenant_id), like the rest of Verify.
+ *
+ * Publishing is by approval (verifyEntityAccess.ts): create, prove, set-endpoint and pull
+ * refuse a tenant that is not approved, the monitor only refreshes approved tenants, and the
+ * public lookup ignores mirror rows whose tenant is not approved. Delete is never gated.
  */
 import { db } from '@/lib/db';
 import { randomUUID } from 'crypto';
@@ -18,6 +22,7 @@ import {
 } from './verifyProof';
 import { encryptSecret, decryptSecret, encryptionAvailable } from './verifyCrypto';
 import { normalizeDestinationValue, ensureVerifyTables } from './verifyRegistry';
+import { canPublishEntities, publishingTenantIds, ENTITY_NOT_APPROVED } from './verifyEntityAccess';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -151,10 +156,11 @@ async function getEntityRaw(tenantId: string, id: string): Promise<any | null> {
 
 export type CreateEntityResult =
   | { ok: true; entity: VerifiedEntity }
-  | { ok: false; code: 'invalid_domain' };
+  | { ok: false; code: 'invalid_domain' | typeof ENTITY_NOT_APPROVED };
 
 /** Register an entity for a domain (idempotent per tenant+domain), issuing a challenge. */
 export async function createEntity(tenantId: string, rawDomain: string): Promise<CreateEntityResult> {
+  if (!canPublishEntities(tenantId)) return { ok: false, code: ENTITY_NOT_APPROVED };
   await ensureEntityTables();
   const domain = normalizeProofDomain(rawDomain);
   if (!domain) return { ok: false, code: 'invalid_domain' };
@@ -179,6 +185,7 @@ export type EntityOutcome = { ok: true } | { ok: false; code: string };
 
 /** Prove the entity's domain via the published .well-known challenge (reuses Phase 3). */
 export async function proveEntity(tenantId: string, id: string): Promise<EntityOutcome> {
+  if (!canPublishEntities(tenantId)) return { ok: false, code: ENTITY_NOT_APPROVED };
   const entity = await getEntity(tenantId, id);
   if (!entity) return { ok: false, code: 'not_found' };
   const result = await verifyDomainProof(entity.domain, entity.challenge);
@@ -196,6 +203,7 @@ export async function proveEntity(tenantId: string, id: string): Promise<EntityO
 export async function setEntityEndpoint(
   tenantId: string, id: string, endpoint: string, apiKey: string,
 ): Promise<EntityOutcome> {
+  if (!canPublishEntities(tenantId)) return { ok: false, code: ENTITY_NOT_APPROVED };
   const entity = await getEntity(tenantId, id);
   if (!entity) return { ok: false, code: 'not_found' };
   if (entity.proofStatus !== 'proven') return { ok: false, code: 'not_proven' };
@@ -214,8 +222,13 @@ export async function setEntityEndpoint(
 
 export type PullResult = { ok: true; count: number } | { ok: false; code: EntityPullCode | string };
 
-/** Pull the entity's live list and replace its mirrored addresses. */
+/**
+ * Pull the entity's live list and replace its mirrored addresses. Refuses (before any read
+ * or write) a tenant that is not approved, so neither connect nor the monitor can add
+ * addresses for one.
+ */
 export async function pullEntity(tenantId: string, id: string): Promise<PullResult> {
+  if (!canPublishEntities(tenantId)) return { ok: false, code: ENTITY_NOT_APPROVED };
   const raw = await getEntityRaw(tenantId, id);
   if (!raw) return { ok: false, code: 'not_found' };
   if (String(raw.proof_status) !== 'proven') return { ok: false, code: 'not_proven' };
@@ -330,18 +343,29 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
   if (!normalized) return null;
   await ensureEntityTables();
 
-  // 1) Entity mirror (exchanges / platforms) — domain-published, fresh.
+  // 1) Entity mirror (exchanges / platforms) — domain-published, fresh, and published by an
+  //    approved tenant. A row whose tenant is not (or no longer) approved never answers, so
+  //    withdrawing approval takes effect at once instead of waiting out the stale TTL. The
+  //    approval filter runs in SQL (so unapproved rows can never crowd an approved one out
+  //    of the page), and the order is fixed: when several approved lists carry the address,
+  //    the earliest-proven domain answers. The tenant_id is read only to re-check approval
+  //    below and is never returned.
+  const publishers = publishingTenantIds();
   const ent = await db.execute({
-    sql: `SELECT m.chain AS chain, m.entity_domain AS entity_domain, e.proven_at AS proven_at
+    sql: `SELECT m.chain AS chain, m.entity_domain AS entity_domain, e.proven_at AS proven_at,
+                 e.tenant_id AS tenant_id
           FROM verified_address_mirror m
           JOIN verified_entities e ON e.id = m.entity_id
           WHERE m.status = 'verified' AND m.address = ?
             AND m.refreshed_at IS NOT NULL AND m.refreshed_at >= ?
+            AND lower(e.tenant_id) IN (${publishers.map(() => '?').join(', ')})
+          ORDER BY e.proven_at ASC, m.entity_id ASC
           LIMIT 1`,
-    args: [normalized, staleCutoffUtc()],
+    args: [normalized, staleCutoffUtc(), ...publishers],
   });
-  if (ent.rows.length) {
-    const r = ent.rows[0] as any;
+  const approvedRow = (ent.rows as any[])[0];
+  if (approvedRow && canPublishEntities(String(approvedRow.tenant_id ?? ''))) {
+    const r = approvedRow;
     // Entity mirror = domain-published by definition → Verified. "Since" = when the
     // entity proved its domain (verified_entities.proven_at).
     return {
@@ -458,9 +482,10 @@ export interface EntityMonitorTarget {
 
 /**
  * Cross-tenant enumeration for the monitor cron — every proven entity that has a
- * stored endpoint + key. NOT tenant-scoped: this is a privileged maintenance job
- * (like monthly-digest), so it deliberately spans all tenants. It returns only
- * management fields, never the key.
+ * stored endpoint + key, and whose tenant is approved to publish (a tenant that is not
+ * approved is never refreshed, so its mirror lapses at the stale TTL). NOT tenant-scoped:
+ * this is a privileged maintenance job (like monthly-digest), so it deliberately spans all
+ * tenants. It returns only management fields, never the key.
  */
 export async function listEntitiesForMonitor(): Promise<EntityMonitorTarget[]> {
   await ensureEntityTables();
@@ -471,12 +496,14 @@ export async function listEntitiesForMonitor(): Promise<EntityMonitorTarget[]> {
             AND api_endpoint IS NOT NULL AND api_key_encrypted IS NOT NULL`,
     args: [],
   });
-  return (res.rows as any[]).map(r => ({
-    id: String(r.id),
-    tenantId: String(r.tenant_id),
-    domain: String(r.domain),
-    lastPullStatus: r.last_pull_status ? String(r.last_pull_status) : null,
-  }));
+  return (res.rows as any[])
+    .filter(r => canPublishEntities(String(r.tenant_id ?? '')))
+    .map(r => ({
+      id: String(r.id),
+      tenantId: String(r.tenant_id),
+      domain: String(r.domain),
+      lastPullStatus: r.last_pull_status ? String(r.last_pull_status) : null,
+    }));
 }
 
 export interface EntityMonitorResult {
@@ -493,6 +520,7 @@ export interface EntityMonitorResult {
  * the public lookup's max-stale TTL is what fails it safe, not a destructive delete.
  */
 export async function monitorEntity(tenantId: string, id: string): Promise<EntityMonitorResult> {
+  if (!canPublishEntities(tenantId)) return { pull: { ok: false, code: ENTITY_NOT_APPROVED }, removed: [], added: [] };
   const before = await db.execute({
     sql: `SELECT address FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
     args: [id, tenantId],

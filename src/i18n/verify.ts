@@ -208,9 +208,9 @@ const en: VerifyCopy = {
       'Verify them on demand before you rely on them — scan a sign and we confirm it still matches. Automatic monitoring is coming.',
     ],
     scaleLabel: 'Publishing many addresses?',
-    scaleBody: 'Exchanges and large platforms can verify everything from their own domain at once: prove your domain, then host a read-only endpoint and issue us an API key. We pull your list so it can be verified — no adding addresses one by one. Live monitoring is on the way.',
+    scaleBody: 'Exchanges and large platforms can verify everything from their own domain at once (by approval during early access): prove your domain, then host a read-only endpoint and issue us an API key. We pull your list so it can be verified — no adding addresses one by one. Live monitoring is on the way.',
     contractLabel: 'Your endpoint returns:',
-    earlyNote: 'Early access. Any key you give us only reads a list you already publish — it can never move funds or see anything private. To get set up, email <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a>.',
+    earlyNote: 'Early access. Any key you give us only reads a list you already publish — it can never move funds or see anything private. To request access, email <a href="mailto:support@almstins.com">support@almstins.com</a>.',
   },
 };
 
@@ -353,9 +353,9 @@ const es: VerifyCopy = {
       'Verifícalas a demanda antes de fiarte — escanea un letrero y confirmamos que sigue coincidiendo. La supervisión automática llega pronto.',
     ],
     scaleLabel: '¿Publicas muchas direcciones?',
-    scaleBody: 'Los exchanges y las plataformas grandes pueden verificarlo todo desde su propio dominio a la vez: verifica tu dominio, luego aloja un endpoint de solo lectura y emítenos una clave de API. Extraemos tu lista para que pueda verificarse — sin añadir direcciones una por una. La supervisión en vivo está en camino.',
+    scaleBody: 'Los exchanges y las plataformas grandes pueden verificarlo todo desde su propio dominio a la vez (con aprobación durante el acceso anticipado): verifica tu dominio, luego aloja un endpoint de solo lectura y emítenos una clave de API. Extraemos tu lista para que pueda verificarse — sin añadir direcciones una por una. La supervisión en vivo está en camino.',
     contractLabel: 'Tu endpoint devuelve:',
-    earlyNote: 'Acceso anticipado. Cualquier clave que nos des solo lee una lista que ya publicas — nunca puede mover fondos ni ver nada privado. Para configurarlo, escribe a <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a>.',
+    earlyNote: 'Acceso anticipado. Cualquier clave que nos des solo lee una lista que ya publicas — nunca puede mover fondos ni ver nada privado. Para solicitar acceso, escribe a <a href="mailto:support@almstins.com">support@almstins.com</a>.',
   },
 };
 
@@ -498,9 +498,9 @@ const fr: VerifyCopy = {
       'Vérifiez-les à la demande avant de vous y fier — scannez une pancarte et nous confirmons qu’elle correspond toujours. La surveillance automatique arrive bientôt.',
     ],
     scaleLabel: 'Vous publiez de nombreuses adresses ?',
-    scaleBody: 'Les exchanges et les grandes plateformes peuvent tout vérifier depuis leur propre domaine d’un coup : prouvez votre domaine, puis hébergez un endpoint en lecture seule et émettez-nous une clé API. Nous récupérons votre liste pour qu’elle puisse être vérifiée — sans ajouter les adresses une par une. La surveillance en direct arrive bientôt.',
+    scaleBody: 'Les exchanges et les grandes plateformes peuvent tout vérifier depuis leur propre domaine d’un coup (sur approbation pendant l’accès anticipé) : prouvez votre domaine, puis hébergez un endpoint en lecture seule et émettez-nous une clé API. Nous récupérons votre liste pour qu’elle puisse être vérifiée — sans ajouter les adresses une par une. La surveillance en direct arrive bientôt.',
     contractLabel: 'Votre endpoint renvoie :',
-    earlyNote: 'Accès anticipé. Toute clé que vous nous donnez lit seulement une liste que vous publiez déjà — elle ne peut jamais déplacer de fonds ni voir quoi que ce soit de privé. Pour la mise en place, écrivez à <a href="mailto:donnie@titaniumhut.com">donnie@titaniumhut.com</a>.',
+    earlyNote: 'Accès anticipé. Toute clé que vous nous donnez lit seulement une liste que vous publiez déjà — elle ne peut jamais déplacer de fonds ni voir quoi que ce soit de privé. Pour demander l’accès, écrivez à <a href="mailto:support@almstins.com">support@almstins.com</a>.',
   },
 };
 
