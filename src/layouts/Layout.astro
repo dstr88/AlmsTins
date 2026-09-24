@@ -481,6 +481,9 @@ const memberSinceDisplay = memberSinceIso
   helpSending:       tNav.chrome.helpSending,
   helpSend:          tNav.chrome.helpSend,
   helpSendError:     tNav.chrome.helpSendError,
+  deleteConfirm1:    tNav.chrome.deleteConfirm1,
+  deleteConfirm2:    tNav.chrome.deleteConfirm2,
+  deleteFailed:      tNav.chrome.deleteFailed,
   dateLocale:        navLang === 'es' ? 'es-ES' : navLang === 'fr' ? 'fr-FR' : 'en-US',
 } }}>
 window.__chromeI18n = chromeI18n;
@@ -779,9 +782,11 @@ window.__chromeI18n = chromeI18n;
 <script>
 	// Delete account
 	document.getElementById('delete-account-btn')?.addEventListener('click', async () => {
-		const confirmed = confirm('Are you sure? This will permanently delete everything you have stored. This cannot be undone.');
+		const i18n = (window as any).__chromeI18n || {};
+		const failed = i18n.deleteFailed || 'Could not delete account. Please try again.';
+		const confirmed = confirm(i18n.deleteConfirm1 || 'Are you sure? This will permanently delete everything you have stored. This cannot be undone.');
 		if (!confirmed) return;
-		const confirmed2 = confirm('Last chance — all your tins, entries, and subscription data will be permanently and irreversibly deleted. Continue?');
+		const confirmed2 = confirm(i18n.deleteConfirm2 || 'Last chance: all your tins, entries, and subscription data will be permanently and irreversibly deleted. If you use Verify, your public Claimed and Verified results, your business name, and your agent API keys are removed too. Continue?');
 		if (!confirmed2) return;
 		try {
 			const res = await fetch('/api/account/delete', { method: 'POST' });
@@ -789,10 +794,10 @@ window.__chromeI18n = chromeI18n;
 				window.location.href = '/login';
 			} else {
 				const d = await res.json().catch(() => ({}));
-				alert(d.error ?? 'Could not delete account. Please try again.');
+				alert(d.error ?? failed);
 			}
 		} catch {
-			alert('Could not delete account. Please try again.');
+			alert(failed);
 		}
 	});
 </script>

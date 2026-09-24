@@ -183,3 +183,16 @@ export async function authenticateAgentKey(bearer: string): Promise<{ id: string
   }
   return hit;
 }
+
+/**
+ * Drop cached authentications for these key ids, so a key whose row was just deleted
+ * (account deletion) stops authenticating now instead of when its cache entry expires.
+ * Only this process's cache is cleared; any other instance drops it within the TTL.
+ */
+export function forgetAgentKeys(ids: Iterable<string>): void {
+  const gone = new Set(ids);
+  if (!gone.size) return;
+  for (const [hash, entry] of KEY_CACHE) {
+    if (entry.hit && gone.has(entry.hit.id)) KEY_CACHE.delete(hash);
+  }
+}
