@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import jsQR from 'jsqr';
 import { decodeQrFromImageFile } from '../../lib/qrScan';
 import type { VerifyDashboardLocale } from '../../i18n/dashboard/verify';
@@ -582,52 +583,282 @@ function MonitorPanel({ d, t, onSaved }: { d: Destination; t: VerifyDashboardLoc
   );
 }
 
-// Self-send proof — the merchant sends any outgoing tx FROM the address. We issue a
-// challenge on open (stamps the start), then read the chain for a new outgoing tx
-// after it. Read-only: we never ask them to connect or sign, and never move funds.
-function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [outcome, setOutcome] = useState<{ text: string; ok: boolean } | null>(null);
+// The satoshi test (rule bound_v1): the merchant sends an EXACT amount FROM their
+// registered address TO that same address, from their own wallet app. The amount is
+// issued only when they tap "I'm ready to send" (never on panel open), and the panel
+// never shows an address to send to: only the first 6 / last 4 of their own, to check
+// against their wallet. Read-only: we never ask them to connect or sign, and never move funds.
+interface SelfSendChallenge {
+  amount: string;
+  baseAmount: string;
+  unit: string;
+  baseUnit: string | null;
+  issuedAt: string;
+  expiresAt: string;
+  /** End of the 2h after expiry in which a send made in time can still be found. */
+  checkUntil: string;
+  /** Past expiresAt but before checkUntil: we keep checking, and don't ask for a resend. */
+  late: boolean;
+  expired: boolean;
+}
 
-  // Issue the challenge on mount so issued_at predates the merchant's send.
+const EVM_RAILS = new Set(['ethereum', 'polygon', 'avalanche']);
+const SS_POLL_MS = 20_000;
+const SS_POLL_FOR_MS = 15 * 60_000;
+// Outcomes after which checking again can't help until the merchant acts. Not
+// 'checking_late': a send made in time can still turn up until checkUntil.
+const SS_FINAL = new Set(['proven', 'already_proven', 'expired', 'no_challenge', 'claimed_elsewhere', 'unsupported_rail', 'not_address']);
+// "I'm ready to send" errors, as panel codes. 'unavailable' here means we couldn't set the
+// test up, not that a test in progress couldn't be checked, so it gets its own code.
+const SS_ISSUE_ERRORS: Record<string, string> = {
+  unsupported_rail: 'unsupported_rail', already_proven: 'already_proven',
+  rate_limited: 'rate_limited', unavailable: 'issue_unavailable', busy: 'busy',
+};
+
+/** Replace {tokens} in a copy string. */
+function fill(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
+}
+
+/** Replace {tokens} in a copy string, rendering the substituted values in bold. */
+function fillBold(template: string, vars: Record<string, string>): ReactNode[] {
+  return template.split(/(\{\w+\})/).map((part, i) => {
+    const key = /^\{\w+\}$/.test(part) ? part.slice(1, -1) : '';
+    return key && key in vars ? <strong key={i}>{vars[key]}</strong> : part;
+  });
+}
+
+/** An ISO timestamp in the viewer's local time (date + time, or time only). */
+function localTime(iso: string, lang: string, timeOnly = false): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return iso;
+  return timeOnly
+    ? when.toLocaleTimeString(lang, { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+    : when.toLocaleString(lang, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
+  const [challenge, setChallenge] = useState<SelfSendChallenge | null>(null);
+  const [issuing, setIssuing] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [armed, setArmed] = useState(false); // "I've sent it" tapped: also check on tab focus
+  const [polling, setPolling] = useState(false); // the every-20-s window (15 minutes)
+  const [stopped, setStopped] = useState(false);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const [retryAt, setRetryAt] = useState<string | null>(null); // when a new amount can be drawn
+  const [copied, setCopied] = useState(false);
+  const inFlight = useRef(false);
+  const done = useRef(false);
+  const pollUntil = useRef(0);
+  const base = `/api/verify/destinations/${encodeURIComponent(d.id)}`;
+
+  // Resume a test already under way (a reload, another tab). Reading never issues one.
   useEffect(() => {
-    void fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/deposit-challenge`, { method: 'POST' }).catch(() => {});
+    let live = true;
+    void fetch(`${base}/deposit-challenge`)
+      .then((r) => r.json())
+      .then((data) => { if (live && data?.ok && data.challenge) setChallenge(data.challenge); })
+      .catch(() => {});
+    return () => { live = false; };
   }, [d.id]);
 
-  async function check() {
-    setBusy(true); setOutcome(null);
+  async function ready() {
+    setIssuing(true); setOutcome(null); setStopped(false);
     try {
-      const res = await fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/deposit-verify`, { method: 'POST' });
-      const data = await res.json();
-      const ok = data.outcome === 'proven' || data.outcome === 'already_proven';
-      const map: Record<string, string> = {
-        proven: t.ssProven, already_proven: t.ssProven, not_yet: t.ssNotYet, no_challenge: t.ssNotYet,
-        claimed_elsewhere: t.ssClaimedElsewhere, unsupported_rail: t.ssUnsupported, unavailable: t.ssUnavailable,
-      };
-      setOutcome({ text: data.ok ? (map[String(data.outcome)] ?? t.proveError) : t.proveError, ok });
-      if (ok) setTimeout(onProven, 1400);
+      const res = await fetch(`${base}/deposit-challenge`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ready: true }),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.ok && data.challenge) {
+        setChallenge(data.challenge); setArmed(false); setPolling(false); setLastChecked(null);
+      } else {
+        const err = String(data?.error ?? '');
+        setRetryAt(err === 'rate_limited' && typeof data?.retryAt === 'string' ? data.retryAt : null);
+        setOutcome(SS_ISSUE_ERRORS[err] ?? 'error');
+      }
     } catch {
-      setOutcome({ text: t.proveError, ok: false });
-    } finally { setBusy(false); }
+      setOutcome('offline');
+    } finally { setIssuing(false); }
   }
 
+  async function check() {
+    if (inFlight.current || done.current) return;
+    inFlight.current = true; setChecking(true);
+    try {
+      let res: Response;
+      try { res = await fetch(`${base}/deposit-verify`, { method: 'POST' }); }
+      catch { setOutcome('offline'); return; } // the browser couldn't reach us: keep checking
+      const data = await res.json().catch(() => null);
+      setLastChecked(new Date());
+      const code = data?.ok ? String(data.outcome) : 'error';
+      setOutcome(code);
+      if (SS_FINAL.has(code)) { setArmed(false); setPolling(false); }
+      if (code === 'expired') setChallenge((c) => (c ? { ...c, expired: true } : c));
+      if (code === 'checking_late') setChallenge((c) => (c && !c.late ? { ...c, late: true } : c));
+      if (code === 'no_challenge') setChallenge(null);
+      if (code === 'proven' || code === 'already_proven') { done.current = true; setTimeout(onProven, 1400); }
+    } finally { inFlight.current = false; setChecking(false); }
+  }
+
+  function sent() {
+    pollUntil.current = Date.now() + SS_POLL_FOR_MS;
+    setArmed(true); setPolling(true); setStopped(false);
+    void check();
+  }
+
+  // Check every 20 s for 15 minutes after "I've sent it".
+  useEffect(() => {
+    if (!polling) return;
+    const id = window.setInterval(() => {
+      if (Date.now() > pollUntil.current) { setPolling(false); setStopped(true); return; }
+      void check();
+    }, SS_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [polling]);
+
+  // And whenever the tab regains focus (back from the wallet app), even after the 15 minutes.
+  useEffect(() => {
+    if (!armed) return;
+    const onVisible = () => { if (document.visibilityState === 'visible') void check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [armed]);
+
+  function copyAmount() {
+    if (!challenge) return;
+    void navigator.clipboard?.writeText(challenge.amount).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    }).catch(() => {});
+  }
+
+  const chain = railLabel(d.rail, t);
+  const last = d.value.slice(-4);
+  const ok = outcome === 'proven' || outcome === 'already_proven';
+  const message = ((): string | null => {
+    switch (outcome) {
+      case null: case 'no_challenge': case 'checking_late': return null; // the late panel says it
+      case 'proven': case 'already_proven': return t.ssProven;
+      case 'not_yet': return fill(t.ssNotYet, { chain, last });
+      case 'expired': return t.ssExpired;
+      case 'wrong_amount':
+        return challenge ? fill(t.ssWrongAmount, { amount: challenge.amount, unit: challenge.unit }) : t.proveError;
+      case 'wrong_recipient': return t.ssWrongRecipient;
+      case 'sent_to_not_from': return t.ssSentToNotFrom;
+      case 'claimed_elsewhere': return t.ssClaimedElsewhere;
+      case 'unsupported_rail': return t.ssUnsupported;
+      case 'unavailable': return fill(t.ssUnavailable, { chain });
+      case 'offline': return t.ssOffline;
+      case 'rate_limited': return retryAt ? fill(t.ssRateLimited, { time: localTime(retryAt, t.lang) }) : t.proveError;
+      case 'issue_unavailable': return fill(t.ssIssueUnavailable, { chain });
+      case 'busy': return t.ssBusy;
+      default: return t.proveError;
+    }
+  })();
+  const outcomeBox = message && (
+    <div className={`vd-prove__outcome ${ok ? 'vd-prove__outcome--ok' : 'vd-prove__outcome--warn'}`} role="status">{message}</div>
+  );
+
+  // No test yet: explain it, and issue the amount only on "I'm ready to send".
+  if (!challenge) {
+    return (
+      <>
+        <p className="vd-prove__hint">{t.ssIntro}</p>
+        <p className="vd-ss__note">{t.ssNeverNote}</p>
+        <div className="vd-prove__row">
+          <button className="vd-prove__verify" onClick={ready} disabled={issuing}>
+            {issuing ? t.ssIssuingBtn : t.ssReadyBtn}
+          </button>
+        </div>
+        {outcomeBox}
+      </>
+    );
+  }
+
+  // Expired: a new tap draws a NEW amount.
+  if (challenge.expired) {
+    return (
+      <>
+        <div className="vd-prove__outcome vd-prove__outcome--warn" role="status">{t.ssExpired}</div>
+        <div className="vd-prove__row" style={{ marginTop: '0.6rem' }}>
+          <button className="vd-prove__verify" onClick={ready} disabled={issuing}>
+            {issuing ? t.ssIssuingBtn : t.ssNewAmountBtn}
+          </button>
+        </div>
+        {outcome !== 'expired' && outcomeBox}
+      </>
+    );
+  }
+
+  // Past the amount's 24 hours but inside the 2h grace: a send made in time may still be
+  // indexed or confirmed, so keep checking (button, polling, tab focus) and don't ask for a
+  // resend. A merchant who never sent can take a new amount instead.
+  if (challenge.late) {
+    return (
+      <>
+        <div className="vd-prove__outcome vd-prove__outcome--warn" role="status">
+          {fill(t.ssLate, { time: localTime(challenge.checkUntil, t.lang) })}
+        </div>
+        <div className="vd-prove__row" style={{ marginTop: '0.6rem' }}>
+          <button className="vd-prove__verify" onClick={sent} disabled={checking}>
+            {checking ? t.ssCheckingBtn : t.ssCheckAgainBtn}
+          </button>
+          <button className="vd-prove__get" onClick={ready} disabled={issuing}>
+            {issuing ? t.ssIssuingBtn : t.ssNewAmountBtn}
+          </button>
+        </div>
+        {armed && polling && lastChecked && (
+          <p className="vd-ss__note vd-ss__note--status">
+            {fill(t.ssWaiting, { chain, time: localTime(lastChecked.toISOString(), t.lang, true) })}
+          </p>
+        )}
+        {outcomeBox}
+      </>
+    );
+  }
+
+  const validUntil = localTime(challenge.expiresAt, t.lang);
   return (
     <>
-      <p className="vd-prove__hint">{t.ssHint.replace('{address}', d.value)}</p>
-      <div className="vd-prove__row">
-        <button className="vd-prove__verify" onClick={check} disabled={busy}>{busy ? t.ssCheckingBtn : t.ssCheckBtn}</button>
+      <p className="vd-ss__heading">{t.ssHeading}</p>
+      <p className="vd-prove__hint">{fillBold(t.ssAddressStep, { first: d.value.slice(0, 6), last })}</p>
+      <div className="vd-ss__amount">
+        <span className="vd-ss__amount-label">{t.ssAmountLabel}</span>
+        <span className="vd-ss__amount-value">{challenge.amount} {challenge.unit}</span>
+        <button className="vd-prove__copy" onClick={copyAmount}>{copied ? t.copied : t.ssCopyAmountBtn}</button>
       </div>
-      {outcome && (
-        <div className={`vd-prove__outcome ${outcome.ok ? 'vd-prove__outcome--ok' : 'vd-prove__outcome--warn'}`}>{outcome.text}</div>
+      {challenge.baseUnit && (
+        <p className="vd-ss__note">
+          {fill(t.ssBaseUnits, { n: Number(challenge.baseAmount).toLocaleString(t.lang), unit: challenge.baseUnit })}
+        </p>
       )}
+      <p className="vd-ss__note">{t.ssCommaNote}</p>
+      <p className="vd-prove__hint">{fill(t.ssFeeNote, { coin: challenge.unit })}</p>
+      {EVM_RAILS.has(d.rail) && <p className="vd-prove__hint">{fill(t.ssEvmNote, { chain })}</p>}
+      <p className="vd-ss__note">{t.ssNeverNote}</p>
+      <p className="vd-prove__hint">{fillBold(t.ssValidUntil, { time: validUntil })}</p>
+      <div className="vd-prove__row">
+        <button className="vd-prove__verify" onClick={sent} disabled={checking}>
+          {checking ? t.ssCheckingBtn : armed ? t.ssCheckAgainBtn : t.ssSentBtn}
+        </button>
+      </div>
+      {armed && polling && lastChecked && (
+        <p className="vd-ss__note vd-ss__note--status">
+          {fill(t.ssWaiting, { chain, time: localTime(lastChecked.toISOString(), t.lang, true) })}
+        </p>
+      )}
+      {armed && <p className="vd-ss__note">{t.ssDontResend}</p>}
+      {stopped && <p className="vd-ss__note">{fill(t.ssStopped, { time: validUntil })}</p>}
+      {outcomeBox}
     </>
   );
 }
 
-// "Prove ownership" — two methods. Self-send (no website): the merchant signs an
-// outgoing tx from the address. Domain: the owner publishes a /.well-known file we
-// fetch and match. Proof is per-address (self-send) or per-domain (the file covers
-// every address it lists).
+// "Prove ownership" — two methods. The satoshi test (no website): the merchant sends an
+// exact amount from the address back to itself. Domain: the owner publishes a
+// /.well-known file we fetch and match. Proof is per-address (self-send) or per-domain
+// (the file covers every address it lists).
 function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
   const [method, setMethod] = useState<'selfsend' | 'domain'>('selfsend');
   const [domain, setDomain] = useState('');

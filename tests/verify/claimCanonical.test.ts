@@ -32,8 +32,20 @@ vi.mock('@/lib/db', () => {
     if (sql.startsWith('UPDATE verify_domain_proofs') || sql.startsWith('UPDATE verify_deposit_challenges')) {
       return { rows: [] };
     }
-    if (sql.startsWith('SELECT issued_at FROM verify_deposit_challenges')) {
-      return { rows: [{ issued_at: '2026-09-01 00:00:00' }] };
+    // A pending bound test (rule bound_v1) that has not expired.
+    if (sql.startsWith('SELECT status, issued_at, expires_at, expected_amount, unit, rule, last_outcome, last_checked_at, baseline FROM verify_deposit_challenges')) {
+      return { rows: [{
+        status: 'pending', issued_at: '2026-09-01 00:00:00', expires_at: '2099-01-01 00:00:00',
+        expected_amount: '12345', unit: null, rule: 'bound_v1', last_outcome: null, last_checked_at: null, baseline: null,
+      }] };
+    }
+    // The same-rail letter-case check (provenByAnotherTenant).
+    const sameRail = sql.match(/^SELECT 1 FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND rail = \? AND tenant_id <> \? AND (lower\(value\)|value) = \? LIMIT 1$/);
+    if (sameRail) {
+      const [rail, tenantId, v] = args as string[];
+      const fold = sameRail[1] !== 'value';
+      return { rows: store.rows.filter((r) => r.kind === 'address' && r.proof_status === 'proven' && r.rail === rail
+        && r.tenant_id !== tenantId && (fold ? r.value.toLowerCase() : r.value) === v) };
     }
     // The S5a guard: other tenants' proven rows of this kind, lowercased containment. It
     // reads the value only, never the rail.
@@ -84,9 +96,13 @@ vi.mock('@/lib/db', () => {
   return { db: { execute, batch: async () => { throw new Error('fake db: batch not supported'); } } };
 });
 
-// The self-send path reads the chain; stub it to "a qualifying outgoing tx was found".
+// The self-send path reads the chain; stub it to "the bound self-send was found". No rail
+// needs a baseline here, so the guard is reached on every rail under test.
 vi.mock('../../src/lib/verifyDeposit', () => ({
-  detectOutgoingSince: vi.fn(async () => ({ found: true, ref: '0xtxref' })),
+  detectBoundSelfSend: vi.fn(async () => ({ found: true, ref: '0xtxref' })),
+  captureSelfSendBaseline: vi.fn(async () => null),
+  parseSelfSendBaseline: vi.fn(() => null),
+  railNeedsBaseline: vi.fn(() => false),
 }));
 
 import {
