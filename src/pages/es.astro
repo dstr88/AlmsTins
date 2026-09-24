@@ -1,24 +1,12 @@
 ---
 import { es } from '../i18n/loginPage';
 import LoginPageComponent from '../components/LoginPageComponent.astro';
-import { getLoginPageData } from '../lib/loginPageData';
+import { getLoginPageData, resolveLoginAlert } from '../lib/loginPageData';
 
 const data = await getLoginPageData(Astro.request, Astro.url);
 const t = es;
 
-const message =
-  data.error === 'missing'                  ? '' :
-  data.error === 'Configuration'            ? t.errors.configuration :
-  data.error === 'OAuthAccountNotLinked'    ? 'LOCKED_OUT' :
-  data.error                                ? t.errors.generic : '';
-
-const notice =
-  data.signup   === 'success' ? t.notices.signupSuccess :
-  data.verified === 'success' ? t.notices.verifiedSuccess :
-  data.verified === 'expired' ? t.notices.verifiedExpired :
-  data.verified === 'failed'  ? t.notices.verifiedFailed : '';
-
-const hasAlert = data.error === 'missing' || (!!message && message !== 'LOCKED_OUT') || !!notice;
+const { message, notice, hasAlert } = resolveLoginAlert(t, data);
 ---
 <LoginPageComponent
   t={t}

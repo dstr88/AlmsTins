@@ -43,6 +43,12 @@ export function isPublicPath(pathname: string): boolean {
 		pathname.startsWith('/signup/') ||
 		// Credentials signup endpoint — must be reachable without a session
 		pathname === '/api/signup' ||
+		// Sign-up email confirmation: the page the emailed link opens, and the endpoint its
+		// Confirm button posts to. The token is the capability, and the person confirming is
+		// never signed in (password sign-in refuses an unverified address), so the session
+		// gate in app.ts would 401 it.
+		pathname === '/verify-email' ||
+		pathname === '/api/verify-email' ||
 		pathname === '/wallet' ||
 		pathname.startsWith('/wallet/') ||
 		pathname === '/wallet-checker' ||

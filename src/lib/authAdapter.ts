@@ -82,7 +82,8 @@ export async function ensureAuthUsersCreatedAt(): Promise<void> {
 
 export const authAdapter = (): Adapter => ({
 	async createUser(user) {
-		console.log('[authAdapter] createUser called', { email: user.email, name: user.name });
+		// Never log the address or name: log whether one was supplied.
+		console.log('[authAdapter] createUser called', { hasEmail: Boolean(user.email) });
 		await ensureAuthUsersCreatedAt();
 		// Auth types require a string email; keep empty string if provider didn't supply one.
 		const email = user.email ?? '';
@@ -95,7 +96,7 @@ export const authAdapter = (): Adapter => ({
 				args: [email],
 			});
 			if (existing.rows.length) {
-				console.log('[authAdapter] createUser — existing user found, returning', { email });
+				console.log('[authAdapter] createUser — existing user found, returning', { userId: String((existing.rows[0] as Row).id) });
 				return mapUser(existing.rows[0] as Row);
 			}
 		}
@@ -115,14 +116,14 @@ export const authAdapter = (): Adapter => ({
 		if (result.rows.length === 0) return null;
 		return mapUser(result.rows[0] as Row);
 	},
-	async getUserByEmail(email) {
-		console.log('[authAdapter] getUserByEmail called', { email });
+	async getUserByEmail(_email) {
 		// Always return null — prevents OAuthAccountNotLinked entirely.
 		// createUser() handles the email-exists case by returning the existing user.
 		return null;
 	},
 	async getUserByAccount({ provider, providerAccountId }) {
-		console.log('[authAdapter] getUserByAccount called', { provider, providerAccountId });
+		// providerAccountId is the address itself for the email provider, so it is not logged.
+		console.log('[authAdapter] getUserByAccount called', { provider });
 		const result = await db.execute({
 			sql: `SELECT u.*
         FROM auth_users u
@@ -155,7 +156,7 @@ export const authAdapter = (): Adapter => ({
 		await db.execute({ sql: 'DELETE FROM auth_users WHERE id = ?', args: [id] });
 	},
 	async linkAccount(account) {
-		console.log('[authAdapter] linkAccount', { provider: account.provider, providerAccountId: account.providerAccountId, userId: account.userId });
+		console.log('[authAdapter] linkAccount', { provider: account.provider, userId: account.userId });
 		// Use DELETE + INSERT instead of an UPSERT so this works regardless of
 		// whether the auth_accounts table has a UNIQUE(provider, provider_account_id)
 		// constraint. Deleting first is idempotent and avoids all constraint issues.

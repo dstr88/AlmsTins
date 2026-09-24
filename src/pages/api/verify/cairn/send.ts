@@ -15,6 +15,8 @@ import { requireTenantSession } from '@/lib/requireTenantSession';
 import { getAuthSession } from '@/lib/authSession';
 import { getSendableCairnRequest, countRecentCairnInvites } from '@/lib/cairnRegistry';
 import { sendMail } from '@/lib/email';
+import { isVerifiedUser } from '@/lib/sessionGate';
+import { claimOutboundEmail, releaseOutboundEmail, SEND_REFUSAL_DETAIL } from '@/lib/outboundEmailQuota';
 
 export const prerender = false;
 
@@ -31,6 +33,13 @@ export const POST: APIRoute = async ({ request }) => {
   const session = await requireTenantSession(request);
   if (!session) return json({ ok: false, error: 'unauthenticated' }, 401);
   if (session.isDemo) return json({ ok: false, error: 'demo_readonly' }, 403);
+
+  // Almstins only emails a typed-in address for an accountable account: a verified email,
+  // or a Google/GitHub sign-in. A throwaway password sign-up must not be a mail cannon.
+  const auth = await getAuthSession(request);
+  if (!(await isVerifiedUser(auth?.user?.id))) {
+    return json({ ok: false, error: 'email_unverified', detail: SEND_REFUSAL_DETAIL.email_unverified }, 403);
+  }
 
   let body: any = {};
   try { body = await request.json(); } catch { return json({ ok: false, error: 'invalid_json' }, 400); }
@@ -49,7 +58,16 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ ok: false, error: 'email_not_configured' }, 503);
   }
 
-  const auth = await getAuthSession(request);
+  // Durable per-tenant daily cap on emails actually sent (the hourly guard above counts
+  // requests created, so re-sending one request was unlimited).
+  let claimId: string | null;
+  try {
+    claimId = await claimOutboundEmail(session.tenantId, 'cairn');
+  } catch {
+    return json({ ok: false, error: 'quota_unavailable', detail: SEND_REFUSAL_DETAIL.quota_unavailable }, 503);
+  }
+  if (!claimId) return json({ ok: false, error: 'daily_limit', detail: SEND_REFUSAL_DETAIL.daily_limit }, 429);
+
   const from = auth?.user?.email ?? null;
 
   // NOT new URL(request.url).origin — behind Render's proxy that is https://localhost.
@@ -102,9 +120,10 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     await sendMail({ to: req.sentTo, subject, text, html, replyTo: from });
   } catch (err) {
+    await releaseOutboundEmail(session.tenantId, claimId);
     const e = err as any;
     const detail = String(e?.response ?? e?.message ?? e ?? '').split('\n')[0].slice(0, 300);
-    console.error('[cairn/send] failed:', { to: req.sentTo, code: e?.code, detail });
+    console.error('[cairn/send] failed:', { tenantId: session.tenantId, code: e?.code, detail });
     return json({
       ok: false,
       error: 'send_failed',

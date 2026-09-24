@@ -3,6 +3,8 @@ import { getAuthSession } from '@/lib/authSession';
 import { db } from '@/lib/db';
 import { getLang } from '@/lib/i18n/locale';
 import { getAccountErrors } from '@/i18n/apiErrors/account';
+import { normalizeSignupEmail } from '@/lib/emailAddress';
+import { isVerifiedUser } from '@/lib/sessionGate';
 
 export const POST: APIRoute = async ({ request }) => {
 	const t = getAccountErrors(getLang(request));
@@ -24,11 +26,19 @@ export const POST: APIRoute = async ({ request }) => {
 			: null;
 
 	// Allow clearing the alert email by sending an empty string
-	const value = alertEmail === '' ? null : alertEmail;
+	let value: string | null = alertEmail === '' ? null : alertEmail;
 
-	// Basic format check when a value is provided
-	if (value !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-		return json({ ok: false, error: t.invalidEmail }, 400);
+	if (value !== null) {
+		// Same conservative check as sign-up: the cron jobs mail whatever is stored here.
+		value = normalizeSignupEmail(value);
+		if (!value) {
+			return json({ ok: false, error: t.invalidEmail }, 400);
+		}
+		// Pointing alerts at another address makes Almstins mail it on a schedule, so only
+		// an accountable account may (a verified email, or a Google/GitHub sign-in).
+		if (!(await isVerifiedUser(session.user.id))) {
+			return json({ ok: false, error: t.unverified }, 403);
+		}
 	}
 
 	try {

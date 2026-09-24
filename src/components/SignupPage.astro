@@ -12,7 +12,8 @@ const message =
 	error === 'email'        ? t.errors.email :
 	error === 'email_domain' ? t.errors.email_domain :
 	error === 'password'     ? t.errors.password :
-	error === 'exists'       ? t.errors.exists : '';
+	error === 'exists'       ? t.errors.exists :
+	error === 'rate_limited' ? t.errors.rate_limited : '';
 
 // Sign-in link points at the matching-language login/marketing surface
 // (/, /es, /fr are one trilingual page after the homepage merge).

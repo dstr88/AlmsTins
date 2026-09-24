@@ -6,11 +6,14 @@ import GitHub from '@auth/core/providers/github';
 import Google from '@auth/core/providers/google';
 import { db } from '../../../lib/db';
 import { authAdapter } from '../../../lib/authAdapter';
-import { verifyPassword } from '../../../lib/passwords';
 import { getPostLoginRedirect } from '../../../lib/postLoginRedirect';
 import { safeAuthRedirect } from '@/lib/safeNext';
-import { ensureTenantForUser, resolveActiveTenantId } from '../../../lib/tenants';
+import { ensureTenantForUser } from '../../../lib/tenants';
 import { isEmailDomainBlocked } from '../../../lib/blockedEmailDomains';
+import { authorizeCredentials } from '@/lib/credentialsAuth';
+import { guardSignIn } from '@/lib/authLinkGuard';
+import { routeSignInError } from '@/lib/authErrorRedirect';
+import { callbackHeaders, jwtCallback, rateLimitedRedirect } from '@/lib/authRoute';
 
 const providers = [];
 
@@ -57,31 +60,8 @@ providers.push(
 			email: { label: 'Email', type: 'email' },
 			password: { label: 'Password', type: 'password' },
 		},
-		async authorize(credentials) {
-			const email = typeof credentials?.email === 'string' ? credentials.email.toLowerCase() : '';
-			const password = typeof credentials?.password === 'string' ? credentials.password : '';
-			if (!email || !password) {
-				return null;
-			}
-
-			const userResult = await db.execute({
-				sql: `SELECT u.id, u.name, u.email, c.password_hash
-          FROM auth_users u
-          JOIN auth_credentials c ON c.user_id = u.id
-          WHERE u.email = ? LIMIT 1`,
-				args: [email],
-			});
-			if (!userResult.rows.length) {
-				return null;
-			}
-			const row = userResult.rows[0] as Record<string, any>;
-			const ok = await verifyPassword(password, String(row.password_hash ?? ''));
-			if (!ok) {
-				return null;
-			}
-
-			return { id: String(row.id), name: row.name ?? null, email: row.email ?? null };
-		},
+		// Password sign-in requires a verified email; see src/lib/credentialsAuth.ts.
+		authorize: (credentials, request) => authorizeCredentials(credentials, request),
 	}),
 );
 
@@ -101,7 +81,7 @@ const authConfig = {
 		error: '/login',
 	},
 	callbacks: {
-		async signIn({ user, account, profile }: { user?: any; account?: any; profile?: any }) {
+		async signIn({ user, account, profile, email }: { user?: any; account?: any; profile?: any; email?: any }) {
 			// ── Blocked email-domain screen (sanctions supplement; weak signal) ────
 			// Reject any sign-in / sign-up whose email domain is on the blocklist.
 			// The IP geo-block (src/middleware/geoblock.ts) is the primary control.
@@ -109,6 +89,16 @@ const authConfig = {
 			if (screenEmail && isEmailDomainBlocked(screenEmail)) {
 				console.warn('[auth] sign-in blocked — email domain on blocklist');
 				return false;
+			}
+
+			// ── Account-linking guard (before ANY linking below) ─────────────────
+			// A provider-verified address takes an existing account back from an unverified
+			// password or an unproven provider link; an address the provider did not verify
+			// never creates or joins an account. See src/lib/authLinkGuard.ts. Errors
+			// propagate: the sign-in fails closed.
+			const guard = await guardSignIn({ user, account, profile, email });
+			if (!guard.allow) {
+				return guard.redirect ?? false;
 			}
 
 			// ── OAuth / OIDC account linking ───────────────────────────────────────
@@ -125,7 +115,10 @@ const authConfig = {
 				// link them to this OAuth provider so they don't need separate passwords.
 				// Do NOT link if they already have OAuth accounts from other services —
 				// that means they intentionally use different services (almstins vs tradifitins).
-				if (providerEmail) {
+				// Never when this provider account is already linked to a user (Auth.js signs
+				// in as that user), and only for an address the provider verified (the guard
+				// refuses an unlinked provider account otherwise).
+				if (providerEmail && !guard.providerLinked) {
 					try {
 						const existing = await db.execute({
 							sql: 'SELECT id FROM auth_users WHERE email = ? LIMIT 1',
@@ -228,7 +221,7 @@ ON CONFLICT DO NOTHING`,
 					if (!exists.rows.length) {
 						console.warn('[auth][signIn] user missing in auth_users', {
 							userId,
-							email: providerEmail || null,
+							hasEmail: Boolean(providerEmail),
 							provider: account?.provider ?? null,
 						});
 						return true;
@@ -236,7 +229,7 @@ ON CONFLICT DO NOTHING`,
 				} catch (error) {
 					console.error('[auth][signIn] auth_users lookup failed', {
 						userId,
-						email: providerEmail || null,
+						hasEmail: Boolean(providerEmail),
 						provider: account?.provider ?? null,
 						error: error instanceof Error ? error.message : String(error),
 					});
@@ -247,7 +240,7 @@ ON CONFLICT DO NOTHING`,
 				} catch (error) {
 					console.error('[auth][signIn] ensureTenantForUser failed', {
 						userId,
-						email: providerEmail || null,
+						hasEmail: Boolean(providerEmail),
 						provider: account?.provider ?? null,
 						error: error instanceof Error ? error.message : String(error),
 					});
@@ -255,18 +248,21 @@ ON CONFLICT DO NOTHING`,
 				}
 				// Stamp last_login and backfill email/name if the DB record has none.
 				// Uses the raw provider profile email which is available even when the
-				// adapter user object has a stale/empty email.
+				// adapter user object has a stale/empty email. The address is written only
+				// when this sign-in proved it (guard.addressProven): an account must never
+				// be keyed on an address nobody proved (see authLinkGuard).
 				try {
 					if (providerEmail) {
+						const provenEmail = guard.addressProven ? providerEmail.trim().toLowerCase() : null;
 						await db.execute({
 							sql: `UPDATE auth_users
 								SET last_login = ?,
-								    email = CASE WHEN (email IS NULL OR email = '') THEN ? ELSE email END,
+								    email = CASE WHEN (email IS NULL OR email = '') THEN COALESCE(?, email) ELSE email END,
 								    name  = CASE WHEN (name  IS NULL OR name  = '') THEN ? ELSE name  END
 								WHERE id = ?`,
 							args: [
 								new Date().toISOString(),
-								providerEmail,
+								provenEmail,
 								(profile?.name ?? user?.name ?? null),
 								userId,
 							],
@@ -286,35 +282,10 @@ ON CONFLICT DO NOTHING`,
 			}
 			return true;
 		},
-		async jwt({ token, user }: { token: any; user?: any }) {
-			if (user?.id) {
-				// ── First sign-in: user object is present ────────────────────────
-				token.sub = String(user.id);
-				// Explicitly carry fields — Auth.js defaults are unreliable with
-				// a custom adapter + JWT strategy combination.
-				if (user.email) token.email = String(user.email);
-				if (user.name) token.name = String(user.name);
-				if (user.image) token.picture = String(user.image);
-				token.tenantId = await ensureTenantForUser(String(user.id));
-			} else if (token.sub) {
-				// ── Token refresh: no user object ────────────────────────────────
-				if (!token.tenantId) {
-					token.tenantId = await resolveActiveTenantId(String(token.sub));
-				}
-				// Backfill email from DB on every refresh so sessions issued before
-				// explicit email-setting still pick it up without requiring re-login.
-				if (!token.email) {
-					try {
-						const row = await db.execute({
-							sql: 'SELECT email FROM auth_users WHERE id = ? LIMIT 1',
-							args: [String(token.sub)],
-						});
-						const email = row.rows[0] ? String((row.rows[0] as Record<string, any>).email ?? '') : '';
-						if (email) token.email = email;
-					} catch { /* non-fatal */ }
-				}
-			}
-			return token;
+		// See src/lib/authRoute.ts: records how the session was minted (`via`), and re-checks
+		// the session gate on every refresh.
+		async jwt({ token, user, account }: { token: any; user?: any; account?: any }) {
+			return jwtCallback({ token, user, account });
 		},
 		async session({ session, token }: { session: any; token: any }) {
 			if (session.user && token.sub) {
@@ -354,7 +325,7 @@ const ensureAbsoluteUrl = (request: Request) => {
 	return `${origin}${base.pathname}${base.search}`;
 };
 
-const buildAuthRequest = (request: Request) => {
+const buildAuthRequest = (request: Request, headers: Headers = request.headers) => {
 	const rawUrl = ensureAbsoluteUrl(request);
 	// GitHub recently added an `iss` parameter to their OAuth callback response
 	// (RFC 9207). oauth4webapi rejects it as unexpected for non-OIDC providers.
@@ -368,7 +339,7 @@ const buildAuthRequest = (request: Request) => {
 	const url = urlObj.toString();
 	const init: RequestInit = {
 		method: request.method,
-		headers: request.headers,
+		headers,
 	};
 	if (request.method !== 'GET' && request.method !== 'HEAD') {
 		init.body = request.body;
@@ -449,7 +420,7 @@ export const GET: APIRoute = async ({ request }) => {
 	const configError = earlyConfigCheck();
 	if (configError) return configError;
 	try {
-		return await Auth(buildAuthRequest(request), authConfig);
+		return await Auth(buildAuthRequest(request, await callbackHeaders(request)), authConfig);
 	} catch (error) {
 		logAuthError(request, error);
 		return buildAuthFailureResponse(request);
@@ -460,8 +431,12 @@ export const POST: APIRoute = async ({ request }) => {
 	logAuthEnvCheck();
 	const configError = earlyConfigCheck();
 	if (configError) return configError;
+	const limited = rateLimitedRedirect(request);
+	if (limited) return limited;
 	try {
-		return await Auth(buildAuthRequest(request), authConfig);
+		const response = await Auth(buildAuthRequest(request, await callbackHeaders(request)), authConfig);
+		// Errors land on the page the form was posted from (and keep ?code=).
+		return routeSignInError(request, response);
 	} catch (error) {
 		logAuthError(request, error);
 		return buildAuthFailureResponse(request);
