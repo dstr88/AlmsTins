@@ -35,7 +35,7 @@ import { ENTITY_NOT_APPROVED } from '@/lib/verifyEntityAccess';
 import {
   listProvenDomainsForMonitor, getProvenAddressDestinations,
   releaseDomainAnchor, markDestinationsConfirmed, markDomainProofFailed, markDomainProofRechecked,
-  normalizeDestinationValue, listMonitoredDestinations, recordMonitorResult,
+  addressKey, listMonitoredDestinations, recordMonitorResult,
 } from '@/lib/verifyRegistry';
 import { verifyDomainProof } from '@/lib/verifyProof';
 import { checkPublishedSource } from '@/lib/verifyPublishedSource';
@@ -151,8 +151,10 @@ export const GET: APIRoute = async ({ request }) => {
           }
         } else {
           // Proof still holds — check each proven address is still vouched.
-          const vouched = new Set(res.addresses.map(normalizeDestinationValue));
-          const missing = proven.filter((p) => !vouched.has(normalizeDestinationValue(p.value)));
+          // addressKey, as the owner's proof matched them (recordProofResult): a listed 'BC1Q…'
+          // still vouches for a registered 'bc1q…'.
+          const vouched = new Set(res.addresses.map(addressKey));
+          const missing = proven.filter((p) => !vouched.has(addressKey(p.value)));
           if (missing.length) {
             await releaseDomainAnchor(d.tenantId, d.domain, missing);
             if (await alert(d.tenantId, 'revoked', d.domain, missing.map((m) => m.value))) {
@@ -162,7 +164,7 @@ export const GET: APIRoute = async ({ request }) => {
           // Positively re-confirm the addresses the (re-validated) proof still vouches — advances
           // last_confirmed_at so their public badge stays 'verified'. Addresses NOT confirmed this
           // run keep their old timestamp and lapse 'verified'→'claimed' via the max-stale TTL.
-          const stillVouched = proven.filter((p) => vouched.has(normalizeDestinationValue(p.value)));
+          const stillVouched = proven.filter((p) => vouched.has(addressKey(p.value)));
           if (stillVouched.length) await markDestinationsConfirmed(d.tenantId, stillVouched.map((p) => p.id));
           await markDomainProofRechecked(d.tenantId, d.domain);
         }

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 
 // A tiny in-memory stand-in for verify_destinations, enough to drive the claim guard, the
-// two flip paths and the domain anchor path with no database. It answers only the
+// two flip paths, the domain anchor path and the public lookup with no database. It answers only the
 // statements those paths issue and throws on anything else, so a new query shows up as a
 // failing test, not a silent pass. Every statement is recorded so tests can assert the
 // guard actually ran.
@@ -108,6 +108,22 @@ vi.mock('@/lib/db', () => {
     if (/FROM verify_destinations WHERE tenant_id = \? ORDER BY/.test(sql)) {
       return { rows: store.rows.filter((r) => r.tenant_id === args[0]).map(out) };
     }
+    // The public lookup (lookupVerifiedAddress): no platform lists here, then the merchant half.
+    // It honors what the SQL asks for, so dropping the case arm or the fixed order shows up.
+    if (sql.startsWith('SELECT m.chain AS chain')) return { rows: [] };
+    if (sql.startsWith('SELECT tenant_id, rail, value, label,')
+      && sql.includes("FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)")) {
+      const [exact, folded] = args as string[];
+      const rows = store.rows.filter((r) => r.kind === 'address' && r.proof_status === 'proven'
+        && (r.value === exact || r.value.toLowerCase() === folded));
+      if (sql.endsWith('ORDER BY proven_at ASC, id ASC')) {
+        rows.sort((a, b) => String(a.proven_at).localeCompare(String(b.proven_at)) || a.id.localeCompare(b.id));
+      } else {
+        rows.reverse(); // no fixed order: the database may return them in any order
+      }
+      return { rows };
+    }
+    if (sql.startsWith('SELECT display_name, domain FROM verify_claimed_names WHERE tenant_id = ?')) return { rows: [] };
     if (/FROM verify_destinations WHERE id = \? AND tenant_id = \?$/.test(sql)) {
       return { rows: store.rows.filter((r) => r.id === args[0] && r.tenant_id === args[1]).map(out) };
     }
@@ -189,13 +205,17 @@ vi.mock('../../src/lib/verifyDeposit', () => ({
 import {
   claimFamily, claimIdentity, sameClaimIdentity, canAnchor, isClaimedElsewhere, ensureVerifyTables,
   recordProofResult, verifyMicroDeposit, createDestination, issueDepositChallenge, getDepositChallenge,
-  listDestinationsForOwner, recordMonitorResult,
+  listDestinationsForOwner, recordMonitorResult, addressKey, compareToDestinations,
 } from '../../src/lib/verifyRegistry';
 import { merchantAddressAssurance } from '../../src/lib/verifyAnchor';
+import { lookupVerifiedAddress } from '../../src/lib/verifyEntities';
 
 const CHECKSUM = '0xAbCdEf0123456789aBcDeF0123456789AbCdEf01';
 const LOWER = CHECKSUM.toLowerCase();
 const BTC = 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq';
+/** The same segwit address as it appears in a QR code (BIP-173 recommends uppercase there). */
+const BTC_UP = BTC.toUpperCase();
+const LTC = 'ltc1qg82tkln7qz9uq4zms9p6kwhnxsdjqm5vdzrrgy';
 const SOL = '7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV';
 /** Every rail a bitcoin value can be re-filed under in createDestination (plus a legacy
  *  off-list spelling), other than its own. */
@@ -855,5 +875,140 @@ describe('registration', () => {
     expect(res.ok).toBe(true);
     expect(store.rows[0]).toMatchObject({ rail: 'bitcoin', value: BTC, proof_status: 'unproven' });
     expect(guardCalls()).toHaveLength(0); // registering an address is not a claim
+  });
+});
+
+describe('segwit letter case: BC1Q… and bc1q… are one wallet', () => {
+  // bech32 is case-insensitive (BIP-173) and QR codes carry it in uppercase. The guard, the
+  // listing match and the public lookup must all see one wallet, or an uppercase copy passes
+  // the guard as a second wallet and then answers the lookup as the same one.
+  const NOW = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  /** A fresh domain anchor: what reads Verified. */
+  const anchored = (domain: string) => ({
+    proof_domain: domain, domain_anchored_at: NOW, last_confirmed_at: NOW,
+  });
+
+  it('keys a segwit address in lowercase, in any case and inside a URI; base58 keeps its case', () => {
+    expect(addressKey(BTC_UP)).toBe(BTC);
+    expect(addressKey(`bitcoin:${BTC_UP}?amount=0.1`)).toBe(BTC);
+    expect(addressKey(`bC1Q${BTC.slice(4)}`)).toBe(BTC); // mixed case: invalid, but the same wallet
+    expect(addressKey(LTC.toUpperCase())).toBe(LTC);
+    expect(addressKey(SOL)).toBe(SOL);
+    // A base58 string that merely starts with "bc1" is not segwit: 'i' is outside the bech32 set.
+    const base58 = `bc1Hi${SOL.slice(5)}`;
+    expect(addressKey(base58)).toBe(base58);
+    expect(claimIdentity('address', BTC_UP)).toEqual({ canonical: BTC, family: 'addr' });
+    expect(sameClaimIdentity(claimIdentity('address', BTC_UP), claimIdentity('address', BTC))).toBe(true);
+    expect(canAnchor(claimIdentity('address', BTC_UP), [claimIdentity('address', `bitcoin:${BTC}`)])).toBe(false);
+  });
+
+  it('the guard sees another account’s wallet in the other case', async () => {
+    store.rows = [row({ id: 'real', tenant_id: 'merchant', rail: 'bitcoin', value: BTC, proof_status: 'proven', proof_method: 'micro_deposit' })];
+    expect(await isClaimedElsewhere('attacker', 'address', BTC_UP)).toBe(true);
+    expect(await isClaimedElsewhere('attacker', 'address', `bC1Q${BTC.slice(4)}`)).toBe(true);
+    store.rows = [row({ id: 'real', tenant_id: 'merchant', rail: 'bitcoin', value: BTC_UP, proof_status: 'proven' })];
+    expect(await isClaimedElsewhere('attacker', 'address', BTC)).toBe(true);
+  });
+
+  it('a file listing never lifts an uppercase copy of another account’s wallet: claimed elsewhere', async () => {
+    for (const listed of [BTC_UP, BTC]) {
+      store.rows = [
+        row({ id: 'real', tenant_id: 'merchant', rail: 'bitcoin', value: BTC, proof_status: 'proven', proof_method: 'micro_deposit' }),
+        row({ id: 'att', tenant_id: 'attacker', rail: 'bitcoin', value: BTC_UP }),
+      ];
+      store.calls = [];
+      expect(await recordProofResult('attacker', 'attacker.example', [listed]), listed).toEqual(proof({ claimedElsewhere: ['att'] }));
+      expect(flipCalls(), listed).toHaveLength(0);
+      expect(store.rows.find((r) => r.id === 'att'), listed).toMatchObject({ proof_status: 'unproven', proof_domain: null });
+    }
+    // Nor anchors an uppercase copy that was proven before the guard could see it.
+    store.rows = [
+      row({ id: 'real', tenant_id: 'merchant', rail: 'bitcoin', value: BTC, proof_status: 'proven', proof_method: 'micro_deposit' }),
+      row({ id: 'att', tenant_id: 'attacker', rail: 'litecoin', value: BTC_UP, proof_status: 'proven', proof_method: 'micro_deposit' }),
+    ];
+    store.calls = [];
+    expect(await recordProofResult('attacker', 'attacker.example', [BTC_UP])).toEqual(proof({ claimedElsewhere: ['att'] }));
+    expect(anchorCalls()).toHaveLength(0);
+  });
+
+  it('a self-send never takes an uppercase copy of another account’s wallet, under any rail', async () => {
+    for (const rail of ['bitcoin', 'litecoin']) {
+      store.rows = [
+        row({ id: 'real', tenant_id: 'merchant', rail: 'bitcoin', value: BTC, proof_status: 'proven', proof_method: 'well_known' }),
+        row({ id: 'att', tenant_id: 'attacker', rail, value: BTC_UP }),
+      ];
+      expect(await verifyMicroDeposit('attacker', 'att'), rail).toEqual({ outcome: 'claimed_elsewhere' });
+      expect(store.rows.find((r) => r.id === 'att')!.proof_status, rail).toBe('unproven');
+    }
+  });
+
+  it('refuses a same-account uppercase copy of a legacy claim, as for any other twin', async () => {
+    store.rows = [
+      row({
+        id: 'legacy', tenant_id: 'merchant', rail: 'bitcoin', value: BTC, proof_status: 'proven',
+        proof_method: 'micro_deposit', legacy_unbound: true, bound_test_proven: false,
+      }),
+      row({ id: 'twin', tenant_id: 'merchant', rail: 'bitcoin', value: BTC_UP }),
+    ];
+    expect(await recordProofResult('merchant', 'squat.example', [BTC_UP])).toEqual(proof({ legacyUnbound: ['legacy', 'twin'] }));
+    expect(flipCalls()).toHaveLength(0);
+    expect(store.rows.find((r) => r.id === 'twin')).toMatchObject({ proof_status: 'unproven', proof_domain: null });
+  });
+
+  it('a listing in the other case still vouches for the owner’s own address', async () => {
+    store.rows = [
+      row({ id: 'lower', tenant_id: 'merchant', rail: 'bitcoin', value: BTC }),
+      row({ id: 'upper', tenant_id: 'merchant', rail: 'litecoin', value: LTC.toUpperCase(), proof_status: 'proven', proof_method: 'micro_deposit' }),
+    ];
+    const res = await recordProofResult('merchant', 'merchant.example', [BTC_UP, LTC]);
+    expect(res).toEqual(proof({ flipped: ['lower', 'upper'] }));
+    expect(store.rows.map((r) => r.proof_domain)).toEqual(['merchant.example', 'merchant.example']);
+  });
+
+  it('the public lookup answers for the wallet in either case', async () => {
+    store.rows = [row({
+      id: 'real', tenant_id: 'merchant', rail: 'bitcoin', value: BTC, proof_status: 'proven',
+      proof_method: 'well_known', proven_at: NOW, ...anchored('merchant.example'),
+    })];
+    for (const q of [BTC, BTC_UP, `bitcoin:${BTC_UP}`]) {
+      expect(await lookupVerifiedAddress(q), q).toMatchObject({ source: 'merchant', level: 'verified', domain: 'merchant.example' });
+    }
+    const call = store.calls.filter((c) => c.sql.includes('(value = ? OR lower(value) = ?)')).at(-1)!;
+    expect(call.args).toEqual([BTC, BTC]);
+    expect(call.sql).toMatch(/ORDER BY proven_at ASC, id ASC$/);
+  });
+
+  it('two accounts holding one wallet (proven before the guard saw case) never read Verified', async () => {
+    // The earlier holder answers, in a fixed order, and nothing lifts it: whose domain stands
+    // behind the wallet is exactly what can't be told.
+    store.rows = [
+      row({ id: 'att', tenant_id: 'attacker', rail: 'bitcoin', value: BTC_UP, proof_status: 'proven',
+        proof_method: 'well_known', proven_at: NOW, ...anchored('attacker.example') }),
+      row({ id: 'real', tenant_id: 'merchant', rail: 'bitcoin', value: BTC, proof_status: 'proven',
+        proof_method: 'micro_deposit', proven_at: '2026-08-01 00:00:00' }),
+    ];
+    for (const q of [BTC, BTC_UP]) {
+      expect(await lookupVerifiedAddress(q), q).toEqual({
+        source: 'merchant', level: 'claimed', since: '2026-08-01 00:00:00', domain: null, label: null, chain: 'bitcoin',
+      });
+    }
+  });
+
+  it('within one account, a Verified row for the wallet answers, whatever the row order', async () => {
+    store.rows = [
+      row({ id: 'a-legacy', tenant_id: 'merchant', rail: 'bitcoin', value: BTC, proof_status: 'proven',
+        proof_method: 'micro_deposit', proven_at: '2026-08-01 00:00:00' }),
+      row({ id: 'b-bound', tenant_id: 'merchant', rail: 'litecoin', value: BTC_UP, proof_status: 'proven',
+        proof_method: 'micro_deposit', proven_at: '2026-09-01 00:00:00', ...anchored('merchant.example') }),
+    ];
+    for (const q of [BTC, BTC_UP]) {
+      expect(await lookupVerifiedAddress(q), q).toMatchObject({ level: 'verified', since: NOW, domain: 'merchant.example' });
+    }
+  });
+
+  it('the owner’s compare matches the QR (uppercase) form of a registered address', async () => {
+    store.rows = [row({ id: 'lower', tenant_id: 'merchant', rail: 'bitcoin', value: BTC })];
+    expect(await compareToDestinations('merchant', BTC_UP)).toMatchObject({ matched: true, destination: { id: 'lower' } });
+    expect(await compareToDestinations('merchant', SOL)).toMatchObject({ matched: false });
   });
 });

@@ -456,12 +456,38 @@ export function normalizeDestinationValue(raw: string): string {
   return noScheme.split(/[?@\s]/)[0].trim();
 }
 
+// A segwit (bech32 / bech32m) address, matched on the lowercased value: a known human-readable
+// part, the '1' separator, then data in the bech32 charset only (no '1', 'b', 'i' or 'o'). The
+// charset check, not the prefix alone, is what keeps a base58 (Solana) string that happens to
+// start with "bc1" from being folded.
+const BECH32_ADDRESS = /^(bc|tb|bcrt|ltc|tltc)1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
+
+/**
+ * The comparison key of an ADDRESS value: normalizeDestinationValue, with a segwit address
+ * lowercased. bech32 is case-insensitive (BIP-173; the uppercase form is the one QR codes use),
+ * so 'BC1Q…' and 'bc1q…' are one wallet, and a mixed-case spelling, which no wallet accepts,
+ * still names that same wallet. EVM values are already lowercased by the normalizer; every other
+ * address (base58: legacy BTC/LTC, Solana, Tron) is case-sensitive and keeps its case.
+ *
+ * Every place that decides whether two spellings are one wallet uses this key: the claim guard
+ * (claimIdentity), a domain file's listing (recordProofResult and the watchman's Pass B) and the
+ * public lookup (lookupVerifiedAddress). If one of them compared case-sensitively, an address in
+ * another letter case would pass the guard as a different wallet and then answer the lookup as
+ * the same one.
+ */
+export function addressKey(value: string): string {
+  const canonical = normalizeDestinationValue(value);
+  const lower = canonical.toLowerCase();
+  return BECH32_ADDRESS.test(lower) ? lower : canonical;
+}
+
 // ── Canonical claim identity (S5a) ───────────────────────────────────────────
 //
 // Claim-once is enforced in the DB on the RAW (rail, value), but the public lookup
 // (lookupVerifiedAddress) matches on the canonical value and ignores the rail. So
-// "0xAbC…" and "0xabc…", the same 0x address on ethereum and on polygon, or one bc1…
-// string filed under bitcoin and under litecoin, are one wallet to a payer. Every path
+// "0xAbC…" and "0xabc…", "BC1Q…" and "bc1q…", the same 0x address on ethereum and on
+// polygon, or one bc1… string filed under bitcoin and under litecoin, are one wallet to a
+// payer. Every path
 // that flips a destination to proven checks this canonical identity against OTHER
 // accounts' proven rows first (isClaimedElsewhere). S5b later moves the index itself
 // onto canonical columns; until then this guard is the arbiter.
@@ -469,7 +495,8 @@ export function normalizeDestinationValue(raw: string): string {
 const EVM_CANONICAL = /^0x[0-9a-f]{40}$/;
 
 export interface ClaimIdentity {
-  /** normalizeDestinationValue(value); '' when the value has no usable form. */
+  /** An address: addressKey(value). A payment link/QR: normalizeDestinationValue(value).
+   *  '' when the value has no usable form. */
   canonical: string;
   /** 'qr' for payment links/QRs; for an address, 'evm' (a 0x value) or 'addr' (any other). */
   family: string;
@@ -481,7 +508,8 @@ export interface ClaimIdentity {
  * it was filed under, so a family keyed on the rail would let the same string re-filed
  * under another rail slip past the guard. A 0x value is 'evm' (one key controls it on
  * every EVM chain; the normalizer lowercases it). Every other address is one 'addr'
- * family, compared exactly (case-sensitive): base58/bech32 strings from different chains
+ * family, compared on its addressKey: a segwit address in lowercase (bech32 is
+ * case-insensitive), a base58 one exactly (case-sensitive). Strings from different chains
  * don't collide, and the one overlap, a BTC/LTC "3…" P2SH string, is the same script hash
  * on both. Payment links/QRs are looked up by value alone, so every QR rail is one 'qr'.
  */
@@ -491,14 +519,17 @@ export function claimFamily(kind: DestinationKind, canonical: string): string {
 }
 
 /** Canonical claim identity of a stored or entered destination. Pure; the rail it was
- *  filed under deliberately plays no part (see claimFamily). */
+ *  filed under deliberately plays no part (see claimFamily). An address is keyed exactly as
+ *  the public lookup keys it (addressKey), so the guard can't see two wallets where the
+ *  lookup sees one. */
 export function claimIdentity(kind: DestinationKind, value: string): ClaimIdentity {
-  const canonical = normalizeDestinationValue(value);
+  const canonical = kind === 'qr' ? normalizeDestinationValue(value) : addressKey(value);
   return { canonical, family: claimFamily(kind, canonical) };
 }
 
-/** Same wallet/link for claim purposes. An empty canonical value never matches. EVM
- *  values are lowercased by the normalizer; every other value is exact (case-sensitive). */
+/** Same wallet/link for claim purposes. An empty canonical value never matches. EVM and
+ *  segwit values are compared in lowercase (see addressKey); every other value is exact
+ *  (case-sensitive). */
 export function sameClaimIdentity(a: ClaimIdentity, b: ClaimIdentity): boolean {
   return !!a.canonical && a.canonical === b.canonical && a.family === b.family;
 }
@@ -606,7 +637,10 @@ export async function compareToDestinations(tenantId: string, rawValue: string):
   const normalizedQuery = normalizeDestinationValue(rawValue);
   if (!normalizedQuery) return { matched: false, normalizedQuery: '', destination: null };
   const dests = await listDestinations(tenantId);
-  const hit = dests.find(d => normalizeDestinationValue(d.value) === normalizedQuery) ?? null;
+  // addressKey, so the QR (uppercase) form of a registered segwit address is not reported as a
+  // possible swap. A link or payment QR has no case fold: its key is its normalized value.
+  const key = addressKey(rawValue);
+  const hit = dests.find(d => addressKey(d.value) === key) ?? null;
   return { matched: !!hit, normalizedQuery, destination: hit };
 }
 
@@ -961,11 +995,14 @@ export async function recordProofResult(
     const wallet = claimIdentity(d.kind, d.value);
     return legacyWallets.some((w) => sameClaimIdentity(w, wallet));
   };
-  const vouched = new Set(fileAddresses.map(normalizeDestinationValue).filter(Boolean));
+  // Matched on addressKey, like the guard and the public lookup (a listed 'BC1Q…' vouches for a
+  // registered 'bc1q…'); the watchman's Pass B matches the same way, so it never releases what
+  // this anchored.
+  const vouched = new Set(fileAddresses.map(addressKey).filter(Boolean));
   const out: ProofRecordResult = { flipped: [], otherDomain: [], claimedElsewhere: [], legacyUnbound: [] };
   for (const d of dests) {
     const action = decideAnchor(
-      { ...d, legacyUnbound: heldByLegacy(d) }, domain, vouched.has(normalizeDestinationValue(d.value)),
+      { ...d, legacyUnbound: heldByLegacy(d) }, domain, vouched.has(addressKey(d.value)),
     );
     if (action === 'skip') continue;
     if (action === 'other_domain') { out.otherDomain.push(d.id); continue; }
