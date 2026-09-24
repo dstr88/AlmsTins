@@ -216,7 +216,7 @@ export const en: VerifyDashboardLocale = {
   heroTitle: 'Watch your receiving addresses',
   heroSub: 'Register the payment destinations you publish — Almstins watches them for swaps.',
   heroAlt: "A merchant's Scan-to-Pay crypto QR protected by a glowing Almstins Verify shield",
-  notice: "Almstins Verify is in beta — and free. You're welcome to register up to 3 destinations, and one of them can be a payment QR code instead of a wallet address (so: 2 wallets + 1 QR). They're held privately under your account. Paid plans coming soon.",
+  notice: "Almstins Verify is in beta — and free. You're welcome to register up to 3 destinations, and one of them can be a payment QR code instead of a wallet address (so: 2 wallets + 1 QR). Once a destination is proven, anyone can check it, and its label can be shown publicly, so don't use a personal name as a label. Paid plans coming soon.",
   loadError: 'Could not load your destinations.',
   railUrl: 'Link / URL',
   addressesTitle: 'Receiving addresses',
@@ -385,9 +385,9 @@ export const en: VerifyDashboardLocale = {
   howToStripeTitle: 'Add a Stripe payment link',
   howToStripeSteps: [
     'In Stripe, create a Payment Link (Product catalog → Payment links) and copy its URL — it looks like https://buy.stripe.com/…',
-    'Here, under Payment QR, paste that URL and Register it. Registering a link while signed in to your own account is the proof it’s yours — so it turns Verified the moment you save it, and is locked to your account (claimed once, no one else can list it).',
+    'Here, under Payment QR, paste that URL and Register it. Registering a link while signed in to your own account is the proof it’s yours — so it’s locked to your account the moment you save it (claimed once, no one else can list it), and customers see it as Verified once your domain is proven.',
     'You never log in to Stripe through us, and we never ask for keys. We never see your balance, payouts, customers, or payment rails — there is nothing connected to expose.',
-    'Now a customer who scans that QR sees ✓ Verified with your label. If a scammer swaps your sticker for a different link, their scan shows ⚠ Not a verified destination — so they stop before paying.',
+    'Now a customer who scans that QR sees that it’s registered to your account: ✓ Verified with your verified domain once your domain is proven, or Registered with Almstins, with no name, until then. The label you type isn’t shown on the scan card. If a scammer swaps your sticker for a different link, their scan shows ⚠ Not a verified destination, a warning to hold off before paying.',
   ],
   howToExchangeTitle: 'Publishing many addresses? (exchanges & platforms)',
   howToExchangeSteps: [
@@ -398,8 +398,8 @@ export const en: VerifyDashboardLocale = {
   howToCustomerTitle: 'What your customers see',
   howToCustomerSteps: [
     'Your customer scans the QR or address on your sign, invoice, or checkout.',
-    'If it matches a destination you’ve proven, they see ✓ Verified with your label — confidence it’s really you, before they send a cent.',
-    'If your QR was swapped for someone else’s address, it shows ⚠ Not a verified destination — so they stop before paying a scammer.',
+    'If it matches a destination you’ve proven, they see ✓ Verified with your verified domain (and your business name, when it matches that domain) once your domain is proven. Until then they see Claimed, with no name. The label you type isn’t shown on the scan card.',
+    'If your QR was swapped for someone else’s address, it shows ⚠ Not a verified destination, a warning to hold off before paying a scammer.',
     'Every scan also runs a free safety screen — scam, sanctions, and honeypot lists for an address; phishing and scam-site lists for a payment link — flagging a dangerous destination even if it isn’t yours.',
   ],
 };
@@ -411,7 +411,7 @@ export const es: VerifyDashboardLocale = {
   heroTitle: 'Vigila tus direcciones de cobro',
   heroSub: 'Registra los destinos de pago que publicas — Almstins los vigila por si los cambian.',
   heroAlt: 'El QR cripto de cobro de un comercio protegido por un escudo brillante de Almstins Verify',
-  notice: 'Almstins Verify está en beta — y es gratis. Puedes registrar hasta 3 destinos, y uno de ellos puede ser un código QR de pago en lugar de una dirección de billetera (es decir: 2 billeteras + 1 QR). Se guardan de forma privada en tu cuenta. Precios próximamente.',
+  notice: 'Almstins Verify está en beta — y es gratis. Puedes registrar hasta 3 destinos, y uno de ellos puede ser un código QR de pago en lugar de una dirección de billetera (es decir: 2 billeteras + 1 QR). Cuando un destino queda demostrado, cualquiera puede consultarlo y su etiqueta puede mostrarse públicamente, así que no uses un nombre personal como etiqueta. Precios próximamente.',
   loadError: 'No se pudieron cargar tus destinos.',
   railUrl: 'Enlace / URL',
   addressesTitle: 'Direcciones de cobro',
@@ -580,9 +580,9 @@ export const es: VerifyDashboardLocale = {
   howToStripeTitle: 'Agregar un enlace de pago de Stripe',
   howToStripeSteps: [
     'En Stripe, crea un Payment Link (Catálogo de productos → Payment links) y copia su URL — se ve como https://buy.stripe.com/…',
-    'Aquí, en QR de pago, pega esa URL y Regístrala. Registrar un enlace con tu sesión iniciada en tu propia cuenta es la prueba de que es tuyo — así que queda Verificado en el momento en que lo guardas, y bloqueado a tu cuenta (reclamado una sola vez, nadie más puede listarlo).',
+    'Aquí, en QR de pago, pega esa URL y Regístrala. Registrar un enlace con tu sesión iniciada en tu propia cuenta es la prueba de que es tuyo — así que queda vinculado a tu cuenta en el momento en que lo guardas (reclamado una sola vez, nadie más puede listarlo), y tus clientes lo ven como Verificado cuando tu dominio quede demostrado.',
     'Nunca inicias sesión en Stripe a través de nosotros y nunca te pedimos claves. Nunca vemos tu saldo, tus pagos, tus clientes ni tus medios de cobro — no hay nada conectado que exponer.',
-    'Ahora, un cliente que escanea ese QR ve ✓ Verificada con tu etiqueta. Si un estafador sustituye tu calcomanía por otro enlace, su escaneo muestra ⚠ Destino no verificado — y se detiene antes de pagar.',
+    'Ahora, un cliente que escanea ese QR ve que está registrado en tu cuenta: ✓ Verificado con tu dominio verificado cuando tu dominio quede demostrado, o Registrado en Almstins, sin nombre, hasta entonces. La etiqueta que escribes no se muestra en la tarjeta del escaneo. Si un estafador sustituye tu calcomanía por otro enlace, su escaneo muestra ⚠ Destino no verificado, una advertencia para esperar antes de pagar.',
   ],
   howToExchangeTitle: '¿Publicas muchas direcciones? (exchanges y plataformas)',
   howToExchangeSteps: [
@@ -593,8 +593,8 @@ export const es: VerifyDashboardLocale = {
   howToCustomerTitle: 'Lo que ven tus clientes',
   howToCustomerSteps: [
     'Tu cliente escanea el QR o la dirección de tu letrero, factura o checkout.',
-    'Si coincide con un destino que demostraste, ve ✓ Verificada con tu etiqueta — confianza de que eres tú, antes de enviar un centavo.',
-    'Si sustituyeron tu QR por otra dirección, muestra ⚠ Destino no verificado — y se detiene antes de pagarle a un estafador.',
+    'Si coincide con un destino que demostraste, ve ✓ Verificada con tu dominio verificado (y el nombre de tu negocio, cuando coincide con ese dominio) cuando tu dominio quede demostrado. Hasta entonces ve Reclamada, sin nombre. La etiqueta que escribes no se muestra en la tarjeta del escaneo.',
+    'Si sustituyeron tu QR por otra dirección, muestra ⚠ Destino no verificado, una advertencia para esperar antes de pagarle a un estafador.',
     'Cada escaneo también corre un chequeo de seguridad gratuito — listas de estafas, sanciones y honeypots para una dirección; listas de phishing y sitios fraudulentos para un enlace de pago — marcando un destino peligroso aunque no sea tuyo.',
   ],
 };
@@ -606,7 +606,7 @@ export const fr: VerifyDashboardLocale = {
   heroTitle: 'Surveillez vos adresses de réception',
   heroSub: 'Enregistrez les destinations de paiement que vous publiez — Almstins les surveille contre les substitutions.',
   heroAlt: 'Le QR crypto « Scan-to-Pay » d’un commerçant protégé par un bouclier lumineux Almstins Verify',
-  notice: 'Almstins Verify est en bêta — et gratuit. Vous pouvez enregistrer jusqu’à 3 destinations, et l’une d’elles peut être un QR code de paiement au lieu d’une adresse de portefeuille (soit : 2 portefeuilles + 1 QR). Elles restent privées sur votre compte. Tarifs bientôt disponibles.',
+  notice: 'Almstins Verify est en bêta — et gratuit. Vous pouvez enregistrer jusqu’à 3 destinations, et l’une d’elles peut être un QR code de paiement au lieu d’une adresse de portefeuille (soit : 2 portefeuilles + 1 QR). Une fois une destination prouvée, n’importe qui peut la vérifier et son libellé peut être affiché publiquement : n’utilisez donc pas un nom personnel comme libellé. Tarifs bientôt disponibles.',
   loadError: 'Impossible de charger vos destinations.',
   railUrl: 'Lien / URL',
   addressesTitle: 'Adresses de réception',
@@ -775,9 +775,9 @@ export const fr: VerifyDashboardLocale = {
   howToStripeTitle: 'Ajouter un lien de paiement Stripe',
   howToStripeSteps: [
     'Dans Stripe, créez un Payment Link (Catalogue de produits → Payment links) et copiez son URL — elle ressemble à https://buy.stripe.com/…',
-    'Ici, sous QR de paiement, collez cette URL et Enregistrez-la. Enregistrer un lien en étant connecté à votre propre compte est la preuve qu’il est à vous — il devient donc Vérifié dès que vous l’enregistrez, et verrouillé à votre compte (revendiqué une seule fois, personne d’autre ne peut le lister).',
+    'Ici, sous QR de paiement, collez cette URL et Enregistrez-la. Enregistrer un lien en étant connecté à votre propre compte est la preuve qu’il est à vous — il est donc rattaché à votre compte dès que vous l’enregistrez (revendiqué une seule fois, personne d’autre ne peut le lister), et vos clients le voient comme Vérifié une fois votre domaine prouvé.',
     'Vous ne vous connectez jamais à Stripe via nous et nous ne demandons jamais de clés. Nous ne voyons jamais votre solde, vos versements, vos clients ni vos canaux de paiement — il n’y a rien de connecté à exposer.',
-    'Désormais, un client qui scanne ce QR voit ✓ Vérifiée avec votre libellé. Si un fraudeur remplace votre autocollant par un autre lien, son scan affiche ⚠ Destination non vérifiée — il s’arrête donc avant de payer.',
+    'Désormais, un client qui scanne ce QR voit qu’il est enregistré sur votre compte : ✓ Vérifié avec votre domaine vérifié une fois votre domaine prouvé, ou Enregistré sur Almstins, sans nom, d’ici là. Le libellé que vous saisissez n’apparaît pas sur la carte du scan. Si un fraudeur remplace votre autocollant par un autre lien, son scan affiche ⚠ Destination non vérifiée, un avertissement pour attendre avant de payer.',
   ],
   howToExchangeTitle: 'Vous publiez de nombreuses adresses ? (exchanges et plateformes)',
   howToExchangeSteps: [
@@ -788,8 +788,8 @@ export const fr: VerifyDashboardLocale = {
   howToCustomerTitle: 'Ce que voient vos clients',
   howToCustomerSteps: [
     'Votre client scanne le QR ou l’adresse sur votre panneau, facture ou page de paiement.',
-    'Si cela correspond à une destination que vous avez prouvée, il voit ✓ Vérifiée avec votre libellé — la confiance que c’est bien vous, avant d’envoyer un centime.',
-    'Si votre QR a été remplacé par une autre adresse, il affiche ⚠ Destination non vérifiée — il s’arrête donc avant de payer un fraudeur.',
+    'Si cela correspond à une destination que vous avez prouvée, il voit ✓ Vérifiée avec votre domaine vérifié (et le nom de votre entreprise, s’il correspond à ce domaine) une fois votre domaine prouvé. D’ici là, il voit Revendiquée, sans nom. Le libellé que vous saisissez n’apparaît pas sur la carte du scan.',
+    'Si votre QR a été remplacé par une autre adresse, il affiche ⚠ Destination non vérifiée, un avertissement pour attendre avant de payer un fraudeur.',
     'Chaque scan lance aussi un contrôle de sécurité gratuit — listes d’arnaques, sanctions et honeypots pour une adresse ; listes de phishing et de sites frauduleux pour un lien de paiement — signalant une destination dangereuse même si elle n’est pas la vôtre.',
   ],
 };
