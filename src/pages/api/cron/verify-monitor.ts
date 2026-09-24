@@ -27,10 +27,10 @@
  */
 
 import type { APIRoute } from 'astro';
-import { db } from '@/lib/db';
 import { sendMail } from '@/lib/email';
-import { isLang, type Lang } from '@/lib/i18n/locale';
+import type { Lang } from '@/lib/i18n/locale';
 import { ensureUserLangColumn } from '@/lib/i18n/userLang';
+import { resolveAlertRecipient } from '@/lib/verifyAlertRecipient';
 import { getVerifyAlert, type VerifyAlertKind } from '@/i18n/emails/verifyAlert';
 import { listEntitiesForMonitor, monitorEntity } from '@/lib/verifyEntities';
 import { ENTITY_NOT_APPROVED } from '@/lib/verifyEntityAccess';
@@ -61,29 +61,13 @@ export const GET: APIRoute = async ({ request }) => {
   const startedAt = Date.now();
   await ensureUserLangColumn();
 
-  // Resolve a tenant's alert email + language once per run (entities/domains can share one).
+  // Resolve a tenant's alert email + language once per run (entities/domains can share
+  // one). SD1 fallback logic lives in verifyAlertRecipient.ts; this just caches it per run.
   const ownerCache = new Map<string, { email: string | null; lang: Lang }>();
   async function getOwner(tenantId: string): Promise<{ email: string | null; lang: Lang }> {
     const hit = ownerCache.get(tenantId);
     if (hit) return hit;
-    let email: string | null = null;
-    let lang: Lang = 'en';
-    try {
-      const res = await db.execute({
-        sql: `SELECT au.alert_email, au.lang
-              FROM tenant_memberships tm
-              JOIN auth_users au ON au.id = tm.user_id
-              WHERE tm.tenant_id = ? AND au.alert_email IS NOT NULL
-              LIMIT 1`,
-        args: [tenantId],
-      });
-      const row = res.rows[0] as Record<string, unknown> | undefined;
-      if (row) {
-        email = typeof row.alert_email === 'string' ? row.alert_email : null;
-        lang = typeof row.lang === 'string' && isLang(row.lang) ? row.lang : 'en';
-      }
-    } catch { /* non-fatal — no email just means no alert */ }
-    const out = { email, lang };
+    const out = await resolveAlertRecipient(tenantId);
     ownerCache.set(tenantId, out);
     return out;
   }

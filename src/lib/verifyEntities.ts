@@ -23,21 +23,10 @@ import {
 import { encryptSecret, decryptSecret, encryptionAvailable } from './verifyCrypto';
 import { normalizeDestinationValue, addressKey, ensureVerifyTables } from './verifyRegistry';
 import { canPublishEntities, publishingTenantIds, ENTITY_NOT_APPROVED } from './verifyEntityAccess';
-import { merchantAddressAssurance } from './verifyAnchor';
+import { merchantAddressAssurance, staleCutoffUtc } from './verifyAnchor';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-/**
- * Hard max-stale TTL for a mirrored "verified" row. A row whose `refreshed_at` is
- * older than this is NOT trusted by the public lookup — fail-safe to *unverified*.
- * The Phase-5 monitor cron keeps `refreshed_at` advancing on every successful re-pull;
- * if it stops (entity endpoint down, cron broken), the badge lapses instead of
- * over-claiming a stale "verified." Under-claim, never over-claim. Same column format
- * as `nowUtc()` so a lexical `>=` compare is also chronological.
- */
-const MAX_STALE_MS = 24 * 60 * 60 * 1000;
-const staleCutoffUtc = (): string =>
-  new Date(Date.now() - MAX_STALE_MS).toISOString().replace('T', ' ').slice(0, 19);
 
 export type EntityProofStatus = 'unproven' | 'proven';
 

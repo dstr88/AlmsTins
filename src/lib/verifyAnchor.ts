@@ -118,6 +118,25 @@ export function hasAnchor(row: AnchorFields): boolean {
 }
 
 /**
+ * Hard max-stale TTL for a domain anchor (address or Verified Entity mirror row). A row
+ * not positively re-confirmed within this window is NOT trusted as 'verified' — fail-safe
+ * to unverified/claimed. The Phase-5 monitor cron keeps the confirmation date advancing on
+ * every successful re-check; if it stops (endpoint down, cron broken), the badge lapses
+ * instead of over-claiming a stale "verified." Under-claim, never over-claim.
+ *
+ * The ONE window every caller shares: the public lookup (verifyEntities.ts), the domain
+ * proof + watchman (verifyRegistry.ts) and the owner's own dashboard (VerifyDashboard.tsx,
+ * a client component — this file is pure, no DB or Node API, safe to import there) all read
+ * it from here, so none can show "Verified" a moment longer than the others do.
+ */
+export const MAX_STALE_MS = 24 * 60 * 60 * 1000;
+
+/** Same 'YYYY-MM-DD HH:MM:SS' column format as nowUtc(), so a lexical >= compare is
+ *  also chronological. */
+export const staleCutoffUtc = (): string =>
+  new Date(Date.now() - MAX_STALE_MS).toISOString().replace('T', ' ').slice(0, 19);
+
+/**
  * The public assurance level + "since" date for a PROVEN merchant address.
  *  - 'verified' needs a domain anchor with a known anchor date (anchoredSince) that the
  *    watchman positively re-confirmed within the max-stale window (`staleCutoff`, same

@@ -169,6 +169,22 @@ export interface VerifyDashboardLocale {
   qrBadgeHint: string;
   qrBadgeDownload: string;
   provenBy: string; // "… ({domain})"
+  // F12: the badge follows the same 24h freshness rule as the public answer.
+  lastConfirmed: string; // "Last confirmed {time}"
+  confirmationLapsed: string; // shown instead of lastConfirmed once it drops to Claimed
+  timeAgoJustNow: string;
+  timeAgoMinutes: string; // "{n}m ago"
+  timeAgoHours: string; // "{n}h ago"
+  timeAgoDays: string; // "{n}d ago"
+  // SD1: where a lapse/swap alert goes.
+  alertsGoTo: string; // "Alerts go to {email}"
+  alertsChange: string;
+  alertsSave: string;
+  alertsCancel: string;
+  alertsUseSignIn: string;
+  alertsSaved: string;
+  alertsPlaceholder: string;
+  alertsInvalid: string;
   monitorBtn: string;
   monitorSoonBtn: string;
   monitorSoonTitle: string;
@@ -358,6 +374,20 @@ export const en: VerifyDashboardLocale = {
   qrBadgeHint: 'Customers scan this to confirm this address is really yours. Print it or add it to your sign, invoice, or checkout.',
   qrBadgeDownload: 'Download PNG',
   provenBy: 'Published by {domain}',
+  lastConfirmed: 'Last confirmed {time}',
+  confirmationLapsed: 'Confirmation lapsed — waiting on the next check',
+  timeAgoJustNow: 'just now',
+  timeAgoMinutes: '{n}m ago',
+  timeAgoHours: '{n}h ago',
+  timeAgoDays: '{n}d ago',
+  alertsGoTo: 'Alerts go to {email}',
+  alertsChange: 'Change',
+  alertsSave: 'Save',
+  alertsCancel: 'Cancel',
+  alertsUseSignIn: 'Use my sign-in email instead',
+  alertsSaved: 'Saved.',
+  alertsPlaceholder: 'you@example.com',
+  alertsInvalid: 'Enter a valid email address.',
   monitorBtn: '👁 Watch page',
   monitorSoonBtn: '👁 Live monitoring — coming soon',
   monitorSoonTitle: 'Continuous swap-monitoring with alerts is a paid feature, coming soon. On-demand checks stay free.',
@@ -564,6 +594,20 @@ export const es: VerifyDashboardLocale = {
   qrBadgeHint: 'Los clientes lo escanean para confirmar que esta dirección es realmente tuya. Imprímelo o añádelo a tu letrero, factura o pantalla de pago.',
   qrBadgeDownload: 'Descargar PNG',
   provenBy: 'Publicado por {domain}',
+  lastConfirmed: 'Última confirmación: {time}',
+  confirmationLapsed: 'La confirmación caducó — esperando la próxima comprobación',
+  timeAgoJustNow: 'justo ahora',
+  timeAgoMinutes: 'hace {n} min',
+  timeAgoHours: 'hace {n} h',
+  timeAgoDays: 'hace {n} d',
+  alertsGoTo: 'Las alertas se envían a {email}',
+  alertsChange: 'Cambiar',
+  alertsSave: 'Guardar',
+  alertsCancel: 'Cancelar',
+  alertsUseSignIn: 'Usar mi correo de acceso',
+  alertsSaved: 'Guardado.',
+  alertsPlaceholder: 'tu@ejemplo.com',
+  alertsInvalid: 'Introduce una dirección de correo válida.',
   monitorBtn: '👁 Vigilar página',
   monitorSoonBtn: '👁 Monitoreo en vivo — próximamente',
   monitorSoonTitle: 'La supervisión continua de sustituciones con alertas es una función de pago, próximamente. Las comprobaciones a demanda siguen siendo gratis.',
@@ -770,6 +814,20 @@ export const fr: VerifyDashboardLocale = {
   qrBadgeHint: 'Les clients le scannent pour confirmer que cette adresse est bien la vôtre. Imprimez-le ou ajoutez-le à votre panneau, facture ou page de paiement.',
   qrBadgeDownload: 'Télécharger le PNG',
   provenBy: 'Publié par {domain}',
+  lastConfirmed: 'Dernière confirmation : {time}',
+  confirmationLapsed: 'Confirmation expirée — en attente de la prochaine vérification',
+  timeAgoJustNow: 'à l’instant',
+  timeAgoMinutes: 'il y a {n} min',
+  timeAgoHours: 'il y a {n} h',
+  timeAgoDays: 'il y a {n} j',
+  alertsGoTo: 'Les alertes sont envoyées à {email}',
+  alertsChange: 'Modifier',
+  alertsSave: 'Enregistrer',
+  alertsCancel: 'Annuler',
+  alertsUseSignIn: 'Utiliser mon e-mail de connexion',
+  alertsSaved: 'Enregistré.',
+  alertsPlaceholder: 'vous@exemple.com',
+  alertsInvalid: 'Saisissez une adresse e-mail valide.',
   monitorBtn: '👁 Surveiller la page',
   monitorSoonBtn: '👁 Surveillance en direct — bientôt',
   monitorSoonTitle: 'La surveillance continue des substitutions avec alertes est une fonction payante, bientôt disponible. Les vérifications à la demande restent gratuites.',
