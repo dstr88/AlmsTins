@@ -106,8 +106,9 @@ vi.mock('@/lib/db', () => {
     }
     if (sql.startsWith("UPDATE verified_entities SET last_pull_status = 'ok'")) {
       const [count, at, , id, tenant] = args;
-      for (const e of byIdTenant(id, tenant)) { e.last_pull_status = 'ok'; e.last_pull_count = count; e.last_pulled_at = at; }
-      return { rows: [], rowsAffected: 1 };
+      const hit = byIdTenant(id, tenant);
+      for (const e of hit) { e.last_pull_status = 'ok'; e.last_pull_count = count; e.last_pulled_at = at; }
+      return { rows: [], rowsAffected: hit.length }; // 0 when the entity is gone: the pull reports not_found
     }
     if (sql.startsWith('UPDATE verified_entities SET last_pull_status = ?')) {
       const [code, at, , id, tenant] = args;
@@ -120,6 +121,10 @@ vi.mock('@/lib/db', () => {
     }
     if (sql.startsWith('INSERT INTO verified_address_mirror')) {
       const [id, entity_id, tenant_id, address, chain, entity_domain, refreshed_at] = args;
+      // The pull's insert is guarded by WHERE EXISTS (the entity is still there and proven).
+      if (/WHERE EXISTS/.test(sql) && !byIdTenant(entity_id, tenant_id).some((e) => e.proof_status === 'proven')) {
+        return { rows: [], rowsAffected: 0 };
+      }
       mem.mirror.push({ id, entity_id, tenant_id, address, chain, entity_domain, status: 'verified', refreshed_at });
       return { rows: [], rowsAffected: 1 };
     }
@@ -158,7 +163,13 @@ vi.mock('@/lib/db', () => {
     if (sql.startsWith('SELECT au.alert_email, au.lang')) return { rows: [{ alert_email: 'ops@platform.test', lang: 'en' }] };
     throw new Error(`unexpected SQL in test: ${sql}`);
   };
-  return { db: { execute, batch: async () => { throw new Error('batch not expected'); } } };
+  // A transaction: statements in order (pullEntity replaces the mirror in one batch).
+  const batch = async (stmts: Array<{ sql: string; args?: unknown[] }>) => {
+    const out = [];
+    for (const st of stmts) out.push(await execute(st as any));
+    return out;
+  };
+  return { db: { execute, batch } };
 });
 
 import { OWNER_TENANT_ID } from '../../src/lib/owner';

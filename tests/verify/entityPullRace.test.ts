@@ -106,6 +106,9 @@ function deleteTenantPlatformRows(tenant: string): void {
 }
 
 beforeEach(() => {
+  // Platform lists publish only for approved tenants (verifyEntityAccess); these fixtures
+  // model approved platforms, so approve their tenants.
+  vi.stubEnv('VERIFY_ENTITY_TENANTS', `${T},${OTHER}`);
   mem.unexpected = [];
   mem.batches = [];
   mem.tables = {
@@ -123,6 +126,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   expect(mem.unexpected).toEqual([]);
 });
 
