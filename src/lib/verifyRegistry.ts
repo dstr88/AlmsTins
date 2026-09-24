@@ -21,6 +21,7 @@ import {
 } from './verifyTestAmount';
 import { isEmvPayload, parseEmv, parseUpi, paymentFormat } from './paymentQr';
 import { normalizeName, registrableLabel, nameMatchesDomain } from './verifyNameMatch';
+import { decideAnchor, decideAnchorLoss } from './verifyAnchor';
 
 /** SHA-256 hex — used to store a non-URL payment-QR identifier (PIX key / UPI VPA) as a
  *  hash, never the raw key (it can be a CPF/phone/email — PII we never hold). */
@@ -62,13 +63,23 @@ export interface Destination {
   proofMethod: ProofMethod;
   proofStatus: ProofStatus;
   proofDomain: string | null;
+  /** When proof_domain was attached (see verifyAnchor.ts anchoredSince / hasAnchor). */
+  domainAnchoredAt: string | null;
   registeredAt: string;
   provenAt: string | null;
   /** Phase 5 — the public page (if any) we watch for a swap of this destination. */
   monitorUrl: string | null;
   monitorStatus: string | null;
   monitorCheckedAt: string | null;
+  /** Owner's dashboard only (listDestinationsForOwner): the claim was made under the old,
+   *  unbound self-send rule and needs the satoshi test again before a domain can anchor it.
+   *  Never on a public answer. */
+  needsReproof?: boolean;
 }
+
+/** The columns mapRow reads. */
+const DEST_COLS = `id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain,
+  domain_anchored_at, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at`;
 
 const ENSURE_SQL = `
   CREATE TABLE IF NOT EXISTS verify_destinations (
@@ -202,18 +213,51 @@ const ENSURE_DEPOSIT_LOG_TENANT_IDX = `CREATE INDEX IF NOT EXISTS verify_deposit
   ON verify_deposit_amount_log (tenant_id, issued_at)`;
 // Claims proven under the old, unbound rule (any outgoing tx counted). Internal only:
 // nothing public reads it, so those Claimed rows look exactly as before. It marks them
-// for the later contest/takeover path (plan D4a, PR-11).
+// for the later contest/takeover path, keeps a domain proof from anchoring them, and lets
+// the owner take the satoshi test again in place (see legacyClaimSql).
 const ENSURE_LEGACY_UNBOUND_COL = `ALTER TABLE verify_destinations
   ADD COLUMN IF NOT EXISTS legacy_unbound BOOLEAN NOT NULL DEFAULT false`;
 // Idempotent backfill. A bound proof's challenge row has rule='bound_v1' from the moment
 // it is issued (before the destination can flip), so this only ever tags rows proven
-// under the old rule: re-running it on every cold start changes nothing new.
+// under the old rule: re-running it on every cold start changes nothing new. Decisions
+// never rely on it alone: they read legacyClaimSql, which applies the same rule live.
 const BACKFILL_LEGACY_UNBOUND = `UPDATE verify_destinations d SET legacy_unbound = true
   WHERE d.proof_method = 'micro_deposit' AND d.proof_status = 'proven' AND d.legacy_unbound = false
     AND NOT EXISTS (
       SELECT 1 FROM verify_deposit_challenges c
       WHERE c.destination_id = d.id AND c.tenant_id = d.tenant_id AND c.rule = 'bound_v1'
     )`;
+
+/**
+ * SQL predicate over a verify_destinations row `t`: its CURRENT control proof is a claim made
+ * under the old, unbound self-send rule. The stored tag, OR the rule its backfill applies,
+ * read live: a self-send proof with no bound (bound_v1) test that proved. So a row the
+ * backfill has not reached (it failed, or has not run yet on this instance) still counts,
+ * and nothing that reads this fails open. 'proven' rather than any bound_v1 row: a legacy
+ * row taking the test again in place has a PENDING bound_v1 test, and must still count until
+ * it proves. Pair it with proof_status = 'proven'.
+ */
+function legacyClaimSql(t: string): string {
+  return `(${t}.legacy_unbound = true OR (${t}.proof_method = 'micro_deposit' AND NOT EXISTS (
+      SELECT 1 FROM verify_deposit_challenges c
+      WHERE c.destination_id = ${t}.id AND c.tenant_id = ${t}.tenant_id
+        AND c.rule = 'bound_v1' AND c.status = 'proven')))`;
+}
+
+// The two data steps of migrations-pg/0035_verify_domain_anchor.sql, run with the schema so a
+// deploy needs no hand-run step. Both are idempotent and can't touch a row this code writes:
+// every anchor it makes sets domain_anchored_at in the same UPDATE as proof_domain.
+//  1. Anchors made before the column existed were all made by the file proof itself
+//     (well_known), which set proven_at at the moment it anchored the address.
+//  2. Leftovers: before it, a self-send re-prove of a lapsed file-proven address kept the old
+//     proof_domain. That is not an anchor (hasAnchor: the public lookup already says Claimed);
+//     clearing it makes the dashboard agree and offer "Verify domain" again.
+const BACKFILL_ANCHOR_DATE = `UPDATE verify_destinations SET domain_anchored_at = proven_at
+  WHERE domain_anchored_at IS NULL AND proof_domain IS NOT NULL
+    AND proof_method = 'well_known' AND proven_at IS NOT NULL`;
+const CLEAR_LEFTOVER_DOMAIN = `UPDATE verify_destinations SET proof_domain = NULL, last_confirmed_at = NULL
+  WHERE kind = 'address' AND proof_method <> 'well_known'
+    AND proof_domain IS NOT NULL AND domain_anchored_at IS NULL`;
 
 // Global business-name registry. A business name is claimed like an email handle:
 // the normalized name is the PRIMARY KEY, so it belongs to exactly one tenant —
@@ -237,10 +281,11 @@ const ENSURE_MONITOR_COLS = [
   `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS monitor_status TEXT`,
   `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS monitor_checked_at TEXT`,
   // Fail-closed TTL: the last time the watchman POSITIVELY re-confirmed this destination
-  // (its domain proof still vouches it, or its published page still shows it). The public
-  // lookup treats a domain-anchored destination as 'verified' only while this stays within
-  // the max-stale window; a stale one degrades to 'claimed'. Advanced ONLY on a positive
-  // confirm — never on an unreachable/missing attempt — so a blind monitor fails safe.
+  // (an address: its domain proof still vouches it; a payment link: its published page still
+  // shows it). The public lookup treats a domain-anchored destination as 'verified' only
+  // while this stays within the max-stale window; a stale one degrades to 'claimed'. Advanced
+  // ONLY on a positive confirm — never on an unreachable/missing attempt — so a blind monitor
+  // fails safe.
   `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS last_confirmed_at TEXT`,
 ];
 
@@ -262,6 +307,15 @@ export async function ensureVerifyTables(): Promise<void> {
   }
   try { await db.execute({ sql: `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS display_hint TEXT`, args: [] }); }
   catch (e) { console.error('[verify] display_hint column not applied:', e); }
+  // When proof_domain was attached. Kept apart from proven_at (when CONTROL was proven) so a
+  // domain added later to a self-send-proven address doesn't inherit its older age. Mirrors
+  // migrations-pg/0035_verify_domain_anchor.sql.
+  try { await db.execute({ sql: `ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS domain_anchored_at TEXT`, args: [] }); }
+  catch (e) { console.error('[verify] domain_anchored_at column not applied:', e); }
+  try {
+    await db.execute({ sql: BACKFILL_ANCHOR_DATE, args: [] });
+    await db.execute({ sql: CLEAR_LEFTOVER_DOMAIN, args: [] });
+  } catch (e) { console.error('[verify] domain anchor backfill not applied:', e); }
   // Backstop only — never let a pre-existing duplicate-proven row break Verify.
   try { await db.execute({ sql: ENSURE_CLAIM_IDX, args: [] }); }
   catch (e) { console.error('[verify] claim-once index not applied (resolve duplicate proven claims):', e); }
@@ -297,6 +351,7 @@ function mapRow(r: any): Destination {
     proofMethod: String(r.proof_method ?? 'none') as ProofMethod,
     proofStatus: String(r.proof_status ?? 'unproven') as ProofStatus,
     proofDomain: r.proof_domain ? String(r.proof_domain) : null,
+    domainAnchoredAt: r.domain_anchored_at ? String(r.domain_anchored_at) : null,
     registeredAt: String(r.registered_at),
     provenAt: r.proven_at ? String(r.proven_at) : null,
     monitorUrl: r.monitor_url ? String(r.monitor_url) : null,
@@ -308,12 +363,59 @@ function mapRow(r: any): Destination {
 export async function listDestinations(tenantId: string): Promise<Destination[]> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
+    sql: `SELECT ${DEST_COLS}
           FROM verify_destinations WHERE tenant_id = ?
           ORDER BY kind ASC, registered_at ASC`,
     args: [tenantId],
   });
   return (res.rows as any[]).map(mapRow);
+}
+
+/**
+ * This account's proven destinations whose claim was made under the old, unbound self-send
+ * rule (legacyClaimSql). Tenant-scoped; internal only (never returned to a public answer). A
+ * DB error throws, so a caller that can't tell which claims are legacy does nothing with them
+ * (fail closed).
+ */
+async function legacyClaims(tenantId: string): Promise<{ id: string; kind: DestinationKind; value: string }[]> {
+  const res = await db.execute({
+    sql: `SELECT d.id, d.kind, d.value FROM verify_destinations d
+          WHERE d.tenant_id = ? AND d.proof_status = 'proven' AND ${legacyClaimSql('d')}`,
+    args: [tenantId],
+  });
+  return (res.rows as any[]).map((r) => ({
+    id: String(r.id), kind: String(r.kind) === 'qr' ? 'qr' : 'address', value: String(r.value),
+  }));
+}
+
+/** Is this proven destination a legacy unbound claim (legacyClaimSql)? Tenant-scoped; throws
+ *  on a DB error. */
+async function isLegacyClaim(tenantId: string, id: string): Promise<boolean> {
+  const res = await db.execute({
+    sql: `SELECT 1 FROM verify_destinations d
+          WHERE d.id = ? AND d.tenant_id = ? AND d.proof_status = 'proven' AND ${legacyClaimSql('d')}
+          LIMIT 1`,
+    args: [id, tenantId],
+  });
+  return res.rows.length > 0;
+}
+
+/**
+ * The account's own destinations for its dashboard, each with needsReproof: a claim made under
+ * the old, unbound self-send rule, so the dashboard offers the satoshi test again (in place;
+ * the row stays Claimed meanwhile) instead of "Verify domain". Owner-only, never on a public
+ * answer. If the flags can't be read the list still loads without them: the domain proof reads
+ * them again itself and fails closed.
+ */
+export async function listDestinationsForOwner(tenantId: string): Promise<Destination[]> {
+  const dests = await listDestinations(tenantId);
+  try {
+    const legacy = new Set((await legacyClaims(tenantId)).map((c) => c.id));
+    return dests.map((d) => ({ ...d, needsReproof: legacy.has(d.id) }));
+  } catch (e) {
+    console.error('[verify] re-proof flags not read:', e);
+    return dests;
+  }
 }
 
 /**
@@ -354,12 +456,38 @@ export function normalizeDestinationValue(raw: string): string {
   return noScheme.split(/[?@\s]/)[0].trim();
 }
 
+// A segwit (bech32 / bech32m) address, matched on the lowercased value: a known human-readable
+// part, the '1' separator, then data in the bech32 charset only (no '1', 'b', 'i' or 'o'). The
+// charset check, not the prefix alone, is what keeps a base58 (Solana) string that happens to
+// start with "bc1" from being folded.
+const BECH32_ADDRESS = /^(bc|tb|bcrt|ltc|tltc)1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
+
+/**
+ * The comparison key of an ADDRESS value: normalizeDestinationValue, with a segwit address
+ * lowercased. bech32 is case-insensitive (BIP-173; the uppercase form is the one QR codes use),
+ * so 'BC1Q…' and 'bc1q…' are one wallet, and a mixed-case spelling, which no wallet accepts,
+ * still names that same wallet. EVM values are already lowercased by the normalizer; every other
+ * address (base58: legacy BTC/LTC, Solana, Tron) is case-sensitive and keeps its case.
+ *
+ * Every place that decides whether two spellings are one wallet uses this key: the claim guard
+ * (claimIdentity), a domain file's listing (recordProofResult and the watchman's Pass B) and the
+ * public lookup (lookupVerifiedAddress). If one of them compared case-sensitively, an address in
+ * another letter case would pass the guard as a different wallet and then answer the lookup as
+ * the same one.
+ */
+export function addressKey(value: string): string {
+  const canonical = normalizeDestinationValue(value);
+  const lower = canonical.toLowerCase();
+  return BECH32_ADDRESS.test(lower) ? lower : canonical;
+}
+
 // ── Canonical claim identity (S5a) ───────────────────────────────────────────
 //
 // Claim-once is enforced in the DB on the RAW (rail, value), but the public lookup
 // (lookupVerifiedAddress) matches on the canonical value and ignores the rail. So
-// "0xAbC…" and "0xabc…", the same 0x address on ethereum and on polygon, or one bc1…
-// string filed under bitcoin and under litecoin, are one wallet to a payer. Every path
+// "0xAbC…" and "0xabc…", "BC1Q…" and "bc1q…", the same 0x address on ethereum and on
+// polygon, or one bc1… string filed under bitcoin and under litecoin, are one wallet to a
+// payer. Every path
 // that flips a destination to proven checks this canonical identity against OTHER
 // accounts' proven rows first (isClaimedElsewhere). S5b later moves the index itself
 // onto canonical columns; until then this guard is the arbiter.
@@ -367,7 +495,8 @@ export function normalizeDestinationValue(raw: string): string {
 const EVM_CANONICAL = /^0x[0-9a-f]{40}$/;
 
 export interface ClaimIdentity {
-  /** normalizeDestinationValue(value); '' when the value has no usable form. */
+  /** An address: addressKey(value). A payment link/QR: normalizeDestinationValue(value).
+   *  '' when the value has no usable form. */
   canonical: string;
   /** 'qr' for payment links/QRs; for an address, 'evm' (a 0x value) or 'addr' (any other). */
   family: string;
@@ -379,7 +508,8 @@ export interface ClaimIdentity {
  * it was filed under, so a family keyed on the rail would let the same string re-filed
  * under another rail slip past the guard. A 0x value is 'evm' (one key controls it on
  * every EVM chain; the normalizer lowercases it). Every other address is one 'addr'
- * family, compared exactly (case-sensitive): base58/bech32 strings from different chains
+ * family, compared on its addressKey: a segwit address in lowercase (bech32 is
+ * case-insensitive), a base58 one exactly (case-sensitive). Strings from different chains
  * don't collide, and the one overlap, a BTC/LTC "3…" P2SH string, is the same script hash
  * on both. Payment links/QRs are looked up by value alone, so every QR rail is one 'qr'.
  */
@@ -389,14 +519,17 @@ export function claimFamily(kind: DestinationKind, canonical: string): string {
 }
 
 /** Canonical claim identity of a stored or entered destination. Pure; the rail it was
- *  filed under deliberately plays no part (see claimFamily). */
+ *  filed under deliberately plays no part (see claimFamily). An address is keyed exactly as
+ *  the public lookup keys it (addressKey), so the guard can't see two wallets where the
+ *  lookup sees one. */
 export function claimIdentity(kind: DestinationKind, value: string): ClaimIdentity {
-  const canonical = normalizeDestinationValue(value);
+  const canonical = kind === 'qr' ? normalizeDestinationValue(value) : addressKey(value);
   return { canonical, family: claimFamily(kind, canonical) };
 }
 
-/** Same wallet/link for claim purposes. An empty canonical value never matches. EVM
- *  values are lowercased by the normalizer; every other value is exact (case-sensitive). */
+/** Same wallet/link for claim purposes. An empty canonical value never matches. EVM and
+ *  segwit values are compared in lowercase (see addressKey); every other value is exact
+ *  (case-sensitive). */
 export function sameClaimIdentity(a: ClaimIdentity, b: ClaimIdentity): boolean {
   return !!a.canonical && a.canonical === b.canonical && a.family === b.family;
 }
@@ -504,7 +637,10 @@ export async function compareToDestinations(tenantId: string, rawValue: string):
   const normalizedQuery = normalizeDestinationValue(rawValue);
   if (!normalizedQuery) return { matched: false, normalizedQuery: '', destination: null };
   const dests = await listDestinations(tenantId);
-  const hit = dests.find(d => normalizeDestinationValue(d.value) === normalizedQuery) ?? null;
+  // addressKey, so the QR (uppercase) form of a registered segwit address is not reported as a
+  // possible swap. A link or payment QR has no case fold: its key is its normalized value.
+  const key = addressKey(rawValue);
+  const hit = dests.find(d => addressKey(d.value) === key) ?? null;
   return { matched: !!hit, normalizedQuery, destination: hit };
 }
 
@@ -628,7 +764,7 @@ export async function createDestination(
       : { ok: false, error: 'duplicate', message: 'You have already registered this destination.' };
   }
   const row = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
+    sql: `SELECT ${DEST_COLS}
           FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
@@ -724,18 +860,25 @@ export async function listMonitoredDestinations(): Promise<MonitorTarget[]> {
 }
 
 /**
- * Stamp the latest monitor outcome (tenant-scoped). A 'present' outcome is a positive
- * re-confirmation, so it also advances last_confirmed_at (keeps the public badge fresh).
- * Every other outcome ('unreachable' / 'missing' / 'swapped' / 'invalid_url') records the
- * attempt but NEVER advances last_confirmed_at, so a persistently blind monitor lets the
- * badge lapse 'verified'→'claimed' via the max-stale TTL. Fail-closed by construction.
+ * Stamp the latest monitor outcome (tenant-scoped). For a payment link, a 'present' outcome
+ * is a positive re-confirmation, so it also advances last_confirmed_at (keeps the public
+ * badge fresh). For an ADDRESS it never does: an address is 'verified' only through its
+ * domain anchor, and a published page proves nothing about the domain (any https page, on
+ * any site, can show the address). Only a domain proof re-confirms an anchor (Pass B, or the
+ * owner's own proof), so a domain whose file is gone lets the address lapse to 'claimed' via
+ * the max-stale TTL even while its page check keeps passing. Every other outcome
+ * ('unreachable' / 'missing' / 'swapped' / 'invalid_url') records the attempt but NEVER
+ * advances last_confirmed_at, so a persistently blind monitor lets the badge lapse too.
+ * Fail-closed by construction.
  */
 export async function recordMonitorResult(tenantId: string, id: string, status: string): Promise<void> {
   await ensureVerifyTables();
   const now = nowUtc();
   if (status === 'present') {
     await db.execute({
-      sql: `UPDATE verify_destinations SET monitor_status = ?, monitor_checked_at = ?, last_confirmed_at = ?, updated_at = ?
+      sql: `UPDATE verify_destinations
+            SET monitor_status = ?, monitor_checked_at = ?,
+                last_confirmed_at = CASE WHEN kind = 'qr' THEN ? ELSE last_confirmed_at END, updated_at = ?
             WHERE id = ? AND tenant_id = ?`,
       args: [status, now, now, now, id, tenantId],
     });
@@ -754,7 +897,7 @@ export async function recordMonitorResult(tenantId: string, id: string, status: 
 export async function getDestination(tenantId: string, id: string): Promise<Destination | null> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
+    sql: `SELECT ${DEST_COLS}
           FROM verify_destinations WHERE id = ? AND tenant_id = ?`,
     args: [id, tenantId],
   });
@@ -791,70 +934,155 @@ export async function getChallenge(tenantId: string, domain: string): Promise<st
   return res.rows.length ? String((res.rows[0] as any).challenge_token) : null;
 }
 
-export interface ProofFlipResult {
-  /** Destinations the file vouches for that are now proven (including already-ours). */
+export interface ProofRecordResult {
+  /** Destinations the published file now anchors to this domain (newly proven, newly
+   *  anchored, or re-confirmed). Only ids whose UPDATE actually landed. */
   flipped: string[];
-  /** Vouched destinations held out because another account already proved that wallet. */
+  /** Listed destinations already anchored to a DIFFERENT domain — left untouched. */
+  otherDomain: string[];
+  /** Listed destinations held out because another account already proved that wallet
+   *  (S5a claim guard, or the claim-once index in a race) — left as they were. */
   claimedElsewhere: string[];
+  /** Listed destinations this account holds only through a claim made under the old,
+   *  unbound self-send rule (the row itself, or a canonical twin with no bound proof of its
+   *  own): left as they were until a bound re-proof (see decideAnchor). */
+  legacyUnbound: string[];
 }
 
 /**
- * Record a successful proof: mark the (tenant, domain) proof proven and flip every
- * registered address destination whose value the published file vouches for. Both
- * sides are normalized for the match. A listing is not a control proof, so each flip
- * first passes the S5a claim guard: a wallet another account already proved (in any
- * case, under any rail) is held out and reported as claimed elsewhere.
+ * Does this account hold `d`'s wallet only through a claim made under the old, unbound
+ * self-send rule? True for a legacy claim itself, and for any canonical twin of one in the same
+ * account (another letter case, rail or URI wrapping) that has no bound self-send proof of its
+ * own. `legacy` is the account's legacyClaims. Pure. The one rule for the owner's domain proof
+ * (recordProofResult) and the watchman (recheckDomainListing).
+ */
+function legacyHoldTest(
+  legacy: { id: string; kind: DestinationKind; value: string }[],
+): (d: Pick<Destination, 'id' | 'kind' | 'value' | 'proofStatus' | 'proofMethod'>) => boolean {
+  const ids = new Set(legacy.map((c) => c.id));
+  const wallets = legacy.map((c) => claimIdentity(c.kind, c.value));
+  return (d) => {
+    if (ids.has(d.id)) return true;
+    // A proven self-send that isn't legacy is a bound one: a control proof of its own.
+    if (d.proofStatus === 'proven' && d.proofMethod === 'micro_deposit') return false;
+    const wallet = claimIdentity(d.kind, d.value);
+    return wallets.some((w) => sameClaimIdentity(w, wallet));
+  };
+}
+
+/**
+ * Record a successful proof: mark the (tenant, domain) proof proven and anchor every
+ * registered address destination the published file lists (see decideAnchor). Both sides
+ * are normalized for the match.
+ *  - Unproven/lapsed → proven by the file (well_known) and anchored.
+ *  - Already proven another way (self-send), no anchor yet → the domain is ATTACHED; the
+ *    control proof (proof_method, proven_at) is kept, and domain_anchored_at records the
+ *    anchor's own age.
+ *  - Already anchored to this domain → re-confirmed (keeps its original anchor date).
+ *  - Anchored to a different domain → never moved.
+ *  - Held by this account only through a claim made under the old, unbound self-send rule
+ *    (legacy_unbound) → left as it was until a bound re-proof: it may be a squat, and the
+ *    listing can't vouch for it. That covers the legacy row AND any canonical twin of it in
+ *    this account (another letter case, rail or URI wrapping) with no bound proof of its own,
+ *    which would otherwise be flipped or anchored in its place: the S5a guard below skips the
+ *    caller's own account, and the public lookup matches every spelling of the wallet.
+ * A listing is not a control proof, so a flip or a new anchor first passes the S5a claim
+ * guard: a wallet another account already proved (in any case, under any rail) is held out
+ * and reported as claimed elsewhere. A re-confirm makes no new claim (the row already carries
+ * this anchor, with its date; the watchman re-confirms it the same way), so it skips the guard.
  */
 export async function recordProofResult(
   tenantId: string,
   domain: string,
   fileAddresses: string[],
-): Promise<ProofFlipResult> {
+): Promise<ProofRecordResult> {
   await ensureVerifyTables();
   const now = nowUtc();
+  // Read before writing anything: if the legacy claims can't be read, nothing is recorded.
+  const dests = await listDestinations(tenantId);
+  const legacy = await legacyClaims(tenantId);
   await db.execute({
     sql: `UPDATE verify_domain_proofs
           SET status = 'proven', proven_at = ?, last_checked_at = ?, updated_at = ?
           WHERE tenant_id = ? AND domain = ?`,
     args: [now, now, now, tenantId, domain],
   });
-  const vouched = new Set(fileAddresses.map(normalizeDestinationValue).filter(Boolean));
-  const dests = await listDestinations(tenantId);
-  const flipped: string[] = [];
-  const claimedElsewhere: string[] = [];
+  const heldByLegacy = legacyHoldTest(legacy);
+  // Matched on addressKey, like the guard and the public lookup (a listed 'BC1Q…' vouches for a
+  // registered 'bc1q…'); the watchman's Pass B matches the same way, so it never releases what
+  // this anchored.
+  const vouched = new Set(fileAddresses.map(addressKey).filter(Boolean));
+  const out: ProofRecordResult = { flipped: [], otherDomain: [], claimedElsewhere: [], legacyUnbound: [] };
   for (const d of dests) {
-    if (d.kind !== 'address') continue;
-    if (!vouched.has(normalizeDestinationValue(d.value))) continue;
-    if (d.proofStatus === 'proven') { flipped.push(d.id); continue; } // already ours
+    const action = decideAnchor(
+      { ...d, legacyUnbound: heldByLegacy(d) }, domain, vouched.has(addressKey(d.value)),
+    );
+    if (action === 'skip') continue;
+    if (action === 'other_domain') { out.otherDomain.push(d.id); continue; }
+    if (action === 'legacy_unbound') { out.legacyUnbound.push(d.id); continue; }
     try {
-      if (await isClaimedElsewhere(tenantId, 'address', d.value)) {
-        claimedElsewhere.push(d.id);
+      if (action !== 'reconfirm' && await isClaimedElsewhere(tenantId, 'address', d.value)) {
+        out.claimedElsewhere.push(d.id);
         continue;
       }
-      await db.execute({
-        sql: `UPDATE verify_destinations
-              SET proof_status = 'proven', proof_method = 'well_known', proof_domain = ?, proven_at = ?, updated_at = ?
-              WHERE id = ? AND tenant_id = ?`,
-        args: [domain, now, now, d.id, tenantId],
-      });
-      flipped.push(d.id);
+      // Each WHERE re-checks the decision against the row as it is now: a concurrent anchor to
+      // another domain is never overwritten, and a legacy claim (the tag, or the rule it stands
+      // for, read live) is never anchored.
+      const res = action === 'flip'
+        ? await db.execute({
+            sql: `UPDATE verify_destinations
+                  SET proof_status = 'proven', proof_method = 'well_known', proof_domain = ?, proven_at = ?,
+                      domain_anchored_at = ?, last_confirmed_at = ?, legacy_unbound = false, updated_at = ?
+                  WHERE id = ? AND tenant_id = ? AND kind = 'address' AND proof_status <> 'proven'`,
+            args: [domain, now, now, now, now, d.id, tenantId],
+          })
+        : action === 'anchor'
+        // A new anchor: this domain, dated now. It replaces only no anchor at all or a leftover
+        // proof_domain with no anchor date (hasAnchor), never a real anchor.
+        ? await db.execute({
+            sql: `UPDATE verify_destinations
+                  SET proof_domain = ?, domain_anchored_at = ?, last_confirmed_at = ?, updated_at = ?
+                  WHERE id = ? AND tenant_id = ? AND kind = 'address' AND proof_status = 'proven'
+                    AND NOT ${legacyClaimSql('verify_destinations')}
+                    AND (proof_domain IS NULL OR (domain_anchored_at IS NULL AND proof_method <> 'well_known'))`,
+            args: [domain, now, now, now, d.id, tenantId],
+          })
+        // 'reconfirm': the same anchor, re-confirmed. It keeps its date: a file-proven row
+        // anchored before domain_anchored_at existed gets proven_at, when its file anchored it.
+        : await db.execute({
+            sql: `UPDATE verify_destinations
+                  SET domain_anchored_at = COALESCE(domain_anchored_at, proven_at), last_confirmed_at = ?, updated_at = ?
+                  WHERE id = ? AND tenant_id = ? AND kind = 'address' AND proof_status = 'proven'
+                    AND NOT ${legacyClaimSql('verify_destinations')}
+                    AND proof_domain = ? AND (domain_anchored_at IS NOT NULL OR proof_method = 'well_known')`,
+            args: [now, now, d.id, tenantId, domain],
+          });
+      if ((res.rowsAffected ?? 0) > 0) out.flipped.push(d.id);
+      else console.warn('[verify] destination not anchored (changed concurrently):', d.id);
     } catch (e) {
       // Claim-once backstop: the partial unique index rejects an exact (rail, value) that
       // another account proved in the moment since the guard ran (Postgres 23505). Any
-      // other error (the guard itself failing) also leaves the row unproven: fail closed,
+      // other error (the guard itself failing) also leaves the row as it was: fail closed,
       // without failing the whole proof.
-      if ((e as { code?: string })?.code === '23505') claimedElsewhere.push(d.id);
-      console.warn('[verify] destination not flipped (already claimed elsewhere?):', d.id, e);
+      if ((e as { code?: string })?.code === '23505') out.claimedElsewhere.push(d.id);
+      console.warn('[verify] destination not anchored (already claimed elsewhere?):', d.id, e);
     }
   }
   // A proven domain unlocks its matching business name: reserve the domain-anchored name
   // for any of the tenant's labels that derive from this domain. Best-effort, non-fatal.
+  // A row this proof refused as a legacy claim does not reserve a name here: only that. The name
+  // belongs to the account, not to a row. Another row's label, a later proof or a DNS proof
+  // (recordDomainControlProof) can still reserve it, and the public lookup then shows it on
+  // every proven row of the account (verifiedNameForTenant), the refused one included. That
+  // row's level stays Claimed, which is what an agent must read (/verify/agents).
+  const refused = new Set(out.legacyUnbound);
   for (const d of dests) {
+    if (refused.has(d.id)) continue;
     if (d.label && nameMatchesDomain(d.label, domain)) {
       try { await tryClaimVerifiedName(tenantId, d.label); } catch { /* non-fatal */ }
     }
   }
-  return { flipped, claimedElsewhere };
+  return out;
 }
 
 /**
@@ -880,12 +1108,19 @@ export async function recordDomainControlProof(tenantId: string, domain: string)
   }
 }
 
-/** Stamp a check that didn't prove the domain (for re-validation/audit later). */
+/**
+ * Stamp an owner-started check that didn't prove the domain (for re-validation/audit later).
+ * An already-PROVEN domain keeps its status: a typo in an edited file must not take the domain
+ * out of the watchman's rotation (listProvenDomainsForMonitor), which would leave its anchored
+ * addresses neither re-confirmed nor released. The watchman alone demotes a proven domain, on a
+ * definitive change, releasing its anchors and alerting the owner (verify-monitor Pass B).
+ */
 export async function markProofChecked(tenantId: string, domain: string, status: 'failed' | 'pending'): Promise<void> {
   await ensureVerifyTables();
   const now = nowUtc();
   await db.execute({
-    sql: `UPDATE verify_domain_proofs SET status = ?, last_checked_at = ?, updated_at = ?
+    sql: `UPDATE verify_domain_proofs
+          SET status = CASE WHEN status = 'proven' THEN status ELSE ? END, last_checked_at = ?, updated_at = ?
           WHERE tenant_id = ? AND domain = ?`,
     args: [status, now, now, tenantId, domain],
   });
@@ -923,7 +1158,7 @@ export async function listProvenDomainsForMonitor(): Promise<ProvenDomainTarget[
 export async function getProvenAddressDestinations(tenantId: string, domain: string): Promise<Destination[]> {
   await ensureVerifyTables();
   const res = await db.execute({
-    sql: `SELECT id, kind, rail, value, label, display_hint, proof_method, proof_status, proof_domain, registered_at, proven_at, monitor_url, monitor_status, monitor_checked_at
+    sql: `SELECT ${DEST_COLS}
           FROM verify_destinations
           WHERE tenant_id = ? AND proof_domain = ? AND proof_status = 'proven' AND kind = 'address'`,
     args: [tenantId, domain],
@@ -932,28 +1167,49 @@ export async function getProvenAddressDestinations(tenantId: string, domain: str
 }
 
 /**
- * Flip specific destinations back to 'lapsed' (no longer vouched by the published
- * file). The dashboard then prompts a re-prove. Flipping them OUT of 'proven' also
- * dedups the alert — next run they're excluded from the expected set.
+ * A proven domain no longer vouches for these destinations (its file stopped validating, or
+ * stopped listing them). What that costs each one depends on how CONTROL was proven
+ * (decideAnchorLoss):
+ *  - well_known → 'lapsed': the file WAS the control proof. The dashboard prompts a re-prove,
+ *    and flipping it OUT of 'proven' also dedups the alert (next run excludes it).
+ *  - otherwise (self-send) → the domain anchor (and its confirmation) is cleared and control
+ *    stays proven, so the public level drops verified → claimed and the claim-once index
+ *    keeps holding the address.
+ *    Clearing proof_domain also drops it from this domain's next run (alert dedup).
+ * Tenant-scoped; each UPDATE re-checks the method and the anchor it acts on.
  */
-export async function markDestinationsLapsed(tenantId: string, ids: string[]): Promise<void> {
-  if (!ids.length) return;
+export async function releaseDomainAnchor(
+  tenantId: string,
+  domain: string,
+  dests: Pick<Destination, 'id' | 'proofMethod'>[],
+): Promise<void> {
+  if (!dests.length) return;
   await ensureVerifyTables();
   const now = nowUtc();
-  for (const id of ids) {
-    await db.execute({
-      sql: `UPDATE verify_destinations SET proof_status = 'lapsed', updated_at = ?
-            WHERE id = ? AND tenant_id = ?`,
-      args: [now, id, tenantId],
-    });
+  for (const d of dests) {
+    if (decideAnchorLoss(d.proofMethod) === 'lapse') {
+      await db.execute({
+        sql: `UPDATE verify_destinations SET proof_status = 'lapsed', updated_at = ?
+              WHERE id = ? AND tenant_id = ? AND proof_method = 'well_known' AND proof_domain = ?`,
+        args: [now, d.id, tenantId, domain],
+      });
+    } else {
+      await db.execute({
+        sql: `UPDATE verify_destinations
+              SET proof_domain = NULL, domain_anchored_at = NULL, last_confirmed_at = NULL, updated_at = ?
+              WHERE id = ? AND tenant_id = ? AND proof_method <> 'well_known' AND proof_domain = ?`,
+        args: [now, d.id, tenantId, domain],
+      });
+    }
   }
 }
 
 /**
  * Advance last_confirmed_at for destinations POSITIVELY re-confirmed this run — the domain
- * proof still vouches them (Pass B). Together with the 'present' path in recordMonitorResult
- * (Pass C), this is the ONLY writer of last_confirmed_at. A destination the watchman could not
- * confirm keeps its old timestamp and lapses 'verified'→'claimed' via the public max-stale TTL.
+ * proof still vouches them (Pass B). Together with the owner's own proof (recordProofResult)
+ * and, for payment links only, the 'present' path in recordMonitorResult (Pass C), this is the
+ * ONLY writer of last_confirmed_at. A destination the watchman could not confirm keeps its old
+ * timestamp and lapses 'verified'→'claimed' via the public max-stale TTL.
  */
 export async function markDestinationsConfirmed(tenantId: string, ids: string[]): Promise<void> {
   if (!ids.length) return;
@@ -966,6 +1222,54 @@ export async function markDestinationsConfirmed(tenantId: string, ids: string[])
       args: [now, now, id, tenantId],
     });
   }
+}
+
+export interface ListingRecheck {
+  /** Anchored here, but the file no longer lists them: released (the owner is alerted). */
+  missing: Destination[];
+  /** Listed, but held only through a legacy unbound claim (legacyHoldTest): released. */
+  legacyHeld: Destination[];
+  /** Listed and standing on a control proof of their own: re-confirmed. */
+  confirmed: string[];
+}
+
+/**
+ * Pass B, once a proven domain's file still validates: settle the addresses anchored to it
+ * (`proven`, from getProvenAddressDestinations) against the addresses the file lists now.
+ *  - Not listed any more → released (releaseDomainAnchor), for the caller to alert on.
+ *  - Listed, but this account holds the wallet only through a claim made under the old,
+ *    unbound self-send rule (the row itself, or a twin with no bound proof of its own) →
+ *    released too, never re-confirmed. The owner's proof refuses to anchor such a row
+ *    (decideAnchor), but one anchored before that refusal existed (a copy of a legacy claim,
+ *    file-flipped under the owner's own domain) would otherwise stay Verified for as long as
+ *    the file lists it. A file-proven copy lapses (the listing was its only proof); the
+ *    dashboard then offers it a proof of its own.
+ *  - Listed and standing on a proof of its own → re-confirmed (markDestinationsConfirmed).
+ * Matched on addressKey, as recordProofResult matched them. The legacy claims are read before
+ * anything is written: if they can't be read this throws, nothing is released or re-confirmed,
+ * and the anchors lapse to Claimed at the max-stale TTL (fail closed). Tenant-scoped.
+ */
+export async function recheckDomainListing(
+  tenantId: string,
+  domain: string,
+  proven: Destination[],
+  listedAddresses: string[],
+): Promise<ListingRecheck> {
+  await ensureVerifyTables();
+  const heldByLegacy = legacyHoldTest(proven.length ? await legacyClaims(tenantId) : []);
+  const listed = new Set(listedAddresses.map(addressKey).filter(Boolean));
+  const out: ListingRecheck = { missing: [], legacyHeld: [], confirmed: [] };
+  for (const p of proven) {
+    if (!listed.has(addressKey(p.value))) out.missing.push(p);
+    else if (heldByLegacy(p)) out.legacyHeld.push(p);
+    else out.confirmed.push(p.id);
+  }
+  await releaseDomainAnchor(tenantId, domain, [...out.missing, ...out.legacyHeld]);
+  if (out.legacyHeld.length) {
+    console.warn('[verify] listing released: held only through a legacy self-send claim:', out.legacyHeld.map((p) => p.id));
+  }
+  await markDestinationsConfirmed(tenantId, out.confirmed);
+  return out;
 }
 
 /** Whole-domain failure: flip the proof to 'failed' so it stops being monitored until re-proven. */
@@ -1114,6 +1418,17 @@ function isUniqueViolation(e: unknown): boolean {
 }
 
 /**
+ * Does this destination still need a satoshi test? An unproven one does, and so does a
+ * proven legacy unbound claim (legacyClaimSql): its owner takes the test again IN PLACE, so
+ * the row keeps its claim-once hold (and shows Claimed) the whole time. Removing it and
+ * adding it back would release the hold, and a re-added row could be claimed by a domain
+ * file before the test lands. Throws on a DB error (the caller fails closed).
+ */
+async function needsSelfSend(tenantId: string, dest: Destination): Promise<boolean> {
+  return dest.proofStatus !== 'proven' || await isLegacyClaim(tenantId, dest.id);
+}
+
+/**
  * The destination's current satoshi test, if it has a bound one that hasn't proven.
  * Read-only: opening the panel never issues an amount. Tenant-scoped.
  */
@@ -1122,7 +1437,7 @@ export async function getDepositChallenge(tenantId: string, destinationId: strin
   const dest = await getDestination(tenantId, destinationId);
   if (!dest) return { ok: false, error: 'not_found' };
   if (dest.kind !== 'address') return { ok: false, error: 'not_address' };
-  if (dest.proofStatus === 'proven') return { ok: true, challenge: null };
+  if (!(await needsSelfSend(tenantId, dest))) return { ok: true, challenge: null };
   const row = await readDepositChallenge(tenantId, destinationId);
   if (!isBound(row, dest.rail) || row.status === 'proven') return { ok: true, challenge: null };
   return { ok: true, challenge: challengeView(dest.rail, row, Date.now()) };
@@ -1191,8 +1506,9 @@ async function writeChallenge(
 }
 
 /**
- * Issue the satoshi test for an address destination. Called only on the merchant's
- * explicit "I'm ready to send", never when the panel opens. An unexpired pending test
+ * Issue the satoshi test for an address destination that still needs one (needsSelfSend:
+ * unproven, or a legacy unbound claim taking it again in place). Called only on the
+ * merchant's explicit "I'm ready to send", never when the panel opens. An unexpired pending test
  * is returned unchanged, so a second tap shows the same amount; an expired one is
  * replaced by a NEW amount. Tenant-scoped, and the result never contains an address to
  * send to.
@@ -1212,7 +1528,7 @@ export async function issueDepositChallenge(tenantId: string, destinationId: str
   const dest = await getDestination(tenantId, destinationId);
   if (!dest) return { ok: false, error: 'not_found' };
   if (dest.kind !== 'address') return { ok: false, error: 'not_address' };
-  if (dest.proofStatus === 'proven') return { ok: false, error: 'already_proven' };
+  if (!(await needsSelfSend(tenantId, dest))) return { ok: false, error: 'already_proven' };
   const spec = testAmountSpec(dest.rail);
   if (!spec) return { ok: false, error: 'unsupported_rail' };
 
@@ -1380,7 +1696,8 @@ async function provenByAnotherTenant(tenantId: string, rail: string, value: stri
 /**
  * Check the chain for the satoshi test (rule bound_v1): a self-send of exactly the
  * challenge's amount inside its window (see verifyDeposit.ts). When found, flip the
- * destination to proven. The flip passes through the claim-once guard (the partial
+ * destination to proven (a legacy unbound claim taking the test again in place is re-proven
+ * the same way; see needsSelfSend). The flip passes through the claim-once guard (the partial
  * unique index) and the S5a claim guard (canonical value, whatever the rail): if another
  * account already proved this address, we report 'claimed_elsewhere' rather than taking
  * it (in any letter case, too: see provenByAnotherTenant). A pre-binding challenge reports
@@ -1401,7 +1718,7 @@ export async function verifyMicroDeposit(
   const dest = await getDestination(tenantId, destinationId);
   if (!dest) return { outcome: 'not_found' };
   if (dest.kind !== 'address') return { outcome: 'not_address' };
-  if (dest.proofStatus === 'proven') return { outcome: 'already_proven' };
+  if (!(await needsSelfSend(tenantId, dest))) return { outcome: 'already_proven' };
 
   const ch = await readDepositChallenge(tenantId, destinationId);
   if (!isBound(ch, dest.rail) || ch.status === 'proven') return { outcome: 'no_challenge' };
@@ -1461,12 +1778,20 @@ export async function verifyMicroDeposit(
   }
 
   // Claim-once: the partial unique index rejects the flip if another account already
-  // proved this (rail, value). Catch and report rather than failing hard.
+  // proved this (rail, value). Catch and report rather than failing hard. A self-send
+  // proves control only, so any domain anchor (and its confirmation) left over from an
+  // earlier, now lapsed, file proof is cleared: only a fresh domain proof re-anchors it.
+  // This is a bound proof, so the row is no longer a legacy unbound claim (decideAnchor);
+  // on a legacy row taken again in place it replaces the old claim, and proven_at becomes
+  // the date control was actually shown. The WHERE re-checks that the row still needs it.
   try {
     await db.execute({
       sql: `UPDATE verify_destinations
-            SET proof_status = 'proven', proof_method = 'micro_deposit', proven_at = ?, updated_at = ?
-            WHERE id = ? AND tenant_id = ? AND proof_status <> 'proven'`,
+            SET proof_status = 'proven', proof_method = 'micro_deposit', proven_at = ?,
+                proof_domain = NULL, domain_anchored_at = NULL, last_confirmed_at = NULL,
+                legacy_unbound = false, updated_at = ?
+            WHERE id = ? AND tenant_id = ?
+              AND (proof_status <> 'proven' OR ${legacyClaimSql('verify_destinations')})`,
       args: [stamp, stamp, destinationId, tenantId],
     });
   } catch (e) {

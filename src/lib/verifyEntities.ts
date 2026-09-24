@@ -21,8 +21,9 @@ import {
   validateEntityEndpoint, pullEntityList, type EntityPullCode,
 } from './verifyProof';
 import { encryptSecret, decryptSecret, encryptionAvailable } from './verifyCrypto';
-import { normalizeDestinationValue, ensureVerifyTables } from './verifyRegistry';
+import { normalizeDestinationValue, addressKey, ensureVerifyTables } from './verifyRegistry';
 import { canPublishEntities, publishingTenantIds, ENTITY_NOT_APPROVED } from './verifyEntityAccess';
+import { merchantAddressAssurance } from './verifyAnchor';
 
 const nowUtc = (): string => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -313,7 +314,8 @@ export interface VerifiedAddressHit {
    *    prove control of their own address — so this is shown as caution, not endorsement.
    */
   level: 'claimed' | 'verified';
-  /** ISO datetime (UTC) the destination/entity was proven — the "verified/claimed since" date. Null if unknown. */
+  /** ISO datetime (UTC) behind the level — the "verified/claimed since" date. For 'verified' it is
+   *  when the domain anchor was attached; for 'claimed', when control was proven. Null if unknown. */
   since: string | null;
   /** Publishing domain (entity path), or null for a merchant self-listing. */
   domain: string | null;
@@ -374,37 +376,66 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     };
   }
 
-  // 2) Proven merchant destinations (self-send / domain proof). Claim-once guarantees at
-  //    most one account can prove a given (rail, value), so the match is unambiguous. We
-  //    expose only the merchant's OWN self-chosen label — never tenant_id or any identity.
+  // 2) Proven merchant destinations (self-send / domain proof). Claim-once (the index, and the
+  //    canonical claim guard on every flip and anchor) lets only one account prove a wallet, so
+  //    the match is normally one account. We expose only the merchant's OWN self-chosen label —
+  //    never tenant_id or any identity.
+  //    Matched on addressKey, the key the claim guard uses: an EVM or segwit address in any
+  //    letter case is one wallet ('BC1Q…', the QR form, is 'bc1q…'); base58 stays exact. The SQL
+  //    finds every case spelling (lower(value) = key) and the key compare in code decides.
+  const key = addressKey(rawValue);
   await ensureVerifyTables();
   const dest = await db.execute({
-    sql: `SELECT tenant_id, rail, value, label, proof_domain, proven_at, last_confirmed_at FROM verify_destinations
-          WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)`,
-    args: [normalized, normalized],
+    sql: `SELECT tenant_id, rail, value, label, proof_method, proof_domain, proven_at, domain_anchored_at, last_confirmed_at FROM verify_destinations
+          WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)
+          ORDER BY proven_at ASC, id ASC`,
+    args: [key, key],
   });
-  const hit = (dest.rows as any[]).find((r) => normalizeDestinationValue(String(r.value)) === normalized);
-  if (hit) {
+  const matches = (dest.rows as any[]).filter((r) => addressKey(String(r.value)) === key);
+  if (matches.length) {
+    // Fail-closed freshness: 'verified' also requires the anchor to have been POSITIVELY
+    // re-confirmed by a domain proof within the max-stale window (Pass B still finds it in the
+    // domain's file, or the owner proved the domain again; a published-page check never counts
+    // for an address, see recordMonitorResult). If it has gone stale (file unreachable or
+    // gone, or the monitor cron stalled), degrade verified→claimed: keep the proven-control
+    // fact, drop the current-confirmation claim.
+    // Under-claim, never over-claim — the same rule the entity mirror already enforces.
+    // "Since" follows the level: a 'verified' address is as old as its domain anchor, never
+    // its (possibly older) self-send proof — see merchantAddressAssurance.
+    const str = (v: unknown): string | null => (v ? String(v) : null);
+    const cutoff = staleCutoffUtc();
+    const rate = (r: any) => merchantAddressAssurance({
+      proofMethod: String(r.proof_method ?? ''),
+      proofDomain: str(r.proof_domain),
+      provenAt: str(r.proven_at),
+      domainAnchoredAt: str(r.domain_anchored_at),
+      lastConfirmedAt: str(r.last_confirmed_at),
+    }, cutoff);
+    // The answer is the earliest-proven account's (the claim-once holder), in a fixed order so
+    // identical calls give identical answers. Within that account, its own rows for the same
+    // wallet (another rail, case or URI wrapping) are all its claim: a Verified one answers.
+    // Rows from two accounts are a claim the guard would not allow today (proven before it
+    // existed): nothing can say whose domain stands behind the wallet, so no row lifts it to
+    // Verified and no listing domain is shown.
+    const holder = String(matches[0].tenant_id);
+    const ambiguous = matches.some((r) => String(r.tenant_id) !== holder);
+    const own = matches.filter((r) => String(r.tenant_id) === holder);
+    const hit = ambiguous ? own[0] : (own.find((r) => rate(r).level === 'verified') ?? own[0]);
+    const { level, since } = ambiguous
+      ? { level: 'claimed' as const, since: str(hit.proven_at) }
+      : rate(hit);
     // Prefer the tenant's domain-verified business name (+ its anchor domain) over the
     // freeform label. We expose only the public name + domain — never tenant_id or any key.
-    const vn = await verifiedNameForTenant(String(hit.tenant_id));
+    const vn = await verifiedNameForTenant(holder);
     // Verified iff THIS address is anchored to a proven domain (proof_domain set) — a
     // swapped address on a spoofed page would then fail the comparison. Control-only
     // proof (micro-deposit, no proof_domain) is Claimed, even if the operating business
     // is otherwise domain-known: the address itself isn't published anywhere to swap-check.
-    const publishedDomain = hit.proof_domain ? String(hit.proof_domain) : null;
-    // Fail-closed freshness: 'verified' also requires the watchman to have POSITIVELY
-    // re-confirmed the anchor within the max-stale window (Pass B still vouches it, or Pass C
-    // still finds it published — both advance last_confirmed_at). If it has gone stale (source
-    // unreachable, the value now rendered by JS, or the monitor cron stalled), degrade
-    // verified→claimed: keep the proven-control fact, drop the current-confirmation claim.
-    // Under-claim, never over-claim — the same rule the entity mirror already enforces.
-    const confirmedAt = hit.last_confirmed_at ? String(hit.last_confirmed_at) : (hit.proven_at ? String(hit.proven_at) : null);
-    const fresh = confirmedAt !== null && confirmedAt >= staleCutoffUtc();
+    const publishedDomain = !ambiguous && hit.proof_domain ? String(hit.proof_domain) : null;
     return {
       source: 'merchant',
-      level: publishedDomain && fresh ? 'verified' : 'claimed',
-      since: hit.proven_at ? String(hit.proven_at) : null,
+      level,
+      since,
       domain: vn?.domain ?? publishedDomain,
       label: vn?.name ?? (hit.label ? String(hit.label) : null),
       chain: String(hit.rail),

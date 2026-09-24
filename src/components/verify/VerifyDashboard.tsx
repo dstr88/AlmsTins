@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import jsQR from 'jsqr';
 import { decodeQrFromImageFile } from '../../lib/qrScan';
+import { hasAnchor } from '../../lib/verifyAnchor';
 import type { VerifyDashboardLocale } from '../../i18n/dashboard/verify';
 import './VerifyDashboard.css';
 
@@ -14,11 +15,17 @@ interface Destination {
   label: string | null;
   displayHint: string | null;
   proofStatus: ProofStatus;
+  proofMethod: string;
   proofDomain: string | null;
+  domainAnchoredAt: string | null;
+  provenAt: string | null;
   registeredAt: string;
   monitorUrl: string | null;
   monitorStatus: string | null;
   monitorCheckedAt: string | null;
+  /** The claim was made under the old self-send check: the satoshi test must be taken again
+   *  (on this row) before a domain can verify it. The account's own view only. */
+  needsReproof?: boolean;
 }
 
 const ADDRESS_RAILS = ['ethereum', 'polygon', 'avalanche', 'bitcoin', 'solana', 'litecoin'];
@@ -38,11 +45,12 @@ function short(v: string): string {
 }
 
 // Localized three-tier badge label. The raw status still drives the CSS class.
-// Registered (unproven) → Claimed (proven, control only) → Verified (proven + domain).
-function statusLabel(s: ProofStatus, proofDomain: string | null, t: VerifyDashboardLocale): string {
+// Registered (unproven) → Claimed (proven, control only) → Verified (proven + domain anchor,
+// by the same rule as the public lookup: hasAnchor).
+function statusLabel(s: ProofStatus, anchored: boolean, t: VerifyDashboardLocale): string {
   if (s === 'lapsed') return t.statusLapsed;
   if (s === 'revoked') return t.statusRevoked;
-  if (s === 'proven') return proofDomain ? t.statusProven : t.statusClaimed;
+  if (s === 'proven') return anchored ? t.statusProven : t.statusClaimed;
   return t.statusRegistered; // unproven = asserted, no proof yet
 }
 
@@ -479,8 +487,15 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
     }).catch(() => {});
   }
   // Domain attestation proves a domain vouches for an address — only meaningful for
-  // address destinations, and only until one is proven.
-  const canProve = d.kind === 'address' && d.proofStatus !== 'proven';
+  // address destinations, until one is proven AND anchored to a domain. A wallet proven by
+  // self-send (Claimed) can still be listed in the domain file to become Verified, unless its
+  // claim was made under the old self-send check: then it takes the satoshi test again first,
+  // on this same row (it stays Claimed meanwhile).
+  const anchored = hasAnchor(d);
+  const reprove = d.kind === 'address' && d.proofStatus === 'proven' && !!d.needsReproof;
+  const canAnchor = d.kind === 'address' && d.proofStatus === 'proven' && !anchored && !reprove;
+  const canProve = d.kind === 'address' && (d.proofStatus !== 'proven' || !anchored);
+  const proveMode: ProveMode = reprove ? 'reprove' : canAnchor ? 'anchor' : 'prove';
   // A proven address can show its shareable QR badge.
   const canBadge = d.kind === 'address' && d.proofStatus === 'proven';
   // Any proven destination can be watched on its published page for a swap.
@@ -512,11 +527,11 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
         </button>
         <span
           className={`vd-badge vd-badge--${d.proofStatus}`}
-          title={d.proofStatus === 'proven' && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
-        >{statusLabel(d.proofStatus, d.proofDomain, t)}</span>
+          title={d.proofStatus === 'proven' && anchored && d.proofDomain ? t.provenBy.replace('{domain}', d.proofDomain) : undefined}
+        >{statusLabel(d.proofStatus, anchored, t)}</span>
         {canProve && (
           <button className="vd-row__prove" onClick={() => setProving(p => !p)} aria-expanded={proving}>
-            {t.proveBtn}
+            {proveMode === 'reprove' ? t.reproveBtn : proveMode === 'anchor' ? t.anchorBtn : t.proveBtn}
           </button>
         )}
         {canPayQr && (
@@ -544,7 +559,7 @@ function DestRow({ d, onChange, t, isDemo }: { d: Destination; onChange: () => v
       {proving && canProve && (
         isDemo
           ? <div className="vd-prove"><p className="vd-prove__hint">{t.demoProveNote}</p></div>
-          : <ProvePanel d={d} t={t} onProven={() => { setProving(false); onChange(); }} />
+          : <ProvePanel d={d} t={t} mode={proveMode} onProven={() => { setProving(false); onChange(); }} />
       )}
       {showPay && canPayQr && <PaymentQr d={d} t={t} />}
       {showBadge && canBadge && <QrBadge d={d} t={t} />}
@@ -891,9 +906,19 @@ function SelfSendProof({ d, t, onProven }: { d: Destination; t: VerifyDashboardL
 // "Prove ownership" — two methods. The satoshi test (no website): the merchant sends an
 // exact amount from the address back to itself. Domain: the owner publishes a
 // /.well-known file we fetch and match. Proof is per-address (self-send) or per-domain
-// (the file covers every address it lists).
-function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLocale; onProven: () => void }) {
-  const [method, setMethod] = useState<'selfsend' | 'domain'>('selfsend');
+// (the file covers every address it lists). Modes:
+//  - 'prove':   an unproven address, both methods.
+//  - 'anchor':  the Claimed → Verified step for an address already proven by self-send: only
+//               the file can anchor it, so there is no self-send tab and no DNS alternative
+//               (DNS carries no address list).
+//  - 'reprove': a claim made under the old self-send check. Only the satoshi test, taken again
+//               on this row (it keeps its claim and stays Claimed meanwhile); then 'anchor'.
+type ProveMode = 'prove' | 'anchor' | 'reprove';
+function ProvePanel({ d, t, onProven, mode = 'prove' }: {
+  d: Destination; t: VerifyDashboardLocale; onProven: () => void; mode?: ProveMode;
+}) {
+  const domainOnly = mode === 'anchor';
+  const [method, setMethod] = useState<'selfsend' | 'domain'>(domainOnly ? 'domain' : 'selfsend');
   const [domain, setDomain] = useState('');
   const [file, setFile] = useState<{ path: string; file: string } | null>(null);
   const [challenge, setChallenge] = useState('');
@@ -902,11 +927,13 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
 
   // Map a prove-endpoint outcome code → localized copy.
   const proofString = (code: string): string => ({
-    proven: t.proofProven,
+    proven: domainOnly ? t.proofAnchored : t.proofProven,
     name_attached: t.proofNameAttached,
+    anchored_other_domain: t.proofOtherDomain,
+    claimed_elsewhere: t.ssClaimedElsewhere,
+    reprove_required: t.proofReproveRequired,
     challenge_mismatch: t.proofChallengeMismatch,
     address_not_listed: t.proofAddressNotListed,
-    claimed_elsewhere: t.ssClaimedElsewhere,
     unreachable: t.proofUnreachable,
     malformed: t.proofMalformed,
     invalid_domain: t.proofInvalidDomain,
@@ -934,10 +961,11 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
     setBusy(true); setOutcome(null);
     try {
       const res = await fetch(`/api/verify/destinations/${encodeURIComponent(d.id)}/prove`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ domain: domain.trim() }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(domainOnly ? { domain: domain.trim(), method: 'file' } : { domain: domain.trim() }),
       });
       const data = await res.json();
-      const ok = data.outcome === 'proven' || data.outcome === 'name_attached';
+      const ok = data.outcome === 'proven' || (!domainOnly && data.outcome === 'name_attached');
       setOutcome({ text: data.ok ? proofString(data.outcome) : t.proveError, ok });
       if (ok) setTimeout(onProven, 1400); // let the success show, then refresh the list
     } catch {
@@ -947,19 +975,30 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
 
   const url = `https://${domain.trim() || 'yourdomain.com'}${file?.path ?? ''}`;
 
+  if (mode === 'reprove') {
+    return (
+      <div className="vd-prove">
+        <p className="vd-prove__hint">{t.reproveHint}</p>
+        <SelfSendProof d={d} t={t} onProven={onProven} />
+      </div>
+    );
+  }
+
   return (
     <div className="vd-prove">
-      <div className="vd-prove__methods">
-        <button type="button" className={`vd-prove__method${method === 'selfsend' ? ' vd-prove__method--on' : ''}`}
-          onClick={() => setMethod('selfsend')}>{t.proveMethodSelfSend}</button>
-        <button type="button" className={`vd-prove__method${method === 'domain' ? ' vd-prove__method--on' : ''}`}
-          onClick={() => setMethod('domain')}>{t.proveMethodDomain}</button>
-      </div>
+      {!domainOnly && (
+        <div className="vd-prove__methods">
+          <button type="button" className={`vd-prove__method${method === 'selfsend' ? ' vd-prove__method--on' : ''}`}
+            onClick={() => setMethod('selfsend')}>{t.proveMethodSelfSend}</button>
+          <button type="button" className={`vd-prove__method${method === 'domain' ? ' vd-prove__method--on' : ''}`}
+            onClick={() => setMethod('domain')}>{t.proveMethodDomain}</button>
+        </div>
+      )}
       {method === 'selfsend' ? (
         <SelfSendProof d={d} t={t} onProven={onProven} />
       ) : (
         <>
-          <p className="vd-prove__hint">{t.proveHint}</p>
+          <p className="vd-prove__hint">{domainOnly ? t.anchorHint : t.proveHint}</p>
           <div className="vd-prove__row">
             <input className="vd-prove__input" value={domain} onChange={(e) => setDomain(e.target.value)}
               placeholder={t.proveDomainPlaceholder} spellCheck={false} autoComplete="off" />
@@ -972,7 +1011,7 @@ function ProvePanel({ d, t, onProven }: { d: Destination; t: VerifyDashboardLoca
               <div className="vd-prove__row">
                 <button className="vd-prove__copy" onClick={() => { void navigator.clipboard?.writeText(file.file); }}>{t.proveCopyBtn}</button>
               </div>
-              {challenge && (
+              {challenge && !domainOnly && (
                 <>
                   <p className="vd-prove__steps">{t.proveDnsOr}</p>
                   <p className="vd-prove__hint">{t.proveDnsStep}</p>

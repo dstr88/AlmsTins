@@ -8,7 +8,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  *   - no account can use up an address's 9,000 amounts and lock the owner out;
  *   - BTC/LTC tests carry the issuance baseline, and none is issued without it;
  *   - the 2h post-expiry grace is reachable: a miss in it is 'checking_late', not final;
- *   - claim-once holds across letter case.
+ *   - claim-once holds across letter case;
+ *   - a claim made under the old, unbound rule takes the test again IN PLACE, keeping its hold.
  */
 
 // No database: '@/lib/db' is a small in-memory stand-in that answers exactly the statements
@@ -25,10 +26,24 @@ const mem = vi.hoisted(() => ({
 
 const uniqueViolation = () => Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
 
+/** The live legacy rule (legacyClaimSql), as the SQL spells it for a table alias. */
+const legacySql = (t: string) =>
+  `(${t}.legacy_unbound = true OR (${t}.proof_method = 'micro_deposit' AND NOT EXISTS ( SELECT 1 FROM verify_deposit_challenges c WHERE c.destination_id = ${t}.id AND c.tenant_id = ${t}.tenant_id AND c.rule = 'bound_v1' AND c.status = 'proven')))`;
+/** The same rule over the in-memory tables. */
+const isLegacy = (d: Row) => d.legacy_unbound === true || (d.proof_method === 'micro_deposit'
+  && !mem.challenges.some((c) => c.destination_id === d.id && c.tenant_id === d.tenant_id && c.rule === 'bound_v1' && c.status === 'proven'));
+
 function run(sqlIn: string, args: any[] = []): { rows: Row[]; rowsAffected: number } {
   const sql = sqlIn.replace(/\s+/g, ' ').trim();
   const none = { rows: [], rowsAffected: 0 };
-  if (/^(CREATE|ALTER) /.test(sql) || /^UPDATE verify_destinations d SET legacy_unbound/.test(sql)) return none;
+  // Schema and the cold-start backfills (ensureVerifyTables).
+  if (/^(CREATE|ALTER) /.test(sql) || /^UPDATE verify_destinations d SET legacy_unbound/.test(sql)
+    || /^UPDATE verify_destinations SET (domain_anchored_at = proven_at|proof_domain = NULL, last_confirmed_at = NULL) WHERE/.test(sql)) return none;
+
+  // One destination's legacy check (isLegacyClaim).
+  if (sql === `SELECT 1 FROM verify_destinations d WHERE d.id = ? AND d.tenant_id = ? AND d.proof_status = 'proven' AND ${legacySql('d')} LIMIT 1`) {
+    return { rows: mem.dests.filter((d) => d.id === args[0] && d.tenant_id === args[1] && d.proof_status === 'proven' && isLegacy(d)), rowsAffected: 0 };
+  }
 
   if (/^SELECT id, kind, rail, value, .* FROM verify_destinations WHERE id = \? AND tenant_id = \?$/.test(sql)) {
     const [id, tenant] = args;
@@ -121,12 +136,17 @@ function run(sqlIn: string, args: any[] = []): { rows: Row[]; rowsAffected: numb
   }
   if (/^UPDATE verify_destinations SET proof_status = 'proven', proof_method = 'micro_deposit'/.test(sql)) {
     const [stamp, , id, tenant] = args;
-    const d = mem.dests.find((x) => x.id === id && x.tenant_id === tenant && x.proof_status !== 'proven');
+    // Unproven, or (the WHERE says so) a proven legacy claim taking the test again in place.
+    const inPlace = sql.endsWith(`AND (proof_status <> 'proven' OR ${legacySql('verify_destinations')})`);
+    const d = mem.dests.find((x) => x.id === id && x.tenant_id === tenant && (x.proof_status !== 'proven' || (inPlace && isLegacy(x))));
     if (!d) return none;
     // Claim-once index: (rail, value) WHERE proven AND kind = 'address', raw value.
     if (mem.dests.some((x) => x !== d && x.kind === 'address' && x.proof_status === 'proven'
         && x.rail === d.rail && x.value === d.value)) throw uniqueViolation();
-    Object.assign(d, { proof_status: 'proven', proof_method: 'micro_deposit', proven_at: stamp });
+    Object.assign(d, {
+      proof_status: 'proven', proof_method: 'micro_deposit', proven_at: stamp,
+      proof_domain: null, domain_anchored_at: null, last_confirmed_at: null, legacy_unbound: false,
+    });
     return { rows: [], rowsAffected: 1 };
   }
   if (/^UPDATE verify_deposit_challenges SET status = 'proven'/.test(sql)) {
@@ -435,5 +455,81 @@ describe('satoshi test check: claim-once across letter case', () => {
     chain.detect.mockResolvedValue({ found: true, ref: 'x' });
     vi.setSystemTime(T0 + 60_000);
     expect(await verifyMicroDeposit('owner', d)).toEqual({ outcome: 'proven', ref: 'x' });
+  });
+});
+
+describe('a claim made under the old, unbound rule takes the test again in place', () => {
+  /** A wallet proven under the old rule: tagged, with its old (unbound) challenge row. */
+  function legacyDest(tenant: string, rail: string, value: string, o: Row = {}): string {
+    const id = addDest(tenant, rail, value, {
+      proof_status: 'proven', proof_method: 'micro_deposit', proven_at: stamp(T0 - 90 * 24 * H), legacy_unbound: true, ...o,
+    });
+    mem.challenges.push({
+      id: `old-${id}`, destination_id: id, tenant_id: tenant, status: 'proven', issued_at: stamp(T0 - 91 * 24 * H),
+      expires_at: null, expected_amount: null, unit: null, canonical_address: canonicalAddress(rail, value),
+      rule: null, attempts: 1, last_outcome: 'proven', last_checked_at: null, baseline: null,
+    });
+    return id;
+  }
+  const dest = (id: string) => mem.dests.find((d) => d.id === id)!;
+
+  it('issues a bound test on the same row; the row keeps its claim-once hold while it is pending', async () => {
+    const d = legacyDest('owner', 'bitcoin', BTC);
+    expect((await getDepositChallenge('owner', d))).toEqual({ ok: true, challenge: null }); // the old test is not bound
+    const ch = await issueOk('owner', d);
+    expect(mem.challenges).toHaveLength(1); // the old, unbound row was replaced
+    expect(mem.challenges[0]).toMatchObject({ rule: 'bound_v1', status: 'pending', expected_amount: ch.baseAmount });
+    expect(dest(d)).toMatchObject({ proof_status: 'proven', legacy_unbound: true });
+    expect((await getDepositChallenge('owner', d)).ok && (await getDepositChallenge('owner', d) as any).challenge?.baseAmount).toBe(ch.baseAmount);
+
+    // Meanwhile nobody else can take the wallet: it is still proven by this account.
+    const squat = addDest('squatter', 'bitcoin', BTC);
+    await issueOk('squatter', squat);
+    chain.detect.mockResolvedValue({ found: true, ref: 'x' });
+    vi.setSystemTime(T0 + 60_000);
+    expect(await verifyMicroDeposit('squatter', squat)).toEqual({ outcome: 'claimed_elsewhere' });
+  });
+
+  it('a found test re-proves it: new proven_at, tag cleared, and it is no longer offered the test', async () => {
+    const d = legacyDest('owner', 'ethereum', EVM);
+    await issueOk('owner', d);
+    chain.detect.mockResolvedValue({ found: true, ref: '0xbound' });
+    vi.setSystemTime(T0 + 60_000);
+    expect(await verifyMicroDeposit('owner', d)).toEqual({ outcome: 'proven', ref: '0xbound' });
+    expect(dest(d)).toMatchObject({ proof_status: 'proven', proof_method: 'micro_deposit', legacy_unbound: false, proven_at: stamp(T0 + 60_000) });
+    expect(mem.challenges[0]).toMatchObject({ rule: 'bound_v1', status: 'proven' });
+    expect(await issueDepositChallenge('owner', d)).toEqual({ ok: false, error: 'already_proven' });
+    expect(await verifyMicroDeposit('owner', d)).toEqual({ outcome: 'already_proven' });
+  });
+
+  it('a miss changes nothing: the row stays a proven legacy claim', async () => {
+    const d = legacyDest('owner', 'ethereum', EVM);
+    await issueOk('owner', d);
+    chain.detect.mockResolvedValue({ found: false, reason: 'not_yet' });
+    vi.setSystemTime(T0 + 60_000);
+    expect(await verifyMicroDeposit('owner', d)).toEqual({ outcome: 'not_yet' });
+    expect(dest(d)).toMatchObject({ proof_status: 'proven', legacy_unbound: true });
+  });
+
+  it('an untagged claim the backfill never reached counts too (no bound test ever proved it)', async () => {
+    const d = legacyDest('owner', 'ethereum', EVM, { legacy_unbound: false });
+    expect((await issueDepositChallenge('owner', d)).ok).toBe(true);
+    // ...and a PENDING bound test does not make it bound: only a proved one does.
+    chain.detect.mockResolvedValue({ found: false, reason: 'not_yet' });
+    vi.setSystemTime(T0 + 60_000);
+    expect(await verifyMicroDeposit('owner', d)).toEqual({ outcome: 'not_yet' });
+    chain.detect.mockResolvedValue({ found: true, ref: '0xbound' });
+    vi.setSystemTime(T0 + 120_000);
+    expect(await verifyMicroDeposit('owner', d)).toEqual({ outcome: 'proven', ref: '0xbound' });
+  });
+
+  it('a bound claim is never offered the test again', async () => {
+    const d = addDest('owner', 'ethereum', EVM);
+    await issueOk('owner', d);
+    chain.detect.mockResolvedValue({ found: true, ref: '0xbound' });
+    vi.setSystemTime(T0 + 60_000);
+    expect(await verifyMicroDeposit('owner', d)).toEqual({ outcome: 'proven', ref: '0xbound' });
+    expect(await issueDepositChallenge('owner', d)).toEqual({ ok: false, error: 'already_proven' });
+    expect(await getDepositChallenge('owner', d)).toEqual({ ok: true, challenge: null });
   });
 });

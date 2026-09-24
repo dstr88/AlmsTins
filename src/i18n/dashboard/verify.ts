@@ -109,6 +109,19 @@ export interface VerifyDashboardLocale {
   proveVerifyBtn: string;
   proveVerifyingBtn: string;
   proveError: string;
+  // Level 1 → Level 2: add a domain to an address already proven by self-send (Claimed →
+  // Verified). Only the published file can do it, so the panel opens on the domain method.
+  anchorBtn: string;
+  anchorHint: string;
+  proofAnchored: string;
+  proofOtherDomain: string;
+  // The wallet's claim was made under the old self-send check (any outgoing transaction
+  // counted), so no domain can verify it until the satoshi test proves it again. The owner
+  // takes the test again on the same row ("Prove again"); it stays Claimed meanwhile. Copy
+  // never tells them to remove the wallet: that would release the claim.
+  proofReproveRequired: string;
+  reproveBtn: string;
+  reproveHint: string;
   // Self-send proof of control: the satoshi test (rule bound_v1). The merchant sends an
   // exact amount FROM their address TO the same address. Copy never shows an address to
   // send to: only the first 6 / last 4 of their own, to check against their wallet.
@@ -296,6 +309,13 @@ export const en: VerifyDashboardLocale = {
   proveVerifyBtn: 'Verify now',
   proveVerifyingBtn: 'Verifying…',
   proveError: 'Something went wrong. Try again.',
+  anchorBtn: 'Verify domain',
+  anchorHint: 'Your self-send proved you control this wallet, so it shows as Claimed. To show it as Verified, list it in your domain’s verification file: enter your domain, publish the file we give you, then verify. If the file stops listing it later, it goes back to Claimed.',
+  proofAnchored: '✓ Verified. Your domain’s file lists this address, so scans now show it with your domain.',
+  proofOtherDomain: '⚠ This address is already verified through a different domain. To move it, remove it from that domain’s file first, then verify here again after our next check.',
+  proofReproveRequired: '⚠ This wallet was claimed with our earlier self-send check, which didn’t ask for an exact amount, so no domain can verify it yet. Take the satoshi test on it once, with “Prove again” on its row. It stays Claimed while you do. Your domain file stays valid, so verify the domain again after that.',
+  reproveBtn: 'Prove again',
+  reproveHint: 'This wallet was claimed with our earlier self-send check, which didn’t ask for an exact amount. Before a domain can verify it, take the satoshi test on it once. It stays Claimed while you do.',
   proveMethodSelfSend: 'Satoshi test (self-send)',
   proveMethodDomain: 'Domain',
   ssIntro: 'Claim this address with the satoshi test (a self-send). From your own wallet app, you send a tiny, exact amount from this address back to itself. The coins stay in your wallet, and you pay only the normal network fee. When you tap below, we give you the exact amount. It is valid for 24 hours.',
@@ -406,7 +426,7 @@ export const en: VerifyDashboardLocale = {
   howToCustomerTitle: 'What your customers see',
   howToCustomerSteps: [
     'Your customer scans the QR or address on your sign, invoice, or checkout.',
-    'If it matches a destination you’ve proven, they see ✓ Verified with your verified domain (and your business name, when it matches that domain) once your domain is proven. Until then they see Claimed, with no name. The label you type isn’t shown on the scan card.',
+    'If it matches a destination you’ve proven, they see ✓ Verified with your verified domain (and your business name, when it matches that domain): a payment link once your domain is proven, an address once your domain’s verification file lists it. Until then they see Claimed, with no name. The label you type isn’t shown on the scan card.',
     'If your QR was swapped for someone else’s address, it shows ⚠ Not a verified destination, a warning to hold off before paying a scammer.',
     'Every scan also runs a free safety screen — scam, sanctions, and honeypot lists for an address; phishing and scam-site lists for a payment link — flagging a dangerous destination even if it isn’t yours.',
   ],
@@ -495,6 +515,13 @@ export const es: VerifyDashboardLocale = {
   proveVerifyBtn: 'Verificar ahora',
   proveVerifyingBtn: 'Verificando…',
   proveError: 'Algo salió mal. Inténtalo de nuevo.',
+  anchorBtn: 'Verificar dominio',
+  anchorHint: 'Tu autoenvío demostró que controlas esta billetera, así que aparece como «Control confirmado». Para que aparezca como «Verificado», inclúyela en el archivo de verificación de tu dominio: escribe tu dominio, publica el archivo que te damos y luego verifica. Si el archivo deja de incluirla, vuelve a «Control confirmado».',
+  proofAnchored: '✓ Verificada. El archivo de tu dominio incluye esta dirección, así que los escaneos ahora la muestran con tu dominio.',
+  proofOtherDomain: '⚠ Esta dirección ya está verificada con otro dominio. Para moverla, quítala primero del archivo de ese dominio y vuelve a verificar aquí después de nuestra próxima comprobación.',
+  proofReproveRequired: '⚠ Esta billetera se reclamó con nuestra comprobación de autoenvío anterior, que no pedía una cantidad exacta, así que ningún dominio puede verificarla todavía. Haz una vez la prueba del satoshi con ella, con «Volver a demostrar» en su fila. Mientras tanto sigue en «Control confirmado». El archivo de tu dominio sigue siendo válido, así que después vuelve a verificar el dominio.',
+  reproveBtn: 'Volver a demostrar',
+  reproveHint: 'Esta billetera se reclamó con nuestra comprobación de autoenvío anterior, que no pedía una cantidad exacta. Antes de que un dominio pueda verificarla, haz una vez la prueba del satoshi con ella. Mientras tanto sigue en «Control confirmado».',
   proveMethodSelfSend: 'Prueba del satoshi (autoenvío)',
   proveMethodDomain: 'Dominio',
   ssIntro: 'Reclama esta dirección con la prueba del satoshi (un autoenvío). Desde tu propia app de billetera, envías una cantidad pequeña y exacta desde esta dirección a sí misma. Las monedas se quedan en tu billetera y solo pagas la comisión normal de la red. Cuando toques abajo, te daremos la cantidad exacta. Es válida por 24 horas.',
@@ -605,7 +632,7 @@ export const es: VerifyDashboardLocale = {
   howToCustomerTitle: 'Lo que ven tus clientes',
   howToCustomerSteps: [
     'Tu cliente escanea el QR o la dirección de tu letrero, factura o checkout.',
-    'Si coincide con un destino que demostraste, ve ✓ Verificada con tu dominio verificado (y el nombre de tu negocio, cuando coincide con ese dominio) cuando tu dominio quede demostrado. Hasta entonces ve Reclamada, sin nombre. La etiqueta que escribes no se muestra en la tarjeta del escaneo.',
+    'Si coincide con un destino que demostraste, ve ✓ Verificada con tu dominio verificado (y el nombre de tu negocio, cuando coincide con ese dominio): un enlace de pago cuando tu dominio quede demostrado, y una dirección cuando el archivo de verificación de tu dominio la incluya. Hasta entonces ve Reclamada, sin nombre. La etiqueta que escribes no se muestra en la tarjeta del escaneo.',
     'Si sustituyeron tu QR por otra dirección, muestra ⚠ Destino no verificado, una advertencia para esperar antes de pagarle a un estafador.',
     'Cada escaneo también corre un chequeo de seguridad gratuito — listas de estafas, sanciones y honeypots para una dirección; listas de phishing y sitios fraudulentos para un enlace de pago — marcando un destino peligroso aunque no sea tuyo.',
   ],
@@ -694,6 +721,13 @@ export const fr: VerifyDashboardLocale = {
   proveVerifyBtn: 'Vérifier maintenant',
   proveVerifyingBtn: 'Vérification…',
   proveError: 'Une erreur s’est produite. Réessayez.',
+  anchorBtn: 'Vérifier le domaine',
+  anchorHint: 'Votre auto-envoi a prouvé que vous contrôlez ce portefeuille, il apparaît donc comme « Contrôle confirmé ». Pour qu’il apparaisse comme « Vérifié », listez-le dans le fichier de vérification de votre domaine : saisissez votre domaine, publiez le fichier que nous vous donnons, puis vérifiez. Si le fichier cesse de le lister, il repasse en « Contrôle confirmé ».',
+  proofAnchored: '✓ Vérifié. Le fichier de votre domaine liste cette adresse, les scans l’affichent donc maintenant avec votre domaine.',
+  proofOtherDomain: '⚠ Cette adresse est déjà vérifiée via un autre domaine. Pour la déplacer, retirez-la d’abord du fichier de ce domaine, puis revérifiez ici après notre prochain contrôle.',
+  proofReproveRequired: '⚠ Ce portefeuille a été revendiqué avec notre ancienne vérification par auto-envoi, qui ne demandait pas de montant exact : aucun domaine ne peut donc encore le vérifier. Faites une fois le test du satoshi avec lui, avec « Prouver de nouveau » sur sa ligne. Il reste en « Contrôle confirmé » pendant ce temps. Le fichier de votre domaine reste valable : revérifiez ensuite le domaine.',
+  reproveBtn: 'Prouver de nouveau',
+  reproveHint: 'Ce portefeuille a été revendiqué avec notre ancienne vérification par auto-envoi, qui ne demandait pas de montant exact. Avant qu’un domaine puisse le vérifier, faites une fois le test du satoshi avec lui. Il reste en « Contrôle confirmé » pendant ce temps.',
   proveMethodSelfSend: 'Test du satoshi (auto-envoi)',
   proveMethodDomain: 'Domaine',
   ssIntro: 'Revendiquez cette adresse avec le test du satoshi (un auto-envoi). Depuis votre propre application de portefeuille, vous envoyez un petit montant exact de cette adresse vers elle-même. Les fonds restent dans votre portefeuille et vous ne payez que les frais de réseau habituels. Quand vous appuyez ci-dessous, nous vous donnons le montant exact. Il est valable 24 heures.',
@@ -804,7 +838,7 @@ export const fr: VerifyDashboardLocale = {
   howToCustomerTitle: 'Ce que voient vos clients',
   howToCustomerSteps: [
     'Votre client scanne le QR ou l’adresse sur votre panneau, facture ou page de paiement.',
-    'Si cela correspond à une destination que vous avez prouvée, il voit ✓ Vérifiée avec votre domaine vérifié (et le nom de votre entreprise, s’il correspond à ce domaine) une fois votre domaine prouvé. D’ici là, il voit Revendiquée, sans nom. Le libellé que vous saisissez n’apparaît pas sur la carte du scan.',
+    'Si cela correspond à une destination que vous avez prouvée, il voit ✓ Vérifiée avec votre domaine vérifié (et le nom de votre entreprise, s’il correspond à ce domaine) : un lien de paiement une fois votre domaine prouvé, une adresse une fois que le fichier de vérification de votre domaine la liste. D’ici là, il voit Revendiquée, sans nom. Le libellé que vous saisissez n’apparaît pas sur la carte du scan.',
     'Si votre QR a été remplacé par une autre adresse, il affiche ⚠ Destination non vérifiée, un avertissement pour attendre avant de payer un fraudeur.',
     'Chaque scan lance aussi un contrôle de sécurité gratuit — listes d’arnaques, sanctions et honeypots pour une adresse ; listes de phishing et de sites frauduleux pour un lien de paiement — signalant une destination dangereuse même si elle n’est pas la vôtre.',
   ],

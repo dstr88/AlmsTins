@@ -53,8 +53,10 @@ function apply(sql: string, args: any[]): { rows: Row[]; rowsAffected: number } 
   const none = { rows: [], rowsAffected: 0 };
   const t = (name: string): Row[] => (mem.tables[name] ??= []);
 
-  // Lazy schema (ensure*Tables) and its idempotent legacy tag: no data removed.
-  if (/^(CREATE|ALTER) /.test(sql) || /^UPDATE verify_destinations d SET legacy_unbound/.test(sql)) return none;
+  // Lazy schema (ensure*Tables), its idempotent legacy tag, and the idempotent domain-anchor
+  // backfills (anchor date, leftover proof_domain): no data removed.
+  if (/^(CREATE|ALTER) /.test(sql) || /^UPDATE verify_destinations d SET legacy_unbound/.test(sql)
+    || /^UPDATE verify_destinations SET (domain_anchored_at = proven_at|proof_domain = NULL, last_confirmed_at = NULL) WHERE /.test(sql)) return none;
 
   // Catalog: which tables exist (verifyAccountDelete's one-query check).
   if (/^SELECT to_regclass\(\?\) AS t0(, to_regclass\(\?\) AS t\d+)*$/.test(sql)) {
