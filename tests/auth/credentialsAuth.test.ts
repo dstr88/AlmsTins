@@ -40,6 +40,9 @@ vi.mock('@/lib/db', () => {
 			const u = mem.users.find((x) => x.id === args[0]);
 			return { rows: u ? [{ lang: u.lang ?? 'en' }] : [], rowsAffected: 0 };
 		}
+		if (sql === 'SELECT to_regclass(?) AS r') {
+			return { rows: [{ r: String(args[0]) }], rowsAffected: 0 }; // token tables present (tests/auth/signupTokenTable.test.ts covers creation)
+		}
 		throw new Error(`unexpected SQL in test: ${sql}`);
 	};
 	return { db: { execute, batch: async () => { throw new Error('batch not expected'); } } };

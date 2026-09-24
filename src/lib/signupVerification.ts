@@ -13,6 +13,7 @@
  */
 import crypto from 'node:crypto';
 import { db } from './db';
+import { ensureTokenTable } from './authTokenTables';
 import { sendMail } from './email';
 import { clientIpKey, createFixedWindowLimiter } from './rateLimit';
 import { getUserLang } from './i18n/userLang';
@@ -28,6 +29,12 @@ const perIp = createFixedWindowLimiter({ windowMs: 60 * 60 * 1000, max: 10 });
 
 export const signupTokenIdentifier = (email: string) => `signup:${email}`;
 
+// signup_verification_tokens was only ever created by the pre-Postgres migrations, so the
+// production database never had it and every token write failed. Created on first use.
+export function ensureSignupTokenTable(): Promise<void> {
+	return ensureTokenTable('signup_verification_tokens');
+}
+
 /** Public origin for emailed links. Never the request origin: behind Render's proxy that is localhost. */
 export function appBaseUrl(): string {
 	const importMetaEnv = ((import.meta as { env?: Record<string, string | undefined> }).env ?? {});
@@ -41,6 +48,7 @@ export function appBaseUrl(): string {
 export async function issueSignupVerification({ email, lang }: { email: string; lang: Lang }): Promise<void> {
 	const token = crypto.randomBytes(32).toString('hex');
 	const expires = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
+	await ensureSignupTokenTable();
 	await db.execute({
 		sql: 'INSERT INTO signup_verification_tokens (identifier, token, expires) VALUES (?, ?, ?)',
 		args: [signupTokenIdentifier(email), token, expires],
@@ -60,6 +68,7 @@ export async function issueSignupVerification({ email, lang }: { email: string; 
 
 /** True when the durable token log says this address was mailed too recently or too often. */
 async function recentlyIssued(email: string, now: number): Promise<boolean> {
+	await ensureSignupTokenTable();
 	const res = await db.execute({
 		sql: `SELECT expires FROM signup_verification_tokens WHERE identifier = ?`,
 		args: [signupTokenIdentifier(email)],

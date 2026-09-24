@@ -20,6 +20,7 @@ import type { APIRoute } from 'astro';
 import { db } from '@/lib/db';
 import { invalidateUserAuthFacts } from '@/lib/sessionGate';
 import { loginPathForLang } from '@/lib/authErrorRedirect';
+import { ensureSignupTokenTable } from '@/lib/signupVerification';
 
 export const prerender = false;
 
@@ -51,6 +52,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 	}
 	const identifier = `signup:${email}`;
 
+	await ensureSignupTokenTable();
 	const lookup = await db.execute({
 		sql: 'SELECT token, expires FROM signup_verification_tokens WHERE identifier = ? AND token = ? LIMIT 1',
 		args: [identifier, token],

@@ -1,6 +1,7 @@
 import type { Adapter, AdapterAccount, AdapterSession, AdapterUser, VerificationToken } from '@auth/core/adapters';
 import crypto from 'node:crypto';
 import { db } from './db';
+import { ensureTokenTable } from './authTokenTables';
 
 type Row = Record<string, unknown>;
 
@@ -237,6 +238,7 @@ export const authAdapter = (): Adapter => ({
 		await db.execute({ sql: 'DELETE FROM auth_sessions WHERE session_token = ?', args: [sessionToken] });
 	},
 	async createVerificationToken(token) {
+		await ensureTokenTable('auth_verification_tokens');
 		await db.execute({
 			sql: `INSERT INTO auth_verification_tokens (identifier, token, expires)
         VALUES (?, ?, ?)`,
@@ -245,6 +247,7 @@ export const authAdapter = (): Adapter => ({
 		return token;
 	},
 	async useVerificationToken({ identifier, token }) {
+		await ensureTokenTable('auth_verification_tokens');
 		const result = await db.execute({
 			sql: `SELECT * FROM auth_verification_tokens
         WHERE identifier = ? AND token = ?

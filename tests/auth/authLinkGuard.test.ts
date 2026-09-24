@@ -65,6 +65,9 @@ vi.mock('@/lib/db', () => {
 			if (hit) u.email_verified = '2026-09-23 12:00:00';
 			return { rows: [], rowsAffected: hit ? 1 : 0 };
 		}
+		if (sql === 'SELECT to_regclass(?) AS r') {
+			return { rows: [{ r: String(args[0]) }], rowsAffected: 0 }; // token tables present (tests/auth/signupTokenTable.test.ts covers creation)
+		}
 		throw new Error(`unexpected SQL in test: ${sql}`);
 	};
 	const batch = async (stmts: any[]) => {

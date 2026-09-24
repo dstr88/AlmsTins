@@ -65,6 +65,8 @@ import { db } from './db';
 import { ensureSessionColumns, invalidateUserAuthFacts, isEmailVerifiedValue } from './sessionGate';
 import { normalizeSignupEmail } from './emailAddress';
 import { createFixedWindowLimiter } from './rateLimit';
+import { ensureSignupTokenTable } from './signupVerification';
+import { ensureTokenTable } from './authTokenTables';
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -175,6 +177,7 @@ type KeepAccount = { provider: string; providerAccountId: string } | null;
  */
 async function reclaimAddress(userId: string, address: string, keep: KeepAccount, nowMs: number): Promise<void> {
 	await ensureSessionColumns();
+	await ensureSignupTokenTable(); // the batch below deletes from it; a missing table would roll it all back
 	const unverified = `(email_verified IS NULL OR email_verified = '')`;
 	const keepArgs = [keep?.provider ?? '', keep?.providerAccountId ?? ''];
 	await db.batch(
@@ -216,6 +219,7 @@ async function reclaimAddress(userId: string, address: string, keep: KeepAccount
 /** True when this address has asked for too many magic links recently. */
 async function magicLinkThrottled(address: string, now: number): Promise<boolean> {
 	if (magicLinkPerAddress.hit(address, now)) return true;
+	await ensureTokenTable('auth_verification_tokens');
 	const res = await db.execute({
 		sql: 'SELECT expires FROM auth_verification_tokens WHERE identifier = ?',
 		args: [address],
