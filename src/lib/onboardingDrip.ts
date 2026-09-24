@@ -123,6 +123,16 @@ async function ensureFinancingTables(): Promise<void> {
   await ensureCairnTables();
 }
 
+/**
+ * Only accounts whose address is known to be real: a verified email, or a Google/GitHub
+ * sign-in. An unverified password sign-up is just an address someone typed into a form, so
+ * it gets no drip until it verifies (the next enrollment run picks it up then).
+ */
+const reachableUser = (alias: string) => `(
+    (${alias}.email_verified IS NOT NULL AND ${alias}.email_verified <> '')
+    OR EXISTS (SELECT 1 FROM auth_accounts a WHERE a.user_id = ${alias}.id)
+  )`;
+
 /** Onboarding: every new SIGNUP (auth_users.created_at) since launch, except financing-only accounts. */
 async function enrollOnboarding(): Promise<number> {
   await ensureFinancingTables();
@@ -133,6 +143,7 @@ async function enrollOnboarding(): Promise<number> {
             AND au.created_at IS NOT NULL
             AND substr(au.created_at, 1, 10) >= ?
             AND NOT EXISTS (SELECT 1 FROM campaign_drip d WHERE d.user_id = au.id AND d.campaign = 'onboarding')
+            AND ${reachableUser('au')}
             AND NOT ${financingOnlyUser('au.id')}`,
     args: [CAMPAIGN_START_DATE],
   });
@@ -148,6 +159,7 @@ async function enrollBusiness(): Promise<number> {
           JOIN auth_users au ON au.id = tm.user_id
           WHERE au.email IS NOT NULL AND au.email <> ''
             AND NOT EXISTS (SELECT 1 FROM campaign_drip d WHERE d.user_id = au.id AND d.campaign = 'business')
+            AND ${reachableUser('au')}
           GROUP BY au.id, au.email, au.lang
           HAVING substr(MIN(vd.registered_at), 1, 10) >= ?`,
     args: [CAMPAIGN_START_DATE],

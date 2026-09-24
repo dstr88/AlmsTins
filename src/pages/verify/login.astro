@@ -25,7 +25,7 @@ import Analytics from '@/components/Analytics.astro';
 // /verify/* is public (isPublicPath), so this never redirect-loops with the gated desks.
 import '@/styles/tokens.css';
 import { en as t } from '@/i18n/loginPage';
-import { getLoginPageData } from '@/lib/loginPageData';
+import { getLoginPageData, resolveLoginAlert } from '@/lib/loginPageData';
 import { verifyLoginMode, type VerifyLoginMode } from '@/lib/verifyLoginMode';
 
 export const prerender = false;
@@ -71,6 +71,8 @@ const { title: roleTitle, blurb: roleBlurb } = ROLE[mode];
 const pageTitle = isVerify ? 'Log in — Almstins Verify' : `${roleTitle} — Almstins Verify`;
 const { csrfToken, error } = data;
 const failed = !!error;
+// English-only page; the strings come from the shared login locale.
+const failedText = resolveLoginAlert(t, data).message || t.errors.generic;
 ---
 <!doctype html>
 <html lang="en">
@@ -179,7 +181,7 @@ const failed = !!error;
     </div>
 
     <div class="card">
-      {failed && <p class="notice">Sign-in failed. Please try again.</p>}
+      {failed && <p class="notice">{failedText === 'LOCKED_OUT' ? t.errors.generic : failedText}</p>}
 
       <form method="POST" action="/api/auth/signin/google">
         <input type="hidden" name="callbackUrl" value={callbackUrl} />

@@ -10,7 +10,7 @@
 
 import 'dotenv/config';
 import { defineMiddleware } from 'astro/middleware';
-import { getAuthSession } from '../lib/authSession';
+import { getAuthSessionState } from '../lib/authSession';
 import { logEnvStatus } from '../lib/envStatus';
 import { getTenantStateDetails } from '../lib/tenants';
 import { db } from '../lib/db';
@@ -21,6 +21,8 @@ import { extractWalletAddress, isDetailedAnalyticsRoute, normalizeRouteKey } fro
 import { isDemoRequest, DEMO_TENANT_ID, demoCookieClear } from '../lib/demo';
 import { runWithDbContext } from '../lib/dbContext';
 import { applySecurityHeaders } from './securityHeaders';
+import { cutSignInQuery, loginPathForLang } from '../lib/authErrorRedirect';
+import { getUserLang } from '../lib/i18n/userLang';
 
 /**
  * Mutation endpoints that demo users are allowed to call.
@@ -171,8 +173,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		// ── Auth session check (must happen before demo mode) ───────────────────
 		// A signed-in user must never be routed into demo mode — their real
 		// session takes priority over any lingering demo cookie.
-		const session = await getAuthSession(request);
+		// A cut session (see src/lib/sessionGate.ts) is treated as signed out. When the cut is
+		// about an unverified password, the login page says why instead of a bare sign-in form.
+		const { session, cutReason, cutUserId } = await getAuthSessionState(request);
 		const userId = session?.user?.id ? String(session.user.id) : '';
+		const cutQuery = cutSignInQuery(cutReason);
 		// A signed-in user must never carry the demo cookie. Clear any lingering one
 		// (e.g. from an earlier "Try the demo") so a later expired session drops to
 		// /login, never silently back into demo mode.
@@ -234,13 +239,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			}
 			// PetroTins dashboard → PetroTins login page
 			if (pathname.startsWith('/dashboard/petro-tins')) {
-				return finish(Response.redirect(`https://${canonicalHost}/petro-tins`, 303));
+				return finish(Response.redirect(`https://${canonicalHost}/petro-tins${cutQuery ? `?${cutQuery}` : ''}`, 303));
 			}
 			// Verify dashboard → the Verify login (titled for Verify), not the general
 			// /login. Alert emails and old links point at /dashboard/verify directly.
 			if (pathname === '/dashboard/verify' || pathname.startsWith('/dashboard/verify/')) {
 				const next = encodeURIComponent(pathname);
-				return finish(Response.redirect(`https://${canonicalHost}/verify/login?next=${next}`, 303));
+				return finish(Response.redirect(`https://${canonicalHost}/verify/login?next=${next}${cutQuery ? `&${cutQuery}` : ''}`, 303));
 			}
 			// Preserve the intended destination so sign-in returns there (login.astro
 			// sanitizes `next` to an internal path). Otherwise everyone lands on the
@@ -248,7 +253,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 			// No `error=` param: a signed-out visitor isn't an error, just needs to sign in
 			// (an "error=missing" in the URL reads as "broken" to a new customer).
 			const next = encodeURIComponent(pathname);
-			return finish(Response.redirect(`https://${canonicalHost}/login?next=${next}`, 303));
+			// A cut session gets the explanation in the account's own language (/es, /fr).
+			const loginPath = cutQuery && cutUserId ? loginPathForLang(await getUserLang(cutUserId)) : '/login';
+			return finish(Response.redirect(`https://${canonicalHost}${loginPath}?next=${next}${cutQuery ? `&${cutQuery}` : ''}`, 303));
 		}
 
 		const tenantState = await getTenantStateDetails(userId);
