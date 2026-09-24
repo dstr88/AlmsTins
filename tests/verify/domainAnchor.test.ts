@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  decideAnchor, decideAnchorLoss, anchoredSince, merchantAddressAssurance,
-  type MerchantAddressRow,
+  decideAnchor, decideAnchorLoss, anchoredSince, hasAnchor, merchantAddressAssurance,
+  type AnchorCandidate, type MerchantAddressRow,
 } from '../../src/lib/verifyAnchor';
 
 /**
@@ -9,14 +9,19 @@ import {
  * are separate facts. These pin the decisions that keep them separate: a domain proof may
  * attach a domain to a self-send-proven address but never move it between domains, losing the
  * anchor never destroys a self-send control proof, and "verified since" is the anchor's age.
+ * A claim made under the old, unbound self-send rule (legacy_unbound) is never anchored.
  */
-const addr = (proofStatus: string, proofDomain: string | null) => ({ kind: 'address', proofStatus, proofDomain });
+/** A self-send address; a proof_domain gets a real anchor date unless `o` says otherwise. */
+const addr = (proofStatus: string, proofDomain: string | null, legacyUnbound = false, o: Partial<AnchorCandidate> = {}): AnchorCandidate => ({
+  kind: 'address', proofStatus, proofMethod: 'micro_deposit', proofDomain, provenAt: '2026-01-01 00:00:00',
+  domainAnchoredAt: proofDomain ? '2026-09-01 00:00:00' : null, legacyUnbound, ...o,
+});
 
 describe('decideAnchor (what a successful domain proof does to a destination)', () => {
   it('skips anything the file does not list, and every QR', () => {
     expect(decideAnchor(addr('unproven', null), 'shop.com', false)).toBe('skip');
     expect(decideAnchor(addr('proven', null), 'shop.com', false)).toBe('skip');
-    expect(decideAnchor({ kind: 'qr', proofStatus: 'proven', proofDomain: null }, 'shop.com', true)).toBe('skip');
+    expect(decideAnchor({ ...addr('proven', null), kind: 'qr', proofMethod: 'account_claim' }, 'shop.com', true)).toBe('skip');
   });
 
   it('proves and anchors an unproven or lapsed address', () => {
@@ -30,10 +35,51 @@ describe('decideAnchor (what a successful domain proof does to a destination)', 
 
   it('re-confirms an address already anchored to the same domain', () => {
     expect(decideAnchor(addr('proven', 'shop.com'), 'shop.com', true)).toBe('reconfirm');
+    // A file-proven row anchored before domain_anchored_at existed is anchored too (its
+    // proven_at is when the file anchored it).
+    expect(decideAnchor(addr('proven', 'shop.com', false, { proofMethod: 'well_known', domainAnchoredAt: null }), 'shop.com', true))
+      .toBe('reconfirm');
+  });
+
+  it('treats a leftover proof_domain with no anchor date as no anchor: a new, guarded, dated anchor', () => {
+    // Before domain_anchored_at, a self-send re-prove of a lapsed file-proven row kept the old
+    // domain. The public lookup never called that Verified, so the proof must not either: a
+    // 'reconfirm' would skip the claim guard and date a brand-new anchor.
+    const leftover = addr('proven', 'shop.com', false, { domainAnchoredAt: null });
+    expect(decideAnchor(leftover, 'shop.com', true)).toBe('anchor');
+    // And a leftover of another domain is not stuck as 'other_domain'.
+    expect(decideAnchor(leftover, 'shop-pay.com', true)).toBe('anchor');
   });
 
   it('never moves an address anchored to a different domain', () => {
     expect(decideAnchor(addr('proven', 'shop.com'), 'shop-pay.com', true)).toBe('other_domain');
+  });
+
+  it('refuses to anchor a legacy unbound claim: it may be a squat, and a listing cannot vouch for it', () => {
+    // Proven under the old rule (any outgoing tx counted), no domain yet: the exact case a
+    // naive rebase would lift to Verified under whatever domain lists it.
+    expect(decideAnchor(addr('proven', null, true), 'shop.com', true)).toBe('legacy_unbound');
+  });
+
+  it('never re-confirms a legacy unbound claim either, even one carrying a leftover domain', () => {
+    // A pre-0035 leftover proof_domain on a legacy row must not become an anchor date.
+    expect(decideAnchor(addr('proven', 'shop.com', true), 'shop.com', true)).toBe('legacy_unbound');
+    expect(decideAnchor(addr('proven', 'shop.com', true), 'other.com', true)).toBe('legacy_unbound');
+  });
+
+  it('refuses to flip an unproven twin of a legacy claim (the caller sets the flag for it)', () => {
+    // The same account's checksum/lowercase or URI-wrapped copy of a legacy wallet: flipping
+    // it would do exactly what anchoring the legacy row would.
+    expect(decideAnchor(addr('unproven', null, true, { proofMethod: 'none' }), 'shop.com', true)).toBe('legacy_unbound');
+  });
+
+  it('anchors the same wallet once a bound re-proof has cleared the tag', () => {
+    // The bound satoshi test's flip writes legacy_unbound = false.
+    expect(decideAnchor(addr('proven', null, false), 'shop.com', true)).toBe('anchor');
+  });
+
+  it('still skips a legacy claim the file does not list', () => {
+    expect(decideAnchor(addr('proven', null, true), 'shop.com', false)).toBe('skip');
   });
 });
 
@@ -54,6 +100,18 @@ const CUTOFF = '2026-09-22 12:00:00'; // 24h before "now" in these cases
 const row = (o: Partial<MerchantAddressRow>): MerchantAddressRow => ({
   proofMethod: 'micro_deposit', proofDomain: null, provenAt: '2026-01-01 00:00:00',
   domainAnchoredAt: null, lastConfirmedAt: null, ...o,
+});
+
+describe('hasAnchor (one rule for the proof, the lookup and the dashboard)', () => {
+  it('needs a domain and a known anchor date', () => {
+    expect(hasAnchor(row({}))).toBe(false);
+    expect(hasAnchor(row({ proofDomain: 'shop.com', domainAnchoredAt: '2026-09-20 08:00:00' }))).toBe(true);
+    expect(hasAnchor(row({ proofMethod: 'well_known', proofDomain: 'shop.com' }))).toBe(true);
+    // A leftover self-send domain with no anchor date is not an anchor.
+    expect(hasAnchor(row({ proofDomain: 'shop.com' }))).toBe(false);
+    // An anchor date with no domain (never written together that way) is not one either.
+    expect(hasAnchor(row({ domainAnchoredAt: '2026-09-20 08:00:00' }))).toBe(false);
+  });
 });
 
 describe('anchoredSince', () => {

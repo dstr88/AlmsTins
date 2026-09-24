@@ -395,11 +395,12 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     // proof (micro-deposit, no proof_domain) is Claimed, even if the operating business
     // is otherwise domain-known: the address itself isn't published anywhere to swap-check.
     const publishedDomain = hit.proof_domain ? String(hit.proof_domain) : null;
-    // Fail-closed freshness: 'verified' also requires the watchman to have POSITIVELY
-    // re-confirmed the anchor within the max-stale window (Pass B still vouches it, or Pass C
-    // still finds it published — both advance last_confirmed_at). If it has gone stale (source
-    // unreachable, the value now rendered by JS, or the monitor cron stalled), degrade
-    // verified→claimed: keep the proven-control fact, drop the current-confirmation claim.
+    // Fail-closed freshness: 'verified' also requires the anchor to have been POSITIVELY
+    // re-confirmed by a domain proof within the max-stale window (Pass B still finds it in the
+    // domain's file, or the owner proved the domain again; a published-page check never counts
+    // for an address, see recordMonitorResult). If it has gone stale (file unreachable or
+    // gone, or the monitor cron stalled), degrade verified→claimed: keep the proven-control
+    // fact, drop the current-confirmation claim.
     // Under-claim, never over-claim — the same rule the entity mirror already enforces.
     // "Since" follows the level: a 'verified' address is as old as its domain anchor, never
     // its (possibly older) self-send proof — see merchantAddressAssurance.

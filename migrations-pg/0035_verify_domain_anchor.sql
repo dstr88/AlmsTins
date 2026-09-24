@@ -6,7 +6,8 @@
 -- "verified since" and /api/verify/check proofAgeDays use it, so a newly attached domain never
 -- inherits the age of an older self-send proof. Cleared whenever proof_domain is cleared.
 --
--- Mirrors the lazy ALTER in src/lib/verifyRegistry.ts ensureVerifyTables.
+-- Mirrors src/lib/verifyRegistry.ts ensureVerifyTables, which runs the ALTER and both UPDATEs
+-- below on every cold start (all idempotent), so a deploy needs no hand-run step.
 ALTER TABLE verify_destinations ADD COLUMN IF NOT EXISTS domain_anchored_at TEXT;
 
 -- Existing anchors were all made by the file proof itself (proof_method = 'well_known'), which

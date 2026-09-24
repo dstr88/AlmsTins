@@ -180,7 +180,9 @@ export const GET: APIRoute = async ({ request }) => {
   // For each destination the owner attached a public page to, re-fetch that page and
   // check the registered value is still the one shown. A definitive 'swapped' (the
   // value is gone and a conflicting same-kind value is present) alerts the owner. An
-  // ambiguous 'missing' / transient 'unreachable' is recorded but never alerted.
+  // ambiguous 'missing' / transient 'unreachable' is recorded but never alerted. A
+  // 'present' keeps a payment link's badge fresh, never an address's: an address stays
+  // 'verified' only while Pass B finds it in its domain's file (recordMonitorResult).
   const watch = { checked: 0, swapAlerts: 0, errors: 0 };
   try {
     const targets = await listMonitoredDestinations();

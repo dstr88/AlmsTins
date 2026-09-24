@@ -11,9 +11,12 @@
  *
  * Returns { ok, outcome }, where outcome is a code the UI maps to localized copy:
  *   proven | name_attached | address_not_listed | anchored_other_domain | claimed_elsewhere
- *   | challenge_mismatch | unreachable | malformed | invalid_domain
+ *   | reprove_required | challenge_mismatch | unreachable | malformed | invalid_domain
  * claimed_elsewhere: the file lists this wallet, but another account already proved it
  * (S5a claim guard); the other account is never named.
+ * reprove_required: the file lists this wallet, but this account holds it only through a
+ * claim made under the old, unbound self-send rule (legacy_unbound); it stays as it was until
+ * the owner takes the satoshi test again on that wallet (in place, see needsSelfSend).
  */
 import type { APIRoute } from 'astro';
 import { requireTenantSession } from '@/lib/requireTenantSession';
@@ -52,6 +55,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     const outcome = r.flipped.includes(id) ? 'proven'
       : r.otherDomain.includes(id) ? 'anchored_other_domain'
       : r.claimedElsewhere.includes(id) ? 'claimed_elsewhere'
+      : r.legacyUnbound.includes(id) ? 'reprove_required'
       : 'address_not_listed';
     return json({ ok: true, outcome, flipped: r.flipped.length });
   }

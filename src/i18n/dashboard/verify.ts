@@ -115,6 +115,13 @@ export interface VerifyDashboardLocale {
   anchorHint: string;
   proofAnchored: string;
   proofOtherDomain: string;
+  // The wallet's claim was made under the old self-send check (any outgoing transaction
+  // counted), so no domain can verify it until the satoshi test proves it again. The owner
+  // takes the test again on the same row ("Prove again"); it stays Claimed meanwhile. Copy
+  // never tells them to remove the wallet: that would release the claim.
+  proofReproveRequired: string;
+  reproveBtn: string;
+  reproveHint: string;
   // Self-send proof of control: the satoshi test (rule bound_v1). The merchant sends an
   // exact amount FROM their address TO the same address. Copy never shows an address to
   // send to: only the first 6 / last 4 of their own, to check against their wallet.
@@ -306,6 +313,9 @@ export const en: VerifyDashboardLocale = {
   anchorHint: 'Your self-send proved you control this wallet, so it shows as Claimed. To show it as Verified, list it in your domain’s verification file: enter your domain, publish the file we give you, then verify. If the file stops listing it later, it goes back to Claimed.',
   proofAnchored: '✓ Verified. Your domain’s file lists this address, so scans now show it with your domain.',
   proofOtherDomain: '⚠ This address is already verified through a different domain. To move it, remove it from that domain’s file first, then verify here again after our next check.',
+  proofReproveRequired: '⚠ This wallet was claimed with our earlier self-send check, which didn’t ask for an exact amount, so no domain can verify it yet. Take the satoshi test on it once, with “Prove again” on its row. It stays Claimed while you do. Your domain file stays valid, so verify the domain again after that.',
+  reproveBtn: 'Prove again',
+  reproveHint: 'This wallet was claimed with our earlier self-send check, which didn’t ask for an exact amount. Before a domain can verify it, take the satoshi test on it once. It stays Claimed while you do.',
   proveMethodSelfSend: 'Satoshi test (self-send)',
   proveMethodDomain: 'Domain',
   ssIntro: 'Claim this address with the satoshi test (a self-send). From your own wallet app, you send a tiny, exact amount from this address back to itself. The coins stay in your wallet, and you pay only the normal network fee. When you tap below, we give you the exact amount. It is valid for 24 hours.',
@@ -509,6 +519,9 @@ export const es: VerifyDashboardLocale = {
   anchorHint: 'Tu autoenvío demostró que controlas esta billetera, así que aparece como «Control confirmado». Para que aparezca como «Verificado», inclúyela en el archivo de verificación de tu dominio: escribe tu dominio, publica el archivo que te damos y luego verifica. Si el archivo deja de incluirla, vuelve a «Control confirmado».',
   proofAnchored: '✓ Verificada. El archivo de tu dominio incluye esta dirección, así que los escaneos ahora la muestran con tu dominio.',
   proofOtherDomain: '⚠ Esta dirección ya está verificada con otro dominio. Para moverla, quítala primero del archivo de ese dominio y vuelve a verificar aquí después de nuestra próxima comprobación.',
+  proofReproveRequired: '⚠ Esta billetera se reclamó con nuestra comprobación de autoenvío anterior, que no pedía una cantidad exacta, así que ningún dominio puede verificarla todavía. Haz una vez la prueba del satoshi con ella, con «Volver a demostrar» en su fila. Mientras tanto sigue en «Control confirmado». El archivo de tu dominio sigue siendo válido, así que después vuelve a verificar el dominio.',
+  reproveBtn: 'Volver a demostrar',
+  reproveHint: 'Esta billetera se reclamó con nuestra comprobación de autoenvío anterior, que no pedía una cantidad exacta. Antes de que un dominio pueda verificarla, haz una vez la prueba del satoshi con ella. Mientras tanto sigue en «Control confirmado».',
   proveMethodSelfSend: 'Prueba del satoshi (autoenvío)',
   proveMethodDomain: 'Dominio',
   ssIntro: 'Reclama esta dirección con la prueba del satoshi (un autoenvío). Desde tu propia app de billetera, envías una cantidad pequeña y exacta desde esta dirección a sí misma. Las monedas se quedan en tu billetera y solo pagas la comisión normal de la red. Cuando toques abajo, te daremos la cantidad exacta. Es válida por 24 horas.',
@@ -712,6 +725,9 @@ export const fr: VerifyDashboardLocale = {
   anchorHint: 'Votre auto-envoi a prouvé que vous contrôlez ce portefeuille, il apparaît donc comme « Contrôle confirmé ». Pour qu’il apparaisse comme « Vérifié », listez-le dans le fichier de vérification de votre domaine : saisissez votre domaine, publiez le fichier que nous vous donnons, puis vérifiez. Si le fichier cesse de le lister, il repasse en « Contrôle confirmé ».',
   proofAnchored: '✓ Vérifié. Le fichier de votre domaine liste cette adresse, les scans l’affichent donc maintenant avec votre domaine.',
   proofOtherDomain: '⚠ Cette adresse est déjà vérifiée via un autre domaine. Pour la déplacer, retirez-la d’abord du fichier de ce domaine, puis revérifiez ici après notre prochain contrôle.',
+  proofReproveRequired: '⚠ Ce portefeuille a été revendiqué avec notre ancienne vérification par auto-envoi, qui ne demandait pas de montant exact : aucun domaine ne peut donc encore le vérifier. Faites une fois le test du satoshi avec lui, avec « Prouver de nouveau » sur sa ligne. Il reste en « Contrôle confirmé » pendant ce temps. Le fichier de votre domaine reste valable : revérifiez ensuite le domaine.',
+  reproveBtn: 'Prouver de nouveau',
+  reproveHint: 'Ce portefeuille a été revendiqué avec notre ancienne vérification par auto-envoi, qui ne demandait pas de montant exact. Avant qu’un domaine puisse le vérifier, faites une fois le test du satoshi avec lui. Il reste en « Contrôle confirmé » pendant ce temps.',
   proveMethodSelfSend: 'Test du satoshi (auto-envoi)',
   proveMethodDomain: 'Domaine',
   ssIntro: 'Revendiquez cette adresse avec le test du satoshi (un auto-envoi). Depuis votre propre application de portefeuille, vous envoyez un petit montant exact de cette adresse vers elle-même. Les fonds restent dans votre portefeuille et vous ne payez que les frais de réseau habituels. Quand vous appuyez ci-dessous, nous vous donnons le montant exact. Il est valable 24 heures.',
