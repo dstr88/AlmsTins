@@ -125,7 +125,9 @@ function apply(sql: string, args: any[]): { rows: Row[]; rowsAffected: number } 
       .filter((r) => r.status === 'verified' && r.address === args[0] && r.refreshed_at && r.refreshed_at >= args[1])
       .map((r) => ({ r, e: t('verified_entities').find((e) => e.id === r.entity_id) }))
       .filter(({ e }) => !!e)
-      .map(({ r, e }) => ({ chain: r.chain, entity_domain: r.entity_domain, proven_at: e!.proven_at }));
+      // The lookup only answers for approved publishers: lower(e.tenant_id) IN (...).
+      .filter(({ e }) => !/lower\(e\.tenant_id\) IN \(/.test(sql) || args.slice(2).includes(String(e!.tenant_id).toLowerCase()))
+      .map(({ r, e }) => ({ chain: r.chain, entity_domain: r.entity_domain, proven_at: e!.proven_at, tenant_id: e!.tenant_id }));
     return { rows: rows.slice(0, 1), rowsAffected: 0 };
   }
   if (sql.includes("FROM verify_destinations WHERE kind = 'address' AND proof_status = 'proven' AND (value = ? OR lower(value) = ?)")) {
@@ -294,6 +296,9 @@ function placeholders(sql: string): number {
 }
 
 beforeEach(() => {
+  // Platform lists publish only for approved tenants (verifyEntityAccess); these fixtures
+  // model approved platforms, so approve their tenants.
+  vi.stubEnv('VERIFY_ENTITY_TENANTS', `${A},${B}`);
   mem.tables = {};
   mem.calls = [];
   mem.unexpected = [];
@@ -309,6 +314,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   expect(mem.unexpected).toEqual([]);
   for (const c of mem.calls) expect(placeholders(c.sql)).toBe(c.args.length);
 });
