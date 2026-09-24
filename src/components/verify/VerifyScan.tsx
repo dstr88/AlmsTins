@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
 import { decodeQrFromImageFile } from '../../lib/qrScan';
+import { publicVerifyCard, publisherText, fillTemplate, splitTip, safetyFlagged, addressSafetyVerdict, type PublicVerifyCard } from '../../lib/verifyPublicCard';
+import { verifyScanCopy, type ScanLang, type ScanNoun, type VerifyScanCopy } from '../../i18n/verifyScan';
 import './VerifyScan.css';
 
 /**
  * Public customer-scan. A customer scans (or pastes) the address from a merchant's
  * sign/QR and gets two independent answers, no account required:
- *  1. Verification — is this a PROVEN Almstins destination? (entity domain or a
- *     merchant's self-listed label, via /api/verify/lookup)
+ *  1. Verification — is this a PROVEN Almstins destination? (via /api/verify/lookup;
+ *     src/lib/verifyPublicCard.ts decides what the card may say: never a freeform label,
+ *     no name at all on a Claimed result)
  *  2. Safety — is the address itself flagged? (scam/OFAC/honeypot, via /api/wallet-check)
- * Read-only: the scanned value is checked, never stored.
+ * When the safety screen flags the value, the warning leads and the Verify fact follows
+ * in a neutral style. Read-only: the scanned value is checked, never stored.
  */
 type Lookup = { verified: boolean; level: 'claimed' | 'verified' | null; since: string | null; source: 'entity' | 'merchant' | null; domain: string | null; label: string | null };
 type Safety = 'idle' | 'checking' | 'clean' | 'caution' | 'danger' | 'unclear' | 'error';
@@ -24,7 +28,80 @@ function extractScanned(payload: string): string {
     : (p.match(/0x[a-fA-F0-9]{40}/)?.[0]) ?? p.replace(/^[a-zA-Z][\w+.-]*:/, '').split(/[?@\s]/)[0].trim();
 }
 
-export default function VerifyScan({ initialAddress = '' }: { initialAddress?: string }) {
+/** Renders "text with an [[accountable domain]] in it" with the term explained on hover. */
+function withTip(text: string, tip: string) {
+  const parts = splitTip(text);
+  if (!parts) return text;
+  return (
+    <>
+      {parts.before}
+      <span title={tip} style={{ textDecoration: 'underline dotted', textUnderlineOffset: '2px', cursor: 'help' }}>
+        {parts.term}
+      </span>
+      {parts.after}
+    </>
+  );
+}
+
+/**
+ * The Verify card for a finished scan. `card` comes from publicVerifyCard(); null means no
+ * Verify hit. It never receives the lookup's label, so it cannot print a freeform one.
+ */
+export function ScanVerifyCard({ card, noun, t }: { card: PublicVerifyCard | null; noun: ScanNoun; t: VerifyScanCopy }) {
+  if (!card) {
+    return (
+      <div className="vs__card vs__card--warn">
+        <div className="vs__verdict">⚠ {t.notVerifiedTitle}</div>
+        <p className="vs__detail">{t.notVerifiedBody[noun]}</p>
+      </div>
+    );
+  }
+  if (card.level === 'verified') {
+    // Green only when the safety screen did not flag the value; otherwise neutral.
+    return (
+      <div className={`vs__card${card.tone === 'positive' ? ' vs__card--ok' : ''}`}>
+        <div className="vs__verdict">{card.tone === 'positive' ? '✓ ' : ''}{t.verifiedTitle}</div>
+        <p className="vs__detail">
+          {`${publisherText(card.publisher, { listedBy: t.listedBy[noun], listedOn: t.listedOn[noun], viaBy: t.viaBy[noun], viaOn: t.viaOn[noun] }) ?? t.verifiedNoPublisher} ${t.verifiedSwap[noun]}`}
+        </p>
+        {card.afterSafety && <p className="vs__detail" style={{ marginTop: '0.35rem' }}>{t.flaggedNote[noun]}</p>}
+        {card.since && (
+          <p className="vs__detail" style={{ marginTop: '0.35rem', opacity: 0.75 }}>{fillTemplate(t.verifiedSince, { date: card.since })}</p>
+        )}
+      </div>
+    );
+  }
+  const claimed = (
+    <>
+      <p className="vs__detail">{withTip(t.claimedBody[noun], t.accountableDomainTip)}</p>
+      {card.afterSafety && <p className="vs__detail" style={{ marginTop: '0.35rem' }}>{t.flaggedNote[noun]}</p>}
+      {card.since && (
+        <p className="vs__detail" style={{ marginTop: '0.35rem', opacity: 0.75 }}>{fillTemplate(t.claimedSince, { date: card.since })}</p>
+      )}
+    </>
+  );
+  if (card.tone === 'caution') {
+    // Caution-tape frame — "proceed with awareness," not a solid danger box. No name.
+    return (
+      <div style={{ borderRadius: '14px', padding: '3px', marginBottom: '0.9rem', background: 'repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px)' }}>
+        <div className="vs__card" style={{ margin: 0, borderRadius: '11px', border: 'none' }}>
+          <div className="vs__verdict">◑ {t.claimedTitle[noun]}</div>
+          {claimed}
+        </div>
+      </div>
+    );
+  }
+  // Claimed, and the safety screen flagged it: neutral card after the warning. No name.
+  return (
+    <div className="vs__card">
+      <div className="vs__verdict">{t.claimedTitle[noun]}</div>
+      {claimed}
+    </div>
+  );
+}
+
+export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initialAddress?: string; lang?: ScanLang }) {
+  const t = verifyScanCopy[lang] ?? verifyScanCopy.en;
   const [value, setValue] = useState(initialAddress);
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -150,7 +227,8 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
         const v = sf?.verdict;
         setSafety(v === 'red' ? 'danger' : v === 'green' ? 'clean' : v === 'yellow' ? 'unclear' : 'error');
       } else if (sf && sf.ok && sf.result) {
-        const lvl = sf.result.scamLevel;
+        // Community reports count as a caution flag, as on the wallet-checker.
+        const lvl = addressSafetyVerdict(sf.result.scamLevel, sf.result.chainabuseReports);
         setSafety(lvl === 'danger' ? 'danger' : lvl === 'caution' ? 'caution' : sf.result.partialCoverage ? 'unclear' : 'clean');
       } else setSafety('error');
     } catch {
@@ -191,16 +269,28 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
     input.click();
   }
 
-  const who = lookup?.label || lookup?.domain || '';
-  const noun = isUrl ? 'link' : isPaymentQr ? 'payment code' : 'address';
+  const noun: ScanNoun = isUrl ? 'link' : isPaymentQr ? 'code' : 'address';
   const safetyText: Record<Safety, string> = {
-    idle: '', checking: 'Checking…',
-    clean: isUrl ? 'No phishing or scam-site flags.' : 'No scam, sanctions, or honeypot flags.',
-    caution: `Caution — this ${noun} has risk flags. Double-check before paying.`,
-    danger: `Danger — this ${noun} is flagged. Do not pay.`,
-    unclear: `Not enough data to clear this ${noun}. Proceed carefully.`,
-    error: "Couldn't run the safety check — try again.",
+    idle: '', checking: t.safetyChecking,
+    clean: isUrl ? t.safetyClean.link : t.safetyClean.address,
+    caution: t.safetyCaution[noun],
+    danger: t.safetyDanger[noun],
+    unclear: t.safetyUnclear[noun],
+    error: t.safetyError,
   };
+  // What the Verify card may say, and whether the safety warning leads (it does when flagged).
+  const card = done && lookup ? publicVerifyCard(lookup, safety) : null;
+
+  const verifyCard = done && lookup ? <ScanVerifyCard card={card} noun={noun} t={t} /> : null;
+
+  const safetyCard = done && safety !== 'idle' ? (
+    <div className={`vs__card ${safety === 'clean' ? 'vs__card--ok' : safety === 'danger' ? 'vs__card--err' : 'vs__card--warn'}`}>
+      <div className="vs__verdict">{t.safetyTitle}</div>
+      <p className="vs__detail">{safetyText[safety]}</p>
+    </div>
+  ) : null;
+  // A flagged safety verdict always leads, whatever the Verify result.
+  const safetyLeads = done && safetyFlagged(safety);
 
   return (
     <main className="vs">
@@ -228,53 +318,7 @@ export default function VerifyScan({ initialAddress = '' }: { initialAddress?: s
       )}
       {scanError && <p className="vs__foot" style={{ color: 'var(--loss)' }}>{scanError}</p>}
 
-      {done && lookup && (
-        lookup.level === 'verified' ? (
-          <div className="vs__card vs__card--ok">
-            <div className="vs__verdict">✓ Verified destination</div>
-            <p className="vs__detail">
-              {who
-                ? `Published by ${who}${lookup.source === 'entity' ? ' on its own domain' : lookup.domain ? ` · anchored to ${lookup.domain}` : ''}. A swapped address on a spoofed page would fail this check.`
-                : 'Anchored to a proven domain — a swapped address on a spoofed page would fail this check.'}
-            </p>
-            {lookup.since && (
-              <p className="vs__detail" style={{ marginTop: '0.35rem', opacity: 0.75 }}>Verified since {lookup.since}.</p>
-            )}
-          </div>
-        ) : lookup.level === 'claimed' ? (
-          // Caution-tape frame — "proceed with awareness," not a solid danger box.
-          <div style={{ borderRadius: '14px', padding: '3px', marginBottom: '0.9rem', background: 'repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px)' }}>
-          <div className="vs__card" style={{ margin: 0, borderRadius: '11px', border: 'none' }}>
-            <div className="vs__verdict">◑ Control confirmed</div>
-            <p className="vs__detail">
-              {`${who ? `${who} proved` : 'Someone proved'} control of this ${noun}, but it isn’t published on an `}
-              <span
-                title="A domain the owner proved they control via a DNS record. It ties the address to a public, accountable website, so a swapped address on a fake page would fail the check. Claimed addresses skip this step."
-                style={{ textDecoration: 'underline dotted', textUnderlineOffset: '2px', cursor: 'help' }}
-              >accountable domain</span>
-              {`. Control alone isn’t proof it’s safe — a scammer can prove control of their own ${noun}. Confirm the recipient another way before you send.`}
-            </p>
-            {lookup.since && (
-              <p className="vs__detail" style={{ marginTop: '0.35rem', opacity: 0.75 }}>Claimed since {lookup.since}.</p>
-            )}
-          </div>
-          </div>
-        ) : (
-          <div className="vs__card vs__card--warn">
-            <div className="vs__verdict">⚠ Not a verified destination</div>
-            <p className="vs__detail">
-              {`No account has proven control of this ${noun} with Almstins. That doesn’t mean it’s unsafe — only that it isn’t verified here.`}
-            </p>
-          </div>
-        )
-      )}
-
-      {done && safety !== 'idle' && (
-        <div className={`vs__card ${safety === 'clean' ? 'vs__card--ok' : safety === 'danger' ? 'vs__card--err' : 'vs__card--warn'}`}>
-          <div className="vs__verdict">Safety screen</div>
-          <p className="vs__detail">{safetyText[safety]}</p>
-        </div>
-      )}
+      {safetyLeads ? <>{safetyCard}{verifyCard}</> : <>{verifyCard}{safetyCard}</>}
 
       <p className="vs__foot">This confirms whether an address is a verified destination and screens it for known scams. It is not financial advice — always confirm the recipient yourself.</p>
     </main>

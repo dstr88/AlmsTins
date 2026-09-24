@@ -89,7 +89,7 @@ export interface WalletCheckerLocale {
     scanDenied: string;
     scanNoCamera: string;
     scanGeneric: string;
-    chains: { evm: string; sui: string; solana: string; bitcoin: string; litecoin: string; unknown: string };
+    chains: { evm: string; sui: string; solana: string; bitcoin: string; litecoin: string; tron: string; unknown: string };
     ens: string;
     cached: string;
     reportBadgeOne: string;
@@ -152,18 +152,31 @@ export interface WalletCheckerLocale {
     multisigWarning: string;
     multisigEvmOnly: string;
     verifiedTitle: string;
+    // Detail line when {domain} itself publishes the address (an entity's own list).
     verifiedBody: string;
-    verifiedMerchant: string;
-    verifiedVia: string;
+    // Detail line when {domain} is a domain the account proved, not necessarily the one
+    // listing this address (merchant hits). Must stay true in both cases.
+    verifiedViaBody: string;
+    // Publisher line on a Verified card. {name} is shown only when it is a business name
+    // derived from {domain}; a freeform label is never shown (see src/lib/verifyPublicCard.ts).
+    // "Listed" only when {domain} publishes the address; otherwise "verified via".
+    verifiedListedBy: string;
+    verifiedListedOn: string;
+    verifiedViaBy: string;
+    verifiedViaOn: string;
     verifiedSub: string;
-    // Claimed tier — control proven, but NOT domain-anchored. Shown as caution, not a
-    // green "safe" badge (control alone is forgeable by a scammer on their own address).
+    // Claimed tier — not domain-anchored right now. Shown as caution, not a green "safe"
+    // badge. The copy must hold for every Claimed row (a self-send, a stale domain
+    // listing, an older claim), so it says "claimed", never "control proven", and no name.
     claimedTitle: string;
     claimedBody: string;
     claimedSub: string;
     accountableDomainTip: string;
     verifiedSince: string;
     claimedSince: string;
+    // Shown on the Verify card (in a neutral style, after the warning) when the safety
+    // screen flagged the address. Warns; never tells the payer a payment is blocked.
+    verifyFlaggedNote: string;
   };
 }
 
@@ -363,7 +376,7 @@ export const en: WalletCheckerLocale = {
     scanDenied: 'Camera permission was denied. Allow camera access and try again.',
     scanNoCamera: 'No camera was found on this device.',
     scanGeneric: 'Couldn’t start the camera. The page must be served over HTTPS.',
-    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', unknown: 'Unknown chain' },
+    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', tron: 'Tron', unknown: 'Unknown chain' },
     ens: 'ENS',
     cached: '⚡ Cached',
     reportBadgeOne: '🚨 {n} community report',
@@ -435,15 +448,19 @@ export const en: WalletCheckerLocale = {
     multisigEvmOnly: 'Multi-sig detection only available for EVM addresses.',
     verifiedTitle: 'Verified publisher',
     verifiedBody: '{domain} proved control of its domain and lists this as one of its own receiving addresses.',
-    verifiedMerchant: 'A verified Almstins member registered this address as “{name}”.',
-    verifiedVia: ' · verified via {domain}',
+    verifiedViaBody: 'The account that registered this address proved it controls {domain}, and this address is listed on a website that account proved it controls. That listing was re-confirmed in the last 24 hours.',
+    verifiedListedBy: 'Listed by {name} on {domain}',
+    verifiedListedOn: 'Listed on {domain}',
+    verifiedViaBy: '{name}, verified via {domain}',
+    verifiedViaOn: 'Verified via {domain}',
     verifiedSub: 'This confirms who published the address — not that any payment is safe. Still confirm the amount and that you meant to pay this business.',
-    claimedTitle: 'Control confirmed',
-    claimedBody: 'Control of this address was proven, but it isn’t published on an [[accountable domain]] — so a swapped address couldn’t be caught here.',
-    claimedSub: 'Control alone isn’t proof it’s safe — anyone can prove control of their own address. Confirm the recipient another way before you pay.',
-    accountableDomainTip: 'A domain the owner proved they control via a DNS record. It ties the address to a public, accountable website, so a swapped address on a fake page would fail the check. Claimed addresses skip this step.',
+    claimedTitle: 'Claimed by an Almstins account',
+    claimedBody: 'An Almstins account has claimed this address. No website vouches for it right now: no [[accountable domain]] has confirmed it recently, so a swapped address couldn’t be caught here.',
+    claimedSub: 'A claim isn’t proof it’s safe: anyone can claim their own address. Confirm the recipient another way before you pay.',
+    accountableDomainTip: 'A domain the owner proved they control via a DNS record. It ties the address to a public, accountable website, so a swapped address on a fake page would fail the check. A claimed address has no recent confirmation from such a domain.',
     verifiedSince: 'Verified since {date}',
     claimedSince: 'Claimed since {date}',
+    verifyFlaggedNote: 'The safety screen flagged this address, and Almstins Verify doesn’t cancel that warning. Read it before you decide to pay.',
   },
 };
 
@@ -643,7 +660,7 @@ export const es: WalletCheckerLocale = {
     scanDenied: 'Se denegó el permiso de cámara. Permite el acceso a la cámara e inténtalo de nuevo.',
     scanNoCamera: 'No se encontró ninguna cámara en este dispositivo.',
     scanGeneric: 'No se pudo iniciar la cámara. La página debe servirse por HTTPS.',
-    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', unknown: 'Cadena desconocida' },
+    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', tron: 'Tron', unknown: 'Cadena desconocida' },
     ens: 'ENS',
     cached: '⚡ En caché',
     reportBadgeOne: '🚨 {n} reporte de la comunidad',
@@ -715,15 +732,19 @@ export const es: WalletCheckerLocale = {
     multisigEvmOnly: 'La detección de multi-firma solo está disponible para direcciones EVM.',
     verifiedTitle: 'Comercio verificado',
     verifiedBody: '{domain} demostró el control de su dominio y figura esta como una de sus propias direcciones de cobro.',
-    verifiedMerchant: 'Un miembro verificado de Almstins registró esta dirección como «{name}».',
-    verifiedVia: ' · verificado vía {domain}',
+    verifiedViaBody: 'La cuenta que registró esta dirección demostró que controla {domain}, y esta dirección figura en un sitio web que esa cuenta demostró controlar. Esa publicación se reconfirmó en las últimas 24 horas.',
+    verifiedListedBy: 'Publicada por {name} en {domain}',
+    verifiedListedOn: 'Publicada en {domain}',
+    verifiedViaBy: '{name}, verificada mediante {domain}',
+    verifiedViaOn: 'Verificada mediante {domain}',
     verifiedSub: 'Esto confirma quién publicó la dirección — no que un pago sea seguro. Confirma igualmente el importe y que querías pagar a este negocio.',
-    claimedTitle: 'Control confirmado',
-    claimedBody: 'Se demostró el control de esta dirección, pero no está publicada en un [[dominio responsable]] — así que aquí no podría detectarse una dirección sustituida.',
-    claimedSub: 'El control por sí solo no prueba que sea seguro — cualquiera puede demostrar el control de su propia dirección. Confirma al destinatario por otra vía antes de pagar.',
-    accountableDomainTip: 'Un dominio que el propietario demostró controlar mediante un registro DNS. Vincula la dirección a un sitio web público y responsable, de modo que una dirección sustituida en una página falsa no pasaría la comprobación. Las direcciones reclamadas omiten este paso.',
+    claimedTitle: 'Reclamada por una cuenta de Almstins',
+    claimedBody: 'Una cuenta de Almstins reclamó esta dirección. Ahora mismo ningún sitio web la respalda: ningún [[dominio responsable]] la ha confirmado recientemente, así que aquí no podría detectarse una dirección sustituida.',
+    claimedSub: 'Un reclamo no prueba que sea segura: cualquiera puede reclamar su propia dirección. Confirma al destinatario por otra vía antes de pagar.',
+    accountableDomainTip: 'Un dominio que el propietario demostró controlar mediante un registro DNS. Vincula la dirección a un sitio web público y responsable, de modo que una dirección sustituida en una página falsa no pasaría la comprobación. Una dirección reclamada no tiene una confirmación reciente de un dominio así.',
     verifiedSince: 'Verificado desde {date}',
     claimedSince: 'Reclamado desde {date}',
+    verifyFlaggedNote: 'La revisión de seguridad marcó esta dirección, y Almstins Verify no anula esa advertencia. Léela antes de decidir si pagas.',
   },
 };
 
@@ -923,7 +944,7 @@ export const fr: WalletCheckerLocale = {
     scanDenied: 'L’autorisation de la caméra a été refusée. Autorisez l’accès à la caméra et réessayez.',
     scanNoCamera: 'Aucune caméra n’a été trouvée sur cet appareil.',
     scanGeneric: 'Impossible de démarrer la caméra. La page doit être servie en HTTPS.',
-    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', unknown: 'Chaîne inconnue' },
+    chains: { evm: 'Ethereum / EVM', sui: 'Sui', solana: 'Solana', bitcoin: 'Bitcoin', litecoin: 'Litecoin', tron: 'Tron', unknown: 'Chaîne inconnue' },
     ens: 'ENS',
     cached: '⚡ En cache',
     reportBadgeOne: '🚨 {n} signalement de la communauté',
@@ -995,14 +1016,18 @@ export const fr: WalletCheckerLocale = {
     multisigEvmOnly: 'La détection multi-signature n’est disponible que pour les adresses EVM.',
     verifiedTitle: 'Émetteur vérifié',
     verifiedBody: '{domain} a prouvé le contrôle de son domaine et inscrit celle-ci comme l’une de ses propres adresses de réception.',
-    verifiedMerchant: 'Un membre vérifié d’Almstins a enregistré cette adresse sous « {name} ».',
-    verifiedVia: ' · vérifié via {domain}',
+    verifiedViaBody: 'Le compte qui a enregistré cette adresse a prouvé qu’il contrôle {domain}, et cette adresse figure sur un site web dont ce compte a prouvé le contrôle. Cette publication a été reconfirmée au cours des dernières 24 heures.',
+    verifiedListedBy: 'Publiée par {name} sur {domain}',
+    verifiedListedOn: 'Publiée sur {domain}',
+    verifiedViaBy: '{name}, vérifiée via {domain}',
+    verifiedViaOn: 'Vérifiée via {domain}',
     verifiedSub: 'Cela confirme qui a publié l’adresse — pas qu’un paiement soit sûr. Vérifiez tout de même le montant et que vous vouliez bien payer cette entreprise.',
-    claimedTitle: 'Contrôle confirmé',
-    claimedBody: 'Le contrôle de cette adresse a été prouvé, mais elle n’est pas publiée sur un [[domaine responsable]] — une adresse substituée ne serait donc pas détectée ici.',
-    claimedSub: 'Le contrôle seul ne prouve pas qu’elle est sûre — n’importe qui peut prouver le contrôle de sa propre adresse. Confirmez le destinataire autrement avant de payer.',
-    accountableDomainTip: 'Un domaine dont le propriétaire a prouvé le contrôle via un enregistrement DNS. Il relie l’adresse à un site web public et responsable, de sorte qu’une adresse remplacée sur une fausse page échouerait à la vérification. Les adresses revendiquées sautent cette étape.',
+    claimedTitle: 'Revendiquée par un compte Almstins',
+    claimedBody: 'Un compte Almstins a revendiqué cette adresse. Pour l’instant, aucun site web ne s’en porte garant : aucun [[domaine responsable]] ne l’a confirmée récemment, donc une adresse substituée ne serait pas détectée ici.',
+    claimedSub: 'Une revendication ne prouve pas qu’elle est sûre : n’importe qui peut revendiquer sa propre adresse. Confirmez le destinataire autrement avant de payer.',
+    accountableDomainTip: 'Un domaine dont le propriétaire a prouvé le contrôle via un enregistrement DNS. Il relie l’adresse à un site web public et responsable, de sorte qu’une adresse remplacée sur une fausse page échouerait à la vérification. Une adresse revendiquée n’a pas de confirmation récente d’un tel domaine.',
     verifiedSince: 'Vérifié depuis {date}',
     claimedSince: 'Revendiqué depuis {date}',
+    verifyFlaggedNote: 'Le contrôle de sécurité a signalé cette adresse, et Almstins Verify n’annule pas cet avertissement. Lisez-le avant de décider de payer.',
   },
 };

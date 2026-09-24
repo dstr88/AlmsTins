@@ -22,7 +22,7 @@ import {
   weiToDecimalString,
   getTokentxPage,
 } from '@/lib/etherscan';
-import { detectChain } from '@/lib/walletChecker';
+import { canonicalAddress, detectChain } from '@/lib/walletChecker';
 
 export type ActivityItem = {
   direction: 'in' | 'out';
@@ -60,8 +60,12 @@ const LIMIT = 25; // most-recent items returned
  * absent/unknown → ethereum.
  */
 export async function getAddressActivity(address: string, networkParam?: string): Promise<ActivityResult> {
-  const addr = (address ?? '').trim();
+  // An uppercase (QR-style) segwit address is lowercased: esplora reports addresses in
+  // lowercase, and the in/out netting below compares them exactly.
+  const addr = canonicalAddress((address ?? '').trim());
   if (!addr) return { ok: false, reason: 'unsupported' };
+  // Legacy 1…/3… (Bitcoin) and L…/M… (Litecoin) addresses are identified by checksum and
+  // read from esplora; a 3… address is read as Bitcoin (Litecoin's own P2SH form is M…).
   const chain = detectChain(addr);
   if (chain === 'evm') {
     const network = networkParam && EVM_NETWORKS[networkParam] ? networkParam : 'ethereum';

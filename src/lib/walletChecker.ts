@@ -12,34 +12,126 @@
  *   - Checked addresses are NEVER logged or persisted to the database
  */
 
+import { createHash } from 'node:crypto';
 import { lookupSanctionedAddress } from './threatLists';
 
 // ─── Address detection ────────────────────────────────────────────────────────
 
 const EVM_REGEX     = /^0x[0-9a-fA-F]{40}$/;
 const SUI_REGEX     = /^0x[0-9a-fA-F]{64}$/;
-const SOLANA_REGEX  = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-// Bitcoin: Legacy (1...), P2SH (3...), Bech32 (bc1...)
-const BTC_REGEX     = /^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-zA-HJ-NP-Z0-9]{6,87})$/;
-// Litecoin: Legacy (L/M...), P2SH (3...), Bech32 (ltc1...)
-const LTC_REGEX     = /^([LM][a-km-zA-HJ-NP-Z1-9]{26,33}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|ltc1[a-zA-HJ-NP-Z0-9]{6,87})$/;
+// Segwit (bech32/bech32m), matched on the lowercased value: the prefix is exact and the
+// data part uses only the bech32 charset (no '1', 'b', 'i', 'o'), so a base58 Solana key
+// that happens to start with "bc1" is not mistaken for one. Checksum validation is a
+// separate, stricter step (not here).
+const BTC_BECH32_REGEX = /^bc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
+const LTC_BECH32_REGEX = /^ltc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{6,87}$/;
 
-export type Chain = 'evm' | 'sui' | 'solana' | 'bitcoin' | 'litecoin' | 'unknown';
+const SOLANA_SHAPE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
+// What isValidAddress() has always accepted, kept verbatim: the lookup, check, mail and
+// address-activity endpoints validate with it, so fixing chain detection must neither
+// narrow nor widen it (per-network validators are a separate change). Address-shaped
+// values on no chain we recognize (a mistyped checksum, Dogecoin, XRP) pass here, and
+// detectChain() reports them as 'unknown', which the scan treats as a limited check.
+const ACCEPTED_SHAPES = [
+  SUI_REGEX,
+  EVM_REGEX,
+  SOLANA_SHAPE,
+  /^([LM][a-km-zA-HJ-NP-Z1-9]{26,33}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|ltc1[a-zA-HJ-NP-Z0-9]{6,87})$/,
+  /^(1[a-km-zA-HJ-NP-Z1-9]{25,34}|3[a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-zA-HJ-NP-Z0-9]{6,87})$/,
+];
+
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+/** Decode a base58 string to bytes (leading '1's are leading zero bytes). Null if not base58. */
+function base58Decode(s: string): Uint8Array | null {
+  let n = 0n;
+  for (const ch of s) {
+    const i = BASE58_ALPHABET.indexOf(ch);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  const body: number[] = [];
+  while (n > 0n) { body.unshift(Number(n & 0xffn)); n >>= 8n; }
+  let zeros = 0;
+  while (zeros < s.length && s[zeros] === '1') zeros++;
+  return Uint8Array.from([...new Array<number>(zeros).fill(0), ...body]);
+}
+
+/**
+ * Version byte of a valid base58check address (1 version byte + 20-byte hash + 4-byte
+ * double-SHA-256 checksum), or null when the length or checksum is wrong.
+ */
+function base58CheckVersion(bytes: Uint8Array): number | null {
+  if (bytes.length !== 25) return null;
+  const payload = bytes.subarray(0, 21);
+  const once = createHash('sha256').update(payload).digest();
+  const twice = createHash('sha256').update(once).digest();
+  for (let i = 0; i < 4; i++) if (twice[i] !== bytes[21 + i]) return null;
+  return bytes[0];
+}
+
+// base58check version bytes → chain. BTC P2SH (0x05, '3…') was also Litecoin's legacy
+// P2SH prefix; it is reported as Bitcoin, the far more common owner (Litecoin moved to 'M…').
+const BASE58CHECK_CHAINS: Record<number, Chain> = {
+  0x00: 'bitcoin',   // 1… P2PKH
+  0x05: 'bitcoin',   // 3… P2SH
+  0x30: 'litecoin',  // L… P2PKH
+  0x32: 'litecoin',  // M… P2SH
+  0x41: 'tron',      // T…
+};
+
+export type Chain = 'evm' | 'sui' | 'solana' | 'bitcoin' | 'litecoin' | 'tron' | 'unknown';
+
+/**
+ * The segwit chain of a bech32-shaped address, in either case. BIP-173 allows all
+ * lowercase or all uppercase (uppercase is the recommended form inside QR codes); a
+ * mixed-case value is not a valid address, so it is 'unknown' rather than a guess.
+ * Null when the value is not bech32-shaped at all.
+ */
+function bech32Chain(address: string): Chain | null {
+  const lc = address.toLowerCase();
+  const chain: Chain | null = BTC_BECH32_REGEX.test(lc) ? 'bitcoin' : LTC_BECH32_REGEX.test(lc) ? 'litecoin' : null;
+  if (!chain) return null;
+  return address === lc || address === address.toUpperCase() ? chain : 'unknown';
+}
+
+/**
+ * Which chain an address belongs to. Order matters: a legacy Bitcoin, Litecoin or Tron
+ * address, and an uppercase segwit address, are also valid base58 of Solana's length, so
+ * those are identified first (segwit by its prefix and charset in either case, base58
+ * by its base58check checksum). Solana is only claimed for a string that decodes to a
+ * 32-byte public key. Anything else is 'unknown'.
+ */
 export function detectChain(address: string): Chain {
-  if (SUI_REGEX.test(address))     return 'sui';       // check before EVM (both start with 0x)
-  if (EVM_REGEX.test(address))     return 'evm';
-  if (SOLANA_REGEX.test(address))  return 'solana';
-  if (LTC_REGEX.test(address))     return 'litecoin';  // check before BTC (some overlap on 3...)
-  if (BTC_REGEX.test(address))     return 'bitcoin';
+  if (SUI_REGEX.test(address))        return 'sui';       // check before EVM (both start with 0x)
+  if (EVM_REGEX.test(address))        return 'evm';
+  const segwit = bech32Chain(address);
+  if (segwit) return segwit;
+  if (address.length > 128) return 'unknown';
+  const bytes = base58Decode(address);
+  if (!bytes) return 'unknown';
+  const version = base58CheckVersion(bytes);
+  if (version !== null && BASE58CHECK_CHAINS[version]) return BASE58CHECK_CHAINS[version];
+  if (bytes.length === 32 && SOLANA_SHAPE.test(address)) return 'solana';
   return 'unknown';
+}
+
+/**
+ * The form of an address to send to outside lookups: a segwit address is case-insensitive
+ * and explorers, sanctions lists and report databases hold it lowercase, so an uppercase
+ * (QR-style) one is lowercased. Every other address is case-sensitive and returned as is.
+ */
+export function canonicalAddress(address: string): string {
+  const segwit = bech32Chain(address);
+  return segwit === 'bitcoin' || segwit === 'litecoin' ? address.toLowerCase() : address;
 }
 
 export function isValidAddress(address: string): boolean {
   if (typeof address !== 'string') return false;
   const trimmed = address.trim();
   if (trimmed.length < 25 || trimmed.length > 128) return false;
-  return detectChain(trimmed) !== 'unknown';
+  return ACCEPTED_SHAPES.some((re) => re.test(trimmed));
 }
 
 // ─── Rate limiter ─────────────────────────────────────────────────────────────
@@ -129,7 +221,7 @@ export interface WalletCheckResult {
   coverage: {
     goplus: 'ran' | 'skipped' | 'error';
     honeypot: 'ran' | 'skipped' | 'error';
-    chainabuse: 'ran' | 'error';
+    chainabuse: 'ran' | 'skipped' | 'error';
   };
   /** True when no PRIMARY scam source ran for this chain — a "clean" must NOT read as a confident green. */
   partialCoverage: boolean;
@@ -245,13 +337,14 @@ export function isCompromisedEntity(label: WalletCheckResult['entityLabel']): bo
 // ─── Coverage / fail-safe ───────────────────────────────────────────────────────
 /**
  * A green ("clean") verdict must mean every PRIMARY safety source actually ran.
- * GoPlus (blacklist/sanctions/phishing) covers EVM/Solana; honeypot.is is EVM-only.
- * If any primary source was unavailable or errored, the scan is PARTIAL and must not
+ * GoPlus (blacklist/sanctions/phishing) covers EVM only (see GOPLUS_CHAIN_IDS for why
+ * not Solana); honeypot.is is EVM-only. A chain with no primary source at all, or one
+ * whose primary source was unavailable or errored, is PARTIAL and must not
  * read as a confident all-clear. Chainabuse is community/secondary — it does not gate
  * a verdict on its own. "No positive hit" is not "safe".
  */
 export function computePartialCoverage(chain: string, coverage: WalletCheckResult['coverage']): boolean {
-  const goplusSupported = chain === 'evm' || chain === 'solana';
+  const goplusSupported = GOPLUS_CHAINS.has(chain as Chain);
   const primary: Array<'ran' | 'skipped' | 'error'> = [];
   if (goplusSupported) primary.push(coverage.goplus);
   if (chain === 'evm') primary.push(coverage.honeypot);
@@ -268,13 +361,26 @@ function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
   return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
-// GoPlus chain IDs — check EVM across multiple chains, merge flags
-// Solana supported; Bitcoin/Litecoin/Sui not supported by this endpoint
+// GoPlus chain IDs — check EVM across multiple chains, merge flags.
+// Solana is deliberately absent: the address_security endpoint answers
+// {code: 5000, "system error"} for every chain_id=solana query (checked 2026-09-24 on
+// several well-known Solana addresses), so it never ran for a Solana address. Asking
+// anyway spends the shared GoPlus budget for a guaranteed error. Solana scans are
+// therefore partial (a "limited check"), with the local OFAC mirror and the Chainalysis
+// sanctions fallback still running. Do NOT substitute the query without chain_id: it
+// answers code 1 for any string, including a Bitcoin address, so it would read as a
+// clean scan without checking anything. Re-add Solana here only once a query is shown to
+// return code 1 for real Solana addresses and an error for non-Solana ones.
+// Bitcoin, Litecoin, Tron and Sui are not covered by this endpoint either.
 const GOPLUS_EVM_CHAINS = [
   { id: '1',   label: 'Ethereum' },
   { id: '56',  label: 'BSC' },
   { id: '137', label: 'Polygon' },
 ];
+const GOPLUS_CHAIN_IDS: Partial<Record<Chain, Array<{ id: string; label: string }>>> = {
+  evm: GOPLUS_EVM_CHAINS,
+};
+const GOPLUS_CHAINS = new Set<Chain>(Object.keys(GOPLUS_CHAIN_IDS) as Chain[]);
 
 // GoPlus Security — free, no API key needed
 // https://gopluslabs.io/
@@ -285,11 +391,10 @@ async function fetchGoPlusFlags(
   const flags: Partial<WalletCheckResult['flags']> = {};
   const chain = detectChain(address);
 
-  if (chain === 'bitcoin' || chain === 'litecoin' || chain === 'sui' || chain === 'unknown') {
-    return { flags, errors }; // chain not supported — skip silently
+  const chainIds = GOPLUS_CHAIN_IDS[chain];
+  if (!chainIds) {
+    return { flags, errors }; // chain not covered: skipped, which makes the scan partial
   }
-
-  const chainIds = chain === 'evm' ? GOPLUS_EVM_CHAINS : [{ id: 'solana', label: 'Solana' }];
 
   const flag = (v: unknown) => String(v) === '1';
 
@@ -301,7 +406,15 @@ async function fetchGoPlusFlags(
       );
       if (!res.ok) { errors.push(`GoPlus(${label}) returned ${res.status}`); return; }
       const json = await res.json() as Record<string, any>;
-      const d = json?.result ?? {};
+      // GoPlus reports failures inside an HTTP 200: `code` is 1 only for a complete answer
+      // (an unsupported or malformed address, a rate limit or partial data all come back
+      // with another code). Anything else means the source did not run for this address,
+      // so it is recorded as an error and the scan stays partial. A positive flag in a
+      // partial answer is still merged below: never clear a hit.
+      if (Number(json?.code) !== 1) {
+        errors.push(`GoPlus(${label}) error code ${String(json?.code ?? 'missing').slice(0, 12)}`);
+      }
+      const d = json?.result && typeof json.result === 'object' ? json.result : {};
       // OR-merge: once a flag is true on any chain it stays true
       if (flag(d.blacklist_doubt))          flags.blacklisted         = true;
       if (flag(d.phishing_activities))      flags.phishing            = true;
@@ -874,9 +987,10 @@ async function fetchENSName(address: string): Promise<string | null> {
 // Free tier available — set CHAINABUSE_API_KEY env var to enable.
 // https://www.chainabuse.com/
 
-async function fetchChainavuseReports(address: string): Promise<{ count: number | null; errors: string[] }> {
+async function fetchChainavuseReports(address: string): Promise<{ count: number | null; errors: string[]; skipped?: boolean }> {
   const apiKey = process.env.CHAINABUSE_API_KEY ?? import.meta.env.CHAINABUSE_API_KEY ?? '';
-  if (!apiKey) return { count: null, errors: [] }; // not configured — skip silently
+  // Not configured, or no network for this chain: it did not run, so never report it as checked.
+  if (!apiKey) return { count: null, errors: [], skipped: true };
 
   const chain = detectChain(address);
   const network =
@@ -884,7 +998,7 @@ async function fetchChainavuseReports(address: string): Promise<{ count: number 
     chain === 'solana'   ? 'solana' :
     chain === 'bitcoin'  ? 'bitcoin' :
     chain === 'litecoin' ? 'litecoin' : null;
-  if (!network) return { count: null, errors: [] };
+  if (!network) return { count: null, errors: [], skipped: true };
 
   try {
     const res = await fetchWithTimeout(
@@ -902,7 +1016,11 @@ async function fetchChainavuseReports(address: string): Promise<{ count: number 
 
 // ─── Main orchestrator ────────────────────────────────────────────────────────
 
-export async function checkWallet(address: string): Promise<WalletCheckResult> {
+export async function checkWallet(input: string): Promise<WalletCheckResult> {
+  // Outside lookups get the canonical form (an uppercase, QR-style segwit address is
+  // lowercased, the form sanctions lists and report databases hold); the result echoes
+  // the address as it was given.
+  const address = canonicalAddress(input);
   const chain = detectChain(address);
   const allErrors: string[] = [];
 
@@ -939,7 +1057,8 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   const multiSig     = multiSigResult.status     === 'fulfilled' ? multiSigResult.value     : { multiSig: null, errors: [] };
   const entityLabel  = entityLabelResult.status  === 'fulfilled' ? entityLabelResult.value  : null;
   const ensName      = ensResult.status          === 'fulfilled' ? ensResult.value          : null;
-  const chainabuse   = chainabuseResult.status   === 'fulfilled' ? chainabuseResult.value   : { count: null, errors: [] };
+  const chainabuse: { count: number | null; errors: string[]; skipped?: boolean } =
+    chainabuseResult.status === 'fulfilled' ? chainabuseResult.value : { count: null, errors: [] };
 
   allErrors.push(
     ...(goplus.errors    ?? []),
@@ -955,11 +1074,12 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   // Sanctions redundancy — GoPlus is the primary signal, but if it is down or rate-limited the
   // flag would silently read false. Two independent backstops (OR-merge, never clear a hit):
   //   1) the always-on local OFAC mirror (free, no live dependency — survives any API outage);
-  //   2) Chainalysis' free sanctions API as a live fallback, only when GoPlus actually errored.
+  //   2) Chainalysis' free sanctions API as a live fallback, when GoPlus errored or does not
+  //      cover this chain at all (Solana, Bitcoin, Litecoin, Tron…).
   if (!flags.sanctioned) {
     try { if (await lookupSanctionedAddress(address)) flags.sanctioned = true; } catch { /* fail-soft */ }
   }
-  if (!flags.sanctioned && goplus.errors.length > 0) {
+  if (!flags.sanctioned && (goplus.errors.length > 0 || !GOPLUS_CHAINS.has(chain))) {
     try { if (await chainalysisSanctioned(address)) flags.sanctioned = true; } catch { /* fail-soft */ }
   }
 
@@ -993,18 +1113,20 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
     : entityLabel;
 
   // ── Coverage: did the PRIMARY scam source run for this chain? ──────────────────
-  // GoPlus (blacklist/sanctions/phishing) is the primary source and covers EVM +
-  // Solana only; honeypot.is is EVM-only; Chainabuse is community/secondary. A
-  // "clean" verdict where the primary source could not run must NOT be shown as a
-  // confident green (P0/P1 hardening).
-  const goplusSupported   = chain === 'evm' || chain === 'solana';
+  // GoPlus (blacklist/sanctions/phishing) is the primary source and covers EVM only
+  // (its Solana endpoint errors, see GOPLUS_CHAIN_IDS); honeypot.is is EVM-only;
+  // Chainabuse is community/secondary. A "clean" verdict where the primary source could
+  // not run must NOT be shown as a confident green (P0/P1 hardening). Solana, Bitcoin,
+  // Litecoin, Tron, Sui and unrecognized chains have no primary source, so they are
+  // always partial. The local OFAC mirror above still runs for every chain.
+  const goplusSupported   = GOPLUS_CHAINS.has(chain);
   const goplusErrored     = goplusResult.status     === 'rejected' || (goplus.errors     ?? []).some((e: string) => e.includes('GoPlus'));
   const honeypotErrored   = honeypotResult.status   === 'rejected' || (honeypot.errors   ?? []).some((e: string) => e.includes('Honeypot'));
   const chainabuseErrored = chainabuseResult.status === 'rejected' || (chainabuse.errors ?? []).length > 0;
   const coverage: WalletCheckResult['coverage'] = {
     goplus:     !goplusSupported ? 'skipped' : goplusErrored ? 'error' : 'ran',
     honeypot:   chain === 'evm' ? (honeypotErrored ? 'error' : 'ran') : 'skipped',
-    chainabuse: chainabuseErrored ? 'error' : 'ran',
+    chainabuse: chainabuseErrored ? 'error' : chainabuse.skipped ? 'skipped' : 'ran',
   };
   // Partial when any PRIMARY safety source (GoPlus, or honeypot.is on EVM) didn't run —
   // a partial scan must never render as a confident green (see computePartialCoverage).
@@ -1018,7 +1140,7 @@ export async function checkWallet(address: string): Promise<WalletCheckResult> {
   };
 
   return {
-    address,
+    address: input,
     chain,
     checkedAt: new Date().toISOString(),
     scamScore: score,

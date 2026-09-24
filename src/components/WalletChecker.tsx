@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import jsQR from 'jsqr';
 import type { WalletCheckResult } from '@/lib/walletChecker';
 import type { WalletCheckerLocale } from '@/i18n/walletChecker';
+import { publicVerifyCard, publisherText, fillTemplate, addressSafetyVerdict, type PublicVerifyCard, type PublicVerifyLookup } from '@/lib/verifyPublicCard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ function chainLabel(chain: string, c: CheckerStrings): string {
     solana:   c.chains.solana,
     bitcoin:  c.chains.bitcoin,
     litecoin: c.chains.litecoin,
+    tron:     c.chains.tron,
   }[chain] ?? c.chains.unknown;
 }
 
@@ -391,6 +393,107 @@ function TabContent({ tab, result, c }: { tab: Tab; result: WalletCheckResult; c
   return null;
 }
 
+// Verify result for the checked address (src/lib/verifyPublicCard.ts decides what it may
+// say). Never a freeform label; Claimed shows no name or domain; Verified names the domain
+// and a business name only when it derives from that domain. "Listed on" only when that
+// domain publishes the address, else "verified via". When the safety screen flagged the
+// address, the card is neutral and renders after the warning (never green).
+export function VerifyCard({ card, c }: { card: PublicVerifyCard; c: CheckerStrings }) {
+  const isVerified = card.level === 'verified';
+  const publisher = isVerified ? card.publisher : null;
+  const publisherLine = publisherText(publisher, {
+    listedBy: c.verifiedListedBy, listedOn: c.verifiedListedOn, viaBy: c.verifiedViaBy, viaOn: c.verifiedViaOn,
+  });
+  const detail = isVerified
+    ? (publisher ? fillTemplate(publisher.listed ? c.verifiedBody : c.verifiedViaBody, { domain: publisher.domain }) : null)
+    : withTip(c.claimedBody, c.accountableDomainTip);
+  const sinceText = card.since
+    ? fillTemplate(isVerified ? c.verifiedSince : c.claimedSince, { date: card.since })
+    : null;
+
+  const body = (
+    <div>
+      <div style={{
+        fontWeight: 700, fontSize: '0.95rem',
+        color: card.tone === 'positive' ? 'var(--gain)' : card.tone === 'caution' ? 'var(--warning)' : 'var(--text-primary)',
+      }}>
+        {isVerified ? c.verifiedTitle : c.claimedTitle}
+      </div>
+      {publisherLine && (
+        <p style={{ margin: '0.3rem 0 0', color: 'var(--text-primary)', fontSize: '0.9rem', fontWeight: 600, lineHeight: 1.45 }}>
+          {publisherLine}
+        </p>
+      )}
+      {detail && (
+        <p style={{ margin: '0.3rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+          {detail}
+        </p>
+      )}
+      {card.afterSafety && (
+        <p style={{ margin: '0.4rem 0 0', color: 'var(--text-primary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+          {c.verifyFlaggedNote}
+        </p>
+      )}
+      <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
+        {isVerified ? c.verifiedSub : c.claimedSub}
+      </p>
+      {sinceText && (
+        <p style={{
+          margin: '0.35rem 0 0', fontSize: '0.8rem', fontWeight: 600,
+          color: card.tone === 'positive' ? 'var(--gain)' : 'var(--text-secondary)',
+        }}>
+          {sinceText}
+        </p>
+      )}
+    </div>
+  );
+
+  // Verified, not flagged: the green card.
+  if (card.tone === 'positive') {
+    return (
+      <div style={{
+        marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
+        background: 'var(--gain-bg)', border: '1px solid var(--gain-border)',
+        display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+      }}>
+        <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>✓</span>
+        {body}
+      </div>
+    );
+  }
+
+  // Claimed, not flagged: caution-tape frame. A green/amber crosswalk stripe reads as
+  // "proceed with awareness", not the solid-amber "danger" the old fill looked like.
+  if (card.tone === 'caution') {
+    return (
+      <div style={{
+        marginBottom: '1.25rem', borderRadius: '12px', padding: '3px',
+        background: 'repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px)',
+      }}>
+        <div style={{
+          padding: '0.85rem 1rem', borderRadius: '9px', background: 'var(--surface-card)',
+          display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+        }}>
+          <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>◑</span>
+          {body}
+        </div>
+      </div>
+    );
+  }
+
+  // Flagged by the safety screen: neutral, no green, after the warning.
+  return (
+    <div style={{
+      marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
+      background: 'var(--surface-card)', border: '1px solid var(--border-bright)',
+      display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+    }}>
+      <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3, color: 'var(--text-muted)' }}>ⓘ</span>
+      {body}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
@@ -404,7 +507,8 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const [error, setError]         = useState<string | null>(null);
   const [result, setResult]       = useState<WalletCheckResult | null>(null);
   // Holds a Verify hit — either 'verified' (domain-anchored) or 'claimed' (control only).
-  const [verifiedPublisher, setVerifiedPublisher] = useState<{ level: 'claimed' | 'verified'; since: string | null; domain: string | null; label: string | null } | null>(null);
+  // The label is kept only for publicVerifyCard(), which never shows it as freeform text.
+  const [verifiedPublisher, setVerifiedPublisher] = useState<PublicVerifyLookup | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('safety');
   const [cached, setCached]       = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -457,6 +561,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
               since: typeof d.since === 'string' ? d.since : null,
               domain: typeof d.domain === 'string' ? d.domain : null,
               label: typeof d.label === 'string' ? d.label : null,
+              source: d.source === 'entity' || d.source === 'merchant' ? d.source : null,
             });
           }
         })
@@ -614,6 +719,10 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
   const activeFlags = result
     ? Object.entries(result.flags).filter(([, v]) => v).map(([k]) => k)
     : [];
+  // Community reports count as a flag here: a green Verified never sits above a red report badge.
+  const verifyCard = result
+    ? publicVerifyCard(verifiedPublisher, addressSafetyVerdict(result.scamLevel, result.chainabuseReports))
+    : null;
 
   return (
     <div style={{ width: '100%', maxWidth: '680px', margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -723,71 +832,8 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
       {result && (
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.5rem' }}>
 
-          {/* Verify tier — VERIFIED (domain-anchored → green, strong signal) */}
-          {verifiedPublisher && verifiedPublisher.level === 'verified' && (
-            <div style={{
-              marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: '12px',
-              background: 'var(--gain-bg)', border: '1px solid var(--gain-border)',
-              display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
-            }}>
-              <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>✓</span>
-              <div>
-                <div style={{ fontWeight: 700, color: 'var(--gain)', fontSize: '0.95rem' }}>
-                  {c.verifiedTitle}
-                </div>
-                <p style={{ margin: '0.3rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                  {verifiedPublisher.label
-                    ? c.verifiedMerchant.replace('{name}', verifiedPublisher.label)
-                      + (verifiedPublisher.domain ? c.verifiedVia.replace('{domain}', verifiedPublisher.domain) : '')
-                    : c.verifiedBody.replace('{domain}', verifiedPublisher.domain ?? '')}
-                </p>
-                <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
-                  {c.verifiedSub}
-                </p>
-                {verifiedPublisher.since && (
-                  <p style={{ margin: '0.35rem 0 0', color: 'var(--gain)', fontSize: '0.8rem', fontWeight: 600 }}>
-                    {c.verifiedSince.replace('{date}', verifiedPublisher.since)}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Verify tier — CLAIMED (control only, no domain → caution, NEVER a green badge) */}
-          {verifiedPublisher && verifiedPublisher.level === 'claimed' && (
-            // Caution-tape frame: a green/amber crosswalk stripe reads as "proceed with
-            // awareness," not the solid-amber "danger" the old fill looked like.
-            <div style={{
-              marginBottom: '1.25rem', borderRadius: '12px', padding: '3px',
-              background: 'repeating-linear-gradient(45deg, var(--warning) 0 9px, var(--gain) 9px 18px)',
-            }}>
-            <div style={{
-              padding: '0.85rem 1rem', borderRadius: '9px', background: 'var(--surface-card)',
-              display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
-            }}>
-              <span aria-hidden="true" style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>◑</span>
-              <div>
-                <div style={{ fontWeight: 700, color: 'var(--warning)', fontSize: '0.95rem' }}>
-                  {c.claimedTitle}
-                </div>
-                <p style={{ margin: '0.3rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                  {withTip(
-                    (verifiedPublisher.label ? c.verifiedMerchant.replace('{name}', verifiedPublisher.label) + ' ' : '') + c.claimedBody,
-                    c.accountableDomainTip,
-                  )}
-                </p>
-                <p style={{ margin: '0.4rem 0 0', color: 'var(--text-muted)', fontSize: '0.78rem', lineHeight: 1.45 }}>
-                  {c.claimedSub}
-                </p>
-                {verifiedPublisher.since && (
-                  <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>
-                    {c.claimedSince.replace('{date}', verifiedPublisher.since)}
-                  </p>
-                )}
-              </div>
-            </div>
-            </div>
-          )}
+          {/* Verify result leads only when the safety screen did not flag the address. */}
+          {verifyCard && !verifyCard.afterSafety && <VerifyCard card={verifyCard} c={c} />}
 
           {/* Chain + ENS + cache badges */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: result.ensName ? '0.5rem' : '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -877,6 +923,9 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
               {activeFlags.map(f => (flagKeyToLabel[f] ?? f).toLowerCase()).join(', ')}
             </div>
           )}
+
+          {/* Flagged: the warning above leads; the Verify fact follows in a neutral style. */}
+          {verifyCard && verifyCard.afterSafety && <VerifyCard card={verifyCard} c={c} />}
 
           {/* Disclaimer */}
           <p style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
