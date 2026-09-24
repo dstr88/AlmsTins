@@ -87,6 +87,9 @@ const ENSURE_MIRROR_ADDR_IDX = `CREATE INDEX IF NOT EXISTS verified_address_mirr
   ON verified_address_mirror (address)`;
 const ENSURE_MIRROR_UNIQUE = `CREATE UNIQUE INDEX IF NOT EXISTS verified_address_mirror_entity_addr
   ON verified_address_mirror (entity_id, address, chain)`;
+// Account deletion clears a tenant's mirror rows by tenant_id (verifyAccountDelete.ts).
+const ENSURE_MIRROR_TENANT_IDX = `CREATE INDEX IF NOT EXISTS verified_address_mirror_tenant
+  ON verified_address_mirror (tenant_id)`;
 
 let ensured = false;
 export async function ensureEntityTables(): Promise<void> {
@@ -96,6 +99,7 @@ export async function ensureEntityTables(): Promise<void> {
   await db.execute({ sql: ENSURE_MIRROR, args: [] });
   await db.execute({ sql: ENSURE_MIRROR_ADDR_IDX, args: [] });
   await db.execute({ sql: ENSURE_MIRROR_UNIQUE, args: [] });
+  await db.execute({ sql: ENSURE_MIRROR_TENANT_IDX, args: [] });
   ensured = true;
 }
 
@@ -231,23 +235,30 @@ export async function pullEntity(tenantId: string, id: string): Promise<PullResu
     return { ok: false, code: result.code };
   }
 
-  // Replace the entity's mirrored set with the current published list.
-  await db.execute({
-    sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
-    args: [id, tenantId],
-  });
-  for (const a of result.addresses) {
-    await db.execute({
+  // Replace the entity's mirrored set with the current published list, in one transaction.
+  // The entity row may have gone while the fetch ran (its account was deleted, or the
+  // owner removed it), so the transaction starts by updating (and so locking) that row,
+  // and every insert is conditional on the entity still existing. A pull that lost that
+  // race changes nothing; account deletion takes the same entity lock before it clears the
+  // mirror (see verifyAccountDelete.ts), so it also removes anything a pull committed first.
+  const replaced = await db.batch([
+    {
+      sql: `UPDATE verified_entities SET last_pull_status = 'ok', last_pull_count = ?, last_pulled_at = ?, updated_at = ?
+            WHERE id = ? AND tenant_id = ?`,
+      args: [result.addresses.length, now, now, id, tenantId],
+    },
+    {
+      sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
+      args: [id, tenantId],
+    },
+    ...result.addresses.map((a) => ({
       sql: `INSERT INTO verified_address_mirror (id, entity_id, tenant_id, address, chain, entity_domain, status, source, refreshed_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'verified', 'api_endpoint', ?)`,
-      args: [randomUUID(), id, tenantId, a.address, a.chain, String(raw.domain), now],
-    });
-  }
-  await db.execute({
-    sql: `UPDATE verified_entities SET last_pull_status = 'ok', last_pull_count = ?, last_pulled_at = ?, updated_at = ?
-          WHERE id = ? AND tenant_id = ?`,
-    args: [result.addresses.length, now, now, id, tenantId],
-  });
+            SELECT ?, ?, ?, ?, ?, ?, 'verified', 'api_endpoint', ?
+            WHERE EXISTS (SELECT 1 FROM verified_entities WHERE id = ? AND tenant_id = ? AND proof_status = 'proven')`,
+      args: [randomUUID(), id, tenantId, a.address, a.chain, String(raw.domain), now, id, tenantId],
+    })),
+  ], 'write');
+  if (!Number(replaced[0]?.rowsAffected ?? 0)) return { ok: false, code: 'not_found' };
   return { ok: true, count: result.addresses.length };
 }
 
@@ -260,17 +271,18 @@ export async function connectEntity(
   return pullEntity(tenantId, id);
 }
 
-/** Remove an entity and its mirrored addresses. */
+/**
+ * Remove an entity and its mirrored addresses, in one transaction. The entity row goes
+ * first, the same lock order as pullEntity, so a pull in flight either finishes before
+ * this (and its rows are removed by the mirror DELETE that follows) or finds the entity
+ * gone and writes nothing.
+ */
 export async function deleteEntity(tenantId: string, id: string): Promise<void> {
   await ensureEntityTables();
-  await db.execute({
-    sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`,
-    args: [id, tenantId],
-  });
-  await db.execute({
-    sql: `DELETE FROM verified_entities WHERE id = ? AND tenant_id = ?`,
-    args: [id, tenantId],
-  });
+  await db.batch([
+    { sql: `DELETE FROM verified_entities WHERE id = ? AND tenant_id = ?`, args: [id, tenantId] },
+    { sql: `DELETE FROM verified_address_mirror WHERE entity_id = ? AND tenant_id = ?`, args: [id, tenantId] },
+  ], 'write');
 }
 
 // ── Phase 4: public address lookup ───────────────────────────────────────────

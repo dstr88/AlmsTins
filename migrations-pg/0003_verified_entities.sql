@@ -41,3 +41,6 @@ CREATE INDEX IF NOT EXISTS verified_address_mirror_address
   ON verified_address_mirror (address);
 CREATE UNIQUE INDEX IF NOT EXISTS verified_address_mirror_entity_addr
   ON verified_address_mirror (entity_id, address, chain);
+-- Account deletion clears a tenant's mirror rows by tenant_id (src/lib/verifyAccountDelete.ts).
+CREATE INDEX IF NOT EXISTS verified_address_mirror_tenant
+  ON verified_address_mirror (tenant_id);

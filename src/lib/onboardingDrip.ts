@@ -176,7 +176,9 @@ export async function enrollForCampaign(campaign: Campaign): Promise<number> {
 }
 
 /**
- * Enrolled + subscribed + unfinished users in a campaign whose NEXT step is now due.
+ * Enrolled + subscribed + unfinished users in a campaign whose NEXT step is now due, and
+ * whose account still exists: a deleted account's enrollment never sends, even if its
+ * campaign_drip row outlived the delete.
  * Onboarding also re-checks the financing-only rule at send time: an account enrolled at signup
  * that has since turned out to be financing-only gets no further tracker emails. If that check
  * errors, the whole call throws and the cron sends nothing this run (no email beats a wrong one).
@@ -190,6 +192,7 @@ export async function getDueDrips(campaign: Campaign, limit = 200): Promise<DueD
     sql: `SELECT user_id, email, lang, enrolled_at, last_step, unsub_token
           FROM campaign_drip
           WHERE campaign = ? AND unsubscribed = 0 AND last_step < ?
+            AND EXISTS (SELECT 1 FROM auth_users au WHERE au.id = campaign_drip.user_id)
             ${skipFinancingOnly ? `AND NOT ${financingOnlyUser('campaign_drip.user_id')}` : ''}
           ORDER BY enrolled_at ASC
           LIMIT ?`,
