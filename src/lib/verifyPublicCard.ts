@@ -14,12 +14,11 @@
  *    domain under the same DNS-arbitrated rule the registry uses to reserve a verified
  *    business name (nameMatchesDomain), is written in plain characters, and the domain is
  *    not on a shared host. Anything else is dropped and only the domain is shown.
- *  - "Listed on {domain}" is said only when the lookup's domain is the one that publishes
- *    the address (an entity's own list). For a merchant hit the lookup currently returns
- *    the account's verified-name domain, which may be a different domain of the same
- *    account than the one listing this address, so the card says "verified via {domain}".
- *    When the lookup returns the fresh listing domain for merchant hits, `listed` can be
- *    set for those too.
+ *  - "Listed on {domain}" is said only when `provingDomain` — the domain that actually
+ *    vouches for THIS destination, never the account's business-name domain — is the one
+ *    shown (C5/S7b). Otherwise (the shown `domain` is the account's business name, and it
+ *    differs from what actually anchors this destination) the card says "verified via
+ *    {domain}": true, but a step removed from a direct guarantee.
  *  - A green Verified never sits next to a flagged safety verdict: when the safety screen
  *    flags the value (including community reports), the warning leads and the Verify
  *    fact is shown in a neutral style. Verify warns and flags; it never blocks a payment.
@@ -31,6 +30,10 @@ export interface PublicVerifyLookup {
   level: 'verified' | 'claimed' | null;
   since: string | null;
   domain: string | null;
+  /** The domain that actually vouches for this destination, or null — see check.ts /
+   *  verifyEntities.ts VerifiedAddressHit for the full contract. Used only to decide
+   *  "Listed on" vs "verified via"; the card still shows `domain` either way. */
+  provingDomain?: string | null;
   label: string | null;
   /** 'entity' = the domain's own published list; 'merchant' = an account's proven destination. */
   source?: 'entity' | 'merchant' | null;
@@ -114,7 +117,14 @@ export function publicPublisher(lookup: PublicVerifyLookup | null | undefined): 
   if (!lookup || lookup.level !== 'verified') return null;
   const domain = clean(lookup.domain);
   if (!domain) return null;
-  return { name: displayableName(lookup.label, domain), domain, listed: lookup.source === 'entity' };
+  // "Listed on" when the shown domain is also the one that actually vouches for this
+  // destination (an entity's own list always is; a merchant hit is only when its
+  // business-name domain happens to be the one anchoring it, not a different domain of
+  // the same account). Older lookup responses with no provingDomain field default to the
+  // entity-only rule this replaces, so an out-of-date caller degrades safely to "verified
+  // via", never wrongly upgrades to "Listed on".
+  const listed = lookup.source === 'entity' || (!!lookup.provingDomain && clean(lookup.provingDomain) === domain);
+  return { name: displayableName(lookup.label, domain), domain, listed };
 }
 
 /**

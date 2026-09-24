@@ -15,7 +15,7 @@ import './VerifyScan.css';
  * When the safety screen flags the value, the warning leads and the Verify fact follows
  * in a neutral style. Read-only: the scanned value is checked, never stored.
  */
-type Lookup = { verified: boolean; level: 'claimed' | 'verified' | null; since: string | null; source: 'entity' | 'merchant' | null; domain: string | null; label: string | null };
+type Lookup = { verified: boolean; level: 'claimed' | 'verified' | null; since: string | null; source: 'entity' | 'merchant' | null; domain: string | null; provingDomain: string | null; label: string | null };
 type Safety = 'idle' | 'checking' | 'clean' | 'caution' | 'danger' | 'unclear' | 'error';
 
 /** Pull the value to check out of a decoded QR payload: keep a URL / EMV-PIX / UPI
@@ -217,8 +217,8 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
       ]);
       setLookup(
         lk && lk.ok
-          ? { verified: !!lk.verified, level: lk.level ?? null, since: lk.since ?? null, source: lk.source ?? null, domain: lk.domain ?? null, label: lk.label ?? null }
-          : { verified: false, level: null, since: null, source: null, domain: null, label: null },
+          ? { verified: !!lk.verified, level: lk.level ?? null, since: lk.since ?? null, source: lk.source ?? null, domain: lk.domain ?? null, provingDomain: lk.provingDomain ?? null, label: lk.label ?? null }
+          : { verified: false, level: null, since: null, source: null, domain: null, provingDomain: null, label: null },
       );
       if (paymentQr) {
         setSafety('idle'); // no safety card — the match is the safety
@@ -232,7 +232,7 @@ export default function VerifyScan({ initialAddress = '', lang = 'en' }: { initi
         setSafety(lvl === 'danger' ? 'danger' : lvl === 'caution' ? 'caution' : sf.result.partialCoverage ? 'unclear' : 'clean');
       } else setSafety('error');
     } catch {
-      setLookup({ verified: false, level: null, since: null, source: null, domain: null, label: null });
+      setLookup({ verified: false, level: null, since: null, source: null, domain: null, provingDomain: null, label: null });
       setSafety(paymentQr ? 'idle' : 'error');
     } finally {
       setBusy(false); setDone(true);

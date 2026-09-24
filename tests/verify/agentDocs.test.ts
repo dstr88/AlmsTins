@@ -3,19 +3,20 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * /verify/agents is the contract payment agents are built against. Today
- * /api/verify/check derives `status` from the domain match alone and does not look at
- * `level`: `proven` can come back for a lapsed anchor or an unanchored self-send wallet
- * (level `claimed`), and `mismatch` also fires with `domain: null` when no domain vouches
- * for the destination at all. Until the code narrows `proven`, the docs must teach the
- * safe reading: proceed only on status proven + level verified + expect passed, and hold
- * everything else. These source checks pin that rule, the hold/flag/escalate wording, the
- * caveats about what `verified` covers today, and the documented fields against what
- * check.ts actually returns.
+ * /verify/agents is the contract payment agents are built against.
  *
- * The caveat assertions describe today's behavior on purpose. When check.ts returns only
- * the fresh listing domain, or payment links need a domain proof before they count, update
- * the page and these assertions in the same change.
+ * C5/S7b: /api/verify/check now derives `status` from `level` first — `proven` and
+ * `mismatch` only ever come back with level `verified`, `unanchored` always comes with
+ * level `claimed`, `unknown` always with level `null` — and `domain` is always the domain
+ * that actually anchors the destination (or null), never the account's business name on
+ * its own. `unanchored` replaces the old compound "proven + claimed" / "mismatch +
+ * claimed" answers a stale anchor or a self-send-only wallet used to produce. These
+ * source checks pin the rule, the hold/flag/escalate wording, the status/level pairing,
+ * and the documented fields against what check.ts actually returns.
+ *
+ * The remaining caveat — a payment link's `domain` is the account's business name, not a
+ * proof specific to that link — describes real, current behavior (verifyEntities.ts
+ * lookupVerifiedUrl). Update it and this file together when links get their own anchor.
  */
 const ROOT = path.resolve(__dirname, '../..');
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
@@ -56,7 +57,8 @@ function section(heading: string): string {
 
 /** The text of one "Reading the fields" entry. */
 function field(name: string): string {
-  const m = docs.match(new RegExp(`\\['${name}', '((?:[^'\\\\]|\\\\.)*)'\\]`));
+  const m = docs.match(new RegExp(`\\['${name}', '((?:[^'\\\\]|\\\\.)*)'\\]`))
+    ?? docs.match(new RegExp(`\\['${name}', "((?:[^"\\\\]|\\\\.)*)"\\]`));
   expect(m, `field ${name} not found`).not.toBeNull();
   return m![1];
 }
@@ -91,7 +93,11 @@ describe('/verify/agents: the safe-reading rule', () => {
     expect(docsText).toMatch(/<meta name="description" content="[^"]*Proceed only when status is proven, level is verified, and you passed expect\./);
     expect(docs).toContain('// proceed only if status is "proven" AND level is "verified" AND you passed expect');
     expect(docsText).toContain('The rule: proceed only when all three hold');
-    expect(docsText).toContain('Status alone is not enough today.');
+  });
+
+  it('explains that status already implies level, and checking level is belt-and-suspenders, not a hedge', () => {
+    expect(docsText).toContain('proven and mismatch already only ever');
+    expect(docsText).toMatch(/come back with level <b>verified<\/b>[^.]*protects your\s*agent against a future bug/);
   });
 
   it('defines expect as coming from your own records, never from the invoice', () => {
@@ -102,18 +108,15 @@ describe('/verify/agents: the safe-reading rule', () => {
     expect(call).toMatch(/never pass a processor, hosting or platform domain/);
   });
 
-  it('reads mismatch with domain null as "hold and ask the payee", not fraud', () => {
-    expect(docsText).toMatch(/If domain is null, [^"]*That is not fraud[^"]*Hold and ask the payee/);
-  });
-
-  it('treats level claimed as not verified for payments', () => {
-    expect(docsText).toContain("code: 'proven + claimed'");
-    expect(docsText).toContain('Treat it as not verified for payments');
+  it('treats unanchored as not verified for payments, distinct from mismatch', () => {
+    expect(docsText).toContain("code: 'unanchored'");
+    expect(docsText).toMatch(/unanchored[\s\S]{0,20}Something is on record, but no domain currently vouches for it/);
+    expect(docsText).toContain('Not fraud: a payee who has not reached Level 2');
   });
 
   it('holds and escalates a verified mismatch as a discrepancy, without calling it confirmed fraud', () => {
-    expect(docsText).toMatch(/code: 'mismatch \+ verified'[^\]]*consistent with a swapped invoice[^\]]*hold the payment, flag it, and escalate to a human\./);
-    expect(docsText).toMatch(/code: 'mismatch \+ verified'[^\]]*not as confirmed fraud/);
+    expect(docsText).toMatch(/code: 'mismatch'[\s\S]*?Hold the payment, flag it, and escalate to a human as a discrepancy/);
+    expect(docsText).toMatch(/code: 'mismatch'[\s\S]*?not as confirmed fraud/);
     expect(docs).not.toMatch(/is the swapped-invoice attack/i);
   });
 
@@ -125,7 +128,8 @@ describe('/verify/agents: the safe-reading rule', () => {
     // A self-send-proven address listed in the file is anchored to the domain (verified), and
     // drops back to claimed, keeping its self-send, when the file stops listing it.
     expect(payee).toContain('already proved by a self-send becomes verified once you list it in the file and verify the domain, and goes back to claimed if the file stops listing it.');
-    expect(payee).not.toMatch(/not yet upgraded|until that upgrade ships/);
+    expect(payee).toContain('it answers <b>unanchored</b>');
+    expect(payee).not.toMatch(/it answers <b>claimed<\/b>/);
   });
 
   it('says the check is proof-only and screens nothing', () => {
@@ -142,32 +146,30 @@ describe('/verify/agents: the safe-reading rule', () => {
 });
 
 describe('/verify/agents: what verified covers today', () => {
-  it('discloses that domain can be the account business-name domain, not re-checked', () => {
+  it('domain is always what actually anchors the destination, never the business name alone', () => {
     const domain = field('domain');
-    expect(domain).toContain("(the account\\'s first), which can differ from the domain that lists the destination");
-    expect(domain).toContain('Business-name domains are not re-checked today');
-    expect(domain).not.toContain('It vouches for the destination only when level is verified');
+    expect(domain).toContain('The domain that actually vouches for this destination right now');
+    expect(domain).toContain("Never the payee's business name on its own");
+    expect(domain).not.toContain('can differ from the domain that lists the destination');
+    expect(domain).not.toContain('not re-checked today');
     const covers = section('What verified covers today');
-    expect(covers).toContain('business-name domains are not re-checked today');
+    expect(covers).toContain('Always the domain that actually anchors the destination');
   });
 
-  it('discloses that a payment link is proven on registration, with no ownership proof', () => {
+  it('discloses that a payment link is proven on registration, weaker than an address, no link-specific ownership proof', () => {
     const covers = section('What verified covers today');
-    expect(covers).toContain('registered to an account first, not that the account proved it owns it');
-    expect(covers).toContain('not re-checked unless the link is monitored');
-    expect(field('level')).toContain('no ownership proof, and no freshness check unless the link is monitored');
-    expect(docsText).toMatch(/code: 'proven \+ claimed'[^\]]*for a payment link, it was registered to an account/);
+    expect(covers).toContain('Weaker today');
+    expect(covers).toContain('not a proof that this exact link belongs to them');
+    expect(field('level')).toContain('no ownership proof specific to the link, and no freshness check unless the link is monitored');
   });
 
-  it('says which lapses read claimed and which read unknown', () => {
-    // An address removed from its listing keeps a self-send proof (claimed) if it had one; if
-    // the listing was its only proof, it lapses (unknown). releaseDomainAnchor / decideAnchorLoss.
-    const level = field('level');
-    expect(level).toContain('and so does an address a self-send proved once it is removed from its listing');
-    expect(level).toContain('A platform listing that goes stale, or an address whose only proof was a listing and that is removed from it, reads unknown instead.');
-    expect(section('What verified covers today'))
-      .toContain('An address removed from the file reads claimed if a self-send also proved it, and unknown if the file was its only proof.');
-    expect(docsText).toMatch(/code: 'unknown'[^\]]*never proven, or the listing that was its only proof lapsed or was withdrawn/);
+  it('says which lapses read unanchored and which read unknown', () => {
+    // An address removed from its listing keeps a self-send proof (unanchored) if it had
+    // one; if the listing was its only proof, it lapses (unknown). decideAnchorLoss.
+    const covers = section('What verified covers today');
+    expect(covers).toContain('reads unanchored if a self-send also proved it, and unknown if the file was its only proof');
+    expect(covers).toContain('A list that goes stale reads unknown, not unanchored.');
+    expect(docsText).toMatch(/code: 'unknown'[\s\S]*?never proven, or the listing that was its only proof lapsed or was withdrawn/);
   });
 
   it('says since follows level: a verified address dates from its listing, not an older self-send', () => {
@@ -191,18 +193,38 @@ describe('/verify/agents: the documented fields match check.ts', () => {
     }
   });
 
-  it('documents every status check.ts can return, and both levels', () => {
-    const statusExpr = check.match(/const status = ([\s\S]*?);/);
+  it('documents every status check.ts can return, and both levels, with the pairing stated', () => {
+    const statusExpr = check.match(/const status =([\s\S]*?);/);
     expect(statusExpr, 'status expression not found in check.ts').not.toBeNull();
-    const statuses = [...new Set([...statusExpr![1].matchAll(/'(\w+)'/g)].map((s) => s[1]))];
-    expect(statuses.sort()).toEqual(['mismatch', 'proven', 'unknown']);
-    for (const s of statuses) expect(docs).toContain(`code: '${s}`);
-    for (const level of ['verified', 'claimed']) expect(docs).toContain(`+ ${level}'`);
+    // 'verified' also appears in this expression (a level comparison, not a status), so
+    // it and its 'claimed' counterpart are excluded from the status set on purpose.
+    const statuses = [...new Set([...statusExpr![1].matchAll(/'(\w+)'/g)].map((s) => s[1]))]
+      .filter((s) => s !== 'verified' && s !== 'claimed');
+    expect(statuses.sort()).toEqual(['mismatch', 'proven', 'unanchored', 'unknown']);
+    for (const s of statuses) expect(docs).toContain(`code: '${s}'`);
+    for (const level of ['verified', 'claimed']) expect(docs).toContain(`level ${level}`);
+    // The pairing itself, not just that both words appear somewhere.
+    expect(field('status')).toContain('proven and mismatch always come with level verified');
+    expect(field('status')).toContain('unanchored always comes with level claimed');
+    expect(field('status')).toContain('unknown always with level null');
   });
 
   it('documents the subdomain rule check.ts applies to expect', () => {
     expect(check).toContain("proving === expect || proving.endsWith('.' + expect)");
     expect(docsText).toContain('expect also matches any subdomain of it');
+  });
+
+  it('check.ts gates status on level before matching domain — the actual C5 fix', () => {
+    // Guards against the exact bug this rewrite closed: status coming from the domain
+    // match alone, so a stale/claimed hit could still read 'proven'.
+    expect(check).toMatch(/hit\.level !== 'verified' \? 'unanchored'/);
+    expect(check).toContain("domain: anchored ? provingDomain : null");
+  });
+
+  it('label is only ever returned alongside proven or mismatch, and only when it derives from domain', () => {
+    expect(check).toMatch(/const label = anchored && provingDomain \? displayableName\(/);
+    expect(field('label')).toContain('shown only alongside a proven or mismatch answer');
+    expect(field('label')).toContain('only when it derives from domain');
   });
 });
 

@@ -7,15 +7,15 @@ import Analytics from '@/components/Analytics.astro';
 // status proven + level verified + expect passed), and why everything else is a hold.
 // Public and indexable — this page IS the distribution.
 //
-// Today /api/verify/check derives `status` from the domain match alone and does not look
-// at `level`, so `proven` alone over-reports (a lapsed anchor, or a self-send wallet in an
-// account that holds a business name) and `mismatch` also fires when no domain vouches
-// for the destination at all. The copy below teaches agents to read status AND level
-// together, and says plainly what `verified` covers today: `domain` can be the account's
-// first business-name domain rather than the listing domain (not re-checked), and a
-// payment link is `proven` on registration, not on an ownership proof. Update those
-// caveats in the same change that fixes the code, not before.
-// tests/verify/agentDocs.test.ts pins the rule and the caveats so they cannot silently regress.
+// C5/S7b: status now comes from level first — proven and mismatch only ever come back
+// with level verified, unanchored always comes with level claimed, unknown always with
+// level null — so status alone already tells an agent which of the four to expect; the
+// AND-level-is-verified half of the rule is now redundant with status but kept anyway, as
+// belt-and-suspenders against a future bug, not as a hedge against today's behavior. domain
+// is now always the domain that actually vouches for the destination (or null), never the
+// account's business name on its own, so the caveats this comment used to list are gone.
+// tests/verify/agentDocs.test.ts pins the rule and the field/status contract so they
+// cannot silently regress.
 // Verify warns and flags; the payer decides. Keep the verbs to hold / flag / escalate.
 import '@/styles/tokens.css';
 
@@ -23,42 +23,36 @@ export const prerender = false;
 
 const ANSWERS = [
   {
-    code: 'proven + verified',
+    code: 'proven',
     cls: 'good',
     h: 'The only answer to proceed on',
-    p: 'The domain in the answer matches the expect you passed, and level says a proof is current. Proceed under your own policy, and only when you passed expect. Read what verified covers, below, before you rely on it: today the domain can be the payee account\'s business-name domain rather than the domain that lists the destination, and a payment-link answer is weaker than an address answer.',
+    p: "level is verified, and (you passed no expect, or the domain that anchors this destination matches it). Proceed under your own policy, and only when you passed expect: without it you only learn that some proof exists, not that it's your payee.",
   },
   {
-    code: 'proven + claimed',
-    cls: 'warn',
-    h: 'Control was proven or the destination was registered, but no domain vouches for it',
-    p: "For a crypto address, control was proven by a self-send (a small amount sent from the address to itself) or by a domain's file; for a payment link, it was registered to an account. Either way, no domain currently vouches for it: it was never listed on a proven domain, it was removed from the listing after a self-send proved it, its listing has not been re-confirmed in the last 24 hours, or, for a payment link, the account holds no verified business name or the link's monitoring has gone stale. Today this answer can come back even with expect passed, because domain may name the holder's business domain, or a payment link's own host, rather than a domain that lists this destination. Treat it as not verified for payments: hold and confirm with the payee.",
-  },
-  {
-    code: 'mismatch + verified',
+    code: 'mismatch',
     cls: 'bad',
     h: 'A domain stands behind this destination, and it is not the one you expected',
-    p: 'The loudest signal this API can emit: your records say one business, and the domain in a verified answer says another. It is consistent with a swapped invoice, so hold the payment, flag it, and escalate to a human. Escalate it as a discrepancy to confirm with the payee through a channel you already trust, not as confirmed fraud: today it can also come back when the payee\'s account reports a different domain of its own, when you passed a subdomain (pay.acme.com) of the domain they proved, when a platform\'s published list includes this destination (an exchange deposit address, for example), or when another account registered this payment link first.',
+    p: "level is verified — a domain currently vouches for this destination — but it is not the one you passed. The loudest signal this API can emit: your records say one business, the destination belongs to another. Hold the payment, flag it, and escalate to a human as a discrepancy to confirm with the payee through a channel you already trust, not as confirmed fraud: it can also come back when the payee genuinely operates more than one proven domain and you had the wrong one, or when you passed a subdomain that is not actually a subdomain of the one they proved.",
   },
   {
-    code: 'mismatch + claimed',
+    code: 'unanchored',
     cls: 'warn',
-    h: 'No domain vouches for it, so nothing could match',
-    p: "Today mismatch also comes back when level is claimed. If domain is null, a control-only proof is on record (a self-send for a crypto address, or an account registration for a payment QR) and no domain is attached, so there was nothing to match your expect against. That is not fraud: it is a payee who has not reached Level 2. Hold and ask the payee, through a channel you already trust, to confirm the destination. If domain is set, it names a domain that does not currently vouch for this destination (a lapsed listing, the holder's business domain, or a payment link's own host). That is weaker than a verified mismatch, but hold it the same way, and escalate to a human if the payee cannot confirm.",
+    h: 'Something is on record, but no domain currently vouches for it',
+    p: "level is claimed: control was proven (a self-send for a crypto address) or a payment link was registered to an account, but no domain backs it right now — never listed, removed from a listing, not re-confirmed within the last 24 hours, or (a payment link) the account holds no verified business name. Not fraud: a payee who has not reached Level 2, or whose proof has gone stale. Hold and confirm the destination with the payee through a channel you already trust.",
   },
   {
     code: 'unknown',
     cls: 'warn',
     h: 'No current proof on record',
-    p: 'No current proof of this destination is on record: it was never proven, or the listing that was its only proof lapsed or was withdrawn. Not an accusation, just an absence: treat it the way a browser treats a site with no certificate. Fail closed: hold and escalate.',
+    p: 'level is null: no proof of this destination is on record at all — it was never proven, or the listing that was its only proof lapsed or was withdrawn. Not an accusation, just an absence: treat it the way a browser treats a site with no certificate. Fail closed: hold and escalate.',
   },
 ];
 
 const FIELDS = [
-  ['status', 'proven, mismatch or unknown. Read it together with level: on its own it is not enough. Treat a status you do not recognize as a hold.'],
-  ['level', 'verified when a proof is current: for a crypto address, a listing on a proven domain re-confirmed within the last 24 hours; for a platform\'s list, a list refreshed within the last 24 hours; for a payment link, an account that holds a domain-verified business name (no ownership proof, and no freshness check unless the link is monitored). claimed when control was proven by a self-send, or a payment link was registered, but no domain vouches for the destination; a merchant listing not re-confirmed within 24 hours also drops to claimed, and so does an address a self-send proved once it is removed from its listing. A platform listing that goes stale, or an address whose only proof was a listing and that is removed from it, reads unknown instead. null when status is unknown.'],
-  ['domain', 'The domain your expect was matched against, or null. When the holder\'s account has a verified business name, it is that name\'s domain (the account\'s first), which can differ from the domain that lists the destination. Business-name domains are not re-checked today; only the listing\'s freshness goes into level. Otherwise it is the domain that publishes or lists the destination, or, for a payment link, the link\'s own host. It is null when the account has no verified business name and the destination is a self-send-only address or an EMV or UPI payload that carries no link.'],
-  ['label', 'The holder\'s verified business name or their own freeform label, or null. A freeform label is not checked against anything, and the answer does not say which one you got: display it if you like, but never decide on it. Never an identity we derived.'],
+  ['status', "proven, mismatch, unanchored or unknown. proven and mismatch always come with level verified; unanchored always comes with level claimed; unknown always with level null — so status alone tells you which, but the rule below still checks level too, as belt-and-suspenders. Treat a status you do not recognize as a hold."],
+  ['level', 'verified when a proof is current: for a crypto address, a listing on a proven domain re-confirmed within the last 24 hours; for a platform\'s list, a list refreshed within the last 24 hours; for a payment link, an account that holds a domain-verified business name (no ownership proof specific to the link, and no freshness check unless the link is monitored). claimed when control was proven by a self-send, or a payment link was registered, but no domain currently vouches for the destination. null when status is unknown.'],
+  ['domain', "The domain that actually vouches for this destination right now — what your expect was matched against — or null when status is unanchored or unknown. Never the payee's business name on its own if it isn't also what anchors this destination, and never a payment link's own host (stripe.com, buy.stripe.com — that names the processor, not the payee)."],
+  ['label', "A business name, shown only alongside a proven or mismatch answer, and only when it derives from domain — never the payee's raw freeform text, which we never treat as an identity. null otherwise, including whenever status is unanchored or unknown. Display it if you like, but never decide on it."],
   ['chain', 'The rail the destination is on: usually ethereum, polygon, avalanche, bitcoin, solana or litecoin, though a platform\'s published list may use its own chain names. url for any payment link or payment QR (EMV and UPI payloads included), or null.'],
   ['since', 'The date of the proof behind level (YYYY-MM-DD). For a verified crypto address, the date its listing on a proven domain was first confirmed, never an older self-send date; for a claimed one, the date control was proven. For a payment link, the date it was registered; for a platform\'s list, the date the platform proved its domain. Or null. It follows level: when an address drops from verified to claimed, since moves to the date control was proven, which can be earlier.'],
   ['proofAgeDays', 'Whole days since since. This is not freshness: an old proof can still be verified, and a lapsed listing reads claimed or unknown. Freshness lives in level. Because since follows level, proofAgeDays can jump when level changes.'],
@@ -158,10 +152,10 @@ const PRINCIPLES = [
       <pre>{`{
   // proceed only if status is "proven" AND level is "verified" AND you passed expect
   "v": 1,
-  "status": "proven",          // or "mismatch" | "unknown" (read it together with level)
-  "level": "verified",         // "verified" | "claimed" | null: see what verified covers
-  "domain": "x-capital.com",   // what your expect was matched against (may be a business-name domain)
-  "label": null,               // a business name or the holder's own label: display only, never decide on it
+  "status": "proven",          // or "mismatch" | "unanchored" | "unknown"
+  "level": "verified",         // "verified" | "claimed" | null — follows status; see below
+  "domain": "x-capital.com",   // the domain that vouches for this destination, or null
+  "label": null,               // a business name derived from domain, or null: display only, never decide on it
   "chain": "ethereum",
   "since": "2026-07-14",       // date of the proof behind level (verified address: when its listing was first confirmed)
   "proofAgeDays": 59,          // age of that proof, not freshness (freshness lives in level)
@@ -194,13 +188,11 @@ const mayProceed = res.ok
 if (!mayProceed) return holdForReview(body);               // flag it and escalate to a human`}</pre>
       <p class="body">
         Anything else is a hold: flag the payment and escalate to a human, or confirm the destination
-        with the payee through a channel you already trust. <b>Status alone is not enough today.</b>
-        proven can come back with level <b>claimed</b>, which means no domain currently vouches for
-        the destination, and mismatch can come back with <b>domain null</b>, which means there was
-        nothing to match. Read level on every answer. The last line of mayProceed also checks that the
-        answer's domain is the one you passed (or a subdomain of it), so an expect lost along the way
-        cannot pass. The rule is written so your agent stays correct if proven is later narrowed to
-        verified destinations only.
+        with the payee through a channel you already trust. proven and mismatch already only ever
+        come back with level <b>verified</b> — checking level again costs nothing and protects your
+        agent against a future bug in this API, so the sample above still checks both. The last line
+        of mayProceed also checks that the answer's domain is the one you passed (or a subdomain of
+        it), so an expect lost along the way cannot pass.
       </p>
     </section>
 
@@ -222,10 +214,10 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
         of them; this is what you rely on when you proceed.
       </p>
       <ul class="pr">
-        <li><b>A crypto address a payee listed.</b> The address is in the address file on a domain the payee's account proved, and that listing was re-confirmed within the last 24 hours. An address the payee first proved by a self-send becomes verified the same way, once the file lists it. A listing not re-confirmed in 24 hours reads claimed. An address removed from the file reads claimed if a self-send also proved it, and unknown if the file was its only proof.</li>
-        <li><b>A platform's published list.</b> The address is on the list a platform serves from its own proven domain, refreshed within the last 24 hours. A list that goes stale reads unknown, not claimed.</li>
-        <li><b>A payment link or payment QR.</b> Weaker today. proven means the link or QR was registered to an account first, not that the account proved it owns it. verified means that account holds a domain-verified business name, and it is not re-checked unless the link is monitored. Read it as the account's registration, not proof of ownership. If your policy needs a current ownership proof, hold payment-link answers for a human for now.</li>
-        <li><b>The domain in the answer.</b> When the payee's account holds a verified business name, domain is that name's domain (the account's first), which can differ from the domain that lists the destination. The account proved that domain when it reserved the name, but business-name domains are not re-checked today: only the listing's freshness goes into level. That is one more reason expect must come from your own records, and why a verified mismatch can come back for an honest payee with more than one domain.</li>
+        <li><b>A crypto address a payee listed.</b> The address is in the address file on a domain the payee's account proved, and that listing was re-confirmed within the last 24 hours. domain is that file's domain. An address the payee first proved by a self-send becomes verified the same way, once the file lists it. A listing not re-confirmed in 24 hours reads unanchored. An address removed from the file reads unanchored if a self-send also proved it, and unknown if the file was its only proof.</li>
+        <li><b>A platform's published list.</b> The address is on the list a platform serves from its own proven domain, refreshed within the last 24 hours. domain is that platform's domain. A list that goes stale reads unknown, not unanchored.</li>
+        <li><b>A payment link or payment QR.</b> Weaker today, and the one place domain is still not link-specific: verified means the account that registered the link separately holds a domain-verified business name (not re-checked unless the link is monitored, and never the account's business name on its own — see the next line), and domain is that name's domain. Read it as the account's registration plus its own separate identity proof, not a proof that this exact link belongs to them. If your policy needs a current link-ownership proof, hold payment-link answers for a human for now.</li>
+        <li><b>domain itself.</b> Always the domain that actually anchors the destination when status is proven or mismatch — the file's domain for a listed address, the platform's own domain for its list, or (payment links only, see above) the registering account's business-name domain. Never a domain the destination merely happens to share an account with, and never a payment link's own host.</li>
       </ul>
     </section>
 
@@ -258,9 +250,9 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
         <b>Cache your results.</b> Proof state changes slowly, so a <b>proven</b> answer with level
         <b>verified</b> is safe to cache for a few minutes (we suggest 5 to 15, keyed by value plus
         expect) rather than re-checking the same destination on every invoice in a batch. On a 503,
-        retry with backoff, and your policy may reasonably honor a recently cached proven + verified
-        answer while the check is unavailable. Never cache your way past a <b>mismatch</b> or a
-        <b>claimed</b>, and never treat a 503 as <b>unknown</b>: an outage is not an absence of proof,
+        retry with backoff, and your policy may reasonably honor a recently cached proven
+        answer while the check is unavailable. Never cache your way past a <b>mismatch</b> or an
+        <b>unanchored</b>, and never treat a 503 as <b>unknown</b>: an outage is not an absence of proof,
         which is exactly why the two are different signals.
       </p>
     </section>
@@ -269,8 +261,8 @@ if (!mayProceed) return holdForReview(body);               // flag it and escala
       <h2>If you are the one being paid</h2>
       <p class="body">
         Agents that follow this page proceed only on a <b>verified</b> answer. A self-send (Level 1)
-        proves you control an address, and it answers <b>claimed</b>, which careful agents hold for a
-        human. To be paid by agents without a hold, reach <b>Level 2, domain-verified</b>: publish the
+        proves you control an address, and it answers <b>unanchored</b>, which careful agents hold
+        for a human. To be paid by agents without a hold, reach <b>Level 2, domain-verified</b>: publish the
         small file on your site that proves your domain, and list your receiving addresses in it. The
         file is what makes an address verified. A DNS record also proves your domain and attaches your
         business name, but it lists no addresses, so on its own it leaves your addresses claimed. An

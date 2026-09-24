@@ -317,8 +317,17 @@ export interface VerifiedAddressHit {
   /** ISO datetime (UTC) behind the level — the "verified/claimed since" date. For 'verified' it is
    *  when the domain anchor was attached; for 'claimed', when control was proven. Null if unknown. */
   since: string | null;
-  /** Publishing domain (entity path), or null for a merchant self-listing. */
+  /** DISPLAY domain: an entity's publishing domain, or (merchant path) the account's
+   *  domain-verified business name's domain if it has one, else the domain that actually
+   *  anchors THIS destination. Prefers the business name for a nicer badge, so it can
+   *  differ from provingDomain below — see that field before matching against it. */
   domain: string | null;
+  /** MACHINE domain: the domain that actually vouches for this exact destination right
+   *  now — an entity's own list, or (merchant path) the destination's own proof_domain,
+   *  never the account's business-name domain. Null whenever level isn't 'verified', so
+   *  it is always safe to compare directly against an agent's `expect` (check.ts) or to
+   *  decide "Listed on" vs "verified via" (verifyPublicCard.ts) — domain above is not. */
+  provingDomain: string | null;
   /** The merchant's OWN self-chosen label (merchant path), or null. Never an identity we derived. */
   label: string | null;
   /** Rail the address is on, or null. */
@@ -372,7 +381,8 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     // entity proved its domain (verified_entities.proven_at).
     return {
       source: 'entity', level: 'verified', since: r.proven_at ? String(r.proven_at) : null,
-      domain: String(r.entity_domain), label: null, chain: r.chain ? String(r.chain) : null,
+      domain: String(r.entity_domain), provingDomain: String(r.entity_domain),
+      label: null, chain: r.chain ? String(r.chain) : null,
     };
   }
 
@@ -432,11 +442,17 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
     // proof (micro-deposit, no proof_domain) is Claimed, even if the operating business
     // is otherwise domain-known: the address itself isn't published anywhere to swap-check.
     const publishedDomain = !ambiguous && hit.proof_domain ? String(hit.proof_domain) : null;
+    // C5: the domain that actually vouches for THIS wallet, never the account's business
+    // name. Set only when the answer is truly 'verified' (fresh + anchored to
+    // publishedDomain) — an agent (check.ts) or a public card (verifyPublicCard.ts) can
+    // then compare against it directly without knowing any of the levels above.
+    const provingDomain = level === 'verified' ? publishedDomain : null;
     return {
       source: 'merchant',
       level,
       since,
       domain: vn?.domain ?? publishedDomain,
+      provingDomain,
       label: vn?.name ?? (hit.label ? String(hit.label) : null),
       chain: String(hit.rail),
     };
@@ -449,10 +465,18 @@ export async function lookupVerifiedAddress(rawValue: string): Promise<VerifiedA
  * proven this URL is theirs by registering it in their own account (account_claim)?
  *
  * Same no-attribution rules as the address lookup: returns only the merchant's
- * self-chosen label plus the URL's host for display — never tenant_id or any legal
- * identity. Claim-once guarantees at most one account owns a proven URL, so the
- * customer-scan match is unambiguous. The stored value is already normalized on save;
- * we normalize the query the same way and compare canonical forms.
+ * self-chosen label and (only once its own account is domain-verified) that domain —
+ * never the link's own host, which names the payment processor, not the merchant, and
+ * never tenant_id or any legal identity. Claim-once guarantees at most one account owns a
+ * proven URL, so the customer-scan match is unambiguous. The stored value is already
+ * normalized on save; we normalize the query the same way and compare canonical forms.
+ *
+ * D6, still open: nothing here separately anchors a link to a domain the way an address's
+ * .well-known file does (recordProofResult), so `level` rests entirely on the account
+ * holding SOME verified business name — not on that name's domain vouching for THIS link.
+ * A future anchor step (listing the link's canonical value in the file, the same as an
+ * address) would let `provingDomain` diverge from `domain` here the way it already can
+ * for an address.
  */
 export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddressHit | null> {
   const normalized = normalizeDestinationValue(rawUrl);
@@ -466,20 +490,25 @@ export async function lookupVerifiedUrl(rawUrl: string): Promise<VerifiedAddress
   const hit = (dest.rows as any[]).find((r) => normalizeDestinationValue(String(r.value)) === normalized);
   if (!hit) return null;
   const vn = await verifiedNameForTenant(String(hit.tenant_id));
-  let host: string | null = null;
-  try { host = new URL(normalized).host || null; } catch { host = null; }
-  // A claimed link is control-proven (account_claim). Verified only when the operating
-  // merchant is itself domain-verified (an accountable anchor); otherwise Claimed. Fail-closed:
-  // if the link is monitored (Pass C watches its published page) and that check has gone stale,
-  // downgrade verified→claimed rather than keep vouching a link we can no longer confirm is live.
+  // A claimed link is control-proven (account_claim — and D6 already requires the account
+  // to have had a proven domain before that could happen; see createDestination). Verified
+  // only when the operating merchant is ITSELF domain-verified (an accountable anchor);
+  // otherwise Claimed. Fail-closed: if the link is monitored (Pass C watches its published
+  // page) and that check has gone stale, downgrade verified→claimed rather than keep
+  // vouching a link we can no longer confirm is live.
   const monitored = hit.monitor_url != null;
   const confirmedAt = hit.last_confirmed_at ? String(hit.last_confirmed_at) : (hit.proven_at ? String(hit.proven_at) : null);
   const fresh = confirmedAt !== null && confirmedAt >= staleCutoffUtc();
   const level: 'verified' | 'claimed' = (vn?.domain && (!monitored || fresh)) ? 'verified' : 'claimed';
+  // D6: never the link's own host (buy.stripe.com vouches for nobody in particular — it's
+  // Stripe's domain, not the merchant's). domain/provingDomain are the SAME thing for a
+  // link, because nothing yet separately anchors a link to a domain the way an address's
+  // .well-known file does (see the deferred note where this function is documented).
   return {
     source: 'merchant', level,
     since: hit.proven_at ? String(hit.proven_at) : null,
-    domain: vn?.domain ?? host, label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url',
+    domain: vn?.domain ?? null, provingDomain: level === 'verified' ? (vn?.domain ?? null) : null,
+    label: vn?.name ?? (hit.label ? String(hit.label) : null), chain: 'url',
   };
 }
 

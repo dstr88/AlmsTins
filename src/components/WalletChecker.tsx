@@ -560,6 +560,7 @@ export default function WalletChecker({ prefilledAddress = '', c }: Props) {
               level: d.level,
               since: typeof d.since === 'string' ? d.since : null,
               domain: typeof d.domain === 'string' ? d.domain : null,
+              provingDomain: typeof d.provingDomain === 'string' ? d.provingDomain : null,
               label: typeof d.label === 'string' ? d.label : null,
               source: d.source === 'entity' || d.source === 'merchant' ? d.source : null,
             });
