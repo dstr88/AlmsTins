@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS petro_receipts (
   id           TEXT NOT NULL PRIMARY KEY,
   tenant_id    TEXT NOT NULL,
   receipt_date TEXT NOT NULL,
-  amount       REAL NOT NULL DEFAULT 0,
+  amount       DOUBLE PRECISION NOT NULL DEFAULT 0,
   description  TEXT,
   category     TEXT,
   filename     TEXT,

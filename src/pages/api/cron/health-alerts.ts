@@ -42,6 +42,9 @@ export const GET: APIRoute = async ({ request }) => {
 	//   - alert is enabled
 	//   - user has an alert_email
 	//   - wallet_id is set (wallet-level alerts only for now)
+	//   - the user is still a member of the wallet's tenant (the email carries the
+	//     wallet's address, label and health factor; a user removed from the
+	//     tenant, or a preference saved for another tenant's wallet, gets nothing)
 	await ensureUserLangColumn();
 	const rows = await db.execute(`
 		SELECT
@@ -61,6 +64,10 @@ export const GET: APIRoute = async ({ request }) => {
 		WHERE ap.enabled    = 1
 		  AND au.alert_email IS NOT NULL
 		  AND ap.wallet_id  IS NOT NULL
+		  AND EXISTS (
+		        SELECT 1 FROM tenant_memberships tm
+		        WHERE tm.tenant_id = w.tenant_id AND tm.user_id = ap.user_id
+		      )
 	`);
 
 	const prefs = rows.rows as unknown as Array<Record<string, unknown> & { lang: unknown }>;

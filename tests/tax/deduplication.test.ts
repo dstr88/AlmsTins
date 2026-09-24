@@ -103,8 +103,8 @@ function setupMock(opts: {
     if (sql.includes('JOIN transactions t')) {
       return Promise.resolve({ rows: opts.hashRows ?? [] });
     }
-    // Strategy 2 — onchain pool: CAST(value AS REAL) is unique to the onchain query
-    if (sql.includes('CAST(value AS REAL)')) {
+    // Strategy 2 — onchain pool: CAST(value AS double precision) is unique to the onchain query
+    if (sql.includes('CAST(value AS double precision)')) {
       return Promise.resolve({ rows: opts.onchainPoolRows ?? [] });
     }
     // Strategy 3 — batch rows: import_batch_id is present only in the strategy 3 query.

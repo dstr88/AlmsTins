@@ -8,6 +8,7 @@ import { tryAcquireLock } from '@/lib/cacheLock';
 import { getTokentxPaged, getNativeBalanceWei } from '@/lib/etherscan';
 import { getTokenBalances, getTokenMetadata } from '@/lib/alchemy';
 import { DEMO_TENANT_ID, isDemoWalletAddress, DEMO_WALLET_CONFIGS } from '@/lib/demo';
+import { sqlTimestamptz } from '@/lib/utcTimestamp';
 
 const SNOWTRACE_BASE_URL = 'https://api.snowtrace.io/api';
 const POLYGON_CHAIN_ID = 137;
@@ -1036,12 +1037,14 @@ async function buildHoldingsPayload(
 
 			if (basisPrice === null) {
 				try {
+					// Nearest import in time; timestamps are ISO-8601 UTC text. A row
+					// whose text is not ISO-8601 sorts last instead of failing the query.
 					const nearestResult = await db.execute({
 						sql: `SELECT tx_hash, timestamp_utc, asset_symbol, currency, amount, to_currency, to_amount, native_usd
 							FROM import_transactions
 							WHERE tenant_id = ? AND native_usd IS NOT NULL
 								AND (upper(asset_symbol) = ? OR upper(to_currency) = ? OR upper(currency) = ?)
-							ORDER BY ABS(julianday(timestamp_utc) - julianday(?)) ASC
+							ORDER BY ABS(EXTRACT(EPOCH FROM (${sqlTimestamptz('timestamp_utc')} - CAST(? AS timestamptz)))) ASC NULLS LAST
 							LIMIT 1`,
 						args: [tenantId, entrySymbol, entrySymbol, entrySymbol, firstSeenAt],
 					});

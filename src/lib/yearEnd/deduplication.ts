@@ -99,8 +99,10 @@ export async function runDuplicateSweep(tenantId: string): Promise<DedupStats> {
 		args: [tenantId],
 	});
 
+	// double precision, not REAL: REAL is 4-byte on Postgres (it was 8-byte on SQLite),
+	// and a raw base-unit token amount above ~3.4e38 overflows it and fails the query.
 	const onchainPool = await db.execute({
-		sql: `SELECT id, token_symbol, CAST(value AS REAL) AS qty, timestamp
+		sql: `SELECT id, token_symbol, CAST(value AS double precision) AS qty, timestamp
 		      FROM transactions
 		      WHERE tenant_id = ? AND is_duplicate != -1 AND value IS NOT NULL
 		      ORDER BY timestamp ASC`,

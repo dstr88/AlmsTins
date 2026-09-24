@@ -162,14 +162,16 @@ export const GET: APIRoute = async ({ params, request }) => {
 		}
 
 		// Only look at to_address (contracts the user SENT to — potential locked funds)
-		// Include tx count, total value sent, and last interaction date per contract
+		// Include tx count, total value sent, and last interaction date per contract.
+		// value is cast to double precision, not REAL: REAL is 4-byte on Postgres, and a
+		// raw base-unit token amount above ~3.4e38 overflows it and fails the query.
 		const result = await db.execute({
 			sql: `SELECT
 					chain,
 					LOWER(to_address) AS address,
 					COUNT(*) AS tx_count,
 					MAX(timestamp) AS last_seen,
-					SUM(CASE WHEN CAST(value AS REAL) > 0 THEN CAST(value AS REAL) ELSE 0 END) AS total_value
+					SUM(CASE WHEN CAST(value AS double precision) > 0 THEN CAST(value AS double precision) ELSE 0 END) AS total_value
 				FROM transactions
 				WHERE wallet_id = ?
 				  AND tenant_id = ?

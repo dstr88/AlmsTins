@@ -62,9 +62,11 @@ export const GET: APIRoute = async ({ request }) => {
 		args.push(`%${note.toLowerCase()}%`);
 	}
 	if (q) {
-		// q matches: tx_hash, description, kind, asset_symbol, notes
+		// q matches: tx_hash, description, kind, asset_symbol, notes. Postgres LIKE is
+		// case-sensitive, so each column is folded to match the folded pattern
+		// (Solana signatures are mixed-case base58).
 		conditions.push(`(
-			t.tx_hash       LIKE ? OR
+			lower(t.tx_hash)     LIKE ? OR
 			lower(t.description) LIKE ? OR
 			lower(t.kind)        LIKE ? OR
 			upper(t.asset_symbol) LIKE ? OR

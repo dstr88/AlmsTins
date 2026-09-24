@@ -18,15 +18,13 @@ let _ensured: Promise<void> | null = null;
 export function ensureUserLangColumn(): Promise<void> {
   if (!_ensured) {
     _ensured = db
-      .execute({ sql: "ALTER TABLE auth_users ADD COLUMN lang TEXT NOT NULL DEFAULT 'en'" })
+      .execute({ sql: "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS lang TEXT NOT NULL DEFAULT 'en'" })
       .then(() => undefined)
       .catch((err: unknown) => {
+        // IF NOT EXISTS makes an existing column a no-op, so any error here is real. Swallow
+        // it anyway: reads fall back to 'en', writes are best-effort.
         const msg = String((err as { message?: string })?.message ?? err);
-        // "duplicate column name" => already present (migration or prior run). Swallow
-        // everything else too: reads fall back to 'en', writes are best-effort.
-        if (!/duplicate column/i.test(msg)) {
-          console.warn('[userLang] ensure column:', msg);
-        }
+        console.warn('[userLang] ensure column:', msg);
       });
   }
   return _ensured;

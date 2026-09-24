@@ -32,7 +32,7 @@ export const GET: APIRoute = async ({ request }) => {
 		 FROM wallets
 		 WHERE wallet_type = 'onchain'
 		   AND (chains LIKE '%bitcoin%'
-		     OR address LIKE 'bc1%'
+		     OR lower(address) LIKE 'bc1%'
 		     OR (length(address) BETWEEN 26 AND 35 AND (address LIKE '1%' OR address LIKE '3%')))
 		 ORDER BY tenant_id, created_at ASC`,
 	);

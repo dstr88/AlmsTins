@@ -46,7 +46,7 @@ export const POST: APIRoute = async ({ request }) => {
 			sql: `SELECT address FROM wallets
 			      WHERE tenant_id = ?
 			        AND (chains LIKE '%bitcoin%'
-			          OR address LIKE 'bc1%'
+			          OR lower(address) LIKE 'bc1%'
 			          OR (length(address) BETWEEN 26 AND 35 AND (address LIKE '1%' OR address LIKE '3%')))
 			      LIMIT 20`,
 			args: [tenantId],
