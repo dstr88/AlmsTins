@@ -950,6 +950,27 @@ export interface ProofRecordResult {
 }
 
 /**
+ * Does this account hold `d`'s wallet only through a claim made under the old, unbound
+ * self-send rule? True for a legacy claim itself, and for any canonical twin of one in the same
+ * account (another letter case, rail or URI wrapping) that has no bound self-send proof of its
+ * own. `legacy` is the account's legacyClaims. Pure. The one rule for the owner's domain proof
+ * (recordProofResult) and the watchman (recheckDomainListing).
+ */
+function legacyHoldTest(
+  legacy: { id: string; kind: DestinationKind; value: string }[],
+): (d: Pick<Destination, 'id' | 'kind' | 'value' | 'proofStatus' | 'proofMethod'>) => boolean {
+  const ids = new Set(legacy.map((c) => c.id));
+  const wallets = legacy.map((c) => claimIdentity(c.kind, c.value));
+  return (d) => {
+    if (ids.has(d.id)) return true;
+    // A proven self-send that isn't legacy is a bound one: a control proof of its own.
+    if (d.proofStatus === 'proven' && d.proofMethod === 'micro_deposit') return false;
+    const wallet = claimIdentity(d.kind, d.value);
+    return wallets.some((w) => sameClaimIdentity(w, wallet));
+  };
+}
+
+/**
  * Record a successful proof: mark the (tenant, domain) proof proven and anchor every
  * registered address destination the published file lists (see decideAnchor). Both sides
  * are normalized for the match.
@@ -986,15 +1007,7 @@ export async function recordProofResult(
           WHERE tenant_id = ? AND domain = ?`,
     args: [now, now, now, tenantId, domain],
   });
-  const legacyIds = new Set(legacy.map((c) => c.id));
-  const legacyWallets = legacy.map((c) => claimIdentity(c.kind, c.value));
-  const heldByLegacy = (d: Destination): boolean => {
-    if (legacyIds.has(d.id)) return true;
-    // A proven self-send that isn't legacy is a bound one: a control proof of its own.
-    if (d.proofStatus === 'proven' && d.proofMethod === 'micro_deposit') return false;
-    const wallet = claimIdentity(d.kind, d.value);
-    return legacyWallets.some((w) => sameClaimIdentity(w, wallet));
-  };
+  const heldByLegacy = legacyHoldTest(legacy);
   // Matched on addressKey, like the guard and the public lookup (a listed 'BC1Q…' vouches for a
   // registered 'bc1q…'); the watchman's Pass B matches the same way, so it never releases what
   // this anchored.
@@ -1056,9 +1069,12 @@ export async function recordProofResult(
     }
   }
   // A proven domain unlocks its matching business name: reserve the domain-anchored name
-  // for any of the tenant's labels that derive from this domain. Best-effort, non-fatal. A
-  // row this proof refused as a legacy claim lends it no label: its answer must not gain the
-  // business name through the proof that refused it.
+  // for any of the tenant's labels that derive from this domain. Best-effort, non-fatal.
+  // A row this proof refused as a legacy claim does not reserve a name here: only that. The name
+  // belongs to the account, not to a row. Another row's label, a later proof or a DNS proof
+  // (recordDomainControlProof) can still reserve it, and the public lookup then shows it on
+  // every proven row of the account (verifiedNameForTenant), the refused one included. That
+  // row's level stays Claimed, which is what an agent must read (/verify/agents).
   const refused = new Set(out.legacyUnbound);
   for (const d of dests) {
     if (refused.has(d.id)) continue;
@@ -1206,6 +1222,54 @@ export async function markDestinationsConfirmed(tenantId: string, ids: string[])
       args: [now, now, id, tenantId],
     });
   }
+}
+
+export interface ListingRecheck {
+  /** Anchored here, but the file no longer lists them: released (the owner is alerted). */
+  missing: Destination[];
+  /** Listed, but held only through a legacy unbound claim (legacyHoldTest): released. */
+  legacyHeld: Destination[];
+  /** Listed and standing on a control proof of their own: re-confirmed. */
+  confirmed: string[];
+}
+
+/**
+ * Pass B, once a proven domain's file still validates: settle the addresses anchored to it
+ * (`proven`, from getProvenAddressDestinations) against the addresses the file lists now.
+ *  - Not listed any more → released (releaseDomainAnchor), for the caller to alert on.
+ *  - Listed, but this account holds the wallet only through a claim made under the old,
+ *    unbound self-send rule (the row itself, or a twin with no bound proof of its own) →
+ *    released too, never re-confirmed. The owner's proof refuses to anchor such a row
+ *    (decideAnchor), but one anchored before that refusal existed (a copy of a legacy claim,
+ *    file-flipped under the owner's own domain) would otherwise stay Verified for as long as
+ *    the file lists it. A file-proven copy lapses (the listing was its only proof); the
+ *    dashboard then offers it a proof of its own.
+ *  - Listed and standing on a proof of its own → re-confirmed (markDestinationsConfirmed).
+ * Matched on addressKey, as recordProofResult matched them. The legacy claims are read before
+ * anything is written: if they can't be read this throws, nothing is released or re-confirmed,
+ * and the anchors lapse to Claimed at the max-stale TTL (fail closed). Tenant-scoped.
+ */
+export async function recheckDomainListing(
+  tenantId: string,
+  domain: string,
+  proven: Destination[],
+  listedAddresses: string[],
+): Promise<ListingRecheck> {
+  await ensureVerifyTables();
+  const heldByLegacy = legacyHoldTest(proven.length ? await legacyClaims(tenantId) : []);
+  const listed = new Set(listedAddresses.map(addressKey).filter(Boolean));
+  const out: ListingRecheck = { missing: [], legacyHeld: [], confirmed: [] };
+  for (const p of proven) {
+    if (!listed.has(addressKey(p.value))) out.missing.push(p);
+    else if (heldByLegacy(p)) out.legacyHeld.push(p);
+    else out.confirmed.push(p.id);
+  }
+  await releaseDomainAnchor(tenantId, domain, [...out.missing, ...out.legacyHeld]);
+  if (out.legacyHeld.length) {
+    console.warn('[verify] listing released: held only through a legacy self-send claim:', out.legacyHeld.map((p) => p.id));
+  }
+  await markDestinationsConfirmed(tenantId, out.confirmed);
+  return out;
 }
 
 /** Whole-domain failure: flip the proof to 'failed' so it stops being monitored until re-proven. */

@@ -16,7 +16,9 @@
  *     DEFINITIVE change (challenge/file no longer validates, or a proven address is
  *     no longer vouched) the affected destinations lose the domain anchor and the owner
  *     is alerted: a file-proven address lapses; a self-send-proven one keeps its control
- *     proof and drops verified→claimed (releaseDomainAnchor).
+ *     proof and drops verified→claimed (releaseDomainAnchor). A listed address the account
+ *     holds only through a legacy (unbound) self-send claim is released too and never
+ *     re-confirmed (recheckDomainListing).
  *     A transient unreachable is NOT treated as a swap (no lapse, no alert).
  *
  * Protected by CRON_SECRET (header or ?secret=). Alerts reuse the liquidation-email
@@ -34,8 +36,8 @@ import { listEntitiesForMonitor, monitorEntity } from '@/lib/verifyEntities';
 import { ENTITY_NOT_APPROVED } from '@/lib/verifyEntityAccess';
 import {
   listProvenDomainsForMonitor, getProvenAddressDestinations,
-  releaseDomainAnchor, markDestinationsConfirmed, markDomainProofFailed, markDomainProofRechecked,
-  addressKey, listMonitoredDestinations, recordMonitorResult,
+  releaseDomainAnchor, recheckDomainListing, markDomainProofFailed, markDomainProofRechecked,
+  listMonitoredDestinations, recordMonitorResult,
 } from '@/lib/verifyRegistry';
 import { verifyDomainProof } from '@/lib/verifyProof';
 import { checkPublishedSource } from '@/lib/verifyPublishedSource';
@@ -150,22 +152,16 @@ export const GET: APIRoute = async ({ request }) => {
             await markDomainProofRechecked(d.tenantId, d.domain);
           }
         } else {
-          // Proof still holds — check each proven address is still vouched.
-          // addressKey, as the owner's proof matched them (recordProofResult): a listed 'BC1Q…'
-          // still vouches for a registered 'bc1q…'.
-          const vouched = new Set(res.addresses.map(addressKey));
-          const missing = proven.filter((p) => !vouched.has(addressKey(p.value)));
-          if (missing.length) {
-            await releaseDomainAnchor(d.tenantId, d.domain, missing);
-            if (await alert(d.tenantId, 'revoked', d.domain, missing.map((m) => m.value))) {
-              merchant.addressDroppedAlerts++;
-            }
+          // Proof still holds — settle each anchored address against the file (matched on
+          // addressKey, as the owner's proof matched them). Dropped ones are released and alerted
+          // on. Listed ones are positively re-confirmed (advancing last_confirmed_at keeps their
+          // badge 'verified'), except a listing that leans only on a legacy self-send claim,
+          // which is released instead. Addresses NOT confirmed this run keep their old timestamp
+          // and lapse 'verified'→'claimed' via the max-stale TTL.
+          const { missing } = await recheckDomainListing(d.tenantId, d.domain, proven, res.addresses);
+          if (missing.length && (await alert(d.tenantId, 'revoked', d.domain, missing.map((m) => m.value)))) {
+            merchant.addressDroppedAlerts++;
           }
-          // Positively re-confirm the addresses the (re-validated) proof still vouches — advances
-          // last_confirmed_at so their public badge stays 'verified'. Addresses NOT confirmed this
-          // run keep their old timestamp and lapse 'verified'→'claimed' via the max-stale TTL.
-          const stillVouched = proven.filter((p) => vouched.has(addressKey(p.value)));
-          if (stillVouched.length) await markDestinationsConfirmed(d.tenantId, stillVouched.map((p) => p.id));
           await markDomainProofRechecked(d.tenantId, d.domain);
         }
       } catch (err) {

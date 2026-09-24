@@ -124,6 +124,29 @@ vi.mock('@/lib/db', () => {
       return { rows };
     }
     if (sql.startsWith('SELECT display_name, domain FROM verify_claimed_names WHERE tenant_id = ?')) return { rows: [] };
+    // The watchman's Pass B: the addresses anchored to a domain, and what it writes to them.
+    if (/FROM verify_destinations WHERE tenant_id = \? AND proof_domain = \? AND proof_status = 'proven' AND kind = 'address'$/.test(sql)) {
+      return { rows: store.rows.filter((r) => r.tenant_id === args[0] && r.proof_domain === args[1]
+        && r.proof_status === 'proven' && r.kind === 'address').map(out) };
+    }
+    if (sql === "UPDATE verify_destinations SET proof_status = 'lapsed', updated_at = ? WHERE id = ? AND tenant_id = ? AND proof_method = 'well_known' AND proof_domain = ?") {
+      const [, id, tenantId, domain] = args as string[];
+      const row = store.rows.find((r) => r.id === id && r.tenant_id === tenantId && r.proof_method === 'well_known' && r.proof_domain === domain);
+      if (row) row.proof_status = 'lapsed';
+      return { rows: [], rowsAffected: row ? 1 : 0 };
+    }
+    if (sql === "UPDATE verify_destinations SET proof_domain = NULL, domain_anchored_at = NULL, last_confirmed_at = NULL, updated_at = ? WHERE id = ? AND tenant_id = ? AND proof_method <> 'well_known' AND proof_domain = ?") {
+      const [, id, tenantId, domain] = args as string[];
+      const row = store.rows.find((r) => r.id === id && r.tenant_id === tenantId && r.proof_method !== 'well_known' && r.proof_domain === domain);
+      if (row) Object.assign(row, { proof_domain: null, domain_anchored_at: null, last_confirmed_at: null });
+      return { rows: [], rowsAffected: row ? 1 : 0 };
+    }
+    if (sql === 'UPDATE verify_destinations SET last_confirmed_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?') {
+      const [confirmedAt, , id, tenantId] = args as string[];
+      const row = store.rows.find((r) => r.id === id && r.tenant_id === tenantId);
+      if (row) row.last_confirmed_at = confirmedAt;
+      return { rows: [], rowsAffected: row ? 1 : 0 };
+    }
     if (/FROM verify_destinations WHERE id = \? AND tenant_id = \?$/.test(sql)) {
       return { rows: store.rows.filter((r) => r.id === args[0] && r.tenant_id === args[1]).map(out) };
     }
@@ -206,6 +229,7 @@ import {
   claimFamily, claimIdentity, sameClaimIdentity, canAnchor, isClaimedElsewhere, ensureVerifyTables,
   recordProofResult, verifyMicroDeposit, createDestination, issueDepositChallenge, getDepositChallenge,
   listDestinationsForOwner, recordMonitorResult, addressKey, compareToDestinations,
+  getProvenAddressDestinations, recheckDomainListing,
 } from '../../src/lib/verifyRegistry';
 import { merchantAddressAssurance } from '../../src/lib/verifyAnchor';
 import { lookupVerifiedAddress } from '../../src/lib/verifyEntities';
@@ -1010,5 +1034,69 @@ describe('segwit letter case: BC1Q… and bc1q… are one wallet', () => {
     store.rows = [row({ id: 'lower', tenant_id: 'merchant', rail: 'bitcoin', value: BTC })];
     expect(await compareToDestinations('merchant', BTC_UP)).toMatchObject({ matched: true, destination: { id: 'lower' } });
     expect(await compareToDestinations('merchant', SOL)).toMatchObject({ matched: false });
+  });
+});
+
+describe('the watchman (Pass B) never keeps a listing that leans on a legacy claim', () => {
+  // Before the owner's proof refused them (decideAnchor), a same-account copy of a legacy claim
+  // could be file-flipped and anchored. Pass B re-confirms by id, so without this it would keep
+  // such a copy Verified for as long as the file lists it.
+  const T0 = '2026-09-01 00:00:00';
+  const legacyRow = (p: Partial<Row> = {}) => row({
+    id: 'legacy', tenant_id: 'merchant', rail: 'bitcoin', value: BTC, proof_status: 'proven',
+    proof_method: 'micro_deposit', legacy_unbound: true, bound_test_proven: false, ...p,
+  });
+  const fileCopy = (p: Partial<Row>) => row({
+    id: 'copy', tenant_id: 'merchant', rail: 'litecoin', value: BTC, proof_status: 'proven', proof_method: 'well_known',
+    proven_at: T0, proof_domain: 'merchant.example', domain_anchored_at: T0, last_confirmed_at: T0, ...p,
+  });
+  const recheck = async (listed: string[]) => recheckDomainListing(
+    'merchant', 'merchant.example', await getProvenAddressDestinations('merchant', 'merchant.example'), listed,
+  );
+
+  it('lapses a file-flipped copy (another rail, case or URI wrapping) instead of re-confirming it', async () => {
+    for (const copy of [{}, { rail: 'bitcoin', value: BTC_UP }, { rail: 'bitcoin', value: `bitcoin:${BTC}?amount=1` }]) {
+      store.rows = [legacyRow(), fileCopy(copy)];
+      store.calls = [];
+      const res = await recheck([BTC]);
+      expect(res.legacyHeld.map((p) => p.id), JSON.stringify(copy)).toEqual(['copy']);
+      expect(res).toMatchObject({ missing: [], confirmed: [] });
+      expect(store.rows.find((r) => r.id === 'copy'), JSON.stringify(copy)).toMatchObject({ proof_status: 'lapsed', last_confirmed_at: T0 });
+      // The legacy row itself is untouched: it keeps its claim and shows Claimed.
+      expect(store.rows.find((r) => r.id === 'legacy')).toMatchObject({ proof_status: 'proven', proof_domain: null });
+    }
+  });
+
+  it('still re-confirms a copy with a bound self-send of its own, and every row of an account with no legacy claim', async () => {
+    store.rows = [legacyRow(), fileCopy({ proof_method: 'micro_deposit', bound_test_proven: true })];
+    let res = await recheck([BTC]);
+    expect(res).toMatchObject({ missing: [], legacyHeld: [], confirmed: ['copy'] });
+    expect(store.rows.find((r) => r.id === 'copy')!.last_confirmed_at).not.toBe(T0);
+
+    store.rows = [fileCopy({ id: 'plain', rail: 'bitcoin' })];
+    res = await recheck([BTC_UP]); // listed in the QR case: the same wallet
+    expect(res).toMatchObject({ missing: [], legacyHeld: [], confirmed: ['plain'] });
+  });
+
+  it('releases what the file dropped, as before', async () => {
+    store.rows = [
+      fileCopy({ id: 'file', rail: 'bitcoin' }),
+      row({ id: 'self', tenant_id: 'merchant', rail: 'ethereum', value: CHECKSUM, proof_status: 'proven', proof_method: 'micro_deposit',
+        proof_domain: 'merchant.example', domain_anchored_at: T0, last_confirmed_at: T0 }),
+    ];
+    const res = await recheck([]);
+    expect(res.missing.map((p) => p.id)).toEqual(['file', 'self']);
+    expect(store.rows.find((r) => r.id === 'file')!.proof_status).toBe('lapsed');
+    expect(store.rows.find((r) => r.id === 'self')).toMatchObject({ proof_status: 'proven', proof_domain: null });
+  });
+
+  it('fails closed when the legacy claims cannot be read: nothing is released or re-confirmed', async () => {
+    store.rows = [legacyRow(), fileCopy({})];
+    store.legacyThrows = true;
+    const proven = await getProvenAddressDestinations('merchant', 'merchant.example');
+    store.calls = [];
+    await expect(recheckDomainListing('merchant', 'merchant.example', proven, [BTC])).rejects.toThrow();
+    expect(writes()).toHaveLength(0);
+    expect(store.rows.find((r) => r.id === 'copy')).toMatchObject({ proof_status: 'proven', last_confirmed_at: T0 });
   });
 });
